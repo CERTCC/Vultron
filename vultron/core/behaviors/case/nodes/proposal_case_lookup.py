@@ -16,7 +16,7 @@
 
 """Store lookups that resolve a ``CaseProposal`` to the case it applies to.
 
-A ``Create(as_CaseProposal)`` names a report, not a case.  Two nodes of the
+A ``Create(CaseProposal)`` names a report, not a case.  Two nodes of the
 received-side tree need the case it resolves to: the closed-case decline
 (``CheckProposalCaseFullyClosedNode``) and the accept arm's case reuse
 (``LoadExistingCaseNode``).  Both resolve it here, through

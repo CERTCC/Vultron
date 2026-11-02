@@ -31,10 +31,10 @@ Named constants for known request/reply pairs:
 - :data:`OFFER_CASE_PARTICIPANT_REPLY_TYPES` — closes when Case Owner sends
   ``Accept`` or ``Reject`` of ``Offer(CaseParticipant)``.
 - :data:`INVITE_ACTOR_TO_CASE_REPLY_TYPES` — closes when invited actor sends
-  ``Accept`` or ``Reject`` of ``Invite(Case)``.
+  ``Accept`` or ``Reject`` of ``Invite(Actor)[target=VulnerabilityCaseStub]``.
 - :data:`INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES` — closes when the joined
   participant sends ``Accept``, ``TentativeReject`` or ``Reject`` of the
-  full-case ``Invite(Actor)[target=Case]``.
+  full-case ``Invite(Actor)[target=VulnerabilityCase]``.
 - :data:`CASE_PARTICIPANT_ROLE_OFFER_REPLY_TYPES` — closes when the target's
   ``Accept`` or ``Reject`` of a role ``Offer(CaseParticipantRole)`` is
   ledgered (CM-33-005).
@@ -69,9 +69,9 @@ INVITE_ACTOR_TO_CASE_REPLY_TYPES: frozenset[str] = frozenset(
     }
 )
 
-#: Reply semantic types that close a full-case ``Invite(Actor)[target=Case]``
-#: protocol pair — the ask the CASE_MANAGER puts to a joined participant
-#: (CM-11-010, CM-11-011, ADR-0121).
+#: Reply semantic types that close a full-case
+#: ``Invite(Actor)[target=VulnerabilityCase]`` protocol pair — the ask the
+#: CASE_MANAGER puts to a joined participant (CM-11-010, CM-11-011, ADR-0121).
 INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES: frozenset[str] = frozenset(
     {
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_FULL_CASE.value,

@@ -131,7 +131,7 @@ def deliver_relayed_invite(
     embargo: as_EmbargoEvent,
     make_payload: Any,
 ) -> HandlerResult:
-    """Deliver ``COORD``'s relayed ``Invite(embargo)`` to ``INVITEE``."""
+    """Deliver ``COORD``'s relayed ``Invite(EmbargoEvent)`` to ``INVITEE``."""
     invite = em_propose_embargo_activity(
         embargo=embargo,
         context=case.id_,

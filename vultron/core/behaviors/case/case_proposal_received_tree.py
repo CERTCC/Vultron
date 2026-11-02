@@ -1,9 +1,9 @@
 """BT tree for the CreateCaseProposal received-side use case.
 
-Case-actor side: handles an inbound ``Create(as_CaseProposal)`` and emits
+Case-actor side: handles an inbound ``Create(CaseProposal)`` and emits
 two outbound activities in sequence:
 
-  1. ``Accept(as_CaseProposal)`` — acknowledgement to the report receiver
+  1. ``Accept(CaseProposal)`` — acknowledgement to the report receiver
   2. ``Create(VulnerabilityCase)`` — case announcement to the report receiver
 
 The accept flow performs CaseActor-native initialization per ADR-0041, emits
@@ -18,7 +18,7 @@ relays a contested creation's revision:
      (AC-3, CM-14-003); a contest registers the losing terms as a revision
      (EP-04-003)
   5. Seed reporter as an embargo signatory (CM-14-005)
-  6. Emit ``Accept(as_CaseProposal)``
+  6. Emit ``Accept(CaseProposal)``
   7. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
   8. Commit canonical ledger entries (AC-4) — after the emits, so every
      participant holds the case before its first ``Announce(CaseLedgerEntry)``
@@ -51,12 +51,12 @@ The top-level tree is a Selector with four branches, tried in order:
 * **Closed case** — ``DeclineClosedCaseProposalArm``: the proposal resolves to
   a fully closed case (the owner's own case for the report, or the case this
   proposal's stored ``Accept`` names), so record the decline and emit
-  ``Reject(as_CaseProposal)``.  Nothing is written for the case (CP-05-006,
+  ``Reject(CaseProposal)``.  Nothing is written for the case (CP-05-006,
   CP-05-008, CM-23-013).  The factory's post-close guard cannot do this: the
   proposal names a report, not a case.
 
 * **Decline** — ``DeclineProposalArm``: the ``EvaluateCaseProposal`` call-out
-  point refused, so record the decline and emit ``Reject(as_CaseProposal)``.
+  point refused, so record the decline and emit ``Reject(CaseProposal)``.
   Its guards are proposal-keyed: ``report_id`` is supplied by the sender, so a
   report-keyed guard is one the sender can satisfy in order to skip the gate.
 
@@ -202,7 +202,7 @@ def create_case_proposal_received_tree(
     *,
     sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
-    """Return the received-side BT for processing a ``Create(as_CaseProposal)``.
+    """Return the received-side BT for processing a ``Create(CaseProposal)``.
 
     The tree is a Sequence of intake (CLP-10-017), the sender guard the
     factory composes from *sender_rule*, and a four-branch Selector: the
@@ -224,7 +224,7 @@ def create_case_proposal_received_tree(
       proposal id from the owner), or the case the proposal's stored
       ``Accept`` names (a redelivery of the original proposal).  The arm
       records the decline, with ``CLOSED_CASE_DECLINE_REASON``, and emits
-      ``Reject(as_CaseProposal)``, both in one ``RefusalActTransaction``.  It
+      ``Reject(CaseProposal)``, both in one ``RefusalActTransaction``.  It
       writes nothing for the case: no ``CaseLedgerEntry`` and no case or
       participant change.  The decline record is keyed on the proposal, so
       CM-23-013 does not bar it.  The ``Reject`` declines only this delivery
@@ -235,7 +235,7 @@ def create_case_proposal_received_tree(
 
     **Branch 3 — decline** (``DeclineProposalArm``, CP-05-002, CP-05-004):
       Runs the ``EvaluateCaseProposal`` admission call-out point and, when it
-      refuses, records the decline and emits ``Reject(as_CaseProposal)`` in one
+      refuses, records the decline and emits ``Reject(CaseProposal)`` in one
       ``RefusalActTransaction``.  Three properties are load-bearing:
 
       * It sits **before** the accept flow, so a refusal happens ahead of every
@@ -292,7 +292,7 @@ def create_case_proposal_received_tree(
 
       Then the outbound messaging steps:
 
-      8. ``EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
+      8. ``EmitAcceptCaseProposalNode`` — emits Accept(CaseProposal)
       9. ``EmitCreateVulnerabilityCaseNode`` — emits
          Create(VulnerabilityCase) with the case inline (ADR-0041 AC-5),
          under an id derived from the proposal (OX-06-002); skipped by

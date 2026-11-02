@@ -165,7 +165,7 @@ _MIN_LABELLED_NODES = 48
 #: Node ids whose wire form no registry entry carries on its own, mapped to the
 #: pattern that does carry it.  ``ActivateEmbargo`` shares
 #: ``AddEmbargoEventToCasePattern`` with ``AddEmbargoToCase`` — the activation
-#: form is the same ``Add(Event)`` distinguished only by ``inReplyTo`` — so it
+#: form is the same ``Add(EmbargoEvent)`` distinguished only by ``inReplyTo`` — so it
 #: has no ``SEMANTIC_REGISTRY`` entry of its own and would otherwise be skipped
 #: unchecked, which is precisely the node ISSUE-3456 AC-6 was about.
 _FORM_ALIASES = MappingProxyType({"ActivateEmbargo": "AddEmbargoToCase"})
@@ -259,7 +259,9 @@ def _authoritative_verbs() -> MappingProxyType[str, str]:
 
 
 def _render_as2_form(pattern: ActivityPattern) -> str:
-    """The canonical AS2 wire form of a pattern, e.g. ``Read(Offer(Report))``.
+    """The canonical AS2 wire form of a pattern.
+
+    For example, ``Read(Offer(VulnerabilityReport))``.
 
     ``object_`` is either an object type or a nested pattern, which is what makes
     the composite forms — ``Accept(Invite(EmbargoEvent))`` is an ``Accept`` whose
@@ -419,7 +421,7 @@ def test_mermaid_labels_are_the_canonical_as2_form():
     reader needs to tell an activity apart, such as the case ``target`` of the
     case owner's ``Accept``/``Reject(EmbargoEvent)``. The qualifier is *checked*
     against ``_EXPECTED_QUALIFIER`` rather than stripped: when two activities
-    once shared ``Add(Event)`` and were told apart only by ``inReplyTo``,
+    once shared ``Add(EmbargoEvent)`` and were told apart only by ``inReplyTo``,
     discarding it let a label assert the exact opposite of the truth while this
     test passed.
 

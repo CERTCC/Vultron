@@ -10,7 +10,10 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Node-level tests for the received ``Offer(Report)`` effect nodes (#3872)."""
+"""Node-level tests for the received ``Offer(VulnerabilityReport)`` effect nodes.
+
+Issue #3872.
+"""
 
 import pytest
 from py_trees.common import Status

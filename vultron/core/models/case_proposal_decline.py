@@ -13,10 +13,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Durable record that a ``Create(as_CaseProposal)`` was declined.
+"""Durable record that a ``Create(CaseProposal)`` was declined.
 
 The admission decision writes the record and queues the
-``Reject(as_CaseProposal)`` in one transaction (``RefusalActTransaction``,
+``Reject(CaseProposal)`` in one transaction (``RefusalActTransaction``,
 CLP-07-015), so the store holds both or neither.  Two properties depend on it:
 
 - **The decision is terminal.** Once the record exists, a later delivery of

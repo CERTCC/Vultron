@@ -242,7 +242,7 @@ class _EmbargoMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Leave(as_EmbargoEvent)[context=case]``.
+        """Create and persist a ``Leave(EmbargoEvent)[context=VulnerabilityCase]``.
 
         A signatory's withdrawal from the embargo in force (MSM-07-010).  The
         case is the activity's ``context``, which is also where the snapshot
@@ -277,7 +277,7 @@ class _EmbargoMixin:
         to: list[str] | None = None,
         attributed_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Announce(as_EmbargoEvent)`` activity."""
+        """Create and persist an ``Announce(EmbargoEvent)`` activity."""
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         activity = announce_embargo_activity(
             embargo=embargo,

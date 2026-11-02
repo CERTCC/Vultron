@@ -112,7 +112,7 @@ def _make_close_case_event(
     receiving_actor_id: str | None = CASE_ACTOR_ID,
     leave_actor_id: str = VENDOR_ID,
 ) -> CloseCaseReceivedEvent:
-    """Construct a CloseCaseReceivedEvent (Leave(as_VulnerabilityCase)).
+    """Construct a CloseCaseReceivedEvent (Leave(VulnerabilityCase)).
 
     Args:
         receiving_actor_id: The actor whose inbox is processing this Leave.
@@ -201,7 +201,7 @@ class TestCloseCaseLedgerRouting:
     def test_caseactor_self_leave_commits_close_case_ledger_entry(self):
         """Case-actor-authored Leave (AutoCloseBranchNode path) is committed.
 
-        AutoCloseBranchNode emits Leave(as_VulnerabilityCase) with
+        AutoCloseBranchNode emits Leave(VulnerabilityCase) with
         actor=case_actor_id to signal that all participants have closed.  The
         case-actor must accept its own Leave as a canonical ledger entry
         because the close_case signature IS case-authored (DEMOMA-07-003 step 5).

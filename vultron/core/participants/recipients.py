@@ -53,8 +53,8 @@ records only, in no fixed order, and skips what it cannot read silently).
 Record precedence matches it: the stored record first, an inline copy only as
 the fallback.
 
-The report tree's own ``Create(Case)`` (``case_creation.CreateCaseActivity``)
-does not come here: ``case_creation._collect_create_case_addressees``
+The report tree's own ``Create(VulnerabilityCase)``
+(``case_creation.CreateCaseActivity``) does not come here: ``case_creation._collect_create_case_addressees``
 builds its addressees from the actor, the report and the offer rather than
 the roster, and every one of them is seated at case initialization.
 

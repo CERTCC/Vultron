@@ -245,7 +245,7 @@ def wait_for_case_on_container(
 ) -> None:
     """Poll *client*'s DataLayer until *case_id* appears.
 
-    Proves that an outbox activity (e.g. ``Create(as_VulnerabilityCase)``) was
+    Proves that an outbox activity (e.g. ``Create(VulnerabilityCase)``) was
     delivered to the actor on *client* and its inbox handler processed it.
 
     In single-server integration tests both actors share the same DataLayer so

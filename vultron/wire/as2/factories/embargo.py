@@ -109,7 +109,7 @@ def em_propose_embargo_activity(
     min_rsvp_window: timedelta = DEFAULT_MIN_RSVP_WINDOW,
     **kwargs,
 ) -> as_Invite:
-    """Build an Invite(as_EmbargoEvent) — the EP/EV message.
+    """Build an Invite(EmbargoEvent) — the EP/EV message.
 
     Proposes a new embargo for the case.
 
@@ -402,7 +402,7 @@ def withdraw_from_embargo_activity(
     context: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Leave:
-    """Build a Leave(as_EmbargoEvent)[context=VulnerabilityCase].
+    """Build a Leave(EmbargoEvent)[context=VulnerabilityCase].
 
     A signatory's withdrawal from the embargo in force (MSM-07-010,
     ADR-0122): the receiver declines the sender's ``AGREED`` row for the
@@ -442,7 +442,7 @@ def announce_embargo_activity(
     context: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Announce:
-    """Build an Announce(as_EmbargoEvent) — announces an active embargo.
+    """Build an Announce(EmbargoEvent) — announces an active embargo.
 
     Args:
         embargo: The ``as_EmbargoEvent`` being announced.
@@ -540,7 +540,7 @@ def create_embargo_event_activity(
     embargo: as_EmbargoEvent,
     **kwargs,
 ) -> as_Create:
-    """Build a Create(as_EmbargoEvent): the case's creation wrote an embargo.
+    """Build a Create(EmbargoEvent): the case's creation wrote an embargo.
 
     The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
     embargo in full, right after the genesis entry (CLP-07-013); never sent
@@ -569,7 +569,7 @@ def create_embargo_consent_activity(
     row: as_EmbargoConsent,
     **kwargs,
 ) -> as_Create:
-    """Build a Create(as_EmbargoConsent): the CASE_MANAGER created a row.
+    """Build a Create(EmbargoConsent): the CASE_MANAGER created a row.
 
     The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
     new consent row in full (ADR-0122, CLP-07-013); never sent as a message.
@@ -597,7 +597,7 @@ def update_embargo_consent_activity(
     row: as_EmbargoConsent,
     **kwargs,
 ) -> as_Update:
-    """Build an Update(as_EmbargoConsent): the CASE_MANAGER changed a row.
+    """Build an Update(EmbargoConsent): the CASE_MANAGER changed a row.
 
     The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
     changed consent row in full (ADR-0122, CLP-07-013); never sent as a

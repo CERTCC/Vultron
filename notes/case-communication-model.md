@@ -71,7 +71,7 @@ participants learn of case-state changes. No participant messages another direct
 
 | Phase | Rule |
 |---|---|
-| **Before case creation** | Finder sends `Offer(Report)` directly to Vendor — no CASE_MANAGER exists yet. The only peer-to-peer exception. |
+| **Before case creation** | Finder sends `Offer(VulnerabilityReport)` directly to Vendor — no CASE_MANAGER exists yet. The only peer-to-peer exception. |
 | **Case creation / bootstrap** | `Create(VulnerabilityCase)` introduces the CASE_MANAGER (trust bootstrap, one time). |
 | **Inviting a new participant** | See [Invite/Accept Handshake Routing](#inviteaccept-handshake-routing). |
 | **After case is active** | Every message from any participant goes to the CASE_MANAGER only. |
@@ -174,7 +174,7 @@ Participant replies to the full-case Invite, carrying its own ledger position:
   Accept (RV) → RM.VALID · TentativeReject (RI) → RM.INVALID ·
   Reject (RC) → RM.CLOSED (CM-11-011)
 
-Reject(Invite(stub)) instead of Accept → RM.CLOSED on the kept, inert record
+Reject(Invite(Actor)[target=VulnerabilityCaseStub]) instead of Accept → RM.CLOSED on the kept, inert record
 (CM-11-007)
 ```
 

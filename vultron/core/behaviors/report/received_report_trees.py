@@ -88,11 +88,12 @@ def create_validate_report_received_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the single-BT received-side tree for ValidateReport (ADR-0022).
 
-    Composes the validate-report workflow for a received ``Accept(Offer(Report))``
-    activity: the sender declares that *its* RM state is ``VALID``.  All nodes
-    that need the sender's identity receive ``sender_actor_id`` as an explicit
-    constructor arg so the tree can run under ``actor_id=receiving_actor_id``
-    while the RM write is about the *sender* (RSH-08-001, BT-17-006).
+    Composes the validate-report workflow for a received
+    ``Accept(Offer(VulnerabilityReport))`` activity: the sender declares that
+    *its* RM state is ``VALID``.  All nodes that need the sender's identity
+    receive ``sender_actor_id`` as an explicit constructor arg so the tree can
+    run under ``actor_id=receiving_actor_id`` while the RM write is about the
+    *sender* (RSH-08-001, BT-17-006).
 
     The sender must be a participant of the case (HP-01-006), and the
     declaration is adjudicated under the received-side RM acceptance rule
@@ -264,7 +265,7 @@ def create_ack_report_received_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the AckReportReceived workflow.
 
-    Handles receipt of a ``Read(Offer(Report))`` (AckReport, RK).  RK goes
+    Handles receipt of a ``Read(Offer(VulnerabilityReport))`` (AckReport, RK).  RK goes
     from an actor the ``Offer(VulnerabilityReport)`` was addressed to, to the
     reporter, and never to the CASE_MANAGER (RMB-08-003), so the tree has no
     case context, no ledger commit and nothing to emit.

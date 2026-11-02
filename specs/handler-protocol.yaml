@@ -220,7 +220,7 @@ groups:
       CASE_MANAGER-addressed message at an actor that is not the case's CASE_MANAGER.
       Another is a copy of an activity whose `to` does not name the receiving actor.
       `cc`, `bto` and `bcc` address no Vultron recipient (OX-08-001, ADR-0109). A
-      `cc`-only receiver thus holds such a copy, of an `Offer(Report)` (HP-09-001,
+      `cc`-only receiver thus holds such a copy, of an `Offer(VulnerabilityReport)` (HP-09-001,
       HP-09-002, HP-10-001) as of any other activity.
     rationale: >-
       The disposition is the receiver's report on its own handling (HP-01-004). If
@@ -234,8 +234,8 @@ groups:
       The `HP-01-005`-marked tests under `test/core/use_cases/received/` drive each affected
       handler at a receiver that is not the CASE_MANAGER, or not an entitled addressee, and
       assert `REFUSED` with no protocol effect: an empty outbox and no case-state write.
-      There is one deliberate retention: `Offer(Report)`, whose handler stores the report
-      and the Offer before the addressing check so that a receiver with
+      There is one deliberate retention: `Offer(VulnerabilityReport)`, whose handler
+      stores the report and the Offer before the addressing check so that a receiver with
       `auto_create_case` off keeps the data for a later explicit decision (CM-15-002); the
       refused receipt still proposes no case. A `Join(VulnerabilityCase)` names its case
       and carries no snapshot to hold (ADR-0165), so a refused one stores nothing. A
@@ -720,8 +720,8 @@ groups:
       Every check of whether an activity is addressed to the receiver MUST read one
       shared definition. Under it, the receiver sent the activity, is named in `to`,
       or is an active participant (CM-10-004) of a case whose participants
-      collection `to` names. An `Offer(Report)`'s case-creation check reads its `to`
-      part alone (HP-09-001).
+      collection `to` names. An `Offer(VulnerabilityReport)`'s case-creation check
+      reads its `to` part alone (HP-09-001).
     rationale: >-
       Two definitions of "addressed to me" would let one tree act on a copy that a
       different tree refuses. One shared definition gives every received tree the

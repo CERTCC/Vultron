@@ -52,7 +52,7 @@ def create_invite_actor_to_full_case_received_tree(
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
-    """Received-side BT for the full-case ``Invite(Actor)[target=Case]``.
+    """Received-side BT for the full-case ``Invite(Actor)[target=VulnerabilityCase]``.
 
     The CASE_MANAGER commits the Invite in the tree that emits it and never
     receives its own Invite (ADR-0109), so the receiver is the invitee.  It

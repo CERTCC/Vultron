@@ -62,7 +62,7 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Offer", "VulnerabilityReport"),
     # The CASE_MANAGER's ownership-transfer Offer (CM-21-005, ADR-0148).
     ("Offer", "VulnerabilityCase"),
-    # The Case Owner's ownership-transfer proposal, Offer(Offer(Case)),
+    # The Case Owner's ownership-transfer proposal, Offer(Offer(VulnerabilityCase)),
     # committed as received (ADR-0148).  Owner-authored, so not in
     # ``_CASE_AUTHORED_SIGNATURES``.
     ("Offer", "Offer"),

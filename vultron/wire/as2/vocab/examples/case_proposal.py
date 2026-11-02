@@ -1,7 +1,7 @@
 """Vocabulary examples for the CaseProposal message flow.
 
-Demonstrates ``Create(as_CaseProposal)``, ``Accept(as_CaseProposal)``,
-and ``Reject(as_CaseProposal)`` activities as specified in ADR-0023 and
+Demonstrates ``Create(CaseProposal)``, ``Accept(CaseProposal)``,
+and ``Reject(CaseProposal)`` activities as specified in ADR-0023 and
 ``specs/case-proposal.yaml`` CP-01 through CP-03.
 """
 
@@ -64,7 +64,7 @@ def make_case_proposal() -> as_CaseProposal:
 def vendor_profile() -> VultronOrganization:
     """The vendor's full actor profile, with its published embargo policy.
 
-    ``Create(as_CaseProposal)`` carries this inline as its ``actor``: it is
+    ``Create(CaseProposal)`` carries this inline as its ``actor``: it is
     where the case-actor service reads the Case Owner's actor default from
     (EP-01-001, CP-01-010).
     """
@@ -84,7 +84,7 @@ def vendor_profile() -> VultronOrganization:
 
 
 def create_case_proposal() -> as_Create:
-    """Build ``Create(as_CaseProposal)`` — CP-03-001.
+    """Build ``Create(CaseProposal)`` — CP-03-001.
 
     Sent by the vendor actor to the case-actor service's inbox to request
     case initialization (CP-04-001).  The ``actor`` is the vendor's full
@@ -100,7 +100,7 @@ def create_case_proposal() -> as_Create:
 
 
 def accept_case_proposal() -> as_Accept:
-    """Build ``Accept(as_CaseProposal)`` — CP-03-002.
+    """Build ``Accept(CaseProposal)`` — CP-03-002.
 
     Sent by the case-actor service to the vendor's inbox to acknowledge
     acceptance of the proposal.  ``Create(VulnerabilityCase)`` follows
@@ -115,7 +115,7 @@ def accept_case_proposal() -> as_Accept:
 
 
 def reject_case_proposal() -> as_Reject:
-    """Build ``Reject(as_CaseProposal)`` — CP-03-003.
+    """Build ``Reject(CaseProposal)`` — CP-03-003.
 
     Sent by the case-actor service to the vendor's inbox to decline the
     proposal (CP-05-004).

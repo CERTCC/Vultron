@@ -61,7 +61,7 @@ class CheckProposalAlreadyAnsweredNode(DataLayerAction):
     """Return SUCCESS if this proposal was already accepted.
 
     Guards the admission decision against re-adjudicating a proposal the service
-    already answered. Once ``Accept(as_CaseProposal)`` has been sent the answer
+    already answered. Once ``Accept(CaseProposal)`` has been sent the answer
     is irrevocable (CP-05-005), so a later "decline" must never reach the wire.
 
     The evidence is the ``CaseProposalAdmissionRecord`` for this proposal, an
@@ -121,12 +121,12 @@ class CheckProposalAlreadyAnsweredNode(DataLayerAction):
 class CheckProposalCaseFullyClosedNode(DataLayerAction):
     """Return SUCCESS if this proposal resolves to a fully closed case.
 
-    A ``Create(as_CaseProposal)`` names a report, not a case, so the factory's
+    A ``Create(CaseProposal)`` names a report, not a case, so the factory's
     post-close guard (``CaseOpenToExternalWritesNode``) cannot see which case
     it would touch.  This node answers that question for the proposal tree.
     When the case is fully closed (its ledger holds the CASE_MANAGER's own
     ``RM.CLOSED`` status entry), the
-    proposal is declined with ``Reject(as_CaseProposal)`` and nothing is
+    proposal is declined with ``Reject(CaseProposal)`` and nothing is
     written for the case (CP-05-006, CP-05-008, CM-23-013).
 
     Every case the proposal resolves to is checked: the proposer's own case

@@ -15,8 +15,8 @@
 
 """Demo for the CaseProposal protocol round-trip (CP-04 through CP-06).
 
-Exercises the full ``Create(as_CaseProposal)`` →
-``Accept(as_CaseProposal)`` + ``Create(VulnerabilityCase)`` round-trip
+Exercises the full ``Create(CaseProposal)`` →
+``Accept(CaseProposal)`` + ``Create(VulnerabilityCase)`` round-trip
 between a vendor actor and the co-located case-actor service, per
 ADR-0023 and ``specs/case-proposal.yaml`` CP-07-003.
 
@@ -26,12 +26,12 @@ Workflow
    trigger, which writes its pending ``ReportCaseLink`` (CBT-01-005).
 2. The vendor processes the report: ``create_receive_report_case_tree``
    runs, which includes ``ProposeReportCaseToActorNode`` — this queues
-   ``Create(as_CaseProposal)`` addressed to the case-actor service and
+   ``Create(CaseProposal)`` addressed to the case-actor service and
    flushes the vendor's outbox.
-3. The case-actor service receives ``Create(as_CaseProposal)`` and
+3. The case-actor service receives ``Create(CaseProposal)`` and
    responds with two activities:
 
-   a. ``Accept(as_CaseProposal)`` — acknowledgement to the vendor
+   a. ``Accept(CaseProposal)`` — acknowledgement to the vendor
    b. ``Create(VulnerabilityCase)`` — case announcement to the vendor
 
 4. Verification:
@@ -93,8 +93,8 @@ def demo_case_proposal_round_trip(
 
     Reporter submits a report through its own trigger.  The vendor's BT tree
     includes ``ProposeReportCaseToActorNode``, which queues
-    ``Create(as_CaseProposal)`` to the case-actor service.  The
-    case-actor responds with ``Accept(as_CaseProposal)`` and
+    ``Create(CaseProposal)`` to the case-actor service.  The
+    case-actor responds with ``Accept(CaseProposal)`` and
     ``Create(VulnerabilityCase)``.
 
     Args:
@@ -123,11 +123,11 @@ def demo_case_proposal_round_trip(
 
     case = None
     with demo_step(
-        "Step 2: Verify ProposeReportCaseToActorNode sent Create(as_CaseProposal)"
+        "Step 2: Verify ProposeReportCaseToActorNode sent Create(CaseProposal)"
         " and the case-actor responded"
     ):
         with demo_check(
-            "Accept(as_CaseProposal) exists — case-actor accepted the proposal"
+            "Accept(CaseProposal) exists — case-actor accepted the proposal"
         ):
             # The vendor received the Accept, so it is read from the vendor's
             # archive record of it, never a row under the case-actor's id
@@ -142,7 +142,7 @@ def demo_case_proposal_round_trip(
             assert accept_activities, (
                 "Expected at least one Accept activity in the DataLayer "
                 "after the CaseProposal round-trip (CP-05-003).  "
-                "The case-actor may not have processed Create(as_CaseProposal)."
+                "The case-actor may not have processed Create(CaseProposal)."
             )
             logger.info("Accept activities found: %d", len(accept_activities))
 

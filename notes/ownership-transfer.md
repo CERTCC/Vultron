@@ -4,7 +4,7 @@ status: active
 kind: guidance
 description: >
   Rules for the ownership-transfer routing model (ADR-0053, partially superseded
-  by ADR-0148, proposed): the owner proposes Offer(Offer(Case)) to the
+  by ADR-0148, proposed): the owner proposes Offer(Offer(VulnerabilityCase)) to the
   CASE_MANAGER, which makes the one Offer the transferee answers, and every step
   routes through the CASE_MANAGER so every participant receives the
   CaseLedgerEntry broadcast; what each component must preserve, including that

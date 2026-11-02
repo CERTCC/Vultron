@@ -758,7 +758,7 @@ groups:
     kind: project
     statement: >-
       Creation-time embargo initialization MUST run at most once per case. A
-      `Create(as_CaseProposal)` that resolves to an existing `VulnerabilityCase` MUST NOT
+      `Create(CaseProposal)` that resolves to an existing `VulnerabilityCase` MUST NOT
       run it again in any EM state other than `NONE` — `PROPOSED`, `ACTIVE`, `REVISE`, or
       `EXITED` — and any embargo terms carried on such a proposal MUST NOT be reconciled against the
       case: the embargo belongs to the case, not to the report, so terms that conflict with
@@ -808,6 +808,10 @@ groups:
     - rel_type: depends_on
       spec_id: EMB-18-001
       note: The guard reads EM state; it never writes it.
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5622, which only renamed its
+    # activity notation's types; the split into one obligation per ID belongs to #5219.
+    - compound_statement
 - id: EP-05
   title: Revision Activation Consent Rule
   specs:
@@ -1855,7 +1859,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the CASE_MANAGER admits a participant (`Accept(Invite(stub))`) while an embargo
+      When the CASE_MANAGER admits a participant
+      (`Accept(Invite(Actor)[target=VulnerabilityCaseStub])`) while an embargo
       proposal is open, it MUST relay an `Invite(EmbargoEvent)` for every open proposal to
       the joiner and commit each as a ledger entry, after the joiner holds the case and the
       prior ledger. Each Invite has `actor` set to the CASE_MANAGER's ID and `attributedTo`

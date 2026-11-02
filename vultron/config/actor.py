@@ -89,9 +89,9 @@ class ActorConfig(BaseModel):
             Defaults to an empty list.  ``CVDRole.CASE_OWNER`` is always
             appended at participant-creation time (BTND-05-002).
         auto_create_case: When ``True``, create a ``VulnerabilityCase``
-            immediately on ``Offer(Report)`` receipt (CM-15-001, CM-12-001,
+            immediately on ``Offer(VulnerabilityReport)`` receipt (CM-15-001, CM-12-001,
             CM-22-001).  When ``False``, defer case creation so the receiver
-            can send a pre-case ACK (``Read(Offer(Report))``, VAM-02-003)
+            can send a pre-case ACK (``Read(Offer(VulnerabilityReport))``, VAM-02-003)
             before deciding to accept or reject (CM-15-002, CM-15-003;
             ADR-0015).  Defaults to ``True``.
         case_actor_service_url: Base URL of the dedicated CaseActor service
@@ -119,8 +119,8 @@ class ActorConfig(BaseModel):
         default=True,
         description=(
             "When True (default), create a VulnerabilityCase immediately on "
-            "Offer(Report) receipt per ADR-0015. When False, defer case "
-            "creation to allow a pre-case ACK (Read(Offer(Report))) first."
+            "Offer(VulnerabilityReport) receipt per ADR-0015. When False, defer case "
+            "creation to allow a pre-case ACK (Read(Offer(VulnerabilityReport))) first."
         ),
     )
     case_actor_service_url: HttpUrl | None = Field(

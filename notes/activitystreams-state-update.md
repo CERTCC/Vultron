@@ -44,10 +44,11 @@ Derive a BT-built activity's `name` from the object's own attributes
 (`object_.name or object_.id_`), never `repr()` or `str()`. The outbound adapter
 does not sanitize semantic content.
 
-## A `cc`-Only Receiver of `Offer(Report)` Refuses It
+## A `cc`-Only Receiver of `Offer(VulnerabilityReport)` Refuses It
 
-Only a `to` recipient of `Offer(Report)` creates a case; a `cc`-only receiver
-reports `REFUSED` with a reason naming the addressing (HP-01-005, HP-09-001).
+Only a `to` recipient of `Offer(VulnerabilityReport)` creates a case; a `cc`-only
+receiver reports `REFUSED` with a reason naming the addressing (HP-01-005,
+HP-09-001).
 
 ## A Received `Update(VulnerabilityCase)` Is Not Processed
 

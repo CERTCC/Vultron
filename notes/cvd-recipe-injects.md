@@ -119,8 +119,9 @@ embargo date, then exercises the `close_case` / publication path unilaterally.
 - Reporter may proceed to Public Awareness independently
 
 **Inject design**: After report submission and validation, the Vendor actor sends
-a `Reject(Report)` rather than `Accept(Report)`. Verify Reporter can proceed
-through the rest of the CVD lifecycle unilaterally.
+a `Reject(Offer(VulnerabilityReport))` rather than
+`Accept(Offer(VulnerabilityReport))`. Verify Reporter can proceed through the rest
+of the CVD lifecycle unilaterally.
 
 ---
 

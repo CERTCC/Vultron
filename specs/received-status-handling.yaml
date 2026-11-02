@@ -752,7 +752,7 @@ groups:
   title: One Move, One Mover — Received-Side Write Subject and Pipeline
   description: >
     A protocol state transition may reach a receiver in more than one wire
-    shape: the activity that performed the move (`TentativeReject(Offer(Report))`)
+    shape: the activity that performed the move (`TentativeReject(Offer(VulnerabilityReport))`)
     and a declaration of the resulting state (`Add(ParticipantStatus)` carrying
     `rmState`). These are two layers of one move, not competing encodings.
     Authority is a property of the pipeline, not of the message: the mover

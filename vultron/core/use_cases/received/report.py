@@ -75,7 +75,7 @@ def _submit_report_verdict(
     request: SubmitReportReceivedEvent,
     receiving_actor_id: str,
 ) -> HandlerResult:
-    """Classify the one ``Offer(Report)`` tree's outcome (#2255).
+    """Classify the one ``Offer(VulnerabilityReport)`` tree's outcome (#2255).
 
     The tree keeps the report, the Offer and the offer record, refuses an
     Offer not addressed to the receiver (HP-01-005), and, when the Offer
@@ -281,7 +281,8 @@ class ValidateReportReceivedUseCase:
                 request.activity_id,
             )
             return HandlerResult.refused(
-                "Accept(Offer(Report)) is missing its report id or offer id"
+                "Accept(Offer(VulnerabilityReport)) is missing its report id "
+                "or offer id"
             )
 
         receiving_actor_id = resolve_receiving_actor_id(
@@ -406,7 +407,7 @@ class InvalidateReportReceivedUseCase:
 
 
 class AckReportReceivedUseCase:
-    # RK goes from an actor the Offer(Report) was addressed to, to the
+    # RK goes from an actor the Offer(VulnerabilityReport) was addressed to, to the
     # reporter, which holds the Offer and checks the sender against it; it is
     # never sent to the CASE_MANAGER (RMB-08-003, RMB-08-004).
     sender_entitlement: ClassVar[SenderRule] = SenderRule.before_case(

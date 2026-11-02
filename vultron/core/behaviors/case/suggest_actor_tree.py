@@ -460,8 +460,9 @@ def create_accept_actor_recommendation_received_tree(
 
     Commits a canonical ``CaseLedgerEntry`` (CM-16-006 step 1), then fans
     out: sends ``AcceptActorRecommendation`` to the original recommender
-    (CM-16-006 step 3) and ``Invite(CaseStub+embargo+roles)`` to the
-    invitee (CM-16-006 step 4, CM-17).
+    (CM-16-006 step 3) and ``Invite(Actor)[target=VulnerabilityCaseStub]``,
+    whose stub carries the embargo and roles, to the invitee (CM-16-006 step 4,
+    CM-17).
 
     Tree structure::
 

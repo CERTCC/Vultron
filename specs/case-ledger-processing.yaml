@@ -2033,13 +2033,13 @@ groups:
     rationale: >-
       `to:` and `cc:` arrive as the sender wrote them, and the receiving actor id is
       canonical. An exact match misses a recipient written with a trailing slash, and
-      the receiver refuses mail that was addressed to it. `Offer(Report)` can have
-      several recipients and reads its eligibility from `to:` (HP-09-001), so this
-      mistake refuses a valid report.
+      the receiver refuses mail that was addressed to it.
+      `Offer(VulnerabilityReport)` can have several recipients and reads its
+      eligibility from `to:` (HP-09-001), so this mistake refuses a valid report.
     verification: >-
       `test_submit_report_trailing_slash_recipient_creates_case` in
       `test/core/use_cases/received/test_submit_report_received.py` addresses
-      an `Offer(Report)` to the receiver with a trailing slash and asserts the
+      an `Offer(VulnerabilityReport)` to the receiver with a trailing slash and asserts the
       case is created; `test/core/predicates/test_addressing.py` pins the
       comparison.
     relationships:

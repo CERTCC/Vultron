@@ -582,7 +582,9 @@ def test_a_replica_follows_a_participants_adopted_case_status():
 def test_a_replica_follows_a_participants_engagement_decision(
     factory, semantic_type, target
 ):
-    """Join/Ignore(Case) from the bystander moves its RM on the owner's replica."""
+    """Join/Ignore(VulnerabilityCase) from the bystander moves its RM on the
+    owner's replica.
+    """
     net = LedgerNetwork(
         f"https://example.org/cases/replay-{semantic_type}", em_state=EM.NONE
     )
@@ -932,7 +934,7 @@ def test_case_status_writes_nothing_at_a_replica():
 
 
 # The report-verdict "writes nothing at a replica" half of AC-6
-# (TentativeReject / Reject(Offer(Report))) is exercised in
+# (TentativeReject / Reject(Offer(VulnerabilityReport))) is exercised in
 # ``test/core/behaviors/report/test_received_report_trees.py`` (a
 # non-CASE_MANAGER receiver archives the activity but the RM write is gated
 # out), with the manager-path transition and sender-as-subject covered by

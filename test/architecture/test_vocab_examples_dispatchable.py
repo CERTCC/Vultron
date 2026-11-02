@@ -39,8 +39,9 @@ Three defects found when this was first measured:
   discriminates on ``target_``, so the example matched none of the patterns and
   ``docs/reference/messages/case_management.md`` documented the wrong field
   (fixed, #3438).
-* ``read_report`` previously built ``Read(Report)`` while ``AckReportPattern``
-  required ``Read(Offer(Report))`` — fixed in #3439/#3455.
+* ``read_report`` previously built ``Read(VulnerabilityReport)`` while
+  ``AckReportPattern`` required ``Read(Offer(VulnerabilityReport))`` — fixed in
+  #3439/#3455.
 * ``choose_preferred_embargo`` had a factory and a wire class but no registered
   pattern and no ``MessageSemantics``, so no peer could route it (#3433).  ADR-0100
   retired the poll rather than building it, and #3469 removed the class, the

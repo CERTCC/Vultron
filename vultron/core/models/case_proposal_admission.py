@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Durable record that a ``Create(as_CaseProposal)`` was *admitted*.
+"""Durable record that a ``Create(CaseProposal)`` was *admitted*.
 
 The mirror image of :class:`~vultron.core.models.case_proposal_decline.CaseProposalDeclineRecord`,
 and written for the same reason: the admission decision needs durable evidence

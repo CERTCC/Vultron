@@ -145,7 +145,7 @@ class VultronAccept(VultronActivity):
 
 
 class VultronCreateCaseActivity(VultronActivity):
-    """Domain representation of a Create(Case) activity.
+    """Domain representation of a Create(VulnerabilityCase) activity.
 
     Mirrors the essential fields of ``as_CreateCase``.
     ``type_`` is ``"Create"`` to match the wire value.

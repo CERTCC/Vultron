@@ -175,7 +175,8 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         to: list[str] | None = None,
         content: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Read(Offer(Report))`` ack-report activity.
+        """Create and persist a ``Read(Offer(VulnerabilityReport))`` ack-report
+        activity.
 
         RK is addressed to the reporter, never to the CASE_MANAGER, and is
         never ledgered (RMB-08-003).  ``content`` carries the trigger's
@@ -295,11 +296,11 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         offer_actor_id: str | None = None,
         proposer_case_roles: Sequence[CVDRole] = (),
     ) -> tuple[str, str]:
-        """Create and persist a ``Create(as_CaseProposal)`` activity.
+        """Create and persist a ``Create(CaseProposal)`` activity.
 
         Builds an ``as_CaseProposal`` from the ``VulnerabilityReport``
         identified by ``report_id``, addressed to the case-actor service at
-        ``case_actor_id``, and persists ``Create(as_CaseProposal)`` to the
+        ``case_actor_id``, and persists ``Create(CaseProposal)`` to the
         DataLayer.
 
         ``offer_id`` and ``offer_actor_id`` carry the provenance of the report —
@@ -332,7 +333,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         to: list[str] | None = None,
         summary: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Reject(as_CaseProposal)`` activity.
+        """Create and persist a ``Reject(CaseProposal)`` activity.
 
         The case actor service sends this when it declines to open and manage a
         case for the proposal (CP-05-004).  *proposal* is the wire-serialised
@@ -356,7 +357,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         to: list[str],
         result: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Accept(as_CaseProposal)`` activity.
+        """Create and persist an ``Accept(CaseProposal)`` activity.
 
         The CASE_MANAGER sends this to acknowledge that it will open (or has
         already opened) a case for the proposal (CP-05-002).  *proposal* is the
@@ -430,7 +431,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         to: list[str] | None = None,
         id_: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist the full-case ``Invite(Actor)[target=Case]``.
+        """Create and persist the full-case ``Invite(Actor)[target=VulnerabilityCase]``.
 
         ``actor`` MUST be the CASE_MANAGER's ID.  The Invite references the
         case by ID and carries the CASE_MANAGER's ledger tail
@@ -1036,7 +1037,8 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Leave(EmbargoEvent)[context=case]`` activity.
+        """Create and persist a ``Leave(EmbargoEvent)[context=VulnerabilityCase]``
+        activity.
 
         A signatory's withdrawal from the embargo in force (MSM-07-010,
         ADR-0122), distinct from :meth:`reject_embargo`, which answers an

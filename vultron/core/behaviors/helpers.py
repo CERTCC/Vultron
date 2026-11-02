@@ -1376,8 +1376,8 @@ class UpdateActorOutbox(DataLayerActionWithPorts, EmitCapable):
                 activity_id
             )
             self.logger.info(
-                "%s Create(Case '%s') activity '%s' in actor '%s' outbox"
-                " (case creation notification)",
+                "%s Create(VulnerabilityCase '%s') activity '%s' in actor '%s'"
+                " outbox (case creation notification)",
                 "Queued" if queued else "Left already-pending (OX-06-002)",
                 case_id,
                 activity_id,

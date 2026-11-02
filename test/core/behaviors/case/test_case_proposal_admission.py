@@ -15,8 +15,8 @@
 
 """Case-proposal admission decision: CP-05-002 and CP-05-004.
 
-The case actor service adjudicates an inbound ``Create(as_CaseProposal)`` at the
-``EvaluateCaseProposal`` call-out point and emits ``Reject(as_CaseProposal)``
+The case actor service adjudicates an inbound ``Create(CaseProposal)`` at the
+``EvaluateCaseProposal`` call-out point and emits ``Reject(CaseProposal)``
 when it declines. These tests pin five properties:
 
 - The DETERMINISTIC default admits, so the pre-existing accept path is unchanged
@@ -314,7 +314,7 @@ class TestDeterministicDefaultAdmits:
 @pytest.mark.spec("CP-05-004")
 class TestDeclineEmitsReject:
     def test_reject_is_queued_to_the_outbox(self, dl):
-        """CP-05-004: declining sends Reject(as_CaseProposal)."""
+        """CP-05-004: declining sends Reject(CaseProposal)."""
         status = _run_tree(dl, call_out=_declining_bundle([]))
 
         assert status == Status.SUCCESS, (

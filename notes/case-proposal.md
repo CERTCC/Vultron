@@ -98,7 +98,7 @@ writes and the emit in `proposal_admission_actions.py` (BTND-07-003).
 
 ## Wire Vocabulary: `as_CaseProposal`
 
-- The `actor` of `Create(as_CaseProposal)` is the proposer's full profile inline,
+- The `actor` of `Create(CaseProposal)` is the proposer's full profile inline,
   carrying its `embargoPolicy` when published (CP-01-010); senders here always
   inline it. A receiver also accepts the proposer's bare id (CP-01-009): the inbox
   fetches the profile from `{actor}/profile` before dispatch, swaps it into the event

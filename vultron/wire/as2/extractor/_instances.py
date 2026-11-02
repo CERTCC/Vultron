@@ -227,7 +227,7 @@ CreateCaseProposalPattern = ActivityPattern(
     description=(
         "Report receiver requests case initialization at a case-actor service "
         "by creating a CaseProposal object. "
-        "Corresponds to Create(as_CaseProposal) — CP-03-001."
+        "Corresponds to Create(CaseProposal) — CP-03-001."
     ),
     activity_=TAtype.CREATE,
     object_=VOtype.CASE_PROPOSAL,
@@ -235,7 +235,7 @@ CreateCaseProposalPattern = ActivityPattern(
 AcceptCaseProposalPattern = ActivityPattern(
     description=(
         "Case-actor service accepts a report receiver's CaseProposal. "
-        "Corresponds to Accept(as_CaseProposal) — CP-03-002."
+        "Corresponds to Accept(CaseProposal) — CP-03-002."
     ),
     activity_=TAtype.ACCEPT,
     object_=VOtype.CASE_PROPOSAL,
@@ -243,7 +243,7 @@ AcceptCaseProposalPattern = ActivityPattern(
 RejectCaseProposalPattern = ActivityPattern(
     description=(
         "Case-actor service rejects a report receiver's CaseProposal. "
-        "Corresponds to Reject(as_CaseProposal) — CP-03-003."
+        "Corresponds to Reject(CaseProposal) — CP-03-003."
     ),
     activity_=TAtype.REJECT,
     object_=VOtype.CASE_PROPOSAL,
@@ -547,7 +547,7 @@ CreateProcessingFaultPattern = ActivityPattern(
     description=(
         "Receiver notifies an authenticated sender that their status assertion "
         "could not be processed. "
-        "Corresponds to Create(as_ProcessingFault) — ASK-07-001, ADR-0080."
+        "Corresponds to Create(ProcessingFault) — ASK-07-001, ADR-0080."
     ),
     activity_=TAtype.CREATE,
     object_=VOtype.PROCESSING_FAULT,

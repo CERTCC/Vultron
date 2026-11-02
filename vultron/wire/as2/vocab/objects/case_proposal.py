@@ -1,8 +1,8 @@
 """Wire-layer vocabulary type for the CaseProposal protocol.
 
 Provides :class:`as_CaseProposal`, the AS2 Object type used in the
-``Create(as_CaseProposal)`` / ``Accept(as_CaseProposal)`` /
-``Reject(as_CaseProposal)`` message flow defined in ADR-0023.
+``Create(CaseProposal)`` / ``Accept(CaseProposal)`` /
+``Reject(CaseProposal)`` message flow defined in ADR-0023.
 
 Spec: ``specs/case-proposal.yaml`` CP-01-001 through CP-01-006.
 """
@@ -52,9 +52,9 @@ class as_CaseProposal(as_VultronObject):
     A report receiver creates this object to request that a dedicated
     case-actor service initialise a new :class:`VulnerabilityCase`.
     The case-actor evaluates the proposal and responds with either
-    ``Accept(as_CaseProposal)`` followed by
+    ``Accept(CaseProposal)`` followed by
     ``Create(VulnerabilityCase)`` (happy path, CP-05-003) or
-    ``Reject(as_CaseProposal)`` (rejection path, CP-05-004).
+    ``Reject(CaseProposal)`` (rejection path, CP-05-004).
 
     All classes in ``vultron/wire/as2/vocab/objects/`` use the ``as_``
     prefix (ARCH-14-001); the bare name ``CaseProposal`` is reserved for

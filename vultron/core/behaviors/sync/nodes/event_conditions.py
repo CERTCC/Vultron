@@ -181,8 +181,9 @@ class IsInviteAcceptEventNode(_SingleSemanticTypeNode):
     """Precondition: SUCCESS when this log entry IS the invitee's stub Accept.
 
     Precondition of the ``InviteAccept`` slot: the entry is the invitee's
-    ``Accept(Invite(stub))`` message itself, which is the entry for the consent
-    it signs and its ``joined`` mark (ADR-0114, CM-31-012).
+    ``Accept(Invite(Actor)[target=VulnerabilityCaseStub])`` message itself,
+    which is the entry for the consent it signs and its ``joined`` mark
+    (ADR-0114, CM-31-012).
 
     Per BTND-08-001, BTND-08-002, SYNC-12-001, RSH-08-004.
     """
@@ -194,8 +195,8 @@ class IsInviteRejectEventNode(_SingleSemanticTypeNode):
     """Precondition: SUCCESS when this log entry IS the invitee's stub Reject.
 
     Precondition of the ``InviteReject`` slot: the entry is the invitee's
-    ``Reject(Invite(stub))`` message itself, which is the entry for the consent
-    ``DECLINED`` (ADR-0114, CM-11-007).
+    ``Reject(Invite(Actor)[target=VulnerabilityCaseStub])`` message itself,
+    which is the entry for the consent ``DECLINED`` (ADR-0114, CM-11-007).
 
     Per BTND-08-001, BTND-08-002, SYNC-12-001, RSH-08-004.
     """

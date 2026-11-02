@@ -488,7 +488,7 @@ class TestOwnershipTransferUseCases:
     def test_an_offer_of_the_case_sent_to_the_case_manager_is_refused(
         self, make_payload
     ):
-        """At the CASE_MANAGER no sender is admitted for ``Offer(Case)``:
+        """At the CASE_MANAGER no sender is admitted for ``Offer(VulnerabilityCase)``:
         the owner proposes, it does not offer, and the CASE_MANAGER sends
         itself no Offer (CM-21-019, ADR-0148)."""
         case_id = "https://example.org/cases/case_ot_offer_at_cm"
@@ -871,7 +871,10 @@ def _proposal(
     proposer: str = _VENDOR_ID,
     **extra: Any,
 ):
-    """The *proposer*'s Offer(Offer(Case)) to the CASE_MANAGER (ADR-0148)."""
+    """The *proposer*'s Offer(Offer(VulnerabilityCase)) to the CASE_MANAGER.
+
+    ADR-0148.
+    """
     if isinstance(transferee, str):
         transferee = as_Service(id_=transferee, name="Transferee")
     return propose_case_ownership_transfer_activity(

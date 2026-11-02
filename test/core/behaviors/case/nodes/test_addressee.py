@@ -188,7 +188,7 @@ class TestAddressedToReceiver:
 
     @pytest.mark.spec("HP-09-001")
     def test_the_to_half_does_not_admit_the_sender(self):
-        """An ``Offer(Report)`` reads only the ``to`` half (HP-09-001)."""
+        """An ``Offer(VulnerabilityReport)`` reads only the ``to`` half (HP-09-001)."""
         dl = _store(_SENDER)
 
         assert addressed_to_receiver(

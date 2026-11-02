@@ -286,7 +286,9 @@ class _ActorsMixin:
         to: list[str] | None = None,
         id_: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist the full-case ``Invite(Actor)[target=Case]``."""
+        """Create and persist the full-case
+        ``Invite(Actor)[target=VulnerabilityCase]``.
+        """
         extra = _addressing(actor, to, id_)
         activity = rm_invite_to_full_case_activity(
             invitee=_held_actor(self._dl, invitee_id),
@@ -544,7 +546,7 @@ class _ActorsMixin:
         """Create and persist an AcceptActorRecommendation activity.
 
         Sent by the CaseActor to the recommender after the Case Owner accepts
-        the Offer(as_CaseParticipant) (CM-16-006 step 3), or at once for an
+        the Offer(CaseParticipant) (CM-16-006 step 3), or at once for an
         actor already invited or joined (CM-16-009).  ``inReplyTo`` names
         the recommendation it answers.
         """
@@ -575,7 +577,7 @@ class _ActorsMixin:
         """Create and persist a RejectActorRecommendation activity.
 
         Sent by the CaseActor to the recommender after the Case Owner rejects
-        the Offer(as_CaseParticipant) (CM-16-007 step 3).  ``inReplyTo``
+        the Offer(CaseParticipant) (CM-16-007 step 3).  ``inReplyTo``
         names the recommendation it answers.
         """
         recommendation = self._rebuilt_recommendation(

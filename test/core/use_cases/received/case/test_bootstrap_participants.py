@@ -152,7 +152,7 @@ class TestBootstrapParticipantStorage:
 
     BT nodes ``SenderIsParticipantNode`` (#561) and ``AppendParticipantStatus``
     (#562) look up participants by UUID via ``datalayer.read(participant_id)``.
-    After a bootstrap ``Create(as_VulnerabilityCase)`` those participant records
+    After a bootstrap ``Create(VulnerabilityCase)`` those participant records
     MUST exist as independent DataLayer entries so the BT nodes can find them.
     """
 
@@ -303,7 +303,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
         """AddParticipantStatusBT appends VFd status on finder's replica.
 
         Full M4 path: bootstrap → verify participant stored → receive
-        Add(as_ParticipantStatus) from case-actor → assert VFd status on vendor
+        Add(ParticipantStatus) from case-actor → assert VFd status on vendor
         participant.  Regression for #563.
         """
         _vfd_status_id = f"{_VENDOR_PARTICIPANT_ID}/statuses/vfd-s1"

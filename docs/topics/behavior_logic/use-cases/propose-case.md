@@ -26,7 +26,7 @@ This page explains three things:
 
 ## What starts it
 
-An actor that holds a report and wants it coordinated as a case sends `Create(as_CaseProposal)` to a **case actor service**.
+An actor that holds a report and wants it coordinated as a case sends `Create(CaseProposal)` to a **case actor service**.
 That service is the provisioning endpoint configured as `case_actor_service_url` (CP-04-001, CP-08-002).
 In the reference implementation, this happens in the `create_case` trigger path.
 The actor records a local case, publishes the case actor identity it will address, and emits the proposal.
@@ -81,7 +81,7 @@ The accepting service does the steps below, and the order is not interchangeable
 | Initialize the default embargo | A case begins embargoed rather than open (EP-04-001) |
 | Seed the owner's consent | An `AGREED` consent row for the default embargo, without an invitation round-trip |
 | Seed the reporter's consent | An `AGREED` consent row — submitting a report is implicit consent ([ADR-0048](../../../adr/0048-pec-no-embargo-is-absence-not-pre-consent.md)) |
-| Emit `Accept(as_CaseProposal)` | The proposer learns its request succeeded |
+| Emit `Accept(CaseProposal)` | The proposer learns its request succeeded |
 | Emit `Create(VulnerabilityCase)` | The proposer receives the case replica, with Participants inline |
 | Commit the canonical ledger entries | The case's history starts here, and each entry fans out to every Participant |
 | Relay a contested creation's revision | When the reporter and the owner both proposed terms, the longer ones are sent as an `Invite(EmbargoEvent)` to the party whose terms won (EP-04-011) |
@@ -138,7 +138,7 @@ Suppose a service created the case, committed ledger entries, and *then* decline
 It would tell the proposer "no" while it holds a case that no Participant will ever converge on.
 That is the canonical-versus-replica divergence that CLP-10-009 exists to prevent.
 
-When the service declines, it sends `Reject(as_CaseProposal)` with the proposal inline, and creates nothing (CP-05-004).
+When the service declines, it sends `Reject(CaseProposal)` with the proposal inline, and creates nothing (CP-05-004).
 The proposing actor records the refusal (CP-06-003, CP-06-004).
 It records a reply only from the actor that it addressed the proposal to.
 It refuses a reply from any other actor, and its records stay unchanged (CP-06-005).
@@ -207,7 +207,7 @@ It also does not make the former owner CASE_OWNER again (CM-21-001).
 The exception is a case that is fully closed, that is, its ledger holds the CASE_MANAGER's own status entry reaching RM `CLOSED`.
 The stored `Accept` would lead into the accept path, which writes to the case.
 A closed case accepts no further writes (CM-23-013).
-So the CASE_MANAGER answers the duplicate with `Reject(as_CaseProposal)` instead.
+So the CASE_MANAGER answers the duplicate with `Reject(CaseProposal)` instead.
 It commits no ledger entry and changes no case or participant state.
 
 The `Reject` declines only the redelivery.
@@ -231,7 +231,7 @@ The case is not announced or recorded in the ledger a second time.
 Any other proposer gets a separate case of its own and is not added to the first one.
 The reason is that the sender chooses the report identifier, and that identifier does not say whose case it is.
 
-When the owner's case is fully closed, the owner's new proposal is declined with `Reject(as_CaseProposal)`, and nothing is written for the case (CM-23-013).
+When the owner's case is fully closed, the owner's new proposal is declined with `Reject(CaseProposal)`, and nothing is written for the case (CM-23-013).
 The admission policy is not consulted, because the closure decides.
 Reopening a closed case, or creating a fresh case for its report, is not yet designed ([#3066](https://github.com/CERTCC/Vultron/issues/3066)).
 
@@ -244,11 +244,11 @@ The `Reject` carries a `summary` that says the case is fully closed.
 
 ## What the case learns
 
-The proposer receives two messages, in order: `Accept(as_CaseProposal)`, then `Create(VulnerabilityCase)` carrying the case with its Participants inline.
+The proposer receives two messages, in order: `Accept(CaseProposal)`, then `Create(VulnerabilityCase)` carrying the case with its Participants inline.
 The `Create` sets `context` to the new case's URI and `in_reply_to` to the `Accept` that authorized it.
 So the causal link is explicit in the ActivityStreams 2.0 (AS2) correct field (CP-05-003, [ADR-0045](../../../adr/0045-create-vulnerability-case-field-assignment.md)).
 
-On a declined proposal the proposer receives `Reject(as_CaseProposal)` and nothing else.
+On a declined proposal the proposer receives `Reject(CaseProposal)` and nothing else.
 
 The authority sends nothing to the reporter (CBT-01-010).
 The proposer, which received the report, sends the reporter its own `Create(VulnerabilityCase)` with the same case inline, naming the authority as `CASE_MANAGER` (CBT-01-001, [ADR-0132](../../../adr/0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md)).
@@ -278,10 +278,10 @@ Bringing in a vendor or a coordinator is a separate flow.
 | [CP-04-005](../../../reference/specs/project.md#cp-04-005) | This implementation's service identity is `{case_actor_service_url}/actors/case-actor` |
 | [CP-05-002](../../../reference/vultron-spec/requirements/case-management.md#cp-05-002) | The service MUST evaluate the proposal and either accept or reject it |
 | [CP-05-003](../../../reference/vultron-spec/requirements/case-management.md#cp-05-003) | On acceptance it MUST send `Accept` and then `Create(VulnerabilityCase)`, in that order |
-| [CP-05-004](../../../reference/vultron-spec/requirements/case-management.md#cp-05-004) | On refusal it MUST send `Reject(as_CaseProposal)` with the proposal, inline or by reference |
+| [CP-05-004](../../../reference/vultron-spec/requirements/case-management.md#cp-05-004) | On refusal it MUST send `Reject(CaseProposal)` with the proposal, inline or by reference |
 | [CP-05-005](../../../reference/vultron-spec/requirements/case-management.md#cp-05-005) | `Accept` and `Create(VulnerabilityCase)` MUST be queued together or not at all, each retried until delivered, and the `Accept` never sent a second time |
-| [CP-05-006](../../../reference/vultron-spec/requirements/case-management.md#cp-05-006) | A duplicate proposal (the same proposal identifier) MUST re-send the stored `Accept` unchanged, with its original identifier, and MUST NOT create a second case; when the case is fully closed it MUST be answered with `Reject(as_CaseProposal)` instead, with no ledger entry and no case or participant change |
-| [CP-05-008](../../../reference/vultron-spec/requirements/case-management.md#cp-05-008) | A proposal under a new identifier MUST be admitted and answered on its own; the case is reused only for its owner, and any other proposer gets a separate case; when the owner's case is fully closed the proposal MUST be answered with `Reject(as_CaseProposal)`, with no ledger entry and no case or participant change |
+| [CP-05-006](../../../reference/vultron-spec/requirements/case-management.md#cp-05-006) | A duplicate proposal (the same proposal identifier) MUST re-send the stored `Accept` unchanged, with its original identifier, and MUST NOT create a second case; when the case is fully closed it MUST be answered with `Reject(CaseProposal)` instead, with no ledger entry and no case or participant change |
+| [CP-05-008](../../../reference/vultron-spec/requirements/case-management.md#cp-05-008) | A proposal under a new identifier MUST be admitted and answered on its own; the case is reused only for its owner, and any other proposer gets a separate case; when the owner's case is fully closed the proposal MUST be answered with `Reject(CaseProposal)`, with no ledger entry and no case or participant change |
 | [CP-05-007](../../../reference/vultron-spec/requirements/case-management.md#cp-05-007) | A proposer MUST treat an unanswered proposal as expired at its deadline |
 | [CP-06-003](../../../reference/specs/project.md#cp-06-003) | The proposer MUST record the acceptance and await the replica |
 | [CP-06-004](../../../reference/specs/project.md#cp-06-004) | The proposer MUST record a refusal and surface its reason where one is given |

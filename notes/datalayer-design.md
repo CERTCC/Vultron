@@ -200,10 +200,10 @@ what they contained at receipt time. Do not change this, for two reasons:
    evolves; the contract must not.
 
 **Two copies, not one.** An actor that extracts a case from a received
-`Offer(Case)` to seed its live record now holds the immutable **artifact** (read
-it to answer "what was I offered?", never update it) and the evolving **live
-record**. They diverge by design: never treat the snapshot as current state, and
-never write it back over the live record.
+`Offer(VulnerabilityCase)` to seed its live record now holds the immutable
+**artifact** (read it to answer "what was I offered?", never update it) and the
+evolving **live record**. They diverge by design: never treat the snapshot as
+current state, and never write it back over the live record.
 
 Full design: `notes/wire-artifact-immutability.md`.
 

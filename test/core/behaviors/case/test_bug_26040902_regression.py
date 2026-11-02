@@ -15,7 +15,7 @@ vocab package __init__.py files, ensuring all types are registered
 automatically when the package is imported.
 
 ADR-0041 update: ReceiveReportCaseBT no longer creates a VulnerabilityCase.
-Instead it writes a VultronReportCaseLink and enqueues Create(as_CaseProposal).
+Instead it writes a VultronReportCaseLink and enqueues Create(CaseProposal).
 The test now verifies the pending link is written and the outbox is non-empty.
 
 This test verifies the fix by:
@@ -207,7 +207,7 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     )
     assert link.case_id is None, "Link must be pending (case_id=None)"
 
-    # Verify outbox has the Create(as_CaseProposal) notification
+    # Verify outbox has the Create(CaseProposal) notification
     outbox_items = dl.clone_for_actor(_actor_id).outbox_list()
     assert len(outbox_items) > 0, (
         "BUG-26040902 regression: no outbox entry created — "

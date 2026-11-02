@@ -493,7 +493,7 @@ def test_invite_actor_to_case_without_actor_object_does_not_match():
 
 @pytest.mark.spec("SE-02-001")
 def test_announce_vulnerability_case_pattern_matches():
-    """AnnounceVulnerabilityCasePattern must match Announce(as_VulnerabilityCase).
+    """AnnounceVulnerabilityCasePattern must match Announce(VulnerabilityCase).
 
     DR-10: the pattern must be registered so incoming AnnounceVulnerabilityCase
     activities are routed to AnnounceVulnerabilityCaseReceivedUseCase.
@@ -600,7 +600,7 @@ def _make_case_manager_case() -> as_VulnerabilityCase:
 @pytest.mark.spec("SE-08-003")
 @pytest.mark.spec("VAM-04-007")
 def test_offer_case_manager_role_not_confused_with_ownership_transfer():
-    """Offer(as_VulnerabilityCase) without a as_CaseParticipant target must be
+    """Offer(VulnerabilityCase) without a as_CaseParticipant target must be
     classified as OFFER_CASE_OWNERSHIP_TRANSFER, not OFFER_CASE_MANAGER_ROLE.
 
     The presence of a typed as_CaseParticipant target is the sole discriminator.
@@ -712,7 +712,7 @@ def _make_case_proposal():
 @pytest.mark.spec("SE-02-001")
 @pytest.mark.spec("CP-03-001")
 def test_create_case_proposal_dispatches_correctly():
-    """Create(as_CaseProposal) must be classified as CREATE_CASE_PROPOSAL.
+    """Create(CaseProposal) must be classified as CREATE_CASE_PROPOSAL.
 
     CP-03-001, CP-07-001.
     """
@@ -735,7 +735,7 @@ def test_create_case_proposal_dispatches_correctly():
 @pytest.mark.spec("SE-02-001")
 @pytest.mark.spec("CP-03-002")
 def test_accept_case_proposal_dispatches_correctly():
-    """Accept(as_CaseProposal) must be classified as ACCEPT_CASE_PROPOSAL.
+    """Accept(CaseProposal) must be classified as ACCEPT_CASE_PROPOSAL.
 
     CP-03-002, CP-07-001.
     """
@@ -758,7 +758,7 @@ def test_accept_case_proposal_dispatches_correctly():
 @pytest.mark.spec("SE-02-001")
 @pytest.mark.spec("CP-03-003")
 def test_reject_case_proposal_dispatches_correctly():
-    """Reject(as_CaseProposal) must be classified as REJECT_CASE_PROPOSAL.
+    """Reject(CaseProposal) must be classified as REJECT_CASE_PROPOSAL.
 
     CP-03-003, CP-07-001.
     """
@@ -781,7 +781,7 @@ def test_reject_case_proposal_dispatches_correctly():
 @pytest.mark.spec("SE-03-002")
 @pytest.mark.spec("VAM-01-003")
 def test_create_case_proposal_not_confused_with_create_case():
-    """Create(as_CaseProposal) must NOT match CREATE_CASE.
+    """Create(CaseProposal) must NOT match CREATE_CASE.
 
     Ordering guard: CP-03-004 — CaseProposal patterns must not be shadowed
     by more general Create/Accept/Reject patterns.
@@ -805,7 +805,7 @@ def test_create_case_proposal_not_confused_with_create_case():
 @pytest.mark.spec("SE-03-002")
 @pytest.mark.spec("VAM-01-003")
 def test_accept_case_proposal_not_confused_with_other_accept_semantics():
-    """Accept(as_CaseProposal) must NOT match any non-CaseProposal semantic.
+    """Accept(CaseProposal) must NOT match any non-CaseProposal semantic.
 
     CP-03-004 ordering invariant.
     """
@@ -1234,7 +1234,9 @@ def test_undo_of_ownership_proposal_matches_the_withdrawal_pattern():
 @pytest.mark.spec("VAM-04-018")
 @pytest.mark.spec("CM-21-005")
 def test_ownership_proposal_is_told_apart_from_the_offer_by_shape():
-    """Offer(Offer(Case)) and Offer(Case) each match one pattern (ADR-0148)."""
+    """Offer(Offer(VulnerabilityCase)) and Offer(VulnerabilityCase) each match
+    one pattern (ADR-0148).
+    """
     proposal = _proposal()
     offer = cast(Any, proposal.object_)
 
