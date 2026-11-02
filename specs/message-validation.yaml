@@ -175,17 +175,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver MUST treat a required field that is present but blank as absent,
-      and MUST report it with the same error as an omitted field. A blank value is
-      an empty string or one containing only whitespace. A value that is present
-      and non-blank but unparseable MUST be reported as a schema fault instead,
-      not as a missing field.
+      A receiver MUST report a present but blank required field as an omitted field,
+      and a non-blank unparseable value as a schema fault. A blank value is an empty
+      string or one containing only whitespace.
     rationale: >-
       A blank value has no data, so it is the same omission as a missing key (CS-08-001:
       if present, then non-empty). One omission must cause one error and one status
       code, whatever its form. If a guard tests only the key, a blank `published` goes
-      on to schema validation. That validation gives a Pydantic error dump in place of
-      the explanation in CLP-15-006. A value that is not blank but does not parse is a
+      on to schema validation, which gives a Pydantic error dump in place of the
+      explanation in CLP-15-006. A value that is not blank but does not parse is a
       different fault, so it stays on the schema path.
     verification: >-
       Unit tests in `test/wire/as2/test_parser.py` confirm that every blank
@@ -233,31 +231,46 @@ groups:
       A descriptive `name` lets an operator read the activity without a lookup of its
       ids.
   - id: MV-04-003
-    priority: MUST_NOT
+    priority: MUST
     kind: project
     statement: >-
-      When an inline object's `type` resolves to a known wire vocabulary class, a
-      receiver MUST NOT substitute a less specific type for it if validation
-      against that class fails. The receiver MUST reject the enclosing activity as
-      malformed instead. Resolution of an inline object's type MUST consider only
-      wire-branch classes; an unresolved type leaves the object for its parent
-      field to validate.
+      This rule covers an inline object whose `type` resolves to a known wire vocabulary
+      class but fails validation against that class. A receiver MUST reject the
+      enclosing activity as malformed, not substitute a less specific type.
     rationale: >-
       If the parser uses a weaker type in place of the correct one, it loses data
       silently: an `Accept(Invite(...))` with one corrupt inner field can parse as a
-      bare `as_Link`, get the semantic type `UNKNOWN` and a 202 status. A refusal is
-      safe only when resolution looks at wire classes alone. A `CORE_TYPE_MAP` fallback
-      (ARCH-12-014) resolves an inline actor's `inbox` to a core instance its wire
-      parent refuses (ARCH-22-001). The core fallback is opt-in (VM-06-008).
+      bare `as_Link`, get the semantic type `UNKNOWN` and a 202 status.
     verification: >-
       Unit tests in `test/wire/as2/test_parser.py` confirm that an
       `Accept(Invite(...))` whose inner object carries an unparseable timestamp is
-      rejected rather than parsed as an `as_Link`, and that an inline actor whose
-      `inbox` and `outbox` use the core-only `OrderedCollection` type keeps its
-      `as_VultronOrganization` subtype.
+      rejected rather than parsed as an `as_Link`.
     relationships:
     - rel_type: refines
       spec_id: MV-04-001
+    adr:
+    - ADR-0090
+  - id: MV-04-004
+    priority: MUST
+    kind: project
+    statement: >-
+      When a receiver resolves the type of an inline object, it MUST consider only
+      wire-branch classes. An unresolved type leaves the object for its parent field to
+      validate.
+    rationale: >-
+      A refusal under MV-04-003 is safe only when resolution looks at wire classes
+      alone. A `CORE_TYPE_MAP` fallback (ARCH-12-014) resolves an inline actor's
+      `inbox` to a core instance that its wire parent refuses (ARCH-22-001). The core
+      fallback is opt-in (VM-06-008).
+    verification: >-
+      `test_parse_activity_keeps_inline_actor_subtype_with_inline_collections` and
+      `test_inline_ordered_collection_resolves_to_the_wire_class` in
+      `test/wire/as2/test_parser.py` confirm that an inline actor whose `inbox` and
+      `outbox` use the core-only `OrderedCollection` type keeps its
+      `as_VultronOrganization` subtype.
+    relationships:
+    - rel_type: extends
+      spec_id: MV-04-003
     adr:
     - ADR-0090
 - id: MV-05
@@ -323,19 +336,33 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The outbox handler MUST raise `VultronOutboxObjectIntegrityError` and abort delivery
-      if the sealed body of an outbound initiating activity carries a bare string or an
-      `as_Link` as its `object`. The handler MUST NOT attempt to expand the reference from the
-      DataLayer first: it is a dumb relay (VM-08-003), so a reference in `object` is refused as a
-      factory defect, not repaired at delivery time.
+      The outbox handler MUST raise `VultronOutboxObjectIntegrityError` and abort
+      delivery when an outbound initiating activity's sealed body carries a bare string
+      or an `as_Link` as `object`.
     rationale: >-
       The outbox sends the body that the act sealed, so the factory must put the object
-      inline. If delivery expands a reference, the sent body is different from the body
-      that the act recorded. This also hides the factory defect that made the reference.
+      inline. A reference in `object` is a factory defect, and the refusal names it.
     verification: >-
-      A unit test confirms that an outbound activity whose sealed body has `object` set to a
-      bare string raises `VultronOutboxObjectIntegrityError` before any delivery attempt and
-      without any DataLayer read beyond the sealed body itself.
+      `test/adapters/driving/fastapi/test_outbox_handle_item_validation.py` confirms
+      that an outbound activity whose sealed body has `object` set to a bare string, or
+      to a `Link`, raises `VultronOutboxObjectIntegrityError` before any delivery
+      attempt.
+  - id: MV-09-004
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The outbox handler MUST NOT expand a reference in the `object` of a sealed body
+      from the DataLayer before MV-09-002 refuses it.
+    rationale: >-
+      The outbox is a dumb relay (VM-08-003). If delivery expands a reference, the sent
+      body is different from the body that the act recorded. This also hides the
+      factory defect that made the reference.
+    verification: >-
+      `test/adapters/driving/fastapi/test_outbox_handle_item_validation.py` confirms
+      that the refusal reads nothing from the DataLayer beyond the sealed body itself.
+    relationships:
+    - rel_type: extends
+      spec_id: MV-09-002
   - id: MV-09-003
     priority: MUST
     kind: project
@@ -362,21 +389,13 @@ groups:
     kind: protocol
     statement: >-
       A stub object MUST carry at minimum an `id` field (full URI), a `type` field and
-      a non-empty `summary` field giving human-readable context, and a receiver MUST
-      refuse a stub whose `summary` is absent or blank. The stub form is
-      permitted ONLY for a case, as the distinct `VulnerabilityCaseStub` type of
-      CM-11-013, and a receiver MUST classify a stub by its `type`. For every other
-      object type, a sender that does not inline the full object MUST reference it by
-      URI (or by an ActivityStreams `Link`), not by a partial inline object. The one
-      exception is the actor reference of AKM-05-005: an actor the sender knows only by
-      URI MAY travel as an inline object carrying exactly its `id` and `type`.
+      a non-empty `summary` field that gives human-readable context.
     rationale: >-
       The stub form has one narrow purpose. It is not a replacement for a full object.
       An invitee must decide whether to join a case before it can receive the case
       (MV-10-005). The stub represents the case until the participant is active
-      (CM-10-004). No other type has this need, and no other stub type is implemented.
-      The summary tells the invitee which case it is asked to join. The sender decides
-      what the summary says (CM-17-010).
+      (CM-10-004). The summary tells the invitee which case it is asked to join. The
+      sender decides what the summary says (CM-17-010).
     note: >-
       Partial inline objects of other types were never designed — a parser fallback
       swallowed their validation failures and handed the parent a raw dict, which
@@ -387,21 +406,106 @@ groups:
       it claims no field beyond the two the sender knows, and keeps the `type` a
       receiver routes `Offer(Actor)` and `Invite(Actor)` by (ADR-0159).
     verification: >-
-      A unit test confirms that an inline object with `type: VulnerabilityCaseStub`
-      resolves to the stub class, that a sparse inline object with `type:
-      VulnerabilityCase` is validated as a case rather than read as a stub, and that a
-      partial inline object of any other recognised wire type is refused under MV-04-003
-      rather than degraded.
       `test/wire/as2/test_unknown_key_disposition.py::test_a_stub_without_a_summary_is_refused`
-      asserts a stub with an absent, empty, or blank `summary` is refused at message
-      validation; all three parametrize cases pass since #4165 was implemented. Bare URI
-      references and `Link` objects remain accepted in all four positions named by MV-10-002.
+      asserts that a stub without a non-empty `summary` is refused, and
+      `test_embargoed_invite_stub_is_judged_as_the_stub` in the same file parses a
+      stub that carries its `id`, `type` and `summary`.
     relationships:
     - rel_type: constrains
       spec_id: MV-04-003
     adr:
     - ADR-0090
     - ADR-0114
+    - ADR-0159
+    stories:
+    - story_2022_039
+  - id: MV-10-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST refuse a stub whose `summary` is absent or blank.
+    rationale: >-
+      A stub with no summary gives the invitee nothing to decide on, so it cannot do
+      the one job the stub form exists for (MV-10-001).
+    verification: >-
+      `test/wire/as2/test_unknown_key_disposition.py::test_a_stub_without_a_summary_is_refused`
+      asserts that a stub with an absent, empty, or blank `summary` is refused at
+      message validation.
+    relationships:
+    - rel_type: implements
+      spec_id: MV-10-001
+    adr:
+    - ADR-0090
+    - ADR-0114
+    stories:
+    - story_2022_039
+  - id: MV-10-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST classify a stub by its `type`. The stub form is permitted only
+      for a case, as the distinct `VulnerabilityCaseStub` type of CM-11-013.
+    rationale: >-
+      No other type needs the stub form, and no other stub type is implemented. A
+      classification by the fields present would read a sparse case as a stub, or a
+      stub as a case.
+    verification: >-
+      `test_the_type_alone_selects_the_stub_or_the_case` and
+      `test_a_sparse_case_carrying_stub_keys_is_still_a_case` in
+      `test/wire/as2/test_unknown_key_disposition.py` confirm that an inline object
+      with `type: VulnerabilityCaseStub` resolves to the stub class, and that a sparse
+      inline object with `type: VulnerabilityCase` is validated as a case.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-10-001
+    adr:
+    - ADR-0090
+    - ADR-0114
+    stories:
+    - story_2022_039
+  - id: MV-10-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      This rule covers an object type other than a case, when the sender does not inline
+      the full object. The sender MUST reference the object by URI or by an
+      ActivityStreams `Link`, not by a partial inline object.
+    rationale: >-
+      Only a case has a stub form (MV-10-008). A partial inline object of another type
+      claims to be the object while it lacks fields, so the receiver cannot tell what
+      the sender left out.
+    verification: >-
+      `test_parse_activity_refuses_malformed_nested_object_of_known_type` in
+      `test/wire/as2/test_parser.py` confirms that an inline object of another
+      recognised wire type that fails its class is refused under MV-04-003 rather than
+      degraded. Bare URI references and `Link` objects remain accepted in all four
+      positions named by MV-10-002.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MV-10-008
+    adr:
+    - ADR-0090
+    - ADR-0159
+    stories:
+    - story_2022_039
+  - id: MV-10-010
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A sender MAY send an actor that it knows only by URI as an inline object that
+      carries exactly its `id` and `type` (AKM-05-005).
+    rationale: >-
+      The actor reference claims no field beyond the two that the sender knows, so it
+      is not a partial object under MV-10-009. It keeps the `type` that a receiver
+      routes `Offer(Actor)` and `Invite(Actor)` by (ADR-0159).
+    verification: >-
+      `test_an_actor_given_by_uri_travels_as_an_actor_reference` in
+      `test/wire/as2/factories/test_actor_references.py` asserts that each
+      actor-naming factory carries a URI-only actor as exactly its `id` and `type`.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-10-009
+    adr:
     - ADR-0159
     stories:
     - story_2022_039
@@ -510,27 +614,26 @@ groups:
     kind: project
     statement: >-
       The parse edge (`parse_activity` in `vultron/wire/as2/parser.py`) MUST decide what
-      happens to an unrecognised key on inbound data for every object at every depth — the
-      activity envelope, an inline object whose `type` resolves to a wire class, an inline
-      object whose `type` resolves to a core class, an inline `Link`, and an inline object
-      with no `type` — by partitioning the arriving keys against the resolved class's declared
-      spellings before validating it. A declared spelling is a field name, the camelCase alias
-      the class generates for it, an explicit validation alias, or `@context`. The disposition
-      MUST NOT depend on which branch the resolved class belongs to.
+      happens to an unrecognised key on inbound data for every object at every depth. It
+      decides by partitioning the arriving keys against the resolved class's declared
+      spellings before it validates the object. The objects are the activity envelope,
+      and an inline object whose `type` resolves to a wire class or to a core class.
+      They also include an inline `Link`, and an inline object with no `type`. A
+      declared spelling is a field name, the camelCase alias the class generates for it,
+      an explicit validation alias, or `@context`.
     rationale: >-
       Without one rule at the parse edge, the result for an unknown key depends on the
       class of its object. A core class with `extra="forbid"` (ARCH-12-003) refuses the
       key with a 422 status. A wire class with the Pydantic default `extra="ignore"`
-      drops the key silently. Neither result is a decision of the receiver. Both come
-      from configuration that has a different purpose. Under one object model
-      (ADR-0099), the parser is the inbound point where wire data becomes core data.
-      Thus it is the one place where one receive-side rule applies to all messages
-      (ADR-0032: validate at the edge; ARCH-21-002: inbound wire data stays lenient).
+      drops the key silently. Neither result is a decision of the receiver. Under one
+      object model (ADR-0099), the parser is the inbound point where wire data becomes
+      core data (ADR-0032: validate at the edge; ARCH-21-002: inbound wire data stays
+      lenient).
     verification: >-
-      `test/wire/as2/test_unknown_key_disposition.py` drives `parse_activity` with an unknown
-      key in each of the positions this requirement names and asserts the same disposition in
-      every one: refused when the key is a near miss (MV-11-002), set aside and reported when
-      it is foreign (MV-11-003). The partition is `vultron/wire/as2/unknown_keys.py` (#3921).
+      `test/wire/as2/test_unknown_key_disposition.py` drives `parse_activity` with an
+      unknown key in each of the positions this requirement names: refused when the
+      key is a near miss (MV-11-002), set aside and reported when it is foreign
+      (MV-11-003). The partition is `vultron/wire/as2/unknown_keys.py` (#3921).
     relationships:
     - rel_type: depends_on
       spec_id: MV-04-003
@@ -540,56 +643,55 @@ groups:
     adr:
     - ADR-0099
     - ADR-0032
+  - id: MV-11-006
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The disposition of an unrecognised inbound key (MV-11-001) MUST NOT depend on
+      which branch the resolved class belongs to.
+    rationale: >-
+      A peer cannot see whether Vultron models an object as a wire class or a core
+      class. If the branch decided the result, one unknown key would be refused on one
+      object and dropped on another, and that split is configuration, not a decision.
+    verification: >-
+      `test/wire/as2/test_unknown_key_disposition.py` asserts the same disposition for
+      an unknown key on the envelope, on a wire-class inline object, on a core-class
+      inline object, on an inline `Link` and on an untyped inline object.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-11-001
+    adr:
+    - ADR-0099
   - id: MV-11-002
     priority: MUST
     kind: project
     statement: >-
-      A receiver MUST refuse the whole activity, with the schema-fault response MV-02-002
-      requires, when an unrecognised inbound key is a near miss for a declared spelling of the
-      resolved class or matches a retired name. A key is a near miss when lowercasing it and
-      removing every non-alphanumeric character yields the same string as a declared spelling
-      treated the same way (so `Actor`, `attributed-to` and `ATTRIBUTEDTO` are near misses of
-      `actor` and `attributedTo`). A spelling the resolved class accepts on input is declared,
-      never a near miss: both roots validate by field name as well as by alias (CS-14-001,
-      CS-14-002), so the snake_case field name `attributed_to` is a declared spelling of
-      `attributedTo`. The JSON-LD keywords `@id` and `@type` are near misses of `id` and `type`
-      by design, not an accident of the normalisation: AS2 spells these fields `id` and `type`
-      with no `@` prefix, because the normative AS2 context aliases the keywords and AS2 Core
-      section 2.1 requires the serialized form to be consistent with compaction under that
-      context, so a document carrying `@id` or `@type` is legal JSON-LD but not a conforming
-      AS2 document (MV-01-001). `@context` is the only JSON-LD keyword that is a declared
-      spelling; a receiver MUST NOT declare `@id` or `@type` as an alias or exempt them from
-      the near-miss test. The refusal MUST name the arriving key and the declared or
-      retired spelling it resembles. The near-miss test MUST be exactly this normalisation plus
-      the retired-name list: edit distance, prefix matching, or any other similarity measure
-      MUST NOT be used.
+      This rule covers an unrecognised inbound key that is a near miss of a declared
+      spelling of the resolved class, or a retired name. A receiver MUST refuse the
+      whole activity, with the schema-fault response that MV-02-002 requires. A key is a
+      near miss when lowercasing it and removing every non-alphanumeric character yields
+      a declared spelling treated the same way. Thus `Actor`, `attributed-to` and
+      `ATTRIBUTEDTO` are near misses of `actor` and `attributedTo`. A spelling the
+      resolved class accepts on input is declared, never a near miss. Both roots
+      validate by field name as well as by alias (CS-14-001, CS-14-002), so
+      `attributed_to` is a declared spelling of `attributedTo`. The JSON-LD keywords
+      `@id` and `@type` are near misses of `id` and `type` by design.
     rationale: >-
       A near miss is a key that the sender intended Vultron to read. If the receiver
-      continues without the key, it loses the data of the sender and writes only a log
-      line. A refusal tells the sender which field to correct. The normalization is
-      shallow on purpose. AS2 has many property names of two or three letters that are
-      one character apart, so an edit-distance model gives many false matches. A wider
-      definition of "near" is not worth its cost (ARCH-25-008; ADR-0099). A retired name
-      is not a misspelling, so the list names it directly, not through normalization.
-      The list names the JSON-LD keywords so that the peer sees the refusal as a
-      decision. A peer that sends `@id` or `@type` did not compact its JSON-LD, or used
-      a context without the AS2 aliases. It intended the `id` and `type` that Vultron
-      reads. If the parser ignores the keywords, the object loses its identity and type,
-      and more refusals follow. If Vultron declares the keywords as aliases, it becomes
-      a partial JSON-LD processor with no clear limit. Full-IRI property names and
-      `@value` objects are also legal JSON-LD. The refusal tells the peer the compact
-      form to send.
+      goes on without the key, it loses the sender's data and writes only a log line. A
+      refusal tells the sender which field to correct. A retired name is not a
+      misspelling, so the list names it directly. AS2 spells `id` and `type` with no `@`
+      prefix, because the AS2 context aliases the keywords (AS2 Core section 2.1). So a
+      document that carries `@id` or `@type` is legal JSON-LD but not conforming AS2
+      (MV-01-001).
     verification: >-
       `test/wire/as2/test_unknown_key_disposition.py` asserts that a case variant and a
-      separator variant (`attributed-to`) on the envelope and on an inline object, and a retired
-      name on an inline object (the retired-name list holds status-dimension keys, which never
-      sit on the envelope), each raise `VultronParseValidationError` whose message names both
-      the arriving key and the spelling it resembles; that the JSON-LD keywords `@id` and
-      `@type` on the envelope and on an inline object each raise the same parse-edge refusal
-      naming `id` or `type`, not a Pydantic dump; that a snake_case field name is accepted
-      as a declared spelling with nothing reported; and that no module under
-      `vultron/wire/as2/` contains an edit-distance or similarity helper (`difflib`,
-      Levenshtein, or equivalent).
+      separator variant (`attributed-to`) on the envelope and on an inline object, and a
+      retired name on an inline object (the retired-name list holds status-dimension
+      keys, which never sit on the envelope), each raise `VultronParseValidationError`;
+      that the JSON-LD keywords `@id` and `@type` on the envelope and on an inline
+      object each raise the same parse-edge refusal, not a Pydantic dump; and that a
+      snake_case field name is accepted as a declared spelling with nothing reported.
     relationships:
     - rel_type: refines
       spec_id: MV-11-001
@@ -599,30 +701,93 @@ groups:
       spec_id: MV-01-001
     adr:
     - ADR-0099
+  - id: MV-11-007
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A receiver MUST NOT make `@id` or `@type` a declared spelling, as an alias or by
+      exemption from the near-miss test (MV-11-002). The only JSON-LD keyword that is a
+      declared spelling is `@context`.
+    rationale: >-
+      The keywords stay near misses so that the peer sees the refusal as a decision. A
+      peer that sends `@id` or `@type` did not compact its JSON-LD, or used a context
+      without the AS2 aliases. It intended the `id` and `type` that Vultron reads. If
+      the parser ignores the keywords, the object loses its identity and type, and more
+      refusals follow. If Vultron declares the keywords as aliases, it becomes a
+      partial JSON-LD processor with no clear limit.
+    verification: >-
+      `test_no_class_declares_a_jsonld_keyword_as_a_spelling` and
+      `test_no_exemption_names_a_jsonld_keyword` in
+      `test/wire/as2/test_unknown_key_disposition.py` fail if any class declares, or
+      any exemption names, `@id` or `@type`.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-11-002
+    - rel_type: depends_on
+      spec_id: MV-01-001
+    adr:
+    - ADR-0099
+  - id: MV-11-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The refusal of MV-11-002 MUST name the arriving key and the declared or retired
+      spelling it resembles.
+    rationale: >-
+      The refusal tells the peer the compact form to send. A refusal that names only
+      the arriving key leaves the sender to guess which field Vultron meant.
+    verification: >-
+      `test_near_miss_is_refused_naming_both_spellings` and
+      `test_every_near_miss_is_named_in_one_refusal` in
+      `test/wire/as2/test_unknown_key_disposition.py` assert that the
+      `VultronParseValidationError` message names both the arriving key and the
+      spelling it resembles, and the JSON-LD keyword tests assert that it names `id`
+      or `type`.
+    relationships:
+    - rel_type: extends
+      spec_id: MV-11-002
+    adr:
+    - ADR-0099
+  - id: MV-11-009
+    priority: MUST
+    kind: project
+    statement: >-
+      The near-miss test (MV-11-002) MUST use exactly its normalisation plus the
+      retired-name list, and no edit distance, prefix match or other similarity
+      measure.
+    rationale: >-
+      The normalization is shallow on purpose. AS2 has many property names of two or
+      three letters that are one character apart, so an edit-distance model gives many
+      false matches. A wider definition of "near" is not worth its cost (ARCH-25-008;
+      ADR-0099).
+    verification: >-
+      `test_no_similarity_helper_in_the_parse_edge` in
+      `test/wire/as2/test_unknown_key_disposition.py` asserts that no module under
+      `vultron/wire/as2/` contains an edit-distance or similarity helper (`difflib`,
+      Levenshtein, or equivalent).
+    relationships:
+    - rel_type: refines
+      spec_id: MV-11-002
+    adr:
+    - ADR-0099
   - id: MV-11-003
     priority: MUST
     kind: project
     statement: >-
-      An unrecognised inbound key that is not a near miss and not a retired name MUST be set
-      aside and reported, not refused: the activity proceeds on its declared fields, and the
-      receiver logs one INFO record per set-aside key carrying `activity_id`, the sender's
-      `actor_id`, the dotted field path of the object the key sat on, and the key itself. A
-      set-aside key MUST NOT be carried into the parsed object or appear in any dump of it;
-      the raw body remains available as received evidence (VM-08-002).
+      A receiver MUST set aside and report, not refuse, an unrecognised inbound key that
+      is not a near miss or a retired name. The activity proceeds on its declared
+      fields. The receiver logs one INFO record per set-aside key with `activity_id`,
+      the sender's `actor_id`, the dotted field path of the key's object, and the key.
     rationale: >-
       AS2 is designed for extension. Some peers send properties that Vultron does not
       read. If the receiver refuses each such message, peers lose interoperability, and
       the protocol gets no benefit. But the receiver must not stay silent. An operator
       must see what peers send that Vultron ignores. Also, a misspelling in Vultron that
-      the near-miss test does not find shows here first. If the parser keeps the key on
-      the object, the key goes into the stored form, and `extra="forbid"` refuses it
-      when the object is validated again. Thus the report is the only record of the
-      key, and the received evidence is its only copy.
+      the near-miss test does not find shows here first.
     verification: >-
       `test/wire/as2/test_unknown_key_disposition.py` asserts, for an unknown key in each
-      position MV-11-001 names, that `parse_activity` returns an activity, that the parsed
-      object and its `by_alias` dump do not contain the key, and that exactly one INFO record
-      names the key, the path, the activity id and the sender.
+      position MV-11-001 names, that `parse_activity` returns an activity, and that
+      exactly one INFO record names the key, the path, the activity id and the sender.
     relationships:
     - rel_type: refines
       spec_id: MV-11-001
@@ -635,40 +800,87 @@ groups:
     adr:
     - ADR-0099
     - ADR-0086
+  - id: MV-11-010
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A receiver MUST NOT carry a set-aside key (MV-11-003) into the parsed object or
+      into any dump of it. The raw body remains available as received evidence
+      (VM-08-002).
+    rationale: >-
+      If the parser keeps the key on the object, the key goes into the stored form, and
+      `extra="forbid"` refuses it when the object is validated again. Thus the report is
+      the only record of the key, and the received evidence is its only copy.
+    verification: >-
+      `test_set_aside_key_survives_only_in_the_received_evidence` in
+      `test/wire/as2/test_unknown_key_disposition.py` asserts that the parsed object
+      and its `by_alias` dump do not contain the key.
+    relationships:
+    - rel_type: extends
+      spec_id: MV-11-003
+    adr:
+    - ADR-0099
   - id: MV-11-004
-    priority: MUST
+    priority: MUST_NOT
     kind: architecture
     statement: >-
-      Setting inbound unknown keys aside at the parse edge MUST NOT loosen `extra="forbid"` on
-      any core type (ARCH-12-003). The parse edge is the only door inbound data enters by, so a
-      core class never sees an inbound unknown key; an unknown key on in-process or stored data
-      remains a refusal. The retired-name list MV-11-002 consults MUST live in the wire layer
-      and be consulted only at the parse edge; core types MUST NOT carry a per-class
-      retired-key reject-guard (SDO-03-005).
+      Setting inbound unknown keys aside at the parse edge MUST NOT loosen
+      `extra="forbid"` on any core type (ARCH-12-003). The parse edge is the only door
+      inbound data enters by, so a core class never sees an inbound unknown key. An
+      unknown key on in-process or stored data remains a refusal.
     rationale: >-
       The two rules answer different questions. `extra="forbid"` asks: "Did this process
       build or store an object with a key that it does not know?" The answer yes is
       always a bug. The parse edge asks: "Did a peer send a property that Vultron does
       not read?" The answer yes is usually an extension. When the two rules stay
       separate, the receive side can accept unknown properties and the stored side still
-      refuses each unknown key. Thus lenient intake cannot let a dropped or misspelled
-      field get to storage. A retired-key guard on a core class copies the wire-side
-      list into a second place, and the two lists can become different.
+      refuses each unknown key.
     verification: >-
-      `test/architecture/test_core_extra_forbid.py` continues to assert every `CoreObject`
-      subclass forbids extras with no exemption list. A grep of `vultron/core/models/` finds no
-      `mode="before"` validator that rejects a retired key by name: #3921 deleted
-      `ParticipantStatus._reject_retired_vfd_keys`, and
-      `test_no_core_module_names_a_retired_key` (`test/wire/as2/test_unknown_key_disposition.py`)
-      fails if any string constant under `vultron/core/` names a key on the wire-side
-      `RETIRED_NAMES` list.
+      `test/architecture/test_core_extra_forbid.py` continues to assert every
+      `CoreObject` subclass forbids extras with no exemption list.
     relationships:
     - rel_type: derives_from
       spec_id: ARCH-12-003
     - rel_type: refines
-      spec_id: SDO-03-005
-    - rel_type: refines
       spec_id: ARCH-25-025
+    adr:
+    - ADR-0099
+  - id: MV-11-011
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The retired-name list that MV-11-002 consults MUST live in the wire layer and be
+      consulted only at the parse edge.
+    rationale: >-
+      Retired names are spellings a peer may still send, so they are a wire concern.
+      One list at the one inbound door keeps one answer for each retired name.
+    verification: >-
+      `test_no_core_module_names_a_retired_key` in
+      `test/wire/as2/test_unknown_key_disposition.py` fails if any string constant under
+      `vultron/core/` names a key on the wire-side `RETIRED_NAMES` list.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-11-002
+    adr:
+    - ADR-0099
+  - id: MV-11-012
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      Core types MUST NOT carry a per-class retired-key reject-guard (SDO-03-005).
+    rationale: >-
+      A retired-key guard on a core class copies the wire-side list into a second
+      place, and the two lists can become different. `extra="forbid"` already refuses a
+      retired key in in-process and stored data.
+    verification: >-
+      A grep of `vultron/core/models/` finds no `mode="before"` validator that rejects a
+      retired key by name: #3921 deleted `ParticipantStatus._reject_retired_vfd_keys`.
+      `test_no_core_module_names_a_retired_key` in
+      `test/wire/as2/test_unknown_key_disposition.py` fails if any string constant under
+      `vultron/core/` names a retired key.
+    relationships:
+    - rel_type: refines
+      spec_id: SDO-03-005
     adr:
     - ADR-0099
   - id: MV-11-005

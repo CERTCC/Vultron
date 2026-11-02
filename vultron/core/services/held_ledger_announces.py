@@ -17,7 +17,7 @@ A participant that cannot apply a received ledger entry yet holds the
 ``Announce`` that carried it, never the entry alone (SYNC-14-001,
 SYNC-15-004): the body intake archived is held for the inbox replay in a
 :class:`~vultron.core.models.deferred_inbox_activity.DeferredInboxActivity`
-(IO-03-004), and a
+(IO-03-009), and a
 :class:`~vultron.core.models.held_ledger_announce.HeldLedgerAnnounce` row,
 keyed on the entry's ``prev_log_hash``, finds it again when the chain tail
 reaches it.  The drain replays that held ``Announce`` through the inbox
@@ -84,7 +84,7 @@ def holds_held_body(dl: CasePersistence, held: HeldLedgerAnnounce) -> bool:
 def release_held(dl: CasePersistence, held: HeldLedgerAnnounce) -> None:
     """Drop the index row of an ``Announce`` handed to the inbox replay.
 
-    The held body stays: the replay reads it and deletes it (IO-03-004).
+    The held body stays: the replay reads it and deletes it (IO-03-009).
     """
     dl.delete(_HELD_TYPE, held.id_)
 
@@ -173,7 +173,7 @@ def hold_ledger_announce(
     """Hold the received ``Announce`` *activity_id* until *entry* applies.
 
     Holds the body intake archived, as the inbox holds a deferred activity
-    (``DeferredInboxActivity``, IO-03-004), and indexes it under the entry's
+    (``DeferredInboxActivity``, IO-03-009), and indexes it under the entry's
     case and ``prev_log_hash``.  An ``Announce`` whose entry is already held
     under the same predecessor is not held again, whatever its id, unless the
     held one lost its body; a different entry under the same predecessor (a

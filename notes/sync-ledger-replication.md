@@ -309,7 +309,7 @@ does not re-queue an `Announce` the outbox already holds for that peer
 
 - **Hold the Announce, never the entry alone** (SYNC-14-001). The body intake
   archived is held in a `DeferredInboxActivity`, the inbox's replay record
-  (IO-03-004); a `HeldLedgerAnnounce` row indexes it. Reason: an entry held alone
+  (IO-03-009); a `HeldLedgerAnnounce` row indexes it. Reason: an entry held alone
   can only reach the inbox again inside an Announce the replica makes up and
   attributes to the CASE_MANAGER (ISSUE-5012). Both live in the receiver's store,
   never as a `CaseLedgerEntry` (SYNC-14-005), so a restart keeps them.

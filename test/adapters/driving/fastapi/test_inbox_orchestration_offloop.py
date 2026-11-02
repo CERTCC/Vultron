@@ -66,6 +66,7 @@ def _install_process_payload(monkeypatch, fn) -> None:
 
 @pytest.mark.spec("IE-06-003")
 @pytest.mark.spec("IE-06-002")
+@pytest.mark.spec("IE-06-007")
 def test_process_payload_runs_off_the_event_loop(monkeypatch, quiet_pipeline):
     """The BT pipeline executes on a worker thread, not the loop thread."""
     seen: dict[str, Any] = {}

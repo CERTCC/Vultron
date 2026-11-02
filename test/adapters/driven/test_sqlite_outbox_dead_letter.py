@@ -343,6 +343,7 @@ def test_clear_inbox_attempt_count_noop_if_absent(alice_dl):
     assert alice_dl.get_inbox_attempt_count(_ACT_ID) == 0
 
 
+@pytest.mark.spec("IE-06-011")
 def test_inbox_and_outbox_attempt_counts_are_independent(alice_dl):
     """Inbox and outbox counters for the same activity ID are independent."""
     alice_dl.set_inbox_attempt_count(_ACT_ID, 3)
@@ -352,6 +353,7 @@ def test_inbox_and_outbox_attempt_counts_are_independent(alice_dl):
 
 
 @pytest.mark.spec("IE-06-004")
+@pytest.mark.spec("IE-06-011")
 def test_inbox_attempt_count_survives_store_restart(tmp_db_url):
     """Inbox attempt count persists after closing and re-opening the store.
 
@@ -417,6 +419,7 @@ def test_inbox_dead_letter_entry_carries_actor_id(alice_dl):
 
 
 @pytest.mark.spec("IE-06-004")
+@pytest.mark.spec("IE-06-011")
 def test_inbox_dead_letter_survives_store_restart(tmp_db_url):
     """Inbox dead-letter entries persist after closing and re-opening the store.
 

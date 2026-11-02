@@ -12,7 +12,7 @@ Responsibilities:
 
 - Posts to the inbox the sender's held profile of each recipient names,
   and derives ``{actor_uri}/inbox/`` (ActivityPub convention, OX-05-001)
-  only for a recipient it holds no inbox for (OX-12-009).
+  only for a recipient it holds no inbox for (OX-12-010).
 - POSTs the serialised activity payload to each recipient inbox URL
   using ``httpx.AsyncClient`` so the delivery loop is non-blocking.
 - Retries with exponential backoff on delivery failure (SYNC-05-001).
@@ -91,7 +91,7 @@ DEFAULT_DELIVERY_TIMEOUT: float = 30.0
 def inbox_url_for(
     recipient_id: str, inboxes: Mapping[str, str] | None = None
 ) -> str:
-    """The inbox to POST to for *recipient_id* (OX-12-009).
+    """The inbox to POST to for *recipient_id* (OX-12-009, OX-12-010).
 
     The inbox the sender's held profile names, from *inboxes*; else the
     address ``{actor_uri}/inbox/`` derived from the recipient's URI, a guess
@@ -153,7 +153,7 @@ class HttpDeliveryAdapter:
         """Deliver *json_body* to each recipient's inbox via HTTP POST.
 
         Posts to the inbox *inboxes* names for a recipient, else to
-        ``{actor_uri}/inbox/`` (OX-12-009), and POSTs the
+        ``{actor_uri}/inbox/`` (OX-12-009, OX-12-010), and POSTs the
         sealed body exactly as handed over — no re-serialisation
         (VM-08-003).  Per-recipient failures are retried with exponential
         backoff; after all retries are exhausted the failure is logged at

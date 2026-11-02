@@ -704,6 +704,8 @@ def test_rm_accept_invite_to_case_object_is_invite(sample_actor):
 
 
 @pytest.mark.spec("RF-08-001")
+@pytest.mark.spec("RF-08-002")
+@pytest.mark.spec("RF-08-003")
 def test_rm_accept_invite_to_case_in_reply_to_auto_set(sample_actor):
     """Model validator auto-populates in_reply_to from invite.id_."""
     invite = rm_invite_to_case_activity(
@@ -836,6 +838,8 @@ def test_rm_reject_invite_to_case_object_is_invite(sample_actor):
 
 
 @pytest.mark.spec("RF-08-001")
+@pytest.mark.spec("RF-08-002")
+@pytest.mark.spec("RF-08-003")
 def test_rm_reject_invite_to_case_in_reply_to_auto_set(sample_actor):
     """Model validator auto-populates in_reply_to from invite.id_."""
     invite = rm_invite_to_case_activity(

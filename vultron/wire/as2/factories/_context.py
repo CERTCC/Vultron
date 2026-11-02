@@ -65,7 +65,7 @@ def with_case_context(
 
 
 def case_target_ref(target: _Target) -> _Target | str:
-    """Reduce a full case in a ``target`` slot to its URI (MV-10-001, AKM-02-002).
+    """Reduce a full case in a ``target`` slot to its URI (MV-10-009, AKM-02-002).
 
     A recipient addressed about a case already holds it, so the case travels as
     its URI; only the selective-disclosure stub an ``Invite`` builds

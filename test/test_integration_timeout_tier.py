@@ -103,6 +103,7 @@ class TestApplyIntegrationTimeout:
         assert apply_integration_timeout([item]) == 0
         assert item.applied_timeout is None
 
+    @pytest.mark.spec("TB-14-007")
     def test_explicit_timeout_marker_wins(self):
         """A deliberate per-test value must not be overwritten."""
         item = FakeItem("integration", timeout=180)
@@ -223,6 +224,7 @@ class TestResolvedTimeoutsUnderRealPytest:
     def test_unit_item_resolves_to_the_unit_tier(self, resolved):
         assert resolved["test_unit_tier"] == _UNIT_TIER_FOR_PROBE
 
+    @pytest.mark.spec("TB-14-007")
     def test_explicit_marker_beats_the_tier_default(self, resolved):
         """The demo suite's deliberate values (10, 180) depend on this."""
         assert resolved["test_explicit_marker_wins"] == 7
@@ -381,7 +383,7 @@ def _run_probe_session(pytester, pytestconfig, tests):
         pytest.fail("a per-test timeout trip did not end the hanging test")
 
 
-@pytest.mark.spec("TB-14-002")
+@pytest.mark.spec("TB-14-002", "TB-14-008", "TB-14-009")
 class TestTimeoutTripFailsOneTest:
     """A per-test timeout trip fails that test alone (#3603).
 

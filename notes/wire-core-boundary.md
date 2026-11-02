@@ -51,7 +51,7 @@ point is explicit and neither layer couples to the other's names:
 - A domain object MUST NOT inherit from an ActivityStreams base type; AS2
   serialization goes through the rendering port (CM-08-002, ARCH-20-001).
 - Wire payload classes carry the `Activity` suffix and domain event classes the
-  `Event` suffix (CS-10-002); domain class names use CVD vocabulary
+  `Event` suffix (CS-10-002, CS-10-006); domain class names use CVD vocabulary
   (CS-12-001).
 - Core event and use-case fields use domain names (`report_id`, `case_id`), not
   AS2 roles (`object_id`, `target_id`). The extractor's `ActivityPattern`

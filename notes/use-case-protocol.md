@@ -95,10 +95,10 @@ Every link from `execute()` to `DispatchNode` returns the `HandlerResult`
 - **`_handle()` can end without a handler running.** Semantics with no use case
   return `HandlerResult.no_use_case_found(...)`, a `REFUSED` verdict marked
   `unhandled`, never a raise, so the outcome is `rejected` and no fault is sent
-  (UCORG-05-012, SE-05-002).
+  (UCORG-05-012, SE-05-006).
 
 The verdict reaches `InboxOutcome` and the actor log (a `rejected` outcome logs at
-WARNING, UCORG-05-013, except an `unhandled` one, which logs at INFO, IO-01-005).
+WARNING, UCORG-05-013, except an `unhandled` one, which logs at INFO, IO-01-008).
 It never reaches the sender over HTTP: the inbox returns 202 before any handler
 runs. Telling a remote party about processing outcomes is
 a protocol message, not a response code (#2682). A refused status assertion is
@@ -125,7 +125,7 @@ line between "what they told us" and "what we are doing" (ADR-0040).
   `TriggerDispatcher.trigger(request, dl)` resolves each verb's result statically
   (UCORG-05-006); `test_trigger_port_single_method.py` keeps it one method.
 - Every result subtype forbids extra keys, so a use case that grows a return key
-  fails at construction instead of the key being dropped (UCORG-05-005).
+  fails at construction instead of the key being dropped (UCORG-05-016).
   `activity`, `offer` and `note` stay `dict`s because core cannot import wire
   types (ARCH-01-001).
 - Every route under `/trigger/` and `/demo/` is one `run_trigger(...)` call

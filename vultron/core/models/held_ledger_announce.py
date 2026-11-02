@@ -19,7 +19,7 @@ yet (a forward gap, SYNC-14-001; a case not yet seeded, SYNC-15-004; or an
 entry the case is not yet at, ADR-0124) holds the ``Announce`` it received,
 not the entry inside it: the received body sits in a
 :class:`~vultron.core.models.deferred_inbox_activity.DeferredInboxActivity`,
-the record the inbox replays a held activity from (IO-03-004).  When the
+the record the inbox replays a held activity from (IO-03-009).  When the
 entry's predecessor commits, or the case is seeded, that very ``Announce`` is
 replayed through the inbox as a delivery of its own (SYNC-14-009).  Nothing
 is rebuilt and nothing is attributed to a sender who did not send it.

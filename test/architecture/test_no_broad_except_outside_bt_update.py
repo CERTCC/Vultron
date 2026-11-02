@@ -37,7 +37,8 @@ assertion is an exact match: a new broad catch in an already-listed file fails
 the test (the count grew), a broad catch in any other file fails immediately,
 and a boundary joins the list only with its own inline justification.
 
-Spec: CS-23-001 (``specs/code-style.yaml``), refining ARCH-15-002.
+Spec: CS-23-001, CS-23-002 and CS-23-003 (``specs/code-style.yaml``),
+refining ARCH-15-002.
 See ``notes/domain-validation.md`` § "Broad ``except Exception`` Is a Masking
 Smell" and ``notes/architecture-ratchet-corpus.md`` for the corpus pattern.
 """

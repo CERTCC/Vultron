@@ -165,7 +165,7 @@ def files_mentioning(
 
     Applies a plain substring prefilter before parsing — O(n) over source
     bytes, keeping per-ratchet cost proportional to match count rather than
-    total file count (TB-13-001, TB-13-002, TB-13-007, TB-13-008).
+    total file count (TB-13-001, TB-13-002, TB-13-008).
     """
     for path in _paths_under(under):
         source = _source_cache[path]
@@ -274,7 +274,7 @@ def parse_inline(source: str, filename: str = "<inline>") -> ast.AST:
     """Parse a short inline source string.
 
     Provided so test siblings can avoid importing ``ast`` directly, keeping
-    the hygiene ratchet (TB-13-003) unambiguous.
+    the hygiene ratchet (TB-13-009) unambiguous.
     """
     return ast.parse(source, filename=filename)
 

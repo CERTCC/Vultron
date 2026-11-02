@@ -6,7 +6,7 @@ adapter-layer pattern: both extend ``CoreRecord`` so they are stored via
 they record transport-layer delivery failures.
 
 ``RetryStore`` is the unified adapter-level protocol used by both the outbox
-handler (OX-13) and inbox handler (IE-06-004) to persist attempt counts and
+handler (OX-13) and inbox handler (IE-06-011) to persist attempt counts and
 move exhausted activities to the dead-letter store.  ``SqliteDataLayer``
 satisfies ``RetryStore`` structurally.
 
@@ -15,7 +15,7 @@ compatibility with code written before #4168.  New code should use
 ``RetryStore`` and the generic queue-aware methods.
 
 See ``specs/outbox.yaml`` OX-13-001 through OX-13-004, OX-14-001 through
-OX-14-003, and ``specs/inbox-endpoint.yaml`` IE-06-004.
+OX-14-003, and ``specs/inbox-endpoint.yaml`` IE-06-004, IE-06-008, IE-06-011.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -80,7 +80,7 @@ class OutboxDeadLetterEntry(CoreRecord):
 
 
 class InboxDeadLetterEntry(CoreRecord):
-    """Record of an inbox activity that exhausted its retry budget (IE-06-004).
+    """Record of an inbox activity that exhausted its retry budget (IE-06-008).
 
     Extends the same ``CoreRecord``-based pattern as ``OutboxDeadLetterEntry``
     so that both inbox and outbox dead letters are stored and retrieved via
@@ -147,7 +147,7 @@ class OutboxRetryStore(Protocol):
 
 
 class RetryStore(OutboxRetryStore, Protocol):
-    """Unified retry-store protocol covering both inbox and outbox (IE-06-004).
+    """Unified retry-store protocol covering both inbox and outbox (IE-06-011).
 
     Extends ``OutboxRetryStore`` with inbox-specific retry tracking and
     dead-lettering.  ``SqliteDataLayer`` satisfies this protocol structurally.

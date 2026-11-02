@@ -354,6 +354,35 @@ def test_post_inbox_returns_400_when_activity_addressed_to_other_actor(
     assert resp.status_code == status.HTTP_400_BAD_REQUEST
 
 
+@pytest.mark.spec("IE-11-004")
+def test_a_misaddressed_activity_writes_nothing_to_the_receivers_store(
+    client_actors, created_actors
+):
+    """IE-11-004: the refusal leaves the receiving actor's store unchanged."""
+    actor = created_actors[0]
+    other_id = created_actors[1].id_
+    dl = get_datalayer(actor.id_, db_url="sqlite:///:memory:")
+
+    def _snapshot() -> tuple[frozenset[str], list[str], list[str]]:
+        records = cast(dict[str, object], dl.all())
+        return frozenset(records), dl.inbox_list(), dl.outbox_list()
+
+    before = _snapshot()
+    note = as_Note(content="not for you")
+    activity = as_Create(object_=note, actor=other_id)
+    object.__setattr__(activity, "to", other_id)
+
+    payload = jsonable_encoder(activity, exclude_none=True)
+    resp = client_actors.post(
+        f"/actors/{_route_key(actor.id_)}/inbox/", json=payload
+    )
+
+    assert resp.status_code == status.HTTP_400_BAD_REQUEST
+    assert _snapshot() == before
+    assert activity.id_ not in before[0]
+    assert note.id_ not in before[0]
+
+
 def test_post_inbox_returns_202_when_activity_addressed_to_actor(
     client_actors, created_actors
 ):

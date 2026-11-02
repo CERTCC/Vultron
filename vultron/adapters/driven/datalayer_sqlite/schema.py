@@ -126,7 +126,7 @@ class QueueAttemptEntry(SQLModel, table=True):
     """Shared persisted attempt counter for inbox and outbox retry tracking.
 
     Covers both inbox and outbox queues via a ``queue`` discriminator,
-    satisfying the DRY requirement in IE-06-004 and #4168.
+    satisfying the DRY requirement in IE-06-011 and #4168.
 
     The primary key is ``(queue, activity_id)`` so a single activity_id may
     appear at most once per queue name within one actor's store, with no
