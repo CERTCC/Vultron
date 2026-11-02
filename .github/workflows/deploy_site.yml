@@ -4,7 +4,9 @@
 # same on demand, optionally without the CI gate, or rolls the site back to the
 # commit of the `publish-*` or `v*` tag named in `rollback-to`. Every run starts
 # from `main`, so the workflow that runs is always main's reviewed copy, never
-# one stored at a tag. The gate logic lives in .github/scripts/publish_gate.py,
+# one stored at a tag. The gate names the publish's tag before the build, so
+# every page's footer can show it, and the tag job creates exactly that name
+# (DOCBW-06-031). The gate logic lives in .github/scripts/publish_gate.py,
 # with its unit tests in test/ci/test_publish_gate.py.
 name: Publish site to Pages
 
@@ -73,6 +75,11 @@ jobs:
       trigger: ${{ steps.gate.outputs.trigger }}
       commit: ${{ steps.gate.outputs.commit }}
       tag-message: ${{ steps.gate.outputs.tag-message }}
+      # The publish-* tag the tag job will create, its UTC date and the
+      # newest v* tag on the commit; all empty when the run does not publish.
+      publish-tag: ${{ steps.gate.outputs.publish-tag }}
+      publish-date: ${{ steps.gate.outputs.publish-date }}
+      release-tag: ${{ steps.gate.outputs.release-tag }}
     steps:
       # Full history and every tag: the skip rule reads the publish-* tags on
       # the commit, and the gate checks a rollback target and each unfinished
@@ -127,10 +134,18 @@ jobs:
       # DOCBW-03-009, DOCBW-03-010). For a rollback the commit is the
       # target's, so the steps below run that commit's own checks: a newer URL
       # record names pages the older commit never built.
+      # The environment names the publish this build is for, which every
+      # page's footer prints (DOCBW-06-031, vultron/metadata/docs/
+      # build_version.py). It labels the build; it does not change how the
+      # site builds. A rollback target older than the footer ignores it.
       - name: Build Site
         uses: ./.github/actions/build-site
         with:
           ref: ${{ needs.gate.outputs.commit }}
+        env:
+          VULTRON_PUBLISH_TAG: ${{ needs.gate.outputs.publish-tag }}
+          VULTRON_PUBLISH_DATE: ${{ needs.gate.outputs.publish-date }}
+          VULTRON_RELEASE_TAG: ${{ needs.gate.outputs.release-tag }}
 
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
@@ -189,17 +204,21 @@ jobs:
 
       # After the deploy, so the newest publish-* tag always names what is live
       # and a failed deploy leaves no tag for the skip rule to honour
-      # (DOCBW-06-016). It only creates a tag; nothing here moves or deletes
-      # one (DOCBW-06-022). Re-running this job after a failure finds the tag
-      # an earlier attempt pushed rather than making a second.
+      # (DOCBW-06-016). It creates the name the gate chose and the footer of
+      # every deployed page shows, and fails rather than renumber when that
+      # name was taken in between (DOCBW-06-031). It only creates a tag;
+      # nothing here moves or deletes one (DOCBW-06-022). Re-running this job
+      # after a failure finds the tag an earlier attempt pushed rather than
+      # making a second.
       - name: Tag the published commit
         env:
           SHA: ${{ needs.gate.outputs.commit }}
+          TAG_NAME: ${{ needs.gate.outputs.publish-tag }}
           TAG_MESSAGE: ${{ needs.gate.outputs.tag-message }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          python3 .github/scripts/publish_gate.py tag \
-            --sha "$SHA" --message "$TAG_MESSAGE" --run-url "$RUN_URL"
+          python3 .github/scripts/publish_gate.py tag --sha "$SHA" \
+            --name "$TAG_NAME" --message "$TAG_MESSAGE" --run-url "$RUN_URL"
 
   notify:
     name: Report the publish
@@ -223,12 +242,17 @@ jobs:
         if: needs.deploy.result == 'success' && needs.tag.result == 'failure'
         env:
           COMMIT: ${{ needs.gate.outputs.commit }}
+          TAG_NAME: ${{ needs.gate.outputs.publish-tag }}
         run: |
           {
             echo "The site was deployed from \`$COMMIT\`, but tagging it failed,"
             echo "so the newest \`publish-*\` tag does not name what is live."
+            echo "Every page's footer names \`$TAG_NAME\`."
             echo "Re-run the failed **Tag the published commit** job of this run;"
             echo "it finds a tag an earlier attempt pushed instead of adding one."
+            echo "If its log says the name was taken, re-running cannot help:"
+            echo "start a new run of this workflow from \`main\`, which names a new"
+            echo "tag and redeploys with it."
           } > untagged-deploy.md
 
       # Every trigger reports a failure: a failed scheduled, manual or rollback

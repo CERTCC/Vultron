@@ -9,7 +9,15 @@ subject: neutral
 
 # Vultron Release Versioning
 
-{% include-markdown "../includes/curr_ver.md" end="<!-- versioning-link -->" %}
+The footer of every page on this site tells you which publish and which build the page came from.
+A published page shows the publish date and the `publish-YYYY-MM-DD.N` tag of that publish, with a link to the tag on GitHub.
+After the tag, the footer shows the release tag when the published commit has one, for example `v2026.11.0`.
+Otherwise it shows the build version, for example `2026.10.1.dev570+gabc123`.
+A page that no publish made, such as a local preview, shows "Unpublished build" and the build version.
+
+The build version is not a release version.
+The build tool derives it from the most recent release tag in the history of the commit, so a build after that tag gets a development version.
+Only the release tags, described below, number releases.
 
 Vultron releases follow [Calendar Versioning (CalVer)](https://calver.org/) using the format `vYYYY.M.P`.
 The release tag names a snapshot of the whole repository.

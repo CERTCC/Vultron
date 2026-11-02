@@ -298,6 +298,10 @@ hooks:
   # exec block links from the right page (in-page on full.md). See the
   # module docstring.
   - vultron/metadata/docs/exec_page.py
+  # Renders the footer line naming the publish and build each page came from
+  # into `extra.build_footer`, for overrides/partials/copyright.html (#5544).
+  # See the module docstring.
+  - vultron/metadata/docs/build_version.py
 # Not processed at all. The generated occasion fragments (ADR-0128) and the
 # reading-path boxes (DF-11-023) are pulled into their host pages by
 # include-markdown, which reads them from disk, and their links are checked
@@ -418,6 +422,9 @@ plugins:
         howto/demos/fvv-demo.md: howto/demos/rvv-demo.md
         howto/em_icalendar.md: topics/process_models/em/index.md
         howto/general_implementation.md: howto/activitypub/index.md
+        # The Site build box was built as a page of its own; the page footer
+        # replaced it, and the versioning page explains the footer (#5544).
+        includes/curr_ver.md: reference/versioning.md
         reference/fv-demo-protocol.md: reference/rv-demo-protocol.md
         # Annex C of the Protocol Specification carries the notation; the older
         # page had no nav entry of its own (#5150).

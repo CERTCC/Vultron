@@ -39,6 +39,11 @@ from test.ci._workflows import (
     steps,
     triggers,
 )
+from vultron.metadata.docs.build_version import (
+    PUBLISH_DATE_ENV,
+    PUBLISH_TAG_ENV,
+    RELEASE_TAG_ENV,
+)
 
 _SCRIPT = SCRIPTS_DIR / "publish_gate.py"
 _WORKFLOW = WORKFLOWS_DIR / "deploy_site.yml"
@@ -560,46 +565,78 @@ def _remote_tags(repo: Path) -> dict[str, str]:
     }
 
 
-@pytest.mark.spec("DOCBW-06-016", "DOCBW-06-017")
-def test_create_tag_pushes_one_annotated_tag(repo: Path) -> None:
+NAME = f"publish-{DAY}.1"
+
+
+@pytest.mark.spec("DOCBW-06-016", "DOCBW-06-017", "DOCBW-06-031")
+def test_create_tag_pushes_the_named_annotated_tag(repo: Path) -> None:
     sha = _head(repo)
     name = _gate.create_tag(
-        sha, f"scheduled publish.\n\nRun: {RUN_URL}\n", RUN_URL, today=DAY
+        sha, NAME, f"scheduled publish.\n\nRun: {RUN_URL}\n", RUN_URL
     )
-    assert name == f"publish-{DAY}.1"
-    assert list(_remote_tags(repo)) == [name]
+    assert name == NAME
+    assert list(_remote_tags(repo)) == [NAME]
     tag = _gate.publish_tags_on(sha)
     assert len(tag) == 1 and tag[0].made_by_workflow
-    contents = _git(repo, "tag", "-l", "--format=%(contents)", name)
+    contents = _git(repo, "tag", "-l", "--format=%(contents)", NAME)
     assert contents.splitlines()[0] == "scheduled publish."
 
 
+@pytest.mark.spec("DOCBW-06-031")
+@pytest.mark.parametrize("name", ["", "publish-2026-11-02", "v2026.11.0"])
+def test_create_tag_refuses_a_name_that_is_no_publish_tag(
+    repo: Path, name: str
+) -> None:
+    with pytest.raises(ValueError, match="is not a publish-"):
+        _gate.create_tag(_head(repo), name, "x\n", RUN_URL)
+    assert _remote_tags(repo) == {}
+
+
 @pytest.mark.spec("DOCBW-06-016", "DOCBW-06-025")
-def test_a_rerun_finds_the_tag_it_pushed(repo: Path) -> None:
-    """Re-running a failed tag job makes no second tag for the same run."""
+def test_a_rerun_finds_the_tag_it_pushed(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Re-running a failed tag job makes no second tag for the same run.
+
+    A re-run checks the repository out afresh, so it starts from a clone
+    that already holds the tag the first attempt pushed.
+    """
     sha = _head(repo)
     message = _gate.tag_message(
         _gate.RunContext(Trigger.MANUAL, sha, "octocat"), RUN_URL
     )
-    first = _gate.create_tag(sha, message, RUN_URL, today=DAY)
-    again = _gate.create_tag(sha, message, RUN_URL, today=DAY)
-    assert again == first
-    assert list(_remote_tags(repo)) == [first]
-    # Another run on the same commit is a new publish, with a new tag.
-    other = "https://github.com/O/R/actions/runs/6"
-    assert (
-        _gate.create_tag(sha, message, other, today=DAY) == f"publish-{DAY}.2"
+    first = _gate.create_tag(sha, NAME, message, RUN_URL)
+    rerun = tmp_path / "rerun"
+    subprocess.run(
+        ["git", "clone", "-q", str(tmp_path / "origin.git"), str(rerun)],
+        check=True,
+        capture_output=True,
     )
+    monkeypatch.chdir(rerun)
+    assert _gate.create_tag(sha, NAME, message, RUN_URL) == first
+    assert list(_remote_tags(repo)) == [first]
 
 
-@pytest.mark.spec("DOCBW-06-016", "DOCBW-06-022")
-def test_create_tag_renumbers_past_a_taken_name(
-    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.spec("DOCBW-06-031", "DOCBW-06-022")
+def test_another_runs_tag_of_the_same_name_fails_the_job(repo: Path) -> None:
+    """The name is the one every deployed page shows: it is never renumbered."""
+    sha = _head(repo)
+    _gate.create_tag(sha, NAME, "manual publish.\n", RUN_URL)
+    before = _remote_tags(repo)
+    other = "https://github.com/O/R/actions/runs/6"
+    with pytest.raises(_gate.TagNameTakenError):
+        _gate.create_tag(sha, NAME, "manual publish.\n", other)
+    assert _remote_tags(repo) == before
+
+
+@pytest.mark.spec("DOCBW-06-031", "DOCBW-06-022")
+def test_a_name_taken_by_hand_fails_the_job_and_is_left_alone(
+    repo: Path, tmp_path: Path
 ) -> None:
-    """A hand-made tag of the same name lands between numbering and push.
+    """A hand-made tag of the chosen name lands between the gate and the tag job.
 
-    The push is refused, the tag renumbered and pushed again, and the
-    hand-made tag on the remote is left exactly as it was.
+    The tag job fails instead of renumbering to a name the deployed footer
+    does not show, and the hand-made tag on the remote is left as it was.
     """
     other = tmp_path / "other"
     subprocess.run(
@@ -607,25 +644,39 @@ def test_create_tag_renumbers_past_a_taken_name(
         check=True,
         capture_output=True,
     )
-    _git(other, "tag", "-a", f"publish-{DAY}.1", "-m", "by hand")
-    _git(other, "push", "-q", "origin", f"publish-{DAY}.1")
-    before = _remote_tags(repo)[f"publish-{DAY}.1"]
-    real = _gate._remote_tags
-    reads: list[int] = []
+    _git(other, "tag", "-a", NAME, "-m", "by hand")
+    _git(other, "push", "-q", "origin", NAME)
+    before = _remote_tags(repo)
+    with pytest.raises(_gate.TagNameTakenError):
+        _gate.create_tag(_head(repo), NAME, "manual publish.\n", RUN_URL)
+    assert _remote_tags(repo) == before
+    assert _git(repo, "tag", "--list", "publish-*").split() == []
 
-    def stale_for_numbering() -> dict[str, str]:
-        # The reads before the first push predate the hand-made tag.
-        reads.append(1)
-        return {} if len(reads) <= 2 else real()
 
-    monkeypatch.setattr(_gate, "_remote_tags", stale_for_numbering)
-    name = _gate.create_tag(
-        _head(repo), "manual publish.\n", RUN_URL, today=DAY
+@pytest.mark.spec("DOCBW-06-031", "DOCBW-06-022")
+def test_a_name_taken_during_the_push_fails_the_job(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The hand-made tag lands after the job checked the name, before it pushed."""
+    other = tmp_path / "other"
+    subprocess.run(
+        ["git", "clone", "-q", str(tmp_path / "origin.git"), str(other)],
+        check=True,
+        capture_output=True,
     )
-    assert name == f"publish-{DAY}.2"
-    remote = _remote_tags(repo)
-    assert remote[f"publish-{DAY}.1"] == before
-    assert set(remote) == {f"publish-{DAY}.1", f"publish-{DAY}.2"}
+    real_run = _gate.run
+
+    def race_then_run(*argv: str) -> str:
+        if argv[:2] == ("git", "push"):
+            _git(other, "tag", "-a", NAME, "-m", "by hand")
+            _git(other, "push", "-q", "origin", NAME)
+        return str(real_run(*argv))
+
+    monkeypatch.setattr(_gate, "run", race_then_run)
+    with pytest.raises(_gate.TagNameTakenError):
+        _gate.create_tag(_head(repo), NAME, "manual publish.\n", RUN_URL)
+    contents = _git(other, "tag", "-l", "--format=%(contents)", NAME)
+    assert contents.strip() == "by hand"
 
 
 @pytest.mark.spec("DOCBW-06-016")
@@ -642,20 +693,51 @@ def test_create_tag_accepts_a_push_that_landed(
         return out
 
     monkeypatch.setattr(_gate, "run", push_then_fail)
-    name = _gate.create_tag(_head(repo), "x\n", RUN_URL, today=DAY)
-    assert name == f"publish-{DAY}.1"
-    assert list(_remote_tags(repo)) == [name]
+    name = _gate.create_tag(_head(repo), NAME, "x\n", RUN_URL)
+    assert name == NAME
+    assert list(_remote_tags(repo)) == [NAME]
 
 
 def test_create_tag_raises_a_push_failure_that_is_no_collision(
     repo: Path,
 ) -> None:
-    """An unreachable remote is a real failure, never a reason to renumber."""
+    """An unreachable remote is a real failure, never a taken name."""
     sha = _head(repo)
     _git(repo, "remote", "set-url", "origin", str(repo.parent / "missing.git"))
     with pytest.raises(subprocess.CalledProcessError):
-        _gate.create_tag(sha, "x\n", RUN_URL, today=DAY)
+        _gate.create_tag(sha, NAME, "x\n", RUN_URL)
     assert _git(repo, "tag", "--list", "publish-*").split() == []
+
+
+@pytest.mark.spec("DOCBW-06-016", "DOCBW-06-031")
+def test_next_publish_tag_counts_local_and_remote_tags(
+    repo: Path, tmp_path: Path
+) -> None:
+    """A tag pushed while the gate waited is on the remote, not in its clone."""
+    _tag_as_bot(repo, NAME)
+    other = tmp_path / "other"
+    subprocess.run(
+        ["git", "clone", "-q", str(tmp_path / "origin.git"), str(other)],
+        check=True,
+        capture_output=True,
+    )
+    _git(other, "tag", "-a", f"publish-{DAY}.2", "-m", "by hand")
+    _git(other, "push", "-q", "origin", f"publish-{DAY}.2")
+    assert _gate.next_publish_tag(DAY) == f"publish-{DAY}.3"
+
+
+@pytest.mark.spec("DOCBW-06-031")
+def test_release_tag_on_names_the_newest_release_on_the_commit(
+    repo: Path,
+) -> None:
+    sha = _head(repo)
+    assert _gate.release_tag_on(sha) == ""
+    _git(repo, "tag", "v2026.10.0")
+    _git(repo, "tag", "-a", "v2026.11.0", "-m", "release")
+    _git(repo, "tag", "vnext")  # not version-shaped
+    assert _gate.release_tag_on(sha) == "v2026.11.0"
+    _commit(repo, "later")
+    assert _gate.release_tag_on(_head(repo)) == ""
 
 
 # --- the gate and tag commands ------------------------------------------------------
@@ -711,6 +793,9 @@ def test_gate_command_writes_its_verdict(
     assert "publish=false\n" in out and "trigger=scheduled\n" in out
     assert "commit=abc123\n" in out
     assert "scheduled publish, by github-actions[bot]." in out
+    # A run that does not publish names no tag for a build to print.
+    for key in ("publish-tag", "publish-date", "release-tag"):
+        assert f"{key}=\n" in out
 
 
 @pytest.mark.spec("DOCBW-06-018")
@@ -722,10 +807,18 @@ def test_gate_command_skips_the_gate_on_request(
         monkeypatch,
         [{"number": 41, "labels": ["ci:main-failure", "ci:workflow-ui"]}],
     )
+    monkeypatch.setattr(_gate, "_utc_today", lambda: DAY)
+    monkeypatch.setattr(
+        _gate, "next_publish_tag", lambda day: f"publish-{day}.4"
+    )
+    monkeypatch.setattr(_gate, "release_tag_on", lambda sha: "")
     assert _gate_main(skip_ci_gate="true") == 0
     out = outputs["out"].read_text()
     assert "publish=true\n" in out and "trigger=manual-ungated\n" in out
     assert "manual publish with the CI gate skipped, by @octocat." in out
+    assert f"publish-tag=publish-{DAY}.4\n" in out
+    assert f"publish-date={DAY}\n" in out and "release-tag=\n" in out
+    assert f"tagged `publish-{DAY}.4`" in outputs["summary"].read_text()
 
 
 @pytest.mark.spec("DOCBW-06-020")
@@ -734,16 +827,23 @@ def test_gate_command_rolls_back_to_a_commit_on_main(
 ) -> None:
     old = _head(repo)
     _tag_as_bot(repo, f"publish-{DAY}.1")
+    _git(repo, "tag", "-a", "v2026.11.0", "-m", "release")
     tip = _commit(repo, "tip")
     _no_github(
         monkeypatch,
         [{"number": 41, "labels": ["ci:main-failure", "ci:workflow-ui"]}],
     )
+    monkeypatch.setattr(_gate, "_utc_today", lambda: DAY)
     assert _gate_main(sha=tip, rollback_to=f"publish-{DAY}.1") == 0
     out = outputs["out"].read_text()
     assert "publish=true\n" in out and "trigger=rollback\n" in out
     assert f"commit={old}\n" in out
     assert f"rollback to publish-{DAY}.1, by @octocat." in out
+    # The rollback's build names the new publish of the old commit, and the
+    # release that commit carries (DOCBW-06-031).
+    assert f"publish-tag=publish-{DAY}.2\n" in out
+    assert f"publish-date={DAY}\n" in out
+    assert "release-tag=v2026.11.0\n" in out
 
 
 @pytest.mark.spec("DOCBW-06-026")
@@ -782,16 +882,19 @@ def test_tag_command_writes_the_tag(
     out = tmp_path / "out"
     monkeypatch.setenv("GITHUB_OUTPUT", str(out))
     monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
-    made: list[tuple[str, str, str]] = []
+    made: list[tuple[str, str, str, str]] = []
 
-    def create_tag(sha: str, message: str, run_url: str) -> str:
-        made.append((sha, message, run_url))
-        return f"publish-{DAY}.1"
+    def create_tag(sha: str, name: str, message: str, run_url: str) -> str:
+        made.append((sha, name, message, run_url))
+        return name
 
     monkeypatch.setattr(_gate, "create_tag", create_tag)
-    argv = ["tag", "--sha", "abc123", "--message", "m\n", "--run-url", RUN_URL]
+    argv = [
+        "tag", "--sha", "abc123", "--name", f"publish-{DAY}.1",
+        "--message", "m\n", "--run-url", RUN_URL,
+    ]  # fmt: skip
     assert _gate.main(argv) == 0
-    assert made == [("abc123", "m\n", RUN_URL)]
+    assert made == [("abc123", f"publish-{DAY}.1", "m\n", RUN_URL)]
     assert out.read_text() == f"tag=publish-{DAY}.1\n"
 
 
@@ -970,6 +1073,28 @@ def test_deploy_runs_only_on_the_gate_verdict() -> None:
     assert _needs("tag") == {"gate", "deploy"}
     tag_env = _job_steps("tag")[-1]["env"]
     assert tag_env["SHA"] == "${{ needs.gate.outputs.commit }}"
+
+
+@pytest.mark.spec("DOCBW-06-031")
+def test_the_build_and_the_tag_job_share_the_gates_tag_name() -> None:
+    """The footer the build prints and the tag the tag job makes are one name."""
+    outputs = _job("gate")["outputs"]
+    for key in ("publish-tag", "publish-date", "release-tag"):
+        assert outputs[key] == f"${{{{ steps.gate.outputs.{key} }}}}"
+    (shared,) = [
+        s
+        for s in _job_steps("build")
+        if s.get("uses") == "./.github/actions/build-site"
+    ]
+    # The variables build_version.py reads, each fed by its gate output.
+    assert shared["env"] == {
+        PUBLISH_TAG_ENV: "${{ needs.gate.outputs.publish-tag }}",
+        PUBLISH_DATE_ENV: "${{ needs.gate.outputs.publish-date }}",
+        RELEASE_TAG_ENV: "${{ needs.gate.outputs.release-tag }}",
+    }
+    tag = _job_steps("tag")[-1]
+    assert tag["env"]["TAG_NAME"] == "${{ needs.gate.outputs.publish-tag }}"
+    assert '--name "$TAG_NAME"' in tag["run"]
 
 
 @pytest.mark.spec("DOCBW-06-016", "DOCBW-06-002")
