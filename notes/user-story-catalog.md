@@ -70,8 +70,9 @@ the work. The spec registry can.
 | New story IDs | `story_<year added>_NNN`, numbered from 001 within the year; `story_2022_*` is frozen | SR-11-002's pattern already allows any year; the year says which catalog generation a story belongs to |
 | Retiring a story | Never. A story that is split or withdrawn keeps its page, marked superseded with the IDs that replace it, and its ID is never reused | A `stories:` reference in a spec must resolve for as long as any revision of that spec exists |
 | Support level (`as of v0.4.0`) | Retired from every page and from the index legend. The index table and the traceability matrix are generated from the specs' `stories:` fields and show coverage instead | A dated judgment cannot stay true; nine of the eleven Out-of-scope stories are cited by requirements today. Coverage is a fact the registry already holds |
-| Traceability matrix | Generated and gated by a check mode, like the other committed site artifacts (DF-11-005, DF-11-011) | Hand editing is how it reached 161 of 801 |
-| A cited story must exist | Hard lint error when a `stories:` entry names a story page that is not in the catalog | Today only the ID pattern is checked, so a typo is a silent broken edge |
+| Traceability matrix | Generated and gated by a check mode, like the other committed site artifacts (TRACE-01-001, TRACE-03-003; built in #4506) | Hand editing is how it reached 161 of 801 |
+| A cited story must exist | Hard lint error, not suppressible, when a `stories:` entry names a story page that is not in the catalog (TRACE-03-001; built in #4506) | Checking only the ID pattern makes a typo a silent broken edge |
+| A story page is never removed | A PR-only guard fails a branch that deletes one; a superseded story keeps its page (TRACE-03-002; built in #4506) | A `stories:` entry must resolve for every revision of its citers, and a freed ID can be reused |
 | How the protocol gap is worked | By spec-file area, one Task per area, worklist read from a per-file gap report; reuse an existing story first, add one only when none fits | One agent stays in one area of knowledge, worklists do not overlap, and the same cut the rationale backfill uses (#4483–#4486) means the same context serves both |
 | Binding versus advisory tier | Every binding protocol requirement in an area gets a story; a `SHOULD`, `SHOULD_NOT` or `MAY` gets one where an existing story fits, and zero is not required | SR-11-003 gates the binding tier; SR-11-004 is advisory |
 | A requirement no story can motivate | Apply the MS-12 decision tree and relabel; never add a `missing_story_reference` suppression | A protocol requirement that cannot be traced to a stakeholder need is usually misclassified (`notes/spec-authoring-rules.md`); MS-12-007 forbids new suppressions |
@@ -134,8 +135,12 @@ generated index table and traceability matrix link every page (DF-11-006).
 
 The worklist for an area is the output of the gap report over that area's spec
 files: every `kind: protocol` requirement with no `stories:`, grouped by file
-and priority. The report replaces the hand-maintained lists in the Idea bodies
-and the hand-off lists #3601 was to write into them.
+and priority. Read it with `uv run story-gaps --list <FILE-OR-PREFIX>...`
+(TRACE-03-004); without `--list` it prints one summary line per spec file, and
+a `[suppressed]` mark names a requirement still carrying
+`lint_suppress: [missing_story_reference]`. The report replaces the
+hand-maintained lists in the Idea bodies and the hand-off lists #3601 was to
+write into them.
 
 For each requirement in the worklist:
 

@@ -69,6 +69,7 @@ from vultron.metadata.docs.requirement_catalog import (
     CatalogPage,
     anchor_homes,
     kind_page,
+    source_href,
 )
 from vultron.metadata.markdown_tables import (
     ExecBlock,
@@ -133,8 +134,7 @@ class RelinkStats:
 
 
 def _href(home: AnchorHome, path: str) -> str:
-    start = posixpath.dirname(path) or "."
-    return f"{posixpath.relpath(home.page, start)}#{home.fragment}"
+    return source_href(home.page, home.fragment, from_page=path)
 
 
 def _bare(fragment: str) -> tuple[str, SpecKind | None]:

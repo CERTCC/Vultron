@@ -137,18 +137,20 @@ repos:
         pass_filenames: false
 
       - id: docs-site-sync
-        name: Docs-site landing pages, reading-path boxes, stakeholder fragment and coverage matrix in sync
+        name: Docs-site landing pages, reading-path boxes, stakeholder fragment, coverage matrix and story graph in sync
         entry: uv run docs-site --check
         language: system
-        # Every input that can make an artifact stale (DF-11-005/008/011/023): any
-        # docs page (its description:, level or stakeholder_type), the nav, the
-        # schema and generators, and the artifacts themselves so a hand-edit is
-        # caught. In CI, docs-build-check.yml runs it tree-wide on a pull
-        # request that changes docs/ (DOCBW-03-013), so a deleted page is
+        # Every input that can make an artifact stale (DF-11-005/008/011/023,
+        # TRACE-01-001, TRACE-03-003): any docs page (its description:, level or
+        # stakeholder_type, and a story page's presence), the nav, the schema and
+        # generators, the spec corpus and its loader (the story table and matrix
+        # are rendered from the stories: fields), and the artifacts themselves so
+        # a hand-edit is caught. In CI, docs-build-check.yml runs it tree-wide on
+        # a pull request that changes docs/ (DOCBW-03-013), so a deleted page is
         # caught there, and test_committed_site_artifacts_are_in_sync on one
         # that changes vultron/; locally, no staged-file pattern matches a
         # deletion.
-        files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/.*\.py|vultron/metadata/(base|file_loading|generated_block)\.py|notes/site-coverage-matrix\.md)$
+        files: ^(docs/.*\.md|mkdocs\.yml|specs/.*\.yaml|vultron/metadata/docs/.*\.py|vultron/metadata/specs/(registry|schema)\.py|vultron/metadata/(base|file_loading|generated_block)\.py|notes/site-coverage-matrix\.md)$
         pass_filenames: false
 
       - id: docs-threads

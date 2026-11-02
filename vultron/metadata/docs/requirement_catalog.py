@@ -49,6 +49,7 @@ rows are (SR-09-004), and the retired ``reference/specs/protocol.md`` and
 from __future__ import annotations
 
 import os
+import posixpath
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -386,6 +387,18 @@ def site_href(from_page: str, to_page: str, anchor: str) -> str:
     return f"{relative_url(to_page, page_path=from_page)}#{anchor}"
 
 
+def source_href(to_page: str, anchor: str, *, from_page: str) -> str:
+    """Return a source-relative link from *from_page* to *anchor* on *to_page*.
+
+    Both pages are ``docs/``-relative source paths, and so is the result: the
+    ``.md`` path MkDocs rewrites and validates. Use this for a link committed
+    in a ``docs/`` file, and :func:`site_href` for one a renderer prints from
+    an exec block, where MkDocs never sees the link and a ``.md`` target 404s.
+    """
+    start = posixpath.dirname(from_page) or "."
+    return f"{posixpath.relpath(to_page, start)}#{anchor}"
+
+
 def requirement_linker(
     registry: SpecRegistry,
     page: str,
@@ -509,4 +522,5 @@ __all__ = [
     "requirement_anchor",
     "requirement_linker",
     "site_href",
+    "source_href",
 ]

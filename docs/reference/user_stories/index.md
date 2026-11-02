@@ -35,18 +35,17 @@ The [User Story Traceability Matrix](traceability.md) maps each story to the for
     
     The remaining stories have been added since that whitepaper was published.
 
-## Support Levels
+## Coverage
 
-Each story page from the 2022 catalog carries a support level, assigned when the story was written against the protocol as it stood at the time:
+The table below gives each story's **coverage**: how many requirements in the specifications name that story as one of the needs they exist to serve.
+The count links the story's entry in the [User Story Traceability Matrix](traceability.md), which lists those requirements grouped by specification file.
 
-- *Provided* - The protocol directly supports the story.
-- *Allowed* - The protocol indirectly supports the story.
-- *Unsupported* - The protocol does not support the story.
-- *Out-of-scope* - The story is outside the protocol's scope.
+A story whose coverage cell reads *No mapped requirements* is one that no requirement names yet.
+That is a recorded gap rather than an error.
+Some of these stories describe needs the protocol has not taken up, and the stories about bug bounties are waiting on a decision about whether bounty programs are in scope at all.
 
-Story pages added from 2026 on carry no support level, and their Status cell in the table is blank.
-A support level is a dated judgment, not a live conformance result.
-The [User Story Traceability Matrix](traceability.md) is the current record of which requirements satisfy a story, and a story with mapped requirements may be better supported than its original level says.
+Coverage is a count read from the specifications, not a judgment of how well the protocol serves a story.
+The specifications hold the mapping, so both this table and the matrix are generated from them and a check in the build fails when either one drifts.
 
 ## User Stories Table
 
