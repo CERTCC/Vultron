@@ -51,6 +51,11 @@ groups:
       a partial case leaves it nothing complete to seed from. A reference leaves it
       nothing to read: it has no trusted source to fetch the case from, because it
       trusts the CASE_MANAGER only after it accepts this activity (ADR-0170).
+    note: >-
+      "Complete" means the case object with all its own fields, not a stub. Which
+      objects the case names must also travel inline is CBT-01-007's rule: the
+      participant records do, and the report the receiver offered may go by
+      reference.
     verification: >-
       `test_report_receiver_introduces_the_case_manager_to_the_reporter` in
       `test/core/behaviors/case/test_create_case_received_tree.py` confirms that the
