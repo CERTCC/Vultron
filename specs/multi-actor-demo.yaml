@@ -443,6 +443,35 @@ groups:
       spec_id: DEMOMA-06-002
     - rel_type: refines
       spec_id: DEMOMA-15-001
+  - id: DEMOMA-06-007
+    priority: MUST
+    kind: project
+    statement: >-
+      The rv story MUST start with the shared "the Reporter tells the Vendor"
+      opening and continue from the replica synchronization it checks next.
+    rationale: >-
+      The opening is the Reporter submitting its report to the Vendor and the
+      Vendor validating it and engaging the case. rv tells it identically to
+      RVV, RVCV-extension and RVCV-handoff, so it is one copy of the code and
+      the four recordings are byte-identical up to the Vendor's decision
+      (DEMOCI-11-018). rv then reads two replica checks of its own before the
+      note thread its siblings post next; both write nothing, so they move no
+      byte of the shared opening. Naming the opening here keeps this group a
+      whole story: a reader sees where rv's own telling begins without reading
+      a sibling's group.
+    verification: >-
+      `test/demo/test_rv_demo.py` asserts that the scenario's story begins
+      with the items of `REPORTER_TELLS_THE_VENDOR`, and
+      `TestComposedFamilies` in `test/demo_unit/test_recordings.py` compares
+      the pairs of the family named in `COMPOSED_FAMILIES` byte for byte up to
+      the branch point where each pair's paths part.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
+    tags:
+    - demo
 - id: DEMOMA-07
   title: ParticipantStatus Trigger Pattern
   specs:
@@ -844,6 +873,35 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-08-008
+  - id: DEMOMA-09-007
+    priority: MUST
+    kind: project
+    statement: >-
+      The RVV story MUST start with the shared "the Vendor answers the
+      Reporter" opening and continue from Vendor1's decision to invite a
+      second Vendor.
+    rationale: >-
+      That opening is the shared "the Reporter tells the Vendor" one
+      (DEMOMA-06-007) continued through the note thread the Reporter opens and
+      Vendor1 answers, which is where Vendor1's decision falls. RVV tells the
+      whole of it identically to RVCV-extension and RVCV-handoff, so it is one
+      copy of the code and their recordings are byte-identical to the
+      `vendor-after-answer` branch point (DEMOCI-11-018). Naming it here keeps
+      this group a whole story.
+    verification: >-
+      `test/demo/test_rvv_demo.py` asserts that the scenario's story begins
+      with the items of `THE_VENDOR_ANSWERS_THE_REPORTER`, and that those
+      items in turn begin with `REPORTER_TELLS_THE_VENDOR`;
+      `TestComposedFamilies` in `test/demo_unit/test_recordings.py` compares
+      the pairs of the family named in `COMPOSED_FAMILIES` byte for byte up to
+      the branch point where each pair's paths part.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
+    tags:
+    - demo
 
 - id: DEMOMA-10
   title: RVCV-Extension Scenario (Vendor1 keeps ownership; Coordinator suggests Vendor2)
@@ -1066,6 +1124,37 @@ groups:
       spec_id: CP-08-003
     - rel_type: refines
       spec_id: DEMOMA-10-001
+  - id: DEMOMA-10-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The RVCV-extension story MUST start with the shared "the Vendor invites
+      a Coordinator" opening and continue from Vendor1's decision to keep the
+      case.
+    rationale: >-
+      The opening is the Reporter telling Vendor1, Vendor1 engaging the case
+      and answering the Reporter's question, and Vendor1 inviting the
+      Coordinator, which joins. The shared "the Vendor answers the Reporter"
+      opening is nested inside the one DEMOMA-09-007 names and inside this
+      one, so every vendor-first scenario tells it identically, and
+      RVCV-handoff tells the whole of this one identically (DEMOMA-11-015).
+      One copy of the code, so the recordings are byte-identical to where each
+      pair's paths part (DEMOCI-11-018).
+    verification: >-
+      `test/demo/test_rvcv_extension_demo.py` asserts that the scenario's
+      story begins with the items of `THE_VENDOR_INVITES_A_COORDINATOR`, and
+      that the prefix itself reaches back to the items of
+      `THE_VENDOR_ANSWERS_THE_REPORTER`; `TestComposedFamilies` in
+      `test/demo_unit/test_recordings.py` compares the pairs of the family
+      named in `COMPOSED_FAMILIES` byte for byte up to the branch point where
+      each pair's paths part.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
+    tags:
+    - demo
 
 - id: DEMOMA-11
   title: RVCV-Handoff Scenario (Vendor1 hands ownership to Coordinator; it invites Vendor2)
@@ -1377,6 +1466,33 @@ groups:
     rationale: >-
       The ownership transfer postcondition for Vendor1: it relinquishes the case-owner
       role and becomes an ordinary participant.
+  - id: DEMOMA-11-015
+    priority: MUST
+    kind: project
+    statement: >-
+      The RVCV-handoff story MUST start with the same shared opening as
+      RVCV-extension (DEMOMA-10-010) and continue from Vendor1's decision to
+      offer ownership.
+    rationale: >-
+      The two scenarios part at one decision, so everything before it is one
+      copy of the code and their recordings are byte-identical up to the
+      `owner-keep-case` branch point (DEMOCI-11-018). It also makes the
+      Coordinator an active participant holding the coordinating role before
+      the transfer is offered, which CM-21-021 requires. Naming it here keeps
+      this group a whole story.
+    verification: >-
+      `test/demo/test_rvcv_handoff_demo.py` asserts that the scenario's story
+      begins with the items of `THE_VENDOR_INVITES_A_COORDINATOR`, the same
+      prefix `rvcv-extension` starts with, and `TestComposedFamilies` in
+      `test/demo_unit/test_recordings.py` compares the two recordings byte for
+      byte up to the `owner-keep-case` branch point.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
+    tags:
+    - demo
 
 - id: DEMOMA-12
   title: RCV Scenario (Reporter reports to Coordinator; Coordinator invites Vendor)
@@ -4531,9 +4647,9 @@ groups:
       scenario's dump targets (actor name, client, route key, and any fallback).
     rationale: >-
       The export loop is the same for every scenario. A copy of it in each scenario
-      module is the duplication that DEMOMA-17-001 forbids. The step is a
-      `_phase_dump_case_ledgers()` in a scenario written as phases and a `dump=`
-      story fragment in one written as composition (DEMOCI-11-019).
+      module is the duplication that DEMOMA-17-001 forbids. Every scenario is
+      written as composition, so the step is the `dump=` story fragment its cast
+      opening was built with (DEMOCI-11-019).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -4686,8 +4802,8 @@ groups:
       ledger dump. A scenario-specific extra — the rv scenario's check that its
       dedicated case-actor container holds the case — follows the helper call as
       a separate step rather than becoming a per-scenario variant of the step's
-      body. The step is a `_phase_sync_verification()` in a scenario written as
-      phases and a story fragment in one written as composition.
+      body. Every scenario is written as composition, so the step is a story
+      fragment.
     verification: >-
       Unit tests for the shared phase helper assert that it composes the
       Reporter-case gate, the coverage wait (DEMOMA-23-005), the participant-index

@@ -63,6 +63,7 @@ from vultron.demo.helpers import (
     coordinated_story,
     invite_chain,
     owner_decision_story,
+    story_cast,
 )
 from vultron.demo.helpers.coordinated_story import (
     COORDINATOR,
@@ -254,7 +255,7 @@ class TestCharacterActorsSeededAfterTheBranchPoint:
         with (
             patch.object(demo, "run_story") as run_story,
             patch.object(
-                coordinated_story,
+                story_cast,
                 "reset_datalayer",
                 return_value={"status": "ok"},
             ) as reset,
@@ -267,7 +268,7 @@ class TestCharacterActorsSeededAfterTheBranchPoint:
                 return_value=tuple(seeded),
             ) as seed_three,
             patch.object(
-                coordinated_story, "get_actor_by_id", side_effect=list(seeded)
+                story_cast, "get_actor_by_id", side_effect=list(seeded)
             ),
             patch.object(demo, "seed_containers_rcvcv") as seed_five,
         ):

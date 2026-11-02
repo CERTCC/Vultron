@@ -85,12 +85,20 @@ _TIMESTAMP = "<timestamp>"
 #: :mod:`vultron.demo.helpers.coordinated_embargo_story` and
 #: :mod:`vultron.demo.helpers.two_coordinator_story`, so the bytes before each
 #: pair's branch point come from one copy of the code and byte identity holds
-#: by construction.  The vendor-first families follow as they are composed
-#: (#5536); until then only the isomorphism check (DEMOCI-11-017) holds for
-#: them, because a hand-placed opening can still differ in setup length — it
-#: is the shared opening seeding only the containers every sibling uses that
-#: closed the gap here, each actor and peer record it writes being one more
-#: read of the recording clock (#5532).
+#: by construction.
+#:
+#: The vendor-first half — every scenario whose Reporter tells a Vendor — is
+#: the third entry, composed in one step (#5536): ``rv``, ``rvv``,
+#: ``rvcv-extension`` and ``rvcv-handoff`` assemble their stories from the
+#: nested prefixes in :mod:`vultron.demo.helpers.vendor_story` and
+#: :mod:`vultron.demo.helpers.vendor_coordinator_story`.  Its opening seeds
+#: only the two containers every one of the four uses, which is what closed
+#: the setup-length gap that kept the half on the isomorphism check alone:
+#: each actor and peer record written before the case exists is one more read
+#: of the recording clock, and the four started 120 and 160 ms apart with two,
+#: three and four containers seeded (#5532).  Every pair of the four parts at
+#: ledger entry 15 or 22, ahead of the race below, so every pair is checked
+#: here.
 #:
 #: The subtree is named as **two overlapping families**, which is how this
 #: table says "every pair but one".  The one pair left out is
@@ -123,6 +131,7 @@ COMPOSED_FAMILIES: tuple[frozenset[str], ...] = (
             "rcvv-embargo",
         }
     ),
+    frozenset({"rv", "rvv", "rvcv-extension", "rvcv-handoff"}),
 )
 
 
