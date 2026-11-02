@@ -150,8 +150,8 @@ Case Owner triggers SvcInviteActorToCaseUseCase
   → CASE_MANAGER creates the invitee's CaseParticipant (inert: RM.RECEIVED,
     VF v for a vendor, consent INVITED if an embargo is active) and commits
     the creation to the ledger (CM-11-006)
-  → CASE_MANAGER sends Invite(Actor, VulnerabilityCaseStub,
-    actor=case_actor_id, attributedTo=case_owner_id), commits it in the
+  → CASE_MANAGER sends Invite(Actor)[target=VulnerabilityCaseStub]
+    (sent by case_actor_id, attributedTo case_owner_id), commits it in the
     emitting tree, no cc: (CM-17-006, CM-17-015) → invitee's inbox
 
 Invitee sends Accept(Invite(Actor)[target=VulnerabilityCaseStub])
@@ -167,7 +167,7 @@ AcceptInviteActorToCaseReceivedUseCase, at every receiver of a copy:
      (CM-11-001)
   4. Emits Announce(VulnerabilityCase) to the participant and replays the
      prior ledger to it (CM-11-008)
-  5. Queues the full-case Invite(Actor, VulnerabilityCase) after the last
+  5. Queues the full-case Invite(Actor)[target=VulnerabilityCase] after the last
      replayed entry, carrying its ledger tail position (CM-11-031)
 
 Participant replies to the full-case Invite, carrying its own ledger position:

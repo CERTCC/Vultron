@@ -120,7 +120,7 @@ class TestOfferActorToCaseReceivedUseCase:
         recommended_id = "https://example.org/actors/vendor-new"
         recommended = as_Actor(id_=recommended_id)
 
-        # Build Offer(Actor, Case) — the wire activity matched by OFFER_ACTOR_TO_CASE.
+        # Build Offer(Actor)[target=VulnerabilityCase] — the wire activity matched by OFFER_ACTOR_TO_CASE.
         # CM-11-050: roles must be explicit; no default to VENDOR.
         activity = recommend_actor_activity(
             recommended,

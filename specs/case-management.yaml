@@ -412,7 +412,8 @@ groups:
     kind: project
     statement: >-
       When the CASE_MANAGER commits an `accept_case_participant_role` ledger entry, it
-      MUST grant the offered `CVDRole` to the target Actor's `CaseParticipant` on its own
+      MUST grant the offered `CVDRole` to the target Actor's `CaseParticipant` on its
+      own
       replica. That entry records the acceptance of an `Offer(CaseParticipantRole)`
       (ADR-0039).
     rationale: >-
@@ -421,7 +422,8 @@ groups:
       grant to its own copy at commit. This keeps the authority for roles with the
       CASE_MANAGER and keeps every replica the same (ADR-0108, ADR-0124).
     verification: >-
-      `test/core/behaviors/case/nodes/test_delegation.py` asserts the CASE_MANAGER grants
+      `test/core/behaviors/case/nodes/test_delegation.py` asserts the CASE_MANAGER
+      grants
       the role on its own copy when it commits the accept.
     adr:
     - ADR-0039
@@ -892,7 +894,8 @@ groups:
       How this codebase meets CM-05-015. Separate types let the type checker find an
       object that the code passes in place of a different object.
     verification: >-
-      Static analysis (mypy) confirms that no typed signature accepts one of the six types
+      Static analysis (mypy) confirms that no typed signature accepts one of the six
+      types
       in place of another, and `test/core/models/test_distinct_domain_types.py` confirms
       that each type's serialized form is refused when parsed as any of the others.
     relationships:
@@ -1359,7 +1362,7 @@ groups:
       with an inert one. A participant is active when three conditions hold. First,
       the case initialization sequence seated it (CM-14-001: the Case Owner, the
       CASE_MANAGER and the reporter), or it accepted the stub Invite
-      (`Accept(Invite(Actor, VulnerabilityCaseStub))`). Second, it has not been
+      (`Accept(Invite(Actor)[target=VulnerabilityCaseStub])`). Second, it has not been
       removed (CM-31-001). Third, while an embargo is active, its consent row for that
       embargo is `AGREED` (CM-18-001). Every other participant is inert. Case content
       includes `CaseLedgerEntry` announcements, `Announce(VulnerabilityCase)`, status
@@ -1619,7 +1622,8 @@ groups:
       The reply wraps the Invite as its `object_`, so the stub is on
       `object_.target`, which `extract_event` maps to `inner_target`. The stub
       has its own ID (`<case-id>/stub`) and names the case explicitly
-      (CM-11-013, CM-11-037); parsing one ID out of the other would couple every receiver
+      (CM-11-013, CM-11-037); parsing one ID out of the other would couple every
+      receiver
       to the ID scheme.
     verification: A unit test confirms the reply use case resolves `case_id` from
       the case named by the stub on the nested Invite.
@@ -1632,7 +1636,7 @@ groups:
     kind: protocol
     statement: >-
       When the CASE_MANAGER sends a stub Invite
-      (`Invite(Actor, VulnerabilityCaseStub)`), it MUST create the invitee's
+      (`Invite(Actor)[target=VulnerabilityCaseStub]`), it MUST create the invitee's
       `CaseParticipant` in the same step. The participant is inert (CM-10-004).
     rationale: >-
       The CASE_MANAGER needs to track every invitee from the moment it is
@@ -1750,7 +1754,7 @@ groups:
     kind: protocol
     statement: >-
       A stub Invite has exactly two valid replies, `Accept` (CM-11-001) and
-      `Reject`. On `Reject(Invite(Actor, VulnerabilityCaseStub))`, the
+      `Reject`. On `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`, the
       CASE_MANAGER MUST close the participant and keep its record, which stays
       inert. Closing it moves its RM state to `RM.CLOSED`, sets VF `V` for a
       VENDOR, and records consent `DECLINED` when an embargo is active.
@@ -1799,7 +1803,7 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST refuse
-      `TentativeReject(Invite(Actor, VulnerabilityCaseStub))`.
+      `TentativeReject(Invite(Actor)[target=VulnerabilityCaseStub])`.
     rationale: >-
       Accepting the stub is not a judgement of the case, so there is nothing for a
       tentative reject to say. Only the full-case Invite asks for a judgement
@@ -1897,7 +1901,7 @@ groups:
     kind: protocol
     statement: >-
       After CM-11-008, the CASE_MANAGER MUST send the participant the full-case
-      Invite, `Invite(Actor, VulnerabilityCase)`, queued after the last replayed
+      Invite, `Invite(Actor)[target=VulnerabilityCase]`, queued after the last replayed
       ledger entry.
     rationale: >-
       The participant already holds the case from the Announce, so the Invite
@@ -2457,7 +2461,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the CASE_MANAGER receives `Reject(Invite(Actor, VulnerabilityCaseStub))`
+      When the CASE_MANAGER receives
+      `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`
       for an invitee with no participant record, it MUST refuse it with a
       reported reason, not as a silent no-op.
     rationale: >-
@@ -2483,8 +2488,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the CASE_MANAGER receives `Accept(Invite(Actor,
-      VulnerabilityCaseStub))` and holds no participant record for the invitee,
+      When the CASE_MANAGER receives
+      `Accept(Invite(Actor)[target=VulnerabilityCaseStub])` and holds no participant
+      record for the invitee,
       it MUST refuse the Accept with a reported reason.
     rationale: >-
       The CASE_MANAGER creates the participant record when it sends the stub Invite
@@ -3406,9 +3412,10 @@ groups:
       After it receives `Accept(Offer(CaseParticipant))` from the Case Owner, the
       CASE_MANAGER MUST take four steps. (1) It commits a ledger entry for the
       Accept. (2) It fans out the ledger entry. (3) It sends the original
-      recommender an `Accept` of its `Offer(Actor, Case)`, with `in_reply_to` set
+      recommender an `Accept` of its `Offer(Actor)[target=VulnerabilityCase]`, with
+      `in_reply_to` set
       to that Offer's ID. (4) It sends the suggested actor the stub Invite
-      (`Invite(Actor, VulnerabilityCaseStub)`, CM-11-013) per CM-17.
+      (`Invite(Actor)[target=VulnerabilityCaseStub]`, CM-11-013) per CM-17.
     rationale: >-
       The ledger records the Case Owner's decision before any step acts on it
       (CLP-10-006). Thus every replica sees the cause before its effects. The
@@ -3495,8 +3502,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      This rule covers a second `Offer(Actor X, Case)` that arrives after an
-      Invite went to Actor X: the Invite is in flight, or X participates.
+      This rule covers a second `Offer(Actor)[target=VulnerabilityCase]` for
+      Actor X after an Invite went to X, so the Invite is in flight or X
+      participates.
       The CASE_MANAGER MUST commit the recommendation's ledger entry, fan it out,
       and auto-send the second recommender an `Accept` of its Offer, with
       `in_reply_to` naming it.
@@ -3505,7 +3513,8 @@ groups:
       complete. Thus the second recommender gets the answer that it would get after the
       Case Owner accepted.
     verification: Integration tests in `test/demo/` confirm that when Actor X is already invited
-      or a participant, a second `Offer(Actor X)` is recorded and `AcceptActorRecommendation`
+      or a participant, a second `Offer(Actor X)` is recorded and
+      `AcceptActorRecommendation`
       is sent to the second recommender.
     stories:
     - story_2022_013
@@ -3514,7 +3523,8 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      When a second `Offer(Actor X, Case)` arrives after an Invite went to Actor
+      When a second `Offer(Actor)[target=VulnerabilityCase]` for Actor X arrives after
+      an Invite went to Actor
       X, the CASE_MANAGER MUST NOT send Actor X a duplicate Invite.
     rationale: >-
       A second Invite would create a second open stub for the same participant
@@ -3917,7 +3927,8 @@ groups:
       This rule covers the direct-trigger path, where the Case Owner calls
       `invite-actor-to-case` with a `roles` list. In that path,
       `SvcInviteActorToCaseUseCase` MUST send the CASE_MANAGER the Case Owner's
-      own recommend-actor `Offer(Actor, Case)`, carrying those roles, from the
+      own recommend-actor `Offer(Actor)[target=VulnerabilityCase]`, carrying those
+      roles, from the
       Case Owner's identity and outbox.
     rationale: >-
       The owner's direct invite is the recommend-actor flow with the recommender and the
@@ -3928,7 +3939,8 @@ groups:
       is not the ledger's home (ADR-0109).
     verification: >-
       `test/core/use_cases/triggers/test_actor_triggers.py` asserts the trigger enqueues an
-      `Offer(Actor, Case)` addressed to the CASE_MANAGER with the offered roles, from the
+      `Offer(Actor)[target=VulnerabilityCase]` addressed to the CASE_MANAGER with the
+      offered roles, from the
       owner's outbox only; and
       `test/demo/test_remote_case_actor_invite.py` runs the flow on three containers and
       asserts the Invite is emitted and committed on the CASE_MANAGER's container with no `cc`.
@@ -3956,7 +3968,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      This rule covers an `Offer(Actor, Case)` whose recommender holds
+      This rule covers an `Offer(Actor)[target=VulnerabilityCase]` whose recommender
+      holds
       `CVDRole.CASE_OWNER` for the case. The CASE_MANAGER's recommend-actor
       received tree MUST emit the `Invite` directly with the offered roles,
       instead of forwarding the Offer to the Case Owner (CM-16-003, CM-16-004).
@@ -4814,7 +4827,8 @@ groups:
       in their `case_roles` list.
     rationale: '`CASE_OWNER` confers case administration authority (CM-02-001, CM-02-004, CM-02-005). `CASE_MANAGER` is a distinct
       role: it grants single-writer authority over the canonical ledger (CLP-09) and is held by the case-creating actor enacting
-      `CVDRole.CASE_MANAGER`, which SHOULD also carry `CVDRole.COORDINATOR` (CBT-01-015).
+      `CVDRole.CASE_MANAGER`, which SHOULD also carry `CVDRole.COORDINATOR`
+      (CBT-01-015).
       It is not conferred merely for being invited as a facilitation participant,
       so a Coordinator invited as a regular participant holds neither `CASE_OWNER`
       nor `CASE_MANAGER`.'
@@ -4831,14 +4845,15 @@ groups:
     kind: protocol
     statement: >-
       When the Case Owner approves a Coordinator suggested through the
-      `Offer(Actor, Case)` path (CM-16), the Coordinator's roles MUST include
+      `Offer(Actor)[target=VulnerabilityCase]` path (CM-16), the Coordinator's roles
+      MUST include
       `COORDINATOR`.
     rationale: Role assignments at invite time must reflect the invited actor's actual
       function in the case, not its organizational identity. A Coordinator invited to
       facilitate holds the `COORDINATOR` role, so role checks find it as one.
     verification: >-
       Integration tests in `test/demo/` confirm that a Coordinator admitted via
-      `Offer(Actor, Case)` is assigned `CVDRole.COORDINATOR`.
+      `Offer(Actor)[target=VulnerabilityCase]` is assigned `CVDRole.COORDINATOR`.
     relationships:
     - rel_type: refines
       spec_id: CM-20-001
@@ -4852,11 +4867,13 @@ groups:
     kind: protocol
     statement: >-
       When the Case Owner approves a Coordinator suggested through the
-      `Offer(Actor, Case)` path (CM-16), the Coordinator's roles MUST NOT include
+      `Offer(Actor)[target=VulnerabilityCase]` path (CM-16), the Coordinator's roles
+      MUST NOT include
       `CASE_MANAGER` or `CASE_OWNER`.
     rationale: >-
       Invitation and case ownership transfer are distinct protocol operations. An
-      `Offer(Actor, Case)` invite adds a participant. It does not transfer `CASE_OWNER`
+      `Offer(Actor)[target=VulnerabilityCase]` invite adds a participant. It does not
+      transfer `CASE_OWNER`
       authority (CM-02-001) or the `CASE_MANAGER` single-writer authority (CM-20-001).
     verification: >-
       `test_an_approved_coordinator_is_invited_without_authority_roles` in
@@ -4874,11 +4891,13 @@ groups:
     kind: protocol
     statement: >-
       A Coordinator participant that holds `COORDINATOR` without `CASE_MANAGER` MUST
-      route its `Offer(Actor, Case)` suggestion to add another actor through the
+      route its `Offer(Actor)[target=VulnerabilityCase]` suggestion to add another actor
+      through the
       CASE_MANAGER inbox, per ADR-0026 (CM-16-001).
     rationale: 'A Coordinator-as-participant should be able to exercise their facilitation role (suggesting additional vendors)
       without requiring ownership transfer. The CASE_MANAGER-routed suggest flow (ADR-0026) already provides this: the Coordinator
-      sends `Offer(Actor, Case)` to the CASE_MANAGER, which records and forwards it to the Case Owner for approval.'
+      sends `Offer(Actor)[target=VulnerabilityCase]` to the CASE_MANAGER, which records
+      and forwards it to the Case Owner for approval.'
     verification: >-
       Integration tests in `test/demo/` confirm that a Coordinator participant's
       actor-suggestion message routes through the CASE_MANAGER.
@@ -6181,8 +6200,9 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST close a participant's RM state only in response to a
-      Leave(VulnerabilityCase), never to a participant-sent Add(ParticipantStatus,
-      rmState=CLOSED). Its ledger commits are the authority for the closure.
+      Leave(VulnerabilityCase), never to a participant-sent Add(ParticipantStatus)
+      whose status carries rmState=CLOSED. Its ledger commits are the authority for
+      the closure.
     rationale: >-
       The Leave round trip makes the CASE_MANAGER the authority for closure. It also
       prevents false departures that lost messages cause. A participant cannot silently
@@ -6190,7 +6210,8 @@ groups:
       ledger entry (ADR-0108). See ADR-0050.
     verification: Integration tests in `test/demo/` confirm that RM closure flows through
       `Leave(VulnerabilityCase)` -> CASE_MANAGER ledger commit -> broadcast, and that
-      `Add(ParticipantStatus, rmState=CLOSED)` is not used as a closure trigger.
+      `Add(ParticipantStatus)` whose status carries `rmState=CLOSED` is not used as a
+      closure trigger.
     adr:
     - ADR-0050
     - ADR-0108
@@ -6238,7 +6259,8 @@ groups:
       `test_non_owner_leave_from_valid_commits_two_steps` and
       `test_owner_leave_orders_every_entry_before_the_boundary` in
       `test/core/use_cases/received/test_close_case_role_semantics.py` assert that a
-      Leave from RM.VALID commits the close_case entry and then a VALID -> DEFERRED and a
+      Leave from RM.VALID commits the close_case entry and then a VALID -> DEFERRED and
+      a
       DEFERRED -> CLOSED status entry, in that order.
     relationships:
     - rel_type: extends
@@ -6576,7 +6598,8 @@ groups:
       `test_closed_owner_receives_its_own_closure_and_nothing_after` in
       `test/core/use_cases/received/test_close_case_role_semantics.py`, assert that the
       leaver's replica receives the `close_case` entry and every status entry up to and
-      including the one that reaches `RM.CLOSED`, and that an inert leaver receives none.
+      including the one that reaches `RM.CLOSED`, and that an inert leaver receives
+      none.
     relationships:
     - rel_type: refines
       spec_id: CM-23-004
@@ -6772,7 +6795,8 @@ groups:
     kind: protocol
     statement: >-
       When the Case Owner's `Leave(VulnerabilityCase)` arrives while the case's EM state
-      is `EM.ACTIVE` or `EM.REVISE`, the CASE_MANAGER MUST decline it with an `as:Reject`
+      is `EM.ACTIVE` or `EM.REVISE`, the CASE_MANAGER MUST decline it with an
+      `as:Reject`
       (MSM-05-001).
     rationale: >-
       Owner-close is a hard, terminal write boundary (ADR-0085). VP-13-009 keeps an
@@ -6977,7 +7001,8 @@ groups:
       Tests confirm that after an owner Leave(VulnerabilityCase) has committed the
       CASE_MANAGER's own RM.CLOSED status entry, a later inbound activity for the case —
       a bystander's
-      Leave(VulnerabilityCase) and an `Add(Note, target=Case)` among them — commits no
+      Leave(VulnerabilityCase) and an `Add(Note)[target=VulnerabilityCase]` among them —
+      commits no
       CaseLedgerEntry:
       `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseBoundary::test_bystander_leave_after_owner_close_is_refused`
       and `TestPostCloseWriteBoundary`. `test/core/behaviors/case/test_receive_activity_tree.py::TestPostCloseStage`
@@ -7108,7 +7133,8 @@ groups:
       finality (CM-23-002).
     verification: >-
       A test confirms that an owner Leave(VulnerabilityCase) on a case with an unanswered Invite
-      whose RSVP deadline is in the future moves that participant's consent to `TIMED_OUT`
+      whose RSVP deadline is in the future moves that participant's consent to
+      `TIMED_OUT`
       before every closure step, so it precedes the write boundary even when the
       Case Owner is the CASE_MANAGER:
       `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseBoundary::test_owner_close_expires_pending_invite_before_boundary`.
@@ -7225,7 +7251,8 @@ groups:
       A replica can find its own path from its own state, which can be out of date. It
       can then write an RM state that the ledger never recorded. A replica that builds a
       record itself gives it an id and a time that differ from those of the
-      CASE_MANAGER. In both cases, the replicas diverge from the CASE_MANAGER (ADR-0124).
+      CASE_MANAGER. In both cases, the replicas diverge from the CASE_MANAGER
+      (ADR-0124).
     verification: >-
       `test_two_fresh_replicas_write_identical_records` in
       `test/core/behaviors/status/test_participant_status_acceptance.py` applies one
@@ -7295,7 +7322,8 @@ groups:
       With `post_close_reply` set to `reject`, the reference CASE_MANAGER MUST answer a
       late Leave(VulnerabilityCase) with Reject(Leave(VulnerabilityCase)).
     rationale: >-
-      Reject(Leave(VulnerabilityCase)) already means "close declined" (CM-23-011), so the
+      Reject(Leave(VulnerabilityCase)) already means "close declined" (CM-23-011), so
+      the
       leaver cannot misread it as a decision on anything else.
     verification: >-
       `test_late_leave_follows_the_reply_policy` and
@@ -7751,8 +7779,10 @@ groups:
       Without the gate, the helper allows identity spoofing. Any actor that reaches it
       can emit an `Announce` with the CASE_MANAGER as author to every participant.
     verification: >-
-      `test/core/behaviors/case/nodes/test_role_gates.py::TestCaseManagerGate` asserts the
-      gate admits only the `CVDRole.CASE_MANAGER` holder. Verified this way rather than by
+      `test/core/behaviors/case/nodes/test_role_gates.py::TestCaseManagerGate` asserts
+      the
+      gate admits only the `CVDRole.CASE_MANAGER` holder. Verified this way rather than
+      by
       inspecting for `self._actor_id = case_actor_id`, which ADR-0073 removed.
     relationships:
     - rel_type: extends
@@ -7831,7 +7861,8 @@ groups:
     statement: >-
       The shared delegated-authorship helper (CM-24-005) MUST set `actor` to the actor
       doing what was asked, and `attributed_to` to the actor that asked. The doer is the
-      CASE_MANAGER executing the gated tree. The asker is the trigger's requesting actor,
+      CASE_MANAGER executing the gated tree. The asker is the trigger's requesting
+      actor,
       or the sender of the activity the received tree acts on.
     rationale: >-
       Neither value needs a calculation, because the emit point knows the doer and the
@@ -7855,8 +7886,10 @@ groups:
       cases. If BT nodes could not import the helper, the received side would have to
       build the pattern again by hand.
     verification: >-
-      `test/architecture/test_delegated_attribution_uses_helper.py` reads the helper from
-      `vultron/core/behaviors/delegated_authorship.py` and passes only when callers under
+      `test/architecture/test_delegated_attribution_uses_helper.py` reads the helper
+      from
+      `vultron/core/behaviors/delegated_authorship.py` and passes only when callers
+      under
       both `vultron/core/use_cases/` and `vultron/core/behaviors/` take their
       attribution from it, which they can do only by importing it.
     relationships:
@@ -7896,7 +7929,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An actor that finds no CASE_MANAGER for a case MUST fail the act, never sending the
+      An actor that finds no CASE_MANAGER for a case MUST fail the act, never sending
+      the
       activity directly to another participant instead (CM-24-008).
     rationale: >-
       An actor that finds no CASE_MANAGER reads a corrupt roster, since a case always
@@ -8394,7 +8428,8 @@ groups:
       embargo is still clamped.
     verification: Integration tests in `test/demo/` confirm that when `Invite.end_time` is
       present it is used as the authoritative invitation expiry, and that the effective
-      deadline is clamped down to the embargo's `end_time` where it would otherwise overshoot
+      deadline is clamped down to the embargo's `end_time` where it would otherwise
+      overshoot
       it.
     relationships:
     - rel_type: refines
@@ -8470,7 +8505,7 @@ groups:
       choice to record a lapsed invitation as `DECLINED`.
     note: >-
       "Invitation" here is an `Invite(EmbargoEvent)`. An expired stub Invite
-      (`Invite(Actor, VulnerabilityCaseStub)`) carries embargo terms but changes
+      (`Invite(Actor)[target=VulnerabilityCaseStub]`) carries embargo terms but changes
       no participant state, consent included (CM-11-040): an unanswered stub is
       not a refusal to join, and the CASE_MANAGER may re-invite on the same
       record (CM-11-015, ADR-0114).
@@ -8933,8 +8968,8 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_embargo_overdue_invite_sweep.py` lets an
       invitation pass its deadline unanswered, then delivers to the CASE_MANAGER the
-      owner's `Accept(EmbargoEvent, target=Case)` and the owner's
-      `Reject(EmbargoEvent, target=Case)`, and asserts for each that the
+      owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]` and the owner's
+      `Reject(EmbargoEvent)[target=VulnerabilityCase]`, and asserts for each that the
       CASE_MANAGER's `Update(EmbargoConsent)` carrying the `TIMED_OUT` row is
       committed before the activity's own entry and the invitee's row reads
       `TIMED_OUT`. It asserts a row whose deadline has not passed stays `INVITED`, a
@@ -10019,7 +10054,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      `Add(CaseParticipant, target=VulnerabilityCase)` is the Case Owner's request to
+      `Add(CaseParticipant)[target=VulnerabilityCase]` is the Case Owner's request to
       the CASE_MANAGER to reinstate a removed participant. The CASE_MANAGER MUST handle
       it through the CM-31-004 to CM-31-007 pipeline. That is Case Owner only, one
       ledger entry, a direct notice, and replicas applying it from the entry.
@@ -10085,7 +10120,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST refuse an `Add(CaseParticipant, target=VulnerabilityCase)`
+      The CASE_MANAGER MUST refuse an `Add(CaseParticipant)[target=VulnerabilityCase]`
       naming a participant that is not removed or that never joined.
     rationale: >-
       Joining requires accepting a stub Invite (ADR-0114), and `Add` must not become a
@@ -10119,7 +10154,8 @@ groups:
       records one move twice, and `Add(CaseParticipant)` now means reinstatement only (CM-31-011).
     verification: >-
       A test drives an invitee's stub-Invite acceptance at the CASE_MANAGER and asserts no
-      `Add(CaseParticipant)` is enqueued and no `add_case_participant` entry is committed.
+      `Add(CaseParticipant)` is enqueued and no `add_case_participant` entry is
+      committed.
     relationships:
     - rel_type: refines
       spec_id: CM-17-004

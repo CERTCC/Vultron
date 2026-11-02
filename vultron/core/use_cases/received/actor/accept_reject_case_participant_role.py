@@ -1,7 +1,7 @@
 """Use cases for Accept/Reject of the canonical role-delegation format (ADR-0039).
 
-Handles ``Accept(Offer(CaseParticipantRole, ...))`` and
-``Reject(Offer(CaseParticipantRole, ...))``, which the target of a role offer
+Handles ``Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])`` and
+``Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])``, which the target of a role offer
 addresses to the case's CASE_MANAGER (CM-33-015).  The CASE_MANAGER acts on
 an answer only from the target of an open role Offer it recorded (CM-33-005),
 commits it and broadcasts ``Announce(CaseLedgerEntry)``, and on an Accept
