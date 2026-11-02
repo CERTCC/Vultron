@@ -42,10 +42,10 @@ class LedgerConfig(BaseModel):
         clock_skew_tolerance_seconds: How far *before* the parent case's own
             ``published`` timestamp an assertion's claimed timestamp may fall
             before CLP-14-006 rejects it.  A non-zero tolerance is required
-            because participant and CaseActor clocks are not synchronised —
+            because participant and CaseActor clocks are not synchronized —
             ADR-0079 rejected wall-clock ordering (option C) for exactly this
-            reason.  Default 300 s (5 minutes), matching the CLP-14-007
-            convention.
+            reason.  The default matches the CLP-14-007 convention.  Default
+            300 s (5 minutes).
         future_tolerance_seconds: How far *ahead* of the CaseActor's own clock
             an assertion's claimed timestamp may fall before CLP-14-007
             rejects it.  CLP-14-007 sets the default ceiling at five minutes.
@@ -55,19 +55,22 @@ class LedgerConfig(BaseModel):
         position_statement_interval_seconds: How often a hosted participant
             states its ledger position for each case it holds, with
             ``Read(CaseLedgerEntry)``, beyond the statement it sends after
-            every restart (SYNC-17-007).  Off (``None``) by default, because
-            a periodic check costs traffic a deployment should choose.
+            every restart (SYNC-17-007).  When it is ``None`` the periodic
+            statement is off, because a periodic check costs traffic a
+            deployment should choose.  Default ``None``.
             Override via
             ``VULTRON_LEDGER__POSITION_STATEMENT_INTERVAL_SECONDS``.
         invite_resend_cooldown_seconds: The base cooldown between two resends
             of one unanswered Invite to one participant (SYNC-20-005).  Each
-            consecutive resend doubles it.  Default 30 s, the base of the
-            ledger replay cooldown (SYNC-15-013).  Override via
+            consecutive resend doubles it.  It matches the base of the
+            ledger replay cooldown (SYNC-15-013).  Default 30 s.  Override via
             ``VULTRON_LEDGER__INVITE_RESEND_COOLDOWN_SECONDS``.
         invite_resend_max_cooldown_seconds: The ceiling the doubled resend
             cooldown stops at, so an unanswered Invite is still resent at a
-            fixed interval until its deadline (SYNC-20-005).  Default 600 s,
-            the replay cooldown's ceiling.  Override via
+            fixed interval until its deadline (SYNC-20-005).  It matches the
+            replay cooldown's ceiling, and a value below
+            ``invite_resend_cooldown_seconds`` is refused at load.  Default
+            600 s.  Override via
             ``VULTRON_LEDGER__INVITE_RESEND_MAX_COOLDOWN_SECONDS``.
     """
 

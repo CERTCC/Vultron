@@ -16,6 +16,7 @@ relevant_packages:
   - pydantic
   - yaml
   - vultron/config
+  - vultron/metadata
   - vultron/adapters
   - vultron/core
 related_notes:
@@ -33,10 +34,12 @@ Requirements: `specs/configuration.yaml` (CFG). Code: `vultron/config/`
 (`app.py` for `AppConfig`, `get_config()`, `reload_config()`,
 `clear_config_cache()`, `config_override()`; `actor.py` for `ActorConfig`;
 `ledger.py` for `LedgerConfig`). Field meanings and defaults live in those
-modules' docstrings. `docs/reference/codebase/STACK.md` gives the
-environment-variable naming rule (`VULTRON_` prefix, `__` between nested keys,
-so `actor.case_actor_service_url` is `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`)
-and the common server, database and ledger variables.
+modules' docstrings. The reader-facing list of every setting, its
+`config.yaml` key and its `VULTRON_*` variable is
+`docs/reference/configuration.md`, generated from `AppConfig` by
+`vultron/metadata/docs/config_reference/`. A new field therefore needs an
+`Attributes:` docstring entry or a `Field(description=...)`, or the strict docs
+build fails.
 
 ## Design Decisions
 

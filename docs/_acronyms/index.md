@@ -10,6 +10,7 @@ asked for longer strings before their prefixes; that is no longer required.
 One definition per acronym. Where a token is ambiguous, define it in the
 sense the docs actually use.
 -->
+*[ACK]: Acknowledgment
 *[ACM]: Association for Computing Machinery
 *[ADR]: Architectural Decision Record
 *[ADRs]: Architectural Decision Records
@@ -283,3 +284,4 @@ sense the docs actually use.
 *[WEIS]: Workshop on the Economics of Information Security
 
 *[XMPP]: Extensible Messaging and Presence Protocol
+*[YAML]: YAML Ain't Markup Language

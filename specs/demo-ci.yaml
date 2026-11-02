@@ -2297,6 +2297,53 @@ groups:
           - rel_type: refines
             spec_id: DEMOCI-11-017
 
+      - id: DEMOCI-11-034
+        priority: MUST
+        kind: project
+        statement: >-
+          The flattened story of every scenario written as composition MUST be
+          committed as a generated plot manifest. An entry lists the story's
+          items in order: each choice by branch point, choice and deciding cast
+          member, and each fragment by qualified name.
+        rationale: >-
+          A reorder inside a shared fragment moves every scenario of its family
+          alike, so DEMOCI-11-018 still passes, and no PR check regenerates the
+          recordings that would show it. The plot is read from the stories
+          without running them, so it costs nothing at PR time. A deliberate
+          reorder shows as a manifest diff; in a consolidation PR that diff is
+          a sign the change may alter what a scenario passes or fails on, which
+          DEMOMA-17-002 forbids. The manifest cannot see an edit inside a
+          fragment's body; only a recording can.
+        verification: >-
+          A shape test asserts the manifest holds one entry per scenario
+          written as composition, whose items equal its story's choices and
+          fragment names in order.
+        adr:
+          - ADR-0098
+
+      - id: DEMOCI-11-035
+        priority: MUST
+        kind: project
+        statement: >-
+          The drift check of DEMOCI-11-005 MUST fail when the committed plot
+          manifest differs from the stories in the code.
+        rationale: >-
+          A manifest nobody compares with the code stops the reorder at no
+          point; the check makes a changed story order fail until the manifest
+          is regenerated and the change is visible in the PR's diff.
+        verification: >-
+          A drift test fails when the committed manifest differs from a fresh
+          export, naming the regeneration command. A mutation test moves one
+          `choose` past its fragment in a fixture story and asserts the drift
+          check fails.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-005
+          - rel_type: depends_on
+            spec_id: DEMOCI-11-034
+
       - id: DEMOCI-11-019
         priority: MUST
         kind: project

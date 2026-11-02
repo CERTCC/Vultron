@@ -2440,13 +2440,28 @@ class TestAdoptedThreatTeardown:
         "reported",
         [
             pytest.param(
-                CS_pxa.Pxa, id="P", marks=pytest.mark.spec("CSB-04-007")
+                CS_pxa.Pxa,
+                id="P",
+                marks=(
+                    pytest.mark.spec("CSB-04-007"),
+                    pytest.mark.spec("CSB-12-001"),
+                ),
             ),
             pytest.param(
-                CS_pxa.pXa, id="X", marks=pytest.mark.spec("CSB-05-008")
+                CS_pxa.pXa,
+                id="X",
+                marks=(
+                    pytest.mark.spec("CSB-05-008"),
+                    pytest.mark.spec("CSB-13-002"),
+                ),
             ),
             pytest.param(
-                CS_pxa.pxA, id="A", marks=pytest.mark.spec("CSB-06-008")
+                CS_pxa.pxA,
+                id="A",
+                marks=(
+                    pytest.mark.spec("CSB-06-008"),
+                    pytest.mark.spec("CSB-14-001"),
+                ),
             ),
         ],
     )

@@ -182,6 +182,10 @@ USER vscode
 # Install the project into a fresh vscode-owned .venv. The shared cache
 # (id=uv-cache) is populated by the dep-layer build so packages come from
 # the local cache rather than the network.
-ENV PYTHONPATH=/app
+#
+# Deliberately no PYTHONPATH: each checkout's editable install already maps
+# `vultron` to that checkout, and an exported PYTHONPATH=/app outranks it, so
+# hooks, tests and console scripts in a worktree would import /app's code
+# instead (#5571). test/architecture/test_hook_vultron_resolution.py guards this.
 RUN --mount=type=cache,uid=1000,gid=1000,id=uv-cache,target=/home/vscode/.cache/uv \
     uv sync --frozen --dev

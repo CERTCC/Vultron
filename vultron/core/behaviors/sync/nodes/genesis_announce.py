@@ -16,6 +16,8 @@
 
 Split from ``replay.py`` to keep that module under the submodule line cap
 (CS-18-001); the node runs ahead of the replay in ``create_reject_log_entry_tree``.
+``GenesisRejectAlreadyAnsweredNode`` runs ahead of both and declines a genesis
+Reject the last replay from genesis already answered (SYNC-15-024).
 """
 
 from __future__ import annotations
@@ -27,18 +29,78 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
     PortInformation,
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
 from vultron.core.behaviors.sync.nodes.replay_case import replay_case_id
-from vultron.core.behaviors.sync.nodes.replay_guard import should_replay
+from vultron.core.behaviors.sync.nodes.replay_guard import (
+    genesis_reject_answered,
+    should_replay,
+)
 from vultron.core.behaviors.sync.nodes.reseed import announce_case_to_peer
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.errors import VultronError, VultronValidationError
 
 logger = logging.getLogger(__name__)
+
+
+class GenesisRejectAlreadyAnsweredNode(DataLayerConditionWithPorts):
+    """Succeed when the last replay from genesis already answered this Reject.
+
+    The condition the reject tree's ``Selector`` tries ahead of the pre-seed
+    and the replay: ``SUCCESS`` declines the Reject, sending neither the case
+    nor any entry (SYNC-15-019); ``FAILURE`` lets the pre-seed and the replay
+    run under their usual cooldown.  It answers ``FAILURE`` for a Reject from
+    a later position, and :func:`genesis_reject_answered` holds the rest of
+    the rule (SYNC-15-024).  Nothing is written, so a declined Reject leaves
+    the replay record unchanged (SYNC-15-025).
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        activity = self.activity
+        if activity.last_accepted_hash != "":
+            return Status.FAILURE
+        entry = activity.rejected_entry
+        rejected_index = None if entry is None else entry.log_index
+        case_id = replay_case_id(activity, self.name)
+        peer_id = activity.actor_id
+        if not genesis_reject_answered(
+            cast(CasePersistence, self.datalayer),
+            case_id=case_id,
+            peer_id=peer_id,
+            rejected_index=rejected_index,
+        ):
+            return Status.FAILURE
+        self.logger.info(
+            "%s: peer '%s' Rejected entry %d of case '%s' from genesis, which"
+            " the last replay from genesis already sent; declining it"
+            " (SYNC-15-019, SYNC-15-024)",
+            self.name,
+            peer_id,
+            rejected_index,
+            case_id,
+        )
+        return Status.SUCCESS
 
 
 class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):

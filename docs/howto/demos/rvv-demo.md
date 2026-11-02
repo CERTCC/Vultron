@@ -284,6 +284,7 @@ docker compose -f docker/docker-compose-multi-actor.yml down -v
 - **Read the scenario narrative** — the
   [RVV scenario narrative](../../topics/scenarios/rvv.md) explains each step
   in CVD terms and names the ledger entry it produces.
+- **Change a container's settings** — the [Node Configuration Reference](../../reference/configuration.md) lists every `VULTRON_*` setting a node reads from its environment or from `config.yaml`.
 - **Read the scenario source** — the RVV demo script is at
   `vultron/demo/scenario/rvv_demo.py`; shared helpers are in
   `vultron/demo/helpers/`.

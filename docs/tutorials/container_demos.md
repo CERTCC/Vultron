@@ -238,6 +238,7 @@ We have:
 - **Read the message-level trace** — the [`rv` Demo Protocol Reference](../reference/rv-demo-protocol.md) lists every activity the `rv` run exchanges and the ledger entries it produces.
 - **Explore the single-container demos** — see [Run the Receive-Report Demo](receive_report_demo.md) and [Running the Other Demos](other_demos.md) to step through individual protocol exchanges.
 - **Read the scenario source** — the scripts are in `vultron/demo/scenario/`; the shared helpers are in `vultron/demo/helpers/`.
+- **Change a container's settings** — the [Node Configuration Reference](../reference/configuration.md) lists every `VULTRON_*` setting a node reads from its environment or from `config.yaml`.
 - **Consult the Docker README** — `docker/README.md` documents port mappings, environment variable overrides, and manual seed commands for debugging individual containers.
 
 {% include-markdown "../start/_paths/contribute/tutorials__container_demos.md" %}

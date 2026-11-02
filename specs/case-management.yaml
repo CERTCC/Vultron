@@ -385,7 +385,7 @@ groups:
     - rel_type: implements
       spec_id: VP-13-001
     - rel_type: implements
-      spec_id: VP-14-001
+      spec_id: VP-06-001
     stories:
     - story_2022_107
   - id: CM-03-002
@@ -429,7 +429,7 @@ groups:
     - rel_type: implements
       spec_id: VP-13-009
     - rel_type: implements
-      spec_id: VP-14-001
+      spec_id: VP-09-001
     stories:
     - story_2022_014
     - story_2022_023
@@ -565,13 +565,7 @@ groups:
     - rel_type: implements
       spec_id: VP-09-001
     - rel_type: implements
-      spec_id: VP-11-001
-    - rel_type: implements
       spec_id: VP-11-002
-    - rel_type: implements
-      spec_id: VP-14-001
-    - rel_type: implements
-      spec_id: VP-14-002
     - rel_type: depends_on
       spec_id: CM-03-008
     stories:
@@ -596,7 +590,7 @@ groups:
     - rel_type: implements
       spec_id: VP-03-002
     - rel_type: implements
-      spec_id: VP-14-003
+      spec_id: VP-06-001
     - rel_type: implements
       spec_id: VP-14-004
     stories:

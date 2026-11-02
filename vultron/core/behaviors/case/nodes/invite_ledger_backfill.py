@@ -103,7 +103,7 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
         entries = sorted_case_ledger_entries(
             cast(CasePersistence, self.datalayer), self.case_id
         )
-        sent, already_pending, held_back = send_ledger_suffix(
+        sent, already_pending, held_back, _ = send_ledger_suffix(
             self._sync_port,
             entries,
             after_index=-1,
