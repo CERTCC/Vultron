@@ -83,7 +83,7 @@ stakeholder_type: [project-contributor]
   Lazy arguments defer only rendering, not evaluation, so a guard such as `isEnabledFor(logging.DEBUG)` stays only around a value produced by an expensive call, with a comment saying so.
   The reasoning is in `notes/structured-logging.md` § "Log-Call Shape: Template Plus Lazy Arguments (SL-01-005)".
 - **Sensitive data**: `_log_label()` in `vultron/core/use_cases/_helpers.py` replaces raw actor/activity identifiers with a short hash in some use-case log messages.
-  No general redaction policy was observed; [ASK USER] whether PII from vulnerability reports requires redaction at log points.
+  No general redaction policy exists; what a log line may contain is Concern #5607.
 
 ### 5) Testing Conventions
 
@@ -96,7 +96,7 @@ stakeholder_type: [project-contributor]
 - **Per-test timeout**: `pytest-timeout` unit tier is 30 s (raised from 5 s in #2270; `timeout_method = "signal"`, so a trip fails only that test), integration tier 120 s (`INTEGRATION_TIMEOUT_SECONDS` in `test/conftest.py`)
 - **Registry isolation**: tests that define a local `CoreObject`/`CoreRecord` subclass request the `isolated_core_registries` fixture (TB-06-003, TB-06-004)
 - **Mocking strategy**: real `sqlite:///:memory:` database (no DB mocking); `test/conftest.py` sets the env var before any `vultron` import
-- **Coverage expectation**: [TODO] — no coverage tool configured in `pyproject.toml`; CI does not report coverage percentage
+- **Coverage expectation**: 80% line coverage, 100% on critical paths (TB-02-001, TB-02-002); no coverage tool is configured yet (#4014), and CI does not report a percentage
 
 ### 6) Evidence
 

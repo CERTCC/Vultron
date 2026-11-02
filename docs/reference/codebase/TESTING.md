@@ -72,7 +72,7 @@ timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&
 
 ### 5) Coverage and Quality Signals
 
-- **Coverage tool**: [TODO] — no `pytest-cov` in `[dependency-groups].dev`; no coverage threshold configured
+- **Coverage tool**: none yet — no `pytest-cov` in `[dependency-groups].dev` (#4014); the target is TB-02-001 and TB-02-002
 - **Current reported coverage**: [TODO]
 - **Warnings**: `filterwarnings = ["error", ...]` turns every warning into a failure, except the two spec-gate warnings exempted after it
 - **Known gaps/flaky areas**:

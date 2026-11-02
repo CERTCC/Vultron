@@ -12,32 +12,32 @@ stakeholder_type: [project-contributor]
 |----------|---------|----------|--------|------------------|
 | High | SQLite not suitable for multi-node/concurrent writes | `vultron/adapters/driven/datalayer_sqlite/` | Prototype-only scalability ceiling; federation requires a distributed or replicated store | Define a migration plan to PostgreSQL or equivalent before production deployment |
 | High | No inbound authentication on the inbox endpoint | `vultron/adapters/driving/fastapi/routers/actors/_routes.py`, `vultron/adapters/driving/shared_inbox.py` (stub) | Any network peer can post activities as any actor | Build the ADR-0164 signing and verification (epic #1156); see §3 Security Concerns |
-| Medium | Many production modules exceed the CS-18-001 500-line threshold, including core files | `git ls-files 'vultron/*.py' \| xargs wc -l \| sort -rn`; 96 tracked modules exceed 500 lines on 2026-10-30; largest in core: `vultron/core/behaviors/sender_entitlement.py` (2,417 lines), `vultron/core/behaviors/helpers.py` (1,393), `vultron/core/ports/trigger_activity.py` (1,249); largest overall is `vultron/demo/helpers/polling.py` (2,519) | Large mixed-responsibility modules are where merge conflicts and missed edits concentrate | Split per CS-18-001/002; #3952 tracks `vultron/metadata/specs/lint.py`; [ASK USER] whether the remaining oversized modules should be filed as split issues |
+| Medium | Many production modules exceed the CS-18-001 500-line threshold, including core files | `git ls-files 'vultron/*.py' \| xargs wc -l \| sort -rn`; 96 tracked modules exceed 500 lines on 2026-10-30; largest in core: `vultron/core/behaviors/sender_entitlement.py` (2,417 lines), `vultron/core/behaviors/helpers.py` (1,393), `vultron/core/ports/trigger_activity.py` (1,249); largest overall is `vultron/demo/helpers/polling.py` (2,519) | Large mixed-responsibility modules are where merge conflicts and missed edits concentrate | Split per CS-18-001/002 under Epic #5417, which collects the split issues (#3952, #4625, #5592); file a new oversized module there |
 | Medium | Inline lint suppressions baselined in production code | `# ruff-baseline #NNNN` markers in `vultron/` (find with `git grep "ruff-baseline" -- vultron/`), owned by #3353 (exception-handling rules), #3768 (BT node broad catches), #3326 (broad `except Exception`), #3989 (one broad catch in `vultron/demo/in_process.py`) | Broad catches can turn internal errors into refusals (#3768); each marker is a known deviation from CS-23-001 | Drain each issue's markers; RUF100 keeps a removed finding's stale marker from lingering |
-| Medium | No test coverage measurement | `pyproject.toml` `[dependency-groups].dev` (no `pytest-cov`) | Coverage gaps are invisible; regressions in untested code go undetected | Add `pytest-cov` and set a minimum coverage threshold in CI |
+| Medium | No test coverage measurement | `pyproject.toml` `[dependency-groups].dev` (no `pytest-cov`) | Coverage gaps are invisible; regressions in untested code go undetected | TB-02-001 (80% lines) and TB-02-002 (100% on critical paths) set the target; #4014 adds `pytest-cov` and the command, and keeps a CI coverage gate a separate decision |
 | Low | Process-global py_trees blackboard | `vultron/core/behaviors/bridge.py` (`_BT_GLOBAL_LOCK`, an `RLock`), `vultron/core/behaviors/blackboard_scope.py`, `test/core/behaviors/conftest.py` | Executions are serialized and execution-scoped keys are snapshotted and restored, and BT tests clear storage before each test; a key outside the managed sets can still outlive its execution | Add any new execution-scoped key to the managed set (BT-17-007) |
 | Low | Architecture boundary tests fully passing | `test/architecture/test_core_no_adapter_imports.py`, `test/architecture/test_core_no_wire_imports.py` (`KNOWN_VIOLATIONS: frozenset()`) | Boundary is clean | Maintain: new violations fail the ratchet test immediately |
 | Low | Most CI workflows have jobs with no `timeout-minutes` cap, though TB-14-006 now requires one on every job | `.github/workflows/` (only `python-app.yml` caps every job; `ui.yml`, `spec-check.yml`, `verification-debt-owners.yml` and the single-job workflows have none); `specs/testability.yaml` TB-14-006; `test/metadata/test_gate_ceiling.py` checks only `python-app.yml` | A hung job holds a runner until GitHub's default limit and reads as cancelled, not failed | Implementation is tracked in #5507: add the caps and widen the test to every workflow |
-| Low | One production TODO remains | `vultron/bt/report_management/_behaviors/report_to_others.py:106` (AllPartiesKnown simulated-annealing idea, in the legacy simulator); the former backlog issue #505 is closed; `vultron/core/states/cs.py:121` is a resolution NOTE (CONCERN-2099 / #2834) | A speculative enhancement in read-only reference code, not tech debt | Convert it into a tracked Idea or drop it |
+| Low | One production TODO remains | `vultron/bt/report_management/_behaviors/report_to_others.py:106` (AllPartiesKnown simulated-annealing idea, in the legacy simulator); the former backlog issue #505 is closed; `vultron/core/states/cs.py:121` is a resolution NOTE (CONCERN-2099 / #2834) | A speculative enhancement in read-only reference code, not tech debt | Removed by #5599 |
 
 ### 2) Technical Debt
 
 | Debt item | Why it exists | Where | Risk if ignored | Suggested fix |
 |-----------|---------------|-------|-----------------|---------------|
-| `transitions` state machine library in core | Core state machines wrap `transitions`; third-party lib in domain layer | `vultron/core/states/em.py`, `rm.py`, `cs.py`, `participant_embargo_consent.py`; `vultron/core/services/embargo_lifecycle/base.py` | Library API changes affect core domain directly | Encapsulate behind a domain-owned state-machine port if `transitions` ever becomes a migration blocker |
-| `vultron/demo/` imports from adapters | Demo is intentionally a user of adapters, but the boundary between demo and production code is fuzzy | `vultron/demo/` | Demo code mutating shared state could silently affect production code paths | Document or test which demo modules are safe to import in non-demo contexts |
-| `scipy` declared as a production dependency but never imported | No module in `vultron/` or `test/` imports it; it appears only in docs prose | `pyproject.toml` `dependencies` | Install size and supply-chain surface for no runtime use | [ASK USER] whether to drop it |
-| `help/` declared as a `uv` workspace member but absent | `[tool.uv.workspace] members = ["help"]` with no `help/` directory in the tree | `pyproject.toml` | Confusing workspace config; tooling may warn | Remove the member or add the package |
-| Unimplemented adapter stubs | Production delivery, shared inbox and connector loading are designed but not built | `vultron/adapters/driven/prod_http_delivery.py`, `vultron/adapters/driving/shared_inbox.py`, `vultron/adapters/connectors/loader.py` | No production-ready transport or plugin path | Implement per OX-10, OX-11 when scheduled |
-| Stub docstrings describe an auth model ADR-0164 set aside | The delivery and shared-inbox stubs predate ADR-0164 | `vultron/adapters/driven/prod_http_delivery.py` and `vultron/adapters/driving/shared_inbox.py` docstrings (HTTP Signatures, OX-10-004, OX-11); `docs/adr/0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md` (object-level proofs, HTTP Signatures deferred to #1184) | An agent reading the stubs builds the wrong signing layer | [ASK USER] whether the stubs and OX-10-004/OX-11 should be reworded now |
+| `transitions` state machine library in core | Core state machines wrap `transitions`; third-party lib in domain layer | `vultron/core/states/em.py`, `rm.py`, `cs.py`, `participant_embargo_consent.py`; `vultron/core/services/embargo_lifecycle/base.py` | Library API changes affect core domain directly | Decided 2026-11-02: no issue until `transitions` blocks a migration; then encapsulate it behind a domain-owned state-machine port |
+| `vultron/demo/` imports from adapters | Demo is intentionally a user of adapters, but the boundary between demo and production code is fuzzy | `vultron/demo/` | Demo code mutating shared state could silently affect production code paths | Decided 2026-11-02: no issue. Only `vultron/metadata/` (dev tooling) imports demo code, and `test/architecture/test_core_no_demo_imports.py` guards core |
+| `scipy` declared as a production dependency but never imported | No module in `vultron/` or `test/` imports it; it appears only in docs prose | `pyproject.toml` `dependencies` | Install size and supply-chain surface for no runtime use | Drop it: #5599 |
+| `help/` declared as a `uv` workspace member but absent | `[tool.uv.workspace] members = ["help"]` with no `help/` directory in the tree | `pyproject.toml` | Confusing workspace config; tooling may warn | Remove the member: #5599 |
+| Unimplemented adapter stubs | Production delivery, shared inbox and connector loading are designed but not built | `vultron/adapters/driven/prod_http_delivery.py`, `vultron/adapters/driving/shared_inbox.py`, `vultron/adapters/connectors/loader.py` | No production-ready transport or plugin path | Delivery and shared inbox are production scope (OX-10, OX-11; #892 under Someday Epic #5418). The connector loader is #5610 (ARCH-05-003), ahead of a planned VINCE connector; the Jira and VINCE modules are examples |
 
 ### 3) Security Concerns
 
 | Risk | OWASP category | Evidence | Current mitigation | Gap |
 |------|----------------|----------|--------------------|-----|
 | No inbound authentication / signature verification on inbox endpoint | A07 Identification & Authentication Failures | `vultron/adapters/driving/fastapi/routers/actors/_routes.py`; strict-`xfail` tests `test/adapters/driving/fastapi/test_signed_delivery_refusal.py` and `test/core/use_cases/received/test_signed_ledger_entries.py` | ADR-0164 decides the model: an FEP-8b32 proof inside every activity, verified strictly with no switch; nothing signs or verifies yet | Land signing and verification (epic #1156); ADR-0164's seeded keys let anyone who knows the scheme sign as a prototype actor, so production keys (#1184) are needed before any networked deployment |
-| Secrets management strategy undocumented | A02 Cryptographic Failures | `.env.example` (only `PROJECT_NAME` documented) | Config loaded from YAML/env; no hardcoded secrets observed | Document required secrets, their lifecycle, and rotation procedure |
-| SQLite single-file store accessible to any local process | A01 Broken Access Control | `vultron/adapters/driven/datalayer_sqlite/engine.py` | No file-system permission controls observed in code | For production, enforce OS-level file permissions or migrate to a server-based DB with access controls |
+| Secrets management strategy undocumented | A02 Cryptographic Failures | `.env.example` (only `PROJECT_NAME` documented) | Config loaded from YAML/env; no hardcoded secrets observed | Document required secrets, their lifecycle, and rotation procedure (#510) |
+| SQLite single-file store accessible to any local process | A01 Broken Access Control | `vultron/adapters/driven/datalayer_sqlite/engine.py` | No file-system permission controls observed in code | For production, enforce OS-level file permissions or migrate to a server-based DB with access controls (with #511) |
+| Log lines may carry embargoed report content or reporter details; ids are hashed at three call sites and in clear elsewhere | A09 Security Logging and Monitoring Failures | `vultron/core/use_cases/_helpers.py` (`_log_label()`); `specs/structured-logging.yaml` has no content rule | The prototype logs only demo data | Decide a log-content policy before a real deployment: Concern #5607 |
 
 ### 4) Performance and Scaling Concerns
 
@@ -64,19 +64,20 @@ stakeholder_type: [project-contributor]
 | `vultron/adapters/driving/fastapi/routers/trigger_*.py` + `trigger_runner.py` | Every trigger route was cut over to `run_trigger` and the registry in 2026-09/10 (ADR-0110) | New since 2026-09-30 | Regenerate the OpenAPI snapshot deliberately; run `test_trigger_registry_ratchets.py` |
 | `specs/*.yaml` + `docs/adr/index.md` + `AGENTS.md` + `mkdocs.yml` | Highest-churn files overall are design/spec/doc artifacts | See §4 | Treat spec edits as design changes; re-run `spec-lint` / `spec-check.yml` |
 
-### 6) `[ASK USER]` Questions
+### 6) Decisions on Earlier `[ASK USER]` Questions
 
-1. [ASK USER] ADR-0164 chooses object-level proofs and defers HTTP Signatures to #1184, but the `prod_http_delivery.py` and `shared_inbox.py` stub docstrings, and OX-10-004 and OX-11 behind them, still describe HTTP Signatures.
-   Should they be reworded to match ADR-0164 now, or left until #1184 settles whether HTTP Signatures come back as a transport layer?
-2. [ASK USER] What is the intended production database backend?
-   SQLite is explicitly prototype-only; is a migration path to PostgreSQL or another server-based store planned?
-3. [ASK USER] Should PII from vulnerability reports (reporter identity, affected software details) be redacted at log boundaries?
-   Only `_log_label()` hashing of some identifiers was observed.
-4. [ASK USER] Is there a minimum test coverage percentage target, or is coverage tracking not yet a goal?
-5. [ASK USER] Are the connector adapters (`vultron/adapters/connectors/example/`) examples only?
-   Their package name and the stub loader suggest so.
-6. [ASK USER] Should `scipy` remain a production dependency when nothing imports it?
-7. [ASK USER] Should each core module over the CS-18-001 threshold get its own split issue, or is the threshold treated as advisory (it is a SHOULD) for files that hold one responsibility?
+The maintainer triaged the 2026-10-30 scan's questions on 2026-11-02.
+Each answer is recorded here so a later scan does not raise it again.
+
+1. HTTP Signatures in the delivery and shared-inbox stubs: deferred, not dropped.
+   ADR-0164's content proof comes first (Epic #1156); HTTP Signatures follow with production keys (#1184, #892 under Someday Epic #5418).
+   The stub docstrings and the OX-10-001 and OX-11-002 rationales say so (PR #5581).
+2. Production database: tracked in #511; the backend choice belongs there.
+3. Personal and embargoed data in logs: Concern #5607.
+4. Coverage target: set by TB-02-001 and TB-02-002; tooling in #4014.
+5. Connector adapters: the Jira and VINCE modules are examples; the entry-point loader is #5610, ahead of a planned VINCE connector.
+6. `scipy`: drop it, with the missing `help` workspace member and the simulator TODO (#5599).
+7. Oversized modules: split issues go under Epic #5417.
 
 ### 7) Evidence
 
