@@ -5,7 +5,8 @@ kind: guidance
 description: >
   Mechanical rules for authoring spec YAML: the five kinds and the MS-12
   decision tree (who must obey a rule decides its kind, ADR-0134), the ruling
-  that inline-object requirements are `project`, which HTTP status codes are
+  that inline-object requirements are `project` unless a protocol purpose
+  such as the bootstrap's (CBT-01-007) demands them, which HTTP status codes are
   `foundation` and which are `project`, splitting a spec that mixes
   kinds, what a kind change moves, and the scoping of MS-12-006;
   the enum values spec-lint accepts for `kind`, `priority` and `rel_type`, and
@@ -98,7 +99,9 @@ by reference" (MS-12-020); the inline demand moves to a new `project` ID
 (MS-12-021; RF-02-004 / RF-02-006).
 An inline rule stays `protocol` only when inlining serves a protocol purpose the
 prototype does not explain, and its rationale names that purpose: ledger snapshot
-content the hash chain must cover is one (CLP-07-006). If no such purpose is
+content the hash chain must cover is one (CLP-07-006); the bootstrap's case and
+nested objects, which the receiver has no trusted source to fetch before it
+accepts the bootstrap, are another (CBT-01-007, ADR-0170). If no such purpose is
 evident, ask; do not invent one.
 
 **An HTTP status code is `foundation` only when HTTP itself defines it for the

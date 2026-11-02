@@ -42,13 +42,15 @@ groups:
   - id: CBT-01-002
     priority: MUST
     kind: protocol
-    statement: The bootstrap `Create(VulnerabilityCase)` activity MUST carry the complete `VulnerabilityCase`, inline or
-      by reference, rather than a minimal stub or partial trust-only payload.
+    statement: >-
+      The bootstrap `Create(VulnerabilityCase)` activity MUST carry the complete
+      `VulnerabilityCase` inline, rather than a reference, a minimal stub or a partial
+      trust-only payload.
     rationale: >-
       The receiver seeds its Participant Case Replica from this activity. A stub or
-      a partial case leaves it nothing complete to seed from. It also has no trusted
-      source to ask for the rest, because it trusts the CASE_MANAGER only after it
-      accepts this activity.
+      a partial case leaves it nothing complete to seed from. A reference leaves it
+      nothing to read: it has no trusted source to fetch the case from, because it
+      trusts the CASE_MANAGER only after it accepts this activity (ADR-0170).
     verification: >-
       `test_report_receiver_introduces_the_case_manager_to_the_reporter` in
       `test/core/behaviors/case/test_create_case_received_tree.py` confirms that the
@@ -57,6 +59,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: AKM-03-001
+    adr:
+    - ADR-0170
     stories:
     - story_2022_088
     - story_2022_090
@@ -280,48 +284,31 @@ groups:
     kind: protocol
     statement: >-
       The bootstrap `Create(VulnerabilityCase)` payload MUST carry every nested domain
-      object of the case (e.g., each `CaseParticipant` the case lists), each inline or
-      by reference.
+      object of the case (e.g., each `CaseParticipant` the case lists) inline.
     rationale: >-
       The receiver seeds its replica from this payload, and later guards read the
       nested records it seeds, such as the participant checks on a sender. A nested
-      object the payload leaves out, inline or as a reference the receiver can
-      resolve, is a record the replica lacks when a guard needs it.
+      object the payload leaves out is a record the replica lacks when a guard needs
+      it. A nested object named only by reference is left out too: the receiver
+      does not fetch it (AKM-05-007), because before it accepts this activity it has
+      no trusted source to fetch it from (ADR-0170).
     verification: >-
       `test/adapters/driven/trigger_activity_adapter/test_cases.py::TestCaseOnTheWireCarriesItsParticipants::test_create_case_carries_participants_and_reports`
       confirms every `CaseParticipant` of the case is present in the bootstrap payload,
-      and integration tests in `test/demo/test_case_proposal_round_trip.py` confirm the
-      receiver can persist each participant record.
+      `test_create_case_refuses_a_participant_the_sender_cannot_read` and
+      `test_create_case_refuses_a_report_the_sender_cannot_read` in the same class
+      confirm a case naming a participant or report the sender cannot read is not
+      sent with a bare id, and integration tests in
+      `test/demo/test_case_proposal_round_trip.py` confirm the receiver can persist
+      each participant record.
     relationships:
     - rel_type: refines
       spec_id: CBT-01-002
+    adr:
+    - ADR-0170
     stories:
     - story_2022_088
     - story_2022_092
-  - id: CBT-01-012
-    priority: MUST
-    kind: project
-    statement: >-
-      This codebase MUST carry the bootstrap `VulnerabilityCase` and every nested domain
-      object in it inline in the `Create(VulnerabilityCase)`, never as a bare URI
-      string. An example of a nested domain object is each `CaseParticipant` in
-      `case_participants`.
-    rationale: >-
-      This is how this codebase meets CBT-01-002 and CBT-01-007. The codebase fetches
-      only the objects the note on AKM-05-007 lists, and a nested case object is not
-      one of them, so a receiver here cannot read a record named only by URI. A
-      bootstrap that names a participant by URI is refused (CBT-05-009). Inlining is
-      a choice of this prototype, not a protocol rule: an implementation that fetches
-      the reference can accept it.
-    verification: Inspection of `vultron/wire/as2/vocab/` confirms that `ActivityStreamRef` fields accept bare URI strings
-      without error; integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that the bootstrap carries
-      a fully materialized `VulnerabilityCase` and that `CaseParticipant` objects are serialized as full inline objects
-      in the bootstrap payload.
-    relationships:
-    - rel_type: implements
-      spec_id: CBT-01-002
-    - rel_type: implements
-      spec_id: CBT-01-007
   - id: CBT-01-008
     priority: MUST
     kind: protocol
@@ -849,18 +836,17 @@ groups:
       as a protocol error, never skipping the participant, inferring its state, or
       synthesizing a record from data the payload lacks.
     rationale: >-
-      Silent reconstruction of missing protocol data masks protocol bugs.
-      This system exists to demonstrate that the CVD protocol works correctly
-      end-to-end; when the protocol fails to deliver required data, that
-      failure MUST be visible so it can be diagnosed and fixed. A fallback
-      that fills in missing data "from domain knowledge" creates a false
-      impression that the protocol is functioning when it is not. Replicas
-      MUST be built exclusively from ledger content; if data is not in the
-      ledger, it did not happen.
+      Silent reconstruction of missing protocol data masks protocol bugs: a
+      fallback that fills in missing data "from domain knowledge" makes the
+      protocol look as if it works when it does not, so the failure must be
+      visible to be diagnosed and fixed. Replicas are built only from ledger
+      content; data not in the ledger did not happen. A participant the payload
+      names only by reference is absent too: CBT-01-007 requires it inline, and
+      the receiver does not fetch it (AKM-05-007).
     verification: >-
       Tests confirm that when a bootstrap `Create(VulnerabilityCase)` arrives
-      with a participant this receiver cannot read from the payload (a bare
-      URI string, which CBT-05-009 treats as absent), the handler returns
+      with a participant named only by a bare URI string, which is absent
+      because CBT-01-007 requires it inline, the handler returns
       `HandlerResult.refused` with a reason citing CBT-05-008, which the inbox
       records as rejected, and does not accept the bootstrap. The validation
       step runs before any DataLayer writes so bootstrap is atomic: either the
@@ -872,28 +858,6 @@ groups:
       spec_id: CBT-01-008
     lint_suppress:
     - missing_story_reference
-  - id: CBT-05-009
-    priority: MUST
-    kind: project
-    statement: >-
-      This codebase MUST treat a participant in a bootstrap `Create(VulnerabilityCase)`
-      that arrives as a bare URI reference as absent, and so reject the bootstrap
-      (CBT-05-008).
-    rationale: >-
-      CBT-05-008 states only what other participants observe; this item states
-      how this codebase meets it (MS-12-010). This codebase fetches only the
-      objects the note on AKM-05-007 lists, and a bootstrap participant is not
-      one of them, so it cannot read a participant record named only by URI.
-      Refusing it is a shortcut of this prototype reference implementation, not
-      a protocol rule: an implementation that fetches the reference has the
-      participant data and need not refuse it.
-    verification: >-
-      `test/core/use_cases/received/case/test_helpers.py::test_bootstrap_bare_uri_participant_is_refused`
-      confirms a bootstrap with a bare-URI participant is refused with a reason
-      citing CBT-05-008 before any DataLayer write.
-    relationships:
-    - rel_type: implements
-      spec_id: CBT-05-008
 - id: CBT-06
   title: One Report Offered to Several Recipients
   specs:

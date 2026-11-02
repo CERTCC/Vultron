@@ -1677,16 +1677,24 @@ groups:
     kind: protocol
     statement: >-
       The `Create(VulnerabilityCase)` activity emitted by the CASE_MANAGER
-      MUST carry the case's participant records, inline or by reference, so
-      that the report receiver can seed its replica's participants (CP-09-002).
+      MUST carry the case's participant records inline, so that the report
+      receiver can seed its replica's participants (CP-09-002).
     rationale: >-
       The report receiver seeds its Participant Case Replica from the
       `Create(VulnerabilityCase)`, and it cannot read the CASE_MANAGER's store
       (PCR-01-003). Without the participant records, the replica starts with no
       participants, and checks that need them, such as role checks and embargo consent,
-      fail.
-    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm `Create(VulnerabilityCase)`
-      carries the case's participant objects; `test_owner_participant_created` verifies the owner's `CaseParticipant` is present.
+      fail. It seeds from this `Create` before it trusts the CASE_MANAGER, so it
+      has no trusted source to fetch a record from (CBT-01-007, ADR-0170).
+    verification: >-
+      In `test/core/behaviors/case/test_case_proposal_received_tree.py`,
+      `TestADR0041InlineParticipantsPayload::test_create_payload_has_inline_participants`
+      confirms `Create(VulnerabilityCase)` carries each participant as an inline
+      object, `test_owner_participant_created` verifies the owner's `CaseParticipant` is
+      present, and
+      `TestEmitCreateVulnerabilityCaseNode::test_unreadable_participant_fails_and_queues_nothing`
+      confirms a case naming a participant the CASE_MANAGER cannot read is not sent
+      with a bare id.
     relationships:
     - rel_type: refines
       spec_id: CP-09-002
@@ -1695,28 +1703,7 @@ groups:
     - story_2022_045
     adr:
     - ADR-0041
-  - id: CP-09-010
-    priority: MUST
-    kind: project
-    statement: >-
-      This codebase MUST embed the participant objects of the CASE_MANAGER's
-      `Create(VulnerabilityCase)` inline, not as bare ID strings, so that the
-      report receiver's `CreateCaseReceivedUseCase` can seed its local
-      participant records without a DataLayer round-trip to the CASE_MANAGER.
-    rationale: >-
-      CP-09-004 allows participant records inline or by reference; this item states how
-      this codebase meets it (MS-12-010). This codebase fetches only the objects the
-      note on AKM-05-007 lists, and a bootstrap participant is not one of them. The
-      report receiver refuses a bootstrap that names a participant by bare id
-      (CBT-05-009), so this codebase embeds the participants inline. This is a
-      prototype choice, not a protocol rule.
-    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm `Create(VulnerabilityCase)`
-      embeds participant objects inline.
-    relationships:
-    - rel_type: implements
-      spec_id: CP-09-004
-    adr:
-    - ADR-0041
+    - ADR-0170
   - id: CP-09-005
     priority: MUST_NOT
     kind: project

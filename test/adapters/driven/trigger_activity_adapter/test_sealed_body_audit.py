@@ -90,7 +90,7 @@ _CAUSE_ID = "https://example.org/activities/accepted-offer"
 #: Ledger records that carry the case as stored, its participants and reports
 #: by id: each of those has an entry of its own, so a replica copying the
 #: record holds the case as the CASE_MANAGER does (ADR-0124).  A record is no
-#: message, so it seeds no recipient (CBT-01-012 does not apply).  The genesis
+#: message, so it seeds no recipient (CBT-01-007 does not apply).  The genesis
 #: record is not one: it is the creation's delivered ``Create`` (ADR-0157).
 _CASE_AS_STORED = frozenset({"record_case_owner_updated"})
 
@@ -124,7 +124,7 @@ class _World:
         )
         dl.create(self.participant)
         # The case names its participant and report by id, as a stored case
-        # does; a case put on the wire must carry them inline (CBT-01-012).
+        # does; a case put on the wire must carry them inline (CBT-01-007, AKM-02-004).
         self.case = as_VulnerabilityCase(
             id_=self.case_id,
             name="CVE-2026-1",
@@ -251,7 +251,7 @@ class _World:
     def prepared_create_case(self) -> dict[str, Any]:
         # Mirrors ``EmitCreateVulnerabilityCaseNode._build_case_object``: the
         # prepared payload carries the participants and reports as objects
-        # (ADR-0041 AC-5, CBT-01-012); the adapter persists it unchanged
+        # (ADR-0041 AC-5, CBT-01-007); the adapter persists it unchanged
         # (CP-05-005), so the audit hands it the shape production does.
         stored = self.dl.read(self.case_id, raise_on_missing=True)
         assert stored is not None
@@ -711,9 +711,9 @@ def test_the_activity_is_sealed_complete(world, method):
     # URI or the selective-disclosure stub — never the full object.  Checked
     # at every depth: an Accept embeds the Offer or Invite it answers, and a
     # read-back-rehydrated embedded activity is where a full case leaked.
-    # CBT-01-012: a case carried as the ``object`` carries its participants and
-    # reports as objects — the recipient seeds its replica from them, and the
-    # outbox no longer expands ids at delivery time.
+    # CBT-01-007, AKM-02-004: a case carried as the ``object`` carries its
+    # participants and reports as objects — the recipient seeds its replica
+    # from them, and the outbox no longer expands ids at delivery time.
     obj = body.get("object")
     if (
         isinstance(obj, dict)
@@ -724,7 +724,7 @@ def test_the_activity_is_sealed_complete(world, method):
             bare = [x for x in obj.get(field, []) if not isinstance(x, dict)]
             assert not bare, (
                 f"{method} put a VulnerabilityCase in object whose {field}"
-                f" holds bare ids {bare} (CBT-01-012)"
+                f" holds bare ids {bare} (CBT-01-007, AKM-02-004)"
             )
     leaks = _full_case_paths(body)
     assert not leaks, (
