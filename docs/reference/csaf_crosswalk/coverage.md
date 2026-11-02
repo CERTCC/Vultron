@@ -41,13 +41,13 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 </thead>
 <tbody markdown="1">
 <tr markdown="1">
-<td markdown="span">[Case Owner](../glossary.md#cvd-roles-and-participants) and [Case Manager](../glossary.md#cvd-roles-and-participants)</td>
-<td markdown="span">The Case Owner makes the case decisions. The Case Manager is the one writer of the case, and it keeps the [case ledger](../../topics/case_lifecycle/case_manager_and_ledger.md).</td>
+<td markdown="span">[Case Owner](../glossary.md#cvd-roles-and-participants) and [CASE_MANAGER](../glossary.md#cvd-roles-and-participants)</td>
+<td markdown="span">The Case Owner makes the case decisions. The CASE_MANAGER is the one writer of the case, and it keeps the [case ledger](../../topics/case_lifecycle/case_manager_and_ledger.md).</td>
 <td markdown="span">A CSAF document has one issuing party, and only that party revises it.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[Ledger admission](../../topics/case_lifecycle/case_manager_and_ledger.md#only-admitted-entries)</td>
-<td markdown="span">The Case Manager admits or refuses each claim that a participant sends, before it changes the case.</td>
+<td markdown="span">The CASE_MANAGER admits or refuses each claim that a participant sends, before it changes the case.</td>
 <td markdown="span">CSAF has no step that accepts or refuses a statement in a document.</td>
 </tr>
 <tr markdown="1">
@@ -90,7 +90,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 <td markdown="span">No counterpart.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">Two times for each event: the time that the sender claims, and the commit time of the Case Manager</td>
+<td markdown="span">Two times for each event: the time that the sender claims, and the commit time of the CASE_MANAGER</td>
 <td markdown="span">Vultron keeps the claim and the record apart (CLP-14-002, CLP-15-005).</td>
 <td markdown="span">CSAF has one `date` for each action.</td>
 </tr>

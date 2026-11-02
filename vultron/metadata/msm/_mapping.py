@@ -51,6 +51,7 @@ from vultron.core.behaviors.sender_entitlement import (
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
+from vultron.enums.roles import CVDRole
 from vultron.metadata.base import repo_root
 from vultron.metadata.file_loading import (
     display_path,
@@ -158,11 +159,11 @@ NOT_YET_CHECKED = "not yet checked"
 NO_SENDER_CHECK = "any actor (no sender check applies)"
 
 #: The "Sent by" wording for an entry no received use case handles.  Such an
-#: act is internal to the case manager -- the CASE_MANAGER role, whichever
+#: act is internal to the CASE_MANAGER -- the CASE_MANAGER role, whichever
 #: actor holds it -- so no receiver applies a sender rule to it, though the
-#: case manager may still commit it to the case ledger as a ledgered activity
+#: CASE_MANAGER may still commit it to the case ledger as a ledgered activity
 #: (ADR-0140 item 5, SE-05-002).
-CASE_MANAGER_INTERNAL = "internal to the case manager"
+CASE_MANAGER_INTERNAL = "internal to the CASE_MANAGER"
 
 
 def _words(type_name: str) -> str:
@@ -290,10 +291,21 @@ def sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
     )
     if not occasion.usual_senders:
         return wording
-    usual = ", ".join(
-        role.value.replace("_", " ") for role in occasion.usual_senders
-    )
+    usual = ", ".join(_role_words(role) for role in occasion.usual_senders)
     return f"{wording} (usually: {usual})"
+
+
+#: The two authority roles' names as the glossary spells them (ADR-0088):
+#: a usual sender that holds one is named by it, never by a lowercase alias.
+_AUTHORITY_ROLE_WORDS: Final[dict[CVDRole, str]] = {
+    CVDRole.CASE_OWNER: "Case Owner",
+    CVDRole.CASE_MANAGER: "CASE_MANAGER",
+}
+
+
+def _role_words(role: CVDRole) -> str:
+    """Name *role* as a usual sender: ``"vendor"``, ``"Case Owner"``."""
+    return _AUTHORITY_ROLE_WORDS.get(role, role.value.replace("_", " "))
 
 
 def send_to(occasion: Occasion) -> str:
@@ -374,7 +386,7 @@ def distinguished_by(entry: SemanticEntry, occasion: Occasion) -> str | None:
     an embedded model ("`caseStatus.pxaState` = `Pxa`"); a state context reads
     "EM state `NONE` or `PROPOSED`", or "register status of the named embargo
     `ACTIVE`" on ``EmbargoRegisterStatus``; a sender standing reads "sender is
-    the case owner" or "sender is not the case owner", worded by its kind
+    the Case Owner" or "sender is not the Case Owner", worded by its kind
     (:func:`_kind_wording`, MSM-08-010).  Enum members are named, not valued,
     because a composite state such as ``CS_pxa.Pxa`` has no scalar value.
     """

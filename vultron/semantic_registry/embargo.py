@@ -99,7 +99,7 @@ ENTRIES: list[SemanticEntry] = [
             ),
             Occasion(
                 when=(
-                    "the Case Manager ends the active embargo, on its own "
+                    "the CASE_MANAGER ends the active embargo, on its own "
                     "decision or on the Case Owner's"
                 ),
                 anchor="embargo-termination-notice",
@@ -107,7 +107,7 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Tell a participant the embargo has ended",
                 description=(
                     "Tells one participant that the embargo has ended, with "
-                    "immediate effect. The Case Manager sends one to each "
+                    "immediate effect. The CASE_MANAGER sends one to each "
                     "participant other than itself, naming the Case Owner in "
                     "`attributedTo` when the Case Owner asked for the "
                     "termination."
@@ -134,7 +134,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager states the terms of the embargo in force"
+                    "the CASE_MANAGER states the terms of the embargo in force"
                 ),
                 anchor="announce-embargo",
                 addressee=AddresseeSide.PARTICIPANT,
@@ -152,16 +152,16 @@ ENTRIES: list[SemanticEntry] = [
             ),
             Occasion(
                 when=(
-                    "the Case Manager has applied an Embargo Termination a "
+                    "the CASE_MANAGER has applied an Embargo Termination a "
                     "Case Owner sent before the end time"
                 ),
                 anchor="announce-embargo-termination",
                 addressee=AddresseeSide.PARTICIPANT,
                 heading="Announce embargo termination",
                 description=(
-                    "Tells the active participants other than the Case "
-                    "Manager and any Closed Participant that the embargo it "
-                    "names is terminated. It proposes nothing."
+                    "Tells the active participants other than the "
+                    "CASE_MANAGER and any Closed Participant that the embargo "
+                    "it names is terminated. It proposes nothing."
                 ),
                 example="announce_embargo_termination",
                 distinguisher=StateContext(
@@ -170,9 +170,9 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 howto=HowToGuide.MANAGE_EMBARGO,
                 notes=(
-                    "A termination the Case Manager starts itself, or one at "
+                    "A termination the CASE_MANAGER starts itself, or one at "
                     "the end time, sends no announcement: after the end time, "
-                    "the Case Manager's own end-time check ends the embargo "
+                    "the CASE_MANAGER's own end-time check ends the embargo "
                     "before it applies a Case Owner's termination."
                 ),
             ),
@@ -234,7 +234,7 @@ ENTRIES: list[SemanticEntry] = [
             ),
             Occasion(
                 when=(
-                    "the Case Manager asks a Participant to answer embargo "
+                    "the CASE_MANAGER asks a Participant to answer embargo "
                     "terms another Participant proposed"
                 ),
                 anchor="relay-embargo-proposal",
@@ -242,7 +242,7 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Ask a participant about proposed embargo terms",
                 description=(
                     "Asks one participant to accept or reject proposed "
-                    "embargo terms, or a proposed revision. The Case Manager "
+                    "embargo terms, or a proposed revision. The CASE_MANAGER "
                     "sends one to each participant other than the proposer, "
                     "naming the proposer in `attributedTo`, and the "
                     "participant's answer names this Invite."
@@ -341,7 +341,7 @@ ENTRIES: list[SemanticEntry] = [
             ),
             Occasion(
                 when=(
-                    "the Case Manager abandons an open embargo proposal it "
+                    "the CASE_MANAGER abandons an open embargo proposal it "
                     "received once the case is public, an exploit is public "
                     "or attacks are observed"
                 ),
@@ -349,9 +349,9 @@ ENTRIES: list[SemanticEntry] = [
                 addressee=AddresseeSide.PARTICIPANT,
                 heading="Abandon embargo proposal",
                 description=(
-                    "Cancels the proposal for the case. The Case Manager then "
+                    "Cancels the proposal for the case. The CASE_MANAGER then "
                     "withdraws each Invite it relayed for the proposal. This "
-                    "Reject is not the Case Manager's consent."
+                    "Reject is not the CASE_MANAGER's consent."
                 ),
                 example="abandon_embargo_proposal",
                 shorthand=ProtocolShorthand.ER,
@@ -378,7 +378,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager abandons an open embargo proposal "
+                    "the CASE_MANAGER abandons an open embargo proposal "
                     "once the case is public, an exploit is public or "
                     "attacks are observed"
                 ),
@@ -386,10 +386,10 @@ ENTRIES: list[SemanticEntry] = [
                 addressee=AddresseeSide.PARTICIPANT,
                 heading="Withdraw an embargo invitation",
                 description=(
-                    "Withdraws an Invite the Case Manager sent for the "
-                    "abandoned proposal. The Case Manager first rejects the "
+                    "Withdraws an Invite the CASE_MANAGER sent for the "
+                    "abandoned proposal. The CASE_MANAGER first rejects the "
                     "proposal it received, which cancels it, then withdraws "
-                    "each Invite it relayed for it. When the Case Manager "
+                    "each Invite it relayed for it. When the CASE_MANAGER "
                     "made the proposal itself, withdrawing that proposal is "
                     "the cancel."
                 ),
@@ -402,7 +402,7 @@ ENTRIES: list[SemanticEntry] = [
         ),
         page=MessagePage.EM,
     ),
-    # The case owner's decision for the case (ADR-0122): Accept/Reject of
+    # The Case Owner's decision for the case (ADR-0122): Accept/Reject of
     # the EmbargoEvent itself, never of the Invite that proposed it.  It
     # carries EA, EC, ER and EJ, told apart by the case's EM state (MSM-02).
     SemanticEntry(
@@ -485,7 +485,7 @@ ENTRIES: list[SemanticEntry] = [
                     "Rejects the revision for the case. The active embargo "
                     "stays in force on its prior terms, unless the case is "
                     "public, an exploit is public or attacks are observed, "
-                    "when the Case Manager also ends it."
+                    "when the CASE_MANAGER also ends it."
                 ),
                 example="reject_embargo_revision_proposal",
                 distinguisher=StateContext(machine=EM, states=(EM.REVISE,)),
@@ -542,7 +542,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager has created a case and, with it, an "
+                    "the CASE_MANAGER has created a case and, with it, an "
                     "embargo such as the default embargo"
                 ),
                 anchor="create-embargo-event",
@@ -572,7 +572,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager creates a participant's consent row "
+                    "the CASE_MANAGER creates a participant's consent row "
                     "for an embargo, such as the UNINVITED row a proposal "
                     "writes"
                 ),
@@ -603,7 +603,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager changes a participant's consent row, "
+                    "the CASE_MANAGER changes a participant's consent row, "
                     "such as an invitation timing out, the rows carried over "
                     "at activation or a change of its own consent"
                 ),
@@ -611,7 +611,7 @@ ENTRIES: list[SemanticEntry] = [
                 addressee=AddresseeSide.PARTICIPANT,
                 heading="Update embargo consent",
                 description=(
-                    "Carries the changed consent row in full. A Case Manager "
+                    "Carries the changed consent row in full. A CASE_MANAGER "
                     "with an embargo stake of its own records a change of "
                     "its own consent this way, never as a Reject of the "
                     "Invite."

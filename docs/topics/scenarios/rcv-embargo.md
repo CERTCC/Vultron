@@ -32,7 +32,7 @@ causal_edges:
     consequent: activate_embargo_on_case
     consequent_actor: coordinator
     note: >
-      The Coordinator, as case owner, activates a revision only after it was
+      The Coordinator, as Case Owner, activates a revision only after it was
       proposed and relayed; the activation is its own decision for the case.
   - antecedent: activate_embargo_on_case
     consequent: remove_embargo_event_from_case
@@ -99,7 +99,7 @@ The proposal goes only to the CASE_MANAGER.
 The CASE_MANAGER moves the case to EM `REVISE`, records the proposal and relays it to the Coordinator and the Vendor.
 
 The Vendor accepts, which records its consent and changes no EM state.
-The Coordinator, as case owner, answers with its decision for the case.
+The Coordinator, as Case Owner, answers with its decision for the case.
 It activates the revision, and the case returns to EM `ACTIVE`.
 
 Each participant waits for the relayed invitation on its own replica.

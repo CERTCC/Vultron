@@ -6,8 +6,8 @@
 
     - **When…** the Case Owner terminates the active embargo
     - **Send:** `Remove(EmbargoEvent)`
-    - **Send to:** the case manager
-    - **Sent by:** the case manager or the case owner
+    - **Send to:** the CASE_MANAGER
+    - **Sent by:** the CASE_MANAGER or the Case Owner
     - **Reference:** [Embargo Termination (ET)](../../em.md#embargo-termination)
 
     ??? example "Example activity"

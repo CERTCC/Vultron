@@ -38,7 +38,7 @@ They describe what an actor *controls* within the protocol machinery, not what i
 | Role | Protocol authority |
 |---|---|
 | Case Owner | Authoritative decision-maker for a case; status updates are treated as authoritative without requiring approval; drives shared EM transitions |
-| Case Manager | Holds the case's single-writer authority ([§10.1 Single-Writer Authority](../interactions.md#101-single-writer-authority)): writes the canonical case ledger, relays case-scoped messages, and manages the roster on the Case Owner's behalf ([§2.2 Roles](../introduction.md#22-roles)). Authority follows the role, not the actor that holds it; the role is commonly co-held with Coordinator but need not be ([§13.3.3 Roles and Capability Sets Are Independent](../conformance.md#1333-roles-and-capability-sets-are-independent)) |
+| CASE_MANAGER | Holds the case's single-writer authority ([§10.1 Single-Writer Authority](../interactions.md#101-single-writer-authority)): writes the canonical case ledger, relays case-scoped messages, and manages the roster on the Case Owner's behalf ([§2.2 Roles](../introduction.md#22-roles)). Authority follows the role, not the actor that holds it; the role is commonly co-held with Coordinator but need not be ([§13.3.3 Roles and Capability Sets Are Independent](../conformance.md#1333-roles-and-capability-sets-are-independent)) |
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-21-001", "CM-21-023", "CM-02-004", "CM-02-005"))

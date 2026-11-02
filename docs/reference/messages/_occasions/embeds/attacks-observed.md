@@ -4,10 +4,10 @@
 
     Tells a participant that the case status now records that attackers are exploiting the vulnerability.
 
-    - **When…** the Case Manager records that attackers are exploiting the vulnerability
+    - **When…** the CASE_MANAGER records that attackers are exploiting the vulnerability
     - **Send:** `Add(CaseStatus)[target=VulnerabilityCase]`
     - **Send to:** a participant
-    - **Sent by:** the case manager
+    - **Sent by:** the CASE_MANAGER
     - **Distinguished by:** `pxaState` = `pxA`
     - **Reference:** [Attacks observed in a case status](../../cs.md#attacks-observed)
 

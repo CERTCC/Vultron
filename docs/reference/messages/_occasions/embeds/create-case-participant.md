@@ -4,10 +4,10 @@
 
     Carries the new participant record in full: its roles, statuses, joined mark and consent rows.
 
-    - **When…** the Case Manager creates a participant record, such as the inert record for the invitee of a stub Invite
+    - **When…** the CASE_MANAGER creates a participant record, such as the inert record for the invitee of a stub Invite
     - **Send:** `Create(CaseParticipant)`
     - **Send to:** a participant
-    - **Sent by:** internal to the case manager
+    - **Sent by:** internal to the CASE_MANAGER
     - **Reference:** [Create case participant](../../case_management.md#create-case-participant)
 
     ??? example "Example activity"

@@ -55,7 +55,7 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Add note to case",
                 description=(
                     "Posts the note to the case named by the target, with "
-                    "the note carried inline as the object: the Case Manager "
+                    "the note carried inline as the object: the CASE_MANAGER "
                     "stores the note, attaches it to the case and records "
                     "the attachment in the case ledger. It is the one "
                     "message that attaches a note: a received Create of a "

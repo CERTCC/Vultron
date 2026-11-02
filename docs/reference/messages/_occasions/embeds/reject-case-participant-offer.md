@@ -2,12 +2,12 @@
 
 !!! info "Reject case participant offer"
 
-    Rejects the proposed participant record. The Case Manager tells the recommender.
+    Rejects the proposed participant record. The CASE_MANAGER tells the recommender.
 
     - **When…** the Case Owner declines a suggested actor
     - **Send:** `Reject(Offer(CaseParticipant)[target=VulnerabilityCase])`
-    - **Send to:** the case manager
-    - **Sent by:** the case owner
+    - **Send to:** the CASE_MANAGER
+    - **Sent by:** the Case Owner
     - **Reference:** [Reject case participant offer](../../general.md#reject-case-participant-offer)
 
     ??? example "Example activity"

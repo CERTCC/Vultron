@@ -516,7 +516,8 @@ groups:
     statement: The `CVDRoles` enum MUST include a `CASE_OWNER` flag value representing the actor who owns and manages a `VulnerabilityCase`.
     rationale: Case ownership is a protocol-significant relationship distinct from the CVD roles (VENDOR, COORDINATOR, etc.).
       When a vendor or coordinator receives a report and creates a case, they are both the receiving CVD actor (VENDOR or
-      COORDINATOR) and the case owner. Representing this explicitly avoids hardcoding the assumption that the case creator
+      COORDINATOR) and the Case Owner. Representing this explicitly avoids hardcoding
+      the assumption that the case creator
       is always a vendor.
     verification: Inspection of the `CVDRoles` enum definition confirms that a `CASE_OWNER` flag value is present.
     stories:
@@ -528,11 +529,11 @@ groups:
     verification_debt: '#2574'
     statement: >-
       The BT node for creating the initial case participant MUST be role-agnostic; the correct
-      node for this purpose is `AddOwnerParticipantNode`, which takes the case owner's
+      node for this purpose is `AddOwnerParticipantNode`, which takes the Case Owner's
       additional roles from `ActorConfig.default_case_roles`.
     rationale: >-
       "Vendor" is a demo-specific assumption. In the general protocol a coordinator, deployer, or
-      other role may equally receive a report and become the case owner.
+      other role may equally receive a report and become the Case Owner.
     relationships:
     - rel_type: refines
       spec_id: BTND-01-001
@@ -544,7 +545,7 @@ groups:
       record through the shared `_create_and_attach_participant` helper
       (`vultron/core/behaviors/case/nodes/participant/common.py`) rather than
       re-implementing create-and-attach per flow. The helper carries no status
-      or embargo-consent policy; each seating flow (case owner, inert invitee,
+      or embargo-consent policy; each seating flow (Case Owner, inert invitee,
       reporter) supplies its own roles and initial status. No role-specific
       participant-creation subclasses or alias names are permitted.
     rationale: >-
@@ -590,7 +591,7 @@ groups:
       (e.g., Vendor).
     rationale: >-
       Any CVD actor (coordinator, deployer, vendor, etc.) may receive a report and become the
-      case owner; hardcoding a role couples the node to a single scenario.
+      Case Owner; hardcoding a role couples the node to a single scenario.
   - id: BTND-05-006
     priority: MUST
     kind: project

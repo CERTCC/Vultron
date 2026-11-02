@@ -66,7 +66,7 @@ itself:
 | Role | Definition |
 |---|---|
 | **Case Owner** | The party whose disclosure decision the case exists to serve. It decides who is invited, which roles they hold, and whether embargo terms are accepted or torn down. Case ownership is never delegated, though it may be transferred ([§12.3 Case Ownership Transfer](interactions.md#123-case-ownership-transfer-n)). |
-| **Case Manager** | The participant that writes the canonical case ledger and relays case-scoped messages, acting on the Case Owner's behalf. It is the case's single-writer authority ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)). The Case Owner may delegate this role. |
+| **CASE_MANAGER** | The participant that writes the canonical case ledger and relays case-scoped messages, acting on the Case Owner's behalf. It is the case's single-writer authority ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)). The Case Owner may delegate this role. |
 
 !!! note "The Observer role and the Case Observer capability set"
     *Observer* is a process role (defined above). The minimum conformance
@@ -80,7 +80,7 @@ itself:
     sets from the roles they serve.
 
 !!! note "Informative: the CASE_MANAGER role and the actor that holds it"
-    Authority over a case follows the Case Manager **role**. It does not follow
+    Authority over a case follows the CASE_MANAGER **role**. It does not follow
     any actor's name, URI, or hosting location. Normative text in this
     specification therefore names the authority *the CASE_MANAGER*, meaning
     whichever participant currently holds the role.

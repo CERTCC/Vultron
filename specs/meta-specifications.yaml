@@ -1604,7 +1604,7 @@ groups:
       `project`. Such a spec is a deployment choice, a performance or operating
       limit, how a receiver records what it receives, or a core internal. One
       deployment choice is running the CASE_MANAGER as an actor separate from the
-      case owner.
+      Case Owner.
     rationale: >-
       A rule that only this codebase must obey binds no other implementation, so it
       stays out of the protocol view that implementers read. EP-02-007

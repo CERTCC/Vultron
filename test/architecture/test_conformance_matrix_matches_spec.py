@@ -28,7 +28,7 @@ every set it enumerates is checked here against the fragments that define it:
 * the named-configurations table is the §13.2 table, cell for cell;
 * every role requires Case Observer (§13.2: "Every actor that participates in
   any Vultron case MUST implement it"), and the two authority roles require
-  the set that defines them (Case Owner → Case Decision, Case Manager → Case
+  the set that defines them (Case Owner → Case Decision, CASE_MANAGER → Case
   Hosting), which are the only *Required* cells outside that column.
 
 A role added to, or renamed in, the specification therefore fails this test
@@ -62,7 +62,7 @@ FLOOR_SET = "Case Observer"
 #: The authority roles and the set that defines each (§13.2).
 AUTHORITY_SETS = {
     "Case Owner": "Case Decision",
-    "Case Manager": "Case Hosting",
+    "CASE_MANAGER": "Case Hosting",
 }
 
 

@@ -143,7 +143,7 @@ A case can be *Active* while some Participants are not bound.
 A Participant who has been invited but not yet joined is not bound, and neither is a Participant who declined.
 
 The two are linked at two points.
-When the case owner activates revised terms that end later than the ones in force, every Participant who had agreed to the old terms and not to the new ones has lapsed.
+When the Case Owner activates revised terms that end later than the ones in force, every Participant who had agreed to the old terms and not to the new ones has lapsed.
 Those Participants must agree again.
 
 A revision that is only proposed changes nobody's consent.

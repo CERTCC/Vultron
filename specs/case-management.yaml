@@ -264,7 +264,7 @@ groups:
     priority: MAY
     kind: project
     statement: >-
-      One actor MAY enact the CASE_MANAGER and also be the case owner (the named
+      One actor MAY enact the CASE_MANAGER and also be the Case Owner (the named
       actor).
     rationale: >-
       A deployment may enact both roles in one actor. An actor holding both roles
@@ -276,7 +276,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Two different actors enacting the CASE_MANAGER and the case owner MUST each have
+      Two different actors enacting the CASE_MANAGER and the Case Owner MUST each have
       their own actor ID, even on one server.
     rationale: >-
       When the proposal flow (CP-09-001) yields two actors, distinct identities keep
@@ -284,7 +284,7 @@ groups:
       also let the two actors separate later without protocol changes.
     verification: >-
       Inspection of `vultron/core/` confirms that, when the actor enacting CASE_MANAGER
-      and the case owner named actor are different actors, they hold distinct actor IDs
+      and the Case Owner named actor are different actors, they hold distinct actor IDs
       even in single-server deployments.
     relationships:
     - rel_type: extends
@@ -818,7 +818,7 @@ groups:
     kind: protocol
     statement: >-
       When processing an EM state transition and the accepting actor is any participant
-      other than the case owner, the receiver MUST update only that participant's own
+      other than the Case Owner, the receiver MUST update only that participant's own
       consent row for the accepted embargo.
     rationale: >-
       Non-owner participants do not advance the shared EM state; their individual acceptance
@@ -1316,7 +1316,8 @@ groups:
       `CaseParticipant` MUST record its consent per embargo: one consent row for every entry in the
       case's embargo register, naming the embargo and the participant's answer to it, `UNINVITED`
       until it is asked (CM-18-001). A participant agrees to an embargo explicitly, by an `Accept`,
-      as its proposer, by seeding (CM-14-003, CM-14-005), or by containment, when the case owner
+      as its proposer, by seeding (CM-14-003, CM-14-005), or by containment, when the
+      Case Owner
       activates a revision that ends no later than terms the participant had agreed to (EP-05-001).
       Each invitation's RSVP deadline is stored on that invitation's `INVITED` row (CM-28-013). No
       other record of embargo consent may exist on the participant.
@@ -2713,7 +2714,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a case is created from an `Offer(VulnerabilityReport)`, the case owner (the
+      When a case is created from an `Offer(VulnerabilityReport)`, the Case Owner (the
       report receiver) MUST queue a `Create(VulnerabilityCase)` activity to notify the
       reporter that a case has been opened, naming the CASE_MANAGER it delegated to
       (CBT-01-001)
@@ -2841,13 +2842,16 @@ groups:
   - id: CM-13-006
     priority: MUST
     kind: project
-    statement: When a case is created with a default embargo that reaches `EM.ACTIVE` at creation time, the case owner MUST
+    statement: When a case is created with a default embargo that reaches `EM.ACTIVE` at
+      creation time, the Case Owner MUST
       be initialized as a signatory in the same BT node or an immediately following sibling node in the same BT subtree
-    rationale: The case creator is the case owner by default; seeding them as a signatory prevents the case owner from being
+    rationale: The case creator is the Case Owner by default; seeding them as a
+      signatory prevents the Case Owner from being
       locked out of their own active embargo until a separate accept step occurs. The consent state must be set via the PEC
       state machine (not by direct field assignment) to preserve state machine invariants.
     verification: Integration tests in `test/demo/` confirm that when a case is created with a
-      default embargo, the case owner's consent row for it is marked `AGREED` in the same BT
+      default embargo, the Case Owner's consent row for it is marked `AGREED` in the
+      same BT
       subtree that activates the embargo.
     relationships:
     - rel_type: depends_on
@@ -2905,7 +2909,7 @@ groups:
       No step may be omitted or reordered.
     rationale: >-
       Step CM-14-009 precedes CM-14-010 so that the embargo is always created by a
-      participant (the case owner). The Create(VulnerabilityCase) notification in
+      participant (the Case Owner). The Create(VulnerabilityCase) notification in
       CM-14-011 is flushed before the reporter is added in CM-14-012 so the reporter's
       system receives the case object before any subsequent Announce(CaseLedgerEntry)
       fan-out that references it.
@@ -2927,11 +2931,12 @@ groups:
   - id: CM-14-002
     priority: MUST
     kind: protocol
-    statement: The case-owner `CaseParticipant` MUST be created before the default embargo is initialized, so that the
+    statement: The Case Owner's `CaseParticipant` MUST be created before the default
+      embargo is initialized, so that the
       embargo is always associated with an existing participant
     rationale: An embargo without any participant lacks an owning actor. Creating the owner participant first ensures that
       the embargo is initialized in the context of an actor who can be responsible for it.
-    verification: Inspection of `vultron/core/` confirms that the case-owner
+    verification: Inspection of `vultron/core/` confirms that the Case Owner's
       `CaseParticipant` creation step precedes the default embargo initialization step in the
       initialization sequence.
     relationships:
@@ -2943,11 +2948,14 @@ groups:
   - id: CM-14-003
     priority: MUST
     kind: protocol
-    statement: When the case initialization sequence creates a default embargo, the case owner MUST be seeded as a signatory
+    statement: When the case initialization sequence creates a default embargo, the Case
+      Owner MUST be seeded as a signatory
       on that embargo immediately after the embargo reaches `EM.ACTIVE` state
-    rationale: The case owner initiated the embargo by accepting the default policy on behalf of the case. Requiring a separate
-      accept step would leave the case owner as a non-signatory on their own active embargo.
-    verification: Integration tests in `test/demo/` confirm that the case owner is seeded as
+    rationale: The Case Owner initiated the embargo by accepting the default policy on
+      behalf of the case. Requiring a separate
+      accept step would leave the Case Owner as a non-signatory on their own active embargo.
+    verification: Integration tests in `test/demo/` confirm that the Case Owner is
+      seeded as
       a signatory on the default embargo immediately after it reaches `EM.ACTIVE` during case
       initialization.
     relationships:
@@ -3088,11 +3096,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Step 2 of the case initialization sequence MUST create the case-owner
+      Step 2 of the case initialization sequence MUST create the Case Owner's
       `CaseParticipant` with `RM.RECEIVED` and the `CASE_OWNER` role.
-    rationale: The case-owner participant must exist before the default embargo can be
+    rationale: The Case Owner's participant must exist before the default embargo can be
       initialized, so that the embargo is always associated with an existing participant.
-    verification: Integration tests in `test/demo/` confirm that step 2 creates the case-owner
+    verification: Integration tests in `test/demo/` confirm that step 2 creates the Case
+      Owner's
       `CaseParticipant` with `RM.RECEIVED` and `CVDRole.CASE_OWNER`.
     stories:
     - story_2022_046
@@ -3101,10 +3110,11 @@ groups:
     kind: protocol
     statement: >-
       Step 3 of the case initialization sequence MUST initialize the default embargo to
-      `EM.ACTIVE` and seed the case owner as a signatory whenever the case is embargo-eligible,
+      `EM.ACTIVE` and seed the Case Owner as a signatory whenever the case is embargo-eligible,
       using the actor default where one is configured and the EP-04-005 protocol default
       otherwise.
-    rationale: The embargo must be in place before any participant other than the case owner is
+    rationale: The embargo must be in place before any participant other than the Case
+      Owner is
       added, so that all subsequent participants are subject to the embargo from the moment they
       join.
     note: >-
@@ -3112,7 +3122,8 @@ groups:
       policy; EP-04-019 now supplies a bounded protocol default when none is
       configured, so the only condition is embargo-eligibility (EP-04-008).
     verification: Integration tests in `test/demo/` confirm that step 3 sets the default embargo
-      to `EM.ACTIVE` and seeds the case owner as a signatory both when an actor default policy is
+      to `EM.ACTIVE` and seeds the Case Owner as a signatory both when an actor default
+      policy is
       configured and when none is, and that it is skipped when the case is not embargo-eligible.
     relationships:
     - rel_type: depends_on
@@ -3339,7 +3350,7 @@ groups:
       After recording the received `Offer(Actor)`, the CASE_MANAGER MUST assign a non-empty
       default role list for the suggested actor via an Evaluator BT node (ADR-0024 shape:
       Evaluator). This applies to a suggested actor, where the CASE_MANAGER chooses the
-      roles through its policy hook; the case owner's own stub Invite names its roles and
+      roles through its policy hook; the Case Owner's own stub Invite names its roles and
       guesses none (CM-11-019).
     rationale: >-
       A suggestion names only an actor. But the stub Invite must carry at least one role
@@ -4752,7 +4763,8 @@ groups:
       The embargo lifecycle MUST NOT write a consent row to record a lapse or an exit. Beyond the
       `UNINVITED` row a proposal writes for every participant (CM-18-001), a proposal, the activation
       of a longer revision and the termination of the embargo change no row of a participant that
-      has not itself been invited, has not itself answered, is not the case owner activating the
+      has not itself been invited, has not itself answered, is not the Case Owner
+      activating the
       embargo, or whose agreement is not being carried over by containment (EP-05-001); a
       participant's lapsed or exited position is read from its rows and the register (CM-18-001).
     rationale: >-
@@ -4985,7 +4997,7 @@ groups:
     kind: protocol
     verification: >-
       Inspection confirms `CVDRole.CASE_MANAGER` is assigned only to the actor that
-      enacts the case-manager role at case creation (CBT-01-014) and never to a
+      enacts the CASE_MANAGER role at case creation (CBT-01-014) and never to a
       participant added through the invitation flow.
     statement: >-
       The CASE_MANAGER role MUST NOT be assigned to any organizational or human participant
@@ -5436,7 +5448,7 @@ groups:
     verification: >-
       A test marked `CM-21-011`
       sends the Accept with no pending Offer naming the sender and asserts `REFUSED` with
-      the case owner unchanged.
+      the Case Owner unchanged.
     stories:
     - story_2022_035
     - story_2022_050
@@ -5764,7 +5776,7 @@ groups:
       deadline to answer — so it adds no new meaning to the field.
     verification: >-
       A test marked `CM-21-016` delivers an Accept for an Offer whose `end_time`
-      has passed and asserts it is `REFUSED` and the case owner is unchanged.
+      has passed and asserts it is `REFUSED` and the Case Owner is unchanged.
     relationships:
     - rel_type: refines
       spec_id: CM-21-011
@@ -6070,7 +6082,7 @@ groups:
       ID (the CASE_OWNER, CM-02-008).
     rationale: >-
       ADR-0041 supersedes ADR-0015.  The CASE_MANAGER is the case's authoritative
-      creator. `attributed_to` records the case owner, which ownership checks
+      creator. `attributed_to` records the Case Owner, which ownership checks
       read and ownership transfer rewrites (MSM-07-027, CM-21-024).
     verification: >-
       Integration tests in `test/demo/` confirm that the `VulnerabilityCase` created by

@@ -40,8 +40,8 @@ No actor creates a case without a report.
 Any actor that receives a report can create a case for it: a vendor, a coordinator, or you, if you report to yourself.
 The receiver becomes the Case Owner, and the Reporter becomes a participant ([CM-14-008](../reference/vultron-spec/requirements/case-management.md#cm-14-008), [CM-14-009](../reference/vultron-spec/requirements/case-management.md#cm-14-009), [CM-14-012](../reference/vultron-spec/requirements/case-management.md#cm-14-012)).
 
-**The Case Owner holds the Case Manager role, or delegates it.**
-Each case has a [Case Manager](../topics/case_lifecycle/case_manager_and_ledger.md), which keeps the history of the case and sends each change to the participants.
+**The Case Owner holds the [CASE_MANAGER](../topics/case_lifecycle/case_manager_and_ledger.md) role, or delegates it.**
+Each case has a CASE_MANAGER, which keeps the history of the case and sends each change to the participants.
 The Case Owner can hold this role itself.
 The Case Owner can also delegate it to a different actor, for example a coordinator that hosts cases for others ([§10.3 Case Bootstrap and the Trust Root](../reference/vultron-spec/interactions.md#103-case-bootstrap-and-the-trust-root), [CBT-01-001](../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-001)).
 When it delegates, the delegate creates the case, and the receiver of the report is still its Case Owner ([CP-09-001](../reference/vultron-spec/requirements/case-management.md#cp-09-001), [CBT-01-003](../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-003)).
@@ -49,7 +49,7 @@ The rest of this guide is the same in both cases.
 
 !!! note "Delegation in the reference implementation"
 
-    The Vultron reference implementation always delegates the Case Manager role.
+    The Vultron reference implementation always delegates the CASE_MANAGER role.
     The receiver proposes the case to a [Case Actor Service](../reference/glossary.md#cvd-roles-and-participants), which starts a separate Case Actor for the case.
     The protocol does not require this.
 
@@ -57,7 +57,7 @@ The rest of this guide is the same in both cases.
 When the Case Owner invites an actor, that actor becomes a participant with the roles that the invitation names ([§12.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n)).
 A case has only one Case Owner at a time ([CM-21-001](../reference/vultron-spec/requirements/case-management.md#cm-21-001)).
 The Case Owner role moves to another participant only by an [ownership transfer](../topics/case_lifecycle/ownership_transfer.md) ([CM-21-002](../reference/vultron-spec/requirements/case-management.md#cm-21-002)).
-The Case Manager refuses any other offer of the Case Owner role ([CM-33-003](../reference/vultron-spec/requirements/case-management.md#cm-33-003)).
+The CASE_MANAGER refuses any other offer of the Case Owner role ([CM-33-003](../reference/vultron-spec/requirements/case-management.md#cm-33-003)).
 If you create a case and invite a vendor, you still make the decisions for the case.
 
 **The actor that reports is the Reporter.**
@@ -106,7 +106,7 @@ Two examples are a vendor that found a vulnerability in its own product, and a c
 1. Send the report to your own actor.
    You hold the Reporter role, and you become the Case Owner.
 2. Create the case.
-   Hold the Case Manager role yourself, or delegate it to an actor that you choose.
+   Hold the CASE_MANAGER role yourself, or delegate it to an actor that you choose.
 3. Invite each vendor, coordinator, or other actor that the case needs.
    Each actor that accepts becomes a participant ([§12.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n)).
 
@@ -134,18 +134,18 @@ An example is a vendor that transfers its case to a coordinator when the case co
    If the new owner is not in the case, invite it first.
    Wait until it accepts the invitation.
    When it accepts, it also agrees to the active embargo ([CM-11-001](../reference/vultron-spec/requirements/case-management.md#cm-11-001)).
-2. Propose the transfer to the Case Manager, which can be your own system, and name the new owner ([CM-21-005](../reference/vultron-spec/requirements/case-management.md#cm-21-005)).
-   The Case Manager refuses a transfer to an actor that is not an active participant ([CM-21-021](../reference/vultron-spec/requirements/case-management.md#cm-21-021)).
+2. Propose the transfer to the CASE_MANAGER, which can be your own system, and name the new owner ([CM-21-005](../reference/vultron-spec/requirements/case-management.md#cm-21-005)).
+   The CASE_MANAGER refuses a transfer to an actor that is not an active participant ([CM-21-021](../reference/vultron-spec/requirements/case-management.md#cm-21-021)).
 3. Wait for the new owner to accept the transfer.
    It must be an active participant, and not closed, when it accepts ([CM-21-022](../reference/vultron-spec/requirements/case-management.md#cm-21-022)).
 
 After the transfer, the case keeps its history, its embargo, and its participants.
 Only the Case Owner role moves ([CM-21-002](../reference/vultron-spec/requirements/case-management.md#cm-21-002), [CM-21-003](../reference/vultron-spec/requirements/case-management.md#cm-21-003)).
 You stay a participant, and you keep your other roles, for example Reporter or Vendor ([CM-21-008](../reference/vultron-spec/requirements/case-management.md#cm-21-008), [CM-21-009](../reference/vultron-spec/requirements/case-management.md#cm-21-009)).
-The Case Manager tells each participant about the new owner ([CM-21-007](../reference/vultron-spec/requirements/case-management.md#cm-21-007)).
+The CASE_MANAGER tells each participant about the new owner ([CM-21-007](../reference/vultron-spec/requirements/case-management.md#cm-21-007)).
 
-The Case Manager role does not move with the Case Owner role.
-If you held both roles, you still hold the Case Manager role after the transfer.
+The CASE_MANAGER role does not move with the Case Owner role.
+If you held both roles, you still hold the CASE_MANAGER role after the transfer.
 The protocol does not yet say how that role moves to another actor ([§12.1 Role Assignment](../reference/vultron-spec/interactions.md#121-role-assignment-n), [Open questions: cases and participants](../topics/future_work/open_questions.md#cases-and-participants)).
 [Case Ownership Transfer](../topics/case_lifecycle/ownership_transfer.md) describes each message in the transfer.
 
@@ -186,7 +186,7 @@ The benefit is that the case outlives a decline: the history, the participants, 
 |---|---|
 | What decides the path? | Who should be the Case Owner, now and later. |
 | Who creates a case? | The actor that receives the report, which can be you. That actor becomes the Case Owner. |
-| Who is the Case Manager? | The Case Owner, or an actor that the Case Owner delegates the role to. |
+| Who is the CASE_MANAGER? | The Case Owner, or an actor that the Case Owner delegates the role to. |
 | Does an invitation make someone an owner? | No. It adds a participant. Ownership moves only by a transfer. |
 | Who can receive a transfer? | Only an active participant. Invite the future owner first. |
 | What stays with the case after a transfer? | The history, the embargo, and the participants. The previous owner stays a participant and keeps its other roles. |
@@ -195,7 +195,7 @@ The benefit is that the case outlives a decline: the history, the participants, 
 ## Further reading
 
 - [A Case Under Vultron](../topics/case_lifecycle/a_case_under_vultron.md) — who owns a case, what each participant sees, and what an embargo invitation asks
-- [Case Ownership Transfer](../topics/case_lifecycle/ownership_transfer.md) — the messages that move the Case Owner role, and why they go through the Case Manager
+- [Case Ownership Transfer](../topics/case_lifecycle/ownership_transfer.md) — the messages that move the Case Owner role, and why they go through the CASE_MANAGER
 - [Default Embargoes](../topics/process_models/em/defaults.md) — how a case starts under an embargo, and which terms become active
 - [Submit a Report to a Vultron Actor](../tutorials/submit-a-report.md) — the report message, sent to a running actor in the reference implementation
 

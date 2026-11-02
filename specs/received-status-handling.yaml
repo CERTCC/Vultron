@@ -895,7 +895,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >
-      A participant that declares its own RM, VF or D state, or a case owner
+      A participant that declares its own RM, VF or D state, or a Case Owner
       that asserts one on another participant's behalf, MUST NOT append the
       status to a participant record in its own case replica. It sends the
       declaration to the CASE_MANAGER, and its replica copies the status the
@@ -931,6 +931,10 @@ groups:
       spec_id: RSH-08-003
     adr:
     - ADR-0124
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5654, which only renames its
+    # role names; the split into one obligation per ID belongs to #5218.
+    - compound_statement
   - id: RSH-08-007
     priority: MUST
     kind: protocol

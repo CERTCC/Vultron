@@ -176,7 +176,7 @@ taxonomy.
 - **Process roles** — what an actor *does* in a case: Reporter, Vendor,
   Coordinator, Deployer, CVE Numbering Authority (CNA), Observer.
 - **Protocol authority roles** — what an actor *controls* in the protocol
-  itself: Case Owner and Case Manager. These confer specific rights within a
+  itself: Case Owner and CASE_MANAGER. These confer specific rights within a
   case, independent of what other actors do.
 
 The distinction between the two authority roles matters throughout:
@@ -185,7 +185,7 @@ The distinction between the two authority roles matters throughout:
   serve. It decides who is invited, which roles they hold, and whether embargo
   terms are accepted or torn down. Case ownership is never delegated, though it
   may be transferred ([§12.3 Case Ownership Transfer](interactions.md#123-case-ownership-transfer-n)).
-- The **Case Manager** is the participant holding the `CASE_MANAGER` role. It
+- The **CASE_MANAGER** is the participant holding the `CASE_MANAGER` role. It
   writes the canonical case ledger, relays case-scoped messages, and acts on the
   Case Owner's behalf.
   The role cannot be granted by a role offer ([§12.1 Role Assignment](interactions.md#121-role-assignment-n)); how it is handed to another actor is not yet specified.

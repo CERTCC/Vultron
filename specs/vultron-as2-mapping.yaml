@@ -1135,7 +1135,7 @@ groups:
       `Accept(EmbargoEvent)[target=VulnerabilityCase]`, whose object is the proposed `EmbargoEvent`
       itself, carried inline or by reference, and not the `Invite` that proposed it (ADR-0122).
     rationale: >-
-      The case owner's activation is a decision about the embargo for the case, so it accepts
+      The Case Owner's activation is a decision about the embargo for the case, so it accepts
       the embargo; an `Accept` of the `Invite` is each sender's own consent (VAM-05-006).
       Giving the two different objects keeps them apart on the wire.
     verification: A unit test in `test/test_semantic_activity_patterns.py` confirms that
@@ -1155,7 +1155,8 @@ groups:
       `Reject(EmbargoEvent)[target=VulnerabilityCase]`, whose object is the proposed `EmbargoEvent`
       itself, carried inline or by reference, and not the `Invite` that proposed it (ADR-0122).
     rationale: >-
-      The case owner's rejection is a decision about the embargo for the case; a `Reject` of
+      The Case Owner's rejection is a decision about the embargo for the case; a
+      `Reject` of
       the `Invite` is each sender's own consent (VAM-05-007).
     verification: A unit test in `test/test_semantic_activity_patterns.py` confirms that
       `Reject(EmbargoEvent)[target=VulnerabilityCase]` maps to

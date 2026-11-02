@@ -227,7 +227,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     verification_debt: '#3612'
-    statement: The case owner actor MUST NOT write directly to its own local case copy.
+    statement: The Case Owner actor MUST NOT write directly to its own local case copy.
     rationale: >-
       When the Case Owner is not the CASE_MANAGER, its copy of the case is a replica
       like every other, and it changes only after the CASE_MANAGER has checked the
@@ -700,7 +700,7 @@ groups:
     kind: protocol
     statement: >-
       An `Invite` that invites an actor to a case (`InviteActorToCase`) MUST be sent
-      with `actor` set to the CASE_MANAGER's ID, not the case owner's ID. The case owner
+      with `actor` set to the CASE_MANAGER's ID, not the Case Owner's ID. The Case Owner
       triggers the invite action, but the CASE_MANAGER MUST be the ActivityStreams actor
       performing the send. Optionally, `attributedTo` on the activity MAY carry the case
       owner's ID to record who initiated the invitation.
@@ -711,20 +711,24 @@ groups:
       wrong actor. `attributedTo` keeps a record of who asked for the Invite.
     verification: >-
       `test/demo/test_remote_case_actor_invite.py::TestOwnerInviteThroughARemoteCaseActor`
-      confirms the case owner's trigger sends its own request and the CASE_MANAGER, on
-      another container, is the `actor` of the `Invite`, not the case owner.
+      confirms the Case Owner's trigger sends its own request and the CASE_MANAGER, on
+      another container, is the `actor` of the `Invite`, not the Case Owner.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
     stories:
     - story_2022_053
     - story_2022_052
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5654, which only renames its
+    # role names; the split into one obligation per ID belongs to #5218.
+    - compound_statement
   - id: PCR-08-008
     priority: MUST
     kind: protocol
     statement: >-
       The invitee's `Accept` of that Invite (PCR-08-007) MUST be addressed to the
-      CASE_MANAGER (not the case owner). The CASE_MANAGER is the authoritative recipient
+      CASE_MANAGER (not the Case Owner). The CASE_MANAGER is the authoritative recipient
       and processor of all case-management handshake messages after case creation.
     rationale: >-
       Only the CASE_MANAGER records the invitee's join in the case and in the ledger.
@@ -734,7 +738,7 @@ groups:
       `test/core/use_cases/triggers/test_actor_triggers.py::TestSvcAcceptCaseInviteUseCase::test_accept_addresses_case_manager_not_case_owner`
       confirms that, for a case another actor owns, the invitee's `Accept` is
       addressed `to` the `Invite`'s actor, the CASE_MANAGER, alone, and not to
-      the case owner.
+      the Case Owner.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
@@ -773,7 +777,7 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      The case owner MUST NOT author or emit any RM state-change activity on behalf of
+      The Case Owner MUST NOT author or emit any RM state-change activity on behalf of
       the invitee.
     rationale: >-
       RM state belongs to each participant, and it is the participant's own judgment
@@ -912,7 +916,7 @@ groups:
       record any RM transition from it (CM-11-001), and MUST record the invitee as
       RM.ACCEPTED only on receiving `Join(VulnerabilityCase)` from it (CM-11-004).
     rationale: >-
-      PCR-08-014 prohibits the case owner from emitting RM state-change activities on
+      PCR-08-014 prohibits the Case Owner from emitting RM state-change activities on
       behalf of the invitee. The invitee's own messages are the authoritative signals,
       and each carries only the decision it names: accepting the stub joins the case,
       the full-case Invite reply judges it (CM-11-011), and `Join` engages.
@@ -1052,7 +1056,7 @@ groups:
     statement: >-
       Integration tests MUST verify that `RmInviteToCaseActivity` carries `actor` set to
       the CASE_MANAGER's ID, and that the invitee's `RmAcceptInviteToCaseActivity` is
-      processed by the CASE_MANAGER (not the case owner).
+      processed by the CASE_MANAGER (not the Case Owner).
     rationale: >-
       If the Invite named the Case Owner as its `actor`, the invitee would answer the
       Case Owner, and the CASE_MANAGER would never record the join. A test of both
@@ -1073,7 +1077,7 @@ groups:
     kind: project
     statement: >-
       Integration tests MUST assert that no RM state-change activity is emitted with
-      `actor` set to the invitee's ID from the case owner's context.
+      `actor` set to the invitee's ID from the Case Owner's context.
     rationale: >-
       An RM change that the Case Owner emits under the invitee's id is a forged
       decision (PCR-08-010). The forgery passes every check that trusts the `actor`
@@ -1081,7 +1085,7 @@ groups:
     verification: >-
       Inspection of `test/demo/test_invite_actor_demo.py` confirms a test case
       asserts no actor-spoofed RM state-change activity is emitted for the
-      invitee from the case owner's execution context.
+      invitee from the Case Owner's execution context.
     relationships:
     - rel_type: verifies
       spec_id: PCR-08-009

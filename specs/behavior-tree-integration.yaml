@@ -502,7 +502,7 @@ groups:
       a shared key, the run of one actor can read a value that the run of a different
       actor wrote (BT-17-007).
 - id: BT-10
-  title: Case Manager Role Management
+  title: CASE_MANAGER Role Management
   specs:
   - id: BT-10-001
     priority: MUST
@@ -651,7 +651,7 @@ groups:
       through its role, not through a per-case actor identity.
     rationale: >-
       When authority follows the role, it moves with a delegation, and it does not
-      depend on one specific software actor. It also operates when the Case Manager is a
+      depend on one specific software actor. It also operates when the CASE_MANAGER is a
       person or an organization and not a service, which is the general case. BT-10-006
       tells how the gates in this codebase test for the role.
     verification: >-
@@ -725,7 +725,7 @@ groups:
       object or a per-case actor identity.
     rationale: >-
       `CheckIsCaseManagerNode` reads the role from the participant record and needs no
-      notion of a CaseActor entity, so the gate works for any actor the case owner
+      notion of a CaseActor entity, so the gate works for any actor the Case Owner
       delegates the role to.
     verification: >-
       `test/core/behaviors/case/nodes/test_role_gates.py::TestCaseManagerGate` asserts the
@@ -2115,7 +2115,7 @@ groups:
     kind: project
     statement: >-
       In protocol lifecycle BTs, the routing prerequisites of an EM, RM or CS
-      state-transition sequence MUST include Case Manager actor ID resolution and outbox
+      state-transition sequence MUST include CASE_MANAGER actor ID resolution and outbox
       availability.
     rationale: Protocol state divergence (e.g., local EM=EXITED while peers hold EM=ACTIVE) is the primary failure mode when
       routing prerequisites are absent. Residual mid-send failures after state mutation are recoverable via ledger-sync catch-up
@@ -2135,7 +2135,7 @@ groups:
       before any EM write when the outbound activity factory is unavailable, and
       `test_non_manager_propose_resolves_the_manager_before_storing_terms` in
       `test/core/use_cases/triggers/embargo/test_trigger_write_gate.py` asserts it
-      resolves the Case Manager before storing terms.
+      resolves the CASE_MANAGER before storing terms.
     stories:
     - story_2022_046
     - story_2022_014
@@ -2144,10 +2144,10 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A missing Case Manager entry in `actor_participant_index` MUST make the sequence
+      A missing CASE_MANAGER entry in `actor_participant_index` MUST make the sequence
       fail at the guard with zero DataLayer state change.
     rationale: >-
-      With no Case Manager to address, the transition cannot be broadcast. A mutation
+      With no CASE_MANAGER to address, the transition cannot be broadcast. A mutation
       that runs anyway leaves local state ahead of its peers, for example local
       EM=EXITED while peers hold EM=ACTIVE. Ledger-sync catch-up cannot repair it,
       because no broadcast was attempted.
