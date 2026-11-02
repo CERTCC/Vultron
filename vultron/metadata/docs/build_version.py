@@ -30,7 +30,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from html import escape
 from typing import TYPE_CHECKING
 from urllib.parse import quote
@@ -101,8 +101,8 @@ def publish_from_env(env: Mapping[str, str]) -> Publish | None:
     that names half a publish.
 
     Raises:
-        PublishLabelError: If the variables are set inconsistently, or the
-            date is not ``YYYY-MM-DD``.
+        PublishLabelError: If the variables are set inconsistently, the
+            date is not ``YYYY-MM-DD``, or the tag does not carry the date.
     """
     tag = env.get(PUBLISH_TAG_ENV, "").strip()
     day = env.get(PUBLISH_DATE_ENV, "").strip()
@@ -120,11 +120,19 @@ def publish_from_env(env: Mapping[str, str]) -> Publish | None:
             f"got tag {tag!r} and date {day!r}."
         )
     try:
-        published = date.fromisoformat(day)
+        # strptime, not date.fromisoformat, which also takes 20261030 and
+        # 2026-W44-1.
+        published = (
+            datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=UTC).date()
+        )
     except ValueError as error:
         raise PublishLabelError(
             f"{PUBLISH_DATE_ENV} {day!r} is not a YYYY-MM-DD date."
         ) from error
+    if f"-{published.isoformat()}." not in tag:
+        raise PublishLabelError(
+            f"{PUBLISH_TAG_ENV} {tag!r} does not carry the publish date {day}."
+        )
     return Publish(tag, published, release or None)
 
 

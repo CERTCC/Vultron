@@ -698,15 +698,33 @@ def test_create_tag_accepts_a_push_that_landed(
     assert list(_remote_tags(repo)) == [NAME]
 
 
-def test_create_tag_raises_a_push_failure_that_is_no_collision(
+def test_create_tag_raises_when_the_remote_cannot_be_read(
     repo: Path,
 ) -> None:
-    """An unreachable remote is a real failure, never a taken name."""
+    """An unreachable remote fails before any tag is made."""
     sha = _head(repo)
     _git(repo, "remote", "set-url", "origin", str(repo.parent / "missing.git"))
     with pytest.raises(subprocess.CalledProcessError):
         _gate.create_tag(sha, NAME, "x\n", RUN_URL)
     assert _git(repo, "tag", "--list", "publish-*").split() == []
+
+
+@pytest.mark.spec("DOCBW-06-031")
+def test_create_tag_raises_a_push_failure_that_is_no_collision(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A refused push whose name nobody took is a real failure, never a taken name."""
+    real_run = _gate.run
+
+    def refuse_push(*argv: str) -> str:
+        if argv[:2] == ("git", "push"):
+            raise subprocess.CalledProcessError(1, list(argv))
+        return str(real_run(*argv))
+
+    monkeypatch.setattr(_gate, "run", refuse_push)
+    with pytest.raises(subprocess.CalledProcessError):
+        _gate.create_tag(_head(repo), NAME, "x\n", RUN_URL)
+    assert _remote_tags(repo) == {}
 
 
 @pytest.mark.spec("DOCBW-06-016", "DOCBW-06-031")
@@ -1095,6 +1113,29 @@ def test_the_build_and_the_tag_job_share_the_gates_tag_name() -> None:
     tag = _job_steps("tag")[-1]
     assert tag["env"]["TAG_NAME"] == "${{ needs.gate.outputs.publish-tag }}"
     assert '--name "$TAG_NAME"' in tag["run"]
+
+
+@pytest.mark.spec("DOCBW-06-031")
+def test_the_footer_and_the_free_name_are_checked_before_the_upload() -> None:
+    """A stale name from a re-run, or env that never reached the build, fails
+    before anything reaches Pages."""
+    build_steps = _job_steps("build")
+    check = index_of(
+        build_steps, "Check the footer names this publish", "name"
+    )
+    built = index_of(build_steps, "./.github/actions/build-site", "uses")
+    upload = index_of(build_steps, "actions/upload-pages-artifact", "uses")
+    assert None not in (check, built, upload)
+    assert built < check < upload  # type: ignore[operator]
+    step = build_steps[check]  # type: ignore[index]
+    assert step["env"] == {"TAG_NAME": "${{ needs.gate.outputs.publish-tag }}"}
+    assert "if" not in step and "continue-on-error" not in step
+    run = step["run"]
+    assert 'git ls-remote --tags origin "refs/tags/$TAG_NAME"' in run
+    assert '">$TAG_NAME</a>" site/index.html' in run
+    partial = REPO_ROOT / "overrides" / "partials" / "copyright.html"
+    assert 'class="build-footer"' in partial.read_text(encoding="utf-8")
+    assert 'class="build-footer"' in run
 
 
 @pytest.mark.spec("DOCBW-06-016", "DOCBW-06-002")

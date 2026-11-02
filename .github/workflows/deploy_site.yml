@@ -147,6 +147,31 @@ jobs:
           VULTRON_PUBLISH_DATE: ${{ needs.gate.outputs.publish-date }}
           VULTRON_RELEASE_TAG: ${{ needs.gate.outputs.release-tag }}
 
+      # Before anything can reach Pages (DOCBW-06-031). The name must still be
+      # free: a re-run of this job reuses the gate's outputs, and a later
+      # publish may have taken the name since. And the footer must print it,
+      # which proves the environment reached the build inside the action. A
+      # rollback target older than the footer prints none, so it only gets a
+      # notice. The class name is the one overrides/partials/copyright.html sets.
+      - name: Check the footer names this publish
+        env:
+          TAG_NAME: ${{ needs.gate.outputs.publish-tag }}
+        run: |
+          if [ -z "$TAG_NAME" ]; then
+            echo "::error::The gate named no publish tag."
+            exit 1
+          fi
+          if [ -n "$(git ls-remote --tags origin "refs/tags/$TAG_NAME")" ]; then
+            echo "::error::$TAG_NAME is already on the remote, so it cannot name this publish. Start a new run from main."
+            exit 1
+          fi
+          if ! grep -q 'class="build-footer"' site/index.html; then
+            echo "::notice::The built commit predates the page footer, so its pages name no publish."
+          elif ! grep -qF ">$TAG_NAME</a>" site/index.html; then
+            echo "::error::The footer of site/index.html does not name $TAG_NAME."
+            exit 1
+          fi
+
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 

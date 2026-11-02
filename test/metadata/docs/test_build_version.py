@@ -150,9 +150,22 @@ def test_the_publish_variables_are_read() -> None:
         {PUBLISH_TAG_ENV: TAG},
         {PUBLISH_DATE_ENV: "2026-10-30"},
         {PUBLISH_TAG_ENV: TAG, PUBLISH_DATE_ENV: "30 Oct 2026"},
+        # date.fromisoformat would take both of these.
+        {PUBLISH_TAG_ENV: TAG, PUBLISH_DATE_ENV: "20261030"},
+        {PUBLISH_TAG_ENV: TAG, PUBLISH_DATE_ENV: "2026-W44-5"},
+        # The tag names another day than the date.
+        {PUBLISH_TAG_ENV: TAG, PUBLISH_DATE_ENV: "2026-10-31"},
         {RELEASE_TAG_ENV: "v2026.11.0"},
     ],
-    ids=["tag-only", "date-only", "bad-date", "release-only"],
+    ids=[
+        "tag-only",
+        "date-only",
+        "bad-date",
+        "basic-format-date",
+        "week-date",
+        "date-mismatch",
+        "release-only",
+    ],
 )
 def test_half_a_publish_is_refused(env: dict[str, str]) -> None:
     with pytest.raises(PublishLabelError):
@@ -188,6 +201,17 @@ def test_hook_renders_the_publish_jobs_tag(
     on_config(config)  # type: ignore[arg-type]
     assert config.extra[FOOTER_KEY] == (
         f"Published 2026-10-30 · {_link(TAG)} · {DEV}"
+    )
+
+
+def test_hook_is_registered_and_the_footer_partial_reads_its_key() -> None:
+    """Jinja prints an undefined value as nothing, so drift blanks every footer."""
+    root = Path(__file__).resolve().parents[3]
+    mkdocs_yml = (root / "mkdocs.yml").read_text(encoding="utf-8")
+    assert "  - vultron/metadata/docs/build_version.py\n" in mkdocs_yml
+    partial = root / "overrides" / "partials" / "copyright.html"
+    assert f"{{{{ config.extra.{FOOTER_KEY} }}}}" in partial.read_text(
+        encoding="utf-8"
     )
 
 
