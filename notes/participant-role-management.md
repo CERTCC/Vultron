@@ -63,7 +63,7 @@ narrow on-behalf exceptions exist:
 - **d→D** (`CS_d.D`): the same asserting actors MAY assert deployer deployment
   under externally-evidenced exceptional circumstances (PRM-06-004). The
   RM↔D entailment still applies, so it succeeds only for a deployer whose RM
-  state is consistent with deployment.
+  state is consistent with deployment (PRM-06-008).
 - **f→F** (`CS_vf.VF`) is always Vendor-only and cannot be asserted on behalf
   of another actor (PRM-06-005).
 

@@ -32,7 +32,7 @@ notice (RSH-08-003); the received tree stores that notice and writes nothing.
 
 The removed participant's own replica is among the removal entry's
 recipients (its fan-out is selected before the fact is set), so it applies the
-removal to its own record too (CM-31-006).  It is sent the reinstatement entry
+removal to its own record too (CM-31-027).  It is sent the reinstatement entry
 by the admission backfill that follows the reinstatement (CM-10-006), so it
 clears the fact on its own record the same way.
 """
@@ -98,7 +98,7 @@ class _ParticipantMoveLedgerEffectNode(_LedgerEffectNode):
     the CASE_MANAGER refused any move whose inline ``attributedTo`` disagrees
     with the record it judged (CM-31-004, CM-31-011), and a replica's own
     record id may differ from the CASE_MANAGER's.  The record stays on the
-    roster (CM-31-001) and its embargo consent rows are untouched
+    roster (CM-31-015) and its embargo consent rows are untouched
     (CM-31-008).
 
     Lenient on missing data, as the other apply nodes are: a replica that
@@ -241,7 +241,7 @@ class ApplyReinstateCaseParticipantFromLedgerNode(
     """Apply an ``add_case_participant_to_case`` entry to the local replica.
 
     Clears the removal fact through :meth:`CaseParticipant.clear_removal`,
-    as the CASE_MANAGER did (CM-31-011).  Idempotent: a participant that is
+    as the CASE_MANAGER did (CM-31-034).  Idempotent: a participant that is
     not removed is left as it is.
     """
 

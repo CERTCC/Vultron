@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The CASE_MANAGER's guards on an ownership-transfer proposal (CM-21-005, CM-21-014).
+"""The CASE_MANAGER's guards on an ownership-transfer proposal (CM-21-026, CM-21-014).
 
 Provides:
 
@@ -77,13 +77,13 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
     the one the transferee's Accept passes again (:class:`OwnershipTransfereeActiveNode`).
     Anything else in the inner
     Offer (its id, ``actor`` and ``to``) is the sender's and is never read,
-    so the Offer the CASE_MANAGER makes carries its own id (CM-21-005).
+    so the Offer the CASE_MANAGER makes carries its own id (CM-21-027).
 
     Read-only, so it runs in ``precondition_guards`` behind the CASE_MANAGER
     gate (:func:`case_manager_admits_ownership_proposal_guard`): a refused
     proposal leaves no entry and sends nothing.
 
-    Spec: CM-21-005, CM-21-019, CM-21-021, BT-17-008.
+    Spec: CM-21-005, CM-21-026, CM-21-019, CM-21-021, BT-17-008.
     """
 
     def __init__(
@@ -110,7 +110,7 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
         self._proposer_id = proposer_id
 
     def _refuse(
-        self, reason: str, spec: str = "CM-21-005, ADR-0148"
+        self, reason: str, spec: str = "CM-21-026, ADR-0148"
     ) -> Status:
         self.feedback_message = f"{reason} — REFUSED ({spec})"
         self.logger.warning("%s: %s", self.name, self.feedback_message)
@@ -166,7 +166,8 @@ class NoOpenOwnershipOfferNode(
     (CLP-11-001): an Offer stays open until the ledger holds an answer or a
     withdrawal recorded after it, or *now* reaches the ``end_time`` the
     ledgered Offer carries (CM-21-017).  Once it is closed, a new proposal
-    is admitted for any transferee, including the one that declined.
+    is admitted for any transferee, including the one that declined
+    (CM-21-035).
 
     A **redelivery** of a proposal the CASE_MANAGER already made its Offer
     from is not a new proposal and not a refusal (HP-01-003), but it must
@@ -258,7 +259,7 @@ def case_manager_admits_ownership_proposal_guard(
     The open-Offer check runs first, so a redelivery is recognised as such
     before its inner Offer is judged again; then the inner Offer is checked
     (:class:`OwnershipProposalAdmissibleNode`).  A refused proposal is
-    neither committed nor made into an Offer (CM-21-005, CM-21-014).  A
+    neither committed nor made into an Offer (CM-21-026, CM-21-014).  A
     replica never receives a proposal (its sender guard admits no one); it
     skips the guards as ``SUCCESS``.
     """

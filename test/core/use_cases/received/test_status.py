@@ -1127,10 +1127,12 @@ class TestParticipantStatusLogEntryCascade:
         # Nothing is announced to participants.
         assert dl.outbox_list() == []
 
+    @pytest.mark.spec("CM-04-011")
     def test_terminal_closed_update_does_not_commit_log_entry(
         self, make_payload
     ) -> None:
-        """CLOSED->CLOSED rewrites are rejected before log cascade."""
+        """CLOSED->CLOSED rewrites are a terminal no-op: no status record,
+        ledger entry or broadcast (CM-04-011)."""
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase,
         )
@@ -1168,6 +1170,7 @@ class TestParticipantStatusLogEntryCascade:
         sync_port = SyncActivityAdapter(dl)
 
         before_count = len(participant.participant_statuses)
+        outbox_before = list(dl.outbox_list())
         result = AddParticipantStatusToParticipantReceivedUseCase(
             dl,
             event,
@@ -1187,6 +1190,7 @@ class TestParticipantStatusLogEntryCascade:
         updated_participant = dl.read(participant.id_)
         assert updated_participant is not None
         assert len(updated_participant.participant_statuses) == before_count
+        assert list(dl.outbox_list()) == outbox_before
 
     @pytest.mark.spec("CM-23-018")
     def test_status_update_from_a_closed_sender_is_refused(

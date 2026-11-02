@@ -395,7 +395,7 @@ groups:
       An invitee must decide whether to join a case before it can receive the case
       (MV-10-005). The stub represents the case until the participant is active
       (CM-10-004). The summary tells the invitee which case it is asked to join. The
-      sender decides what the summary says (CM-17-010).
+      sender decides what the summary says (CM-17-020).
     note: >-
       Partial inline objects of other types were never designed — a parser fallback
       swallowed their validation failures and handed the parent a raw dict, which

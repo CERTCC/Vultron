@@ -17,7 +17,7 @@
 
 Split out of ``actor.py`` (BTND-07-004).  Every stub Invite it emits carries a
 reply deadline (CM-11-014); a replacement issued after an embargo change names
-the Invite it supersedes in ``inReplyTo`` (CM-11-016).
+the Invite it supersedes in ``inReplyTo`` (CM-11-044).
 """
 
 from typing import cast
@@ -259,7 +259,7 @@ class EmitInviteActorToCaseNode(_StubInviteEmitBase):
     outbox, and commit it.
 
     Runs only in a CASE_MANAGER-gated received tree, so ``self.actor_id`` is
-    the CASE_MANAGER and the store is its own (BT-05-006, CM-24-004).  The
+    the CASE_MANAGER and the store is its own (BT-05-006, CM-24-009).  The
     Invite is addressed ``to=[invitee_id]`` and to no one else: the
     CASE_MANAGER never addresses a copy to itself (CLP-10-001, ADR-0109).
     Build → outbox append → commit is the order: the entry records an Invite

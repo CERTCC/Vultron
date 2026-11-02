@@ -543,6 +543,7 @@ def test_one_row_per_register_entry_after_the_joiner_accepts_the_full_case_invit
 
 @pytest.mark.spec("CM-18-001")
 @pytest.mark.spec("EP-09-011")
+@pytest.mark.spec("CM-18-020")
 def test_a_late_joiner_holds_an_uninvited_row_for_every_final_entry(
     make_payload,
 ):

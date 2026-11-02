@@ -83,7 +83,7 @@ OFFER_ROLE: Final = ReplicaEmitExemption(
         " only when the executing actor is the Offer's target, and is that"
         " actor's own act: its answer to the CASE_MANAGER's forward,"
         " addressed to the CASE_MANAGER, which commits and announces it"
-        " (CM-33-004, CM-33-006, PCR-08-001, ADR-0039)."
+        " (CM-33-015, CM-33-006, CM-33-019, PCR-08-001, ADR-0039)."
     ),
     covers=frozenset(
         {

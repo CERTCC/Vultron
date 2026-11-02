@@ -315,6 +315,7 @@ def test_d_to_D_on_behalf_of_a_deployer(client, dl, actor, managed_case):
 
 
 @pytest.mark.spec("PRM-06-004")
+@pytest.mark.spec("PRM-06-008")
 def test_d_to_D_for_a_deployer_at_received_is_refused_by_entailment(
     client, dl, actor, managed_case
 ):

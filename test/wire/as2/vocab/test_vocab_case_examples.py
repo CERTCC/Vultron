@@ -347,7 +347,7 @@ class TestVocabCaseOwnershipExamples(unittest.TestCase):
         vendor = examples.vendor()
 
         self.assertEqual(activity.type_, "Undo")
-        # The owner withdraws its own proposal (CM-21-015, ADR-0148).
+        # The owner withdraws its own proposal (CM-21-036, ADR-0148).
         self.assertEqual(activity.actor, vendor.id_)
         proposal = activity.object_
         assert isinstance(proposal, as_Offer)

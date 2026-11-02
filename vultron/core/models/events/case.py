@@ -110,7 +110,7 @@ class CloseCaseReceivedEvent(LedgerPositionedEvent):
 
 
 class UpdateCaseOwnerReceivedEvent(VultronEvent):
-    """The CASE_MANAGER named a new Case Owner on the case (CM-21-002).
+    """The CASE_MANAGER named a new Case Owner on the case (CM-21-024).
 
     ``Update(VulnerabilityCase)``: the CASE_MANAGER's own act on an ownership
     transfer, carrying the case with its new ``attributed_to``, committed as

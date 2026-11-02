@@ -152,7 +152,7 @@ Case Owner triggers SvcInviteActorToCaseUseCase
     the creation to the ledger (CM-11-006)
   → CASE_MANAGER sends Invite(Actor)[target=VulnerabilityCaseStub]
     (sent by case_actor_id, attributedTo case_owner_id), commits it in the
-    emitting tree, no cc: (CM-17-006) → invitee's inbox
+    emitting tree, no cc: (CM-17-006, CM-17-015) → invitee's inbox
 
 Invitee sends Accept(Invite(Actor)[target=VulnerabilityCaseStub])
   (sent by invitee_id, addressed to case_actor_id)
@@ -168,7 +168,7 @@ AcceptInviteActorToCaseReceivedUseCase, at every receiver of a copy:
   4. Emits Announce(VulnerabilityCase) to the participant and replays the
      prior ledger to it (CM-11-008)
   5. Queues the full-case Invite(Actor)[target=VulnerabilityCase] after the last
-     replayed entry, carrying its ledger tail position (CM-11-010)
+     replayed entry, carrying its ledger tail position (CM-11-031)
 
 Participant replies to the full-case Invite, carrying its own ledger position:
   Accept (RV) → RM.VALID · TentativeReject (RI) → RM.INVALID ·
@@ -203,11 +203,11 @@ Reject(Invite(stub)) instead of Accept → RM.CLOSED on the kept, inert record
 
 Put the emit inside `create_case_manager_gated_tree`. Never resolve a `case_actor_id`
 and compare it with `actor_id`: the authority is a *role*, and an ungated helper is
-identity spoofing (CM-24-004). Once gated, the executing actor *is* the CASE_MANAGER and
+identity spoofing (CM-24-009). Once gated, the executing actor *is* the CASE_MANAGER and
 `dl` is its store, so the activity and its outbox entry land in one store (BT-05-006):
 **`dl` determines the queue**, and `add_activity_to_outbox`'s actor argument is only a
 log label. A case always has a CASE_MANAGER (CM-24-006): a resolver that finds none
-fails; there is no un-delegated fallback (CM-24-008).
+fails; there is no un-delegated fallback (CM-24-008, CM-24-014).
 
 ---
 

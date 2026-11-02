@@ -1,6 +1,9 @@
-"""Architecture tests: case_roles access discipline in core (PRM-05-004, PRM-01-003)."""
+"""Architecture tests: case_roles access discipline in core (PRM-05-004, PRM-05-005, PRM-01-003)."""
 
 import re
+import time
+
+import pytest
 
 from test.architecture import _corpus
 
@@ -19,12 +22,8 @@ _MUTATION_RE = re.compile(r"\.case_roles\s*=|\.case_roles\s*\.\s*append")
 _GETATTR_READ_RE = re.compile(r"""getattr\s*\([^)]+,\s*['"]case_roles['"]""")
 
 
-def test_no_direct_case_roles_mutation_in_core():
-    """No core file outside case_participant.py may mutate case_roles directly (PRM-05-004).
-
-    Constructor keyword-argument form (`case_roles=...`) is permitted and is
-    NOT flagged by this test because it lacks the leading dot.
-    """
+def _case_roles_mutations() -> list[str]:
+    """Return each direct ``case_roles`` mutation in core, outside the model."""
     violations: list[str] = []
     for py_file, source in _corpus.sources_mentioning(
         ".case_roles", under=_CORE_ROOT
@@ -36,10 +35,34 @@ def test_no_direct_case_roles_mutation_in_core():
                 violations.append(
                     f"{py_file.relative_to(_CORE_ROOT)}:{lineno}: {line.strip()}"
                 )
+    return violations
+
+
+@pytest.mark.spec("PRM-05-004")
+def test_no_direct_case_roles_mutation_in_core():
+    """No core file outside case_participant.py may mutate case_roles directly (PRM-05-004).
+
+    Constructor keyword-argument form (`case_roles=...`) is permitted and is
+    NOT flagged by this test because it lacks the leading dot.
+    """
+    violations = _case_roles_mutations()
     assert not violations, (
         "Direct case_roles mutation found in vultron/core/ outside case_participant.py:\n"
         + "\n".join(violations)
     )
+
+
+@pytest.mark.spec("PRM-05-005")
+def test_case_roles_mutation_scan_completes_within_one_second():
+    """The PRM-05-004 scan finishes within its one-second budget (PRM-05-005).
+
+    The scan runs in about 0.01 s, so the budget leaves a wide margin for a
+    loaded CI worker.
+    """
+    started = time.perf_counter()
+    _case_roles_mutations()
+    elapsed = time.perf_counter() - started
+    assert elapsed < 1.0, f"case_roles mutation scan took {elapsed:.3f} s"
 
 
 def test_no_getattr_case_roles_read_in_core():

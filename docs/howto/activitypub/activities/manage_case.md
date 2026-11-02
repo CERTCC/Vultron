@@ -135,17 +135,17 @@ There is no rejoin, so send the closure only when you are finished with the case
 Your own RM state does not change when you send the closure.
 The CASE_MANAGER records the `Leave`.
 Then it records each step that moves you to `RM.CLOSED` as its own ledger entry.
-Your replica applies those entries when they arrive (CM-23-001, CM-23-004).
+Your replica applies those entries when they arrive (CM-23-023, CM-23-031).
 Do not write `RM.CLOSED` to your own replica in their place.
 
 Those entries are the last case content you receive.
 After your closure, the CASE_MANAGER sends you no further ledger entries, case announcements, status broadcasts, or embargo announcements (CM-23-004).
-If you are bound by an embargo that later ends early or gets shorter, the CASE_MANAGER still sends you a direct notice of that change (CM-31-009).
+If you are bound by an embargo that later ends early or gets shorter, the CASE_MANAGER still sends you a direct notice of that change (CM-31-009, CM-31-030).
 
 What your closure does to the case depends on whether you are the Case Owner.
 
 - If you are **not** the Case Owner, only your own RM state advances to `RM.CLOSED`.
-  The case stays open for everyone else (CM-23-003).
+  The case stays open for everyone else (CM-23-030).
 - If you **are** the Case Owner, your `Leave(VulnerabilityCase)` closes the case.
   The CASE_MANAGER first expires every embargo Invite that still waits for a reply.
   It records each expiry as its own change to that invitee's consent row, which is now `TIMED_OUT` (CM-23-014).

@@ -286,7 +286,7 @@ def test_the_record_is_the_case_managers_own_activity(
 
 
 @pytest.mark.spec("CLP-07-011")
-@pytest.mark.spec("CLP-12-002")
+@pytest.mark.spec("CLP-07-013")
 @pytest.mark.parametrize("method", sorted(_SHAPES))
 def test_the_record_passes_the_canonical_guard(adapter, recipes, method):
     _validate_canonical_entry(

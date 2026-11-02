@@ -394,7 +394,7 @@ def test_offer_role_body_refuses_finder_with_its_reason(role: str) -> None:
         )
 
 
-@pytest.mark.spec("CM-33-003")
+@pytest.mark.spec("CM-33-014")
 def test_offer_role_body_requires_a_role() -> None:
     """No role is read as a default, so the body must name one."""
     with pytest.raises(ValidationError, match="role"):

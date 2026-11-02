@@ -20,7 +20,7 @@ CASE_MANAGER as ``actor`` (CM-24-001) and the participant who asked for it as
 ``attributed_to`` (CM-24-002).  Every path that does this — a trigger use case
 or a received-side tree — gets the pair from :func:`delegated_authorship`
 (CM-24-005).  The module sits under ``behaviors/`` so BT nodes and use cases
-may both import it (BTND-04-003).
+may both import it (CM-24-013, BTND-04-003).
 
 The caller supplies both identities.  The *doing* actor is the CASE_MANAGER
 executing the role-gated tree (or, for a trigger, the role holder the use case

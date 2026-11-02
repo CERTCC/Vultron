@@ -339,7 +339,7 @@ class TestStoryState:
         """A restate is about the case the story opened, never another one.
 
         No act of a scenario changes a case's id — an ownership transfer moves
-        ``attributed_to`` and leaves the id alone (CM-21-002) — so a different
+        ``attributed_to`` and leaves the id alone (CM-21-024) — so a different
         id means the fragment read the wrong record.  Taking it would leave
         every later fragment acting on one case while the armed dump and the
         followed ledger still belong to the first (#5535).

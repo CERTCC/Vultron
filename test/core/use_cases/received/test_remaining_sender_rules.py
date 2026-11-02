@@ -498,8 +498,8 @@ def test_leave_from_a_participant_ends_an_overdue_embargo() -> None:
     assert world.finder_closed()
 
 
-@pytest.mark.spec("CM-23-018")
 @pytest.mark.spec("ID-05-003")
+@pytest.mark.spec("CM-23-049")
 def test_a_second_leave_with_a_new_id_is_skipped_and_records_nothing() -> None:
     """The closure is already in place, whatever the repeat's activity id."""
     world = _World()

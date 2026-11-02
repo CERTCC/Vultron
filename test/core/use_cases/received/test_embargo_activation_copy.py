@@ -555,6 +555,7 @@ def _expire(net: LedgerNetwork, embargo_id: str):
 
 class TestInviteTimeOut:
     @pytest.mark.spec("CM-28-009")
+    @pytest.mark.spec("CM-28-022")
     @pytest.mark.spec("CM-28-014")
     @pytest.mark.spec("CLP-07-013")
     def test_the_expiry_is_the_timed_out_row(self):

@@ -97,6 +97,10 @@ services:
     environment:
       - PYTHONPATH=/app
       - VULTRON_API_BASE_URL=http://api-dev:7999/api/v2
+      # The demo names the same CaseActor the api-dev server hosts. Demo
+      # helpers take its identity from this variable only and fail without
+      # it (CP-08-009), so it matches api-dev's value exactly.
+      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://localhost:7999/api/v2
     networks:
       - vultron-network
     stdin_open: true

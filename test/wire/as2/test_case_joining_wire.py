@@ -158,9 +158,10 @@ def test_full_case_invite_accept_is_not_the_stub_accept() -> None:
     assert full != _semantics_of("accept", _stub_invite())
 
 
+@pytest.mark.spec("CM-11-028")
 @pytest.mark.spec("VAM-04-013")
 def test_full_case_invite_tentative_reject_is_ri_and_stub_has_none() -> None:
-    """Only the full-case Invite can be tentatively rejected (CM-11-007)."""
+    """Only the full-case Invite can be tentatively rejected (CM-11-028)."""
     assert _semantics_of("tentative_reject", _full_case_invite()) not in (
         _UNKNOWN
     )

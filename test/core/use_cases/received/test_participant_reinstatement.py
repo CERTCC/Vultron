@@ -22,7 +22,7 @@ through CM-31-013 once.  These cover the edges around them (ADR-0116, #4081,
   after its removal entry, and its hash chain joins with no gap (CM-10-006);
 - a reinstated participant that is not a signatory to the active embargo is
   sent that embargo's Invite and no case content until it consents
-  (CM-31-013);
+  (CM-31-040);
 - a removed participant is sent no Invite of any kind (CM-31-013);
 - replicas apply a reinstatement from its ledger entry, and learn of a new
   member from the ``Accept(Invite)`` entry alone (CM-31-012).
@@ -245,7 +245,7 @@ def test_reinstatement_is_one_entry_and_a_delegated_notice(
     assert notice.id_ not in {e.log_object_id for e in case.ledger()}
 
 
-@pytest.mark.spec("CM-31-011")
+@pytest.mark.spec("CM-31-035")
 def test_reinstatement_asks_for_no_new_acceptance(
     case: _RemovalCase,
 ) -> None:
@@ -278,7 +278,7 @@ def test_add_from_a_non_owner_is_refused(case: _RemovalCase) -> None:
     assert case.activities_to("Add", VENDOR) == []
 
 
-@pytest.mark.spec("CM-31-011")
+@pytest.mark.spec("CM-31-036")
 def test_add_naming_an_invitee_that_never_joined_is_refused(
     case: _RemovalCase,
 ) -> None:
@@ -576,7 +576,7 @@ def _make_other_a_non_signatory(case: _RemovalCase) -> None:
     )
 
 
-@pytest.mark.spec("CM-31-013")
+@pytest.mark.spec("CM-31-040")
 @pytest.mark.spec("CM-10-005")
 def test_reinstated_non_signatory_gets_the_embargo_invite_and_no_content(
     case: _RemovalCase,
@@ -607,7 +607,7 @@ def test_reinstated_non_signatory_gets_the_embargo_invite_and_no_content(
     assert case.activities_to("Add", OTHER), "the notice still reaches it"
 
 
-@pytest.mark.spec("CM-31-013")
+@pytest.mark.spec("CM-31-040")
 @pytest.mark.spec("CM-10-006")
 def test_reinstated_non_signatory_is_backfilled_once_it_consents(
     case: _RemovalCase,
@@ -643,7 +643,7 @@ def test_reinstated_non_signatory_is_backfilled_once_it_consents(
 
 
 @pytest.mark.spec("CLP-07-015")
-@pytest.mark.spec("CM-31-013")
+@pytest.mark.spec("CM-31-040")
 def test_a_failed_reinstatement_invite_keeps_nothing_and_redelivery_runs_afresh(
     case: _RemovalCase, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -841,7 +841,7 @@ def _run_as_manager(case: _RemovalCase, node: Any) -> Any:
     )
 
 
-@pytest.mark.spec("CM-31-013")
+@pytest.mark.spec("CM-31-040")
 @pytest.mark.spec("CM-10-006")
 def test_reinstatement_into_a_case_with_no_active_embargo_sends_no_invite(
     case: _RemovalCase,
@@ -865,7 +865,7 @@ def test_reinstatement_into_a_case_with_no_active_embargo_sends_no_invite(
     )
 
 
-@pytest.mark.spec("CM-31-013")
+@pytest.mark.spec("CM-31-040")
 @pytest.mark.spec("CM-10-007")
 def test_reinstated_participant_at_rm_closed_is_sent_no_embargo_invite() -> (
     None

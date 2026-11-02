@@ -2985,7 +2985,7 @@ groups:
       Only an answer that can still change something is worth asking for again; an
       answered Invite, a decided or withdrawn proposal and a passed deadline cannot. An
       Invite for the embargo in force is still owed: a reinstated participant
-      (CM-31-013), or a joiner whose proposal was activated first, is asked to sign it.
+      (CM-31-040), or a joiner whose proposal was activated first, is asked to sign it.
       The stating activity may be the answer itself, committed after its position is
       read, so its Invite is excluded by name.
     relationships:

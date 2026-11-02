@@ -144,12 +144,12 @@ class RemoveNoteFromCaseReceivedUseCase:
     Mirror of :class:`AddNoteToCaseReceivedUseCase`: only the CASE_MANAGER
     detaches the note and commits; replicas apply the ledger fan-out.  The
     sender must be the note's author (while an active participant) or the Case
-    Owner; anyone else is ``REFUSED`` with the note left in place (CM-30-001).
+    Owner; anyone else is ``REFUSED`` with the note left in place (CM-30-004).
     A note the case does not hold is ``SKIPPED``.
     """
 
     # The note's author or the Case Owner asks the CASE_MANAGER; a
-    # participant takes the removal from the CASE_MANAGER alone (CM-30-001,
+    # participant takes the removal from the CASE_MANAGER alone (CM-30-003,
     # PCR-03-001).
     sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
         SenderEntitlementKind.AUTHOR, SenderEntitlementKind.CASE_OWNER

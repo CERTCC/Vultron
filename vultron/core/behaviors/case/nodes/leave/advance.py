@@ -19,7 +19,7 @@ Both nodes here write a ``ParticipantStatus`` to the *local* DataLayer and
 nothing else.  Recording each transition on the ledger is a separate concern
 — see :mod:`.record`.  Each node reports the statuses it wrote through its
 ``closure_steps`` list, which the tree shares with the record node that
-commits them, one entry per step (CM-23-001, CM-23-005).
+commits them, one entry per step (CM-23-022, CM-23-033).
 
 Per ADR-0050, ADR-0051, and specs/case-management.yaml CM-23-002/CM-23-003.
 """
@@ -78,7 +78,7 @@ class AdvanceParticipantToRMClosedNode(
             closure_steps: Emptied on each tick, then filled with the id of
                 each status written, in order, for the
                 :class:`~.record.CommitRMClosureEntriesNode` that commits them
-                (CM-23-001).  Required, so no closure write can be built
+                (CM-23-022).  Required, so no closure write can be built
                 without a list for its record to read (ISSUE-2505).
             name: Node name.
         """
@@ -89,7 +89,7 @@ class AdvanceParticipantToRMClosedNode(
         self._closure_steps = closure_steps
         # Pre-build the status writers (BTND-10-004: no construction in
         # update()).  The closure is written as ordinary RM transitions, so a
-        # Leave from VALID is V -> D -> C (RMB-14-009, CM-23-012).
+        # Leave from VALID is V -> D -> C (RMB-14-009, CM-23-038).
         self._closure = RMClosureWriter(name=_name)
 
     def update(self) -> Status:
@@ -201,7 +201,7 @@ class AdvanceCaseActorToRMClosedNode(
         self._closure_steps = closure_steps
         # Pre-build the status writers (BTND-10-004: no construction in
         # update()).  The closure is written as ordinary RM transitions, so a
-        # Leave from VALID is V -> D -> C (RMB-14-009, CM-23-012).
+        # Leave from VALID is V -> D -> C (RMB-14-009, CM-23-038).
         self._closure = RMClosureWriter(name=_name)
 
     def update(self) -> Status:

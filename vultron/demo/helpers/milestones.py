@@ -516,7 +516,7 @@ def case_closure_violations(
     - It has exactly one status entry recording the CASE_MANAGER's own
       ``RM.CLOSED``, the owner-close write boundary
       (:func:`~vultron.core.predicates.case_closure.closure_boundary_indices`,
-      the predicate the core post-close guard applies; CM-23-002,
+      the predicate the core post-close guard applies; CM-23-028,
       CM-23-013).
     - Every actor in *departed_actor_ids* has a ``close_case`` entry before
       the boundary, and the last RM state a status entry records for it

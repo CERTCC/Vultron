@@ -373,7 +373,7 @@ def _make_case() -> as_VulnerabilityCaseStub:
     ],
     ids=["uri-target", "full-case-target", "bare-uri-invitee"],
 )
-@pytest.mark.spec("CM-11-013")
+@pytest.mark.spec("CM-11-038")
 @pytest.mark.spec("VAM-04-004")
 @pytest.mark.spec("SE-08-004")
 def test_only_a_stub_invite_matches_the_stub_invite_pattern(invitee, target):
@@ -531,7 +531,7 @@ def test_vulnerability_case_stub_serialises_minimally():
     assert dumped.get("caseId") == "https://example.org/cases/case-stub-001"
 
 
-@pytest.mark.spec("CM-11-013")
+@pytest.mark.spec("CM-11-038")
 def test_a_stub_that_claims_another_type_is_refused():
     """The type alone identifies a stub, so the stub class pins it."""
     from pydantic import ValidationError

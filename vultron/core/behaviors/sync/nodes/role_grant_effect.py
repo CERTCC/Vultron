@@ -22,10 +22,10 @@ state — it adds the offered ``CVDRole`` to the target participant's
 ``case_roles`` on a given replica.  The CASE_MANAGER applies it to its own
 replica via
 :class:`~vultron.core.behaviors.case.nodes.delegation.GrantCaseParticipantRoleNode`
-when it commits the target's accept (CM-33-006), never on the Offer;
+when it commits the target's accept (CM-33-020), never on the Offer;
 every other participant applies it by replaying the entry through
 :class:`ApplyCaseParticipantRoleGrantFromLedgerNode` in
-``create_announce_log_entry_tree`` (CM-02-016, RSH-08-004, ADR-0124).
+``create_announce_log_entry_tree`` (CM-02-020, RSH-08-004, ADR-0124).
 """
 
 from __future__ import annotations
@@ -130,10 +130,10 @@ class ApplyCaseParticipantRoleGrantFromLedgerNode(_LedgerEffectNode):
     """Apply an ``accept_case_participant_role`` ledger entry to the replica.
 
     On a non-CASE_MANAGER replica receiving ``Announce(CaseLedgerEntry)``, adds
-    the granted role to the target participant's ``case_roles`` (CM-02-016).  A
+    the granted role to the target participant's ``case_roles`` (CM-02-020).  A
     participant MUST NOT mutate ``case_roles`` from an ``Accept`` message
     directly; only the CASE_MANAGER commits the entry and every node learns the
-    grant from the ledger (RSH-08-004, ADR-0124).
+    grant from the ledger (CM-02-021, RSH-08-004, ADR-0124).
 
     Lenient on missing data: an absent case replica, an unreadable role/target,
     or a target that is not yet a participant here is a non-fatal SUCCESS, so it
@@ -165,7 +165,7 @@ class ApplyCaseParticipantRoleGrantFromLedgerNode(_LedgerEffectNode):
         if grant_role_to_target(self.datalayer, case, target_actor_id, role):
             self.logger.info(
                 "%s: granted %s to '%s' on case '%s' from the ledger"
-                " (CM-02-016, ADR-0039)",
+                " (CM-02-020, ADR-0039)",
                 self.name,
                 role.value,
                 target_actor_id,

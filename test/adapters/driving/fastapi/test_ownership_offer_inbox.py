@@ -202,7 +202,7 @@ def test_ownership_offer_after_a_recommendation_is_made_and_committed(
         outcome.failure_reason
     )
     _assert_committed_with_inline_transferee(case_actor_dl)
-    # CM-21-005: the CASE_MANAGER sends the Offer it made to the
+    # CM-21-028: the CASE_MANAGER sends the Offer it made to the
     # transferee, naming the transferee inline.
     forwards = [
         cast(Any, case_actor_dl.read(activity_id))

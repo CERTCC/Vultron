@@ -463,6 +463,7 @@ def test_strict_abandonment_outside_proposed_is_refused(
 
 
 @pytest.mark.spec("CM-18-001", "CM-10-001")
+@pytest.mark.spec("CM-18-019")
 def test_proposing_writes_an_uninvited_row_for_every_current_participant(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:

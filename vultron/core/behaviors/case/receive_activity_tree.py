@@ -441,7 +441,7 @@ def create_receive_activity_tree(
             holds a state writer (CLP-10-022), or a
             ``refusal_notice_exemption`` is unregistered or exempts a tree
             that would send no notice (CLP-02-005), or an exempt tree passes a
-            ``post_close_reply`` (CM-23-013), or the sender arguments are
+            ``post_close_reply`` (CM-23-040), or the sender arguments are
             inconsistent: an ``addressee_exemption`` is not registered
             (HP-01-005), ``sender_rule`` without ``sender_context``, a
             ``sender_context`` without ``sender_rule``, or a

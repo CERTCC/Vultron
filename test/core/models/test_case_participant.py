@@ -447,6 +447,7 @@ def _entry(
 
 class TestConsentFor:
     @pytest.mark.spec("CM-18-001")
+    @pytest.mark.spec("CM-18-021")
     def test_missing_row_raises(self):
         """A missing row is a defect, never "not asked" (ADR-0122)."""
         with pytest.raises(VultronNotFoundError):
@@ -488,6 +489,7 @@ class TestWriteUninvitedRows:
     """The creation write of the consent table (ADR-0122)."""
 
     @pytest.mark.spec("CM-18-001")
+    @pytest.mark.spec("CM-18-020")
     def test_writes_one_uninvited_row_per_embargo(self):
         p = _make()
         assert p.write_uninvited_rows([_EMBARGO, _OTHER]) is True
@@ -853,6 +855,7 @@ def _participant_for_removal() -> CaseParticipant:
 
 
 @pytest.mark.spec("CM-31-011")
+@pytest.mark.spec("CM-31-034")
 def test_clear_removal_reinstates_a_removed_participant() -> None:
     participant = _participant_for_removal()
     assert participant.record_removal(_REMOVAL_ID)

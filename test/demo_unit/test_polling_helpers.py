@@ -657,6 +657,7 @@ class TestFindCaseInviteForActor:
         assert found == _INVITE_ID
         assert record_id != _INVITE_ID
 
+    @pytest.mark.spec("CM-11-037")
     @pytest.mark.spec("CM-11-013")
     def test_matches_the_case_the_stub_names_not_the_stub_id(self):
         """The stub's own ID is ``<case-id>/stub``; ``caseId`` names the case."""
@@ -1360,7 +1361,7 @@ class TestWaitForObjectStored:
 
     Written against ``rccv-handoff``'s ownership-transfer offer, which polls
     with ``find_ownership_transfer_offer_for_actor`` instead because the
-    CaseActor's Offer carries an id of its own (CM-21-005, #2360).  The
+    CaseActor's Offer carries an id of its own (CM-21-028, #2360).  The
     primitive's tests moved here when that scenario was composed, since they
     are facts about the primitive and not about any scenario (#5535).
     """

@@ -19,9 +19,10 @@ The target of a role ``Offer(CaseParticipantRole)`` answers the CASE_MANAGER
 with ``Accept`` or ``Reject`` (CM-33-004).  The CASE_MANAGER checks that the
 sender is the target of a role Offer it recorded and that the Offer is open
 (CM-33-005), commits the answer and broadcasts ``Announce(CaseLedgerEntry)``
-(CM-33-006, CLP-02-012), and on an Accept grants the role on its own replica
+(CM-33-006, CM-33-019, CLP-02-012), and on an Accept grants the role on its
+own replica (CM-33-020)
 (CM-02-016).  Every other participant learns the grant by replaying the
-entry (``ApplyCaseParticipantRoleGrantFromLedgerNode``).
+entry (``ApplyCaseParticipantRoleGrantFromLedgerNode``, CM-02-020).
 
 Structure::
 
@@ -106,7 +107,7 @@ def create_accept_case_participant_role_tree(
 
     The guards admit only the target of an open role Offer the CASE_MANAGER
     recorded, answering with a copy of that Offer (CM-33-005); the guarded
-    commit ledgers the Accept and broadcasts it (CM-33-006); then the
+    commit ledgers the Accept and broadcasts it (CM-33-006, CM-33-019); then the
     CASE_MANAGER grants the role on its own replica (CM-02-016).
 
     Args:
@@ -184,7 +185,8 @@ def create_reject_case_participant_role_tree(
 
     The Accept's tree with no effects: the guards admit only the target of
     an open role Offer the CASE_MANAGER recorded (CM-33-005), and the guarded
-    commit ledgers the Reject and broadcasts it (CM-33-006, CLP-02-012).  That
+    commit ledgers the Reject and broadcasts it (CM-33-006, CM-33-019,
+    CLP-02-012).  That
     entry closes the Offer; no role changes.
 
     Args:

@@ -95,7 +95,7 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
     must be kept in sync (CM-21-002).
 
     The entries are recorded in that order so no replica holds two owners
-    between them (CM-21-001).  A previous owner whose record the case does
+    between them (CM-21-001, CM-21-023).  A previous owner whose record the case does
     not index is not changed, so it has no entry.  A new owner with no
     record is a fault, not a skip: the strip would leave the case with no
     ``CASE_OWNER`` holder at all, so the node raises before it changes
@@ -252,7 +252,7 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
                 self.case_id,
             )
 
-        # CM-21-002: update attributed_to.
+        # CM-21-024: update attributed_to.
 
         case.attributed_to = new_owner_id  # type: ignore[assignment]
         to_save.append(case)

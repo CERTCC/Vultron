@@ -19,7 +19,7 @@ commits the canonical ledger entry; every other participant learns of the report
 from the entry's ``Announce`` fan-out, applied by
 ``ApplyOfferReportFromLedgerNode`` (SYNC-02-002, RSH-08-004).  Sender
 entitlement is the Case Owner at the manager and the CASE_MANAGER at a
-replica (CM-30-002, PCR-03-001, ADR-0115).
+replica (CM-30-002, CM-30-005, PCR-03-001, ADR-0115).
 """
 
 import py_trees

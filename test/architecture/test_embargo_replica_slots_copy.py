@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The replica embargo slots run no lifecycle logic (#4294 AC-3, CM-23-016).
+"""The replica embargo slots run no lifecycle logic (#4294 AC-3, CM-23-044).
 
 A replica writes the embargo register and consent rows by copying the
 CASE_MANAGER's entries through the one apply function (ADR-0124), never by
@@ -86,7 +86,7 @@ from vultron.core.behaviors.sync.nodes.stub_reply_effect import (
     ApplyInviteRejectFromLedgerNode,
 )
 
-#: Names a copying slot must never reach for (CM-23-016, CM-18-005).
+#: Names a copying slot must never reach for (CM-23-016, CM-18-025).
 #: ``TransitionMode`` catches a slot that passes a lifecycle mode on; a
 #: slot that hands off to a lifecycle-running node is caught by
 #: :func:`_lifecycle_nodes`, as the owner's-rejection slot did before #4784.
@@ -171,7 +171,7 @@ def _lifecycle_nodes() -> frozenset[str]:
     return frozenset(names)
 
 
-@pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("CM-23-044")
 @pytest.mark.spec("EP-09-007")
 @pytest.mark.parametrize("slot", _SLOTS, ids=lambda c: c.__name__)
 def test_a_copying_replica_slot_runs_no_lifecycle_logic(slot: type) -> None:
@@ -182,7 +182,7 @@ def test_a_copying_replica_slot_runs_no_lifecycle_logic(slot: type) -> None:
     )
 
 
-@pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("CM-23-044")
 @pytest.mark.parametrize("slot", _SLOTS, ids=lambda c: c.__name__)
 def test_no_function_a_slot_reaches_runs_lifecycle_logic(slot: type) -> None:
     """A slot cannot run the lifecycle through a helper it calls."""
@@ -239,7 +239,7 @@ def _writes_embargo_state(cls: type) -> bool:
     )
 
 
-@pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("CM-23-044")
 def test_every_replica_embargo_slot_is_checked() -> None:
     """A new embargo slot in the announce tree joins the ratchet."""
     embargo_slots = {
@@ -293,7 +293,7 @@ def _slots_overriding(attr: str) -> set[str]:
     }
 
 
-@pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("CM-23-044")
 @pytest.mark.spec("MSM-07-009")
 def test_no_slot_decides_a_skip() -> None:
     """No slot decides, on the replica, that an entry changes nothing.

@@ -73,6 +73,7 @@ def _record(state: EmbargoConsentState) -> CaseParticipant:
     )
 
 
+@pytest.mark.spec("CM-11-027")
 @pytest.mark.spec("CM-11-007")
 @pytest.mark.spec("CM-23-016")
 @pytest.mark.parametrize("held", [_S.UNINVITED, _S.INVITED])

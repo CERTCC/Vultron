@@ -236,6 +236,7 @@ def _replica_record_state(datalayer) -> CaseParticipant:
 
 
 @pytest.mark.spec("CM-31-011")
+@pytest.mark.spec("CM-31-034")
 @pytest.mark.spec("RSH-08-004")
 def test_reinstatement_clears_the_removal_fact_on_the_replicas_record(
     bridge, datalayer, case_actor, replica_record

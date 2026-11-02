@@ -96,7 +96,7 @@ def resolve_rsvp_deadline(
             embargo has no end, in which case no down-clamp applies.
         min_window: Configured minimum RSVP window (EP-07-002).
         default_window: Configured policy window used when *requested* is
-            ``None`` (EP-07-001, CM-18-002).
+            ``None`` (EP-07-001, CM-18-023).
 
     Every datetime argument MUST be timezone-aware (CS-13-001); the objects
     they are read from guarantee it.  Results are correct instants and carry

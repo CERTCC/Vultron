@@ -148,7 +148,7 @@ class _UpdateCaseActivity(as_Update):
     """Update a VulnerabilityCase.
 
     The CASE_MANAGER's own act naming a new Case Owner, committed as its
-    ``update_case_owner`` ledger entry (CM-21-002, CLP-07-013).  The registry
+    ``update_case_owner`` ledger entry (CM-21-024, CLP-07-013).  The registry
     recognizes it, but no received use case handles it, so an inbox reports
     a received one as "no use case found" (ADR-0140).
 
@@ -505,7 +505,7 @@ class _RmAcceptFullCaseInviteActivity(as_Accept):
     """The participant judges the case valid: RV, ``RECEIVED → VALID``.
 
     `object_`: the `_RmInviteToFullCaseActivity` being accepted.  Carries the
-    replier's ledger position (VAM-04-012, CM-11-011).
+    replier's ledger position (VAM-04-012, CM-11-034).
     """
 
     object_: _RmInviteToFullCaseActivity = Field(
@@ -521,7 +521,7 @@ class _RmAcceptFullCaseInviteActivity(as_Accept):
 class _RmTentativeRejectFullCaseInviteActivity(as_TentativeReject):
     """The participant judges the case invalid: RI, ``RECEIVED → INVALID``.
 
-    Carries the replier's ledger position (VAM-04-013, CM-11-011).
+    Carries the replier's ledger position (VAM-04-013, CM-11-034).
     """
 
     object_: _RmInviteToFullCaseActivity = Field(
@@ -537,7 +537,7 @@ class _RmTentativeRejectFullCaseInviteActivity(as_TentativeReject):
 class _RmRejectFullCaseInviteActivity(as_Reject):
     """The participant closes the case: RC, ``RECEIVED → CLOSED``.
 
-    Carries the replier's ledger position (VAM-04-014, CM-11-011).
+    Carries the replier's ledger position (VAM-04-014, CM-11-034).
     """
 
     object_: _RmInviteToFullCaseActivity = Field(

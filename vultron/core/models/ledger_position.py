@@ -16,8 +16,8 @@
 Each case stores the position its case file is a projection of
 (SYNC-16-005, ADR-0142), and every case activity states its sender's tail
 (SYNC-18-001, ADR-0156).  The full-case Invite's is the CASE_MANAGER's floor,
-and each reply to it carries the replier's own position (CM-11-010,
-CM-11-011, ADR-0121).  The position names the last entry
+and each reply to it carries the replier's own position (CM-11-031,
+CM-11-034, ADR-0121).  The position names the last entry
 a copy of the ledger holds, so it is a pair: the entry's ``log_index`` and its
 ``entry_hash``.
 

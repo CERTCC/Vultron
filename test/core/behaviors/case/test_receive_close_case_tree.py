@@ -70,7 +70,7 @@ def test_the_owner_arm_closes_the_case_manager_last():
     ]
 
 
-@pytest.mark.spec("CM-23-002")
+@pytest.mark.spec("CM-23-027")
 def test_no_node_commits_a_closure_marker():
     names = {node.name for node in _owner_tree().iterate()}
 

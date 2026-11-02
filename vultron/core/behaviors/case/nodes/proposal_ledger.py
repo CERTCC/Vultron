@@ -79,9 +79,9 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
          created, then ``add_participant_status_to_participant`` for each
          later status (CLP-07-013, CM-23-007)  actor=CaseActor
       5. ``add_case_status_to_case``         actor=owner (the receiver set the
-         genesis case status; ``("Add","CaseStatus")`` is nonetheless in
-         ``_CASE_AUTHORED_SIGNATURES`` per CLP-12-001, so a CaseActor-authored
-         entry would also validate)
+         genesis case status; the actor is provenance, since the validator
+         checks the signature, not who authored it, and the commit itself is
+         role-gated, CLP-09-001)
 
     Every entry is required (CLP-07-013): the first entry that fails to
     commit stops the sequence, so no later entry is committed out of order,
@@ -252,7 +252,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     ) -> tuple[str | None, str | None]:
         """Return ``(offer_id, offer_actor_id)`` for *report_id*.
 
-        Its own store first, then what the proposal carried (CP-01-007). The
+        Its own store first, then what the proposal carried (CP-01-019). The
         store answers only when this CaseActor received the
         ``Offer(VulnerabilityReport)`` itself — which a co-located one does not,
         because the ``OfferRecord`` belongs to the sibling that did and there is
@@ -464,9 +464,8 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             #    statuses  (actor = CaseActor)
             self._commit_participant_records(case, case_id)
             # 5. add_case_status  (actor = owner_uri — provenance, not a guard
-            #    constraint: ("Add","CaseStatus") IS in
-            #    _CASE_AUTHORED_SIGNATURES per CLP-12-001, so a
-            #    CaseActor-authored entry validates too)
+            #    constraint: the validator checks the signature, not its
+            #    author, and the commit is role-gated, CLP-09-001)
             self._commit_case_statuses(case, case_id)
         except _EntryNotCommitted as exc:
             failed = str(exc)

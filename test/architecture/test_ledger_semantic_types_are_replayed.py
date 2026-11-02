@@ -149,7 +149,7 @@ NO_REPLICA_EFFECT: dict[str, str] = {
     MS.CLOSE_CASE.value: (
         "records the received Leave; the RM transitions it caused arrive as"
         " the add_participant_status_to_participant entries after it, and a"
-        " replica never walks a closure path itself (CM-23-001, CM-23-016,"
+        " replica never walks a closure path itself (CM-23-023, CM-23-044,"
         " #4091)"
     ),
     MS.INVITE_ACTOR_TO_CASE.value: _STUB_REPLY,

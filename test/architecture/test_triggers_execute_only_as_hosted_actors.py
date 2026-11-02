@@ -15,7 +15,7 @@
 """Architecture guard: no trigger executes a BT as an actor its node does not host.
 
 A container executes trees, and enqueues activities, only as actors it hosts
-(CM-24-004, ADR-0109).  A trigger that ran a tree under an ``actor_id`` at
+(CM-24-011, ADR-0109).  A trigger that ran a tree under an ``actor_id`` at
 another authority than its DataLayer's own was the shape of the retired
 delegated emit: the case owner's container emitted in a remote CaseActor's
 name, kept the tree in the owner's store, and mailed the CaseActor a ``cc:``
@@ -96,8 +96,8 @@ def dl():
 
 
 @pytest.mark.spec("BT-05-005")
-@pytest.mark.spec("CM-24-004")
 @pytest.mark.spec("ARCH-18-001")
+@pytest.mark.spec("CM-24-011")
 def test_a_trigger_cannot_execute_as_a_foreign_authority(dl):
     """The tree never ticks, nothing is queued, and the trigger raises."""
     ticked: list[str] = []

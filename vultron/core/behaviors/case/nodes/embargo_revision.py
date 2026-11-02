@@ -27,7 +27,7 @@ The revision then follows the relay like any other (EP-04-011, ADR-0113):
 ``RelayCreationTimeRevisionNode`` (``embargo_revision_relay``) emits its
 ``Invite`` on the losing party's behalf, and indexes it for the owner's default
 selection (EP-08-002), once the initialization sequence is complete
-(CM-14-007).  Both run in the creation act's one transaction (ADR-0146), so a
+(CM-14-014).  Both run in the creation act's one transaction (ADR-0146), so a
 failed relay rolls the registration back with the rest of the creation.
 """
 

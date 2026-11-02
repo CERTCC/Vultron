@@ -357,6 +357,7 @@ class TestConsentRows:
             ),
         ],
     )
+    @pytest.mark.spec("CM-18-025")
     def test_a_row_that_does_not_start_where_the_entry_implies_is_refused(
         self, change, problem
     ):
@@ -567,7 +568,7 @@ class _NoClock(datetime):
         raise AssertionError("the apply function read the clock")
 
 
-@pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("CM-23-044")
 def test_the_apply_function_reads_no_clock_mints_no_id_and_reads_no_store(
     monkeypatch,
 ):

@@ -234,7 +234,7 @@ class SuggestedActorIsInvitableNode(
     send a stub Invite and commit it.  An actor whose record shows it has
     already joined, or is at ``RM.CLOSED``, is not invited again: the record
     is the actor's one record in the case, ``RM.CLOSED`` is terminal
-    (CM-11-015, ADR-0085), and a joined actor has nothing left to answer.  So
+    (CM-11-043, ADR-0085), and a joined actor has nothing left to answer.  So
     the Accept is refused before the guarded commit, with a reason, and
     nothing is written.  An actor with no record, or an inert one that has not
     answered (:func:`awaiting_stub_reply`), passes.
