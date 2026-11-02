@@ -37,7 +37,7 @@ Requirements: `specs/configuration.yaml` (CFG). Code: `vultron/config/`
 modules' docstrings. The reader-facing list of every setting, its
 `config.yaml` key and its `VULTRON_*` variable is
 `docs/reference/configuration.md`, generated from `AppConfig` by
-`vultron/metadata/docs/config_reference.py`. A new field therefore needs an
+`vultron/metadata/docs/config_reference/`. A new field therefore needs an
 `Attributes:` docstring entry or a `Field(description=...)`, or the strict docs
 build fails.
 

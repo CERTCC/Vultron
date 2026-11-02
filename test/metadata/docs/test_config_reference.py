@@ -474,7 +474,7 @@ class _OnlySections(BaseModel):
         inner: A section.
     """
 
-    inner: _DocDescribed = _DocDescribed()
+    inner: _FieldDescribed = _FieldDescribed()
 
 
 def test_model_without_top_level_settings_has_no_top_level_table() -> None:
@@ -501,3 +501,167 @@ def test_python_literals_and_issue_refs_are_rewritten() -> None:
         "When unset, nothing happens; `true` and `false` read as JSON"
         " (CP-08-001)."
     )
+
+
+class _CodeSpans(BaseModel):
+    """Issue numbers and parentheses inside code spans.
+
+    Attributes:
+        path: Reached at ``/actors/#1`` by calling ``fetch()`` (#12).
+            Read at startup (#3, CP-08-001); see ``fetch()`` (CP-08-002,
+            issue #4).  Default ``"a"``.
+    """
+
+    path: str = "a"
+
+
+def test_code_spans_keep_issue_marks_and_parentheses() -> None:
+    (path,) = iter_settings(_CodeSpans)
+    assert path.description == (
+        "Reached at `/actors/#1` by calling `fetch()`. Read at startup"
+        " (CP-08-001); see `fetch()` (CP-08-002)."
+    )
+
+
+class _DefaultWithExtraFact(BaseModel):
+    """A default sentence that carries a second fact.
+
+    Attributes:
+        window: The window. Defaults to 30; set 0 to disable it.
+    """
+
+    window: int = 30
+
+
+class _PointerWithExtraFact(BaseModel):
+    """A code-pointer sentence that carries a second fact.
+
+    Attributes:
+        window: The window. See ``Policy`` for the values it refuses.
+    """
+
+    window: int = 30
+
+
+class _WrongOverride(BaseModel):
+    """An override sentence naming another variable.
+
+    Attributes:
+        window: The window. Override via ``VULTRON_OTHER``.
+    """
+
+    window: int = 30
+
+
+class _OnlyDefault(BaseModel):
+    """A description that is nothing but its default.
+
+    Attributes:
+        window: Defaults to 30.
+    """
+
+    window: int = 30
+
+
+class _UnknownRole(BaseModel):
+    """A Sphinx role the renderer does not convert.
+
+    Attributes:
+        window: Raises :exc:`ValueError` when negative.
+    """
+
+    window: int = 30
+
+
+class _DanglingIssueRef(BaseModel):
+    """An issue number that is not in a citation list.
+
+    Attributes:
+        window: The window (see #12).
+    """
+
+    window: int = 30
+
+
+class _UnbalancedSpan(BaseModel):
+    """An RST code span with no closing marks.
+
+    Attributes:
+        window: The ``window value.
+    """
+
+    window: int = 30
+
+
+@pytest.mark.parametrize(
+    ("model", "match"),
+    [
+        (_DefaultWithExtraFact, r"_DefaultWithExtraFact\.window.*says more"),
+        (_PointerWithExtraFact, r"_PointerWithExtraFact\.window.*says more"),
+        (_WrongOverride, r"_WrongOverride\.window.*VULTRON_WINDOW"),
+        (_OnlyDefault, r"_OnlyDefault\.window.*empty"),
+        (_UnknownRole, r"_UnknownRole\.window.*':exc:`'"),
+        (_UnbalancedSpan, r"_UnbalancedSpan\.window.*'``'"),
+        (_DanglingIssueRef, r"_DanglingIssueRef\.window.*'#1'"),
+    ],
+)
+def test_unsafe_description_cleanup_fails(
+    model: type[BaseModel], match: str
+) -> None:
+    """A description the heuristics would mangle fails the build instead."""
+    with pytest.raises(ConfigReferenceError, match=match):
+        iter_settings(model)
+
+
+class _OverriddenSection(BaseModel):
+    """A section whose parent default changes a leaf default.
+
+    Attributes:
+        inner: A section.
+    """
+
+    inner: _FieldDescribed = _FieldDescribed(value=5)
+
+
+def test_section_default_overriding_leaf_defaults_fails() -> None:
+    with pytest.raises(
+        ConfigReferenceError, match=r"_OverriddenSection\.inner"
+    ):
+        iter_settings(_OverriddenSection)
+
+
+@pytest.mark.parametrize(
+    ("variable", "raw"),
+    [
+        ("VULTRON_ACTOR__MIN_RSVP_WINDOW", "259200"),
+        ("VULTRON_ACTOR__DEFAULT_CASE_ROLES", "vendor"),
+    ],
+)
+def test_env_value_formats_the_page_refuses(variable: str, raw: str) -> None:
+    """A bare number for a duration, and a non-JSON list, are refused."""
+    with pytest.raises(ValueError):
+        with config_override(**{variable: raw}):
+            pass
+
+
+def test_yaml_duration_accepts_a_number_of_seconds(tmp_path: Path) -> None:
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("actor:\n  min_rsvp_window: 345600\n")
+    with config_override(VULTRON_CONFIG=str(config_file)) as cfg:
+        assert cfg.actor.min_rsvp_window == timedelta(hours=96)
+
+
+def test_unknown_top_level_key_is_refused(tmp_path: Path) -> None:
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("bogus: 1\n")
+    with pytest.raises(ValueError, match="bogus"):
+        with config_override(VULTRON_CONFIG=str(config_file)):
+            pass
+
+
+def test_unknown_section_key_is_ignored(tmp_path: Path) -> None:
+    """Pins the page's sentence on unknown section keys; #3656 will refuse them."""
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("actor:\n  auto_create_cas: false\n")
+    with config_override(VULTRON_CONFIG=str(config_file)) as cfg:
+        assert cfg.actor.auto_create_case is True
