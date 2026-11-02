@@ -43,13 +43,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from vultron.metadata.base import repo_root
 from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.planning.gh import (
     DEFAULT_REPO,
@@ -68,6 +66,7 @@ from vultron.metadata.planning.theme_fit.model import (
     FindingKind,
     OpenIssue,
 )
+from vultron.metadata.planning.theme_fit.spec_topics import load_spec_topics
 from vultron.metadata.planning.themes import (
     THEME_PREFIX,
     ThemeCatalog,
@@ -93,33 +92,6 @@ class ParentIssue:
                 if label.casefold().startswith(THEME_PREFIX)
             )
         )
-
-
-_TOPIC_LINE = re.compile(r"^id:\s*(?P<topic>[A-Z][A-Z0-9]*)\s*$", re.MULTILINE)
-
-
-def load_spec_topics(specs_dir: Path | None = None) -> frozenset[str]:
-    """The topic prefix each spec file declares in its top-level ``id:``.
-
-    An Epic title's bare group ID (``SYNC-19``) is an ID only when its prefix
-    is one of these (PAD-02-032).
-
-    Args:
-        specs_dir: The spec directory; defaults to the repository's ``specs/``.
-
-    Raises:
-        FileNotFoundError: If the directory holds no spec file declaring one.
-        OSError, UnicodeDecodeError: If a spec file cannot be read.
-    """
-    folder = specs_dir if specs_dir is not None else repo_root() / "specs"
-    topics = frozenset(
-        match["topic"]
-        for path in sorted(folder.glob("*.yaml"))
-        if (match := _TOPIC_LINE.search(path.read_text(encoding="utf-8")))
-    )
-    if not topics:
-        raise FileNotFoundError(f"no spec topics found in {folder}")
-    return topics
 
 
 def fetch_parent(number: int, repo: str, run: Runner) -> ParentIssue:

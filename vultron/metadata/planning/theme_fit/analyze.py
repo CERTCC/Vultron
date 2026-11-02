@@ -328,7 +328,7 @@ def analyze(
             the report then says its coherence has no per-tier split.
         spec_topics: The spec topic prefixes an Epic title's bare group ID is
             matched against (:func:`epic_form_findings`); the CLI passes
-            :func:`.gate.load_spec_topics`.
+            :func:`.spec_topics.load_spec_topics`.
     """
     ordered = sorted(issues, key=lambda i: i.number)
     by_number = {i.number: i for i in ordered}

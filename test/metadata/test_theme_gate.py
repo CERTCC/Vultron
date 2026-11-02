@@ -12,6 +12,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -23,10 +24,10 @@ from vultron.metadata.planning.theme_fit.gate import (
     ParentIssue,
     fetch_parent,
     gate_findings,
-    load_spec_topics,
     main,
     split_labels,
 )
+from vultron.metadata.planning.theme_fit.spec_topics import load_spec_topics
 from vultron.metadata.planning.themes import (
     BEGIN_MARKER,
     END_MARKER,
@@ -1112,3 +1113,26 @@ class TestUnattendedAutoCalve:
     def test_the_skill_never_leaves_an_orphan(self) -> None:
         text = _CREATE_ISSUE_SKILL.read_text(encoding="utf-8")
         assert "Never create the issue without a parent" in text
+
+
+def test_the_gate_runs_as_a_module_without_a_double_import() -> None:
+    """``create_epic.sh`` runs the gate with ``python -m``.
+
+    If the package imported the gate, ``runpy`` would warn that the module was
+    already loaded, on every Issue and Epic created.
+    """
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-W",
+            "error::RuntimeWarning",
+            "-m",
+            "vultron.metadata.planning.theme_fit.gate",
+            "--help",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "RuntimeWarning" not in result.stderr

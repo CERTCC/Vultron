@@ -44,12 +44,12 @@ from vultron.metadata.planning.gh import (
 )
 from vultron.metadata.planning.theme_fit.analyze import analyze
 from vultron.metadata.planning.theme_fit.fetch import fetch_open_issues
-from vultron.metadata.planning.theme_fit.gate import load_spec_topics
 from vultron.metadata.planning.theme_fit.render import (
     GITHUB_BODY_LIMIT,
     render_coherence,
     render_markdown,
 )
+from vultron.metadata.planning.theme_fit.spec_topics import load_spec_topics
 from vultron.metadata.planning.themes import load_theme_catalog
 
 
