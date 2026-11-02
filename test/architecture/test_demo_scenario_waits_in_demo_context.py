@@ -31,9 +31,11 @@ stories (#5533, #5534, #5537):
   :class:`~vultron.demo.helpers.story.StoryState`, which is one step of a
   story (``vultron/demo/helpers/story.py``).  A fragment is scenario-level
   wherever it is written: a composed scenario keeps the fragments only it
-  tells in its own module, and the shared ones live in
-  ``helpers/coordinated_story.py`` and
-  ``helpers/coordinated_embargo_story.py``.
+  tells in its own module, and the shared ones live in the ``*_story.py``
+  modules under ``helpers/`` — one per family, plus one per decision more
+  than one family makes.  The check scans every module under
+  ``vultron/demo/`` rather than a list of them, so a new one is covered
+  without an edit here.
 
 Both shapes run under ``scenario_harness`` and both own their wrap, so the
 check follows the subject rather than the directory: it scans every module

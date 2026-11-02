@@ -2094,6 +2094,40 @@ groups:
     rationale: >-
       Scenario-specific invariants prevent the RCCV-extension scenario from
       accidentally omitting protocol steps not covered by universal checks.
+  - id: DEMOMA-13-012
+    priority: MUST
+    kind: project
+    statement: >-
+      The RCCV-extension story MUST start with the shared "C1 invites a second
+      Coordinator" opening and continue from C1's decision to keep the case.
+    rationale: >-
+      The opening is the Reporter telling C1, C1 engaging the case, and C1
+      inviting C2, which joins. The shared "the Reporter tells the
+      Coordinator" opening is nested inside the one DEMOMA-12-017 names and
+      inside this one, so every coordinator-first scenario tells it
+      identically, and RCCV-handoff tells the whole of this one identically
+      (DEMOMA-14-017). One copy of the code, so the recordings are
+      byte-identical to where each pair's paths part (DEMOCI-11-018).
+    verification: >-
+      `test_the_opening_is_the_shared_prefix_itself` in
+      `test/demo/test_rccv_extension_demo.py` asserts that the scenario's
+      story begins with the items of `C1_INVITES_C2`, and
+      `test_the_prefix_itself_starts_with_the_rcv_familys_opening` in the
+      same module asserts that the story reaches back to the items of
+      `REPORTER_TELLS_THE_COORDINATOR`;
+      `test_a_named_prefix_nests_the_shorter_one_it_carries` in
+      `test/demo_unit/test_story.py` asserts that `C1_INVITES_C2` begins with
+      those items rather than restating them; `TestComposedFamilies` in
+      `test/demo_unit/test_recordings.py` compares the pairs of the family
+      named in `COMPOSED_FAMILIES` byte for byte up to the branch point where
+      each pair's paths part.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
+    tags:
+    - demo
 
 - id: DEMOMA-14
   title: RCCV-Handoff Scenario (C1 transfers case ownership to C2; C2 invites Vendor)
@@ -2377,6 +2411,33 @@ groups:
     rationale: >-
       Scenario-specific invariants prevent the RCCV-handoff scenario from accidentally
       omitting protocol steps not covered by universal checks.
+  - id: DEMOMA-14-017
+    priority: MUST
+    kind: project
+    statement: >-
+      The RCCV-handoff story MUST start with the same shared opening as
+      RCCV-extension (DEMOMA-13-012) and continue from C1's decision to offer
+      ownership.
+    rationale: >-
+      The two scenarios part at one decision, so everything before it is one
+      copy of the code and their recordings are byte-identical up to the
+      `owner-keep-case` branch point (DEMOCI-11-018). It also makes C2 an
+      active participant holding the coordinating role before the transfer is
+      offered, which DEMOMA-14-010 requires. Naming it here keeps this group a
+      whole story.
+    verification: >-
+      `test/demo/test_rccv_handoff_demo.py` asserts that the scenario's story
+      begins with the items of `C1_INVITES_C2`, the same prefix
+      `rccv-extension` starts with, and `TestComposedFamilies` in
+      `test/demo_unit/test_recordings.py` compares the two recordings byte for
+      byte up to the `owner-keep-case` branch point.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
+    tags:
+    - demo
 - id: DEMOMA-15
   title: Demo Helper Preconditions
   specs:

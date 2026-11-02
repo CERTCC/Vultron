@@ -101,9 +101,9 @@ sub-issues were this one defect in different scenarios.
 4. **Use `demo_gate` for a precondition, `demo_check` for a verification**
    (DEMOCI-01-007, EDF-06-005) — see the next rule.
 5. **Put the gate in `vultron/demo/helpers/`** — scenario modules MUST NOT define
-   their own polling loops. That is how the #2178 fix landed in
-   `rvcv_handoff_demo.py` but not `rccv_handoff_demo.py` (DEMOMA-22-002,
-   DEMOMA-17-001).
+   their own polling loops. That is how the #2178 fix landed in one handoff
+   scenario and not its sibling, until #5535 put both on one copy
+   (DEMOMA-22-002, DEMOMA-17-001).
 6. **Label irreducibly temporal waits as such** at the call site — liveness
    probes, embargo deadlines, transport backoff (EDF-06-006).
 7. **Raising a timeout is not a fix.** Either the observable is wrong (1–3) or the

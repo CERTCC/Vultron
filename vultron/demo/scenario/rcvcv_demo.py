@@ -73,18 +73,15 @@ from vultron.demo.helpers.coordinated_story import (
     TIMELINE_ANSWER,
     VENDOR,
     CastContainer,
-    await_reporter_case_replica,
     close_the_case,
     coordinated_clients,
     coordinated_open_cast,
     dump_coordinated_ledgers,
     invitee_joins_the_case,
-    invitee_triages_after_joining,
     reports_published,
     seat_character_actors,
     vendor_notifies_fix_ready,
 )
-from vultron.demo.helpers.invite_chain import run_case_invite_chain
 from vultron.demo.helpers.milestones import (
     verify_case_active,
     verify_fix_deployed,
@@ -92,16 +89,19 @@ from vultron.demo.helpers.milestones import (
     verify_publicly_disclosed,
 )
 from vultron.demo.helpers.notes import NotePost, add_note_thread
+from vultron.demo.helpers.owner_decision_story import (
+    Part,
+    the_owner_approves_a_suggested_actor,
+)
 from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
-    find_case_actor_participant_id,
-    find_cp_offer_for_case,
     wait_for_case_em_terminated,
     wait_for_participant_d_state,
     wait_for_participant_vf_state,
 )
 from vultron.demo.helpers.seeding import seed_containers_rcvcv
 from vultron.demo.helpers.story import (
+    StoryProp,
     StoryState,
     UnseatedContainer,
     choose,
@@ -116,7 +116,6 @@ from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
-    demo_gate,
     demo_step,
     ref_id,
     setup_demo_logging,
@@ -262,13 +261,20 @@ def seed_the_second_coordinator_and_vendor(state: StoryState) -> None:
         seat_character_actors(state, {C2: seeded[3].id_, V2: seeded[4].id_})
 
 
+#: The case C2 has joined, as its id.  Read by the suggestion C2 makes next,
+#: which only a participant may make (DEMOMA-19-009), so a join whose roster
+#: never filled stops the story there rather than suggesting into a case C2 is
+#: not in (DEMOCI-01-011, #5535).
+C2_JOINED: StoryProp[str] = StoryProp("case C2 joined", str)
+
+
 def c1_invites_the_second_coordinator(state: StoryState) -> None:
     """C1 invites C2 with ``CVDRole.COORDINATOR``; C2 accepts and joins.
 
     C2 runs no RM triage: it joins to help coordinate, not to judge the
     report, so it engages no case of its own (CM-11-002 applies to the
-    invitee that answers over a report it must triage).  The roster check
-    therefore runs inside the invite chain's gate.
+    invitee that answers over a report it must triage).  The roster is this
+    join's gate and keeps :data:`C2_JOINED`, which C2's suggestion reads.
     """
     invitee_joins_the_case(
         state,
@@ -277,6 +283,7 @@ def c1_invites_the_second_coordinator(state: StoryState) -> None:
         role=CVDRole.COORDINATOR,
         seated=(REPORTER, C1, V1, C2),
         triages=False,
+        joined=C2_JOINED,
         cross_container_timeout=LATE_JOIN_TIMEOUT,
     )
 
@@ -299,71 +306,24 @@ def required_participants_are_present(state: StoryState) -> None:
 def c2_suggests_the_vendor_deployer(state: StoryState) -> None:
     """C2 suggests V2 via ADR-0026; C1 approves; V2 joins (DEMOMA-19-009).
 
-    C2 posts ``suggest-actor-to-case``, the CaseActor forwards an
-    ``Offer(CaseParticipant)`` to C1, C1 posts ``accept-actor-recommendation``,
-    the CaseActor sends the Invite to V2, and V2 accepts.  The invite chain
-    polls V2's DataLayer for the Invite and puppeteers the accept
-    (DEMOMA-19-022: polling only, no mail-carrying), nesting the accept and
-    the replica wait inside the Invite's gate (EDF-06-005, #3038).
+    The ADR-0026 suggest-actor flow, which the two-coordinator pair's
+    ``owner-keep-case:keep`` continuation also tells, so it is one shared step
+    (:func:`~vultron.demo.helpers.owner_decision_story\
+    .the_owner_approves_a_suggested_actor`, DEMOMA-17-001).  V2's roles are
+    explicit so ``EvaluateDefaultRolesNode`` does not fall back to its
+    hardcoded ``[VENDOR]`` default (#1969), which is what makes V2 a Deployer
+    as well as a Vendor.
     """
-    v2 = state.actor(V2).actor
-
-    # Roles must be explicit so EvaluateDefaultRolesNode does not fall back to
-    # the hardcoded [VENDOR] default (issue #1969).
-    with demo_step("C2 suggests V2 to CaseActor"):
-        state.actor(C2).with_case(state.case).quiet().suggest_actor_to_case(
-            suggested_actor_id=v2.id_,
-            roles=[CVDRole.VENDOR, CVDRole.DEPLOYER],
-        )
-    logger.info("C2 sent suggest-actor-to-case for V2 (%s)", v2.id_)
-
-    # Every dependent step is nested inside the gate, so a recommendation that
-    # never arrives skips the lookup and the approval (ADR-0058).
-    with demo_gate("Offer(CaseParticipant) for V2 arrived in C1's DataLayer"):
-        cp_offer_id = find_cp_offer_for_case(
-            client=state.client(C1),
-            case_id=state.case.id_,
-            timeout_seconds=LATE_JOIN_TIMEOUT,
-        )
-        logger.info("Offer(CaseParticipant) ID: %s", cp_offer_id)
-
-        # The CaseActor's participant id is where the Accept is routed back.
-        case_actor_id = find_case_actor_participant_id(
-            state.client(C1), state.case.id_
-        )
-        if case_actor_id is None:
-            raise AssertionError(
-                "CaseActor participant not found in case — cannot route Accept"
-            )
-        logger.info("CaseActor participant ID: %s", case_actor_id)
-
-        with demo_step("C1 approves actor recommendation"):
-            state.actor(C1).quiet().accept_actor_recommendation(
-                cp_offer_id=cp_offer_id,
-                case_actor_id=case_actor_id,
-            )
-    logger.info("C1 sent Accept(Offer(CaseParticipant)) to CaseActor")
-
-    run_case_invite_chain(
-        case=state.case,
-        invitee_name=V2_LABEL,
-        invitee_client=state.client(V2),
-        invitee=v2,
-        invitee_in_own_container=v2,
-        invite_timeout=LATE_JOIN_TIMEOUT,
-        replica_timeout=LATE_JOIN_TIMEOUT,
-        ledger_client=state.case_actor_client,
-        reply_timeout=LATE_JOIN_TIMEOUT,
-    )
-
-    await_reporter_case_replica(state, LATE_JOIN_TIMEOUT)
-    invitee_triages_after_joining(
+    the_owner_approves_a_suggested_actor(
         state,
-        V2,
-        V2_LABEL,
+        joined=C2_JOINED,
+        owner=Part(C1, C1_LABEL),
+        suggester=Part(C2, C2_LABEL),
+        newcomer=Part(V2, V2_LABEL),
+        roles=[CVDRole.VENDOR, CVDRole.DEPLOYER],
         seated=(REPORTER, C1, V1, C2, V2),
+        timeout_seconds=LATE_JOIN_TIMEOUT,
         join_timeout=LATE_JOINER_TIMEOUT,
-        triage_timeout=LATE_JOIN_TIMEOUT,
     )
 
 
