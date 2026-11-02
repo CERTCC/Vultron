@@ -475,9 +475,13 @@ groups:
       and mainstream ActivityPub servers authenticate the delivering server by its HTTP
       signature. The activity's own `proof` already shows its author (SIG-01-001); the
       HTTP signature adds who delivered it. RFC 9421 is the standard way to sign an HTTP
-      message.
+      message. ADR-0164 builds the content proof first, from seeded keys; this
+      transport signature comes later, with production keys (#1184). It is deferred, not
+      dropped.
     scope:
     - production
+    adr:
+    - ADR-0164
   - id: OX-10-002
     priority: MUST
     kind: project
@@ -550,7 +554,9 @@ groups:
     rationale: >-
       A shared inbox delivers one request to many actors. If it starts the fan-out
       before it checks the signature, one false request reaches every addressed actor.
-      When the check comes first, a false request reaches none of them.
+      When the check comes first, a false request reaches none of them. The check adds
+      to, and does not replace, each addressed actor's verification of the activity's
+      own `proof` (SIG-03-001, ADR-0164).
     scope:
     - production
     relationships:

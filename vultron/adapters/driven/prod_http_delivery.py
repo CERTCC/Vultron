@@ -7,7 +7,12 @@ inboxes via HTTP POST.
 Responsibilities (future implementation):
 
 - Receive a serialized AS2 JSON payload and a target inbox URL.
-- Sign the request with the local actor's HTTP Signature private key.
+- Sign the request with the local actor's HTTP Message Signature key
+  (RFC 9421, OX-10-001).  This transport signature says which server
+  delivered the request.  It is a production layer that comes after the
+  content proof ADR-0164 puts inside every activity, which already shows its
+  author and is attached before the payload reaches this adapter
+  (SIG-01-001).
 - POST the payload to the target inbox.
 - Retry on transient failures with exponential back-off.
 - Record delivery success/failure in the activity store.
