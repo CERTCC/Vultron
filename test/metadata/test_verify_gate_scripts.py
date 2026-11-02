@@ -111,6 +111,29 @@ def test_a_draft_blocks_and_reports_its_needs_rebase_label(
     assert out["needs_rebase"] == [str("needs-rebase" in labels).lower()]
 
 
+def test_a_draft_whose_labels_cannot_be_read_reports_unknown(
+    tmp_path: Path, repo: Path
+) -> None:
+    rules = [
+        {"match": ["pr view", "labels"], "exit": 1},
+        pr_view(status="DRAFT"),
+    ]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert out["verdict"] == ["blocks-ready"]
+    assert out["needs_rebase"] == ["unknown"]
+
+
+def test_a_conflict_without_a_fetchable_base_says_evidence_is_unavailable(
+    tmp_path: Path, repo: Path
+) -> None:
+    """`repo` has no origin remote, so the evidence fetch fails."""
+    rules = [pr_view("CONFLICTING", "DIRTY")]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert out["verdict"] == ["conflicts-found"]
+    assert out["conflict_evidence"] == ["unavailable"]
+    assert "conflict" not in out
+
+
 def test_a_gh_failure_is_unknown_not_clear(tmp_path: Path, repo: Path) -> None:
     rules = [{"match": ["pr view"], "stdout": "", "exit": 1}]
     out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))

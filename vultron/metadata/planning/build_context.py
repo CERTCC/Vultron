@@ -49,7 +49,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -58,13 +57,11 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from vultron.metadata.specs.backstop import parse_manifest
+from vultron.metadata.specs.backstop import GROUP_RE, REQ_RE, parse_manifest
 from vultron.metadata.specs.registry import load_registry
 from vultron.primitives import NonEmptyString
 
 GLOSSARY = Path("docs/reference/glossary.md")
-_REQ_RE = re.compile(r"^[A-Z]+-\d\d-\d{3}$")
-_GROUP_RE = re.compile(r"^[A-Z]+-\d\d$")
 
 
 class SetupError(Exception):
@@ -143,8 +140,8 @@ def _spec_lists(
     if not loaded:
         raise SetupError(f"manifest {manifest} lists no loaded spec ID")
     return (
-        sorted(i for i in loaded if _REQ_RE.match(i)),
-        sorted(i for i in loaded if _GROUP_RE.match(i)),
+        sorted(i for i in loaded if REQ_RE.match(i)),
+        sorted(i for i in loaded if GROUP_RE.match(i)),
         sorted(i for i in loaded if i in topics),
     )
 

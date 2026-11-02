@@ -5,7 +5,7 @@
 # Usage: verify-merge-gate.sh <pr-number> [--check-markers]
 #   --check-markers  also grep the worktree for surviving conflict markers;
 #                    pass it when execute.merge_state.conflicts_resolved is
-#                    non-empty (Phase 2 step 5)
+#                    non-empty (Phase 2 step 1)
 #
 # Flags, from one merge-state.sh call:
 #   exit 1 (CONFLICTING), status DIRTY, or a marker hit -> MERGE-CONFLICT
@@ -23,9 +23,10 @@
 #   verdict=<conflicts-found|pending-merge-check|blocks-ready|clear>
 #   flag=<FLAG>  one per flag raised
 #   mergeable=  merge_state_status=  merge_state_exit=  base_ref=
-#   needs_rebase=<true|false>   (PR-IS-DRAFT only)
+#   needs_rebase=<true|false|unknown>  (PR-IS-DRAFT only; unknown on a gh error)
 #   note=blocked                (status BLOCKED)
 #   conflict=<merge-tree CONFLICT line>  evidence, MERGE-CONFLICT only
+#   conflict_evidence=unavailable  MERGE-CONFLICT with no base ref or a failed fetch
 #   marker=<file:line>          --check-markers hits
 # Exit: 0 a verdict was printed; 2 usage error or jq missing.
 set -uo pipefail
@@ -76,12 +77,19 @@ echo "merge_state_status=${status}"
 echo "merge_state_exit=${ms}"
 echo "base_ref=${base}"
 if has PR-IS-DRAFT; then
-  labels="$(gh pr view "${pr}" --json labels --jq '[.labels[].name] | join(",")' 2>/dev/null)"
-  case ",${labels}," in *,needs-rebase,*) echo "needs_rebase=true" ;; *) echo "needs_rebase=false" ;; esac
+  if ! labels="$(gh pr view "${pr}" --json labels --jq '[.labels[].name] | join(",")' 2>/dev/null)"; then
+    echo "needs_rebase=unknown"
+  else
+    case ",${labels}," in *,needs-rebase,*) echo "needs_rebase=true" ;; *) echo "needs_rebase=false" ;; esac
+  fi
 fi
 [ "${status}" = BLOCKED ] && echo "note=blocked"
-if has MERGE-CONFLICT && [ -n "${base}" ] && git fetch -q origin "${base}" 2>/dev/null; then
-  git merge-tree --write-tree HEAD "origin/${base}" 2>&1 | grep -i '^CONFLICT' | sed 's/^/conflict=/'
+if has MERGE-CONFLICT; then
+  if [ -n "${base}" ] && git fetch -q origin "${base}" 2>/dev/null; then
+    git merge-tree --write-tree HEAD "origin/${base}" 2>&1 | grep -i '^CONFLICT' | sed 's/^/conflict=/'
+  else
+    echo "conflict_evidence=unavailable"
+  fi
 fi
 [ -z "${marker_hits}" ] || printf '%s\n' "${marker_hits}" | sed 's/^/marker=/'
 exit 0
