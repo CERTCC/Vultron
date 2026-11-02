@@ -107,10 +107,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # CISEC-05-006: file only on a genuine failure, never on cancellation
-      # alone. No job here consumes another job's artifact, so every
-      # `failure` in the aggregate is genuine. Do NOT add
-      # `!contains(needs.*.result, 'cancelled')`: a newer push that cancels
-      # one job after another has failed would then suppress the notification.
+      # alone. No job here consumes another job's artifact (CISEC-05-016), so
+      # every `failure` in the aggregate is genuine. Do NOT add
+      # `!contains(needs.*.result, 'cancelled')` (CISEC-05-015): a newer push
+      # that cancels one job after another has failed would then suppress the
+      # notification (CISEC-05-014).
       - name: Notify CI failure
         if: contains(needs.*.result, 'failure')
         uses: ./.github/actions/notify-failure

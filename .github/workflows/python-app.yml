@@ -175,10 +175,11 @@ jobs:
       # cancellation alone — a concurrency-superseded run with no failure has
       # nothing to report, because a newer run is authoritative.
       # A cancelled job reports `cancelled`, not `failure`, and no job here
-      # consumes another job's artifact, so every `failure` in the aggregate
-      # is genuine. Do NOT add `!contains(needs.*.result, 'cancelled')`: a
-      # newer push that cancels the lint jobs while the tests have already
-      # failed would then suppress the notification (#3293).
+      # consumes another job's artifact (CISEC-05-016), so every `failure` in
+      # the aggregate is genuine. Do NOT add
+      # `!contains(needs.*.result, 'cancelled')` (CISEC-05-015): a newer push
+      # that cancels the lint jobs while the tests have already failed would
+      # then suppress the notification (CISEC-05-014, #3293).
       - name: Notify CI failure
         if: contains(needs.*.result, 'failure')
         uses: ./.github/actions/notify-failure

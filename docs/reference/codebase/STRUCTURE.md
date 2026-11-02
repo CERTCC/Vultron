@@ -95,7 +95,7 @@ stakeholder_type: [project-contributor]
   - `docs-thread-order` → `vultron.metadata.docs.thread_order:main`.
     It fails when a thread member, or a fragment it renders, uses a term a later member introduces without linking out for it first (DF-11-024).
     It reuses the `docs-level-order` scan, and its shrink-only baseline is `vultron/metadata/docs/thread_order_baseline.txt`.
-  - `docs-withheld` → `vultron.metadata.docs.withheld:main` (a withheld artifact produces no `site/` files), `docs-links` → `vultron.metadata.docs.links:main` (every internal reference in the built `site/` resolves), `docs-path-boxes` → `vultron.metadata.docs.path_boxes:main` (every member page and start page renders its reading-path boxes, DF-11-023), `docs-legacy-urls` → `vultron.metadata.docs.legacy_urls:main` (a URL the site once published still answers)
+  - `docs-withheld` → `vultron.metadata.docs.withheld:main` (a withheld artifact produces no `site/` files), `docs-links` → `vultron.metadata.docs.links:main` (every internal reference in the built `site/` resolves), `docs-path-boxes` → `vultron.metadata.docs.path_boxes:main` (every member page and start page renders its reading-path boxes, DF-11-045), `docs-legacy-urls` → `vultron.metadata.docs.legacy_urls:main` (a URL the site once published still answers)
   - `docs-duplicates` → `vultron.metadata.docs.duplicates:main`.
     It lists paragraphs repeated across `docs/` pages, as exact copies or as drifted copies that share most of their sentences, for `lint-docs` to report as SG-43 findings.
     It is advisory and exits 0 whatever it finds, except that it fails when it resolves no target pages (DF-09-009).

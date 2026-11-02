@@ -27,7 +27,7 @@ related_specs:
   - specs/meta-specifications.yaml
   - specs/spec-registry.yaml
   - specs/testability.yaml
-  - specs/architecture.yaml (ARCH-18-004)
+  - specs/architecture.yaml (ARCH-18-004, ARCH-18-009)
   - specs/actor-knowledge-model.yaml (AKM-05-003, the inline-object ruling)
   - specs/http-protocol.yaml (HTTP-03, the status-code ruling)
   - specs/inbox-endpoint.yaml (IE-07-001, IE-07-002, IE-11-001)
@@ -302,7 +302,7 @@ The MS-10 verification rule is built so it can only end at zero:
 2. **Each marker names an open owning issue** of its kind in
    `VERIFICATION_DEBT_OWNERS`. A PR that closes an owner while a marker still
    names it fails; an owner closed by hand is reported by the
-   `verification-debt-owners` workflow and never fails the build (ARCH-18-004).
+   `verification-debt-owners` workflow and never fails the build (ARCH-18-009).
 3. **Zero is terminal.** When a kind has no markers, delete its owner entry
    (MS-10-007); a marker of that kind is then a hard error (MS-10-026). While an entry
    exists, a PR-only growth guard fails any marker a branch adds or re-points

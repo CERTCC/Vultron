@@ -387,10 +387,11 @@ jobs:
       # cancellation alone. The invariant-harness skip above (DEMOCI-04-007)
       # is what keeps a superseded run free of a laundered `failure`, so every
       # `failure` in the aggregate is genuine. Do NOT add
-      # `!contains(needs.*.result, 'cancelled')` as defense in depth: it
-      # suppresses a real demo failure whenever a newer push cancels the
-      # harness mid-run (#3294). Any future job that consumes an artifact must
-      # skip on a cancelled producer, as the harness does.
+      # `!contains(needs.*.result, 'cancelled')` as defense in depth
+      # (CISEC-05-015): it suppresses a real demo failure whenever a newer
+      # push cancels the harness mid-run (CISEC-05-014, #3294). Any future job
+      # that consumes an artifact must skip on a cancelled producer, as the
+      # harness does (CISEC-05-016).
       - name: Notify CI failure
         if: contains(needs.*.result, 'failure')
         uses: ./.github/actions/notify-failure

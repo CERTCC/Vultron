@@ -15,7 +15,7 @@ inputs:
     description: >-
       Workflow-specific label (e.g. ci:workflow-python-app). Combined with
       ci:main-failure to uniquely identify the failure issue for deduplication
-      and targeted close on recovery (CISEC-05-011).
+      and targeted close on recovery (CISEC-05-003, CISEC-05-011).
     required: true
   token:
     description: >-
@@ -85,10 +85,10 @@ runs:
 
         # `gh issue create` cannot set an issue type, and a label applied
         # with GITHUB_TOKEN never fires the label-to-issue-type workflow,
-        # so the action sets the Bug type itself (CISEC-05-017,
-        # CISEC-05-020), through the helper shared with other bot-filed
-        # issues. It also repairs an issue a failed assignment left untyped
-        # (CISEC-05-018).
+        # so the action sets the Bug type itself (CISEC-05-007,
+        # CISEC-05-017, CISEC-05-020), through the helper shared with other
+        # bot-filed issues. It also repairs an issue a failed assignment left
+        # untyped (CISEC-05-018).
         ensure_type="$GITHUB_ACTION_PATH/../../scripts/ensure-issue-type.sh"
         # The theme label and Theme: line every open leaf issue needs
         # (PAD-02-014, PAD-02-018), set the same way on both arms, so an
