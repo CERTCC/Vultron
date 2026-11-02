@@ -171,7 +171,9 @@ failing because the right home does not exist yet.
 
 1. **Draw the candidate line by design, not size.** Identify the single
    coherent design idea the pieces realize. Write it as one sentence. If you
-   cannot, you do not have an iceberg yet — say so and stop.
+   cannot, you do not have an iceberg yet — say so and stop. That sentence is
+   the Epic's `Design idea:` line: the approach, with any mechanism, ADR
+   numbers and spec IDs (PAD-02-038).
 
 2. **Never cut on convenience.** Do not calve because a set is "about the right
    size", because a deadline looms, or because several issues share a
@@ -181,18 +183,38 @@ failing because the right home does not exist yet.
    `theme:` label, and the epic carries it too. If the pieces span two themes,
    they are two icebergs.
 
-4. **Propose, then wait.** Present the proposed iceberg to the user with
-   `AskUserQuestion`: the one-sentence design idea, its theme, the leaf issues
-   it would contain, and the Schedule tier you recommend. Ask whether the
-   fracture line is along-grain. **Do not create the epic until the user
-   confirms.** The only exception is the unattended auto-calve in Mode 1
-   step 4.
+4. **Write the title and the `Theme:` line, each with its own job**
+   (`notes/epic-themes.md` § "Epic Titles and Bodies"):
+   - the **title** is a done-state claim: a present-tense sentence in domain
+     terms, false now and true when the Epic closes, with the audience as its
+     subject when one is natural (PAD-02-030, PAD-02-031). No ADR number or
+     spec ID (PAD-02-032). Write it fresh; do not trim the design idea into
+     it;
+   - the **`Theme:` line's outcome** is the consequence of the claim that a
+     reader of the theme notices, not the claim again (PAD-02-033).
 
-5. **On confirmation, delegate the mechanics.** Invoke `create-epic` with the
-   agreed title, theme, body (a `Theme:` line, then the one-sentence design
-   idea), leaf issue numbers, and Schedule. `create-epic` owns epic-type
+   No line restates another (PAD-02-034). If a sibling Epic shares the
+   outcome, the title claims this Epic's own slice of it (PAD-02-037).
+
+5. **Count the open leaves.** Count the Tasks, Features and Bugs the Epic
+   would hold. Ideas and Concerns do not count, since no `work-epic-tasks` run
+   drains them. More than 12 is over the size bound (PAD-02-035): propose two
+   slices instead, or say why it stays whole.
+
+6. **Propose, then wait.** Present the proposed iceberg to the user with
+   `AskUserQuestion`: the claim title, the `Theme:` line, the `Design idea:`
+   line, the leaf issues it would contain with their open Task, Feature and
+   Bug count, and the Schedule tier you recommend. Ask whether the fracture
+   line is along-grain. **Do not create the epic until the user confirms.**
+   The only exception is the unattended auto-calve in Mode 1 step 4.
+
+7. **On confirmation, delegate the mechanics.** Invoke `create-epic` with the
+   agreed title, theme, body (the `Theme:` line, then the `Design idea:`
+   line), leaf issue numbers, and Schedule. `create-epic` owns epic-type
    creation, sub-issue wiring, board placement, and the `needs-decomposition`
-   label — do not reimplement any of that here.
+   label — do not reimplement any of that here. Its gate refuses a title with
+   an ID or an `Epic:` label and a body without a `Design idea:` line or with
+   one that restates the title or the `Theme:` outcome.
 
 ## Mode 3 — Recrystallize a muddled forest (human-gated)
 
@@ -208,14 +230,35 @@ This is an anneal pass over the **not-yet-active** region only. Treat epics at
 Now/Focus as frozen: you may *add* children to them, but do not re-tier or
 re-shape them. Everything at Next/Later/Someday is moldable.
 
+**One exception: a size split of a frozen Epic.** A Now or Focus Epic over the
+size bound (PAD-02-035) may be split when every new Epic keeps the parent's
+tier. No child changes rank, so no in-flight work moves. Fusing, ejecting and
+re-tiering a frozen Epic stay off limits.
+
 Recognized events (each requires human confirmation before any mutation):
 
 - **Fuse** two epics that are the same glacier split in two: pick one to keep,
   re-parent the other's children onto it, close the redundant one with a
-  comment pointing to the survivor.
+  comment pointing to the survivor. Fuse only epics that share an outcome and
+  whose fused open Task, Feature and Bug count stays within 12 (PAD-02-036).
+  Two that would be too big together stay separate as size-split siblings,
+  each claiming its own slice (PAD-02-037). Fuse epics at one Schedule tier;
+  across tiers, the proposal states the tier the fused epic takes, since every
+  child brought in takes it (PAD-02-039).
 - **Eject cross-grain material**: move children that flow against an epic's
   design idea to the epic that matches them (or calve a new one via Mode 2).
-- **Split** an overgrown iceberg that now holds two design ideas into two.
+- **Split** an overgrown iceberg that holds two design ideas into two, or one
+  over the size bound into slices of its outcome. Each new epic:
+  - takes the parent's Schedule tier unless the proposal states another
+    (PAD-02-040);
+  - carries the theme judged from its own children's outcome, never the
+    parent's labels copied (PAD-02-016). Keep a `Theme split:` line only if
+    the slice still spans both themes;
+  - gets its own claim title, and size-split siblings each claim their own
+    slice: a layer, a set of spec groups, or a phase (PAD-02-037).
+
+  An epic over the bound that the user keeps whole gets a comment giving the
+  reason, so the next pass does not propose the same split again.
 - **Dissolve a grab-bag**: route each child to a design-coherent home, then
   close the emptied shell with a comment recording where its children went.
 - **Resolve a tier inversion**: an issue blocked by something in a strictly
@@ -251,13 +294,17 @@ Procedure:
    Report the share of children whose pick matches their epic's theme; it is
    the epic's content coherence, which the structural report cannot measure.
 3. Propose the target crystals to the user as a small set of decision forks
-   (`AskUserQuestion`), each naming the design idea of a proposed epic and what
-   moves into it. Confirm tiers explicitly.
+   (`AskUserQuestion`), each naming a proposed epic's claim title, its
+   `Theme:` and `Design idea:` lines, what moves into it, and its open Task,
+   Feature and Bug count (Mode 2 steps 4–5). Confirm tiers explicitly, and
+   state every tier change a fuse or split makes.
 4. On confirmation, execute: create new epics via `create-epic`, re-parent via
    `manage-github-issue`, close emptied epics with `gh issue close --reason
    "not planned"` and a comment explaining the consolidation. Verify at the end
    that no non-epic issue is left orphaned and that the root-epic set reads
-   cleanly.
+   cleanly. Until #3938 lands, `manage_github_issue.sh` cannot move a child
+   that already has a parent: call `addSubIssue` with `replaceParent: true`
+   through `gh api graphql` for those moves.
 
 ## Before promoting an epic to Now
 
@@ -364,9 +411,14 @@ To read an issue's current parent and an epic's open children, use the
 - No issue is left without a parent.
 - Run the blind content audit in every recrystallize pass and before any epic
   is promoted to Now.
-- Cut by design grain, within one theme; never by size or date.
+- Cut by design grain, within one theme; never by date. Size alone never
+  draws a new epic; it only slices an oversized one into claimed slices of
+  its outcome (PAD-02-037).
 - Treat Now/Focus epics as frozen: add children only, never re-tier or
-  re-shape them.
+  re-shape them, except a size split in which every new epic keeps the
+  parent's tier.
+- Every epic title is a done-state claim with no IDs, and every body has its
+  own `Theme:` and `Design idea:` lines (PAD-02-030 to PAD-02-038).
 - Do not create an epic when a single coherent design idea cannot be stated in
   one sentence.
 - Query board field/option IDs live; do not trust hardcoded constants.

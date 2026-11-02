@@ -16,7 +16,8 @@
 
     theme-gate --label size:M --label theme:dev-workflow --parent 42 \\
         --body-file body.md
-    theme-gate --epic --label theme:dev-workflow --body-file - < body.md
+    theme-gate --epic --title "Agents read one theme set" \\
+        --label theme:dev-workflow --body-file - < body.md
 
 ``manage_github_issue.sh`` and ``create_epic.sh`` run it before they create
 anything, so an Issue that ``theme-fit`` would report never gets made. It
@@ -27,7 +28,12 @@ to the Issue about to be created, and checks the parent's theme:
   or two with a body line naming both (PAD-02-015);
 - the body has a ``Theme: <label> — <outcome>`` line naming it (PAD-02-018);
 - the ``--parent``, when given, is open and carries that theme (PAD-02-017,
-  PAD-01-007).
+  PAD-01-007);
+- an Epic's ``--title`` holds no ADR number or spec ID and does not start with
+  ``Epic:``, and its body has a ``Design idea:`` line that restates neither
+  the title nor a ``Theme:`` outcome, with no ``## Design idea`` section
+  restating the line (:func:`.analyze.epic_form_findings`; PAD-02-030,
+  PAD-02-032, PAD-02-034, PAD-02-038).
 
 Every violation is printed, not only the first. Exit codes: 0 the Issue may be
 created, 1 it may not, 2 the catalog cannot be loaded or a ``gh`` call fails.
@@ -51,7 +57,10 @@ from vultron.metadata.planning.gh import (
     gh_failure_detail,
     run_gh,
 )
-from vultron.metadata.planning.theme_fit.analyze import label_findings
+from vultron.metadata.planning.theme_fit.analyze import (
+    epic_form_findings,
+    label_findings,
+)
 from vultron.metadata.planning.theme_fit.model import (
     EPIC_TYPE,
     FindingKind,
@@ -146,6 +155,7 @@ def gate_findings(
     body: str,
     catalog: ThemeCatalog,
     *,
+    title: str = "",
     epic: bool = False,
     parent: ParentIssue | None = None,
 ) -> list[tuple[FindingKind, str]]:
@@ -155,17 +165,21 @@ def gate_findings(
         labels: Every label it will carry; non-theme labels are ignored.
         body: Its body text.
         catalog: The theme catalog its labels are checked against.
-        epic: True when it is an Epic, which may carry a named second theme.
+        title: Its title; an Epic's is checked for form.
+        epic: True when it is an Epic, which may carry a named second theme
+            and must pass the title and body form checks.
         parent: The Issue it will be a sub-issue of, if any.
     """
     issue = OpenIssue(
         number=0,
-        title="",
+        title=title,
         issue_type=EPIC_TYPE if epic else None,
         labels=frozenset(labels),
         body=body,
     )
     found = list(label_findings(issue, catalog, is_leaf=True))
+    if epic:
+        found.extend(epic_form_findings(issue))
     if parent is not None:
         found.extend(_parent_findings(issue, parent))
     return found
@@ -186,7 +200,8 @@ def main(argv: list[str] | None = None, run: Runner = run_gh) -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Refuse to create an Issue without exactly one theme, a Theme: "
-            "line, and a parent carrying that theme."
+            "line, and a parent carrying that theme, or an Epic whose title "
+            "or body breaks the form rules."
         )
     )
     parser.add_argument(
@@ -206,8 +221,12 @@ def main(argv: list[str] | None = None, run: Runner = run_gh) -> int:
     parser.add_argument(
         "--epic",
         action="store_true",
-        help="it is an Epic (one theme, or two with a named split)",
+        help=(
+            "it is an Epic (one theme, or two with a named split, and the "
+            "title and body form rules); needs --title"
+        ),
     )
+    parser.add_argument("--title", help="its title; required with --epic")
     parser.add_argument(
         "--repo",
         default=DEFAULT_REPO,
@@ -219,6 +238,8 @@ def main(argv: list[str] | None = None, run: Runner = run_gh) -> int:
         help="the catalog note (default: notes/epic-themes.md)",
     )
     args = parser.parse_args(argv)
+    if args.epic and args.title is None:
+        parser.error("--epic needs --title")
 
     if args.body_file == "-":
         body = sys.stdin.read()
@@ -250,6 +271,7 @@ def main(argv: list[str] | None = None, run: Runner = run_gh) -> int:
         split_labels(args.label),
         body,
         catalog,
+        title=args.title or "",
         epic=args.epic,
         parent=parent,
     )

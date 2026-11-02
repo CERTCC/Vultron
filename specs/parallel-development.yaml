@@ -557,7 +557,12 @@ groups:
           as well as a feature ("X can do Y").
         verification: >-
           A reviewer checks each new or retitled Epic's title when
-          `calve-epics` proposes it or `create-epic` creates it.
+          `calve-epics` proposes it or `create-epic` creates it; whether a
+          title states the right claim is judgment. The one label form a
+          script can see, a title that starts with `Epic:`, `theme-gate --epic`
+          refuses and `theme-fit` reports as an `epic-title-prefix` finding,
+          which `TestEpicForm` in `test/metadata/test_theme_gate.py` and in
+          `test/metadata/test_theme_fit.py` checks.
       - id: PAD-02-031
         priority: SHOULD
         kind: process
@@ -588,18 +593,26 @@ groups:
         - rel_type: extends
           spec_id: PAD-02-030
         verification: >-
-          A reviewer checks the title with PAD-02-030 until a `theme-gate`
-          and `theme-fit` check for IDs in Epic titles exists.
+          `theme-gate --epic`, which `create_epic.sh` runs with the title,
+          refuses a title holding an ADR number or a spec or group ID, and
+          `theme-fit` reports each open Epic with one as an `epic-title-id`
+          finding. `TestEpicForm` in `test/metadata/test_theme_gate.py` and in
+          `test/metadata/test_theme_fit.py` checks both, and
+          `test_refuses_an_id_in_the_title` checks that the script stops
+          before any `gh` call.
       - id: PAD-02-033
         priority: MUST
         kind: process
         statement: >-
           An Epic's `Theme:` line MUST give, as the outcome PAD-02-018 asks
-          for, why the title's claim matters to the theme.
+          for, the consequence of the title's claim that a reader of the theme
+          notices.
         rationale: >-
           The title already states the claim, so the `Theme:` line adds what
           the title cannot show: how the claim serves the theme the Epic is
-          ranked in.
+          ranked in. Read as "why the claim matters", the line was written as
+          a second copy of the claim in most Epics; naming the consequence a
+          reader notices gives it its own content.
         relationships:
         - rel_type: refines
           spec_id: PAD-02-018
@@ -619,25 +632,36 @@ groups:
         - rel_type: extends
           spec_id: PAD-02-033
         verification: >-
-          A reviewer checks the body with PAD-02-033.
+          A reviewer checks the body with PAD-02-033. The repeats a script can
+          see, `theme-gate --epic` refuses and `theme-fit` reports: a
+          `Design idea:` line holding the title or a `Theme:` outcome word for
+          word (`design-idea-repeats`), and a `## Design idea` section holding
+          the line (`design-section-repeats`). `TestEpicForm` in
+          `test/metadata/test_theme_gate.py` and in
+          `test/metadata/test_theme_fit.py` checks both.
       - id: PAD-02-035
         priority: SHOULD
         kind: process
         statement: >-
-          An Epic SHOULD hold no more open leaf Issues than one
-          `work-epic-tasks` run drains, about 10.
+          An Epic SHOULD hold no more than 12 open Task, Feature and Bug
+          leaves, about what one `work-epic-tasks` run drains.
         rationale: >-
           An Epic that one run can drain has one clear point at which its
           claim comes true. A larger one stays open across many sessions and
           its claim stays false long after most of its work is done.
-          `work-epic-tasks` already uses this bound, so the Epic size and the
-          way Epics are worked agree.
+          `work-epic-tasks` drains Tasks and Bugs and never Ideas or Concerns,
+          which `plan-issue` works one at a time, so only the kinds a run
+          drains count; an Epic of 12 Ideas is a planning queue, not an
+          oversized Epic. The number 12 gives a point to act: "about 10" left
+          Epics at 11 and 12 with no clear call.
         relationships:
         - rel_type: uses_definition
           spec_id: PAD-01-002
         verification: >-
-          A reviewer checks the open child count when `calve-epics` proposes,
-          fuses or splits an Epic.
+          A reviewer checks the open Task, Feature and Bug count when
+          `calve-epics` proposes, fuses or splits an Epic; Mode 3 proposes a
+          split for an Epic over the bound, and a kept-whole one gets a
+          comment giving the reason.
       - id: PAD-02-036
         priority: SHOULD
         kind: process
@@ -683,9 +707,48 @@ groups:
           approach needs one home in the body. The design idea as an approach
           is also the grain `calve-epics` cuts Epics along.
         verification: >-
-          A reviewer checks the body when `calve-epics` proposes the Epic,
-          until a `theme-gate --epic` check for the `Design idea:` line
-          exists.
+          `theme-gate --epic` refuses an Epic body with no `Design idea:` line
+          that has text after the colon, and `theme-fit` reports each open
+          Epic without one as a `missing-design-idea` finding. `TestEpicForm`
+          in `test/metadata/test_theme_gate.py` and in
+          `test/metadata/test_theme_fit.py` checks both, and
+          `test_refuses_a_missing_design_idea` checks that `create_epic.sh`
+          stops before any `gh` call. Whether the line states the approach is
+          a reviewer's call when `calve-epics` proposes the Epic.
+      - id: PAD-02-039
+        priority: MUST
+        kind: process
+        statement: >-
+          A proposal to fuse Epics at different Schedule tiers MUST state the
+          tier the fused Epic takes.
+        rationale: >-
+          Leaves take their Epic's tier (PAD-02-001), so fusing a Someday Epic
+          into a Next one moves every child it brings to Next. Stated, the
+          change is the user's to accept; unstated, the children are promoted
+          or buried without anyone deciding it.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-02-036
+        verification: >-
+          A reviewer checks the fuse proposal when `calve-epics` Mode 3 makes
+          it.
+      - id: PAD-02-040
+        priority: MUST
+        kind: process
+        statement: >-
+          An Epic split off another MUST take its parent's Schedule tier,
+          unless the split proposal states a different one.
+        rationale: >-
+          A size split changes how work is grouped, not when it is done. A
+          slice that keeps its parent's tier keeps every child's rank, so no
+          in-flight work moves; a different tier is a ranking decision the
+          user makes on its own.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-02-037
+        verification: >-
+          A reviewer checks the split proposal when `calve-epics` Mode 3 makes
+          it.
 
   - id: PAD-03
     title: Priority Ordering Authority

@@ -13,7 +13,8 @@
 """The structural theme rules, as one pure function over open Issues.
 
 Requirements: PAD-01-002, PAD-01-007, PAD-02-001, PAD-02-008, PAD-02-014, PAD-02-015,
-PAD-02-017, PAD-02-018, PAD-02-028.
+PAD-02-017, PAD-02-018, PAD-02-028, PAD-02-030, PAD-02-032, PAD-02-034,
+PAD-02-038.
 """
 
 from __future__ import annotations
@@ -24,6 +25,8 @@ from itertools import chain
 
 from vultron.metadata.planning.bundle_fit.model import SCHEDULE_ORDER
 from vultron.metadata.planning.theme_fit.model import (
+    EPIC_TITLE_PREFIX,
+    TITLE_ID_PATTERN,
     UNSCHEDULED,
     Finding,
     FindingKind,
@@ -31,6 +34,7 @@ from vultron.metadata.planning.theme_fit.model import (
     ThemeFitReport,
     TierCoherence,
     UntriagedIssue,
+    restates,
 )
 from vultron.metadata.planning.themes import ThemeCatalog, ThemeStatus
 
@@ -125,10 +129,57 @@ def label_findings(
         )
 
 
+def _title_findings(epic: OpenIssue) -> Iterator[tuple[FindingKind, str]]:
+    ids = TITLE_ID_PATTERN.findall(epic.title)
+    if ids:
+        yield FindingKind.EPIC_TITLE_ID, f"names {_fmt(ids)}"
+    if EPIC_TITLE_PREFIX.match(epic.title):
+        yield FindingKind.EPIC_TITLE_PREFIX, "a label, not a claim"
+
+
+def _design_idea_findings(
+    epic: OpenIssue,
+) -> Iterator[tuple[FindingKind, str]]:
+    ideas = epic.design_ideas()
+    if not ideas:
+        yield FindingKind.MISSING_DESIGN_IDEA, "no `Design idea:` line"
+        return
+    copied = [("the title", epic.title)] + [
+        ("the `Theme:` outcome", outcome)
+        for outcome in epic.reason_line_outcomes()
+    ]
+    for idea in ideas:
+        for name, text in copied:
+            if restates(idea, text):
+                yield FindingKind.DESIGN_IDEA_REPEATS, f"repeats {name}"
+                break
+        if any(
+            restates(section, idea) for section in epic.design_idea_sections()
+        ):
+            yield (
+                FindingKind.DESIGN_SECTION_REPEATS,
+                "a `## Design idea` section repeats the line",
+            )
+
+
+def epic_form_findings(epic: OpenIssue) -> Iterator[tuple[FindingKind, str]]:
+    """Title and body form findings for one Epic (PAD-02-030 to PAD-02-038).
+
+    Only the form a script can see: an ID or an ``Epic:`` label in the
+    title, a missing ``Design idea:`` line, and a line or section that
+    restates another. Whether the title states the right claim stays a
+    reviewer's call. Public because ``theme-gate --epic`` applies the same
+    checks before the Epic exists (:mod:`.gate`).
+    """
+    yield from _title_findings(epic)
+    yield from _design_idea_findings(epic)
+
+
 def _epic_findings(
     epic: OpenIssue, ancestor_epic: int | None, open_children: int
 ) -> Iterator[tuple[FindingKind, str]]:
-    """Nesting and calving findings for one Epic."""
+    """Form, nesting and calving findings for one Epic."""
+    yield from epic_form_findings(epic)
     if ancestor_epic is not None:
         yield FindingKind.NESTED_EPIC, f"under Epic #{ancestor_epic}"
     if epic.is_auto_calved() and open_children < 2:

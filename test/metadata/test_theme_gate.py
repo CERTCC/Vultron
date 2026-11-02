@@ -64,6 +64,9 @@ _NOTE = (
 )
 
 _ALPHA_BODY = "Theme: theme:alpha — makes alpha work.\n\nDetails."
+_IDEA = "Design idea: one parser feeds every alpha check."
+_ALPHA_EPIC_BODY = f"{_ALPHA_BODY}\n{_IDEA}"
+_ALPHA_TITLE = "Alpha checks agree on every input"
 
 
 @pytest.fixture
@@ -204,7 +207,13 @@ class TestLeaf:
 class TestEpic:
     def test_one_theme_passes(self, catalog: ThemeCatalog) -> None:
         assert (
-            gate_findings(["theme:alpha"], _ALPHA_BODY, catalog, epic=True)
+            gate_findings(
+                ["theme:alpha"],
+                _ALPHA_EPIC_BODY,
+                catalog,
+                title=_ALPHA_TITLE,
+                epic=True,
+            )
             == []
         )
 
@@ -213,7 +222,8 @@ class TestEpic:
     ) -> None:
         body = (
             "Theme: theme:alpha theme:beta — both halves.\n"
-            "Theme split: theme:alpha covers A; theme:beta covers B."
+            "Theme split: theme:alpha covers A; theme:beta covers B.\n"
+            f"{_IDEA}"
         )
         found = gate_findings(
             ["theme:alpha", "theme:beta"], body, catalog, epic=True
@@ -223,15 +233,154 @@ class TestEpic:
     def test_two_themes_without_a_split_are_refused(
         self, catalog: ThemeCatalog
     ) -> None:
-        body = "Theme: theme:alpha — a.\nTheme: theme:beta — b."
+        body = f"Theme: theme:alpha — a.\nTheme: theme:beta — b.\n{_IDEA}"
         found = gate_findings(
             ["theme:alpha", "theme:beta"], body, catalog, epic=True
         )
         assert _kinds(found) == [FindingKind.EPIC_THEME_COUNT]
 
     def test_no_theme_is_refused(self, catalog: ThemeCatalog) -> None:
-        found = gate_findings([], _ALPHA_BODY, catalog, epic=True)
+        found = gate_findings([], _ALPHA_EPIC_BODY, catalog, epic=True)
         assert _kinds(found) == [FindingKind.EPIC_THEME_COUNT]
+
+
+class TestEpicForm:
+    """The title and body form checks ``--epic`` adds (PAD-02-030 to 038)."""
+
+    @staticmethod
+    def _gate(
+        catalog: ThemeCatalog,
+        title: str = _ALPHA_TITLE,
+        body: str = _ALPHA_EPIC_BODY,
+    ) -> list[FindingKind]:
+        return _kinds(
+            gate_findings(
+                ["theme:alpha"], body, catalog, title=title, epic=True
+            )
+        )
+
+    @pytest.mark.spec("PAD-02-032")
+    @pytest.mark.parametrize(
+        "title",
+        [
+            "Alpha checks agree on every input (ADR-0099)",
+            "Alpha checks agree, as ADR 12 says",
+            "Alpha checks meet PAD-02-030",
+            "Messages arrive in any order (SYNC-19)",
+        ],
+        ids=["adr-number", "adr-spaced", "spec-id", "group-id"],
+    )
+    def test_an_id_in_the_title_is_refused(
+        self, catalog: ThemeCatalog, title: str
+    ) -> None:
+        assert self._gate(catalog, title=title) == [FindingKind.EPIC_TITLE_ID]
+
+    @pytest.mark.spec("PAD-02-032")
+    @pytest.mark.parametrize(
+        "title",
+        [
+            "Vultron cases and CSAF 2.1 documents translate into each other",
+            "Peers reject CVE-2024-1234 reports with SHA-256 mismatches",
+            "Readers can map Vultron states onto CVSS and AS2",
+        ],
+        ids=["version", "cve-and-hash", "acronyms"],
+    )
+    def test_id_shaped_words_that_are_not_ids_pass(
+        self, catalog: ThemeCatalog, title: str
+    ) -> None:
+        assert self._gate(catalog, title=title) == []
+
+    @pytest.mark.spec("PAD-02-030")
+    @pytest.mark.parametrize(
+        "title", ["Epic: alpha checks", "epic : alpha checks"]
+    )
+    def test_a_title_starting_with_epic_label_is_refused(
+        self, catalog: ThemeCatalog, title: str
+    ) -> None:
+        assert self._gate(catalog, title=title) == [
+            FindingKind.EPIC_TITLE_PREFIX
+        ]
+
+    @pytest.mark.spec("PAD-02-030")
+    def test_epic_later_in_the_title_passes(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        title = "Every open Epic reads on the board as a claim"
+        assert self._gate(catalog, title=title) == []
+
+    @pytest.mark.spec("PAD-02-038")
+    @pytest.mark.parametrize(
+        "body",
+        [
+            _ALPHA_BODY,
+            f"{_ALPHA_BODY}\nDesign idea:",
+            f"{_ALPHA_BODY}\nThe design idea: one parser.",
+        ],
+        ids=["absent", "empty", "not-at-line-start"],
+    )
+    def test_no_design_idea_line_is_refused(
+        self, catalog: ThemeCatalog, body: str
+    ) -> None:
+        assert self._gate(catalog, body=body) == [
+            FindingKind.MISSING_DESIGN_IDEA
+        ]
+
+    @pytest.mark.spec("PAD-02-034")
+    @pytest.mark.parametrize(
+        "idea",
+        [
+            "Design idea: makes alpha work",
+            "Design idea: Makes `alpha` work!",
+            f"Design idea: {_ALPHA_TITLE}.",
+        ],
+        ids=["theme-outcome", "outcome-case-and-punctuation", "title"],
+    )
+    def test_a_design_idea_repeating_outcome_or_title_is_refused(
+        self, catalog: ThemeCatalog, idea: str
+    ) -> None:
+        body = f"{_ALPHA_BODY}\n{idea}"
+        assert self._gate(catalog, body=body) == [
+            FindingKind.DESIGN_IDEA_REPEATS
+        ]
+
+    @pytest.mark.spec("PAD-02-034")
+    def test_a_section_repeating_the_line_is_refused(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = (
+            f"{_ALPHA_EPIC_BODY}\n\n## Design idea\n\n"
+            "One parser feeds\nevery alpha check.\n\n## Children\n- #1"
+        )
+        assert self._gate(catalog, body=body) == [
+            FindingKind.DESIGN_SECTION_REPEATS
+        ]
+
+    @pytest.mark.spec("PAD-02-034")
+    def test_a_section_adding_detail_passes(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = (
+            f"{_ALPHA_EPIC_BODY}\n\n## Design idea\n\n"
+            "The parser lives in `alpha/parse.py`; checks import it.\n"
+        )
+        assert self._gate(catalog, body=body) == []
+
+    def test_every_form_breach_is_reported(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        assert self._gate(
+            catalog, title="Epic: alpha (ADR-0001)", body=_ALPHA_BODY
+        ) == [
+            FindingKind.EPIC_TITLE_ID,
+            FindingKind.EPIC_TITLE_PREFIX,
+            FindingKind.MISSING_DESIGN_IDEA,
+        ]
+
+    def test_a_leaf_gets_no_form_checks(self, catalog: ThemeCatalog) -> None:
+        found = gate_findings(
+            ["theme:alpha"], _ALPHA_BODY, catalog, title="Epic: ADR-0001"
+        )
+        assert found == []
 
 
 def test_split_labels_accepts_comma_lists() -> None:
@@ -342,6 +491,28 @@ class TestMain:
         )
         assert main(args, run=_FakeGh("")) == 2
 
+    def test_epic_without_a_title_exits_2(
+        self, note: Path, body: Path
+    ) -> None:
+        args = self._args(note, body, "--label", "theme:alpha", "--epic")
+        with pytest.raises(SystemExit) as exc:
+            main(args, run=_FakeGh(""))
+        assert exc.value.code == 2
+
+    @pytest.mark.spec("PAD-02-032")
+    def test_epic_title_is_checked(
+        self,
+        note: Path,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        body = tmp_path / "epic.md"
+        body.write_text(_ALPHA_EPIC_BODY, encoding="utf-8")
+        base = self._args(note, body, "--label", "theme:alpha", "--epic")
+        assert main([*base, "--title", _ALPHA_TITLE], run=_FakeGh("")) == 0
+        assert main([*base, "--title", "Alpha (ADR-0001)"], _FakeGh("")) == 1
+        assert "PAD-02-032" in capsys.readouterr().err
+
 
 # --- the scripts that call the gate ----------------------------------------
 
@@ -385,6 +556,7 @@ class _Gh:
 
 _THEME = "theme:dev-workflow"
 _BODY = f"Theme: {_THEME} — tests the gate.\n\nBody."
+_EPIC_BODY = f"{_BODY}\nDesign idea: a stand-in gh answers every call."
 
 
 def _parent_rule(*labels: str) -> dict[str, object]:
@@ -581,7 +753,7 @@ def epic_tree(tmp_path: Path) -> _EpicTree:
 class TestCreateEpicScriptGate:
     def test_requires_a_theme_argument(self, tmp_path: Path) -> None:
         gh = _Gh(tmp_path, [])
-        result = gh.run(str(_CREATE_EPIC), "T", _BODY, "Someday")
+        result = gh.run(str(_CREATE_EPIC), "T", _EPIC_BODY, "Someday")
         assert result.returncode != 0
         assert "Usage" in result.stderr
         assert gh.calls() == []
@@ -600,7 +772,7 @@ class TestCreateEpicScriptGate:
         result = gh.run(
             str(_CREATE_EPIC),
             "T",
-            _BODY,
+            _EPIC_BODY,
             "Someday",
             _THEME,
             "theme:test-and-ci",
@@ -614,16 +786,36 @@ class TestCreateEpicScriptGate:
         self, tmp_path: Path, theme: str
     ) -> None:
         gh = _Gh(tmp_path, [])
-        result = gh.run(str(_CREATE_EPIC), "T", _BODY, "Someday", theme)
+        result = gh.run(str(_CREATE_EPIC), "T", _EPIC_BODY, "Someday", theme)
         assert result.returncode == 1
         assert "one theme per argument" in result.stderr
+        assert gh.calls() == []
+
+    @pytest.mark.spec("PAD-02-032")
+    def test_refuses_an_id_in_the_title(self, tmp_path: Path) -> None:
+        gh = _Gh(tmp_path, [])
+        result = gh.run(
+            str(_CREATE_EPIC), "T (ADR-0001)", _EPIC_BODY, "Someday", _THEME
+        )
+        assert result.returncode == 1
+        assert "PAD-02-032" in result.stderr
+        assert gh.calls() == []
+
+    @pytest.mark.spec("PAD-02-038")
+    def test_refuses_a_missing_design_idea(self, tmp_path: Path) -> None:
+        gh = _Gh(tmp_path, [])
+        result = gh.run(str(_CREATE_EPIC), "T", _BODY, "Someday", _THEME)
+        assert result.returncode == 1
+        assert "PAD-02-038" in result.stderr
         assert gh.calls() == []
 
     def test_creates_labelled_and_scheduled_when_the_gate_passes(
         self, epic_tree: _EpicTree
     ) -> None:
         gh = epic_tree.gh(_label_rule(_THEME, "L_theme"), _EPIC_CREATED)
-        result = gh.run(str(epic_tree.script), "T", _BODY, "Later", _THEME)
+        result = gh.run(
+            str(epic_tree.script), "T", _EPIC_BODY, "Later", _THEME
+        )
         assert result.returncode == 0, result.stderr
         assert result.stdout.strip() == "77"
         create = next(c for c in gh.calls() if "createIssue" in " ".join(c))
@@ -636,7 +828,9 @@ class TestCreateEpicScriptGate:
         self, epic_tree: _EpicTree
     ) -> None:
         gh = epic_tree.gh(_label_rule(_THEME, None), _EPIC_CREATED)
-        result = gh.run(str(epic_tree.script), "T", _BODY, "Later", _THEME)
+        result = gh.run(
+            str(epic_tree.script), "T", _EPIC_BODY, "Later", _THEME
+        )
         assert result.returncode == 1
         assert "does not exist" in result.stderr
         assert not gh.created()
@@ -647,7 +841,9 @@ class TestCreateEpicScriptGate:
     ) -> None:
         epic_tree.add_to_project.write_text("exit 3\n")
         gh = epic_tree.gh(_label_rule(_THEME, "L_theme"), _EPIC_CREATED)
-        result = gh.run(str(epic_tree.script), "T", _BODY, "Later", _THEME)
+        result = gh.run(
+            str(epic_tree.script), "T", _EPIC_BODY, "Later", _THEME
+        )
         assert result.returncode == 3
         assert "Epic #77 was created" in result.stderr
         assert "do not create it again" in result.stderr
