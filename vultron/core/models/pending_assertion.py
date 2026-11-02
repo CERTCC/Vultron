@@ -160,11 +160,17 @@ class PendingAssertionStore:
         ``timeout_seconds`` disables suppression, so it disables expiry with
         it — there is nothing to time out.
 
-        The instant is named *at*, not *now*: on the write path it is the
-        stamp the new entry carries, and a value named ``now`` inside
-        ``core/models`` fails the replica copy-only ratchet, which follows a
-        model method by name alone and over-follows on purpose (CM-23-016,
-        ``test/architecture/_replica_slots.py``).
+        The instant is named *at*, not *now*, because it frequently is not
+        now: on the write path it is the stamp the new entry carries, and on
+        a lookup it is the instant of the act the caller is performing.  That
+        is already the name ``core/models`` uses for a supplied instant
+        (``embargo_termination.has_reached_end_time``).  It also keeps the
+        replica copy-only ratchet honest: that walk forbids the bare name
+        ``now`` as a proxy for a clock read (CM-23-044, "MUST NOT ... read a
+        clock") and follows a model method by name alone, so it over-follows
+        on purpose (``test/architecture/_replica_slots.py``) and cannot tell
+        a clock read from an injected instant.  The name is right on its own
+        terms; the ratchet only agrees.
         """
         if self.timeout_seconds == 0 or entry.status != "pending":
             return False

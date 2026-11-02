@@ -255,8 +255,10 @@ def ask_case_manager_to_terminate_once(
     subtree is built: a construction-time read is fixed before any node
     ticks, so it cannot move with the check's verdict or with thread
     interleaving, which is the defect #5591 fixed in the store's lookups.
-    It is the same shape as the embargo and case clock decisions, and #5649
-    moves all three to the act that calls for the tree.
+    The fallback is the same ``or now_utc()`` shape as the five guard nodes of
+    #5650, which lists this site as its sixth and makes *at* required; where
+    that instant comes from is the decision #5649 takes for the case and
+    embargo clock decisions, so the two go together.
     """
     return py_trees.composites.Selector(
         name="AskCaseManagerToTerminateOnce",

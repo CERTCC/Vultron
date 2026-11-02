@@ -267,6 +267,21 @@ class TestTimeout:
         )
         assert store_short._store[_KEY].status == "timed_out"
 
+    def test_an_activity_clear_marks_an_aged_out_entry_too(self, store_short):
+        """The third lookup applies the mark against its own instant.
+
+        ``clear_activity`` is a lookup like the other two: it judges the
+        entry's age against the instant its caller gives it, marks what that
+        instant shows is overdue, and does not clear it — it was no longer
+        pending (SYNC-11-005).
+        """
+        store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        future = now_utc() + timedelta(seconds=61)
+
+        assert store_short.clear_activity(CASE_ID, OBJECT_ID, at=future) == []
+
+        assert store_short._store[_KEY].status == "timed_out"
+
     def test_a_later_write_also_stops_an_aged_out_entry_suppressing(
         self, store_short
     ):
@@ -397,6 +412,18 @@ class TestZeroTimeout:
         assert not store_zero.is_suppressed(
             CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=now_utc()
         )
+
+    def test_a_zero_timeout_sweep_times_nothing_out(self, store_zero):
+        """Zero disables suppression, so there is nothing to time out.
+
+        Pinned because the sweep used to mark every pending entry here: with
+        no window, an age of zero already met the deadline. An entry a
+        zero-timeout store never suppressed has nothing to lift (SYNC-11-005).
+        """
+        store_zero.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+
+        assert store_zero.expire_timed_out() == 0
+        assert store_zero._store[_KEY].status == "pending"
 
 
 # ---------------------------------------------------------------------------

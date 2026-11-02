@@ -2795,7 +2795,7 @@ groups:
           pair of a composed family is held out. What a family must satisfy
           first, including the rule that no read on a shared stretch may read
           the recording clock, is stated once in
-          `notes/demo-scenario-tree.md` § "Shared-prefix check".
+          `notes/demo-scenario-tree.md` § "Composition".
         adr:
           - ADR-0098
         relationships:

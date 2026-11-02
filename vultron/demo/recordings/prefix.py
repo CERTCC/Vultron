@@ -103,7 +103,7 @@ _TIMESTAMP = "<timestamp>"
 #:
 #: What a family must satisfy before it is named here, and why a read that
 #: reads the clock breaks it, is stated once in
-#: ``notes/demo-scenario-tree.md`` § "Shared-prefix check".
+#: ``notes/demo-scenario-tree.md`` § "Composition".
 COMPOSED_FAMILIES: tuple[frozenset[str], ...] = (
     frozenset(
         {

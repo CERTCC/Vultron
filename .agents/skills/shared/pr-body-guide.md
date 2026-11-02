@@ -141,7 +141,8 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
   otherwise. `bash .agents/skills/shared/spec-amendments.sh origin/main` lists the
   IDs (new requirements are not listed — nothing built on them can be wrong).
   It compares two git refs, so **run it after the spec change is committed**:
-  on a dirty tree it reports nothing and the section is omitted (#5591).
+  an uncommitted `specs/` edit is invisible to it, and it exits 2 rather than
+  answer "no amendment" from a tree it cannot read (#5591).
   One `### <ID>` block each, with **Before**, **After** and **Reason**. On a
   sweep large enough to break GitHub's body limit (PRB-11), show a long
   statement as its changed span with a few words of context either side,

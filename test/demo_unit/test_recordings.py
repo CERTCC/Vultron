@@ -958,7 +958,7 @@ class TestComposedFamilies:
     # (#4733).  A family that still places its shared steps by hand is absent
     # whole, because the order can then differ where the logic matches and
     # only the isomorphism above can hold.  What else a family must satisfy is
-    # stated once in notes/demo-scenario-tree.md § "Shared-prefix check" and
+    # stated once in notes/demo-scenario-tree.md § "Composition" and
     # cited from COMPOSED_FAMILIES; no pair of a composed family is held out.
     @pytest.mark.parametrize(
         "pair",

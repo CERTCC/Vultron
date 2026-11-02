@@ -729,7 +729,7 @@ def terminate_embargo_bt(
             else termination.participant_cause,
             # The end-time paths hold this act's instant and pass it as
             # *terminated_at*; the cascades hold none and the ask subtree
-            # reads one as it is built (#5591, #5649).
+            # reads one as it is built (#5591, #5650).
             at=terminated_at,
         )
     capture, notices = embargo_ending_notice_nodes(

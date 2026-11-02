@@ -394,9 +394,8 @@ retiring `path=` and the hand-placed `reach_step` (#5537).
   identical in solo runs until the lookup started taking its instant from the
   act that calls for it and the registry joined the per-run resets (#5591);
   the coordinator-first subtree is one family of seven now, with every pair
-  checked. The vendor-first half
-  parts at ledger entry 15 or 22, well ahead of that stretch, so it needed
-  neither (#5536).
+  checked. The vendor-first half parts at ledger entry 15 or 22, well ahead of
+  that stretch, so it needed neither (#5536).
 - **Key a composed view on the scenario and the case, never the case alone.**
   One seed also means every scenario draws the *same* case id, which is what
   lets siblings record identical bytes for a shared opening (DEMOCI-11-025) and
