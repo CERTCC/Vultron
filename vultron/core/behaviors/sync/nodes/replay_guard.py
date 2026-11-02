@@ -38,6 +38,11 @@ been sent, separately from the decision to replay (:func:`should_replay`).  A
 replay that sends nothing must not start a cooldown — see
 :func:`record_replay`.
 
+A genesis Reject for an entry the last replay from genesis already sent is
+declined outright, under the same ceiling (:func:`genesis_reject_answered`,
+SYNC-15-024): the short genesis cooldown alone let each queued Reject on a
+loaded host resend the whole ledger (#5552).
+
 The cooldown is deliberately a rate limit rather than permanent suppression:
 if a replayed entry is lost in transit, the peer's next Reject must eventually
 be able to trigger a fresh replay, or the peer would stay permanently
@@ -70,7 +75,8 @@ GENESIS_REPLAY_COOLDOWN_SECONDS: float = 2.0
 
 #: Ceiling on the doubled cooldown, so a peer stuck for hours is still retried
 #: every few minutes: the guard is a rate limit, never permanent suppression
-#: (SYNC-15-011).
+#: (SYNC-15-011).  It also bounds how long an answered genesis Reject is
+#: declined (SYNC-15-024).
 MAX_REPLAY_COOLDOWN_SECONDS: float = 600.0
 
 
@@ -255,6 +261,7 @@ def record_replay(
     case_id: str,
     peer_id: str,
     from_hash: str,
+    through_index: int | None,
 ) -> None:
     """Record that entries were replayed to *peer_id* from *from_hash*.
 
@@ -270,7 +277,13 @@ def record_replay(
     A replay from the position already recorded counts one more replay there,
     lengthening the next cooldown; one from a new position restarts the count.
 
-    Spec: SYNC-15-003, SYNC-15-013.
+    A replay from genesis also records *through_index*, the highest
+    ``log_index`` it sent, so a genesis Reject it already answered can be
+    declined (:func:`genesis_reject_answered`).  A replay from another
+    position leaves that index alone: it no longer counts, since the recorded
+    position is then not genesis.
+
+    Spec: SYNC-15-003, SYNC-15-013, SYNC-15-022.
     """
     now = now_utc()
 
@@ -283,7 +296,53 @@ def record_replay(
         )
         state.last_replayed_from_hash = from_hash
         state.last_replayed_at = now
+        if from_hash == "":
+            state.last_genesis_replay_through_index = through_index
 
     update_replication_state(
         datalayer, case_id=case_id, peer_id=peer_id, change=_record
+    )
+
+
+def genesis_reject_answered(
+    datalayer: CasePersistence,
+    *,
+    case_id: str,
+    peer_id: str,
+    rejected_index: int | None,
+) -> bool:
+    """Report whether the last replay from genesis already answered a genesis Reject.
+
+    A loaded host handles queued genesis Rejects further apart than
+    :data:`GENESIS_REPLAY_COOLDOWN_SECONDS`, so the cooldown alone lets each
+    one resend the case and the whole ledger (#5552).  A Reject whose
+    rejected entry the last genesis replay already sent asks for nothing that
+    replay did not send, so it is declined (SYNC-15-019) when all of these
+    hold (SYNC-15-024):
+
+    - the recorded replay position is still genesis: a peer that moved past
+      genesis and reports it again has lost its copy, so it is answered;
+    - *rejected_index* is at or below the highest ``log_index`` that replay
+      sent; a Reject naming no entry (``None``) or a later one is answered;
+    - less than :data:`MAX_REPLAY_COOLDOWN_SECONDS` has passed since that
+      replay, so the limit never becomes a stop (SYNC-15-018).
+
+    Read-only: a declined Reject changes no replay record (SYNC-15-025).  A
+    record stored before the covered index existed reads as nothing covered.
+
+    Spec: SYNC-15-018, SYNC-15-019, SYNC-15-022, SYNC-15-024, SYNC-15-025.
+    """
+    if rejected_index is None:
+        return False
+    state = read_replication_state(datalayer, case_id=case_id, peer_id=peer_id)
+    if (
+        state is None
+        or state.last_replayed_at is None
+        or state.last_replayed_from_hash != ""
+        or state.last_genesis_replay_through_index is None
+        or rejected_index > state.last_genesis_replay_through_index
+    ):
+        return False
+    return not cooldown_elapsed(
+        state.last_replayed_at, MAX_REPLAY_COOLDOWN_SECONDS
     )

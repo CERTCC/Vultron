@@ -446,6 +446,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
                 case_id=case_id,
                 peer_id=peer_id,
                 from_hash=from_hash,
+                through_index=sent.through_index,
             )
 
         self.logger.info(
