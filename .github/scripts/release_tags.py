@@ -250,6 +250,23 @@ def tag_commit(tag: str) -> str | None:
         return None
 
 
+def tag_object(tag: str) -> str | None:
+    """The object id of *tag* in this clone, or ``None`` if there is no such tag.
+
+    For an annotated tag this is the tag object, not the commit it names, so
+    it tells one push of a name from another.
+    """
+    try:
+        return run("git", "rev-parse", f"refs/tags/{tag}").strip()
+    except subprocess.CalledProcessError:
+        return None
+
+
+def read_tag_message(tag: str) -> str:
+    """The message of tag *tag* in this clone; a lightweight tag gives its commit's."""
+    return run("git", "tag", "--list", "--format=%(contents)", tag)
+
+
 def publish_tags(*, points_at: str = "") -> list[Tag]:
     """Every ``publish-*`` tag, publishes and ignored ones alike."""
     return read_tags(f"{PUBLISH_PREFIX}*", points_at=points_at)

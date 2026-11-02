@@ -61,8 +61,10 @@ from release_tags import (
     next_publish_name,
     publish_tags,
     publish_tags_on,
+    read_tag_message,
     split_publish_tags,
     tag_commit,
+    tag_object,
     workflow_publish_tags_on,
 )
 
@@ -483,8 +485,7 @@ def _tag_from_this_run(
     for tag in workflow_publish_tags_on(sha):
         if tag.name not in remote:
             continue
-        message = run("git", "tag", "--list", "--format=%(contents)", tag.name)
-        if marker in message.splitlines():
+        if marker in read_tag_message(tag.name).splitlines():
             return tag.name
     return None
 
@@ -523,7 +524,7 @@ def create_tag(
             return name
         except subprocess.CalledProcessError:
             remote = _remote_tags().get(name)
-            if remote == run("git", "rev-parse", f"refs/tags/{name}").strip():
+            if remote is not None and remote == tag_object(name):
                 return name
             if remote is None or attempt == TAG_PUSH_ATTEMPTS:
                 raise

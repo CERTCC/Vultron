@@ -1290,8 +1290,8 @@ groups:
         statement: >-
           The publish gate, the promote workflow, the release tag check and the
           staleness alarm MUST read the local clone's `publish-*` and `v*` tags,
-          the commit a tag names, and the bot's tagging identity only through
-          the shared helper `.github/scripts/release_tags.py`.
+          the commit, object id and message of a tag, and the bot's tagging
+          identity only through the shared helper `.github/scripts/release_tags.py`.
         rationale: >-
           One helper gives all four the same answer to "which commits were
           published." A hand-pushed tag that the skip rule ignores (DOCBW-06-014)

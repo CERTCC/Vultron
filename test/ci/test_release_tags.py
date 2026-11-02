@@ -196,6 +196,19 @@ def test_tag_commit_peels_an_annotated_tag(repo: Path) -> None:
     assert _tags.tag_commit("v9.9.9") is None
 
 
+def test_tag_object_and_message_read_the_tag_itself(repo: Path) -> None:
+    tag_as_bot(repo, "publish-2026-10-30.1")
+    git(repo, "tag", "publish-2026-10-30.2")
+    annotated = _tags.tag_object("publish-2026-10-30.1")
+    assert annotated is not None and annotated != head(repo)
+    assert _tags.tag_object("publish-2026-10-30.2") == head(repo)
+    assert _tags.tag_object("publish-2026-10-30.9") is None
+    assert "scheduled publish." in _tags.read_tag_message(
+        "publish-2026-10-30.1"
+    )
+    assert _tags.read_tag_message("publish-2026-10-30.2").strip() == "first"
+
+
 def test_release_tags_skips_a_tag_that_is_no_version(repo: Path) -> None:
     git(repo, "tag", "vendor-drop")
     tag_as_bot(repo, "v2026.11.0")
@@ -210,6 +223,8 @@ _DIRECT_TAG_QUERIES = (
     "^{{commit}}",
     "publish-(\\d",
     "41898282+github-actions",
+    "%(contents)",
+    '"rev-parse", f"refs/tags/',
 )
 
 
