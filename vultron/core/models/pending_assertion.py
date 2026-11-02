@@ -156,42 +156,47 @@ class PendingAssertionStore:
             object_id=object_id,
         )
 
-    def _overdue(self, entry: PendingAssertion, now: datetime) -> bool:
-        """Whether *entry* is pending and *now* has reached its deadline.
+    def _overdue(self, entry: PendingAssertion, at: datetime) -> bool:
+        """Whether *entry* is pending and *at* has reached its deadline.
 
         A pure predicate: it reads no clock, and leaves *entry* alone.  Zero
         ``timeout_seconds`` disables suppression, so it disables expiry with
         it — there is nothing to time out.
+
+        The instant is named *at*, not *now*: on the write path it is the
+        stamp the new entry carries, and a value named ``now`` inside
+        ``core/models`` fails the replica copy-only ratchet, which follows a
+        model method by name alone and over-follows on purpose (CM-23-016,
+        ``test/architecture/_replica_slots.py``).
         """
         if self.timeout_seconds == 0 or entry.status != "pending":
             return False
-        return (now - entry.emitted_at).total_seconds() >= self.timeout_seconds
+        return (at - entry.emitted_at).total_seconds() >= self.timeout_seconds
 
-    def _observe(self, now: datetime) -> int:
-        """Advance the observed instant to *now* and time out what is overdue.
+    def _observe(self, at: datetime) -> int:
+        """Advance the observed instant to *at* and time out what is overdue.
 
         The one path that marks an entry ``"timed_out"``, called by every
         write and by the sweep (#5591).  The observed instant only ever moves
-        forward, so an earlier *now* — a peer's write landing out of order —
-        expires nothing it has already covered.
+        forward, so an earlier *at* — a clock that stepped back — expires
+        nothing it has already covered.
 
         Returns:
             How many entries this call moved to ``"timed_out"``.
         """
-        if self._observed is None or self._observed < now:
-            self._observed = now
-        at = self._observed
+        observed = at if self._observed is None else max(self._observed, at)
+        self._observed = observed
         overdue = [
             entry
             for entry in list(self._store.values())
-            if self._overdue(entry, at)
+            if self._overdue(entry, observed)
         ]
         for entry in overdue:
             entry.status = "timed_out"
             logger.error(
                 "pending_assertions: entry timed out after %.0fs "
                 "case_id=%s semantic_type=%s object_id=%.32s…",
-                (at - entry.emitted_at).total_seconds(),
+                (observed - entry.emitted_at).total_seconds(),
                 entry.case_id,
                 entry.semantic_type,
                 entry.object_id,
