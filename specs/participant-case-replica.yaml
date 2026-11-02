@@ -702,8 +702,8 @@ groups:
       An `Invite` that invites an actor to a case (`InviteActorToCase`) MUST be sent
       with `actor` set to the CASE_MANAGER's ID, not the Case Owner's ID. The Case Owner
       triggers the invite action, but the CASE_MANAGER MUST be the ActivityStreams actor
-      performing the send. Optionally, `attributedTo` on the activity MAY carry the case
-      owner's ID to record who initiated the invitation.
+      performing the send. Optionally, `attributedTo` on the activity MAY carry the Case
+      Owner's ID to record who initiated the invitation.
     rationale: >-
       A receiver records the Invite's `actor` as its trust anchor (PCR-03-004), and it
       later accepts the case copy only from that actor. If the Case Owner were the

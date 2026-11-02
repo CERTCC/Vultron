@@ -1,7 +1,7 @@
 ## 10. Case Coordination [N]
 
 Every case has a CASE_MANAGER.
-The CASE_MANAGER is a protocol **role**, `CASE_MANAGER`, and a participant holds it from case creation onward.
+The CASE_MANAGER is a protocol **role** (`CVDRole.CASE_MANAGER`), and a participant holds it from case creation onward.
 The participant that holds it may be the actor that created the case, or an actor that the case's creator delegated case maintenance to.
 This section names the authority *the CASE_MANAGER*: whichever participant holds the role for the case ([§2.2 Roles](introduction.md#22-roles)).
 

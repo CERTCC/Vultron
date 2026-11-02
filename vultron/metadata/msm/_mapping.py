@@ -159,10 +159,10 @@ NOT_YET_CHECKED = "not yet checked"
 NO_SENDER_CHECK = "any actor (no sender check applies)"
 
 #: The "Sent by" wording for an entry no received use case handles.  Such an
-#: act is internal to the CASE_MANAGER -- the CASE_MANAGER role, whichever
-#: actor holds it -- so no receiver applies a sender rule to it, though the
-#: CASE_MANAGER may still commit it to the case ledger as a ledgered activity
-#: (ADR-0140 item 5, SE-05-002).
+#: act is internal to the CASE_MANAGER (the role, whichever actor holds it),
+#: so no receiver applies a sender rule to it, though the CASE_MANAGER may
+#: still commit it to the case ledger as a ledgered activity (ADR-0140 item 5,
+#: SE-05-002).
 CASE_MANAGER_INTERNAL = "internal to the CASE_MANAGER"
 
 

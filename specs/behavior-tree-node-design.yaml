@@ -597,8 +597,8 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >-
-      The BT node for creating the initial case participant MUST treat the actor as the case
-      owner regardless of their CVD role(s).
+      The BT node for creating the initial case participant MUST treat the actor as the Case
+      Owner regardless of their CVD role(s).
     rationale: >-
       Case ownership is orthogonal to CVD role. The node must apply the `CASE_OWNER` flag without
       requiring or checking any specific CVD role value.

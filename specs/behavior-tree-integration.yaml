@@ -1204,8 +1204,8 @@ groups:
       ID, so that ID must be where the setup does not write.
     verification: >-
       `test_engage_case_tree_targets_constructor_actor_when_blackboard_differs` in
-      `test/core/behaviors/report/test_prioritize_tree.py` runs the tree as the case
-      manager and asserts that the RM transition still targets the engaging actor.
+      `test/core/behaviors/report/test_prioritize_tree.py` runs the tree as the
+      CASE_MANAGER and asserts that the RM transition still targets the engaging actor.
     relationships:
     - rel_type: extends
       spec_id: BT-17-006

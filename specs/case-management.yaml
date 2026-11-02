@@ -679,8 +679,9 @@ groups:
       (ADR-0108), and the EM state is derived from the append-only register, with
       `CaseStatus.em` only a stamped copy (ADR-0122). The acceptances of other
       participants stay in their own consent rows (CM-04-008).
-    verification: Integration tests in `test/demo/` confirm that an embargo-accept from the case
-      owner activates the embargo's entry in the CASE_MANAGER's embargo register, so the
+    verification: Integration tests in `test/demo/` confirm that an embargo-accept from
+      the Case
+      Owner activates the embargo's entry in the CASE_MANAGER's embargo register, so the
       derived EM state advances.
     adr:
     - ADR-0108

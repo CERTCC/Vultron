@@ -2630,8 +2630,8 @@ groups:
       any local acceptance policy.
     verification: >-
       `test/core/use_cases/triggers/embargo/test_reject.py`
-      (`test_non_manager_owner_reject_asks_the_manager_to_reject`) confirms the case
-      owner's rejection of a proposal is
+      (`test_non_manager_owner_reject_asks_the_manager_to_reject`) confirms the Case
+      Owner's rejection of a proposal is
       `Reject(EmbargoEvent)[target=VulnerabilityCase]`, and
       `test/core/behaviors/embargo/nodes/test_invite_answer.py`
       (`test_queues_the_answer_to_the_case_manager`) confirms an invitee's rejection of
