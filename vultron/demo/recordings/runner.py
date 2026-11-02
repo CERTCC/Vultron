@@ -153,7 +153,7 @@ def _one_row_at_a_time(
     """Wrap the outbox's ``deliver_batch`` so a batch delivers one row at a time.
 
     The outbox delivers rows for different recipients concurrently
-    (OX-01-006), and each in-process delivery runs on a worker thread, so two
+    (OX-01-008), and each in-process delivery runs on a worker thread, so two
     recipients can draw ids in either order and a recording would differ from
     run to run.  One lock per batch makes its rows run in pop order.  The lock
     is the batch's own, so a drain that a delivery causes on another actor

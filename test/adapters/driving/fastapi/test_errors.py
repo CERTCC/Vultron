@@ -72,9 +72,11 @@ class TestValidationErrorDetails:
         assert exc.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         return _as_body(exc)
 
+    @pytest.mark.spec("EH-05-002")
     def test_details_has_one_entry_per_violation(self):
         assert len(self._detail()["details"]) == 2
 
+    @pytest.mark.spec("EH-05-003")
     def test_each_entry_carries_its_message(self):
         messages = [e["message"] for e in self._detail()["details"]]
         assert messages == [
@@ -82,6 +84,7 @@ class TestValidationErrorDetails:
             "Cross-machine entailment violated",
         ]
 
+    @pytest.mark.spec("EH-05-004")
     def test_each_entry_identifies_root_or_derived(self):
         """The classification is what keeps thoroughness readable (EH-07-002)."""
         classifications = [
@@ -93,6 +96,7 @@ class TestValidationErrorDetails:
         dimensions = [e["dimensions"] for e in self._detail()["details"]]
         assert dimensions == [["rm"], ["rm", "vf"]]
 
+    @pytest.mark.spec("EH-05-005")
     def test_message_still_renders_the_whole_set(self):
         """A text-only consumer must not be made worse off by adding details."""
         message = self._detail()["message"]

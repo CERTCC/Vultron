@@ -593,7 +593,7 @@ groups:
       An address derived from the id would be a value nobody asserted (ADR-0159). A
       hosted actor states its own endpoints when it is created, so its profile carries
       both, as ActivityPub requires. Delivery derives an inbox address only when none is
-      held (OX-12-009).
+      held (OX-12-010).
     verification: >-
       `test_core_actor_derives_no_endpoint_it_was_not_given` and
       `test_core_actor_reads_an_empty_endpoint_as_absent` in

@@ -197,8 +197,8 @@ _GENERIC_TRANSITIVE_CLASSES = (
 
 
 @pytest.mark.spec("MV-09-001")
-@pytest.mark.spec("RF-02-006")
-@pytest.mark.spec("RF-02-007")
+@pytest.mark.spec("RF-02-008")
+@pytest.mark.spec("RF-02-009")
 @pytest.mark.spec("RF-03-004")
 @pytest.mark.spec("RF-04-004")
 class TestBareStringObjectRejected(unittest.TestCase):
@@ -262,6 +262,8 @@ class TestBareStringObjectRejected(unittest.TestCase):
         self._assert_string_rejected(_RejectLogEntryActivity)
 
 
+@pytest.mark.spec("RF-02-006")
+@pytest.mark.spec("RF-02-007")
 class TestInlineTypedObjectAccepted(unittest.TestCase):
     """Inline typed objects must be accepted at construction time (INLINE-OBJ-B)."""
 

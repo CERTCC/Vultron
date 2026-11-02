@@ -85,6 +85,7 @@ _EXAMPLES = sorted({o.example for e in SEMANTIC_REGISTRY for o in e.occasions})
 
 @pytest.mark.spec("SE-03-004")
 @pytest.mark.parametrize("example", _EXAMPLES)
+@pytest.mark.spec("SE-03-005")
 def test_changing_only_the_sender_changes_no_match(example: str):
     """Every pattern gives the same answer whoever sent the activity.
 

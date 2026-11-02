@@ -143,6 +143,7 @@ def test_dispatch_lets_a_handler_exception_propagate():
 @pytest.mark.spec("HP-02-002")
 @pytest.mark.spec("SE-05-002")
 @pytest.mark.spec("UCORG-05-012")
+@pytest.mark.spec("SE-05-005", "SE-05-006")
 def test_dispatch_refuses_a_semantics_with_no_registered_use_case():
     """The handler is resolved from ``event.semantic_type`` before any runs.
 
@@ -161,6 +162,7 @@ def test_dispatch_refuses_a_semantics_with_no_registered_use_case():
 
 @pytest.mark.spec("SE-05-002")
 @pytest.mark.spec("SL-03-001")
+@pytest.mark.spec("SE-05-005")
 def test_dispatch_logs_no_use_case_found_at_info_with_context(caplog):
     """No use case found is one INFO record with semantic, activity_id, actor_id.
 

@@ -287,6 +287,7 @@ def test_resend_of_the_held_body_under_a_deferred_id_routes_the_held_copy(
 
 
 @pytest.mark.spec("IE-10-002")
+@pytest.mark.spec("IE-10-003", "IE-10-004", "IE-10-005")
 def test_a_different_body_under_a_deferred_id_is_refused(
     dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
 ):
@@ -371,6 +372,7 @@ def test_resend_of_an_archived_body_routes_the_archived_copy(
 
 
 @pytest.mark.spec("IE-10-002")
+@pytest.mark.spec("IE-10-003", "IE-10-004", "IE-10-005")
 def test_a_different_body_under_an_archived_id_is_refused(
     dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
 ):
@@ -407,6 +409,7 @@ def test_a_repeat_of_an_archived_ledger_announce_is_hydrated_in_place(
 
 
 @pytest.mark.spec("IE-10-002")
+@pytest.mark.spec("IE-10-003", "IE-10-004", "IE-10-005")
 def test_a_different_body_under_an_archived_ledger_announce_id_is_refused(
     dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
 ):
@@ -421,6 +424,7 @@ def test_a_different_body_under_an_archived_ledger_announce_id_is_refused(
 
 
 @pytest.mark.spec("IE-10-002")
+@pytest.mark.spec("IE-10-003", "IE-10-004", "IE-10-005")
 def test_a_different_body_under_a_held_ledger_announce_id_is_refused(
     dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
 ):

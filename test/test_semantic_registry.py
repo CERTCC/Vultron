@@ -266,6 +266,7 @@ def test_validate_registry_order_valid_ordering_passes():
 
 @pytest.mark.spec("SE-03-002")
 @pytest.mark.spec("VAM-01-003")
+@pytest.mark.spec("SE-08-006")
 def test_validate_registry_order_reversed_pair_raises():
     """General-before-specific ordering must raise RegistryOrderError."""
     specific = _make_entry(
@@ -352,6 +353,7 @@ def test_validate_registry_order_same_specificity_passes():
 
 @pytest.mark.spec("SE-03-002")
 @pytest.mark.spec("VAM-01-003")
+@pytest.mark.spec("SE-08-006")
 def test_live_registry_import_guard_passes():
     """Reload semantic_registry to exercise the import-time order guard.
 

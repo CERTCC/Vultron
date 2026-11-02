@@ -123,6 +123,7 @@ def test_an_actor_given_by_uri_carries_no_invented_field(name: str) -> None:
 
 
 @pytest.mark.spec("AKM-05-005")
+@pytest.mark.spec("MV-10-010")
 @pytest.mark.parametrize("name", sorted(_BUILDERS))
 def test_an_actor_given_by_uri_travels_as_an_actor_reference(
     name: str,

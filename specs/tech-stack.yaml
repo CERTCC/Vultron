@@ -27,17 +27,30 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      Before updating the `requires-python` floor in `pyproject.toml`, the full test suite
-      MUST pass on the target Python version in CI, and all static type checks (`mypy`, `pyright`)
-      and linters MUST pass under the new runtime
+      Before a maintainer raises the `requires-python` floor in `pyproject.toml`, the
+      full test suite MUST pass on the target Python version in CI.
     rationale: >-
       A new `requires-python` floor drops every older Python version at once. If the
-      tests, type checks and linters have not run on the new version first, a release
-      can claim a version that it does not work on. A user then finds the fault after
-      the install, not CI before the merge.
+      tests have not run on the new version first, a release can claim a version that
+      it does not work on. A user then finds the fault after the install, not CI before
+      the merge.
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-01-001
+  - id: IMPLTS-01-008
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Before a maintainer raises the `requires-python` floor in `pyproject.toml`,
+      `mypy`, `pyright` and the linters MUST pass under the new runtime.
+    rationale: >-
+      Type checkers and linters can report a different result on a new Python version.
+      A floor raised before they pass can ship code that the checks would refuse on
+      the version the project now claims.
+    relationships:
+    - rel_type: extends
+      spec_id: IMPLTS-01-007
   - id: IMPLTS-01-002
     priority: MUST
     kind: project
@@ -143,21 +156,39 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: Command line interfaces MUST be implemented using `click`.
+    statement: >-
+      The product CLI (`vultron/adapters/driving/cli.py`) and the demo CLI
+      (`vultron/demo/cli.py`) MUST be implemented with `click`.
     rationale: >-
-      One CLI library gives each command the same option parsing, help text and
-      environment-variable options. The `vultron-demo` CLI and the adapter CLI use
-      click, so a user who knows one knows how the other reads its options.
+      One CLI library gives each user-facing command the same option parsing, help
+      text and environment-variable options. A user who knows one of the two CLIs
+      knows how the other reads its options. The `vultron/metadata` tools and
+      `vultron/demo/report.py` are project tooling, not user-facing CLIs, and keep
+      the standard library's `argparse`.
   - id: IMPLTS-03-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: The system MUST use `httpx` for all HTTP client interactions, including outbound inbox delivery and demo HTTP calls. The `requests` library MUST NOT be used.
+    statement: >-
+      The system MUST use `httpx2`, imported as `httpx`, for all HTTP client
+      interactions, including outbound inbox delivery and demo HTTP calls.
     rationale: >-
       One HTTP client gives one place to set timeouts and retries and one library to
       mock in tests. Outbound delivery, demo calls and the FastAPI test client then
-      share one transport. A second client library would need its own retry and mock
-      code.
+      share one transport. `pyproject.toml` declares `httpx2`, and the code imports it
+      under the name `httpx`.
+  - id: IMPLTS-03-005
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Code in this project MUST NOT use the `requests` library.
+    rationale: >-
+      A second HTTP client library would need its own timeout, retry and mock code,
+      and the two clients could then act differently on the same request.
+    relationships:
+    - rel_type: extends
+      spec_id: IMPLTS-03-002
   - id: IMPLTS-03-003
     priority: MUST
     kind: project
@@ -329,15 +360,26 @@ groups:
     adr:
     - ADR-0094
     statement: >-
-      The CI pipeline MUST run tests (`pytest`), ruff (`ruff check` and `ruff format --check`),
-      `mypy`, and `pyright` as separate parallel jobs. The build job MUST only execute when
-      all parallel jobs pass.
+      The CI pipeline MUST run `pytest`, ruff (`ruff check` and `ruff format --check`),
+      `mypy` and `pyright` as separate parallel jobs.
     rationale: >-
       Parallel jobs report all failures in one CI run, so a contributor can fix them
-      together and not one per run. The `build` job waits for all of them, so the
-      package is built only from code that passes every check. ruff lint and format
-      share one job: ruff does both in about a second, and a second job would take
-      longer to start than it saves.
+      together and not one per run. ruff lint and format share one job: ruff does both
+      in about a second, and a second job would take longer to start than it saves.
+  - id: IMPLTS-07-022
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    adr:
+    - ADR-0094
+    statement: >-
+      The CI build job MUST run only when every parallel check job passes.
+    rationale: >-
+      When the `build` job waits for every check, the package is built only from code
+      that passes every check.
+    relationships:
+    - rel_type: extends
+      spec_id: IMPLTS-07-005
   - id: IMPLTS-07-006
     priority: MUST
     kind: project
@@ -423,54 +465,97 @@ groups:
     adr:
     - ADR-0094
     statement: >-
-      The project MUST use ruff as its sole Python linter and formatter, configured under
-      `[tool.ruff]` in `pyproject.toml`, and ruff MUST be enforced via pre-commit hooks AND
-      in the CI pipeline. Black, flake8 and isort MUST NOT be reintroduced alongside it.
+      The project MUST use ruff as its sole Python linter and formatter, configured
+      under `[tool.ruff]` in `pyproject.toml`.
     rationale: >-
       One tool for linting, formatting and import order gives one configuration and one
       set of rules. Two tools that check the same thing can disagree, and a contributor
-      then cannot satisfy both. ruff checks the whole tree in about a second, so its
-      pre-commit hook costs little on each commit. CS-15-001 forbids keeping a replaced
-      symbol next to its replacement. The ban on Black, flake8 and isort applies the
-      same rule to tooling.
+      then cannot satisfy both.
     verification: >-
-      `pyproject.toml` contains a `[tool.ruff]` table; `.flake8`, `[tool.black]` and
-      `[tool.isort]` are absent; `black`, `flake8` and `isort` are absent from the `dev`
-      dependency group; and `.pre-commit-config.yaml` defines a ruff hook and no black or
-      flake8 hook.
+      `pyproject.toml` contains a `[tool.ruff]` table.
     relationships:
     - rel_type: implements
       spec_id: CS-01-001
     - rel_type: implements
       spec_id: CS-02-001
+  - id: IMPLTS-07-023
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0094
+    statement: >-
+      The project MUST enforce ruff in its pre-commit hooks and in the CI pipeline.
+    rationale: >-
+      A pre-commit hook finds a ruff finding before the commit, and CI finds one that
+      a contributor committed without the hooks. ruff checks the whole tree in about a
+      second, so its pre-commit hook costs little on each commit.
+    verification: >-
+      `.pre-commit-config.yaml` defines a ruff hook, and the `lint-ruff` job in
+      `.github/workflows/python-app.yml` runs `ruff check` and `ruff format --check`.
+    relationships:
+    - rel_type: extends
+      spec_id: IMPLTS-07-017
+  - id: IMPLTS-07-024
+    priority: MUST_NOT
+    kind: project
+    adr:
+    - ADR-0094
+    statement: >-
+      The project MUST NOT reintroduce Black, flake8 or isort alongside ruff.
+    rationale: >-
+      CS-15-001 forbids keeping a replaced symbol next to its replacement. This ban
+      applies the same rule to tooling: a second linter or formatter could disagree
+      with ruff, and a contributor then cannot satisfy both.
+    verification: >-
+      `.flake8`, `[tool.black]` and `[tool.isort]` are absent; `black`, `flake8` and
+      `isort` are absent from the `dev` dependency group; and `.pre-commit-config.yaml`
+      defines no black or flake8 hook.
+    relationships:
+    - rel_type: extends
+      spec_id: IMPLTS-07-017
   - id: IMPLTS-07-018
     priority: MUST
     kind: project
     adr:
     - ADR-0094
     statement: >-
-      `ruff check` and `ruff format --check` MUST run in CI on every commit to `main` and on
-      every pull request targeting `main`, and both MUST pass with zero findings.
+      CI MUST run `ruff check` and `ruff format --check` on every commit to `main` and
+      on every pull request that targets `main`.
     rationale: >-
-      A finding that CI allows is a finding that nobody fixes. When CI requires zero
-      ruff findings and a clean format check, each change keeps the tree clean. A
-      finding that the project keeps for now carries a `# noqa` marker with its tracking
-      issue (IMPLTS-07-020), so the zero count does not hide it.
+      A check that runs on every change keeps the tree clean change by change. A check
+      that runs only now and then lets findings pile up between runs.
     verification: >-
-      The `lint-ruff` job in `.github/workflows/python-app.yml` runs both commands without an
-      exit-code override and without path operands, and the `build` job lists it in `needs`.
+      The `lint-ruff` job in `.github/workflows/python-app.yml` runs both commands
+      without path operands on a push to `main` and on a pull request to `main`, and
+      the `build` job lists it in `needs`.
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-07-017
+  - id: IMPLTS-07-026
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0094
+    statement: >-
+      The CI `ruff check` and `ruff format --check` steps MUST fail on any finding.
+    rationale: >-
+      A finding that CI allows is a finding that nobody fixes. A finding that the
+      project keeps for now carries a `# noqa` marker with its tracking issue
+      (IMPLTS-07-020), so the zero count does not hide it.
+    verification: >-
+      The `lint-ruff` job in `.github/workflows/python-app.yml` runs both commands
+      without an exit-code override, so any finding fails the job.
+    relationships:
+    - rel_type: extends
+      spec_id: IMPLTS-07-018
   - id: IMPLTS-07-019
     priority: MUST
     kind: process
     adr:
     - ADR-0094
     statement: >-
-      Every entry in the ruff `ignore` list MUST carry an inline comment stating what the rule
-      reports and why this project does not enforce it. An entry MAY cite a tracking issue in
-      place of a standing rationale when the exclusion is provisional.
+      Each ruff `ignore` entry MUST carry an inline comment that states what the rule
+      reports and why this project does not enforce it.
     rationale: >-
       An exclusion with no stated reason looks the same as a mistake. Nobody can tell
       whether it is safe to delete, so the list only grows. A comment on each entry
@@ -483,39 +568,67 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-07-017
+  - id: IMPLTS-07-027
+    priority: MAY
+    kind: process
+    adr:
+    - ADR-0094
+    statement: >-
+      When an exclusion is provisional, its ruff `ignore` entry MAY cite a tracking
+      issue in place of a standing reason.
+    rationale: >-
+      A provisional exclusion has no lasting reason yet. The tracking issue holds the
+      plan to remove it, so the comment points there.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-019
   - id: IMPLTS-07-020
     priority: MUST
     kind: process
     adr:
     - ADR-0094
     statement: >-
-      A ruff finding suppressed to keep the gate green — as distinct from a rule excluded
-      project-wide under IMPLTS-07-019 — MUST be suppressed with a per-line `# noqa` marker
-      naming both the rule and the issue that tracks its removal, and `RUF100` MUST remain
-      selected.
+      A contributor MUST suppress a ruff finding kept to hold the gate green with a
+      per-line `# noqa` marker. The marker names the rule and the issue that tracks
+      its removal. A rule excluded project-wide under IMPLTS-07-019 is not such a
+      finding.
     rationale: >-
-      `RUF100` reports a `# noqa` marker that suppresses nothing. A new finding with no
-      marker fails the check because its rule is selected. With `RUF100` selected, a
-      marker left after its finding is fixed also fails. Each marker then matches a
-      real finding, and nobody keeps a separate list of them. The issue number on each
-      marker shows that the suppression is planned work, not an unexplained exception.
-      ADR-0094 records why file-wide `per-file-ignores` cannot do the same job.
+      A new finding with no marker fails the check because its rule is selected. The
+      issue number on each marker shows that the suppression is planned work, not an
+      unexplained exception. ADR-0094 records why file-wide `per-file-ignores` cannot
+      do the same job.
     verification: >-
-      `RUF100` is absent from the `ignore` list, and every `# noqa` added for baselining names
-      a rule code and an issue number.
+      Every `# noqa` added for baselining names a rule code and an issue number.
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-07-017
+  - id: IMPLTS-07-025
+    priority: MUST
+    kind: process
+    adr:
+    - ADR-0094
+    statement: >-
+      The ruff configuration MUST keep `RUF100` selected.
+    rationale: >-
+      `RUF100` reports a `# noqa` marker that suppresses nothing. With `RUF100`
+      selected, a marker left after its finding is fixed fails the check. Each marker
+      then matches a real finding, and nobody keeps a separate list of them.
+    verification: >-
+      `[tool.ruff.lint]` in `pyproject.toml` selects `RUF`, and `RUF100` is absent from
+      its `ignore` list.
+    relationships:
+    - rel_type: extends
+      spec_id: IMPLTS-07-020
   - id: IMPLTS-07-021
     priority: MUST
     kind: process
     adr:
     - ADR-0094
     statement: >-
-      The scope of a lint, format, or type check MUST be declared in that tool's configuration
-      file, not in the arguments of the commands that invoke it. Callers — CI jobs, pre-commit
-      hooks, agent skills, and documented developer commands — MUST invoke the tool with no
-      path operands.
+      A lint, format or type check MUST declare its scope in its tool's configuration
+      file, not in the arguments of the commands that invoke it. Every caller then
+      invokes the tool with no path operands. Callers are CI jobs, pre-commit hooks,
+      agent skills and documented developer commands.
     rationale: >-
       When each caller passes its own paths, the same scope is written in many places,
       and nothing checks that they agree. Two callers can then check different files:

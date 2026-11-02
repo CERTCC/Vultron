@@ -77,13 +77,14 @@ def test_outbox_pop_empty_returns_none(dl):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("OX-06-002")
+@pytest.mark.spec("OX-06-003")
 def test_outbox_append_reports_that_it_queued(dl):
     assert dl.outbox_append("urn:test:once") is True
     assert dl.outbox_list() == ["urn:test:once"]
 
 
 @pytest.mark.spec("OX-06-002")
+@pytest.mark.spec("OX-06-003")
 def test_an_id_already_pending_is_not_queued_again(dl):
     dl.outbox_append("urn:test:first")
     dl.outbox_append("urn:test:retried")
@@ -99,7 +100,7 @@ def test_an_id_already_pending_is_not_queued_again(dl):
     ]
 
 
-@pytest.mark.spec("OX-06-002")
+@pytest.mark.spec("OX-06-004")
 def test_an_id_no_longer_pending_is_queued_again(dl):
     """Delivery pops the row; the same id is queued again, not lost."""
     dl.outbox_append("urn:test:delivered")

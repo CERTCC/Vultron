@@ -367,7 +367,7 @@ def register_peer(
     actor_cls = _ACTOR_TYPE_MAP.get(request.actor_type, VultronOrganization)
     # Only what the request supplied: no clock time and no endpoint derived
     # from the id, since the peer stated neither (AKM-02-006, ADR-0159).
-    # Delivery falls back to the derived inbox address on its own (OX-12-009).
+    # Delivery falls back to the derived inbox address on its own (OX-12-010).
     peer = actor_cls(
         id_=peer_id, name=request.name, published=None, updated=None
     )

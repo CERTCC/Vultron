@@ -241,7 +241,7 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
 
         Called last, after :meth:`_handle_result`, and only when the BT
         succeeded.  The returned subtype declares exactly the keys the verb's
-        response body carries (UCORG-05-005).
+        response body carries (UCORG-05-015).
         """
 
     def _record_asserted_activity(

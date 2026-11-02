@@ -100,10 +100,10 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The DirectActivityDispatcher MUST NOT catch handler exceptions. It MUST let
-      every exception a handler raises propagate to its caller. A semantic type with
-      no use case raises nothing: the dispatcher reports it as a `REFUSED` "no use
-      case found" verdict, logged at INFO (SE-05-002).
+      The DirectActivityDispatcher MUST let every exception a handler raises propagate
+      to its caller, uncaught. A semantic type with no use case raises nothing: the
+      dispatcher reports it as a `REFUSED` "no use case found" verdict, logged at INFO
+      (SE-05-005).
     rationale: >-
       Catching and logging belongs at the adapter boundary that decides what a
       failure means for the inbox item (IE-06-004), not in core: a blanket catch in

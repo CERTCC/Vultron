@@ -46,9 +46,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      At most one drain of an actor's outbox MUST run at a time. A drain requested while
-      another is draining the same outbox MUST wait for it (or be satisfied by it) rather
-      than pop rows from the same queue concurrently.
+      At most one drain of an actor's outbox MUST run at a time.
     rationale: >-
       The background task of each inbound activity and the OutboxMonitor can each start
       a drain of the same outbox. Each concurrent drain pops the next row and waits for
@@ -56,23 +54,44 @@ groups:
       enqueue order. One drain at a time keeps the FIFO order of OX-01-002 at the
       recipient. See ADR-0112.
     verification: >-
-      `test/adapters/driving/fastapi/test_outbox_handler_lanes.py` runs two drains of one
-      outbox concurrently and asserts per-recipient enqueue order and that the second drain
-      pops nothing while the first holds the outbox; the architecture ratchet
-      `test/architecture/test_outbox_drain_under_actor_lock.py` pins that every drain enters
-      through `outbox_handler` and its lock.
+      `test/adapters/driving/fastapi/test_outbox_handler_lanes.py` runs two drains of
+      one outbox concurrently and asserts per-recipient enqueue order; the architecture
+      ratchet `test/architecture/test_outbox_drain_under_actor_lock.py` pins that every
+      drain enters through `outbox_handler` and its lock.
     relationships:
     - rel_type: implements
       spec_id: OX-01-002
+    adr:
+    - ADR-0112
+  - id: OX-01-007
+    priority: MUST
+    kind: project
+    statement: >-
+      A drain request that arrives while another drain of the same outbox runs MUST wait
+      for that drain or let it do the work. It does not pop rows from the queue at the
+      same time.
+    rationale: >-
+      A second drain that pops rows beside the first one breaks the one-drain rule of
+      OX-01-004. A request that fails instead would leave a newly queued row without a
+      drain. When the request waits, or the running drain takes the new rows, every row
+      is sent and the order holds.
+    verification: >-
+      `test_second_drain_does_not_pop_while_the_first_holds_the_outbox` and
+      `test_nested_drain_request_returns_and_the_holder_looks_again` in
+      `test/adapters/driving/fastapi/test_outbox_handler_lanes.py` assert that the
+      second drain pops nothing while the first holds the outbox, and that the holder
+      looks again for rows the second request would have taken.
+    relationships:
+    - rel_type: implements
+      spec_id: OX-01-004
     adr:
     - ADR-0112
   - id: OX-01-005
     priority: MUST
     kind: project
     statement: >-
-      Delivery MUST preserve enqueue order per recipient: for any two queued activities
-      that share a recipient, the earlier-enqueued one MUST have completed its delivery
-      attempt to that recipient before the later one is attempted.
+      The outbox handler MUST finish the delivery attempt of an earlier-queued activity
+      to a recipient before it attempts a later-queued activity to that recipient.
     rationale: >-
       A ledger fan-out is one Announce(CaseLedgerEntry) row per participant, and a replica
       that receives entry N+1 before entry N buffers a forward gap and sends a
@@ -94,7 +113,7 @@ groups:
     kind: project
     statement: >-
       An actor's outbox MUST NOT have more than one delivery in flight to the same
-      recipient at a time. Deliveries to distinct recipients MAY proceed concurrently.
+      recipient at a time.
     rationale: >-
       One in-flight delivery per (actor, recipient) is how OX-01-005 is enforced without
       falling back to a single serial drain, in which one slow or unreachable recipient
@@ -107,6 +126,17 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: OX-01-005
+    adr:
+    - ADR-0112
+  - id: OX-01-008
+    priority: MAY
+    kind: project
+    statement: >-
+      An actor's outbox MAY run deliveries to distinct recipients at the same time.
+    rationale: >-
+      The order rule of OX-01-005 holds for each recipient, not across recipients. When
+      deliveries to distinct recipients run at the same time, one slow or unreachable
+      recipient does not hold up the rows of every other recipient.
     adr:
     - ADR-0112
 - id: OX-02
@@ -273,33 +303,65 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      An actor's outbox MUST hold at most one pending entry per activity id: queuing an
-      activity whose id is already pending in that outbox MUST NOT add a second entry, and the
-      queuing operation MUST report whether it added one. An id that is no longer pending MUST be
-      queued again when asked, under the same id. An emitting tree whose retry rebuilds its
-      activity under the id the earlier attempt used therefore sends that activity once.
+      An actor's outbox MUST hold at most one pending entry per activity id. When it is
+      asked to queue an activity whose id is already pending, it adds no entry.
     rationale: >-
-      A retry after a partial failure must not send an act twice. When the retry rebuilds the
-      activity under its first id (ID-04-004), the outbox alone can tell it is already on its way,
-      whatever the order of commit and send (ADR-0119). The check is in the queue
-      operation so no caller can omit it. A delivered id is queued again and the receiver drops it
-      by id (ID-02-001), as for a re-sent response (CP-05-006).
+      A retry after a partial failure must not send an act twice. When the retry
+      rebuilds the activity under its first id (ID-04-004), the outbox alone can tell it
+      is already on its way, whatever the order of commit and send (ADR-0119). The check
+      is in the queue operation so no caller can omit it. An emitting tree whose retry
+      rebuilds its activity under the earlier id thus sends that activity once.
     verification: >-
       `test/adapters/driven/test_sqlite_inbox_outbox.py::test_the_store_refuses_a_second_pending_outbox_row`
-      inserts a raw duplicate outbox row and asserts the store's partial UNIQUE index rejects it;
+      inserts a raw duplicate outbox row and asserts the store's partial UNIQUE index
+      rejects it;
       `test/adapters/driven/test_sqlite_inbox_outbox.py::test_a_store_without_the_outbox_index_is_refused_at_open`
-      asserts a store lacking that index is refused when opened;
-      the remainder of `test/adapters/driven/test_sqlite_inbox_outbox.py` asserts a pending id is
-      not queued again, also by concurrent writers on a file-backed store, that a popped id is, and
-      that the enqueue callback fires only for a new row;
-      `test/core/use_cases/triggers/test_actor_triggers.py::TestInviteRetrySendsOnce` retries
-      the owner-direct invite after an attempt that queued its Invite without committing it and
-      asserts one outbox entry and one ledger entry;
+      asserts a store lacking that index is refused when opened; the remainder of
+      `test/adapters/driven/test_sqlite_inbox_outbox.py` asserts a pending id is not
+      queued again, also by concurrent writers on a file-backed store, and that the
+      enqueue callback fires only for a new row;
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestInviteRetrySendsOnce`
+      retries the owner-direct invite after an attempt that queued its Invite without
+      committing it and asserts one outbox entry and one ledger entry;
       `test/core/behaviors/sync/nodes/test_chain_timestamp_guard.py::test_create_log_entry_node_reuses_a_recorded_entry_past_the_staleness_window`
       asserts the rebuilt act reuses its recorded entry however old its claimed time.
     relationships:
     - rel_type: implements
       spec_id: OX-06-001
+  - id: OX-06-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The outbox queue operation MUST report to its caller whether it added an entry.
+    rationale: >-
+      A caller that rebuilds an activity on a retry needs to know if the activity is new
+      or already on its way. With the answer, the caller can log the repeat and skip
+      work that only a new entry needs.
+    verification: >-
+      `test_outbox_append_reports_that_it_queued` and
+      `test_an_id_already_pending_is_not_queued_again` in
+      `test/adapters/driven/test_sqlite_inbox_outbox.py` assert the value the queue
+      operation returns for a new id and for an id already pending.
+    relationships:
+    - rel_type: extends
+      spec_id: OX-06-002
+  - id: OX-06-004
+    priority: MUST
+    kind: project
+    statement: >-
+      When an actor's outbox is asked to queue an id that is no longer pending, it MUST
+      queue the activity again under the same id.
+    rationale: >-
+      An id that left the queue was delivered or dead-lettered. A later resend of the
+      same act must still go out. The receiver drops a copy it already holds by id
+      (ID-02-001), as for a re-sent response (CP-05-006).
+    verification: >-
+      `test_an_id_no_longer_pending_is_queued_again` in
+      `test/adapters/driven/test_sqlite_inbox_outbox.py` pops an id and asserts that a
+      second queue request adds it again.
+    relationships:
+    - rel_type: extends
+      spec_id: OX-06-002
 - id: OX-07
   title: Outbound Body Sealing and Relay
   specs:
@@ -307,13 +369,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Every adapter that persists an outbound activity for its actor's outbox MUST seal the
-      activity's body — the factory object's own JSON dump — in that actor's store at the moment
-      it persists the activity, and the outbox handler MUST deliver that sealed body exactly as
-      sealed. The handler MUST NOT read the activity record back to build the payload, MUST NOT
-      dehydrate, expand, hydrate, re-type, or re-serialise any field of the body, and MUST drop
-      (with an ERROR log) a queued id for which no sealed body exists rather than deliver a
-      reconstruction.
+      The outbox handler MUST deliver each sealed body exactly as it was sealed, with no
+      field changed. To dehydrate, expand, hydrate, re-type or re-serialise a field is
+      to change it.
     rationale: >-
       The activity record cannot serve as the delivery body. Persistence stores
       reference fields as ids, and a read-back fills them from what the store holds at
@@ -325,11 +383,65 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VM-08-003
+    - rel_type: depends_on
+      spec_id: OX-07-003
     verification: >-
-      `test/adapters/driving/fastapi/test_outbox_sealed_body_delivery.py` seals through the real
-      adapter and asserts the emitter receives the identical text;
-      `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py` checks every
-      `TriggerActivityPort` method seals what it returns.
+      `test/adapters/driving/fastapi/test_outbox_sealed_body_delivery.py` seals through
+      the real adapter and asserts the emitter receives the identical text.
+    adr:
+    - ADR-0074
+  - id: OX-07-003
+    priority: MUST
+    kind: project
+    statement: >-
+      Every adapter that persists an outbound activity for its actor's outbox MUST seal
+      the activity's body in that actor's store when it persists the activity. The
+      sealed body is the factory object's own JSON dump.
+    rationale: >-
+      The outbox can relay only a body that exists. When the adapter seals the body at
+      the moment it persists the activity, the body is the one the factory built, before
+      any store read can change a reference field. See ADR-0074.
+    verification: >-
+      `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py` checks
+      every `TriggerActivityPort` method seals what it returns.
+    adr:
+    - ADR-0074
+  - id: OX-07-004
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The outbox handler MUST NOT read the activity record back to build the delivery
+      payload.
+    rationale: >-
+      Persistence stores reference fields as ids. A read-back fills them from what the
+      store holds at that time, so it can differ from the sealed body that the ledger
+      records. See ADR-0074.
+    verification: >-
+      `test_a_queued_id_with_no_sealed_body_is_dropped_not_delivered` in
+      `test/adapters/driving/fastapi/test_outbox_sealed_body_delivery.py` stores an
+      activity record with no sealed body and asserts the emitter is not called.
+    relationships:
+    - rel_type: extends
+      spec_id: OX-07-001
+    adr:
+    - ADR-0074
+  - id: OX-07-005
+    priority: MUST
+    kind: project
+    statement: >-
+      When a queued id has no sealed body, the outbox handler MUST drop the id with an
+      ERROR log and not deliver a reconstruction.
+    rationale: >-
+      A queued id with no sealed body is a defect in the adapter that queued it. A
+      reconstruction would hide that defect and send a body the ledger never recorded.
+      The ERROR log shows the operator the defect.
+    verification: >-
+      `test_a_queued_id_with_no_sealed_body_is_dropped_not_delivered` in
+      `test/adapters/driving/fastapi/test_outbox_sealed_body_delivery.py` asserts the
+      emitter is not called and an ERROR record names the missing sealed body.
+    relationships:
+    - rel_type: extends
+      spec_id: OX-07-001
     adr:
     - ADR-0074
   - id: OX-07-002
@@ -483,7 +595,7 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      The signing key pair MUST be per-actor and MUST NOT be shared across actors
+      Each actor MUST have its own signing key pair, which no other actor shares.
     rationale: >-
       If two actors share a key, a signature cannot tell them apart. One actor can then
       sign activities as the other. Also, one leaked key exposes every actor that uses
@@ -494,13 +606,12 @@ groups:
     - rel_type: extends
       spec_id: OX-10-001
   - id: OX-10-003
-    priority: MUST
+    priority: MUST_NOT
     kind: project
     verification_debt: '#2575'
     statement: >-
-      The signed delivery adapter MUST be transport-only: it MUST NOT construct or
-      inspect ActivityStreams objects; serialization happens before the payload reaches
-      the adapter
+      The signed delivery adapter MUST NOT construct or inspect ActivityStreams objects.
+      It is transport-only: the payload is serialized before it reaches the adapter.
     rationale: Preserves the hexagonal layer boundary
     relationships:
     - rel_type: extends
@@ -706,24 +817,38 @@ groups:
     kind: project
     verification: >-
       `test/adapters/driven/test_delivery_inbox_url.py` asserts that the inbox a held
-      profile names is posted to in place of the derived address, that only a recipient
-      with no held inbox falls back to `{actor}/inbox/`, that `held_inboxes` reads the
-      sender's store, and that the inbox a hosted profile states accepts a POST;
-      `test_handle_outbox_item_hands_over_the_held_inbox` in
+      profile names is posted to in place of the derived address, that `held_inboxes`
+      reads the sender's store, and that the inbox a hosted profile states accepts a
+      POST; `test_handle_outbox_item_hands_over_the_held_inbox` in
       `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py` asserts the
       outbox handler hands the held inbox to the emitter.
     statement: >-
-      Delivery MUST POST to the `inbox` named by the sender's held profile of the
-      recipient when that profile names one, and MUST fall back to the address
-      `{actor}/inbox/` derived from the recipient's URI only when it holds no inbox for
-      that recipient.
+      When the sender's held profile of the recipient names an `inbox`, delivery MUST
+      POST to that inbox.
     rationale: >-
       An actor's profile states where its inbox is, and a peer on another node need
-      not follow this codebase's URL layout. The derived address is a reasonable guess
-      for a peer known only by URI (AKM-05-001), and is used only when nothing better
-      is known (AKM-02-006, ADR-0159).
+      not follow this codebase's URL layout (ADR-0159).
     relationships:
     - rel_type: supersedes
+      spec_id: OX-12-001
+    adr:
+    - ADR-0159
+  - id: OX-12-010
+    priority: MUST
+    kind: project
+    statement: >-
+      When the sender holds no inbox for the recipient, delivery MUST POST to the
+      address `{actor}/inbox/` derived from the recipient's URI.
+    rationale: >-
+      The derived address is a reasonable guess for a peer known only by URI
+      (AKM-05-001). It is used only when nothing better is known (AKM-02-006,
+      ADR-0159).
+    verification: >-
+      `test_a_recipient_with_no_held_inbox_gets_the_derived_one` in
+      `test/adapters/driven/test_delivery_inbox_url.py` asserts that a recipient with no
+      held inbox gets the derived `{actor}/inbox/` address.
+    relationships:
+    - rel_type: refines
       spec_id: OX-12-001
     adr:
     - ADR-0159
@@ -838,9 +963,9 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      HTTP 4xx responses from a recipient inbox MUST be treated as terminal delivery
-      failures: the activity MUST NOT consume inner retry slots for a 4xx response.
-      Only HTTP 5xx responses, connection errors, and timeouts are retryable.
+      The HTTP delivery adapter MUST treat a 4xx response from a recipient inbox as a
+      terminal delivery failure that uses no inner retry slot. Only HTTP 5xx responses,
+      connection errors and timeouts are retryable.
     rationale: >-
       A 4xx response is a deterministic refusal, for example 422 for a body that fails
       validation. The same body gets the same response each time. A retry uses the retry
@@ -894,10 +1019,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When a delivery attempt fails and the activity is re-queued, every later-enqueued
-      activity that shares a recipient with it MUST be re-queued behind it in enqueue
-      order and MUST NOT be attempted before it in that drain pass. Activities that share
-      no recipient with the failed one are unaffected.
+      When the outbox handler re-queues a failed activity, it MUST re-queue every
+      later-queued activity that shares a recipient with it behind it, in enqueue order.
+      Activities that share no recipient with the failed one are unaffected.
     rationale: >-
       If a failed activity goes to the tail of one FIFO, later rows go before it. One
       transient failure on ledger entry N then delivers entry N+1 first, and each
@@ -906,10 +1030,30 @@ groups:
       (OX-01-005), and other recipients do not wait (OX-01-006). See ADR-0112.
     verification: >-
       `test/adapters/driving/fastapi/test_outbox_handler_lanes.py` fails a row past the
-      per-pass cap and asserts the row queued behind it for the same recipient is not
-      attempted, the queue afterwards reads in enqueue order, a row appended during the
-      stalled pass lands behind the stalled rows, and a different recipient's row is
-      delivered.
+      per-pass cap and asserts the queue afterwards reads in enqueue order, a row
+      appended during the stalled pass lands behind the stalled rows, and a different
+      recipient's row is delivered.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-01-005
+    adr:
+    - ADR-0112
+  - id: OX-13-014
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      In a drain pass where a delivery fails, the outbox handler MUST NOT attempt a
+      later-queued activity to the same recipient before the failed one.
+    rationale: >-
+      A later row that goes out before the failed row reaches its recipient out of
+      order. For ledger entries, the recipient then sees a forward gap (SYNC-14) that
+      the sender caused. See ADR-0112.
+    verification: >-
+      `test_failed_row_is_requeued_ahead_of_later_rows_to_same_recipient` and
+      `test_row_arriving_during_a_stalled_pass_queues_behind_the_stalled_rows` in
+      `test/adapters/driving/fastapi/test_outbox_handler_lanes.py` fail a row past the
+      per-pass cap and assert that no row queued behind it for the same recipient is
+      attempted in that pass.
     relationships:
     - rel_type: refines
       spec_id: OX-01-005
@@ -919,10 +1063,11 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When the outbox refuses an activity's sealed body before any delivery attempt (a
-      `to:` naming no recipient, OX-08-003, or an `object` that is not inline,
-      OX-07-002), the activity MUST be moved to the dead-letter store on that first
-      refusal, with reason `undeliverable_body`, and MUST NOT be retried.
+      The outbox refuses a sealed body before any delivery attempt when its `to:` names
+      no recipient (OX-08-003). It also refuses one whose `object` is not inline
+      (OX-07-002). On that first refusal, the outbox handler MUST move the activity to
+      the dead-letter store with reason `undeliverable_body`. The activity gets no
+      retry.
     rationale: >-
       The sealed body does not change (VM-08-003), so every retry is refused for the
       same reason. Retries spend the full attempt budget on backoff delay, and they show
