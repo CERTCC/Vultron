@@ -382,12 +382,14 @@ def create_announce_log_entry_tree(
     # reconstruction fails and no tail_hash is available for the mismatch check.
     # Wrap reconstruct in a Selector so that on failure we (1) hold the received
     # Announce so the case-seed path can replay it once the genesis anchor is
-    # known (SYNC-15-004, SYNC-15-005, #2186), and (2) still send a Reject
-    # (stating no ledger position, read as "replay from genesis") as the loss
-    # backstop, exiting the Sequence without persisting the entry (SYNC-15-001,
-    # CLP-08-005).  FailureIsSuccess lets the reject fire whether or not the
-    # entry was buffered, mirroring CheckHashOrRejectOnMismatchNode's forward-gap
-    # buffer-and-reject structure.
+    # known (SYNC-15-004, SYNC-15-005, #2186), and (2) ask for the case with a
+    # genesis Reject (stating no ledger position, read as "replay from
+    # genesis") as the loss backstop, at most once per case per interval,
+    # exiting the Sequence without persisting the entry (SYNC-15-001,
+    # SYNC-15-016, CLP-08-005).  FailureIsSuccess lets the Reject limit run
+    # whether or not the entry was buffered, mirroring
+    # CheckHashOrRejectOnMismatchNode's forward-gap buffer-and-reject
+    # structure.
     reconstruct_or_reject = py_trees.composites.Selector(
         name="ReconstructOrRejectOnMissingCase",
         memory=False,

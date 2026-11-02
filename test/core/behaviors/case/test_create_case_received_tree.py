@@ -29,6 +29,9 @@ from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.create_case_received_tree import (
     create_create_case_received_tree,
 )
+from vultron.core.behaviors.case.nodes import (
+    replica_bootstrap as _replica_bootstrap,
+)
 from vultron.core.behaviors.case.nodes.replica_bootstrap import (
     ClassifyBootstrapRouteNode,
 )
@@ -153,6 +156,28 @@ def test_seeding_from_a_create_clears_the_genesis_reject_record(
     assert result.status == Status.SUCCESS
     assert route.replica_stored is True
     assert last_genesis_reject_at(dl, _CASE_ID) is None
+
+
+@pytest.mark.spec("SYNC-15-023")
+def test_a_failed_record_delete_leaves_the_case_unseeded(
+    dl, make_payload, monkeypatch
+):
+    """The seed and the delete commit together (ADR-0146): a failed delete
+    leaves no replica, so a redelivered Create seeds it and deletes then."""
+    dl.save(_link())
+    record_genesis_reject(dl, _CASE_ID, datetime(2026, 1, 1, tzinfo=UTC))
+
+    def _fail(*_args: object) -> None:
+        raise RuntimeError("store fault")
+
+    monkeypatch.setattr(_replica_bootstrap, "forget_genesis_rejects", _fail)
+    try:
+        _run(dl, make_payload, _CREATOR, _case())
+    except RuntimeError:
+        pass
+
+    assert dl.read(_CASE_ID) is None
+    assert last_genesis_reject_at(dl, _CASE_ID) is not None
 
 
 @pytest.mark.spec("CBT-01-005")

@@ -133,8 +133,10 @@ def _announce_verdict(
 ) -> HandlerResult:
     """Classify a finished ``AnnounceLogEntryReceivedBT`` run (HP-01-003).
 
-    ``SendRejectLogEntryNode`` always returns ``FAILURE`` after it sends, so a
-    completed reject marks an entry this replica answered with ``Reject``.
+    ``SendRejectLogEntryNode`` always returns ``FAILURE``, so a failed one
+    marks an entry the Reject arm handled: answered with a ``Reject``, or,
+    for a case this replica does not hold, with the genesis Reject withheld
+    because one was sent within the interval (SYNC-15-016).
     """
     verdict = verdict_from_bt(tree, result, label="AnnounceLogEntryReceivedBT")
     if verdict.disposition is HandlerDisposition.APPLIED:

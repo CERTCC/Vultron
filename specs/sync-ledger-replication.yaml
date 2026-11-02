@@ -1882,7 +1882,9 @@ groups:
       `test/core/behaviors/sync/test_announce_tree.py`
       (`test_early_entries_within_the_interval_send_one_genesis_reject`) confirms
       that three early entries for one missing case, delivered inside the interval,
-      are all held and draw one genesis Reject.
+      are all held and draw one genesis Reject;
+      `test_an_unheld_early_entry_inside_the_interval_names_the_withheld_reject`
+      confirms that an entry the holding area drops inside the interval draws none.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-001
@@ -2043,7 +2045,11 @@ groups:
     verification: >-
       `test/core/behaviors/sync/test_announce_tree.py`
       (`test_seeding_the_case_clears_the_genesis_reject_record`) confirms that a new
-      wait after the seed asks at once.
+      wait after the seed asks at once;
+      `test/core/behaviors/case/test_create_case_received_tree.py`
+      (`test_seeding_from_a_create_clears_the_genesis_reject_record` and
+      `test_a_failed_record_delete_leaves_the_case_unseeded`) confirms that the
+      Create seed deletes the record with the case write.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-021

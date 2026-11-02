@@ -66,6 +66,7 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.services.genesis_reject_limit import last_genesis_reject_at
 from vultron.core.services.held_ledger_announces import held_ledger_announces
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.em import EM
@@ -2347,4 +2348,35 @@ def test_an_unheld_early_entry_inside_the_interval_names_the_withheld_reject(
 
     assert result.disposition == HandlerDisposition.REFUSED
     assert result.reason is not None and "SYNC-15-016" in result.reason
+    assert len(_queued_rejects(datalayer)) == 1
+
+
+class _RecordWriteFailed(RuntimeError):
+    """A store fault injected into the genesis Reject record write."""
+
+
+@pytest.mark.spec("SYNC-15-021")
+def test_a_failed_genesis_reject_record_leaves_no_queued_reject(
+    datalayer, monkeypatch
+):
+    """The Reject and its record commit together, so a failed write leaves
+    neither, and the next early entry asks again (ADR-0146)."""
+    first, second = _early_entries(2)
+    _set_clock(monkeypatch, _GENESIS_WAIT_START)
+
+    def _fail(*_args: object) -> None:
+        raise _RecordWriteFailed("store fault")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(_receive, "record_genesis_reject", _fail)
+        try:
+            _deliver_early_entry(datalayer, first)
+        except _RecordWriteFailed:
+            pass
+
+    assert _queued_rejects(datalayer) == []
+    assert last_genesis_reject_at(datalayer, CASE_ID) is None
+
+    _deliver_early_entry(datalayer, second)
+
     assert len(_queued_rejects(datalayer)) == 1

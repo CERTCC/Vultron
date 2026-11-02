@@ -455,32 +455,36 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
                 f"{self.name}: a DataLayer must be injected to limit genesis"
                 " Rejects (SYNC-15-021)"
             )
-        last_sent_at = last_genesis_reject_at(self.datalayer, entry.case_id)
-        if not cooldown_elapsed(last_sent_at, MAX_REPLAY_COOLDOWN_SECONDS):
-            self.logger.info(
-                "%s: holding entry '%s' (index=%d) for missing case '%s'"
-                " without a genesis Reject: actor '%s' sent one at %s, less"
-                " than %.0f s ago (SYNC-15-016)",
-                self.name,
-                entry.id_,
-                entry.log_index,
-                entry.case_id,
-                actor_id,
-                last_sent_at,
-                MAX_REPLAY_COOLDOWN_SECONDS,
-            )
-            self.withheld = True
-            return
-        asked_at = now_utc()
-        self.logger.warning(
-            "%s: case '%s' of log entry '%s' is not held; sending a genesis"
-            " Reject(CaseLedgerEntry) to '%s' (SYNC-15-001)",
-            self.name,
-            entry.case_id,
-            entry.id_,
-            sender_id,
-        )
+        # The read, the check and the write are one unit, so two deliveries
+        # cannot both find no recent Reject and both send one.
         with self.datalayer.transaction():
+            last_sent_at = last_genesis_reject_at(
+                self.datalayer, entry.case_id
+            )
+            if not cooldown_elapsed(last_sent_at, MAX_REPLAY_COOLDOWN_SECONDS):
+                self.logger.info(
+                    "%s: holding entry '%s' (index=%d) for missing case '%s'"
+                    " without a genesis Reject: actor '%s' sent one at %s,"
+                    " less than %.0f s ago (SYNC-15-016)",
+                    self.name,
+                    entry.id_,
+                    entry.log_index,
+                    entry.case_id,
+                    actor_id,
+                    last_sent_at,
+                    MAX_REPLAY_COOLDOWN_SECONDS,
+                )
+                self.withheld = True
+                return
+            asked_at = now_utc()
+            self.logger.warning(
+                "%s: case '%s' of log entry '%s' is not held; sending a"
+                " genesis Reject(CaseLedgerEntry) to '%s' (SYNC-15-001)",
+                self.name,
+                entry.case_id,
+                entry.id_,
+                sender_id,
+            )
             sync_port.send_reject_log_entry(
                 entry=entry,
                 tail_hash=self.tail_hash,

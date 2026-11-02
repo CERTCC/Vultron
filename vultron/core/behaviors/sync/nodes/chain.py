@@ -132,17 +132,18 @@ class ReconstructChainTailNode(DataLayerActionWithPorts):
             # pre-genesis bootstrap window where an Announce(CaseLedgerEntry)
             # arrived before the Create(VulnerabilityCase) that seeds genesis.
             # This is an expected, self-healing situation, NOT a fault: the
-            # downstream ReconstructOrRejectOnMissingCase selector fires a
+            # downstream ReconstructOrRejectOnMissingCase selector holds the
+            # Announce and, at most once per case per interval, sends a
             # Reject(CaseLedgerEntry) carrying the empty tail_hash sentinel,
             # prompting the CaseActor to replay from genesis (SYNC-15-001,
-            # CLP-08-005).  Log at WARNING so this designed recovery does not
+            # SYNC-15-016, CLP-08-005).  Log at WARNING so this designed recovery does not
             # surface as spurious ERROR noise on replica containers (#2169).
             # (Genuine chain corruption — hash mismatch, index gaps — is
             # handled separately by CheckHashOrRejectOnMismatchNode and never
             # reaches this branch.)
             self.logger.warning(
-                "%s: pre-genesis window for case '%s' — sending Reject to "
-                "replay from genesis (CLP-08-005): %s",
+                "%s: pre-genesis window for case '%s' — holding the entry"
+                " pending the case seed (CLP-08-005): %s",
                 self.name,
                 case_id,
                 exc,
