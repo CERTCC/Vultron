@@ -3,6 +3,10 @@ title: Case Event History — Deriving CVD Events From a Case Ledger
 status: active
 kind: plan
 tracks:
+  - "#5779"
+  - "#5780"
+  - "#5781"
+  - "#5782"
   - "#5068"
 description: >
   Design for the read-only layer that turns a case ledger into the case's CVD event
