@@ -20,6 +20,7 @@ related_specs:
   - specs/embargo-policy.yaml
   - specs/case-management.yaml
   - specs/sync-ledger-replication.yaml
+  - specs/idempotency.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/bt-pitfalls.md

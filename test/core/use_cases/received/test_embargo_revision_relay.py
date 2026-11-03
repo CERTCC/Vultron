@@ -1412,7 +1412,7 @@ def test_a_proposal_repeating_pending_terms_registers_nothing(make_payload):
 
     repeat_terms = as_EmbargoEvent(
         id_=f"{case_id}/embargo_events/repeat",
-        content="Longer terms",
+        content="Same end time, reworded",
         context=case_id,
         end_time=revision.end_time,
     )
@@ -1428,5 +1428,54 @@ def test_a_proposal_repeating_pending_terms_registers_nothing(make_payload):
 
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.proposed_embargo_ids == [revision.id_]
+    assert len(case.embargo_register) == register_before
+    assert set(dl.outbox_list()) == outbox_before
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "EP-09-032: a revision repeating the embargo in force is a duplicate."
+        " Tracked by #5720."
+    ),
+)
+@pytest.mark.spec("EP-09-032")
+def test_a_revision_repeating_the_embargo_in_force_registers_nothing(
+    make_payload,
+):
+    """A revision with the active embargo's end time, under new ids, is a duplicate.
+
+    With no revision pending, a proposal of the terms already in force changes
+    nothing, so the CASE_MANAGER registers no revision, leaves EM at
+    ``ACTIVE`` and relays nothing.
+    """
+    case_id = "https://example.org/cases/relay-duplicate-in-force"
+    dl, _ = _active_case_with_revision(
+        case_id, store_actor=MANAGER, participants=[PROPOSER, OTHER_A]
+    )
+    in_force = cast(as_EmbargoEvent, dl.read(_active_id(dl, case_id)))
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    register_before = len(case.embargo_register)
+    outbox_before = set(dl.outbox_list())
+
+    repeat_terms = as_EmbargoEvent(
+        id_=f"{case_id}/embargo_events/repeat",
+        content="The terms already in force",
+        context=case_id,
+        end_time=in_force.end_time,
+    )
+    dl.create(repeat_terms)
+    repeat = em_propose_embargo_activity(
+        repeat_terms,
+        context=case_id,
+        actor=PROPOSER,
+        to=[MANAGER],
+        id_=f"{case_id}/embargo_proposals/repeat",
+    )
+    _deliver(dl, repeat, make_payload, receiving_actor_id=MANAGER)
+
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    assert case.current_status.em.state == EM.ACTIVE
+    assert case.proposed_embargo_ids == []
     assert len(case.embargo_register) == register_before
     assert set(dl.outbox_list()) == outbox_before
