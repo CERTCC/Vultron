@@ -230,8 +230,10 @@ def _build_activity_snapshot(
         # handler semantics, so it is not carried into core (HP-10-001,
         # ADR-0109).
         to=_get_id_list(getattr(activity, "to", None)),
-        summary=getattr(activity, "summary", None) or None,
-        content=getattr(activity, "content", None) or None,
+        # Blank text is refused when the activity is built (CS-08-001), so
+        # absence is the only empty form left to carry.
+        summary=getattr(activity, "summary", None),
+        content=getattr(activity, "content", None),
         # The sender's position (SYNC-18-001), so a reader of the received
         # activity (the full-case Invite's floor) gets it from core.
         ledger_position=getattr(activity, "ledger_position", None),
