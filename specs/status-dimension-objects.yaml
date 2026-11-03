@@ -286,8 +286,10 @@ groups:
     kind: project
     statement: >-
       When this codebase removes a flat-field migration shim from `CaseStatus` or
-      `ParticipantStatus`, it MUST NOT leave a retired flat key silently discardable.
-      The retired flat keys are `rm_state`, `vf_state`, `d_state`,
+      `ParticipantStatus`, it MUST NOT leave a retired flat key silently discardable
+      on in-process or stored data. An inbound key follows the parse-edge rule
+      instead: a near miss is refused (MV-11-002), any other key is set aside and
+      reported (MV-11-003). The retired flat keys are `rm_state`, `vf_state`, `d_state`,
       `vfd_state`/`vfdState`, `em_consent_state`/`emConsentState`, `em_state` and
       `pxa_state`.
     rationale: >-
@@ -318,6 +320,7 @@ groups:
     - ADR-0063
     - ADR-0082
     - ADR-0099
+    - ADR-0175
   - id: SDO-03-008
     priority: MUST
     kind: project

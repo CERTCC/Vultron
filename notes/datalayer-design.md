@@ -13,6 +13,7 @@ related_specs:
   - specs/datalayer.yaml
   - specs/architecture.yaml (ARCH-12-003, ARCH-12-006, ARCH-23-003, ARCH-23-005)
   - specs/embargo-policy.yaml (EP-02-004)
+  - specs/message-validation.yaml (MV-11-004, MV-11-012)
   - specs/case-management.yaml (CM-11-017)
   - specs/outbox.yaml (OX-06-002)
   - specs/inbox-endpoint.yaml (IE-10-001)
@@ -345,5 +346,5 @@ creates a missing table with its indexes but never alters one that exists, so
 an old store would otherwise open silently and fail later, at the first write
 that relies on the new shape. Check the new shape after `create_all` in
 `SqliteDataLayer.__init__` and raise `VultronStaleStoreError` saying the store
-must be reset, as for a renamed field. The outbox no-duplicate index is the
+must be reset. The outbox no-duplicate index is the
 example: `require_outbox_pending_index` in `datalayer_sqlite/schema.py` (#4629).

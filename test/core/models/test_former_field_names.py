@@ -124,7 +124,6 @@ _CASES = [
 _IDS = [f"{cls.__name__}.{key}" for cls, _, key in _CASES]
 
 
-@pytest.mark.spec("MV-11-012")
 def test_no_retired_field_tracking_module_exists() -> None:
     """No model base keeps a table of retired stored names (ADR-0175)."""
     assert (
@@ -143,7 +142,7 @@ def test_the_valid_data_validates(
     cls.model_validate(data)
 
 
-@pytest.mark.spec("ARCH-12-003", "MV-11-004")
+@pytest.mark.spec("ARCH-12-003", "MV-11-004", "MV-11-012")
 @pytest.mark.parametrize(("cls", "data", "key"), _CASES, ids=_IDS)
 def test_a_former_field_name_is_refused_as_an_unknown_key(
     cls: type[BaseModel], data: dict[str, Any], key: str

@@ -19,6 +19,7 @@ related_specs:
   - specs/sync-behavior-trees.yaml
   - specs/embargo-policy.yaml
   - specs/handler-protocol.yaml
+  - specs/message-validation.yaml (MV-11-003, MV-11-004)
 related_notes:
   - notes/bt-integration.md
   - notes/case-joining.md

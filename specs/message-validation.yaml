@@ -875,8 +875,9 @@ groups:
       `test_no_core_module_names_a_retired_key` in
       `test/wire/as2/test_unknown_key_disposition.py` fails if any string constant under
       `vultron/core/` names a former wire name.
-      `test_no_retired_field_tracking_module_exists` in
-      `test/core/models/test_former_field_names.py` fails if the shared base returns.
+      `test_a_former_field_name_is_refused_as_an_unknown_key` in
+      `test/core/models/test_former_field_names.py` requires each former stored name
+      to raise exactly one `extra_forbidden` error, which a named refusal would not.
     relationships:
     - rel_type: refines
       spec_id: SDO-03-005
