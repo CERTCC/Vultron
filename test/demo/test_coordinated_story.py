@@ -1126,9 +1126,9 @@ class TestInviteChainSkipsDependents:
                 ActorSession, "invite_actor_to_case", **invite_trigger
             ),
             # Nothing stubs the stub-summary seed here: this directory's
-            # conftest no-ops ``invite_chain._seed_stub_summary`` whenever the
-            # case-manager client is a mock, and ``story_state`` builds mocks
-            # (#5444).
+            # conftest no-ops ``invite_chain.chain._seed_stub_summary``
+            # whenever the case-manager client is a mock, and
+            # ``story_state`` builds mocks (#5444).
             patch.object(
                 invite_links, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
