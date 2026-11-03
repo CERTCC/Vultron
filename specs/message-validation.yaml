@@ -241,7 +241,7 @@ groups:
       A descriptive `name` lets an operator read the activity without a lookup of its
       ids.
     stories:
-    - story_2022_074
+    - story_2026_018
   - id: MV-04-003
     priority: MUST
     kind: project

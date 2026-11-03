@@ -860,7 +860,6 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | DUR — Duration | [DUR-07-001](../vultron-spec/requirements/state-behavior.md#dur-07-001), [DUR-07-003](../vultron-spec/requirements/state-behavior.md#dur-07-003), [DUR-07-004](../vultron-spec/requirements/state-behavior.md#dur-07-004) |
 | EP — Embargo Policy | [EP-07-005](../specs/project.md#ep-07-005) |
 | HP — Handler Protocol | [HP-00-002](../vultron-spec/requirements/message-processing.md#hp-00-002) |
-| MV — Message Validation | [MV-04-002](../vultron-spec/requirements/messages.md#mv-04-002) |
 | RSH — Received-Side Status Authorization | [RSH-06-001](../vultron-spec/requirements/message-processing.md#rsh-06-001), [RSH-06-002](../vultron-spec/requirements/message-processing.md#rsh-06-002), [RSH-06-003](../specs/project.md#rsh-06-003), [RSH-06-004](../vultron-spec/requirements/message-processing.md#rsh-06-004), [RSH-06-005](../vultron-spec/requirements/message-processing.md#rsh-06-005), [RSH-06-006](../vultron-spec/requirements/message-processing.md#rsh-06-006), [RSH-06-007](../vultron-spec/requirements/message-processing.md#rsh-06-007) |
 | SM — State Machine | [SM-05-002](../specs/project.md#sm-05-002), [SM-06-002](../specs/project.md#sm-06-002), [SM-10-001](../vultron-spec/requirements/state-behavior.md#sm-10-001) |
 | SYNC — Case Event Log Synchronization | [SYNC-01-001](../vultron-spec/requirements/ledger-replication.md#sync-01-001), [SYNC-01-002](../vultron-spec/requirements/ledger-replication.md#sync-01-002) |
@@ -1382,7 +1381,9 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 {% include-markdown "./story_2026_018.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
 
-*No mapped requirements* (TRACE-01-002).
+| Spec file | Citing requirements |
+|---|---|
+| MV — Message Validation | [MV-04-002](../vultron-spec/requirements/messages.md#mv-04-002) |
 
 ## [story_2026_019](story_2026_019.md)
 
