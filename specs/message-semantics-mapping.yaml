@@ -795,10 +795,10 @@ groups:
     verification: >-
       Inspection of the semantic registry confirms `create_processing_fault`,
       the `as:Reject`-based entries, and the note-scoped entries are all registered.
-    lint_suppress:
-    - missing_story_reference
     adr:
     - ADR-0083
+    stories:
+    - story_2026_011
   - id: MSM-05-002
     priority: MUST
     kind: protocol
@@ -815,8 +815,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-003
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_011
   - id: MSM-05-007
     priority: MUST_NOT
     kind: protocol
@@ -870,8 +870,8 @@ groups:
       Inspection of the CASE_MANAGER receive paths confirms that every inbound protocol
       activity results in at least one CaseLedgerEntry committed before Announce fan-out,
       except for Offer(VulnerabilityReport) which uses the RK path.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_015
   - id: MSM-05-006
     priority: MAY
     kind: protocol
@@ -890,8 +890,8 @@ groups:
     verification: >-
       No normative heartbeat requirement exists in specs/sync-ledger-replication.yaml;
       this entry records the absence as intentional.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_011
   - id: MSM-05-003
     priority: MUST_NOT
     kind: protocol
@@ -905,8 +905,8 @@ groups:
     verification: >-
       Inspection of the semantic registry confirms multiple non-error entries are
       keyed to `as:Reject` patterns.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_011
   - id: MSM-05-004
     priority: MUST_NOT
     kind: process
@@ -1187,8 +1187,8 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_011
   - id: MSM-07-002
     priority: MUST
     kind: protocol
@@ -1216,8 +1216,8 @@ groups:
       spec_id: CM-18-003
     - rel_type: refines
       spec_id: MSM-02-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_001
   - id: MSM-07-003
     priority: MUST
     kind: protocol
@@ -1258,8 +1258,8 @@ groups:
     adr:
     - ADR-0093
     - ADR-0122
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_001
   - id: MSM-07-004
     priority: MUST
     kind: protocol
@@ -1291,8 +1291,8 @@ groups:
     adr:
     - ADR-0093
     - ADR-0122
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_001
   - id: MSM-07-005
     priority: MUST
     kind: protocol
@@ -1327,8 +1327,8 @@ groups:
     adr:
     - ADR-0093
     - ADR-0122
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_001
   - id: MSM-07-019
     priority: MUST
     kind: protocol
@@ -1501,8 +1501,8 @@ groups:
     adr:
     - ADR-0118
     - ADR-0122
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
   - id: MSM-07-025
     priority: MUST_NOT
     kind: protocol
@@ -1556,8 +1556,8 @@ groups:
     adr:
     - ADR-0093
     - ADR-0118
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_001
   - id: MSM-07-026
     priority: MUST
     kind: protocol

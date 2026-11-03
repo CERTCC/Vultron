@@ -44,18 +44,14 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
+
 _CASE = "urn:uuid:case"
 _MANAGER = "http://owner:7999/api/v2/actors/case-actor"
 _OWNER = "http://owner:7999/api/v2/actors/owner"
 _REPORTER = "http://reporter:7999/api/v2/actors/reporter"
 _VENDOR = "http://vendor:7999/api/v2/actors/vendor"
-
-
-@pytest.fixture(autouse=True)
-def _clean_failures():
-    demo_utils.reset_demo_failures()
-    yield
-    demo_utils.reset_demo_failures()
 
 
 def _leaver(actor_id: str) -> CaseLeaver:

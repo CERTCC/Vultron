@@ -108,7 +108,7 @@ groups:
       `test_a_cited_story_with_no_page_is_a_hard_error`,
       `test_a_cited_story_with_a_page_passes` and
       `test_the_cited_story_page_check_is_not_suppressible` in
-      `test/metadata/specs/test_lint.py`.
+      `test/metadata/specs/lint/test_driver.py`.
     statement: >-
       The spec linter reports as a hard error each `stories:` entry naming a story that
       has no page under `docs/reference/user_stories/`. The error names the citing

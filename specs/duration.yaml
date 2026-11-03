@@ -78,8 +78,8 @@ groups:
       A unit test confirms that duration strings using only `D`, `H`, time-part
       `M`, and `S` units are accepted, and that strings containing any other unit
       are rejected.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_012
   - id: DUR-02-002
     priority: MUST_NOT
     kind: protocol
@@ -91,6 +91,8 @@ groups:
       These variable lengths make duration arithmetic non-deterministic across
       implementations. ISO 8601 day-based durations (e.g., `P90D`) represent an
       exact number of 86400-second intervals and are unambiguous.
+    stories:
+    - story_2026_012
 - id: DUR-03
   title: Canonical Form
   specs:
@@ -105,6 +107,8 @@ groups:
       records that hold the same value can fail a plain string comparison or show a
       spurious change in a diff. One preferred spelling lets readers compare strings and
       lets a person read the value at a glance.
+    stories:
+    - story_2026_012
   - id: DUR-03-002
     priority: SHOULD
     kind: protocol
@@ -114,6 +118,8 @@ groups:
       Embargo terms are negotiated and compared in days, and policy ranges are read by
       people as well as code. A whole number of days compares against a policy range at
       a glance.
+    stories:
+    - story_2022_004
   - id: DUR-03-004
     priority: SHOULD_NOT
     kind: protocol
@@ -130,6 +136,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DUR-03-002
+    stories:
+    - story_2022_004
   - id: DUR-03-003
     priority: SHOULD_NOT
     kind: protocol
@@ -139,6 +147,8 @@ groups:
       A zero duration needs one spelling so that equal values compare equal as strings.
       `PT0S` is the form a zero `timedelta` serializes to (DUR-05), so a zero value
       written and read back keeps the same spelling.
+    stories:
+    - story_2026_012
 - id: DUR-04
   title: Validation Requirements
   specs:
@@ -156,8 +166,8 @@ groups:
     verification: >-
       A unit test confirms that duration strings containing `Y`, date-part `M`, or
       `W` units are rejected with a validation error.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_012
   - id: DUR-04-002
     priority: MUST
     kind: protocol
@@ -169,8 +179,8 @@ groups:
     verification: >-
       A unit test confirms that strings not conforming to ISO 8601 duration grammar
       (e.g., `"1D"`, `"foo"`) are rejected with a validation error.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_012
   - id: DUR-04-003
     priority: MUST
     kind: protocol
@@ -182,8 +192,8 @@ groups:
     verification: >-
       A unit test confirms that the strings `"P"` and `"PT"` are rejected as empty
       duration strings.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_012
   - id: DUR-04-004
     priority: MUST
     kind: protocol
@@ -195,8 +205,8 @@ groups:
     verification: >-
       A unit test confirms that a valid duration string must contain at least one
       numeric component, and that bare `"P"` or `"PT"` strings are rejected.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_012
 - id: DUR-05
   title: Python / Pydantic v2 Mapping
   specs:
@@ -256,8 +266,8 @@ groups:
     verification: >-
       A unit test confirms that combining a start timestamp with a duration
       produces `end = start + duration` with no additional calendar offset.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_024
   - id: DUR-06-003
     priority: MUST
     kind: protocol
@@ -270,8 +280,8 @@ groups:
     verification: >-
       A unit test confirms that timestamps used in interval composition are parsed
       as RFC 3339 values.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_024
   - id: DUR-06-004
     priority: SHOULD
     kind: protocol
@@ -323,6 +333,8 @@ groups:
       exists to lock in an embargo as early as possible. The receiving actor's published
       default is the terms it has already declared it will accept, so applying it at
       creation gives the case an embargo without a negotiation round.
+    stories:
+    - story_2022_010
   - id: DUR-07-003
     priority: MUST
     kind: protocol

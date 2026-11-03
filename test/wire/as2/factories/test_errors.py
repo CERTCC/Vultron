@@ -18,27 +18,31 @@ Unit tests for vultron.wire.as2.factories.errors.
 Spec coverage:
 - AF-04-001: Factory functions MUST wrap ValidationError in
   VultronActivityConstructionError.
-- AF-04-002: VultronActivityConstructionError MUST be defined in
-  factories/errors.py and re-exported from factories/__init__.py.
+- AF-04-002: factories/__init__.py MUST re-export
+  VultronActivityConstructionError, which vultron/errors.py defines.
 """
 
 import pytest
 
+import vultron.errors
 from vultron.errors import VultronError
+from vultron.wire.as2 import factories
 from vultron.wire.as2.factories import VultronActivityConstructionError
-from vultron.wire.as2.factories.errors import (
-    VultronActivityConstructionError as DirectImport,
-)
 
 
 def test_construction_error_is_vultron_error():
-    """VultronActivityConstructionError must inherit from VultronError (AF-04-002)."""
+    """VultronActivityConstructionError must inherit from VultronError (EH-01-002)."""
     assert issubclass(VultronActivityConstructionError, VultronError)
 
 
+@pytest.mark.spec("AF-04-002")
 def test_construction_error_reexported_from_package():
-    """VultronActivityConstructionError must be importable from factories __init__ (AF-04-002)."""
-    assert VultronActivityConstructionError is DirectImport
+    """The factories package re-exports the class vultron.errors defines (AF-04-002)."""
+    assert (
+        VultronActivityConstructionError
+        is vultron.errors.VultronActivityConstructionError
+    )
+    assert "VultronActivityConstructionError" in factories.__all__
 
 
 def test_construction_error_can_be_raised_with_cause():

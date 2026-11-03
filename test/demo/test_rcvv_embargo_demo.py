@@ -58,12 +58,17 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main as demo_cli
-from vultron.demo.helpers import coordinated_story, story_cast
+from vultron.demo.helpers import story_cast
 from vultron.demo.helpers.coordinated_embargo_story import (
     PROPOSED_EMBARGO,
     REPORTER_PROPOSES_EMBARGO,
 )
-from vultron.demo.helpers.coordinated_story import COORDINATOR, REPORTER
+from vultron.demo.helpers.coordinated_story import (
+    COORDINATOR,
+    REPORTER,
+    cast as coordinated_cast,
+    continuations as coordinated_continuations,
+)
 from vultron.demo.helpers.story import Choose, Fragment, StoryState
 from vultron.demo.scenario.rcvv_embargo_demo import (
     REVISED_EMBARGO,
@@ -77,9 +82,12 @@ from vultron.demo.scenario.rcvv_embargo_demo import (
     vendor2_joins_under_the_revision,
 )
 from vultron.demo.scenario.registry import discover_scenarios
-from vultron.demo.utils import _demo_failures, reset_demo_failures
+from vultron.demo.utils import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: The cast the shared opening seats.  Vendor2 is not in it: it is a character
 #: actor, seeded and seated by the fragment that brings it into the case.
@@ -96,20 +104,6 @@ EXPECTED_PATH = (
     ("reporter-after-join", "propose-embargo"),
     ("vendor-after-embargo", "propose-revision"),
 )
-
-
-@pytest.fixture(autouse=True)
-def _clean_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, and a fragment
-    that records a failure leaves it there for the next test — where it also
-    changes what ``demo_gate`` does, since a gate skips its body once anything
-    is recorded.
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 def _item_names(items: Sequence[Choose | Fragment]) -> list[str]:
@@ -325,7 +319,7 @@ class TestTheSharedOpeningSeedsOnlyTheThree:
                 ) as reset,
                 patch("vultron.demo.helpers.seeding.seed_case_actor_identity"),
                 patch.object(
-                    coordinated_story,
+                    coordinated_cast,
                     "seed_containers_rcv",
                     return_value=tuple(actors),
                 ) as seed_three,
@@ -538,7 +532,7 @@ def _joining_vendor2(*, signs: bool = True) -> Iterator[SimpleNamespace]:
             demo, "seed_containers_rcvv", return_value=seeded
         ) as seed,
         patch.object(
-            coordinated_story, "get_actor_by_id", return_value=seeded[3]
+            coordinated_cast, "get_actor_by_id", return_value=seeded[3]
         ) as read_back,
         patch.object(demo, "invitee_joins_the_case") as joins,
         patch.object(embargo_story, "wait_for_case_em_state") as canonical,
@@ -737,10 +731,16 @@ class TestBothVendorsReportTheFixReady:
         state = _state_after_vendor2_joined()
 
         with (
-            patch.object(coordinated_story, "wait_for_participant_rm_state"),
+            patch.object(
+                coordinated_continuations, "wait_for_participant_rm_state"
+            ),
             patch.object(ActorSession, "notify_fix_ready"),
-            patch.object(coordinated_story, "wait_for_participant_vf_state"),
-            patch.object(coordinated_story, "verify_fix_ready") as verified,
+            patch.object(
+                coordinated_continuations, "wait_for_participant_vf_state"
+            ),
+            patch.object(
+                coordinated_continuations, "verify_fix_ready"
+            ) as verified,
         ):
             both_vendors_report_the_fix_ready(state)
 
@@ -837,7 +837,7 @@ class TestClosure:
         state = _state_after_vendor2_joined()
 
         with patch.object(
-            coordinated_story, "close_case_owner_last"
+            coordinated_continuations, "close_case_owner_last"
         ) as closure:
             everyone_including_vendor2_closes(state)
 

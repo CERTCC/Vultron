@@ -147,7 +147,7 @@ CATALOG_PAGES: tuple[CatalogPage, ...] = (
         "messages",
         "Messages and Vocabulary",
         SpecKind.PROTOCOL,
-        ("VAM", "MSM", "VM", "MV", "SE", "AKM", "CS"),
+        ("VAM", "MSM", "VM", "MV", "SE", "AKM", "CS", "OID"),
     ),
     CatalogPage(
         "state-behavior",

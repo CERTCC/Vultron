@@ -41,11 +41,12 @@ triggers/           (outbound message sent)
 
 ## Package Root
 
-The package root (`vultron/core/use_cases/`) contains only:
+The package root (`vultron/core/use_cases/`) contains only (UCORG-01-003):
 
 - `__init__.py` — Package declaration
-- `_helpers.py` — Shared helper functions used across `received/` and
-  `triggers/`
+- `README.md` — This file
+- the `query/`, `received/` and `triggers/` sub-packages
+- `_helpers.py` — Shared helper functions used across the sub-packages
 
 The authoritative `MessageSemantics` → use-case class routing table is no
 longer in this package: it is derived from `SEMANTIC_REGISTRY` by

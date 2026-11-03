@@ -47,12 +47,13 @@ _RUNNER_MODULE = "story.py"
 #: package rather than a suffix glob: a `choose`'s trigger is called from
 #: ``workflow.py`` and the invite halves from ``invite_chain.py``, and a mark
 #: slipped into either would have been invisible to a ``*_story.py`` glob.
+#: Recursive, because a split module is a subpackage whose submodules hold the
+#: fragments (``coordinated_story/``, ``vendor_story/``; #5592).
+_HELPERS_DIR = _corpus.REPO_ROOT / "vultron" / "demo" / "helpers"
 _HELPER_MODULES = sorted(
     path
-    for path in (_corpus.REPO_ROOT / "vultron" / "demo" / "helpers").glob(
-        "*.py"
-    )
-    if path.name != _RUNNER_MODULE
+    for path in _corpus.paths_under(_HELPERS_DIR)
+    if path.relative_to(_HELPERS_DIR).as_posix() != _RUNNER_MODULE
 )
 
 
@@ -208,7 +209,7 @@ def _helper_reporter_calls() -> dict[str, int]:
     """Reporter calls per helper module other than the runner, where nonzero."""
     assert _HELPER_MODULES, "no demo helper module found"
     return {
-        path.name: count
+        path.relative_to(_HELPERS_DIR).as_posix(): count
         for path in _HELPER_MODULES
         if (count := _reporter_calls(_corpus.tree_of(path)))
     }
@@ -226,7 +227,7 @@ def test_the_runner_is_the_one_module_held_out_of_the_scan() -> None:
     runner passes ``item.branch_point`` and ``item.choice``, so it names no
     literal pair and the literal scan reads nothing from it.
     """
-    runner = _corpus.REPO_ROOT / "vultron" / "demo" / "helpers" / "story.py"
+    runner = _HELPERS_DIR / "story.py"
     assert runner.is_file(), runner
     assert _reporter_calls(_corpus.tree_of(runner)), (
         f"{_RUNNER_MODULE} is held out of the scan as the one module allowed "
@@ -237,6 +238,11 @@ def test_the_runner_is_the_one_module_held_out_of_the_scan() -> None:
     names = {path.name for path in _HELPER_MODULES}
     assert _RUNNER_MODULE not in names
     assert "invite_chain.py" in names and "workflow.py" in names, sorted(names)
+    # A subpackage's submodules are scanned too: a flat glob would pass over
+    # every fragment a split moved, and the checks above would still pass.
+    assert any(path.parent != _HELPERS_DIR for path in _HELPER_MODULES), (
+        "no helper subpackage submodule is scanned"
+    )
 
 
 @pytest.mark.parametrize(

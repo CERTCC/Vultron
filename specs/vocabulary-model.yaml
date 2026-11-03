@@ -1180,3 +1180,29 @@ groups:
       spec_id: VM-10-001
     stories:
     - story_2022_039
+  - id: VM-10-003
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver MUST NOT require dereferencing the Vultron JSON-LD context URI
+      (VM-10-001) to process a message.
+    rationale: >-
+      A receiver reads Vultron's compact JSON form and needs no JSON-LD expansion, so the
+      context URI is an identifier, not an input. A fetch per message would also make
+      processing depend on the network and on the host serving the context. Today the
+      URI does not resolve at all: the context document is withheld until it is served
+      at the wire-versioned path ADR-0106 defines, so a receiver that fetched it would
+      fail on every sender's message.
+    verification: >-
+      A test marked `VM-10-003` in `test/wire/as2/test_parser.py` blocks network
+      access, then parses an inbound activity whose activity and nested objects declare
+      the Vultron context, and asserts semantic extraction succeeds. Parsing and
+      extraction are the receiver's only steps that read `@context`.
+    adr:
+    - ADR-0069
+    - ADR-0106
+    relationships:
+    - rel_type: uses_definition
+      spec_id: VM-10-001
+    stories:
+    - story_2022_039
