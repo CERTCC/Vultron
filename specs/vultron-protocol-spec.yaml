@@ -99,7 +99,17 @@ groups:
       Valid reports are the ones known to need work, so effort spent on them is what
       reduces harm. Received reports are not yet judged and Closed reports need nothing
       more; letting either crowd out Valid work delays fixes for confirmed vuls.
-    verification_debt: '#3612'
+    testable: false
+    note: >-
+      Not machine-testable. Processing priority is an ordering of a participant's own
+      work, set by its people and tooling outside the protocol. No message carries it,
+      so no protocol trace shows whether Valid work went first. A test that a Valid
+      report can advance to Accepted shows only that the transition exists.
+    verification: >-
+      Inspection: a reviewer confirms that the participant's case-management workflow
+      ranks Valid cases ahead of Received and Closed ones.
+    lint_suppress:
+    - testable_without_steps
     stories:
     - story_2022_086
   - id: VP-02-003
@@ -288,23 +298,18 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      CVD Participants SHOULD announce their RM state transitions to the other Participants
-      in a case
+      CVD Participants SHOULD announce their RM state transitions to the case's
+      CASE_MANAGER, which fans each one out to the other Participants in the case
+      (PCR-08-001, VP-18-002).
     rationale: >-
       Other participants plan their own work around who is engaged with a case
       (VP-01-002). Announcing RM transitions is how they learn of them; an unannounced
-      close or defer leaves them expecting work that will not happen.
+      close or defer leaves them expecting work that will not happen. A participant
+      never messages another participant directly, so the announcement reaches them
+      through the CASE_MANAGER's fan-out.
     stories:
     - story_2022_062
     - story_2022_107
-  - id: VP-02-020
-    priority: SHOULD
-    kind: protocol
-    statement: Participants SHOULD create a case for all Valid reports
-    rationale: >-
-      Every valid report needs a place to track its participants, embargo and progress.
-      A valid report without a case can fall out of view and gives other participants
-      nothing to join.
   - id: VP-02-021
     priority: SHOULD
     kind: protocol
@@ -564,11 +569,15 @@ groups:
   - id: VP-03-008
     priority: SHOULD
     kind: protocol
-    statement: Participants SHOULD send $RE$ regardless of state when any error is encountered
+    statement: >-
+      A Participant that cannot process an $R*$ message it receives SHOULD answer it
+      with `Create(ProcessingFault)` (ASK-07-001), whatever its RM state. $RE$ has no
+      wire activity of its own (MSM-05-001).
     rationale: >-
-      A protocol message that cannot be processed otherwise fails silently. Sending $RE$
-      in any state tells the sender something went wrong, so it can correct or ask
-      instead of assuming the message took effect.
+      A protocol message that cannot be processed otherwise fails silently. A processing
+      fault in any state tells the sender something went wrong, so it can correct or ask
+      instead of assuming the message took effect. Faults are grouped by failure mode,
+      not by state machine, so no RM-specific error message exists.
     stories:
     - story_2022_007
     - story_2022_008
@@ -613,15 +622,16 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      Recipients of an $RE$ message SHOULD inquire ($GI$) as to the nature of the error.
-      They do not acknowledge it with $RK$ (VP-03-009); once a case exists, its
-      acknowledgment is the CASE_MANAGER's ledger entry for it, fanned out to the
-      participants.
+      Recipients of `Create(ProcessingFault)` about an $R*$ message they sent ($RE$)
+      SHOULD inquire ($GI$) as to the nature of the error. $RE$ has no wire activity of
+      its own (MSM-05-001). They do not acknowledge the fault with $RK$ (VP-03-009);
+      once a case exists, its acknowledgment is the CASE_MANAGER's ledger entry for it,
+      fanned out to the participants.
     rationale: >-
-      An $RE$ says something went wrong but not what, so asking ($GI$) is how the two
-      sides find and fix the problem. No $RK$ is needed: $RK$ acknowledges only $RS$
+      A fault says something went wrong but not always what, so asking ($GI$) is how the
+      two sides find and fix the problem. No $RK$ is needed: $RK$ acknowledges only $RS$
       (VP-03-009), and once a case exists the CASE_MANAGER's ledger entry already
-      acknowledges the case event.
+      acknowledges the case event (ASK-07-008).
     stories:
     - story_2022_077
   - id: VP-03-012
@@ -629,12 +639,14 @@ groups:
     kind: protocol
     statement: >-
       Participants whose state changes in the RM, EM, or CVD Case State Models SHOULD send
-      a message to other Participants for each transition
+      a message for each transition to the case's CASE_MANAGER, which fans it out to the
+      other Participants (PCR-08-001, VP-18-002).
     rationale: >-
       Each participant decides from its picture of the others' states (VP-01-001).
       Announcing every RM, EM and CS transition keeps those pictures current; an
       unannounced transition, such as a fix becoming ready, leaves others acting on
-      stale information.
+      stale information. Participants never message each other directly, so the
+      CASE_MANAGER's fan-out is how the transition reaches them.
     stories:
     - story_2022_039
     - story_2022_041
@@ -926,12 +938,13 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      Participants who leave an Active embargo SHOULD be removed by the remaining Participants
-      from further communication about the case
+      A Participant that leaves an Active embargo SHOULD be dropped by the CASE_MANAGER
+      from its fan-out of further communication about the case (CM-10-004).
     rationale: >-
       A participant that has left an active embargo is not bound to keep new information
       private. Continuing to send it case updates would leak information outside the
-      embargo.
+      embargo. The other participants send it nothing directly (PCR-08-001, VP-18-002),
+      so only the CASE_MANAGER's fan-out can drop it.
     stories:
     - story_2022_066
     - story_2022_068
@@ -1921,9 +1934,10 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      Recipients SHOULD acknowledge the $E*$ messages they receive. The acknowledgment
-      ($EK$) is the CASE_MANAGER's ledger entry for the message, fanned out to the
-      participants as `Announce(CaseLedgerEntry)`; no $EK$ message is sent (EP-09-009).
+      Recipients SHOULD acknowledge the $E*$ messages they receive. Once a case exists,
+      the acknowledgment ($EK$) is the CASE_MANAGER's ledger entry for the message,
+      fanned out to the participants as `Announce(CaseLedgerEntry)`; no $EK$ message
+      exists (EP-09-009).
     rationale: >-
       An embargo message changes what participants may disclose. Acknowledging it tells
       the sender it arrived, so silence is not mistaken for agreement or for a lost
@@ -1935,12 +1949,16 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      Participants SHOULD acknowledge ($EK$) and inquire ($GI$) about the nature of any error
-      reported by an incoming $EE$ message
+      Recipients of `Create(ProcessingFault)` about an $E*$ message they sent ($EE$)
+      SHOULD inquire ($GI$) as to the nature of the error. $EE$ has no wire activity of
+      its own (MSM-05-001). No $EK$ message is sent for the fault (EP-09-009); once a
+      case exists, its acknowledgment is the CASE_MANAGER's ledger entry for it, fanned
+      out to the participants.
     rationale: >-
-      An $EE$ means the other side could not process an embargo message, so the two may
-      now hold different embargo states. Acknowledging it and asking what went wrong
-      lets them find and fix the mismatch.
+      A fault about an embargo message means the other side could not process it, so
+      the two may now hold different embargo states. Asking what went wrong lets them
+      find and fix the mismatch. The CASE_MANAGER's ledger entry for the fault already
+      acknowledges it (ASK-07-008), so a separate $EK$ would only add traffic.
     stories:
     - story_2022_008
   - id: VP-11-006

@@ -278,13 +278,15 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A Participant in RM Start (q^rm ∈ S) receiving RI SHOULD respond with
-      both RE (to signal the unexpected message) and GI (to inquire what the
-      sender expected).
+      A Participant in RM Start (q^rm ∈ S) receiving RI SHOULD answer it with
+      `Create(ProcessingFault)` (ASK-07-001). The fault tells the sender that the
+      receiver holds no report the RI could be about. RE has no wire activity of
+      its own (MSM-05-001).
     rationale: >-
       Receiving any R* message other than RS while in RM Start means the
       sender believes the receiver is coordinating a report the receiver has
-      no knowledge of. RE+GI is the protocol-specified error response.
+      no knowledge of. A processing fault is the protocol's error response
+      (VP-03-010).
     testable: true
     preconditions:
     - rm_state:
@@ -293,18 +295,14 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit RE to signal the unexpected message error
-      expected: RE queued for sender
-    - order: 2
-      actor: receiver
-      action: Emit GI to inquire what the sender expected
-      expected: GI queued for sender
+      action: Emit Create(ProcessingFault) to signal the unexpected message
+      expected: ProcessingFault queued for sender; no RE message exists
     postconditions:
-    - description: RE and GI emitted; receiver RM state unchanged (START)
+    - description: ProcessingFault emitted; receiver RM state unchanged (START)
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-010
-      note: RE+GI when R* (other than RS) received while in RM Start
+      note: Processing fault when R* received while in RM Start
     - rel_type: satisfies
       spec_id: MSM-01-002
       note: 'RI shorthand wire-type mapping'
@@ -354,8 +352,10 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A Participant in RM Start (q^rm ∈ S) receiving RV SHOULD respond with
-      RE and GI to signal the error and inquire what the sender expected.
+      A Participant in RM Start (q^rm ∈ S) receiving RV SHOULD answer it with
+      `Create(ProcessingFault)` (ASK-07-001). The fault tells the sender that the
+      receiver holds no report the RV could be about. RE has no wire activity of
+      its own (MSM-05-001).
     rationale: >-
       Receiving any R* message other than RS while in RM Start is an error
       condition indicating the sender has a mistaken expectation about the
@@ -368,18 +368,14 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit RE to signal the unexpected message error
-      expected: RE queued for sender
-    - order: 2
-      actor: receiver
-      action: Emit GI to inquire what the sender expected
-      expected: GI queued for sender
+      action: Emit Create(ProcessingFault) to signal the unexpected message
+      expected: ProcessingFault queued for sender; no RE message exists
     postconditions:
-    - description: RE and GI emitted; receiver RM state unchanged (START)
+    - description: ProcessingFault emitted; receiver RM state unchanged (START)
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-010
-      note: RE+GI when R* (other than RS) received while in RM Start
+      note: Processing fault when R* received while in RM Start
     - rel_type: satisfies
       spec_id: MSM-01-003
       note: 'RV shorthand wire-type mapping'
@@ -429,8 +425,10 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A Participant in RM Start (q^rm ∈ S) receiving RD SHOULD respond with
-      RE and GI to signal the error and inquire what the sender expected.
+      A Participant in RM Start (q^rm ∈ S) receiving RD SHOULD answer it with
+      `Create(ProcessingFault)` (ASK-07-001). The fault tells the sender that the
+      receiver holds no report the RD could be about. RE has no wire activity of
+      its own (MSM-05-001).
     rationale: >-
       Receiving any R* message other than RS while in RM Start is an error
       condition.
@@ -442,18 +440,14 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit RE to signal the unexpected message error
-      expected: RE queued for sender
-    - order: 2
-      actor: receiver
-      action: Emit GI to inquire what the sender expected
-      expected: GI queued for sender
+      action: Emit Create(ProcessingFault) to signal the unexpected message
+      expected: ProcessingFault queued for sender; no RE message exists
     postconditions:
-    - description: RE and GI emitted; receiver RM state unchanged (START)
+    - description: ProcessingFault emitted; receiver RM state unchanged (START)
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-010
-      note: RE+GI when R* (other than RS) received while in RM Start
+      note: Processing fault when R* received while in RM Start
     - rel_type: satisfies
       spec_id: MSM-01-004
       note: 'RD shorthand wire-type mapping'
@@ -504,8 +498,10 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A Participant in RM Start (q^rm ∈ S) receiving RA SHOULD respond with
-      RE and GI to signal the error and inquire what the sender expected.
+      A Participant in RM Start (q^rm ∈ S) receiving RA SHOULD answer it with
+      `Create(ProcessingFault)` (ASK-07-001). The fault tells the sender that the
+      receiver holds no report the RA could be about. RE has no wire activity of
+      its own (MSM-05-001).
     rationale: >-
       Receiving any R* message other than RS while in RM Start is an error
       condition indicating the sender has a mistaken expectation about the
@@ -518,18 +514,14 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit RE to signal the unexpected message error
-      expected: RE queued for sender
-    - order: 2
-      actor: receiver
-      action: Emit GI to inquire what the sender expected
-      expected: GI queued for sender
+      action: Emit Create(ProcessingFault) to signal the unexpected message
+      expected: ProcessingFault queued for sender; no RE message exists
     postconditions:
-    - description: RE and GI emitted; receiver RM state unchanged (START)
+    - description: ProcessingFault emitted; receiver RM state unchanged (START)
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-010
-      note: RE+GI when R* (other than RS) received while in RM Start
+      note: Processing fault when R* received while in RM Start
     - rel_type: satisfies
       spec_id: MSM-01-005
       note: 'RA shorthand wire-type mapping'
@@ -608,8 +600,10 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A Participant in RM Start (q^rm ∈ S) receiving RC SHOULD respond with
-      RE and GI to signal the error and inquire what the sender expected.
+      A Participant in RM Start (q^rm ∈ S) receiving RC SHOULD answer it with
+      `Create(ProcessingFault)` (ASK-07-001). The fault tells the sender that the
+      receiver holds no report the RC could be about. RE has no wire activity of
+      its own (MSM-05-001).
     rationale: >-
       Receiving any R* message other than RS while in RM Start is an error
       condition.
@@ -621,18 +615,14 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit RE to signal the unexpected message error
-      expected: RE queued for sender
-    - order: 2
-      actor: receiver
-      action: Emit GI to inquire what the sender expected
-      expected: GI queued for sender
+      action: Emit Create(ProcessingFault) to signal the unexpected message
+      expected: ProcessingFault queued for sender; no RE message exists
     postconditions:
-    - description: RE and GI emitted; receiver RM state unchanged (START)
+    - description: ProcessingFault emitted; receiver RM state unchanged (START)
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-010
-      note: RE+GI when R* (other than RS) received while in RM Start
+      note: Processing fault when R* received while in RM Start
     - rel_type: satisfies
       spec_id: MSM-01-006
       note: 'RC shorthand wire-type mapping'
@@ -648,12 +638,14 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RE
-      SHOULD emit GI (to inquire about the nature of the error).
+      A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) that receives
+      `Create(ProcessingFault)` about an RM activity it sent SHOULD inquire (GI)
+      about the nature of the error when the fault does not say what went
+      wrong. RE has no wire activity of its own (MSM-05-001).
     rationale: >-
-      RE indicates the sender encountered an error related to the report. GI
-      opens a dialogue to resolve the problem. No RK is sent: RK acknowledges
-      only a report submission and never goes to the CASE_MANAGER
+      The fault says the sender could not process an RM activity, but not
+      always why. GI opens a dialogue to resolve the problem. No RK is sent: RK
+      acknowledges only a report submission and never goes to the CASE_MANAGER
       (RMB-08-003).
     testable: true
     preconditions:
@@ -683,15 +675,16 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A Participant in RM Start (q^rm ∈ S) receiving RE SHOULD respond with
-      RE (to signal the unexpected message) and GI (to inquire what the sender
-      expected).
+      A Participant in RM Start (q^rm ∈ S) that receives
+      `Create(ProcessingFault)` about an RM activity SHOULD answer it with
+      `Create(ProcessingFault)` (ASK-07-001). The fault tells the sender that the
+      receiver holds no report the fault could be about. RE has no wire activity
+      of its own (MSM-05-001).
     rationale: >-
       Receiving any R* message while in RM Start means the sender has a
-      stale or incorrect case reference. RE+GI is the protocol-specified
-      error response. Even RE itself, when received in START, signals a
-      coordination mismatch that requires the RE+GI error response per
-      VP-03-010.
+      stale or incorrect case reference. Even a fault, when received in START,
+      signals a coordination mismatch that calls for the processing-fault
+      error response per VP-03-010.
     testable: true
     preconditions:
     - rm_state:
@@ -700,18 +693,14 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit RE to signal the unexpected message error
-      expected: RE queued for sender
-    - order: 2
-      actor: receiver
-      action: Emit GI to inquire what the sender expected
-      expected: GI queued for sender
+      action: Emit Create(ProcessingFault) to signal the unexpected message
+      expected: ProcessingFault queued for sender; no RE message exists
     postconditions:
-    - description: RE and GI emitted; receiver RM state unchanged (START)
+    - description: ProcessingFault emitted; receiver RM state unchanged (START)
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-010
-      note: RE+GI when R* (other than RS) received while in RM Start
+      note: Processing fault when R* received while in RM Start
     - rel_type: satisfies
       spec_id: MSM-01-007
       note: 'RE shorthand wire-type mapping'
@@ -1028,9 +1017,9 @@ groups:
       A Participant entering RM Valid MUST initiate a prioritization evaluation
       to determine whether to Accept or Defer the report.
     rationale: >-
-      VP-02-002 requires that Participants prioritize Valid cases. Entering
-      Valid without initiating prioritization blocks progression and violates
-      the requirement.
+      A Valid report waits on a decision to Accept or Defer it. Entering
+      Valid without initiating prioritization leaves the report with no path
+      forward.
     verification: A unit test confirms that a participant entering `RM.VALID` initiates a prioritization evaluation,
       resulting in a transition to either `RM.ACCEPTED` or `RM.DEFERRED`.
     testable: true
@@ -1046,9 +1035,6 @@ groups:
     postconditions:
     - description: Prioritization underway; report will transition to ACCEPTED or DEFERRED
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-02-002
-      note: Participants MUST prioritize Valid cases
     - rel_type: satisfies
       spec_id: VP-02-014
       note: SHOULD perform a prioritization evaluation for Valid reports
@@ -1131,9 +1117,6 @@ groups:
     - rel_type: satisfies
       spec_id: VP-02-015
       note: SHOULD create a case for reports entering the Valid state
-    - rel_type: satisfies
-      spec_id: VP-02-020
-      note: SHOULD create a case for all Valid reports
 
 - id: RMB-11
   title: Enter RM Invalid
@@ -1416,10 +1399,6 @@ groups:
       description: Participant is in RM Accepted
     lint_suppress:
     - testable_without_steps
-    relationships:
-    - rel_type: satisfies
-      spec_id: VP-02-002
-      note: Participants MUST prioritize Valid cases; Accepted is the result of prioritization
 
 - id: RMB-14
   title: Enter RM Closed
