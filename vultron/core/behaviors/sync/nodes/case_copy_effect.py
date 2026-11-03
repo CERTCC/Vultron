@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Store what an entry the case copy already reflects carries (SYNC-16-007).
+"""Store what an entry the case copy already reflects carries (SYNC-16-023).
 
 An entry at or before the ledger position of this replica's case, which a
 copy that seeded or replaced it put ahead of the chain, is stored as a no-op
@@ -52,7 +52,7 @@ class StoreRecordsReflectedEntryCarriesNode(_LedgerEffectNode):
                     self.datalayer.create(record)
             self.logger.info(
                 "%s: stored %d record(s) reflected entry '%s' carries for"
-                " case '%s' (SYNC-16-007)",
+                " case '%s' (SYNC-16-023)",
                 self.name,
                 len(records),
                 entry.id_,

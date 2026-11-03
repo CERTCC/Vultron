@@ -1526,7 +1526,7 @@ _SUBJ_OWNER = "https://example.org/users/subject-owner"
 
 class TestParticipantStatusSubjectIsTheSender:
     """Only a participant asserts its own status, save the on-behalf v→V and
-    d→D a CASE_MANAGER or Case Owner may assert (RSH-08-007, PRM-06-003/004).
+    d→D a CASE_MANAGER or Case Owner may assert (RSH-08-014, PRM-06-003/004).
 
     Each test drives the Add through the inbox ingress at the CASE_MANAGER,
     which is the store's own actor.
@@ -1693,7 +1693,7 @@ class TestParticipantStatusSubjectIsTheSender:
             dl, result, ids[_SUBJ_VENDOR], status.id_, before
         )
         # A sender refusal: the reporter holds none of the rule's standings,
-        # and an unentitled sender is sent no notice (HP-01-006, CLP-05-001).
+        # and an unentitled sender is sent no notice (HP-01-006, CLP-05-006).
         assert "HP-01-006" in (result.reason or ""), result.reason
         assert self._rejects_sent(dl) == []
 
@@ -1735,7 +1735,7 @@ class TestParticipantStatusSubjectIsTheSender:
             dl, result, ids[_SUBJ_VENDOR], status.id_, before
         )
 
-    @pytest.mark.spec("RSH-08-007")
+    @pytest.mark.spec("RSH-08-014")
     @pytest.mark.spec("PRM-06-003")
     @pytest.mark.parametrize(
         "sender", [_SUBJ_OWNER, "case-manager"], ids=["owner", "manager"]
@@ -1760,7 +1760,7 @@ class TestParticipantStatusSubjectIsTheSender:
             dl, result, ids[_SUBJ_VENDOR], status.id_, before
         )
 
-    @pytest.mark.spec("RSH-08-007")
+    @pytest.mark.spec("RSH-08-014")
     @pytest.mark.spec("PRM-06-004")
     def test_on_behalf_d_to_D_is_admitted(self):
         from vultron.core.models.dimensions import DDimension

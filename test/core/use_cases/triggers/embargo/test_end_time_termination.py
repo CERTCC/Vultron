@@ -478,6 +478,7 @@ def test_a_participants_activity_after_the_end_time_ends_the_embargo() -> None:
 
 @pytest.mark.spec("CLP-10-025")
 @pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("CLP-10-051")
 def test_a_non_participants_activity_commits_no_termination() -> None:
     """The sender guard runs before the clock decisions, so a sender with no
     standing in the case never makes the CASE_MANAGER write (AC-9)."""
@@ -494,6 +495,8 @@ def test_a_non_participants_activity_commits_no_termination() -> None:
 
 @pytest.mark.spec("CLP-10-025")
 @pytest.mark.spec("EP-08-004")
+@pytest.mark.spec("CLP-10-052")
+@pytest.mark.spec("CLP-10-053")
 def test_the_termination_commits_one_entry_per_as2_activity_in_order() -> None:
     """Each entry the end-time decision commits is one CASE_MANAGER-authored
     AS2 activity: the ``Remove`` first, whose register step already cancelled
@@ -683,6 +686,7 @@ def test_a_refused_end_time_commit_lets_the_trigger_run(
 
 
 @pytest.mark.spec("CLP-10-025")
+@pytest.mark.spec("CLP-10-059")
 def test_a_refused_end_time_commit_lets_the_received_tree_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

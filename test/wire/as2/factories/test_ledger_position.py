@@ -55,6 +55,7 @@ def _note():
     )
 
 
+@pytest.mark.spec("SYNC-18-008")
 @pytest.mark.spec("SYNC-18-002")
 def test_the_stamp_is_a_copy_stating_the_position() -> None:
     note = _note()
@@ -67,7 +68,7 @@ def test_the_stamp_is_a_copy_stating_the_position() -> None:
     assert dumped["ledgerPosition"] == {"logIndex": 4, "entryHash": "ab" * 32}
 
 
-@pytest.mark.spec("SYNC-18-002")
+@pytest.mark.spec("SYNC-18-009")
 def test_a_stamped_activity_keeps_its_first_position() -> None:
     first = stamp_ledger_position(_note(), _TAIL)
     later = LedgerPosition(log_index=9, entry_hash="cd" * 32)
@@ -112,7 +113,7 @@ def test_a_stub_invite_and_its_reply_name_the_case_the_stub_stands_for() -> (
     assert _CASE in list(ledger_position_case_ids(reply))
 
 
-@pytest.mark.spec("SYNC-18-001")
+@pytest.mark.spec("SYNC-18-017")
 @pytest.mark.parametrize(
     "build",
     [
@@ -161,7 +162,7 @@ def test_an_act_on_a_named_case_names_it_to_be_stamped() -> None:
     assert list(ledger_position_case_ids(join)) == [_CASE]
 
 
-@pytest.mark.spec("SYNC-18-001")
+@pytest.mark.spec("SYNC-18-017")
 def test_a_processing_fault_names_no_case() -> None:
     fault = create_processing_fault_activity(
         actor=_ACTOR,

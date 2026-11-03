@@ -31,7 +31,7 @@ It sends no answer when the sender may not send the message at all, or when the 
 
 Each message on this page also states its sender's ledger position.
 The sender puts the tail of its copy of the case ledger in the activity's `ledgerPosition`, an object with `logIndex` and `entryHash`, when it builds the message ([SYNC-18-001](../vultron-spec/requirements/ledger-replication.md#sync-18-001)).
-A receiver refuses such a message when it carries no position or one that does not parse, and writes nothing ([SYNC-18-003](../vultron-spec/requirements/ledger-replication.md#sync-18-003)).
+A receiver refuses such a message when it carries no position or one that does not parse, and writes nothing ([SYNC-18-015](../vultron-spec/requirements/ledger-replication.md#sync-18-015)).
 `Create(VulnerabilityCase)`, `Update(VulnerabilityCase)` and `Announce(VulnerabilityCase)` carry none, because the case they carry states its own position.
 A reply to a stub `Invite` carries none either, because its sender does not hold the case yet.
 
@@ -320,7 +320,7 @@ Only `caseRoles` on the attached object differs.
 {% include-markdown "./_occasions/sections/create-case-participant.md" %}
 
 - **Protocol role:** a participant record comes into existence only as the CASE_MANAGER's consequence of an act it records ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md), VAM-01-020).
-  The CASE_MANAGER creates the invitee's participant record when it sends a stub Invite, and commits that creation as its own entry, carrying the record in full ([CLP-07-013](../vultron-spec/requirements/ledger-replication.md#clp-07-013)).
+  The CASE_MANAGER creates the invitee's participant record when it sends a stub Invite, and commits that creation as its own entry, carrying the record in full ([CLP-07-021](../vultron-spec/requirements/ledger-replication.md#clp-07-021)).
   Replicas copy the record from the ledger fan-out ([§10.2 Routing Topology](../vultron-spec/interactions.md#102-routing-topology)).
   An actor joins a case by accepting its stub Invite (see [Accept Invite to Case](#accept-invite-to-case)).
 - **On receipt:** the activity is recognized, but no use case handles it, so an inbox reports "no use case found" and changes nothing (VAM-01-018).

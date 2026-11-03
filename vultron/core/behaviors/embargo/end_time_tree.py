@@ -43,7 +43,7 @@ The decision commits one CASE_MANAGER entry for each AS2 activity the
 termination needs: the ``Remove``, whose register step also cancels every
 open proposal, so no prefix of the entries shows the embargo ``TERMINATED``
 beside a ``PROPOSED`` one (EP-08-004), then the ``Add(CaseStatus)`` and each
-re-issued stub ``Invite`` (CLP-10-025).
+re-issued stub ``Invite`` (CLP-10-052).
 """
 
 from datetime import datetime
@@ -207,7 +207,7 @@ def end_time_clock_decision(
     only when the embargo in force has reached its end time at *now*, and is
     otherwise SUCCESS with nothing done.  A gapped local ledger, the one way
     the ledger refuses a CASE_MANAGER commit, is FAILURE before anything is
-    committed, so the stage logs it and the tree continues (CLP-10-025); a
+    committed, so the stage logs it and the tree continues (CLP-10-059); a
     commit that then fails is an internal error and ends the tree.  It holds
     no gate of its own: every caller composes it into its one tree behind
     the CASE_MANAGER gate of the clock-decision stage, a received tree through
@@ -233,7 +233,7 @@ def end_time_clock_decision(
                     # gapped local prefix (SYNC-10-001), is judged before
                     # the termination commits anything: its commit nodes
                     # raise on a failed commit, which would end the tree the
-                    # decision runs in as an internal error (CLP-10-025).
+                    # decision runs in as an internal error (CLP-10-060).
                     CheckLedgerFreshnessNode(
                         case_id=case_id, name=END_TIME_LEDGER_FRESH_NODE_NAME
                     ),

@@ -235,7 +235,7 @@ def test_a_read_resends_the_relayed_invite_as_first_sent(make_payload):
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert invite_id in dl.outbox_list()
     # Queued under its first id, from the body sealed when first sent: the
-    # same ledgerPosition and RSVP deadline (SYNC-18-002, OX-07-001).
+    # same ledgerPosition and RSVP deadline (SYNC-18-009, OX-07-001).
     assert read_sealed_body_dict(dl, invite_id) == sealed
     assert sealed is not None and "ledgerPosition" in sealed
     assert "endTime" in sealed

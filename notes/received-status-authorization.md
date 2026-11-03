@@ -148,7 +148,7 @@ sent or refuses all of it; `CheckCaseStatusAcceptableNode` does the same for
 - **The guards are read-only and run before the commit** (CLP-10-006,
   CLP-10-009). A refused regression still owes the RSH-06-004 note: the guard
   publishes the anomaly before it fails, and the note runs as a
-  `refusal_effects` (CLP-10-022).
+  `refusal_effects` (CLP-10-041).
 - **`em` is never judged from a participant status.** EM is derived from the
   embargo register; a received `CaseStatus` whose EM differs from
   `case.em_state` is refused (RSH-09-005, ADR-0122).
@@ -189,7 +189,7 @@ sender check: authorization happened at adoption (ADR-0166).
 
 - **Only the CASE_MANAGER emits `Add(CaseStatus)`.** Other participants embed a
   suggested `CaseStatus` in `Add(ParticipantStatus)` and let the gate decide
-  (RSH-04-001).
+  (RSH-04-001, RSH-04-007).
 - **Refuse `Add(CaseStatus)` from anyone else, and at the CASE_MANAGER.**
   `add_case_status_tree` has no adoption gate, so admitting it from a
   participant skips the Case Owner's approval (RSH-04-005, RSH-07-001). The
@@ -202,7 +202,7 @@ sender check: authorization happened at adoption (ADR-0166).
 - **Adoption passes the report to the snapshot.** On the participant path the
   case has not moved when `EmitCaseStatusUpdateNode` runs, so a bare snapshot
   re-commits the old P/X/A. Pass `reported_status_id`; the node adds every
-  P/X/A latch the report sets and clears none (`adopted_pxa`, RSH-01-003, #4956).
+  P/X/A latch the report sets and clears none (`adopted_pxa`, RSH-01-005, #4956).
 - **A snapshot that changes nothing is not written.** The node compares EM and
   P/X/A with the last committed `CaseStatus` entry, not `case.current_status`,
   which already carries the register's EM stamp, so comparing with it would miss

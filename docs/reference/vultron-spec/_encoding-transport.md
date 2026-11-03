@@ -29,7 +29,7 @@ The fields that tell occasions apart, such as `target` and `context`, are the br
 Vultron's own types are declared in the vocabulary namespace `https://certcc.github.io/Vultron/ns`.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MV-01-001", "OX-02-002", "OID-01-001", "CLP-15-006"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MV-01-001", "OX-02-002", "OID-01-001", "CLP-15-006", "CLP-15-008"))
 ```
 
 Vultron uses AS2 verbs rather than defining its own:

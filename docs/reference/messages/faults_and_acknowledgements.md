@@ -41,7 +41,7 @@ in a way that state-machine origin is not.
 
 {% include-markdown "./_occasions/sections/create-processing-fault.md" heading-offset=1 %}
 
-In the example, a Vendor cannot apply a ledger entry from the CASE_MANAGER whose participant status names an impossible state, and reports the fault to the CASE_MANAGER ([RSH-09-006](../vultron-spec/requirements/message-processing.md#rsh-09-006)).
+In the example, a Vendor cannot apply a ledger entry from the CASE_MANAGER whose participant status names an impossible state, and reports the fault to the CASE_MANAGER ([RSH-09-006](../vultron-spec/requirements/message-processing.md#rsh-09-006), [RSH-09-013](../vultron-spec/requirements/message-processing.md#rsh-09-013)).
 A participant reports two other refused ledger entries the same way, each with a `LedgerEntryRefused` failure class.
 An entry whose content does not reproduce its hash takes `LedgerEntryRefused/HashMismatch` ([SYNC-03-007](../vultron-spec/requirements/ledger-replication.md#sync-03-007)).
 An entry that extends the participant's chain but does not apply to its case takes `LedgerEntryRefused/CaseDiverged`, because the participant's case has diverged from the CASE_MANAGER's ([SYNC-16-001](../vultron-spec/requirements/ledger-replication.md#sync-16-001)).
@@ -77,7 +77,7 @@ Its id is derived from the CASE_MANAGER and the refused activity, so a refused a
 
 The CASE_MANAGER sends it only when a precondition guard refuses the assertion.
 It sends none when the sender guard refuses the sender, when the activity repeats one whose effect is already in place, when the activity is a redelivery, or when the case is fully closed ([CLP-02-005](../vultron-spec/requirements/ledger-replication.md#clp-02-005)).
-It sends none for a delivery that an answer of its own replaces, such as the `Reject` of the Invite that answers an embargo `Invite` or `Accept` once the case is public, an exploit is public, or attacks are observed, because that answer already tells the sender ([CLP-10-026](../specs/project.md#clp-10-026)).
+It sends none for a delivery that an answer of its own replaces, such as the `Reject` of the Invite that answers an embargo `Invite` or `Accept` once the case is public, an exploit is public, or attacks are observed, because that answer already tells the sender ([CLP-10-070](../specs/project.md#clp-10-070)).
 It sends none for a failure inside the CASE_MANAGER, which is not a refusal: the internal-error fault above answers that.
 A refusal is not a case event, so the notice is not ledgered ([CLP-05-002](../vultron-spec/requirements/ledger-replication.md#clp-05-002)).
 

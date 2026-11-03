@@ -298,7 +298,7 @@ def test_the_manager_withdraws_its_own_proposal_with_an_undo():
 
 
 @pytest.mark.spec("BT-17-016")
-@pytest.mark.spec("CLP-10-001", "CLP-10-027")
+@pytest.mark.spec("CLP-10-032")
 def test_the_manager_queues_nothing_to_itself():
     """Every replica learns the abandonment from the entry; the ER itself is
     addressed to nobody, and nothing the manager queues names it."""

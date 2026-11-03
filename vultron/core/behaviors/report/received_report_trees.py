@@ -224,7 +224,7 @@ def create_report_received_tree(
     Handles receipt of a ``Create(VulnerabilityReport)`` activity.
 
     Steps (Sequence via :func:`create_receive_activity_tree`):
-    1. Intake archives the ``Create`` as received (CLP-10-017), so a refused
+    1. Intake archives the ``Create`` as received (CLP-10-036), so a refused
        delivery still leaves its record (CLP-10-018).
     2. Store VulnerabilityReport idempotently.
 
@@ -272,7 +272,7 @@ def create_ack_report_received_tree(
 
     Steps (Sequence via :func:`create_receive_activity_tree`):
 
-    1. Intake archives the ``Read`` as received (CLP-10-017), so a refused
+    1. Intake archives the ``Read`` as received (CLP-10-036), so a refused
        acknowledgement still leaves its record (CLP-10-018).
     2. The sender guard the factory composes from *sender_rule* refuses a
        sender that is not an addressee of the Offer this store recorded

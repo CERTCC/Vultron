@@ -16,7 +16,7 @@
 """Judge a received case copy by the ledger position it names (SYNC-16-006).
 
 Each case stores the ledger position its case file is a projection of, and
-the position travels with the case on its wire form (SYNC-16-005).  A replica
+the position travels with the case on its wire form (SYNC-16-018).  A replica
 that already holds the case compares the copy's position with its own before
 it replaces anything:
 
@@ -29,7 +29,7 @@ it replaces anything:
 The replica's own position is the later of its stored chain's tail and its
 case's ``ledger_position``.  After a replacement the case can be ahead of the
 chain: the copy already reflects the entries up to its position
-(SYNC-16-007), so a copy behind it is stale too.
+(SYNC-16-023), so a copy behind it is stale too.
 
 Every entry the replica stores at or before its case's position is already
 reflected in the case, and is stored as a no-op
@@ -162,7 +162,7 @@ def entry_reflected_by_case_copy(
     """Whether *entry*'s case, as *dl* stores it, already reflects *entry*.
 
     True for an entry at or before the case's ``ledger_position``
-    (SYNC-16-007): a replica whose case was seeded or replaced by a copy
+    (SYNC-16-023): a replica whose case was seeded or replaced by a copy
     ahead of its chain already holds the entry's effects in its case file,
     so the entry is stored without applying them again.  The entry at the
     position's index is reflected only when it is the entry the position
@@ -190,7 +190,7 @@ def entry_conflicts_with_case_position(
     The position names the entry its case file reflects (SYNC-16-005).  An
     entry at that index whose hash differs belongs to a different chain from
     the copy that set the position, so it is refused, never stored as a
-    no-op or applied (SYNC-16-007): storing it would leave the chain naming
+    no-op or applied (SYNC-16-025): storing it would leave the chain naming
     one entry at the index and the case another.  The entries before the
     position carry no hash the case names, so a divergence among them shows
     here, when the chain reaches the position.
@@ -267,7 +267,7 @@ def records_a_reflected_entry_adds(
 
     A case copy carries its participants, reports and active embargo
     inline, but names its notes, statuses and other embargoes by id.  An
-    entry the copy reflects is stored as a no-op (SYNC-16-007), so the
+    entry the copy reflects is stored as a no-op (SYNC-16-023), so the
     records it carries would otherwise never reach the replica, and the
     replica would end short of where seed-plus-replay leaves it (ADR-0142).
     Copying each one, unchanged, is the copy model (CM-23-016): nothing is

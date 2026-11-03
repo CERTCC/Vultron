@@ -13,8 +13,11 @@
 
 """Integration tests for PCR-07-006: full case-replica bootstrap sequence.
 
-Verifies: CaseActor sends Announce(VulnerabilityCase) → participant creates
-local replica → subsequent case-scoped activities route without deferral.
+Verifies: the owner's bootstrap Create(VulnerabilityCase) reaches the
+participant → participant creates its local replica from the case copy the
+Create carries → subsequent case-scoped activities route without deferral.
+The creation copy travels in the Create (CBT-01-002, PCR-02-005); every later
+full copy is an Announce(VulnerabilityCase) (PCR-02-001).
 
 These tests exercise the full inbox dispatch path against a real in-memory
 SQLite DataLayer — use cases are not mocked.  They are auto-marked as
@@ -22,14 +25,14 @@ SQLite DataLayer — use cases are not mocked.  They are auto-marked as
 
 Coverage approach
 -----------------
-AC-1 tests (``TestBootstrapSequence.test_announce_creates_case_replica`` and
+AC-1 tests (``TestBootstrapSequence.test_create_seeds_case_replica`` and
 ``test_case_fields_preserved_in_replica``) use a **two-app setup** where a
-separate owner app creates a case by processing a submitted report and then
-validates it.  Validation triggers the CaseActor to emit
-``Announce(VulnerabilityCase)`` via the outbox, which is routed to the
-participant app via ``InProcessRouter``.  This exercises the full
-create-case → emit-Announce path, catching regressions where case creation
-no longer sends the announcement (PCR-07-006).
+separate owner app creates a case for a submitted report and sends the
+participant its bootstrap ``Create(VulnerabilityCase)`` via the outbox,
+which is routed to the participant app via ``InProcessRouter``.  This
+exercises the full create-case → deliver-Create → seed-replica path, catching
+regressions where case creation no longer delivers the case copy
+(PCR-07-006).
 
 AC-2 tests (``test_subsequent_case_scoped_activity_routes_without_deferral``)
 seed the replica directly in the participant's store (faster, sufficient
@@ -234,7 +237,7 @@ def _bootstrap_case_for_participant(
     owner_slug: str,
     participant_slug: str,
 ) -> tuple[str, str, str]:
-    """Set up a case on owner's app and deliver Announce to participant.
+    """Set up a case on owner's app and deliver its Create to participant.
 
     Exercises the full bootstrap sequence for PCR-07-006 AC-1:
 
@@ -242,12 +245,14 @@ def _bootstrap_case_for_participant(
        trigger, which records its trust anchor and delivers the Offer to the
        owner's inbox; the ``create_receive_report_case_tree`` BT there creates
        the preliminary ``as_VulnerabilityCase`` with embargo.
-    2. Owner validates the report (``trigger/validate-report``), which
-       triggers the ``create_validate_report_tree`` BT and causes the
-       CaseActor to emit ``Announce(VulnerabilityCase)`` to participant.
-    3. The Announce is delivered via the outbox → ``InProcessRouter`` →
-       participant inbox chain.
-    4. Participant's inbox handler processes the ``Announce``.
+    2. Owner creates the case (``trigger/create-case``) with the
+       participant as its addressee, which queues the bootstrap
+       ``Create(VulnerabilityCase)`` carrying the case copy.
+    3. The Create is delivered via the outbox → ``InProcessRouter`` →
+       participant inbox chain, and the participant's inbox handler seeds
+       its replica from it.
+    4. Owner validates the report (``trigger/validate-report``), which
+       runs the ``create_validate_report_tree`` BT.
 
     Args:
         owner_iso: Owner's ``IsolatedActorApp``.
@@ -387,9 +392,8 @@ def _bootstrap_case_for_participant(
             owner_dl.save(link)
             break
 
-    # Owner validates the report: this triggers the validate-report BT
-    # and causes the CaseActor to emit Announce(VulnerabilityCase) to
-    # participant via the outbox → InProcessRouter → inbox chain.
+    # Owner validates the report: this runs the validate-report BT.  The
+    # participant's replica already came from the Create above.
     resp = owner_tc.post(
         f"/api/v2/actors/{_actor_slug(owner_actor_id)}"
         "/trigger/validate-report",
@@ -409,22 +413,23 @@ def _bootstrap_case_for_participant(
 
 @pytest.mark.spec("PCR-07-006")
 class TestBootstrapSequence:
-    """PCR-07-006: CaseActor Announce creates replica; routing follows.
+    """PCR-07-006: the bootstrap Create seeds the replica; routing follows.
 
     Three tests cover the acceptance criteria from the GitHub issue:
 
-    - AC-1a: Announce creates a case replica with the correct ID.
-    - AC-1b: The seeded replica preserves case fields from the Announce payload.
+    - AC-1a: The Create seeds a case replica with the correct ID.
+    - AC-1b: The seeded replica preserves case fields from the Create payload.
     - AC-2:  Subsequent case-scoped activity routes without deferral.
     """
 
-    def test_announce_creates_case_replica(self, two_app_setup):
-        """AC-1: Announce(VulnerabilityCase) creates a local replica.
+    @pytest.mark.spec("PCR-03-005")
+    def test_create_seeds_case_replica(self, two_app_setup):
+        """AC-1: the bootstrap Create(VulnerabilityCase) seeds a replica.
 
         Exercises the full bootstrap sequence: participant submits a report →
-        owner validates it → CaseActor emits ``Announce(VulnerabilityCase)``
-        via the outbox → participant's inbox receives and processes the
-        Announce.
+        owner creates the case → owner's bootstrap
+        ``Create(VulnerabilityCase)`` goes out via the outbox →
+        participant's inbox receives and processes the Create.
 
         The participant's ``DataLayer`` must contain a local case replica
         after the full delivery chain completes (PCR-07-006 AC-1).  The actor
@@ -450,7 +455,7 @@ class TestBootstrapSequence:
         )
 
         # The participant actor's inbox queue must be empty: the inbox handler
-        # ran and processed the Announce (dispatch chain completed).
+        # ran and processed the Create (dispatch chain completed).
         # The participant's own store, not the app's default-slug `dl`: the actor
         # is created under a per-test slug, and a store belongs to exactly one
         # actor (ADR-0073), so `dl` is a different (empty) database.
@@ -461,14 +466,14 @@ class TestBootstrapSequence:
         # and the next read fails with "no such table: vultron_objects".
         assert actor_dl.inbox_list() == [], (
             "Participant actor's inbox queue was not drained after "
-            "processing Announce(VulnerabilityCase).  The inbox handler "
+            "processing Create(VulnerabilityCase).  The inbox handler "
             "may not have run (PCR-07-006 AC-1)."
         )
 
         replica = actor_dl.read(case_id)
         assert replica is not None, (
             f"Expected as_VulnerabilityCase '{case_id}' in participant's "
-            f"DataLayer after Announce(VulnerabilityCase) delivery, but "
+            f"DataLayer after Create(VulnerabilityCase) delivery, but "
             f"DataLayer has no record of it.  Bootstrap sequence may be "
             f"broken (PCR-07-006 AC-1)."
         )
@@ -507,7 +512,7 @@ class TestBootstrapSequence:
         assert link.case_manager_id == owner_actor_id
 
     def test_case_fields_preserved_in_replica(self, two_app_setup):
-        """AC-1 (fields): The seeded replica retains fields from the Announce.
+        """AC-1 (fields): The seeded replica retains fields from the Create.
 
         After the full bootstrap sequence, the case replica in participant's
         DataLayer must preserve the ``name`` of the case as set by the owner.

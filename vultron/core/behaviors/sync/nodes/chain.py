@@ -335,7 +335,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         # Temporal context for the CLP-14/CLP-15 claimed-timestamp guard.
         # ``read_case`` returning ``None`` is expected, not an error: the
         # genesis ``create_case`` entry is committed alongside case creation,
-        # so the case may not be readable yet.  The guard skips CLP-14-006 in
+        # so the case may not be readable yet.  The guard skips CLP-14-013 in
         # that case and still applies every other check.
         case = self.datalayer.read_case(self.case_id)
         case_published: datetime | None = (

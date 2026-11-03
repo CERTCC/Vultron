@@ -351,7 +351,7 @@ def _build_case_object(obj: object) -> dict[str, Any]:
                 f"VulnerabilityCase {object_id!r} names no owner: its"
                 " `attributedTo` is missing (CLP-08-002)"
             )
-        # The parse edge refuses a case naming no position (SYNC-16-005),
+        # The parse edge refuses a case naming no position (SYNC-16-019),
         # so, like a missing owner, reaching here without one is a fault.
         ledger_position = getattr(obj, "ledger_position", None)
         if not isinstance(ledger_position, LedgerPosition):

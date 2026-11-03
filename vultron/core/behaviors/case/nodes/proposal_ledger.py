@@ -171,7 +171,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     def _commit_creation_embargoes(
         self, case: VulnerabilityCase, case_id: str
     ) -> None:
-        """Commit each embargo the creation wrote, in full (CLP-07-013).
+        """Commit each embargo the creation wrote, in full (CLP-07-021).
 
         One ``create_embargo_event`` entry per embargo the register names,
         in register order (:func:`~.creation_records.creation_embargoes`).
@@ -319,7 +319,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
 
         Per record, ``Create(CaseParticipant)`` carries the record in full
         as it was created: its roles, its consent rows and its first status
-        (CLP-07-013).  Each later status the initialization wrote follows as
+        (CLP-07-021).  Each later status the initialization wrote follows as
         its own ``add_participant_status_to_participant`` entry, so the
         CASE_MANAGER's RECEIVED → VALID → ACCEPTED is three recorded steps
         (CM-23-007).  A replica copies the record and each status; it never

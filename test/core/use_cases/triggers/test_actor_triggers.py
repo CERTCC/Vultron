@@ -359,7 +359,7 @@ class TestSvcInviteActorToCaseUseCase:
         )
         assert "cc" not in activity
 
-    @pytest.mark.spec("CM-24-004", "CLP-10-027")
+    @pytest.mark.spec("CM-24-004", "CLP-10-072")
     @pytest.mark.spec("CM-24-010")
     def test_invite_is_queued_in_the_owners_outbox_only(self):
         """The Offer leaves from the owner's outbox; nothing is queued as the
@@ -916,11 +916,11 @@ class TestStubInviteIsRecordedAfterItIsSent:
     A ledger entry records a completed act, and a send is complete once the
     activity is in the sender's outbox (ADR-0119).  The invitee's inert
     participant record is a consequence of the Invite with no send of its
-    own, so its entry follows the Invite's at once (CLP-07-013).
+    own, so its entry follows the Invite's at once (CLP-07-021).
     """
 
     @pytest.mark.spec("SYNC-09-002")
-    @pytest.mark.spec("SBT-04-004")
+    @pytest.mark.spec("SBT-04-005")
     @pytest.mark.spec("CM-17-006")
     @pytest.mark.spec("CLP-07-013")
     @pytest.mark.spec("OX-14-002")
@@ -1761,7 +1761,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
                 end_time=end_time if aware else end_time.replace(tzinfo=None),
             )
 
-    @pytest.mark.spec("CM-24-004", "CLP-10-027")
+    @pytest.mark.spec("CM-24-004", "CLP-10-072")
     @pytest.mark.spec("CM-24-010")
     def test_offer_is_queued_in_the_owners_outbox_only(self):
         """The proposal is stored and queued in the owner's store; nothing is

@@ -350,7 +350,7 @@ When the act's own activity states the row, the act's entry is also the row's en
 Examples are a participant's `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])` or, for the Case Owner's own row, its `Accept(EmbargoEvent)[target=VulnerabilityCase]` that activates an embargo.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CLP-07-013", "CM-23-016", "CM-23-044"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CLP-07-013", "CLP-07-021", "CM-23-016", "CM-23-044"))
 ```
 
 !!! note "Informative: how the reference implementation does this"

@@ -344,7 +344,7 @@ class PendingAssertionStore:
 
         The CASE_MANAGER's refusal notice names the refused activity, not the
         semantic type it would have been ledgered under, so this matches on the
-        case and the activity alone (CLP-06-006, CLP-05-001).
+        case and the activity alone (CLP-06-006, CLP-05-007).
 
         Args:
             case_id: URI of the parent :class:`VulnerabilityCase`.

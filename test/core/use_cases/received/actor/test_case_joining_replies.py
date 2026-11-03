@@ -495,7 +495,7 @@ def test_full_case_invite_reply_without_position_is_refused_at_the_edge(
 
     The position is the reply's ``ledgerPosition`` (VAM-04-012, SYNC-18-001);
     a missing or non-parsing one is refused when the body is parsed or the
-    event is extracted (ADR-0032, SYNC-18-003), with the reason named, and
+    event is extracted (ADR-0032, SYNC-18-015), with the reason named, and
     nothing moves.
     """
     tail = _ledger_tail(joining_case)[-1]
@@ -739,7 +739,7 @@ def _advance_invitee_to(joining: _JoiningCase, state: RM) -> None:
     joining.dl.save(participant)
 
 
-@pytest.mark.spec("CM-11-004", "PCR-08-012")
+@pytest.mark.spec("CM-11-004", "PCR-08-012", "PCR-08-020")
 def test_joined_participant_is_not_accepted_until_it_sends_join(
     joining_case,
 ) -> None:

@@ -261,7 +261,7 @@ class EmitInviteActorToCaseNode(_StubInviteEmitBase):
     Runs only in a CASE_MANAGER-gated received tree, so ``self.actor_id`` is
     the CASE_MANAGER and the store is its own (BT-05-006, CM-24-009).  The
     Invite is addressed ``to=[invitee_id]`` and to no one else: the
-    CASE_MANAGER never addresses a copy to itself (CLP-10-001, ADR-0109).
+    CASE_MANAGER never addresses a copy to itself (CLP-10-032, ADR-0109).
     Build → outbox append → commit is the order: the entry records an Invite
     already sent (ADR-0119), and the in-tree commit is the only ledger entry
     the Invite ever gets (CM-17-006).  An optional ``attributed_to`` carries

@@ -76,14 +76,14 @@ def test_the_receivers_case_position_is_stamped() -> None:
     assert stamped.ledger_position == LedgerPosition.model_validate(_POSITION)
 
 
-@pytest.mark.spec("SYNC-18-001")
+@pytest.mark.spec("SYNC-18-001", "SYNC-18-017")
 def test_a_case_the_receiver_does_not_hold_stamps_nothing() -> None:
     note = _note()
 
     assert _stamped_as_in_step(_client({}), _RECEIVER, note) is note
 
 
-@pytest.mark.spec("SYNC-18-001")
+@pytest.mark.spec("SYNC-18-001", "SYNC-18-017")
 def test_a_stored_object_that_is_not_a_case_stamps_nothing() -> None:
     note = _note()
     client = _client({_CASE: {"type": "Note"}})
@@ -91,7 +91,7 @@ def test_a_stored_object_that_is_not_a_case_stamps_nothing() -> None:
     assert _stamped_as_in_step(client, _RECEIVER, note) is note
 
 
-@pytest.mark.spec("SYNC-18-001")
+@pytest.mark.spec("SYNC-18-001", "SYNC-18-017")
 def test_a_case_with_no_position_stamps_nothing() -> None:
     note = _note()
     client = _client({_CASE: {"type": "VulnerabilityCase"}})

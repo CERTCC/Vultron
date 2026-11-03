@@ -144,7 +144,7 @@ class RejectCaseParticipantRoleReceivedUseCase:
 
     The Accept's sender rule and open-Offer check (CM-33-005).  An admitted
     Reject is committed as ``reject_case_participant_role`` and announced to
-    the participants (CM-33-006, CM-33-019, CLP-02-012); that entry closes the Offer,
+    the participants (CM-33-006, CM-33-019, CLP-02-016); that entry closes the Offer,
     and no role changes.  See SE-08-003, ADR-0039.
     """
 

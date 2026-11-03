@@ -73,14 +73,14 @@ The CASE_MANAGER reports the refusal through its structured logs instead ([CLP-0
 
 Admitted and refused are not the same as the `Accept` and `Reject` activities.
 A participant that declines an invitation or an offer sends a `Reject`, and that `Reject` is a case event like the `Accept` it could have sent.
-The CASE_MANAGER admits it and appends an entry for it, so every replica sees the request closed ([CLP-02-012](../../reference/vultron-spec/requirements/ledger-replication.md#clp-02-012)).
+The CASE_MANAGER admits it and appends an entry for it, so every replica sees the request closed ([CLP-02-016](../../reference/vultron-spec/requirements/ledger-replication.md#clp-02-016)).
 
 Because nothing in the ledger needs filtering out, a replica reconstructs case state from every entry it holds ([CLP-04-002](../../reference/vultron-spec/requirements/ledger-replication.md#clp-04-002)).
 The hash chain is computed over the same entries ([CLP-04-003](../../reference/vultron-spec/requirements/ledger-replication.md#clp-04-003)).
 Each entry names the entry before it as its predecessor, with nothing in between.
 
-Each entry — a **Case Ledger Entry** — is immutable once written ([SYNC-01-001](../../reference/vultron-spec/requirements/ledger-replication.md#sync-01-001)).
-It carries these fields ([SYNC-01-002](../../reference/vultron-spec/requirements/ledger-replication.md#sync-01-002), [SYNC-01-003](../../reference/vultron-spec/requirements/ledger-replication.md#sync-01-003)):
+Each entry — a **Case Ledger Entry** — is immutable once written ([SYNC-08-001](../../reference/vultron-spec/requirements/ledger-replication.md#sync-08-001)).
+It carries these fields ([SYNC-01-002](../../reference/vultron-spec/requirements/ledger-replication.md#sync-01-002), [SYNC-01-003](../../reference/vultron-spec/requirements/ledger-replication.md#sync-01-003), [SYNC-01-007](../../reference/vultron-spec/requirements/ledger-replication.md#sync-01-007)):
 
 - its position in the case history
 - the time the CASE_MANAGER recorded it

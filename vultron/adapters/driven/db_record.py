@@ -245,7 +245,7 @@ def _inline_required_refs(
     class that declares the contract, and is stored as parsed.  Without the
     second lookup a received ownership-transfer Offer had its transferee
     collapsed to an id the CASE_MANAGER could not read back, and its ledger
-    commit refused the bare ``target`` (DL-08-003, CLP-07-006, #4843).
+    commit refused the bare ``target`` (DL-08-003, CLP-07-018, #4843).
     """
     inline_required = _declared_inline_required_refs(type(obj))
     if isinstance(obj, as_Activity):

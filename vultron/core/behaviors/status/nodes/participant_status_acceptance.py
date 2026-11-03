@@ -17,7 +17,7 @@
 
 An inbound ``Add(ParticipantStatus)[target=CaseParticipant]`` states the sender's whole
 status, so the CASE_MANAGER accepts it as sent or refuses all of it
-(RSH-09-001).  It never records a status the sender did not send: a status
+(RSH-09-001, RSH-09-010).  It never records a status the sender did not send: a status
 rewritten before it is recorded is one nobody asserted, and the ledger exists
 to record what was asserted (ADR-0107, CLP-07-013).
 
@@ -228,7 +228,7 @@ def participant_status_refusals(
 
     The cross-machine entailments (RM↔VF, RM↔D per CSB-18-001, VF↔D per
     CSB-17-001) are evaluated on the status as received, with the evaluator
-    the emit path uses (RSH-09-004): an update describing a state no sequence
+    the emit path uses (RSH-09-012): an update describing a state no sequence
     of events could produce is refused whole, whichever dimension moved.
     """
     baseline = RecordedBaseline.from_history(history)

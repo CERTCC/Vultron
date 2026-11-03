@@ -129,7 +129,7 @@ lookup table is mostly links.
   (DF-09-010, MSM-08-008). Expansion rows (`GI`, `RV`, `RI`, `RC`) link by
   section heading instead, since one label would repeat on every row; so do
   `CP`, `CX` and `CA`, which have a row on both `Add(CaseStatus)` and
-  `Add(ParticipantStatus)` (RSH-04-001).
+  `Add(ParticipantStatus)` (RSH-04-007).
 - **A distinguisher is typed** (MSM-08-002): a field value checked against its
   enum, a state context naming a state machine and states (the EM state
   separating `EP` from `EV` on `Invite(EmbargoEvent)`), or a sender standing naming a
