@@ -1299,7 +1299,12 @@ groups:
       that time, the participant's own logic can decide again to send the same
       assertion. Without a record of what is pending, the CASE_MANAGER receives
       duplicates. A configurable window lets a deployment match it to its round-trip
-      time, and zero turns the feature off.
+      time, and zero turns the feature off. The store saves traffic and decides
+      nothing about the case: the CASE_MANAGER treats every repeat the store
+      suppresses as a no-op on its effect (ID-04-004, CM-13-005, EP-09-032). The
+      window cannot be replaced by an effect check at the participant, because its
+      replica learns an assertion's effect only from the entry the round trip
+      returns (CLP-07-013), so until then every repeat would look like a change.
   - id: SYNC-11-002
     priority: SHOULD
     kind: project
@@ -1366,7 +1371,9 @@ groups:
       an operator retry or the catch-up gate can submit the assertion again.
     rationale: >-
       Without this, the store would suppress every later send of a lost assertion, and
-      the participant could never make the assertion again.
+      the participant could never make the assertion again. The timeout is the
+      outstanding ask's expiry (ASK-04-007, ASK-05-001), not a second duplicate check,
+      so a repeat it lets through is safe at the CASE_MANAGER.
     verification: >-
       `test_a_lookup_stops_an_aged_out_entry_suppressing` and
       `test_a_later_write_also_stops_an_aged_out_entry_suppressing` in

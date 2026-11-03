@@ -2795,3 +2795,32 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: EP-09-013
+  - id: EP-09-032
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An embargo proposal whose end time equals that of an embargo the case holds as
+      a pending proposal or as the embargo in force is a duplicate, whoever sent it and
+      whatever its activity and embargo ids. The CASE_MANAGER MUST change no state, add
+      no ledger entry and relay no Invite because of a duplicate proposal.
+    rationale: >-
+      An embargo's terms are its whole substance, and each proposal mints a fresh
+      embargo id, so duplicate detection by id (ID-02-001) never matches a repeat.
+      Without this rule, a repeat sent after the proposer's pending-assertion window
+      lapses registers a second proposal and asks every participant again for terms
+      they are already answering. Deciding at the single authoritative writer means
+      the participant's suppression window only saves traffic and never decides what
+      happens to the case.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_revision_relay.py`
+      (`test_a_proposal_repeating_pending_terms_registers_nothing`, a strict xfail
+      until the duplicate check lands) delivers a second revision proposal with the
+      same end time under new ids and expects no second register entry and no
+      outbox write.
+    relationships:
+    - rel_type: refines
+      spec_id: ID-04-004
+    - rel_type: extends
+      spec_id: CM-13-005
+    stories:
+    - story_2022_014
