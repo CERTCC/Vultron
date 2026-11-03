@@ -2,8 +2,9 @@
 
 One rule, stated once at ``parse_activity`` and holding at every depth: an
 unrecognised key that is a *near miss* for a declared spelling (a case or
-underscore variant) refuses the whole activity naming both spellings; any other unrecognised key is set aside and reported at INFO, and
-the activity proceeds on its declared fields.
+underscore variant) refuses the whole activity naming both spellings; any
+other unrecognised key is set aside and reported at INFO, and the activity
+proceeds on its declared fields.
 
 Measured on 2026-09-30 the disposition depended on class ancestry instead — a
 domain type refused (``extra="forbid"`` on core, ARCH-12-003) while the

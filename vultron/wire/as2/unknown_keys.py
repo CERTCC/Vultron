@@ -345,9 +345,10 @@ def partition_unknown_keys(
     is not modified: it is the received evidence (VM-08-002).
 
     Raises:
-        VultronParseValidationError: If any key is a near miss.  Every such key in the body is named, not only the first
-            (EH-07-001).  Also raised, rather than ``RecursionError``, for a
-            body nested beyond the interpreter's recursion limit.
+        VultronParseValidationError: If any key is a near miss.  Every
+            such key in the body is named, not only the first (EH-07-001).
+            Also raised, rather than ``RecursionError``, for a body nested
+            beyond the interpreter's recursion limit.
     """
     walk = _Walk()
     try:
