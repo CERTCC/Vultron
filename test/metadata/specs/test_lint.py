@@ -2339,6 +2339,108 @@ def test_lint_prints_the_suppression_totals(tmp_path, capsys):
 
 
 # ---------------------------------------------------------------------------
+# SR-11-009: per-file advisory for project/process requirements with no stories
+# ---------------------------------------------------------------------------
+
+
+def _minimal_project_spec_no_stories(
+    spec_id="TST-01-001",
+    kind="project",
+    priority="SHOULD",
+):
+    """A minimal spec file with a project or process requirement and no stories."""
+    spec = {
+        "id": spec_id,
+        "priority": priority,
+        "kind": kind,
+        "statement": f"{spec_id} SHOULD do the thing",
+        "rationale": "Because testing",
+        "tags": ["testing"],
+    }
+    return {
+        "id": "TST",
+        "title": "Test File",
+        "description": "Test spec file",
+        "scope": ["production"],
+        "groups": [{"id": "TST-01", "title": "Group", "specs": [spec]}],
+    }
+
+
+@pytest.mark.spec("SR-11-009")
+def test_project_no_story_advisory_per_file(tmp_path, capsys):
+    """One [INFO] summary line per spec file with project/process no-story
+    requirements (SR-11-009)."""
+    write_yaml(tmp_path, _minimal_project_spec_no_stories(kind="project"))
+    result = lint(tmp_path)
+    out = capsys.readouterr().out
+    assert result == 0
+    assert "no_project_process_story" in out
+    assert "TST" in out
+    assert "[INFO]" in out
+
+
+@pytest.mark.spec("SR-11-009")
+def test_project_no_story_advisory_list_ids_opt_in(tmp_path, capsys):
+    """The opt-in flag lists the IDs under the summary line (SR-11-009)."""
+    write_yaml(tmp_path, _minimal_project_spec_no_stories(kind="process"))
+    lint(tmp_path, list_no_story_ids=True)
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    summary_at = next(
+        i for i, ln in enumerate(lines) if "no_project_process_story" in ln
+    )
+    assert "TST-01-001" in lines[summary_at + 1]
+
+
+@pytest.mark.spec("SR-11-009")
+def test_project_no_story_advisory_ids_hidden_by_default(tmp_path, capsys):
+    """Without the opt-in flag the IDs do not appear (SR-11-009)."""
+    write_yaml(tmp_path, _minimal_project_spec_no_stories(kind="project"))
+    lint(tmp_path, list_no_story_ids=False)
+    out = capsys.readouterr().out
+    assert "no_project_process_story" in out
+    assert "TST-01-001" not in out
+
+
+@pytest.mark.spec("SR-11-009")
+def test_protocol_architecture_excluded_from_project_story_advisory(
+    tmp_path, capsys
+):
+    """kind=protocol and kind=architecture specs are excluded from the count
+    (SR-11-009)."""
+    # protocol SHOULD with no stories fires the SR-11-004 per-spec advisory,
+    # but must NOT appear in the no_project_process_story summary.
+    write_yaml(
+        tmp_path,
+        _minimal_spec_no_stories(priority="SHOULD", kind="protocol"),
+    )
+    lint(tmp_path, list_no_story_ids=True)
+    out = capsys.readouterr().out
+    assert "no_project_process_story" not in out
+
+
+@pytest.mark.spec("SR-11-009")
+def test_project_process_story_advisory_exit_code_unaffected(tmp_path, capsys):
+    """The advisory does not change the exit code (SR-11-009)."""
+    write_yaml(tmp_path, _minimal_project_spec_no_stories(kind="project"))
+    result = lint(tmp_path)
+    assert result == 0
+
+
+@pytest.mark.spec("SR-11-009")
+def test_project_no_story_advisory_silent_when_stories_present(
+    tmp_path, capsys
+):
+    """No advisory when all project/process requirements have stories."""
+    data = _minimal_project_spec_no_stories(kind="project")
+    data["groups"][0]["specs"][0]["stories"] = ["story_2022_001"]
+    write_yaml(tmp_path, data)
+    lint(tmp_path)
+    out = capsys.readouterr().out
+    assert "no_project_process_story" not in out
+
+
+# ---------------------------------------------------------------------------
 # TRACE-03-001: a cited story page must exist
 # ---------------------------------------------------------------------------
 

@@ -817,6 +817,48 @@ def _check_per_spec_advisory_warnings(registry: SpecRegistry) -> list[str]:
     return warnings
 
 
+_PROJECT_PROCESS_KINDS = frozenset({SpecKind.PROJECT, SpecKind.PROCESS})
+
+
+def _check_project_process_story_advisory(
+    registry: SpecRegistry,
+    *,
+    list_no_story_ids: bool = False,
+) -> list[str]:
+    """One summary ``[INFO]`` line per spec file for project/process requirements
+    with no ``stories:`` field (SR-11-009).
+
+    Counts ``kind: project`` and ``kind: process`` requirements that carry no
+    ``stories:`` entry. ``kind: protocol`` and ``kind: architecture``
+    requirements are excluded — those fall under SR-11-003 and SR-11-004.
+    The advisory never affects the exit code. The IDs appear under each
+    file's summary line only when *list_no_story_ids* is ``True``
+    (``--list-no-story-ids`` on the CLI).
+    """
+    lines: list[str] = []
+    for file in registry.files:
+        no_story_ids: list[str] = []
+        for group in file.groups:
+            for spec in group.specs:
+                if spec.kind not in _PROJECT_PROCESS_KINDS:
+                    continue
+                if spec.stories:
+                    continue
+                no_story_ids.append(spec.id)
+        if not no_story_ids:
+            continue
+        count = len(no_story_ids)
+        lines.append(
+            f"[INFO] no_project_process_story: {file.id} ({file.title}): "
+            f"{count} project/process requirement(s) with no stories: "
+            f"field (SR-11-009)"
+        )
+        if list_no_story_ids:
+            for spec_id in sorted(no_story_ids):
+                lines.append(f"    {spec_id}")
+    return lines
+
+
 class _SourceScan:
     """One pass over the ``vultron/`` and ``test/`` Python trees.
 
@@ -1000,6 +1042,7 @@ def lint(
     registry: SpecRegistry | None = None,
     *,
     list_unverified: bool = False,
+    list_no_story_ids: bool = False,
     debt_owners: Mapping[SpecKind, frozenset[str]] | None = None,
     check_debt_owners: bool = False,
     closing_pr: int | None = None,
@@ -1025,6 +1068,9 @@ def lint(
         list_unverified: Print the ID and marker of every unverified
             MUST-tier requirement under its kind's summary line
             (MS-10-020; ``--list-unverified`` on the CLI).
+        list_no_story_ids: Print the IDs of every project/process
+            requirement with no ``stories:`` field under its file's
+            summary line (SR-11-009; ``--list-no-story-ids`` on the CLI).
         debt_owners: The issues that own each kind's verification backlog.
             Defaults to the live
             :data:`~vultron.metadata.specs.verification.VERIFICATION_DEBT_OWNERS`;
@@ -1101,6 +1147,11 @@ def lint(
     hard_errors.extend(verification_errors)
     status_lines.extend(verification_lines)
     status_lines.extend(suppression_status_lines(registry))
+    status_lines.extend(
+        _check_project_process_story_advisory(
+            registry, list_no_story_ids=list_no_story_ids
+        )
+    )
     opt_in_errors, opt_in_warnings = _opt_in_checks(
         registry,
         spec_dir.parent,
@@ -1156,6 +1207,14 @@ def main() -> None:
             "List the ID and verification_debt marker of every MUST or "
             "MUST_NOT requirement with no verification: field under its "
             "kind's summary line (MS-10-020)"
+        ),
+    )
+    parser.add_argument(
+        "--list-no-story-ids",
+        action="store_true",
+        help=(
+            "List the IDs of every project/process requirement with no "
+            "stories: field under its spec-file's summary line (SR-11-009)"
         ),
     )
     parser.add_argument(
@@ -1221,6 +1280,7 @@ def main() -> None:
         code = lint(
             spec_dir,
             list_unverified=args.list_unverified,
+            list_no_story_ids=args.list_no_story_ids,
             check_debt_owners=args.check_debt_owners,
             closing_pr=args.check_closing_pr,
             changed_since=args.changed_since,

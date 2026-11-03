@@ -509,6 +509,7 @@ class LintWarningCode(StrEnum):
     MISSING_STORY_REFERENCE = "missing_story_reference"
     PROTOCOL_KIND_WITH_CODE_REFERENCE = "protocol_kind_with_code_reference"
     COMPOUND_STATEMENT = "compound_statement"
+    NO_PROJECT_PROCESS_STORY = "no_project_process_story"
 
 
 class Relationship(BaseModel):
