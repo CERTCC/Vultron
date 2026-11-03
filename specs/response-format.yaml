@@ -330,6 +330,8 @@ groups:
       spec_id: VP-03-011
     - rel_type: implements
       spec_id: VP-11-005
+    stories:
+    - story_2026_011
 - id: RF-06
   title: Response Delivery
   specs:
@@ -462,5 +464,5 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: ID-02-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_014

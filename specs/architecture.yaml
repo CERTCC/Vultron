@@ -37,8 +37,9 @@ groups:
     priority: MUST_NOT
     kind: architecture
     verification_debt: '#2569'
-    statement: The `wire/` layer (AS2 parser, semantic extractor) MUST NOT contain handler logic, case management, or journal
-      management
+    statement: >-
+      The `wire/` layer (AS2 parser, semantic extractor) MUST NOT contain handler logic,
+      case management, or case ledger management.
     rationale: >-
       The wire layer encodes and decodes messages. Handler logic, case management and
       the case ledger are domain behavior, and they belong in core. If the wire layer
@@ -280,8 +281,9 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: Connector plugins MUST translate only — no case handling logic, authorization, or journal management belongs
-      in a connector
+    statement: >-
+      Connector plugins MUST translate only — no case handling logic, authorization, or
+      case ledger management belongs in a connector.
     rationale: >-
       A connector is an adapter: it translates between a tracker's format and Vultron
       domain types. Case logic, authorization and the case ledger belong in core, where
@@ -501,21 +503,34 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      The wire branch MUST NOT carry domain validators. Wire-branch overrides exist solely for
-      AS2 serialization shape (field aliases, `@context`, lenient `Any | None` types).
+      A wire-branch validator MUST NOT apply a rule that depends on case state or on
+      stored data.
     rationale: >-
-      Domain rules belong in core, where every reader of an object gets the same checks
-      (ARCH-01-003). A wire class for AS2 vocabulary that core does not model must parse
-      loose inbound data. A domain validator on it could refuse data that core accepts,
-      or accept data that core refuses. The `as_*` name of a domain type is its core
-      class (ARCH-25-003), so the domain validators of that class already apply when it
-      is read from the wire.
-    verification: 'Confirmed by `test_no_wire_types_in_core_type_map` (imports wire vocab and asserts no `vultron.wire`
-      module class appears in `CORE_TYPE_MAP`) and `test_core_record_types_in_core_type_map` (discovers
-      every `CoreRecord` that is not a `CoreObject`, including the dead-letter records
-      `DeadLetterRecord` and the adapter''s `OutboxDeadLetterEntry`, and asserts each is reachable
-      by class name and Literal value; the subject set is discovered, not listed) in
-      `test/architecture/test_hierarchy_invariants.py`. Both MUST NOT be marked `xfail`.'
+      Rules about case state belong in core, where every reader of an object gets the
+      same checks (ARCH-01-003) and the state they read is the receiver's own. A parse
+      step sees one message, so a rule that needed stored data there would have to
+      reach into the store from the wire layer, against the dependency direction. The
+      `as_*` name of a domain type is its core class (ARCH-25-003), so the domain
+      validators of that class already apply when it is read from the wire.
+    verification: >-
+      `test/architecture/test_wire_validators_stateless.py` discovers every
+      wire-branch class that declares a field or model validator. It asserts that no
+      module defining one imports from the adapters, the core ports, behaviors, use
+      cases or services, and that no validator names the store or the case-status
+      record (`test_no_wire_validator_module_imports_stateful_code`,
+      `test_no_wire_validator_names_the_store_or_case_state`).
+  - id: ARCH-12-021
+    priority: MAY
+    kind: project
+    statement: >-
+      A wire-branch validator MAY refuse a message whose own form breaks a protocol
+      rule, such as CP-01-012, SYNC-16-028, CM-11-011 or EMB-13-004.
+    rationale: >-
+      A rule about the form of one message needs nothing but that message, so the parse
+      edge can apply it and refuse the message once, with a clear reason, before any
+      later step works on it (ADR-0032). A proposer that claims the CASE_MANAGER role
+      (CP-01-012) or a Reject that names no object (SYNC-16-028) is malformed whatever
+      the receiver holds.
   - id: ARCH-12-008
     priority: MUST
     kind: project
@@ -906,50 +921,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: ARCH-16-001
-- id: ARCH-17
-  title: ASGIEmitter Base URL
-  description: >-
-    SUPERSEDED by ADR-0042 / outbox.yaml OX-12. The ASGIEmitter in-process delivery
-    shortcut has been retired in favour of uniform HTTP delivery for all inter-actor
-    communication. These requirements are retained for historical traceability only and
-    no longer describe the delivery architecture; do not implement against them.
-  specs:
-  - id: ARCH-17-001
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: >-
-      The `ASGIEmitter` base URL MUST hold only the scheme and netloc components (e.g.
-      `https://example.org`), with no path prefix, trailing slash or mount-point segment.
-    rationale: >-
-      The emitter strips the mount prefix from request paths before it builds outbound
-      URLs, so a prefix in the base URL is applied twice.
-      A base URL with a path prefix, such as `https://example.org/api`, joined with a
-      request path such as `/api/actors/…`, gives
-      `https://example.org/api/api/actors/…`, which is an address that does not exist.
-      The `ASGIEmitter` is removed (ADR-0042), so no code now depends on this
-      requirement (see the group description).
-  - id: ARCH-17-002
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: >-
-      `ASGIEmitter` MUST detect re-entrant emission with a `contextvars.ContextVar[int]`
-      guard, not a `threading.Lock` or a boolean flag. A re-entrant emission is an
-      emitter call from a handler that an earlier emission invoked.
-    rationale: A `threading.Lock` guard would deadlock when the re-entrant call happens on the same thread (common in async/ASGI
-      contexts). A `ContextVar` is task-local and correctly tracks reentrancy per async task without thread-lock semantics.
-  - id: ARCH-17-003
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: '`ASGIEmitter` MUST raise `EmitterReentrancyError` on a re-entrant emission.'
-    rationale: >-
-      A re-entrant emission can loop with no end. A named error stops it and shows
-      where it started.
-    relationships:
-    - rel_type: extends
-      spec_id: ARCH-17-002
 - id: ARCH-18
   title: Architecture Ratchet Discipline
   specs:

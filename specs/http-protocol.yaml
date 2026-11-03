@@ -389,21 +389,29 @@ groups:
       and no error shows the loss (HTTP-09).
 - id: HTTP-09
   title: AS2 Response Class Convention
-  rationale: 'FastAPI''s `response_model=` serves two purposes: OpenAPI schema generation and runtime response filtering.
-    When a route returns a wire AS2 object (e.g., `as_VulnerabilityCase`), using `response_model=` for both purposes risks
-    silently stripping subclass fields (HTTP-08-001 violation). The canonical fix is to separate the two concerns: use `response_model=`
-    for OpenAPI docs only, and return an `AS2JSONResponse` instance for actual serialization (FastAPI skips response_model
-    filtering when a `Response` subclass is returned directly).'
+  rationale: >-
+    FastAPI's `response_model=` serves two purposes: OpenAPI schema generation and
+    runtime response filtering. When a route returns an AS2 object (e.g.,
+    `VulnerabilityCase`), using `response_model=` for both purposes risks silently
+    stripping subclass fields (HTTP-08-001 violation). The canonical fix is to separate
+    the two concerns: use `response_model=` for OpenAPI docs only, and return an
+    `AS2JSONResponse` instance for actual serialization (FastAPI skips response_model
+    filtering when a `Response` subclass is returned directly).
   specs:
   - id: HTTP-09-001
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: Wire vocabulary objects (`as_VulnerabilityCase`, `as_CaseParticipant`, etc.) are the canonical response type
-      for Vultron HTTP endpoints — they define the AS2-formatted JSON shape returned to clients. No separate "response model"
-      layer is needed; the wire model IS the response model.
-    rationale: Vultron is an AS2-over-HTTP protocol. Every substantive response body is an ActivityStreams object. The wire
-      vocabulary already defines the correct serialization shape (camelCase aliases, `@context`, `type`).
+    statement: >-
+      A Vultron HTTP endpoint MUST answer with the AS2 form of the object model's own
+      class, such as `VulnerabilityCase`, never with a separate response-model class.
+    rationale: >-
+      Vultron is an AS2-over-HTTP protocol, and every substantive response body is an
+      ActivityStreams object. The core classes are the object model and AS2 is their
+      serialization (ARCH-25-001): their `by_alias` dump already has the camelCase
+      names, `@context` and `type`, and an `as_*` name of a domain type is the same
+      class (ARCH-25-003). A second response class would copy that shape and drift
+      from it.
   - id: HTTP-09-002
     priority: MUST
     kind: project

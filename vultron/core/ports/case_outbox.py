@@ -15,10 +15,11 @@
 
 """Narrow outbound port for use cases and BT nodes that enqueue outbound activities.
 
-:class:`CaseOutboxPersistence` extends :class:`CasePersistence` for the small
-number of use cases and BT nodes that also call ``outbox_append``.  Declaring
-``CaseOutboxPersistence`` on a ``Received`` use case is an architectural smell —
-it signals that the handler mixes inbound processing with outbound broadcast.
+:class:`CaseOutboxPersistence` extends :class:`CasePersistence` with the
+outbound queue's two methods, ``outbox_append`` and ``outbox_list``
+(DL-04-004), for the use cases and BT nodes that queue outbound activities.
+A received use case whose tree emits in its effects stage declares it too
+(ADR-0111).
 
 ``SqliteDataLayer`` satisfies this Protocol structurally with no declaration
 needed (Python structural subtyping).
@@ -38,9 +39,8 @@ class CaseOutboxPersistence(CasePersistence, Protocol):
     """CasePersistence extended for use cases that enqueue outbound activities.
 
     Only use cases and BT nodes that call ``outbox_append`` declare this type.
-    If a ``ReceivedUseCase`` declares ``CaseOutboxPersistence``, that is a
-    signal that it mixes received-message handling with outbound broadcast — an
-    architectural smell worth investigating.
+    A received use case declares it when its tree's effects stage emits
+    (ADR-0111), which is by design (DL-04-004).
 
     The explicit-actor forms ``record_outbox_item(actor_id, activity_id)`` and
     ``outbox_list_for_actor(actor_id)`` are gone. They existed so that an

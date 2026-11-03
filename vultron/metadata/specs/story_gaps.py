@@ -107,8 +107,8 @@ class UnknownSelector(ValueError):
 #: ``startswith`` made ``CS`` collect all sixteen of CSB's gaps and ``MS``
 #: collect MSM's and none of its own, and AR/ARCH, BT/BTND, BT/BTC and DR/DRPT
 #: are the same shape. But the index carries an optional sub-item letter
-#: (``_SUFFIX`` in schema.py), so ``-`` alone also hid ``VP-12-002c`` from the
-#: selector ``VP-12-002``. A single letter cannot reinstate the file-ID
+#: (``_SUFFIX`` in ``schema/ids.py``), so ``-`` alone also hid ``VP-12-002c``
+#: from the selector ``VP-12-002``. A single letter cannot reinstate the file-ID
 #: over-match: ``CSB-16-001`` leaves ``B-16-001``, which neither branch matches
 #: whole. Upper-case, because every argument to :func:`_selects` already is.
 #: Not optional: an empty remainder means the selector *is* the ID, which
@@ -144,7 +144,8 @@ def unmatched_selectors(
 
     Walking the requirements is enough to key every file and group: ``SpecFile``
     validates ``groups`` non-empty and ``SpecGroup`` validates ``specs``
-    non-empty (schema.py), so no file or group can exist with nothing under it.
+    non-empty (``schema/models.py``), so no file or group can exist with
+    nothing under it.
     """
     known = [
         (spec.id.upper(), spec_file.id.upper())

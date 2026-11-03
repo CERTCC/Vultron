@@ -31,6 +31,7 @@ from fastapi import (
     Depends,
     HTTPException,
     Request,
+    Response,
     status,
 )
 from pydantic import BaseModel, Field
@@ -517,6 +518,7 @@ def refuse_non_post_inbox(actor_id: str) -> None:
 @router.post(
     "/{actor_id:path}/inbox",
     status_code=status.HTTP_202_ACCEPTED,
+    response_class=Response,
     include_in_schema=False,
 )
 @router.post(
@@ -524,6 +526,7 @@ def refuse_non_post_inbox(actor_id: str) -> None:
     summary="Add an Activity to the Actor's Inbox.",
     description="Adds an Activity to the Actor's Inbox. (stub implementation).",
     status_code=status.HTTP_202_ACCEPTED,
+    response_class=Response,
     operation_id="actors_post_inbox",
 )
 def post_actor_inbox(
@@ -539,6 +542,8 @@ def post_actor_inbox(
     The 202 Accepted status code indicates that the request has been accepted for
     processing, but the processing has not been completed. This is appropriate here
     because the inbox processing is handled asynchronously in the background.
+    The 202 carries no body (IE-08-001): nothing is known yet beyond acceptance,
+    and the sender already holds the activity's id.
 
     Policy logic lives in ``process_payload`` (core BT module); this
     endpoint is thin glue that supplies adapter implementations and

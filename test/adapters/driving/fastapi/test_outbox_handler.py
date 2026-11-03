@@ -25,7 +25,7 @@ Spec coverage:
 - OX-01-001: Actor MUST have an outbox collection.
 - OX-01-002: Outbox MUST preserve insertion order (FIFO).
 - OX-03-001: Activities in outbox MUST be delivered to recipient inboxes.
-- OX-03-002/003: Delivery occurs after handler; MUST NOT block HTTP response.
+- OX-03-003: Delivery MUST NOT block the inbox HTTP response.
 """
 
 import asyncio

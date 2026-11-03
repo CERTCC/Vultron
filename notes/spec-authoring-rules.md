@@ -69,7 +69,7 @@ and the error can read like a YAML syntax error.
 
 Who must obey a rule decides its kind; naming code never does (MS-12-002,
 [ADR-0134](../docs/adr/0134-who-must-obey-a-rule-decides-its-spec-kind.md)).
-The tiers are glossed on `SpecKind` in `vultron/metadata/specs/schema.py`:
+The tiers are glossed on `SpecKind` in `vultron/metadata/specs/schema/vocabulary.py`:
 
 - **`protocol`** — the Vultron layer: Vultron's message forms on the wire,
   which messages are sent and when, what a receiver does given its state, and
@@ -563,7 +563,7 @@ resolves it as live (#3022).
 - Prefer file-scoped exclusions to package-scoped ones: excluding all of
   `vultron/metadata/specs/` hid real definitions such as `SHOULD_NOT`.
 - Keep the two exclusion sets distinct: the phantom-*ID* allowlist excludes only
-  `test/metadata/specs`, while the *symbol* corpus also excludes `lint.py`.
+  `test/metadata/specs`, while the *symbol* corpus also excludes the `lint/` package.
 
 ### A Retired-Symbol Sweep Is Not a Substitution — Check the Shape First
 
