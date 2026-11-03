@@ -265,7 +265,7 @@ class TestRccvHandoffStoryShape:
 class TestRccvHandoffCast:
     """Four containers are reset; the opening seeds three of them."""
 
-    def _open(self, *, case_actor_id=None):
+    def _open(self):
         """Run the orchestrator and open its cast, collaborators stubbed."""
         clients = {
             name: mock_client() for name in ("reporter", "c1", "c2", "vendor")
@@ -309,7 +309,6 @@ class TestRccvHandoffCast:
                 c1_id="urn:test:c1",
                 c2_id="urn:test:c2",
                 vendor_id="urn:test:vendor",
-                case_actor_id=case_actor_id,
             )
             # run_story() is what plays the story; the cast opening is the
             # callable it is handed, so the test runs that and nothing else.
@@ -376,27 +375,6 @@ class TestRccvHandoffCast:
 
         assert ran["run_story"].call_args.args[0] == "rccv-handoff"
         assert ran["run_story"].call_args.args[1] is demo.STORY
-
-    @pytest.mark.spec("DEMOMA-14-023")
-    def test_a_case_actor_id_override_is_accepted_and_unused(self):
-        """``--case-actor-id`` has somewhere to go and seeds nothing with it.
-
-        The case-actor container seeds its own identity on reset
-        (DEMOMA-06-004), and the id the Invite check needs is read off the
-        case's participant index so that it names the actor actually holding
-        CASE_MANAGER (PCR-08-008).  The option therefore exists so the CLI
-        contract holds, and a run given it must behave as one that is not —
-        never quietly seed a CaseActor under the given id.
-        """
-        given = self._open(case_actor_id="urn:test:given-case-actor")
-
-        seeding = given["seed_three"].call_args.kwargs
-        assert seeding["case_actor_client"] is given["case_actor_client"]
-        assert "urn:test:given-case-actor" not in seeding.values(), seeding
-        # The three seeded actors are the opening's; it seeds no fourth, and
-        # the canonical store stays the dedicated container's.
-        assert sorted(given["state"].cast) == sorted([REPORTER, C1, VENDOR])
-        assert given["state"].case_actor_client is given["case_actor_client"]
 
 
 # ---------------------------------------------------------------------------
@@ -794,12 +772,15 @@ class TestRccvHandoffCliCommand:
             "--c1-id",
             "--c2-id",
             "--vendor-id",
-            "--case-actor-id",
         ],
     )
     def test_the_option_is_offered(self, help_text: str, option: str):
         """One URL and one id option per container, plus the health skip."""
         assert option in help_text
+
+    def test_case_actor_id_is_not_offered(self, help_text: str):
+        """The CaseActor id override is gone (AC-1, DEMOMA-14-023 amended)."""
+        assert "--case-actor-id" not in help_text
 
     def test_main_builds_one_client_per_container_and_runs_the_story(self):
         """``main()`` names its containers and passes their clients on."""
@@ -819,7 +800,6 @@ class TestRccvHandoffCliCommand:
                 c1_id="urn:test:c1",
                 c2_id="urn:test:c2",
                 vendor_id="urn:test:vendor",
-                case_actor_id="urn:test:case-actor",
             )
 
         members = built.call_args.args[1]
@@ -844,7 +824,7 @@ class TestRccvHandoffCliCommand:
         assert kwargs["vendor_client"] is clients["vendor"]
         assert kwargs["case_actor_client"] is clients["case-actor"]
         assert kwargs["c2_id"] == "urn:test:c2"
-        assert kwargs["case_actor_id"] == "urn:test:case-actor"
+        assert "case_actor_id" not in kwargs
 
 
 @pytest.fixture

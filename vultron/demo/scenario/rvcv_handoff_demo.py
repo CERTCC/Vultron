@@ -102,13 +102,12 @@ DEMO_NAME = "rvcv-handoff"
 
 # The scenario's actors in main() parameter order, each seated in a container of
 # the fixed cast (DEMOCI-11-020).  The demo CLI derives this scenario's
-# sub-command options from this list (DEMOCI-11-011); the CaseActor role
-# carries an id option of its own, which DEMOMA-11 requires.
+# sub-command options from this list (DEMOCI-11-011).
 ROLES: list[ActorRole] = [
     ActorRole(REPORTER, REPORTER_SLOT, REPORTER_LABEL, has_id=True),
     ActorRole(VENDOR, VENDOR_SLOT, VENDOR_LABEL, has_id=True),
     ActorRole(COORDINATOR, COORDINATOR_SLOT, COORDINATOR_LABEL, has_id=True),
-    case_actor_role(has_id=True),
+    case_actor_role(),
     ActorRole(VENDOR2, CAST[3], VENDOR2_LABEL, has_id=True),
 ]
 #: Indexed for the CLI factory and for ``story_clients()``, which reads
@@ -297,7 +296,6 @@ def run_rvcv_handoff_demo(
     reporter_id: str | None = None,
     vendor_id: str | None = None,
     coordinator_id: str | None = None,
-    case_actor_id: str | None = None,
     vendor2_id: str | None = None,
 ) -> None:
     """Orchestrate the RVCV-handoff CVD workflow.
@@ -311,11 +309,6 @@ def run_rvcv_handoff_demo(
         reporter_id: Deterministic URI for the Reporter actor.
         vendor_id: Deterministic URI for the Vendor1 actor.
         coordinator_id: Deterministic URI for the Coordinator actor.
-        case_actor_id: Accepted so ``--case-actor-id`` has somewhere to go and
-            unused: the case-actor container seeds its own identity on reset
-            (DEMOMA-06-004), and the id the Invite check needs is read off the
-            case's participant index, so that it names the actor actually
-            holding CASE_MANAGER (PCR-08-008).
         vendor2_id: Deterministic URI for the Vendor2 actor.
     """
     logger.info("=" * 80)
@@ -329,7 +322,6 @@ def run_rvcv_handoff_demo(
     logger.info("Coordinator container: %s", coordinator_client.base_url)
     logger.info("CaseActor container:   %s", case_actor_client.base_url)
     logger.info("Vendor2 container:     %s", vendor2_client.base_url)
-    logger.debug("CaseActor id override, unused: %s", case_actor_id)
 
     open_cast = vendor_open_cast(
         reporter_client=reporter_client,
@@ -382,7 +374,6 @@ def main(
     reporter_id: str | None = None,
     vendor_id: str | None = None,
     coordinator_id: str | None = None,
-    case_actor_id: str | None = None,
     vendor2_id: str | None = None,
 ) -> None:
     """Entry point for the RVCV-handoff CVD workflow demo.
@@ -397,7 +388,6 @@ def main(
         reporter_id: Optional deterministic URI for the Reporter actor.
         vendor_id: Optional deterministic URI for the Vendor1 actor.
         coordinator_id: Optional deterministic URI for the Coordinator actor.
-        case_actor_id: Optional deterministic URI for the CaseActor actor.
         vendor2_id: Optional deterministic URI for the Vendor2 actor.
     """
     clients = story_clients(
@@ -424,7 +414,6 @@ def main(
             coordinator=(clients[COORDINATOR], coordinator_id),
             vendor2=(clients[VENDOR2], vendor2_id),
         ),
-        case_actor_id=case_actor_id,
     )
 
 

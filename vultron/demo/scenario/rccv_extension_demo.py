@@ -45,11 +45,7 @@ Spec: DEMOMA-13 (GitHub issue #1620).
 
 import logging
 
-from vultron.demo.helpers.actor_roles import (
-    case_actor_role,
-    resolved_actor_ids,
-    role_map,
-)
+from vultron.demo.helpers.actor_roles import resolved_actor_ids, role_map
 from vultron.demo.helpers.coordinated_story import (
     REPORTER,
     REPORTER_LABEL,
@@ -96,7 +92,7 @@ DEMO_NAME = "rccv-extension"
 # The scenario's actors in main() parameter order, each seated in a container of
 # the fixed cast (DEMOCI-11-020).  The demo CLI derives this scenario's
 # sub-command options from this list (DEMOCI-11-011).
-ROLES = two_coordinator_roles(case_actor=case_actor_role())
+ROLES = two_coordinator_roles()
 #: Indexed for the CLI factory and for ``story_clients()``, which reads
 #: each actor's container address off its cast slot — so this module declares
 #: no ``*_BASE_URL`` constant of its own (DEMOCI-11-020).
