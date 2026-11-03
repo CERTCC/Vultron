@@ -109,6 +109,7 @@ from vultron.core.behaviors.case.nodes.post_close import (
     PostCloseExemption,
 )
 from vultron.core.behaviors.case.nodes.received_path import (
+    PathScopedGuard,
     ReceivedPath,
 )
 from vultron.core.behaviors.case.nodes.refusal_notice import (
@@ -133,6 +134,7 @@ from vultron.core.behaviors.case.receive_stages.effects import (
     check_gate_arguments,
     check_replica_effects,
     manager_stage,
+    participant_path_stage,
     ungated_emitters,
     ungated_nodes,
 )
@@ -163,7 +165,9 @@ logger = logging.getLogger(__name__)
 def create_receive_activity_tree(
     name: str,
     case_id: str | None,
-    precondition_guards: Sequence[py_trees.behaviour.Behaviour | Diversion],
+    precondition_guards: Sequence[
+        py_trees.behaviour.Behaviour | Diversion | PathScopedGuard
+    ],
     case_may_be_absent: bool = False,
     *,
     addressee_exemption: AddresseeExemption | None = None,
@@ -174,6 +178,9 @@ def create_receive_activity_tree(
     case_resolution: list[py_trees.behaviour.Behaviour] | None = None,
     replica_effects: list[py_trees.behaviour.Behaviour] | None = None,
     replica_emit_exemption: ReplicaEmitExemption | None = None,
+    participant_path_effects: list[py_trees.behaviour.Behaviour] | None = None,
+    participant_path_branch_name: str | None = None,
+    participant_path_body_name: str | None = None,
     manager_effects: list[py_trees.behaviour.Behaviour] | None = None,
     manager_case_id: str | None = None,
     manager_gate_name: str | None = None,
@@ -199,7 +206,9 @@ def create_receive_activity_tree(
             → [CaseManagerGate[ClockDecisionStage[
                    *case_clock_decisions, *clock_decisions]]]
             → [*precondition_guards] → GuardedCommit
-            → [*replica_effects] → CaseManagerGate[*manager_effects]
+            → [*replica_effects]
+            → [ReceivedPathBranch[*participant_path_effects]]
+            → CaseManagerGate[*manager_effects]
 
     In a tree that commits to ``case_id`` the last three stages are one
     :class:`~vultron.core.behaviors.act_transaction.ActTransaction`,
@@ -258,11 +267,13 @@ def create_receive_activity_tree(
     among ``precondition_guards`` becomes a
     :class:`~vultron.core.behaviors.case.nodes.diversion_stage.DiversionStage`
     at its place: when its read-only condition holds, its effects answer the
-    delivery and the tree stops before the commit (CLP-10-063).  A
-    ``CASE_MANAGER`` diversion runs only at the case's CASE_MANAGER, inside
-    the gate on ``case_id`` (else ``manager_case_id``), and may commit its own
-    entry; a ``RECEIVER`` diversion writes no case state and its emits need a
-    registered exemption.  A diverted delivery has already been answered,
+    delivery and the tree stops before the commit (CLP-10-063).  Where it may
+    run is the tree's path declaration (HP-01-038): in a tree that declares
+    the manager path alone it runs at the CASE_MANAGER the path stage already
+    established, and may commit its own entry; in a tree that also declares a
+    non-manager path it is the receiver's own answer, writes no case state and
+    its emits need a registered exemption.  A diverted delivery has already
+    been answered,
     so the refusal stage runs no refusal effect for it; the refusal notice
     and any ``refusal_effects`` answer only the refusals the guards make.
 
@@ -362,16 +373,32 @@ def create_receive_activity_tree(
     Effects perform state transitions, outbox enqueues, and participant
     mutations — all of which happen only after the receipt is recorded.
 
-    Effects come in two kinds (BT-17-008).
+    Effects come in three kinds (BT-17-008).
     ``replica_effects`` run on every replica, ungated; an emit-capable node
     among them is refused at construction unless ``replica_emit_exemption``
     names a registered exemption.
+    ``participant_path_effects`` are the branch of the declared
+    participant-replica path (HP-01-038): the factory wraps them in a
+    :class:`~vultron.core.behaviors.case.nodes.received_path.ReceivedPathBranch`
+    reading the path stage's answer, so they run at a receiver that holds the
+    case without the CASE_MANAGER role and nowhere else, and they need no
+    emit exemption — the branch is the structural guard.  A tree that passes
+    them must declare ``ReceivedPath.PARTICIPANT_REPLICA``.
     ``manager_effects`` run only at the case's CASE_MANAGER: the factory wraps
     them in :func:`create_case_manager_gated_tree` on ``manager_case_id``, a
     separate argument from ``case_id`` so a tree that omits the commit
     (``case_id=None``) can still gate its emits.
-    A received-tree module does not call ``create_case_manager_gated_tree``
+    A received-tree module calls neither
+    ``create_case_manager_gated_tree`` nor
+    :func:`~vultron.core.behaviors.case.nodes.role_gates.create_participant_replica_gated_tree`
     itself.
+
+    A guard with a question to ask on one declared path only is passed as a
+    :class:`~vultron.core.behaviors.case.nodes.received_path.PathScopedGuard`
+    among ``precondition_guards``, and the factory builds its branch at that
+    position (HP-01-038).  A tree that declares exactly one path needs none:
+    the path stage already refused every other receiver, so its guards run
+    bare.
 
     A tree that commits to ``case_id`` and has precondition guards answers
     their refusal with the refusal notice
@@ -440,8 +467,16 @@ def create_receive_activity_tree(
             commit.
         replica_emit_exemption: The registered decision that lets an
             emit-capable node run in ``replica_effects``.
+        participant_path_effects: Effects run only on the declared
+            participant-replica path, branched by the factory after
+            ``replica_effects`` (HP-01-038).
+        participant_path_branch_name: Name of the branch Selector; defaults
+            to ``{name}OnParticipantReplica``.
+        participant_path_body_name: Name of the Sequence wrapping several
+            ``participant_path_effects``; defaults to
+            ``{branch name}Body``.
         manager_effects: Effects run only at the CASE_MANAGER, gated by the
-            factory after ``replica_effects``.
+            factory after ``participant_path_effects``.
         manager_case_id: Case whose CASE_MANAGER gates ``manager_effects``.
         manager_gate_name: Name of the gate Selector; defaults to
             ``{name}IfCaseManager``.
@@ -488,7 +523,9 @@ def create_receive_activity_tree(
             with no case, or a ``case_resolution`` without ``sender_rule``
             or holding a node that is not a read-only ``CaseResolving`` step
             (HP-01-008), or a
-            ``paths`` names no path (ADR-0153), or a
+            ``paths`` names no path (ADR-0153), or
+            ``participant_path_effects`` or a ``PathScopedGuard`` name a path
+            the tree does not declare (HP-01-038), or a
             diversion is ill-formed (CLP-10-026), or ``clock_decisions`` name no
             case, come without a ``sender_rule`` or with a
             ``post_close_exemption``, or hold the received activity's commit
@@ -503,6 +540,7 @@ def create_receive_activity_tree(
     BT-17-008 and ``specs/case-management.yaml`` CM-23-013.
     """
     replica = replica_effects or []
+    participant = participant_path_effects or []
     manager = manager_effects or []
     check_gate_arguments(
         name,
@@ -590,7 +628,7 @@ def create_receive_activity_tree(
     guards = precondition_guard_nodes(
         name,
         precondition_guards,
-        case_id or manager_case_id,
+        path_stage,
     )
     if effects:
         children.append(
@@ -618,6 +656,16 @@ def create_receive_activity_tree(
             name,
         )
     act.extend(replica)
+    if participant:
+        act.append(
+            participant_path_stage(
+                name,
+                participant,
+                path_stage,
+                participant_path_branch_name,
+                participant_path_body_name,
+            )
+        )
     if manager:
         act.append(
             manager_stage(

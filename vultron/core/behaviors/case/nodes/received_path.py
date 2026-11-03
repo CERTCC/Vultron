@@ -38,6 +38,11 @@ message type's declaration says which paths it handles:
 - :class:`CheckReceivedPathNode` is how a later node reads the answer: a pure
   condition over the path the stage already resolved, with no second read of
   the roster.
+- :class:`ReceivedPathBranch` is the work a message type declared for one
+  path, and :class:`PathScopedGuard` is a precondition guard scoped the same
+  way.  Both select on :class:`CheckReceivedPathNode`, so a branch costs no
+  second role read, and both are built by the received-tree factory alone
+  (HP-01-038, HP-01-036).
 
 ``create_receive_activity_tree`` is the only place the stage is built; a tree
 declares its paths with the factory's ``paths`` argument and nothing else
@@ -45,6 +50,7 @@ declares its paths with the factory's ``paths`` argument and nothing else
 """
 
 from collections.abc import Collection
+from dataclasses import dataclass
 from enum import Enum
 from typing import Self
 
@@ -59,9 +65,12 @@ from vultron.enums.roles import CVDRole
 
 __all__ = [
     "CheckReceivedPathNode",
+    "PathScopedGuard",
     "ReceivedPath",
+    "ReceivedPathBranch",
     "ReceivedPathNode",
     "declared_paths",
+    "received_path_branch",
     "undeclared_path_reason",
 ]
 
@@ -313,3 +322,113 @@ class CheckReceivedPathNode(py_trees.behaviour.Behaviour):
         if self.stage.resolved_path is self.path:
             return Status.SUCCESS
         return Status.FAILURE
+
+
+class ReceivedPathBranch(py_trees.composites.Selector):
+    """The work a message type declared for one received path (HP-01-038).
+
+    Structure::
+
+        <name> (Selector)
+        ├── SkipIfNotOn<Path> (Inverter[CheckReceivedPathNode])
+        └── <children>
+
+    The ``Inverter`` keeps the two FAILURE modes apart, as the CASE_MANAGER
+    gate's does: a receiver on another path skips the branch as SUCCESS,
+    while a receiver *on* this path whose work fails fails the Selector
+    (BT-17-001).
+
+    The branch is a structural guard, not a prose decision: the path stage
+    already put this receiver on :attr:`branch_path`, so everything inside
+    runs only there.  That is what BT-17-008 asks of an emit — the emit
+    speaks for the actor the path names — which is why
+    :func:`~vultron.core.behaviors.case.receive_stages.effects.ungated_nodes`
+    does not walk into one.
+
+    Only :func:`received_path_branch` constructs one, and only the
+    received-tree factory calls that (HP-01-007).
+    """
+
+    def __init__(
+        self,
+        name: str,
+        path: ReceivedPath,
+        children: list[py_trees.behaviour.Behaviour],
+    ) -> None:
+        super().__init__(name=name, memory=False, children=children)
+        self._path = path
+
+    @property
+    def branch_path(self) -> ReceivedPath:
+        """The path this branch runs on."""
+        return self._path
+
+    @property
+    def branch_body(self) -> py_trees.behaviour.Behaviour:
+        """The child that runs only on :attr:`branch_path` (for inspection)."""
+        return self.children[1]
+
+
+def received_path_branch(
+    name: str,
+    stage: ReceivedPathNode,
+    path: ReceivedPath,
+    children: list[py_trees.behaviour.Behaviour],
+    body_name: str | None = None,
+) -> ReceivedPathBranch:
+    """*children*, run only when *stage* resolved *path* (HP-01-038).
+
+    Args:
+        name: Name for the root Selector.
+        stage: The tree's path stage, whose answer selects the branch.
+        path: The declared path this branch belongs to.
+        children: The work the message type does on that path.  More than
+            one is wrapped in a Sequence so a mid-branch FAILURE still
+            propagates.
+        body_name: Name for that wrapping Sequence; defaults to
+            ``{name}Body``.
+    """
+    label = path.name.title().replace("_", "")
+    if len(children) == 1:
+        body: py_trees.behaviour.Behaviour = children[0]
+    else:
+        body = py_trees.composites.Sequence(
+            name=body_name or f"{name}Body", memory=False, children=children
+        )
+    return ReceivedPathBranch(
+        name=name,
+        path=path,
+        children=[
+            py_trees.decorators.Inverter(
+                name=f"SkipIfNotOn{label}",
+                child=CheckReceivedPathNode(stage, path),
+            ),
+            body,
+        ],
+    )
+
+
+@dataclass(frozen=True)
+class PathScopedGuard:
+    """A precondition guard a message type runs on one declared path only.
+
+    The guard counterpart of :class:`ReceivedPathBranch`, for a tree that
+    declares more than one path and whose guard only has a question to ask on
+    one of them — the embargo Invite's "does the canonical case's EM state
+    admit a proposal?", which is the CASE_MANAGER's question (EP-09-001).  A
+    receiver on another path skips it, so the guard neither refuses nor
+    reports for a path it does not speak to.
+
+    A tree that declares exactly one path needs none of this: the path stage
+    already refused every other receiver, so its guards run bare.
+
+    Attributes:
+        path: The declared path the guard runs on.
+        guard: The read-only guard itself.
+        name: Names the branch Selector; defaults to
+            ``{guard.name}IfOn<Path>``.
+    """
+
+    path: ReceivedPath
+    guard: py_trees.behaviour.Behaviour
+    name: str | None = None

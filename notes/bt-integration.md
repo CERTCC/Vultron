@@ -307,6 +307,29 @@ answer, clock decisions, guards, commit, effects.
    (`use_cases/received/_bt_verdict.py`), never by inferring "not the manager"
    from a gate skip anywhere in the tree.
 
+   A declared branch is the factory's to build, from that one answer, and is a
+   structural guard in its own right. Pass the participant-replica branch as
+   `participant_path_effects` and a guard with a question on one path only as a
+   `PathScopedGuard` among `precondition_guards`; both become a
+   `ReceivedPathBranch` selecting on `CheckReceivedPathNode`, so neither costs a
+   second role read (HP-01-038, HP-01-036). Two consequences, both load-bearing.
+   An emit inside a branch needs no `ReplicaEmitExemption`: the path names the
+   actor the emit speaks for, which is BT-17-008's other admitted guard, so
+   `ungated_emitters()` does not walk into one. A *state write* is not excused
+   the same way — only the CASE_MANAGER writes (RSH-08-003), and the
+   participant-replica branch is exactly where that rule's one exception lives —
+   so the state-write walk keeps descending, and `ungated_nodes(..., skip=)` is
+   what keeps the two apart. What does excuse a write is a declaration naming
+   the manager path alone: the stage refused every other receiver, so the
+   declaration gates the whole tree, and a diversion there needs no gate either
+   and may commit its own entry (CLP-10-026).
+
+   A tree that declares one path runs its guards bare. A gate wrapped round a
+   guard in a manager-only tree is dead code whose skip arm is unreachable, and
+   it reads as a second asker of the role question
+   (`test/architecture/test_received_path_role_question.py`); drop it when the
+   declaration lands, in the same commit.
+
    The reason an undeclared path is refused with is composed from the resolved
    path and the declaration, in `undeclared_path_reason()`, and nowhere else
    (HP-01-039). One fixed string will not do: "not the CASE_MANAGER of case X"

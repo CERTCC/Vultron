@@ -1036,16 +1036,25 @@ class TestPxaRejectionAttribution:
         assert dl.outbox_list() == []
 
     @pytest.mark.spec("EMB-02-004")
+    @pytest.mark.spec("HP-01-038")
     def test_accept_refusal_is_sent_as_receiver_not_accepter(
         self, make_payload
     ):
-        """The invitee's Accept is refused as the receiving actor, to the invitee."""
+        """The invitee's Accept is refused as the receiving actor, to the invitee.
+
+        The receiving actor is the case's CASE_MANAGER here, because
+        EMB-02-004's duty is the CASE_MANAGER's and the Accept tree declares
+        that path alone (HP-01-038): a store that is not the case's
+        CASE_MANAGER is refused at the path stage and answers nothing.  The
+        accepter is still a different actor, which is what this pins — the
+        Reject is attributed to the receiver, not to the accepter.
+        """
         dl = self._dl()
         case_id = f"{self.CASE_ID}/ea"
         case, _, proposal = _make_pxa_case(
             dl,
             case_id=case_id,
-            coordinator_id=self.SENDER_ID,
+            coordinator_id=self.RECEIVER_ID,
             embargo_id=f"{case_id}/embargo_events/e1",
             pxa_state_name="Pxa",
             em_state=EM.PROPOSED,

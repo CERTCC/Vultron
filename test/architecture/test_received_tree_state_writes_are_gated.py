@@ -32,8 +32,11 @@ The checks:
    :class:`~vultron.core.behaviors.state_write_capable.StateWriteCapable`
    node outside every ``CaseManagerGate`` is an ungated write.  The walk
    sees nodes a factory reaches through helpers, locals and nested factories,
-   and descends into the participant-replica gate, which runs everywhere but
-   the CASE_MANAGER.
+   and descends into the participant-replica gate and the factory's
+   participant-replica path branch, which run everywhere but the
+   CASE_MANAGER.  A tree whose declaration names the CASE_MANAGER path alone
+   is skipped whole: the path stage refuses every other receiver, so the
+   declaration is the gate (HP-01-038).
 2. **Pinned exemption set** :data:`REPLICA_STATE_WRITES` — trees whose
    ungated writes are the design: the ledger replay itself, the bootstrap
    trees that mint a case or seed a replica before any CASE_MANAGER gate could
@@ -60,6 +63,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
+import py_trees
 import pytest
 from py_trees.behaviour import Behaviour
 from py_trees.composites import Composite
@@ -72,6 +76,10 @@ from test.architecture.test_received_tree_case_manager_gate import (
     _calls,
     _rel,
     _top_level_scopes,
+)
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+    ReceivedPathNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import ungated_nodes
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
@@ -365,13 +373,60 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
 }
 
 
+def _declares_manager_path_only(
+    tree: py_trees.behaviour.Behaviour,
+) -> bool:
+    """True when *tree*'s path declaration names the CASE_MANAGER path alone.
+
+    Such a tree is gated whole (HP-01-038): the path stage the factory placed
+    among the door guards refuses every other receiver before anything runs,
+    so every node after it executes at the case's CASE_MANAGER and RSH-08-003
+    is satisfied without a gate inside the tree.  The declaration is the gate,
+    which is the point of ADR-0153.
+    """
+    stages = [n for n in tree.iterate() if isinstance(n, ReceivedPathNode)]
+    return bool(stages) and stages[0].declared == frozenset(
+        {ReceivedPath.CASE_MANAGER}
+    )
+
+
 def _ungated_state_writes() -> frozenset[_Write]:
-    """``(module, factory, class)`` for each ungated marked node."""
+    """``(module, factory, class)`` for each ungated marked node.
+
+    A tree that declares the CASE_MANAGER path alone is skipped whole; see
+    :func:`_declares_manager_path_only`.
+    :func:`test_a_manager_only_declaration_is_what_excuses_a_tree` keeps that
+    skip from widening unnoticed.
+    """
     return frozenset(
         (rel, factory, type(node).__name__)
         for (rel, factory), tree in built_received_trees().items()
+        if not _declares_manager_path_only(tree)
         for node in ungated_nodes([tree], StateWriteCapable)
     )
+
+
+@pytest.mark.spec("HP-01-038")
+@pytest.mark.spec("RSH-08-003")
+def test_a_manager_only_declaration_is_what_excuses_a_tree() -> None:
+    """The skip above rests on a declaration, and some tree has one.
+
+    Without this the skip could quietly cover every tree — a declaration the
+    factory stopped placing, a renamed stage — and the ratchet would pass on
+    an empty walk.
+    """
+    excused = {
+        key
+        for key, tree in built_received_trees().items()
+        if _declares_manager_path_only(tree)
+    }
+    walked = set(built_received_trees()) - excused
+
+    assert excused, (
+        "no received tree declares the CASE_MANAGER path alone; the"
+        f" {ReceivedPathNode.__name__} door stage has gone missing"
+    )
+    assert walked, "every received tree was excused; the walk is vacuous"
 
 
 def test_every_received_tree_factory_is_built() -> None:

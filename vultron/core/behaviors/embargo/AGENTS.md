@@ -169,8 +169,8 @@ committed before its effects, so its tree runs the same decision among its
 guards (`EmbargoAnswerAppliesNode`, `nodes/answer_record.py`) and refuses an
 answer that would record nothing the case can take. A received withdrawal
 does the same (`EmbargoWithdrawalAppliesNode`); both guards subclass
-`EmbargoDecisionAppliesNode`, gated by `case_manager_decision_guard()`, and
-both effects subclass `_RecordReceivedConsentNode` (`nodes/proposal.py`),
+`EmbargoDecisionAppliesNode` and run bare (manager-only path declaration,
+HP-01-038); both effects subclass `_RecordReceivedConsentNode` (`nodes/proposal.py`),
 which commits each further row with the received act as its cause. A new
 received consent act reuses those two frames. An act whose entry carries no
 change of its own (the `Leave`) has a replica slot that stores the embargo

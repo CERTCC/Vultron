@@ -769,10 +769,14 @@ class TestRefusalNotice:
         from vultron.core.behaviors.case.nodes.diversion_stage import (
             Diversion,
         )
+        from vultron.core.behaviors.case.nodes.received_path import (
+            ReceivedPath,
+        )
 
         tree = create_receive_activity_tree(
             name="SampleBT",
             case_id=CASE_ID,
+            paths={ReceivedPath.CASE_MANAGER},
             precondition_guards=[
                 Diversion(name="D", condition=_effect("Condition"))
             ],

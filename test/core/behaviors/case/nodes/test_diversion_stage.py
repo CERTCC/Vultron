@@ -15,11 +15,15 @@
 """Diversions: an arm a delivery takes instead of its commit (CLP-10-026).
 
 A diversion whose condition fails lets the tree go on; one whose condition
-holds runs its effects and ends the tree before anything after it.  The
-factory runs a ``CASE_MANAGER`` diversion only at the case's CASE_MANAGER and
-refuses a diversion that could commit the received activity, write state
-where it may not, or emit uncovered.
+holds runs its effects and ends the tree before anything after it.  Where a
+diversion may run is the tree's path declaration (HP-01-038): a tree that
+declares the CASE_MANAGER path alone reaches its diversion only there,
+because the path stage refused every other receiver, and the factory refuses
+a diversion that could commit the received activity, write state where it
+may not, or emit uncovered.
 """
+
+from collections.abc import Collection
 
 import py_trees
 import pytest
@@ -33,11 +37,14 @@ from test.core.behaviors.embargo.nodes.conftest import (
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     Diversion,
-    DiversionGate,
     DiversionStage,
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
+)
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+    ReceivedPathNode,
 )
 from vultron.core.behaviors.case.nodes.refusal_notice import (
     EmitRefusalNoticeNode,
@@ -76,11 +83,11 @@ class _Emitter(_Counted, EmitCapable):
     pass
 
 
-class _SendEmbargoInviteAnswerNode(_Counted, EmitCapable):
+class _SendEmbargoProposalRefusalNode(_Counted, EmitCapable):
     """Named like the emit the refusal exemption covers."""
 
 
-_SendEmbargoInviteAnswerNode.__name__ = "SendEmbargoInviteAnswerNode"
+_SendEmbargoProposalRefusalNode.__name__ = "SendEmbargoProposalRefusalNode"
 
 
 class _Writer(_Counted, StateWriteCapable):
@@ -138,10 +145,21 @@ class TestDiversionStage:
         assert root.status is Status.FAILURE
 
 
-def _tree(*guards, **kwargs) -> py_trees.composites.Sequence:
+#: The declaration a tree that reaches a diversion at any receiver makes.
+_BOTH_PATHS = frozenset(
+    {ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA}
+)
+
+
+def _tree(
+    *guards,
+    paths: Collection[ReceivedPath] | None = _BOTH_PATHS,
+    **kwargs,
+) -> py_trees.composites.Sequence:
     return create_receive_activity_tree(
         name="Probe",
         case_id=_CASE,
+        paths=paths,
         precondition_guards=list(guards),
         **kwargs,
     )
@@ -175,7 +193,6 @@ class TestFactoryChecks:
                     name="D",
                     condition=_Counted("C"),
                     effects=(_Writer("W"),),
-                    gate=DiversionGate.RECEIVER,
                 )
             )
 
@@ -196,7 +213,6 @@ class TestFactoryChecks:
                             semantic_type="probe",
                         ),
                     ),
-                    gate=DiversionGate.RECEIVER,
                 )
             )
 
@@ -209,7 +225,6 @@ class TestFactoryChecks:
                     name="D",
                     condition=_Counted("C"),
                     effects=(_Emitter("E"),),
-                    gate=DiversionGate.RECEIVER,
                 )
             )
 
@@ -223,8 +238,7 @@ class TestFactoryChecks:
             Diversion(
                 name="D",
                 condition=_Counted("C"),
-                effects=(_SendEmbargoInviteAnswerNode("E"),),
-                gate=DiversionGate.RECEIVER,
+                effects=(_SendEmbargoProposalRefusalNode("E"),),
                 emit_exemption=EMBARGO_INVITE_REFUSAL,
             )
         )
@@ -233,25 +247,26 @@ class TestFactoryChecks:
         ] == ["D"]
 
     @pytest.mark.spec("BT-17-008")
-    def test_a_case_manager_diversion_takes_no_exemption(self) -> None:
+    @pytest.mark.spec("HP-01-038")
+    def test_a_manager_only_declaration_takes_no_exemption(self) -> None:
         with pytest.raises(VultronWiringError, match="drop its emit"):
             _tree(
                 Diversion(
                     name="D",
                     condition=_Counted("C"),
                     emit_exemption=EMBARGO_INVITE_REFUSAL,
-                )
+                ),
+                paths={ReceivedPath.CASE_MANAGER},
             )
 
-    @pytest.mark.spec("BT-17-001")
-    def test_a_case_manager_diversion_needs_a_case(self) -> None:
-        with pytest.raises(VultronWiringError, match="needs the tree's"):
-            create_receive_activity_tree(
-                name="Probe",
-                case_id=None,
-                precondition_guards=[
-                    Diversion(name="D", condition=_Counted("C"))
-                ],
+    @pytest.mark.spec("HP-01-038")
+    @pytest.mark.spec("CLP-10-026")
+    def test_a_diversion_needs_the_trees_path_declaration(self) -> None:
+        """Nothing else says where a diversion may run (ADR-0153)."""
+        with pytest.raises(VultronWiringError, match="paths the tree"):
+            _tree(
+                Diversion(name="D", condition=_Counted("C")),
+                paths=None,
             )
 
     @pytest.mark.spec("CLP-10-022")
@@ -279,8 +294,15 @@ class TestFactoryChecks:
         ] == ["D"]
 
 
-class TestCaseManagerDiversion:
-    """Only the case's CASE_MANAGER takes a CASE_MANAGER diversion."""
+class TestManagerOnlyDeclarationReachesItsDiversion:
+    """A manager-only declaration is what keeps a diversion at the manager.
+
+    The diversion carries no gate of its own any more (HP-01-038): the path
+    stage the factory placed refuses every other receiver before the guards
+    run, so the condition is never evaluated there.  These run the whole
+    tree, because the stage is the protection and a stage lifted out of its
+    tree protects nothing.
+    """
 
     @staticmethod
     def _run(store_actor: str) -> tuple[DiversionStage, _Counted, _Counted]:
@@ -292,14 +314,22 @@ class TestCaseManagerDiversion:
         tree = create_receive_activity_tree(
             name="Probe",
             case_id=case.id_,
+            paths={ReceivedPath.CASE_MANAGER},
             precondition_guards=[
                 Diversion(name="D", condition=condition, effects=(effect,))
             ],
         )
         (stage,) = [n for n in tree.iterate() if isinstance(n, DiversionStage)]
+        (path_stage,) = [
+            n for n in tree.iterate() if isinstance(n, ReceivedPathNode)
+        ]
         BTBridge(datalayer=dl).execute_with_setup(
-            tree=stage, actor_id=store_actor
+            tree=path_stage, actor_id=store_actor
         )
+        if path_stage.status is Status.SUCCESS:
+            BTBridge(datalayer=dl).execute_with_setup(
+                tree=stage, actor_id=store_actor
+            )
         return stage, condition, effect
 
     @pytest.mark.spec("BT-17-001")
@@ -311,12 +341,11 @@ class TestCaseManagerDiversion:
         assert stage.taken and stage.effects_succeeded
         assert condition.ticks == 1 and effect.ticks == 1
 
-    @pytest.mark.spec("BT-17-001")
+    @pytest.mark.spec("HP-01-039")
     @pytest.mark.spec("CLP-10-026")
     @pytest.mark.spec("CLP-10-065")
-    def test_another_store_never_diverts(self) -> None:
+    def test_another_store_is_refused_before_the_diversion(self) -> None:
         stage, condition, effect = self._run(OTHER_PARTICIPANT_ACTOR)
 
         assert not stage.taken
-        assert stage.status is Status.SUCCESS
         assert condition.ticks == 0 and effect.ticks == 0

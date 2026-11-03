@@ -58,6 +58,10 @@ from pathlib import Path
 import pytest
 
 from test.architecture import _corpus
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPathBranch,
+    received_path_branch,
+)
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.replica_emit_exemptions import (
     REPLICA_EMIT_EXEMPTIONS,
@@ -76,6 +80,9 @@ _LEGACY_KEYWORD = "effect_nodes"
 _EXEMPTION_KEYWORD = "replica_emit_exemption"
 _DIVERSION = "Diversion"
 _DIVERSION_EXEMPTION_KEYWORD = "emit_exemption"
+#: Read from the live objects, so a rename moves this check with the code.
+_BRANCH_CLASS = ReceivedPathBranch.__name__
+_BRANCH_BUILDER = received_path_branch.__name__
 
 #: Callables that put an activity id in an actor's outbox.  A class whose
 #: methods call one of them is an emitter.
@@ -153,20 +160,6 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
         (
             "vultron/core/behaviors/sync/ledger_position_stage.py",
             "create_ledger_position_stage",
-        ),
-        (f"{_E}/nodes/relay_guards.py", "case_manager_admits_proposal_guard"),
-        # The repeat guard for an answer to an embargo Invite (CM-13-005).
-        (
-            f"{_E}/nodes/answer_repeat.py",
-            "case_manager_admits_embargo_answer_guard",
-        ),
-        # The decision check of a received consent act (ADR-0122,
-        # ADR-0124): the same decision the effect makes, run among a received
-        # answer's or withdrawal's guards so an act recording nothing is
-        # refused before its commit.
-        (
-            f"{_E}/nodes/answer_record.py",
-            "case_manager_decision_guard",
         ),
         (
             f"{_C}/nodes/case_participant_received.py",
@@ -306,22 +299,23 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
         # CASE_STATUS was retired by #4851: add_case_status runs only at a
         # participant replica, from the CASE_MANAGER (RSH-04-005), and has no
         # effects to exempt.
-        (
-            "EMBARGO_INVITE_ANSWER",
-            f"{_E}/announce_teardown_tree.py",
-            "invite_to_embargo_on_case_tree",
-        ),
+        # EMBARGO_INVITE_ANSWER was retired by #5042: the Invite tree's
+        # answer arm became the declared participant-replica path branch the
+        # factory builds, which is the structural guard BT-17-008 asks for.
         (
             "EMBARGO_INVITE_FAULT",
             f"{_E}/invite_received_tree.py",
             "embargo_invite_fault_tree",
         ),
-        # A diversion of the Invite and Accept trees (CLP-10-026), built by
-        # the one helper both refusals share.
+        # The P/X/A diversion of the Invite tree (CLP-10-026), which
+        # declares both the manager and the participant-replica path, so the
+        # declaration alone does not bound its emit.  The Accept tree's
+        # refusal declares the CASE_MANAGER path alone and carries none
+        # (HP-01-038).
         (
             "EMBARGO_INVITE_REFUSAL",
             f"{_E}/refusal_tree.py",
-            "_pxa_refusal",
+            "pxa_invite_refusal",
         ),
         (
             "OFFER_ROLE",
@@ -609,6 +603,36 @@ def test_only_the_gate_helper_constructs_a_case_manager_gate() -> None:
         "a CaseManagerGate built outside create_case_manager_gated_tree may"
         " lack the CheckIsCaseManagerNode skip arm, yet the factory's walk"
         f" treats it as gated (BT-17-008): {builders}"
+    )
+
+
+@pytest.mark.spec("HP-01-042")
+def test_only_the_factory_builds_a_received_path_branch() -> None:
+    """A declared path branch is the factory's, never a tree's (HP-01-042).
+
+    The factory's walks read a ``ReceivedPathBranch`` as a guard for an emit,
+    so one a tree built for itself — possibly without the
+    ``CheckReceivedPathNode`` skip arm, or reading a stage of its own — would
+    be trusted on that reading while asking the role question a second time
+    (HP-01-036).
+    """
+    builders = sorted(
+        _rel(path)
+        for path, tree in _corpus.files_mentioning(
+            _BRANCH_CLASS, _BRANCH_BUILDER, under=_VULTRON_ROOT
+        )
+        if any(
+            name in {_BRANCH_CLASS, _BRANCH_BUILDER}
+            for _, name in _calls(tree)
+        )
+    )
+    assert builders == [
+        "vultron/core/behaviors/case/nodes/received_path.py",
+        f"{_FACTORY_STAGES}effects.py",
+        f"{_FACTORY_STAGES}guards.py",
+    ], (
+        "a received path branch is built by the factory's stage builders"
+        f" alone, through {_BRANCH_BUILDER}() (HP-01-042): {builders}"
     )
 
 

@@ -29,12 +29,8 @@ take is refused before it is committed, and no replica is sent an entry it
 could not apply (ADR-0124, SYNC-12-001).
 """
 
-import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
-)
 from vultron.core.behaviors.embargo.decided_entries import (
     EmbargoDecision,
     decide_embargo_act,
@@ -162,36 +158,23 @@ class EmbargoAnswerAppliesNode(EmbargoDecisionAppliesNode):
         )
 
 
-def case_manager_decision_guard(
-    name: str, case_id: str, guard: EmbargoDecisionAppliesNode
-) -> py_trees.behaviour.Behaviour:
-    """*guard*, run only at the CASE_MANAGER (a precondition guard).
-
-    A participant replica skips it as ``SUCCESS``: only the CASE_MANAGER
-    records the act (BT-17-001), and the gate reports the replica's refusal
-    (HP-01-005).
-    """
-    return create_case_manager_gated_tree(
-        name=f"{name}IfCaseManager",
-        case_id=case_id,
-        body_name=name,
-        children=[guard],
-    )
-
-
 def case_manager_admits_answer_change_guard(
     case_id: str, embargo_id: str, answering_actor_id: str, *, accept: bool
-) -> py_trees.behaviour.Behaviour:
-    """Precondition guard: at the CASE_MANAGER, the answer records a change."""
-    return case_manager_decision_guard(
-        "EmbargoAnswerApplies",
-        case_id,
-        EmbargoAnswerAppliesNode(
-            case_id=case_id,
-            embargo_id=embargo_id,
-            answering_actor_id=answering_actor_id,
-            accept=accept,
-        ),
+) -> EmbargoAnswerAppliesNode:
+    """Precondition guard: at the CASE_MANAGER, the answer records a change.
+
+    The guard runs bare, with no role gate of its own: a tree that carries a
+    received consent act declares the CASE_MANAGER path alone (HP-01-038),
+    so the path stage has already refused every other receiver and the
+    replica's refusal is reported there (HP-01-005).  Only the CASE_MANAGER
+    records the act (BT-17-001).
+    """
+    return EmbargoAnswerAppliesNode(
+        name="EmbargoAnswerApplies",
+        case_id=case_id,
+        embargo_id=embargo_id,
+        answering_actor_id=answering_actor_id,
+        accept=accept,
     )
 
 
@@ -199,6 +182,5 @@ __all__ = [
     "EmbargoAnswerAppliesNode",
     "EmbargoDecisionAppliesNode",
     "case_manager_admits_answer_change_guard",
-    "case_manager_decision_guard",
     "decide_answer",
 ]

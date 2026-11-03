@@ -10,17 +10,23 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Where the embargo received trees put their factory-owned gate (BT-17-008).
+"""Where the embargo received trees put their factory-owned branches.
 
-The factory runs ``manager_effects`` last.  These pin what that means for
-the embargo trees that had work after their gate: the Invite tree writes its
-proposal index at the end of whichever arm runs, and the Add tree's
-admission backfill is its gate.
+The factory runs ``manager_effects`` last, after the declared
+participant-replica branch it builds from ``participant_path_effects``
+(BT-17-008, HP-01-038).  These pin what that means for the embargo trees
+that had work after their gate: the Invite tree writes its proposal index at
+the end of whichever arm runs, and the Add tree's admission backfill is its
+gate.
 """
 
 import py_trees
 import pytest
 
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+    ReceivedPathBranch,
+)
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.case.nodes.stub_reissue import (
     ReissueStubInvitesNode,
@@ -78,13 +84,16 @@ def test_invite_tree_gate_is_last_and_ends_with_the_index() -> None:
     )
 
 
-def test_invite_tree_replica_arm_ends_with_the_index() -> None:
+@pytest.mark.spec("HP-01-038")
+def test_invite_tree_replica_arm_is_a_declared_path_branch() -> None:
     tree = _invite_tree()
 
     (arm,) = [
         c for c in received_stages(tree) if c.name == "AnswerInviteOnReplica"
     ]
-    body = arm.children[-1]
+    assert isinstance(arm, ReceivedPathBranch)
+    assert arm.branch_path is ReceivedPath.PARTICIPANT_REPLICA
+    body = arm.branch_body
     assert body.name == "AnswerInviteOnReplicaBody"
     assert isinstance(body.children[-1], IndexReceivedEmbargoProposalNode)
 

@@ -20,12 +20,19 @@ and ``reject_invite_to_embargo_tree`` handles ``Reject(Invite(EmbargoEvent))``.
 Each is the sender's own consent, the case owner's included (ADR-0122); the
 owner's decision for the case has activities of its own
 (``owner_decision_tree``).  Every answer routes through the CASE_MANAGER
-(PCR-08, ADR-0113), so the effects of both trees write shared case state and
-are passed as ``manager_effects``, which the factory gates on the CASE_MANAGER
-(BT-17-001, BT-17-008, RSH-08-003): a participant replica learns the answer
-from the ``Announce(CaseLedgerEntry)`` broadcast (EP-09-007), never from the
-activity itself.  A receiver the gate turns away reports ``REFUSED``
-(HP-01-005).
+(PCR-08, ADR-0113), so the effects of both trees write shared case state
+behind the factory's gate (BT-17-001, BT-17-008, RSH-08-003): a participant
+replica learns the answer from the ``Announce(CaseLedgerEntry)`` broadcast
+(EP-09-007), never from the activity itself.
+
+The two declare different paths all the same (HP-01-038).  An ``Accept`` is
+only ever sent to the CASE_MANAGER, so its tree declares that path alone and
+a receiver on any other is refused at the path stage, with the reason it
+composes (HP-01-005, HP-01-039).  A ``Reject`` of an Invite is also what the
+CASE_MANAGER sends the participant whose proposal or Accept it refuses
+(EMB-02-004, EP-09-017), so its tree declares the participant-replica path
+too: that delivery records nothing, but it must get past the door for the
+handler to close the participant's pending ask (EP-09-019).
 
 Split out of ``announce_teardown_tree`` to keep that module under the
 CS-18-001 size cap; it re-exports both factories.
@@ -37,6 +44,10 @@ from datetime import datetime
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.nodes.received_path import (
+    PathScopedGuard,
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -95,8 +106,9 @@ def accept_invite_to_embargo_tree(
     sender's own consent, the case owner's included (ADR-0122).  The Accept's
     canonical entry is the accepter's row's entry: the ``AGREED`` row it
     states is applied by copying (ADR-0124), and it moves no register entry.
-    Only the CASE_MANAGER records it (BT-17-001); any other receiver's gate
-    turns it away and the handler reports a refusal.
+    Only the CASE_MANAGER records it (BT-17-001), which is why the tree
+    declares that path alone; any other receiver is refused at the path
+    stage and the handler reports a refusal (HP-01-038, HP-01-039).
     The owner's activation of a proposal is a separate activity
     (``activate_embargo_on_case_tree``), so no revision becomes active here;
     the backfill still runs because a participant that accepts the embargo in
@@ -107,17 +119,18 @@ def accept_invite_to_embargo_tree(
         AcceptInviteToEmbargoBT (Sequence)
         ├─ Intake → CaseOpenToExternalWrites
         ├─ ActivityAddressedToReceiverNode     # door: HP-01-005
+        ├─ ReceivedPathNode                     # door: the CASE_MANAGER only
         ├─ <sender guard>                       # door: the Invite's invitee
         ├─ ClockDecisionsIfCaseManager          # the Invite expiry (CM-28-009)
         ├─ ValidateCaseExistsNode
-        ├─ EmbargoAnswerNotRecorded (gated)     # repeat → SKIPPED (CM-13-005)
+        ├─ EmbargoAnswerNotRecorded             # repeat → SKIPPED (CM-13-005)
         ├─ PxaAcceptRefusal (DiversionStage)    # P/X/A → Reject (EMB-02-004)
         ├─ ReinviteLateAccepter / LateAcceptBindsNothing
         │                                       # late Accept arms (EMB-17)
         ├─ OnTimeOrHonouredAccept               # a late Accept of the
         │                                       # embargo in force is honoured
         ├─ IsAnswerableEmbargoNode              # open or active (CM-18-003)
-        ├─ EmbargoAnswerApplies (gated)         # the row can be written
+        ├─ EmbargoAnswerApplies                 # the row can be written
         └─ AcceptInviteToEmbargoBTAct (ActTransaction)  # one act (ADR-0151)
            ├─ GuardedCommitCaseLedgerEntryBT
            └─ RecordEmbargoAcceptance (CaseManagerGate)
@@ -164,6 +177,12 @@ def accept_invite_to_embargo_tree(
     root = create_receive_activity_tree(
         name="AcceptInviteToEmbargoBT",
         case_id=case_id,
+        # Every step of this tree is the CASE_MANAGER's, which is the only
+        # path it handles (HP-01-038, ADR-0153): a receiver that is not the
+        # case's CASE_MANAGER is refused at the path stage, by the reason it
+        # composes, instead of running the tree with every gate skipped
+        # (HP-01-005, HP-01-039).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=accepting_actor_id, case_id=case_id, invite_id=invite_id
@@ -268,12 +287,13 @@ def reject_invite_to_embargo_tree(
         ├─ IntakeReceivedActivityNode
         ├─ CaseOpenToExternalWrites           # door: post-close (CM-23-013)
         ├─ ActivityAddressedToReceiverNode    # door: addressee (HP-01-005)
+        ├─ ReceivedPathNode                   # door: manager or replica
         ├─ SenderIsInviteeNode                # sender guard (ADR-0115)
         ├─ ClockDecisionsIfCaseManager        # overdue invites (CM-28-015)
         ├─ IsAnswerableEmbargoNode            # read-only guard (CLP-10-009)
-        ├─ EmbargoAnswerNotRecorded (CASE_MANAGER gate)  # repeat guard
+        ├─ EmbargoAnswerNotRecorded (manager path)  # repeat guard
         ├─ RejectIsNotWithdrawalNode          # read-only guard (MSM-07-014)
-        ├─ EmbargoAnswerApplies (CASE_MANAGER gate)  # the row can be written
+        ├─ EmbargoAnswerApplies (manager path)  # the row can be written
         └─ RejectInviteToEmbargoBTAct (ActTransaction)  # one act (ADR-0151)
            ├─ GuardedCommitCaseLedgerEntryBT
            └─ AnswerRejectedEmbargo (CASE_MANAGER gate)
@@ -307,6 +327,17 @@ def reject_invite_to_embargo_tree(
     root = create_receive_activity_tree(
         name="RejectInviteToEmbargoBT",
         case_id=case_id,
+        # Both paths (HP-01-038, ADR-0153).  The CASE_MANAGER records the
+        # invitee's Reject, and the same message type carries the
+        # CASE_MANAGER's own Reject of an Invite to the participant it
+        # refuses (EMB-02-004, EP-09-017): that delivery records nothing, but
+        # it must get past the door for the handler to close the
+        # participant's pending ask (EP-09-019).  So the guards that are the
+        # CASE_MANAGER's are scoped to its path rather than run at both.
+        paths={
+            ReceivedPath.CASE_MANAGER,
+            ReceivedPath.PARTICIPANT_REPLICA,
+        },
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=rejecting_actor_id, case_id=case_id, invite_id=invite_id
@@ -317,12 +348,19 @@ def reject_invite_to_embargo_tree(
                 case_id=case_id, embargo_id=embargo_id, accept=False
             ),
             # A repeat of a Reject already recorded commits nothing and
-            # announces nothing (CM-13-005, HP-01-003).
-            case_manager_admits_embargo_answer_guard(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                answering_actor_id=rejecting_actor_id,
-                answer=EmbargoConsentState.DECLINED,
+            # announces nothing (CM-13-005, HP-01-003).  Only the
+            # CASE_MANAGER records an answer, so the guard is scoped to its
+            # path: at a participant the Reject is the CASE_MANAGER's own,
+            # which records nothing there (HP-01-038, BT-17-001).
+            PathScopedGuard(
+                path=ReceivedPath.CASE_MANAGER,
+                guard=case_manager_admits_embargo_answer_guard(
+                    case_id=case_id,
+                    embargo_id=embargo_id,
+                    answering_actor_id=rejecting_actor_id,
+                    answer=EmbargoConsentState.DECLINED,
+                ),
+                name="EmbargoAnswerNotRecordedOnManagerPath",
             ),
             RejectIsNotWithdrawalNode(
                 case_id=case_id,
@@ -330,8 +368,12 @@ def reject_invite_to_embargo_tree(
                 rejecting_actor_id=rejecting_actor_id,
             ),
             # The Reject's entry carries the row it states (ADR-0122).
-            case_manager_admits_answer_change_guard(
-                case_id, embargo_id, rejecting_actor_id, accept=False
+            PathScopedGuard(
+                path=ReceivedPath.CASE_MANAGER,
+                guard=case_manager_admits_answer_change_guard(
+                    case_id, embargo_id, rejecting_actor_id, accept=False
+                ),
+                name="EmbargoAnswerAppliesOnManagerPath",
             ),
         ],
         manager_effects=[

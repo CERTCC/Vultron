@@ -21,11 +21,11 @@ guarded commit, and write nothing; ``relay.py`` holds the recipient
 collection and the relay emit, and re-exports these names.
 """
 
-import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
+from vultron.core.behaviors.case.nodes.received_path import (
+    PathScopedGuard,
+    ReceivedPath,
 )
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
@@ -121,21 +121,22 @@ class EmStateAdmitsProposalNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-def case_manager_admits_proposal_guard(
-    case_id: str,
-) -> py_trees.composites.Selector:
-    """Precondition guard: when this actor is the CASE_MANAGER, EM admits a proposal.
+def case_manager_admits_proposal_guard(case_id: str) -> PathScopedGuard:
+    """Precondition guard: on the manager path, EM admits a proposal.
 
-    A read-only composite for a received tree's ``precondition_guards``
-    (CLP-10-009): skips as SUCCESS for a participant replica and runs
-    :class:`EmStateAdmitsProposalNode` for the manager, so a proposal the
-    canonical case cannot take is refused before the guarded commit writes
-    an entry for it.
+    A read-only guard for a received tree's ``precondition_guards``
+    (CLP-10-009), scoped to the CASE_MANAGER path the Invite tree declares
+    (HP-01-038): the factory branches it on the path stage's answer, so a
+    proposal the canonical case cannot take is refused before the guarded
+    commit writes an entry for it, and the invitee's replica — which asks
+    nothing of the canonical EM state (EP-09-003) — skips it.  No second
+    role read: the branch reads the one answer the path stage already gave
+    (HP-01-037).
     """
-    return create_case_manager_gated_tree(
-        name="AdmitsEmbargoProposalIfCaseManager",
-        case_id=case_id,
-        children=[EmStateAdmitsProposalNode(case_id=case_id)],
+    return PathScopedGuard(
+        path=ReceivedPath.CASE_MANAGER,
+        guard=EmStateAdmitsProposalNode(case_id=case_id),
+        name="AdmitsEmbargoProposalOnManagerPath",
     )
 
 

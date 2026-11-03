@@ -27,16 +27,12 @@ Provides:
 - :class:`EmbargoAnswerNotRecordedNode` — precondition guard that fails, with
   :attr:`~EmbargoAnswerNotRecordedNode.is_repeat` set, when the sender's row
   for the embargo already holds the answer.
-- :func:`case_manager_admits_embargo_answer_guard` — the guard behind the
-  CASE_MANAGER gate, for a received answer tree's ``precondition_guards``.
+- :func:`case_manager_admits_embargo_answer_guard` — that guard, for a
+  received answer tree's ``precondition_guards``.
 """
 
-import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
-)
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.models.case import VulnerabilityCase
@@ -143,27 +139,22 @@ def case_manager_admits_embargo_answer_guard(
     embargo_id: str,
     answering_actor_id: str,
     answer: EmbargoConsentState,
-) -> py_trees.behaviour.Behaviour:
+) -> EmbargoAnswerNotRecordedNode:
     """Precondition guard: at the CASE_MANAGER, the answer is not a repeat.
 
-    A participant replica skips it as ``SUCCESS``: only the CASE_MANAGER
-    records an answer (BT-17-001), and a replica turned away by the gate is
-    reported as a refusal (HP-01-005), not as a repeat.  The CASE_MANAGER runs
-    :class:`EmbargoAnswerNotRecordedNode`, so a repeat is neither committed
-    nor announced.
+    The guard runs bare, with no role gate of its own: the answer trees
+    declare the CASE_MANAGER path alone (HP-01-038), so the path stage has
+    already refused every other receiver, and a replica is reported as a
+    refusal (HP-01-005) rather than as a repeat.  Only the CASE_MANAGER
+    records an answer (BT-17-001), and this keeps a repeat from being
+    committed or announced.
     """
-    return create_case_manager_gated_tree(
-        name="EmbargoAnswerNotRecordedIfCaseManager",
+    return EmbargoAnswerNotRecordedNode(
+        name="EmbargoAnswerNotRecorded",
         case_id=case_id,
-        body_name="EmbargoAnswerNotRecorded",
-        children=[
-            EmbargoAnswerNotRecordedNode(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                answering_actor_id=answering_actor_id,
-                answer=answer,
-            )
-        ],
+        embargo_id=embargo_id,
+        answering_actor_id=answering_actor_id,
+        answer=answer,
     )
 
 

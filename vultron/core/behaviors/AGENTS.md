@@ -110,16 +110,16 @@ object)` signature commits (CLP-10-013); the exempt `Announce(VulnerabilityCase)
 The factory adds the post-close guard (CM-23-013).
 
 **The factory owns the CASE_MANAGER gate (BT-17-008).** Pass effects as
-`replica_effects` (every replica, ungated) and `manager_effects` (gated by the
-factory on `manager_case_id`, after `replica_effects`; `manager_gate_name`
-names the gate). Never call `create_case_manager_gated_tree` in a received-tree
-module. An `EmitCapable` node in `replica_effects` outside a `CaseManagerGate`
-raises `VultronWiringError` unless `replica_emit_exemption` names a registered
-`ReplicaEmitExemption` (`replica_emit_exemptions.py`) whose `covers` lists it.
-A new emit node class reaching the outbox mixes in `EmitCapable` (or inherits
-it from its base). The pre-BT-17-008 `effect_nodes` parameter is retired
-(#4307); do not reintroduce it. A tree declaring `paths=` gets the path stage
-instead, which asks the receiver's role once (HP-01-035..041). Write-ups:
+`replica_effects` (every replica, ungated), `participant_path_effects` (the declared
+participant-replica branch) and `manager_effects` (gated on `manager_case_id`, after
+both; `manager_gate_name` names the gate); never call a role-gate factory in a
+received-tree module. An `EmitCapable` node in `replica_effects` outside a
+`CaseManagerGate` or `ReceivedPathBranch` raises `VultronWiringError` unless
+`replica_emit_exemption` names a registered `ReplicaEmitExemption` whose `covers`
+lists it (`replica_emit_exemptions.py`). A new emit node reaching the outbox mixes
+in `EmitCapable`; the retired `effect_nodes` parameter (#4307) stays retired. A tree
+declaring `paths=` gets the path stage, asks the receiver's role once, and branches a
+one-path guard as a `PathScopedGuard` (HP-01-035..041). Write-ups:
 `notes/bt-pitfalls.md` § "A Received Tree Gets Its CASE_MANAGER Gate From the
 Factory" and `notes/bt-integration.md` § "The Received-Side Stages".
 

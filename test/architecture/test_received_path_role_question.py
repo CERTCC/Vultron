@@ -122,23 +122,25 @@ KNOWN_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
         # its paths: with a declaration the arms read the path stage's
         # answer instead (HP-01-036).
         (f"{_B}/sender_guard.py", CONDITION),
-        # Gate-wrapped precondition guards a received tree passes.
+        # Gate-wrapped precondition guards a received tree passes.  The
+        # embargo guards (answer_record, answer_repeat, relay_guards) went
+        # with #5042: a manager-only declaration runs its guards bare, and a
+        # guard scoped to one path of a two-path declaration is a
+        # PathScopedGuard the factory branches (HP-01-038).
         (f"{_C}/nodes/case_participant_received.py", GATE),
         (f"{_C}/nodes/ownership_offer_guard.py", GATE),
         (f"{_C}/nodes/ownership_reply_guard.py", GATE),
         (f"{_C}/nodes/participant_reinstatement.py", GATE),
         (f"{_C}/nodes/suggest_actor/conditions.py", GATE),
-        (f"{_E}/nodes/answer_record.py", GATE),
-        (f"{_E}/nodes/answer_repeat.py", GATE),
-        (f"{_E}/nodes/relay_guards.py", GATE),
         # Received trees that gate work themselves instead of declaring the
         # path it belongs to.  The stub-Invite tree declares its paths
         # already, but its invitee-only effects still sit behind the
-        # participant-replica gate rather than in a declared branch.
+        # participant-replica gate rather than in a declared branch.  The
+        # embargo Invite and Remove trees moved theirs into the factory's
+        # participant-replica path branch in #5042.
         (f"{_C}/invite_actor_to_case_received_tree.py", GATE),
         (f"{_C}/full_case_invite_trees.py", GATE),
         (f"{_C}/offer_case_participant_role_received_tree.py", GATE),
-        (f"{_E}/announce_teardown_tree.py", GATE),
         (f"{_B}/sync/announce_tree.py", CONDITION),
         (f"{_B}/status/nodes/status_subject.py", CONDITION),
         # Inline "the resolved manager is me" comparisons (HP-01-037):
@@ -162,7 +164,6 @@ SANCTIONED_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
     {
         (f"{_C}/receive_stages/effects.py", GATE),
         (f"{_C}/receive_stages/guards.py", GATE),
-        (f"{_C}/receive_stages/guards.py", CONDITION),
         (f"{_C}/receive_stages/tree.py", GATE),
         (f"{_C}/nodes/clock_decision_stage.py", GATE),
         (f"{_B}/sync/ledger_position_stage.py", GATE),

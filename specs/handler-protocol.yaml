@@ -908,6 +908,39 @@ groups:
       spec_id: HP-01-038
     adr:
     - ADR-0153
+  - id: HP-01-042
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The receive-tree factory MUST build every HP-01-038 branch itself, from the
+      path the HP-01-035 stage resolved, and a tree MUST NOT build one. An emit
+      inside a branch satisfies BT-17-008 by the branch alone, and needs no named
+      replica-emit exemption. A state write inside a branch does not: RSH-08-003
+      admits one only on the manager path, or as its own exception, so a branch for
+      any other path leaves the write exposed to the ratchet that pins it.
+    rationale: >-
+      A branch a tree builds itself is a role check the tree asks, which HP-01-036
+      removes: it can disagree with the stage and the factory cannot read it. A
+      factory-built branch is a structural guard, so an emit inside one needs no
+      prose exemption — the path names the actor the emit speaks for. A state write
+      is not excused the same way: a participant-replica branch is where
+      RSH-08-003's one exception lives and has to stay visible.
+    verification: >-
+      `test/core/behaviors/case/test_received_path_stage.py::test_the_factory_builds_the_participant_branch`
+      and `::test_a_branch_for_an_undeclared_path_is_a_wiring_error` assert the
+      factory owns the branch,
+      `test/architecture/test_received_tree_case_manager_gate.py::test_only_the_factory_builds_a_received_path_branch`
+      asserts no tree builds one, and
+      `test/architecture/test_received_tree_state_writes_are_gated.py::test_a_manager_only_declaration_is_what_excuses_a_tree`
+      asserts the state-write walk still descends into a participant-replica
+      branch while excusing a manager-only declaration.
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-038
+    - rel_type: depends_on
+      spec_id: HP-01-036
+    adr:
+    - ADR-0153
   - id: HP-01-032
     priority: MUST
     kind: architecture

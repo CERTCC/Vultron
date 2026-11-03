@@ -3268,9 +3268,11 @@ groups:
       Only the CASE_MANAGER writes canonical case state. A replica that ran such a
       diversion would write a change no entry records.
     verification: >-
-      `test_the_case_manager_diverts` and `test_another_store_never_diverts` in
-      `test/core/behaviors/case/nodes/test_diversion_stage.py` assert a CASE_MANAGER
-      diversion never diverts at another store.
+      `test_the_case_manager_diverts` and
+      `test_another_store_is_refused_before_the_diversion` in
+      `test/core/behaviors/case/nodes/test_diversion_stage.py` assert a diversion in
+      a manager-only declaration never diverts at another store, because the path
+      stage refuses that receiver first (HP-01-038).
     relationships:
     - rel_type: extends
       spec_id: CLP-10-026
@@ -3286,11 +3288,11 @@ groups:
       The late-Accept answer commits and writes consent, which must be in the ledger.
       Anything more would put the received activity's own effects ahead of the guards.
     verification: >-
-      `test_a_case_manager_diversions_own_commit_is_allowed` and
-      `test_an_ungated_diversions_commit_is_flagged` in
+      `test_a_manager_only_declarations_diversion_commit_is_allowed` and
+      `test_a_two_path_declarations_diversion_commit_is_flagged` in
       `test/architecture/test_receive_side_bt_commit_ordering.py` accept a commit ahead
-      of the guarded commit only inside the clock-decision stage or a CASE_MANAGER
-      diversion.
+      of the guarded commit only inside the clock-decision stage or a diversion in a
+      tree declaring the CASE_MANAGER path alone.
     relationships:
     - rel_type: extends
       spec_id: CLP-10-026

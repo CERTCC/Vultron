@@ -23,9 +23,9 @@ checks that decide whether it can be sent at all.
 import pytest
 
 from vultron.core.behaviors.case.nodes.diversion_stage import (
-    DiversionGate,
     DiversionStage,
 )
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -81,7 +81,8 @@ def test_the_invite_refusal_stores_checks_then_sends_the_reject_last() -> None:
     refusal = _invite_refusal(embargo)
 
     assert refusal.name == PXA_INVITE_REFUSAL
-    assert refusal.gate is DiversionGate.RECEIVER
+    # Its host tree declares the manager and the participant-replica path,
+    # so the declaration alone does not bound the Reject's emit (HP-01-038).
     assert refusal.emit_exemption == EMBARGO_INVITE_REFUSAL
     assert isinstance(refusal.condition, PxaBarsEmbargoNode)
     assert [type(n) for n in refusal.effects] == [
@@ -122,17 +123,41 @@ def test_the_accept_refusal_answers_the_accepter() -> None:
 @pytest.mark.spec("CLP-10-026")
 @pytest.mark.spec("BT-17-008")
 @pytest.mark.spec("EMB-15-010")
-def test_the_factory_builds_each_refusal_in_place() -> None:
-    tree = create_receive_activity_tree(
-        name="Probe",
-        case_id=_CASE,
-        precondition_guards=[
+@pytest.mark.spec("HP-01-038")
+@pytest.mark.parametrize(
+    ("refusal", "paths", "expected"),
+    [
+        pytest.param(
             _invite_refusal(),
+            {ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+            PXA_INVITE_REFUSAL,
+            id="invite-refusal-on-both-paths",
+        ),
+        pytest.param(
             pxa_accept_refusal(
                 case_id=_CASE, invite_id=_INVITE, accepting_actor_id=_SENDER
             ),
-        ],
+            {ReceivedPath.CASE_MANAGER},
+            PXA_ACCEPT_REFUSAL,
+            id="accept-refusal-on-the-manager-path",
+        ),
+    ],
+)
+def test_the_factory_builds_each_refusal_in_place(
+    refusal, paths, expected: str
+) -> None:
+    """Each refusal builds in a tree declaring the paths its host declares.
+
+    They do not share one: the Invite tree admits a non-manager receiver and
+    so carries the emit exemption, while the Accept tree declares the
+    CASE_MANAGER path alone and must not (BT-17-008, HP-01-038).
+    """
+    tree = create_receive_activity_tree(
+        name="Probe",
+        case_id=_CASE,
+        paths=paths,
+        precondition_guards=[refusal],
     )
 
     stages = [n for n in tree.iterate() if isinstance(n, DiversionStage)]
-    assert [s.name for s in stages] == [PXA_INVITE_REFUSAL, PXA_ACCEPT_REFUSAL]
+    assert [s.name for s in stages] == [expected]
