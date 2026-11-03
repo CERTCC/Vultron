@@ -185,7 +185,7 @@ class TestInviteToEmbargoRoutingGuard:
     ):
         """Guarded commit fires when receiving_actor_id == case_actor_id.
 
-        Per CLP-10-002: the CaseActor MUST commit a canonical ledger entry.
+        Per CLP-09-001: the CaseActor MUST commit a canonical ledger entry.
         """
         dl, _case_actor, _case, embargo = self._setup()
 
@@ -320,7 +320,7 @@ class TestAcceptInviteToEmbargoRoutingGuard:
     def test_caseactor_commits_accept_invite_ledger_entry(self, make_payload):
         """Guarded commit fires when receiving_actor_id == case_actor_id.
 
-        Per CLP-10-002: the CaseActor MUST commit a canonical ledger entry.
+        Per CLP-09-001: the CaseActor MUST commit a canonical ledger entry.
         """
         dl, _case_actor, _case, accept = self._setup()
 
@@ -442,7 +442,7 @@ class TestRemoveEmbargoRoutingGuard:
     def test_caseactor_commits_remove_embargo_ledger_entry(self, make_payload):
         """Guarded commit fires when receiving_actor_id == case_actor_id.
 
-        Per CLP-10-002: the CaseActor MUST commit a canonical ledger entry.
+        Per CLP-09-001: the CaseActor MUST commit a canonical ledger entry.
         """
         dl, _case_actor, _case, embargo = self._setup()
 

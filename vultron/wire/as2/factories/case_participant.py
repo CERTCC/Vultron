@@ -99,7 +99,7 @@ def update_participant_activity(
     """Build an Update(CaseParticipant).
 
     The snapshot shape of a CASE_MANAGER-authored ledger entry recording a
-    change to a participant record, carrying the record in full (CLP-07-013),
+    change to a participant record, carrying the record in full (CLP-07-021),
     labelled ``update_case_participant``; no received use case handles it
     (ADR-0140).
 

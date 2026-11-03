@@ -88,7 +88,7 @@ def create_announce_vulnerability_case_received_tree(
 
     A replica that already holds the case replaces it only with a copy whose
     ledger position is current against its own; a stale copy is skipped and
-    a conflicting one refused, with the case unchanged (SYNC-16-006).  A copy
+    a conflicting one refused, with the case unchanged (SYNC-16-021).  A copy
     ahead of the chain is backfilled: the case takes the copy's position and
     the replica asks for the missing entries (SYNC-16-007).  A first seed
     instead states the position the copy seeded the replica at, to the case's
@@ -156,7 +156,7 @@ def create_announce_vulnerability_case_received_tree(
             # was received, through this actor's inbox as a delivery of its
             # own (SYNC-15-005, SYNC-14-009).  After a replacement, an entry
             # held because the old case refused it extends the chain too, and
-            # is stored as a no-op if the copy reflects it (SYNC-16-007).
+            # is stored as a no-op if the copy reflects it (SYNC-16-023).
             ReplayHeldSuccessorNode(
                 case_id=case_id, name="ReplayHeldPreGenesisEntry"
             ),

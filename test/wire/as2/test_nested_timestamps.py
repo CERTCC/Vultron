@@ -17,7 +17,7 @@
 
 AS2 makes ``published`` and ``updated`` optional on every object, and nested
 objects routinely omit them.  The top-level activity's ``published`` is refused
-when missing (CLP-15-006); a nested object's is not, so absence must survive the
+when missing (CLP-15-008); a nested object's is not, so absence must survive the
 wire→core boundary as absence.  Before ISSUE-3257 it did not: the wire
 ``default_factory=now_utc`` filled an omitted value with the receiver's clock,
 ``_get_timestamp`` did the same for ``None``, and four builders dropped even a
@@ -101,7 +101,7 @@ KINDS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
             "name": "c",
             "attributedTo": ACTOR,
             "genesisHash": SENDER_GENESIS,
-            # The wire form names the case's ledger position (SYNC-16-005).
+            # The wire form names the case's ledger position (SYNC-16-018).
             "ledgerPosition": {"logIndex": -1, "entryHash": SENDER_GENESIS},
         },
         {},
@@ -357,6 +357,7 @@ def test_extracted_case_keeps_the_sender_genesis_hash():
 @pytest.mark.spec("CLP-08-002")
 @pytest.mark.spec("MV-03-002")
 @pytest.mark.parametrize("spelling", list(ABSENT))
+@pytest.mark.spec("CLP-15-009")
 def test_case_needing_its_time_for_genesis_is_refused_at_parse(spelling: str):
     """The one decision that needs a nested time refuses loudly when it is absent.
 
@@ -470,6 +471,7 @@ def test_replicated_ledger_entry_without_its_stamp_is_refused_at_parse(
 
 
 @pytest.mark.spec("MV-03-002")
+@pytest.mark.spec("CLP-15-009")
 def test_embargo_without_end_time_is_refused_at_parse():
     """``endTime`` is what embargo decisions read, so its absence is refused.
 

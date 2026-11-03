@@ -148,6 +148,7 @@ async def _no_sleep(_seconds: float) -> None:
 
 
 @pytest.mark.spec("OX-01-004")
+@pytest.mark.spec("SYNC-19-007")
 @pytest.mark.spec("OX-01-005")
 def test_concurrent_drains_deliver_each_recipient_in_enqueue_order(
     monkeypatch,

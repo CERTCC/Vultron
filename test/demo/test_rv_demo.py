@@ -2488,6 +2488,7 @@ class TestDeliveryIsolation:
             f" but found: {cases}"
         )
 
+    @pytest.mark.spec("PCR-01-005")
     def test_vendor_dl_isolated_from_reporter(self, delivery_setup):
         """Objects in the Vendor's store are not visible in the Reporter's."""
         reporter_isolated, vendor_isolated, _reporter_tc, vendor_tc = (
@@ -2526,6 +2527,7 @@ class TestDeliveryIsolation:
             " store, but it was found."
         )
 
+    @pytest.mark.spec("PCR-01-006")
     def test_case_delivered_to_reporter_via_inbox(self, delivery_setup):
         """The Reporter receives the case via the delivery path.
 

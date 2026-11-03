@@ -242,7 +242,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         raise
     except Exception as exc:
         # Named, so a refusal of a field such as ``ledgerPosition`` says which
-        # activity it refused (SYNC-18-003).
+        # activity it refused (SYNC-18-015).
         raise VultronParseValidationError(f"{_named(body)}{exc}") from exc
 
     # A schema-valid envelope can still be one this receiver cannot act on;

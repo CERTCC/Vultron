@@ -443,7 +443,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
 
     @pytest.mark.spec("MSM-08-003")
     @pytest.mark.spec("CSB-15-003")
-    @pytest.mark.spec("RSH-04-001")
+    @pytest.mark.spec("RSH-04-007")
     @pytest.mark.spec("CSB-15-011")
     def test_notify_published_status_is_its_declared_occasion(self):
         """The status the notify-published trigger sends (CSB-15-003)
@@ -577,6 +577,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
 
     @pytest.mark.spec("RSH-08-003")
     @pytest.mark.spec("RSH-08-006")
+    @pytest.mark.spec("RSH-08-013")
     def test_execute_stores_status_without_appending_to_sender_record(self):
         """execute() stores the status and queues it, leaving the record alone.
 
@@ -627,6 +628,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         )
 
     @pytest.mark.spec("RSH-08-006")
+    @pytest.mark.spec("RSH-08-012")
     def test_a_followed_status_of_another_actor_is_refused(self):
         """``follows_status_id`` naming another actor's status sends nothing.
 

@@ -1361,7 +1361,7 @@ def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
 
     The CASE_MANAGER's clock decisions sit in their own gated stage before
     the guards and are not effects of the received activity (CLP-10-025),
-    nor is the refusal notice, which answers only a refusal (CLP-10-022).
+    nor is the refusal notice, which answers only a refusal (CLP-10-042).
     """
     decisions = clock_decision_node_ids(tree) | refusal_effect_node_ids(tree)
     return [

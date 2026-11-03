@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""What an on-behalf ``Add(ParticipantStatus)`` may assert (RSH-08-007).
+"""What an on-behalf ``Add(ParticipantStatus)`` may assert (RSH-08-014).
 
 Participant status is self-declared: a received ``Add(ParticipantStatus)``
 asserts a status onto the sender's own participant record.  The one exception

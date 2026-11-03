@@ -27,7 +27,7 @@ The nodes here build the decision activity through the trigger-activity
 factory as the executing actor, queue it when it has an audience, and then
 commit the sealed blob as the canonical entry (VM-08-003): the entry records
 a completed act (ADR-0119).  The activity is addressed to the participants it has to *reach*,
-never to the manager itself (CLP-10-001, ADR-0109): an embargo teardown goes
+never to the manager itself (CLP-10-032, ADR-0109): an embargo teardown goes
 to every other participant (EMB-19-001), and an empty audience commits the
 entry and queues nothing (EMB-19-002).  A decision every replica learns from
 the entry alone (an Accept or Reject the manager makes) is addressed to

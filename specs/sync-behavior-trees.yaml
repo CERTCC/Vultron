@@ -35,10 +35,8 @@ groups:
         kind: project
         verification_debt: '#2574'
         statement: >-
-          All sync log entry protocol flows MUST be implemented as behavior
-          trees, not procedural use-case code. Procedural sync logic in
-          `received/sync.py` and `triggers/sync.py` MUST be replaced by BT
-          invocations via BTBridge.
+          This codebase MUST implement every sync log entry protocol flow as a behavior
+          tree, not as procedural use-case code.
         rationale: >-
           Ledger replication is protocol behavior. It decides what a replica accepts,
           when the replica rejects an entry, and which entries the CASE_MANAGER sends
@@ -52,6 +50,21 @@ groups:
           - rel_type: implements
             spec_id: BT-06-006
             note: Protocol actions MUST NOT be outside BT
+
+      - id: SBT-01-006
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          This codebase MUST replace the procedural sync logic in `received/sync.py` and
+          `triggers/sync.py` with BT invocations through BTBridge.
+        rationale: >-
+          These two modules hold the sync use cases. A use case that runs its tree
+          through BTBridge keeps its sync decisions in the tree, where SBT-01-001 puts
+          them.
+        relationships:
+          - rel_type: extends
+            spec_id: SBT-01-001
 
       - id: SBT-01-002
         priority: MUST
@@ -89,9 +102,8 @@ groups:
         kind: project
         verification_debt: '#2574'
         statement: >-
-          Driven ports (SyncActivityPort, DataLayer) MUST be injected into
-          BT nodes via the blackboard context set up by BTBridge.setup_tree().
-          BT nodes MUST NOT construct or acquire ports themselves.
+          BTBridge.setup_tree() MUST inject driven ports, such as SyncActivityPort and
+          DataLayer, into BT nodes through the blackboard.
         rationale: >-
           A node that gets its own ports binds core logic to one adapter, and the node
           cannot run against a test double. When the bridge injects ports through the
@@ -102,15 +114,28 @@ groups:
             spec_id: BT-07-001
             note: BT nodes use DataLayer via Protocol
 
-      - id: SBT-01-005
-        priority: MUST
+      - id: SBT-01-007
+        priority: MUST_NOT
         kind: project
         verification_debt: '#2574'
         statement: >-
-          Core use cases MUST NOT call trigger functions for sync operations.
-          Triggers exist as external API entry points (demo puppeteering);
-          core work flows through BTs. The CommitLogEntryBT replaces
-          `commit_log_entry_trigger()` for core-initiated log commits.
+          A BT node MUST NOT construct or acquire a driven port itself.
+        rationale: >-
+          A node that builds or looks up its own port binds core logic to one adapter,
+          and the node cannot run against a test double. Taking every port from the
+          blackboard (SBT-01-004) keeps the choice of adapter with the caller.
+        relationships:
+          - rel_type: extends
+            spec_id: SBT-01-004
+
+      - id: SBT-01-005
+        priority: MUST_NOT
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          Core use cases MUST NOT call trigger functions for sync operations. Triggers
+          are external API entry points, for example for demo puppeteering, and core
+          work flows through BTs.
         rationale: >-
           Triggers are entry points for an outside caller. When a core use case calls a
           trigger, it runs a second, nested path around the tree that it belongs to.
@@ -124,15 +149,27 @@ groups:
         kind: project
         verification_debt: '#2574'
         statement: >-
-          AnnounceLogEntryReceivedBT MUST include an explicit branch that
-          determines whether the receiving actor is the case-actor for the
-          case referenced in the log entry. The case-actor path and the
-          non-case-actor (participant) path MUST have distinct subtrees.
+          AnnounceLogEntryReceivedBT MUST include an explicit branch that decides whether
+          the receiving actor is the CASE_MANAGER for the case that the log entry names.
         rationale: >-
           The CASE_MANAGER and a participant do different things with an announced
           entry. The CASE_MANAGER holds the canonical ledger and only checks its own
-          echo. A participant validates the entry and stores it in its replica. Separate
-          subtrees keep these two rule sets apart.
+          echo. A participant validates the entry and stores it in its replica. The
+          tree must know which of the two it is before it acts.
+
+      - id: SBT-02-011
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          In AnnounceLogEntryReceivedBT, the CASE_MANAGER path and the participant path
+          MUST be distinct subtrees.
+        rationale: >-
+          Separate subtrees keep the two rule sets apart, so a change to the
+          participant's validation cannot alter the CASE_MANAGER's echo check.
+        relationships:
+          - rel_type: extends
+            spec_id: SBT-02-001
 
       - id: SBT-02-002
         priority: MUST
@@ -181,9 +218,8 @@ groups:
         kind: project
         verification_debt: '#2574'
         statement: >-
-          The non-case-actor path MUST check for duplicate entries before
-          persisting (idempotency). If the entry is already stored, the
-          BT MUST return SUCCESS without re-persisting.
+          The participant path MUST check for a duplicate entry before persisting
+          (idempotency).
         rationale: >-
           Retries and replay can deliver an announcement more than one time. Without a
           duplicate check, the replica stores the repeat twice. Or, the repeat fails the
@@ -192,6 +228,20 @@ groups:
           - rel_type: implements
             spec_id: SYNC-03-003
             note: Idempotent delivery
+
+      - id: SBT-02-012
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          When the participant path finds the entry already stored, the BT MUST return
+          SUCCESS without persisting it again.
+        rationale: >-
+          A repeat of a stored entry is a delivery already handled. A SUCCESS with no
+          write keeps the replica unchanged and does not read the repeat as an error.
+        relationships:
+          - rel_type: extends
+            spec_id: SBT-02-003
 
       - id: SBT-02-004
         priority: MUST
@@ -358,26 +408,42 @@ groups:
         kind: project
         verification_debt: '#2574'
         statement: >-
-          The existing `CommitCaseLedgerEntryNode` in
-          `vultron/core/behaviors/case/nodes/lifecycle.py` MUST be
-          refactored to invoke CommitLogEntryBT as a subtree rather than
-          calling `commit_log_entry_trigger()` procedurally.
+          `CommitCaseLedgerEntryNode` in `vultron/core/behaviors/case/nodes/lifecycle.py`
+          MUST commit each ledger entry by running CommitLogEntryBT
+          (`create_commit_log_entry_tree`), the one commit path.
         rationale: >-
           One commit path makes sure that each ledger entry is built, chained and
           announced in the same way. If the case node kept its own procedural commit,
           the two paths could create entries with different hashes or skip the fan-out.
+          Ledger commits go only through `CommitCaseLedgerEntryNode` (BT-06-006).
 
       - id: SBT-04-004
         priority: MUST
         kind: project
         statement: >-
-          Fan-out MUST only occur after the log entry is durably persisted
-          (committed). An emit node whose activity the ledger records MUST
-          append the activity to the outbox before it runs the commit tree
-          that records it, and MUST NOT run that commit first.
+          CommitLogEntryBT MUST fan out a log entry only after it has durably persisted
+          (committed) the entry.
         rationale: >-
-          The fan-out is the record's delivery, so it follows the record; the
-          activity the record describes is the act, so it precedes it
+          The fan-out is the record's delivery, so it follows the record. A failed
+          write then never announces an entry that does not exist.
+        verification: >-
+          `test_commit_tree_fans_out_only_after_it_persists` in
+          `test/core/behaviors/sync/test_commit_tree.py` asserts that the mint sequence
+          runs `PersistLogEntryNode` before `FanOutLogEntryNode`, and
+          `test_commit_tree_persists_entry_and_fans_out` asserts the entry is stored and
+          announced.
+        adr:
+          - ADR-0119
+
+      - id: SBT-04-005
+        priority: MUST
+        kind: project
+        statement: >-
+          An emit node MUST append its activity to the outbox before it runs the commit
+          tree that records the activity, never running that commit first. This applies
+          to every emit node whose activity the ledger records.
+        rationale: >-
+          The activity the record describes is the act, so it precedes the record
           (ADR-0119).
         verification: >-
           `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestEmitInviteActorToCaseNodeQueuesBeforeCommitting`
@@ -388,6 +454,8 @@ groups:
         adr:
           - ADR-0119
         relationships:
+          - rel_type: extends
+            spec_id: SBT-04-004
           - rel_type: implements
             spec_id: SYNC-09-002
             note: Send-then-commit order (ADR-0119)
@@ -400,15 +468,26 @@ groups:
         kind: project
         verification_debt: '#2574'
         statement: >-
-          All driven ports used by BT nodes (DataLayer, SyncActivityPort,
-          and any future ports) MUST be injected via the BTBridge blackboard
-          context using a consistent pattern. BT nodes MUST read ports from
-          the blackboard at `update()` time, never at construction time.
+          BTBridge MUST inject every driven port that BT nodes use through its blackboard
+          context, in one consistent pattern. The ports include DataLayer,
+          SyncActivityPort and any future port.
         rationale: >-
           With one injection pattern, all nodes find their ports in the same way. Then a
-          test or a new deployment can supply all ports in one location. When a node
-          reads its ports at `update()` time, each run uses the ports set up for that
-          run, not ports captured at tree build time.
+          test or a new deployment can supply all ports in one location.
+
+      - id: SBT-05-003
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          A BT node MUST read its ports from the blackboard at `update()` time, never at
+          construction time.
+        rationale: >-
+          When a node reads its ports at `update()` time, each run uses the ports set up
+          for that run, not ports captured at tree build time.
+        relationships:
+          - rel_type: extends
+            spec_id: SBT-05-001
 
       - id: SBT-05-002
         priority: MUST

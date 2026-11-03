@@ -5493,7 +5493,7 @@ groups:
       in progress. A Reject that adds no ledger entry never closes that transfer. The
       offerer does not receive the Reject (CM-21-010), so it never learns of the
       decline. A participant's `Reject` is a case event, as its `Accept` is. It is
-      ledgered for the same reason (CLP-02-012).
+      ledgered for the same reason (CLP-02-016).
     verification: >-
       A test marked `CM-21-012` confirms that
       `RejectCaseOwnershipTransferReceivedUseCase` reaches a canonical commit for the
@@ -11700,7 +11700,7 @@ groups:
       commit a `CaseLedgerEntry` for it (`accept_case_participant_role` or
       `reject_case_participant_role`).
     rationale: >-
-      A participant's answer to an Offer is a case event (CLP-02-012), so it is ledgered
+      A participant's answer to an Offer is a case event (CLP-02-016), so it is ledgered
       as all other case events are.
     verification: >-
       A test marked `CM-33-006` delivers the target's Accept of a recorded role Offer

@@ -73,7 +73,7 @@ def _accept(scenario: BTTestScenario, case_actor_id: str = CASE_ACTOR_ID):
     )
 
 
-@pytest.mark.spec("PCR-03-004")
+@pytest.mark.spec("PCR-03-007")
 class TestRecordInviteTrustAnchorNodeAC1:
     """AC-1: invitee_id must equal the receiving actor."""
 
@@ -105,7 +105,7 @@ class TestRecordInviteTrustAnchorNodeAC1:
         assert result.internal_error is False
 
     def test_ac1_failure_logs_at_warning(self, caplog):
-        """A misaddressed Invite is logged at WARNING (PCR-03-004 path b)."""
+        """A misaddressed Invite is logged at WARNING (PCR-03-007)."""
         different_receiver = "https://example.org/actors/vendor"
         scenario = BTTestScenario(actor_id=different_receiver)
         with caplog.at_level(logging.WARNING):
@@ -135,7 +135,7 @@ class TestRecordInviteTrustAnchorNodeAC1:
         assert isinstance(record, VultronPendingCaseInbox)
 
 
-@pytest.mark.spec("PCR-03-004")
+@pytest.mark.spec("PCR-03-008")
 class TestRecordInviteTrustAnchorNodeAC2:
     """AC-2: anchor binds to the Invite's actor id; transport sender ignored."""
 
@@ -166,7 +166,7 @@ class TestRecordInviteTrustAnchorNodeAC2:
         assert record.case_actor_id != TRANSPORT_SENDER_ID
 
 
-@pytest.mark.spec("PCR-03-004")
+@pytest.mark.spec("PCR-03-010")
 class TestRecordInviteTrustAnchorNodeAC3:
     """AC-3: once the anchoring Invite is accepted, a conflicting one is REFUSED."""
 
@@ -219,7 +219,7 @@ class TestRecordInviteTrustAnchorNodeAC3:
         assert record.invite_accepted
 
 
-@pytest.mark.spec("PCR-03-004")
+@pytest.mark.spec("PCR-03-009")
 class TestRecordInviteTrustAnchorNodeReplacesAnUnacceptedAnchor:
     """A later Invite replaces an anchor whose Invite no Accept followed.
 
@@ -265,7 +265,7 @@ class TestRecordInviteTrustAnchorNodeReplacesAnUnacceptedAnchor:
         assert not record.invite_accepted
 
 
-@pytest.mark.spec("PCR-03-004")
+@pytest.mark.spec("PCR-03-010")
 class TestFixInviteTrustAnchorNode:
     """The invitee's Accept fixes the anchor its Invite set."""
 

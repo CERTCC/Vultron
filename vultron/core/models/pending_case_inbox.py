@@ -85,7 +85,7 @@ class VultronPendingCaseInbox(CoreRecord):
         description=(
             "True once the invitee sent ``Accept`` for ``anchor_invite_id``.  "
             "Until then a later stub Invite naming another CaseActor replaces "
-            "the anchor; after it, such an Invite is refused (PCR-03-004)."
+            "the anchor; after it, such an Invite is refused (PCR-03-009, PCR-03-010)."
         ),
     )
 

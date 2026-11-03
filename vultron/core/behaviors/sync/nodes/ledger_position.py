@@ -18,12 +18,12 @@ Every case activity states its sender's ledger tail as ``ledgerPosition``
 (SYNC-18-001).  The CASE_MANAGER judges it against its own ledger:
 
 - **held** — the position names an entry the ledger holds, at the tail or
-  behind it.  A lag is logged at DEBUG (SYNC-18-004) and, for an active
+  behind it.  A lag is logged at DEBUG (SYNC-18-010) and, for an active
   participant, answered as a ``Read(CaseLedgerEntry)`` is: the position is
   recorded and the entries after it replayed (SYNC-18-007).
 - **split** — the position names an index the ledger holds with another
   hash, or an index past its tail.  It is logged at ERROR and an active
-  participant is re-seeded (SYNC-18-005).
+  participant is re-seeded (SYNC-18-012).
 
 :class:`ClassifyLedgerPositionNode` judges the position once and
 :class:`LedgerPositionIsNode` is the condition each arm of that answer starts
@@ -135,7 +135,7 @@ class ClassifyLedgerPositionNode(DataLayerActionWithPorts):
     :class:`PositionStanding` in this store's ledger for *case_id* as
     ``ledger_position_standing``, for the :class:`LedgerPositionIsNode`
     conditions after it (the context-handoff pattern of the sync package),
-    and logs what it found: a lag at DEBUG (SYNC-18-004), a split at ERROR
+    and logs what it found: a lag at DEBUG (SYNC-18-010), a split at ERROR
     (SYNC-18-005).  It writes nothing to the store and always succeeds.
 
     The tail is read once (:func:`~vultron.core.sync_helpers.ledger_tail_position`);
@@ -186,7 +186,7 @@ class ClassifyLedgerPositionNode(DataLayerActionWithPorts):
         """The position the sender stamped, or ``None`` when none is owed.
 
         A redelivery of an activity this store already archived owes none:
-        a resend keeps its first stamp (SYNC-18-002), which the first
+        a resend keeps its first stamp (SYNC-18-009), which the first
         delivery answered, and answering it again would move the sender's
         acknowledged position back and replay what was sent since.
         """

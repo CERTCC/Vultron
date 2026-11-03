@@ -100,7 +100,7 @@ def _event_effect_slot(
 
     *label* names the slot (``"<label>Effects"``) and its nodes, so a tree
     dump reads the same for every slot.  ``ParticipantStatusEffects`` alone is
-    built by hand: its apply step is an ``ApplyOrFault`` selector (RSH-09-006).
+    built by hand: its apply step is an ``ApplyOrFault`` selector (RSH-09-006, RSH-09-013).
     """
     return py_trees.composites.Selector(
         name=f"{label}Effects",
@@ -236,7 +236,7 @@ def create_announce_log_entry_tree(
     # The Inverter fires SUCCESS only when the condition does NOT match (routing
     # no-op for the wrong semantic type).  When the condition matches but ApplyX
     # fails, both branches of the Selector fail, so the FAILURE propagates to
-    # LogEntryEventEffects and blocks PersistReceivedLogEntry (SYNC-12-001).
+    # LogEntryEventEffects and blocks PersistReceivedLogEntry (SYNC-12-004).
     log_entry_event_effects = py_trees.composites.Sequence(
         name="LogEntryEventEffects",
         memory=False,
@@ -277,7 +277,7 @@ def create_announce_log_entry_tree(
                             IsParticipantStatusEventNode(
                                 name="IsParticipantStatusEvent"
                             ),
-                            # RSH-09-006: either Apply succeeds or fault is
+                            # RSH-09-006, RSH-09-013: either Apply succeeds or fault is
                             # emitted to CaseActor and FAILURE propagates.
                             py_trees.composites.Selector(
                                 name="ApplyOrFault",
@@ -408,7 +408,7 @@ def create_announce_log_entry_tree(
                     # Fallback: send the genesis Reject, with the sentinel
                     # tail_hash="" ReconstructChainTailNode wrote before
                     # failing keying its id; it states no ledger position
-                    # (SYNC-18-001).  At most one per case per interval, the
+                    # (SYNC-18-017).  At most one per case per interval, the
                     # held entries draining once the case arrives
                     # (SYNC-15-016, SYNC-15-017).
                     SendGenesisRejectOnMissingCaseNode(
@@ -428,7 +428,7 @@ def create_announce_log_entry_tree(
             ),
             # An entry at the case's position with another hash is from a
             # different chain than the copy that set it: refused at ERROR,
-            # never stored as a no-op (SYNC-16-007).
+            # never stored as a no-op (SYNC-16-025).
             CheckEntryAgreesWithCasePositionNode(
                 name="CheckEntryAgreesWithCasePosition"
             ),
@@ -437,7 +437,7 @@ def create_announce_log_entry_tree(
             # no-op: applying it again over the copy could move the case
             # backwards, or refuse an entry the copy is past.  Only the
             # records it carries that the copy names by id are copied
-            # (SYNC-16-007, CM-23-016).
+            # (SYNC-16-023, CM-23-016).
             py_trees.composites.Selector(
                 name="ApplyEffectsUnlessReflected",
                 memory=False,

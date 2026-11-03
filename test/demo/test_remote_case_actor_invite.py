@@ -439,6 +439,7 @@ class TestOwnerInviteThroughARemoteCaseActor:
         assert activity.get("to") == [topology.ca_actor_id]
         assert "cc" not in activity
 
+    @pytest.mark.spec("PCR-08-019")
     def test_the_case_actor_emits_and_commits_the_invite(self, topology):
         """CM-17-006: the emitter commits the Invite in its own ledger."""
         case_id = "urn:uuid:remote-ca-emit-and-commit"

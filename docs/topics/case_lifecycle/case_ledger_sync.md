@@ -54,7 +54,7 @@ So a case its owner creates and one the CASE_MANAGER creates from the owner's pr
 
 `entryHash` also lets a receiver check the entry's content, not just its place.
 Before a replica holds, applies or stores an entry, it recomputes the hash from the entry's fields and compares it with `entryHash` ([SYNC-03-006](../../reference/vultron-spec/requirements/ledger-replication.md#sync-03-006)).
-An entry whose content does not reproduce its hash is refused and logged as an error.
+An entry whose content does not reproduce its hash is refused and logged as an error ([SYNC-03-012](../../reference/vultron-spec/requirements/ledger-replication.md#sync-03-012)).
 The replica sends no `Reject(CaseLedgerEntry)` for it, because a replay would resend the same entry.
 It sends the CASE_MANAGER a `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` instead, naming the refused `Announce(CaseLedgerEntry)` ([SYNC-03-007](../../reference/vultron-spec/requirements/ledger-replication.md#sync-03-007)).
 The CASE_MANAGER does not try to repair it, since a replay or a fresh case copy would resend the same content ([SYNC-03-008](../../reference/vultron-spec/requirements/ledger-replication.md#sync-03-008)).
@@ -119,7 +119,7 @@ A replica must hold every entry from genesis through the position it has acknowl
 Refused assertions do not use up an index, because the ledger records only admitted entries.
 
 The CASE_MANAGER should also refuse an assertion whose own timestamp is far from its clock.
-By default, that is more than five minutes ahead or more than seven days old ([CLP-14-007](../../reference/vultron-spec/requirements/ledger-replication.md#clp-14-007), [CLP-14-008](../../reference/vultron-spec/requirements/ledger-replication.md#clp-14-008)).
+By default, that is more than five minutes ahead or more than seven days old ([CLP-14-014](../../reference/vultron-spec/requirements/ledger-replication.md#clp-14-014), [CLP-14-015](../../reference/vultron-spec/requirements/ledger-replication.md#clp-14-015)).
 A deployment that knows its own clock conditions may tune both thresholds ([CLP-14-009](../../reference/specs/project.md#clp-14-009)).
 These are sanity checks, not proof of honesty.
 A participant with a badly wrong clock can still produce a well-formed but misleading assertion.
@@ -134,7 +134,7 @@ An entry carries two timestamps, and the rules above do not all apply to the sam
 | Timestamp | Written by | Rules it answers to |
 |---|---|---|
 | `published` on the entry | the CASE_MANAGER, at commit time | CLP-14-002, CLP-14-003, CLP-14-006 read across the whole ledger |
-| `published` inside `payloadSnapshot` | the asserting participant | CLP-14-006 at the commit boundary, CLP-14-007, CLP-14-008, CLP-15-003, CLP-15-006 |
+| `published` inside `payloadSnapshot` | the asserting participant | CLP-14-013 at the commit boundary, CLP-14-007, CLP-14-008, CLP-15-003, CLP-15-006 |
 
 The distinction matters most for the "never move backwards" rule.
 Across the CASE_MANAGER's own commit timestamps, the rule holds because one writer stamps every entry from one clock.
@@ -177,7 +177,7 @@ The CASE_MANAGER does refuse one thing outright: an activity that arrives with n
 Because the field is optional in ActivityStreams, a receiver could fill in the blank with its own clock.
 That receiver could no longer tell what the sender claimed from what it invented.
 Every check above would then compare the CASE_MANAGER's clock against itself.
-So the CASE_MANAGER refuses a message without a claimed time at the door ([CLP-15-006](../../reference/vultron-spec/requirements/ledger-replication.md#clp-15-006)).
+So the CASE_MANAGER refuses a message without a claimed time at the door ([CLP-15-008](../../reference/vultron-spec/requirements/ledger-replication.md#clp-15-008)).
 
 A field that is present but empty carries no claimed time either.
 A blank `published` — an empty string, or one holding only whitespace — is refused the same way as an omitted one, and reports the same reason ([MV-03-002](../../reference/vultron-spec/requirements/messages.md#mv-03-002)).
@@ -235,7 +235,7 @@ A reject from a position that *has* advanced always triggers a replay, so a peer
 A reject from genesis for an entry the last replay from genesis already sent asks for nothing new, so the CASE_MANAGER may send nothing for it until the ceiling has passed ([SYNC-15-019](../../reference/vultron-spec/requirements/ledger-replication.md#sync-15-019)).
 
 The holding area should also be bounded, so that a hostile or broken peer streaming far-future entries cannot exhaust the replica's storage.
-When it is full, the replica discards the held `Announce` farthest ahead of the gap and logs a warning ([SYNC-14-006](../../reference/specs/project.md#sync-14-006)).
+When it is full, the replica discards the held `Announce` farthest ahead of the gap and logs a warning ([SYNC-14-006](../../reference/specs/project.md#sync-14-006), [SYNC-14-013](../../reference/specs/project.md#sync-14-013)).
 Discarding is safe because the replica already sent the reject for that gap.
 But the eviction itself sends nothing.
 
@@ -279,7 +279,7 @@ Three properties make the drain safe:
 
 - **Same path.** A drained entry goes through the same processing as an entry that arrived in order — no separate code path with its own behavior ([SYNC-14-008](../../reference/vultron-spec/requirements/ledger-replication.md#sync-14-008)).
   In this implementation that holds by construction, because each held entry reaches the announce receive behavior tree as an ordinary inbox delivery.
-- **Effects before storage.** The entry's consequences — an embargo ending, a participant joining, a status changing — are applied first, and the entry is stored only if they all succeed ([SYNC-12-001](../../reference/vultron-spec/requirements/ledger-replication.md#sync-12-001), [SYNC-14-004](../../reference/vultron-spec/requirements/ledger-replication.md#sync-14-004)).
+- **Effects before storage.** The entry's consequences — an embargo ending, a participant joining, a status changing — are applied first, and the entry is stored only if they all succeed ([SYNC-12-001](../../reference/vultron-spec/requirements/ledger-replication.md#sync-12-001), [SYNC-12-004](../../reference/vultron-spec/requirements/ledger-replication.md#sync-12-004), [SYNC-14-004](../../reference/vultron-spec/requirements/ledger-replication.md#sync-14-004)).
 - **Applied once.** An entry already in the local ledger is skipped entirely, so a replay or a duplicate cannot apply the same effects twice ([SYNC-12-003](../../reference/vultron-spec/requirements/ledger-replication.md#sync-12-003), [SYNC-14-007](../../reference/vultron-spec/requirements/ledger-replication.md#sync-14-007)).
 
 Because held entries are replayed through the ordinary path, the reject-and-replay recovery becomes order-tolerant as well, at no extra cost.
@@ -347,20 +347,20 @@ Whenever a participant states a position the CASE_MANAGER's ledger holds, the CA
 It does so for any participant still on the roster, even one that has not consented to the embargo in force and whose position it otherwise refuses, because a resent Invite carries no withheld case content.
 A resend is the Invite as first sent, with its original id, ledger position and RSVP deadline, and it is rate-bounded per Invite and participant ([SYNC-20-003](../../reference/vultron-spec/requirements/ledger-replication.md#sync-20-003), [SYNC-20-005](../../reference/vultron-spec/requirements/ledger-replication.md#sync-20-005)).
 Every other case message the participant sends states the same position as its `ledgerPosition`, so the CASE_MANAGER answers that position the same way whenever the participant acts ([SYNC-18-007](../../reference/vultron-spec/requirements/ledger-replication.md#sync-18-007)).
-A position the CASE_MANAGER's ledger does not hold means the participant's chain has split, and the CASE_MANAGER sends it a fresh copy of the case ([SYNC-18-005](../../reference/vultron-spec/requirements/ledger-replication.md#sync-18-005)).
+A position the CASE_MANAGER's ledger does not hold means the participant's chain has split, and the CASE_MANAGER sends it a fresh copy of the case ([SYNC-18-005](../../reference/vultron-spec/requirements/ledger-replication.md#sync-18-005), [SYNC-18-012](../../reference/vultron-spec/requirements/ledger-replication.md#sync-18-012)).
 Neither answer changes how the CASE_MANAGER judges the message itself.
 
 A replica that already holds the case also receives fresh copies of it, as `Announce(VulnerabilityCase)`.
 Each copy names the **ledger position** it reflects, the last entry its case file is a projection of.
 So the replica can tell a current copy from a stale one ([SYNC-16-005](../../reference/vultron-spec/requirements/ledger-replication.md#sync-16-005)).
-A copy the replica's chain is already past changes nothing.
-A copy that names a different entry at a position the replica holds is refused as a conflict ([SYNC-16-006](../../reference/vultron-spec/requirements/ledger-replication.md#sync-16-006)).
+A copy the replica's chain is already past changes nothing ([SYNC-16-020](../../reference/vultron-spec/requirements/ledger-replication.md#sync-16-020)).
+A copy that names a different entry at a position the replica holds is refused as a conflict ([SYNC-16-021](../../reference/vultron-spec/requirements/ledger-replication.md#sync-16-021)).
 
 Any other copy replaces the replica's case.
 When that copy is ahead of the replica's chain, the replica asks for the missing entries with a `Reject`.
-It also stores each entry the copy already reflects, without applying it again or moving its position back ([SYNC-16-007](../../reference/vultron-spec/requirements/ledger-replication.md#sync-16-007)).
+It also stores each entry the copy already reflects, without applying it again or moving its position back ([SYNC-16-023](../../reference/vultron-spec/requirements/ledger-replication.md#sync-16-023), [SYNC-16-024](../../reference/vultron-spec/requirements/ledger-replication.md#sync-16-024)).
 An entry at the copy's position that is not the entry the copy names comes from a different chain.
-So the replica refuses it as a conflict and does not store it ([SYNC-16-007](../../reference/vultron-spec/requirements/ledger-replication.md#sync-16-007)).
+So the replica refuses it as a conflict and does not store it ([SYNC-16-025](../../reference/vultron-spec/requirements/ledger-replication.md#sync-16-025)).
 
 ---
 
@@ -378,7 +378,7 @@ The CASE_MANAGER cannot see the order in which one participant sent two messages
 So a decision must not depend on that order ([SYNC-19-001](../../reference/vultron-spec/requirements/ledger-replication.md#sync-19-001)).
 
 A sender may deliver its messages to each recipient in order, and this implementation does ([OX-01-005](../../reference/specs/project.md#ox-01-005)).
-That is an optimization, not a guarantee another implementation must give, and no participant may rely on it ([SYNC-19-003](../../reference/vultron-spec/requirements/ledger-replication.md#sync-19-003)).
+That is an optimization, not a guarantee another implementation must give, and no participant may rely on it ([SYNC-19-007](../../reference/vultron-spec/requirements/ledger-replication.md#sync-19-007), [SYNC-19-003](../../reference/vultron-spec/requirements/ledger-replication.md#sync-19-003), [SYNC-19-005](../../reference/vultron-spec/requirements/ledger-replication.md#sync-19-005), [SYNC-19-006](../../reference/vultron-spec/requirements/ledger-replication.md#sync-19-006)).
 
 ### Messages the CASE_MANAGER sends outside the ledger
 

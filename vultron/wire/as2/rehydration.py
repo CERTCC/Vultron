@@ -491,7 +491,7 @@ def rehydrate(
         obj = _resolve_string_id(obj, dl)
 
     rehydrated_nested = None
-    # The genesis-replay Reject names no object by design (SYNC-16-007);
+    # The genesis-replay Reject names no object by design (SYNC-16-027);
     # every other activity with no object is refused below.
     if hasattr(obj, "object_") and not is_genesis_replay_reject(obj):
         rehydrated_nested = _rehydrate_nested_object_field(obj, dl, depth)

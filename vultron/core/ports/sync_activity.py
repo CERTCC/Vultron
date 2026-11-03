@@ -102,7 +102,7 @@ class SyncActivityPort(Protocol):
         chain while its chain stores no entry: there is no entry to name, so
         the Reject states the empty chain's position (index -1, SYNC-18-001)
         and names the case as its ``target``, asking for a replay from
-        genesis (SYNC-16-007).
+        genesis (SYNC-16-027).
 
         Args:
             case_id: The case to replay.

@@ -84,7 +84,7 @@ class CommitRMClosureEntriesNode(CommitParticipantStatusEntriesNode):
 
     **A step with no committed entry is not kept** (CLP-07-013, CM-23-025).
     The advance writes each step before this node commits it, the order
-    CLP-07-013 gives a consequence, and both run in the Leave's
+    CLP-07-021 gives a consequence, and both run in the Leave's
     ``ActTransaction``: a commit that fails fails the act, which keeps no
     step, no entry and not the ``close_case`` entry either (CLP-07-015).  A
     refused commit returns FAILURE, a missing trigger-activity port raises

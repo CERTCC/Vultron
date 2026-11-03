@@ -226,14 +226,14 @@ class TestEmitCaseStatusUpdateNode:
         assert isinstance(case_after, CoreCase)
         assert len(case_after.case_statuses) == initial_count + 1
 
-    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.spec("RSH-01-005")
     @pytest.mark.parametrize(
         ("case_pxa", "reported", "expected"),
         [
             # A forward move is adopted (#4956).
             (CS_pxa.pxa, CS_pxa.Pxa, CS_pxa.Pxa),
             (CS_pxa.Pxa, CS_pxa.PXA, CS_pxa.PXA),
-            # A latch the report omits is kept (RSH-01-003).
+            # A latch the report omits is kept (RSH-01-005).
             (CS_pxa.PXa, CS_pxa.Pxa, CS_pxa.PXa),
             # A mixed report adds its new latch and clears none.
             (CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA),
@@ -282,6 +282,7 @@ class TestEmitCaseStatusUpdateNode:
 
     @pytest.mark.spec("CLP-07-013")
     @pytest.mark.spec("RSH-04-003")
+    @pytest.mark.spec("RSH-04-009")
     def test_an_unchanged_status_is_not_committed_again(
         self, populated_dl, populated_bridge
     ):

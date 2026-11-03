@@ -294,7 +294,7 @@ class TestFindProtocolPairIsolation:
         """Open pair is correctly identified even when another reply exists in the same case.
 
         Note: CaseLedgerEntry has no structural link from a reply to the
-        specific request that triggered it (in_reply_to is YAGNI per CLP-11-004).
+        specific request that triggered it (in_reply_to is YAGNI per CLP-11-007).
         find_protocol_pair() is therefore most reliable when at most one open
         offer of a given request_semantic_type exists per case at a time —
         the expected protocol usage per ADR-0026/CM-16.

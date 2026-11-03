@@ -132,7 +132,7 @@ def scenario() -> BTTestScenario:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("CLP-10-017")
+@pytest.mark.spec("CLP-10-036")
 def test_intake_archives_the_received_activity(scenario):
     event = _note_event(_rich_note())
     node = IntakeReceivedActivityNode()
@@ -159,7 +159,7 @@ def test_intake_archives_the_received_activity(scenario):
 
 
 @pytest.mark.spec("VM-08-002")
-@pytest.mark.spec("CLP-10-017")
+@pytest.mark.spec("CLP-10-036")
 def test_the_archive_is_the_body_the_parser_sealed(scenario):
     """The archive holds the decoded body re-serialized, as the parser
     sealed it: the sender's keys, key order and values, not the request's
@@ -189,7 +189,7 @@ def test_the_archive_is_the_body_the_parser_sealed(scenario):
     assert json.loads(record.received_body)["fooBar"] == [1, 2]
 
 
-@pytest.mark.spec("CLP-10-017")
+@pytest.mark.spec("CLP-10-038")
 @pytest.mark.spec("PCR-03-004")
 def test_intake_writes_no_core_record_from_the_letter(scenario):
     """The note inlined in the activity is a message, not core's note record.
@@ -208,6 +208,7 @@ def test_intake_writes_no_core_record_from_the_letter(scenario):
 
 
 @pytest.mark.spec("PCR-03-004")
+@pytest.mark.spec("CLP-10-038")
 def test_inlined_case_does_not_become_a_replica(scenario):
     case = VulnerabilityCase(
         attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="not mine to seed"
@@ -236,7 +237,7 @@ def test_inlined_case_does_not_become_a_replica(scenario):
     assert _archived(scenario.dl, activity.id_)
 
 
-@pytest.mark.spec("CLP-10-017")
+@pytest.mark.spec("CLP-10-036")
 def test_second_intake_of_the_same_activity_writes_nothing(scenario):
     event = _note_event(_rich_note())
     scenario.assert_success(
@@ -254,7 +255,7 @@ def test_second_intake_of_the_same_activity_writes_nothing(scenario):
     assert scenario.dl.by_type("ReceivedActivityRecord") == before
 
 
-@pytest.mark.spec("CLP-10-017")
+@pytest.mark.spec("CLP-10-036")
 def test_sender_chosen_id_cannot_squat_a_receiver_derived_record(scenario):
     """An activity named after a record this actor derives blocks nothing.
 
@@ -289,7 +290,7 @@ def test_sender_chosen_id_cannot_squat_a_receiver_derived_record(scenario):
 
 
 @pytest.mark.spec("ARCH-15-001")
-@pytest.mark.spec("CLP-10-017")
+@pytest.mark.spec("CLP-10-037")
 def test_an_event_with_no_body_and_nothing_held_is_a_wiring_fault(scenario):
     """No received evidence and no archive: there is nothing to archive and
     nothing held, so intake fails and writes nothing (ARCH-15-001)."""
@@ -310,7 +311,7 @@ def test_an_event_with_no_body_and_nothing_held_is_a_wiring_fault(scenario):
 
 
 @pytest.mark.spec("VM-08-002")
-@pytest.mark.spec("CLP-10-017")
+@pytest.mark.spec("CLP-10-037")
 def test_a_resend_with_no_body_finds_the_archive_and_writes_nothing(
     scenario,
 ):

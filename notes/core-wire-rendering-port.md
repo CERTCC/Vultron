@@ -17,7 +17,7 @@ related_specs:
     ARCH-25-002 through ARCH-25-005)
   - vocabulary-model.yaml (VM-10-001, VM-08-002, VM-08-003)
   - case-ledger-processing.yaml (CLP-07-006, CLP-07-009, CLP-07-010, CLP-07-011,
-    CLP-07-013, CLP-09-002)
+    CLP-07-013, CLP-07-020, CLP-09-002)
   - status-dimension-objects.yaml (SDO-03-003, SDO-03-005, SDO-03-008, SDO-03-009)
   - datalayer.yaml (DL-05-001)
   - sync-ledger-replication.yaml (SYNC-02-003)
@@ -82,7 +82,7 @@ A driven port, per ARCH-01-004 and the `SyncActivityPort` precedent.
 `render()` raises `VultronValidationError` only when the object is not a
 `CoreObject` (a bare `CoreRecord` has no AS2 spelling, ARCH-20-003). **Never add a
 core-shaped fallback**: a silently core-shaped snapshot is indistinguishable from
-a correct one at the call site, which is what CLP-07-009 prevents.
+a correct one at the call site, which is what CLP-07-020 prevents.
 
 The port is not ledger-specific: emitters, sync fan-out and the AS2 HTTP routes
 need the same rendering. HTTP routes serve only a `CoreObject` or `as_Base`, and

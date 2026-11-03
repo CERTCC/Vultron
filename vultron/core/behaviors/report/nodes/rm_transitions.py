@@ -392,7 +392,7 @@ class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
             return Status.FAILURE
 
     def _check_participant(self) -> Status | None:
-        """Check the sender may move to VALID; write nothing (RSH-08-006).
+        """Check the sender may move to VALID; write nothing (RSH-08-006, RSH-08-012).
 
         The trigger side sends the validation and leaves the record to the
         CASE_MANAGER, so the move is checked here as the write would check

@@ -128,7 +128,7 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
             self.feedback_message = (
                 f"Invite object '{self.invitee_id}' is not the receiving"
                 f" actor '{self.actor_id}' — refusing trust anchor"
-                f" (PCR-03-004 path b)"
+                f" (PCR-03-007)"
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -162,7 +162,7 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
                 f"Trust anchor conflict for case '{self.case_id}':"
                 f" existing CaseActor '{existing.case_actor_id}', whose"
                 f" Invite was accepted, new Invite's actor"
-                f" '{self.case_actor_id}' — refusing (PCR-03-004 path b)"
+                f" '{self.case_actor_id}' — refusing (PCR-03-010)"
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -211,7 +211,7 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
 
         The record was written by the pre-bootstrap queue, whose sender is no
         anchor (#4931), or by an Invite the invitee has not accepted, which a
-        later Invite replaces (PCR-03-004).
+        later Invite replaces (PCR-03-009).
         """
         assert self.datalayer is not None
         self.datalayer.save(
@@ -261,7 +261,7 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
 
 
 class FixInviteTrustAnchorNode(DataLayerAction):
-    """Fix the trust anchor an accepted stub Invite set (PCR-03-004 path b).
+    """Fix the trust anchor an accepted stub Invite set (PCR-03-010).
 
     Runs after the invitee's ``Accept(Invite)`` is queued.  The anchor record
     whose ``anchor_invite_id`` is the accepted Invite is marked

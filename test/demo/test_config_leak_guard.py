@@ -26,7 +26,7 @@ silently drops the ``Create(CaseProposal)`` delivery, the CaseActor never
 creates the canonical case, and ``trigger/validate-report`` fails with
 "no routable recipients".  Because it depends on test order (pytest-randomly
 reseeds each run), this presented as CI flakiness in
-``TestBootstrapSequence.test_announce_creates_case_replica``.
+``TestBootstrapSequence.test_create_seeds_case_replica``.
 
 These tests pin both halves of the fix:
 

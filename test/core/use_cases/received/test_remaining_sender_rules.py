@@ -377,6 +377,7 @@ def test_case_status_from_a_stranger_is_refused_and_changes_nothing() -> None:
 
 @pytest.mark.spec("RSH-04-005")
 @pytest.mark.spec("CLP-10-025")
+@pytest.mark.spec("RSH-04-012")
 def test_case_status_from_a_participant_to_the_manager_is_refused() -> None:
     """An active participant's public-awareness Add(CaseStatus) is refused at
     the CASE_MANAGER with nothing appended, committed, torn down or sent;
@@ -399,6 +400,7 @@ def test_case_status_from_a_participant_to_the_manager_is_refused() -> None:
 @pytest.mark.spec("RSH-04-005")
 @pytest.mark.spec("RSH-04-001")
 @pytest.mark.spec("PCR-03-001")
+@pytest.mark.spec("RSH-04-012")
 def test_case_status_from_a_participant_to_a_peer_is_refused() -> None:
     """At the finder's replica, the deployer's public-awareness
     Add(CaseStatus) is refused: a replica admits it from the CASE_MANAGER

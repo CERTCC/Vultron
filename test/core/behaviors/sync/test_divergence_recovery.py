@@ -15,7 +15,8 @@
 
 The tests of the replica's side of a repair, the ledger position a case
 copy names and how a replica that holds the case judges the copy by it
-(SYNC-16-005 through SYNC-16-007), are behaviour tests.  The divergence
+(SYNC-16-005 through SYNC-16-007, SYNC-16-023 through SYNC-16-029), are
+behaviour tests.  The divergence
 fault's class and its wire form are pinned here (SYNC-16-001, SYNC-16-002);
 the replica's emission of it is behaviour-tested in
 ``test/core/use_cases/received/test_embargo_consent_copy.py``.  The
@@ -107,7 +108,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
-#: The position of a chain that stores no entry (SYNC-16-007, CLP-08-004).
+#: The position of a chain that stores no entry (SYNC-16-027, CLP-08-004).
 _EMPTY_CHAIN = LedgerPosition(
     log_index=EMPTY_LEDGER_LOG_INDEX, entry_hash="00" * 32
 )
@@ -353,6 +354,7 @@ def test_a_case_copy_names_the_position_of_the_last_commit() -> None:
     }
 
 
+@pytest.mark.spec("SYNC-16-020")
 @pytest.mark.spec("SYNC-16-006")
 @pytest.mark.spec("SYNC-16-007")
 def test_a_copy_behind_the_replica_chain_is_skipped() -> None:
@@ -421,6 +423,7 @@ def _replica_store() -> SqliteDataLayer:
     return dl
 
 
+@pytest.mark.spec("SYNC-16-020")
 @pytest.mark.spec("SYNC-16-006")
 @pytest.mark.spec("HP-01-003")
 def test_a_copy_the_chain_is_past_is_skipped() -> None:
@@ -466,6 +469,7 @@ def test_a_copy_that_conflicts_with_the_chain_is_refused_at_error(
     )
 
 
+@pytest.mark.spec("SYNC-16-022")
 @pytest.mark.spec("PCR-02-004")
 @pytest.mark.spec("SYNC-16-006")
 def test_a_copy_at_the_replicas_tail_replaces_its_case() -> None:
@@ -540,7 +544,7 @@ def test_a_backfill_without_a_sync_port_is_a_wiring_fault() -> None:
         )
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-027")
 def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
     """With no stored entry there is nothing for a Reject to name, so the
     replica sends the Reject that names none: the empty chain's position
@@ -577,7 +581,7 @@ def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
     assert event.last_accepted_hash == ""
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-028")
 def test_a_reject_naming_no_entry_but_a_hash_is_refused_at_parse() -> None:
     """Only a request for a replay from genesis may name no entry."""
     body = genesis_replay_reject_activity(
@@ -604,8 +608,8 @@ def test_a_reject_naming_no_entry_but_a_hash_is_refused_at_parse() -> None:
         parse_activity({**body, "target": note})
 
 
-@pytest.mark.spec("SYNC-16-005")
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-024")
+@pytest.mark.spec("SYNC-16-016")
 def test_storing_an_entry_behind_the_case_position_leaves_it() -> None:
     """A case a copy put ahead of its chain stays at the copy's position
     while the entries it reflects are stored; the next one moves it on."""
@@ -624,7 +628,7 @@ def test_storing_an_entry_behind_the_case_position_leaves_it() -> None:
     )
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-023")
 @pytest.mark.spec("PCR-02-003")
 def test_a_first_seed_ahead_of_the_chain_stores_the_backfill_as_no_ops(
     caplog: pytest.LogCaptureFixture,
@@ -669,6 +673,7 @@ def test_a_first_seed_ahead_of_the_chain_stores_the_backfill_as_no_ops(
     assert all(dl.read(entry.id_) is not None for entry in entries)
 
 
+@pytest.mark.spec("SYNC-16-020")
 @pytest.mark.spec("SYNC-16-006")
 def test_a_copy_behind_the_last_replacement_is_stale() -> None:
     """Until the chain catches up, the case is at the position of the copy
@@ -742,6 +747,7 @@ def test_the_inbox_routes_the_copy_not_the_held_case() -> None:
     assert _case_name(dl) == "current copy"
 
 
+@pytest.mark.spec("SYNC-16-021")
 @pytest.mark.spec("SYNC-16-006")
 def test_a_genesis_copy_naming_another_genesis_hash_is_refused() -> None:
     """At index -1 the hash compared is the case's genesis hash: a copy whose
@@ -782,6 +788,7 @@ def test_a_genesis_copy_the_chain_is_past_is_skipped() -> None:
     assert _case_name(dl) == "replica case"
 
 
+@pytest.mark.spec("SYNC-16-021")
 @pytest.mark.spec("SYNC-16-006")
 def test_a_copy_conflicting_with_the_last_replacement_is_refused() -> None:
     """While the chain is short of the last replacing copy, the case's
@@ -809,7 +816,7 @@ def test_a_copy_conflicting_with_the_last_replacement_is_refused() -> None:
     assert _case_name(dl) == "first copy"
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-023")
 def test_only_the_entry_the_case_position_names_is_reflected() -> None:
     dl = _replica_holding("short replica")
     entries = _chain(dl, [{"type": "Add", "index": i} for i in range(3)])
@@ -827,7 +834,7 @@ def test_only_the_entry_the_case_position_names_is_reflected() -> None:
     assert not entry_reflected_by_case_copy(other, dl)
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-023")
 @pytest.mark.spec("CM-23-016")
 def test_a_reflected_entry_stores_the_record_the_copy_names(
     caplog: pytest.LogCaptureFixture,
@@ -906,7 +913,7 @@ def test_the_case_managers_own_copy_is_skipped() -> None:
     assert dl.outbox_list() == []
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-027")
 def test_a_genesis_request_for_a_later_copy_is_its_own_activity() -> None:
     """The genesis-replay Reject's id names the copy's position, so a request
     after a later copy is not deduplicated as a repeat of the first."""
@@ -938,7 +945,7 @@ def test_a_genesis_request_for_a_later_copy_is_its_own_activity() -> None:
     assert len(set(dl.outbox_list())) == 2
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-027")
 def test_the_genesis_request_survives_the_inbox_rebuild() -> None:
     """The inbox rebuilds an activity's object before routing; the Reject
     that names none has none to rebuild, and still reaches its handler,
@@ -1059,7 +1066,7 @@ def test_a_reflected_entry_copies_nothing_from_a_case_an_act_names(
     assert records_a_reflected_entry_adds(entry, dl) == []
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-023")
 @pytest.mark.spec("CM-23-016")
 def test_a_reflected_entry_copies_each_record_the_case_names_and_no_other() -> (
     None
@@ -1125,7 +1132,7 @@ def _put_ahead(
     dl.save(_at(cast(as_VulnerabilityCase, dl.read(_CASE_ID)), position))
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-025")
 def test_storing_another_entry_at_the_case_position_is_refused() -> None:
     """The store never leaves the chain naming one entry at the case's
     position and the case another: it refuses, storing nothing."""
@@ -1134,14 +1141,14 @@ def test_storing_another_entry_at_the_case_position_is_refused() -> None:
     named = LedgerPosition(log_index=2, entry_hash="ab" * 32)
     _put_ahead(dl, entries, 2, named)
 
-    with pytest.raises(VultronEntryRefusedError, match="SYNC-16-007"):
+    with pytest.raises(VultronEntryRefusedError, match="SYNC-16-025"):
         store_ledger_entry(entries[2], dl)
 
     assert dl.read(entries[2].id_) is None
     assert _position(dl) == named
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-026")
 @pytest.mark.spec("SYNC-16-006")
 def test_an_entry_conflicting_with_the_case_position_is_refused_at_error(
     caplog: pytest.LogCaptureFixture,
@@ -1163,7 +1170,7 @@ def test_an_entry_conflicting_with_the_case_position_is_refused_at_error(
         )
 
     assert result.disposition is HandlerDisposition.REFUSED, result.reason
-    assert "SYNC-16-007" in (result.reason or "")
+    assert "SYNC-16-025" in (result.reason or "")
     assert dl.read(entries[2].id_) is None
     assert _position(dl) == named
     assert any(
@@ -1199,6 +1206,7 @@ def test_the_extracted_copy_keeps_the_position_it_names() -> None:
     )
 
 
+@pytest.mark.spec("SYNC-16-022")
 @pytest.mark.spec("SYNC-16-006")
 @pytest.mark.spec("SYNC-16-007")
 @pytest.mark.spec("IO-03-004")
@@ -1293,7 +1301,7 @@ def test_a_replacement_that_fails_part_way_changes_nothing(
     assert vendor.participant_status.rm.state is RM.ACCEPTED
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-023")
 @pytest.mark.spec("SYNC-12-001")
 def test_a_reflected_entry_whose_records_fail_is_not_stored(
     monkeypatch: pytest.MonkeyPatch,
@@ -1346,7 +1354,7 @@ def test_a_reflected_entry_whose_records_fail_is_not_stored(
     assert dl.read(note_id) is None
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-023")
 def test_a_reflected_entry_copies_nothing_without_its_case_or_a_valid_record(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

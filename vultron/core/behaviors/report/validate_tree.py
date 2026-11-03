@@ -245,7 +245,7 @@ def create_validate_report_tree(
     Thin wrapper over :func:`create_validate_report_subtree` with ``emit=True``:
     the operator triggered this, so the ``validate-report`` activity must be
     sent to the Case Actor (CASE_MANAGER participant) whose inbox executes the
-    guarded commit (ADR-0021 CLP-10-027, CLP-10-002, CLP-10-003).
+    guarded commit (ADR-0021 CLP-10-027, CLP-09-001, CLP-10-003).
 
     Checks the move and sends; it writes nothing of its own.  The
     CASE_MANAGER records the move when it accepts the validation and commits

@@ -183,7 +183,7 @@ groups:
       if present, then non-empty). One omission must cause one error and one status
       code, whatever its form. If a guard tests only the key, a blank `published` goes
       on to schema validation, which gives a Pydantic error dump in place of the
-      explanation in CLP-15-006. A value that is not blank but does not parse is a
+      explanation in CLP-15-008. A value that is not blank but does not parse is a
       different fault, so it stays on the schema path.
     verification: >-
       Unit tests in `test/wire/as2/test_parser.py` confirm that every blank

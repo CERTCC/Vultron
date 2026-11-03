@@ -163,7 +163,7 @@ def stated_replica_position(
     that stores none, as after a first seed from a case copy, is stated at
     the case's own position: the seeded case reflects every entry up to it,
     and the replica stores them as no-ops when they arrive (SYNC-16-005,
-    SYNC-16-007, SYNC-17-008).  ``None`` when that position is the empty
+    SYNC-16-023, SYNC-17-008).  ``None`` when that position is the empty
     ledger's, which names no entry to state.
     """
     entries = sorted_case_ledger_entries(dl, case.id_)

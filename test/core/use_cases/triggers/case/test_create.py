@@ -654,7 +654,7 @@ class TestCreateCaseTriggerLedger:
         )
         assert_case_at_chain_tail(self.dl, case.id_)
 
-    @pytest.mark.spec("SYNC-16-005")
+    @pytest.mark.spec("SYNC-16-017")
     def test_the_genesis_entry_carries_the_case_before_it(self):
         """No entry's hash depends on itself (AC-3 of #5091).
 

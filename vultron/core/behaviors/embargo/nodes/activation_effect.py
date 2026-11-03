@@ -108,7 +108,7 @@ class ApplyEmbargoActivationFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
     An embargo already activated is in place, so a re-delivered entry changes
     nothing.  An entry naming an embargo that is not an open proposal here
     is refused and its Announce held (ADR-0124); one that names no embargo
-    fails, so it is not persisted (SYNC-12-001).  SUCCESS with nothing
+    fails, so it is not persisted (SYNC-12-004).  SUCCESS with nothing
     written when the replica holds no copy of the case (Regime 2, ADR-0087).
     """
 

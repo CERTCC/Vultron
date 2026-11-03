@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Recognise the ``Reject`` that carries no object (SYNC-16-007).
+"""Recognise the ``Reject`` that carries no object (SYNC-16-027).
 
 A ``Reject`` names what it declines in ``object``.  One Vultron message has
 nothing to name: a replica whose case was replaced by a copy ahead of its

@@ -48,7 +48,7 @@ _ZERO_HASH: str = "0" * 64
 _ACT_UNDER_TEST = "https://example.org/activities/act-under-test"
 
 # The case is created an hour ago so a snapshot can be stamped either side of
-# it without tripping the staleness window (CLP-14-008, default seven days).
+# it without tripping the staleness window (CLP-14-015, default seven days).
 CASE_CREATED = datetime.now(tz=UTC) - timedelta(hours=1)
 
 
@@ -124,11 +124,11 @@ def _run(bridge, snapshot: dict[str, object], tail_index: int = -1):
     )
 
 
-@pytest.mark.spec("CLP-14-006")
+@pytest.mark.spec("CLP-14-013")
 def test_create_log_entry_node_rejects_payload_published_before_case_created(
     bridge, timed_case
 ):
-    """An assertion stamped before the case existed is a CLP-14-006 violation."""
+    """An assertion stamped before the case existed is a CLP-14-013 violation."""
     result = _run(
         bridge,
         _note_snapshot(
@@ -137,10 +137,10 @@ def test_create_log_entry_node_rejects_payload_published_before_case_created(
     )
 
     assert result.status == Status.FAILURE
-    assert "CLP-14-006" in result.feedback_message
+    assert "CLP-14-013" in result.feedback_message
 
 
-@pytest.mark.spec("CLP-14-006")
+@pytest.mark.spec("CLP-14-013")
 def test_create_log_entry_node_tolerates_small_skew_before_case_created(
     bridge, timed_case
 ):
@@ -363,7 +363,7 @@ def test_create_log_entry_node_honours_configured_skew_tolerance(
 ):
     """CLP-14-009: the deployment can widen the clock-skew tolerance.
 
-    The same snapshot that trips CLP-14-006 at the default tolerance is
+    The same snapshot that trips CLP-14-013 at the default tolerance is
     accepted once the tolerance is configured wide enough to cover it.
     """
     snapshot = _note_snapshot(
@@ -382,7 +382,7 @@ def test_create_log_entry_node_honours_configured_skew_tolerance(
     assert result.status == Status.SUCCESS
 
 
-# The staleness and future-tolerance checks run *after* CLP-14-006, so a stale
+# The staleness and future-tolerance checks run *after* CLP-14-013, so a stale
 # claim against the hour-old ``timed_case`` would trip that check first. These
 # use a long-lived case so the claim under test is comfortably after creation.
 OLD_CASE_CREATED = datetime.now(tz=UTC) - timedelta(days=365)
@@ -390,7 +390,7 @@ OLD_CASE_CREATED = datetime.now(tz=UTC) - timedelta(days=365)
 
 @pytest.fixture
 def old_case(datalayer):
-    """A stored case created a year ago, so stale claims clear CLP-14-006."""
+    """A stored case created a year ago, so stale claims clear CLP-14-013."""
     case = VulnerabilityCase(
         id_=CASE_ID,
         attributed_to=OWNER_ACTOR_ID,

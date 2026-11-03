@@ -309,7 +309,7 @@ def the_owner_hands_the_case_over(
     The transfer reaches a replica in two hops: Accept → CaseActor inbox →
     commit (CM-21-007), then CaseActor outbox → ``Announce(CaseLedgerEntry)``
     of the ``update_case_participant`` and ``update_case_owner`` entries that
-    follow it (CLP-07-013) → each participant copies them.  Nothing else
+    follow it (CLP-07-021) → each participant copies them.  Nothing else
     updates a replica, so the old owner learns of its own loss of ownership
     from the fan-out like anyone else.  The commit is therefore gated first,
     read from the CaseActor's own store, so a slow fan-out is reported as the
