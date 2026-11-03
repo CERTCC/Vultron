@@ -42,14 +42,14 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      This codebase MUST define each error category that more than one layer raises or
-      catches in `vultron/errors.py`.
+      This codebase MUST define in `vultron/errors.py` each error category that more
+      than one of the core, wire and adapter layers raises.
     rationale: >-
-      Errors that several layers raise or catch need one home. `vultron/errors.py`
-      imports only the standard library, so core, wire and adapter code can all import
-      from it without an import from another layer. One module also shows the shared
-      hierarchy in one place. An error that only one subsystem raises goes in that
-      subsystem's own `errors.py` instead (EH-02-001), as in `vultron/wire/errors.py`.
+      An error that several layers raise needs one home. `vultron/errors.py` imports
+      only the standard library, so every layer can import from it. An error that one
+      subsystem raises goes in that subsystem's own `errors.py` (EH-02-001), as in
+      `vultron/wire/as2/errors.py`. An outer layer may still catch it there, as the
+      inbox adapter catches `VultronParseError`, because adapters may import wire.
 - id: EH-02
   title: Submodule Errors
   specs:
