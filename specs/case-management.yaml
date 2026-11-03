@@ -4537,8 +4537,10 @@ groups:
       decline of a shorter revision objects to the loss of time, not to the embargo. A
       row whose embargo is final records the past. Thus a participant cannot give more
       consent to it. The CASE_MANAGER answers a late Accept of such terms with an
-      invitation to the Active Embargo (EMB-17-003). A lapse and a termination are not
-      triggers. They are derived (CM-18-001, CM-18-016).
+      invitation to the case's current terms, which are the Active Embargo or, with
+      none in force, the earliest-expiring open proposal (EMB-17-003, EP-08-002). A
+      lapse and a termination are not triggers. They are derived (CM-18-001,
+      CM-18-016).
     verification: >-
       Inspection of `vultron/core/states/participant_embargo_consent.py` confirms that the
       transition table implements exactly the triggers INVITE, AGREE, DECLINE, TIME_OUT and
@@ -8562,9 +8564,11 @@ groups:
     rationale: >-
       A participant that did not answer made no decision, and code, logs, demos and replicas read
       the consent row, not ledger provenance (ADR-0118). An expired participant is re-invitable
-      (CM-18-003), excluded from embargoed content like any non-signatory (CM-10-004), and made a
-      signatory by a late Accept the CASE_MANAGER honours (EMB-17-002). ADR-0118 reverses ADR-0065's
-      choice to record a lapsed invitation as `DECLINED`.
+      (CM-18-003), excluded from embargoed content like any non-signatory
+      (CM-10-004), and returned to `AGREED` by a late Accept the CASE_MANAGER
+      honours — a signatory only if that embargo is in force (EMB-17-002,
+      MSM-07-003). ADR-0118 reverses ADR-0065's choice to record a lapsed
+      invitation as `DECLINED`.
     note: >-
       "Invitation" here is an `Invite(EmbargoEvent)`. An expired stub Invite
       (`Invite(Actor)[target=VulnerabilityCaseStub]`) carries embargo terms but changes

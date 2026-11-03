@@ -215,8 +215,8 @@ An act whose entry fails to commit changes nothing.
 | Withdrawal, `Leave(EmbargoEvent)` | no register change | an `Update(EmbargoConsent)` moving the withdrawing Participant's row for the embargo in force to `DECLINED`, and one for each open revision it had agreed to (MSM-07-010) |
 | Termination, `Remove(EmbargoEvent)` | the end of the embargo in force and the cancellation of every open proposal (EP-08-004) | nothing: a termination writes no consent row (MSM-07-025) |
 | Invitation deadline passes | the expiry of that invitation (CM-28-009) | an `Update(EmbargoConsent)` moving the row to `TIMED_OUT` |
-| Late `Accept` of the Active Embargo | the `Accept` itself, as for an on-time `Accept`: the row it states, `AGREED` | nothing: the `Accept` is that row's entry |
-| Late `Accept` of a superseded embargo | the fresh invitation, relayed on behalf of the Active Embargo's proposer | an `Update(EmbargoConsent)` moving the row to `INVITED`, with its deadline |
+| Late `Accept` of the Active Embargo, or of an open proposal | the `Accept` itself, as for an on-time `Accept`: the row it states, `AGREED` | nothing: the `Accept` is that row's entry |
+| Late `Accept` of a superseded embargo | the fresh invitation, relayed on behalf of the invited embargo's proposer | an `Update(EmbargoConsent)` moving the row to `INVITED`, with its deadline |
 | Late `Accept` of an embargo the case no longer has | nothing: the `Accept` changes nothing, so no entry is committed (EMB-17-004) | nothing |
 | Stub invitation re-sent after the embargo changed | the replacement invitation | an `Update(EmbargoConsent)` moving the invitee's row for the embargo in force to `INVITED`; with no embargo in force, nothing |
 
@@ -380,13 +380,13 @@ Sometimes the CASE_MANAGER refuses an Invite or an `Accept` because the vulnerab
 In that case, it does not check for overdue invitations, and the next embargo activity that it admits does the check.
 
 A late `Accept` is never refused merely for being late (EMB-17-001).
-Instead, the CASE_MANAGER asks whether the accepted embargo is still the case's Active Embargo.
+Instead, the CASE_MANAGER asks whether the accepted embargo is one the case can still answer — its Active Embargo, or one of its open proposals (EMB-17-012, MSM-07-003).
 The three possible answers are all different:
 
 | What the late Accept refers to | What the CASE_MANAGER does |
 |---|---|
-| The case's Active Embargo | Honor it; record the `Accept` exactly as an on-time Accept, so the Participant's consent row moves to `AGREED` directly from `TIMED_OUT` or `DECLINED`, since a Participant that accepts after declining has changed its answer (EMB-17-002) |
-| A superseded embargo | Send a fresh invitation carrying the current terms, relayed like any other on behalf of the Active Embargo's proposer. Do **not** record consent to terms the actor never saw (EMB-17-003, EMB-17-005) |
+| The case's Active Embargo, or one of its open proposals | Honor it; record the `Accept` exactly as an on-time Accept, so the Participant's consent row for that embargo moves to `AGREED` directly from `TIMED_OUT` or `DECLINED`, since a Participant that accepts after declining has changed its answer (EMB-17-002) |
+| A superseded or already-decided embargo | Send a fresh invitation carrying the case's current terms — the Active Embargo, or the earliest-expiring open proposal when none is in force — relayed like any other on behalf of that embargo's proposer. Do **not** record consent to terms the actor never saw (EMB-17-003, EMB-17-005, EP-08-002) |
 | An embargo the case no longer has | Nothing: the `Accept` changes nothing, so record no entry, send no reply, and change no consent. Do not invite, and do not remove the actor from the case (EMB-17-004, EMB-17-007, EMB-17-008) |
 
 None of the three rows removes the accepting actor.
