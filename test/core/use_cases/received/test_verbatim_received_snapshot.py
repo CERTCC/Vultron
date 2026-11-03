@@ -209,9 +209,11 @@ def test_a_resend_of_an_archived_activity_adds_no_entry():
     """The resend is routed as the archived copy; the first entry stands.
 
     The archived copy carries the first delivery's body as its evidence
-    (IE-10-001, VM-08-009).  ``Join`` (RM engage) has no repeat guard of its
-    own, so the resend reaches the commit with a body to record, and the
-    commit finds the activity already recorded as the same semantic.
+    (IE-10-001, VM-08-009), so the resend reaches the commit with a body to
+    record and the commit finds the activity already recorded as the same
+    semantic.  The sender's ``ACCEPTED`` is recorded by then, so the engage
+    tree's effects are skipped whole and the handler reports ``SKIPPED``
+    (ID-05-003, #5006); either way no second entry is written.
     """
     net = LedgerNetwork(CASE_ID)
     body = delivered_body(
@@ -231,7 +233,7 @@ def test_a_resend_of_an_archived_activity_adds_no_entry():
 
     verdict = run_use_case(dl, resend)
 
-    assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
+    assert verdict.disposition is HandlerDisposition.SKIPPED, verdict.reason
     assert [e.id_ for e in ledger_entries(dl, CASE_ID)] == before
 
 

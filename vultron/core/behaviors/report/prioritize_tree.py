@@ -35,10 +35,13 @@ Structure:
     ├─ AdjudicateRMDeclarationNode(ACCEPTED)         # RM acceptance rule (RSH-06-006)
     ├─ GuardedCommitCaseLedgerEntryBT                # Record receipt before effects (CLP-10-006)
     └─ EngageEffectsIfCaseManager                    # CASE_MANAGER only (RSH-08-003, #3814)
-       ├─ IdempotentTransitionRMtoAccepted           # Record the sender's ACCEPTED (RSH-08-001)
-       ├─ EmitRMGapNoteNode                          # RSH-06-004 note on a non-adjacent jump
-       ├─ CaptureCaseUpdateBroadcastExclusionsNode   # Resolve embargo-based exclusions
-       └─ BroadcastCaseUpdateNode                    # Announce(VulnerabilityCase) → all participants
+       └─ IdempotentEngageEffects (Selector)  # Restated Join: skip it all (#5006)
+          ├─ SenderAlreadyAccepted            # Nothing to record, nothing new
+          └─ RecordEngageAndAnnounce (Sequence)
+             ├─ IdempotentTransitionRMtoAccepted   # The sender's ACCEPTED (RSH-08-001)
+             ├─ EmitRMGapNoteNode                  # RSH-06-004 note on a jump
+             ├─ CaptureCaseUpdateBroadcastExclusionsNode  # Embargo exclusions
+             └─ BroadcastCaseUpdateNode            # Announce(VulnerabilityCase)
 
     DeferCaseBT (Sequence)
     ├─ Intake
@@ -82,6 +85,9 @@ from vultron.core.behaviors.case.nodes.update import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckParticipantRMState,
+)
 from vultron.core.behaviors.report.rm_declaration_tree import (
     record_rm_declaration,
     rm_declaration_guard,
@@ -101,6 +107,67 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _engage_effects_unless_restated(
+    case_id: str, actor_id: str
+) -> py_trees.behaviour.Behaviour:
+    """The CASE_MANAGER's engage effects, skipped when they would change nothing.
+
+    A ``Join`` declares one thing: the sender is at ``RM.ACCEPTED``.  The
+    CASE_MANAGER records that and announces the case the move changed.  A
+    second ``Join`` from a sender already recorded at ``ACCEPTED`` has no move
+    to record, so it has no change to announce either: the effects are skipped
+    whole, and the handler reports the delivery as ``SKIPPED`` rather than
+    queueing a second ``Announce(VulnerabilityCase)`` (ID-02-001, ID-05-003,
+    #5006).
+
+    The guard is the *first* child of the Selector, so it reads the sender's
+    recorded RM state before the write inside
+    :func:`~vultron.core.behaviors.report.rm_declaration_tree\
+.record_rm_declaration` sets it; asking after the write would always find
+    ``ACCEPTED`` and never announce.  It decides on the effect, not on the
+    activity id, so a restated ``Join`` under a fresh id is skipped too.
+
+    Structure::
+
+        IdempotentEngageEffects (Selector)
+        ├─ SenderAlreadyAccepted            # nothing left to do → skip
+        └─ RecordEngageAndAnnounce (Sequence)
+            ├─ … record_rm_declaration …    # the RM write and its entry
+            ├─ CaptureCaseUpdateBroadcastExclusionsNode
+            └─ BroadcastCaseUpdateNode      # Announce(VulnerabilityCase)
+
+    The Selector has no ``Success`` fallback, so a failure of the effects
+    still propagates as FAILURE rather than reading as a benign skip
+    (BTND-07-005).
+    """
+    return py_trees.composites.Selector(
+        name="IdempotentEngageEffects",
+        memory=False,
+        children=[
+            CheckParticipantRMState(
+                case_id=case_id,
+                actor_id=actor_id,
+                target_rm=RM.ACCEPTED,
+                name="SenderAlreadyAccepted",
+            ),
+            py_trees.composites.Sequence(
+                name="RecordEngageAndAnnounce",
+                memory=False,
+                children=[
+                    *record_rm_declaration(
+                        actor_id,
+                        RM.ACCEPTED,
+                        case_id,
+                        name="TransitionRMtoAccepted",
+                    ),
+                    CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
+                    BroadcastCaseUpdateNode(case_id=case_id),
+                ],
+            ),
+        ],
+    )
+
+
 def create_engage_case_tree(
     case_id: str,
     actor_id: str,
@@ -117,6 +184,9 @@ def create_engage_case_tree(
     CASE_MANAGER — broadcasts an Announce(VulnerabilityCase)
     to all eligible participants so they receive the updated case state
     (including embedded CaseParticipant objects for #572/#573 coverage).
+    A sender already recorded at ACCEPTED has declared nothing new, so the
+    effect block is skipped whole and no second Announce is queued
+    (:func:`_engage_effects_unless_restated`, #5006).
 
     Args:
         case_id: ID of VulnerabilityCase being engaged
@@ -150,13 +220,7 @@ def create_engage_case_tree(
         # CLP-07-013).  Only the
         # CASE_MANAGER then announces the canonical case state, authored as the
         # executing actor (CM-06-001).
-        manager_effects=[
-            *record_rm_declaration(
-                actor_id, RM.ACCEPTED, case_id, name="TransitionRMtoAccepted"
-            ),
-            CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
-            BroadcastCaseUpdateNode(case_id=case_id),
-        ],
+        manager_effects=[_engage_effects_unless_restated(case_id, actor_id)],
         manager_case_id=case_id,
         manager_gate_name="EngageEffectsIfCaseManager",
         refusal_effects=[rm_gap_note(actor_id, case_id)],

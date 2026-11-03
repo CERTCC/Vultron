@@ -110,12 +110,17 @@ class EngageCaseReceivedUseCase:
             case_id=case_id,
         )
 
-        # Not rm_declaration_verdict: a restated Join still runs the
-        # CASE_MANAGER's case broadcast, so it is not a no-op.
+        # A restated Join has no move to record, and so no change to
+        # announce: the tree skips the CASE_MANAGER's effects whole, and the
+        # handler reports that as SKIPPED, not APPLIED (ID-05-003, #5006).
         # Only the CASE_MANAGER records the move (HP-01-005).
         verdict = case_manager_verdict(
             tree,
-            verdict_from_bt(tree, result, label="EngageCaseBT"),
+            rm_declaration_verdict(
+                tree,
+                verdict_from_bt(tree, result, label="EngageCaseBT"),
+                label="EngageCaseBT",
+            ),
             self._dl,
             case_id,
         )
