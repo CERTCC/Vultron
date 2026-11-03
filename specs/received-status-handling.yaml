@@ -918,18 +918,16 @@ groups:
       A participant's RM status declaration is its assertion about itself, not about
       another actor. A receiver MUST take a received RM status declaration as a
       statement of the sending actor's own RM state. One participant record is not
-      declared by its participant: when the CASE_MANAGER emits the stub Invite in
-      answer to a received activity, it creates the invitee's record at the
-      RM.RECEIVED that it infers from its own send (CM-11-006, CM-17-018, CM-16-006,
-      BT-10-005).
+      declared by its participant: a new invitee's. The CASE_MANAGER creates it when
+      it emits the stub Invite in answer to a received activity (CM-11-006,
+      CM-17-018, CM-16-006). It sets the RM.RECEIVED that it infers from its own
+      send (BT-10-005).
     rationale: >-
-      A received activity is a statement about the state of the sender (HP-00-001), and
-      each participant declares its own status (ADR-0121). The mistake this rule
-      prevents has recurred (ADR-0089, CONCERN-3473): BT-17-006 selects the store in
-      which a received-side tree runs, not whose state the tree writes, and a tree that
-      takes the store as the subject moves the receiver's RM on a declaration about the
-      sender. How this codebase records the declaration is RSH-08-005; this rule states
-      only what other participants observe (MS-05-005, MS-12-010).
+      A received activity is a statement about the state of the sender (HP-00-001),
+      and each participant declares its own status (ADR-0121). The mistake this rule
+      prevents has recurred (ADR-0089, CONCERN-3473): a tree that takes its store
+      (BT-17-006) as the subject moves the receiver's RM on a declaration about the
+      sender. RSH-08-005 states how this codebase records the declaration.
     verification: Regression tests for the report-invalid and report-closed received-side use cases assert the
       sender's participant reaches the target RM state and the receiving actor's participant is unchanged.
     adr:

@@ -378,6 +378,9 @@ groups:
       ``test/architecture/test_participant_status_validation.py`` ratchets that.
       The CASE_MANAGER's birth write at the stub Invite is the one write that
       may carry ``vf`` for a vendor.
+      ``test_vendor_cannot_disclaim_awareness`` in
+      ``test/core/states/test_participant_transitions.py`` confirms that a VENDOR
+      reporting ``vf`` is refused with a PRM-06-002 violation.
     adr:
     - ADR-0121
     - ADR-0114
