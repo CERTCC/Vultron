@@ -208,16 +208,15 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
     ``{base_url}/actors/{slug}``, and its inbox is ``{id}/inbox``. So the id is
     canonicalized *before* the record is built, not only when choosing the store.
 
-    An unspecified id becomes a fresh **slug**, not a generated URI. Passing
-    ``make_id("actors")`` here did not work: it builds on ``adapters.utils
-    .BASE_URL`` rather than ``ServerConfig.base_url``, yielding
-    ``…/api/actors/{uuid}`` — no ``v2`` segment — and because that value already
-    carries a scheme, ``canonical_actor_uri`` normalises it (strips trailing slash)
-    but does not adopt a different base, so the record's id named an endpoint this
-    node does not serve; its store was reachable under one id and
-    ``GET /actors/{slug}`` resolved to another. Handing the canonicalizer a bare
-    slug is what makes the id and the serving endpoint the same string by
-    construction (ADR-0073#url-segment-computed-not-looked-up).
+    An unspecified id becomes a fresh **slug**, not a generated URI. A
+    generated URI already carries a scheme and a base, and
+    ``canonical_actor_uri`` normalises such a value (strips a trailing slash)
+    without adopting this node's base, so unless it was built on exactly that
+    base the record's id would name an endpoint this node does not serve: its
+    store would be reachable under one id and ``GET /actors/{slug}`` would
+    resolve to another. Handing the canonicalizer a bare slug is what makes the
+    id and the serving endpoint the same string by construction
+    (ADR-0073#url-segment-computed-not-looked-up).
 
     A client-supplied id under a **foreign** authority is rejected with 422.
     Peers are not hosted actors — they are address-book entries inside each hosted

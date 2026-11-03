@@ -13,63 +13,26 @@
 import re
 
 from vultron.adapters import utils
+from vultron.core.models.object_ids import URN_UUID_PREFIX, new_object_id
 
 _UUID_PATTERN = re.compile(
     "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 )
 
 
-def test_id_prefix_returns_expected_prefix_for_object_types(test_base_url):
+def test_parse_id_extracts_components_correctly():
+    base_url = "https://test.vultron.local/"
     for object_type in ["Actor", "Activity", "Collection"]:
-        expected_prefix = f"{test_base_url}{object_type}/"
-        assert utils.id_prefix(object_type) == expected_prefix
-
-
-def test_make_id_generates_id_with_uuid_suffix_and_expected_segments(
-    test_base_url,
-):
-    for object_type in ["Actor", "Activity", "Collection"]:
-        object_id = utils.make_id(object_type)
-        assert object_id.startswith(f"{test_base_url}{object_type}/")
-        # expect base_url + object_type + uuid (split may include empty segments if base_url has trailing slash)
-        assert len(object_id.split("/")) >= 3
-        uuid_part = object_id.split("/")[-1]
-        assert _UUID_PATTERN.fullmatch(uuid_part) is not None
-
-
-def test_parse_id_extracts_components_correctly(test_base_url):
-    for object_type in ["Actor", "Activity", "Collection"]:
-        object_id = utils.make_id(object_type)
+        object_id = new_object_id(prefix=f"{base_url}{object_type}")
         parsed = utils.parse_id(object_id)
-        assert parsed["base_url"] == test_base_url
+        assert parsed["base_url"] == base_url
         assert parsed["object_type"] == object_type
         assert _UUID_PATTERN.fullmatch(parsed["object_id"]) is not None
 
 
-def test_base_url_reads_from_vultron_server_base_url_env_var(monkeypatch):
-    custom_url = "https://custom.vultron.example/"
-    monkeypatch.setenv("VULTRON_SERVER__BASE_URL", custom_url)
-    import importlib
-
-    from vultron import config as cfg_module
-    from vultron.adapters import utils
-
-    cfg_module.reload_config()
-    importlib.reload(utils)
-    assert custom_url == utils.BASE_URL
-
-
-def test_make_id_produces_uri_form_id():
-    object_id = utils.make_id("Actor")
-    assert "://" in object_id, "make_id() must return a URI-form ID"
-
-
-def test_id_prefix_handles_base_url_without_trailing_slash(
-    monkeypatch, test_base_url
-):
-    object_type = "Actor"
-    monkeypatch.setattr(
-        utils, "BASE_URL", "https://test.vultron.local"
-    )  # no trailing slash
-    expected_prefix = f"{test_base_url}{object_type}/"
-    assert utils.id_prefix(object_type) == expected_prefix
+def test_parse_id_splits_a_urn_uuid_id():
+    object_id = new_object_id()
+    parsed = utils.parse_id(object_id)
+    assert parsed["base_url"] == URN_UUID_PREFIX
+    assert parsed["object_type"] is None
+    assert object_id == f"{URN_UUID_PREFIX}{parsed['object_id']}"

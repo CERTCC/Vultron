@@ -41,7 +41,6 @@ from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
-    _new_urn,
     absent_times_as_none,
     as_utc,
     blank_times_as_none,
@@ -49,6 +48,7 @@ from vultron.core.models._helpers import (
     now_utc,
     refuse_absent_published,
 )
+from vultron.core.models.object_ids import new_object_id
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 from vultron.errors import Violation, VultronProtocolViolationError
 from vultron.primitives import NonEmptyString, UriString  # noqa: F401
@@ -129,7 +129,7 @@ class CoreRecord(ValidatedAssignmentMixin):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     id_: NonEmptyString = Field(
-        default_factory=_new_urn,
+        default_factory=new_object_id,
         validation_alias="id",
         serialization_alias="id",
     )

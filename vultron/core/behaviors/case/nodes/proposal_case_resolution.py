@@ -38,11 +38,11 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import (
-    _new_urn,
     now_utc,
     project_wire_snapshot_to_core,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.object_ids import new_object_id
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronAlreadyExistsError
@@ -217,7 +217,7 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
         assert self.datalayer is not None and self.actor_id is not None
 
         case = VulnerabilityCase(
-            id_=_new_urn(),
+            id_=new_object_id(),
             published=now_utc(),
             attributed_to=self._owner_id,
         )

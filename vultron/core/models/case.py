@@ -36,7 +36,6 @@ from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
     STORED_CONTEXT_KEY,
     _as_id,
-    _new_urn,
     most_recent_status,
     now_utc,
     now_utc_after,
@@ -65,6 +64,7 @@ from vultron.core.models.ledger_position import (
     EMPTY_LEDGER_LOG_INDEX,
     LedgerPosition,
 )
+from vultron.core.models.object_ids import new_object_id
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.retired_stored_fields import (
     RetiredFieldsRecord,
@@ -364,7 +364,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
             # Mint only an absent id: a blank one is refused by ``id_``'s
             # type, not silently replaced (CS-08-001).
             if data.get("id") is None and data.get("id_") is None:
-                data["id"] = _new_urn()
+                data["id"] = new_object_id()
             case_id = data.get("id") or data.get("id_")
             published_val = _genesis_published(data, inbound)
             if published_val is not None:
@@ -421,7 +421,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
             # Mint only an absent id: a blank one is refused by ``id_``'s
             # type, not silently replaced (CS-08-001).
             if data.get("id") is None and data.get("id_") is None:
-                data["id"] = _new_urn()
+                data["id"] = new_object_id()
             case_id = data.get("id") or data.get("id_")
             data[statuses_key] = [
                 CaseStatus(
@@ -667,7 +667,9 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         # update, so the overrides are assigned one by one under
         # ``validate_assignment`` instead, and the case context and bumped
         # timestamps are assigned last so that they always win.
-        status = current.model_copy(update={"id_": _new_urn(), "name": None})
+        status = current.model_copy(
+            update={"id_": new_object_id(), "name": None}
+        )
         for name, value in {
             **updates,
             "context": self.id_,

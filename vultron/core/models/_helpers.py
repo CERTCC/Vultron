@@ -16,7 +16,6 @@
 """Shared helper utilities for core domain model types."""
 
 import types
-import uuid
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import (
@@ -531,10 +530,6 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
         remap.get(key, key): value for key, value in collapsed.items()
     }
     return absent_times_as_none(cls, projected)
-
-
-def _new_urn() -> str:
-    return f"urn:uuid:{uuid.uuid4()}"
 
 
 def _as_id(obj: Any) -> str | None:

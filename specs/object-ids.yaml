@@ -71,18 +71,22 @@ groups:
   - id: OID-01-004
     priority: MUST
     kind: project
-    verification_debt: '#2575'
     statement: >-
       This codebase MUST mint every new object ID through one helper that the core and
       wire layers share.
     rationale: >-
       If each layer built IDs its own way, objects could get IDs in different forms
       (bare UUID, `urn:uuid:`, base-URL HTTPS), and lookups by full URI would miss some
-      of them (OID-02-004). One helper keeps every minted ID in one form, the configured
-      one (OID-01-003). The wire layer may import `vultron/core/models` (ARCH-22-001),
-      so a helper there can serve both layers.
+      of them (OID-02-004). One helper keeps every minted ID in one form. The wire layer
+      may import `vultron/core/models` (ARCH-22-001), so a helper there can serve both
+      layers.
     adr:
     - ADR-0010
+    verification: >-
+      `test/architecture/test_single_object_id_minter.py` confirms that the core and
+      wire `id_` default factories are both
+      `vultron.core.models.object_ids.new_object_id`, and that no other module under
+      `vultron/` draws a random UUID except the listed non-id uses.
   - id: OID-01-005
     priority: MUST
     kind: project

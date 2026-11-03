@@ -14,11 +14,11 @@
 import random
 from datetime import UTC, datetime
 from typing import TypedDict, get_args
-from uuid import uuid4
 
 from pydantic import BaseModel
 
 from vultron.core.models.actor import hosted_endpoints
+from vultron.core.models.object_ids import new_object_id
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Organization,
@@ -67,7 +67,8 @@ def _example_stamp() -> _ExampleStamp:
 
 
 def _make_id(object_type: str) -> str:
-    return f"{_EXAMPLE_BASE_URL}{object_type}/{uuid4()}"
+    """A new example id under the example base URL, minted by the shared minter."""
+    return new_object_id(prefix=f"{_EXAMPLE_BASE_URL}{object_type}")
 
 
 base_url = "https://vultron.example"
