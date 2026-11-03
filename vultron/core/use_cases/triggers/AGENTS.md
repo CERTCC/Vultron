@@ -19,25 +19,26 @@ class RunMode(StrEnum):
     PROD = "prod"
 ```
 
-`RunMode` MUST use `StrEnum`. In `PROD`, the demo router is not mounted
-→ HTTP 404 for all `/demo/` paths. Env var:
-`VULTRON_SERVER__RUN_MODE=prod`.
+`RunMode` MUST use `StrEnum`. It is the top-level config field
+`AppConfig.mode` (TRIG-08-005), not a `server:` field. In `PROD`, the demo
+router is not mounted → HTTP 404 for all `/demo/` paths. Env var:
+`VULTRON_MODE=prod`.
 
 ## Demo Router Conditional Mounting
 
 ```python
-from vultron.config import get_config
-from vultron.enums import RunMode
+from vultron.config import RunMode, get_config
 
-config = get_config()
-if config.server.run_mode == RunMode.PROTOTYPE:
-    app.include_router(demo_router)
+if get_config().mode == RunMode.PROTOTYPE:
+    app.include_router(demo_triggers.router)
 ```
 
 ## Layer and Import Rules
 
-- `RunMode` MUST be defined in `vultron/enums.py` (alongside
-  `MessageSemantics`) to avoid circular imports.
-- The demo router module MUST NOT be imported unconditionally — only
-  inside the `if run_mode == PROTOTYPE` branch.
-- Demo use-case classes MUST live under `vultron/core/use_cases/demo/`.
+- `RunMode` is defined in `vultron/config/app.py` and imported from
+  `vultron.config`.
+- The demo router module is always imported; only its mounting depends on
+  the mode (TRIG-09-002), in `vultron/adapters/driving/fastapi/app.py`.
+- Demo-only verbs reuse the trigger use cases in this package; the demo
+  router in `vultron/adapters/driving/fastapi/routers/demo_triggers.py`
+  wraps them with `run_trigger`.

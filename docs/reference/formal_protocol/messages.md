@@ -51,8 +51,7 @@ recommendation:
 
 !!! note ""
 
-    Participants whose state changes in the RM, EM, or CVD State Models SHOULD send a message to
-    other Participants for each transition.
+    Participants whose state changes in the RM, EM, or CVD State Models SHOULD send a message for each transition to the case's CASE_MANAGER, which fans it out to the other Participants.
 
 If you are looking for a one-sentence summary of the entire Vultron Protocol, that was it.
 

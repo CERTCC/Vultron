@@ -34,7 +34,7 @@ groups:
       (IE-05-001).
     relationships:
     - rel_type: depends_on
-      spec_id: HTTP-01-003
+      spec_id: IE-05-001
   - id: TRIG-01-003
     priority: MUST
     kind: project
@@ -63,7 +63,7 @@ groups:
       (IE-05-002).
     relationships:
     - rel_type: depends_on
-      spec_id: IE-03-001
+      spec_id: IE-05-002
   - id: TRIG-01-005
     priority: MUST
     kind: project
@@ -193,13 +193,16 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      Each trigger request body MUST include at least one of `case_id` (for
-      case-scoped behaviors) or `offer_id` (for offer-response behaviors).
-      Full per-behavior field requirements are defined in the API schema.
+      A trigger request body for a case-scoped behavior or an offer response MUST
+      include the id of that case or offer. The case id is `case_id`. The offer id is
+      `offer_id`, or `cp_offer_id` for an answer to an actor recommendation.
     rationale: >-
       A case-scoped behavior with no case id has nothing to act on. An offer response
       with no offer id also has nothing to act on. When the request schema requires the
-      id, the server refuses a call that cannot run, before it queues anything.
+      id, the server refuses a call that cannot run, before it queues anything. Other
+      triggers name their target by another field, which the API schema defines:
+      `submit-report` names its `recipient_id`, `create-case` an optional `report_id`,
+      and each answer to a case invite its `invite_id`.
   - id: TRIG-03-002
     priority: MUST
     kind: project
@@ -437,15 +440,19 @@ groups:
   - id: TRIG-08-005
     priority: MUST
     kind: project
-    statement: '`RunMode` MUST be stored as `ServerConfig.run_mode` within `AppConfig` (CFG-04-001) with a default of `RunMode.PROTOTYPE`'
+    statement: >-
+      This codebase MUST store `RunMode` as the top-level field `AppConfig.mode`, set
+      by `VULTRON_MODE`, with a default of `RunMode.PROTOTYPE`.
     rationale: >-
       All run-time settings are in one configuration model (CFG-04-001), so the mode is
-      set in the same place as all other settings. The default is `PROTOTYPE` because
-      this codebase runs as a prototype, and its demos need the demo routes with no
-      extra setup.
+      set in the same place as all other settings. The mode decides which routes the
+      server mounts, not how the server runs, so it sits beside `server:` rather than
+      inside it. The default is `PROTOTYPE` because this codebase runs as a prototype,
+      and its demos need the demo routes with no extra setup.
     verification: >-
-      Inspection of `vultron/core/` confirms that `ServerConfig.run_mode` is typed
-      as `RunMode` within `AppConfig` and defaults to `RunMode.PROTOTYPE`.
+      `test_defaults_mode` and `test_env_override_mode` in `test/test_config.py`
+      confirm that `get_config().mode` defaults to `RunMode.PROTOTYPE` and that
+      `VULTRON_MODE=prod` sets it to `RunMode.PROD`.
     relationships:
     - rel_type: depends_on
       spec_id: CFG-04-001
@@ -470,7 +477,7 @@ groups:
     verification_debt: '#2575'
     statement: >-
       The FastAPI application MUST include the demo router only when
-      `get_config().server.run_mode == RunMode.PROTOTYPE`.
+      `get_config().mode == RunMode.PROTOTYPE`.
     rationale: >-
       Demo-only verbs move an actor through steps that it would do by itself. If a
       production server mounted them, any caller could make an actor do a step in place
@@ -479,15 +486,19 @@ groups:
   - id: TRIG-09-003
     priority: MUST
     kind: project
-    statement: When `run_mode == RunMode.PROD`, any request to a path under `/demo/` MUST return HTTP 404 (the routes are
-      not mounted; no custom error message is required)
+    statement: >-
+      When `get_config().mode == RunMode.PROD`, any request to a path under `/demo/`
+      MUST return HTTP 404 (the routes are not mounted; no custom error message is
+      required)
     rationale: >-
       A production server must not show that demo controls exist. When the routes are
       not mounted, the server returns the same 404 as for any unknown path. No special
       handler is necessary, so no special handler can be wrong.
     verification: >-
-      Integration tests in `test/demo/` confirm that, when `run_mode` is set to
-      `RunMode.PROD`, any request to a path under `/demo/` returns HTTP 404.
+      `test_absent_in_prod_and_answers_404` in
+      `test/adapters/driving/fastapi/routers/test_demo_triggers.py` confirms that,
+      with `VULTRON_MODE=prod`, a demo path is not mounted and a request to it returns
+      HTTP 404.
     relationships:
     - rel_type: depends_on
       spec_id: TRIG-09-002
@@ -707,17 +718,26 @@ groups:
   - id: TRIG-11-004
     priority: MUST
     kind: project
-    statement: Every ownership-transfer trigger MUST return an `activity` field in its response body containing the emitted
-      ActivityStreams object, consistent with the response contract for all other trigger endpoints (TRIG-05-001).
+    statement: >-
+      Every ownership-transfer trigger MUST return the emitted ActivityStreams object in
+      the `activity` field of its response body.
     rationale: >-
-      A later step names the activity that a transfer trigger sent: a withdrawal names
-      the proposal of the owner (TRIG-11-006). When the response returns the activity in
-      `activity`, as other triggers do, the caller gets that id without a second lookup.
+      TRIG-04-001 recommends this response shape for every trigger, and TRIG-04-002 lets
+      a long-running trigger return a job object instead. A transfer trigger makes the
+      shape binding because a later step names the activity that it sent: a withdrawal
+      names the proposal of the owner (TRIG-11-006). When the response returns the
+      activity in `activity`, the caller gets that id without a second lookup.
     verification: >-
-      Integration tests in `test/demo/` confirm that every ownership-transfer
-      trigger response includes an `activity` field containing the emitted
-      ActivityStreams object.
+      `test_route_answers_202_with_exactly_the_rows_keys` in
+      `test/adapters/driving/fastapi/test_trigger_routes_contract.py` pins the
+      `activity` key on each transfer route's response. The use-case tests marked
+      TRIG-11-004 in `test/core/use_cases/triggers/` (`test_actor_triggers.py`,
+      `test_reject_case_ownership_transfer.py` and
+      `test_withdraw_case_ownership_transfer.py`) check that each of the four transfer
+      triggers returns the activity it emitted.
     relationships:
+    - rel_type: refines
+      spec_id: TRIG-04-001
     - rel_type: refines
       spec_id: TRIG-11-001
     - rel_type: refines

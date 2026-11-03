@@ -19,9 +19,9 @@ each scenario's ``_phase_*`` functions — and then briefly on
 ``helpers/coordinated_case.py`` — sit on the shared fragments and helpers
 here: the milestone calls, the causal gates, the skip-on-failure behaviour of
 the invite chain now that the Invite and the answer are two fragments with the
-Vendor's branch point between them, and the three helpers the continuations
-share (``invitee_joins_the_case``, ``close_the_case``,
-``dump_coordinated_ledgers``).
+Vendor's branch point between them, and the two helpers the continuations
+share (``invitee_joins_the_case``, ``close_the_case``).  The client and
+ledger-dump plumbing every family shares is pinned in ``test_story_cast.py``.
 
 Every test patches the collaborators out, so no HTTP happens; ``demo_gate`` /
 ``demo_check`` / ``demo_step`` are left real wherever the test is about control
@@ -59,19 +59,7 @@ from test.demo._helpers import (
 )
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import coordinated_story, invite_chain, story_cast
-from vultron.demo.helpers.actor_roles import (
-    ActorRole,
-    case_actor_role,
-    role_map,
-)
-from vultron.demo.helpers.cast import (
-    CASE_ACTOR,
-    COORDINATOR_SLOT,
-    REPORTER_SLOT,
-    VENDOR_SLOT,
-)
 from vultron.demo.helpers.coordinated_story import (
-    CASE_ACTOR_NAME,
     COORDINATOR,
     COORDINATOR_LABEL,
     ENGAGED_CASE,
@@ -80,12 +68,9 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER_LABEL,
     VENDOR,
     VENDOR_LABEL,
-    CastContainer,
     close_the_case,
-    coordinated_clients,
     coordinated_seats,
     coordinator_invites_vendor,
-    dump_coordinated_ledgers,
     everyone_closes,
     everyone_publishes,
     invitee_joins_the_case,
@@ -99,10 +84,9 @@ from vultron.demo.helpers.coordinated_story import (
 )
 from vultron.demo.helpers.story import (
     StoryProp,
-    StoryState,
     UnseatedContainer,
 )
-from vultron.demo.utils import case_actor_id_on, reset_demo_failures
+from vultron.demo.utils import reset_demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 
@@ -171,49 +155,6 @@ def _recorded_gates() -> Iterator[list[str]]:
 
     with patch.object(coordinated_story, "demo_gate", side_effect=_gate):
         yield labels
-
-
-def _bind_container_actors(state: StoryState, *names: str) -> None:
-    """Bind each named client's ``actor_id``, and the case actor's, as seeding does.
-
-    ``replica_route_key`` reads a dump target's route key off the client's own
-    actor id (ADR-0073), and ``seeding._own_actor`` binds it as each
-    container's actor is created.  A ``MagicMock`` client carries a truthy
-    ``actor_id`` that is not a URI, so without this the real helper would key
-    the dump on a mock's repr and a mis-paired client would still look right.
-    """
-    for name in (*names, CASE_ACTOR_NAME):
-        client = (
-            state.case_actor_client
-            if name == CASE_ACTOR_NAME
-            else state.client(name)
-        )
-        client.actor_id = f"http://{name}:7999/api/v2/actors/{name}"
-
-
-def _roles() -> dict[str, ActorRole]:
-    """The family's three fixed roles plus the dedicated case actor."""
-    return role_map(
-        [
-            ActorRole(REPORTER, REPORTER_SLOT, "Reporter", has_id=True),
-            ActorRole(
-                COORDINATOR, COORDINATOR_SLOT, "Coordinator", has_id=True
-            ),
-            ActorRole(VENDOR, VENDOR_SLOT, "Vendor", has_id=True),
-            case_actor_role(),
-        ]
-    )
-
-
-def _members(
-    vendor_url: str | None = None,
-) -> list[CastContainer]:
-    """The family's three containers in ``ROLES`` order."""
-    return [
-        CastContainer(REPORTER, "Reporter"),
-        CastContainer(COORDINATOR, "Coordinator"),
-        CastContainer(VENDOR, "Vendor", vendor_url),
-    ]
 
 
 # ---------------------------------------------------------------------------
@@ -408,74 +349,6 @@ class TestCoordinatedSeats:
             "an absent --<role>-id must stay absent, so the container derives"
             f" the actor's URI itself; got {seats!r}"
         )
-
-
-class TestCoordinatedClients:
-    """One client set and one health check for the whole family."""
-
-    def test_each_address_falls_back_to_its_cast_slot(self):
-        with patch.object(
-            coordinated_story, "check_all_containers"
-        ) as checked:
-            clients = coordinated_clients(
-                _roles(), _members(), skip_health_check=False
-            )
-
-        assert sorted(clients) == sorted(
-            [REPORTER, COORDINATOR, VENDOR, CASE_ACTOR_NAME]
-        )
-        assert clients[REPORTER].base_url == REPORTER_SLOT.url
-        assert clients[COORDINATOR].base_url == COORDINATOR_SLOT.url
-        assert clients[VENDOR].base_url == VENDOR_SLOT.url
-        assert clients[CASE_ACTOR_NAME].base_url == CASE_ACTOR.url
-        # The case-actor client is bound to the CaseActor its container hosts,
-        # so a read through it addresses the canonical store (ADR-0073).
-        assert clients[CASE_ACTOR_NAME].actor_id == case_actor_id_on(
-            CASE_ACTOR.url
-        )
-        assert [label for label, _c in checked.call_args.args[0]] == [
-            "Reporter",
-            "Coordinator",
-            "Vendor",
-            "CaseActor",
-        ]
-
-    def test_an_override_wins_and_the_check_can_be_skipped(self):
-        """A ``--<role>-url`` beats the slot, for both kinds of container."""
-        case_actor_url = "http://other-case-actor:7999/api/v2"
-        with patch.object(
-            coordinated_story, "check_all_containers"
-        ) as checked:
-            clients = coordinated_clients(
-                _roles(),
-                _members(vendor_url="http://elsewhere:7999/api/v2"),
-                skip_health_check=True,
-                case_actor_url=case_actor_url,
-            )
-
-        assert clients[VENDOR].base_url == "http://elsewhere:7999/api/v2"
-        assert clients[REPORTER].base_url == REPORTER_SLOT.url
-        # The overridden case-actor client is still bound to the CaseActor of
-        # the container it now addresses, not of the slot it left.
-        assert clients[CASE_ACTOR_NAME].base_url == case_actor_url
-        assert clients[CASE_ACTOR_NAME].actor_id == case_actor_id_on(
-            case_actor_url
-        )
-        checked.assert_not_called()
-
-    def test_a_member_the_roles_do_not_seat_fails_loudly(self):
-        """A scenario whose ``ROLES`` and ``main()`` have drifted apart.
-
-        The member's address comes from its cast slot, so a name the role map
-        does not hold has no container at all; raising here names the drift,
-        where falling back would health-check somebody else's.
-        """
-        with pytest.raises(KeyError):
-            coordinated_clients(
-                _roles(),
-                [CastContainer("nobody", "Nobody")],
-                skip_health_check=True,
-            )
 
 
 # ---------------------------------------------------------------------------
@@ -1121,81 +994,6 @@ class TestInviteeJoinsTheCase:
 
         assert "✓ Joiner joined case" in caplog.text
         assert "M2" not in caplog.text
-
-
-# ---------------------------------------------------------------------------
-# The ledger dump, with the devlogs name separate from the cast name
-# ---------------------------------------------------------------------------
-
-
-class TestDumpCoordinatedLedgers:
-    """Whose ledger is dumped, under what name, and from whose client."""
-
-    def test_a_pair_names_the_devlogs_directory_and_the_cast_member(self):
-        """``(devlogs name, cast name)`` dumps one member under another name.
-
-        ``rcvcv`` calls its Coordinator ``c1`` in its devlogs, which is where
-        its invariant harness loads the ledger from, while the story seats it
-        under the family's ``coordinator`` (DEMOMA-19-018).  The route key
-        stays the actor's own: it selects the store (ADR-0073), so a key taken
-        from the devlogs name would read an actor that does not exist and the
-        dump would report an empty ledger.
-        """
-        state = story_state(*_CAST, case=mock_case())
-        _bind_container_actors(state, *_CAST)
-
-        with patch.object(coordinated_story, "dump_case_ledgers") as dump:
-            dump_coordinated_ledgers(
-                state, replicas=[REPORTER, ("c1", COORDINATOR), VENDOR]
-            )
-
-        kwargs = dump.call_args.kwargs
-        targets = kwargs["targets"]
-        assert [t.actor_name for t in targets] == [
-            REPORTER,
-            "c1",
-            VENDOR,
-            CASE_ACTOR_NAME,
-        ]
-        assert [t.route_key for t in targets] == [
-            REPORTER,
-            COORDINATOR,
-            VENDOR,
-            CASE_ACTOR_NAME,
-        ]
-        assert targets[1].client is state.client(COORDINATOR)
-        # The canonical ledger is read on the dedicated case-actor container
-        # and nowhere else (DEMOMA-06-005).
-        assert targets[-1].client is state.case_actor_client
-        assert not kwargs["unreplicated"], (
-            "nobody acted in this case without a replica to dump"
-        )
-
-    def test_an_unreplicated_member_is_named_but_not_dumped(self):
-        """A Vendor that rejected its invite was never a participant (#4248).
-
-        It has no replica to export, so it gets no dump target; it is still
-        recorded in the manifest, under its own route key, so its entries'
-        recorded actor resolves to a name.
-        """
-        state = story_state(*_CAST, case=mock_case())
-        _bind_container_actors(state, *_CAST)
-
-        with patch.object(coordinated_story, "dump_case_ledgers") as dump:
-            dump_coordinated_ledgers(
-                state,
-                replicas=[REPORTER, COORDINATOR],
-                unreplicated=(VENDOR,),
-            )
-
-        kwargs = dump.call_args.kwargs
-        assert [t.actor_name for t in kwargs["targets"]] == [
-            REPORTER,
-            COORDINATOR,
-            CASE_ACTOR_NAME,
-        ]
-        # ``{manifest name: route key}``; both are the Vendor's own.
-        assert kwargs["unreplicated"] == {VENDOR: VENDOR}
 
 
 # ---------------------------------------------------------------------------

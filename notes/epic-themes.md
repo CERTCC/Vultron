@@ -8,12 +8,13 @@ description: >
   `theme-labels` script syncs GitHub from it. The rules for applying a theme:
   classify by outcome, one theme per leaf, an Epic's second theme only when its
   body names the split, the theme contains the grain, the `Theme:` reason line;
-  Epic titles as done-state claims, one job per Epic body line, and Epic size
-  for fusing and splitting; borderline examples; the `theme-fit` structural
-  check, its untriaged list, the split line and the auto-calved marker it
-  reads, the standing report Issue the daily workflow rewrites; the
-  `theme-gate` check that refuses a new Issue breaking these rules; how to act
-  on a theme-fit finding; and
+  Epic titles as done-state claims, one job per Epic body line, and Epic size,
+  tier and theme for fusing and splitting; borderline examples; the
+  `theme-fit` structural check, its untriaged list, the split line and the
+  auto-calved marker it reads, the Epic title and body form checks, the
+  standing report Issue the daily workflow rewrites; the `theme-gate` check
+  that refuses a new Issue or Epic breaking these rules; how to act on a
+  theme-fit finding; and
   triage-label rules (`needs-info`, `ready-for-human`, and retired labels).
 related_specs:
   - specs/parallel-development.yaml
@@ -337,24 +338,44 @@ Theme: theme:dev-workflow — gives every skill one shared definition of the the
 | Slot | Says | Example |
 |---|---|---|
 | Title | What is true when the Epic is done | Trigger callers can see whether their action succeeded, was refused, or failed |
-| `Theme:` line | Why the claim matters to the theme | `Theme: theme:protocol-correctness — callers stop mistaking a dropped action for success` |
+| `Theme:` line | The consequence of the claim that a reader of the theme notices | `Theme: theme:protocol-correctness — callers stop mistaking a dropped action for success` |
 | `Design idea:` line | The approach tying the children together, with mechanism and IDs | `Design idea: each trigger records an outcome the caller can poll` |
+| `Theme split:` line (two themes only) | Which part of the Epic serves which theme | `Theme split: theme:a covers the parser; theme:b covers the CLI.` |
 
-- **Rule**: the `Theme:` line says why the claim matters to the theme
-  (PAD-02-033); the `Design idea:` line holds the approach, with any mechanism
-  and IDs (PAD-02-038).
+- **Rule**: the `Theme:` line's outcome is the consequence a reader of the
+  theme notices (PAD-02-033); the `Design idea:` line holds the approach, with
+  any mechanism and IDs (PAD-02-038).
 - **Reason**: the title carries no mechanism, so the approach needs one home.
   The design idea as an approach is the grain `calve-epics` cuts along.
+- **The outcome is not a second title.** Before: title "Trigger callers can
+  see whether their action succeeded", outcome "trigger callers can see
+  whether their action succeeded". After: outcome "callers stop mistaking a
+  dropped action for success". The first restates the claim; the second says
+  what changes for someone working in the theme.
 - **No line or section restates another** (PAD-02-034). A `## Design idea`
   section that repeats the line is removed: copies drift.
 
 ### Size, fusing and splitting
 
-- **Rule**: an Epic holds about as many open leaf Issues as one
-  `work-epic-tasks` run drains, about 10 (PAD-02-035).
+- **Rule**: an Epic holds no more than 12 open Task, Feature and Bug leaves,
+  about what one `work-epic-tasks` run drains (PAD-02-035).
+- **Count only what a run drains.** `work-epic-tasks` never drains Ideas or
+  Concerns, so they do not count; an Epic of 12 Ideas is a planning queue.
+- **Over 12 calls for a split** (`calve-epics` Mode 3). When the user keeps
+  one whole, a comment on the Epic gives the reason, so the next pass does not
+  propose the same split.
 - **Fuse only Epics that share an outcome and fit together** (PAD-02-036). A
   shared outcome is not enough: two Epics that would be too big together stay
   separate.
+- **Fusing across tiers states the tier** (PAD-02-039). Leaves take their
+  Epic's tier, so fusing a Someday Epic into a Next one promotes every child
+  it brings.
+- **A split's new Epic keeps its parent's tier** unless the proposal states
+  another (PAD-02-040). Its theme is judged from its own children's outcome
+  (PAD-02-016), and it keeps a `Theme split:` line only if it still spans both
+  themes.
+- **A Now or Focus Epic may be size-split** when every new Epic keeps its
+  tier: no child changes rank. It is otherwise frozen (`calve-epics` Mode 3).
 - **Size-split siblings claim their own slice** (PAD-02-037): a layer, a set of
   spec groups, or a phase. For example, "Internal errors in the code surface;
   none pass as success or refusal" and "Lint stops new silent catches from
@@ -406,8 +427,29 @@ findings, 1 with any, and 2 when the catalog or `gh` fails.
   theme or a named split, a missing `Theme:` line, a child theme its Epic does
   not carry, a non-Epic whose parent chain reaches no open Epic (a parent in
   another repository ends the walk, since its number means nothing here), an Epic
-  nested under an Epic, an auto-calved Epic still single-child, and a label
-  the catalog does not list or lists as retiring.
+  nested under an Epic, an auto-calved Epic still single-child, the Epic form
+  breaches below, and a label the catalog does not list or lists as retiring.
+- **Epic form findings**, one kind each (`epic_form_findings` in
+  `vultron/metadata/planning/theme_fit/analyze.py`): a title holding an ADR
+  number or a spec ID in any case and with any dash, or a group ID whose prefix
+  is a spec topic, so `SYNC-19` counts and `UTF-16` does not (`epic-title-id`,
+  PAD-02-032), a title that
+  starts with `Epic:` (`epic-title-prefix`, PAD-02-030), a `Theme:` outcome
+  holding, or a cut-down copy of, the title (`theme-outcome-repeats`,
+  PAD-02-034), no unfenced `Design idea:`
+  line with text after the colon (`missing-design-idea`, PAD-02-038; a bold,
+  bulleted or lowercase near miss is named in the finding), a `Design idea:`
+  line holding, or a cut-down copy of, the title or a `Theme:` outcome
+  (`design-idea-repeats`, PAD-02-034), and a `## Design idea` section that
+  repeats the line (`design-section-repeats`, PAD-02-034).
+- **Form, not meaning.** Repeats are matched on words, ignoring case,
+  punctuation and spacing, in both directions. A copied run of under four
+  words counts only when it is the whole of the other text, so a short phrase
+  that recurs by chance is not a repeat. Whether a title states the right claim, or a
+  `Design idea:` line states an approach, is a reviewer's call; the check has
+  no verb, audience or length heuristics. Only `Epic:` is checked as a label
+  prefix: a `name: outcome` title cannot be told by its form from a claim with
+  a colon, so the reviewer catches it under PAD-02-030.
 - **A `Theme:` line counts** only when a dash with a space on each side
   follows the label and some outcome text follows the dash. The check does
   not judge whether the outcome is right; a reviewer does (PAD-02-016).
@@ -428,9 +470,12 @@ PAD-02-013, PAD-02-024).
 
 - **Rule**: a new Issue needs exactly one active theme, a `Theme:` line naming
   it, and an open parent carrying that theme; a new Epic needs one theme, or
-  two with a named split, and a `Theme:` line.
-- **Reason**: the label rules are the same ones `theme-fit` applies
-  (`label_findings` in `vultron/metadata/planning/theme_fit/analyze.py`), so a
+  two with a named split, a `Theme:` line, and none of the Epic form breaches
+  above. `create_epic.sh` passes the title with `--title`; `theme-gate
+  --epic` refuses to run without it.
+- **Reason**: the label and form rules are the same ones `theme-fit` applies
+  (`label_findings` and `epic_form_findings` in
+  `vultron/metadata/planning/theme_fit/analyze.py`), so a
   created Issue never shows up in the report for a rule the gate could check.
   Only the blind content audit (`calve-epics` Mode 3) can tell whether a
   well-formed theme is the right one.

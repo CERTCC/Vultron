@@ -116,4 +116,17 @@ the parent, and run `create-issue` again.
 Epics are created via the `create-epic` skill, whose script takes
 no parent: Epics sit at the root, one layer deep. It runs the same gate in Epic
 mode: one active theme, or two with a body line naming both (PAD-02-015), and a
-`Theme:` line. No other exemptions exist.
+`Theme:` line. Epic mode also takes the title (`--title`, required and
+non-empty) and refuses, printing every breach:
+
+- a title holding an ADR number or a spec ID, or a group ID with a spec
+  topic's prefix (PAD-02-032), or starting with `Epic:` (PAD-02-030);
+- a `Theme:` outcome that holds, or is a cut-down copy of, the title
+  (PAD-02-034);
+- a body with no `Design idea:` line, outside a code fence, that has text
+  after the colon (PAD-02-038);
+- a `Design idea:` line that holds, or is a cut-down copy of, the title or a
+  `Theme:` outcome, or a `## Design idea` section that repeats the line
+  (PAD-02-034).
+
+No other exemptions exist.

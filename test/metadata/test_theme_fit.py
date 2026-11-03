@@ -74,6 +74,9 @@ def catalog() -> ThemeCatalog:
     return parse_theme_catalog(_NOTE, "note.md")
 
 
+_DESIGN_IDEA = "Design idea: one approach ties the children together.\n"
+
+
 def _issue(
     number: int,
     *themes: str,
@@ -82,13 +85,19 @@ def _issue(
     body: str | None = None,
     schedule: str | None = None,
     extra_labels: Sequence[str] = (),
+    title: str | None = None,
 ) -> OpenIssue:
-    """An open Issue; *body* defaults to a reason line naming each theme."""
+    """An open Issue; *body* defaults to a reason line naming each theme.
+
+    An Epic's default body also carries a ``Design idea:`` line.
+    """
     if body is None:
         body = "".join(f"Theme: {t} — does a thing.\n" for t in themes)
+        if kind == "Epic":
+            body += _DESIGN_IDEA
     return OpenIssue(
         number=number,
-        title=f"Issue {number}",
+        title=f"Issue {number}" if title is None else title,
         issue_type=kind,
         labels=frozenset((*themes, *extra_labels)),
         body=body,
@@ -103,6 +112,7 @@ def _epic_issue(
     parents: Sequence[tuple[int, str | None]] = (),
     body: str | None = None,
     schedule: str | None = None,
+    title: str | None = None,
 ) -> OpenIssue:
     return _issue(
         number,
@@ -111,6 +121,7 @@ def _epic_issue(
         parents=parents,
         body=body,
         schedule=schedule,
+        title=title,
     )
 
 
@@ -229,6 +240,7 @@ class TestEpicThemeCount:
         body = (
             "Theme: theme:alpha — a.\nTheme: theme:beta — b.\n"
             "Theme split: theme:alpha holds the parser; theme:beta the CLI.\n"
+            f"{_DESIGN_IDEA}"
         )
         report = analyze(
             [_epic_issue(1, "theme:alpha", "theme:beta", body=body)], catalog
@@ -333,7 +345,7 @@ class TestMismatch:
         assert _kinds(report) == [(FindingKind.THEME_MISMATCH, 3)]
 
     def test_either_epic_theme_matches(self, catalog: ThemeCatalog) -> None:
-        body = "Theme: theme:alpha and theme:beta — split by layer\n"
+        body = f"Theme: theme:alpha and theme:beta — split by layer\n{_DESIGN_IDEA}"
         report = analyze(
             [
                 _epic_issue(1, "theme:alpha", "theme:beta", body=body),
@@ -502,11 +514,207 @@ class TestNearestEpic:
         )
 
 
+_FORM_BODY = "Theme: theme:alpha — alpha readers notice it.\n"
+
+
+class TestEpicForm:
+    """Each Epic title and body form breach is its own finding kind."""
+
+    @staticmethod
+    def _report(
+        catalog: ThemeCatalog, title: str, body: str
+    ) -> list[tuple[FindingKind, int]]:
+        return _kinds(
+            analyze(
+                [_epic_issue(1, "theme:alpha", title=title, body=body)],
+                catalog,
+                spec_topics=frozenset({"SYNC"}),
+            )
+        )
+
+    @pytest.mark.spec("PAD-02-032")
+    def test_an_id_in_the_title(self, catalog: ThemeCatalog) -> None:
+        body = _FORM_BODY + _DESIGN_IDEA
+        found = analyze(
+            [
+                _epic_issue(
+                    1, "theme:alpha", title="Alpha (SYNC-19)", body=body
+                )
+            ],
+            catalog,
+            spec_topics=frozenset({"SYNC"}),
+        )
+        assert _kinds(found) == [(FindingKind.EPIC_TITLE_ID, 1)]
+        assert found.findings[0].detail == "names `SYNC-19`"
+
+    @pytest.mark.spec("PAD-02-030")
+    def test_a_title_starting_with_epic(self, catalog: ThemeCatalog) -> None:
+        body = _FORM_BODY + _DESIGN_IDEA
+        assert self._report(catalog, "Epic: alpha work", body) == [
+            (FindingKind.EPIC_TITLE_PREFIX, 1)
+        ]
+
+    @pytest.mark.spec("PAD-02-038")
+    def test_no_design_idea_line(self, catalog: ThemeCatalog) -> None:
+        assert self._report(catalog, "Alpha is done", _FORM_BODY) == [
+            (FindingKind.MISSING_DESIGN_IDEA, 1)
+        ]
+
+    @pytest.mark.spec("PAD-02-034")
+    @pytest.mark.parametrize(
+        ("title", "idea", "detail"),
+        [
+            (
+                "Alpha is done",
+                "Design idea: Alpha readers notice it.",
+                "repeats the `Theme:` outcome",
+            ),
+            (
+                "Alpha is done",
+                "Design idea: Alpha readers notice it, through one parser.",
+                "repeats the `Theme:` outcome",
+            ),
+            (
+                "Alpha is done",
+                "Design idea: alpha is done",
+                "repeats the title",
+            ),
+        ],
+        ids=["outcome", "outcome-with-more", "title"],
+    )
+    def test_a_design_idea_line_that_repeats(
+        self, catalog: ThemeCatalog, title: str, idea: str, detail: str
+    ) -> None:
+        report = analyze(
+            [
+                _epic_issue(
+                    1, "theme:alpha", title=title, body=_FORM_BODY + idea
+                )
+            ],
+            catalog,
+        )
+        assert _kinds(report) == [(FindingKind.DESIGN_IDEA_REPEATS, 1)]
+        assert report.findings[0].detail == detail
+
+    @pytest.mark.spec("PAD-02-034")
+    def test_a_theme_outcome_that_repeats_the_title(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = "Theme: theme:alpha — alpha readers notice it.\n" + _DESIGN_IDEA
+        report = analyze(
+            [
+                _epic_issue(
+                    1,
+                    "theme:alpha",
+                    title="Alpha readers notice it",
+                    body=body,
+                )
+            ],
+            catalog,
+        )
+        assert _kinds(report) == [(FindingKind.THEME_OUTCOME_REPEATS, 1)]
+        assert report.findings[0].detail == "repeats the title"
+
+    @pytest.mark.spec("PAD-02-034")
+    def test_a_section_repeating_two_lines_is_one_finding(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = (
+            f"{_FORM_BODY}{_DESIGN_IDEA}"
+            "Design idea: each child cuts one slice.\n\n## Design idea\n\n"
+            "One approach ties the children together; each child cuts one "
+            "slice.\n"
+        )
+        assert self._report(catalog, "Alpha is done", body) == [
+            (FindingKind.DESIGN_SECTION_REPEATS, 1)
+        ]
+
+    @pytest.mark.spec("PAD-02-034")
+    def test_a_design_idea_section_that_repeats_the_line(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = (
+            f"{_FORM_BODY}{_DESIGN_IDEA}\n### Design idea\n\n"
+            "One approach ties the children together.\n"
+        )
+        assert self._report(catalog, "Alpha is done", body) == [
+            (FindingKind.DESIGN_SECTION_REPEATS, 1)
+        ]
+
+    @pytest.mark.spec("PAD-02-034")
+    def test_a_short_outcome_inside_a_longer_idea_is_not_a_repeat(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = (
+            "Theme: theme:alpha — faster runs\n"
+            "Design idea: cache the parse so faster runs need no re-read.\n"
+        )
+        assert self._report(catalog, "Alpha is done", body) == []
+
+    @pytest.mark.spec("PAD-02-034")
+    def test_a_short_outcome_alone_is_a_repeat(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = "Theme: theme:alpha — faster runs\nDesign idea: Faster runs.\n"
+        assert self._report(catalog, "Alpha is done", body) == [
+            (FindingKind.DESIGN_IDEA_REPEATS, 1)
+        ]
+
+    def test_an_issue_reference_does_not_end_the_section(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = (
+            f"{_FORM_BODY}{_DESIGN_IDEA}\n## Design idea\n\n"
+            "#12 first, then:\none approach ties the children together.\n"
+        )
+        assert self._report(catalog, "Alpha is done", body) == [
+            (FindingKind.DESIGN_SECTION_REPEATS, 1)
+        ]
+
+    @pytest.mark.spec("PAD-02-032")
+    def test_a_group_id_off_the_topic_list_is_not_an_id(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = _FORM_BODY + _DESIGN_IDEA
+        assert self._report(catalog, "Alpha reads UTF-16 text", body) == []
+
+    @pytest.mark.spec("PAD-02-034")
+    def test_a_cut_down_copy_of_the_outcome_repeats(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = (
+            "Theme: theme:alpha — alpha readers notice it in every run.\n"
+            "Design idea: Alpha readers notice it.\n"
+        )
+        assert self._report(catalog, "Alpha is done", body) == [
+            (FindingKind.DESIGN_IDEA_REPEATS, 1)
+        ]
+
+    def test_a_well_formed_epic_is_clean(self, catalog: ThemeCatalog) -> None:
+        body = (
+            f"{_FORM_BODY}{_DESIGN_IDEA}\n## Design idea\n\n"
+            "The approach lives in `alpha/`; see ADR-0001.\n"
+        )
+        assert self._report(catalog, "Alpha is done", body) == []
+
+    def test_leaves_get_no_form_findings(self, catalog: ThemeCatalog) -> None:
+        report = analyze(
+            [
+                _epic_issue(1, "theme:alpha"),
+                _issue(
+                    2, "theme:alpha", parents=[_EPIC], title="Epic: ADR-0001"
+                ),
+            ],
+            catalog,
+        )
+        assert report.clean
+
+
 @pytest.mark.spec("PAD-02-008")
 class TestAutoCalved:
     @pytest.mark.parametrize("children", [0, 1])
     def test_single_child(self, catalog: ThemeCatalog, children: int) -> None:
-        body = f"Theme: theme:alpha — x\n{AUTO_CALVED_MARKER}\n"
+        body = f"Theme: theme:alpha — x\n{_DESIGN_IDEA}{AUTO_CALVED_MARKER}\n"
         issues = [_epic_issue(1, "theme:alpha", body=body)]
         issues += [
             _issue(10 + n, "theme:alpha", parents=[_EPIC])
@@ -516,7 +724,9 @@ class TestAutoCalved:
         assert _kinds(report) == [(FindingKind.SINGLE_CHILD_CALVED_EPIC, 1)]
 
     def test_two_children_is_fine(self, catalog: ThemeCatalog) -> None:
-        body = f"Theme: theme:alpha — x\n  {AUTO_CALVED_MARKER}  \n"
+        body = (
+            f"Theme: theme:alpha — x\n{_DESIGN_IDEA}  {AUTO_CALVED_MARKER}  \n"
+        )
         report = analyze(
             [
                 _epic_issue(1, "theme:alpha", body=body),
@@ -542,7 +752,9 @@ class TestAutoCalved:
     def test_marker_inside_a_line_does_not_count(
         self, catalog: ThemeCatalog
     ) -> None:
-        body = f"Theme: theme:alpha — x\nsee {AUTO_CALVED_MARKER}\n"
+        body = (
+            f"Theme: theme:alpha — x\n{_DESIGN_IDEA}see {AUTO_CALVED_MARKER}\n"
+        )
         assert analyze(
             [_epic_issue(1, "theme:alpha", body=body)], catalog
         ).clean
@@ -979,7 +1191,7 @@ _CLEAN_PAGES = [
             1,
             kind="Epic",
             labels=["theme:alpha"],
-            body="Theme: theme:alpha — x",
+            body=f"Theme: theme:alpha — x\n{_DESIGN_IDEA}",
             schedule="Now",
         ),
         _node(

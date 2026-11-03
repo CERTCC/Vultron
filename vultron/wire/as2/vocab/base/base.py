@@ -173,7 +173,7 @@ class as_Base(BaseModel):
 
     def to_dict(self, **kwargs):
         """Serialize the model to a dictionary, excluding None values and using aliases."""
-        return self.model_dump(exclude_none=True, **kwargs)
+        return self.model_dump(exclude_none=True, by_alias=True, **kwargs)
 
     @classmethod
     def from_json(cls, data: str):

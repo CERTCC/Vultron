@@ -218,6 +218,10 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
         note="adds -n auto; the serial run is several times slower locally",
     ),
     MirrorCheck(
+        "story-page-shape",
+        f"{_SPEC}::spec-tests::Run user-story page shape test",
+    ),
+    MirrorCheck(
         "docs-path-ratchet",
         f"{_SPEC}::docs-path-ratchet::Run codebase docs path ratchet",
     ),

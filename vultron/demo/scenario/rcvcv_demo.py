@@ -65,18 +65,14 @@ from vultron.demo.helpers.cast import (
     VENDOR_SLOT,
 )
 from vultron.demo.helpers.coordinated_story import (
-    CASE_ACTOR_NAME,
     COORDINATOR,
     REPORTER,
     REPORTER_ASKS_THE_VENDOR,
     REPORTER_LABEL,
     TIMELINE_ANSWER,
     VENDOR,
-    CastContainer,
     close_the_case,
-    coordinated_clients,
     coordinated_open_cast,
-    dump_coordinated_ledgers,
     invitee_joins_the_case,
     reports_published,
     seat_character_actors,
@@ -107,6 +103,12 @@ from vultron.demo.helpers.story import (
     choose,
     run_story,
     story,
+)
+from vultron.demo.helpers.story_cast import (
+    CASE_ACTOR_NAME,
+    CastContainer,
+    dump_story_ledgers,
+    story_clients,
 )
 from vultron.demo.helpers.sync import (
     run_sync_verification_phase,
@@ -556,7 +558,7 @@ def _dump_ledgers(state: StoryState) -> None:
     or not an earlier step failed.  A character actor the run never seated has
     no replica to read, so it is left out rather than 404ing the dump.
     """
-    dump_coordinated_ledgers(
+    dump_story_ledgers(
         state,
         replicas=[
             entry for entry in DEVLOG_REPLICAS if entry[1] in state.cast
@@ -659,7 +661,7 @@ def main(
         c2_id: Optional deterministic URI for the C2 actor.
         v2_id: Optional deterministic URI for the V2 actor.
     """
-    clients = coordinated_clients(
+    clients = story_clients(
         _ROLES,
         [
             CastContainer(REPORTER, REPORTER_LABEL, reporter_url),

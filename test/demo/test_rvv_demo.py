@@ -85,7 +85,6 @@ from vultron.demo.helpers import (
 )
 from vultron.demo.helpers.cast import CAST, REPORTER_SLOT, VENDOR_SLOT
 from vultron.demo.helpers.coordinated_story import (
-    CASE_ACTOR_NAME,
     REPORTER,
     REPORTER_LABEL,
 )
@@ -101,6 +100,7 @@ from vultron.demo.helpers.story import (
     run_story,
     story,
 )
+from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME
 from vultron.demo.helpers.vendor_story import (
     JOIN_TIMEOUT,
     REPORTER_TELLS_THE_VENDOR,
@@ -1456,9 +1456,7 @@ class TestRvvCliCommand:
         }
 
         with (
-            patch.object(
-                demo, "coordinated_clients", return_value=clients
-            ) as built,
+            patch.object(demo, "story_clients", return_value=clients) as built,
             patch.object(demo, "run_rvv_demo") as run,
         ):
             demo.main(
