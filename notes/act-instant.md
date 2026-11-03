@@ -4,10 +4,13 @@ status: active
 kind: plan
 tracks:
   - "#5676"   # epic: a re-recorded scenario equals the committed one
-  - "#5649"   # tree builders and guard nodes read the tree-run instant
-  - "#5650"   # guard nodes (folded into #5649)
+  - "#5757"   # slice 1: clock port, act entry points, tree-run instant, ratchet
+  - "#5649"   # slice 2: tree builders and guard nodes (absorbed #5650)
   - "#5651"   # sync rate-limit checks and the replication-state key
-  - "#5652"   # the parse edge reads no clock
+  - "#5758"   # slice 4: core models and time helpers
+  - "#5652"   # slice 5: the parse edge reads no clock
+  - "#5760"   # slice 6: recordings through the port
+  - "#5761"   # follow-on: generated ids through an id source
 description: >
   The unbuilt migration to ADR-0174: each act reads the clock once at its edge,
   tree nodes read that instant from the tree run, and core code takes time as an
@@ -45,23 +48,23 @@ yet. This note holds the order of the work and the rules each slice keeps.
 
 ## Slices, in order
 
-1. **Foundation.** The clock port, the act entry points, the tree-run instant, and
+1. **Foundation** (#5757). The clock port, the act entry points, the tree-run instant, and
    the architecture test with today's clock reads recorded item by item as the
    list to burn down.
-2. **Tree builders and guard nodes** (#5649, with #5650 folded in). Mostly
+2. **Tree builders and guard nodes** (#5649). Mostly
    deletions of time parameters and their fallbacks.
 3. **Sync checks** (#5651). Cooldown and resend predicates take the instant; the
    replication-state key is derived without building a stamped model.
-4. **Core models.** No core model field defaults to the clock; the ordered-stamp
+4. **Core models** (#5758). No core model field defaults to the clock; the ordered-stamp
    and deadline helpers take the instant. The widest change, because test fixtures
    need an explicit time.
 5. **Parse edge** (#5652). The RSVP computation takes `published` as required
    (CLP-15-008 already refuses an inbound activity without it), and the
    past-deadline warning moves to the handler. The pre-bootstrap queue sweep moves
    to the reap trigger (#2887).
-6. **Recordings.** The recording clock goes through the port and steps once per
+6. **Recordings** (#5760). The recording clock goes through the port and steps once per
    act; the clock patch in the recording harness is removed; every recording is
    regenerated once.
 
-Generated ids follow the same pattern in a later decision; they are not part of
-this plan.
+Generated ids follow the same pattern in a later decision (#5761); they are not
+part of this plan.
