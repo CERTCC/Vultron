@@ -273,15 +273,14 @@ class TestCaseActorRole:
         assert role.slot is CASE_ACTOR
         assert role.plays is None
 
-    def test_takes_an_id_option_only_when_asked(self) -> None:
-        """``case_actor_role()`` defaults to no id option (AC-1, #5550).
+    def test_takes_no_id_option(self) -> None:
+        """The CaseActor role offers no ``--case-actor-id`` (#5550).
 
-        ``has_id=True`` is still supported by the factory for future use,
-        but no registered scenario currently passes it.
+        The case-actor container seeds the cast's one fixed CaseActor id
+        (DEMOCI-11-020), so an override would have nothing to select.
         """
         assert case_actor_role().has_id is False
         assert case_actor_role().id_help is None
-        assert case_actor_role(has_id=True).id_help is not None
 
 
 class TestRoleMap:

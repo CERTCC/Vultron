@@ -52,7 +52,7 @@ import logging
 from collections.abc import Mapping, Sequence
 
 from vultron.core.states.cs import CS_vf
-from vultron.demo.helpers.actor_roles import ActorRole
+from vultron.demo.helpers.actor_roles import ActorRole, case_actor_role
 from vultron.demo.helpers.cast import (
     CAST,
     COORDINATOR_SLOT,
@@ -149,24 +149,18 @@ SECOND_COORDINATOR_JOINED: StoryProp[str] = StoryProp(
 )
 
 
-def two_coordinator_roles(*, case_actor: ActorRole) -> list[ActorRole]:
-    """This pair's four actor containers, in ``ROLES`` order, plus *case_actor*.
+def two_coordinator_roles() -> list[ActorRole]:
+    """This pair's four actor containers, in ``ROLES`` order, plus the CaseActor.
 
     One list for both scenarios, because the CLI options and the devlogs
-    directories they generate are the same four (DEMOCI-11-011); the CaseActor
-    role is the caller's, because only ``rccv-handoff`` exposes a
-    ``--case-actor-id`` option (DEMOMA-14-023).
-
-    Args:
-        case_actor: The scenario's :func:`~vultron.demo.helpers.actor_roles\
-            .case_actor_role`, appended last.
+    directories they generate are the same five (DEMOCI-11-011).
     """
     return [
         ActorRole(REPORTER, REPORTER_SLOT, REPORTER_LABEL, has_id=True),
         ActorRole(C1_ROLE, COORDINATOR_SLOT, "C1 (Coordinator1)", has_id=True),
         ActorRole(C2, CAST[3], "C2 (Coordinator2)", has_id=True),
         ActorRole(VENDOR, VENDOR_SLOT, VENDOR_LABEL, has_id=True),
-        case_actor,
+        case_actor_role(),
     ]
 
 

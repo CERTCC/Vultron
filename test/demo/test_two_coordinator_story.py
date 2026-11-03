@@ -448,7 +448,7 @@ class TestTheSharedCliSurfaces:
 
     def test_the_roles_seat_four_containers_plus_the_case_actor(self):
         """One list for both scenarios, in ``main()`` parameter order."""
-        roles = pair.two_coordinator_roles(case_actor=case_actor_role())
+        roles = pair.two_coordinator_roles()
 
         assert [role.name for role in roles] == [
             REPORTER,
@@ -467,19 +467,16 @@ class TestTheSharedCliSurfaces:
         # seats it rather than from its container (DEMOCI-11-021).
         assert roles[2].slot is CAST[3]
 
-    def test_the_case_actor_role_is_the_callers(self):
-        """The caller controls whether the CaseActor role carries an id option.
+    def test_the_case_actor_role_takes_no_id_option(self):
+        """The CaseActor role offers no ``--case-actor-id`` (#5550).
 
-        No registered scenario currently passes ``has_id=True`` (AC-1, #5550),
-        but the factory supports it and the contract is stable.
+        The case-actor container seeds the cast's one fixed CaseActor id
+        (DEMOCI-11-020), so an override would have nothing to select.
         """
-        without = pair.two_coordinator_roles(case_actor=case_actor_role())
-        with_id = pair.two_coordinator_roles(
-            case_actor=case_actor_role(has_id=True)
-        )
+        roles = pair.two_coordinator_roles()
 
-        assert "case_actor_id" not in role_kwarg_names(without)
-        assert "case_actor_id" in role_kwarg_names(with_id)
+        assert roles[-1] == case_actor_role()
+        assert "case_actor_id" not in role_kwarg_names(roles)
 
     def test_the_cast_members_carry_the_pairs_labels_and_url_overrides(self):
         """Each URL falls back to the cast slot's own address."""

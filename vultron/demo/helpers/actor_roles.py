@@ -322,23 +322,19 @@ def resolved_actor_ids(
     return resolved
 
 
-def case_actor_role(*, has_id: bool = False) -> ActorRole:
+def case_actor_role() -> ActorRole:
     """The ``case-actor`` role every Docker scenario declares (#1876).
 
     Every scenario proposes its cases to the dedicated case-actor container
     (CP-08-008, DEMOMA-06-004), so each has this role, in the
-    :data:`~vultron.demo.helpers.cast.CASE_ACTOR` slot.  Scenarios differ only
-    in whether they take a ``--case-actor-id`` (the handoff scenarios do, per
-    DEMOMA-14-023).
-
-    Args:
-        has_id: Whether the scenario also takes ``--case-actor-id``.
+    :data:`~vultron.demo.helpers.cast.CASE_ACTOR` slot.  The role takes no id
+    option: the case-actor container seeds the one fixed CaseActor id of the
+    cast (DEMOCI-11-020), so an override would have nothing to select.
     """
     return ActorRole(
         name=CASE_ACTOR.name,
         slot=CASE_ACTOR,
         title="dedicated CaseActor",
-        has_id=has_id,
     )
 
 

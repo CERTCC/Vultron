@@ -532,18 +532,22 @@ class TestOptionsComeFromTheCast:
         assert by_role_name != everything
 
     def test_no_registered_scenario_offers_case_actor_id(self) -> None:
-        """No registered scenario exposes ``--case-actor-id`` (AC-1, #5550).
+        """No registered scenario's sub-command offers ``--case-actor-id`` (#5550).
 
-        The cast fixes the CaseActor id in every scenario
-        (DEMOCI-11-020), so no override is needed or offered.
+        Read off each generated click command rather than off ``ROLES``, so the
+        check is on what a presenter can type.  The case-actor container seeds
+        the cast's one fixed CaseActor id (DEMOCI-11-020), so an override would
+        have nothing to select.
         """
-        with_id = {
+        specs = discover_scenarios()
+        offering = {
             spec.name
-            for spec in discover_scenarios()
-            for role in _roles_of(spec)
-            if role.name == "case-actor" and role.has_id
+            for spec in specs
+            for param in cli.main.commands[spec.name].params
+            if "--case-actor-id" in param.opts
         }
-        assert with_id == set()
+        assert specs, "no scenarios registered; the check would be vacuous"
+        assert offering == set()
 
     def test_every_scenario_declares_the_case_actor(self) -> None:
         """Each scenario names the dedicated CaseActor container (#1876).
