@@ -43,10 +43,10 @@ class as_Link(as_Base):
     )
     width: int | None = None
     height: int | None = None
-    rel: str | None = None
+    rel: NonEmptyString | None = None
     #: A Link with a blank ``href`` points nowhere; CS-08-001 refuses it.
     href: NonEmptyString | None = None
-    hreflang: str | None = None
+    hreflang: NonEmptyString | None = None
 
 
 T_co = TypeVar("T_co", covariant=True)

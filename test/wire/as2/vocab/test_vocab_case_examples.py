@@ -258,6 +258,7 @@ class TestVocabCaseNoteExamples(unittest.TestCase):
         self.assertIsInstance(note, as_Note)
 
         self.assertTrue(hasattr(note, "to_json"))
+        assert note.content is not None
         self.assertIn("This is a note", note.content)
 
     def test_add_note_to_case(self):
