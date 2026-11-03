@@ -89,9 +89,9 @@ groups:
         kind: project
         verification_debt: '#2574'
         statement: >-
-          Sync BT nodes MUST reside in `vultron/core/behaviors/sync/` with
-          separate modules for node definitions (`nodes.py`) and tree
-          composition functions (one module per tree).
+          Sync BT nodes MUST reside in `vultron/core/behaviors/sync/`, with
+          node definitions in its `nodes/` package and each tree composition
+          function in its own module.
         rationale: >-
           A fixed location for sync nodes and trees lets a developer find an existing
           node before the developer writes a new one. When nodes are separate from tree
@@ -301,8 +301,7 @@ groups:
           When the case-actor receives a valid round-trip of its own
           log entry, the BT MUST log at DEBUG level (delivery round-trip
           confirmation) and return SUCCESS. No state update or
-          re-persistence is performed. Delivery confirmation tracking is
-          deferred to a future phase.
+          re-persistence is performed.
         rationale: >-
           The CASE_MANAGER already holds the entry that it announced, so its own echo
           carries no new data. When the echo is a success with no write, the round trip
@@ -494,13 +493,21 @@ groups:
         kind: project
         verification_debt: '#2574'
         statement: >-
-          Blackboard keys for injected ports MUST follow the existing
-          naming convention: `{noun}_{last_url_segment}` with no slashes.
-          Recommended keys: `sync_port` for SyncActivityPort,
-          `datalayer` for DataLayer (already established).
+          The blackboard key for an injected port MUST be one fixed `{noun}`
+          name per port, with no id suffix and no slash. The established
+          keys include `datalayer`, `sync_port`, `wire_render_port`,
+          `inbox_queue`, `inbox_dereference` and `inbox_replay`.
         rationale: >-
           py_trees reads a slash in a key as a namespace separator. Thus a key built
           from a full URL id splits into nested namespaces, and the lookup fails. Fixed,
           shared key names let all nodes read an injected port, and no node must know
-          which code set the port.
+          which code set the port. A port is one per run, not one per correlated
+          object, so there is no id to scope its key by. This is the port exception
+          to the `{noun}_{id_segment}` rule of BTND-03-008.
+        relationships:
+          - rel_type: supersedes
+            spec_id: BTND-03-008
+            note: >-
+              Exempts injected-port keys from the `{noun}_{id_segment}` rule; every
+              other blackboard key still follows it.
 

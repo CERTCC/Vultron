@@ -425,7 +425,11 @@ citations stay valid. Each other obligation gets a **new ID with its own
 holds (often `refines` or `depends_on`); when none holds, record no link
 (SR-13-018). A child of an unverified original keeps the original's
 `verification_debt:` marker only if its own `relationships:` name the original,
-the one split MS-10-016 lets pass. Two keywords that state one obligation, and
+the one split MS-10-016 lets pass. A child split off an original with no
+marker, such as the MUST half of a SHOULD-plus-MUST statement, has no debt to
+inherit: write its check in the split PR and name it in `verification:`, because
+the growth guard refuses a new marker there and no other task owns that check
+(MS-10-016). Two keywords that state one obligation, and
 cannot be split without losing meaning, may stay: add `lint_suppress: [compound_statement]`
 with the reason in a YAML comment on the entry or the line before it. A
 suppression without a reason still fails. Removing a suppression or its reason

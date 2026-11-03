@@ -15,9 +15,10 @@
 """Architecture invariant: received-side execute_with_setup must use receiving_actor_id.
 
 Spec BT-17-006 (MUST): any received-side use case that calls
-``execute_with_setup`` MUST pass ``actor_id=request.receiving_actor_id``
-(or a local variable derived from it), never ``actor_id=request.actor_id``
-(the sender).  Passing the sender ID scopes the DataLayer and GuardedCommit
+``execute_with_setup`` MUST pass the *receiving* actor, the one
+``resolve_receiving_actor_id`` returns (``request.receiving_actor_id``, else
+the store's owner, BT-17-009), never ``actor_id=request.actor_id`` (the
+sender).  Passing the sender ID scopes the DataLayer and GuardedCommit
 to the wrong actor, silently attributing ledger entries and state transitions
 to the remote peer.
 
@@ -121,7 +122,8 @@ def test_received_side_execute_with_setup_never_passes_request_actor_id():
 
     assert not all_violations, (
         "received-side execute() calls pass actor_id=request.actor_id"
-        " (should use request.receiving_actor_id — BT-17-006, issue #2338):\n"
+        " (should pass the receiving actor from resolve_receiving_actor_id"
+        " — BT-17-006, issue #2338):\n"
         + "\n".join(f"  {v}" for v in sorted(all_violations))
     )
 

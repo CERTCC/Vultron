@@ -15,9 +15,25 @@ consistent use of the `Epic` issue type and sub-issue wiring.
 
 ## Inputs
 
-- `EPIC_TITLE`: one-line Epic title, e.g.
-  `Architecture Hardening (Phase 2): Import violations and BT sync`
-- `EPIC_BODY`: multi-line body text (summary, open tasks list, rationale)
+- `EPIC_TITLE`: a done-state claim, a present-tense sentence in domain terms
+  that is false when the Epic opens and true when it closes (PAD-02-030), e.g.
+  `Core, wire and adapters depend on each other only in the allowed directions`.
+  Name the audience as its subject when one is natural (PAD-02-031). Never a
+  feature name, an activity, a `name: outcome` form or an `Epic:` label, and no
+  ADR number or spec ID (PAD-02-032). See `notes/epic-themes.md` § "Epic Titles
+  and Bodies".
+- `EPIC_BODY`: multi-line body text. It opens with two lines, each with its own
+  job, and no other line or section restates either one or the title
+  (PAD-02-034):
+  - a `Theme: <label> — <outcome>` line naming the theme (PAD-02-018), whose
+    outcome is the consequence of the title's claim that a reader of the
+    theme notices, not the claim again (PAD-02-033);
+  - a `Design idea: <approach>` line stating the approach tying the children
+    together, with any mechanism, ADR numbers and spec IDs (PAD-02-038), e.g.
+    `Design idea: each trigger records an outcome the caller can poll`.
+
+  An Epic that `create-issue` calves with no user present also carries the
+  line `<!-- auto-calved -->`.
 - `LEAF_ISSUES`: space-separated issue numbers to link as sub-issues,
   e.g. `428 439 429`
 - `SCHEDULE`: initial Schedule value for Project #24 — one of `Focus`, `Now`,
@@ -25,9 +41,6 @@ consistent use of the `Epic` issue type and sub-issue wiring.
 - `THEME`: the Epic's `theme:` label, an active theme in the catalog in
   `notes/epic-themes.md`. Pass a second only when `EPIC_BODY` has one line
   naming both (PAD-02-015).
-- `EPIC_BODY` must start with a `Theme: <label> — <outcome>` line naming the
-  theme (PAD-02-018). An Epic that `create-issue` calves with no user present
-  also carries the line `<!-- auto-calved -->`.
 - `REPO`: `CERTCC/Vultron` (default)
 
 ## Workflow
@@ -58,7 +71,11 @@ If a matching Epic already exists, skip Step 2 and proceed to Step 3.
 ### Step 2 — Create the Epic issue via GraphQL
 
 Use the bash helper script in this skill's directory. It runs the theme gate
-first and creates nothing if the theme or the `Theme:` line is wrong. It then
+first and creates nothing if the theme or the `Theme:` line is wrong, if the
+title holds an ADR number or spec ID or starts with `Epic:`, or if the body has
+no `Design idea:` line or one that restates the title or the `Theme:` outcome.
+The gate checks form only; whether the title states the right claim is the
+reviewer's call (`calve-epics` proposes it to the user). It then
 creates the Epic with the correct Epic issue type and its theme label in one
 call, and adds it to Project #24 with its Schedule via the shared
 `add-to-project.sh` helper — so board IDs live in exactly one place:
@@ -106,8 +123,9 @@ echo "${EPIC_NUMBER}"
 ## Constraints
 
 - Always check for an existing open Epic before creating a new one.
-- Every Epic carries one theme and a `Theme:` line; the script refuses one
-  without them. Epics take no parent: they are never nested.
+- Every Epic carries one theme, a `Theme:` line and a `Design idea:` line, and
+  a title free of IDs; the script refuses one without them. Epics take no
+  parent: they are never nested.
 - Board IDs are **never hardcoded** here — they rotate and are resolved by name
   at runtime via `.agents/skills/shared/board-id.sh` (see
   `.agents/skills/shared/README.md`). `create_epic.sh` resolves the repo node ID

@@ -43,7 +43,9 @@ relabel that swaps in the destination kind's owner (MS-10-008) — is an additio
 too, while a removed marker, or one that moves with its requirement to another
 file, is not. Nor is the marker of a new ID split off a marked requirement
 (MS-03-001): the new ID names that requirement in its ``relationships:`` and
-carries the same marker, so the split moves debt without adding any.
+carries the same marker, so the split moves debt without adding any. A
+requirement with no marker has no debt to move, so a new ID split off it gets
+no exemption: the split gives that ID a ``verification:`` check instead.
 
 An owner is checked against GitHub at two points, both in
 ``.github/workflows/verification-debt-owners.yml`` (MS-10-006):
@@ -211,6 +213,9 @@ def added_debt(base: DebtSnapshot, head: DebtSnapshot) -> frozenset[str]:
     ``relationships:`` name a requirement that carried the same marker at the
     base, or that is itself such a split child, is not new debt. An ID the base
     already had is never a split child, so a marker it gains is still added.
+    A child of a requirement with no marker at the base is not exempt either:
+    that parent had no debt to pass on, so the split gives the child a
+    ``verification:`` check rather than a marker.
     """
     added = {
         spec_id: marker

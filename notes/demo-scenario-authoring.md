@@ -196,9 +196,9 @@ records itself without ending the run. A helper that wraps a trigger call in
   block skips its dependents. Do not pre-set the name to `None` and read it after
   the block: that satisfies the unbound-variable ratchet but hands `None` to the
   next step, which then fails for the wrong reason (#3887).
-- Where the reader cannot be nested (the value crosses a phase function), treat
-  `None` as "already recorded as failed": do not raise, guard each attribute
-  access, and skip the dependent steps.
+- Where the reader cannot be nested (the value crosses a story fragment
+  boundary), treat `None` as "already recorded as failed": do not raise,
+  guard each attribute access, and skip the dependent steps.
 
 ---
 
