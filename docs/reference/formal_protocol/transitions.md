@@ -85,7 +85,7 @@ Otherwise,
 
 !!! note "[RMB-07](../vultron-spec/requirements/state-behavior.md#protocol-rmb-07)"
 
-    Participants SHOULD answer a message they cannot process with `Create(ProcessingFault)`, which plays the role of $RE$, whatever their state.
+    Participants SHOULD answer an $R*$ message they cannot process with `Create(ProcessingFault)`, which plays the role of $RE$, whatever their state.
 
 !!! note "[RMB-14](../vultron-spec/requirements/state-behavior.md#protocol-rmb-14)"
 
