@@ -45,6 +45,9 @@ from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
 )
+from vultron.core.behaviors.case.nodes.addressee import (
+    ActivityAddressedToReceiverNode,
+)
 from vultron.core.behaviors.case.nodes.invite_actor_emit import (
     INVITE_ID_KIND,
 )
@@ -54,6 +57,9 @@ from vultron.core.behaviors.case.nodes.invite_inert_participant import (
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
+)
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPathNode,
 )
 from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
     ReinviteAwaitingNode,
@@ -1508,8 +1514,15 @@ def test_sender_guard_follows_intake_and_precedes_the_commit(
         if any(isinstance(n, guard_type) for n in c.iterate())
     )
     commit_index = names.index("GuardedCommitCaseLedgerEntryBT")
-    assert guard_index == 3, (
+    addressee_index = next(
+        i
+        for i, c in enumerate(children)
+        if isinstance(c, ActivityAddressedToReceiverNode)
+    )
+    path_stages = sum(1 for c in children if isinstance(c, ReceivedPathNode))
+    assert guard_index == addressee_index + 1 + path_stages, (
         "the sender guard must come right after intake, the post-close"
-        " guard (CM-23-013) and the addressee door (HP-01-005)"
+        " guard (CM-23-013), the addressee door (HP-01-005) and, in a tree"
+        " that declares its paths, the path stage (HP-01-035)"
     )
     assert guard_index < commit_index

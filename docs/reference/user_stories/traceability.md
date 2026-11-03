@@ -1490,7 +1490,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | CM — Case Management | [CM-04-006](../vultron-spec/requirements/case-management.md#cm-04-006), [CM-04-010](../vultron-spec/requirements/case-management.md#cm-04-010) |
-| SM — State Machine | [SM-10-003](../vultron-spec/requirements/state-behavior.md#sm-10-003) |
+| SM — State Machine | [SM-10-003](../vultron-spec/requirements/state-behavior.md#sm-10-003), [SM-10-004](../vultron-spec/requirements/state-behavior.md#sm-10-004) |
 
 ## [story_2026_029](story_2026_029.md)
 
