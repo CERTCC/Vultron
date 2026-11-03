@@ -56,8 +56,8 @@ groups:
     # (MS-10-016). find_in_vocabulary consults VOCABULARY keys for every `type`
     # value, and only a class's `type` Literal refuses one: `"type": "as_Accept"`
     # is refused, but `as_Activity.type_` is a bare `str`, so `"type":
-    # "as_Activity"` resolves. Split it once a code fix makes that half hold and a
-    # test checks it (#5662).
+    # "as_Activity"` resolves. Split it once #5738 lands and a test checks that
+    # half (#5662).
     - compound_statement
     rationale: >-
       The two registries answer different questions, so they carry different key forms:
@@ -793,8 +793,8 @@ groups:
     # compound_statement: the empty-string half does not hold yet: nothing strips a
     # blank value on output, so `as_Object(name="")` serializes `"name": ""`. A split
     # child has no passing check, and this item has no verification_debt marker for
-    # it to carry (MS-10-016). Split it once a code fix makes that half hold and a
-    # test checks it (#5662).
+    # it to carry (MS-10-016). Split it once #5739 lands and a test checks that
+    # half (#5662).
     - compound_statement
     rationale: >-
       Under the rule "if present, then non-empty" (CS-08-001), a blank value means the
