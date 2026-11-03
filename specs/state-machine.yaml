@@ -441,7 +441,7 @@ groups:
     # compound_statement: neither half has a test, so a split child would be a new
     # protocol ID that the marker-coverage guard (SR-05-005) fails. The second half
     # is not settled either: a `ParticipantStatus` can carry a reported
-    # `case_status`. Split it once each half has a test.
+    # `case_status`. Split it once each half has a test; #5662 tracks the split.
     - compound_statement
     rationale: >-
       Mixing axes is a protocol correctness violation. A transition that writes

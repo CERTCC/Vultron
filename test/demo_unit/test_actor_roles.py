@@ -273,11 +273,14 @@ class TestCaseActorRole:
         assert role.slot is CASE_ACTOR
         assert role.plays is None
 
-    def test_takes_an_id_option_only_when_asked(self) -> None:
-        """Only the handoff scenarios offer ``--case-actor-id`` (DEMOMA-14-023)."""
+    def test_takes_no_id_option(self) -> None:
+        """The CaseActor role offers no ``--case-actor-id`` (#5550).
+
+        The case-actor container seeds the cast's one fixed CaseActor id
+        (DEMOCI-11-020), so an override would have nothing to select.
+        """
         assert case_actor_role().has_id is False
         assert case_actor_role().id_help is None
-        assert case_actor_role(has_id=True).id_help is not None
 
 
 class TestRoleMap:

@@ -64,7 +64,7 @@ def test_closing_pr_check_reruns_when_the_body_is_edited():
     assert "paths" not in pull_request  # any PR body can close an owner
 
 
-@pytest.mark.spec("ARCH-18-004")
+@pytest.mark.spec("MS-10-024")
 def test_open_owner_check_reports_and_never_fails_the_build():
     job, step = _job_running(_OWNERS)
     assert job["if"] == "github.event_name != 'pull_request'"
@@ -81,7 +81,7 @@ def test_open_owner_check_reports_and_never_fails_the_build():
     }
 
 
-@pytest.mark.spec("ARCH-18-004")
+@pytest.mark.spec("MS-10-024")
 def test_open_owner_check_runs_at_least_hourly():
     """Hundreds of PRs a week: a closed owner must surface within the hour."""
     (entry,) = triggers(load_workflow(_WORKFLOW))["schedule"]
