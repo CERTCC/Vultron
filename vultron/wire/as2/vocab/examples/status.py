@@ -11,6 +11,8 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from datetime import timedelta
+
 from vultron.core.models.dimensions import (
     DDimension,
     EmDimension,
@@ -30,6 +32,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
 )
 from vultron.wire.as2.vocab.examples._base import (
+    EXAMPLE_TIMESTAMP,
     _example_stamp,
     case,
     case_actor,
@@ -43,13 +46,18 @@ from vultron.wire.as2.vocab.objects.case_status import (
 
 
 def case_status(pxa: CS_pxa = CS_pxa.pxa, number: int = 1) -> as_CaseStatus:
-    """A case status for the example case, with *pxa* as its public state."""
+    """A case status for the example case, with *pxa* as its public state.
+
+    Status *number* is the *number*-th the CASE_MANAGER appended, so its
+    ``published`` is a minute after the one before it (CM-29-005).  An
+    authored status carries no ``updated`` (CM-29-006).
+    """
     status = as_CaseStatus(
         id_=f"https://vultron.example/cases/1/status/{number}",
         context="https://vultron.example/cases/1",
         em=EmDimension(state=EM.EMBARGO_MANAGEMENT_NONE),
         pxa=PxaDimension(state=pxa),
-        **_example_stamp(),
+        published=EXAMPLE_TIMESTAMP + timedelta(minutes=number - 1),
     )
     return status
 

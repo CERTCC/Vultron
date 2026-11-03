@@ -17,13 +17,11 @@
 
 import types
 import uuid
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import (
     Annotated,
     Any,
-    Protocol,
-    TypeVar,
     Union,
     get_args,
     get_origin,
@@ -204,7 +202,7 @@ def as_utc(value: datetime | None) -> datetime | None:
 
     Wire-deserialized timestamps may be naive (``datetime.fromisoformat`` on an
     offset-less ISO string yields a naive datetime). Assume naive datetimes are
-    UTC — consistent with :func:`now_utc` — so recency comparisons never mix
+    UTC — consistent with :func:`now_utc` — so time comparisons never mix
     naive and aware values, which would raise ``TypeError``.
     """
     if value is None:
@@ -270,53 +268,6 @@ def claimed_published_iso(activity_obj: Any) -> str:
     return format_timestamp(claimed or now_utc())
 
 
-def status_recency_key(
-    updated: datetime | None, published: datetime
-) -> datetime:
-    """Return the recency sort key for a status: ``updated`` else ``published``.
-
-    The key is normalised to timezone-aware UTC.  ``published`` is required:
-    every ``CaseStatus`` carries one, and a received status without it is
-    refused at message validation (CM-29-001, CLP-15-010), so there is no
-    untimed status to place.  ``id_`` is never part of the key (CM-29-002).
-    """
-    return as_utc(updated if updated is not None else published)
-
-
-class _Timestamped(Protocol):
-    @property
-    def updated(self) -> datetime | None: ...
-
-    @property
-    def published(self) -> datetime: ...
-
-
-_StatusT = TypeVar("_StatusT", bound=_Timestamped)
-
-
-def most_recent_status(statuses: Sequence[_StatusT]) -> _StatusT:
-    """Return the most recent of *statuses*; a tie goes to the last appended.
-
-    Recency is :func:`status_recency_key`.  Received statuses carry the
-    sender's time (ISSUE-3257), so equal keys are ordinary, and append order is
-    the only honest tiebreaker left: ``id_`` scheme is an
-    implementation artefact (CM-29-002), and a bare ``max`` keeps the *first*
-    maximal element, so a status appended with the same time as the one before
-    it would never become current.
-
-    Raises:
-        ValueError: When *statuses* is empty.
-    """
-    _, latest = max(
-        enumerate(statuses),
-        key=lambda pair: (
-            status_recency_key(pair[1].updated, pair[1].published),
-            pair[0],
-        ),
-    )
-    return latest
-
-
 class MissingClaimedTimeError(ValueError):
     """A received object that must carry its sender's time carries none.
 
@@ -344,7 +295,7 @@ def refuse_absent_published(
             f"{cls.__name__} carries no 'published'; a received"
             f" {cls.__name__} must carry the time its sender claims it was"
             " made, and the receiver does not supply its own clock"
-            " (CM-29-001, CLP-15-010)"
+            " (SM-05-003, CLP-15-010)"
         )
 
 

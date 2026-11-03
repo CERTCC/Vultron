@@ -40,10 +40,17 @@ class CaseStatus(CoreObject):
     ``em`` and ``pxa`` are dimension objects that own the EM and PXA state
     machines respectively (ADR-0036, SDO-03-001).
 
-    ``published`` is required: it is what ``VulnerabilityCase.current_status``
-    orders statuses by when ``updated`` is absent (CM-29-001).  A status this
+    ``published`` is required: every status carries its author's time
+    (SM-05-003), and the CASE_MANAGER gives each status it appends one
+    strictly later than the status before it (CM-29-005).  A status this
     process authors takes the local clock; a received status without one is
-    refused at message validation (CLP-15-010).
+    refused at message validation (CLP-15-010).  ``VulnerabilityCase``
+    picks its current status by append order, not by this time (CM-29-001).
+
+    ``updated`` defaults to absent: a status is never changed after it is
+    appended, so ``published`` is its one time, and a status this process
+    authors carries no ``updated`` (CM-29-006).  A received status keeps the
+    ``updated`` its sender sent (CLP-15-007).
     """
 
     type_: Literal["CaseStatus"] = Field(
@@ -53,10 +60,15 @@ class CaseStatus(CoreObject):
     )
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     # Re-narrowed from CoreObject's ``datetime | None`` (ARCH-10-001), as
-    # ``CaseLedgerEntry.published`` is: recency reads it (CM-29-001).  The
-    # narrowed type alone would refuse a received omission as a bare type
-    # fault; the flag makes the inbound read name the rule (CLP-15-010).
+    # ``CaseLedgerEntry.published`` is: every status carries one (SM-05-003,
+    # CM-29-005).  The narrowed type alone would refuse a received omission
+    # as a bare type fault; the flag makes the inbound read name the rule
+    # (CLP-15-010).
     published: datetime = Field(default_factory=now_utc)
+    # Absent by default, not CoreObject's clock read: a second read would
+    # differ from ``published`` and claim a change that never happened
+    # (CM-29-006).
+    updated: datetime | None = None
     _inbound_requires_published: ClassVar[bool] = True
     attributed_to: NonEmptyString | None = None  # pyright: ignore[reportGeneralTypeIssues]
     # Each dimension serializes to its bare state value (ARCH-25-005, ADR-0099), so
