@@ -173,7 +173,7 @@ The two ordering rules are visible only across a whole case.
 They show when the causal links a scenario declares are compared against the order the ledger recorded.
 The conformance suite checks them there.
 
-The CASE_MANAGER does refuse one thing outright: an activity that arrives with no `published` time at all.
+The CASE_MANAGER does refuse missing times outright, and first of all an activity that arrives with no `published` time at all.
 Because the field is optional in ActivityStreams, a receiver could fill in the blank with its own clock.
 That receiver could no longer tell what the sender claimed from what it invented.
 Every check above would then compare the CASE_MANAGER's clock against itself.
@@ -181,6 +181,11 @@ So the CASE_MANAGER refuses a message without a claimed time at the door ([CLP-1
 
 A field that is present but empty carries no claimed time either.
 A blank `published` — an empty string, or one holding only whitespace — is refused the same way as an omitted one, and reports the same reason ([MV-03-002](../../reference/vultron-spec/requirements/messages.md#mv-03-002)).
+
+A case status is held to the same rule wherever it sits in a message.
+A case's current status is the one with the latest time, so a status with no time has no place in the case's history.
+A receiver therefore refuses an activity that carries a case status with no `published` ([CLP-15-008](../../reference/vultron-spec/requirements/ledger-replication.md#clp-15-008)).
+For the same reason it refuses a case that arrives with no case statuses at all, rather than starting one on its own clock ([CM-29-004](../../reference/vultron-spec/requirements/case-management.md#cm-29-004)).
 
 A value that is present and not blank but unreadable as a timestamp is a different fault.
 The CASE_MANAGER reports it as malformed data, not as a missing field, so a sender is never told to supply something it already sent.
