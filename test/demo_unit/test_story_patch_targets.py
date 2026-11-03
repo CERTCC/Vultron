@@ -34,6 +34,7 @@ Two guards close it:
 
 import ast
 import functools
+import importlib
 import pathlib
 from types import ModuleType
 from unittest.mock import patch
@@ -65,8 +66,10 @@ _TEST_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 def _submodules(package: ModuleType) -> dict[str, ModuleType]:
+    """Each module below *package*, by its dotted name relative to it."""
+    prefix = f"{package.__name__}."
     return {
-        module.__name__.rpartition(".")[2]: module
+        module.__name__.removeprefix(prefix): module
         for module in modules_resolving_names(package)
     }
 
@@ -237,8 +240,9 @@ def test_the_package_holds_only_its_submodules_and_its_public_names(
     instead of creating an attribute no fragment reads.
     """
     held = {name for name in vars(package) if not name.startswith("__")}
+    top_level = {name.partition(".")[0] for name in _submodules(package)}
 
-    assert held == set(package.__all__) | set(_submodules(package))
+    assert held == set(package.__all__) | top_level
 
 
 @pytest.mark.parametrize(
@@ -357,3 +361,21 @@ def test_every_patch_on_a_split_package_names_the_resolving_submodule() -> (
 
     assert len(on_a_package) > 100, len(on_a_package)
     assert not problems, "\n".join(problems)
+
+
+def test_a_nested_subpackage_is_read_too(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A submodule split into a package of its own is still walked."""
+    root = tmp_path / "story_pkg_5592"
+    (root / "inner").mkdir(parents=True)
+    for init in (root / "__init__.py", root / "inner" / "__init__.py"):
+        init.write_text("")
+    (root / "flat.py").write_text("")
+    (root / "inner" / "deep.py").write_text("")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    package = importlib.import_module("story_pkg_5592")
+
+    names = sorted(m.__name__ for m in modules_resolving_names(package))
+
+    assert names == ["story_pkg_5592.flat", "story_pkg_5592.inner.deep"]

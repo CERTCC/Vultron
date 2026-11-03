@@ -711,17 +711,22 @@ def null_demo_contexts(stack: contextlib.ExitStack, demo: ModuleType) -> None:
 
 
 def modules_resolving_names(module: ModuleType) -> list[ModuleType]:
-    """*module* itself, or each submodule of it when it is a package.
+    """*module* itself, or every module below it when it is a package.
 
     The modules whose globals a fragment of *module* reads a name from: a
     split package's ``__init__`` only re-exports, so its submodules are where
-    a patch or a source scan has to look (CS-18-003, #5592).
+    a patch or a source scan has to look (CS-18-003, #5592).  The walk is
+    recursive, so a submodule later split into a package of its own is read
+    too; a package found on the way is itself an ``__init__`` and is left out.
     """
     if not hasattr(module, "__path__"):
         return [module]
     return [
-        importlib.import_module(f"{module.__name__}.{info.name}")
-        for info in pkgutil.iter_modules(module.__path__)
+        importlib.import_module(info.name)
+        for info in pkgutil.walk_packages(
+            module.__path__, f"{module.__name__}."
+        )
+        if not info.ispkg
     ]
 
 
