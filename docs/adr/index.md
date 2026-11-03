@@ -278,6 +278,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0162 Protocol Statecharts Are Projections of the Core Transition Tables, and Occasions Name Their Transitions](0162-protocol-statecharts-are-projections-of-the-core-transition-tables-and-occasions-name-their-transitions.md)
 - [ADR-0169 Case Roles Split Three Ways — Position, Case Authority and Actor Standing — and Every Participant Claims a Position](0169-case-roles-split-into-position-authority-and-standing.md) — partially supersedes 0133-the-report-receiver-states-its-case-roles-on-the-case-proposal.md
 - [ADR-0172 An Active Participant Is Not Closed](0172-an-active-participant-is-not-closed.md) — partially supersedes 0114-joining-a-case-stub-invite-inert-participant.md, 0116-removing-a-participant-withdraws-entitlement-not-membership.md
+- [ADR-0174 An Act Reads the Clock Once, at Its Edge](0174-an-act-reads-the-clock-once-at-its-edge.md)
 
 ## Rejected ADRs
 
