@@ -261,7 +261,7 @@ answer, clock decisions, guards, commit, effects.
    object; the record core keeps is written by an effect node after the guards,
    because a stored case row *is* the replica (PCR-03-004, CBT-01-005).
 2. **Door guards** — in order: the post-close write boundary (CM-23-013), the
-   addressee check (HP-01-005), the path stage (HP-01-012), the closed-sender
+   addressee check (HP-01-005), the path stage (HP-01-035), the closed-sender
    door (CM-23-018) and the sender guard (HP-01-006).
 
    Directly after intake the factory places `CaseOpenToExternalWritesNode`
@@ -321,8 +321,8 @@ answer, clock decisions, guards, commit, effects.
    load-bearing: a tree that commits nothing passes `case_id=None`, and
    without it every such delivery would read the no-case path. A tree whose
    case only `case_resolution` resolves cannot declare paths at all — the
-   factory raises `VultronWiringError`, because that stage runs after the
-   door guards.
+   factory raises `VultronWiringError`, because `case_resolution` runs after
+   the path stage, which would then read the no-case path every time.
 
    `has_role()` (`core/participants/role_predicate.py`) is the only sanctioned
    way to ask whether an actor holds a role in a case: it reads the roster
