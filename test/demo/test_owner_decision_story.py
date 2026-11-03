@@ -46,7 +46,11 @@ from vultron.demo.helpers import (
     invite_chain,
     owner_decision_story as ods,
 )
-from vultron.demo.helpers.coordinated_story import REPORTER, REPORTER_LABEL
+from vultron.demo.helpers.coordinated_story import (
+    REPORTER,
+    REPORTER_LABEL,
+    joining as coordinated_joining,
+)
 from vultron.demo.helpers.owner_decision_story import (
     HANDED_OVER_CASE,
     Part,
@@ -241,7 +245,7 @@ class TestTheOwnerApprovesASuggestedActor:
             )
             mocks["replica_wait"] = stack.enter_context(
                 patch_chain_shared(
-                    coordinated_story, "wait_for_case_on_container"
+                    coordinated_joining, "wait_for_case_on_container"
                 )
             )
             ods.the_owner_approves_a_suggested_actor(
@@ -354,17 +358,17 @@ class TestTheOwnerApprovesASuggestedActor:
             )
             stack.enter_context(
                 patch.object(
-                    coordinated_story,
+                    coordinated_joining,
                     "run_invite_path_rm_triage",
                     side_effect=lambda **_kw: order.append("triage"),
                 )
             )
             stack.enter_context(
-                patch.object(coordinated_story, "wait_for_case_participants")
+                patch.object(coordinated_joining, "wait_for_case_participants")
             )
             stack.enter_context(
                 patch_chain_shared(
-                    coordinated_story,
+                    coordinated_joining,
                     "wait_for_case_on_container",
                     side_effect=_wait_for_case,
                 )
@@ -436,7 +440,7 @@ class TestTheOwnerApprovesASuggestedActor:
             ) as find_invite,
             patch.object(ods, "invitee_triages_after_joining"),
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
         ):
             ods.the_owner_approves_a_suggested_actor(
@@ -824,7 +828,7 @@ class TestTheNewOwnerInvites:
             }
             mocks["replica_wait"] = stack.enter_context(
                 patch_chain_shared(
-                    coordinated_story, "wait_for_case_on_container"
+                    coordinated_joining, "wait_for_case_on_container"
                 )
             )
             ods.the_new_owner_invites(

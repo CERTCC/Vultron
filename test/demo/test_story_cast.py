@@ -23,8 +23,8 @@ session is bound to it.  It also owns the plumbing either side of the story:
 one health-checked client per container (``story_clients``) and the
 thin wrapper over the ledger dump (``dump_story_ledgers``, DEMOMA-23-002).
 Those are the claims below; a family's own seats and seeder are its business
-and are pinned in its own module's tests (``test_coordinated_story.py``,
-``test_vendor_story.py``).
+and are pinned in its own module's tests (``test/demo/coordinated_story/``,
+``test/demo/vendor_story/``).
 
 Every test patches the collaborators out, so no HTTP happens.  ``demo_step``
 is left real wherever the test is about control flow — a seeding failure is

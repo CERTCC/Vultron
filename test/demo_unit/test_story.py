@@ -625,7 +625,7 @@ class TestRunStory:
         the runner entered, which is what puts a seeding failure inside the
         harness that dumps and reports it.  That the failure itself is
         recorded and stops the story is covered on the real seeding path, by
-        ``test/demo/test_coordinated_story.py::TestOpenCoordinatedCast::
+        ``test/demo/coordinated_story/test_cast.py::TestOpenCoordinatedCast::
         test_a_failed_seeding_leaves_no_cast_to_tell_the_story_with``.
         """
         seen: list[object] = []

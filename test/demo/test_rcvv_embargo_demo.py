@@ -58,12 +58,17 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main as demo_cli
-from vultron.demo.helpers import coordinated_story, story_cast
+from vultron.demo.helpers import story_cast
 from vultron.demo.helpers.coordinated_embargo_story import (
     PROPOSED_EMBARGO,
     REPORTER_PROPOSES_EMBARGO,
 )
-from vultron.demo.helpers.coordinated_story import COORDINATOR, REPORTER
+from vultron.demo.helpers.coordinated_story import (
+    COORDINATOR,
+    REPORTER,
+    cast as coordinated_cast,
+    continuations as coordinated_continuations,
+)
 from vultron.demo.helpers.story import Choose, Fragment, StoryState
 from vultron.demo.scenario.rcvv_embargo_demo import (
     REVISED_EMBARGO,
@@ -325,7 +330,7 @@ class TestTheSharedOpeningSeedsOnlyTheThree:
                 ) as reset,
                 patch("vultron.demo.helpers.seeding.seed_case_actor_identity"),
                 patch.object(
-                    coordinated_story,
+                    coordinated_cast,
                     "seed_containers_rcv",
                     return_value=tuple(actors),
                 ) as seed_three,
@@ -538,7 +543,7 @@ def _joining_vendor2(*, signs: bool = True) -> Iterator[SimpleNamespace]:
             demo, "seed_containers_rcvv", return_value=seeded
         ) as seed,
         patch.object(
-            coordinated_story, "get_actor_by_id", return_value=seeded[3]
+            coordinated_cast, "get_actor_by_id", return_value=seeded[3]
         ) as read_back,
         patch.object(demo, "invitee_joins_the_case") as joins,
         patch.object(embargo_story, "wait_for_case_em_state") as canonical,
@@ -737,10 +742,16 @@ class TestBothVendorsReportTheFixReady:
         state = _state_after_vendor2_joined()
 
         with (
-            patch.object(coordinated_story, "wait_for_participant_rm_state"),
+            patch.object(
+                coordinated_continuations, "wait_for_participant_rm_state"
+            ),
             patch.object(ActorSession, "notify_fix_ready"),
-            patch.object(coordinated_story, "wait_for_participant_vf_state"),
-            patch.object(coordinated_story, "verify_fix_ready") as verified,
+            patch.object(
+                coordinated_continuations, "wait_for_participant_vf_state"
+            ),
+            patch.object(
+                coordinated_continuations, "verify_fix_ready"
+            ) as verified,
         ):
             both_vendors_report_the_fix_ready(state)
 
@@ -837,7 +848,7 @@ class TestClosure:
         state = _state_after_vendor2_joined()
 
         with patch.object(
-            coordinated_story, "close_case_owner_last"
+            coordinated_continuations, "close_case_owner_last"
         ) as closure:
             everyone_including_vendor2_closes(state)
 

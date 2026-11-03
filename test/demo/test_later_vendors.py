@@ -26,8 +26,8 @@ dumped like the first — the properties the retired ``later_vendors`` and
 ``vendor_joins_coordinated_case`` parameters used to carry.  The generic
 contracts of those three helpers (whether an invitee triages, how a
 ``(devlogs name, cast name)`` pair is read, which client each leaver acts
-through) belong to ``test_coordinated_story.py``; what is pinned here is what
-only a four-party case can show.
+through) belong to ``test/demo/coordinated_story/``; what is pinned here
+is what only a four-party case can show.
 """
 
 from unittest.mock import MagicMock, patch
@@ -40,13 +40,14 @@ from test.demo._helpers import (
     story_state,
     stub_closure_gate,
 )
-from vultron.demo.helpers import closure, coordinated_story, story_cast
+from vultron.demo.helpers import closure, story_cast
 from vultron.demo.helpers.coordinated_story import (
     COORDINATOR,
     REPORTER,
     VENDOR,
     close_the_case,
     invitee_joins_the_case,
+    joining as coordinated_joining,
 )
 from vultron.demo.helpers.story import StoryState
 from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME, dump_story_ledgers
@@ -93,13 +94,15 @@ class TestALaterVendorJoins:
         state = story_state(*_FOUR, case=mock_case())
 
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
             patch.object(
-                coordinated_story, "wait_for_case_participants"
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch.object(
+                coordinated_joining, "wait_for_case_participants"
             ) as roster,
             patch.object(
-                coordinated_story, "run_invite_path_rm_triage"
+                coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,
         ):
             invitee_joins_the_case(

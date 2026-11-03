@@ -30,7 +30,7 @@ on its ``_phase_*`` functions therefore sit here on three things:
   registry entry and the devlogs names the invariant harness reads.
 
 What the shared opening does is not re-tested here: it is one copy of the code,
-and ``test/demo/test_coordinated_story.py`` and
+and ``test/demo/coordinated_story/`` and
 ``test/demo/test_two_coordinator_story.py`` own it.  The two
 ``owner-keep-case`` continuations are shared with the vendor-first half, so
 ``test/demo/test_owner_decision_story.py`` owns their mechanics and this module
@@ -81,6 +81,9 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER,
     VENDOR,
     VENDOR_LABEL,
+    cast as coordinated_cast,
+    continuations as coordinated_continuations,
+    joining as coordinated_joining,
 )
 from vultron.demo.helpers.story import (
     Choose,
@@ -288,7 +291,7 @@ class TestRccvHandoffCast:
                 "vultron.demo.helpers.seeding.seed_case_actor_identity"
             ) as reseed,
             patch.object(
-                coordinated_story,
+                coordinated_cast,
                 "seed_containers_rcv",
                 return_value=tuple(seeded),
             ) as seed_three,
@@ -582,7 +585,7 @@ class TestEveryoneCloses:
             patch.object(ActorSession, "leave_case"),
             stub_closure_gate(),
             patch.object(
-                coordinated_story, "close_case_owner_last"
+                coordinated_continuations, "close_case_owner_last"
             ) as closure,
         ):
             demo.everyone_closes(state)
@@ -722,7 +725,7 @@ class TestRccvHandoffLedgerDump:
         with (
             patch.object(demo, "run_story") as run_story,
             patch.object(
-                coordinated_story, "open_coordinated_cast"
+                coordinated_cast, "open_coordinated_cast"
             ) as open_coordinated_cast,
         ):
             demo.run_rccv_handoff_demo(
@@ -1001,23 +1004,18 @@ class TestARosterThatNeverFillsSkipsTheTransfer:
         Two-Tier").
         """
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "run_case_invite_chain",
                 side_effect=lambda **kw: kw["then"] and kw["then"](),
             ),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "wait_for_case_participants",
                 side_effect=None
                 if fills
                 else AssertionError("roster never filled"),
-            ),
-            patch.object(
-                coordinated_story,
-                "demo_step",
-                side_effect=lambda _: contextlib.nullcontext(),
             ),
             patch.object(
                 owner_decision_story,

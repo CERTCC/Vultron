@@ -30,10 +30,11 @@ therefore sit here on three things:
   the dedicated case-actor container and the devlogs names the invariant
   harness reads.
 
-What the shared opening does is not re-tested here: ``test_coordinated_story``
-owns the rcv family's stretch, ``test_two_coordinator_story`` owns the pair's
-prefix and the continuations both scenarios tell, and
-``test_owner_decision_story`` owns the ``owner-keep-case`` continuations.
+What the shared opening does is not re-tested here:
+``test/demo/coordinated_story/`` owns the rcv family's stretch,
+``test_two_coordinator_story`` owns the pair's prefix and the continuations
+both scenarios tell, and ``test_owner_decision_story`` owns the
+``owner-keep-case`` continuations.
 Every test patches the collaborators out, so no HTTP happens; ``demo_gate`` /
 ``demo_check`` / ``demo_step`` stay real wherever the test is about control
 flow and are stubbed to ``nullcontext`` only where it is about call shape
@@ -72,6 +73,9 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER,
     REPORTER_TELLS_THE_COORDINATOR,
     VENDOR,
+    cast as coordinated_cast,
+    continuations as coordinated_continuations,
+    joining as coordinated_joining,
 )
 from vultron.demo.helpers.notes import (
     WORKAROUND_ANSWER,
@@ -315,7 +319,7 @@ class TestC2SuggestsTheVendor:
                 side_effect=lambda *a, **kw: order.append("triage"),
             ) as triage,
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ),
             _no_banners(),
         ):
@@ -388,13 +392,13 @@ class TestC2SuggestsTheVendor:
                 ".run_case_invite_chain"
             ),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "run_invite_path_rm_triage",
                 side_effect=lambda **_kw: order.append("triage"),
             ) as triage,
-            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch.object(coordinated_joining, "wait_for_case_participants"),
             patch_chain_shared(
-                coordinated_story,
+                coordinated_joining,
                 "wait_for_case_on_container",
                 side_effect=_wait_for_case,
             ),
@@ -537,7 +541,7 @@ class TestEveryoneCloses:
             patch.object(ActorSession, "leave_case"),
             stub_closure_gate(),
             patch.object(
-                coordinated_story, "close_case_owner_last"
+                coordinated_continuations, "close_case_owner_last"
             ) as closure,
         ):
             demo.everyone_closes(state)
@@ -590,7 +594,7 @@ class TestRccvExtensionDedicatedCaseActor:
                 "vultron.demo.helpers.seeding.seed_case_actor_identity"
             ) as reseed,
             patch.object(
-                coordinated_story,
+                coordinated_cast,
                 "seed_containers_rcv",
                 return_value=tuple(seeded),
             ) as seed_three,
@@ -689,7 +693,7 @@ class TestRccvExtensionDedicatedCaseActor:
         with (
             patch.object(demo, "run_story") as run_story,
             patch.object(
-                coordinated_story, "open_coordinated_cast"
+                coordinated_cast, "open_coordinated_cast"
             ) as open_coordinated_cast,
         ):
             demo.run_rccv_extension_demo(
@@ -968,23 +972,18 @@ class TestARosterThatNeverFillsSkipsTheSuggestion:
         store and buy no assertion.
         """
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "run_case_invite_chain",
                 side_effect=lambda **kw: kw["then"] and kw["then"](),
             ),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "wait_for_case_participants",
                 side_effect=None
                 if fills
                 else AssertionError("roster never filled"),
-            ),
-            patch.object(
-                coordinated_story,
-                "demo_step",
-                side_effect=lambda _: contextlib.nullcontext(),
             ),
             patch.object(
                 owner_decision_story,

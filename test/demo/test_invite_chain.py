@@ -605,7 +605,11 @@ def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
     scenario_dir = helpers_dir.parent / "scenario"
     starters = {"run_case_invite_chain", "invite_and_await_delivery"}
     scenario_sources = sorted(scenario_dir.glob("*_demo.py"))
-    fragment_sources = sorted(helpers_dir.glob("coordinated_*.py"))
+    # The coordinator-first family is a package (#5592), so its submodules
+    # are read as well as the flat sub-family modules beside it.
+    fragment_sources = sorted(helpers_dir.glob("coordinated_*.py")) + sorted(
+        helpers_dir.glob("coordinated_story/*.py")
+    )
     # Each half asserted on its own: the scenario glob alone makes `sources`
     # non-empty, so a fragment glob that matched nothing — a renamed or moved
     # ``coordinated_*.py`` — would leave the composed half unguarded and the

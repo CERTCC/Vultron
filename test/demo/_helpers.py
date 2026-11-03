@@ -18,6 +18,7 @@ import contextlib
 import importlib
 import inspect
 import logging
+import pkgutil
 import re
 from collections.abc import Iterator, Sequence
 from types import ModuleType
@@ -60,6 +61,21 @@ from vultron.errors import VultronError
 _CHAIN_OWNED = frozenset({"find_case_invite_for_actor"})
 # Names both a scenario and the invite chain call, so both are stubbed.
 _CHAIN_SHARED = frozenset({"wait_for_case_on_container"})
+
+
+@pytest.fixture(autouse=True)
+def fresh_demo_failures() -> Iterator[None]:
+    """Clear the process-global failure accumulator around every test.
+
+    ``vultron.demo.utils._demo_failures`` is process-global, and a fragment
+    that records a failure leaves it there for the next test — where it
+    changes what ``demo_gate`` does (a gate skips its body once anything is
+    recorded).  Autouse only where a ``conftest.py`` imports it, so a
+    directory opts in once rather than each module keeping its own copy.
+    """
+    demo_utils.reset_demo_failures()
+    yield
+    demo_utils.reset_demo_failures()
 
 
 @contextlib.contextmanager
@@ -689,15 +705,33 @@ def null_demo_contexts(stack: contextlib.ExitStack, demo: ModuleType) -> None:
     A module imports only the names it uses, so a name it never opens is
     skipped rather than patched into existence.  :func:`no_demo_banners` is
     this over several modules, as its own context manager.
+
+    A package stands for every submodule in it: a split module's fragments
+    resolve the banners in the submodule that holds them, and its
+    ``__init__`` only re-exports names, so patching the package itself would
+    leave every banner real (CS-18-003, #5592).
     """
-    for name in ("demo_gate", "demo_check", "demo_step"):
-        if not hasattr(demo, name):
-            continue
-        stack.enter_context(
-            patch.object(
-                demo, name, side_effect=lambda _: contextlib.nullcontext()
+    for module in _modules_resolving_names(demo):
+        for name in ("demo_gate", "demo_check", "demo_step"):
+            if not hasattr(module, name):
+                continue
+            stack.enter_context(
+                patch.object(
+                    module,
+                    name,
+                    side_effect=lambda _: contextlib.nullcontext(),
+                )
             )
-        )
+
+
+def _modules_resolving_names(module: ModuleType) -> list[ModuleType]:
+    """*module* itself, or each submodule of it when it is a package."""
+    if not hasattr(module, "__path__"):
+        return [module]
+    return [
+        importlib.import_module(f"{module.__name__}.{info.name}")
+        for info in pkgutil.iter_modules(module.__path__)
+    ]
 
 
 def _reporter_links(
