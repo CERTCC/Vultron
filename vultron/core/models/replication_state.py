@@ -19,22 +19,17 @@ Spec: SYNC-04-001, SYNC-04-002.
 from __future__ import annotations
 
 import urllib.parse
-from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, ClassVar, Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import now_utc, timestamp_serializer
-from vultron.core.models.base import NonEmptyString, with_record_id
+from vultron.core.models.base import CoreRecord, NonEmptyString, with_record_id
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.core.models.retired_stored_fields import (
-    RetiredFieldsRecord,
-    RetiredStoredField,
-)
 
 
-class VultronReplicationState(RetiredFieldsRecord):
+class VultronReplicationState(CoreRecord):
     """Tracks per-peer replication state for the CaseActor log fan-out.
 
     The ``id_`` is auto-computed as
@@ -43,9 +38,7 @@ class VultronReplicationState(RetiredFieldsRecord):
 
     The join backfill keeps no state here: it commits with its ``Accept`` in
     one act (CLP-07-015), and whether an ``Accept`` is a duplicate is read
-    from the participant record alone (CM-17-012).  The three
-    ``join_backfill_*`` fields that once recorded it are retired (#5074), so a
-    stored row that still carries one is refused.
+    from the participant record alone (CM-17-012).
 
     The ``last_reseed*`` fields record the CASE_MANAGER's last re-seed of
     the peer, which bounds the re-seed rate and tells a repeated divergence
@@ -60,12 +53,6 @@ class VultronReplicationState(RetiredFieldsRecord):
 
     Spec: SYNC-04-001, SYNC-04-002; the embargo pause is CM-10-005/006.
     """
-
-    retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
-        "join_backfill_target_index": RetiredStoredField(None, "#5074"),
-        "join_backfill_last_sent_index": RetiredStoredField(None, "#5074"),
-        "join_backfill_complete": RetiredStoredField(None, "#5074"),
-    }
 
     type_: Literal["ReplicationState"] = Field(  # type: ignore[assignment]
         default="ReplicationState",

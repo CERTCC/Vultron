@@ -26,7 +26,6 @@ from typing import Any
 
 import pytest
 from pydantic import ValidationError
-from pydantic.alias_generators import to_camel
 
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.replication_state import VultronReplicationState
@@ -72,32 +71,6 @@ def test_alias_and_name_spellings_both_read(field: str) -> None:
     )
     assert getattr(by_alias, field) == _VALUES[field]
     assert getattr(by_name, field) == _VALUES[field]
-
-
-_RETIRED = [
-    "join_backfill_target_index",
-    "join_backfill_last_sent_index",
-    "join_backfill_complete",
-]
-
-
-@pytest.mark.spec("CM-17-012")
-@pytest.mark.parametrize(
-    "old",
-    [key for name in _RETIRED for key in (name, to_camel(name))],
-)
-def test_a_row_with_a_retired_join_backfill_key_is_refused(old: str) -> None:
-    """A stored row from before #5074 fails to load naming the reset.
-
-    The join backfill keeps no state, so the three fields are deleted with no
-    replacement (notes/datalayer-design.md § "Retiring a Stored Field").
-    """
-    with pytest.raises(ValidationError, match="must be reset") as excinfo:
-        VultronReplicationState.model_validate({**_BASE, old: 0})
-
-    message = str(excinfo.value)
-    assert repr(old) in message
-    assert "#5074" in message
 
 
 @pytest.mark.spec("SYNC-15-022")

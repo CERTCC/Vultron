@@ -127,9 +127,9 @@ and exited are reads; code that writes a row to record one re-creates the second
 record ADR-0122 removed.
 
 `ParticipantStatus` carries no consent and `embargo_adherence` is gone
-(ADR-0122 supersedes ADR-0056). The wire keys `emConsentState`,
-`embargoAdherence`, `embargoConsentState` and `acceptedEmbargoIds` are refused
-inbound by name (`RETIRED_NAMES`).
+(ADR-0122 supersedes ADR-0056). The former wire keys `emConsentState`,
+`embargoAdherence`, `embargoConsentState` and `acceptedEmbargoIds` are ordinary
+unknown keys inbound, set aside and reported (MV-11-003, ADR-0175).
 
 ---
 

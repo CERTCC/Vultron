@@ -9,9 +9,9 @@ validate it (MV-11-001):
 
 * a **declared** key is kept;
 * a **near miss** — the same string as a declared spelling once both are
-  lowercased and stripped of every non-alphanumeric character — or a
-  **retired** name refuses the whole activity, naming the arriving key and the
-  spelling it resembles (MV-11-002);
+  lowercased and stripped of every non-alphanumeric character — refuses the
+  whole activity, naming the arriving key and the spelling it resembles
+  (MV-11-002);
 * any **other** key is **set aside**: dropped from the body that is validated
   and returned to the caller to report (MV-11-003).
 
@@ -19,8 +19,11 @@ The disposition never depends on which branch the class belongs to.  A core
 class keeps ``extra="forbid"`` (ARCH-12-003, MV-11-004); it simply never sees an
 inbound unknown key, because this walk removes them first.
 
-The near-miss test is exactly the normalisation above plus :data:`RETIRED_NAMES`.
-No edit distance or other similarity measure is used (MV-11-009).
+The near-miss test is exactly the normalisation above.  No edit distance or
+other similarity measure is used (MV-11-009).  A name the protocol once read
+and no longer does is no different from any other unknown key: before 1.0
+Vultron supports one protocol version, so no list of retired names is kept
+(ADR-0175).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -72,63 +75,6 @@ OPAQUE_PAYLOAD_KEYS = frozenset({"payloadSnapshot", "payload_snapshot"})
 #: Keys whose values the partition carries as received: the opaque payloads
 #: above, and the JSON-LD context, whose term definitions are not AS2 objects.
 _UNEXAMINED_KEYS = OPAQUE_PAYLOAD_KEYS | {CONTEXT_KEY}
-
-_VFD_RETIRED = (
-    "vfd_state/vfdState is retired (ADR-0075); use vfState for vendor"
-    " participants and dState for deployer participants instead"
-)
-
-#: Names the protocol once read and no longer does, mapped to the replacement
-#: a sender should use (MV-11-002, MV-11-011).  Matched by name, not by
-#: normalisation, and the only place a received key is judged: core types
-#: carry no per-class guard for a wire key (SDO-03-009) — ``extra="forbid"``
-#: refuses these on in-process and stored data, and a renamed stored field
-#: names its rename through ``RetiredFieldsRecord``.
-_CONSENT_RETIRED = (
-    "the scalar participant embargo consent is retired (ADR-0122); consent is"
-    " per embargo and travels as the participant's embargoConsents rows"
-)
-
-_EMBARGO_FIELDS_RETIRED = (
-    "the case's stored activeEmbargo and proposedEmbargoes are retired"
-    " (ADR-0122); a case carries its embargoes as embargoRegister entries"
-)
-
-_LEDGER_EVENT_TYPE_RETIRED = (
-    "eventType is retired on every object (CLP-02-019): the case ledger"
-    " entry's eventType was renamed semanticType, so send an entry's"
-    " semantic type as semanticType"
-)
-
-RETIRED_NAMES: Mapping[str, str] = MappingProxyType(
-    {
-        "vfd_state": _VFD_RETIRED,
-        "vfdState": _VFD_RETIRED,
-        "eventType": _LEDGER_EVENT_TYPE_RETIRED,
-        **dict.fromkeys(
-            (
-                "emConsentState",
-                "em_consent_state",
-                "embargoConsentState",
-                "embargo_consent_state",
-                "embargoAdherence",
-                "embargo_adherence",
-                "acceptedEmbargoIds",
-                "accepted_embargo_ids",
-            ),
-            _CONSENT_RETIRED,
-        ),
-        **dict.fromkeys(
-            (
-                "activeEmbargo",
-                "active_embargo",
-                "proposedEmbargoes",
-                "proposed_embargoes",
-            ),
-            _EMBARGO_FIELDS_RETIRED,
-        ),
-    }
-)
 
 
 @dataclass(frozen=True)
@@ -377,10 +323,6 @@ def _partition_object(
                     walk,
                 )
             )
-        elif key in RETIRED_NAMES:
-            walk.near_misses.append(
-                f"{key!r} at {location}: {RETIRED_NAMES[key]}"
-            )
         elif (
             declared := spellings.by_normalised.get(normalise(key))
         ) is not None:
@@ -403,8 +345,7 @@ def partition_unknown_keys(
     is not modified: it is the received evidence (VM-08-002).
 
     Raises:
-        VultronParseValidationError: If any key is a near miss or a retired
-            name.  Every such key in the body is named, not only the first
+        VultronParseValidationError: If any key is a near miss.  Every such key in the body is named, not only the first
             (EH-07-001).  Also raised, rather than ``RecursionError``, for a
             body nested beyond the interpreter's recursion limit.
     """
@@ -420,7 +361,7 @@ def partition_unknown_keys(
         ) from exc
     if walk.near_misses:
         raise VultronParseValidationError(
-            "Activity carries misspelled or retired key(s) (MV-11-002): "
+            "Activity carries misspelled key(s) (MV-11-002): "
             + "; ".join(walk.near_misses)
         )
     return kept, walk.set_aside

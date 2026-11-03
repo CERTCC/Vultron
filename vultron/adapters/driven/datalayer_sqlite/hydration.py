@@ -240,7 +240,7 @@ def from_row(
         except WIRE_ROW_FAILURES as exc:
             # dl.read() reports the row absent; say why, or an operator sees
             # only "not found" — e.g. a record stored under a field name a
-            # later rename retired, whose refusal names the store reset (#4128).
+            # later rename retired, which ``extra="forbid"`` refuses (MV-11-004).
             logger.warning(
                 "Row %r (type %r) failed validation (%s); reading it as absent.",
                 row.id_,

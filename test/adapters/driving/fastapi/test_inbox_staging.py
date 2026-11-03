@@ -27,7 +27,6 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -695,20 +694,6 @@ def test_an_activity_with_no_sealed_body_cannot_be_held(dl):
         staging.hold_for_replay(built.id_)
     assert staging.held(built.id_) is None
     assert sum(dl.count_all().values()) == 0, "nothing is written"
-
-
-@pytest.mark.spec("VM-08-002")
-def test_a_stored_row_form_deferred_record_is_refused_naming_the_reset():
-    """The row form of a deferred record is retired, not aliased (#5019)."""
-    with pytest.raises(ValidationError, match="must be reset") as excinfo:
-        DeferredInboxActivity.model_validate(
-            {
-                "activity_id": "urn:uuid:row-held",
-                "activity_row_json": '{"id_": "urn:uuid:row-held"}',
-            }
-        )
-    assert "'activity_row_json'" in str(excinfo.value)
-    assert "#5019" in str(excinfo.value)
 
 
 def test_a_stage_that_stages_no_activity_row_fails_loudly(dl):

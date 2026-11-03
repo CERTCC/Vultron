@@ -1,9 +1,8 @@
 """Inbound unknown-key disposition at the parse edge (MV-11, #3900, #3921, #3969).
 
 One rule, stated once at ``parse_activity`` and holding at every depth: an
-unrecognised key that is a *near miss* for a declared spelling (case or
-underscore variant, or a retired name) refuses the whole activity naming both
-spellings; any other unrecognised key is set aside and reported at INFO, and
+unrecognised key that is a *near miss* for a declared spelling (a case or
+underscore variant) refuses the whole activity naming both spellings; any other unrecognised key is set aside and reported at INFO, and
 the activity proceeds on its declared fields.
 
 Measured on 2026-09-30 the disposition depended on class ancestry instead — a
@@ -152,6 +151,35 @@ def _info_records_naming(
     ]
 
 
+def _assert_set_aside_and_reported(
+    body: dict[str, Any],
+    key: str,
+    path: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """*key* never refuses, never lands on the object, and is logged once."""
+    caplog.set_level(logging.INFO)
+    activity = parse_activity(body)
+
+    dumped = activity.model_dump(by_alias=True, exclude_none=True)
+    assert key not in dumped
+    if path:
+        inline = dumped[path]
+        assert isinstance(inline, dict) and key not in inline
+
+    records = _info_records_naming(caplog, key)
+    assert len(records) == 1, [r.getMessage() for r in caplog.records]
+    message = records[0].getMessage()
+    assert ACTIVITY_ID in message
+    assert SENDER in message
+    # The path is named in the parser's quoted form (``at 'object'``), never
+    # matched as a bare word; the root has no path and is named as the envelope.
+    if path:
+        assert f"'{path}'" in message
+    else:
+        assert "envelope" in message
+
+
 @pytest.mark.spec("MV-11-001")
 @pytest.mark.spec("MV-11-003")
 @pytest.mark.parametrize(
@@ -164,26 +192,7 @@ def test_foreign_key_is_set_aside_and_reported_once(
     body: dict[str, Any], path: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A foreign key never refuses, never lands on the object, and is logged once."""
-    caplog.set_level(logging.INFO)
-    activity = parse_activity(body)
-
-    dumped = activity.model_dump(by_alias=True, exclude_none=True)
-    assert FOREIGN_KEY not in dumped
-    if path:
-        inline = dumped[path]
-        assert isinstance(inline, dict) and FOREIGN_KEY not in inline
-
-    records = _info_records_naming(caplog, FOREIGN_KEY)
-    assert len(records) == 1, [r.getMessage() for r in caplog.records]
-    message = records[0].getMessage()
-    assert ACTIVITY_ID in message
-    assert SENDER in message
-    # The path is named in the parser's quoted form (``at 'object'``), never
-    # matched as a bare word; the root has no path and is named as the envelope.
-    if path:
-        assert f"'{path}'" in message
-    else:
-        assert "envelope" in message
+    _assert_set_aside_and_reported(body, FOREIGN_KEY, path, caplog)
 
 
 @pytest.mark.spec("MV-11-001")
@@ -223,100 +232,6 @@ def test_snake_case_field_name_is_declared(
     assert not _info_records_naming(caplog, "attributed_to")
 
 
-@pytest.mark.spec("MV-11-002")
-@pytest.mark.parametrize("retired", ["vfd_state", "vfdState"])
-def test_retired_name_on_inline_object_is_refused(retired: str) -> None:
-    """A retired name is in the list by name, not by normalisation (ADR-0075).
-
-    Held by the wire-side ``RETIRED_NAMES`` list at the parse edge since #3921
-    deleted the core ``ParticipantStatus`` guard (AC-4; SDO-03-009, MV-11-004).
-    Only the naming of the retired key is pinned, not the list's wording:
-    MV-11-002 requires the arriving key and the spelling it resembles, and for a
-    retired name those are the same string.
-    """
-    body = _with_inline_object(
-        {
-            "type": "ParticipantStatus",
-            "id": "https://example.org/status/1",
-            "actor": SENDER,
-            "context": "https://example.org/cases/1",
-            "cvd_role": "VENDOR",
-            retired: "VFD",
-        }
-    )
-    with pytest.raises(VultronParseValidationError) as exc_info:
-        parse_activity(body)
-    assert retired in str(exc_info.value)
-
-
-def _inline_ledger_entry(**keys: Any) -> dict[str, Any]:
-    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-
-    entry = CaseLedgerEntry(
-        case_id="https://example.org/cases/1",
-        log_index=0,
-        log_object_id="https://example.org/activities/0",
-        semantic_type="create_case",
-    )
-    body = entry.model_dump(by_alias=True, mode="json", exclude_none=True)
-    body.update(keys)
-    return {key: value for key, value in body.items() if value is not None}
-
-
-@pytest.mark.spec("MV-11-002")
-@pytest.mark.parametrize(
-    "keys",
-    [
-        pytest.param({"eventType": "create_case"}, id="beside-semanticType"),
-        pytest.param(
-            {"eventType": "create_case", "semanticType": None},
-            id="instead-of-semanticType",
-        ),
-    ],
-)
-@pytest.mark.spec("CLP-02-019")
-def test_received_ledger_entry_carrying_event_type_is_refused(
-    keys: dict[str, Any],
-) -> None:
-    """A received entry still spelling ``eventType`` is refused (CLP-02-019).
-
-    The parse edge decides the key before the core class sees it, so the
-    refusal must name the rename whether or not ``semanticType`` rides along;
-    setting ``eventType`` aside would accept the entry, and refusing it only as
-    a missing ``semanticType`` would not say a rename happened.
-    """
-    body = _envelope(type="Announce", object=_inline_ledger_entry(**keys))
-    with pytest.raises(VultronParseValidationError) as exc_info:
-        parse_activity(body)
-    message = str(exc_info.value)
-    assert "eventType" in message
-    assert "renamed semanticType" in message
-
-
-@pytest.mark.spec("MV-11-002")
-@pytest.mark.spec("CLP-02-019")
-def test_event_type_on_a_non_ledger_object_is_refused_too() -> None:
-    """``eventType`` is a retired name on every inline object, not only an entry.
-
-    ``RETIRED_NAMES`` is consulted for any object whose class does not declare
-    the key, so a ``Note`` carrying ``eventType`` is refused rather than having
-    the key set aside, and the refusal must still be true for a non-entry.
-    """
-    body = _with_inline_object(
-        {
-            "type": "Note",
-            "id": "https://example.org/notes/1",
-            "content": "hello",
-            "eventType": "create_case",
-        }
-    )
-    with pytest.raises(VultronParseValidationError) as exc_info:
-        parse_activity(body)
-    message = str(exc_info.value)
-    assert "eventType is retired on every object" in message
-    assert "renamed semanticType" in message
-
-
 def _inline_case_status(**extra: Any) -> dict[str, Any]:
     return {
         "type": "CaseStatus",
@@ -349,12 +264,8 @@ def test_flat_case_status_spelling_is_a_near_miss_of_its_wire_spelling(
 
     Once ``CaseStatus`` stops declaring the flat snake_case spellings, each
     normalises to its wire spelling (``emState``, ``pxaState``), so the
-    near-miss rule refuses it with no ``RETIRED_NAMES`` entry: the field is
-    not retired, only that spelling of it.
+    near-miss rule refuses it: the field is not retired, only that spelling.
     """
-    from vultron.wire.as2.unknown_keys import RETIRED_NAMES
-
-    assert flat not in RETIRED_NAMES
     body = _with_inline_object(build(**{flat: value}))
     with pytest.raises(VultronParseValidationError) as exc_info:
         parse_activity(body)
@@ -379,30 +290,15 @@ def test_flat_participant_status_spelling_is_a_near_miss_of_its_wire_spelling(
     """``rm_state``/``vf_state``/``d_state`` are refused as near misses (#4377).
 
     ``ParticipantStatus`` no longer declares the flat snake_case spellings, so
-    each normalises to its wire spelling and the near-miss rule refuses it with
-    no ``RETIRED_NAMES`` entry: the field is not retired, only that spelling.
+    each normalises to its wire spelling and the near-miss rule refuses it:
+    the field is not retired, only that spelling.
     """
-    from vultron.wire.as2.unknown_keys import RETIRED_NAMES
-
-    assert flat not in RETIRED_NAMES
     body = _with_inline_object(_inline_participant_status(**{flat: value}))
     with pytest.raises(VultronParseValidationError) as exc_info:
         parse_activity(body)
     message = str(exc_info.value)
     assert flat in message
     assert declared in message
-
-
-CONSENT_RETIRED_KEYS = [
-    ("emConsentState", "SIGNATORY"),
-    ("em_consent_state", "SIGNATORY"),
-    ("embargoAdherence", True),
-    ("embargo_adherence", True),
-    ("embargoConsentState", "SIGNATORY"),
-    ("embargo_consent_state", "SIGNATORY"),
-    ("acceptedEmbargoIds", ["https://example.org/embargoes/1"]),
-    ("accepted_embargo_ids", ["https://example.org/embargoes/1"]),
-]
 
 
 def _inline_participant_status(**extra: Any) -> dict[str, Any]:
@@ -426,67 +322,119 @@ def _inline_case_participant(**extra: Any) -> dict[str, Any]:
     }
 
 
-@pytest.mark.spec("MV-11-002")
-@pytest.mark.parametrize("retired,value", CONSENT_RETIRED_KEYS)
-@pytest.mark.parametrize(
-    "build",
-    [_inline_participant_status, _inline_case_participant],
-    ids=["ParticipantStatus", "CaseParticipant"],
-)
-def test_retired_scalar_consent_name_is_refused_with_adr_0120_message(
-    build: Callable[..., dict[str, Any]], retired: str, value: Any
-) -> None:
-    """The scalar consent names are retired by ADR-0122 (#4178).
+def _inline_ledger_entry(**keys: Any) -> dict[str, Any]:
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
-    Consent is per embargo and travels as ``embargoConsents`` rows; a sender
-    still using the scalar spelling (on a status or on a participant) has the
-    whole activity refused at the parse edge, naming the key and the ADR-0122
-    replacement, instead of being set aside and read as "never asked".
-    """
-    body = _with_inline_object(build(**{retired: value}))
-    with pytest.raises(VultronParseValidationError) as exc_info:
-        parse_activity(body)
-    message = str(exc_info.value)
-    assert retired in message
-    assert "ADR-0122" in message
-    assert "embargoConsents" in message
+    entry = CaseLedgerEntry(
+        case_id="https://example.org/cases/1",
+        log_index=0,
+        log_object_id="https://example.org/activities/0",
+        semantic_type="create_case",
+    )
+    body = entry.model_dump(by_alias=True, mode="json", exclude_none=True)
+    body.update(keys)
+    return body
 
 
-EMBARGO_FIELD_RETIRED_KEYS = [
-    ("activeEmbargo", "https://example.org/embargoes/1"),
-    ("active_embargo", "https://example.org/embargoes/1"),
-    ("proposedEmbargoes", ["https://example.org/embargoes/2"]),
-    ("proposed_embargoes", ["https://example.org/embargoes/2"]),
+def _inline_case(**extra: Any) -> dict[str, Any]:
+    return {
+        **INBOUND_CASE_OWNERSHIP,
+        "type": "VulnerabilityCase",
+        "id": "https://example.org/cases/1",
+        "name": "c",
+        **extra,
+    }
+
+
+#: (label, body, key) for each name the protocol once read and no longer does.
+#: Before 1.0 Vultron supports one protocol version (ADR-0175), so each is an
+#: ordinary unknown key: set aside and reported (MV-11-003), never refused.
+FORMER_NAME_POSITIONS: list[tuple[str, dict[str, Any], str]] = [
+    *(
+        (
+            f"ParticipantStatus.{key}",
+            _with_inline_object(_inline_participant_status(**{key: "VFD"})),
+            key,
+        )
+        for key in ("vfd_state", "vfdState")
+    ),
+    *(
+        (
+            f"{build.__name__.removeprefix('_inline_')}.{key}",
+            _with_inline_object(build(**{key: value})),
+            key,
+        )
+        for key, value in [
+            ("emConsentState", "SIGNATORY"),
+            ("em_consent_state", "SIGNATORY"),
+            ("embargoAdherence", True),
+            ("embargo_adherence", True),
+            ("embargoConsentState", "SIGNATORY"),
+            ("embargo_consent_state", "SIGNATORY"),
+            ("acceptedEmbargoIds", ["https://example.org/embargoes/1"]),
+            ("accepted_embargo_ids", ["https://example.org/embargoes/1"]),
+        ]
+        for build in (_inline_participant_status, _inline_case_participant)
+    ),
+    *(
+        (
+            f"VulnerabilityCase.{key}",
+            _with_inline_object(_inline_case(**{key: value})),
+            key,
+        )
+        for key, value in [
+            ("activeEmbargo", "https://example.org/embargoes/1"),
+            ("active_embargo", "https://example.org/embargoes/1"),
+            ("proposedEmbargoes", ["https://example.org/embargoes/2"]),
+            ("proposed_embargoes", ["https://example.org/embargoes/2"]),
+        ]
+    ),
+    (
+        "CaseLedgerEntry.eventType",
+        _envelope(
+            type="Announce",
+            object=_inline_ledger_entry(eventType="create_case"),
+        ),
+        "eventType",
+    ),
+    (
+        "Note.eventType",
+        _with_inline_object(
+            {
+                "type": "Note",
+                "id": "https://example.org/notes/1",
+                "content": "hello",
+                "eventType": "create_case",
+            }
+        ),
+        "eventType",
+    ),
 ]
 
 
-@pytest.mark.spec("MV-11-002")
-@pytest.mark.parametrize("retired,value", EMBARGO_FIELD_RETIRED_KEYS)
-def test_retired_case_embargo_field_is_refused_naming_the_register(
-    retired: str, value: Any
+@pytest.mark.spec("MV-11-002", "MV-11-003")
+@pytest.mark.parametrize(
+    "body,key",
+    [(b, k) for _, b, k in FORMER_NAME_POSITIONS],
+    ids=[label for label, _, _ in FORMER_NAME_POSITIONS],
+)
+def test_a_former_field_name_is_set_aside_and_reported(
+    body: dict[str, Any], key: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The case's stored embargo fields are retired by ADR-0122 (#4290).
+    """A name the protocol no longer reads is an unknown key, not a refusal.
 
-    A case carries its embargoes as ``embargoRegister`` entries.  A sender
-    still using the old fields has the activity refused at the parse edge,
-    rather than the key set aside and the case read as having no embargo
-    (EM ``NONE``).
+    No list of retired names is kept (ADR-0175): the key is not a near miss
+    of any declared spelling, so the parse edge sets it aside and logs it once
+    at INFO, and the activity proceeds on its declared fields (MV-11-003).
     """
-    body = _with_inline_object(
-        {
-            "type": "VulnerabilityCase",
-            "id": "https://example.org/cases/1",
-            "attributedTo": SENDER,
-            "name": "c",
-            retired: value,
-        }
-    )
-    with pytest.raises(VultronParseValidationError) as exc_info:
-        parse_activity(body)
-    message = str(exc_info.value)
-    assert retired in message
-    assert "ADR-0122" in message
-    assert "embargoRegister" in message
+    _assert_set_aside_and_reported(body, key, "object", caplog)
+
+
+def test_the_parse_edge_keeps_no_retired_name_list() -> None:
+    """``unknown_keys`` declares no table of retired names (ADR-0175)."""
+    from vultron.wire.as2 import unknown_keys
+
+    assert not hasattr(unknown_keys, "RETIRED_NAMES")
 
 
 @pytest.mark.spec("MV-11-002")
@@ -671,19 +619,19 @@ def test_normalisation_is_lowercase_and_strip_non_alphanumerics(
 
 
 @pytest.mark.spec("SDO-03-009")
-@pytest.mark.spec("MV-11-011", "MV-11-012")
+@pytest.mark.spec("MV-11-012")
 def test_no_core_module_names_a_retired_key() -> None:
-    """The retired-name list lives wire-side only (MV-11-011, AC-4).
+    """No core class carries a by-name guard for a former key (MV-11-012).
 
-    A per-class reject-guard has to spell the retired key as a string to test
+    A per-class reject-guard has to spell the former key as a string to test
     for it, as ``ParticipantStatus._reject_retired_vfd_keys`` did; no string
-    constant under ``vultron/core/`` may equal a name on the list.
+    constant under ``vultron/core/`` may equal one of the former names.
     """
     import vultron.core as core_package
-    from vultron.wire.as2.unknown_keys import RETIRED_NAMES
 
     offenders = _string_constants_under(
-        Path(core_package.__file__).parent, RETIRED_NAMES.keys()
+        Path(core_package.__file__).parent,
+        {key for _, _, key in FORMER_NAME_POSITIONS},
     )
     assert offenders == [], offenders
 
@@ -1151,7 +1099,6 @@ def test_no_exemption_names_a_jsonld_keyword() -> None:
     exemptions: dict[str, frozenset[str]] = {
         "_UNEXAMINED_KEYS": unknown_keys._UNEXAMINED_KEYS,
         "OPAQUE_PAYLOAD_KEYS": unknown_keys.OPAQUE_PAYLOAD_KEYS,
-        "RETIRED_NAMES": frozenset(unknown_keys.RETIRED_NAMES),
     }
     assert {
         name: sorted(keywords & keys)

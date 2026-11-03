@@ -234,9 +234,11 @@ groups:
       as aliases or shim properties after the migration is complete.
     verification: '`TestCaseStatusCarriesNoFlatShim` in `test/core/models/test_dimensions.py` asserts that `CaseStatus`
       defines no `em_state` or `pxa_state` property or field and refuses either key on input through `extra="forbid"`;
-      `test_flat_case_status_spelling_is_a_near_miss_of_its_wire_spelling` and `test_retired_name_on_inline_object_is_refused`
-      in `test/wire/as2/test_unknown_key_disposition.py` pin the parse-edge refusal of the flat CaseStatus spellings and
-      of `vfd_state`. `TestParticipantStatusCarriesNoFlatShim` in
+      `test_flat_case_status_spelling_is_a_near_miss_of_its_wire_spelling` in
+      `test/wire/as2/test_unknown_key_disposition.py` pins the parse-edge refusal of
+      the flat CaseStatus spellings, and
+      `test_a_former_field_name_is_set_aside_and_reported` pins that `vfd_state` is
+      set aside as an unknown key (ADR-0175). `TestParticipantStatusCarriesNoFlatShim` in
       `test/core/models/test_participant_status_shape.py`
       and `test_flat_participant_status_spelling_is_a_near_miss_of_its_wire_spelling`
       pin the same for the

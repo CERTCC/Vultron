@@ -31,23 +31,19 @@ Spec: ``specs/case-proposal.yaml`` CP-05-002, CP-05-004.
 """
 
 import urllib.parse
-from collections.abc import Mapping
-from typing import Any, ClassVar, Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
 from vultron.core.models.base import (
+    CoreRecord,
     NonEmptyString,
     UriString,
     with_record_id,
 )
-from vultron.core.models.retired_stored_fields import (
-    RetiredFieldsRecord,
-    RetiredStoredField,
-)
 
 
-class CaseProposalDeclineRecord(RetiredFieldsRecord):
+class CaseProposalDeclineRecord(CoreRecord):
     """Durable record that this service declined a ``CaseProposal``.
 
     Attributes:
@@ -66,9 +62,6 @@ class CaseProposalDeclineRecord(RetiredFieldsRecord):
         reject_activity_id: URI of the ``Reject`` this service queued for the
             proposer, set by the emit in the transaction that writes the
             record.  ``None`` only until that emit runs.
-
-    A stored record that still carries the retired ``vendor_uri`` key is
-    refused on load (#4128); the store must be reset.
 
     Spec: CP-05-002, CP-05-004.
     """
@@ -100,10 +93,6 @@ class CaseProposalDeclineRecord(RetiredFieldsRecord):
             " emit that commits with the record runs"
         ),
     )
-
-    retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
-        "vendor_uri": RetiredStoredField("proposer_uri", "#4128"),
-    }
 
     @classmethod
     def build_id(cls, proposal_id: str) -> str:

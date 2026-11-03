@@ -38,20 +38,15 @@ Lookup in both directions:
 """
 
 import urllib.parse
-from collections.abc import Mapping
-from typing import Any, ClassVar, Literal
+from typing import Any, Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from vultron.core.models.base import NonEmptyString, with_record_id
+from vultron.core.models.base import CoreRecord, NonEmptyString, with_record_id
 from vultron.core.models.received_body import require_json_object_text
-from vultron.core.models.retired_stored_fields import (
-    RetiredFieldsRecord,
-    RetiredStoredField,
-)
 
 
-class ReceivedActivityRecord(RetiredFieldsRecord):
+class ReceivedActivityRecord(CoreRecord):
     """One received activity, archived under a key the receiver derives.
 
     Attributes:
@@ -66,11 +61,8 @@ class ReceivedActivityRecord(RetiredFieldsRecord):
         validation_alias="type",
         serialization_alias="type",
     )
-    # The event's core summary of the activity, retired for the body itself
+    # Only the sealed body is held, never a core summary of the activity
     # (ADR-0149): nothing derived from what arrived is stored beside it.
-    retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
-        "activity": RetiredStoredField(None, "#4943"),
-    }
     activity_id: NonEmptyString = Field(
         ..., description="The sender's id for the archived activity"
     )

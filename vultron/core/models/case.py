@@ -18,7 +18,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, ClassVar, Literal
 
@@ -40,9 +39,6 @@ from vultron.core.models._helpers import (
     new_object_id,
     now_utc,
     now_utc_after,
-)
-from vultron.core.models.actor_recommendation_record import (
-    ActorRecommendationRecord,
 )
 from vultron.core.models.base import (
     VULTRON_PROPERTY_EXTRA,
@@ -66,10 +62,6 @@ from vultron.core.models.ledger_position import (
     LedgerPosition,
 )
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.retired_stored_fields import (
-    RetiredFieldsRecord,
-    RetiredStoredField,
-)
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
@@ -177,7 +169,7 @@ def _genesis_published(data: dict[str, Any], inbound: bool) -> datetime | None:
     return parsed
 
 
-class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
+class VulnerabilityCase(CoreObject):
     """Domain representation of a vulnerability case.
 
     Canonical core type for a ``VulnerabilityCase``.  ``type_`` is
@@ -212,15 +204,6 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
     inline_required_refs: ClassVar[frozenset[str]] = frozenset(
         {"embargo_register"}
     )
-    # Who recommended whom is case bookkeeping, not part of the case file
-    # (CLP-07-014): the CASE_MANAGER keeps it as an ActorRecommendationRecord
-    # in its own store.  A stored case still carrying the old index is
-    # refused with a reset note rather than converted (#4448).
-    retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
-        "recommendation_recommender_index": RetiredStoredField(
-            "recommender_id", "#4448", ActorRecommendationRecord
-        ),
-    }
     # Every reference slot below carries ``NonEmptyString`` for its IRI form:
     # a blank reference names nothing, so it is refused at construction rather
     # than stored and dereferenced later (CS-08-001, ARCH-10-001).
