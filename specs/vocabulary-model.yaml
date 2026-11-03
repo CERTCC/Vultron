@@ -26,18 +26,6 @@ groups:
     verification: Unit tests in `test/wire/as2/vocab/base/test_registry.py` confirm that a concrete `as_Object` subclass
       with a `Literal` `type_` annotation is present in `VOCABULARY` immediately after class definition, with no explicit
       registration call.
-  - id: VM-01-002
-    priority: MUST
-    kind: project
-    statement: The `VOCABULARY` singleton MUST be the sole authoritative source for type lookup during dynamic deserialization
-    rationale: >-
-      If two lookups can answer the same `type` value, the same body can deserialize to
-      different classes on different code paths, and a defect in one path is not seen in
-      the other. One lookup gives every caller the same answer. The registry keys are
-      set by VM-01-004 and VM-01-008, and VM-06-008 sets which callers may also reach
-      the core map.
-    verification: Unit tests in `test/wire/as2/vocab/base/test_registry.py` confirm that `find_in_vocabulary()` returns the
-      correct registered class for a known type and raises `KeyError` for any unregistered type name.
   - id: VM-01-003
     priority: MUST
     kind: project
@@ -294,16 +282,22 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      All wire-layer AS2 Pydantic models MUST inherit `model_config` from `as_Base`
-      (or an intermediate class that inherits from `as_Base`), which provides:
-      (a) a camelCase alias generator, (b) `populate_by_name=True`, and
-      (c) strict-mode validation.
+      Every wire-layer AS2 Pydantic model MUST inherit from `as_Base` a `model_config`
+      that sets a camelCase alias generator, `validate_by_name` and
+      `validate_by_alias`, and no strict mode.
     rationale: >-
       One inherited configuration makes every wire class read and write field names in
       the same forms: camelCase names on the wire (VM-07-002) and Python names in code.
       A class with its own configuration can send snake_case keys or refuse a field
       given by its Python name, and only the activities that use that class show the
-      defect.
+      defect. Strict mode stays off because it would refuse lenient inbound data that
+      the wire branch exists to accept, such as an ISO string for a datetime field.
+    note: >-
+      A class can inherit the configuration through an intermediate class, such as
+      `as_Object`, that inherits from `as_Base`.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-14-001
   - id: VM-02-002
     priority: MUST
     kind: project
@@ -330,8 +324,14 @@ groups:
       different JSON on different code paths, for example with `null` fields on one path
       and none on the other. Shared methods with the project defaults give one output
       for one object, and they keep these output rules in one place.
-    verification: Unit tests in `test/wire/as2/vocab/test_vocab_case_examples.py` confirm that `to_json()` produces
-      alias-keyed JSON with `None` fields excluded and that `from_json()` correctly round-trips the resulting string.
+    verification: >-
+      Unit tests in `test/wire/as2/vocab/test_vocab_case_examples.py` confirm that
+      `to_json()` produces alias-keyed JSON with `None` fields excluded and that
+      `from_json()` correctly round-trips the resulting string.
+      `test_to_dict_emits_aliased_keys_without_none_values` and
+      `test_to_dict_has_the_keys_to_json_emits` in
+      `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` confirm that `to_dict()`
+      keys its output by the same aliases and omits `None` values.
 - id: VM-03
   title: Type Auto-Inference
   specs:
@@ -568,20 +568,27 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      If a URI string reference cannot be resolved (object not in DataLayer),
-      rehydration MUST: (a) leave the field as the original URI string value,
-      (b) log a WARNING identifying the unresolvable URI, and (c) continue
-      rehydrating remaining fields rather than raising an exception.
+      Rehydration MUST keep a URI it cannot resolve, carry on without raising, and log
+      it: at WARNING in `dl.hydrate()`, at DEBUG in `rehydrate()`. This covers a
+      reference in a slot that admits a URI, to an object the DataLayer does not hold.
+      Of those slots, `rehydrate()` resolves only an activity's nested `object`.
     rationale: >-
-      A reference that the local DataLayer cannot resolve is a normal case: the object
-      can be on another server, or not yet received. Raising would refuse an activity
-      that is valid. Keeping the URI lets a later step treat the object as unresolved
-      (SE-01-006). A bare `object` is then classified by VAM-01-009, and a receiver that
-      is not the CASE_MANAGER fetches it (AKM-05-007). The log entry tells an operator
-      which reference stayed unresolved.
-    verification: Unit tests `test_hydrate_keeps_unresolvable_string_ids` and `test_hydrate_warns_for_unresolvable_string_ids`
-      in `test/adapters/driven/test_sqlite_rehydration.py` confirm that an unresolvable URI is left as a string, a WARNING
-      is emitted, and no exception is raised.
+      An unresolved reference is normal: the object can be on another server or not
+      yet received, and raising would refuse a valid activity. Keeping the URI lets a
+      later step treat the object as unresolved (SE-01-006, VAM-01-009, AKM-05-007).
+      In `dl.hydrate()` this actor stored the reference, so a missing object is a data
+      gap an operator must see. In the inbound `rehydrate()` it is the ordinary
+      cross-container case, and the inbox fetches the object next.
+    verification: >-
+      For the store path, unit tests `test_hydrate_keeps_unresolvable_string_ids` and
+      `test_hydrate_warns_for_unresolvable_string_ids` in
+      `test/adapters/driven/test_sqlite_rehydration.py` confirm that `dl.hydrate()`
+      leaves an unresolvable URI as a string, logs a WARNING naming it, and raises
+      nothing. For the inbound path,
+      `test_rehydrate_keeps_unresolved_nested_object_and_logs_debug` in
+      `test/wire/as2/test_rehydration_materialisation.py` confirms that `rehydrate()`
+      keeps an unresolved nested `object` URI, names it in a DEBUG record, logs no
+      WARNING, and raises nothing.
     relationships:
     - rel_type: implements
       spec_id: SE-01-003
@@ -600,22 +607,6 @@ groups:
       reported fault, and no later step acts on a guess.
     verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that a vocabulary lookup failure for an unknown
       `as_type` propagates as `KeyError` or `ValueError` rather than returning a partially constructed object.
-  - id: VM-06-006
-    priority: MUST
-    kind: project
-    statement: A vocabulary override (replacing the default `VultronVocabulary` with a custom one) MUST preserve at least
-      one registration from each base module that the production codebase depends on. An override that silently clears all
-      base registrations is equivalent to a blank vocabulary and will cause rehydration failures for all standard Vultron
-      activity types.
-    rationale: The vocabulary registry is global. Test or demo code that installs a minimal override without re-registering
-      base types causes downstream rehydration to raise `KeyError` for every standard type. The invariant ensures overrides
-      are additive-by-default.
-    verification: Inspection of `vultron/wire/as2/vocab/base/registry.py` confirms that the default vocabulary retains
-      all base-module registrations; a test that installs a blank override and calls `rehydrate()` with a standard Vultron
-      type should raise `KeyError`, confirming that incomplete overrides break rehydration.
-    relationships:
-    - rel_type: refines
-      spec_id: VM-06-001
   - id: VM-06-007
     priority: MUST
     kind: project
@@ -1097,14 +1088,19 @@ groups:
   - id: VM-09-001
     priority: MAY
     kind: protocol
-    statement: Messages that cannot be parsed or whose semantics are unknown MAY still be forwarded to the case event log
-      to create an entry for human or agent review
+    statement: >-
+      A receiver MAY keep a message that it cannot parse, or whose semantics are
+      unknown, for human or agent review.
     rationale: >-
       A receiver can get a message that it cannot parse or interpret, for example from a
       peer that runs a newer version of the protocol. If the receiver drops it,
       information that may matter to the case is lost and nobody can see that it
       arrived. Keeping it for human or agent review lets a person decide what it means.
       This is a MAY because the protocol does not define a meaning for such a message.
+    note: >-
+      The statement names no store for the kept message. A Case Event records a state
+      change, and such a message changes no state. It may also belong to no case. The
+      case ledger is not a process log either (CLP-07).
 - id: VM-10
   title: Vocabulary Namespace and JSON-LD Context
   specs:

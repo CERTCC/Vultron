@@ -19,9 +19,11 @@ core fields, configuration or registration hooks (ARCH-12-001, ARCH-12-002).
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import json
 from datetime import UTC, datetime
 from typing import Literal
 
+import pytest
 from pydantic import BaseModel, Field
 
 from vultron.core.models.base import CoreObject, CoreRecord
@@ -185,3 +187,30 @@ def test_concrete_wire_subclass_still_registers():
     # Cleanup to avoid polluting registries across tests
     del VOCABULARY["as_HierarchyTestProbe"]
     del WIRE_TYPE_MAP["HierarchyTestProbe"]
+
+
+# --- Convenience serializers (VM-02-003) ----------------------------------------
+
+
+@pytest.mark.spec("VM-02-003")
+def test_to_dict_emits_aliased_keys_without_none_values():
+    """`to_dict()` keys a dict by the wire aliases, as `to_json()` does."""
+    obj = as_Object(attributed_to="https://example.org/actors/finder")
+
+    data = obj.to_dict()
+
+    assert data["attributedTo"] == "https://example.org/actors/finder"
+    assert data["@context"] == obj.context_
+    assert data["type"] == "Object"
+    assert data["id"] == obj.id_
+    for python_name in ("attributed_to", "context_", "type_", "id_"):
+        assert python_name not in data
+    assert None not in data.values()
+
+
+@pytest.mark.spec("VM-02-003")
+def test_to_dict_has_the_keys_to_json_emits():
+    """One object gives one key set, whichever convenience method serializes it."""
+    obj = as_Object(attributed_to="https://example.org/actors/finder")
+
+    assert obj.to_dict().keys() == json.loads(obj.to_json()).keys()

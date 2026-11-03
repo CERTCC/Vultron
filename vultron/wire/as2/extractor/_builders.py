@@ -44,7 +44,10 @@ from vultron.core.states.embargo_register import (
 )
 from vultron.core.states.rm import RM
 from vultron.wire.as2.enums import as_ObjectType as AOtype
-from vultron.wire.as2.errors import VultronParseValidationError
+from vultron.wire.as2.errors import (
+    VultronParseMissingPublishedError,
+    VultronParseValidationError,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -256,6 +259,24 @@ def _get_timestamp(obj: object, field: str) -> datetime | None:
     """
     val = getattr(obj, field, None)
     return val if isinstance(val, datetime) else None
+
+
+def _status_published(status: object) -> datetime:
+    """A received ``CaseStatus``'s ``published``, which it must carry.
+
+    ``parse_activity`` refuses a status without one (CLP-15-010), so this
+    never mints a time to stand in for a missing one.
+
+    Raises:
+        VultronParseMissingPublishedError: When *status* carries no
+            ``published``, naming the status.
+    """
+    published = _get_timestamp(status, "published")
+    if published is None:
+        raise VultronParseMissingPublishedError(
+            f"CaseStatus {_get_id(status)!r} carries no 'published' (CLP-15-010)"
+        )
+    return published
 
 
 def _build_report_object(obj: object) -> dict[str, Any]:
@@ -640,7 +661,7 @@ def _build_case_status_object(obj: object) -> dict[str, Any]:
                 pxa=PxaDimension(
                     state=_coerce_pxa(dimension_state(obj, "pxa"))
                 ),
-                published=_get_timestamp(obj, "published"),
+                published=_status_published(obj),
                 updated=_get_timestamp(obj, "updated"),
             )
         }
@@ -678,7 +699,7 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                             dimension_state(wire_case_status, "pxa")
                         )
                     ),
-                    published=_get_timestamp(wire_case_status, "published"),
+                    published=_status_published(wire_case_status),
                     updated=_get_timestamp(wire_case_status, "updated"),
                 )
         return {

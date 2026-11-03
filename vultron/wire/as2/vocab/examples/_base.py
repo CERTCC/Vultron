@@ -13,7 +13,7 @@
 
 import random
 from datetime import UTC, datetime
-from typing import TypedDict
+from typing import TypedDict, get_args
 from uuid import uuid4
 
 from pydantic import BaseModel
@@ -208,6 +208,11 @@ def gen_report() -> as_VulnerabilityReport:
     return _REPORT
 
 
+def _admits_none(annotation: object) -> bool:
+    """Whether a field typed *annotation* may hold ``None``."""
+    return annotation is None or type(None) in get_args(annotation)
+
+
 def _strip_published_udpated(obj: as_Base | BaseModel) -> as_Base | BaseModel:
     """Return a copy of *obj* with its ``published``/``updated`` timestamps cleared.
 
@@ -229,10 +234,16 @@ def _strip_published_udpated(obj: as_Base | BaseModel) -> as_Base | BaseModel:
     left as they are, and so are fields *derived* from the timestamps —
     `as_VulnerabilityCase.genesis_hash` is computed from ``published``
     (CLP-08-003), so a stripped case renders a hash the reader cannot recompute.
+
+    A timestamp the class requires is kept: ``CaseStatus.published`` cannot
+    be ``None`` (CLP-15-010), and ``model_copy`` runs no validation, so
+    clearing it would render an example every receiver refuses.
     """
     fields = type(obj).model_fields
     updates: dict[str, None] = {
-        name: None for name in ("published", "updated") if name in fields
+        name: None
+        for name in ("published", "updated")
+        if name in fields and _admits_none(fields[name].annotation)
     }
     if not updates:
         return obj

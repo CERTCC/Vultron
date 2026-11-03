@@ -182,6 +182,11 @@ So the CASE_MANAGER refuses a message without a claimed time at the door ([CLP-1
 A field that is present but empty carries no claimed time either.
 A blank `published` — an empty string, or one holding only whitespace — is refused the same way as an omitted one, and reports the same reason ([MV-03-002](../../reference/vultron-spec/requirements/messages.md#mv-03-002)).
 
+A case status is held to the same rule wherever it sits in a message.
+A case's current status is the one with the latest time, so a status with no time has no place in the case's history.
+A receiver therefore refuses an activity that carries a case status with no `published` ([CLP-15-010](../../reference/vultron-spec/requirements/ledger-replication.md#clp-15-010)).
+A receiver also refuses a case that arrives with no case statuses at all, because starting one would put the receiver's own clock on the case's first status ([CM-29-004](../../reference/vultron-spec/requirements/case-management.md#cm-29-004)).
+
 A value that is present and not blank but unreadable as a timestamp is a different fault.
 The CASE_MANAGER reports it as malformed data, not as a missing field, so a sender is never told to supply something it already sent.
 
