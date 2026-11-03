@@ -66,6 +66,9 @@ from vultron.core.behaviors.case.nodes.actor import (
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
 )
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
     ReinviteAwaitingNode,
     ReinviteNotToClosedParticipantNode,
@@ -127,6 +130,12 @@ def create_receive_offer_case_participant_tree(
     return create_receive_activity_tree(
         name="ReceiveOfferCaseParticipantBT",
         case_id=case_id,
+        # The Offer is addressed to the Case Owner, which may be the
+        # CASE_MANAGER of its case or an ordinary participant of it: the
+        # CASE_MANAGER commits the receipt, and a participant replica keeps
+        # what arrived and takes the entry from the ledger (HP-01-038,
+        # RSH-08-003).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id
@@ -517,6 +526,10 @@ def create_accept_actor_recommendation_received_tree(
     return create_receive_activity_tree(
         name="AcceptActorRecommendationBT",
         case_id=case_id,
+        # The Accept is the Case Owner's answer to the CASE_MANAGER, and
+        # every step of this tree is the CASE_MANAGER's, so the manager path
+        # is the only one it handles (ADR-0153, CM-16-006).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id
@@ -598,6 +611,9 @@ def create_reject_actor_recommendation_received_tree(
     return create_receive_activity_tree(
         name="RejectActorRecommendationBT",
         case_id=case_id,
+        # As for the Accept: the Reject is answered only by the
+        # CASE_MANAGER (ADR-0153, CM-16-007).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id
@@ -639,7 +655,18 @@ def create_recommendation_answer_received_tree(
         ├── IntakeReceivedActivityNode     — archive what arrived (CLP-10-018)
         ├── CaseOpenToExternalWrites       — post-close boundary (CM-23-013)
         ├── ActivityAddressedToReceiver    — addressee door guard (HP-01-005)
+        ├── ReceivedPathNode               — the participant replica alone
         └── sender guard                   — only the CASE_MANAGER (PCR-03-001)
+
+    The answer is the recommender's to receive, and the recommender is a
+    participant of the case, so the participant-replica path is the only one
+    this type handles (HP-01-038).  The declaration is what refuses the
+    case's own CASE_MANAGER, which ledgered the answer when it sent it and
+    never receives it: the path stage names it the CASE_MANAGER of the case
+    and says the type does not address that path, rather than telling the
+    actual CASE_MANAGER it is not one (HP-01-039).  The stage reads the role
+    in the case the ``sender_context`` names, because this tree commits
+    nothing and so names no case of its own (HP-01-040).
 
     Args:
         name: Name for the root ``Sequence``; the handler's own tree name.
@@ -661,6 +688,7 @@ def create_recommendation_answer_received_tree(
     return create_receive_activity_tree(
         name=name,
         case_id=None,
+        paths={ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id

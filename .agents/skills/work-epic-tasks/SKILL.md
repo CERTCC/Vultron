@@ -87,7 +87,10 @@ Write the status file, then run up to the agent cap at once. Per task:
    `build <N> --epic-run <EPIC>`, which clears the hold for this run only.
    A Bug is not held, so check it first: if it is now assigned or has a claim
    branch, another agent took it. Drop it, keep going, and report it as
-   "taken elsewhere". Otherwise spawn `bugfix <N>`.
+   "taken elsewhere". Otherwise spawn `bugfix <N>`. Every build, bugfix, and
+   `pr-ship` prompt says: a decision you cannot make comes back to me as a
+   `Question:` block, not a filed Concern (`completeness-doctrine.md`
+   § "Ask, Then Finish").
 3. On PR open, spawn a **fresh** agent in the same worktree to run `pr-ship`.
 4. Merge only on `READY-TO-MERGE`, as soon as it arrives. Right before
    merging, check this PR, and only this PR, against current `main` from its
@@ -146,15 +149,21 @@ that does not depend on them; stop only when every path needs the user.
 
 ### 5. Handle trouble
 
-- **Gate or question:** park the task, ask the user, pass the answer to the
-  sub-agent. Deferrals get no question: fix in the PR or hold the PR.
+- **Gate or question:** a sub-agent that returns a `Question:` block is
+  parked, not finished. Ask the user that question per `asking-the-user.md`,
+  one at a time across all parked tasks, then resume the same sub-agent with
+  `SendMessage` and the answer, so its loaded context is kept. Count each one
+  toward that PR's `Questions:` line as asked. Deferrals get no question: fix
+  in the PR or hold the PR.
 - **Sonnet fails or stalls:** stop it and hand the worktree to an Opus agent
   that decides whether to keep or reset the work. Park if Opus also fails.
 - **Plan was wrong:** reorder or serialize automatically and log it. Ask the
   user before any scope change (split/merge bundles, drop a task, new issue).
 - **New Concern/Idea/Bug from a sub-agent:** it is filed under the Epic by the
-  normal rules. Do not work it without asking. If it blocks an original task,
-  say so plainly and let the user choose whether to add it to the plan.
+  normal rules. A Concern that is one question this run could have asked
+  instead goes in the report as a filed question. Do not work it without
+  asking. If it blocks an original task, say so plainly and let the user
+  choose whether to add it to the plan.
 
 ### 6. Report
 
@@ -171,5 +180,6 @@ List completed (PR, merge), parked, excluded, taken elsewhere, plan changes,
 and new issues (type, producing task, blocking or not). Add the run's net issues per
 `completeness-doctrine.md` § "Net Issues: Close More Than You Open": closed,
 opened by reason (`excursion` excluded), dedup/`wontfix` closures on their own
-line. Report the numbers without a verdict; call out any `opened:deferred` as a
-process defect. Do not close the Epic.
+line. Then the run's questions: asked (answered in the run) and filed. Report
+the numbers without a verdict; call out any `opened:deferred` as a process
+defect. Do not close the Epic.

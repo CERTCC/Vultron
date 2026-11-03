@@ -2787,12 +2787,14 @@ groups:
     verification: >-
       A unit test asserts that no occasion declares the case's state for RM, VF, D or
       PEC (a PEC row belongs to one participant), and none declares a participant's
-      state for EM or PXA (SM-10-003).
+      state for EM or PXA. SM-10-003 scopes RM and VFD; SM-10-004 scopes EM and PXA.
     relationships:
     - rel_type: depends_on
       spec_id: MSM-08-012
     - rel_type: depends_on
       spec_id: SM-10-003
+    - rel_type: depends_on
+      spec_id: SM-10-004
     adr:
     - ADR-0162
   - id: MSM-08-014

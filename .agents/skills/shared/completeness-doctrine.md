@@ -150,9 +150,10 @@ gate anything on it.)
 ## The Two Gates
 
 Everything else — first-order fixes, "also" excursions you file autonomously —
-the agent does without pausing. Exactly two situations require a human, each
+the agent does without pausing. Two situations require a human's approval, each
 with a defined rule for what happens on silence (because these skills routinely
-run unattended).
+run unattended). A decision you cannot make is not a gate: you ask it and keep
+going ("Ask, Then Finish", below).
 
 ### Gate 1 — The deferral-ask
 
@@ -221,6 +222,42 @@ self-correcting: a mistaken halt lands in front of a human immediately and
 visibly ("that's not an inversion, proceed"), whereas a silent
 act-on-new-premise would ship an unreviewed foundation-change that surfaces only
 when it breaks something.
+
+## Ask, Then Finish
+
+When the work reaches a decision you cannot make yourself (which of two
+plausible behaviors is right, which of two conflicting specs wins, what a
+requirement means), **ask the question now and finish the work with the
+answer.** You hold the most context the question will ever get. Filing it as a
+Concern buys a planning session that reloads all of it: from 2026-10-08 to
+2026-11-03, 60 of 85 closed Concerns were closed by a planning PR, at a median
+of under a day, about as fast as asking would have been.
+
+How you ask depends on who can hear you:
+
+- **The user is present:** ask per `asking-the-user.md`, with your
+  recommendation. Keep working on anything that does not depend on the
+  answer, then use the answer in this PR.
+- **You are a sub-agent:** the user cannot hear you, but the session that
+  launched you can. Park only the work that depends on the answer, and end
+  your result with a `Question:` block: the problem, each option, your
+  recommendation, and what you will do under each answer. The orchestrator
+  asks the user and resumes you with the answer (`work-epic-tasks` § 5).
+- **Nobody answers** (a scheduled or background run, or the ask went
+  unanswered): hold the work with the question stated on the issue or the
+  draft PR, as Gate 2 holds on silence. Never pick an answer to keep going.
+
+File the question only when its answer would not serve this PR: it is about
+code the PR does not touch, the user says "not now", or it needs
+investigation rather than a reply. The type follows the answer's shape
+(`issue-creation-requirements.md` § "Determining the right values"): one
+decision with a recommended answer is a `Task` carrying a `Decision:` line;
+a `Concern` is for several plausible answers that need investigation.
+
+Every implementation PR reports both moves in its `Questions:` line
+(`pr-body-guide.md`), and `velocity-report` reads it beside how Concerns are
+closed. A Concern that closes within a day is the signal that a question was
+filed when it could have been asked.
 
 ## Never Merge on Red
 

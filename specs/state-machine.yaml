@@ -362,6 +362,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SM-09-001
+    stories:
+    - story_2026_022
   - id: SM-09-004
     priority: MUST
     kind: protocol
@@ -432,26 +434,51 @@ groups:
   - id: SM-10-003
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
     statement: >-
       A receiver MUST NOT apply a participant-specific axis transition (RM, VFD) to the
-      shared `CaseStatus`. It MUST NOT apply a participant-agnostic axis transition
-      (EM, PXA) to a participant's `ParticipantStatus`.
-    lint_suppress:
-    # compound_statement: neither half has a test, so a split child would be a new
-    # protocol ID that the marker-coverage guard (SR-05-005) fails. The second half
-    # is not settled either: a `ParticipantStatus` can carry a reported
-    # `case_status`. Split it once each half has a test; #5662 tracks the split.
-    - compound_statement
+      shared `CaseStatus`.
     rationale: >-
-      Mixing axes is a protocol correctness violation. A transition that writes
-      across the two kinds of state has two bad results. An RM or VFD move of one
-      participant can change the shared embargo or public state of the case. A
-      shared EM or PXA event can overwrite the progress of one participant
-      (CM-04-006).
+      Mixing axes is a protocol correctness violation. An RM or VFD move describes the
+      progress of one participant. Written to the shared record, it could change the
+      embargo or public state that every participant of the case sees (CM-04-006).
+    verification: >-
+      `test/core/behaviors/case/nodes/participant/test_state_axis_scoping.py::TestParticipantAxesNeverWriteCaseStatus`
+      checks that `CaseStatus` holds no RM, VF or D value and that an RM, VF or D
+      transition leaves the case's `CaseStatus` history unchanged.
     relationships:
     - rel_type: refines
       spec_id: CM-04-006
+    stories:
+    - story_2026_031
+  - id: SM-10-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver MUST NOT record a participant-agnostic axis transition (EM, PXA) in a
+      `ParticipantStatus` as that participant's own progress. The transition updates
+      the shared `CaseStatus` (SM-10-002). A participant can still report its own
+      view of the case state in the `case_status` embedded in its `ParticipantStatus`.
+      That report is only a claim, and the case owner or CASE_MANAGER decides whether
+      to promote it to the case's `CaseStatus`.
+    rationale: >-
+      EM and PXA state are facts about the case, not about one participant. A shared
+      EM or PXA event written as one participant's progress could overwrite that
+      participant's own record (CM-04-010). A participant's view of the case state is
+      still useful input, so it travels as a claim the case's authority adopts or not,
+      and never becomes the case's state by being sent.
+    verification: >-
+      `test/core/behaviors/case/nodes/participant/test_state_axis_scoping.py::TestCaseAxesNeverWriteParticipantProgress`
+      checks that `ParticipantStatus` holds no EM or PXA value of its own, that the
+      CASE_MANAGER's case status snapshot adopting a participant's latest status leaves
+      that participant's `ParticipantStatus` history unchanged, and that a participant's
+      reported view leaves the case's `CaseStatus` unchanged.
+    relationships:
+    - rel_type: extends
+      spec_id: SM-10-003
+    - rel_type: refines
+      spec_id: CM-04-010
+    stories:
+    - story_2026_031
 - id: SM-11
   title: Generated Statecharts
   specs:

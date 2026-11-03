@@ -141,6 +141,7 @@ class TestCanonicalActorUri:
         actor = f"{_BASE}/{ACTORS_SEGMENT}/{ACTORS_SEGMENT}"
         assert canonical_actor_uri(actor + "/", _BASE) == actor
 
+    @pytest.mark.spec("OID-01-003")
     def test_falls_back_to_configured_base_url(self):
         with patch.object(actor_hosts, "get_config") as get_config:
             get_config.return_value.server.base_url = "https://cfg.test/api/v2"

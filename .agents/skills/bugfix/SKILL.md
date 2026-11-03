@@ -301,8 +301,9 @@ Once the plan is confirmed:
 
    - Apply the nearby-debt rule (`completeness-doctrine.md` § "Net Issues: Close
      More Than You Open"): fix open `opened:debt` issues whose `Where:` names a
-     file in the diff, close them in the PR, and put the `Issues:` line in the PR
-     body. Any issue you file takes `--opened-as`.
+     file in the diff, close them in the PR, and put the `Issues:` line and the
+     `Questions:` line after it in the PR body (`pr-body-guide.md`). Any issue
+     you file takes `--opened-as`.
    - Run the **upward-reflection checklist** per
      `.agents/skills/shared/upward-reflection.md` and **route** each triggered
      item to the destination that file specifies (BW-07-004). Most route to a

@@ -13,6 +13,7 @@
 
 # python
 import json
+import uuid
 from typing import cast
 
 import pytest
@@ -33,6 +34,7 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
     _find_actor_record_by_id,
 )
 from vultron.adapters.utils import strip_id_prefix
+from vultron.core.models._helpers import URN_UUID_PREFIX
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -735,6 +737,20 @@ class TestCreateActor:
         resp = client_actors.post("/actors/", json=payload)
         assert resp.status_code == status.HTTP_201_CREATED
         assert resp.json()["type"] == "Organization"
+
+    @pytest.mark.spec("OID-01-004")
+    def test_create_actor_without_id_takes_a_uuid_slug_from_the_minter(
+        self, client_actors, monkeypatch
+    ):
+        minted = uuid.uuid4()
+        monkeypatch.setattr(
+            actor_routes, "new_object_id", lambda: f"{URN_UUID_PREFIX}{minted}"
+        )
+        resp = client_actors.post("/actors/", json={"name": "NoIdActor"})
+        assert resp.status_code == status.HTTP_201_CREATED
+        head, _, slug = resp.json()["id"].rpartition("/")
+        assert head.endswith("/actors")
+        assert slug == str(minted)
 
     def test_create_actor_with_custom_id(self, client_actors):
         payload = {

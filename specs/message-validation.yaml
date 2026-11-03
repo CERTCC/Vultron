@@ -169,8 +169,8 @@ groups:
       A unit test confirms that activity-type-specific validators raise
       `ValidationError` when required per-type fields are absent from an otherwise
       valid AS2 payload.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_013
   - id: MV-03-002
     priority: MUST
     kind: protocol
@@ -198,8 +198,8 @@ groups:
       spec_id: MV-03-001
     adr:
     - ADR-0090
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_013
 - id: MV-04
   title: Object Type Validation
   specs:
@@ -225,8 +225,8 @@ groups:
       `test_parse_activity_keeps_an_inline_object_of_unknown_type` in the same file
       confirms that a `Create` whose inline object has an unknown `type` parses, with a
       plain `as_Object` as its object and `UNKNOWN` as its semantic type.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_013
   - id: MV-04-002
     priority: SHOULD
     kind: protocol
@@ -240,6 +240,8 @@ groups:
       in a `Create` of a sub-object do not show who created which object in which case.
       A descriptive `name` lets an operator read the activity without a lookup of its
       ids.
+    stories:
+    - story_2026_018
   - id: MV-04-003
     priority: MUST
     kind: project
@@ -531,8 +533,8 @@ groups:
       Inspection of the inbound message validator confirms that stub detection runs only
       on `actor`, `object`, `target`, and `origin` fields; stubs in other field positions
       are treated as full-object validation failures.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_013
     adr:
     - ADR-0114
     - ADR-0090

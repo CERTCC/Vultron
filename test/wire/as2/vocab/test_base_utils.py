@@ -20,12 +20,9 @@ import uuid
 
 import pytest
 
+from vultron.core.models._helpers import URN_UUID_PREFIX, new_object_id
 from vultron.wire.as2.vocab.base.base import as_Base
-from vultron.wire.as2.vocab.base.utils import (
-    URN_UUID_PREFIX,
-    generate_new_id,
-    name_of,
-)
+from vultron.wire.as2.vocab.base.utils import generate_new_id, name_of
 
 _UUID_PATTERN = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
@@ -34,29 +31,19 @@ _UUID_PATTERN = re.compile(
 
 
 class TestGenerateNewId:
-    """Tests for generate_new_id() — OID-01-001."""
+    """``generate_new_id`` is the shared core minter — OID-01-004.
 
-    def test_default_returns_urn_uuid_prefix(self):
-        id_ = generate_new_id()
-        assert id_.startswith(URN_UUID_PREFIX)
+    The minter's own behaviour is tested in ``test/core/models/test_new_object_id.py``.
+    """
 
-    def test_default_id_is_valid_urn_uuid(self):
-        id_ = generate_new_id()
-        uuid_part = id_.removeprefix(URN_UUID_PREFIX)
-        assert _UUID_PATTERN.fullmatch(uuid_part) is not None
+    def test_is_the_shared_core_minter(self):
+        assert generate_new_id is new_object_id
 
-    def test_default_id_is_not_bare_uuid(self):
-        id_ = generate_new_id()
-        assert not _UUID_PATTERN.fullmatch(id_), (
-            "generate_new_id() must not return a bare UUID"
-        )
-
-    def test_prefix_appends_uuid(self):
+    def test_prefix_form_keeps_working(self):
         prefix = "https://example.org/objects"
         id_ = generate_new_id(prefix=prefix)
         assert id_.startswith(prefix + "/")
-        uuid_part = id_.split("/")[-1]
-        assert _UUID_PATTERN.fullmatch(uuid_part) is not None
+        assert _UUID_PATTERN.fullmatch(id_.split("/")[-1]) is not None
 
     @pytest.mark.spec("ID-01-001")
     def test_each_call_returns_unique_id(self):

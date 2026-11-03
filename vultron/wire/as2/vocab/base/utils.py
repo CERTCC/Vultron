@@ -16,13 +16,11 @@ Provides utilities for the ActivityStreams Vocabulary.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import uuid
 from typing import Any
 
+from vultron.core.models._helpers import new_object_id
 from vultron.primitives import is_blank_string
 from vultron.wire.as2.vocab import VOCABULARY
-
-URN_UUID_PREFIX = "urn:uuid:"
 
 
 def name_of(obj: Any) -> str:
@@ -108,24 +106,13 @@ def exclude_if_empty(value: Any) -> bool:
     return len(value) == 0
 
 
-def generate_new_id(prefix: str | None = None) -> str:
-    """Generate a new URI-form ID for an object.
+generate_new_id = new_object_id
+"""The wire layer's ``id_`` default factory: the shared core minter itself.
 
-    Returns a ``urn:uuid:`` URI by default, which is a valid AS2 identifier
-    and requires no HTTP server configuration. When a *prefix* is supplied the
-    UUID is appended to it with a ``/`` separator, allowing callers to produce
-    HTTPS-style identifiers (e.g. ``https://example.org/reports/{uuid}``).
-
-    Returns:
-        a URI-form ID string
-    """
-    _uuid = str(uuid.uuid4())
-    if prefix is not None:
-        _id = f"{prefix}/{_uuid}"
-    else:
-        _id = f"{URN_UUID_PREFIX}{_uuid}"
-
-    return _id
+The wire layer mints no ids of its own (OID-01-004).  The name stays because it
+is the ``as_Base.id_`` default factory (VM-04-001); it is the same function as
+:func:`vultron.core.models._helpers.new_object_id`, prefix form included.
+"""
 
 
 def _print_examples(d) -> None:

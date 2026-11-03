@@ -24,7 +24,6 @@ dependencies provide.
 import logging
 from typing import Any, Literal, cast
 from urllib.parse import urlsplit
-from uuid import uuid4
 
 from fastapi import (
     APIRouter,
@@ -72,6 +71,7 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
 from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.adapters.utils import strip_id_prefix
 from vultron.config import get_config
+from vultron.core.models._helpers import new_object_id
 from vultron.core.models.actor import (
     CoreActor,
     VultronOrganization,
@@ -209,16 +209,15 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
     ``{base_url}/actors/{slug}``, and its inbox is ``{id}/inbox``. So the id is
     canonicalized *before* the record is built, not only when choosing the store.
 
-    An unspecified id becomes a fresh **slug**, not a generated URI. Passing
-    ``make_id("actors")`` here did not work: it builds on ``adapters.utils
-    .BASE_URL`` rather than ``ServerConfig.base_url``, yielding
-    ``…/api/actors/{uuid}`` — no ``v2`` segment — and because that value already
-    carries a scheme, ``canonical_actor_uri`` normalises it (strips trailing slash)
-    but does not adopt a different base, so the record's id named an endpoint this
-    node does not serve; its store was reachable under one id and
-    ``GET /actors/{slug}`` resolved to another. Handing the canonicalizer a bare
-    slug is what makes the id and the serving endpoint the same string by
-    construction (ADR-0073#url-segment-computed-not-looked-up).
+    An unspecified id becomes a fresh **slug**, not a generated URI. A
+    generated URI already carries a scheme and a base, and
+    ``canonical_actor_uri`` normalises such a value (strips a trailing slash)
+    without adopting this node's base, so unless it was built on exactly that
+    base the record's id would name an endpoint this node does not serve: its
+    store would be reachable under one id and ``GET /actors/{slug}`` would
+    resolve to another. Handing the canonicalizer a bare slug is what makes the
+    id and the serving endpoint the same string by construction
+    (ADR-0073#url-segment-computed-not-looked-up).
 
     A client-supplied id under a **foreign** authority is rejected with 422.
     Peers are not hosted actors — they are address-book entries inside each hosted
@@ -240,7 +239,8 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
     base_url = node_base_url(http_request)
     try:
         actor_id = actor_hosts.canonical_actor_uri(
-            request.id_ or str(uuid4()),
+            # The slug is the UUID of a freshly minted id (OID-01-004).
+            request.id_ or strip_id_prefix(new_object_id()),
             base_url=base_url,
         )
     except ValueError as exc:
