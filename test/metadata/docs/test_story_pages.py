@@ -155,14 +155,12 @@ def _real_pages() -> list[Path]:
     )
 
 
-@pytest.mark.spec_corpus
 def test_catalog_is_not_empty() -> None:
     """An empty catalog would make every corpus test below vacuous (DF-09-009)."""
     assert _real_pages()
     assert len(_real_pages()) == len(story_ids(repo_root()))
 
 
-@pytest.mark.spec_corpus
 @pytest.mark.spec("DF-11-012")
 @pytest.mark.spec("SR-11-002")
 @pytest.mark.parametrize("path", _real_pages(), ids=lambda path: path.stem)

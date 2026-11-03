@@ -101,7 +101,7 @@ Rules for extending it:
 
 The catalog index § Adding a Story states the page shape, and
 `test/metadata/docs/test_story_pages.py` enforces it on every page (the
-`story-page-shape` pre-commit hook and spec-check.yml's `spec_corpus` run).
+`story-page-shape` pre-commit hook and its step in spec-check.yml).
 Two rules the test cannot check:
 
 - A superseded page keeps its story text and adds a **Superseded by** line
