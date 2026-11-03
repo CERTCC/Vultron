@@ -61,7 +61,7 @@ failure path must still leave `devlogs/<demo>/dump-manifest.json` (#2239).
   recorded in the manifest's `reason` and the original exception re-raised with
   the `demo_check` failures attached (DEMOCI-10-004).
 - **The dump always writes a manifest** (`dump_case_ledgers()` in
-  `vultron/demo/helpers/ledger_dump.py`, from a `finally`), recording the case,
+  `vultron/demo/helpers/ledger_dump/`, from a `finally`), recording the case,
   captured-versus-target counts, and each missing actor with its reason. A
   timed-out dump records the actor's exception; a pre-run sentinel records no
   actors.
@@ -90,7 +90,7 @@ exit before `scenario_harness()` runs. The demo job therefore writes a sentinel
 `dump-manifest.json` (`ledgerFileCount: 0`) before the image build; a normal
 run overwrites it, and an early exit leaves it for `load_devlogs()` to report.
 The CI step writes the JSON inline with no vultron import, so the demo job needs
-no uv setup; `write_prerun_sentinel()` in `ledger_dump.py` is the tested Python
+no uv setup; `write_prerun_sentinel()` in `ledger_dump/` is the tested Python
 equivalent.
 
 ---
