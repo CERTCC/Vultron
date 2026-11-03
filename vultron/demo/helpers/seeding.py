@@ -21,7 +21,6 @@ a clean baseline before a demo run.
 """
 
 import logging
-import uuid
 from collections.abc import Callable, Sequence
 from urllib.parse import quote
 
@@ -29,6 +28,7 @@ from vultron.config.app import get_config
 from vultron.core.behaviors.case.nodes.embargo import creation_time_embargo_id
 from vultron.core.behaviors.store_scope import store_for_actor
 from vultron.core.models._helpers import from_now_utc
+from vultron.core.models.activity_ids import derived_object_id
 from vultron.core.models.actor import VultronService, hosted_endpoints
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -1479,9 +1479,7 @@ def _seed_case_actor_participant(case_obj, case_actor_id: str, dl) -> None:
     # CaseParticipant needs a distinct ID from the Service object —
     # matching production where RegisterCaseActorParticipantNode creates
     # the participant with a separate UUID attributed to case_actor_id.
-    participant_id = (
-        f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, case_actor_id)}"
-    )
+    participant_id = derived_object_id(case_actor_id)
     manager_p = CaseParticipant(
         id_=participant_id,
         attributed_to=case_actor_id,

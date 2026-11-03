@@ -13,35 +13,30 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Adapter-layer utilities for ActivityStreams object ID generation and parsing.
+"""Adapter-layer utilities for parsing ActivityStreams object IDs.
 
-These utilities are used by driven adapters (e.g., TinyDB DataLayer) and
-driving adapters (e.g., demo scripts) to create and inspect URL- and
-URN-based object IDs.  They do not belong in the core domain layer because
-they depend on the wire-format ID conventions (HTTP URLs and ``urn:uuid:``
-URNs) rather than on domain concepts.
+These utilities are used by driven adapters (e.g., the SQLite DataLayer) and
+driving adapters (e.g., demo scripts) to inspect URL- and URN-based object IDs
+and to name objects by a short key.  They mint no ids: every new object id
+comes from :func:`vultron.core.models._helpers.new_object_id` (OID-01-004).
 """
 
 import re
 from typing import TypedDict
-from urllib.parse import urljoin, urlparse
-from uuid import uuid4
+from urllib.parse import urlparse
 
-from vultron.config import get_config
-
-BASE_URL = get_config().server.base_url
+from vultron.core.models._helpers import URN_UUID_PREFIX
 
 _UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
     re.IGNORECASE,
 )
-_URN_UUID_PREFIX = "urn:uuid:"
 
 
 def full_object_id(object_id: str) -> str:
     """*object_id* as stored: a bare UUID in its ``urn:uuid:`` form."""
     if _UUID_RE.match(object_id):
-        return f"{_URN_UUID_PREFIX}{object_id}"
+        return f"{URN_UUID_PREFIX}{object_id}"
     return object_id
 
 
@@ -61,21 +56,6 @@ class ParsedObjectId(TypedDict):
     object_id: str
 
 
-def id_prefix(object_type: str) -> str:
-    """Returns the ID prefix for a given object type."""
-
-    return urljoin(BASE_URL, f"{object_type}/")
-
-
-def make_id(object_type: str) -> str:
-    """Generates a new ID for a given object type."""
-    pfx = id_prefix(object_type)
-    if not pfx.endswith("/"):
-        pfx += "/"
-
-    return urljoin(pfx, f"{uuid4()}")
-
-
 def parse_id(object_id: str) -> ParsedObjectId:
     """Parses an object ID into its prefix, type, and UUID components.
 
@@ -84,10 +64,10 @@ def parse_id(object_id: str) -> ParsedObjectId:
     returned ``object_type`` is ``None`` and ``object_id`` is the bare UUID
     portion.
     """
-    if object_id.startswith(_URN_UUID_PREFIX):
-        bare_uuid = object_id[len(_URN_UUID_PREFIX) :]
+    if object_id.startswith(URN_UUID_PREFIX):
+        bare_uuid = object_id[len(URN_UUID_PREFIX) :]
         return {
-            "base_url": _URN_UUID_PREFIX,
+            "base_url": URN_UUID_PREFIX,
             "object_type": None,
             "object_id": bare_uuid,
         }
