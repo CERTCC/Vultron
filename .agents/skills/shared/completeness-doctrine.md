@@ -245,7 +245,7 @@ How you ask depends on who can hear you:
   asks the user and resumes you with the answer (`work-epic-tasks` § 5).
 - **Nobody answers** (a scheduled or background run, or the ask went
   unanswered): hold the work with the question stated on the issue or the
-  draft PR. That is the on-silence rule of both gates above.
+  draft PR, as Gate 2 holds on silence. Never pick an answer to keep going.
 
 File the question only when its answer would not serve this PR: it is about
 code the PR does not touch, the user says "not now", or it needs

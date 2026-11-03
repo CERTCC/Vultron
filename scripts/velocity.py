@@ -65,7 +65,14 @@ _MAIN_REF_RE = re.compile(r"\b(?:origin/)?main\b", re.IGNORECASE)
 # (``**Suite runs**: N full, M targeted``) or put the counts after the words
 # (``Suite runs: full N, targeted M``); both carry the same two numbers, so
 # both are read rather than dropped as absent.
-_SUITE_RUNS_LABEL = r"(?:\*\*|__)?Suite runs(?:\*\*|__)?:(?:\*\*|__)?\s+"
+
+
+def _bold_label(name: str) -> str:
+    """Regex for ``name:`` as a line label, bolded by hand or not."""
+    return rf"(?:\*\*|__)?{name}(?:\*\*|__)?:(?:\*\*|__)?\s+"
+
+
+_SUITE_RUNS_LABEL = _bold_label("Suite runs")
 _SUITE_RUNS_RE = re.compile(
     _SUITE_RUNS_LABEL + r"(\d+)\s+full,\s+(\d+)\s+targeted"
 )
@@ -74,10 +81,12 @@ _SUITE_RUNS_WORDS_FIRST_RE = re.compile(
 )
 
 # The line an implementation PR body carries (pr-body-guide.md, "Questions"):
-# ``Questions: asked N, filed M``.  The label may be bolded by hand.
+# ``Questions: asked N, filed M``.  The label may be bolded by hand.  Like
+# PRB-12, it is read only at the start of a line, so a body that quotes the
+# guide's example mid-sentence is not counted by it.
 _QUESTIONS_RE = re.compile(
-    r"(?:\*\*|__)?Questions(?:\*\*|__)?:(?:\*\*|__)?\s+"
-    r"asked\s+(\d+),\s+filed\s+(\d+)"
+    r"^[ \t]*" + _bold_label("Questions") + r"asked\s+(\d+),\s+filed\s+(\d+)",
+    re.MULTILINE,
 )
 
 # A Concern closed by a PR from a branch with this prefix was answered
@@ -429,10 +438,15 @@ def delivery_type(issue: dict) -> bool:
     return t not in DISCOVERY_TYPES | EPIC_TYPES | {BUG_TYPE, "Untyped"}
 
 
-def iso_to_date(s: str | None) -> date | None:
+def iso_to_datetime(s: str | None) -> datetime | None:
     if not s:
         return None
-    return datetime.fromisoformat(s.replace("Z", "+00:00")).date()
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
+def iso_to_date(s: str | None) -> date | None:
+    dt = iso_to_datetime(s)
+    return dt.date() if dt else None
 
 
 def week_key(d: date) -> str:
@@ -659,32 +673,26 @@ def _concern_resolution(
     for issue in issues:
         if classify_type(issue) != CONCERN_TYPE:
             continue
-        created_at = issue.get("createdAt")
-        created = iso_to_date(created_at)
-        if created and key(created) in rows:
-            rows[key(created)]["filed"] += 1
-        closed_at = issue.get("closedAt")
-        closed = iso_to_date(closed_at)
+        created = iso_to_datetime(issue.get("createdAt"))
+        if created and key(created.date()) in rows:
+            rows[key(created.date())]["filed"] += 1
+        closed = iso_to_datetime(issue.get("closedAt"))
         if (
-            not closed
-            or key(closed) not in rows
+            not created
+            or not closed
+            or key(closed.date()) not in rows
             or issue.get("stateReason") != "COMPLETED"
-            or not created_at
-            or not closed_at
         ):
             continue
-        row = rows[key(closed)]
+        row = rows[key(closed.date())]
         row["closed"] += 1
         branch = closer_branch(issue)
         if branch and branch.startswith(PLANNING_BRANCH_PREFIX):
             row["closed_by_planning_pr"] += 1
-        elapsed = (
-            datetime.fromisoformat(closed_at.replace("Z", "+00:00"))
-            - datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-        ).total_seconds() / 86400
+        elapsed = (closed - created).total_seconds() / 86400
         if elapsed <= 1:
             row["closed_within_1_day"] += 1
-        days[key(closed)].append(elapsed)
+        days[key(closed.date())].append(elapsed)
     return [
         {
             "period": p,
@@ -798,9 +806,9 @@ def build_pr_pipeline_record(
     merged_str = pr.get("mergedAt")
 
     open_to_merge_hours: float | None = None
-    if created_str and merged_str:
-        created_dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
-        merged_dt = datetime.fromisoformat(merged_str.replace("Z", "+00:00"))
+    created_dt = iso_to_datetime(created_str)
+    merged_dt = iso_to_datetime(merged_str)
+    if created_dt and merged_dt:
         open_to_merge_hours = round(
             (merged_dt - created_dt).total_seconds() / 3600, 1
         )

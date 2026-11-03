@@ -91,9 +91,9 @@ conflict sends nothing back: verify does not require the base tip (PAD-18-005).
 
 **Run all steps in a single uninterrupted pass.** Do not end your turn or wait
 for user input between steps. When a sub-skill returns, proceed immediately to
-the next step without pausing. The only valid mid-pipeline stops are the two
-gate prompts inside pr-execute — `defer-ask` and `inversion-halt`. Every other
-step transition is automatic.
+the next step without pausing. The only valid mid-pipeline stops are inside
+pr-execute: its two gate prompts, `defer-ask` and `inversion-halt`, and a
+decision a fix needs. Every other step transition is automatic.
 
 ## Workflow
 
@@ -162,11 +162,13 @@ If resuming past execute: print `⏩ Skipping execute — artifact found at .cla
 
 Otherwise: invoke the `pr-execute` skill with the PR number.
 
-If execute pauses for a `defer-ask` or `inversion-halt` decision: wait for the
-user's response, then continue. On silence, execute applies its own rule
-(fix-now for a defer-ask, or hold the PR if it cannot be finished; halt the PR
-for an inversion-halt). These are the only interactive pauses in the pipeline.
-An unsupervised `pr-ship` never files a deferral issue as a way to proceed.
+If execute pauses for a `defer-ask`, an `inversion-halt`, or a decision a fix
+needs: wait for the user's response, then continue. On silence, execute applies
+its own rule (fix-now for a defer-ask, or hold the PR if it cannot be finished;
+halt the PR for an inversion-halt or an unanswered decision, recorded as
+`outcome: halted` with the question stated on the PR). These are the only
+interactive pauses in the pipeline. An unsupervised `pr-ship` never files a
+deferral issue, or a Concern in place of the decision, as a way to proceed.
 
 If execute stops due to a blocking test failure (pre-existing with linked Bug
 issue): report the blocked status and stop pr-ship. The user must resolve the
@@ -194,6 +196,7 @@ Overall verdict: READY-TO-MERGE / GAPS-FOUND / CONFLICTS-FOUND / PENDING-CI / PE
 Merge state:     MERGEABLE (CLEAN) / CONFLICTING (DIRTY) / BEHIND / DRAFT / UNKNOWN — base <base_ref>
 CI status:       passing / failing / pending
 Issues:          closed N, opened M (reason counts); any opened:deferred is a process defect
+Questions:       asked A, filed F (from the PR body's `Questions:` line)
 
 PR URL: https://github.com/CERTCC/Vultron/pull/N
 ```

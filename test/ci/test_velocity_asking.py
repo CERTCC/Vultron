@@ -90,6 +90,14 @@ def test_parse_questions_line_absent_or_malformed(velocity, body):
     assert velocity.parse_questions_line(body) is None
 
 
+def test_parse_questions_line_skips_a_quoted_example(velocity):
+    body = (
+        "## Summary\n\nDocuments the `Questions: asked 1, filed 1` line.\n\n"
+        "Issues: closed 0, opened 0\nQuestions: asked 0, filed 0\n"
+    )
+    assert velocity.parse_questions_line(body) == (0, 0)
+
+
 # ── per-PR record and weekly totals ────────────────────────────────────────
 
 

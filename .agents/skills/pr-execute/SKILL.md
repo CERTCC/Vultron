@@ -605,7 +605,8 @@ to draft/blocked, and stop. Do not proceed on the new premise unreviewed.
 cannot make (two plausible behaviors, two conflicting specs), ask it per
 `completeness-doctrine.md` § "Ask, Then Finish" and apply the answer; as a
 sub-agent, return the `Question:` block instead. **On silence: halt** as for
-Gate 2, with the question stated on the PR. Update the PR body's `Questions:`
+Gate 2 (`outcome: halted`, PR draft/blocked), with the question stated on the
+PR. Update the PR body's `Questions:`
 line with each question asked, and each one filed in its place.
 
 ## Artifact Location

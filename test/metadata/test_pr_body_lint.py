@@ -221,6 +221,9 @@ class TestQuestionsLine:
         )
         assert _ids(_body(summary=summary)) == ["PRB-12"]
 
+    def test_a_summary_of_only_the_line_lacks_the_issues_line(self):
+        assert _ids(_body(summary=QUESTIONS)) == ["PRB-04"]
+
     def test_counts_with_a_note_pass(self):
         summary = (
             "Adds a thing.\n\nIssues: closed 2, opened 0\n"
