@@ -44,8 +44,9 @@ class ActivityDispatcher(Protocol):
     the current actor.  The concrete implementation looks up the matching use
     case from the routing table, invokes it, and returns its ``HandlerResult``
     (UCORG-05-010). When no use case is registered for the event's
-    semantics, no handler runs and ``dispatch()`` raises instead
-    (UCORG-05-012).
+    semantics, no handler runs and ``dispatch()`` returns a ``REFUSED``
+    "no use case found" result rather than raising (UCORG-05-012,
+    DR-03-002, SE-05-002).
     Callers other than the inbox pipeline MAY ignore the result.
     """
 
