@@ -24,10 +24,11 @@ claim, which the CASE_MANAGER's snapshot decides whether to promote
 (SM-10-004).
 """
 
+import typing
 from typing import cast
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.participant.status import (
@@ -59,16 +60,31 @@ _PARTICIPANT_AXES = (RmDimension, VfDimension, DDimension)
 _CASE_AXES = (EmDimension, PxaDimension)
 
 
-def _field_types(model: type) -> set[type]:
-    """The dimension classes *model*'s fields can hold (``X | None`` unwrapped)."""
+def _dimension_types(annotation: object) -> set[type]:
+    """Every dimension class reachable inside *annotation*, at any depth.
+
+    Walks unions, ``Annotated``, ``list[...]`` and other generic arguments,
+    and counts a subclass of a dimension as that dimension.
+    """
     found: set[type] = set()
-    for info in model.model_fields.values():  # type: ignore[attr-defined]
-        annotation = info.annotation
-        for candidate in (*_PARTICIPANT_AXES, *_CASE_AXES):
-            if annotation is candidate or candidate in getattr(
-                annotation, "__args__", ()
-            ):
-                found.add(candidate)
+    if isinstance(annotation, type):
+        found.update(
+            axis
+            for axis in (*_PARTICIPANT_AXES, *_CASE_AXES)
+            if issubclass(annotation, axis)
+        )
+    for arg in typing.get_args(annotation):
+        found |= _dimension_types(arg)
+    return found
+
+
+def _field_types(model: type[BaseModel]) -> set[type]:
+    """The dimension classes any field of *model* can hold."""
+    found: set[type] = set()
+    for info in model.model_fields.values():
+        found |= _dimension_types(info.annotation)
+        for meta in info.metadata:
+            found |= _dimension_types(meta)
     return found
 
 
@@ -203,8 +219,12 @@ class TestCaseAxesNeverWriteParticipantProgress:
         actor: VultronService,
         case_with_participant: VulnerabilityCase,
     ) -> None:
-        """The CASE_MANAGER's PXA snapshot, adopting a participant's report,
-        writes a new CaseStatus and leaves every ParticipantStatus as it was."""
+        """The CASE_MANAGER's PXA snapshot, adopting the participant's latest
+        status as its report, writes a new CaseStatus and leaves that
+        participant's ParticipantStatus history, the report included, as it
+        was."""
+        participant = bt_scenario.dl.read(PARTICIPANT_ID)
+        assert isinstance(participant, CaseParticipant)
         report = ParticipantStatus(
             attributed_to=actor.id_,
             context=CASE_ID,
@@ -213,10 +233,13 @@ class TestCaseAxesNeverWriteParticipantProgress:
                 context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
             ),
         )
+        participant.participant_statuses.append(report)
+        bt_scenario.dl.save(participant)
         bt_scenario.seed(report)
         before = _case(bt_scenario)
         before_case_count = len(before.case_statuses)
         before_statuses = [s.model_dump() for s in _statuses(bt_scenario)]
+        assert before_statuses[-1]["id_"] == report.id_
 
         bt_scenario.assert_success(
             bt_scenario.run(

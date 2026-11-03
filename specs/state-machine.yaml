@@ -465,10 +465,11 @@ groups:
     verification: >-
       `test/core/behaviors/case/nodes/participant/test_state_axis_scoping.py::TestCaseAxesNeverWriteParticipantProgress`
       checks that `ParticipantStatus` holds no EM or PXA value of its own, that the
-      CASE_MANAGER's case status snapshot leaves every `ParticipantStatus` unchanged,
-      and that a participant's reported view leaves the case's `CaseStatus` unchanged.
+      CASE_MANAGER's case status snapshot adopting a participant's latest status leaves
+      that participant's `ParticipantStatus` history unchanged, and that a participant's
+      reported view leaves the case's `CaseStatus` unchanged.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SM-10-003
     - rel_type: refines
       spec_id: CM-04-010
