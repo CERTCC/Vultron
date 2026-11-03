@@ -176,7 +176,7 @@ groups:
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
@@ -333,7 +333,7 @@ groups:
       note: An embargo SHALL begin at the moment it is accepted
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
@@ -570,7 +570,7 @@ groups:
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-003
       note: 'EV shorthand wire-type mapping'
@@ -761,7 +761,7 @@ groups:
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-004
       note: 'EJ shorthand wire-type mapping'
@@ -928,7 +928,7 @@ groups:
       note: Once accepted, revisions MAY be accepted
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-005
       note: 'EC shorthand wire-type mapping'
@@ -1081,7 +1081,7 @@ groups:
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: VP-05-017
       note: Participants MAY reject proposed embargo terms for any reason
@@ -1126,14 +1126,16 @@ groups:
       expected: Receiver EM state is EXITED
     - order: 2
       actor: receiver
-      action: Emit EK to acknowledge receipt of ET
-      expected: EK queued for sender
+      action: >-
+        CASE_MANAGER commits the received ET and announces the ledger
+        entry (discharges EK)
+      expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
-    - description: Receiver EM state is EXITED; EK emitted
+    - description: Receiver EM state is EXITED; EK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-007
       note: 'ET shorthand wire-type mapping'
@@ -1169,15 +1171,18 @@ groups:
       expected: Receiver EM state is EXITED
     - order: 2
       actor: receiver
-      action: Emit EK to acknowledge receipt of ET
-      expected: EK queued for sender
+      action: >-
+        CASE_MANAGER commits the received ET and announces the ledger
+        entry (discharges EK)
+      expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
     - description: >-
-        Receiver EM state is EXITED; pending revision abandoned; EK emitted
+        Receiver EM state is EXITED; pending revision abandoned; EK discharged
+        by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-007
       note: 'ET shorthand wire-type mapping'
@@ -1214,7 +1219,7 @@ groups:
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-007
       note: 'ET shorthand wire-type mapping'
@@ -1254,15 +1259,18 @@ groups:
     - rel_type: satisfies
       spec_id: VP-11-005
       note: >-
-        SHOULD acknowledge (EK) and inquire (GI) about the nature of any error
-        reported by EE
+        SHOULD inquire (GI) about the nature of an error reported by a fault
+        about an E* message; no EK message exists
     - rel_type: satisfies
       spec_id: MSM-02-008
       note: 'EE shorthand wire-type mapping'
 
 - id: EMB-09
   title: Receive EK (Embargo Acknowledgment)
-  description: Behaviors triggered when a participant receives an EK (Embargo Management Acknowledgment) passthrough signal, which has no dedicated semantic dispatch value and requires no state transition.
+  description: >-
+    Behaviors triggered when a participant receives the acknowledgment (EK) of an embargo
+    activity it sent. No EK message exists (EP-09-009): the acknowledgment is the
+    CASE_MANAGER's commit of the activity, fanned out as `Announce(CaseLedgerEntry)`.
   trigger:
     type: message_received
     value: EK
@@ -1271,19 +1279,22 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      A Participant receiving EK MAY process it as a passthrough acknowledgment
-      with no state transition and no required response.
+      A Participant that receives the CASE_MANAGER's `Announce(CaseLedgerEntry)` for an
+      embargo activity it sent MAY treat that entry as the acknowledgment (EK) of the
+      activity, with no further state transition and no required response. No EK message
+      exists (EP-09-009, MSM-02-009).
     rationale: >-
-      EK only confirms that its sender received an earlier E* message. It carries no
-      decision about the embargo, so it gives the receiver nothing to change and nothing
-      to answer.
+      The ledger entry confirms that the CASE_MANAGER received and recorded the earlier
+      E* message. As an acknowledgment it carries no new decision about the embargo, so
+      it gives the receiver nothing more to change and nothing to answer. The replica
+      acknowledges the entry itself through its unbroken hash chain (MSM-05-002).
     testable: false
     lint_suppress:
     - testable_without_steps
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: EK is the acknowledgment; no acknowledgment of acknowledgment required
+      note: The ledger entry is the acknowledgment; no acknowledgment of acknowledgment required
     - rel_type: satisfies
       spec_id: MSM-02-009
       note: 'EK shorthand wire-type mapping'
@@ -3026,19 +3037,24 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      For an `Accept(Invite(EmbargoEvent))` received after the invitation's effective
-      RSVP deadline, the CASE_MANAGER MUST check whether the accepted embargo is still
-      compatible with the case's Active Embargo.
+      The CASE_MANAGER MUST check whether a late `Accept(Invite(EmbargoEvent))` names
+      an embargo the case can still answer.
+      Those are the case's Active Embargo and its open proposals (MSM-07-003).
       It then applies EMB-17-002, EMB-17-003 or EMB-17-004.
     rationale: >-
-      A late Accept can name the embargo in force, a superseded one, or none at all.
-      Each needs its own answer, so the CASE_MANAGER checks which case holds first.
-      See ADR-0065.
+      A late Accept can name the embargo in force, an open proposal, terms the case
+      has already decided or replaced, or none the case holds. Each needs its own
+      answer, so the CASE_MANAGER checks which case holds first. Reading the check
+      as "is this the Active Embargo" leaves out a case under proposal, which has an
+      open proposal and no Active Embargo. See ADR-0065.
     verification: >-
-      `test/core/behaviors/embargo/nodes/test_late_accept.py`
-      (`test_each_case_state_has_one_route`) confirms a late accept is routed by the
-      case's EM state and Active Embargo to exactly one of the EMB-17-002,
-      EMB-17-003 or EMB-17-004 outcomes.
+      `test/core/behaviors/embargo/nodes/test_late_accept.py` confirms a late Accept is
+      routed by the named entry's register status and by whether the case holds any
+      ACTIVE or PROPOSED entry, to exactly one of the EMB-17-002, EMB-17-003 or
+      EMB-17-004 outcomes, for every EM state. `test_each_case_state_has_one_route`
+      covers the routes the code holds today, and
+      `test_an_accepted_open_proposal_is_honoured` is a strict `xfail` holding the
+      open-proposal route until #5732 builds it.
     testable: true
     preconditions:
     - description: The referenced invitation's effective RSVP deadline has passed
@@ -3056,42 +3072,58 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the accepted embargo is the case's Active Embargo, the CASE_MANAGER
-      MUST honour the late Accept and mark the participant's consent row for it
-      AGREED, exactly as it would for an on-time Accept. A row at TIMED_OUT moves
-      directly to AGREED (`TIMED_OUT → AGREED`, ADR-0118), and so does one at
-      DECLINED (`DECLINED → AGREED`, CM-18-003): the participant
+      When the accepted embargo is the case's Active Embargo or one of its open
+      proposals (MSM-07-003), the CASE_MANAGER MUST honour the late Accept.
+      It marks the participant's consent row for that embargo AGREED, exactly as it
+      would for an on-time Accept.
+      A row at TIMED_OUT moves directly to AGREED (`TIMED_OUT → AGREED`, ADR-0118).
+      So does one at DECLINED (`DECLINED → AGREED`, CM-18-003): the participant
       has changed its answer, so it is not re-invited first. The CASE_MANAGER
       honours it by committing the received Accept verbatim as
       `accept_invite_to_embargo_on_case`, carrying the row it states, as an
       on-time Accept is committed (EMB-17-009, ADR-0152).
     rationale: >-
-      If the terms the participant agreed to are the terms in force, the
-      participant is a valid signatory. The deadline governs whether the
-      *invitation* is open, not whether the *agreement* is sound. See ADR-0065.
+      An answer the case can still record is sound whenever it arrives. The
+      deadline governs whether the *invitation* is open, not whether the
+      *agreement* is sound, and an open proposal's row takes an answer until the
+      Case Owner decides it, so dropping a late Accept of an open proposal would
+      hide a willing participant from that decision. See ADR-0065.
       The Accept states the change, so its entry is the change's entry
       (CLP-07-013), and a replica reaches the state an on-time Accept leaves.
     verification: >-
-      Integration tests in `test/demo/` confirm that a late Accept whose embargo ID
-      matches the case's Active Embargo marks the participant's consent row for it
-      AGREED, making the participant a signatory.
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_an_honoured_late_accept_is_committed_and_replayed_by_a_replica`) confirms
+      a late Accept naming the Active Embargo marks the accepter's consent row for it
+      AGREED, so the accepter is a signatory.
+      `test/core/behaviors/embargo/nodes/test_late_accept.py`
+      (`test_an_accepted_open_proposal_is_honoured`) is a strict `xfail` holding the
+      open-proposal case, where the row for that proposal reaches AGREED and the
+      accepter becomes a signatory only if the proposal is later activated, until
+      #5732 builds it.
     testable: true
     preconditions:
     - em_state:
+        - PROPOSED
         - ACTIVE
-      description: EM state is Active
+        - REVISE
+      description: EM state is Proposed, Active or Revise
     - description: >-
-        The accepted embargo ID matches the case's Active Embargo
+        The accepted embargo is the case's Active Embargo or one of its open
+        proposals
     steps:
     - order: 1
       actor: system
       action: Record the PEC AGREE transition for the accepting participant
-      expected: The participant's consent row for the Active Embargo is AGREED
+      expected: The participant's consent row for the accepted embargo is AGREED
     postconditions:
-    - description: The participant is a signatory to the Active Embargo
+    - description: >-
+        The participant's consent row for the accepted embargo is AGREED, so it is
+        a signatory when that embargo is the Active Embargo
     relationships:
     - rel_type: refines
       spec_id: EMB-17-001
+    - rel_type: depends_on
+      spec_id: MSM-07-003
     adr:
     - ADR-0065
     - ADR-0118
@@ -3103,42 +3135,53 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the accepted embargo is not the case's Active Embargo, the CASE_MANAGER MUST
-      send the accepting actor a fresh `Invite(EmbargoEvent)` with the Active Embargo.
-      An accepting participant at TIMED_OUT moves `TIMED_OUT → INVITED` for the Active
-      Embargo (ADR-0118).
+      The case can answer no late Accept of the named embargo, but holds terms of
+      its own. The CASE_MANAGER MUST then send the accepting actor a fresh
+      `Invite(EmbargoEvent)` naming those terms.
+      The terms are the case's Active Embargo.
+      With no Active Embargo they are its earliest-expiring open proposal
+      (EP-08-002).
+      An accepting participant at TIMED_OUT moves `TIMED_OUT → INVITED` for the
+      invited embargo (ADR-0118).
       The fresh Invite is a relay (EP-09-002). Its `actor` is the CASE_MANAGER.
-      Its `attributedTo` names the Active Embargo's proposer, or the CASE_MANAGER
+      Its `attributedTo` names the invited embargo's proposer, or the CASE_MANAGER
       itself when it made the embargo as the protocol default, without a proposal.
     rationale: >-
-      Recording the stale Accept as consent would make the participant a
-      signatory to terms they never saw. Rejecting them would discard a
-      willing participant. Re-inviting resolves both: the actor stays in the
-      case and is asked to consent to the terms actually in force. See ADR-0065.
-      The re-invite asks about terms somebody proposed, exactly as a relay
-      does, so it carries the relay's shape and semantic type (ADR-0152).
+      Recording the stale Accept as consent would bind the participant to terms it
+      never saw; rejecting it would discard a willing participant. Re-inviting
+      resolves both, and carries a relay's shape (ADR-0152). Naming the Active
+      Embargo alone leaves a case under proposal with nothing to invite to, so a
+      willing accepter hears nothing back. The earliest-expiring proposal is the one
+      a participant answers first (EP-08-001); arrival order would ask about
+      superseded terms. See ADR-0065.
     verification: >-
-      Integration tests in `test/demo/` confirm that a late Accept referencing a
-      superseded embargo causes a fresh `Invite(EmbargoEvent)` to be emitted
-      carrying the case's Active Embargo, without recording the stale Accept as
-      consent.
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_the_managers_reinvite_is_committed_and_replayed_by_a_replica`) confirms a
+      late Accept naming an embargo the case has decided or replaced causes a fresh
+      `Invite(EmbargoEvent)` carrying the case's Active Embargo, without recording the
+      stale Accept as consent.
+      `test/core/behaviors/embargo/nodes/test_late_accept.py`
+      (`test_a_case_under_proposal_reinvites_to_its_open_proposal`) is a strict
+      `xfail` holding the case with no Active Embargo, where the fresh Invite carries
+      the earliest-expiring open proposal, until #5732 builds it.
     testable: true
     preconditions:
     - description: >-
-        The accepted embargo ID does not match the case's Active Embargo,
-        and the case has an Active Embargo
+        The accepted embargo is neither the case's Active Embargo nor one of its
+        open proposals, and the case has an Active Embargo or at least one open
+        proposal
     steps:
     - order: 1
       actor: system
       action: >-
         Emit a fresh Invite(EmbargoEvent) to the accepting actor carrying the
-        case's Active Embargo
+        case's current terms
       expected: >-
-        Accepting participant's consent row for the Active Embargo is INVITED;
+        Accepting participant's consent row for the invited embargo is INVITED;
         stale Accept is not recorded as consent
     postconditions:
     - description: >-
-        A fresh invitation for the Active Embargo has been sent; the actor
+        A fresh invitation for the case's current terms has been sent; the actor
         remains a case participant
     relationships:
     - rel_type: refines
@@ -3208,11 +3251,13 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      When the accepted embargo is not the case's Active Embargo, the CASE_MANAGER
-      MUST NOT record the stale Accept as consent to the current terms.
+      The accepted embargo is neither the Active Embargo nor an open proposal. The
+      CASE_MANAGER MUST NOT then record the stale Accept as consent to the current
+      terms.
     rationale: >-
       Recording the stale Accept as consent would make the participant a signatory
-      to terms they never saw. See ADR-0065.
+      to terms they never saw. An Accept of an open proposal is not stale: the case
+      can still record it on that proposal's own row (EMB-17-002). See ADR-0065.
     relationships:
     - rel_type: refines
       spec_id: EMB-17-003
@@ -3223,8 +3268,8 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      When the accepted embargo is not the case's Active Embargo, the CASE_MANAGER
-      MUST NOT reject the accepting actor.
+      When the accepted embargo is neither the Active Embargo nor an open proposal,
+      the CASE_MANAGER MUST NOT reject the accepting actor.
     rationale: >-
       Rejecting a willing participant discards coordination capacity; re-inviting
       to the current terms is the correct response. See ADR-0065.

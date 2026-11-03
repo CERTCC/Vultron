@@ -157,7 +157,8 @@ Add `--closes-work-item` when a closed issue is a `Task`, `Feature` or `Bug` and
 the PR changes no `.py`. Each line it prints is a finding named by rule ID
 (`.agents/skills/shared/pr-body-guide.md` § "Mechanical Checks"). A misplaced
 closing reference (PRB-01, PRB-02), a missing or placeholder `Docs:` line
-(PRB-08) and a missing or unfilled `## Spec amended` block (PRB-09) are
+(PRB-08), a maintainer-docs gap with no follow-up (PRB-12, a MUST before merge,
+PD-03-014) and a missing or unfilled `## Spec amended` block (PRB-09) are
 **FAIL**; the rest are **IMPROVE**. Exit 2 is a setup error: report it, never read
 it as a pass. Do not re-check by hand what it checks. Then judge what it cannot:
 
@@ -272,6 +273,9 @@ the artifact is written.
    - `Docs: no docs impact — <reason>` when your determination found an
      affected page → **IMPROVE** (the page is affected but neither updated nor
      deferred).
+   - A `no maintainer docs impact — <reason>` clause (PRB-12) when a
+     maintainer doc describes the changed tool and is now wrong → **IMPROVE**
+     ([REFERENCE.md](REFERENCE.md) § "Notes and Docs Currency Criteria").
 
    In pre-push mode the body's line is still the placeholder, and
    `check-docs-sync` runs after the push (PD-03-008), so record the

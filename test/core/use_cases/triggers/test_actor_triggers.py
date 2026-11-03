@@ -1586,6 +1586,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
 
     @pytest.mark.spec("CM-21-005")
     @pytest.mark.spec("CM-24-004")
+    @pytest.mark.spec("TRIG-11-004")
     def test_offer_is_the_owners_proposal_to_the_case_manager(self):
         """The trigger sends the owner's proposal, Offer(Offer(VulnerabilityCase)), from
         the owner to the CASE_MANAGER, naming no one else as its author
@@ -1964,6 +1965,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         return offer
 
     @pytest.mark.spec("DL-06-006")
+    @pytest.mark.spec("TRIG-11-004")
     def test_accept_creates_activity(self):
         # The *transferee* accepts, so the store is the transferee's own: it is
         # the actor that received the Offer, and the store an execution runs

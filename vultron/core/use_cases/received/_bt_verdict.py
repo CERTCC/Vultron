@@ -584,7 +584,10 @@ def rm_declaration_verdict(
     :func:`~vultron.core.behaviors.report.rm_declaration_tree.record_rm_declaration`
     (``CheckParticipantRMState``) succeeds when the sender's declared state is
     already recorded, so nothing changed locally: a correct no-op, not a
-    refusal or a fault (RSH-08-002, ADR-0095).
+    refusal or a fault (RSH-08-002, ADR-0095).  A tree that hangs further
+    effects on the move asks the same condition ahead of its write and skips
+    those too — the engage tree's case broadcast does
+    (``_engage_effects_unless_restated``), so this answer covers them (#5006).
     """
     if verdict.disposition is HandlerDisposition.APPLIED and node_succeeded(
         tree, CheckParticipantRMState

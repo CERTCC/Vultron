@@ -1818,8 +1818,9 @@ groups:
   description: Requirements for the end-to-end routing path that delivers protocol-significant
     activities to the CASE_MANAGER's inbox so the CASE_MANAGER can author canonical ledger
     entries. Covers outbound addressing rules, the rule that the CASE_MANAGER commits its
-    own emissions in the emitting tree rather than mailing itself a copy (ADR-0109), and
-    the rule that a received-side use case runs its tree only as the receiving actor.
+    own emissions in the emitting tree rather than addressing a copy to itself
+    (ADR-0109), and the rule that a received-side use case runs its tree only as the
+    receiving actor.
   specs:
   - id: CLP-10-001
     priority: MUST
@@ -2634,7 +2635,7 @@ groups:
     rationale: >-
       `to:` and `cc:` arrive as the sender wrote them, and the receiving actor id is
       canonical. An exact match misses a recipient written with a trailing slash, and
-      the receiver refuses mail that was addressed to it.
+      the receiver refuses an activity that was addressed to it.
       `Offer(VulnerabilityReport)` can have several recipients and reads its
       eligibility from `to:` (HP-09-001), so this mistake refuses a valid report.
     verification: >-
@@ -3376,7 +3377,7 @@ groups:
       example is `invite_actor_to_case`.
     rationale: >-
       The CASE_MANAGER's store holds the canonical ledger, so its own act is committed
-      where it is sent, with no copy mailed to itself.
+      where it is sent, with no copy addressed to itself.
     verification: >-
       `test_note_is_recorded_and_announced_to_the_owner` in
       `test/core/behaviors/case/nodes/test_suggest_actor_owner_recipient.py` runs the
@@ -4114,3 +4115,34 @@ groups:
     - ADR-0079
     stories:
     - story_2022_074
+  - id: CLP-15-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST reject at message validation an inbound activity carrying a
+      `CaseStatus` with no `published`, wherever the status sits in it.
+    rationale: >-
+      A case's current status is the one with the latest time (CM-29-001), so every
+      status needs one. Any place a receiver chose for an untimed status would be a
+      rule no sender agreed to. Ordering statuses is a decision that needs the time,
+      so it is refused at message validation (CLP-15-009), as CLP-15-008 refuses an
+      activity with no time.
+      Participant statuses are not covered: nothing reads their time.
+    verification: >-
+      `test_parse_refuses_inline_case_status_without_published`,
+      `test_parse_refuses_case_status_without_published_in_case_statuses` and
+      `test_parse_refuses_case_status_without_published_in_a_participant_status`
+      in `test/wire/as2/test_nested_timestamps.py` assert `parse_activity` raises
+      `VultronParseMissingPublishedError` naming the status's position, and
+      `test_post_untimed_case_status_to_actor_inbox_returns_422` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` asserts the inbox
+      answers 422.
+    adr:
+    - ADR-0103
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-15-009
+    - rel_type: refines
+      spec_id: CM-29-001
+    stories:
+    - story_2022_075

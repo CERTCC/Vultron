@@ -152,6 +152,31 @@ and that FAILURE must reach the caller, put the gate in front instead:
 `Sequence(gate, existing_selector)`. The gate still short-circuits, and a real
 failure is no longer swallowed.
 
+### A Skip-If-Done Guard Only Skips What It Encloses
+
+Put the guard around **every** effect the move earns, not just the write. A
+guard nested inside the write node's own Selector leaves the siblings after it
+unconditional, so a repeat skips the write and runs the rest: that is how a
+redelivered `Join` queued a second `Announce(VulnerabilityCase)` while its
+ledger entry stayed single (#5006). Build an RM one with
+`unless_rm_already_recorded` (`report/rm_declaration_tree.py`), so the question
+is asked in one place.
+
+Two conditions on that guard:
+
+- It must be the Selector's **first** child, so it reads the state *before* the
+  write sets it. Asked after, it always answers yes and the effects never run —
+  a failure mode no redelivery test sees, only a first-delivery one.
+- Every child under it must settle in one tick. The enclosing `ActTransaction`
+  rolls back and raises on a RUNNING child rather than re-ticking, which is
+  what keeps a `memory=False` Selector from re-reading the guard after the write.
+
+`rm_declaration_verdict` reads the answer by node *type*
+(`node_succeeded(tree, CheckParticipantRMState)`), so a second node of that type
+asking about another actor or another RM state makes a handler call a first
+delivery a repeat. Pin the set of questions a tree asks, not only the node names
+(`test_engage_tree_node_names`).
+
 ---
 
 ## No-Op Path Must Clear Output Blackboard Keys

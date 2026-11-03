@@ -124,6 +124,7 @@ def transferee_world(actor_store):
 @pytest.mark.spec("TRIG-11-005")
 @pytest.mark.spec("CM-21-010")
 @pytest.mark.spec("DL-06-006")
+@pytest.mark.spec("TRIG-11-004")
 def test_reject_is_addressed_to_the_case_manager(transferee_world):
     dl, transferee, case_manager, _, offer = transferee_world
     assert dl.read(offer.id_) is None  # held only as received

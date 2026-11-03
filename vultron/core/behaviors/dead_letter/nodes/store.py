@@ -19,7 +19,7 @@ Provides a leaf action node that constructs and persists a
 ``DeadLetterRecord`` for an activity whose ``object_`` URI could not be
 resolved after rehydration.
 
-Per ``specs/semantic-extraction.yaml`` SE-04-002, SE-04-003.
+Per ``specs/semantic-extraction.yaml`` SE-04-003, SE-04-007.
 """
 
 from py_trees.common import Status

@@ -230,11 +230,10 @@ class TestActivityTypedHandlersApplyTheSharedRule:
             assert status_count(dl) == before, (
                 "a confirmation is recorded once (RSH-08-002)"
             )
-            # Engage still runs the CASE_MANAGER's broadcast, and validate
-            # skips only on its report-link latch (absent in this store), so
-            # neither is a pure no-op; the rest report the restatement as
-            # skipped.
-            if case.declared in (RM.ACCEPTED, RM.VALID):
+            # Validate skips only on its report-link latch (absent in this
+            # store), so it is not a pure no-op; every other handler, engage
+            # included since #5006, reports the restatement as skipped.
+            if case.declared is RM.VALID:
                 assert result.disposition is HandlerDisposition.APPLIED, (
                     result.reason
                 )

@@ -20,7 +20,7 @@ Exposes endpoints used exclusively by demo scripts to puppeteer actors through
 steps their own BTs would handle autonomously in a real deployment.
 
 This router is conditionally mounted only when
-``get_config().server.run_mode == RunMode.PROTOTYPE`` (TRIG-09-002).
+``get_config().mode == RunMode.PROTOTYPE`` (TRIG-09-002).
 In ``RunMode.PROD`` these paths are simply not registered, so any request to
 ``/actors/{id}/demo/`` returns HTTP 404 (TRIG-09-003).
 
@@ -179,8 +179,8 @@ def demo_notify_fix_ready(
 ) -> StatusResult:
     """Report that the actor has a fix ready (demo scaffold).
 
-    Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-003, TRIG-06-001,
-        TRIG-12-001.
+    Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-003, TRIG-03-001,
+        TRIG-06-001, TRIG-12-001.
     """
     # VF hypercube: vf → Vf → VF, one adjacent hop per protocol step.  The
     # verb sends only the hops the actor still needs (an invited vendor is
@@ -241,8 +241,8 @@ def demo_notify_fix_deployed(
 ) -> StatusResult:
     """Report that the actor has deployed a fix (demo scaffold).
 
-    Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-003, TRIG-06-001,
-        TRIG-12-001.
+    Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-003, TRIG-03-001,
+        TRIG-06-001, TRIG-12-001.
     """
     return run_trigger(
         AddParticipantStatusTriggerRequest(
@@ -277,8 +277,8 @@ def demo_notify_published(
 ) -> StatusResult:
     """Report that the vulnerability is publicly disclosed (demo scaffold).
 
-    Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-003, TRIG-06-001,
-        TRIG-12-001.
+    Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-003, TRIG-03-001,
+        TRIG-06-001, TRIG-12-001.
     """
     return run_trigger(
         AddParticipantStatusTriggerRequest(
@@ -322,8 +322,8 @@ def demo_sync_log_entry(
     (ADR-0140).
 
     Implements:
-        TRIG-09-001, TRIG-09-004, TRIG-02-006, TRIG-10-004, TRIG-06-001,
-        TRIG-06-002, SYNC-02-002, SYNC-02-003, TRIG-12-001
+        TRIG-09-001, TRIG-09-004, TRIG-02-006, TRIG-03-001, TRIG-10-004,
+        TRIG-06-001, TRIG-06-002, SYNC-02-002, SYNC-02-003, TRIG-12-001
     """
     try:
         return run_trigger(
@@ -375,7 +375,7 @@ def demo_set_stub_summary(
     Call this before ``invite-actor-to-case`` to satisfy the stub-Invite
     precondition (CM-17-010, MV-10-001).
 
-    Implements: CM-17-010, MV-10-001, TRIG-09-001, TRIG-09-004.
+    Implements: CM-17-010, MV-10-001, TRIG-03-001, TRIG-09-001, TRIG-09-004.
     """
     return run_trigger(
         SetStubSummaryTriggerRequest(

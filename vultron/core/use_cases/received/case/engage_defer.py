@@ -86,8 +86,13 @@ class EngageCaseReceivedUseCase:
         ) is not None:
             return refusal
 
+        # A receipt, not a transition: the tree decides whether the declared
+        # move happened, and a restatement is reported SKIPPED.  An
+        # ``RM → ACCEPTED`` line here would assert a move the handler may go
+        # on to say it did not make (SL-04-007, #5006).  The move itself is
+        # logged once, by the status writer.
         logger.info(
-            "Actor '%s' engages case '%s' (RM → ACCEPTED)",
+            "Actor '%s' declares RM.ACCEPTED on case '%s' (Join received)",
             actor_id,
             case_id,
         )
@@ -110,12 +115,17 @@ class EngageCaseReceivedUseCase:
             case_id=case_id,
         )
 
-        # Not rm_declaration_verdict: a restated Join still runs the
-        # CASE_MANAGER's case broadcast, so it is not a no-op.
+        # A restated Join has no move to record, and so no change to
+        # announce: the tree skips the CASE_MANAGER's effects whole, and the
+        # handler reports that as SKIPPED, not APPLIED (ID-05-003, #5006).
         # Only the CASE_MANAGER records the move (HP-01-005).
         verdict = case_manager_verdict(
             tree,
-            verdict_from_bt(tree, result, label="EngageCaseBT"),
+            rm_declaration_verdict(
+                tree,
+                verdict_from_bt(tree, result, label="EngageCaseBT"),
+                label="EngageCaseBT",
+            ),
             self._dl,
             case_id,
         )
@@ -175,8 +185,10 @@ class DeferCaseReceivedUseCase:
         ) is not None:
             return refusal
 
+        # A receipt, not a transition, for the reason given on the engage
+        # line above (SL-04-007).
         logger.info(
-            "Actor '%s' defers case '%s' (RM → DEFERRED)",
+            "Actor '%s' declares RM.DEFERRED on case '%s' (Ignore received)",
             actor_id,
             case_id,
         )

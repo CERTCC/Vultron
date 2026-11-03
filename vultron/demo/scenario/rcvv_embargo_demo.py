@@ -78,17 +78,13 @@ from vultron.demo.helpers.coordinated_embargo_story import (
     replicas_see_the_embargo_ended,
 )
 from vultron.demo.helpers.coordinated_story import (
-    CASE_ACTOR_NAME,
     COORDINATOR,
     COORDINATOR_LABEL,
     REPORTER,
     REPORTER_LABEL,
     VENDOR,
-    CastContainer,
     close_the_case,
-    coordinated_clients,
     coordinated_open_cast,
-    dump_coordinated_ledgers,
     invitee_joins_the_case,
     report_fix_ready,
     reports_published,
@@ -107,6 +103,12 @@ from vultron.demo.helpers.story import (
     choose,
     run_story,
     story,
+)
+from vultron.demo.helpers.story_cast import (
+    CASE_ACTOR_NAME,
+    CastContainer,
+    dump_story_ledgers,
+    story_clients,
 )
 from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import (
@@ -344,7 +346,7 @@ def _dump_ledgers(state: StoryState) -> None:
     replicas = [REPORTER, COORDINATOR, VENDOR1]
     if VENDOR2 in state.cast:
         replicas.append(VENDOR2)
-    dump_coordinated_ledgers(state, replicas=replicas)
+    dump_story_ledgers(state, replicas=replicas)
 
 
 def run_rcvv_embargo_demo(
@@ -438,7 +440,7 @@ def main(
         vendor_id: Optional deterministic URI for the Vendor1 actor.
         vendor2_id: Optional deterministic URI for the Vendor2 actor.
     """
-    clients = coordinated_clients(
+    clients = story_clients(
         _ROLES,
         [
             CastContainer(REPORTER, REPORTER_LABEL, reporter_url),

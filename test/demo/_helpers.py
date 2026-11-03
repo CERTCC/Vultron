@@ -51,6 +51,7 @@ from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import invite_chain, runner, workflow
 from vultron.demo.helpers.story import StoryState, UnseatedContainer
+from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME
 from vultron.demo.in_process import response_value
 from vultron.demo.utils import DataLayerClient
 from vultron.errors import VultronError
@@ -140,6 +141,28 @@ def story_state(
     if case is not None:
         state.open_case(case=case, report=MagicMock(), offer=MagicMock())
     return state
+
+
+def bind_container_actors(state: StoryState, *names: str) -> None:
+    """Bind each named client's ``actor_id``, and the case actor's, as seeding does.
+
+    ``replica_route_key`` reads a dump target's route key off the client's own
+    actor id (ADR-0073), and ``seeding._own_actor`` binds it as each
+    container's actor is created.  A ``MagicMock`` client carries a truthy
+    ``actor_id`` that is not a URI, so without this the real helper would key
+    the dump on a mock's repr and a mis-paired client would still look right.
+
+    Args:
+        state: A :func:`story_state` whose cast holds every name.
+        names: The cast names to bind; the case actor is always bound.
+    """
+    for name in (*names, CASE_ACTOR_NAME):
+        client = (
+            state.case_actor_client
+            if name == CASE_ACTOR_NAME
+            else state.client(name)
+        )
+        client.actor_id = f"http://{name}:7999/api/v2/actors/{name}"
 
 
 @contextlib.contextmanager

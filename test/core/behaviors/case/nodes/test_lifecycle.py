@@ -321,9 +321,10 @@ def test_a_recorded_activity_with_its_body_commits_no_second_entry(
 ):
     """The archived copy of a resend carries the first delivery's body.
 
-    A tree with no repeat guard of its own (RM engage) reaches the commit
-    with a body to record; the ledger's entry for the activity is its
-    record, so the node commits nothing (IE-10-001, VM-08-002).
+    A tree whose own repeat guard sits after the commit (RM engage guards
+    only its CASE_MANAGER effects) reaches the commit with a body to record;
+    the ledger's entry for the activity is its record, so the node commits
+    nothing (IE-10-001, VM-08-002).
     """
     datalayer.create(
         CaseLedgerEntry(

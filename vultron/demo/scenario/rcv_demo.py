@@ -50,7 +50,6 @@ from vultron.demo.helpers.cast import (
     VENDOR_SLOT,
 )
 from vultron.demo.helpers.coordinated_story import (
-    CASE_ACTOR_NAME,
     COORDINATOR,
     COORDINATOR_LABEL,
     REPORTER,
@@ -59,14 +58,17 @@ from vultron.demo.helpers.coordinated_story import (
     VENDOR,
     VENDOR_LABEL,
     coordinated_cast_members,
-    coordinated_clients,
     coordinated_open_cast,
-    dump_coordinated_ledgers,
     everyone_closes,
     everyone_publishes,
     vendor_reports_the_fix_ready,
 )
 from vultron.demo.helpers.story import StoryState, choose, run_story, story
+from vultron.demo.helpers.story_cast import (
+    CASE_ACTOR_NAME,
+    dump_story_ledgers,
+    story_clients,
+)
 from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import DataLayerClient, setup_demo_logging
 
@@ -81,7 +83,7 @@ ROLES: list[ActorRole] = [
     ActorRole(VENDOR, VENDOR_SLOT, VENDOR_LABEL, has_id=True),
     case_actor_role(),
 ]
-#: Indexed for the CLI factory and for ``coordinated_clients()``, which reads
+#: Indexed for the CLI factory and for ``story_clients()``, which reads
 #: each actor's container address off its cast slot — so this module declares
 #: no ``*_BASE_URL`` constant of its own (DEMOCI-11-020).
 _ROLES = role_map(ROLES)
@@ -132,7 +134,7 @@ def _dump_ledgers(state: StoryState) -> None:
     The ``case-actor`` ledger is read from the dedicated case-actor container,
     which holds the canonical ledger (DEMOMA-06-005).
     """
-    dump_coordinated_ledgers(state, replicas=(REPORTER, COORDINATOR, VENDOR))
+    dump_story_ledgers(state, replicas=(REPORTER, COORDINATOR, VENDOR))
 
 
 def run_rcv_demo(
@@ -209,7 +211,7 @@ def main(
         coordinator_id: Optional deterministic URI for the Coordinator actor.
         vendor_id: Optional deterministic URI for the Vendor actor.
     """
-    clients = coordinated_clients(
+    clients = story_clients(
         _ROLES,
         coordinated_cast_members(
             reporter_url=reporter_url,

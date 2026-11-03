@@ -298,8 +298,10 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 
 - A proposal and a relay share one semantic type; `is_relayed_embargo_invite()` reads a
   relay only when `actor` is the case's CASE_MANAGER and `attributedTo` names someone
-  else, or names the CASE_MANAGER and the register already holds the embargo decided,
-  as for a re-invite (EMB-17-003, EMB-17-014, ADR-0152). A third party in
+  else, or names the CASE_MANAGER and the register already holds the embargo decided
+  (EMB-17-014, ADR-0152). A self-attributed Invite naming a still-open proposal takes
+  the proposal branch, whose `PROPOSE` is already in place and so changes nothing, so
+  not every re-invite is read as a relay (EMB-17-003, EP-09-002). A third party in
   `attributedTo` from a participant is still a proposal (PCR-08-010).
 - The CASE_MANAGER never commits a `Reject(Invite(EmbargoEvent))` as its own consent:
   that shape from it is the abandonment, so its own consent change is its
