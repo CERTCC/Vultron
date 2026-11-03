@@ -252,20 +252,36 @@ def test_the_reason_has_one_shape_for_every_message_type() -> None:
     """One composer, so the reason varies by path and never by message type.
 
     Two message types whose declarations differ still get the same wording
-    for the same resolved path, which is what keeps a handler from mapping a
-    gate failure to a verdict of its own.
+    for the same resolved path, as long as they agree on whether they handle
+    the manager path. That is what keeps a handler from mapping a gate
+    failure to a verdict of its own: the wording is the composer's, not the
+    message type's.
     """
-    for path in ALL_PATHS:
-        declared = ALL_PATHS - {path}
-        first = undeclared_path_reason(path, declared, CASE_ID)
-        second = undeclared_path_reason(path, frozenset(declared), CASE_ID)
-        assert first == second
-
+    # The no-case path, refused by two different manager-inclusive
+    # declarations: one that handles the manager path only, one that also
+    # handles the replica path.
+    assert undeclared_path_reason(
+        ReceivedPath.NO_CASE, {ReceivedPath.CASE_MANAGER}, CASE_ID
+    ) == undeclared_path_reason(
+        ReceivedPath.NO_CASE,
+        {ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+        CASE_ID,
+    )
+    # And the replica path, likewise.
+    assert undeclared_path_reason(
+        ReceivedPath.PARTICIPANT_REPLICA, {ReceivedPath.CASE_MANAGER}, CASE_ID
+    ) == undeclared_path_reason(
+        ReceivedPath.PARTICIPANT_REPLICA,
+        {ReceivedPath.CASE_MANAGER, ReceivedPath.NO_CASE},
+        CASE_ID,
+    )
+    # The clause varies with the path, so the three are not one string.
     reasons = {
         _run_stage(path, ALL_PATHS - {path}).feedback_message
         for path in ALL_PATHS
     }
     assert reasons == set(_MANAGER_INCLUSIVE_REASON.values())
+    assert len(reasons) == len(PATHS_IN_ORDER)
 
 
 @pytest.mark.spec("HP-01-005")
