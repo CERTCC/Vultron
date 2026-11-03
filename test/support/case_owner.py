@@ -61,8 +61,9 @@ INBOUND_CASE_OWNERSHIP: dict[str, object] = {
     ],
 }
 
-#: The same keys under field names, for a case built with ``model_construct``,
-#: which runs no validator to compute the hash or start the position.
+#: The ownership keys (no status history) under field names, for a case built
+#: with ``model_construct``, which runs no validator to compute the hash or
+#: start the position.
 CONSTRUCTED_CASE_OWNERSHIP: dict[str, Any] = {
     "attributed_to": CASE_OWNER_ID,
     "genesis_hash": CASE_GENESIS_HASH,
@@ -71,7 +72,8 @@ CONSTRUCTED_CASE_OWNERSHIP: dict[str, Any] = {
     ),
 }
 
-#: The same keys as a stored row holds them: plain JSON, field names.
+#: The ownership keys (no status history) as a stored row holds them: plain JSON,
+#: field names.
 STORED_CASE_OWNERSHIP: dict[str, object] = {
     "attributed_to": CASE_OWNER_ID,
     "genesis_hash": CASE_GENESIS_HASH,
