@@ -659,7 +659,9 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit GI to inquire about the nature of the error
+      action: >-
+        Emit GI to inquire about the nature of the error, when the fault does
+        not say what went wrong
       expected: GI queued for sender
     postconditions:
     - description: GI emitted; receiver RM state unchanged

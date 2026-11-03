@@ -105,9 +105,7 @@ Otherwise,
 
 !!! note "[RMB-02](../vultron-spec/requirements/state-behavior.md#protocol-rmb-02) — [RMB-06](../vultron-spec/requirements/state-behavior.md#protocol-rmb-06)"
 
-    Any $R*$ message, aside from $RS$, received by recipient in
-    $q^{rm} \in S$ is an error because it indicates the sender thought
-    the receiver was aware of a report they had no knowledge of.
+    Any $R*$ message, aside from $RS$, received by recipient in $q^{rm} \in S$ is an error because it indicates the sender thought the receiver was aware of a report they had no knowledge of.
     The Recipient SHOULD answer it with `Create(ProcessingFault)`, which plays the role of $RE$, to signal the error.
 
 !!! note "[RMB-07](../vultron-spec/requirements/state-behavior.md#protocol-rmb-07)"
@@ -155,7 +153,7 @@ expected response message.
 |                       $RS$                        | $\{ R, I, V,D,A\},*,*$ | $-,-,-$ |                $RK$ (non-vendor)                 |
 |               $\{RI,RV,RD,RA,RC\}$                | $\{R,I,V,D,A\},*,*$ | $-,-,-$ |                       $RK$                       |
 |               $\{RI,RV,RD,RA,RC\}$                | $S,*,*$ | $-,-,-$ |           `Create(ProcessingFault)`            |
-|                       $RE$                        | $*,*,*$ | $-,-,-$ |                    $RK + GI$                    |
+|                       $RE$                        | $*,*,*$ | $-,-,-$ |                      $GI$                       |
 |                       $RK$                        | $\{R,I,V,D,A\},*,*$ | $-,-,-$ |                       $-$                        |
 |                       $RK$                        | $S,*,*$ | $-,-,-$ |           `Create(ProcessingFault)`            |
 
@@ -226,7 +224,7 @@ the corresponding sender state transition.
 | $\lnot \{S,C\},P,*$ | $-,\xrightarrow{r} N,-$ |                      $ER$                       |
 | $\lnot \{S,C\},A,*$ | $-,\xrightarrow{t} X,-$ |                      $ET$                       |
 | $\lnot \{S,C\},R,*$ | $-,\xrightarrow{t} X,-$ |                      $ET$                       |
-| $\lnot C,*,*$ | $-,-,-$ |                      $EK$                       |
+| $\lnot \{S,C\},*,*$ | $-,-,-$ |                      $EK$                       |
 | $\lnot C,*,*$ | $-,-,-$ |                      $EE$                       |
 
 A Participant still in RM *Start* has no case to negotiate, so the only EM message it sends is $EE$, the processing fault it returns when an EM message reaches it before the report does.
@@ -265,7 +263,7 @@ The next table lists the effects of receiving an EM message to the receiving Par
 |                           $EJ$                           | $\lnot \{S,C\},R,\lnot \cdot\cdot\cdot pxa$ | $-,\xrightarrow{t} X,-$ |                       $ET$                       |
 |                           $EC$                           | $\lnot \{S,C\},R,\lnot \cdot\cdot\cdot pxa$ | $-,\xrightarrow{t} X,-$ |                       $ET$                       |
 |           $\{EP,EA,EV,EJ,EC,ER,ET\}$           | $S,*,*$ | $-,-,-$ |                     $EE+GI$                      |
-|                           $EE$                           | $\lnot C,*,*$ | $-,-,-$ |                     $EK+GI$                      |
+|                           $EE$                           | $\lnot C,*,*$ | $-,-,-$ |                       $GI$                       |
 |                           $EK$                           | $\lnot C,*,*$ | $-,-,-$ |                       $-$                        |
 |           Any EM msg. not<br/> addressed above           | $\lnot C,*,*$ | $-,-,-$ |                       $EE$                       |
 
@@ -355,7 +353,7 @@ CS message to the receiving Participant's state coupled with the expected respon
 |                       $CA$                        | $\lnot C,\{N,X\},\cdot\cdot\cdot p \cdot a$ | $-,-,\xrightarrow{\mathbf{A}} \cdot\cdot\cdot p \cdot A$ |                       $CK$                       |
 |                       $CA$                        | $\lnot C,*,\cdot\cdot\cdot P \cdot a$ | $-,-,\xrightarrow{\mathbf{A}} \cdot\cdot\cdot P \cdot A$ |                       $CK$                       |
 |                       $CA$                        | $\lnot C,*,\cdot\cdot\cdot\cdot\cdot A$ | $-,-,-$ |                       $CK$                       |
-| $CE$ | $\lnot C,*,*$ | $-,-,-$ |                     $CK+GI$                      |
+| $CE$ | $\lnot C,*,*$ | $-,-,-$ |                       $GI$                       |
 | $CK$ | $\lnot C,*,*$ | $-,-,-$ |                       $-$                        |
 
 ## General Transition Functions

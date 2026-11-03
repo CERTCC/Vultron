@@ -516,8 +516,6 @@ groups:
     - rel_type: implements
       spec_id: VP-01-002
     - rel_type: implements
-      spec_id: VP-02-002
-    - rel_type: implements
       spec_id: VP-03-001
     stories:
     - story_2022_088
@@ -636,8 +634,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SM-10-001
-    - rel_type: implements
-      spec_id: VP-02-002
     - rel_type: implements
       spec_id: VP-02-003
     - rel_type: implements

@@ -218,7 +218,7 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CP with EM None or
       Exited transitions local CS to ···P·· without triggering embargo
-      teardown, with no CK message queued.
+      teardown.
     testable: true
     preconditions:
     - cs_pattern: "...p.."
@@ -260,8 +260,7 @@ groups:
       embargo cannot be negotiated once the information is public (VP-06-001).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CP with EM Proposed
-      transitions local CS to ···P·· and sets EM to NONE, with no CK message
-      queued.
+      transitions local CS to ···P·· and sets EM to NONE.
     testable: true
     preconditions:
     - cs_pattern: "...p.."
@@ -309,8 +308,7 @@ groups:
       (CSB-12-004).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CP with EM Active or
-      Revise transitions CS to ···P·· and that the CASE_MANAGER emits ET, with
-      no CK message queued.
+      Revise transitions CS to ···P·· and that the CASE_MANAGER emits ET.
     testable: true
     preconditions:
     - cs_pattern: "...p.."
@@ -368,7 +366,7 @@ groups:
       Duplicate CP does not re-trigger CS or EM transitions.
     verification: >-
       Integration tests in `test/demo/` confirm that a duplicate CP (CS already
-      ···P··) leaves all CS and EM states unchanged, with no CK message queued.
+      ···P··) leaves all CS and EM states unchanged.
     testable: true
     preconditions:
     - cs_pattern: "...P.."
@@ -468,8 +466,7 @@ groups:
       immediately resolves to both P and X. The CS transition is atomic.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CX in CS ···px· with
-      EM None or Exited atomically sets both P and X bits (···PX·), with no CK
-      message queued.
+      EM None or Exited atomically sets both P and X bits (···PX·).
     testable: true
     preconditions:
     - cs_pattern: "...px."
@@ -511,8 +508,7 @@ groups:
       The pX→PX invariant applies (constraint C-15).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CX in CS ···px· with
-      EM Proposed transitions CS to ···PX· and sets EM to NONE, with no CK
-      message queued.
+      EM Proposed transitions CS to ···PX· and sets EM to NONE.
     testable: true
     preconditions:
     - cs_pattern: "...px."
@@ -561,8 +557,7 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CX in CS ···px· with
       EM Active or Revise transitions CS to ···PX· and that the CASE_MANAGER
-      emits ET, with the CS transition recorded before teardown and no CK
-      message queued.
+      emits ET, with the CS transition recorded before teardown.
     testable: true
     preconditions:
     - cs_pattern: "...px."
@@ -619,7 +614,7 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CX in CS ···Px·
       transitions the exploit bit to X (···PX·) without triggering embargo
-      teardown, with no CK message queued.
+      teardown.
     testable: true
     preconditions:
     - cs_pattern: "...Px."
@@ -658,7 +653,7 @@ groups:
       Duplicate CX does not re-trigger CS or EM transitions.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CX when CS is already
-      ···PX· leaves all CS and EM states unchanged, with no CK message queued.
+      ···PX· leaves all CS and EM states unchanged.
     testable: true
     preconditions:
     - cs_pattern: "...PX."
@@ -783,8 +778,7 @@ groups:
       Tests marked CSB-06-001 in
       `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
       that a CA received in CS ···p·a with EM None sets the attacks bit
-      (···p·A) and leaves the public bit unset. Integration tests in
-      `test/demo/` confirm that no CK message is queued.
+      (···p·A) and leaves the public bit unset.
     testable: true
     preconditions:
     - cs_pattern: "...p.a"
@@ -831,7 +825,7 @@ groups:
       `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
       that a CA received in CS ···p·a with EM Proposed transitions CS to
       ···p·A, leaving the public bit unset. Integration tests in `test/demo/`
-      confirm that EM is set to NONE with no CK message queued.
+      confirm that EM is set to NONE.
     testable: true
     preconditions:
     - cs_pattern: "...p.a"
@@ -884,8 +878,7 @@ groups:
       `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
       that a CA received in CS ···p·a with EM Active transitions CS to ···p·A,
       leaving the public bit unset, and that the CASE_MANAGER tears the
-      embargo down after recording it. Integration tests in `test/demo/`
-      confirm that no CK message is queued.
+      embargo down after recording it.
     testable: true
     preconditions:
     - cs_pattern: "...p.a"
@@ -940,8 +933,7 @@ groups:
       The public bit is already set; no new P transition is needed.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CA in CS ···P·a
-      transitions the attacks bit to A (···P·A) without a new P transition,
-      with no CK message queued.
+      transitions the attacks bit to A (···P·A) without a new P transition.
     testable: true
     preconditions:
     - cs_pattern: "...P.a"
@@ -983,8 +975,7 @@ groups:
       Tests marked CSB-06-005 in
       `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
       that a CA received when CS is already ···p·A leaves the case CS at
-      ···p·A. Integration tests in `test/demo/` confirm that EM is unchanged
-      and that no CK message is queued.
+      ···p·A. Integration tests in `test/demo/` confirm that EM is unchanged.
     testable: true
     preconditions:
     - cs_pattern: ".....A"
@@ -1117,7 +1108,9 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit GI to inquire about the nature of the error
+      action: >-
+        Emit GI to inquire about the nature of the error, when the fault does
+        not say what went wrong
       expected: GI queued for sender; no CK message exists
     postconditions:
     - description: GI emitted; CS state unchanged

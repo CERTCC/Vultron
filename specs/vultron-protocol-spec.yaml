@@ -106,8 +106,9 @@ groups:
       so no protocol trace shows whether Valid work went first. A test that a Valid
       report can advance to Accepted shows only that the transition exists.
     verification: >-
-      Inspection: a reviewer confirms that the participant's case-management workflow
-      ranks Valid cases ahead of Received and Closed ones.
+      Inspection: a reviewer reads the participant's documented triage procedure, or
+      the queue-ordering configuration of its case-management tool, and confirms that
+      Valid cases are ranked ahead of Received and Closed ones.
     lint_suppress:
     - testable_without_steps
     stories:
@@ -577,7 +578,8 @@ groups:
       A protocol message that cannot be processed otherwise fails silently. A processing
       fault in any state tells the sender something went wrong, so it can correct or ask
       instead of assuming the message took effect. Faults are grouped by failure mode,
-      not by state machine, so no RM-specific error message exists.
+      not by state machine, so no RM-specific error message exists. For an
+      authenticated sender, ASK-07-001 makes the fault a MUST.
     stories:
     - story_2022_007
     - story_2022_008
@@ -624,14 +626,11 @@ groups:
     statement: >-
       Recipients of `Create(ProcessingFault)` about an $R*$ message they sent ($RE$)
       SHOULD inquire ($GI$) as to the nature of the error. $RE$ has no wire activity of
-      its own (MSM-05-001). They do not acknowledge the fault with $RK$ (VP-03-009);
-      once a case exists, its acknowledgment is the CASE_MANAGER's ledger entry for it,
-      fanned out to the participants.
+      its own (MSM-05-001). They do not acknowledge the fault with $RK$ (VP-03-009).
     rationale: >-
       A fault says something went wrong but not always what, so asking ($GI$) is how the
       two sides find and fix the problem. No $RK$ is needed: $RK$ acknowledges only $RS$
-      (VP-03-009), and once a case exists the CASE_MANAGER's ledger entry already
-      acknowledges the case event (ASK-07-008).
+      (VP-03-009).
     stories:
     - story_2022_077
   - id: VP-03-012
@@ -1951,14 +1950,12 @@ groups:
     statement: >-
       Recipients of `Create(ProcessingFault)` about an $E*$ message they sent ($EE$)
       SHOULD inquire ($GI$) as to the nature of the error. $EE$ has no wire activity of
-      its own (MSM-05-001). No $EK$ message is sent for the fault (EP-09-009); once a
-      case exists, its acknowledgment is the CASE_MANAGER's ledger entry for it, fanned
-      out to the participants.
+      its own (MSM-05-001). No $EK$ message is sent for the fault (EP-09-009).
     rationale: >-
       A fault about an embargo message means the other side could not process it, so
       the two may now hold different embargo states. Asking what went wrong lets them
-      find and fix the mismatch. The CASE_MANAGER's ledger entry for the fault already
-      acknowledges it (ASK-07-008), so a separate $EK$ would only add traffic.
+      find and fix the mismatch. No $EK$ message exists to acknowledge the fault with
+      (EP-09-009).
     stories:
     - story_2022_008
   - id: VP-11-006
