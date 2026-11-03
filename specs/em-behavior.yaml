@@ -3037,10 +3037,13 @@ groups:
       as "is this the Active Embargo" leaves out a case under proposal, which has an
       open proposal and no Active Embargo. See ADR-0065.
     verification: >-
-      `test/core/behaviors/embargo/nodes/test_late_accept.py`
-      (`test_each_case_state_has_one_route`) confirms a late accept is routed by the
-      embargo register entry the accepted embargo holds to exactly one of the
-      EMB-17-002, EMB-17-003 or EMB-17-004 outcomes, for every EM state.
+      `test/core/behaviors/embargo/nodes/test_late_accept.py` confirms a late Accept is
+      routed by the named entry's register status and by whether the case holds any
+      ACTIVE or PROPOSED entry, to exactly one of the EMB-17-002, EMB-17-003 or
+      EMB-17-004 outcomes, for every EM state. `test_each_case_state_has_one_route`
+      covers the routes the code holds today, and
+      `test_an_accepted_open_proposal_is_honoured` is a strict `xfail` holding the
+      open-proposal route until #5732 builds it.
     testable: true
     preconditions:
     - description: The referenced invitation's effective RSVP deadline has passed
@@ -3077,10 +3080,15 @@ groups:
       The Accept states the change, so its entry is the change's entry
       (CLP-07-013), and a replica reaches the state an on-time Accept leaves.
     verification: >-
-      Integration tests in `test/demo/` confirm that a late Accept naming the case's
-      Active Embargo or one of its open proposals marks the participant's consent
-      row for that embargo AGREED, making the participant a signatory to an Active
-      Embargo it accepted.
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_an_honoured_late_accept_is_committed_and_replayed_by_a_replica`) confirms
+      a late Accept naming the Active Embargo marks the accepter's consent row for it
+      AGREED, so the accepter is a signatory.
+      `test/core/behaviors/embargo/nodes/test_late_accept.py`
+      (`test_an_accepted_open_proposal_is_honoured`) is a strict `xfail` holding the
+      open-proposal case, where the row for that proposal reaches AGREED and the
+      accepter becomes a signatory only if the proposal is later activated, until
+      #5732 builds it.
     testable: true
     preconditions:
     - em_state:
@@ -3136,11 +3144,15 @@ groups:
       a participant answers first (EP-08-001); arrival order would ask about
       superseded terms. See ADR-0065.
     verification: >-
-      Integration tests in `test/demo/` confirm that a late Accept naming an embargo
-      the case has decided or replaced causes a fresh `Invite(EmbargoEvent)` to be
-      emitted carrying the case's Active Embargo, or its earliest-expiring open
-      proposal when the case has no Active Embargo, without recording the stale
-      Accept as consent.
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_the_managers_reinvite_is_committed_and_replayed_by_a_replica`) confirms a
+      late Accept naming an embargo the case has decided or replaced causes a fresh
+      `Invite(EmbargoEvent)` carrying the case's Active Embargo, without recording the
+      stale Accept as consent.
+      `test/core/behaviors/embargo/nodes/test_late_accept.py`
+      (`test_a_case_under_proposal_reinvites_to_its_open_proposal`) is a strict
+      `xfail` holding the case with no Active Embargo, where the fresh Invite carries
+      the earliest-expiring open proposal, until #5732 builds it.
     testable: true
     preconditions:
     - description: >-

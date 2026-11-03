@@ -84,7 +84,8 @@ predates ADR-0122 and is wrong.
   (`TERMINATED`), answers to it can no longer change: `apply_pec_transition()`
   takes the entry status (`entry_status=`) and refuses every trigger. This also
   covers "nothing is recorded after termination". A late Accept of stale terms is
-  answered with an invitation to the Active Embargo (EMB-17-003).
+  answered with an invitation to the case's current terms — the Active Embargo, or
+  its earliest-expiring open proposal when none is in force (EMB-17-003, EP-08-002).
 
 ### Every Row Is Written (CM-18-001)
 
