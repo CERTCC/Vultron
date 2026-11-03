@@ -292,7 +292,7 @@ class TestCli:
             if isinstance(node, (ast.Tuple, ast.List))
             and [getattr(e, "value", None) for e in node.elts] == topics
         ]
-        assert definitions == ["metadata/specs/llm_export.py"]
+        assert definitions == ["metadata/specs/llm_export/records.py"]
 
     @pytest.mark.spec("SR-07-012")
     def test_slim_flag(self, dump_dir, monkeypatch, capsys):

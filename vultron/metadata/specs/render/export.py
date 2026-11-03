@@ -1,0 +1,215 @@
+"""YAML and JSON exports of spec files and of the registry."""
+
+from __future__ import annotations
+
+import json
+
+from vultron.metadata.specs.registry import SpecRegistry
+from vultron.metadata.specs.schema import (
+    BehavioralSpec,
+    Spec,
+    SpecFile,
+    SpecGroup,
+)
+
+try:
+    import yaml
+except ImportError as exc:  # pragma: no cover
+    raise ImportError(
+        "pyyaml is required for YAML export. "
+        "Install it with: pip install pyyaml"
+    ) from exc
+
+
+def _precondition_dict(pc: object) -> dict:
+    d: dict = {}
+    if pc.rm_state is not None:  # type: ignore[attr-defined]
+        d["rm_state"] = [s.value for s in pc.rm_state]  # type: ignore[attr-defined]
+    if pc.em_state is not None:  # type: ignore[attr-defined]
+        d["em_state"] = [s.value for s in pc.em_state]  # type: ignore[attr-defined]
+    if pc.role is not None:  # type: ignore[attr-defined]
+        d["role"] = [r.value for r in pc.role]  # type: ignore[attr-defined]
+    if pc.cs_pattern is not None:  # type: ignore[attr-defined]
+        d["cs_pattern"] = pc.cs_pattern  # type: ignore[attr-defined]
+    d["description"] = pc.description  # type: ignore[attr-defined]
+    return d
+
+
+def _add_behavioral_spec_fields(d: dict, spec: BehavioralSpec) -> None:
+    authored_sequences = {
+        "preconditions": [
+            _precondition_dict(item) for item in spec.preconditions or []
+        ],
+        "steps": [_step_dict(item) for item in spec.steps or []],
+        "postconditions": [
+            {"description": item.description}
+            for item in spec.postconditions or []
+        ],
+    }
+    for field, value in authored_sequences.items():
+        if value:
+            d[field] = value
+
+
+def _spec_to_dict(spec: Spec, group: SpecGroup, file: SpecFile) -> dict:
+    """Serialize a spec to a dict with only authored (non-inherited) fields."""
+    _ = group, file
+    d: dict = {
+        "id": spec.id,
+        "priority": spec.priority.value,
+        "statement": spec.statement,
+    }
+    authored_optional_fields = {
+        "rationale": spec.rationale,
+        "kind": spec.kind.value if spec.kind is not None else None,
+        "scope": (
+            [s.value for s in spec.scope] if spec.scope is not None else None
+        ),
+        "tags": (
+            [t.value for t in spec.tags] if spec.tags is not None else None
+        ),
+        "relationships": (
+            [_rel_dict(relationship) for relationship in spec.relationships]
+            if spec.relationships
+            else None
+        ),
+        "lint_suppress": (
+            [warning.value for warning in spec.lint_suppress]
+            if spec.lint_suppress
+            else None
+        ),
+    }
+    for field, value in authored_optional_fields.items():
+        if value is not None:
+            d[field] = value
+    if not spec.testable:
+        d["testable"] = False
+    if isinstance(spec, BehavioralSpec):
+        _add_behavioral_spec_fields(d, spec)
+    return d
+
+
+def _rel_dict(r: object) -> dict:
+    d = {
+        "rel_type": r.rel_type.value,  # type: ignore[attr-defined]
+        "spec_id": r.spec_id,  # type: ignore[attr-defined]
+    }
+    if r.note is not None:  # type: ignore[attr-defined]
+        d["note"] = r.note  # type: ignore[attr-defined]
+    return d
+
+
+def _step_dict(s: object) -> dict:
+    d = {
+        "order": s.order,  # type: ignore[attr-defined]
+        "actor": s.actor,  # type: ignore[attr-defined]
+        "action": s.action,  # type: ignore[attr-defined]
+    }
+    if s.expected is not None:  # type: ignore[attr-defined]
+        d["expected"] = s.expected  # type: ignore[attr-defined]
+    return d
+
+
+def _group_to_dict(group: SpecGroup, file: SpecFile) -> dict:
+    """Serialize a group to a dict with only authored fields."""
+    d: dict = {"id": group.id, "title": group.title}
+    if group.description is not None:
+        d["description"] = group.description
+    if group.scope is not None:
+        d["scope"] = [s.value for s in group.scope]
+    if group.trigger is not None:
+        d["trigger"] = {
+            "type": group.trigger.type.value,
+            "value": group.trigger.value,
+        }
+    d["specs"] = [_spec_to_dict(s, group, file) for s in group.specs]
+    return d
+
+
+def _file_to_dict(spec_file: SpecFile) -> dict:
+    """Serialize a SpecFile to a dict with only authored fields."""
+    d: dict = {
+        "id": spec_file.id,
+        "title": spec_file.title,
+        "description": spec_file.description,
+        "scope": [s.value for s in spec_file.scope],
+    }
+    if spec_file.tags is not None:
+        d["tags"] = [t.value for t in spec_file.tags]
+    d["groups"] = [_group_to_dict(g, spec_file) for g in spec_file.groups]
+    return d
+
+
+class _YamlDumper(yaml.SafeDumper):
+    """Custom YAML dumper with folded block scalars for long strings."""
+
+    pass
+
+
+def _str_representer(dumper: yaml.SafeDumper, data: str) -> yaml.ScalarNode:
+    if "\n" in data or len(data) > 80:
+        return dumper.represent_scalar(
+            "tag:yaml.org,2002:str", data, style=">"
+        )
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+
+_YamlDumper.add_representer(str, _str_representer)
+
+
+def export_yaml(spec_file: SpecFile) -> str:
+    """Serialize a single :class:`SpecFile` to authoritative YAML.
+
+    Only authored fields are emitted — inherited defaults are omitted so
+    that the YAML remains the canonical source of truth.
+    """
+    return yaml.dump(
+        _file_to_dict(spec_file),
+        Dumper=_YamlDumper,
+        default_flow_style=False,
+        sort_keys=False,
+        allow_unicode=True,
+    )
+
+
+def export_json(
+    registry: SpecRegistry,
+    *,
+    kind: str | None = None,
+    scope: str | None = None,
+    tags: list[str] | None = None,
+    priority: str | None = None,
+) -> str:
+    """Serialize the registry (or a filtered subset) to JSON (SR-07-003,
+    SR-07-005).
+
+    Args:
+        registry: The loaded SpecRegistry.
+        kind: Filter to specs with this kind value (e.g. ``"general"``).
+        scope: Filter to specs whose scope list contains this value.
+        tags: Filter to specs that have ALL of the given tags.
+        priority: Filter to specs with this priority value (e.g. ``"MUST"``).
+
+    Returns:
+        A JSON string of the filtered spec index.
+    """
+    result = {}
+    for spec_id, spec in registry.all_specs.items():
+        eff_kind = registry.get_effective_kind(spec_id)
+        eff_scope = registry.get_effective_scope(spec_id)
+        eff_tags = registry.get_effective_tags(spec_id)
+
+        if kind and eff_kind.value != kind:
+            continue
+        if scope and scope not in [s.value for s in eff_scope]:
+            continue
+        if tags and not all(t in [tg.value for tg in eff_tags] for t in tags):
+            continue
+        if priority and spec.priority.value != priority:
+            continue
+        record = spec.model_dump(mode="json")
+        if eff_tags and record.get("tags") is None:
+            record["tags"] = [t.value for t in eff_tags]
+        result[spec_id] = record
+
+    return json.dumps(result, indent=2)
