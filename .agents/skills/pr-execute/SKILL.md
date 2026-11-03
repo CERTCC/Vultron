@@ -173,6 +173,9 @@ before the CI loop:
 3. Rewrite the PR body's `Docs:` line so it lists every page the PR now
    updates, in the forms of `.agents/skills/shared/pr-body-guide.md`
    § "Implementation PR rules", then `gh pr edit <number> --body-file <file>`.
+   Keep any `; deferred to #N` or `; no maintainer docs impact — <reason>`
+   clause the line carries: on a tooling PR with no maintainer doc,
+   `pr-body-lint` fails a line that loses it (PRB-12, PD-03-014).
    When the fix commits touch no described behavior, leave the line as written
    unless triage flagged it.
 4. Record the result in the artifact's `docs_refresh` block (see

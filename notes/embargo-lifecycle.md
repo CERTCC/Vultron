@@ -251,7 +251,16 @@ catch-up path.
   `Update(EmbargoConsent)` carrying the `TIMED_OUT` row if the row still needs
   `TIME_OUT` (the Accept tree's clock decision,
   CLP-10-025), then routes to honour (EMB-17-001, EMB-17-012),
-  re-invite (EMB-17-003) or no-op (EMB-17-004). The honour commits the Accept
+  re-invite (EMB-17-003) or no-op (EMB-17-004). **The route keys on whether the
+  case can still answer the embargo the Accept names — its `ACTIVE` entry or an
+  open proposal — never on whether that embargo is the one in force**
+  (EMB-17-002, MSM-07-003). A case under proposal has an open proposal and no
+  embargo in force, so a route read off `active_embargo_id` drops a late Accept
+  of a live proposal and hides a willing participant from the owner's decision.
+  The re-invite names the embargo in force, or the earliest-expiring open
+  proposal when none is in force (EMB-17-003, EP-08-002); the no-op's is the
+  only case with nothing to name, so a re-invite arm that finds nothing has a
+  wrong route above it, not a missing fallback. The honour commits the Accept
   itself, as an on-time Accept is, and the re-invite a relayed Invite
   attributed to the embargo's proposer, so replicas learn the outcome
   (RSH-08-004, ADR-0152); the no-op changes nothing

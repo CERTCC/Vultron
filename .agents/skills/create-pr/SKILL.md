@@ -143,7 +143,10 @@ scope defined in `.agents/skills/shared/pr-body-guide.md` § "Implementation PR
 rules"), whether the body was inferred above or supplied by the caller. Apply
 this whenever `type` is `implementation` (passed or inferred) **or** the
 closed issue is a `Task`, `Feature`, or `Bug` — a skill-only or docs-only PR
-that closes a Task is still in scope:
+that closes a Task is still in scope — **or** the diff changes a workflow or
+tooling file and no maintainer-facing doc (the path lists in `pr-body-guide.md`
+§ "Implementation PR rules"; `pr-body-lint` reports such a body with no
+`Docs:` line as PRB-12, PD-03-014):
 
 ```bash
 bash .agents/skills/shared/query-issue-type.sh <ISSUE_NUMBER> \
@@ -164,7 +167,10 @@ A caller-supplied `Docs:` line is left as written. The placeholder is not a
 final value: the caller runs `check-docs-sync` after the push and replaces it
 with one of the final forms in `.agents/skills/shared/pr-body-guide.md`
 § "Implementation PR rules". A `docs` PR that closes no Task, Feature, or
-Bug issue carries no `Docs:` line.
+Bug issue carries no `Docs:` line, unless it changes a workflow or tooling
+file and no maintainer-facing doc: then it carries the placeholder too, and
+its final form names the follow-up docs issue or says why no maintainer doc
+needs the change (PRB-12, PD-03-014).
 
 ### 1d — Spec-amended placeholder (any PR type)
 

@@ -82,7 +82,7 @@ _SUITE_RUNS_WORDS_FIRST_RE = re.compile(
 
 # The line an implementation PR body carries (pr-body-guide.md, "Questions"):
 # ``Questions: asked N, filed M``.  The label may be bolded by hand.  Like
-# PRB-12, it is read only at the start of a line, so a body that quotes the
+# PRB-13, it is read only at the start of a line, so a body that quotes the
 # guide's example mid-sentence is not counted by it.
 _QUESTIONS_RE = re.compile(
     r"^[ \t]*" + _bold_label("Questions") + r"asked\s+(\d+),\s+filed\s+(\d+)",

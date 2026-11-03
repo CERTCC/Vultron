@@ -45,10 +45,14 @@ On the receiving side the mechanics carry more weight, and their ordering is fix
 |---|---|
 | The sending actor has a participant record in this case | An RM state with no participant to hold it is not a state the case can record |
 | Commit the canonical ledger entry | The arrival is recorded before anything acts on it (CLP-10-006) |
-| Transition that participant's RM state | Idempotent — a repeated message finds the state already set and succeeds |
+| Transition that participant's RM state | Idempotent — a repeated message finds the state already set, and the three steps below are skipped with it |
 | Commit the new status as its own ledger entry | Replicas copy the status the CASE_MANAGER wrote, its id and time included, rather than building their own ([CLP-07-013](../../../reference/vultron-spec/requirements/ledger-replication.md#clp-07-013)) |
 | Resolve who may receive the case update | Embargo consent decides who is eligible |
 | Broadcast the updated case | Participants learn the new roster state |
+
+Those last four steps stand or fall together.
+The CASE_MANAGER asks whether the sender's RM state is already recorded *before* it writes, so a repeated `Join(VulnerabilityCase)` records nothing, announces nothing, and is reported as skipped rather than applied ([ID-05-003](../../../reference/specs/architecture.md#id-05-003)).
+Asking after the write would always find the state set, and the broadcast would then never run at all.
 
 The commit sits between the guards and the effects, and never after them.
 A tree that applies an effect and then refuses the message has written a canonical entry describing something the replica does not reflect, and canonical and replica state diverge permanently (CLP-10-009, CLP-10-011).

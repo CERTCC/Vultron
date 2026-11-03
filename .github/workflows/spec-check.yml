@@ -78,6 +78,10 @@ jobs:
         uses: ./.github/actions/setup-python-uv
       - name: Run spec_corpus pytest suite
         run: uv run pytest -m spec_corpus --tb=short
+      # Story pages are added in docs-only PRs, which python-app.yml does not
+      # run on; this is the CI side of the story-page-shape pre-commit hook.
+      - name: Run user-story page shape test
+        run: uv run pytest test/metadata/docs/test_story_pages.py -q -n 0
 
   # Run the docs/reference/codebase/ path-existence ratchet.  Triggered
   # alongside spec-check so a PR touching only docs/reference/codebase/**
