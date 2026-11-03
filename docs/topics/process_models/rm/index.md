@@ -352,7 +352,7 @@ That is what turns the RM model into a technical protocol: every state transitio
 
 !!! note ""
 
-    CVD Participants SHOULD announce their RM state transitions to the other Participants in a case.
+    CVD Participants SHOULD announce their RM state transitions to the case's CASE_MANAGER, which fans each one out to the other Participants in the case.
 
 ##### Receive Report
 

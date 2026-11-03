@@ -176,7 +176,7 @@ groups:
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
@@ -333,7 +333,7 @@ groups:
       note: An embargo SHALL begin at the moment it is accepted
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
@@ -570,7 +570,7 @@ groups:
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-003
       note: 'EV shorthand wire-type mapping'
@@ -761,7 +761,7 @@ groups:
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-004
       note: 'EJ shorthand wire-type mapping'
@@ -928,7 +928,7 @@ groups:
       note: Once accepted, revisions MAY be accepted
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-005
       note: 'EC shorthand wire-type mapping'
@@ -1081,7 +1081,7 @@ groups:
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: VP-05-017
       note: Participants MAY reject proposed embargo terms for any reason
@@ -1126,14 +1126,16 @@ groups:
       expected: Receiver EM state is EXITED
     - order: 2
       actor: receiver
-      action: Emit EK to acknowledge receipt of ET
-      expected: EK queued for sender
+      action: >-
+        CASE_MANAGER commits the received ET and announces the ledger
+        entry (discharges EK)
+      expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
-    - description: Receiver EM state is EXITED; EK emitted
+    - description: Receiver EM state is EXITED; EK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-007
       note: 'ET shorthand wire-type mapping'
@@ -1169,15 +1171,18 @@ groups:
       expected: Receiver EM state is EXITED
     - order: 2
       actor: receiver
-      action: Emit EK to acknowledge receipt of ET
-      expected: EK queued for sender
+      action: >-
+        CASE_MANAGER commits the received ET and announces the ledger
+        entry (discharges EK)
+      expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
     - description: >-
-        Receiver EM state is EXITED; pending revision abandoned; EK emitted
+        Receiver EM state is EXITED; pending revision abandoned; EK discharged
+        by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-007
       note: 'ET shorthand wire-type mapping'
@@ -1214,7 +1219,7 @@ groups:
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-007
       note: 'ET shorthand wire-type mapping'
@@ -1254,15 +1259,18 @@ groups:
     - rel_type: satisfies
       spec_id: VP-11-005
       note: >-
-        SHOULD acknowledge (EK) and inquire (GI) about the nature of any error
-        reported by EE
+        SHOULD inquire (GI) about the nature of an error reported by a fault
+        about an E* message; no EK message exists
     - rel_type: satisfies
       spec_id: MSM-02-008
       note: 'EE shorthand wire-type mapping'
 
 - id: EMB-09
   title: Receive EK (Embargo Acknowledgment)
-  description: Behaviors triggered when a participant receives an EK (Embargo Management Acknowledgment) passthrough signal, which has no dedicated semantic dispatch value and requires no state transition.
+  description: >-
+    Behaviors triggered when a participant receives the acknowledgment (EK) of an embargo
+    activity it sent. No EK message exists (EP-09-009): the acknowledgment is the
+    CASE_MANAGER's commit of the activity, fanned out as `Announce(CaseLedgerEntry)`.
   trigger:
     type: message_received
     value: EK
@@ -1271,19 +1279,22 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      A Participant receiving EK MAY process it as a passthrough acknowledgment
-      with no state transition and no required response.
+      A Participant that receives the CASE_MANAGER's `Announce(CaseLedgerEntry)` for an
+      embargo activity it sent MAY treat that entry as the acknowledgment (EK) of the
+      activity, with no further state transition and no required response. No EK message
+      exists (EP-09-009, MSM-02-009).
     rationale: >-
-      EK only confirms that its sender received an earlier E* message. It carries no
-      decision about the embargo, so it gives the receiver nothing to change and nothing
-      to answer.
+      The ledger entry confirms that the CASE_MANAGER received and recorded the earlier
+      E* message. As an acknowledgment it carries no new decision about the embargo, so
+      it gives the receiver nothing more to change and nothing to answer. The replica
+      acknowledges the entry itself through its unbroken hash chain (MSM-05-002).
     testable: false
     lint_suppress:
     - testable_without_steps
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: EK is the acknowledgment; no acknowledgment of acknowledgment required
+      note: The ledger entry is the acknowledgment; no acknowledgment of acknowledgment required
     - rel_type: satisfies
       spec_id: MSM-02-009
       note: 'EK shorthand wire-type mapping'

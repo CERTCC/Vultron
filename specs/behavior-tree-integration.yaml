@@ -525,8 +525,6 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VP-02-015
-    - rel_type: implements
-      spec_id: VP-02-020
     stories:
     - story_2022_012
     - story_2022_101
