@@ -38,14 +38,21 @@ import pytest
 from test.architecture import _corpus
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 
-#: The modules holding the story fragments of a composed family, and the
-#: continuations more than one family shares.  Globbed on the ``*_story.py``
-#: suffix every one of them carries, rather than listed, so a family composed
-#: later is covered the moment its fragment module lands beside the others —
-#: a narrower glob had already stopped covering ``two_coordinator_story`` and
-#: ``owner_decision_story`` (#5535) before #5536 widened it.
-_FRAGMENT_MODULES = sorted(
-    (_corpus.REPO_ROOT / "vultron" / "demo" / "helpers").glob("*_story.py")
+#: The module that is allowed to report a step: the story runner, which makes
+#: the call as it passes each ``choose(...)`` item (DEMOCI-11-019).
+_RUNNER_MODULE = "story.py"
+
+#: Every other helper module.  DEMOCI-11-019 forbids a mark placed by any
+#: helper, not only by one holding story fragments, so the scan takes the whole
+#: package rather than a suffix glob: a `choose`'s trigger is called from
+#: ``workflow.py`` and the invite halves from ``invite_chain.py``, and a mark
+#: slipped into either would have been invisible to a ``*_story.py`` glob.
+_HELPER_MODULES = sorted(
+    path
+    for path in (_corpus.REPO_ROOT / "vultron" / "demo" / "helpers").glob(
+        "*.py"
+    )
+    if path.name != _RUNNER_MODULE
 )
 
 
@@ -65,6 +72,34 @@ def _reported_steps(module_name: str) -> Counter[tuple[str, str]]:
     )
 
 
+def _reporter_calls(tree: ast.AST) -> int:
+    """How many times *tree* calls a step reporter, readable pair or not.
+
+    :func:`_steps_in` deliberately reads only a literal pair, because its job
+    is to name *which* steps a module reports.  The rule is stronger than
+    that: a helper may place no mark at all, and a call whose pair is computed
+    or splatted is as much a hand-placed mark as a literal one
+    (DEMOCI-11-019).  The runner's own calls are of exactly that shape — it
+    passes ``item.branch_point`` and ``item.choice`` — so a count is the only
+    check that can see them.
+    """
+    return sum(
+        1
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and _called_name(node) in _REPORTERS
+    )
+
+
+def _called_name(node: ast.Call) -> str | None:
+    """The bare name *node* calls, for an attribute or a plain name."""
+    func = node.func
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    if isinstance(func, ast.Name):
+        return func.id
+    return None
+
+
 def _steps_in(tree: ast.AST) -> Counter[tuple[str, str]]:
     """Every literal ``(branch point, choice)`` *tree* reports.
 
@@ -79,15 +114,7 @@ def _steps_in(tree: ast.AST) -> Counter[tuple[str, str]]:
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        func = node.func
-        name = (
-            func.attr
-            if isinstance(func, ast.Attribute)
-            else func.id
-            if isinstance(func, ast.Name)
-            else None
-        )
-        if name not in _REPORTERS:
+        if _called_name(node) not in _REPORTERS:
             continue
         step = _step_args(node)
         if step is None:
@@ -168,13 +195,67 @@ def test_at_least_one_scenario_is_registered() -> None:
     assert discover_scenarios(), "no scenario is registered"
 
 
-def _fragment_steps() -> Counter[tuple[str, str]]:
-    """Every literal step a story-fragment module reports."""
-    assert _FRAGMENT_MODULES, "no story-fragment module found"
+def _helper_steps() -> Counter[tuple[str, str]]:
+    """Every literal step a helper module other than the runner reports."""
+    assert _HELPER_MODULES, "no demo helper module found"
     total: Counter[tuple[str, str]] = Counter()
-    for path in _FRAGMENT_MODULES:
+    for path in _HELPER_MODULES:
         total += _steps_in(_corpus.tree_of(path))
     return total
+
+
+def _helper_reporter_calls() -> dict[str, int]:
+    """Reporter calls per helper module other than the runner, where nonzero."""
+    assert _HELPER_MODULES, "no demo helper module found"
+    return {
+        path.name: count
+        for path in _HELPER_MODULES
+        if (count := _reporter_calls(_corpus.tree_of(path)))
+    }
+
+
+def test_the_runner_is_the_one_module_held_out_of_the_scan() -> None:
+    """The exclusion is the runner, and the runner does report steps.
+
+    Both halves matter.  Holding out a module that reports nothing would mean
+    the exclusion is aimed at the wrong file and the runner's own calls are
+    being counted as hand-placed; holding out more than one would open a place
+    to put a second mark (DEMOCI-11-019).
+
+    Counted with :func:`_reporter_calls` rather than :func:`_steps_in`: the
+    runner passes ``item.branch_point`` and ``item.choice``, so it names no
+    literal pair and the literal scan reads nothing from it.
+    """
+    runner = _corpus.REPO_ROOT / "vultron" / "demo" / "helpers" / "story.py"
+    assert runner.is_file(), runner
+    assert _reporter_calls(_corpus.tree_of(runner)), (
+        f"{_RUNNER_MODULE} is held out of the scan as the one module allowed "
+        "to report a step, but it calls no reporter; run_story must be what "
+        "marks each choose(...) item it passes."
+    )
+    assert runner not in _HELPER_MODULES
+    names = {path.name for path in _HELPER_MODULES}
+    assert _RUNNER_MODULE not in names
+    assert "invite_chain.py" in names and "workflow.py" in names, sorted(names)
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["h.reach_step(*step, by=v)", "reach_step(bp, choice, by=v)"],
+    ids=["splat", "computed"],
+)
+def test_a_reporter_call_with_no_literal_pair_is_still_counted(
+    source: str,
+) -> None:
+    """The count sees a call the literal scan cannot read.
+
+    :func:`_steps_in` returns nothing for these, by design, so a ratchet built
+    on it alone would pass over a hand-placed mark whose arguments are
+    computed — which is how the runner's own calls are written.
+    """
+    tree = _corpus.parse_inline(source)
+    assert _steps_in(tree) == Counter()
+    assert _reporter_calls(tree) == 1
 
 
 @pytest.mark.spec("DEMOCI-11-019")
@@ -184,17 +265,30 @@ def _fragment_steps() -> Counter[tuple[str, str]]:
 def test_a_scenario_places_no_reach_step_by_hand(
     spec: ScenarioSpec,
 ) -> None:
-    """The runner is the only source of a composed scenario's marks.
+    """The runner is the only source of a scenario's marks.
 
-    Scans the story-fragment modules as well as the scenario module, because
+    Scans every helper module as well as the scenario module, because
     composition empties the scenario module: a hand-placed ``reach_step`` in a
-    fragment is where the double-mark defect would be introduced, and a scan
-    of ``scenario/`` alone would pass over it.
+    fragment or in a helper a fragment calls is where the double-mark defect
+    would be introduced, and a scan of ``scenario/`` alone would pass over it.
     """
-    reported = _reported_steps(spec.module_name) + _fragment_steps()
+    reported = _reported_steps(spec.module_name) + _helper_steps()
     assert reported == Counter(), (
-        f"{spec.demo_path} or a story fragment places {dict(reported)} by "
-        "hand, but a story's choose(...) items already declare its steps and "
+        f"{spec.demo_path} or a demo helper places {dict(reported)} by hand, "
+        "but a story's choose(...) items already declare its steps and "
         "run_story() marks each one as it passes it. Drop the call "
         "(DEMOCI-11-019, notes/demo-scenario-tree.md § Composition)."
+    )
+    # Asserted as a count too, so a call whose pair is computed or splatted —
+    # which the literal scan reads as no step at all — is caught as well.
+    scenario_calls = _reporter_calls(
+        _corpus.tree_of(
+            _corpus.REPO_ROOT / (spec.module_name.replace(".", "/") + ".py")
+        )
+    )
+    offenders = _helper_reporter_calls()
+    assert scenario_calls == 0 and not offenders, (
+        f"{spec.demo_path} makes {scenario_calls} reporter call(s) and the "
+        f"helpers make {offenders}; run_story is the only caller of "
+        "ScenarioHarness.reach_step (DEMOCI-11-019)."
     )

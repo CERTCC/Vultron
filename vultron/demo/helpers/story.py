@@ -38,7 +38,7 @@ plays the sequence inside
 :func:`~vultron.demo.helpers.harness.scenario_harness` and records each step
 mark as it passes a choice, with the harness's deciding-role check, so the
 runner is the sole source of a scenario's marks and nothing places one by hand
-(DEMOCI-11-013).
+(DEMOCI-11-019).
 
 Usage from a scenario module::
 
@@ -589,7 +589,7 @@ def run_story(
     and only then asserts success (DEMOMA-23-001).  Each choice the story
     passes is reported to it as a step mark, with the deciding actor read off
     the cast, and this is the only place a mark is made: no scenario or
-    fragment places one by hand (DEMOCI-11-013, DEMOCI-11-019).
+    helper places one by hand (DEMOCI-11-019).
 
     Args:
         name: The scenario's registered name.
