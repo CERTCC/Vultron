@@ -295,6 +295,9 @@ groups:
     note: >-
       A class can inherit the configuration through an intermediate class, such as
       `as_Object`, that inherits from `as_Base`.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-14-001
   - id: VM-02-002
     priority: MUST
     kind: project
