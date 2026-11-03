@@ -302,7 +302,6 @@ def test_offer_case_ownership_transfer_with_inline_case_dispatches_correctly():
     assert result == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
 
 
-@pytest.mark.spec("SE-01-003")
 @pytest.mark.spec("SE-04-002")
 @pytest.mark.spec("VAM-01-009")
 def test_accept_with_bare_string_object_returns_unresolvable():
@@ -322,7 +321,29 @@ def test_accept_with_bare_string_object_returns_unresolvable():
 
 
 @pytest.mark.spec("SE-01-003")
+@pytest.mark.spec("VAM-01-009")
+def test_matcher_only_classifies_an_unresolved_object(caplog):
+    """The matcher classifies an unresolved object and does nothing else.
+
+    Logging the WARNING and storing the dead-letter record belong to
+    ``UnresolvableObjectUseCase`` (SE-04-007); the matcher raising or logging
+    as well would double the WARNING and need a DataLayer it does not have.
+    """
+    import logging
+
+    accept = as_Accept(
+        actor="https://example.org/coordinator",
+        object_="urn:uuid:some-offer-id",  # bare string — not rehydrated
+    )
+    with caplog.at_level(logging.DEBUG):
+        result = find_matching_semantics(accept)
+
+    assert result == MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+    assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
+
+
 @pytest.mark.spec("SE-02-003")
+@pytest.mark.spec("SE-04-002")
 @pytest.mark.spec("VAM-01-007")
 def test_unknown_activity_type_with_bare_string_object_returns_unknown():
     """An activity type with no registered patterns returns UNKNOWN (not
@@ -831,7 +852,6 @@ def test_accept_case_proposal_not_confused_with_other_accept_semantics():
 
 
 @pytest.mark.spec("VAM-01-009")
-@pytest.mark.spec("SE-01-003")
 @pytest.mark.spec("SE-04-002")
 def test_case_proposal_with_string_object_returns_unresolvable():
     """Accept with a bare CaseProposal URI returns UNKNOWN_UNRESOLVABLE_OBJECT.

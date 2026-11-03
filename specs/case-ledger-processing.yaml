@@ -3367,7 +3367,7 @@ groups:
       example is `invite_actor_to_case`.
     rationale: >-
       The CASE_MANAGER's store holds the canonical ledger, so its own act is committed
-      where it is sent, with no copy mailed to itself.
+      where it is sent, with no copy addressed to itself.
     verification: >-
       `test_note_is_recorded_and_announced_to_the_owner` in
       `test/core/behaviors/case/nodes/test_suggest_actor_owner_recipient.py` runs the

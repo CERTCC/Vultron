@@ -33,6 +33,7 @@ from vultron.trigger_registry._entry import (
 #: ``AddParticipantStatusTriggerRequest`` with the state its verb names.
 _NOTIFY_SPECS = (
     "TRIG-02-003",
+    "TRIG-03-001",
     "TRIG-06-001",
     "TRIG-09-001",
     "TRIG-09-004",

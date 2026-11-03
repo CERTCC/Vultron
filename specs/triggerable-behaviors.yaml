@@ -495,8 +495,10 @@ groups:
       not mounted, the server returns the same 404 as for any unknown path. No special
       handler is necessary, so no special handler can be wrong.
     verification: >-
-      Integration tests in `test/demo/` confirm that, when `mode` is set to
-      `RunMode.PROD`, any request to a path under `/demo/` returns HTTP 404.
+      `test_absent_in_prod_and_answers_404` in
+      `test/adapters/driving/fastapi/routers/test_demo_triggers.py` confirms that,
+      with `VULTRON_MODE=prod`, a demo path is not mounted and a request to it returns
+      HTTP 404.
     relationships:
     - rel_type: depends_on
       spec_id: TRIG-09-002

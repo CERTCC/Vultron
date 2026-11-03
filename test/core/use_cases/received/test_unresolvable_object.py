@@ -186,7 +186,9 @@ class TestUnresolvableObjectUseCase:
             UnresolvableObjectUseCase(dl, event).execute()
 
         assert any(
-            UNRESOLVABLE_URI in record.message for record in caplog.records
+            record.levelno == logging.WARNING
+            and UNRESOLVABLE_URI in record.message
+            for record in caplog.records
         ), (
             f"Expected warning about {UNRESOLVABLE_URI!r} in {[r.message for r in caplog.records]}"
         )

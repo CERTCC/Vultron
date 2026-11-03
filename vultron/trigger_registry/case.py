@@ -119,6 +119,7 @@ ENTRIES: list[TriggerEntry] = [
         spec_ids=(
             "CM-17-010",
             "MV-10-001",
+            "TRIG-03-001",
             "TRIG-09-001",
             "TRIG-09-004",
         ),

@@ -77,26 +77,22 @@ groups:
     - rel_type: implements
       spec_id: SE-01-002
   - id: SE-01-003
-    priority: MUST
+    priority: MUST_NOT
     kind: project
     statement: >-
-      This rule covers an activity of a type that has registered patterns, whose
-      `object` chain still ends in a bare URI after rehydration. When no pattern
-      matches such an activity, `find_matching_semantics()` MUST return
-      `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`.
+      `find_matching_semantics()` MUST NOT log a WARNING, store a dead-letter record or
+      raise for an activity whose `object` stayed unresolved after rehydration.
     rationale: >-
-      The receiver cannot classify an activity whose object it cannot resolve, and the
-      object can become available later. A sentinel of its own keeps the activity away
-      from each handler that needs a resolved object. The matcher only classifies: its
-      handler logs and dead-letters the activity (SE-04-007). A type with no registered
-      pattern is `UNKNOWN` whatever its object (VAM-01-007).
+      The matcher only classifies: such an activity gets the
+      `UNKNOWN_UNRESOLVABLE_OBJECT` sentinel (VAM-01-009), and its handler logs the
+      WARNING and stores the dead-letter record (SE-04-007). One place for each step
+      keeps the WARNING from being logged twice, and keeps the matcher free of the
+      DataLayer it would need to store a record.
     verification: >-
-      `test_accept_with_bare_string_object_returns_unresolvable` and
-      `test_case_proposal_with_string_object_returns_unresolvable` in
-      `test/test_semantic_activity_patterns.py` confirm that an `Accept` with a bare
-      `object` returns `UNKNOWN_UNRESOLVABLE_OBJECT`.
-      `test_unknown_activity_type_with_bare_string_object_returns_unknown` in the same
-      file confirms that a `Flag`, which has no registered pattern, returns `UNKNOWN`.
+      `test_matcher_only_classifies_an_unresolved_object` in
+      `test/test_semantic_activity_patterns.py` confirms that classifying an `Accept`
+      with a bare `object` returns `UNKNOWN_UNRESOLVABLE_OBJECT`, raises nothing and
+      logs no WARNING.
   - id: SE-01-004
     priority: MUST
     kind: project
@@ -329,12 +325,14 @@ groups:
       is a data gap that can close later. Each cause needs its own handler: only the
       second keeps the activity for a retry.
     verification: >-
-      `test_every_dispatcher_fallback_routes_to_a_use_case` in
-      `test/test_semantic_registry.py` confirms that `use_case_map()` routes both
-      sentinels, and `test_a_dispatcher_fallback_needs_a_use_case` in
-      `test/test_semantic_registry_occasions.py` confirms that a fallback entry without
-      a use case is refused. The two `Accept` tests that SE-01-003 cites confirm that
-      the matcher tells the two causes apart.
+      `test_each_sentinel_routes_to_its_own_use_case` in
+      `test/test_semantic_registry.py` confirms that `use_case_map()` maps `UNKNOWN`
+      to `UnknownUseCase` and `UNKNOWN_UNRESOLVABLE_OBJECT` to
+      `UnresolvableObjectUseCase`.
+      `test_accept_with_bare_string_object_returns_unresolvable` and
+      `test_unknown_activity_type_with_bare_string_object_returns_unknown` in
+      `test/test_semantic_activity_patterns.py` confirm that the matcher tells the two
+      causes apart.
   - id: SE-04-006
     priority: MUST
     kind: project

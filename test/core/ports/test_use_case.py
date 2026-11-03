@@ -63,7 +63,10 @@ class TestUnknownUseCase:
         use_case = UnknownUseCase(mock_dl, unknown_event)
         with caplog.at_level(logging.WARNING):
             use_case.execute()
-        assert any("unknown use case" in r.message for r in caplog.records)
+        assert any(
+            r.levelno == logging.WARNING and "unknown use case" in r.message
+            for r in caplog.records
+        )
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("SE-04-006")
