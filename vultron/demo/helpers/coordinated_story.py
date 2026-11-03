@@ -60,7 +60,6 @@ from collections.abc import Callable, Mapping, Sequence
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers.cast import CASE_ACTOR
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.harness import ScenarioHarness
 from vultron.demo.helpers.invite_chain import (
@@ -102,6 +101,7 @@ from vultron.demo.helpers.story import (
     story,
 )
 from vultron.demo.helpers.story_cast import (
+    CASE_ACTOR_NAME,
     CastContainer,
     CastSeat,
     open_story_cast,
@@ -141,10 +141,6 @@ VENDOR = "vendor"
 REPORTER_LABEL = "Reporter"
 COORDINATOR_LABEL = "Coordinator"
 VENDOR_LABEL = "Vendor"
-
-#: What the scenarios of this family call the dedicated CaseActor container in
-#: their ``ROLES``: the cast slot's own name.
-CASE_ACTOR_NAME = CASE_ACTOR.name
 
 #: Seconds a cross-container wait of this lifecycle may take: the Invite's
 #: delivery, an invitee's case replica, and each wait of its RM triage.  One

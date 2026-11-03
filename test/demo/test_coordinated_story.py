@@ -412,7 +412,7 @@ class TestCoordinatedSeats:
         )
 
 
-class TestCoordinatedClients:
+class TestStoryClients:
     """One client set and one health check for the whole family."""
 
     def test_each_address_falls_back_to_its_cast_slot(self):
@@ -1126,7 +1126,7 @@ class TestInviteeJoinsTheCase:
 # ---------------------------------------------------------------------------
 
 
-class TestDumpCoordinatedLedgers:
+class TestDumpStoryLedgers:
     """Whose ledger is dumped, under what name, and from whose client."""
 
     def test_a_pair_names_the_devlogs_directory_and_the_cast_member(self):
