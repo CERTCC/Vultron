@@ -305,6 +305,21 @@ def test_add_lint_suppression_refuses_an_unparseable_block_entry():
         add_lint_suppression(_item(text), "x_code")
 
 
+def test_remove_lint_suppression_refuses_a_blank_line_inside_the_list():
+    """YAML continues the list past the blank line; stopping there strands
+    ``b_code`` under whatever field the edit leaves above it."""
+    text = "- id: TST-01-001\n  lint_suppress:\n  - a_code\n\n  - b_code\n"
+    with pytest.raises(ValueError, match="blank line inside"):
+        remove_lint_suppression(_item(text), "a_code")
+
+
+def test_remove_lint_suppression_allows_a_blank_line_after_the_list():
+    text = "- id: TST-01-001\n  lint_suppress:\n  - a_code\n\n  statement: x\n"
+    lines, removed = remove_lint_suppression(_item(text), "a_code")
+    assert removed
+    assert "".join(lines) == "- id: TST-01-001\n\n  statement: x\n"
+
+
 _COMMENTED_HEADER = (
     "- id: TST-01-001\n  lint_suppress:  # why\n  - a_code\n  statement: x\n"
 )

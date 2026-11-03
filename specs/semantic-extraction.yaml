@@ -751,6 +751,8 @@ groups:
       spec_id: SE-08-001
     adr:
     - ADR-0039
+    stories:
+    - story_2026_020
   - id: SE-08-004
     priority: MUST
     kind: project
