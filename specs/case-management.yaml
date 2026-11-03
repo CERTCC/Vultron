@@ -103,7 +103,7 @@ groups:
       Only the Case Owner can do some case actions (CM-02-005). The CASE_MANAGER can
       enforce this only if it knows the Case Owner. The case records the Case Owner in
       `attributed_to`.
-    verification: Inspection of `vultron/core/models/case.py` confirms that
+    verification: Inspection of `vultron/core/models/case/` confirms that
       `VulnerabilityCase.attributed_to` records the Case Owner and is readable by the
       CASE_MANAGER.
     stories:
@@ -159,7 +159,7 @@ groups:
       Case notes are the discussion of the case by the participants, and they must stay
       with the case. A `notes` collection on the case gives each `Add(Note)` a location.
       It also lets a participant that joins later see the notes from before it joined.
-    verification: 'Inspection of `vultron/core/models/case.py` confirms that `VulnerabilityCase`
+    verification: 'Inspection of `vultron/core/models/case/` confirms that `VulnerabilityCase`
       declares a `notes: list[as_NoteRef]` field.'
     stories:
     - story_2022_083
@@ -531,7 +531,7 @@ groups:
       proposed, active or ended is one fact for the whole case. One case-level record
       gives every participant the same answer. The consent rows keep each participant's
       agreement separately (CM-03-008).
-    verification: Inspection of `vultron/core/models/case.py` confirms that
+    verification: Inspection of `vultron/core/models/case/` confirms that
       `CaseStatus.em.state` exists as a case-level field tracking the collective embargo state.
     relationships:
     - rel_type: implements
@@ -570,7 +570,7 @@ groups:
       world, not about one participant. When the vulnerability is public, it is public
       for all participants. A copy for each participant can only disagree with the
       facts.
-    verification: Inspection of `vultron/core/models/case.py` confirms that
+    verification: Inspection of `vultron/core/models/case/` confirms that
       `CaseStatus.pxa.state` is a case-level field shared across all participants.
     stories:
     - story_2022_088
@@ -964,7 +964,7 @@ groups:
     rationale: >-
       A reference points a reader to a public resource. Without a `url`, it identifies
       nothing that a consumer can get or examine.
-    verification: Inspection of `vultron/core/models/case.py` confirms that the `CaseReference`
+    verification: Inspection of `vultron/core/models/case/` confirms that the `CaseReference`
       model declares a required `url` field.
     stories:
     - story_2022_069
@@ -4825,7 +4825,7 @@ groups:
       it. Divergence between these two structures is a hard error, not a recoverable state.'
     rationale: A divergence means the cache has entries the authority doesn't know about (or vice versa), producing silently
       incorrect routing and access-control decisions.
-    verification: Inspection of `vultron/core/models/case.py` confirms that `case_participants`
+    verification: Inspection of `vultron/core/models/case/` confirms that `case_participants`
       is the persisted authority and `actor_participant_index` is declared as a derived cache,
       with any divergence treated as a hard error.
     stories:
@@ -9252,7 +9252,7 @@ groups:
       `case_statuses` on a `VulnerabilityCase` after construction except through its
       canonical mutators. Direct writes such as `case.case_participants.append(...)` and
       `case.case_statuses = [...]` are what it rules out. The mutator methods
-      themselves, in `vultron/core/models/case.py`, are exempt.
+      themselves, in `vultron/core/models/case/`, are exempt.
     rationale: >-
       A wire-shaped participant or status in a list of core types does not cause an
       error when code reads it. It reads as absent, and readers use an initial state in
@@ -9277,7 +9277,7 @@ groups:
       Constructor arguments are validated, which is precisely the guarantee
       CM-27-001 exists to restore. This clarification prevents over-application
       of the rule, mirroring PRM-03-002.
-    verification: Inspection of `vultron/core/models/case.py` confirms that constructor-time
+    verification: Inspection of `vultron/core/models/case/` confirms that constructor-time
       `case_participants` and `case_statuses` arguments pass through Pydantic validation,
       consistent with the post-construction mutation prohibition in CM-27-001.
     relationships:
@@ -9299,7 +9299,7 @@ groups:
       status mutator, code that records a new case status must append to `case_statuses`
       directly, which CM-27-001 forbids. `add_case_status()` on `VulnerabilityCase` is
       that mutator.
-    verification: Inspection of `vultron/core/models/case.py` confirms that `VulnerabilityCase`
+    verification: Inspection of `vultron/core/models/case/` confirms that `VulnerabilityCase`
       exposes a canonical mutator method for appending a case status to `case_statuses`.
     relationships:
     - rel_type: refines

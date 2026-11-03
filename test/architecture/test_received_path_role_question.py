@@ -138,7 +138,8 @@ KNOWN_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
         (f"{_C}/invite_actor_to_case_received_tree.py", GATE),
         (f"{_C}/full_case_invite_trees.py", GATE),
         (f"{_C}/offer_case_participant_role_received_tree.py", GATE),
-        (f"{_E}/announce_teardown_tree.py", GATE),
+        (f"{_E}/announce_teardown_tree/invite.py", GATE),
+        (f"{_E}/announce_teardown_tree/teardown.py", GATE),
         (f"{_B}/sync/announce_tree.py", CONDITION),
         (f"{_B}/status/nodes/status_subject.py", CONDITION),
         # Inline "the resolved manager is me" comparisons (HP-01-037):
@@ -168,7 +169,7 @@ SANCTIONED_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
         (f"{_B}/sync/ledger_position_stage.py", GATE),
         # The trigger tree's role fork: a trigger runs on the actor's own
         # initiative, so no received path chooses it.
-        (f"{_E}/trigger_tree.py", GATE),
+        (f"{_E}/trigger_tree/_arms.py", GATE),
     }
 )
 

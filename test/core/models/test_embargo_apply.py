@@ -586,7 +586,7 @@ def test_the_apply_function_reads_no_clock_mints_no_id_and_reads_no_store(
         if name.startswith("vultron.core")
         and getattr(module, "datetime", None) is datetime
     ]
-    assert "vultron.core.models.case" in patched
+    assert "vultron.core.models.case._construction" in patched
     for name in patched:
         monkeypatch.setattr(sys.modules[name], "datetime", _NoClock)
 

@@ -280,8 +280,8 @@ class TestRoleDimensionInvariant:
     when ``vf`` is set without ``CVDRole.VENDOR`` (or ``d`` without
     ``CVDRole.DEPLOYER``).  That raise was never implemented, and it must not
     be: the receive path builds a core ``ParticipantStatus`` at the wire→core
-    boundary (``vultron/wire/as2/extractor/_builders.py``) from the sender's
-    *untrusted, self-reported* ``cvd_role``.  A hard raise there would refuse
+    boundary (``vultron/wire/as2/extractor/_builders/statuses.py``) from the
+    sender's *untrusted, self-reported* ``cvd_role``.  A hard raise there would refuse
     the activity at parse, judged by the sender's claimed roles rather than the
     roles the receiver records for it.
 
