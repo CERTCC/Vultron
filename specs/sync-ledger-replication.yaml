@@ -203,8 +203,8 @@ groups:
       Inspection of the log entry schema confirms that hash-chain fields
       (entry_hash, prev_log_hash, log_index) are present and structured for
       forward-compatibility with a Merkle Tree implementation.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_023
 - id: SYNC-02
   title: Replication Transport
   specs:
@@ -826,6 +826,8 @@ groups:
     verification: >-
       Inspection of the protocol design confirms that replication leadership is
       modelled as a distinct concept from case ownership.
+    stories:
+    - story_2022_046
   - id: SYNC-06-002
     priority: SHOULD
     kind: process
@@ -1133,6 +1135,8 @@ groups:
     verification: >-
       Unit tests confirm that reprocessing any canonical log prefix, including with
       duplicate entries, produces the same resulting state as a single-pass replay.
+    stories:
+    - story_2026_014
   - id: SYNC-08-004
     priority: MUST_NOT
     kind: protocol
@@ -1251,6 +1255,8 @@ groups:
       freshness.
     adr:
     - ADR-0018
+    stories:
+    - story_2026_005
   - id: SYNC-10-004
     priority: MUST
     kind: protocol
@@ -1283,6 +1289,8 @@ groups:
       CASE_MANAGER. If the gate required the latest tip, an active case would block
       almost every action. A contiguous prefix is enough to make the actor's own view
       consistent, and the later entries reach it in time.
+    stories:
+    - story_2026_005
 - id: SYNC-11
   title: Participant-Local Pending Assertion Suppression
   specs:
@@ -1763,6 +1771,8 @@ groups:
       A replayed Announce reaches the same already-stored check as any delivery
       (SYNC-14-008), so an entry committed between its hold and its replay is
       skipped, not applied again.
+    stories:
+    - story_2026_014
   - id: SYNC-14-008
     priority: MUST
     kind: protocol
@@ -2035,6 +2045,8 @@ groups:
     - rel_type: depends_on
       spec_id: SYNC-12-001
       note: "Effects-before-persist invariant applies; an entry whose genesis is unknown cannot be safely committed"
+    stories:
+    - story_2026_005
   - id: SYNC-15-006
     priority: MUST_NOT
     kind: protocol
@@ -2043,6 +2055,8 @@ groups:
       committed.
     rationale: Treating a pre-genesis entry as committed would populate the already-stored gate (SYNC-12-003)
       prematurely, causing effects to be skipped when the entry is later drained after the genesis is seeded.
+    stories:
+    - story_2026_005
   - id: SYNC-15-007
     priority: MUST_NOT
     kind: protocol
@@ -2052,6 +2066,8 @@ groups:
     rationale: Applying effects before the genesis hash is known means the effects cannot be attributed to a
       verified chain position; if the genesis hash later reveals the entry is a fork, already-applied effects
       cannot be rolled back.
+    stories:
+    - story_2026_005
   - id: SYNC-15-003
     priority: SHOULD
     kind: protocol
@@ -3512,6 +3528,8 @@ groups:
       that holds no replica and assert one `Read(CaseLedgerEntry)` naming the copy's
       position is queued to the CASE_MANAGER, and deliver it to a participant that
       already holds the case and assert none is queued.
+    stories:
+    - story_2026_005
 - id: SYNC-18
   title: Sender Ledger Position on Case Activities
   description: >-
