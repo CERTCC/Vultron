@@ -24,7 +24,7 @@ message type's declaration says which paths it handles:
   role, and the *no case yet* path is a receiver that holds no replica.  No
   other role is a path: Case Owner, Vendor, Deployer and the rest are
   permission rules *inside* a path, checked with the same predicate, so a new
-  role adds rules and never a path (ADR-0153 detail 2, PCR-08-001).
+  role adds rules and never a path (HP-01-037, PCR-08-001).
 - :class:`ReceivedPathNode` is the door guard that answers it, exactly once
   per message, through
   :func:`~vultron.core.participants.role_predicate.has_role` (CM-02-011).
@@ -32,8 +32,9 @@ message type's declaration says which paths it handles:
   (CLP-10-010, HP-01-012), so the sender guard reads the path it chose rather
   than asking again.
 - A message whose type declares no branch for the receiver's path is
-  ``REFUSED`` with :func:`undeclared_path_reason`, the one reason every
-  message type shares (HP-01-005, ADR-0153 detail 5).
+  ``REFUSED`` with :func:`undeclared_path_reason`, composed in this one place
+  for every message type from the resolved path and the declaration
+  (HP-01-005, HP-01-039).
 - :class:`CheckReceivedPathNode` is how a later node reads the answer: a pure
   condition over the path the stage already resolved, with no second read of
   the roster.
@@ -87,15 +88,53 @@ def declared_paths(paths: Collection[ReceivedPath]) -> frozenset[ReceivedPath]:
     return frozenset(paths)
 
 
-def undeclared_path_reason(case_id: str | None) -> str:
-    """The one reason an undeclared path is refused with (ADR-0153 detail 5).
+#: What the receiver on each path *is*, as a clause about that receiver.
+#: ``{case}`` takes the case phrase.  Each one is true of every receiver the
+#: stage puts on that path, which is what makes the composed reason true of
+#: the receiver it refuses (HP-01-039).
+_PATH_CLAUSE: dict[ReceivedPath, str] = {
+    ReceivedPath.CASE_MANAGER: "the CASE_MANAGER of {case}",
+    ReceivedPath.PARTICIPANT_REPLICA: "not the CASE_MANAGER of {case}",
+    ReceivedPath.NO_CASE: "holds no replica of {case}",
+}
 
-    Composed here, so it is identical for every message type and no handler
-    maps a gate failure to a verdict after the run (HP-01-005).
+#: Added when the clause alone does not say what is missing.
+_NOT_ADDRESSED = ", which this message type does not address"
+
+
+def undeclared_path_reason(
+    path: ReceivedPath,
+    declared: Collection[ReceivedPath],
+    case_id: str | None,
+) -> str:
+    """The reason an undeclared *path* is refused with (HP-01-039).
+
+    Composed in this one place for every message type, from the path the
+    stage resolved and the paths the type declared, so no handler maps a gate
+    failure to a verdict after the run (HP-01-005).
+
+    The clause states what the receiver on *path* is, so the reason is true of
+    the receiver it refuses: a replica is "not the CASE_MANAGER", a store with
+    no replica "holds no replica", and the case's actual CASE_MANAGER is told
+    it *is* the CASE_MANAGER.  That last one is a refusal only because the
+    type declares no manager branch, so the clause alone names nothing
+    missing; a declaration that omits the manager path therefore says what is
+    missing — a branch, not the role (HP-01-005).
+
+    Args:
+        path: The path the stage resolved for this receiver.
+        declared: The paths the message type handles.
+        case_id: The case the role was read in; ``None`` when the tree
+            resolved none, which only the no-case path reaches.
+
+    Returns:
+        One sentence fragment, true of the receiver being refused.
     """
-    if case_id:
-        return f"not the CASE_MANAGER of case '{case_id}'"
-    return "not the CASE_MANAGER of the case this activity names"
+    case = f"case '{case_id}'" if case_id else "the case this activity names"
+    clause = _PATH_CLAUSE[path].format(case=case)
+    if ReceivedPath.CASE_MANAGER in declared:
+        return clause
+    return f"{clause}{_NOT_ADDRESSED}"
 
 
 class ReceivedPathNode(DataLayerConditionWithPorts):
@@ -218,7 +257,9 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
                 case_id,
             )
             return Status.SUCCESS
-        self.feedback_message = undeclared_path_reason(case_id)
+        self.feedback_message = undeclared_path_reason(
+            path, self.declared, case_id
+        )
         self.logger.warning(
             "%s: refused at '%s' on the %s path; %s handles %s only: %s",
             self.label or self.name,
@@ -236,7 +277,7 @@ class CheckReceivedPathNode(py_trees.behaviour.Behaviour):
 
     The sender guard's ``at_case_manager`` and ``at_participant`` arms are
     selected with this, so the role question is asked once, by the path stage
-    (ADR-0153 detail 3, HP-01-008).  It reads the answer the stage already
+    (HP-01-036, HP-01-008).  It reads the answer the stage already
     recorded and touches neither the store nor the blackboard.
 
     Returns:

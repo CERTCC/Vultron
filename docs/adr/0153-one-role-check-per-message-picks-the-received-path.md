@@ -3,7 +3,7 @@ status: accepted-provisional
 date: 2026-10-21
 created: 2026-10-21
 updated: 2026-11-03
-revision: 2
+revision: 3
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0088, ADR-0111, ADR-0115, ADR-0129, ADR-0135;
@@ -76,8 +76,15 @@ Chosen option: **"One path stage, one shared predicate"**, because it is the onl
 4. **Each message type declares the paths it handles.** The declaration is made once, to the factory.
    A message type that does real work on both the manager and the participant path declares a branch for each, and the factory forks once, after the door stages.
    Today that covers the embargo Invite and Remove, the role and ownership offers, `Add(CaseStatus)`, `Announce` and `Reject` of a `CaseLedgerEntry`, and the case invites.
-5. **An undeclared path is refused once, by the factory.** A message whose type declares no branch for the receiver's path is `REFUSED` with the reason "not the CASE_MANAGER of case …", composed by the factory and identical for every message type.
+5. **An undeclared path is refused once, in one place.** A message whose type declares no branch for the receiver's path is `REFUSED` at the path stage, with a reason composed in one place from the receiver's resolved path and the type's declaration: one function, the same shape for every message type, and a string that is true of the receiver it refuses.
    No handler maps a gate failure to a verdict after the run, so `not_case_manager(tree)` retires.
+
+   Revision 3 replaced a single mandated string, "not the CASE_MANAGER of case …", with this composed reason (maintainer decision, 2026-11-03).
+   The single string contradicted HP-01-005, which is also a MUST and asks for a reason that names what is missing.
+   The two agree for every declaration that *includes* the manager path, because the receiver such a declaration refuses really does not hold the role.
+   They contradict each other for a declaration that omits it — the declaration detail 7 creates for a message type whose work is the participant replica's alone.
+   That declaration refuses the case's actual CASE_MANAGER, and the single string told it "not the CASE_MANAGER of case X": false of the receiver, and naming nothing that is missing, since what is missing is a branch rather than the role.
+   The composed reason says what the receiver on each path is, and adds "which this message type does not address" where the path alone does not say what is missing.
 6. **No case yet either waits or proceeds.** A case-scoped message type waits for its case, as the defer check does today.
    A message type that starts a case, such as a report, a case proposal or the first `Create(VulnerabilityCase)`, declares a no-case branch and takes it.
 7. **The role-based alternatives become declared branches.** The `CaseManagerGate` around `manager_effects`, the participant-replica-gated factory, the `ReplicaEmitExemption` registry and the `DiversionGate.CASE_MANAGER` choice are each expressed as a path branch, and their separate mechanisms retire.
@@ -99,7 +106,7 @@ Chosen option: **"One path stage, one shared predicate"**, because it is the onl
 
 - An architecture test fails when received-side code under `vultron/core/behaviors/` or `vultron/core/use_cases/received/` asks whether the *receiver* holds the CASE_MANAGER role other than through `has_role` or the path stage, such as comparing `resolve_case_manager_id(...)` with the receiving actor's id, or placing `CheckIsCaseManagerNode` outside the path stage.
   Resolving the manager's address for an emit, and checking the sender's role, are not that question and stay legal.
-- A test per path drives a message type with no branch for that path and asserts `REFUSED` with the shared reason.
+- A test per path drives a message type with no branch for that path and asserts `REFUSED` with the reason the composer gives that path, including the replica-only declaration that refuses the case's own CASE_MANAGER.
 - The tests that pin the corrected dispositions of #5010 stay green through the migration.
 
 ## Pros and Cons of the Options

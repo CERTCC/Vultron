@@ -21,6 +21,7 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.participants._lookup import iter_case_participants
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.role_predicate import has_role
 from vultron.enums.roles import CVDRole
@@ -29,6 +30,7 @@ CASE_ID = "https://example.org/cases/role-predicate"
 MANAGER_ID = "https://example.org/actors/coordinator"
 VENDOR_ID = "https://example.org/actors/vendor"
 STRANGER_ID = "https://example.org/actors/stranger"
+SECOND_ID = "https://example.org/actors/second-coordinator"
 OWNER_ID = "https://example.org/actors/owner"
 
 
@@ -178,33 +180,57 @@ def test_role_stacking_is_a_union(seeded: SqliteDataLayer) -> None:
 
 @pytest.mark.spec("ARCH-24-001")
 @pytest.mark.spec("ARCH-24-006")
+@pytest.mark.spec("ARCH-24-007")
 def test_authority_agrees_with_the_single_resolver(
     seeded: SqliteDataLayer,
 ) -> None:
-    """The CASE_MANAGER answer is the resolver's, on any roster.
+    """The CASE_MANAGER answer is the resolver's, on a two-manager roster.
 
     Authority has one answer per case, so the predicate must not derive a
     second one.  A roster that records the role on two participants — the
     window a role delegation opens (CM-33) — is where a second
-    implementation would disagree: a scan over the actor's own records would
-    call the later holder the manager while
-    :func:`resolve_case_manager_id`, and so every ``CheckIsCaseManagerNode``
-    in a tree, names the first.  A tree admitted on one answer and gated on
-    the other reports ``APPLIED`` with every gated effect skipped
-    (HP-01-005), which is the defect ADR-0153 closes.
+    implementation disagrees: a roster scan reports ``True`` for *both*
+    holders while :func:`resolve_case_manager_id`, and so every
+    ``CheckIsCaseManagerNode`` in a tree, names only the first in roster
+    order.  A tree admitted on one answer and gated on the other reports
+    ``APPLIED`` with every gated effect skipped (HP-01-005), which is the
+    defect ADR-0153 closes.
+
+    The second record has to be **on the roster** for the divergence to
+    exist: :func:`iter_case_participants` walks
+    ``actor_participant_index`` and ``case_participants``, so a record that
+    is only saved to the store is invisible to both implementations and the
+    test passes whether the predicate delegates or not.  It is attributed to
+    a third actor because ``add_participant`` refuses a second record for an
+    actor the index already maps (ARCH-24-007).
     """
-    second = _participant(
-        "second-manager", VENDOR_ID, CVDRole.VENDOR, CVDRole.CASE_MANAGER
-    )
+    second = _participant("second-manager", SECOND_ID, CVDRole.CASE_MANAGER)
     case = seeded.read_case(CASE_ID)
     assert case is not None
-    seeded.save(second)
+    case.add_participant(second)
+    seeded.create(second)
+    seeded.save(case)
+
+    case = seeded.read_case(CASE_ID)
+    assert case is not None
+    holders = [
+        participant.id_
+        for participant in iter_case_participants(case, seeded)
+        if participant.has_role(CVDRole.CASE_MANAGER)
+    ]
+    assert len(holders) == 2, (
+        "the roster must record the role twice, or the divergence this test"
+        f" is about does not exist; found {holders}"
+    )
 
     resolved = resolve_case_manager_id(case, seeded)
-    for actor_id in (MANAGER_ID, VENDOR_ID, STRANGER_ID):
+    assert resolved == MANAGER_ID, (
+        "the resolver names the first in roster order"
+    )
+    for actor_id in (MANAGER_ID, SECOND_ID, VENDOR_ID, STRANGER_ID):
         assert has_role(actor_id, CASE_ID, CVDRole.CASE_MANAGER, seeded) is (
             resolved == actor_id
         ), actor_id
 
-    # The vendor's own second record still answers for its other role.
+    # Every other role is still answered from the roster, by union.
     assert has_role(VENDOR_ID, CASE_ID, CVDRole.VENDOR, seeded) is True

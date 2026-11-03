@@ -16,9 +16,9 @@
 """The path door stage of a received tree (ADR-0153).
 
 One role question picks the manager, participant-replica or no-case path;
-a path the message type declares no branch for is refused there, with one
-reason shared by every message type; and the sender guard's addressee arms
-read that answer instead of asking again.
+a path the message type declares no branch for is refused there, with a
+reason composed in one place and true of the receiver it refuses; and the
+sender guard's addressee arms read that answer instead of asking again.
 """
 
 from collections.abc import Collection
@@ -49,6 +49,9 @@ from vultron.core.behaviors.case.nodes.received_path import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
     create_receive_activity_tree,
+)
+from vultron.core.behaviors.case.receive_stages.doors import (
+    path_stage_case_id,
 )
 from vultron.core.behaviors.inbox.nodes.pipeline import DeferCheckNode
 from vultron.core.behaviors.sender_entitlement import (
@@ -140,14 +143,30 @@ def _run_stage(
     return stage
 
 
+#: The reason each path is refused with when every *other* path is declared,
+#: so the declaration always includes the manager path.  Each string is a
+#: true statement about the receiver the stage turned away (HP-01-039).
+_MANAGER_INCLUSIVE_REASON: dict[ReceivedPath, str] = {
+    ReceivedPath.CASE_MANAGER: (
+        f"the CASE_MANAGER of case '{CASE_ID}',"
+        " which this message type does not address"
+    ),
+    ReceivedPath.PARTICIPANT_REPLICA: (
+        f"not the CASE_MANAGER of case '{CASE_ID}'"
+    ),
+    ReceivedPath.NO_CASE: f"holds no replica of case '{CASE_ID}'",
+}
+
+
 @pytest.mark.spec("CM-02-011")
+@pytest.mark.spec("HP-01-037")
 @pytest.mark.parametrize("path", PATHS_IN_ORDER)
 def test_the_stage_resolves_each_path(path: ReceivedPath) -> None:
     """The role question picks the receiver's path, and only the role does.
 
     The manager holds ``CVDRole.CASE_MANAGER`` in the roster, the vendor
     holds a replica without it, and a store that holds no replica is on the
-    no-case path (ADR-0153 detail 2).
+    no-case path (HP-01-037).
     """
     stage = _run_stage(path, ALL_PATHS)
 
@@ -156,34 +175,97 @@ def test_the_stage_resolves_each_path(path: ReceivedPath) -> None:
 
 
 @pytest.mark.spec("HP-01-005")
+@pytest.mark.spec("HP-01-039")
 @pytest.mark.parametrize("path", PATHS_IN_ORDER)
-def test_an_undeclared_path_is_refused_with_the_shared_reason(
+def test_an_undeclared_path_is_refused_with_a_reason_true_of_the_receiver(
     path: ReceivedPath,
 ) -> None:
     """A test per path: a type with no branch for it is REFUSED there.
 
-    The reason is the factory's, the same for every message type, so one
-    cause gets one verdict (ADR-0153 detail 5, HP-01-005).
+    The reason is composed in one place from the resolved path and the
+    declaration, so it says something true of the receiver it refuses rather
+    than one fixed string that is false of two of the three
+    (HP-01-039, HP-01-005).
     """
-    stage = _run_stage(path, ALL_PATHS - {path})
+    declared = ALL_PATHS - {path}
+    stage = _run_stage(path, declared)
 
     assert stage.status is Status.FAILURE
     assert stage.resolved_path is path
-    assert stage.feedback_message == undeclared_path_reason(CASE_ID)
-    assert stage.feedback_message == (
-        f"not the CASE_MANAGER of case '{CASE_ID}'"
+    assert stage.feedback_message == undeclared_path_reason(
+        path, declared, CASE_ID
+    )
+    assert stage.feedback_message == _MANAGER_INCLUSIVE_REASON[path]
+
+
+@pytest.mark.spec("HP-01-039")
+def test_a_manager_inclusive_declaration_states_only_the_path() -> None:
+    """With the manager path declared, the clause already says what is missing.
+
+    A receiver refused by such a declaration is not the case's CASE_MANAGER,
+    so naming its path names the role it lacks and no further clause is owed.
+    """
+    manager_inclusive = {
+        ReceivedPath.CASE_MANAGER,
+        ReceivedPath.PARTICIPANT_REPLICA,
+    }
+
+    assert (
+        undeclared_path_reason(
+            ReceivedPath.NO_CASE, manager_inclusive, CASE_ID
+        )
+        == f"holds no replica of case '{CASE_ID}'"
+    )
+    assert (
+        undeclared_path_reason(
+            ReceivedPath.PARTICIPANT_REPLICA,
+            {ReceivedPath.CASE_MANAGER},
+            CASE_ID,
+        )
+        == f"not the CASE_MANAGER of case '{CASE_ID}'"
     )
 
 
-@pytest.mark.spec("HP-01-005")
-def test_every_path_is_refused_with_one_and_the_same_reason() -> None:
-    """The reason does not vary by path or by message type (ADR-0153)."""
+@pytest.mark.spec("HP-01-039")
+def test_a_declaration_without_the_manager_path_says_what_is_missing() -> None:
+    """A replica-only type refuses the CASE_MANAGER, and must not deny its role.
+
+    The one case the single fixed string got wrong: the receiver really is
+    the case's CASE_MANAGER, and what the type has no branch for is that
+    path, not the role (HP-01-005).
+    """
+    reason = undeclared_path_reason(
+        ReceivedPath.CASE_MANAGER,
+        {ReceivedPath.PARTICIPANT_REPLICA},
+        CASE_ID,
+    )
+
+    assert reason == (
+        f"the CASE_MANAGER of case '{CASE_ID}',"
+        " which this message type does not address"
+    )
+    assert "not the CASE_MANAGER" not in reason
+
+
+@pytest.mark.spec("HP-01-039")
+def test_the_reason_has_one_shape_for_every_message_type() -> None:
+    """One composer, so the reason varies by path and never by message type.
+
+    Two message types whose declarations differ still get the same wording
+    for the same resolved path, which is what keeps a handler from mapping a
+    gate failure to a verdict of its own.
+    """
+    for path in ALL_PATHS:
+        declared = ALL_PATHS - {path}
+        first = undeclared_path_reason(path, declared, CASE_ID)
+        second = undeclared_path_reason(path, frozenset(declared), CASE_ID)
+        assert first == second
+
     reasons = {
         _run_stage(path, ALL_PATHS - {path}).feedback_message
         for path in ALL_PATHS
     }
-
-    assert reasons == {f"not the CASE_MANAGER of case '{CASE_ID}'"}
+    assert reasons == set(_MANAGER_INCLUSIVE_REASON.values())
 
 
 @pytest.mark.spec("HP-01-005")
@@ -191,7 +273,7 @@ def test_a_refused_path_is_the_handlers_door_refusal() -> None:
     """``door_refusal`` returns the stage's refusal, so every handler agrees.
 
     No handler maps a gate failure to a verdict of its own: the one the
-    factory composed is what the handler reports (ADR-0153 detail 5).
+    stage composed is what the handler reports (HP-01-039).
     """
     stage = _run_stage(
         ReceivedPath.PARTICIPANT_REPLICA, {ReceivedPath.CASE_MANAGER}
@@ -266,19 +348,57 @@ def test_the_stage_runs_after_the_addressee_check_and_before_the_guard() -> (
 
 
 @pytest.mark.spec("HP-01-005")
+@pytest.mark.spec("HP-01-039")
 def test_the_reason_names_the_activitys_case_when_no_case_is_known() -> None:
     """With no case resolvable the reason names the activity, not ``None``.
 
     The branch a tree reaches when neither its commit case, its manager case
     nor its sender context names one: the reason still has to read as a
-    sentence rather than interpolate a missing id.
+    sentence rather than interpolate a missing id.  Only the no-case path is
+    reachable with no case id, since an unresolvable case *is* that path.
     """
-    assert undeclared_path_reason(None) == (
-        "not the CASE_MANAGER of the case this activity names"
+    assert undeclared_path_reason(
+        ReceivedPath.NO_CASE, {ReceivedPath.CASE_MANAGER}, None
+    ) == ("holds no replica of the case this activity names")
+    assert undeclared_path_reason(
+        ReceivedPath.NO_CASE, {ReceivedPath.CASE_MANAGER}, CASE_ID
+    ) == (f"holds no replica of case '{CASE_ID}'")
+
+
+@pytest.mark.spec("HP-01-040")
+def test_the_stage_reads_the_case_the_sender_context_names() -> None:
+    """A tree that commits nothing still asks about the activity's case.
+
+    The resolution order the stage shares with the sender guard: the commit
+    case, else the manager case, else the case the sender context names
+    (HP-01-040).  Without the last step a tree built with ``case_id=None``
+    would read the no-case path for every delivery.
+    """
+    assert path_stage_case_id(CASE_ID, None, None) == CASE_ID
+    assert path_stage_case_id(None, CASE_ID, None) == CASE_ID
+    assert (
+        path_stage_case_id(None, None, SenderCheckContext(sender_id=OWNER_ID))
+        is None
     )
-    assert undeclared_path_reason(CASE_ID) == (
-        f"not the CASE_MANAGER of case '{CASE_ID}'"
+    assert path_stage_case_id(None, None, _CONTEXT) == CASE_ID
+
+    tree = create_receive_activity_tree(
+        name="NoCommitCaseBT",
+        case_id=None,
+        precondition_guards=[],
+        paths={ReceivedPath.PARTICIPANT_REPLICA},
+        sender_rule=_RULE,
+        sender_context=_CONTEXT,
     )
+    stage = next(
+        node for node in tree.iterate() if isinstance(node, ReceivedPathNode)
+    )
+    scenario = BTTestScenario(actor_id=VENDOR_ID)
+    _seed_case(scenario)
+    scenario.run(stage, actor_id=VENDOR_ID)
+
+    assert stage.resolved_case_id == CASE_ID
+    assert stage.resolved_path is ReceivedPath.PARTICIPANT_REPLICA
 
 
 @pytest.mark.spec("BTND-03-009")
@@ -328,6 +448,7 @@ def test_the_stage_is_one_of_the_trees_door_guards() -> None:
 
 
 @pytest.mark.spec("HP-01-007")
+@pytest.mark.spec("HP-01-038")
 def test_a_declaration_naming_no_path_is_a_wiring_error() -> None:
     with pytest.raises(VultronWiringError, match="at least one ReceivedPath"):
         create_receive_activity_tree(
@@ -411,7 +532,7 @@ def test_the_declared_tree_asks_the_role_question_once() -> None:
     """One role read answers the path and both sender-guard arms.
 
     The stage is the only node ahead of the commit that reads the roster for
-    the receiver's role; the arms read its answer (ADR-0153 detail 3).
+    the receiver's role; the arms read its answer (HP-01-036).
     """
     tree = _declared_tree()
 
@@ -453,7 +574,7 @@ def test_an_arm_whose_stage_has_not_run_does_not_match() -> None:
 
 
 # ---------------------------------------------------------------------------
-# ADR-0153 detail 6: no case yet either waits or proceeds
+# HP-01-041: no case yet either waits or proceeds
 # ---------------------------------------------------------------------------
 
 
@@ -503,6 +624,7 @@ def _defer_check(semantics: MessageSemantics) -> _UnknownCaseQueue:
 
 
 @pytest.mark.spec("HP-01-005")
+@pytest.mark.spec("HP-01-041")
 def test_a_case_scoped_type_waits_for_its_case_rather_than_being_refused() -> (
     None
 ):
@@ -510,8 +632,8 @@ def test_a_case_scoped_type_waits_for_its_case_rather_than_being_refused() -> (
 
     ``Accept(Offer(CaseParticipant))`` is case-scoped and not deferral
     exempt, so the inbox queues it and it never reaches its received tree —
-    or its path stage — until the receiver holds the case (ADR-0153
-    detail 6).  The stub Invite, whose tree declares the no-case branch
+    or its path stage — until the receiver holds the case (HP-01-041).
+    The stub Invite, whose tree declares the no-case branch
     (see the next test), is exempt and proceeds.  The pairing is the point:
     a type takes the no-case path only when the defer check lets it.
     """
@@ -533,12 +655,13 @@ def test_a_case_scoped_type_waits_for_its_case_rather_than_being_refused() -> (
 
 
 @pytest.mark.spec("HP-01-005")
+@pytest.mark.spec("HP-01-041")
 def test_the_type_that_precedes_its_case_declares_the_no_case_branch() -> None:
     """The stub Invite declares the no-case path and takes it.
 
     It is deferral exempt because its case only arrives after the invitee
     answers (MV-10-005), so its tree must handle a receiver that holds no
-    replica rather than wait for one (ADR-0153 detail 6).
+    replica rather than wait for one (HP-01-041).
     """
     assert MessageSemantics.INVITE_ACTOR_TO_CASE in CASE_PRECEDING_SEMANTICS
 

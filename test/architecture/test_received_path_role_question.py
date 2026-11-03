@@ -60,7 +60,7 @@ from pathlib import Path
 
 import pytest
 
-from test.architecture import _corpus
+from test.architecture import _authority_question, _corpus
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
@@ -69,8 +69,6 @@ from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
     create_participant_replica_gated_tree,
 )
-from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.participants.role_predicate import has_role
 
 #: The act, in the three shapes the code still writes it in.  Each label
 #: names what the code does, not what performs it, so it survives a rename.
@@ -87,16 +85,15 @@ _GATE_NAMES = frozenset(
     }
 )
 _CONDITION_NAME = CheckIsCaseManagerNode.__name__
-_RESOLVER_NAME = resolve_case_manager_id.__name__
-_PREDICATE_NAME = has_role.__name__
 _PATH_STAGE_NAME = ReceivedPathNode.__name__
 
-#: The attribute a BT node reads the executing actor's id from
-#: (``DataLayerConditionWithPorts.actor_id``).  A comparison against *this*
-#: is the receiver asking about itself; a comparison against a local of the
-#: same name is usually about the sender or a ledger entry's author, which
-#: ADR-0153 leaves legal.
-_EXECUTING_ACTOR_ATTR = "actor_id"
+#: The resolver, the predicate and the executing actor's own id attribute,
+#: as ``_authority_question`` reads them off the live objects: the inline
+#: shape below is that module's detector, so both ratchets judge the same
+#: act (CS-22-001).
+_RESOLVER_NAME = _authority_question.RESOLVER_NAME
+_PREDICATE_NAME = _authority_question.PREDICATE_NAME
+_EXECUTING_ACTOR_ATTR = _authority_question.EXECUTING_ACTOR_ATTR
 
 _ROOTS = (
     _corpus.REPO_ROOT / "vultron" / "core" / "behaviors",
@@ -117,13 +114,13 @@ _E = f"{_B}/embargo"
 # owner: #5193
 KNOWN_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
     {
-        # The gate composites' own role read.  ADR-0153 detail 7 turns both
-        # composites into declared path branches, so this module goes when
-        # the last tree declares its paths.
+        # The gate composites' own role read.  ADR-0153 turns both
+        # composites into declared path branches (HP-01-038), so this module
+        # goes when the last tree declares its paths.
         (f"{_C}/nodes/role_gates.py", CONDITION),
         # The sender guard's own role read, for a tree that has not declared
         # its paths: with a declaration the arms read the path stage's
-        # answer instead (ADR-0153 detail 3).
+        # answer instead (HP-01-036).
         (f"{_B}/sender_guard.py", CONDITION),
         # Gate-wrapped precondition guards a received tree passes.
         (f"{_C}/nodes/case_participant_received.py", GATE),
@@ -144,8 +141,8 @@ KNOWN_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
         (f"{_E}/announce_teardown_tree.py", GATE),
         (f"{_B}/sync/announce_tree.py", CONDITION),
         (f"{_B}/status/nodes/status_subject.py", CONDITION),
-        # Inline "the resolved manager is me" comparisons (ADR-0153
-        # detail 1): each is replaced by the predicate or by the path.
+        # Inline "the resolved manager is me" comparisons (HP-01-037):
+        # each is replaced by the predicate or by the path.
         (f"{_C}/nodes/conditions.py", INLINE),
         (f"{_C}/nodes/embargo.py", INLINE),
         (f"{_C}/nodes/full_case_invite.py", INLINE),
@@ -188,91 +185,6 @@ def _calls(node: ast.AST) -> Iterator[str]:
             yield name
 
 
-def _is_resolver_call(node: ast.expr) -> bool:
-    return (
-        isinstance(node, ast.Call)
-        and _corpus.callee_name(node.func) == _RESOLVER_NAME
-    )
-
-
-def _is_executing_actor(node: ast.expr) -> bool:
-    return (
-        isinstance(node, ast.Attribute)
-        and node.attr == _EXECUTING_ACTOR_ATTR
-        and isinstance(node.value, ast.Name)
-        and node.value.id == "self"
-    )
-
-
-def _resolver_bindings(tree: ast.AST) -> frozenset[str]:
-    """Every name the module binds to a resolver call.
-
-    ``manager_id = resolve_case_manager_id(case, dl)`` and its walrus and
-    ``self.<attr>`` spellings, so a comparison one statement later is still
-    the same act.  Without this the detector saw only the one-liner, and two
-    real sites — the reporter introduction's and the condition node's own —
-    were silently exempt (#5041 review).
-    """
-    bound: set[str] = set()
-
-    def record(target: ast.expr) -> None:
-        if isinstance(target, ast.Name):
-            bound.add(target.id)
-        elif isinstance(target, ast.Attribute) and isinstance(
-            target.value, ast.Name
-        ):
-            bound.add(f"{target.value.id}.{target.attr}")
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign) and _is_resolver_call(node.value):
-            for target in node.targets:
-                record(target)
-        elif (
-            isinstance(node, ast.AnnAssign)
-            and node.value is not None
-            and _is_resolver_call(node.value)
-        ) or (
-            isinstance(node, ast.NamedExpr) and _is_resolver_call(node.value)
-        ):
-            record(node.target)
-    return frozenset(bound)
-
-
-def _side_name(node: ast.expr) -> str | None:
-    """The dotted name one side of a comparison reads, if it is a name."""
-    if isinstance(node, ast.Name):
-        return node.id
-    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
-        return f"{node.value.id}.{node.attr}"
-    return None
-
-
-def _has_inline_comparison(tree: ast.AST) -> bool:
-    """True when *tree* compares the resolved manager with ``self.actor_id``.
-
-    Either order, and either operator: the act is the comparison, not the
-    way it is spelled.  The resolved manager is the resolver call itself or
-    any name the module bound to one (:func:`_resolver_bindings`).
-
-    The other side must be ``self.actor_id``, the executing actor's own id.
-    A comparison against a *local* of that name is usually about the sender
-    or a ledger entry's author, which ADR-0153 leaves legal, so it is not
-    this act.
-    """
-    bound = _resolver_bindings(tree)
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Compare):
-            continue
-        sides = [node.left, *node.comparators]
-        resolved = any(
-            _is_resolver_call(side) or _side_name(side) in bound
-            for side in sides
-        )
-        if resolved and any(_is_executing_actor(side) for side in sides):
-            return True
-    return False
-
-
 def shapes_in(tree: ast.AST) -> frozenset[str]:
     """The shapes of the role question *tree*'s module writes."""
     called = frozenset(_calls(tree))
@@ -281,7 +193,7 @@ def shapes_in(tree: ast.AST) -> frozenset[str]:
         found.add(GATE)
     if _CONDITION_NAME in called:
         found.add(CONDITION)
-    if _has_inline_comparison(tree):
+    if _authority_question.compares_resolved_manager_with_the_receiver(tree):
         found.add(INLINE)
     return frozenset(found)
 
@@ -468,7 +380,7 @@ def test_the_path_stage_asks_through_the_shared_predicate() -> None:
     )
     tree = _corpus.tree_of(path_stage_module)
     assert _PREDICATE_NAME in frozenset(_calls(tree)), (
-        f"{_PATH_STAGE_NAME} must ask {_PREDICATE_NAME}() (ADR-0153 detail 1)"
+        f"{_PATH_STAGE_NAME} must ask {_PREDICATE_NAME}() (HP-01-037)"
     )
     assert shapes_in(tree) == frozenset(), (
         "the path stage asks the role question through the shared predicate"

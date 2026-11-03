@@ -1730,8 +1730,8 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason == f"not the CASE_MANAGER of case '{CASE_ID}'", (
-            "the path stage composes the reason once for every message type"
-            " (ADR-0153 detail 5)"
+            "the path stage composes the reason, and this receiver really is"
+            " not the CASE_MANAGER of the case (HP-01-039)"
         )
         assert dl.outbox_list() == [], (
             "a receiver that is not the CASE_MANAGER must neither notify the"
@@ -1764,7 +1764,7 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason == f"not the CASE_MANAGER of case '{CASE_ID}'", (
             "the Reject gets the same reason as the Accept: one cause, one"
-            " verdict, one wording (ADR-0153 detail 5)"
+            " verdict, one wording (HP-01-039)"
         )
         assert dl.outbox_list() == [], (
             "a receiver that is not the CASE_MANAGER must not notify the"
@@ -1870,8 +1870,18 @@ class TestOfferCaseParticipantAtACaseWithNoManager:
         assert result.reason == f"case '{CASE_ID}' has no CASE_MANAGER"
 
     @pytest.mark.spec("HP-01-005")
+    @pytest.mark.spec("HP-01-039")
     def test_offer_receipt_at_a_store_without_the_case_is_refused(self):
-        """No replica of the case is the no-case path, which the Offer omits."""
+        """No replica of the case is the no-case path, which the Offer omits.
+
+        Before the path stage this handler read its own
+        ``unknown case '<id>'`` refusal off a failed CASE_MANAGER gate.  The
+        stage answers it instead, and the reason it composes says the same
+        thing about the receiver — it holds no replica — so the distinction
+        survives the move without the handler inferring anything
+        (HP-01-039).  A store that holds the case but no CASE_MANAGER keeps
+        its own, different reason, pinned by the test above (CM-24-006).
+        """
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_ACTOR_ID)
         dl.create(as_Service(id_=CASE_ACTOR_ID))
         offer = _build_offer_activity()
@@ -1888,6 +1898,10 @@ class TestOfferCaseParticipantAtACaseWithNoManager:
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason == f"holds no replica of case '{CASE_ID}'"
+        assert result.reason != f"case '{CASE_ID}' has no CASE_MANAGER"
+        assert dl.list_objects("CaseLedgerEntry") == []
+        assert dl.outbox_list() == []
 
 
 # ---------------------------------------------------------------------------

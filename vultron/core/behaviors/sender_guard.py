@@ -517,7 +517,7 @@ def compose_sender_guard(
             Without it the arms read the role themselves, as every tree did
             before the path stage.  The ``outside_case`` side is still
             selected by the context naming no case, not by the no-case path
-            that ADR-0153 detail 3 maps it onto: that side is chosen at
+            HP-01-036 would map it onto: that side is chosen at
             composition time, and a tree whose context names a case the
             receiver does not hold has always been judged by the
             ``at_participant`` side.  Moving it is a behaviour change beyond

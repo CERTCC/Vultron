@@ -223,7 +223,7 @@ def create_receive_activity_tree(
     checks later, CM-15-002); no tree writes its own copy of the check.
 
     ``paths`` is the message type's declaration of the paths it handles,
-    made once, here (ADR-0153 detail 4, HP-01-007).  The factory places the
+    made once, here (HP-01-038, HP-01-007).  The factory places the
     path door stage
     (:class:`~vultron.core.behaviors.case.nodes.received_path.ReceivedPathNode`)
     after the addressee check and before the sender guard, on ``case_id``
@@ -236,13 +236,14 @@ def create_receive_activity_tree(
     participant path declares a branch for each; a delivery on a path the
     declaration omits is ``REFUSED`` there, with
     :func:`~vultron.core.behaviors.case.nodes.received_path.undeclared_path_reason`,
-    the same reason for every message type, so no handler maps a gate
-    failure to a verdict after the run (HP-01-005).  A case-scoped type
-    never reaches the no-case path: the inbox's defer check holds its
+    composed in that one place from the resolved path and the declaration, so
+    every message type words it the same way and no handler maps a gate
+    failure to a verdict after the run (HP-01-005, HP-01-039).  A case-scoped
+    type never reaches the no-case path: the inbox's defer check holds its
     delivery until the case is known (IO-02-001), so only a type that starts
-    a case declares the no-case branch and takes it.  A tree that omits
-    ``paths`` keeps the role gates it had, and the migration is ratcheted by
-    ``test/architecture/test_received_path_role_question.py``.
+    a case declares the no-case branch and takes it (HP-01-041).  A tree that
+    omits ``paths`` keeps the role gates it had, and the migration is
+    ratcheted by ``test/architecture/test_received_path_role_question.py``.
 
     ``closed_sender`` places the closed-sender door guard
     (:func:`~vultron.core.behaviors.sender_guard.closed_sender_door`) on

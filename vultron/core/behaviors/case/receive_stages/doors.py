@@ -284,7 +284,7 @@ def sender_guard_stage(
 
     With *path_stage* the rule's ``at_case_manager`` and ``at_participant``
     arms are selected from the path that stage resolved, so the role
-    question is asked once (ADR-0153 detail 3).
+    question is asked once (HP-01-036).
     """
     if sender_rule is None:
         if sender_context is not None:

@@ -145,7 +145,7 @@ def create_invite_actor_to_case_received_tree(
 
     The path stage declares the no-case branch the invitee takes, so the
     Invite is admitted at a receiver that holds no replica rather than
-    waiting for one (ADR-0153 detail 6, HP-01-012).  Both gates read a case
+    waiting for one (HP-01-041, HP-01-012).  Both gates read a case
     the receiver does not hold as "not the CASE_MANAGER"
     (``case_may_be_absent``), because an invitee has no replica until the
     case is announced.
@@ -176,7 +176,7 @@ def create_invite_actor_to_case_received_tree(
         precondition_guards=[],
         # The stub Invite precedes its case (MV-10-004), so the invitee is
         # on the no-case path and this is the type that declares that
-        # branch and takes it (ADR-0153 detail 6): the inbox's defer check
+        # branch and takes it (HP-01-041): the inbox's defer check
         # exempts the stub Invite rather than holding it for a case that
         # only the answer brings.  An invitee that already holds a replica
         # takes the participant path, and the CASE_MANAGER's own

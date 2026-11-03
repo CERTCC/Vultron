@@ -260,7 +260,7 @@ def path_refusal(
     refused: the receiver is on a path this message type declares no branch
     for, so the message was never its to act on (HP-01-005).  The reason is
     the stage's own, composed in one place for every message type
-    (ADR-0153 detail 5); :func:`door_refusal` asks this after the post-close
+    (HP-01-039); :func:`door_refusal` asks this after the post-close
     boundary and the addressee check, in the stage order the factory places
     them in (CLP-10-010).
     """

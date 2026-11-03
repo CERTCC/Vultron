@@ -133,8 +133,8 @@ def create_receive_offer_case_participant_tree(
         # The Offer is addressed to the Case Owner, which may be the
         # CASE_MANAGER of its case or an ordinary participant of it: the
         # CASE_MANAGER commits the receipt, and a participant replica keeps
-        # what arrived and takes the entry from the ledger (ADR-0153
-        # detail 4, RSH-08-003).
+        # what arrived and takes the entry from the ledger (HP-01-038,
+        # RSH-08-003).
         paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
@@ -655,16 +655,18 @@ def create_recommendation_answer_received_tree(
         ├── IntakeReceivedActivityNode     — archive what arrived (CLP-10-018)
         ├── CaseOpenToExternalWrites       — post-close boundary (CM-23-013)
         ├── ActivityAddressedToReceiver    — addressee door guard (HP-01-005)
+        ├── ReceivedPathNode               — the participant replica alone
         └── sender guard                   — only the CASE_MANAGER (PCR-03-001)
 
-    The tree declares no paths yet.  Its one refusal at the case's
-    CASE_MANAGER — which ledgered the answer when it sent it and never
-    receives it — is the sender rule's, which states no CASE_MANAGER side
-    (HP-01-008).  A participant-replica-only declaration would move that
-    refusal to the path stage, where the one shared reason, "not the
-    CASE_MANAGER of case …", would be false of the actual CASE_MANAGER; the
-    wording a replica-only declaration needs is #5042's and #5043's to settle
-    (ADR-0153 detail 5).
+    The answer is the recommender's to receive, and the recommender is a
+    participant of the case, so the participant-replica path is the only one
+    this type handles (HP-01-038).  The declaration is what refuses the
+    case's own CASE_MANAGER, which ledgered the answer when it sent it and
+    never receives it: the path stage names it the CASE_MANAGER of the case
+    and says the type does not address that path, rather than telling the
+    actual CASE_MANAGER it is not one (HP-01-039).  The stage reads the role
+    in the case the ``sender_context`` names, because this tree commits
+    nothing and so names no case of its own (HP-01-040).
 
     Args:
         name: Name for the root ``Sequence``; the handler's own tree name.
@@ -686,6 +688,7 @@ def create_recommendation_answer_received_tree(
     return create_receive_activity_tree(
         name=name,
         case_id=None,
+        paths={ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id
