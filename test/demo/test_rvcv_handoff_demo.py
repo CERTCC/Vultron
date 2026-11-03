@@ -1144,9 +1144,7 @@ class TestRvcvHandoffCliCommand:
         }
 
         with (
-            patch.object(
-                demo, "coordinated_clients", return_value=clients
-            ) as built,
+            patch.object(demo, "story_clients", return_value=clients) as built,
             patch.object(demo, "run_rvcv_handoff_demo") as run,
         ):
             demo.main(

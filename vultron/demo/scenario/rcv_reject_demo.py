@@ -57,16 +57,18 @@ from vultron.demo.helpers.coordinated_story import (
     VENDOR,
     VENDOR_LABEL,
     coordinated_cast_members,
-    coordinated_clients,
     coordinated_open_cast,
     coordinator_and_reporter_publish,
-    dump_coordinated_ledgers,
     reporter_asks_about_the_rejection,
     reporter_replica_converges,
     reporter_then_coordinator_close,
     vendor_rejects_invite,
 )
 from vultron.demo.helpers.story import StoryState, choose, run_story, story
+from vultron.demo.helpers.story_cast import (
+    dump_story_ledgers,
+    story_clients,
+)
 from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import DataLayerClient, setup_demo_logging
 
@@ -81,7 +83,7 @@ ROLES: list[ActorRole] = [
     ActorRole(VENDOR, VENDOR_SLOT, VENDOR_LABEL, has_id=True),
     case_actor_role(),
 ]
-#: Indexed for the CLI factory and for ``coordinated_clients()``, which reads
+#: Indexed for the CLI factory and for ``story_clients()``, which reads
 #: each actor's container address off its cast slot — so this module declares
 #: no ``*_BASE_URL`` constant of its own (DEMOCI-11-020).
 _ROLES = role_map(ROLES)
@@ -135,7 +137,7 @@ def _dump_ledgers(state: StoryState) -> None:
     ``reject_invite_actor_to_case`` entry names it as the recorded actor and a
     narrative tag must resolve to it (#4248).
     """
-    dump_coordinated_ledgers(
+    dump_story_ledgers(
         state,
         replicas=(REPORTER, COORDINATOR),
         unreplicated=(VENDOR,),
@@ -220,7 +222,7 @@ def main(
         coordinator_id: Optional deterministic URI for the Coordinator actor.
         vendor_id: Optional deterministic URI for the Vendor actor.
     """
-    clients = coordinated_clients(
+    clients = story_clients(
         _ROLES,
         coordinated_cast_members(
             reporter_url=reporter_url,

@@ -354,7 +354,7 @@ A scenario's dump step builds `LedgerDumpTarget`s and delegates to
 own fetch/write loop, or one scenario's dump fix fails to reach the others
 (DEMOMA-17-001). Every scenario is written as composition, so it is a
 `_dump_ledgers` fragment, which reaches the helper through
-`coordinated_story.dump_coordinated_ledgers()` where a family shares its
+`story_cast.dump_story_ledgers()` where a family shares its
 participant map — the vendor-first half through
 `vendor_story.dump_vendor_ledgers()`, which drops a cast name the run never
 seated.

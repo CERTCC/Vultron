@@ -53,7 +53,6 @@ from vultron.demo.helpers.coordinated_story import (
     VENDOR,
     VENDOR_LABEL,
     close_the_case,
-    coordinated_clients,
     coordinated_open_cast,
     vendor_reports_the_fix_ready,
 )
@@ -63,6 +62,7 @@ from vultron.demo.helpers.owner_decision_story import (
     the_owner_hands_the_case_over,
 )
 from vultron.demo.helpers.story import StoryState, choose, run_story, story
+from vultron.demo.helpers.story_cast import story_clients
 from vultron.demo.helpers.two_coordinator_story import (
     C1,
     C1_INVITES_C2,
@@ -94,7 +94,7 @@ DEMO_NAME = "rccv-handoff"
 # sub-command options from this list (DEMOCI-11-011); the CaseActor role
 # carries an id option of its own, which DEMOMA-14-023 requires.
 ROLES = two_coordinator_roles(case_actor=case_actor_role(has_id=True))
-#: Indexed for the CLI factory and for ``coordinated_clients()``, which reads
+#: Indexed for the CLI factory and for ``story_clients()``, which reads
 #: each actor's container address off its cast slot — so this module declares
 #: no ``*_BASE_URL`` constant of its own (DEMOCI-11-020).
 _ROLES = role_map(ROLES)
@@ -326,7 +326,7 @@ def main(
         vendor_id: Optional deterministic URI for the Vendor actor.
         case_actor_id: Optional deterministic URI for the CaseActor actor.
     """
-    clients = coordinated_clients(
+    clients = story_clients(
         _ROLES,
         two_coordinator_cast_members(
             reporter_url=reporter_url,

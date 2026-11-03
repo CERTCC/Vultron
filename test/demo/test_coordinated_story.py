@@ -21,7 +21,7 @@ here: the milestone calls, the causal gates, the skip-on-failure behaviour of
 the invite chain now that the Invite and the answer are two fragments with the
 Vendor's branch point between them, and the three helpers the continuations
 share (``invitee_joins_the_case``, ``close_the_case``,
-``dump_coordinated_ledgers``).
+``dump_story_ledgers``).
 
 Every test patches the collaborators out, so no HTTP happens; ``demo_gate`` /
 ``demo_check`` / ``demo_step`` are left real wherever the test is about control
@@ -80,12 +80,9 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER_LABEL,
     VENDOR,
     VENDOR_LABEL,
-    CastContainer,
     close_the_case,
-    coordinated_clients,
     coordinated_seats,
     coordinator_invites_vendor,
-    dump_coordinated_ledgers,
     everyone_closes,
     everyone_publishes,
     invitee_joins_the_case,
@@ -101,6 +98,11 @@ from vultron.demo.helpers.story import (
     StoryProp,
     StoryState,
     UnseatedContainer,
+)
+from vultron.demo.helpers.story_cast import (
+    CastContainer,
+    dump_story_ledgers,
+    story_clients,
 )
 from vultron.demo.utils import case_actor_id_on, reset_demo_failures
 from vultron.enums.roles import CVDRole
@@ -414,10 +416,8 @@ class TestCoordinatedClients:
     """One client set and one health check for the whole family."""
 
     def test_each_address_falls_back_to_its_cast_slot(self):
-        with patch.object(
-            coordinated_story, "check_all_containers"
-        ) as checked:
-            clients = coordinated_clients(
+        with patch.object(story_cast, "check_all_containers") as checked:
+            clients = story_clients(
                 _roles(), _members(), skip_health_check=False
             )
 
@@ -443,10 +443,8 @@ class TestCoordinatedClients:
     def test_an_override_wins_and_the_check_can_be_skipped(self):
         """A ``--<role>-url`` beats the slot, for both kinds of container."""
         case_actor_url = "http://other-case-actor:7999/api/v2"
-        with patch.object(
-            coordinated_story, "check_all_containers"
-        ) as checked:
-            clients = coordinated_clients(
+        with patch.object(story_cast, "check_all_containers") as checked:
+            clients = story_clients(
                 _roles(),
                 _members(vendor_url="http://elsewhere:7999/api/v2"),
                 skip_health_check=True,
@@ -471,7 +469,7 @@ class TestCoordinatedClients:
         where falling back would health-check somebody else's.
         """
         with pytest.raises(KeyError):
-            coordinated_clients(
+            story_clients(
                 _roles(),
                 [CastContainer("nobody", "Nobody")],
                 skip_health_check=True,
@@ -1144,8 +1142,8 @@ class TestDumpCoordinatedLedgers:
         state = story_state(*_CAST, case=mock_case())
         _bind_container_actors(state, *_CAST)
 
-        with patch.object(coordinated_story, "dump_case_ledgers") as dump:
-            dump_coordinated_ledgers(
+        with patch.object(story_cast, "dump_case_ledgers") as dump:
+            dump_story_ledgers(
                 state, replicas=[REPORTER, ("c1", COORDINATOR), VENDOR]
             )
 
@@ -1181,8 +1179,8 @@ class TestDumpCoordinatedLedgers:
         state = story_state(*_CAST, case=mock_case())
         _bind_container_actors(state, *_CAST)
 
-        with patch.object(coordinated_story, "dump_case_ledgers") as dump:
-            dump_coordinated_ledgers(
+        with patch.object(story_cast, "dump_case_ledgers") as dump:
+            dump_story_ledgers(
                 state,
                 replicas=[REPORTER, COORDINATOR],
                 unreplicated=(VENDOR,),

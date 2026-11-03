@@ -19,7 +19,7 @@ the same way.  None of them is a parameter of the shared opening any more: a
 later vendor is a **character actor**, seeded and seated mid-story
 (``StoryState.seat``) and then brought into the case by
 ``invitee_joins_the_case``, closed by ``close_the_case`` and dumped by
-``dump_coordinated_ledgers`` (#5534).
+``dump_story_ledgers`` (#5534).
 
 These tests pin that the second vendor is still invited, closed, covered and
 dumped like the first — the properties the retired ``later_vendors`` and
@@ -36,17 +36,17 @@ import pytest
 
 from test.demo._helpers import mock_case, story_state, stub_closure_gate
 from test.demo.test_coordinated_story import _bind_container_actors
-from vultron.demo.helpers import closure, coordinated_story
+from vultron.demo.helpers import closure, coordinated_story, story_cast
 from vultron.demo.helpers.coordinated_story import (
     CASE_ACTOR_NAME,
     COORDINATOR,
     REPORTER,
     VENDOR,
     close_the_case,
-    dump_coordinated_ledgers,
     invitee_joins_the_case,
 )
 from vultron.demo.helpers.story import StoryState
+from vultron.demo.helpers.story_cast import dump_story_ledgers
 from vultron.demo.utils import demo_failures, reset_demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
@@ -213,8 +213,8 @@ class TestALaterVendorsLedgerIsDumped:
         state = story_state(*_FOUR, case=mock_case())
         _bind_container_actors(state, *_FOUR)
 
-        with patch.object(coordinated_story, "dump_case_ledgers") as dump:
-            dump_coordinated_ledgers(state, replicas=list(_FOUR))
+        with patch.object(story_cast, "dump_case_ledgers") as dump:
+            dump_story_ledgers(state, replicas=list(_FOUR))
 
         targets = dump.call_args.kwargs["targets"]
         assert [t.actor_name for t in targets] == [*_FOUR, CASE_ACTOR_NAME]
@@ -242,9 +242,9 @@ class TestALaterVendorsLedgerIsDumped:
         )
 
         with (
-            patch.object(coordinated_story, "dump_case_ledgers") as dump,
+            patch.object(story_cast, "dump_case_ledgers") as dump,
             pytest.raises(DemoStoryError, match=VENDOR2),
         ):
-            dump_coordinated_ledgers(state, replicas=[REPORTER, VENDOR2])
+            dump_story_ledgers(state, replicas=[REPORTER, VENDOR2])
 
         dump.assert_not_called()
