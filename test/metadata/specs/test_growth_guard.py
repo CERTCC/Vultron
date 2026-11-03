@@ -505,8 +505,8 @@ def _marked(
     return _spec(spec_id, kind, verification_debt=marker, **extra)
 
 
-def _verified(spec_id: str, kind: str = "project") -> dict:
-    return _spec(spec_id, kind, verification="A test proves it.")
+def _verified(spec_id: str, kind: str = "project", **extra) -> dict:
+    return _spec(spec_id, kind, verification="A test proves it.", **extra)
 
 
 def _debt(repo: Path):
@@ -682,6 +682,66 @@ def test_debt_split_child_of_a_verified_parent_is_added(
         _split_off("TST-01-003", "TST-01-002"),
     )
     assert _debt(debt_repo).added == {"TST-01-003 verification_debt: '#1'"}
+
+
+def _should(spec_id: str, statement: str) -> dict:
+    return _spec(spec_id, "project", priority="SHOULD", statement=statement)
+
+
+@pytest.fixture
+def unmarked_parent_repo(tmp_path):
+    """Base: TST-01-001 is a SHOULD-plus-MUST compound with no marker."""
+    return _repo(
+        tmp_path,
+        [
+            _should(
+                "TST-01-001",
+                "A PR SHOULD do the thing. Otherwise it MUST link an issue.",
+            )
+        ],
+        [],
+    )
+
+
+def _trimmed_parent() -> dict:
+    return _should("TST-01-001", "A PR SHOULD do the thing.")
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_split_child_of_an_unmarked_parent_is_added(
+    unmarked_parent_repo,
+):
+    """A parent with no marker has no debt to pass on, even when trimmed."""
+    _write_specs(
+        unmarked_parent_repo,
+        _trimmed_parent(),
+        _split_off("TST-01-002", "TST-01-001"),
+    )
+    assert _debt(unmarked_parent_repo).added == {
+        "TST-01-002 verification_debt: '#1'"
+    }
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_split_child_of_an_unmarked_parent_with_its_check_is_not_added(
+    unmarked_parent_repo,
+):
+    """A split child that names its own check carries no marker, so no debt.
+
+    This is the path MS-10-016 leaves open; it never reaches the split
+    exemption, because there is no marker for the guard to judge.
+    """
+    _write_specs(
+        unmarked_parent_repo,
+        _trimmed_parent(),
+        _verified(
+            "TST-01-002",
+            relationships=[{"rel_type": "extends", "spec_id": "TST-01-001"}],
+        ),
+    )
+    check = _debt(unmarked_parent_repo)
+    assert check.added == frozenset()
+    assert check.head_total == 0
 
 
 @pytest.mark.spec("MS-10-016")
