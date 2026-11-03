@@ -204,7 +204,8 @@ When the diff changes a workflow or tooling file and no maintainer-facing doc
 (the path lists are in `pr-body-guide.md` § "Implementation PR rules"), the
 line must also account for the maintainer docs, or `pr-body-lint` fails it at
 the final stage (PRB-12, PD-03-014). `updated …` and `no docs impact — …` do
-not: they judge `docs/` pages. Update the maintainer doc in this PR, or append
+not: they judge `docs/` pages. Have the caller update the maintainer doc in
+this PR (this skill edits only `docs/`), or append
 `deferred to #N` naming the follow-up docs issue, or append
 `no maintainer docs impact — <reason>`:
 

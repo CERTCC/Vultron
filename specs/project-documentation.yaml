@@ -157,7 +157,9 @@ groups:
       `pr-body-lint` rule PRB-12 fails a PR whose diff changes a workflow or tooling
       file and no maintainer-facing doc, unless its `Docs:` line names the follow-up
       issue (`deferred to #N`) or says why no maintainer doc needs the change
-      (`no maintainer docs impact —`).
+      (`no maintainer docs impact —`). The path test is coarse: any
+      maintainer-facing doc in the diff closes the gap, so `pr-triage` judges
+      whether that doc covers the change.
       `test/metadata/test_pr_body_lint.py::TestMaintainerDocs` and
       `::TestUndocumentedTooling` cover the rule.
     rationale: >-

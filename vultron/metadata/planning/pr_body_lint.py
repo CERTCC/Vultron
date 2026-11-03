@@ -207,15 +207,22 @@ _ISSUES_RE = re.compile(r"^Issues: closed \d+, opened \d+\b")
 _RANGE_RE = re.compile(r"\b[A-Z]+-\d\d(?:-\d{3})?\.\.")
 _ATTRIBUTION_RE = re.compile(r"Generated with \[[^\]]+\]\([^)]+\)")
 _DOCS_FINAL_RE = re.compile(
-    r"^Docs: (?:updated \S.*|no docs impact — \S.*"
-    r"|no maintainer docs impact — \S.*|deferred to #\d+)$"
+    r"^Docs: (?:updated \S.*|no docs impact — \S.*|deferred to #\d+)$"
+)
+#: The fourth final form, which answers only the maintainer-docs question: a
+#: final form only on a PR with a maintainer-docs gap (PRB-12), since it says
+#: nothing about ``docs/`` pages (PD-03-013).
+_DOCS_MAINTAINER_ONLY_RE = re.compile(
+    r"^Docs: no maintainer docs impact — \S.*$"
 )
 #: A ``Docs:`` line that accounts for a maintainer-docs gap (PRB-12): it names
-#: the follow-up issue, or says why no maintainer doc needs the change. The
-#: reader-facing ``no docs impact`` verdict does not count: it answers whether
-#: a ``docs/`` page describes the change, not whether a maintainer doc does.
+#: the follow-up issue, or says why no maintainer doc needs the change. Each
+#: clause starts the line or follows a ``; `` separator, so a reason that
+#: merely mentions a deferral does not count. The reader-facing
+#: ``no docs impact`` verdict does not count either: it answers whether a
+#: ``docs/`` page describes the change, not whether a maintainer doc does.
 _DOCS_GAP_RE = re.compile(
-    r"\bdeferred to #\d+\b|\bno maintainer docs impact — \S"
+    r"(?:^Docs: |; )(?:deferred to #\d+(?:;|$)|no maintainer docs impact — \S)"
 )
 
 #: Path prefixes of workflow and tooling files: CI workflows and their
@@ -230,6 +237,7 @@ TOOLING_PREFIXES: tuple[str, ...] = (
     "scripts/",
     ".devcontainer/",
     "docker/",
+    ".githooks/",
 )
 #: Single tooling files at the repository root (PRB-12).
 TOOLING_FILES: frozenset[str] = frozenset(
@@ -469,6 +477,28 @@ def _docs_lines(body: _Body) -> list[str]:
     ]
 
 
+def _is_final_docs_line(line: str, facts: BodyFacts) -> bool:
+    """Whether *line* takes a final ``Docs:`` form for this PR.
+
+    The bare ``no maintainer docs impact — …`` form is final only on a PR
+    with a maintainer-docs gap (PRB-12).
+    """
+    return bool(
+        _DOCS_FINAL_RE.match(line)
+        or (
+            facts.undocumented_tooling and _DOCS_MAINTAINER_ONLY_RE.match(line)
+        )
+    )
+
+
+def _not_final_message(line: str, facts: BodyFacts) -> str:
+    """The finding text for a ``Docs:`` line in no final form."""
+    forms = "`updated <page>, ...`, `no docs impact — <reason>`, "
+    if facts.undocumented_tooling:
+        forms += "`no maintainer docs impact — <reason>`, "
+    return f"{line!r} is not a final `Docs:` form: {forms}or `deferred to #N`"
+
+
 def _check_docs(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
     """PRB-08."""
     if not facts.needs_docs_line:
@@ -490,13 +520,8 @@ def _check_docs(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
                 "the `Docs:` line is still the placeholder; replace it with "
                 "the line check-docs-sync reported (PD-03-013)",
             )
-        elif not _DOCS_FINAL_RE.match(line):
-            yield Finding(
-                "PRB-08",
-                f"{line!r} is not a final `Docs:` form: `updated <page>, ...`, "
-                f"`no docs impact — <reason>`, "
-                f"`no maintainer docs impact — <reason>`, or `deferred to #N`",
-            )
+        elif not _is_final_docs_line(line, facts):
+            yield Finding("PRB-08", _not_final_message(line, facts))
 
 
 def _check_maintainer_docs(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
@@ -504,7 +529,9 @@ def _check_maintainer_docs(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
 
     On a PR that PRB-08 covers, PRB-08 already reports a missing line and
     the placeholder at the final stage, so this rule stays silent there; on
-    any other PR it reports both itself.
+    any other PR it reports both itself, and a line in no final form. The
+    gap test is coarse: any maintainer-facing doc in the diff closes it, so
+    whether that doc covers the change is left to review (``pr-triage``).
     """
     if not facts.undocumented_tooling:
         return
@@ -522,12 +549,25 @@ def _check_maintainer_docs(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
                 f"docs issue, or `Docs: no maintainer docs impact — <reason>`",
             )
         return
-    if facts.stage is not Stage.FINAL:
-        return
-    if facts.needs_docs_line and any(
-        line == DOCS_PLACEHOLDER for line in docs
-    ):
-        return
+    if facts.stage is Stage.FINAL:
+        yield from _judge_maintainer_docs_line(docs, facts, shown)
+
+
+def _judge_maintainer_docs_line(
+    docs: Sequence[str], facts: BodyFacts, shown: str
+) -> Iterator[Finding]:
+    """PRB-12 at the final stage, on a body that has a ``Docs:`` line."""
+    if facts.needs_docs_line:
+        if any(line == DOCS_PLACEHOLDER for line in docs):
+            return
+    else:
+        # PRB-08 does not judge a docs PR's line, so this rule checks its
+        # form; a line in no final form is reported once, as that.
+        unfinished = [ln for ln in docs if not _is_final_docs_line(ln, facts)]
+        for line in unfinished:
+            yield Finding("PRB-12", _not_final_message(line, facts))
+        if unfinished:
+            return
     if not any(_DOCS_GAP_RE.search(line) for line in docs):
         yield Finding(
             "PRB-12",
@@ -824,6 +864,7 @@ __all__ = [
     "Rule",
     "SetupError",
     "Stage",
+    "TOOLING_FILES",
     "TOOLING_PREFIXES",
     "amended_ids",
     "cli",

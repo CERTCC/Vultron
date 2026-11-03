@@ -174,6 +174,8 @@ Runs for every implementation or bug-fix PR (scope defined in
    | `deferred to #N` | `#N` exists (open, or closed as planned), is a `type:Task` or `type:Concern` listing the pages, and the update rewrites several pages (PD-03-007) | none |
    | `deferred to #N` | `#N` does not exist, is neither a Task nor a Concern, does not list the pages, or the update is a single-page edit | **IMPROVE** |
    | `updated <pages>; deferred to #N` | judge each half by the rows above | the worse of the two |
+   | `…; no maintainer docs impact — <reason>`, or that clause alone | the diff changes a tooling file and no maintainer-facing doc (PRB-12), and the reason names why the tool change leaves its maintainer docs true | none; judge any `docs/` half by the rows above |
+   | `…; no maintainer docs impact — <reason>`, or that clause alone | a maintainer doc describes the changed tool and is now wrong | **IMPROVE** — update the doc or defer it to a docs issue (PD-03-006, PD-03-014) |
 
 3. Verify a deferral with
    `gh issue view <N> --json state,stateReason,body` and the issue type query

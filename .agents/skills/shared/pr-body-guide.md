@@ -184,17 +184,21 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
   doc carries a `Docs:` line whatever its template (PRB-12, PD-03-014).
   Tooling is a file under `.github/workflows/`, `.github/scripts/`,
   `.github/actions/`, `.agents/skills/`, `vultron/metadata/`, `scripts/`,
-  `.devcontainer/` or `docker/`, or `.pre-commit-config.yaml`, `mdlint.sh`,
-  `Makefile` or `start-dev.sh`. A maintainer-facing doc is a file under
-  `docs/developer/`, `docs/agents/` or `notes/`, any `AGENTS.md`, a skill's
-  Markdown, `CONTRIBUTING.md`, `README-DEV.md`, `.devcontainer/README.md`, or
-  the `.github` agent instructions. At the final stage that line names the
-  follow-up docs issue (`deferred to #N`) or says why no maintainer doc needs
-  the change (`no maintainer docs impact — <reason>`). The reader-facing
-  `no docs impact` verdict does not count, so append the clause to it:
+  `.devcontainer/`, `docker/` or `.githooks/`, or `.pre-commit-config.yaml`,
+  `mdlint.sh`, `Makefile` or `start-dev.sh`. A maintainer-facing doc is a file
+  under `docs/developer/`, `docs/agents/`, `notes/` or `.github/instructions/`,
+  any `AGENTS.md`, a skill's Markdown, `CONTRIBUTING.md`, `README-DEV.md`,
+  `.devcontainer/README.md`, or `.github/copilot-instructions.md`. At the final
+  stage that line takes a final form and names the follow-up docs issue
+  (`deferred to #N`) or says why no maintainer doc needs the change
+  (`no maintainer docs impact — <reason>`), each clause opening the line or
+  following a `;`. The reader-facing `no docs impact` verdict does not count,
+  so append the clause to it:
   `Docs: no docs impact — <reason>; no maintainer docs impact — <reason>`.
-  The clause alone, `Docs: no maintainer docs impact — <reason>`, is a fourth
-  final form.
+  On such a PR only, the clause alone,
+  `Docs: no maintainer docs impact — <reason>`, is a fourth final form. The
+  check is coarse: any maintainer-facing doc in the diff closes the gap, and
+  whether that doc covers the change is `pr-triage`'s judgment.
 
   The session that opened the PR is not done while the placeholder remains,
   and `pr-triage` treats a missing or placeholder `Docs:` line as a FAIL

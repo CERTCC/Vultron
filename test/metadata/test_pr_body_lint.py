@@ -32,7 +32,11 @@ from test.metadata._git_repo import commit_all, commit_base, git, head_sha
 from vultron.metadata.planning.pr_body_lint import (
     BODY_LIMIT,
     DOCS_PLACEHOLDER,
+    MAINTAINER_DOC_FILES,
+    MAINTAINER_DOC_PREFIXES,
     RULES,
+    TOOLING_FILES,
+    TOOLING_PREFIXES,
     BodyFacts,
     PrType,
     Stage,
@@ -114,6 +118,22 @@ class TestGuideListsTheRules:
     def test_rule_ids_are_unique_and_ordered(self):
         ids = [r.rule_id for r in RULES]
         assert ids == sorted(set(ids))
+
+    @pytest.mark.parametrize(
+        "path",
+        sorted(
+            {
+                *TOOLING_PREFIXES,
+                *TOOLING_FILES,
+                *MAINTAINER_DOC_PREFIXES,
+                *MAINTAINER_DOC_FILES,
+            }
+        ),
+    )
+    def test_every_prb_12_path_is_in_the_guide(self, path):
+        """The guide's PRB-12 path lists name every path the tool uses."""
+        guide = (SKILLS / "shared" / "pr-body-guide.md").read_text()
+        assert f"`{path}`" in guide
 
 
 @pytest.mark.spec("PAD-20-001")
@@ -267,7 +287,6 @@ class TestDocsLine:
         [
             "Docs: updated docs/a.md, docs/b.md",
             "Docs: no docs impact — internal refactor",
-            "Docs: no maintainer docs impact — flags unchanged",
             "Docs: deferred to #12",
             "Docs: updated docs/a.md; deferred to #12",
         ],
@@ -280,6 +299,17 @@ class TestDocsLine:
     )
     def test_other_forms_fail_at_the_final_stage(self, line):
         assert _ids(_body(docs=line), FINAL) == ["PRB-08"]
+
+    def test_the_maintainer_only_form_fails_with_no_tooling_gap(self):
+        """It says nothing about ``docs/`` pages, so it is final only on a
+        PR with a maintainer-docs gap (PRB-12)."""
+        body = _body(docs="Docs: no maintainer docs impact — flags unchanged")
+        found = lint_body(body, FINAL)
+        assert [f.rule_id for f in found] == ["PRB-08"]
+        assert (
+            "no maintainer docs impact"
+            not in found[0].message.split("form:")[1]
+        )
 
     def test_a_docs_pr_closing_a_work_item_needs_the_line(self):
         facts = BodyFacts(
@@ -356,6 +386,27 @@ class TestMaintainerDocs:
         body = self._docs_body(DOCS_PLACEHOLDER)
         assert _ids(body, self._facts()) == ["PRB-12"]
 
+    @pytest.mark.parametrize("pr_type", list(PrType))
+    def test_a_reason_that_mentions_a_deferral_is_found(self, pr_type):
+        """A clause counts only at the line start or after ``; ``."""
+        body = _body(
+            docs="Docs: no docs impact — work was deferred to #3 earlier"
+        )
+        assert _ids(body, self._facts(pr_type=pr_type)) == ["PRB-12"]
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "Docs: lol deferred to #3",
+            "Docs: pending check-docs-sync; deferred to #3",
+        ],
+    )
+    def test_a_docs_pr_line_in_no_final_form_is_found_once(self, line):
+        """PRB-08 does not judge a docs PR's line, so PRB-12 checks its form."""
+        found = lint_body(self._docs_body(line), self._facts())
+        assert [f.rule_id for f in found] == ["PRB-12"]
+        assert "is not a final `Docs:` form" in found[0].message
+
     def test_the_line_is_not_judged_before_the_push(self):
         facts = self._facts(stage=Stage.PRE_PUSH)
         body = self._docs_body("Docs: updated docs/reference/a.md")
@@ -389,6 +440,7 @@ class TestUndocumentedTooling:
             "mdlint.sh",
             "Makefile",
             "start-dev.sh",
+            ".githooks/pre-commit",
         ],
     )
     def test_a_tooling_file_alone_is_a_gap(self, path):
