@@ -86,8 +86,13 @@ class EngageCaseReceivedUseCase:
         ) is not None:
             return refusal
 
+        # A receipt, not a transition: the tree decides whether the declared
+        # move happened, and a restatement is reported SKIPPED.  An
+        # ``RM → ACCEPTED`` line here would assert a move the handler may go
+        # on to say it did not make (SL-04-007, #5006).  The move itself is
+        # logged once, by the status writer.
         logger.info(
-            "Actor '%s' engages case '%s' (RM → ACCEPTED)",
+            "Actor '%s' declares RM.ACCEPTED on case '%s' (Join received)",
             actor_id,
             case_id,
         )
@@ -180,8 +185,10 @@ class DeferCaseReceivedUseCase:
         ) is not None:
             return refusal
 
+        # A receipt, not a transition, for the reason given on the engage
+        # line above (SL-04-007).
         logger.info(
-            "Actor '%s' defers case '%s' (RM → DEFERRED)",
+            "Actor '%s' declares RM.DEFERRED on case '%s' (Ignore received)",
             actor_id,
             case_id,
         )

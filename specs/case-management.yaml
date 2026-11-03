@@ -1054,7 +1054,9 @@ groups:
       (CLP-07-013), so the ledger fan-out is the notice: each change reaches the
       active participants as `Announce(CaseLedgerEntry)`. The CASE_MANAGER also
       announces the updated case as `Announce(VulnerabilityCase)` after admitting
-      a participant's engagement. No participant sends
+      an engagement that moved the sender's recorded RM state. An engagement that
+      restates a move already recorded changes no case state, so it announces
+      nothing (RSH-08-002, ID-05-003). No participant sends
       the CASE_MANAGER an `Update(VulnerabilityCase)`; one that arrives is the shape
       of the CASE_MANAGER's own `update_case_owner` act, which no received use case
       handles, so it is reported "no use case found" (SE-05-002, ADR-0140).
