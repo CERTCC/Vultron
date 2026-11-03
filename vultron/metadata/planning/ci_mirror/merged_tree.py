@@ -24,7 +24,8 @@ PR branch for that, so this command tests the merge somewhere else::
 
 When no path was changed on both sides (the overlap ``targeted-tests
 --overlap`` reports, from the same helper), it prints ``merged-tree: no
-overlap`` and exits 0: the branch's own gate already covers it. Otherwise it adds a detached scratch worktree at ``HEAD``, merges
+overlap`` and exits 0: the branch's own gate already covers it. Otherwise it
+adds a detached scratch worktree at ``HEAD``, merges
 ``origin/<base>`` into that worktree only, runs there the tests that
 ``targeted-tests --paths`` selects for the shared files, and removes the
 worktree with ``git worktree remove`` whatever the result. It never runs
