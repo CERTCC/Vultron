@@ -91,6 +91,7 @@ For `implementation`:
 <1–2 sentences, present tense>
 
 Issues: closed <N>, opened <M>
+Questions: asked <A>, filed <F>
 
 ## Changes
 

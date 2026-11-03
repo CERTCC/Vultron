@@ -4,8 +4,9 @@ description: >
   End-to-end PR review pipeline. Detects the PR on the current branch, then
   runs pr-triage → pr-execute → pr-verify in sequence. Supports resume: if
   artifacts already exist from a prior run, skips forward to the right phase.
-  No user prompts except the two gate pauses (defer-ask, inversion-halt) in pr-execute. Precondition:
-  an open PR must exist for the current branch (or provide an explicit PR number).
+  No user prompts except pr-execute's gate pauses (defer-ask, inversion-halt)
+  and decision asks. Precondition: an open PR must exist for the current
+  branch (or provide an explicit PR number).
 ---
 
 # Skill: PR Ship
@@ -14,8 +15,10 @@ description: >
 
 Single entry point for the full triage → execute → verify pipeline. Run this
 after pushing a branch with an open PR and let it complete. The only expected
-pauses are the two gates in execute — a `defer-ask` (may I defer this?) and an
-`inversion-halt` (a premise was overturned) — all other steps run unattended.
+pauses are in execute: the two gates, a `defer-ask` (may I defer this?) and an
+`inversion-halt` (a premise was overturned), and a decision a fix needs
+(`completeness-doctrine.md` § "Ask, Then Finish"). All other steps run
+unattended.
 
 ## Quick Start
 

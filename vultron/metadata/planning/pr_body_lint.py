@@ -119,7 +119,7 @@ RULES: tuple[Rule, ...] = (
         "PRB-04",
         "issues-line",
         "An implementation PR's `## Summary` ends with `Issues: closed N, "
-        "opened M`.",
+        "opened M`, or with that line followed by the `Questions:` line.",
     ),
     Rule(
         "PRB-05",
@@ -164,6 +164,12 @@ RULES: tuple[Rule, ...] = (
         "body-length",
         "The body is at most GitHub's 65,536-character limit, at every stage.",
     ),
+    Rule(
+        "PRB-12",
+        "questions-line",
+        "An implementation PR's `## Summary` ends with `Questions: asked N, "
+        "filed M`, directly after the `Issues:` line.",
+    ),
 )
 
 RULES_BY_ID: dict[str, Rule] = {rule.rule_id: rule for rule in RULES}
@@ -195,6 +201,7 @@ _SECTION_LEVEL = 2
 _BLOCK_LEVEL = 3
 _COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 _ISSUES_RE = re.compile(r"^Issues: closed \d+, opened \d+\b")
+_QUESTIONS_RE = re.compile(r"^Questions: asked \d+, filed \d+\b")
 _RANGE_RE = re.compile(r"\b[A-Z]+-\d\d(?:-\d{3})?\.\.")
 _ATTRIBUTION_RE = re.compile(r"Generated with \[[^\]]+\]\([^)]+\)")
 _DOCS_FINAL_RE = re.compile(
@@ -318,18 +325,26 @@ def _check_closing(body: _Body) -> Iterator[Finding]:
 
 
 def _check_sections(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
-    """PRB-03, PRB-04 and PRB-07."""
+    """PRB-03, PRB-04, PRB-07 and PRB-12."""
     for name in ("Summary", "Changes"):
         if body.section(name) is None:
             yield Finding("PRB-03", f"no `## {name}` section")
     summary = body.section("Summary")
     if facts.pr_type is PrType.IMPLEMENTATION and summary is not None:
-        last = next((ln.strip() for ln in reversed(summary) if ln.strip()), "")
-        if not _ISSUES_RE.match(last):
+        lines = [ln.strip() for ln in summary if ln.strip()] or [""]
+        has_questions = bool(_QUESTIONS_RE.match(lines[-1]))
+        issues = lines[-2] if has_questions and len(lines) > 1 else lines[-1]
+        if not _ISSUES_RE.match(issues):
             yield Finding(
                 "PRB-04",
-                "the last line of `## Summary` is not `Issues: closed N, "
-                "opened M`",
+                "`## Summary` does not end with `Issues: closed N, opened M` "
+                "(followed only by the `Questions:` line)",
+            )
+        if not has_questions:
+            yield Finding(
+                "PRB-12",
+                "the last line of `## Summary` is not `Questions: asked N, "
+                "filed M`",
             )
     if facts.py_changed and body.section("Verification") is None:
         yield Finding(

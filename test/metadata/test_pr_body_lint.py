@@ -49,13 +49,15 @@ Loaded (cross-cutting): ARCH, CS
 Loaded (selected): SR-12 — the backstop
 Considered, skipped: PAD-15 — bundle selection untouched"""
 
+QUESTIONS = "Questions: asked 0, filed 0"
+
 ATTRIBUTION = "🤖 Generated with [Claude Code](https://claude.com/claude-code)"
 
 
 def _body(
     *,
     top: str = "- Closes #1\n- Closes #2",
-    summary: str = "Adds a thing.\n\nIssues: closed 2, opened 0",
+    summary: str = "Adds a thing.\n\nIssues: closed 2, opened 0\n" + QUESTIONS,
     specs: str | None = MANIFEST,
     amended: str | None = None,
     docs: str | None = "Docs: no docs impact — internal tooling only",
@@ -118,7 +120,8 @@ class TestGuideListsTheRules:
 class TestClosesFirst:
     def test_a_closing_reference_after_the_opening_block_is_found(self):
         body = _body(
-            summary="Adds a thing; fixes #9.\n\nIssues: closed 2, opened 0"
+            summary="Adds a thing; fixes #9.\n\nIssues: closed 2, opened 0\n"
+            + QUESTIONS
         )
         assert _ids(body) == ["PRB-01"]
 
@@ -132,13 +135,15 @@ class TestClosesFirst:
     )
     def test_every_form_github_closes_on_is_found(self, ref):
         body = _body(
-            summary=f"Adds a thing; {ref}.\n\nIssues: closed 2, opened 0"
+            summary=f"Adds a thing; {ref}.\n\nIssues: closed 2, opened 0\n"
+            + QUESTIONS
         )
         assert _ids(body) == ["PRB-01"]
 
     def test_a_reference_in_inline_code_is_not_a_closing_reference(self):
         body = _body(
-            summary="Writes `Fixes #9` for you.\n\nIssues: closed 2, opened 0"
+            summary="Writes `Fixes #9` for you.\n\nIssues: closed 2, opened 0\n"
+            + QUESTIONS
         )
         assert _ids(body) == []
 
@@ -186,14 +191,41 @@ class TestRequiredSections:
 @pytest.mark.spec("PAD-20-001")
 class TestIssuesLine:
     def test_an_implementation_summary_without_it_is_found(self):
-        assert _ids(_body(summary="Adds a thing.")) == ["PRB-04"]
+        summary = "Adds a thing.\n\n" + QUESTIONS
+        assert _ids(_body(summary=summary)) == ["PRB-04"]
 
-    def test_it_must_be_the_last_line_of_the_summary(self):
-        summary = "Issues: closed 1, opened 0\n\nAdds a thing."
+    def test_it_must_end_the_summary_but_for_the_questions_line(self):
+        summary = "Issues: closed 1, opened 0\n\nAdds a thing.\n" + QUESTIONS
         assert _ids(_body(summary=summary)) == ["PRB-04"]
 
     def test_a_listed_opened_issue_passes(self):
-        summary = "Adds a thing.\n\nIssues: closed 2, opened 1 (#4402 debt)"
+        summary = (
+            "Adds a thing.\n\nIssues: closed 2, opened 1 (#4402 debt)\n"
+            + QUESTIONS
+        )
+        assert _ids(_body(summary=summary)) == []
+
+    def test_a_docs_pr_needs_none(self):
+        assert _ids(_body(summary="Edits a note.", specs=None), DOCS) == []
+
+
+@pytest.mark.spec("PAD-20-001")
+class TestQuestionsLine:
+    def test_an_implementation_summary_without_it_is_found(self):
+        summary = "Adds a thing.\n\nIssues: closed 2, opened 0"
+        assert _ids(_body(summary=summary)) == ["PRB-12"]
+
+    def test_it_must_come_after_the_issues_line(self):
+        summary = (
+            "Adds a thing.\n\n" + QUESTIONS + "\nIssues: closed 2, opened 0"
+        )
+        assert _ids(_body(summary=summary)) == ["PRB-12"]
+
+    def test_counts_with_a_note_pass(self):
+        summary = (
+            "Adds a thing.\n\nIssues: closed 2, opened 0\n"
+            "Questions: asked 2, filed 1 (#4402 out of scope)"
+        )
         assert _ids(_body(summary=summary)) == []
 
     def test_a_docs_pr_needs_none(self):
@@ -604,6 +636,8 @@ class TestSkillsRunTheGates:
             .replace("#N", "#1")
             .replace("<N>", "1")
             .replace("<M>", "0")
+            .replace("<A>", "0")
+            .replace("<F>", "0")
             .replace("<Spec manifest from deepen-context, verbatim>", MANIFEST)
         )
         assert lint_body(filled, facts) == []
