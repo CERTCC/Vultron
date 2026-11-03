@@ -131,6 +131,12 @@ Invoke the `orient-agent` skill.
      itself passes `--epic-run <Epic>`, which clears the hold for that Epic
      only. Auto-selection never reaches this case: `bundle-fit` already holds
      those candidates back as "not workable yet".
+   - **Unconfirmed decision.** A member whose body opens with a `Decision:`
+     line and has no comment from the user confirming or overriding it: ask
+     that decision now, with the recommended answer as the recommended option
+     (`issue-creation-requirements.md`). Record the answer as an issue
+     comment and proceed with it. Unattended, or on silence: stop, with the
+     decision stated.
 
 6. **Pre-claim AC verification gate** — fetch the issue body and verify
    each acceptance criterion against `origin/main` HEAD before claiming:
@@ -241,7 +247,10 @@ focus hints, notes and glossary sections `deepen-context` read.
       missing piece stated.
    3. **No test can be written yet** (the behavior is outside what agents may
       build, such as production key handling, ADR-0164, or it needs a design
-      decision first): ask the user. If a separate issue is the answer, file it
+      decision first): ask the user, and when the answer settles the design,
+      write the test and build it (`completeness-doctrine.md` § "Ask, Then
+      Finish"; as a sub-agent, return the `Question:` block it describes).
+      If a separate issue is the answer, file it
       through `create-issue` (type `Task`, reason `opened-as separate-defect`,
       a `size:` from its AC count, `blocks` the current issue, the current
       issue's Epic as the suggested parent, a `Governing specs:` line), and

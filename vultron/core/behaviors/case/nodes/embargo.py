@@ -31,7 +31,6 @@ notes/protocol-event-cascades.md § "Cascades MUST Be BT Subtrees".
 """
 
 import logging
-import uuid
 
 import isodate  # type: ignore[import-untyped]
 from py_trees.common import Status
@@ -47,6 +46,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import from_now_utc
+from vultron.core.models.activity_ids import derived_object_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -74,7 +74,7 @@ def creation_time_embargo_id(case_id: str) -> str:
     case names the same event (EP-04-012).
     """
     name = f"{case_id}{_CREATION_TIME_EMBARGO_SUFFIX}"
-    return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, name)}"
+    return derived_object_id(name)
 
 
 class CreateEmbargoEventNode(DataLayerActionWithPorts):

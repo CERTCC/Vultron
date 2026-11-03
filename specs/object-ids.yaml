@@ -62,8 +62,12 @@ groups:
       How a deployment sets the base of the IDs it mints is an operating choice of
       this codebase; a peer sees only the resulting IDs. Only this codebase must obey
       it, so it is `project` (ADR-0134).
-    verification: A unit test confirms that the ID helper reads the base URI from `VULTRON_BASE_URL` (or its configured
-      equivalent) rather than a hardcoded value.
+    verification: >-
+      `test_env_override_base_url` in `test/test_config.py` confirms that the base URI
+      comes from `VULTRON_SERVER__BASE_URL` rather than a hardcoded value, and
+      `TestCanonicalActorUri::test_falls_back_to_configured_base_url` in
+      `test/adapters/driven/test_actor_hosts.py` confirms that a hosted actor's id is
+      built on the configured base.
     stories:
     - story_2022_029
     adr:
@@ -71,18 +75,23 @@ groups:
   - id: OID-01-004
     priority: MUST
     kind: project
-    verification_debt: '#2575'
     statement: >-
       This codebase MUST mint every new object ID through one helper that the core and
       wire layers share.
     rationale: >-
       If each layer built IDs its own way, objects could get IDs in different forms
       (bare UUID, `urn:uuid:`, base-URL HTTPS), and lookups by full URI would miss some
-      of them (OID-02-004). One helper keeps every minted ID in one form, the configured
-      one (OID-01-003). The wire layer may import `vultron/core/models` (ARCH-22-001),
-      so a helper there can serve both layers.
+      of them (OID-02-004). One helper keeps every minted ID in one form. The wire layer
+      may import `vultron/core/models` (ARCH-22-001), so a helper there can serve both
+      layers.
     adr:
     - ADR-0010
+    verification: >-
+      `test/architecture/test_single_object_id_minter.py` confirms that the core and
+      wire `id_` default factories are both
+      `vultron.core.models._helpers.new_object_id`, and that no other module under
+      `vultron/` names `uuid1` or `uuid4`, called or not, except the listed non-id
+      uses.
   - id: OID-01-005
     priority: MUST
     kind: project

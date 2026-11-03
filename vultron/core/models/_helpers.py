@@ -42,6 +42,31 @@ from pydantic.fields import FieldInfo
 _datetime_type = datetime
 
 
+URN_UUID_PREFIX = "urn:uuid:"
+"""The scheme and namespace every default minted object id starts with."""
+
+
+def new_object_id(prefix: str | None = None) -> str:
+    """Return a new, unique, full-URI object id: the one id minter (OID-01-004).
+
+    Core models use it as their ``id_`` default factory, and the wire layer's
+    ``generate_new_id`` is the same function, so every minted id has one form
+    whichever layer mints it.  By default the id is ``urn:uuid:`` followed by
+    a fresh version-4 UUID, a valid AS2 identifier that needs no server
+    configuration (OID-01-001).  When *prefix* is given the UUID is appended
+    to it after a ``/``, which yields HTTPS-style ids such as
+    ``https://example.org/reports/{uuid}``; the caller owns *prefix*, which
+    must itself be a full URI for the result to be one.
+
+    An id *derived* from what an activity answers is not minted; it comes from
+    :func:`vultron.core.models.activity_ids.derived_activity_id`.
+    """
+    minted = str(uuid.uuid4())
+    if prefix is None:
+        return f"{URN_UUID_PREFIX}{minted}"
+    return f"{prefix}/{minted}"
+
+
 def now_utc() -> datetime:
     """Return the current UTC instant, microseconds kept (CS-13-007)."""
     return datetime.now(UTC)
@@ -531,10 +556,6 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
         remap.get(key, key): value for key, value in collapsed.items()
     }
     return absent_times_as_none(cls, projected)
-
-
-def _new_urn() -> str:
-    return f"urn:uuid:{uuid.uuid4()}"
 
 
 def _as_id(obj: Any) -> str | None:

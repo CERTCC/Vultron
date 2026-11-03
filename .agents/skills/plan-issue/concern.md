@@ -18,6 +18,13 @@ noticed [X] nearby that could be recharacterized as [narrower/different
 concern]." Offer: (a) close as resolved, (b) recharacterize and continue,
 (c) override and proceed anyway. Confirm before abandoning work.
 
+**Single-decision path** — If the research shows the concern comes down to
+one decision with a clear recommended answer (which of two behaviors, which
+conflicting statement wins), skip the conversation: open the brief with that
+one question and your recommendation, per `asking-the-user.md`. On the
+answer, go straight to Confirm conclusions with the plan it implies. Use the
+full conversation only when the answer opens further questions.
+
 **Conversation** — Walk through the concern bottom-up. Ask clarifying
 questions as understanding builds. The following topics should emerge
 naturally from the discussion — do not ask them as sequential structured
