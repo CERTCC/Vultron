@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-"""Idempotently store a received domain object (CLP-10-019, CS-22-001).
+"""Idempotently store a received domain object (CLP-10-039, CS-22-001).
 
 The one implementation of "store what arrived unless it is already held".  It
 lives in ``services/`` because both the receive-side store node

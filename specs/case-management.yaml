@@ -3796,7 +3796,7 @@ groups:
       The EM state tells the invitee whether a revision of the embargo is open. In EM
       `REVISE`, the invitee learns from it that a proposal is pending, which it
       receives after it joins (EP-09-011). The `caseStatus` is a `CaseStatus`, so it
-      also carries the `published` time every status carries (CLP-15-008).
+      also carries the `published` time every status carries (CLP-15-010).
     verification: >-
       `test_active_embargo_enriches_case_stub` and
       `test_revise_stub_carries_the_embargo_in_force` in
@@ -5494,7 +5494,7 @@ groups:
       in progress. A Reject that adds no ledger entry never closes that transfer. The
       offerer does not receive the Reject (CM-21-010), so it never learns of the
       decline. A participant's `Reject` is a case event, as its `Accept` is. It is
-      ledgered for the same reason (CLP-02-012).
+      ledgered for the same reason (CLP-02-016).
     verification: >-
       A test marked `CM-21-012` confirms that
       `RejectCaseOwnershipTransferReceivedUseCase` reaches a canonical commit for the
@@ -9277,7 +9277,7 @@ groups:
       The status timestamps are the only record of when each status was made, so
       recency is read from them and from nothing else. `updated` comes first because
       it records the latest change to a status. A receiver refuses a status with no
-      `published` (CLP-15-008), so every status has a time.
+      `published` (CLP-15-010), so every status has a time.
     verification: >-
       `test_status_recency_key_prefers_updated_over_published` and
       `test_status_recency_key_falls_back_to_published` in
@@ -11741,7 +11741,7 @@ groups:
       commit a `CaseLedgerEntry` for it (`accept_case_participant_role` or
       `reject_case_participant_role`).
     rationale: >-
-      A participant's answer to an Offer is a case event (CLP-02-012), so it is ledgered
+      A participant's answer to an Offer is a case event (CLP-02-016), so it is ledgered
       as all other case events are.
     verification: >-
       A test marked `CM-33-006` delivers the target's Accept of a recorded role Offer

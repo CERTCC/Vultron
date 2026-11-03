@@ -389,7 +389,7 @@ class TestSweepScope:
         self, monkeypatch, caplog
     ):
         """A refused commit writes no row; the sweep still succeeds, so the
-        tree it runs in continues (CLP-10-025)."""
+        tree it runs in continues (CLP-10-059)."""
         dl, _embargo = _store(other_deadline=_PAST)
         original = _sweep_module.create_commit_and_record_expiry_tree
 

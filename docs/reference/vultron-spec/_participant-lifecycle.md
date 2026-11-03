@@ -64,7 +64,7 @@ It carries exactly these fields:
 - `caseId`: the identifier of the case the stub stands for.
 - `activeEmbargo` and `caseStatus`: present whenever an embargo is in force, that is, while the embargo state is `ACTIVE` or `REVISE`.
   They state the embargo terms the invitee would agree to by accepting: the embargo in force and the case's embargo state.
-  The `caseStatus` also carries its `published` time, as every case status does, and a receiver refuses one without it ([CLP-15-008](requirements/ledger-replication.md#clp-15-008)).
+  The `caseStatus` also carries its `published` time, as every case status does, and a receiver refuses one without it ([CLP-15-010](requirements/ledger-replication.md#clp-15-010)).
   During a revision the stub carries the embargo in force, never the open revision, which the invitee receives after joining.
   The stub may carry the embargo inline or name it by an identifier the invitee can ask the inviter to resolve.
   The reference implementation always carries the full embargo inline, because it does not build that lookup.

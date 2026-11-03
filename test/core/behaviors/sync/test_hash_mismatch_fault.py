@@ -189,7 +189,7 @@ def test_a_hash_refusal_queues_a_fault_to_the_case_manager_only(
     ), caplog.text
 
 
-@pytest.mark.spec("SYNC-03-007")
+@pytest.mark.spec("SYNC-03-013")
 @pytest.mark.spec("ID-04-004")
 def test_a_redelivered_tampered_entry_builds_no_second_fault() -> None:
     """The same refused ``Announce`` names the same fault (ID-04-004)."""
@@ -298,7 +298,7 @@ def _replication_state(dl: SqliteDataLayer) -> VultronReplicationState:
     return state
 
 
-@pytest.mark.spec("SYNC-03-008")
+@pytest.mark.spec("SYNC-03-014")
 @pytest.mark.spec("HP-01-006")
 @pytest.mark.spec("CM-10-004")
 def test_hash_mismatch_fault_from_a_non_participant_is_refused() -> None:
@@ -361,6 +361,8 @@ def _drop_own_copy(dl: SqliteDataLayer, entry: CaseLedgerEntry) -> None:
     assert dl.delete("CaseLedgerEntry", entry.id_)
 
 
+@pytest.mark.spec("SYNC-03-016")
+@pytest.mark.spec("SYNC-03-015")
 @pytest.mark.spec("SYNC-03-010")
 @pytest.mark.parametrize(
     ("damage", "expected", "says"),

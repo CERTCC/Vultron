@@ -78,7 +78,7 @@ class SvcSyncLogEntryUseCase(SvcBTTriggerBase[SyncLogEntryResult]):
             _find_case_actor_id(self._dl, self._case_id) or requester.id_
         )
         # Only the store holding the canonical log mints in it, and a tree
-        # never runs as an actor this container does not host (CLP-10-014,
+        # never runs as an actor this container does not host (CLP-10-035,
         # BT-05-005, ADR-0109): refuse before any tree runs.
         if not hosts_actor(self._dl, self._actor_id):
             raise VultronCanonicalEntryError(
@@ -120,7 +120,7 @@ class SvcSyncLogEntryUseCase(SvcBTTriggerBase[SyncLogEntryResult]):
             # The tree reported SUCCESS without a commit this lookup finds.
             # The node matches the activity it committed, so this is a node
             # fault: an unhosted CASE_MANAGER was refused in ``_prepare`` and
-            # the ledger-store guard raises rather than declining (CLP-10-014).
+            # the ledger-store guard raises rather than declining (CLP-10-035).
             # Raising here means the router queues no flush, so the fan-out
             # would wait in the CASE_MANAGER's outbox for its next drain.
             raise VultronCanonicalEntryError(

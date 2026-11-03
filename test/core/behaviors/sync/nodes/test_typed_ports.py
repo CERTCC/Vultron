@@ -60,7 +60,7 @@ LEDGER_CASE_ID = "https://example.org/cases/case-ledger"
 #: The ledger-entry handoff key, with the physical blackboard key its
 #: logical port is remapped to (static, not execution-scoped).  The replay
 #: hands off the case id instead (``replay_case_id``): the Reject that names
-#: no entry has none to hand off (SYNC-16-007).
+#: no entry has none to hand off (SYNC-16-027).
 LEDGER_PORTS: dict[str, str] = {
     "log_entry": "/log_entry",
 }

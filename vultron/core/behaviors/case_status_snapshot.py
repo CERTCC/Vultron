@@ -25,7 +25,7 @@ importing from it would close an import cycle (CS-05-003).
 
 :func:`promote_pxa` is the SM-09-003 persistence-boundary promotion this node
 applies.  :func:`adopted_pxa` is the case ``pxa`` after a participant's
-adopted report, the union of the two sets of latches (RSH-01-003).
+adopted report, the union of the two sets of latches (RSH-01-005).
 :func:`last_committed_case_status` is the status the node measures a change
 against: a snapshot that changes neither EM nor PXA is not committed
 (CLP-07-013, ADR-0152).

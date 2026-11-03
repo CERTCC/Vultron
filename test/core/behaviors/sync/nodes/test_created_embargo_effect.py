@@ -14,7 +14,7 @@
 """The replica slot for the ``create_embargo_event`` entry (#5122).
 
 The CASE_MANAGER commits one right after a case's genesis entry for each
-embargo the creation wrote, carrying it in full (CLP-07-013, VAM-05-016).
+embargo the creation wrote, carrying it in full (CLP-07-021, VAM-05-016).
 The replica stores the embargo and moves nothing else (CM-23-016).
 """
 

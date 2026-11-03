@@ -113,10 +113,10 @@ def _refuse_missing_claimed_time(
 ) -> None:
     """Re-raise a nested object's missing ``published`` as that refusal.
 
-    A ``CaseStatus`` must carry its sender's time at any depth (CLP-15-008),
+    A ``CaseStatus`` must carry its sender's time at any depth (CLP-15-010),
     and its own validator says so with :class:`MissingClaimedTimeError`.
     Pydantic buries that cause in a ``ValidationError``; finding it here lets
-    the sender read the same refusal CLP-15-006 gives a top-level activity,
+    the sender read the same refusal CLP-15-008 gives a top-level activity,
     with the position of every untimed object.  Any other fault in the same
     error is named too, so the sender learns of every violation at once
     (EH-07-001).  Returns when *exc* holds no such cause, leaving the caller's
@@ -216,7 +216,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         VultronParseMissingTypeError: If the `type` field is absent or blank.
         VultronParseMissingPublishedError: If the `published` field is absent
             or blank, or a ``CaseStatus`` anywhere in the activity carries none
-            (CLP-15-008).
+            (CLP-15-010).
         VultronParseUnknownTypeError: If the `type` value is not in the vocabulary.
         VultronParseValidationError: If Pydantic validation fails, including
             when a recognised inline object fails its own class's validation,
@@ -327,7 +327,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     except Exception as exc:
         _refuse_missing_claimed_time(exc, "", _named(body))
         # Named, so a refusal of a field such as ``ledgerPosition`` says which
-        # activity it refused (SYNC-18-003).
+        # activity it refused (SYNC-18-015).
         raise VultronParseValidationError(f"{_named(body)}{exc}") from exc
 
     # A schema-valid envelope can still be one this receiver cannot act on;

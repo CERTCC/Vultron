@@ -462,7 +462,7 @@ DIFFERENT_ACTOR = "https://example.org/actors/impostor"
 CASE_ID_CLP = "https://example.org/cases/case-007"
 
 
-@pytest.mark.spec("CLP-07-003")
+@pytest.mark.spec("CLP-07-017")
 def test_actor_identity_mismatch_returns_failure(bridge):
     """CLP-07-003: CommitCaseLedgerEntryNode raises VultronCanonicalEntryError
     when payloadSnapshot.actor does not match activity.actor_id; the bridge
@@ -544,10 +544,10 @@ def _note_payload(actor: str, note_id: str) -> dict:
     }
 
 
-@pytest.mark.spec("CLP-07-003")
 @pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CLP-07-017")
 def test_slash_spelled_snapshot_actor_commits(bridge):
-    """CLP-07-003: the snapshot keeps the sender's trailing slash while the
+    """CLP-07-017: the snapshot keeps the sender's trailing slash while the
     event's ``actor_id`` is normalised; the two name one actor, so the entry
     commits (``same_actor_id``)."""
     activity = _received(
@@ -570,9 +570,9 @@ def test_slash_spelled_snapshot_actor_commits(bridge):
     mock_factory.assert_called_once()
 
 
-@pytest.mark.spec("CLP-07-003")
+@pytest.mark.spec("CLP-07-017")
 def test_slash_spelled_different_actor_still_refused(bridge):
-    """CLP-07-003: the trailing-slash tolerance does not admit a different
+    """CLP-07-017: the trailing-slash tolerance does not admit a different
     actor — a slash-spelled impostor in the snapshot is still refused."""
     activity = _received(
         _note_payload(DIFFERENT_ACTOR + "/", "https://example.org/notes/n4"),
@@ -589,8 +589,8 @@ def test_slash_spelled_different_actor_still_refused(bridge):
     mock_factory.assert_not_called()
 
 
-@pytest.mark.spec("CLP-07-003")
 @pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CLP-07-017")
 def test_inline_slash_spelled_snapshot_actor_passes_the_identity_check(
     bridge,
 ):
@@ -619,8 +619,8 @@ def test_inline_slash_spelled_snapshot_actor_passes_the_identity_check(
     mock_factory.assert_called_once()
 
 
-@pytest.mark.spec("CLP-07-003")
 @pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CLP-07-017")
 def test_snapshot_actor_naming_no_id_is_refused(bridge):
     """A snapshot actor that names no id cannot be shown to be the sender,
     so the entry is refused rather than compared as text."""

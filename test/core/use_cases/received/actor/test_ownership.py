@@ -1987,8 +1987,8 @@ class TestRejectOfOwnershipTransfer:
     """CM-21-012 – CM-21-014: the ownership-transfer Reject at the CASE_MANAGER."""
 
     @pytest.mark.spec("CM-21-012")
-    @pytest.mark.spec("CLP-02-012")
     @pytest.mark.spec("CM-21-032")
+    @pytest.mark.spec("CLP-02-016")
     def test_transferee_reject_is_ledgered_and_broadcast(self, make_payload):
         """The decline commits an entry and announces it; ownership stays."""
         case_id = "https://example.org/cases/case_ot_reject"
@@ -2533,7 +2533,7 @@ class TestWithdrawalOfOwnershipTransfer:
         assert _semantic_types(dl) == entries_before
         # A refusal by a precondition guard (the Offer is already closed) is
         # answered with one refusal notice to the offerer; a refusal by the
-        # sender guard (no CASE_OWNER standing) gets none (CLP-05-001,
+        # sender guard (no CASE_OWNER standing) gets none (CLP-05-006,
         # ADR-0141).  Nothing else is queued.
         queued = [
             dl.read(i) for i in dl.outbox_list() if i not in outbox_before

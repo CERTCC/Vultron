@@ -69,7 +69,7 @@ class _CommitCaseManagerNoteBase(
 
     A state writer: the attach changes the case's ``notes``.  Its own entry
     records that change, so the factory admits it as a refusal effect, the
-    one state writer it does (CLP-10-022).
+    one state writer it does (CLP-10-048).
 
     ``_BEST_EFFORT`` marks a note the protocol asks for at SHOULD level
     (RSH-06-004, CSB-18): a missing trigger-activity port or a commit the

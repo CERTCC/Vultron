@@ -222,7 +222,7 @@ def create_receive_activity_tree(
     among ``precondition_guards`` becomes a
     :class:`~vultron.core.behaviors.case.nodes.diversion_stage.DiversionStage`
     at its place: when its read-only condition holds, its effects answer the
-    delivery and the tree stops before the commit (CLP-10-026).  A
+    delivery and the tree stops before the commit (CLP-10-063).  A
     ``CASE_MANAGER`` diversion runs only at the case's CASE_MANAGER, inside
     the gate on ``case_id`` (else ``manager_case_id``), and may commit its own
     entry; a ``RECEIVER`` diversion writes no case state and its emits need a
@@ -438,7 +438,7 @@ def create_receive_activity_tree(
             gate argument is passed without ``manager_effects``, an exemption
             is unregistered, an emit-capable node sits in ``replica_effects``
             without one (BT-17-008), or a refusal effect is not emit-capable or
-            holds a state writer (CLP-10-022), or a
+            holds a state writer (CLP-10-048), or a
             ``refusal_notice_exemption`` is unregistered or exempts a tree
             that would send no notice (CLP-02-005), or an exempt tree passes a
             ``post_close_reply`` (CM-23-040), or the sender arguments are
@@ -454,7 +454,7 @@ def create_receive_activity_tree(
             case, come without a ``sender_rule`` or with a
             ``post_close_exemption``, or hold the received activity's commit
             (CLP-10-025), or a ``one_act_exemption`` is unregistered or
-            exempts a tree that commits to no case (CLP-07-016), or a
+            exempts a tree that commits to no case (CLP-07-024), or a
             ``ledger_position_exemption`` is unregistered (SYNC-18-007).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-02-005, CLP-05-001,

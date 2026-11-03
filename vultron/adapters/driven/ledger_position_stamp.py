@@ -53,7 +53,7 @@ def with_sender_ledger_position(
     ledger *dl* holds (:func:`first_case_with_ledger`).  *activity* is returned
     unchanged when it is no activity, already states a position, has an
     object that states its own, or names no case *dl* holds: its sender
-    holds no ledger to state yet (SYNC-18-001).
+    holds no ledger to state yet (SYNC-18-017).
     """
     if not isinstance(activity, as_Activity):
         return activity

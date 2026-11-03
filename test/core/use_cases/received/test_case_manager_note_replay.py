@@ -139,6 +139,7 @@ def _assert_note_reaches(
 
 
 @pytest.mark.spec("RSH-06-004", "RSH-06-005", "SYNC-02-002", "CLP-10-001")
+@pytest.mark.spec("RSH-06-007")
 def test_rm_gap_note_reaches_the_declaring_participants_replica():
     """Join(VulnerabilityCase) from RECEIVED, an accepted non-adjacent RM jump: the
     clarification note replicates."""
@@ -159,6 +160,7 @@ def test_rm_gap_note_reaches_the_declaring_participants_replica():
 
 
 @pytest.mark.spec("RSH-06-004", "CLP-10-022", "SYNC-02-002")
+@pytest.mark.spec("RSH-06-007")
 def test_rm_regression_note_reaches_the_declaring_participants_replica():
     """A wholly refused RM regression: the note still replicates, the
     declaration does not (CLP-10-022)."""

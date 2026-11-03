@@ -16,7 +16,7 @@
 """Every guard whose failure the handler reports ``SKIPPED`` says so.
 
 The refusal stage sends no refusal effect for a guard's failure that is an
-idempotent repeat (CLP-10-022, CLP-05-001).  It reads that from the guard
+idempotent repeat (CLP-10-042, CLP-05-006).  It reads that from the guard
 through :class:`~vultron.core.behaviors.idempotency.ReportsIdempotentRepeat`,
 so each guard the handlers read as a repeat must implement it, and report a
 repeat only when it failed as one.
@@ -140,7 +140,7 @@ def test_every_guard_that_flags_a_repeat_reports_it():
 
     A guard that sets a repeat flag but does not implement
     ``ReportsIdempotentRepeat`` would have its repeat answered with a refusal
-    notice, contradicting the effect already in place (CLP-05-001).
+    notice, contradicting the effect already in place (CLP-05-006).
     """
     classes = _behavior_classes()
     flagged = [

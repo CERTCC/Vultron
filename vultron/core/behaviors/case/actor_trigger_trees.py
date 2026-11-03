@@ -94,7 +94,7 @@ def accept_case_invite_trigger_bt(
     Emits Accept(Invite) from the invitee's identity; the factory derives
     the recipient from the persisted invite object.  Once the Accept is
     queued, the trust anchor that Invite set is fixed, so a later Invite
-    naming another CaseActor can no longer replace it (PCR-03-004).
+    naming another CaseActor can no longer replace it (PCR-03-010).
 
     Args:
         invite_id: ID of the RmInviteToCaseActivity being accepted.

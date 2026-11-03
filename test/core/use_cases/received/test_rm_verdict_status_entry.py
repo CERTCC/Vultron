@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 
-"""An RM verdict's status follows the act as its own entry (#4295, CLP-07-013).
+"""An RM verdict's status follows the act as its own entry (#4295, CLP-07-021).
 
 The CASE_MANAGER commits the verdict (``invalidate_report`` here; every
 activity-typed RM move shares the stage, ``record_rm_declaration``), writes

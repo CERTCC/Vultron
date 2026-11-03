@@ -162,7 +162,7 @@ def test_an_active_participants_fault_is_answered_with_the_case() -> None:
 
 @pytest.mark.spec("SYNC-16-003")
 @pytest.mark.spec("SYNC-16-006")
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-007", "SYNC-16-023")
 def test_a_reseeded_replica_converges_to_the_case_managers_case() -> None:
     """The copy replaces the diverged case and drains the held entry.
 
@@ -186,7 +186,8 @@ def test_a_reseeded_replica_converges_to_the_case_managers_case() -> None:
     assert net.deliver(BYSTANDER, to=MANAGER, type_="Create") == []
 
 
-@pytest.mark.spec("SYNC-16-003")
+@pytest.mark.spec("SYNC-16-011")
+@pytest.mark.spec("SYNC-16-010")
 @pytest.mark.spec("HP-01-006")
 @pytest.mark.parametrize(
     "who",
@@ -231,6 +232,7 @@ def test_a_fault_naming_no_announce_this_actor_sent_is_refused() -> None:
     assert _seeds(net) == []
 
 
+@pytest.mark.spec("SYNC-16-012")
 @pytest.mark.spec("SYNC-16-004")
 def test_reseeds_are_rate_bounded_per_peer_not_suppressed() -> None:
     """A fault inside the cooldown re-seeds nothing; one after it does."""

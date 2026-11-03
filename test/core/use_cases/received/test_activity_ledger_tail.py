@@ -193,7 +193,7 @@ def test_a_case_manager_case_activity_carries_its_ledger_position():
     assert body.get("ledgerPosition") == _wire(_manager_tail(net))
 
 
-@pytest.mark.spec("SYNC-18-001")
+@pytest.mark.spec("SYNC-18-017")
 def test_a_sender_that_holds_no_ledger_for_the_case_states_none():
     LedgerNetwork(CASE_ID)
     stranger = "https://example.org/users/stranger"
@@ -219,7 +219,7 @@ def test_the_stamp_is_the_senders_tail_when_it_built_the_activity():
     assert body.get("ledgerPosition") == _wire(expected)
 
 
-@pytest.mark.spec("SYNC-18-002")
+@pytest.mark.spec("SYNC-18-009")
 def test_a_rebuilt_activity_keeps_the_position_it_was_first_sent_with():
     net = LedgerNetwork(CASE_ID)
     note_id = "https://example.org/notes/tail-2c"
@@ -235,7 +235,7 @@ def test_a_rebuilt_activity_keeps_the_position_it_was_first_sent_with():
     assert again["ledgerPosition"] == first["ledgerPosition"]
 
 
-@pytest.mark.spec("SYNC-18-003")
+@pytest.mark.spec("SYNC-18-015")
 def test_an_unstamped_case_activity_is_refused_and_writes_nothing():
     net = LedgerNetwork(CASE_ID)
     body = _add_note_body("https://example.org/notes/tail-3", net=net)
@@ -249,7 +249,7 @@ def test_an_unstamped_case_activity_is_refused_and_writes_nothing():
     assert _note_entries(net) == []
 
 
-@pytest.mark.spec("SYNC-18-003")
+@pytest.mark.spec("SYNC-18-015")
 def test_a_malformed_ledger_position_is_refused_and_writes_nothing():
     net = LedgerNetwork(CASE_ID)
     body = _add_note_body(
@@ -266,6 +266,7 @@ def test_a_malformed_ledger_position_is_refused_and_writes_nothing():
     assert _note_entries(net) == []
 
 
+@pytest.mark.spec("SYNC-18-010")
 @pytest.mark.spec("SYNC-18-004")
 def test_a_lagging_stamp_is_applied_and_the_lag_logged(caplog):
     net = LedgerNetwork(CASE_ID)
@@ -289,6 +290,9 @@ def test_a_lagging_stamp_is_applied_and_the_lag_logged(caplog):
     )
 
 
+@pytest.mark.spec("SYNC-18-013")
+@pytest.mark.spec("SYNC-18-012")
+@pytest.mark.spec("SYNC-18-011")
 @pytest.mark.spec("SYNC-18-005")
 @pytest.mark.parametrize("past_tail", [False, True], ids=["hash", "index"])
 def test_a_split_stamp_is_applied_logged_and_the_sender_reseeded(
@@ -342,6 +346,7 @@ def test_the_entry_records_the_received_ledger_position():
     assert entry.payload_snapshot["ledgerPosition"] == stamp
 
 
+@pytest.mark.spec("SYNC-18-014")
 @pytest.mark.spec("SYNC-18-007")
 def test_a_lagging_stamp_is_answered_as_a_stated_position():
     net = LedgerNetwork(CASE_ID)

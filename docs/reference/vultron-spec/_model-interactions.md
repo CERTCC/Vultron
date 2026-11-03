@@ -141,7 +141,7 @@ That entry is a `Create(EmbargoConsent)` for a new row or an `Update(EmbargoCons
 A replica copies those rows and never decides a carry-over, an expiry or a lapse itself.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CLP-07-013", "CM-23-016", "CM-23-044"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CLP-07-013", "CLP-07-021", "CM-23-016", "CM-23-044"))
 ```
 
 ### 11.3 Status Adoption: One Authorization Gate
@@ -179,7 +179,7 @@ The CASE_MANAGER accepts a reported status as sent or refuses all of it, and the
 A valid `vfd` update is refused with an `rm` value in the same report that cannot be accepted, and the sender corrects and resends the status.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-09-001", "RSH-09-002"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-09-001", "RSH-09-010", "RSH-09-002", "RSH-09-011"))
 ```
 
 On adoption, the CASE_MANAGER commits the adopted status as its own `Add(CaseStatus)` case ledger entry, setting every public-state flag the report sets and clearing none.
@@ -187,7 +187,7 @@ It writes the entry directly, never by sending an `Add(CaseStatus)` to itself, a
 Recording the claim executes no side-effect: side-effects follow the canonical write.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-01-003", "RSH-04-004", "RSH-04-005"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-01-003", "RSH-01-005", "RSH-04-004", "RSH-04-008", "RSH-04-009", "RSH-04-005", "RSH-04-012"))
 ```
 
 !!! warning "The default is Case Owner authorization, not automatic adoption"

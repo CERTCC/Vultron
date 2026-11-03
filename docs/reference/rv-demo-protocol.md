@@ -413,8 +413,8 @@ No participant replica is checked for every closure: a closed participant is sen
 The Case Actor commits the entries below, in this order.
 Each entry's `semanticType` names the protocol act; the actor column names the participant on whose behalf it was recorded.
 The exact count of entries in the initialization block depends on how many participant records and statuses the acceptance cascade writes, so the table shows the shape of one run rather than an invariant.
-Each act that moves a participant's RM state is followed by the status the Case Actor wrote for it, which every replica copies ([CLP-07-013](vultron-spec/requirements/ledger-replication.md#clp-07-013)).
-A case status follows a participant status only when it changes the case's EM or PXA: one that would repeat the case status before it is not committed ([RSH-04-004](vultron-spec/requirements/message-processing.md#rsh-04-004)).
+Each act that moves a participant's RM state is followed by the status the Case Actor wrote for it, which every replica copies ([CLP-07-021](vultron-spec/requirements/ledger-replication.md#clp-07-021)).
+A case status follows a participant status only when it changes the case's EM or PXA: one that would repeat the case status before it is not committed ([RSH-04-009](vultron-spec/requirements/message-processing.md#rsh-04-009)).
 
 | Index | `semanticType` | Recorded for | Phase |
 |------:|:------------|:-------------|:------|

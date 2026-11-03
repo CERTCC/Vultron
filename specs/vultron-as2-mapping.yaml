@@ -855,7 +855,7 @@ groups:
       empty ledger is `logIndex` -1 with the case's `genesisHash` as `entryHash`
       (CLP-08-004). A receiver MUST refuse an Invite whose `ledgerPosition` is missing
       or does not parse as a ledger position, naming the activity and writing nothing
-      (SYNC-18-003).
+      (SYNC-18-015).
     rationale: >-
       The participant already holds the case from the replica, so the Invite references
       it by ID. Because the stub is its own type (VAM-04-004, CM-11-013), this shape and

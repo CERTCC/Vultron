@@ -131,7 +131,7 @@ The previous owner keeps any other roles it held and stays a participant in the 
 The CASE_MANAGER records the acceptance in the ledger and sends the entry to every participant ([CM-21-007](../../reference/vultron-spec/requirements/case-management.md#cm-21-007), [CM-21-030](../../reference/vultron-spec/requirements/case-management.md#cm-21-030)).
 
 The acceptance entry records what the proposed owner sent, not the changes it causes.
-Each change the CASE_MANAGER makes because of it follows as an entry of its own, in the order the CASE_MANAGER writes them ([CLP-07-013](../../reference/vultron-spec/requirements/ledger-replication.md#clp-07-013)):
+Each change the CASE_MANAGER makes because of it follows as an entry of its own, in the order the CASE_MANAGER writes them ([CLP-07-021](../../reference/vultron-spec/requirements/ledger-replication.md#clp-07-021)):
 
 1. An `update_case_participant` entry carries the previous owner's participant record, without `CASE_OWNER`.
 2. An `update_case_participant` entry carries the new owner's participant record, with `CASE_OWNER`.
@@ -177,7 +177,7 @@ A case has at most one open offer at a time ([CM-21-014](../../reference/vultron
 An offer stays open until the ledger records that it was accepted, declined, or withdrawn, or until its deadline passes.
 While it is open, the CASE_MANAGER refuses a new proposal for the case, and neither records it nor makes an offer from it.
 It answers the refused proposal with a `Reject` of it, the [refusal notice](../../reference/messages/faults_and_acknowledgements.md#refusal-notice).
-The owner reads that notice as the decline of its proposal ([CLP-05-001](../../reference/vultron-spec/requirements/ledger-replication.md#clp-05-001)).
+The owner reads that notice as the decline of its proposal ([CLP-05-009](../../reference/vultron-spec/requirements/ledger-replication.md#clp-05-009)).
 
 Once the offer is closed, the owner may propose the case again to anyone, including a participant that declined, with nothing to clear first.
 A closed offer cannot be answered again: an `Accept` after a `Reject`, or a `Reject` after an `Accept`, is refused.

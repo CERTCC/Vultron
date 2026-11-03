@@ -244,6 +244,7 @@ class TestTimeout:
             CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=future
         )
 
+    @pytest.mark.spec("CLP-06-004")
     def test_a_lookup_marks_an_aged_out_entry_timed_out(self, store_short):
         """SYNC-11-005's mark is applied by the lookup, not by a later sweep."""
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
@@ -337,6 +338,7 @@ class TestTimeout:
         )
         assert store_short._store[_KEY].status == "pending"
 
+    @pytest.mark.spec("CLP-06-008")
     def test_timed_out_entry_logs_error(self, store_short, caplog):
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
         future = now_utc() + timedelta(seconds=61)
@@ -495,10 +497,12 @@ class TestRegistry:
         s2 = get_pending_assertion_store(ACTOR_A)
         assert s1 is not s2
 
+    @pytest.mark.spec("CLP-06-007")
     def test_default_timeout_matches_constant(self):
         s = get_pending_assertion_store(ACTOR_A)
-        assert s.timeout_seconds == DEFAULT_PENDING_ASSERTION_TIMEOUT
+        assert s.timeout_seconds == DEFAULT_PENDING_ASSERTION_TIMEOUT == 180.0
 
+    @pytest.mark.spec("CLP-06-003")
     def test_custom_timeout_applied_on_first_creation(self):
         s = get_pending_assertion_store(ACTOR_A, timeout_seconds=30.0)
         assert s.timeout_seconds == 30.0

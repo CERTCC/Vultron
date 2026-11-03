@@ -278,7 +278,7 @@ class CoreObject(CoreRecord):
     published: datetime | None = Field(default_factory=now_utc)
     updated: datetime | None = Field(default_factory=now_utc)
     #: Set by a subclass whose received ``published`` a decision reads, so
-    #: :meth:`_carry_absent_times_on_inbound` refuses its absence (CLP-15-008).
+    #: :meth:`_carry_absent_times_on_inbound` refuses its absence (CLP-15-010).
     _inbound_requires_published: ClassVar[bool] = False
 
     content: Any | None = None
@@ -455,7 +455,7 @@ class CoreObject(CoreRecord):
         A class whose ``published`` a decision reads sets
         ``_inbound_requires_published``, and a received instance without one
         is refused here with :class:`MissingClaimedTimeError` rather than
-        read as ``None`` (CLP-15-007, CLP-15-008).
+        read as ``None`` (CLP-15-007, CLP-15-010).
         """
         if not isinstance(data, dict):
             return data

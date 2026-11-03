@@ -91,7 +91,7 @@ def clock_decision_stage(
     if case_id is None:
         raise VultronWiringError(
             f"{where}: clock_decisions need a case_id or manager_case_id,"
-            " the case whose CASE_MANAGER takes them (CLP-10-025)"
+            " the case whose CASE_MANAGER takes them (CLP-10-050)"
         )
     if not sender_guarded:
         raise VultronWiringError(
@@ -116,7 +116,7 @@ def clock_decision_stage(
     if activity_commits:
         raise VultronWiringError(
             f"{where}: a clock decision commits only its own entry, never"
-            f" the received activity; found {activity_commits} (CLP-10-025)"
+            f" the received activity; found {activity_commits} (CLP-10-052)"
         )
     return create_clock_decision_gate(case_id, decisions)
 

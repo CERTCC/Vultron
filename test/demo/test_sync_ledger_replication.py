@@ -617,7 +617,7 @@ def _drain_outbox(iso, actor_id: str, dl) -> None:
 
 @pytest.mark.spec("SYNC-16-001")
 @pytest.mark.spec("SYNC-16-003")
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-007", "SYNC-16-023")
 @pytest.mark.parametrize("divergence", ["register_entry", "consent_row"])
 def test_a_diverged_replica_converges_after_the_case_managers_reseed(
     two_app_setup, divergence: str
@@ -633,7 +633,7 @@ def test_a_diverged_replica_converges_after_the_case_managers_reseed(
     case-diverged fault (SYNC-16-001); the CASE_MANAGER answers with
     ``Announce(VulnerabilityCase)`` naming its ledger position (SYNC-16-003);
     the peer replaces its case and stores the held entry as the no-op the
-    copy reflects (SYNC-16-007).  The peer ends with the CASE_MANAGER's case
+    copy reflects (SYNC-16-023).  The peer ends with the CASE_MANAGER's case
     file and chain tail, and neither ledger records the fault (SYNC-16-002).
     """
     from test.support.embargo_register import propose, write_consent_rows

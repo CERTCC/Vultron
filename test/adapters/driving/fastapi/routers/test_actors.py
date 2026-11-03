@@ -161,7 +161,7 @@ def test_post_non_activity_to_actor_inbox_returns_422(
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
-@pytest.mark.spec("CLP-15-008")
+@pytest.mark.spec("CLP-15-010")
 def test_post_untimed_case_status_to_actor_inbox_returns_422(
     client_actors, created_actors
 ):
@@ -183,7 +183,7 @@ def test_post_untimed_case_status_to_actor_inbox_returns_422(
     }
     resp = client_actors.post(_inbox_path(actor.id_), json=payload)
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
-    assert "CLP-15-008" in resp.text
+    assert "CLP-15-010" in resp.text
 
 
 def _inbox_path(actor_id: str) -> str:

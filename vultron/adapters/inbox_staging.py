@@ -4,7 +4,7 @@
 The receiver keeps no copy of a received activity under the id its sender
 chose (DL-06-006), and no record of an object the activity carries inline: a
 case, note or embargo a sender inlines is a claim, and only the handler, after
-its guards, writes the core record it gives rise to (CLP-10-017, CLP-10-019;
+its guards, writes the core record it gives rise to (CLP-10-038, CLP-10-039;
 ADR-0111 as amended).  Writing them at receipt let a sender seed a case
 replica ahead of the trust check that should refuse it (PCR-03-004,
 CBT-01-011), and let a received ``Create`` read as one the receiver sent

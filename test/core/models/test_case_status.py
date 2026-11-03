@@ -1,4 +1,4 @@
-"""Tests for the core ``CaseStatus`` time requirement (CM-29-001, CLP-15-008)."""
+"""Tests for the core ``CaseStatus`` time requirement (CM-29-001, CLP-15-010)."""
 
 from datetime import UTC, datetime
 
@@ -42,7 +42,7 @@ def test_case_status_published_cannot_be_cleared_by_assignment():
         status.published = None  # type: ignore[assignment]
 
 
-@pytest.mark.spec("CLP-15-008")
+@pytest.mark.spec("CLP-15-010")
 @pytest.mark.parametrize("published", [None, *BLANKS])
 def test_inbound_case_status_without_published_is_refused(
     published: str | None,
@@ -59,7 +59,7 @@ def test_inbound_case_status_without_published_is_refused(
     assert isinstance(_cause(caught.value), MissingClaimedTimeError)
 
 
-@pytest.mark.spec("CLP-15-008")
+@pytest.mark.spec("CLP-15-010")
 def test_inbound_case_status_with_explicit_null_published_is_refused():
     with pytest.raises(ValidationError) as caught:
         CaseStatus.model_validate(

@@ -505,12 +505,12 @@ def test_replay_that_is_wholly_pending_queues_nothing_and_records_no_position(
     )
 
 
-@pytest.mark.spec("CLP-08-005")
 @pytest.mark.parametrize(
     "from_hash",
     [_GENESIS_HASH, "f" * 64],
     ids=["genesis-hash", "unrecognized-hash"],
 )
+@pytest.mark.spec("CLP-08-008")
 def test_a_position_that_names_no_entry_replays_from_the_start(
     bridge, from_hash
 ):

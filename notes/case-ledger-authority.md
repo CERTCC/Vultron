@@ -122,7 +122,7 @@ completed closure) gets no entry, only the case-file change it causes.
 **The field is `semantic_type`, wire key `semanticType` (CLP-02-014).** The
 glossary names "event type" as a term to avoid for it. The hash chain hashes
 the field under its own name, as `object_id` already is. An entry still
-carrying the retired `eventType` key is refused, never aliased (CLP-02-015): a
+carrying the retired `eventType` key is refused, never aliased (CLP-02-019): a
 stored row means the store must be reset, a received one that its sender is out of date
 (`notes/datalayer-design.md`).
 
@@ -237,7 +237,7 @@ never closes (#3748).
 **Whether an activity is ledgered is not decided per handler.** Every admitted
 case event is ledgered (CLP-02-001). CLP-02-013 closes the list of activities
 that are not case events, and `test/architecture/test_ledger_commit_coverage.py`
-(CLP-09-003) fails any routed use case that reaches no commit without one of
+(CLP-09-005, CLP-09-006) fails any routed use case that reaches no commit without one of
 those grounds or an open tracking issue. Read that list instead of opening a
 design question. A handler only a participant runs, receiving what the
 CASE_MANAGER sent, has nothing to commit there: the entry, if the activity is a
@@ -254,7 +254,7 @@ and logs an error but never auto-retries; a matching canonical entry clears it.
 
 The ledger is a protocol ledger, not a process log (ADR-0019). Each act's entry
 has the verbatim asserted AS2 activity (or a deterministic normalization) as its
-`payloadSnapshot`, followed by its consequence entries (CLP-07-013).
+`payloadSnapshot`, followed by its consequence entries (CLP-07-021).
 
 **Belongs:** `Offer(VulnerabilityReport)`, `Add(Note)`, `Add(ParticipantStatus)`,
 `Offer`/`Accept`/`Reject(EmbargoEvent)`, the stub and full-case `Invite`s with
@@ -331,8 +331,8 @@ CLP-15, ADR-0079). Pick the wrong one and a check is vacuous or falsely refuses.
   conformance harness (`check_clp14_timestamp_invariants`) sees a whole ledger,
   so they belong there; an entry never sees its predecessor, so the model layer
   cannot enforce them.
-- Claimed-time invariants (CLP-14-006/007/008, CLP-15-003) cannot hold by
-  construction, so they belong in `_validate_entry_timestamps` at the commit
+- Claimed-time invariants (CLP-14-007, CLP-14-008, CLP-14-013, CLP-15-003) cannot
+  hold by construction, so they belong in `_validate_entry_timestamps` at the commit
   boundary.
 
 Rules:
@@ -352,12 +352,12 @@ Rules:
    snapshot under the other party's URI (ADR-0140). Do not copy the CASE_MANAGER's
    clock to any other entry a participant's own entries can follow.
 4. **A missing or blank top-level inbound `published` is refused at parse**
-   (CLP-15-006, MV-03-002): the wire default would otherwise pose the
+   (CLP-15-008, MV-03-002): the wire default would otherwise pose the
    receiver's clock as the sender's claim. A present, non-blank but unreadable
    value stays a schema fault. Nested objects may omit `published` and are
    taken as received (ADR-0103); refuse only where a decision needs the time
    (CLP-08-002, CLP-14-002, CLP-02-008), as for a `CaseStatus` at any depth,
-   whose time orders the case's status history (CLP-15-008). Rebuild core
+   whose time orders the case's status history (CLP-15-010). Rebuild core
    objects from a snapshot through `project_wire_snapshot_to_core`, never
    `Model.model_validate(snapshot)`,
    or the `default_factory` stamps the replica's clock.

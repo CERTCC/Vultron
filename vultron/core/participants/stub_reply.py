@@ -59,7 +59,7 @@ def parse_published(value: object) -> datetime:
     """The ``published`` a reply carries, as a UTC datetime.
 
     Raises ``ValueError`` when it is absent or unreadable: a time the reply does
-    not carry is never replaced by the local clock (CLP-15-006).
+    not carry is never replaced by the local clock (CLP-15-008).
     """
     stamp: datetime | None = None
     if isinstance(value, datetime):

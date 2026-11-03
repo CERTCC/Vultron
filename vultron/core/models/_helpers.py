@@ -252,7 +252,7 @@ def status_recency_key(
 
     The key is normalised to timezone-aware UTC.  ``published`` is required:
     every ``CaseStatus`` carries one, and a received status without it is
-    refused at message validation (CM-29-001, CLP-15-008), so there is no
+    refused at message validation (CM-29-001, CLP-15-010), so there is no
     untimed status to place.  ``id_`` is never part of the key (CM-29-002).
     """
     return as_utc(updated if updated is not None else published)
@@ -299,7 +299,7 @@ class MissingClaimedTimeError(ValueError):
     :class:`ValueError` subclass: pydantic converts only ``ValueError`` and
     ``AssertionError`` into a ``ValidationError``.  The parser finds this cause
     in the error list and refuses the activity as missing a ``published``,
-    naming where the object sat (CLP-15-008).
+    naming where the object sat (CLP-15-010).
     """
 
 
@@ -319,7 +319,7 @@ def refuse_absent_published(
             f"{cls.__name__} carries no 'published'; a received"
             f" {cls.__name__} must carry the time its sender claims it was"
             " made, and the receiver does not supply its own clock"
-            " (CM-29-001, CLP-15-008)"
+            " (CM-29-001, CLP-15-010)"
         )
 
 

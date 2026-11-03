@@ -300,7 +300,7 @@ class _OfferCaseOwnershipTransferActivity(as_Offer):
     whichever actor knows it, and neither the offerer nor the CASE_MANAGER is
     obliged to hold it. Dehydrated to its id, the stored Offer had nothing to
     read the transferee back from, and the CASE_MANAGER's ledger commit then
-    refused the bare ``target`` (CLP-07-006, #4843).
+    refused the bare ``target`` (CLP-07-018, #4843).
     :func:`~vultron.wire.as2.factories.offer_case_ownership_transfer_activity`
     carries a transferee known only by id as an actor reference, so it
     travels inline (AKM-05-017).

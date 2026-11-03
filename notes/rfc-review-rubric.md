@@ -147,7 +147,7 @@ Cross-check against codebase enums, `notes/case-ledger-authority.md`,
   deployed." These are distinct protocol facts (Fix Ready ≠ Fix Deployed).
 - `[J]` A wire-form mapping that holds for one role is not stated as though it
   held for every sender. `Add(CaseStatus)` is the CASE_MANAGER's activity;
-  participants send `Add(ParticipantStatus)` (RSH-04-001). A mapping table needs a
+  participants send `Add(ParticipantStatus)` (RSH-04-007). A mapping table needs a
   sender column.
 - `[M]` In a fragment on the keyword check's enforced list, every normative
   statement is a rendered callout or catalog row, never prose: an RFC 2119

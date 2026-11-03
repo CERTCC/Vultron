@@ -117,7 +117,7 @@ class _PxaForm:
 
 
 #: A participant's own report, in the case status its participant status
-#: embeds (RSH-04-001); the CASE_MANAGER chooses whether to adopt it.
+#: embeds (RSH-04-007); the CASE_MANAGER chooses whether to adopt it.
 _PARTICIPANT_PXA = _PxaForm(
     when=_PXA_WHEN,
     addressee=AddresseeSide.CASE_MANAGER,

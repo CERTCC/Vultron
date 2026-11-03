@@ -351,6 +351,7 @@ def test_genesis_reject_from_non_signatory_seeds_no_case(datalayer) -> None:
 
 @pytest.mark.spec("CM-10-004")
 @pytest.mark.spec("CM-10-005")
+@pytest.mark.spec("PCR-02-006")
 def test_genesis_pre_seed_itself_withholds_case_from_non_signatory(
     datalayer,
 ) -> None:

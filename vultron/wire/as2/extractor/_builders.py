@@ -264,7 +264,7 @@ def _get_timestamp(obj: object, field: str) -> datetime | None:
 def _status_published(status: object) -> datetime:
     """A received ``CaseStatus``'s ``published``, which it must carry.
 
-    ``parse_activity`` refuses a status without one (CLP-15-008), so this
+    ``parse_activity`` refuses a status without one (CLP-15-010), so this
     never mints a time to stand in for a missing one.
 
     Raises:
@@ -274,7 +274,7 @@ def _status_published(status: object) -> datetime:
     published = _get_timestamp(status, "published")
     if published is None:
         raise VultronParseMissingPublishedError(
-            f"CaseStatus {_get_id(status)!r} carries no 'published' (CLP-15-008)"
+            f"CaseStatus {_get_id(status)!r} carries no 'published' (CLP-15-010)"
         )
     return published
 
@@ -372,7 +372,7 @@ def _build_case_object(obj: object) -> dict[str, Any]:
                 f"VulnerabilityCase {object_id!r} names no owner: its"
                 " `attributedTo` is missing (CLP-08-002)"
             )
-        # The parse edge refuses a case naming no position (SYNC-16-005),
+        # The parse edge refuses a case naming no position (SYNC-16-019),
         # so, like a missing owner, reaching here without one is a fault.
         ledger_position = getattr(obj, "ledger_position", None)
         if not isinstance(ledger_position, LedgerPosition):

@@ -286,7 +286,7 @@ class SyncActivityAdapter:
         """Queue *activity_id*'s sealed body again, under its first id.
 
         The outbox relays the body sealed at first emission (OX-07-001), so
-        the resend is the activity as first sent (SYNC-18-002).  The queue
+        the resend is the activity as first sent (SYNC-18-009).  The queue
         holds one pending row per id and says whether it added one
         (OX-06-002), which tells a pending send from a queued resend
         (SYNC-20-004).

@@ -43,7 +43,7 @@ class CaseStatus(CoreObject):
     ``published`` is required: it is what ``VulnerabilityCase.current_status``
     orders statuses by when ``updated`` is absent (CM-29-001).  A status this
     process authors takes the local clock; a received status without one is
-    refused at message validation (CLP-15-008).
+    refused at message validation (CLP-15-010).
     """
 
     type_: Literal["CaseStatus"] = Field(
@@ -55,7 +55,7 @@ class CaseStatus(CoreObject):
     # Re-narrowed from CoreObject's ``datetime | None`` (ARCH-10-001), as
     # ``CaseLedgerEntry.published`` is: recency reads it (CM-29-001).  The
     # narrowed type alone would refuse a received omission as a bare type
-    # fault; the flag makes the inbound read name the rule (CLP-15-008).
+    # fault; the flag makes the inbound read name the rule (CLP-15-010).
     published: datetime = Field(default_factory=now_utc)
     _inbound_requires_published: ClassVar[bool] = True
     attributed_to: NonEmptyString | None = None  # pyright: ignore[reportGeneralTypeIssues]

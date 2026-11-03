@@ -275,7 +275,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
     # hash before any.  Every case has one, since every case has an owner and
     # so a genesis hash (CLP-08-002/003).  It moves only through
     # ``store_ledger_entry``, as each entry is committed or stored, and
-    # travels with the case on the wire (SYNC-16-005).  The ``None`` default
+    # travels with the case on the wire (SYNC-16-018).  The ``None`` default
     # only stands in until the before-validator starts the position, and is
     # refused if it is still there.
     ledger_position: LedgerPosition = Field(

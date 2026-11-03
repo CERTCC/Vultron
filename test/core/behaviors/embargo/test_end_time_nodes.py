@@ -131,8 +131,9 @@ def test_end_time_passed_node_never_ends_an_embargo_it_cannot_read(
 
 @pytest.mark.spec("CLP-10-006")
 @pytest.mark.spec("CM-23-016")
-@pytest.mark.spec("CLP-07-016")
 @pytest.mark.parametrize("trial_refuses", [False, True])
+@pytest.mark.spec("CLP-07-023")
+@pytest.mark.spec("CLP-07-025")
 def test_timely_guard_trial_applies_the_step_the_remove_names(
     trial_refuses: bool,
 ) -> None:

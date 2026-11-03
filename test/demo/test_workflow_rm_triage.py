@@ -98,6 +98,7 @@ def test_engage_gated_on_receivers_own_rm_valid(actors):
     assert call_order.index("wait_valid") < call_order.index("engage")
 
 
+@pytest.mark.spec("PCR-01-007")
 def test_validate_gated_on_local_case_replica(actors):
     """validate-report fires only AFTER the case replica is in the local store.
 
@@ -139,6 +140,7 @@ def test_validate_gated_on_local_case_replica(actors):
     )
 
 
+@pytest.mark.spec("PCR-01-007")
 def test_validate_not_called_when_case_replica_never_arrives(actors):
     """No replica in the local store → validate-report must never fire.
 

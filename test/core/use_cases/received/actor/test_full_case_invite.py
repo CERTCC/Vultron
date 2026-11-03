@@ -388,7 +388,7 @@ def test_confirmation_and_gap_replies_are_accepted(
     committed = [e.semantic_type for e in _ledger_tail(joining_case)[before:]]
     gap = second == "reject"
     # The receipt is committed even for a confirmation or gap; each status
-    # written follows it as its own entry (CLP-07-013), and a gap also gets
+    # written follows it as its own entry (CLP-07-021), and a gap also gets
     # the CASE_MANAGER's RSH-06-004 note, its own entry (#4829).
     assert len(committed) == 1 + new_records + gap, committed
     assert (

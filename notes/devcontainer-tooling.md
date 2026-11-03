@@ -22,6 +22,7 @@ related_notes:
   - notes/testing-pitfalls.md
 related_specs:
   - specs/tech-stack.yaml
+  - specs/parallel-development.yaml
 ---
 
 # Devcontainer and Toolchain Pitfalls
@@ -76,6 +77,11 @@ the hook hangs instead of failing (ISSUE-2627). Use `SKIP=actionlint git commit`
 **only** when the commit touches no `.github/` workflow YAML; when it does, get
 the lint some other way. A durable fix needs a preinstalled `actionlint` binary
 and a `language: system` hook.
+
+For the same reason, `prepush-ci-mirror` reports `UNAVAILABLE actionlint` on a
+branch that changes a workflow, and that blocks the push. Lint the workflow
+another way, then rerun with `--skip actionlint` and say in the PR body how it
+was linted (PAD-18-021).
 
 ## Push With `git push -u origin HEAD`, Never to a Token URL
 

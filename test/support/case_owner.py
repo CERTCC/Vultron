@@ -40,7 +40,7 @@ INBOUND_CASE_STATUS_PUBLISHED = "2026-01-01T00:00:00.000000+00:00"
 
 #: The keys a wire-shaped (inbound) test case needs to validate: its owner, its
 #: genesis hash, the ledger position its wire form must name (SYNC-16-005),
-#: here the empty ledger's, and a timed status history (CM-29-004, CLP-15-008).
+#: here the empty ledger's, and a timed status history (CM-29-004, CLP-15-010).
 #: The status's ``context`` is rewritten to the enclosing case's id.  Spread
 #: into a case dict as ``{**INBOUND_CASE_OWNERSHIP, "type": "VulnerabilityCase",
 #: ...}``.

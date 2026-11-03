@@ -1049,7 +1049,7 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     }
     status = stub["caseStatus"]
     assert status["emState"] == EM.ACTIVE.value
-    # ``published`` is the time every status carries (CLP-15-008).
+    # ``published`` is the time every status carries (CLP-15-010).
     assert set(status) <= {
         "@context",
         "id",

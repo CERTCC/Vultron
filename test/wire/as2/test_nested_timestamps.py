@@ -17,7 +17,7 @@
 
 AS2 makes ``published`` and ``updated`` optional on every object, and nested
 objects routinely omit them.  The top-level activity's ``published`` is refused
-when missing (CLP-15-006); a nested object's is not, so absence must survive the
+when missing (CLP-15-008); a nested object's is not, so absence must survive the
 wire→core boundary as absence.  Before ISSUE-3257 it did not: the wire
 ``default_factory=now_utc`` filled an omitted value with the receiver's clock,
 ``_get_timestamp`` did the same for ``None``, and four builders dropped even a
@@ -104,7 +104,7 @@ KINDS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
             "name": "c",
             "attributedTo": ACTOR,
             "genesisHash": SENDER_GENESIS,
-            # The wire form names the case's ledger position (SYNC-16-005).
+            # The wire form names the case's ledger position (SYNC-16-018).
             "ledgerPosition": {"logIndex": -1, "entryHash": SENDER_GENESIS},
             # A received case carries its status history (CM-29-004).
             "caseStatuses": [
@@ -142,7 +142,7 @@ KINDS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
             "type": "CaseStatus",
             "id": "https://example.org/case-statuses/1",
             "context": CASE_ID,
-            # Required on a received status (CLP-15-008).
+            # Required on a received status (CLP-15-010).
             "published": SENDER_PUBLISHED,
             "emState": "NONE",
             "pxaState": "pxa",
@@ -205,7 +205,7 @@ CORE_KINDS = [k for k in KINDS if k != "Note"]
 
 #: The nested kinds whose ``published`` the sender may omit.  A ``CaseStatus``
 #: is not one: recency reads its time (CM-29-001), so a received status without
-#: one is refused (CLP-15-008) — pinned separately below.
+#: one is refused (CLP-15-010) — pinned separately below.
 TIME_OPTIONAL_KINDS = [k for k in KINDS if k != "CaseStatus"]
 
 
@@ -342,23 +342,23 @@ def _untimed_status(spelling: str, **extra: Any) -> dict[str, Any]:
     return status
 
 
-@pytest.mark.spec("CLP-15-008")
+@pytest.mark.spec("CLP-15-010")
 @pytest.mark.parametrize("spelling", list(ABSENT))
 def test_parse_refuses_inline_case_status_without_published(spelling: str):
     """A status the activity carries as its object needs its sender's time.
 
     The refusal names the field and the status's position, so the sender can
-    tell it from the activity-level refusal of CLP-15-006.
+    tell it from the activity-level refusal of CLP-15-008.
     """
     body = _body(_untimed_status(spelling), "Add", target=CASE_ID)
 
     with pytest.raises(
-        VultronParseMissingPublishedError, match=r"at 'object'.*CLP-15-008"
+        VultronParseMissingPublishedError, match=r"at 'object'.*CLP-15-010"
     ):
         parse_activity(body)
 
 
-@pytest.mark.spec("CLP-15-008")
+@pytest.mark.spec("CLP-15-010")
 @pytest.mark.parametrize("typed", [True, False], ids=["typed", "untyped"])
 @pytest.mark.parametrize("spelling", list(ABSENT))
 def test_parse_refuses_case_status_without_published_in_case_statuses(
@@ -366,7 +366,7 @@ def test_parse_refuses_case_status_without_published_in_case_statuses(
 ):
     """A status inside a case's ``caseStatuses`` is refused the same way.
 
-    Before CLP-15-008 it extracted with ``published = None`` and sorted to the
+    Before CLP-15-010 it extracted with ``published = None`` and sorted to the
     bottom of the history under a fallback no requirement stated.  A status
     without ``type`` is validated by the parent field rather than the parser's
     inline expansion, so both shapes are pinned.
@@ -387,7 +387,7 @@ def test_parse_refuses_case_status_without_published_in_case_statuses(
         parse_activity(_body(case))
 
 
-@pytest.mark.spec("CLP-15-008")
+@pytest.mark.spec("CLP-15-010")
 @pytest.mark.parametrize("spelling", list(ABSENT))
 def test_parse_refuses_case_status_without_published_in_a_participant_status(
     spelling: str,
@@ -424,6 +424,7 @@ def test_extracted_case_keeps_the_sender_genesis_hash():
 @pytest.mark.spec("CLP-08-002")
 @pytest.mark.spec("MV-03-002")
 @pytest.mark.parametrize("spelling", list(ABSENT))
+@pytest.mark.spec("CLP-15-009")
 def test_case_needing_its_time_for_genesis_is_refused_at_parse(spelling: str):
     """The one decision that needs a nested time refuses loudly when it is absent.
 
@@ -537,6 +538,7 @@ def test_replicated_ledger_entry_without_its_stamp_is_refused_at_parse(
 
 
 @pytest.mark.spec("MV-03-002")
+@pytest.mark.spec("CLP-15-009")
 def test_embargo_without_end_time_is_refused_at_parse():
     """``endTime`` is what embargo decisions read, so its absence is refused.
 
@@ -570,7 +572,7 @@ def test_inline_object_without_a_type_is_not_stamped_either(spelling: str):
     # core ``CaseStatus`` (ARCH-25-003, ADR-0099), which requires it; the looser
     # wire class it replaced did not.
     #
-    # The status carries its ``published``, which CLP-15-008 requires, so the
+    # The status carries its ``published``, which CLP-15-010 requires, so the
     # absence under test is ``updated``'s: the ``published`` spellings are
     # reused on a scratch dict.
     scratch = {"published": SENDER_UPDATED}
@@ -610,7 +612,7 @@ def test_a_class_without_timestamps_is_untouched_by_the_inbound_read():
     assert result == data
 
 
-@pytest.mark.spec("CLP-15-008")
+@pytest.mark.spec("CLP-15-010")
 def test_extractor_refuses_a_case_status_that_bypassed_the_parser():
     """The extractor never mints a status time the parser would have refused.
 
@@ -633,7 +635,7 @@ def test_extractor_refuses_a_case_status_that_bypassed_the_parser():
         _build_case_status_object(untimed)
 
 
-@pytest.mark.spec("CLP-15-008")
+@pytest.mark.spec("CLP-15-010")
 @pytest.mark.spec("EH-07-001")
 def test_untimed_status_refusal_names_every_fault_in_the_activity():
     """Every untimed status, and every other fault beside them, is named.

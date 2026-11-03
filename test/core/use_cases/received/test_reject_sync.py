@@ -129,6 +129,7 @@ class TestRejectLogEntryPattern:
 
     @pytest.mark.spec("SYNC-03-001")
     @pytest.mark.spec("SYNC-18-001")
+    @pytest.mark.spec("CLP-08-005")
     def test_last_accepted_hash_from_the_ledger_position(self, entry0):
         """last_accepted_hash is the entry hash of the sender's position."""
         from vultron.core.models.events.sync import RejectLogEntryReceivedEvent

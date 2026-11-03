@@ -27,7 +27,7 @@ sent it reads the notice here::
 
 Nothing is committed: the notice is about the ledger, not a case event
 (CLP-02-013).  The participant writes no case state and re-sends nothing
-(CLP-05-001, CLP-06-005).  A notice from anyone but the case's CASE_MANAGER,
+(CLP-05-008, CLP-06-005).  A notice from anyone but the case's CASE_MANAGER,
 or one naming no case this store holds, is refused by the sender guard
 (HP-01-006).
 """

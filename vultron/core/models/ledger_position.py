@@ -61,7 +61,7 @@ def accepted_entry_hash(position: LedgerPosition | None) -> str:
 
     ``""`` when there is no position, or one at index -1: the sender holds
     no entry, so a replay starts from the beginning (CLP-08-005,
-    SYNC-16-007).  The name the replay nodes read is ``last_accepted_hash``
+    SYNC-16-029).  The name the replay nodes read is ``last_accepted_hash``
     on the received event (SYNC-03-002, SYNC-17-003, SYNC-18-007).
     """
     if position is None or position.log_index == EMPTY_LEDGER_LOG_INDEX:

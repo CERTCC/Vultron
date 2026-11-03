@@ -160,7 +160,7 @@ class TestCloseCaseLedgerRouting:
     def test_caseactor_commits_close_case_ledger_entry(self):
         """Guarded commit fires when receiving_actor_id == case_actor_id.
 
-        Per CLP-10-002: the CaseActor MUST commit a canonical ledger entry
+        Per CLP-09-001: the CaseActor MUST commit a canonical ledger entry
         when it receives a close_case (Leave) activity.
         """
         dl = _make_case_actor_dl()

@@ -148,7 +148,7 @@ def test_every_example_renders_as_json(func):
     assert rendered.endswith("```")
     payload = json.loads(rendered.removeprefix("```json").removesuffix("```"))
     assert payload.get("type"), f"{func.__name__} rendered no AS2 type"
-    # A time the class requires is kept (CaseStatus.published, CLP-15-008);
+    # A time the class requires is kept (CaseStatus.published, CLP-15-010);
     # every other top-level time is stripped so the page does not churn.
     fields = type(func()).model_fields
     for key in ("published", "updated"):

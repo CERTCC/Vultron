@@ -849,7 +849,7 @@ def _poll_datalayer_for(
 
 
 #: The stored type a received activity is read from: intake's archive record,
-#: kept under the receiver's key (CLP-10-017, ADR-0111).  A row of an activity
+#: kept under the receiver's key (CLP-10-036, ADR-0111).  A row of an activity
 #: type under the sender's id is never read as a received one (DL-06-006).
 _RECEIVED_ACTIVITY_TYPES: tuple[str, ...] = (RECEIVED_ACTIVITY_RECORD_TYPE,)
 
@@ -1512,7 +1512,7 @@ def wait_for_received_activity(
 
     The gate for "the receiver took in this delivery": intake archives every
     activity it receives as a ``ReceivedActivityRecord`` under the receiver's
-    key (CLP-10-017, ADR-0111), and that record is the only place a received
+    key (CLP-10-036, ADR-0111), and that record is the only place a received
     activity is read from (DL-06-006), so the wait is on it rather than on a
     row under the sender's id (EDF-06-002).
 

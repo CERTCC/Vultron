@@ -36,7 +36,7 @@ BT-17-001):
   nothing more.  The abandonment is a decision the CASE_MANAGER takes from
   local policy, so its entries come before the change they record
   (CLP-07-013).  Each activity is addressed to nobody: the manager never
-  mails itself (CLP-10-001, ADR-0109), and every replica learns the
+  mails itself (CLP-10-032, ADR-0109), and every replica learns the
   decision from the entries (EP-09-009).
 - Any other participant sends nothing (EMB-16-002, #4148):
   :class:`LeaveAbandonmentToCaseManagerNode` succeeds without a write or an
