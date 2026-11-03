@@ -64,6 +64,7 @@ def _enriched_stub() -> dict:
         "caseStatus": {
             "type": "CaseStatus",
             "context": _CASE_ID,
+            "published": "2026-01-01T00:00:00+00:00",
             "em": "ACTIVE",
         },
     }

@@ -206,15 +206,25 @@ groups:
   - id: MV-04-001
     priority: MUST
     kind: protocol
-    statement: The system MUST validate that object types are recognized Vultron types
+    statement: >-
+      A receiver MUST refuse at parse an activity whose own `type` resolves to no wire
+      activity class in the Vultron vocabulary.
     rationale: >-
-      The activity type and the object type together decide the semantic type of an
-      activity, and thus its handler. The receiver cannot route or validate an object
-      whose type is not in the Vultron vocabulary. If the receiver accepts the object,
-      the failure only moves to a later stage that cannot act on it.
+      The activity type decides which patterns can match an activity. A receiver cannot
+      classify an activity whose type it does not know, so it refuses it before
+      dispatch. An inline object of unknown type is left to its parent field
+      (MV-04-004): a `Create` of a `FooWidget` parses as a plain `as_Object` and, if no
+      pattern matches, is `UNKNOWN` (VAM-01-007). This keeps the extensibility of
+      MV-11.
     verification: >-
-      A unit test confirms that an activity carrying an `object` whose `type` is not
-      in the Vultron vocabulary is rejected with a validation error before dispatch.
+      `test_parse_activity_raises_unknown_type_for_unrecognized_type`,
+      `test_parse_activity_reports_non_string_type_as_unknown` and
+      `test_parse_activity_refuses_a_known_type_that_is_not_an_activity` in
+      `test/wire/as2/test_parser.py` confirm that an unknown, non-string or
+      non-activity `type` raises `VultronParseUnknownTypeError`.
+      `test_parse_activity_keeps_an_inline_object_of_unknown_type` in the same file
+      confirms that a `Create` whose inline object has an unknown `type` parses, with a
+      plain `as_Object` as its object and `UNKNOWN` as its semantic type.
     lint_suppress:
     - missing_story_reference
   - id: MV-04-002
@@ -245,9 +255,6 @@ groups:
       Unit tests in `test/wire/as2/test_parser.py` confirm that an
       `Accept(Invite(...))` whose inner object carries an unparseable timestamp is
       rejected rather than parsed as an `as_Link`.
-    relationships:
-    - rel_type: refines
-      spec_id: MV-04-001
     adr:
     - ADR-0090
   - id: MV-04-004

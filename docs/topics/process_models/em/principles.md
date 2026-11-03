@@ -122,7 +122,7 @@ But the Participant that leaves is no longer involved in the case.
     Participants SHOULD continue to comply with any active embargoes to which they have been a part, even if they stop work on the case.
 
 !!! note ""
-    Participants who leave an *Active* embargo SHOULD be removed by the remaining Participants from further communication about the case.
+    A Participant that leaves an *Active* embargo SHOULD be dropped by the [CASE_MANAGER](../../case_lifecycle/case_manager_and_ledger.md) from its fan-out of further communication about the case.
 
 !!! tip inline end "Embargo Engagement and Adherence"
 

@@ -30,17 +30,13 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.trigger_registry._entry import (
     GENERAL_TRIGGER_SPECS,
+    TARGETLESS_BODY_TRIGGER_SPECS,
     TriggerEntry,
     TriggerExposure,
 )
 
-_COMMON = (
-    *GENERAL_TRIGGER_SPECS,
-    "TRIG-02-001",
-    "TRIG-06-001",
-    "TRIG-06-002",
-    "TRIG-07-001",
-)
+_REPORT_SPECS = ("TRIG-02-001", "TRIG-06-001", "TRIG-06-002", "TRIG-07-001")
+_COMMON = (*GENERAL_TRIGGER_SPECS, *_REPORT_SPECS)
 
 ENTRIES: list[TriggerEntry] = [
     TriggerEntry(
@@ -86,7 +82,7 @@ ENTRIES: list[TriggerEntry] = [
         result_type=OfferResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        # No ``case_id``/``offer_id`` in its body, so TRIG-03-001 is not its.
-        spec_ids=tuple(s for s in _COMMON if s != "TRIG-03-001"),
+        # Its body names a ``recipient_id``, not a case or an offer.
+        spec_ids=(*TARGETLESS_BODY_TRIGGER_SPECS, *_REPORT_SPECS),
     ),
 ]

@@ -356,8 +356,10 @@ Rules:
    receiver's clock as the sender's claim. A present, non-blank but unreadable
    value stays a schema fault. Nested objects may omit `published` and are
    taken as received (ADR-0103); refuse only where a decision needs the time
-   (CLP-08-002, CLP-14-002, CLP-02-008). Rebuild core objects from a snapshot
-   through `project_wire_snapshot_to_core`, never `Model.model_validate(snapshot)`,
+   (CLP-08-002, CLP-14-002, CLP-02-008), as for a `CaseStatus` at any depth,
+   whose time orders the case's status history (CLP-15-010). Rebuild core
+   objects from a snapshot through `project_wire_snapshot_to_core`, never
+   `Model.model_validate(snapshot)`,
    or the `default_factory` stamps the replica's clock.
 5. **Never gate a whole guard on one optional argument.** Gate each check on the
    context it needs, and test enforcement through the production node, not the

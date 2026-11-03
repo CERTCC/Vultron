@@ -81,6 +81,7 @@ def test_defaults_database_db_url():
     assert cfg.database.db_url == "sqlite:///vultron.db"
 
 
+@pytest.mark.spec("TRIG-08-005")
 def test_defaults_mode():
     cfg = get_config()
     assert cfg.mode == RunMode.PROTOTYPE
@@ -172,6 +173,7 @@ def test_env_override_db_url(monkeypatch):
     assert get_config().database.db_url == "sqlite:///:memory:"
 
 
+@pytest.mark.spec("TRIG-08-005")
 def test_env_override_mode(monkeypatch):
     monkeypatch.setenv("VULTRON_MODE", "prod")
     reload_config()

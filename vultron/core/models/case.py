@@ -386,11 +386,19 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
 
     @model_validator(mode="before")
     @classmethod
-    def _init_case_statuses(cls, data: Any) -> Any:
+    def _init_case_statuses(cls, data: Any, info: ValidationInfo) -> Any:
         """Seed ``case_statuses`` with a default entry when empty.
 
         Reads both spellings (ARCH-25-002, ADR-0099), and writes the seed under the
         one already present so it is not shadowed by an empty camelCase list.
+
+        Seeding is for a case this process authors.  A received case with no
+        status is refused instead (CM-29-004): the seed would carry the
+        receiver's clock as the case's first status, a time no sender claimed
+        (CLP-15-007), and it could outrank a status the sender timed earlier.
+
+        Raises:
+            ValueError: On the inbound path, when the case carries no status.
         """
         if not isinstance(data, dict):
             return data
@@ -399,6 +407,16 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         if not attributed_to or _names_blank_id(data):
             return data  # the field checks refuse the case
         if not data.get(statuses_key):
+            if (
+                isinstance(info.context, dict)
+                and INBOUND_CONTEXT_KEY in info.context
+            ):
+                case_id = data.get("id") or data.get("id_") or "<unknown>"
+                raise ValueError(
+                    f"VulnerabilityCase {case_id!r} carries no caseStatuses; a"
+                    " received case must carry its status history, and the"
+                    " receiver does not seed one on its own clock (CM-29-004)"
+                )
             data = dict(data)
             # Mint only an absent id: a blank one is refused by ``id_``'s
             # type, not silently replaced (CS-08-001).
@@ -855,9 +873,9 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
     def current_status(self) -> CaseStatus:
         """Return the most recent materialized :class:`CaseStatus`.
 
-        Recency is resolved by ``updated`` then ``published`` via
-        :func:`most_recent_status`. When both are absent the status sorts to
-        the bottom (``datetime.min``); among equals the last appended wins.
+        Recency is ``updated`` if present, else ``published``, via
+        :func:`most_recent_status` (CM-29-001); every status carries a
+        ``published``.  Among equal times the last appended wins (CM-29-003).
         ``id_`` MUST NOT be used as a tiebreaker because its scheme is an
         implementation artefact, not a time proxy (CM-29-002).
 

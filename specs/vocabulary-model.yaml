@@ -591,9 +591,6 @@ groups:
       keeps an unresolved nested `object` URI, names it in a DEBUG record, logs no
       WARNING, and raises nothing.
     relationships:
-    - rel_type: implements
-      spec_id: SE-01-003
-      note: semantic-extraction.md
     - rel_type: refines
       spec_id: ARCH-25-029
   - id: VM-06-005

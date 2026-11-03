@@ -20,6 +20,7 @@ import pytest
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
 from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.examples._base import _admits_none
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -147,8 +148,14 @@ def test_every_example_renders_as_json(func):
     assert rendered.endswith("```")
     payload = json.loads(rendered.removeprefix("```json").removesuffix("```"))
     assert payload.get("type"), f"{func.__name__} rendered no AS2 type"
-    assert "published" not in payload
-    assert "updated" not in payload
+    # A time the class requires is kept (CaseStatus.published, CLP-15-010);
+    # every other top-level time is stripped so the page does not churn.
+    fields = type(func()).model_fields
+    for key in ("published", "updated"):
+        if key in fields and _admits_none(fields[key].annotation):
+            assert key not in payload, f"{func.__name__} rendered {key!r}"
+        elif key in fields:
+            assert key in payload, f"{func.__name__} dropped required {key!r}"
 
 
 def test_example_func_discovery_is_not_vacuous():

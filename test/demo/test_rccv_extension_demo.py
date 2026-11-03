@@ -719,7 +719,7 @@ class TestRccvExtensionDedicatedCaseActor:
             "https://example.org/actors/case-actor"
         )
 
-        with patch.object(coordinated_story, "dump_case_ledgers") as dump:
+        with patch.object(story_cast, "dump_case_ledgers") as dump:
             demo.dump_two_coordinator_ledgers(state)
 
         targets = dump.call_args.kwargs["targets"]
@@ -778,9 +778,7 @@ class TestRccvExtensionCliCommand:
         }
 
         with (
-            patch.object(
-                demo, "coordinated_clients", return_value=clients
-            ) as built,
+            patch.object(demo, "story_clients", return_value=clients) as built,
             patch.object(demo, "run_rccv_extension_demo") as run,
         ):
             demo.main(

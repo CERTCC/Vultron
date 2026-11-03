@@ -208,7 +208,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | CP — CaseProposal Protocol | [CP-05-003](../vultron-spec/requirements/case-management.md#cp-05-003), [CP-05-004](../vultron-spec/requirements/case-management.md#cp-05-004) |
-| CSB — CVD Case State Behavioral Requirements | [CSB-04-004](../vultron-spec/requirements/state-behavior.md#csb-04-004), [CSB-04-006](../vultron-spec/requirements/state-behavior.md#csb-04-006), [CSB-04-008](../vultron-spec/requirements/state-behavior.md#csb-04-008), [CSB-05-005](../vultron-spec/requirements/state-behavior.md#csb-05-005), [CSB-05-007](../vultron-spec/requirements/state-behavior.md#csb-05-007), [CSB-05-009](../vultron-spec/requirements/state-behavior.md#csb-05-009), [CSB-06-005](../vultron-spec/requirements/state-behavior.md#csb-06-005), [CSB-06-007](../vultron-spec/requirements/state-behavior.md#csb-06-007), [CSB-06-009](../vultron-spec/requirements/state-behavior.md#csb-06-009) |
+| CSB — CVD Case State Behavioral Requirements | [CSB-04-004](../vultron-spec/requirements/state-behavior.md#csb-04-004), [CSB-05-005](../vultron-spec/requirements/state-behavior.md#csb-05-005), [CSB-06-005](../vultron-spec/requirements/state-behavior.md#csb-06-005) |
 | MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-01-008](../vultron-spec/requirements/messages.md#msm-01-008) |
 | RF — Response Format | [RF-02-001](../vultron-spec/requirements/message-processing.md#rf-02-001), [RF-08-001](../vultron-spec/requirements/message-processing.md#rf-08-001) |
 | RMB — Report Management Behavioral Requirements | [RMB-01-001](../vultron-spec/requirements/state-behavior.md#rmb-01-001), [RMB-08-003](../vultron-spec/requirements/state-behavior.md#rmb-08-003), [RMB-08-004](../vultron-spec/requirements/state-behavior.md#rmb-08-004), [RMB-08-005](../vultron-spec/requirements/state-behavior.md#rmb-08-005), [RMB-08-006](../vultron-spec/requirements/state-behavior.md#rmb-08-006), [RMB-08-007](../vultron-spec/requirements/state-behavior.md#rmb-08-007), [RMB-08-008](../vultron-spec/requirements/state-behavior.md#rmb-08-008) |
@@ -873,7 +873,8 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CM — Case Management | [CM-03-002](../vultron-spec/requirements/case-management.md#cm-03-002) |
+| CLP — Case Ledger Processing | [CLP-15-010](../vultron-spec/requirements/ledger-replication.md#clp-15-010) |
+| CM — Case Management | [CM-03-002](../vultron-spec/requirements/case-management.md#cm-03-002), [CM-29-004](../vultron-spec/requirements/case-management.md#cm-29-004) |
 | VAM — Vultron Semantic–AS2 Mapping | [VAM-08-004](../vultron-spec/requirements/messages.md#vam-08-004) |
 | VP — Vultron Protocol | [VP-01-001](../vultron-spec/requirements/vultron-protocol.md#vp-01-001), [VP-01-002](../vultron-spec/requirements/vultron-protocol.md#vp-01-002), [VP-03-012](../vultron-spec/requirements/vultron-protocol.md#vp-03-012) |
 

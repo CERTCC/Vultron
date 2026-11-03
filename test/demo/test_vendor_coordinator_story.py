@@ -55,10 +55,10 @@ from vultron.demo.helpers.coordinated_story import (
     COORDINATOR_LABEL,
     REPORTER,
     REPORTER_LABEL,
-    CastContainer,
 )
 from vultron.demo.helpers.owner_decision_story import Part
 from vultron.demo.helpers.story import Choose, UnseatedContainer
+from vultron.demo.helpers.story_cast import CastContainer
 from vultron.demo.helpers.vendor_story import (
     JOIN_TIMEOUT,
     THE_VENDOR_ANSWERS_THE_REPORTER,
