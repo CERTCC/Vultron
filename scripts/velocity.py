@@ -4,11 +4,12 @@ Collect development velocity metrics from GitHub (CERTCC/Vultron).
 
 Fetches all issues created on or after START_DATE, buckets them by week and
 month, and emits a JSON document with raw counts suitable for downstream
-analysis and visualization.  Unless ``--no-pipeline-cost`` is given, it also
-fetches merged PRs and GitHub Actions runs and adds a ``pipeline_cost``
-section: per-PR CI runs, merges from main, local suite runs, and
-open-to-merge time, plus weekly failed CI runs on main (PAD-18-007) and
-weekly red episodes on main with each episode's candidate partner merges.
+analysis and visualization, including how Concerns were closed.  Unless
+``--no-pipeline-cost`` is given, it also fetches merged PRs and GitHub Actions
+runs and adds a ``pipeline_cost`` section: per-PR CI runs, merges from main,
+local suite runs, questions asked and filed, and open-to-merge time, plus
+weekly failed CI runs on main (PAD-18-007) and weekly red episodes on main
+with each episode's candidate partner merges.
 
 Usage:
     python scripts/velocity.py
@@ -64,13 +65,35 @@ _MAIN_REF_RE = re.compile(r"\b(?:origin/)?main\b", re.IGNORECASE)
 # (``**Suite runs**: N full, M targeted``) or put the counts after the words
 # (``Suite runs: full N, targeted M``); both carry the same two numbers, so
 # both are read rather than dropped as absent.
-_SUITE_RUNS_LABEL = r"(?:\*\*|__)?Suite runs(?:\*\*|__)?:(?:\*\*|__)?\s+"
+
+
+def _bold_label(name: str) -> str:
+    """Regex for ``name:`` as a line label, bolded by hand or not."""
+    return rf"(?:\*\*|__)?{name}(?:\*\*|__)?:(?:\*\*|__)?\s+"
+
+
+_SUITE_RUNS_LABEL = _bold_label("Suite runs")
 _SUITE_RUNS_RE = re.compile(
     _SUITE_RUNS_LABEL + r"(\d+)\s+full,\s+(\d+)\s+targeted"
 )
 _SUITE_RUNS_WORDS_FIRST_RE = re.compile(
     _SUITE_RUNS_LABEL + r"full\s+(\d+),\s+targeted\s+(\d+)"
 )
+
+# The line an implementation PR body carries (pr-body-guide.md, "Questions"):
+# ``Questions: asked N, filed M``.  The label may be bolded by hand.  Like
+# PRB-13, it is read only at the start of a line, so a body that quotes the
+# guide's example mid-sentence is not counted by it.
+_QUESTIONS_RE = re.compile(
+    r"^[ \t]*" + _bold_label("Questions") + r"asked\s+(\d+),\s+filed\s+(\d+)",
+    re.MULTILINE,
+)
+
+# A Concern closed by a PR from a branch with this prefix was answered
+# through ``plan-issue``, the full planning route (completeness-doctrine.md
+# "Ask, Then Finish").
+PLANNING_BRANCH_PREFIX = "plan/"
+CONCERN_TYPE = "Concern"
 
 # Workflow-run conclusions.  A "CI run" in this script is one CI iteration:
 # the set of workflow runs GitHub started for one head commit.  Superseded
@@ -103,6 +126,7 @@ query($owner: String!, $name: String!, $cursor: String) {
         createdAt
         updatedAt
         mergedAt
+        body
         headRefName
         baseRefName
         mergeCommit { oid }
@@ -175,6 +199,13 @@ query($owner: String!, $name: String!, $cursor: String, $since: DateTime!) {
         stateReason
         issueType { name }
         labels(first: 100) { nodes { name } }
+        timelineItems(itemTypes: [CLOSED_EVENT], last: 1) {
+          nodes {
+            ... on ClosedEvent {
+              closer { ... on PullRequest { headRefName } }
+            }
+          }
+        }
       }
     }
   }
@@ -255,7 +286,7 @@ def fetch_merged_prs(
     """Fetch merged PRs with mergedAt >= since (YYYY-MM-DD).
 
     Returns PR dicts with ``number``, ``createdAt``, ``updatedAt``,
-    ``mergedAt``, ``headRefName``, ``baseRefName``, ``mergeCommit.oid``,
+    ``mergedAt``, ``body``, ``headRefName``, ``baseRefName``, ``mergeCommit.oid``,
     ``commits.nodes``, ``comments.nodes``, and
     ``reviews.nodes``.
 
@@ -407,10 +438,15 @@ def delivery_type(issue: dict) -> bool:
     return t not in DISCOVERY_TYPES | EPIC_TYPES | {BUG_TYPE, "Untyped"}
 
 
-def iso_to_date(s: str | None) -> date | None:
+def iso_to_datetime(s: str | None) -> datetime | None:
     if not s:
         return None
-    return datetime.fromisoformat(s.replace("Z", "+00:00")).date()
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
+def iso_to_date(s: str | None) -> date | None:
+    dt = iso_to_datetime(s)
+    return dt.date() if dt else None
 
 
 def week_key(d: date) -> str:
@@ -602,6 +638,88 @@ def _net_issues(issues: list[dict], periods: list[str], key) -> list[dict]:
     return [{"period": p, **row} for p, row in rows.items()]
 
 
+def closer_branch(issue: dict) -> str | None:
+    """Return the head branch of the PR that closed an issue, if a PR did."""
+    nodes = (issue.get("timelineItems") or {}).get("nodes") or []
+    if not nodes:
+        return None
+    closer = (nodes[-1] or {}).get("closer") or {}
+    branch = closer.get("headRefName")
+    return str(branch) if branch else None
+
+
+def _concern_resolution(
+    issues: list[dict], periods: list[str], key
+) -> list[dict]:
+    """Per-period Concern flow: how many were filed and how each was closed.
+
+    ``filed`` counts Concerns created in the period.  The rest count
+    Concerns closed as completed in the period: ``closed``, the subset
+    ``closed_by_planning_pr`` (closing PR's branch starts with ``plan/``),
+    the subset ``closed_within_1_day``, and ``median_days_to_close``
+    (``None`` when none closed).  A Concern answered within a day could
+    usually have been asked in the session that filed it.
+    """
+    rows: dict[str, dict] = {
+        p: {
+            "filed": 0,
+            "closed": 0,
+            "closed_by_planning_pr": 0,
+            "closed_within_1_day": 0,
+        }
+        for p in periods
+    }
+    days: dict[str, list[float]] = defaultdict(list)
+    for issue in issues:
+        if classify_type(issue) != CONCERN_TYPE:
+            continue
+        created = iso_to_datetime(issue.get("createdAt"))
+        if created and key(created.date()) in rows:
+            rows[key(created.date())]["filed"] += 1
+        closed = iso_to_datetime(issue.get("closedAt"))
+        if (
+            not created
+            or not closed
+            or key(closed.date()) not in rows
+            or issue.get("stateReason") != "COMPLETED"
+        ):
+            continue
+        row = rows[key(closed.date())]
+        row["closed"] += 1
+        branch = closer_branch(issue)
+        if branch and branch.startswith(PLANNING_BRANCH_PREFIX):
+            row["closed_by_planning_pr"] += 1
+        elapsed = (closed - created).total_seconds() / 86400
+        if elapsed <= 1:
+            row["closed_within_1_day"] += 1
+        days[key(closed.date())].append(elapsed)
+    return [
+        {
+            "period": p,
+            **row,
+            "median_days_to_close": (
+                round(float(pd.Series(days[p]).median()), 1)
+                if days[p]
+                else None
+            ),
+        }
+        for p, row in rows.items()
+    ]
+
+
+def parse_questions_line(body: str) -> tuple[int, int] | None:
+    """Parse the ``Questions: asked N, filed M`` line from a PR body.
+
+    Returns ``(asked, filed)`` when the line is present and well-formed,
+    including a bolded label.  Returns ``None`` when it is absent or
+    malformed.
+    """
+    m = _QUESTIONS_RE.search(body)
+    if m:
+        return int(m.group(1)), int(m.group(2))
+    return None
+
+
 def parse_suite_runs_line(body: str) -> tuple[int, int] | None:
     """Parse the ``Suite runs: N full, M targeted`` line from a comment body.
 
@@ -677,7 +795,7 @@ def build_pr_pipeline_record(
 
     Args:
         pr: GraphQL PR dict with ``createdAt``, ``mergedAt``, ``number``,
-            ``headRefName``, ``commits.nodes``, ``comments.nodes``, and
+            ``body``, ``headRefName``, ``commits.nodes``, ``comments.nodes``, and
             ``reviews.nodes``.
         ci_runs: CI iterations (see ``_ci_iteration_counts``) for this PR.
         failed_ci_runs: subset of ``ci_runs`` that failed.
@@ -688,9 +806,9 @@ def build_pr_pipeline_record(
     merged_str = pr.get("mergedAt")
 
     open_to_merge_hours: float | None = None
-    if created_str and merged_str:
-        created_dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
-        merged_dt = datetime.fromisoformat(merged_str.replace("Z", "+00:00"))
+    created_dt = iso_to_datetime(created_str)
+    merged_dt = iso_to_datetime(merged_str)
+    if created_dt and merged_dt:
         open_to_merge_hours = round(
             (merged_dt - created_dt).total_seconds() / 3600, 1
         )
@@ -705,6 +823,12 @@ def build_pr_pipeline_record(
     if suite is not None:
         full_suite_runs, targeted_suite_runs = suite
 
+    questions = parse_questions_line(pr.get("body") or "")
+    questions_asked: int | None = None
+    questions_filed: int | None = None
+    if questions is not None:
+        questions_asked, questions_filed = questions
+
     return {
         "pr_number": pr.get("number"),
         "merged_at": merged_str,
@@ -714,6 +838,8 @@ def build_pr_pipeline_record(
         "merges_from_main": merges_from_main,
         "full_suite_runs": full_suite_runs,
         "targeted_suite_runs": targeted_suite_runs,
+        "questions_asked": questions_asked,
+        "questions_filed": questions_filed,
     }
 
 
@@ -768,8 +894,9 @@ def _pr_weekly_aggregates(
     """Aggregate per-PR pipeline cost fields by week of mergedAt.
 
     For each week, reports ``pr_count``, plus ``median_<field>`` and
-    ``total_<field>`` for each numeric field.  Suite-run totals are included
-    only for PRs that carried the ``Suite runs:`` line; absent values
+    ``total_<field>`` for each numeric field.  Suite-run and question totals
+    are included only for PRs that carried the ``Suite runs:`` or
+    ``Questions:`` line; absent values
     (``None``) are excluded from aggregates, and a week where no PR carried
     the line reports ``None``, not zero.  All values are ``None`` for weeks
     with no merged PRs.
@@ -798,7 +925,12 @@ def _pr_weekly_aggregates(
                 row[f"median_{field}"] = None
                 row[f"total_{field}"] = None
 
-        for suite_field in ("full_suite_runs", "targeted_suite_runs"):
+        for suite_field in (
+            "full_suite_runs",
+            "targeted_suite_runs",
+            "questions_asked",
+            "questions_filed",
+        ):
             values_s = [
                 r[suite_field] for r in recs if r.get(suite_field) is not None
             ]
@@ -1203,6 +1335,9 @@ def build_metrics(issues: list[dict], start: date) -> dict:
         "net_issues_by_week": _net_issues(issues, all_weeks, week_key),
         "net_issues_by_month": _net_issues(
             issues, all_months_sorted, month_key
+        ),
+        "concern_resolution_by_week": _concern_resolution(
+            issues, all_weeks, week_key
         ),
     }
 

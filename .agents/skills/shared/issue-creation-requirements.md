@@ -83,7 +83,13 @@ gh issue list --repo CERTCC/Vultron --state open --limit 1000 \
   - `Task` — clear work with a known approach and no open design decision:
     refactors, module splits, missing docs pages, ratchets, sweeps.
   - `Concern` — a decision, investigation, or human or protocol-design call is
-    needed before a work item can be written; several plausible answers exist.
+    needed before a work item can be written; several plausible answers exist
+    and choosing needs investigation. A question you could ask the user now is
+    asked, not filed (`completeness-doctrine.md` § "Ask, Then Finish"). A
+    single decision with a recommended answer that does not serve this PR is
+    a `Task` whose body opens with
+    `Decision: <the question> — recommended: <answer, and why>`; the user
+    confirms or overrides it on the issue, and it is built like any Task.
   - `Feature` — a new capability that is already specified well enough to
     build.
   - `Idea` — a new capability or direction not yet shaped into work.

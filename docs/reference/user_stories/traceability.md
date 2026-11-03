@@ -1339,13 +1339,17 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 {% include-markdown "./story_2026_012.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
 
-*No mapped requirements* (TRACE-01-002).
+| Spec file | Citing requirements |
+|---|---|
+| CS — Code Style Specifications | [CS-13-005](../vultron-spec/requirements/messages.md#cs-13-005) |
 
 ## [story_2026_013](story_2026_013.md)
 
 {% include-markdown "./story_2026_013.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
 
-*No mapped requirements* (TRACE-01-002).
+| Spec file | Citing requirements |
+|---|---|
+| MV — Message Validation | [MV-03-001](../vultron-spec/requirements/messages.md#mv-03-001), [MV-03-002](../vultron-spec/requirements/messages.md#mv-03-002), [MV-04-001](../vultron-spec/requirements/messages.md#mv-04-001), [MV-10-002](../vultron-spec/requirements/messages.md#mv-10-002) |
 
 ## [story_2026_014](story_2026_014.md)
 
@@ -1357,7 +1361,9 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 {% include-markdown "./story_2026_015.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
 
-*No mapped requirements* (TRACE-01-002).
+| Spec file | Citing requirements |
+|---|---|
+| OX — Outbox | [OX-14-002](../vultron-spec/requirements/transport-security.md#ox-14-002) |
 
 ## [story_2026_016](story_2026_016.md)
 
@@ -1375,7 +1381,9 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 {% include-markdown "./story_2026_018.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
 
-*No mapped requirements* (TRACE-01-002).
+| Spec file | Citing requirements |
+|---|---|
+| MV — Message Validation | [MV-04-002](../vultron-spec/requirements/messages.md#mv-04-002) |
 
 ## [story_2026_019](story_2026_019.md)
 
@@ -1387,7 +1395,9 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 {% include-markdown "./story_2026_020.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
 
-*No mapped requirements* (TRACE-01-002).
+| Spec file | Citing requirements |
+|---|---|
+| SE — Semantic Extraction | [SE-08-003](../vultron-spec/requirements/messages.md#se-08-003) |
 
 ## [story_2026_021](story_2026_021.md)
 

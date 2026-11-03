@@ -41,11 +41,11 @@ from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
-    _new_urn,
     absent_times_as_none,
     as_utc,
     blank_times_as_none,
     format_timestamp,
+    new_object_id,
     now_utc,
     refuse_absent_published,
 )
@@ -129,7 +129,7 @@ class CoreRecord(ValidatedAssignmentMixin):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     id_: NonEmptyString = Field(
-        default_factory=_new_urn,
+        default_factory=new_object_id,
         validation_alias="id",
         serialization_alias="id",
     )

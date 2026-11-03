@@ -67,8 +67,9 @@ class ReceivedActivityTree(py_trees.composites.Sequence):
     """The one tree a received activity runs (CLP-10-005, ADR-0135).
 
     A plain ``Sequence`` that also remembers which of its children are the
-    door guards (intake, the post-close guard, the addressee check and the
-    sender guard, CLP-10-010), so a handler can ask whether the delivery got
+    door guards (intake, the post-close guard, the addressee check, the path
+    stage and the sender guard, CLP-10-010), so a handler can ask whether the
+    delivery got
     past them without knowing which guard the tree runs first, and which
     exemptions, if any, it was built with in place of the refusal notice
     (CLP-02-005) and of one act (CLP-07-015).

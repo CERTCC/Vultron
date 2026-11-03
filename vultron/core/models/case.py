@@ -36,7 +36,7 @@ from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
     STORED_CONTEXT_KEY,
     _as_id,
-    _new_urn,
+    new_object_id,
     now_utc,
     now_utc_after,
 )
@@ -363,7 +363,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
             # Mint only an absent id: a blank one is refused by ``id_``'s
             # type, not silently replaced (CS-08-001).
             if data.get("id") is None and data.get("id_") is None:
-                data["id"] = _new_urn()
+                data["id"] = new_object_id()
             case_id = data.get("id") or data.get("id_")
             published_val = _genesis_published(data, inbound)
             if published_val is not None:
@@ -420,7 +420,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
             # Mint only an absent id: a blank one is refused by ``id_``'s
             # type, not silently replaced (CS-08-001).
             if data.get("id") is None and data.get("id_") is None:
-                data["id"] = _new_urn()
+                data["id"] = new_object_id()
             case_id = data.get("id") or data.get("id_")
             data[statuses_key] = [
                 CaseStatus(
@@ -668,7 +668,9 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         # ``validate_assignment`` instead, and the case context and bumped
         # timestamp are assigned last so that they always win.  The copied
         # ``updated`` is cleared, not carried: it is the old status's.
-        status = current.model_copy(update={"id_": _new_urn(), "name": None})
+        status = current.model_copy(
+            update={"id_": new_object_id(), "name": None}
+        )
         for name, value in {
             **updates,
             "context": self.id_,

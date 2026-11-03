@@ -21,7 +21,7 @@ Per specs/idempotency.yaml ID-04-004.
 
 Note: ``ValidateCaseObject`` was removed in issue #716 and
 ``CheckCaseAlreadyExists`` was removed in issue #4353.  ``CoreRecord.id_``
-is typed ``NonEmptyString`` with a ``default_factory=_new_urn``, so Pydantic
+is typed ``NonEmptyString`` with a ``default_factory=new_object_id``, so Pydantic
 rejects invalid ``id_`` values at construction time (ARCH-10-001 fail-fast
 domain objects).
 """
@@ -157,6 +157,26 @@ class CheckCaseExistsForReport(DataLayerConditionWithPorts):
             return Status.FAILURE
 
 
+def activity_case_id(activity: object | None) -> str | None:
+    """The case id the received *activity* names, or ``None``.
+
+    The third step of the case-id resolution order a received-side condition
+    node follows (constructor argument, blackboard ``/case_id``, then the
+    activity): a ledger activity names its case on its ``log_entry``, every
+    other one on its ``object_``.  Shared by
+    :class:`CheckIsCaseManagerNode` and the path stage's
+    :class:`~vultron.core.behaviors.case.nodes.received_path.ReceivedPathNode`
+    so both read the same case (CS-22-001, ADR-0153).
+    """
+    if activity is None:
+        return None
+    entry = getattr(activity, "log_entry", None)
+    if entry is None:
+        entry = getattr(activity, "object_", None)
+    raw = getattr(entry, "case_id", None)
+    return raw if isinstance(raw, str) else None
+
+
 class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
     """Check whether the executing actor is the case's CASE_MANAGER.
 
@@ -237,12 +257,8 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
         assert self.actor_id is not None
 
         case_id = self._case_id or self._case_id_bb
-        if not case_id and self._activity is not None:
-            entry = getattr(self._activity, "log_entry", None)
-            if entry is None:
-                entry = getattr(self._activity, "object_", None)
-            raw = getattr(entry, "case_id", None)
-            case_id = raw if isinstance(raw, str) else None
+        if not case_id:
+            case_id = activity_case_id(self._activity)
 
         if not case_id:
             self.logger.debug(

@@ -43,7 +43,7 @@ from pydantic import (
     model_validator,
 )
 
-from vultron.core.models._helpers import _new_urn
+from vultron.core.models._helpers import new_object_id
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -188,7 +188,7 @@ class CaseParticipant(CoreObject):
         data = dict(data)
         id_val = first_input(data, cls, "id_")
         if not id_val:
-            id_val = data["id"] = _new_urn()
+            id_val = data["id"] = new_object_id()
         data["participant_statuses"] = [
             ParticipantStatus(
                 context=first_input(data, cls, "context") or id_val,
@@ -700,7 +700,7 @@ def _seed_accepted_status(data: Any) -> Any:
         return data
     data = dict(data)
     if not data.get("id") and not data.get("id_"):
-        data["id"] = _new_urn()
+        data["id"] = new_object_id()
     id_val = data.get("id") or data.get("id_")
     data["participant_statuses"] = [
         ParticipantStatus(

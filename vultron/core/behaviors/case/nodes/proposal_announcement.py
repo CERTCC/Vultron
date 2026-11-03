@@ -23,13 +23,13 @@ Composed by ``create_case_proposal_received_tree`` (BTND-07-003).
 """
 
 import logging
-import uuid
 
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.case_lookup import CaseIdInputPortMixin
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.activity_ids import derived_object_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronProtocolViolationError
 
@@ -45,7 +45,7 @@ def create_case_activity_id(proposal_id: str) -> str:
     queue it twice (CP-05-005, OX-06-002, #4146).
     """
     name = f"{proposal_id}#create-case"
-    return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, name)}"
+    return derived_object_id(name)
 
 
 def announced_case_id(

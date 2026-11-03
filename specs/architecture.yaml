@@ -2124,14 +2124,47 @@ groups:
       answers for the same actor and case. A negation decorator answers the opposite
       question with no second node.
     verification: >-
-      A test asserts one authority condition node is the only thing resolving "am I
-      the authority"; `CheckIsOwnCaseActorNode` / `CheckIsNotOwnCaseActorNode` are
-      removed or aliased.
+      `test_the_authority_question_is_asked_by_one_node` in
+      `test/architecture/test_role_authority_resolver.py` holds the set of BT node
+      classes that answer "am I the authority" to an exact inventory: one sanctioned
+      node, and the sites the ADR-0153 migration waves still have to retire, each
+      with the issue that owns it. A new asker fails it.
+      `test_removed_authority_nodes_are_not_defined` asserts
+      `CheckIsOwnCaseActorNode` / `CheckIsNotOwnCaseActorNode` are removed or aliased.
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-24-001
     adr:
     - ADR-0088
+  - id: ARCH-24-007
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Every node that answers "is the executing actor the case authority" MUST take its
+      answer from the single role-authority resolver of ARCH-24-001, whether it asks
+      through the shared role predicate or calls the resolver itself.
+    rationale: >-
+      ARCH-24-003 bounds how many nodes ask the question; this bounds what they may
+      answer it with, which is what stops the ones that do ask from disagreeing. A
+      roster recording `CVDRole.CASE_MANAGER` on two participants — the window a role
+      delegation opens (CM-33) — is where a second implementation diverges: a
+      roster-scanning predicate named the second holder the manager while the resolver
+      named the first, so a received tree's path stage admitted a delivery its own
+      CASE_MANAGER gate then skipped, and the handler reported `APPLIED` having
+      notified nobody (HP-01-005).
+    verification: >-
+      `test/core/participants/test_role_predicate.py::test_authority_agrees_with_the_single_resolver`
+      builds a roster that records the role on two participants and asserts
+      `has_role` answers exactly what `resolve_case_manager_id` answers for each
+      actor, which fails when the predicate scans the roster itself; and
+      `test/core/use_cases/received/actor/test_offer_case_participant.py::TestOfferCaseParticipantDecisionsAtNonCaseManager::test_a_second_manager_record_is_refused_not_silently_applied`
+      pins the disposition that a disagreement would turn into a silent `APPLIED`.
+    relationships:
+    - rel_type: extends
+      spec_id: ARCH-24-003
+    adr:
+    - ADR-0088
+    - ADR-0153
   - id: ARCH-24-006
     priority: MUST
     kind: architecture
