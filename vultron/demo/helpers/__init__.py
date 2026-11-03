@@ -40,7 +40,6 @@ Sub-modules
   ``seed_containers``, ``seed_containers_rvv``, ``seed_containers_rccv``,
   ``seed_containers_rcv``, ``seed_containers_rcvcv``, and
   ``reset_containers``.
-- :mod:`~vultron.demo.helpers.ledger_commit` — ``trigger_log_commit``.
 - :mod:`~vultron.demo.helpers.sync` — ``verify_replica_state`` and the shared
   sync-verification phase helpers ``wait_for_replica_ledger_coverage`` and
   ``run_sync_verification_phase``.
@@ -141,9 +140,6 @@ from vultron.demo.helpers.invite_chain import (
     answer_case_invite,
     invite_and_await_delivery,
     run_case_invite_chain,
-)
-from vultron.demo.helpers.ledger_commit import (
-    trigger_log_commit,
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,

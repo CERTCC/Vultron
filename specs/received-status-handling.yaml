@@ -957,8 +957,9 @@ groups:
       assert the receiving actor's participant is unchanged.
     adr:
     - ADR-0108
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_062
+    - story_2022_088
   - id: RSH-08-005
     priority: MUST
     kind: project
@@ -1018,8 +1019,9 @@ groups:
       is accepted and a backward one refused, as RSH-06 decides.
     adr:
     - ADR-0108
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_062
+    - story_2022_088
   - id: RSH-08-003
     priority: MUST
     kind: project
@@ -1188,6 +1190,10 @@ groups:
       The status object is what the sender sends, so storing it lets the sender read
       back what it declared. A stored object attached to no participant record changes
       no replica state.
+    verification: >-
+      `test_execute_stores_status_without_appending_to_sender_record` in
+      `test/core/use_cases/triggers/case/test_add_participant_status.py` asserts the
+      sender stores the status object it sends without appending it to its record.
     relationships:
     - rel_type: extends
       spec_id: RSH-08-006
@@ -1441,10 +1447,11 @@ groups:
     - rel_type: extends
       spec_id: RSH-09-004
     verification: >-
-      Inspection confirms the emit path, through `participant_transition_violations()`,
-      and the receive path, through `participant_status_refusals()`, both call
-      `composite_state_violations()` in
-      `vultron/core/states/composite_state_invariants.py`.
+      `test_the_emit_and_receive_paths_evaluate_one_entailment_set` in
+      `test/core/behaviors/status/test_participant_status_acceptance.py` asserts the
+      emit path (`participant_transition_violations()`) and the receive path
+      (`participant_status_refusals()`) both ask `composite_state_violations()` about
+      the same state, and both refuse it.
     stories:
     - story_2022_045
     - story_2022_088

@@ -22,9 +22,8 @@ scenario that called it would show a ledger the protocol path never built.
 So no module under ``vultron/demo/`` may call or import the endpoint's
 client (``ActorSession.sync_log_entry``) or its helper
 (``vultron.demo.helpers.ledger_commit.trigger_log_commit``), so that no
-helper a scenario calls can wrap them either.  The modules that define the
-two names, and the helpers package that re-exports the probe for tests, are
-the pinned exceptions.
+helper a scenario calls can wrap them either.  The two modules that define the
+names are the pinned exceptions.
 
 Spec: ``specs/participant-case-replica.yaml`` PCR-08-004.
 """
@@ -43,7 +42,6 @@ _SCENARIO_DIR = _DEMO_DIR / "scenario"
 _PINNED = {
     _DEMO_DIR / "actor_session.py": "defines the endpoint client",
     _DEMO_DIR / "helpers" / "ledger_commit.py": "defines the test probe",
-    _DEMO_DIR / "helpers" / "__init__.py": "re-exports the probe for tests",
 }
 
 #: The names that start a ledger commit from outside the CASE_MANAGER.
@@ -100,7 +98,7 @@ def test_every_pinned_module_exists_and_names_a_starter() -> None:
     """A pin for a module that no longer names a starter is stale."""
     for path in _PINNED:
         assert path.exists(), path
-        assert _commit_starters(ast.parse(path.read_text())), path
+        assert _commit_starters(_corpus.tree_of(path)), path
 
 
 @pytest.mark.spec("PCR-08-004")

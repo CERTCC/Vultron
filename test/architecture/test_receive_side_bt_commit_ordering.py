@@ -258,6 +258,7 @@ def _stage_rosters() -> tuple[set[str], dict[str, list[str]]]:
 
 
 @pytest.mark.spec("CLP-10-006")
+@pytest.mark.spec("SYNC-09-005")
 def test_no_effect_node_is_used_as_a_precondition_guard() -> None:
     """A node used as a protocol effect anywhere never precedes the commit anywhere."""
     effects, guards = _stage_rosters()
@@ -799,6 +800,7 @@ def test_trees_with_a_nested_commit_are_known() -> None:
 
 @pytest.mark.spec("CLP-10-006")
 @pytest.mark.spec("CLP-10-010")
+@pytest.mark.spec("SYNC-09-005")
 def test_only_permitted_stages_write_ahead_of_the_commit() -> None:
     from test.architecture._received_tree_builds import built_received_trees
 

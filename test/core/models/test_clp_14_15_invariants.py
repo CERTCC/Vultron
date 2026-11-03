@@ -193,6 +193,48 @@ def test_clp_14_004_same_case_id_enforced_by_ledger():
     assert e.case_id == CASE_ID
 
 
+@pytest.mark.spec("CLP-14-012")
+def test_clp_14_012_an_entry_joins_only_the_ledger_its_case_id_names():
+    """No ledger takes an entry whose ``case_id`` is another case's.
+
+    A holder files a received entry in the ledger of the case the entry
+    names (``store_ledger_entry``), so an entry for another case it holds
+    moves that case's ledger and leaves this one as it was.
+    """
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.core.behaviors.sync.nodes.chain import (
+        _to_persistable_entry,
+    )
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_ledger import HashChainLedgerRecord
+    from vultron.core.sync_helpers import (
+        ledger_tail_position,
+        store_ledger_entry,
+    )
+
+    other_case_id = "https://example.org/cases/test-clp-14-012-other"
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
+    dl.create(VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ID))
+    other = VulnerabilityCase(id_=other_case_id, attributed_to=OWNER_ID)
+    dl.create(other)
+    foreign = _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=other_case_id,
+            log_index=0,
+            object_id=OBJ_ID,
+            semantic_type="test",
+            payload_snapshot={"x": 1},
+            prev_log_hash=other.genesis_hash,
+        )
+    )
+
+    stored_in = store_ledger_entry(foreign, dl)
+
+    assert stored_in.id_ == other_case_id
+    assert ledger_tail_position(other_case_id, dl).log_index == 0
+    assert ledger_tail_position(CASE_ID, dl).log_index == -1
+
+
 @pytest.mark.spec("CLP-14-005")
 def test_clp_14_005_log_index_unique_by_construction():
     """CaseLedger.append() assigns unique log_index values."""

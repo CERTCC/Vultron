@@ -100,13 +100,16 @@ groups:
   - id: PCR-01-005
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
     statement: >-
       An Actor MUST NOT read, write, or otherwise reach into another Actor's store.
     rationale: >-
       Each Actor has its own store (ADR-0073). A read or write of another Actor's store
       works only on a shared host, and it changes that Actor's state without a message
       that Actor can check.
+    verification: >-
+      `test_vendor_dl_isolated_from_reporter` in `test/demo/test_rv_demo.py` runs two
+      actors in one process and asserts a record in the Vendor's store is not visible
+      in the Reporter's.
     relationships:
     - rel_type: extends
       spec_id: PCR-01-003
@@ -117,13 +120,16 @@ groups:
   - id: PCR-01-006
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
     statement: >-
       An Actor MUST NOT rely on out-of-band communication with a co-located Actor.
     rationale: >-
       A side channel between two Actors on one host is not there when they run apart.
       Code that waits for one then fails, or works only by chance, in a distributed
       deployment.
+    verification: >-
+      `test_case_delivered_to_reporter_via_inbox` in `test/demo/test_rv_demo.py` runs
+      two actors in one process and asserts the Reporter gets the case only through
+      the outbox-to-inbox delivery path.
     relationships:
     - rel_type: extends
       spec_id: PCR-01-003
@@ -134,7 +140,6 @@ groups:
   - id: PCR-01-007
     priority: MUST
     kind: protocol
-    verification_debt: '#3612'
     statement: >-
       An Actor that asked a CASE_MANAGER to create a case MUST treat the case as absent
       until the CASE_MANAGER's `Create(VulnerabilityCase)` reaches it. It never assumes
@@ -144,6 +149,12 @@ groups:
       only after the CASE_MANAGER's `Create(VulnerabilityCase)` arrives. A tree that
       acts on the case sooner has nothing to act on, even when the CASE_MANAGER shares
       its host.
+    verification: >-
+      `test_validate_gated_on_local_case_replica` and
+      `test_validate_not_called_when_case_replica_never_arrives` in
+      `test/demo/test_workflow_rm_triage.py` assert the receiver acts on the case only
+      once the CASE_MANAGER's copy is in its own store, and never when it has not
+      arrived.
     relationships:
     - rel_type: extends
       spec_id: PCR-01-003
@@ -912,6 +923,10 @@ groups:
       The CASE_MANAGER is the Invite's `actor` (PCR-08-007), so the `actor` field no
       longer shows that the Case Owner asked for it. `attributedTo` keeps that record
       without changing whom the invitee trusts.
+    verification: >-
+      `test_the_case_actor_emits_and_commits_the_invite` in
+      `test/demo/test_remote_case_actor_invite.py` asserts the CASE_MANAGER's Invite
+      names the Case Owner who asked for it in `attributedTo`.
     relationships:
     - rel_type: extends
       spec_id: PCR-08-007

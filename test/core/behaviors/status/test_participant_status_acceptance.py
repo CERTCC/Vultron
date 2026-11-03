@@ -836,6 +836,59 @@ class TestCrossMachineEntailments:
         asserted = _asserted_status(RM.DEFERRED, CS_vf.vf, CS_pxa.pxa)
         assert _refused(current, asserted, _VENDOR_DEPLOYER) == []
 
+    @pytest.mark.spec("RSH-09-012")
+    def test_the_emit_and_receive_paths_evaluate_one_entailment_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Both paths ask the one evaluator about the same state.
+
+        The emit path (``participant_transition_violations``) and the receive
+        path (``participant_status_refusals``) each call
+        ``composite_state_violations`` with the status's RM, VF and D, and
+        each refuses the impossible state it reports.
+        """
+        from vultron.core.behaviors.status.nodes import (
+            participant_status_acceptance as receive_path,
+        )
+        from vultron.core.states import (
+            composite_state_invariants,
+            participant_transitions as emit_path,
+        )
+
+        real = composite_state_invariants.composite_state_violations
+        asked: dict[str, list[tuple[Any, ...]]] = {"emit": [], "receive": []}
+
+        def spy(path: str) -> Any:
+            def _spy(*args: Any) -> Any:
+                asked[path].append(args)
+                return real(*args)
+
+            return _spy
+
+        monkeypatch.setattr(
+            emit_path, "composite_state_violations", spy("emit")
+        )
+        monkeypatch.setattr(
+            receive_path, "composite_state_violations", spy("receive")
+        )
+
+        current = _current_status(RM.VALID, None, CS_pxa.pxa)
+        asserted = _asserted_status(RM.VALID, CS_vf.VF, CS_pxa.pxa)
+        assert _refused(current, asserted, _VENDOR) == ["vf"]
+        emitted = emit_path.participant_transition_violations(
+            current_rm=RM.VALID,
+            current_vf=None,
+            current_d=None,
+            current_pxa=CS_pxa.pxa,
+            requested_vf=CS_vf.VF,
+            actor_roles=_VENDOR,
+        )
+        assert emitted, "the emit path refuses the state the receive path does"
+
+        assert (
+            asked["emit"] == asked["receive"] == [(RM.VALID, CS_vf.VF, None)]
+        )
+
 
 # ---------------------------------------------------------------------------
 # RSH-06: RM anomaly detection (BB_RM_ANOMALY)

@@ -922,9 +922,10 @@ groups:
       changes with no entry that records them. The replica then holds state that its
       ledger cannot explain, and a replay cannot rebuild it.
     verification: >-
-      Integration tests in `test/demo/` confirm that log entries are not applied to
-      case state until after the entry has been durably written with its content hash
-      recorded in the authoritative log.
+      `test_no_effect_node_is_used_as_a_precondition_guard` and
+      `test_only_permitted_stages_write_ahead_of_the_commit` in
+      `test/architecture/test_receive_side_bt_commit_ordering.py` assert no received
+      tree applies a protocol effect to the case ahead of its ledger commit.
     relationships:
     - rel_type: extends
       spec_id: SYNC-09-001
@@ -4022,6 +4023,9 @@ groups:
     rationale: >-
       Ordered delivery makes reordering rare, so fewer entries are held or replayed. It
       stays an optimization, because SYNC-19-003 gives no one a right to rely on it.
+    verification: >-
+      The OX-01-005 tests in `test/adapters/driving/fastapi/test_outbox_handler_lanes.py`
+      assert the outbox delivers each recipient's messages in the order it queued them.
     relationships:
     - rel_type: extends
       spec_id: SYNC-19-003

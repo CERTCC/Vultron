@@ -577,6 +577,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
 
     @pytest.mark.spec("RSH-08-003")
     @pytest.mark.spec("RSH-08-006")
+    @pytest.mark.spec("RSH-08-013")
     def test_execute_stores_status_without_appending_to_sender_record(self):
         """execute() stores the status and queues it, leaving the record alone.
 
