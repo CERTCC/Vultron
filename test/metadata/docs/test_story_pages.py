@@ -39,8 +39,6 @@ _NOT_STORIES = frozenset({"index.md", "table.md", "traceability.md"})
 _TITLE_RE = re.compile(
     r"^# User Story `(?P<short>[^`]+)`(?: #)?$", re.MULTILINE
 )
-_START = STORY_START
-_END = STORY_END
 #: The two retired forms: the Metadata line and the dated Notes marker.
 _SUPPORT_LEVEL_RE = re.compile(
     r"^- \*\*Support Level:\*\*|\*\(as of v0\.4\.0\)\*", re.MULTILINE
@@ -75,10 +73,10 @@ def _frontmatter_faults(path: Path) -> list[str]:
 def _marker_faults(text: str) -> list[str]:
     faults = [
         f"{marker} appears {text.count(marker)} times, not once"
-        for marker in (_START, _END)
+        for marker in (STORY_START, STORY_END)
         if text.count(marker) != 1
     ]
-    if not faults and text.index(_START) > text.index(_END):
+    if not faults and text.index(STORY_START) > text.index(STORY_END):
         faults.append("story-end comes before story-start")
     return faults
 
@@ -171,7 +169,7 @@ def test_every_story_page_has_the_documented_shape(path: Path) -> None:
 _GOOD_2026 = (
     "---\nstakeholder_type: [project-contributor]\n---\n\n"
     "# User Story `2026_999`\n\n"
-    f"{_START}As a Tool Author, I want a thing, so that it works{_END}\n\n"
+    f"{STORY_START}As a Tool Author, I want a thing, so that it works{STORY_END}\n\n"
     "## Notes\n\nWhy.\n\n"
     "## Metadata\n\n"
     "- **Speaker:** Implementer (Tool Author)\n"
@@ -233,12 +231,16 @@ def test_the_good_page_passes(tmp_path: Path) -> None:
             _GOOD_2026.replace("Why.", "*(as of v0.4.0)*\nWhy."),
             "retired support level",
         ),
-        ("story_2026_999.md", _GOOD_2026.replace(_END, ""), "appears 0 times"),
         (
             "story_2026_999.md",
-            _GOOD_2026.replace(_START, "@@")
-            .replace(_END, _START)
-            .replace("@@", _END),
+            _GOOD_2026.replace(STORY_END, ""),
+            "appears 0 times",
+        ),
+        (
+            "story_2026_999.md",
+            _GOOD_2026.replace(STORY_START, "@@")
+            .replace(STORY_END, STORY_START)
+            .replace("@@", STORY_END),
             "story-end comes before story-start",
         ),
         (
@@ -248,7 +250,7 @@ def test_the_good_page_passes(tmp_path: Path) -> None:
         ),
         (
             "story_2026_999.md",
-            _GOOD_2026 + f"\n{_START}again\n",
+            _GOOD_2026 + f"\n{STORY_START}again\n",
             "appears 2 times",
         ),
         (

@@ -102,12 +102,13 @@ Rules for extending it:
 The catalog index § Adding a Story states the page shape, and
 `test/metadata/docs/test_story_pages.py` enforces it on every page (the
 `story-page-shape` pre-commit hook and its step in spec-check.yml).
-Two rules the test cannot check:
+The test checks that the Metadata labels are present, not what they say.
+What it cannot check:
 
 - A superseded page keeps its story text and adds a **Superseded by** line
   listing the replacement IDs (TRACE-03-002).
-- Metadata labels follow `story_2026_001` onward: Speaker, Roles (Participant
-  speaker only), Related issues, Drafted for, Added.
+- Metadata labels keep the order `story_2026_001` onward uses: Speaker, Roles
+  (Participant speaker only), Related issues, Drafted for, Added.
 
 ## Working the protocol story gap
 
