@@ -4,11 +4,12 @@ Collect development velocity metrics from GitHub (CERTCC/Vultron).
 
 Fetches all issues created on or after START_DATE, buckets them by week and
 month, and emits a JSON document with raw counts suitable for downstream
-analysis and visualization, including how Concerns were closed.  Unless ``--no-pipeline-cost`` is given, it also
-fetches merged PRs and GitHub Actions runs and adds a ``pipeline_cost``
-section: per-PR CI runs, merges from main, local suite runs, questions
-asked and filed, and open-to-merge time, plus weekly failed CI runs on main (PAD-18-007) and
-weekly red episodes on main with each episode's candidate partner merges.
+analysis and visualization, including how Concerns were closed.  Unless
+``--no-pipeline-cost`` is given, it also fetches merged PRs and GitHub Actions
+runs and adds a ``pipeline_cost`` section: per-PR CI runs, merges from main,
+local suite runs, questions asked and filed, and open-to-merge time, plus
+weekly failed CI runs on main (PAD-18-007) and weekly red episodes on main
+with each episode's candidate partner merges.
 
 Usage:
     python scripts/velocity.py
