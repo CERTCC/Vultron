@@ -23,10 +23,12 @@ measured once, on 2026-08-25, and about a third of the IDs on them had since
 been relabelled or retired. A list derived from the registry on each run cannot
 go stale that way.
 
-The report is a read, never a gate: it always exits 0. ``spec-lint`` owns the
-verdicts (SR-11-003's hard error, SR-11-004's advisory, and MS-12-007's
-PR-only guard on a new suppression); counting the same population here as a
-pinned figure would be the committed-count anti-pattern MS-10 forbids.
+The report is a read, never a gate: it issues no verdict on the corpus, however
+many gaps it finds. ``spec-lint`` owns the verdicts (SR-11-003's hard error,
+SR-11-004's advisory, and MS-12-007's PR-only guard on a new suppression);
+counting the same population here as a pinned figure would be the
+committed-count anti-pattern MS-10 forbids. Its one non-zero exit is about the
+request rather than the corpus, below.
 
 CLI (``uv run story-gaps``):
     story-gaps                one summary line per spec file
@@ -41,6 +43,7 @@ report, so a mistyped area cannot read as a finished one.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from collections import Counter
 from dataclasses import dataclass
@@ -87,16 +90,44 @@ class Gap:
     suppressed: bool
 
 
+class UnknownSelector(ValueError):
+    """A selector named no spec file, group or requirement in the registry.
+
+    Its own type, so :func:`main` catches the selector fault alone and cannot
+    report an unrelated ``ValueError`` from deeper in the report as a mistyped
+    area (CS-23-002). Derived from ``ValueError`` because that is what a bad
+    argument value is, and so a caller that only wants "the selector was
+    wrong" need not import this name.
+    """
+
+
+#: What may follow a selector inside a requirement ID it selects: the ``-``
+#: before the next ID component, or a sub-item letter. Anchoring at ``-`` alone
+#: is what keeps one file ID out of another's requirements — a bare
+#: ``startswith`` made ``CS`` collect all sixteen of CSB's gaps and ``MS``
+#: collect MSM's and none of its own, and AR/ARCH, BT/BTND, BT/BTC and DR/DRPT
+#: are the same shape. But the index carries an optional sub-item letter
+#: (``_SUFFIX`` in schema.py), so ``-`` alone also hid ``VP-12-002c`` from the
+#: selector ``VP-12-002``. A single letter cannot reinstate the file-ID
+#: over-match: ``CSB-16-001`` leaves ``B-16-001``, which neither branch matches
+#: whole. Upper-case, because every argument to :func:`_selects` already is.
+#: Not optional: an empty remainder means the selector *is* the ID, which
+#: :func:`_selects` has already answered before it reaches this pattern.
+_CONTINUATION = re.compile(r"-.*|[A-Z]")
+
+
 def _selects(spec_id: str, file_id: str, selector: str) -> bool:
     """Whether *selector* names *file_id*, the requirement, or an ID prefix.
 
-    Every argument is already upper-cased. The prefix is anchored at the ``-``
-    separator, which is what keeps one file ID from reaching another's
-    requirements: a bare ``startswith`` made ``CS`` collect all sixteen of
-    CSB's gaps and ``MS`` collect MSM's and none of its own, and AR/ARCH,
-    BT/BTND, BT/BTC and DR/DRPT are the same shape.
+    Every argument is already upper-cased. A selector selects a requirement
+    whose ID it equals, or whose ID it is a component- or sub-item-boundary
+    prefix of (:data:`_CONTINUATION`).
     """
-    return selector in (file_id, spec_id) or spec_id.startswith(f"{selector}-")
+    if selector in (file_id, spec_id):
+        return True
+    if not spec_id.startswith(selector):
+        return False
+    return _CONTINUATION.fullmatch(spec_id[len(selector) :]) is not None
 
 
 def unmatched_selectors(
@@ -110,6 +141,10 @@ def unmatched_selectors(
     (DF-09-009). Matching is against the whole registry, not the gap set, so
     an area that genuinely has no gaps stays distinguishable from a mistyped
     one.
+
+    Walking the requirements is enough to key every file and group: ``SpecFile``
+    validates ``groups`` non-empty and ``SpecGroup`` validates ``specs``
+    non-empty (schema.py), so no file or group can exist with nothing under it.
     """
     known = [
         (spec.id.upper(), spec_file.id.upper())
@@ -242,13 +277,13 @@ def gap_report(
     """Return the report's lines: the worklist when *detail*, else summaries.
 
     Raises:
-        ValueError: If a selector names no requirement in *registry*, every
-            such selector named. Reporting a typo as an empty gap set would
-            tell the reader its area was done (:func:`unmatched_selectors`).
+        UnknownSelector: If a selector names nothing in *registry*, every such
+            selector named. Reporting a typo as an empty gap set would tell
+            the reader its area was done (:func:`unmatched_selectors`).
     """
     unknown = unmatched_selectors(registry, selectors)
     if unknown:
-        raise ValueError(
+        raise UnknownSelector(
             f"no spec file or requirement ID matches {', '.join(unknown)}; "
             "a selector is a spec-file ID (CM) or a requirement-ID prefix "
             "(CM-23)"
@@ -300,7 +335,7 @@ def main(argv: list[str] | None = None) -> int:
     registry = load_registry(spec_dir)
     try:
         lines = gap_report(registry, tuple(args.selector), detail=args.detail)
-    except ValueError as exc:
+    except UnknownSelector as exc:
         print(f"story-gaps: {exc}", file=sys.stderr)
         return 2
     for line in lines:
@@ -312,6 +347,7 @@ __all__ = [
     "PRIORITY_ORDER",
     "SUPPRESSED_MARK",
     "Gap",
+    "UnknownSelector",
     "gap_report",
     "listing_lines",
     "main",

@@ -31,7 +31,7 @@ stakeholder_type: [project-contributor]
 | `doc/examples/` | Committed JSON examples of the activity vocabulary | `doc/README.md` |
 | `ontology/` | RDF/OWL Turtle ontologies for AS2 and the Vultron protocol | `ontology/vultron_protocol.ttl` |
 | `plan/` | Agent workflow files: incoming learnings queue and history archive | `plan/history/`, `plan/incoming/` |
-| `scripts/` | One-shot maintenance scripts (spec relabelling, story backfill, velocity report) | `scripts/velocity.py`, `scripts/relabel_spec_kinds.py` |
+| `scripts/` | One-shot maintenance scripts (spec relabelling, story mapping, velocity report) | `scripts/velocity.py`, `scripts/relabel_spec_kinds.py` |
 | `prompts/` | Standalone agent prompt files | `prompts/ARCHITECTURE_REVIEW_prompt.md` |
 | `.agents/skills/` | Agent skills; `.claude/skills` is a symlink to it | `AGENTS.md` |
 | `.github/workflows/`, `.github/actions/` | CI/CD pipeline definitions and composite actions | `.github/workflows/python-app.yml`, `.github/actions/setup-python-uv/action.yml` |
@@ -61,6 +61,8 @@ stakeholder_type: [project-contributor]
     `--list-compound` prints only the compound-requirement backlog, by spec file (MS-03-001).
   - `spec-coverage` → `vultron.metadata.specs.coverage:main`
   - `spec-backstop` → `vultron.metadata.specs.backstop:main` (spec groups governing the changed code, checked against a Spec manifest)
+  - `story-gaps` → `vultron.metadata.specs.story_gaps:main` (every `kind: protocol` requirement with no `stories:`, grouped by spec file then priority and marking the `missing_story_reference` carriers; one summary line per file by default, `--list` for the per-requirement worklist, and a spec-file or requirement-ID-prefix selector, TRACE-03-004).
+    It is a read, not a gate: its only non-zero exit is 2, for a selector that matches nothing (SR-07-011).
   - `spec-rationale` → `vultron.metadata.specs.rationale:main`.
     Its `history` and `adr-links` reports list rationales that may narrate history, and requirements a live decision record names that their `adr:` does not cite (MS-10-015).
     `--file specs/<name>.yaml` narrows a report to one spec file; the reports are advisory, so it exits 0 whatever they find.

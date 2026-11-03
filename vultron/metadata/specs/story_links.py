@@ -59,8 +59,14 @@ def cited_story_page_errors(
     """
     errors: list[str] = []
     for spec_id, spec in registry.all_specs.items():
+        # dict.fromkeys, not a set: a repeated entry is named once, in the
+        # order written. `stories:` constrains each entry's shape but not the
+        # list's uniqueness, the same reason measure_story_coverage counts a
+        # repeat once (story_coverage.py).
         missing = [
-            story for story in spec.stories or [] if story not in catalog
+            story
+            for story in dict.fromkeys(spec.stories or [])
+            if story not in catalog
         ]
         if missing:
             errors.append(

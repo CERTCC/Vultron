@@ -2379,6 +2379,20 @@ def test_a_cited_story_with_no_page_is_a_hard_error(tmp_path, capsys):
 
 
 @pytest.mark.spec("TRACE-03-001")
+def test_an_absent_story_cited_twice_is_named_once(tmp_path, capsys):
+    """`stories:` constrains each entry's shape, not the list's uniqueness.
+
+    Naming the ID twice in one sentence reads as two distinct missing pages.
+    `measure_story_coverage` counts a repeat once for the same reason.
+    """
+    spec_dir = _repo_with_story_catalog(tmp_path, "story_2022_001")
+    write_yaml(spec_dir, _spec_citing("story_2022_999", "story_2022_999"))
+    assert lint(spec_dir) == 1
+    err = capsys.readouterr().err
+    assert err.count("story_2022_999") == 1
+
+
+@pytest.mark.spec("TRACE-03-001")
 def test_a_cited_story_with_a_page_passes(tmp_path, capsys):
     """A `stories:` entry naming a page in the catalog is clean."""
     spec_dir = _repo_with_story_catalog(tmp_path, "story_2022_001")

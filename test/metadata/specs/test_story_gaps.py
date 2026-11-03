@@ -15,6 +15,7 @@ from vultron.metadata.specs.registry import SpecRegistry
 from vultron.metadata.specs.schema import SpecFile
 from vultron.metadata.specs.story_gaps import (
     SUPPRESSED_MARK,
+    UnknownSelector,
     gap_report,
     listing_lines,
     main,
@@ -74,6 +75,9 @@ def registry() -> SpecRegistry:
                 _spec("CM-01-002", "MAY"),
                 _spec("CM-01-001", "MUST", suppressed=True),
                 _spec("CM-23-004", "MUST"),
+                # Sub-item ID: the index carries the optional trailing letter
+                # SPEC_ID_PATTERN allows, so CM-23-004 must reach it.
+                _spec("CM-23-004b", "MUST"),
                 _spec("CM-23-005", "MUST_NOT"),
                 _spec("CM-23-006", stories=["story_2022_001"]),
             ),
@@ -96,6 +100,7 @@ class TestSelection:
             ("AKM", "AKM-01-001"),
             ("CM", "CM-01-001"),
             ("CM", "CM-23-004"),
+            ("CM", "CM-23-004b"),
             ("CM", "CM-23-005"),
             ("CM", "CM-01-002"),
             ("CMX", "CMX-01-001"),
@@ -113,6 +118,7 @@ class TestSelection:
     def test_an_id_prefix_selector_narrows_the_report(self, registry):
         assert [g.spec_id for g in story_gaps(registry, ("CM-23",))] == [
             "CM-23-004",
+            "CM-23-004b",
             "CM-23-005",
         ]
 
@@ -133,7 +139,29 @@ class TestSelection:
         assert {g.file_id for g in story_gaps(registry, ("CM",))} == {"CM"}
         assert {g.file_id for g in story_gaps(registry, ("CMX",))} == {"CMX"}
 
-    def test_an_id_prefix_does_not_reach_a_prefix_it_extends(self, registry):
+    def test_a_requirement_id_selector_reaches_its_sub_items(self, registry):
+        """`CM-23-004` must reach `CM-23-004b`: SPEC_ID_PATTERN's `[a-z]?`.
+
+        Anchoring the prefix at `-` alone keeps `CM` out of CMX, but it also
+        hid every sub-item from the ID that names it — live, `story-gaps
+        VP-12-002` reported no gap while `VP-12-002c` was one, and the
+        unmatched-selector exit could not catch it because the unsuffixed
+        sibling exists.
+        """
+        assert [g.spec_id for g in story_gaps(registry, ("CM-23-004",))] == [
+            "CM-23-004",
+            "CM-23-004b",
+        ]
+
+    def test_a_sub_item_id_selects_only_itself(self, registry):
+        assert [g.spec_id for g in story_gaps(registry, ("CM-23-004b",))] == [
+            "CM-23-004b"
+        ]
+
+    def test_a_group_selector_does_not_reach_a_group_it_prefixes(
+        self, registry
+    ):
+        """`CM-01` must not reach CM-23, and selects neither more nor less."""
         assert [g.spec_id for g in story_gaps(registry, ("CM-01",))] == [
             "CM-01-001",
             "CM-01-002",
@@ -162,7 +190,7 @@ class TestRendering:
             "CM",
             "CMX",
         ]
-        assert lines[-1].startswith("6 requirement(s) in 3 spec file(s)")
+        assert lines[-1].startswith("7 requirement(s) in 3 spec file(s)")
 
     def test_a_summary_line_counts_by_priority(self, registry):
         line = next(
@@ -170,7 +198,7 @@ class TestRendering:
             for line in summary_lines(story_gaps(registry))
             if line.startswith("CM")
         )
-        assert "MUST 2, MUST_NOT 1, MAY 1" in line
+        assert "MUST 3, MUST_NOT 1, MAY 1" in line
         assert "1 suppressed" in line
 
     def test_a_suppression_carrier_is_marked(self, registry):
@@ -182,11 +210,12 @@ class TestRendering:
         self, registry
     ):
         lines = listing_lines(story_gaps(registry, ("CM",)))
-        assert lines[:7] == [
-            "CM (4)",
-            "  MUST (2)",
+        assert lines[:8] == [
+            "CM (5)",
+            "  MUST (3)",
             f"    CM-01-001 {SUPPRESSED_MARK}",
             "    CM-23-004",
+            "    CM-23-004b",
             "  MUST_NOT (1)",
             "    CM-23-005",
             "  MAY (1)",
@@ -201,8 +230,22 @@ class TestRendering:
     def test_an_unmatched_selector_raises_rather_than_reading_as_done(
         self, registry
     ):
-        with pytest.raises(ValueError, match="ZZZ"):
+        with pytest.raises(UnknownSelector, match="ZZZ"):
             gap_report(registry, ("ZZZ",))
+
+    def test_the_selector_fault_is_a_value_error(self):
+        """A caller that only wants "bad argument" need not import the name."""
+        assert issubclass(UnknownSelector, ValueError)
+
+    def test_a_group_selector_is_matched_though_no_group_id_is_keyed(
+        self, registry
+    ):
+        """`unmatched_selectors` walks requirements, not group IDs.
+
+        A group ID still matches, through the prefix arm, so narrowing to a
+        group is not reported as a typo.
+        """
+        assert unmatched_selectors(registry, ("CM-01", "CM-23")) == ()
 
 
 @pytest.mark.spec("TRACE-03-004")
