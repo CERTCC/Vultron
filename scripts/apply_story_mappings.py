@@ -29,6 +29,8 @@ _LINT_SUPPRESS_RE = re.compile(r"^(\s+)lint_suppress:\s*$")
 _MSR_ITEM_RE = re.compile(r"^\s+-\s+missing_story_reference\s*$")
 # Matches any list item under lint_suppress
 _LIST_ITEM_RE = re.compile(r"^\s+-\s+\S")
+# Matches a justification comment line inside a lint_suppress block
+_COMMENT_RE = re.compile(r"^\s+#")
 
 
 def _build_story_map(spec_mappings: list[dict]) -> dict[str, list[str]]:
@@ -45,13 +47,38 @@ def _collect_suppress_items(
 ) -> tuple[list[str], int]:
     """Collect the lint_suppress list items starting at item_lines[j].
 
+    A justification comment between items belongs to the block, so it is
+    collected too; stopping at it would strand the items after it.
+
     Returns (suppress_items, next_index).
     """
     suppress_items: list[str] = []
-    while j < len(item_lines) and _LIST_ITEM_RE.match(item_lines[j]):
+    while j < len(item_lines) and (
+        _LIST_ITEM_RE.match(item_lines[j]) or _COMMENT_RE.match(item_lines[j])
+    ):
         suppress_items.append(item_lines[j])
         j += 1
     return suppress_items, j
+
+
+def _drop_story_suppression(suppress_items: list[str]) -> list[str]:
+    """Return the block without missing_story_reference and its comments.
+
+    A comment justifies the item that follows it, so the comments directly
+    above the removed item go with it; every other line is kept in order.
+    """
+    remaining: list[str] = []
+    pending_comments: list[str] = []
+    for line in suppress_items:
+        if _COMMENT_RE.match(line):
+            pending_comments.append(line)
+            continue
+        if not _MSR_ITEM_RE.match(line):
+            remaining.extend(pending_comments)
+            remaining.append(line)
+        pending_comments = []
+    remaining.extend(pending_comments)
+    return remaining
 
 
 def _rewrite_suppress_block(
@@ -68,7 +95,7 @@ def _rewrite_suppress_block(
     if not any(_MSR_ITEM_RE.match(si) for si in suppress_items):
         return None
 
-    remaining = [si for si in suppress_items if not _MSR_ITEM_RE.match(si)]
+    remaining = _drop_story_suppression(suppress_items)
 
     # Insert stories: block (before lint_suppress, or in its place)
     new_lines = [f"{field_indent}stories:\n"]
@@ -76,7 +103,7 @@ def _rewrite_suppress_block(
         new_lines.append(f"{field_indent}- {story}\n")
 
     # Keep the remaining lint_suppress items if any
-    if remaining:
+    if any(_LIST_ITEM_RE.match(line) for line in remaining):
         new_lines.append(header)  # lint_suppress: header
         new_lines.extend(remaining)
     return new_lines
