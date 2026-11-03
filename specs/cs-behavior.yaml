@@ -1154,7 +1154,7 @@ groups:
     # compound_statement: CE has no receive path in this codebase (MSM-03-007), so
     # no test can carry a marker for a split child, and the marker-coverage guard
     # (SR-05-005) fails a new protocol ID without one. Split it when CE handling is
-    # built and tested.
+    # built and tested; #5662 tracks the split.
     - compound_statement
     rationale: >-
       CE signals a protocol error in the CS process. Acknowledging with CK and

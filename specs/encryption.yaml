@@ -67,7 +67,8 @@ groups:
     # compound_statement: the storage half is production key handling (#1184), which
     # agents may not build (AGENTS.md, ADR-0164). A split child would be a new
     # protocol ID that the marker-coverage guard (SR-05-005) fails with no test to
-    # carry its marker. Split it when #1184 lands a key store with a test.
+    # carry its marker. Split it when #1184 lands a key store with a test; #5662
+    # tracks the split.
     - compound_statement
     rationale: >-
       Anyone who obtains an actor's private key can read messages encrypted to it,

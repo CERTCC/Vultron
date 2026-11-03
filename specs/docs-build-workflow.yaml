@@ -728,7 +728,7 @@ groups:
           whether every check passed on one commit cannot be read per commit. The
           open failure issue that `notify-failure` keeps per workflow says the
           workflow is red on `main`, and that state carries over path filters
-          (CISEC-05-003).
+          (CISEC-05-011).
         verification: >-
           `test_an_open_blocking_issue_blocks` and
           `test_a_non_blocking_issue_does_not_block` in
@@ -737,7 +737,7 @@ groups:
           - ADR-0171
         relationships:
           - rel_type: depends_on
-            spec_id: CISEC-05-003
+            spec_id: CISEC-05-011
       - id: DOCBW-06-009
         priority: MUST
         kind: project
