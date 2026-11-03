@@ -39,6 +39,7 @@ List every writer of `VulnerabilityCase.case_statuses` (CASE_MANAGER commits, re
 Governing specs: CM-29-001, SM-05-002, ADR-0103
 
 **Resolved**: 2026-11-03 — implementation tracked in #5749.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5751>.
 
 Finding: every append to `VulnerabilityCase.case_statuses` is the CASE_MANAGER's,
 each a valid next step on its own clock (genesis seeding on both creation paths,
