@@ -91,7 +91,7 @@ class CaseLedgerEntry(RetiredFieldsRecord, CoreObject):
     """
 
     # A stored or received entry still spelling the field the old way is
-    # refused, never read through an alias (CLP-02-015).
+    # refused, never read through an alias (CLP-02-019).
     retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
         "event_type": RetiredStoredField("semantic_type", "#4872"),
     }

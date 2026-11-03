@@ -364,7 +364,7 @@ class TestApplyParticipantStatusCompositeStateViolation:
 class TestEmitImpossibleStateFaultNode:
     """EmitImpossibleStateFaultNode emits the fault and returns FAILURE."""
 
-    @pytest.mark.spec("RSH-09-006")
+    @pytest.mark.spec("RSH-09-013")
     def test_emits_fault_with_impossible_state_class(
         self, datalayer, case_actor
     ):

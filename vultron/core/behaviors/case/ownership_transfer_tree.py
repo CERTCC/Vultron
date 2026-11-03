@@ -228,7 +228,7 @@ def create_reject_ownership_transfer_tree(
     The Accept's tree with no effects: the sender guard admits only the
     transferee of an open Offer the CASE_MANAGER recorded (CM-21-013), and the
     guarded commit ledgers the Reject and broadcasts
-    ``Announce(CaseLedgerEntry)`` (CM-21-032, CLP-02-012).  That entry closes
+    ``Announce(CaseLedgerEntry)`` (CM-21-032, CLP-02-016).  That entry closes
     the Offer (CM-21-014); ownership is unchanged, so nothing else is written.
 
     Args:

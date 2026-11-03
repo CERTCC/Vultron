@@ -467,7 +467,7 @@ RejectLogEntryPattern = LedgerEntryRejectPattern(
         "Participant rejects a CaseLedgerEntry announcement due to "
         "hash-chain mismatch. The object is the rejected CaseLedgerEntry, or "
         "absent when the participant holds no entry and asks for a replay "
-        "from genesis, naming the case as its target (SYNC-16-007)."
+        "from genesis, naming the case as its target (SYNC-16-027)."
     ),
     activity_=TAtype.REJECT,
     object_=VOtype.CASE_LEDGER_ENTRY,
@@ -525,7 +525,7 @@ RemoveCaseParticipantFromCasePattern = ActivityPattern(
 CreateCaseParticipantPattern = ActivityPattern(
     description=(
         "The CASE_MANAGER creates a participant record: a CREATE of the "
-        "CaseParticipant carrying the record in full (ADR-0114, CLP-07-013)."
+        "CaseParticipant carrying the record in full (ADR-0114, CLP-07-021)."
     ),
     activity_=TAtype.CREATE,
     object_=VOtype.CASE_PARTICIPANT,
@@ -533,7 +533,7 @@ CreateCaseParticipantPattern = ActivityPattern(
 UpdateCaseParticipantPattern = ActivityPattern(
     description=(
         "The CASE_MANAGER changes a participant record: an UPDATE of the "
-        "CaseParticipant carrying the record in full (CLP-07-013)."
+        "CaseParticipant carrying the record in full (CLP-07-021)."
     ),
     activity_=TAtype.UPDATE,
     object_=VOtype.CASE_PARTICIPANT,

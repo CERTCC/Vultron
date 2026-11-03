@@ -418,6 +418,7 @@ class TestAddOnBehalfStatusDtoD:
     @pytest.mark.spec("RSH-08-006")
     @pytest.mark.parametrize("rm", [RM.RECEIVED, RM.INVALID, RM.VALID])
     @pytest.mark.spec("PRM-06-008")
+    @pytest.mark.spec("RSH-08-012")
     def test_refused_by_entailment_at_any_other_rm(self, rm: RM):
         """D entails RM ∈ {ACCEPTED, DEFERRED, CLOSED}; nothing is written."""
         _add_participant(

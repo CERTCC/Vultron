@@ -208,7 +208,7 @@ def _refused_announce_verdict(
             f"ledger entry '{entry.id_}' (log_index={entry.log_index}) is"
             f" not the entry case '{entry.case_id}' names at its ledger"
             " position; the chains conflict, so it is not stored"
-            " (SYNC-16-007)"
+            " (SYNC-16-025)"
         )
     if node_failed(tree, SendRejectLogEntryNode):
         return _rejected_announce_verdict(tree, entry)
@@ -288,7 +288,7 @@ class AnnounceLedgerEntryReceivedUseCase:
     ) -> None:
         self._dl = dl
         self._inbox_replay = inbox_replay
-        # Builds the replica's fault about an entry it refuses (RSH-09-006,
+        # Builds the replica's fault about an entry it refuses (RSH-09-013,
         # SYNC-03-007, SYNC-16-001).
         self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
@@ -471,7 +471,7 @@ class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
         # The rejected entry's case, or, for the Reject that names no entry
         # because the peer holds none, the case it names as its target; the
         # parser admits that form only with a position naming no entry, so
-        # it asks for a replay from genesis (SYNC-16-007).
+        # it asks for a replay from genesis (SYNC-16-027).
         case_id = request.rejected_case_id
         if case_id is None:
             logger.warning(

@@ -18,7 +18,7 @@
 - :class:`SilentIdempotencyGuardMixin` enforces the CLP-13 silence contract.
 - :class:`ReportsIdempotentRepeat` is how a guard says its ``FAILURE`` was a
   repeat the handler reports ``SKIPPED``, not a refusal, so the refusal stage
-  sends no refusal effect for it (CLP-10-022, CLP-05-001).
+  sends no refusal effect for it (CLP-10-042, CLP-05-006).
 
 Per ``specs/case-ledger-processing.yaml`` CLP-13-001, CLP-13-002, CLP-13-003,
 CLP-10-022.
@@ -39,7 +39,7 @@ class ReportsIdempotentRepeat(Protocol):
     the handler reports it ``SKIPPED`` (HP-01-003, ID-05-003).  A repeat was
     not refused, so the refusal stage runs no refusal effect for it: a
     ``Reject`` of it would contradict the effect already in place
-    (CLP-10-022, CLP-05-001).
+    (CLP-10-042, CLP-05-006).
     """
 
     @property

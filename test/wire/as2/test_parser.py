@@ -63,6 +63,7 @@ def test_parse_activity_reads_blank_type_as_missing_not_unknown(blank: str):
 
 @pytest.mark.spec("MV-01-001")
 @pytest.mark.spec("CLP-15-004")
+@pytest.mark.spec("CLP-15-008")
 def test_parse_activity_raises_missing_published_when_absent():
     """An inbound activity without ``published`` is malformed, not correctable.
 
@@ -84,6 +85,7 @@ def test_parse_activity_raises_missing_published_when_absent():
 
 
 @pytest.mark.spec("CLP-15-004")
+@pytest.mark.spec("CLP-15-008")
 def test_parse_activity_rejects_explicit_null_published():
     """``"published": null`` is absence spelled out, and refused the same way."""
     with pytest.raises(VultronParseMissingPublishedError):
@@ -97,18 +99,18 @@ def test_parse_activity_rejects_explicit_null_published():
         )
 
 
-@pytest.mark.spec("CLP-15-006")
 @pytest.mark.spec("MV-03-002")
 @pytest.mark.spec("CS-08-001")
 @pytest.mark.parametrize("blank", BLANKS)
+@pytest.mark.spec("CLP-15-008")
 def test_parse_activity_rejects_blank_published(blank: str):
     """A blank ``published`` carries no claimed time, so it is absence.
 
-    CLP-15-006 refuses an inbound activity that "carries no ``published``", and
+    CLP-15-008 refuses an inbound activity that "carries no ``published``", and
     a field present but empty carries none — CS-08-001's "if present, then
     non-empty".  Asking only whether the *key* was absent let this reach
     ``model_validate``, which reported it as a schema fault and so replaced the
-    CLP-15-006 explanation with a Pydantic isoformat dump (ISSUE-3217).
+    CLP-15-008 explanation with a Pydantic isoformat dump (ISSUE-3217).
     """
     with pytest.raises(VultronParseMissingPublishedError):
         parse_activity(
@@ -121,8 +123,8 @@ def test_parse_activity_rejects_blank_published(blank: str):
         )
 
 
-@pytest.mark.spec("CLP-15-006")
 @pytest.mark.spec("MV-03-002")
+@pytest.mark.spec("CLP-15-008")
 def test_parse_activity_reports_unparseable_published_as_malformed():
     """Blank is absence; garbage is malformed, and the two stay distinct.
 
@@ -143,6 +145,7 @@ def test_parse_activity_reports_unparseable_published_as_malformed():
 
 
 @pytest.mark.spec("CLP-15-004")
+@pytest.mark.spec("CLP-15-008")
 def test_parse_activity_raises_missing_published_for_empty_string():
     """``"published": ""`` is absence-by-empty-value and refused the same way.
 
@@ -163,6 +166,7 @@ def test_parse_activity_raises_missing_published_for_empty_string():
 
 
 @pytest.mark.spec("CLP-15-004")
+@pytest.mark.spec("CLP-15-008")
 def test_parse_activity_preserves_the_senders_published_verbatim():
     """The guard is non-vacuous only if the sender's value survives parsing.
 

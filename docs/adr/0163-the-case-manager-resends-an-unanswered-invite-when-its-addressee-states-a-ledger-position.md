@@ -27,7 +27,8 @@ If the case copy takes longer than the queue's window, 300 seconds by default (C
 A reinstatement Invite (CM-31-013) can be dropped the same way.
 
 Nothing resends a dropped Invite.
-The receiver's replay `Question` (CBT-03-004) has no handler on the CASE_MANAGER, and it asks for `Create(VulnerabilityCase)`, which no longer delivers a case copy (PCR-02-005).
+The receiver's replay `Question` (CBT-03-004) has no handler on the CASE_MANAGER.
+It also asks for the wrong activity: it asks for `Create(VulnerabilityCase)`, which carries only the copy made when the case is created (PCR-02-005), while a joiner gets its copy in `Announce(VulnerabilityCase)` (PCR-02-001, PCR-02-002).
 The ledger does not help either: the replica copies the entry that records the Invite's emission, but applying an entry runs no lifecycle logic (CM-23-016), so nothing prompts the joiner to answer.
 A joiner whose embargo Invite was dropped never answers, its consent row times out and it lapses.
 A joiner whose full-case Invite was dropped has nothing to reply to, so it cannot judge the case.

@@ -316,6 +316,7 @@ class TestAcceptedStatusIsRecordedAsSent:
     """An accepted status reaches the participant and the ledger unchanged."""
 
     @pytest.mark.spec("RSH-09-001")
+    @pytest.mark.spec("RSH-09-010")
     def test_the_participant_and_the_ledger_hold_the_received_status(
         self, store_for, make_payload
     ):
@@ -346,7 +347,7 @@ class TestAcceptedStatusIsRecordedAsSent:
         # Nothing in the recorded object differs from the status as sent.
         assert snap == As2WireRenderAdapter().render(asserted)
 
-    @pytest.mark.spec("RSH-09-001")
+    @pytest.mark.spec("RSH-09-010")
     def test_an_omitted_dimension_is_recorded_as_omitted(
         self, store_for, make_payload
     ):
@@ -486,7 +487,7 @@ class TestRefusedStatusIsRefusedWhole:
             "a refused status adopts nothing into the case"
         )
 
-    @pytest.mark.spec("RSH-09-002")
+    @pytest.mark.spec("RSH-09-011")
     def test_the_refusal_names_every_refused_dimension_and_why(
         self, store_for, make_payload
     ):
@@ -769,7 +770,7 @@ class TestAcceptanceRules:
         )
         assert _refused(current, asserted, _VENDOR_DEPLOYER) == []
 
-    @pytest.mark.spec("RSH-09-002", "RSH-09-003")
+    @pytest.mark.spec("RSH-09-011", "RSH-09-003")
     def test_every_failing_rule_is_reported(self):
         current = _current_status(RM.ACCEPTED, CS_vf.VF, CS_pxa.Pxa)
         asserted = _asserted_status(RM.VALID, CS_vf.Vf, CS_pxa.pxa)
@@ -834,6 +835,59 @@ class TestCrossMachineEntailments:
         )
         asserted = _asserted_status(RM.DEFERRED, CS_vf.vf, CS_pxa.pxa)
         assert _refused(current, asserted, _VENDOR_DEPLOYER) == []
+
+    @pytest.mark.spec("RSH-09-012")
+    def test_the_emit_and_receive_paths_evaluate_one_entailment_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Both paths ask the one evaluator about the same state.
+
+        The emit path (``participant_transition_violations``) and the receive
+        path (``participant_status_refusals``) each call
+        ``composite_state_violations`` with the status's RM, VF and D, and
+        each refuses the impossible state it reports.
+        """
+        from vultron.core.behaviors.status.nodes import (
+            participant_status_acceptance as receive_path,
+        )
+        from vultron.core.states import (
+            composite_state_invariants,
+            participant_transitions as emit_path,
+        )
+
+        real = composite_state_invariants.composite_state_violations
+        asked: dict[str, list[tuple[Any, ...]]] = {"emit": [], "receive": []}
+
+        def spy(path: str) -> Any:
+            def _spy(*args: Any) -> Any:
+                asked[path].append(args)
+                return real(*args)
+
+            return _spy
+
+        monkeypatch.setattr(
+            emit_path, "composite_state_violations", spy("emit")
+        )
+        monkeypatch.setattr(
+            receive_path, "composite_state_violations", spy("receive")
+        )
+
+        current = _current_status(RM.VALID, None, CS_pxa.pxa)
+        asserted = _asserted_status(RM.VALID, CS_vf.VF, CS_pxa.pxa)
+        assert _refused(current, asserted, _VENDOR) == ["vf"]
+        emitted = emit_path.participant_transition_violations(
+            current_rm=RM.VALID,
+            current_vf=None,
+            current_d=None,
+            current_pxa=CS_pxa.pxa,
+            requested_vf=CS_vf.VF,
+            actor_roles=_VENDOR,
+        )
+        assert emitted, "the emit path refuses the state the receive path does"
+
+        assert (
+            asked["emit"] == asked["receive"] == [(RM.VALID, CS_vf.VF, None)]
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1118,7 +1172,7 @@ class TestCompositeStateViolationsSharedHelper:
         """Every violated rule is reported, across distinct dimensions.
 
         Both paths refuse the whole status, and the receive path names every
-        violated rule in its refusal notice (RSH-09-002, EH-07-001).
+        violated rule in its refusal notice (RSH-09-011, EH-07-001).
         """
         violations = self._violations(RM.VALID, CS_vf.VF, CS_d.D)
 

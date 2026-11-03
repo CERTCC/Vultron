@@ -199,6 +199,7 @@ def _assert_refused_with_nothing(
     port.resend_sealed_activity.assert_not_called()
 
 
+@pytest.mark.spec("SYNC-17-009")
 @pytest.mark.spec("SYNC-17-002")
 @pytest.mark.spec("CM-10-004")
 @pytest.mark.spec("CM-31-017")
@@ -222,6 +223,7 @@ def test_removed_participant_with_lagging_position_is_refused(dl) -> None:
     _assert_refused_with_nothing(dl, REMOVED_ID, result, port)
 
 
+@pytest.mark.spec("SYNC-17-009")
 @pytest.mark.spec("SYNC-17-002")
 @pytest.mark.spec("CM-10-005")
 def test_unconsented_participant_with_lagging_position_is_refused() -> None:
@@ -236,6 +238,7 @@ def test_unconsented_participant_with_lagging_position_is_refused() -> None:
     _assert_refused_with_nothing(dl, NON_SIGNATORY_ID, result, port)
 
 
+@pytest.mark.spec("SYNC-17-009")
 @pytest.mark.spec("SYNC-17-002")
 @pytest.mark.spec("CM-23-018")
 @pytest.mark.spec("SYNC-20-008")
@@ -309,8 +312,8 @@ def test_lagging_position_is_recorded_and_the_suffix_replayed(dl) -> None:
     assert _ledger_ids(dl) == before
 
 
+@pytest.mark.spec("SYNC-17-010")
 @pytest.mark.spec("SYNC-17-003")
-@pytest.mark.spec("SYNC-17-004")
 @pytest.mark.spec("SYNC-17-006")
 def test_position_at_the_tail_is_recorded_and_sends_nothing(dl) -> None:
     entries = seed_ledger(dl, 3)

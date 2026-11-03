@@ -185,7 +185,7 @@ def create_close_case_received_tree(
         │       (under PostCloseReply.REJECT: a PostCloseStage whose refusal
         │        arm emits EmitRejectLateLeave at the CASE_MANAGER)
         ├── SenderRuleGuard                             # composed from sender_rule (HP-01-025)
-        ├── ClockDecisions (CaseManagerGate)            # embargo end-time check (CLP-10-025)
+        ├── ClockDecisions (CaseManagerGate)            # embargo end-time check (CLP-10-051)
         └── CloseOrDeclineIfCaseManager (CaseManagerGate)  # BT-17-008, #3825
             └── CloseOrDecline (Selector)               # close unless declined
                 ├── CloseCaseReceive (Sequence, via create_receive_activity_tree)

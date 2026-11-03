@@ -271,7 +271,7 @@ class TestInviteActorUseCases:
 
         Intake is the use case's only store of a received activity
         (CLP-10-019): the Invite is archived as a ``ReceivedActivityRecord``
-        and the use case writes nothing under the sender's id (CLP-10-017).
+        and the use case writes nothing under the sender's id (CLP-10-036).
 
         The invitee_id matches the dl owner so the AC-1 trust-anchor check
         (PCR-03-004) passes and the Invite is APPLIED, not refused.
@@ -462,7 +462,7 @@ class TestInviteActorUseCases:
     ):
         """Once the invitee accepts, an Invite naming another CaseActor is refused.
 
-        AC-3 (PCR-03-004 path b): the accepted anchor is never overwritten.
+        AC-3 (PCR-03-010): the accepted anchor is never overwritten.
         The second Invite disposition is REFUSED, naming both CaseActor ids.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -527,7 +527,7 @@ class TestInviteActorUseCases:
         )
         # AC-3: conflicting second Invite is refused, not silently ignored.
         assert second_result.disposition is HandlerDisposition.REFUSED, (
-            "Second Invite naming a different CaseActor MUST be REFUSED (PCR-03-004 path b)"
+            "Second Invite naming a different CaseActor MUST be REFUSED (PCR-03-010)"
         )
 
         pending = dl.read(VultronPendingCaseInbox.build_id(case_id))
@@ -588,7 +588,7 @@ class TestInviteActorUseCases:
     ):
         """An Invite whose object is not the receiving actor is REFUSED; no anchor.
 
-        AC-1 (PCR-03-004 path b): the trust anchor node refuses to record a
+        AC-1 (PCR-03-007): the trust anchor node refuses to record a
         pending expectation when the Invite's ``object`` (the named invitee)
         does not match the receiving actor.  No ``VultronPendingCaseInbox``
         is written.

@@ -238,6 +238,7 @@ class TestReconstructChainTailPreGenesisLogging:
 
     @pytest.mark.spec("SYNC-15-001")
     @pytest.mark.spec("CLP-08-005")
+    @pytest.mark.spec("CLP-08-008")
     def test_pre_genesis_writes_replay_sentinel(self, bridge):
         result = bridge.execute_with_setup(
             tree=ReconstructChainTailNode(
@@ -550,6 +551,7 @@ def test_create_log_entry_node_entry_carries_hashed_received_at(
 @pytest.mark.spec("CM-02-009")
 @pytest.mark.spec("CM-02-018")
 @pytest.mark.spec("CLP-14-002")
+@pytest.mark.spec("CLP-14-011")
 def test_create_log_entry_node_stamps_the_envelope_and_keeps_the_claimed_time(
     bridge, monkeypatch
 ):

@@ -24,7 +24,7 @@ Chain under test (three layers):
    (CLP-10-001).
 2. **Received** — ``ValidateReportReceivedUseCase`` commits a
    ``validate_report`` ledger entry when the CaseActor is the receiving
-   actor (CLP-10-002, CLP-10-003).
+   actor (CLP-09-001, CLP-10-003).
 3. **Full chain** — end-to-end: vendor trigger → CaseActor receives →
    entry in CaseActor's DataLayer.
 
@@ -32,7 +32,7 @@ Context: the case is created at RM.RECEIVED (when the Offer(VulnerabilityReport)
 arrives), so a case with a CASE_MANAGER participant already exists by the time
 ``validate-report`` is triggered (ADR-0015).
 
-Spec refs: ADR-0021, CLP-10-001, CLP-10-027, CLP-10-002, CLP-10-003.
+Spec refs: ADR-0021, CLP-10-001, CLP-10-027, CLP-09-001, CLP-10-003.
 """
 
 from __future__ import annotations
@@ -366,7 +366,7 @@ class TestTriggerEmitsToCaseActorOutbox:
 class TestCaseActorReceivedWritesLedgerEntry:
     """ValidateReportReceivedUseCase writes a ``validate_report`` ledger entry.
 
-    Per CLP-10-002: when receiving_actor_id == case_actor_id the guarded
+    Per CLP-09-001: when receiving_actor_id == case_actor_id the guarded
     commit BT MUST execute, resulting in a persisted CaseLedgerEntry with
     ``semantic_type == "validate_report"``.
 

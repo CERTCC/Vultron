@@ -88,7 +88,7 @@ def refusal_stage(
             contains a state writer.  A refusal commits nothing for the
             refused assertion, so a refusal effect may only speak to the
             sender; a state write here would change state the ledger never
-            records (CLP-10-022).  The one writer admitted is the
+            records (CLP-10-048).  The one writer admitted is the
             CASE_MANAGER's own note (RSH-06-004), which commits its own
             ``add_note_to_case`` entry before it attaches the note.
     """
@@ -110,7 +110,7 @@ def refusal_stage(
         raise VultronWiringError(
             f"create_receive_activity_tree({name}): {argument} must"
             f" emit and write no case state; not emit-capable:"
-            f" {not_emitters}, state writers: {writers} (CLP-10-022)"
+            f" {not_emitters}, state writers: {writers} (CLP-10-047, CLP-10-048)"
         )
     gate = create_case_manager_gated_tree(
         name=f"{name}{gate_suffix}",
@@ -231,7 +231,7 @@ def precondition_guard_nodes(
     """The tree's precondition guards, each :class:`Diversion` built in place.
 
     A diverted delivery is answered by its diversion, so the refusal stage
-    that wraps these guards runs no refusal effect for it (CLP-10-026).
+    that wraps these guards runs no refusal effect for it (CLP-10-070).
     """
     return [
         diversion_stage(name, guard, case_id)

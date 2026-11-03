@@ -128,7 +128,9 @@ def _link(creator: str | None = _CREATOR) -> VultronReportCaseLink:
     )
 
 
+@pytest.mark.spec("PCR-02-005")
 def test_pending_link_selects_the_trusted_route(dl, make_payload):
+    """The trusted route seeds the replica from the ``Create``'s copy."""
     link = _link()
     dl.save(link)
 

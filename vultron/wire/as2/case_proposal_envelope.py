@@ -19,7 +19,7 @@ The CASE_MANAGER reads the CASE_OWNER's actor default only from the
 proposer's own actor profile: the one the proposer sends inline as the
 Create's ``actor``, or, when the ``actor`` names the proposer by its id, the
 one the inbox fetches from the proposer before dispatch (CP-01-009,
-AKM-05-007).  It cannot read the proposer's store (PCR-01-003).  So the
+AKM-05-007).  It cannot read the proposer's store (PCR-01-005).  So the
 envelope's shape is checked where it arrives, and a proposal that can supply
 neither is refused naming the fault rather than created under a default
 nobody stated (ADR-0032: validate at the edge).

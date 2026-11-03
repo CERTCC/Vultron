@@ -137,7 +137,7 @@ RECEIVE_ACTIVITY_TREE_CALL = "create_receive_activity_tree"
 
 #: The factory's effect-stage keywords: the BT-17-008 ``replica_effects`` /
 #: ``manager_effects`` (which replaced the retired ``effect_nodes``, #4307) and
-#: the ``refusal_effects`` that run only when a guard refuses (CLP-10-022).
+#: the ``refusal_effects`` that run only when a guard refuses (CLP-10-042).
 #: A refusal effect is a protocol effect too: the same node used as a guard
 #: elsewhere would run ahead of a commit on an accepted delivery.
 EFFECT_KEYWORDS = frozenset(
@@ -258,6 +258,7 @@ def _stage_rosters() -> tuple[set[str], dict[str, list[str]]]:
 
 
 @pytest.mark.spec("CLP-10-006")
+@pytest.mark.spec("SYNC-09-005")
 def test_no_effect_node_is_used_as_a_precondition_guard() -> None:
     """A node used as a protocol effect anywhere never precedes the commit anywhere."""
     effects, guards = _stage_rosters()
@@ -625,6 +626,7 @@ class TestEarlyCommitDetector:
         ]
 
     @pytest.mark.spec("CLP-10-026")
+    @pytest.mark.spec("CLP-10-066")
     def test_a_case_manager_diversions_own_commit_is_allowed(self) -> None:
         from vultron.core.behaviors.case.nodes.diversion_stage import (
             DiversionStage,
@@ -646,6 +648,7 @@ class TestEarlyCommitDetector:
         assert _early_commits(self._tree(stage)) == []
 
     @pytest.mark.spec("CLP-10-026")
+    @pytest.mark.spec("CLP-10-066")
     def test_an_ungated_diversions_commit_is_flagged(self) -> None:
         from vultron.core.behaviors.case.nodes.diversion_stage import (
             DiversionStage,
@@ -797,6 +800,7 @@ def test_trees_with_a_nested_commit_are_known() -> None:
 
 @pytest.mark.spec("CLP-10-006")
 @pytest.mark.spec("CLP-10-010")
+@pytest.mark.spec("SYNC-09-005")
 def test_only_permitted_stages_write_ahead_of_the_commit() -> None:
     from test.architecture._received_tree_builds import built_received_trees
 

@@ -69,7 +69,7 @@ def create_case_diverged_fault_tree(
 
     The sender guard is composed from the use case's declared rule on the
     entry's case, so a sender that is not an active participant is refused
-    before anything is recorded or sent (SYNC-16-003, HP-01-007).  Nothing is
+    before anything is recorded or sent (SYNC-16-011, HP-01-007).  Nothing is
     committed: the fault is replication signalling (SYNC-16-002).  The tree
     keeps the post-close boundary: once the case is fully closed the fault is
     dropped like any other activity, since CM-23-042 lets only the ledger

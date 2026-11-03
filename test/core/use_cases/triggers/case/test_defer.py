@@ -163,10 +163,11 @@ class TestDeferCaseRMTransitionViaBT:
 
     @pytest.mark.spec("RSH-08-006")
     @pytest.mark.spec("BTND-10-002")
+    @pytest.mark.spec("RSH-08-012")
     def test_defer_refused_move_sends_nothing(self):
         """A closed participant's defer is refused before anything is sent.
 
-        The trigger writes no status (RSH-08-006) but checks the move the
+        The trigger writes no status (RSH-08-006) but checks the move (RSH-08-012) the
         CASE_MANAGER would record: VALID → CLOSED → defer is refused.
         """
         participant = self.dl.read(self.vendor_participant.id_)

@@ -45,7 +45,7 @@ should raise what it cannot attribute to the protocol.
 
 A clock decision commits one CASE_MANAGER entry for each AS2 activity
 needed to express what it decided, and nothing about the received activity
-(CLP-10-025): an expiry is one entry, an end-time termination the
+(CLP-10-052): an expiry is one entry, an end-time termination the
 ``Remove`` (whose register step cancels every open proposal) and each
 status update and re-issued stub ``Invite`` it needs.
 
@@ -81,7 +81,7 @@ class ClockDecision(py_trees.decorators.Decorator):
 
     ``SUCCESS`` when the decision recorded nothing or committed its entry.
     When the decision fails — typically its commit was refused — the failure
-    is logged at WARNING and reported as ``SUCCESS`` (CLP-10-025).  The child keeps
+    is logged at WARNING and reported as ``SUCCESS`` (CLP-10-058).  The child keeps
     its ``FAILURE`` status for inspection.  An exception the decision raises
     is not caught, so an internal error still ends the tree (ADR-0095).
     """
@@ -140,7 +140,7 @@ def create_clock_decision_gate(
     The gate reads a case this store does not hold as "not the CASE_MANAGER"
     at ``debug`` level: a replica, or an invitee holding only a stub, never
     computes a clock decision (CM-28-014).  The received-tree
-    factory places it after the door guards (CLP-10-025); a case-scoped
+    factory places it after the door guards (CLP-10-049); a case-scoped
     trigger places it ahead of its own tree.
     """
     return create_case_manager_gated_tree(

@@ -66,9 +66,9 @@ class _RejectLogEntryActivity(as_Reject):
     object_: :class:`~vultron.wire.as2.vocab.objects.case_ledger_entry.as_CaseLedgerEntry`
         the receiver could not apply, or absent when the receiver holds no
         entry and asks for a replay from genesis.  Then ``ledgerPosition``
-        is at index -1 and ``target`` names the case (SYNC-16-007).
+        is at index -1 and ``target`` names the case (SYNC-16-027).
 
-    Spec: SYNC-03-001, SYNC-03-002, SYNC-16-007, SYNC-18-001.
+    Spec: SYNC-03-001, SYNC-03-002, SYNC-16-007, SYNC-16-027, SYNC-18-001.
     """
 
     object_: as_CaseLedgerEntry | None = Field(  # type: ignore[assignment]

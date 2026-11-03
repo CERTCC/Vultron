@@ -699,7 +699,7 @@ def test_accept_from_a_participant_that_is_not_the_target_is_refused(
     assert "is not the target" in (result.reason or "")
     assert _semantic_types(dl) == entries_before
     assert not _target_holds(dl, CVDRole.VENDOR)
-    # A sender with no standing is answered with nothing (CLP-05-001).
+    # A sender with no standing is answered with nothing (CLP-05-006).
     assert dl.outbox_list() == queued_before
 
 
@@ -796,7 +796,7 @@ class TestAdmittedAnswerIsLedgered:
     @pytest.mark.spec("CM-33-006")
     @pytest.mark.spec("CM-33-019")
     @pytest.mark.spec("CM-33-020")
-    @pytest.mark.spec("CLP-02-012")
+    @pytest.mark.spec("CLP-02-016")
     def test_accept_is_committed_granted_and_announced(self, make_payload):
         dl = _store(_CASE_MANAGER_ID)
         offer = _offer()
@@ -822,7 +822,7 @@ class TestAdmittedAnswerIsLedgered:
     @pytest.mark.spec("CM-33-006")
     @pytest.mark.spec("CM-33-019")
     @pytest.mark.spec("CM-33-021")
-    @pytest.mark.spec("CLP-02-012")
+    @pytest.mark.spec("CLP-02-016")
     def test_reject_is_committed_and_announced_with_no_grant(
         self, make_payload
     ):

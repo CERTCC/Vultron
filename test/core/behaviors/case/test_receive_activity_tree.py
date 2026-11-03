@@ -558,6 +558,7 @@ class TestRefusalEffects:
 
     @pytest.mark.spec("BT-17-008")
     @pytest.mark.spec("CLP-10-022")
+    @pytest.mark.spec("CLP-10-043")
     def test_refusal_effects_are_gated_on_the_case_manager(self) -> None:
         from vultron.core.behaviors.case.nodes.conditions import (
             CheckIsCaseManagerNode,
@@ -580,6 +581,7 @@ class TestRefusalEffects:
         ]
 
     @pytest.mark.spec("CLP-10-022")
+    @pytest.mark.spec("CLP-10-047")
     def test_a_refusal_effect_that_does_not_emit_is_refused(self) -> None:
         with pytest.raises(VultronWiringError, match="not emit-capable"):
             create_receive_activity_tree(
@@ -590,6 +592,7 @@ class TestRefusalEffects:
             )
 
     @pytest.mark.spec("CLP-10-022")
+    @pytest.mark.spec("CLP-10-048")
     def test_a_refusal_effect_that_writes_state_is_refused(self) -> None:
         with pytest.raises(VultronWiringError, match="_EmittingWriter"):
             create_receive_activity_tree(
@@ -600,6 +603,7 @@ class TestRefusalEffects:
             )
 
     @pytest.mark.spec("CLP-10-022")
+    @pytest.mark.spec("CLP-10-048")
     def test_a_state_writer_nested_in_a_refusal_effect_is_refused(
         self,
     ) -> None:
@@ -943,6 +947,7 @@ class TestClockDecisionStage:
 
     @pytest.mark.spec("CLP-10-025")
     @pytest.mark.spec("CLP-10-010")
+    @pytest.mark.spec("CLP-10-049")
     def test_decisions_run_after_the_door_guards_and_before_the_guards(
         self,
     ) -> None:
@@ -989,6 +994,7 @@ class TestClockDecisionStage:
 
     @pytest.mark.spec("CLP-10-025")
     @pytest.mark.spec("BT-17-001")
+    @pytest.mark.spec("CLP-10-050")
     def test_decisions_are_gated_on_the_case_manager(self) -> None:
         from vultron.core.behaviors.case.nodes.clock_decision_stage import (
             ClockDecision,
@@ -1070,6 +1076,7 @@ class TestClockDecisionStage:
 
     @pytest.mark.spec("CLP-10-025")
     @pytest.mark.spec("EMB-13-003")
+    @pytest.mark.spec("CLP-10-051")
     def test_a_case_tree_with_a_sender_guard_takes_the_end_time_decision(
         self,
     ) -> None:
@@ -1102,6 +1109,7 @@ class TestClockDecisionStage:
 
     @pytest.mark.spec("CLP-10-025")
     @pytest.mark.spec("HP-01-006")
+    @pytest.mark.spec("CLP-10-051")
     def test_a_tree_without_a_sender_guard_takes_no_case_decision(
         self,
     ) -> None:
@@ -1229,6 +1237,7 @@ class TestClockDecisionOutcomes:
         return result, after
 
     @pytest.mark.spec("CLP-10-025")
+    @pytest.mark.spec("CLP-10-057")
     def test_a_decision_that_records_nothing_succeeds(
         self, datalayer, actor_id
     ) -> None:
@@ -1238,6 +1247,8 @@ class TestClockDecisionOutcomes:
         assert after.ran == 1
 
     @pytest.mark.spec("CLP-10-025")
+    @pytest.mark.spec("CLP-10-058")
+    @pytest.mark.spec("CLP-10-059")
     def test_a_refused_commit_warns_and_the_tree_continues(
         self, datalayer, actor_id, caplog
     ) -> None:
@@ -1259,6 +1270,7 @@ class TestClockDecisionOutcomes:
         )
 
     @pytest.mark.spec("CLP-10-025")
+    @pytest.mark.spec("CLP-10-060")
     def test_an_internal_error_ends_the_tree_as_an_internal_error(
         self, datalayer, actor_id
     ) -> None:

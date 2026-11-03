@@ -351,21 +351,20 @@ class TestEmitCreateVulnerabilityCaseNode:
         assert self._run_node(dl) == py_trees.common.Status.FAILURE
         assert dl.outbox_list() == []
 
-    @pytest.mark.spec("PCR-02-001", "PCR-02-002", "PCR-02-005")
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AssertionError,
-        reason=(
-            "the creation copy travels in the bootstrap Create (CBT-01-002, "
-            "ADR-0157), not in an Announce(VulnerabilityCase); rewording "
-            "PCR-02-005 and removing this xfail is tracked by #5377"
-        ),
-    )
-    def test_the_creation_copy_is_not_delivered_in_the_create(self):
-        """PCR-02-005: a ``Create`` does not carry the full case copy."""
+    @pytest.mark.spec("CBT-01-002")
+    def test_the_creation_copy_is_delivered_in_the_create(self):
+        """The bootstrap ``Create`` carries the creation copy inline.
+
+        The case's first copy travels in the ``Create(VulnerabilityCase)``
+        itself (CBT-01-002, ADR-0157), and its receiver seeds its replica
+        from it (PCR-02-005); every later full copy is an
+        ``Announce(VulnerabilityCase)`` (PCR-02-001).
+        """
         dl = self._dl()
         assert self._run_node(dl) == py_trees.common.Status.SUCCESS
-        assert not isinstance(_queued_create(dl)["object"], dict)
+        carried = _queued_create(dl)["object"]
+        assert isinstance(carried, dict), carried
+        assert carried["id"] == _CASE_URI
 
     @pytest.mark.spec("EMB-18-003")
     def test_the_create_carries_the_active_embargo_inline(self):
@@ -1604,7 +1603,7 @@ class TestADR0041EmbargoInit:
         assert list(dl.list_objects("VulnerabilityCase")) == []
 
     @pytest.mark.spec("CP-01-016")
-    @pytest.mark.spec("PCR-01-003")
+    @pytest.mark.spec("PCR-01-004")
     def test_a_policy_in_the_case_managers_store_is_not_the_actor_default(
         self, make_payload
     ):

@@ -1753,7 +1753,7 @@ class TestAssessAndRecordInviteExpiry:
         row is never written (ADR-0124), so the invitee
         stays in INVITED state rather than TIMED_OUT (CLP-10-006, BT-06-006),
         and the decision fails, which the clock-decision stage logs and
-        continues past (CLP-10-025).
+        continues past (CLP-10-059).
         """
         from vultron.core.behaviors.embargo import expiry_tree as _et_module
 
@@ -1852,7 +1852,7 @@ class TestAssessAndRecordInviteExpiry:
 
         Every register entry has a row on every participant (ADR-0122), so
         the commit node raises rather than return a refusal the
-        clock-decision stage would log and continue past (CLP-10-025).
+        clock-decision stage would log and continue past (CLP-10-059).
         """
         dl = _make_dl()
         case_id = "https://example.org/cases/missing-row"

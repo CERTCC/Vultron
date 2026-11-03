@@ -18,7 +18,7 @@
 An ``Announce(EmbargoEvent)`` is canonical case state only the CASE_MANAGER
 asserts; the tree's sender guard refuses any other sender before anything
 runs (ADR-0115, PCR-03-001).  An active replica takes every embargo change from
-the ledger (RSH-08-003), so for it the tree only archives the activity.  A
+the ledger (RSH-08-010), so for it the tree only archives the activity.  A
 signatory of the embargo in force whose ledger stream is paused — removed,
 or at RM ``CLOSED`` — cannot, and the announcement is the CM-31-030 notice
 of a shorter revision: it applies it through ``EmbargoLifecycle``

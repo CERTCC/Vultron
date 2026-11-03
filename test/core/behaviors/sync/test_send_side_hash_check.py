@@ -75,6 +75,9 @@ def _chain(length: int) -> list[CaseLedgerEntry]:
     return entries
 
 
+@pytest.mark.spec("SYNC-03-019")
+@pytest.mark.spec("SYNC-03-018")
+@pytest.mark.spec("SYNC-03-017")
 @pytest.mark.spec("SYNC-03-009")
 @broken_entries
 def test_replay_stops_at_an_entry_that_does_not_verify(
@@ -170,6 +173,8 @@ def test_a_send_that_offers_nothing_covers_no_index() -> None:
     assert result == (0, 0, None, None)
 
 
+@pytest.mark.spec("SYNC-03-018")
+@pytest.mark.spec("SYNC-03-017")
 @pytest.mark.spec("SYNC-03-009")
 @broken_entries
 def test_the_verified_send_raises_and_queues_nothing(

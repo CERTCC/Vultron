@@ -542,6 +542,7 @@ class TestEngageCaseLedgerCommit:
         assert announces[0].actor == self._CASE_MANAGER_ID
 
     @pytest.mark.spec("CM-10-004")
+    @pytest.mark.spec("PCR-02-006")
     def test_engage_broadcast_withholds_the_case_from_an_inert_participant(
         self, seeded_dl, caplog
     ):
@@ -579,6 +580,9 @@ class TestEngageCaseLedgerCommit:
 
         announces = self._queued_announces(seeded_dl)
         assert len(announces) == 1
+        # The broadcast is the case copy, Announce(VulnerabilityCase).
+        announced = announces[0].object_
+        assert getattr(announced, "id_", announced) == self._CASE_ID
         recipients = set(announces[0].to or [])
         assert self._SENDER_ID in recipients
         assert inert_actor_id not in recipients

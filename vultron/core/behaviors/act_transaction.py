@@ -241,12 +241,12 @@ def received_act_stage(
             where=where,
             kind="one-act",
             registry_name="ONE_ACT_EXEMPTIONS",
-            spec_id="CLP-07-016",
+            spec_id="CLP-07-024",
         )
         if case_id is None:
             raise VultronWiringError(
                 f"{where}: one-act exemption {exemption.name!r} exempts a"
-                " tree that commits to no case; drop it (CLP-07-016)"
+                " tree that commits to no case; drop it (CLP-07-024)"
             )
         return act
     if case_id is None:

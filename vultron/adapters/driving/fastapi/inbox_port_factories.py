@@ -79,7 +79,7 @@ def _wire_render_port_factory(dl: DataLayer) -> dict[str, Any]:
     A received entry records the received body itself (CLP-07-011), but a
     received tree may also write and commit records the CASE_MANAGER authors,
     whose snapshots are AS2 renderings core cannot produce itself
-    (ARCH-20-001, CLP-07-009, CLP-07-013).  So every use case is given the
+    (ARCH-20-001, CLP-07-020, CLP-07-013).  So every use case is given the
     port.  The adapter is stateless, so *dl* is unused.
     """
     return {"wire_render_port": As2WireRenderAdapter()}
@@ -99,7 +99,7 @@ def with_received_baseline_ports(factory: PortFactory) -> PortFactory:
 
     Every received tree that names a case runs a guarded ledger commit
     (CLP-10-006).  The commit snapshots the activity as an AS2 rendering, which
-    needs the ``WireRenderPort`` (ARCH-20-001, CLP-07-009), and the
+    needs the ``WireRenderPort`` (ARCH-20-001, CLP-07-020), and the
     CASE_MANAGER announces the entry to every active participant, which needs
     the ``SyncActivityPort`` (SYNC-02-003).  Every received tree with a case
     and a sender guard also takes the case-wide clock decisions, and the

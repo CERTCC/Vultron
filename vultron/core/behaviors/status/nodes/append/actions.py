@@ -93,7 +93,7 @@ class ResolveAndPersistStatusObjectNode(
 
     Tries the DataLayer first; if not found, uses ``status_obj_fallback`` and
     saves it.  The status is stored as received: on the received path it was
-    accepted whole before this node runs, never rewritten (RSH-09-001).
+    accepted whole before this node runs, never rewritten (RSH-09-010).
 
     Validates that the resolved object is a ParticipantStatus (has rm and
     vfd attributes).

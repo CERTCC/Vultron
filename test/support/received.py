@@ -28,12 +28,12 @@ under test reads it the way production does.
 
 A sender's adapter stamps each case activity with its ledger tail
 (SYNC-18-001), and the parse edge refuses a case activity without one
-(SYNC-18-003).  A test that builds an activity with a wire factory has no
+(SYNC-18-015).  A test that builds an activity with a wire factory has no
 sender store, so :func:`delivered` stamps an activity that states none, as
 the sender's adapter would have stamped its tail: in step with the
 receiver's ledger when the test passes the receiver's store (``at=``), else
 :data:`TEST_SENDER_POSITION`.  A CASE_MANAGER answers a position its ledger
-does not hold as a split chain and re-seeds the sender (SYNC-18-005), so a
+does not hold as a split chain and re-seeds the sender (SYNC-18-012), so a
 test that delivers to one passes ``at=``.  An activity whose object states
 its own position is left alone, and a test that delivers an unstamped
 activity on purpose builds its body itself.
@@ -121,7 +121,7 @@ def stamped(
     receiver: the stamp is the tail of the case the activity names in that
     store, as ``with_sender_ledger_position`` reads it from a sender's own
     store (SYNC-18-001).  The CASE_MANAGER answers a position it does not
-    hold as a split chain, re-seeding the sender (SYNC-18-005), so a test
+    hold as a split chain, re-seeding the sender (SYNC-18-012), so a test
     that delivers to a CASE_MANAGER passes its store.  Without *at*, or when
     *at* holds no ledger for any case the activity names, the stamp is
     :data:`TEST_SENDER_POSITION`.  An activity whose object states its own

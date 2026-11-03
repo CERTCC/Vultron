@@ -229,7 +229,7 @@ class EmitImpossibleStateFaultNode(EmitLedgerEntryFaultNode):
     (:func:`~vultron.core.behaviors.sync.nodes.ledger_entry_fault.emit_ledger_entry_fault`).
 
     After emitting it returns FAILURE, so the Selector's FAILURE propagates up
-    to block ``PersistReceivedLogEntry`` (SYNC-12-001, RSH-09-006).
+    to block ``PersistReceivedLogEntry`` (SYNC-12-004, RSH-09-006).
     """
 
     def __init__(self, name: str | None = None) -> None:

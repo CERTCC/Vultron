@@ -28,7 +28,7 @@ read-only routing guards, into two mutually exclusive arms
   propose and answer arms decide on a staged store and commit the act, then
   each consent row it changes, before applying them by copying (ADR-0124,
   CLP-07-013).
-  Nothing is addressed to the manager itself (CLP-10-001): its own proposal
+  Nothing is addressed to the manager itself (CLP-10-032): its own proposal
   is relayed to each participant (EP-09-002) and its teardown is told to
   every other one (EMB-19-001, #4112).
 - **As any other participant** the tree writes no EM state and declares none:

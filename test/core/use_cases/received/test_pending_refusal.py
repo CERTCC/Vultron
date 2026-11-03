@@ -136,6 +136,7 @@ def _pending(case_id: str, proposal_id: str) -> bool:
 @pytest.mark.spec("SYNC-11-003")
 @pytest.mark.spec("EP-09-014")
 @pytest.mark.spec("EP-09-019")
+@pytest.mark.spec("CLP-05-009")
 def test_case_managers_reject_closes_the_pending_proposal() -> None:
     dl, case, proposal = _proposer_with_pending_proposal()
     assert _pending(case.id_, proposal.id_)

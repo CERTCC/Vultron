@@ -126,7 +126,7 @@ groups:
       (CP-01-007).
     rationale: >-
       The `OfferRecord` belongs to the actor that received the Offer, and a co-located
-      case-actor cannot read a sibling's store (PCR-01-003, DL-07-005). Without the
+      case-actor cannot read a sibling's store (PCR-01-005, DL-07-005). Without the
       provenance the proposal carries, the canonical entry could not name the Offer
       that brought the report into the case (SYNC-02-002).
     relationships:

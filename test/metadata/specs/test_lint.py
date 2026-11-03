@@ -2336,3 +2336,108 @@ def test_lint_prints_the_suppression_totals(tmp_path, capsys):
         "[INFO] lint_suppress protocol_kind_with_code_reference: "
         "0 spec(s) carry it" in out
     )
+
+
+# ---------------------------------------------------------------------------
+# TRACE-03-001: a cited story page must exist
+# ---------------------------------------------------------------------------
+
+
+def _repo_with_story_catalog(tmp_path, *stories: str):
+    """A checkout whose ``specs/`` is the lint target and whose story catalog
+    holds *stories*. ``lint(spec_dir)`` reads the catalog through
+    ``spec_dir.parent``, so the two must sit in one tree."""
+    catalog = tmp_path / "docs" / "reference" / "user_stories"
+    catalog.mkdir(parents=True)
+    for story in stories:
+        (catalog / f"{story}.md").write_text(
+            "---\nstakeholder_type: [project-contributor]\n---\n\n"
+            f"# User Story `{story.removeprefix('story_')}`\n",
+            encoding="utf-8",
+        )
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    return spec_dir
+
+
+def _spec_citing(*stories: str):
+    data = _minimal_spec_no_stories(priority="MUST")
+    data["groups"][0]["specs"][0]["stories"] = list(stories)
+    return data
+
+
+@pytest.mark.spec("TRACE-03-001")
+def test_a_cited_story_with_no_page_is_a_hard_error(tmp_path, capsys):
+    """A `stories:` entry naming an absent page fails the linter."""
+    spec_dir = _repo_with_story_catalog(tmp_path, "story_2022_001")
+    write_yaml(spec_dir, _spec_citing("story_2022_999"))
+    assert lint(spec_dir) == 1
+    err = capsys.readouterr().err
+    assert "TRACE-03-001" in err
+    assert "story_2022_999" in err
+    assert "TST-01-001" in err
+
+
+@pytest.mark.spec("TRACE-03-001")
+def test_an_absent_story_cited_twice_is_named_once(tmp_path, capsys):
+    """`stories:` constrains each entry's shape, not the list's uniqueness.
+
+    Naming the ID twice in one sentence reads as two distinct missing pages.
+    `measure_story_coverage` counts a repeat once for the same reason.
+    """
+    spec_dir = _repo_with_story_catalog(tmp_path, "story_2022_001")
+    write_yaml(spec_dir, _spec_citing("story_2022_999", "story_2022_999"))
+    assert lint(spec_dir) == 1
+    err = capsys.readouterr().err
+    assert err.count("story_2022_999") == 1
+
+
+@pytest.mark.spec("TRACE-03-001")
+def test_a_cited_story_with_a_page_passes(tmp_path, capsys):
+    """A `stories:` entry naming a page in the catalog is clean."""
+    spec_dir = _repo_with_story_catalog(tmp_path, "story_2022_001")
+    write_yaml(spec_dir, _spec_citing("story_2022_001"))
+    assert lint(spec_dir) == 0
+    assert "TRACE-03-001" not in capsys.readouterr().err
+
+
+@pytest.mark.spec("TRACE-03-001")
+def test_the_cited_story_page_check_is_not_suppressible(tmp_path, capsys):
+    """No `lint_suppress` code silences the absent-page error."""
+    spec_dir = _repo_with_story_catalog(tmp_path, "story_2022_001")
+    data = _spec_citing("story_2022_999")
+    data["groups"][0]["specs"][0]["lint_suppress"] = [
+        "missing_story_reference",
+        "phantom_path_ref",
+    ]
+    write_yaml(spec_dir, data)
+    assert lint(spec_dir) == 1
+    assert "TRACE-03-001" in capsys.readouterr().err
+
+
+@pytest.mark.spec("TRACE-03-001")
+def test_every_absent_story_on_one_requirement_is_named(tmp_path, capsys):
+    """One error per requirement, naming every absent ID (EH-07-001)."""
+    spec_dir = _repo_with_story_catalog(tmp_path, "story_2022_001")
+    write_yaml(spec_dir, _spec_citing("story_2022_998", "story_2022_999"))
+    assert lint(spec_dir) == 1
+    err = capsys.readouterr().err
+    assert err.count("TRACE-03-001") == 1
+    assert "story_2022_998" in err
+    assert "story_2022_999" in err
+
+
+@pytest.mark.spec("TRACE-03-001")
+def test_the_cited_story_page_check_degrades_without_a_docs_tree(
+    tmp_path, capsys
+):
+    """No story catalog means no verdict, not a verdict against every citer.
+
+    `uv run docs-site --check` is what fails on a missing catalog; the linter
+    runs on trees that hold `specs/` alone.
+    """
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    write_yaml(spec_dir, _spec_citing("story_2022_999"))
+    assert lint(spec_dir) == 0
+    assert "TRACE-03-001" not in capsys.readouterr().err

@@ -49,6 +49,7 @@ rows are (SR-09-004), and the retired ``reference/specs/protocol.md`` and
 from __future__ import annotations
 
 import os
+import posixpath
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -386,6 +387,18 @@ def site_href(from_page: str, to_page: str, anchor: str) -> str:
     return f"{relative_url(to_page, page_path=from_page)}#{anchor}"
 
 
+def source_href(to_page: str, anchor: str, *, from_page: str) -> str:
+    """Return a source-relative link from *from_page* to *anchor* on *to_page*.
+
+    Both pages are ``docs/``-relative source paths, and so is the result: the
+    ``.md`` path MkDocs rewrites and validates. Use this for a link committed
+    in a ``docs/`` file, and :func:`site_href` for one a renderer prints from
+    an exec block, where MkDocs never sees the link and a ``.md`` target 404s.
+    """
+    start = posixpath.dirname(from_page) or "."
+    return f"{posixpath.relpath(to_page, start)}#{anchor}"
+
+
 def requirement_linker(
     registry: SpecRegistry,
     page: str,
@@ -489,6 +502,20 @@ def anchor_homes(
     }
 
 
+def anchor_home_of(
+    homes: Mapping[str, tuple[AnchorHome, ...]], spec_id: str
+) -> AnchorHome | None:
+    """The page defining *spec_id*'s anchor in *homes*, or ``None``.
+
+    Keys the lookup with :func:`requirement_anchor`, which is what
+    :func:`anchor_homes` built them with. A caller that lower-cases the ID
+    itself agrees only because ``SpecIdStr`` forbids an underscore — an
+    undeclared coupling that this function removes.
+    """
+    found = homes.get(requirement_anchor(spec_id))
+    return found[0] if found else None
+
+
 __all__ = [
     "CATALOG_DIR",
     "CATALOG_INTRO",
@@ -501,6 +528,7 @@ __all__ = [
     "CatalogPage",
     "RETIRED_KIND_PAGES",
     "NotInCatalogError",
+    "anchor_home_of",
     "anchor_homes",
     "catalog_location",
     "current_page",
@@ -509,4 +537,5 @@ __all__ = [
     "requirement_anchor",
     "requirement_linker",
     "site_href",
+    "source_href",
 ]

@@ -101,7 +101,7 @@ into `rejected` (MV-01-007).
 An inbound activity reaches the receiver's permanent store in three steps, and only
 the last one writes what it carries:
 
-1. **Ingress writes nothing** (DL-06-006, CLP-10-017). Not the activity: a row under
+1. **Ingress writes nothing** (DL-06-006, CLP-10-038). Not the activity: a row under
    the id its sender chose is read as one of the receiver's own by every "did I send
    it" scan (`case_is_announced`, `recorded_stub_invites`, #4866). Not its inline
    objects: a stored inline object *is* the receiver's record, so a stored case is a
@@ -115,7 +115,7 @@ the last one writes what it carries:
    stays a bare id, which no pattern's object type accepts (SE-01-006), so an
    activity whose sender carried its object inline would be read as
    `UNKNOWN_UNRESOLVABLE_OBJECT`.
-3. **The handler writes the core record, after its guards** (CLP-10-019). Intake
+3. **The handler writes the core record, after its guards** (CLP-10-039). Intake
    archives the received body as a `ReceivedActivityRecord` under the receiver's key, and
    an effect node writes any record from the copy the event carries (the add-note
    tree's `StoreReceivedObjectNode`, `SeedCaseReplicaNode`). A refusal writes nothing

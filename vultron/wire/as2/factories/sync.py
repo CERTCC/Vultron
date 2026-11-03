@@ -118,7 +118,7 @@ def reject_log_entry_activity(
 def genesis_replay_reject_activity(
     case_id: str, ledger_position: LedgerPosition, **kwargs
 ) -> as_Reject:
-    """Build the Reject(CaseLedgerEntry) that names no entry (SYNC-16-007).
+    """Build the Reject(CaseLedgerEntry) that names no entry (SYNC-16-027).
 
     Sent by a replica whose case was replaced by a copy ahead of its chain
     and whose chain stores no entry: there is nothing to name, so it asks
@@ -195,7 +195,7 @@ def read_ledger_position_activity(
     The same position statement as :func:`read_ledger_entry_activity`, for
     a sender that knows the position but does not store the entry there: a
     participant whose replica a case copy has just seeded holds the case at
-    the copy's position before its chain stores any entry (SYNC-16-007).  The
+    the copy's position before its chain stores any entry (SYNC-16-023).  The
     entry goes by reference, its id derived from its ledger coordinates
     (:func:`~vultron.core.models.case_ledger_entry.ledger_entry_id`); the
     ``context`` is the case and the ``ledgerPosition`` the position.

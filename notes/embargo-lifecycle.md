@@ -234,7 +234,7 @@ catch-up path.
   own proposal about the report it submitted (EP-04-009).
 - **Ledger replay.** Each embargo apply node stores the `EmbargoEvent` its entry
   carries before calling `EmbargoLifecycle`, and fails (blocking the persist,
-  SYNC-12-001) when the entry names it by id only and the replica lacks it.
+  SYNC-12-004) when the entry names it by id only and the replica lacks it.
   The entry's inline copy and the record already held under its id must each
   be about the case or a report of the replica's stored case, or the entry is
   refused (EMB-18-004, `carried_entry_embargo()`, `entry_embargo()`).
@@ -474,7 +474,7 @@ arms built by `_by_role()` (BT-17-001). Ratchet:
 
 - **As the CASE_MANAGER**: the `*EmbargoLifecycleNode` write runs `STRICT`, then
   `CommitEmbargoDecisionNode` commits the decision's sealed blob and only then
-  queues it. Nothing is addressed to the manager itself (CLP-10-001): an
+  queues it. Nothing is addressed to the manager itself (CLP-10-032): an
   `Accept`/`Reject` is only committed, its own proposal is relayed as one Invite
   per other participant, its teardown goes to every other participant
   (EMB-19-003). `EmitCaseStatusUpdateNode` follows, because RSH-04-002 requires a
@@ -531,7 +531,7 @@ and owner-decision effects sit behind the CASE_MANAGER gate; anyone else reports
 `REFUSED` and writes nothing (HP-01-005). Refuse before the guarded commit, with
 read-only guards (`IsAnswerableEmbargoNode`, `IsOpenEmbargoProposalNode`,
 `OwnerMayActivateEmbargoNode`): once committed, a failing replica apply blocks
-its persist (SYNC-12-001) and stalls every later entry (SYNC-14-001).
+its persist (SYNC-12-004) and stalls every later entry (SYNC-14-001).
 
 **The owner's `Reject(EmbargoEvent)` decides one proposal**; EM stays
 `PROPOSED`/`REVISE` while another is open (EP-08-003). Rejecting the last open
