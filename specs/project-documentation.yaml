@@ -139,21 +139,34 @@ groups:
   - id: PD-03-006
     priority: SHOULD
     kind: project
-    lint_suppress:
-    # compound_statement: two obligations, held whole until the split lands.
-    # This SHOULD parent carries no verification_debt marker, so the MUST
-    # fallback cannot carry one either (MS-10-016): the split PR writes a check
-    # for the fallback and names it in the new ID's verification: (#5570).
-    - compound_statement
     statement: >-
       A workflow or tooling PR SHOULD update maintainer-facing documentation in the
-      same PR. When it cannot, the PR MUST include a linked follow-up docs issue
-      before merge.
+      same PR.
     rationale: >-
       Maintainers and agents follow the maintainer documentation to run each workflow
       and tool. If a change alters a tool and not its documentation, the next user
-      follows steps that do not work now. A linked follow-up issue keeps the gap
-      visible when the update cannot be in the same PR.
+      follows steps that do not work now. The author of the change knows what changed,
+      so an update in the same PR costs the least.
+  - id: PD-03-014
+    priority: MUST
+    kind: project
+    statement: >-
+      When a workflow or tooling PR leaves a needed maintainer-facing documentation
+      update out, the PR MUST link a follow-up docs issue before merge.
+    verification: >-
+      `pr-body-lint` rule PRB-12 fails a PR whose diff changes a workflow or tooling
+      file and no maintainer-facing doc, unless its `Docs:` line names the follow-up
+      issue (`deferred to #N`) or says why no update is needed (`no docs impact —`).
+      `test/metadata/test_pr_body_lint.py::TestMaintainerDocs` and
+      `::TestUndocumentedTooling` cover the rule.
+    rationale: >-
+      An update left out of a PR is easy to forget once the PR merges. A linked
+      follow-up issue keeps the gap visible and tracked until someone does the
+      update. A tool cannot judge whether an update is needed, so the check asks the
+      author to name the issue or to say why no update is needed.
+    relationships:
+    - rel_type: extends
+      spec_id: PD-03-006
   - id: PD-03-007
     priority: MUST
     kind: project
