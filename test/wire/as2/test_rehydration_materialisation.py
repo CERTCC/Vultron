@@ -28,6 +28,7 @@ regression guard: the materialised activity must carry the actor it was
 recorded with, not the case owner and not the case's own URI.
 """
 
+import logging
 from typing import Any, cast
 
 import pytest
@@ -44,6 +45,7 @@ from vultron.wire.as2.rehydration import (
     rehydrate,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Read
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
@@ -627,3 +629,44 @@ def test_uri_admitting_slot_is_still_seen_through_non_empty_string() -> None:
     ]
     assert not _slot_requires_object(as_ObjectRef)
     assert _slot_requires_object(as_CaseStatus)
+
+
+# ---------------------------------------------------------------------------
+# VM-06-004, inbound path: an unresolved nested object is kept at DEBUG
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("VM-06-004")
+def test_rehydrate_keeps_unresolved_nested_object_and_logs_debug(
+    dl: FakeDataLayer, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An inbound activity whose `object` is not stored keeps the URI.
+
+    Across containers this is the normal path: the inbox fetches the object
+    next (AKM-05-007), so `rehydrate()` names the URI at DEBUG, logs no
+    WARNING, and raises nothing.  The store's `hydrate()` is the WARNING path
+    (`test/adapters/driven/test_sqlite_rehydration.py`).
+    """
+    activity = as_Read(
+        id_="https://example.org/activities/act-2",
+        actor=OTHER_PARTICIPANT,
+        object_=MISSING_ID,
+    )
+
+    with caplog.at_level(logging.DEBUG, logger="vultron.wire.as2.rehydration"):
+        result = rehydrate(activity, dl=dl.as_port())
+
+    assert isinstance(result, as_Read)
+    assert result.object_ == MISSING_ID
+    rehydration_records = [
+        r for r in caplog.records if r.name == "vultron.wire.as2.rehydration"
+    ]
+    kept = [
+        r
+        for r in rehydration_records
+        if "keeping original reference" in r.getMessage()
+    ]
+    assert len(kept) == 1
+    assert kept[0].levelno == logging.DEBUG
+    assert MISSING_ID in kept[0].getMessage()
+    assert not any(r.levelno >= logging.WARNING for r in rehydration_records)
