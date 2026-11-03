@@ -1148,13 +1148,13 @@ groups:
       the ledger entry with no error. With per-actor storage, `actor_id` also selects
       the store, so a run as the sender reads and writes the wrong replica.
     verification: >-
-      Search all received-side use-case call sites of `execute_with_setup` whose tree
-      contains `GuardedCommitCaseLedgerEntryBT`; assert each passes the actor that
-      `resolve_receiving_actor_id` returns, and none passes `request.actor_id`.
+      `test_received_side_execute_with_setup_never_passes_request_actor_id` in
+      `test/architecture/test_received_side_actor_id.py` scans every received-side
+      call of `execute_with_setup` and fails on one that passes `request.actor_id`.
       `test_engage_without_receiving_actor_executes_as_store_owner` in
-      `test/core/use_cases/received/case/test_engage_defer.py` runs such a use case
-      with a sender that is not the receiver and asserts the guarded commit records
-      its entries.
+      `test/core/use_cases/received/case/test_engage_defer.py` runs a guarded-commit
+      use case with no `receiving_actor_id`, so the store owner is the receiver, and
+      asserts that the guarded commit records its entries.
     relationships:
     - rel_type: refines
       spec_id: BT-17-005
@@ -1601,11 +1601,6 @@ groups:
       as a parameter (rather than hardcoding the fuzzer import) is what makes each call-out point an actual injection seam
       rather than a tightly-coupled stub. Without this, replacing any backend requires editing the tree-building function,
       defeating the abstraction layer's purpose.
-    relationships:
-    - rel_type: implements
-      spec_id: BT-04-001
-      note: Factory-based injection for call-out points is an application of the existing factory pattern required for all
-        BT construction.
     adr:
     - ADR-0025
   - id: BT-18-008
@@ -1904,30 +1899,6 @@ groups:
         BT-18-006 classifies a synchronous on-demand external query as a
         Retriever; BT-18-013 is why Retriever is the only available answer, since
         Sentinel is not a call-out shape.
-  - id: BT-18-028
-    priority: MUST
-    kind: project
-    statement: >-
-      A call-out point node MUST be classified by what it produces. An Evaluator
-      records a decision, a Retriever returns external data, and a Composer produces a
-      content artifact. An Actuator causes a side effect in an external system and
-      places no artifact on the blackboard.
-    rationale: >-
-      The output of a node, not the work that it does, separates the shapes. A node
-      that calls an external system looks like a Composer, because it sends something
-      out. If no content artifact comes back to the blackboard, the effect is the
-      output, and the node is an Actuator. When the classification starts from the
-      output, a reader and a reviewer get the same shape for the same node.
-    verification: >-
-      `test/demo/fuzzer/test_call_out_point.py` asserts that each Actuator exemplar
-      (`OnAccept`, `OnDefer`) declares no output keys and that the Composer exemplar
-      (`PrepareReport`) writes its output key on SUCCESS.
-    adr:
-    - ADR-0024
-    relationships:
-    - rel_type: refines
-      spec_id: BT-18-013
-      note: BT-18-013 names the four shapes; this entry defines each by its output.
   - id: BT-18-022
     priority: MAY
     kind: project
@@ -2104,6 +2075,37 @@ groups:
       spec_id: BT-18-015
     adr:
     - ADR-0097
+  - id: BT-18-028
+    priority: MUST
+    kind: project
+    statement: >-
+      A call-out point node MUST be classified by what it produces. An Evaluator
+      records a decision, a Retriever returns external data, and a Composer produces a
+      content artifact. An Actuator causes a side effect in an external system and
+      places no artifact on the blackboard.
+    rationale: >-
+      This is how the ADR-0024 seam-structure decision tree (BT-18-005) answers its
+      question of how output exits the call-out point, one answer for each shape. The
+      output of a node, not the work that it does, separates the shapes. A node that
+      calls an external system looks like a Composer, because it sends something out.
+      If no content artifact comes back to the blackboard, the effect is the output,
+      and the node is an Actuator.
+    verification: >-
+      `test/demo/fuzzer/test_call_out_point.py` checks each shape's output:
+      `test_evaluate_report_credibility_writes_blackboard_on_success` (Evaluator),
+      `test_gather_validation_info_writes_blackboard_on_success` (Retriever),
+      `test_prepare_report_output_keys_declared` (Composer declares its artifact key),
+      and `test_on_accept_output_keys_empty` and `test_on_defer_output_keys_empty`
+      (Actuator declares no output key).
+    adr:
+    - ADR-0024
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-013
+      note: BT-18-013 names the four shapes; this entry defines each by its output.
+    - rel_type: refines
+      spec_id: BT-18-005
+      note: Restates the seam-structure tree's output question for each shape.
 - id: BT-19
   title: Routing-Gated State Mutation in Lifecycle BT Sequences
   specs:

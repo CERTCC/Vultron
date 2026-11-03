@@ -495,8 +495,8 @@ groups:
         statement: >-
           The blackboard key for an injected port MUST be one fixed `{noun}`
           name per port, with no id suffix and no slash. The established
-          keys are `datalayer`, `sync_port`, `wire_render_port`,
-          `inbox_queue` and `inbox_dereference`.
+          keys include `datalayer`, `sync_port`, `wire_render_port`,
+          `inbox_queue`, `inbox_dereference` and `inbox_replay`.
         rationale: >-
           py_trees reads a slash in a key as a namespace separator. Thus a key built
           from a full URL id splits into nested namespaces, and the lookup fails. Fixed,
