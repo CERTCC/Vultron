@@ -38,6 +38,9 @@ from vultron.core.behaviors.case.nodes.refusal_stage import (
 )
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.case.receive_activity_tree import received_stages
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckParticipantRMState,
+)
 from vultron.core.behaviors.report.prioritize_tree import (
     create_defer_case_tree,
     create_engage_case_tree,
@@ -461,6 +464,17 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
     ]
     assert effects.children[0].children[0].name == "AlreadyRecordedAccepted"
     assert effects.children[0].children[1].name == "TransitionRMtoAccepted"
+    # ``rm_declaration_verdict`` reads "already recorded" by node *type*
+    # (``node_succeeded(tree, CheckParticipantRMState)``), so every node of
+    # that type in this tree must ask the same question. Two now do; a third
+    # about another actor or another RM state would make the handler report a
+    # redelivery that was not one (#5006).
+    asked = {
+        (node._actor_id, node._target_rm)
+        for node in tree.iterate()
+        if isinstance(node, CheckParticipantRMState)
+    }
+    assert asked == {(actor_id, RM.ACCEPTED)}
 
 
 def test_defer_tree_node_names(case_with_participant, actor_id):
