@@ -131,6 +131,10 @@ def test_a_redelivered_engage_queues_no_second_case_announce():
         f"{after_second['object_ids'] - after_first['object_ids']}"
     )
     assert [e.id_ for e in ledger_entries(dl, CASE_ID)] == entries_after_first
+    # AC-1 admits either reading of a repeat that changes nothing: the
+    # disposition the first delivery reported, or ``SKIPPED``.  The behaviour
+    # pinned here is that it is one of the two and never a refusal or a fault,
+    # so the generic repeat door planned in #5045 may pick either.
     assert second.disposition in (
         HandlerDisposition.SKIPPED,
         first.disposition,
