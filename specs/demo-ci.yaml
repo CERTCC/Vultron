@@ -205,10 +205,10 @@ groups:
           correct in a review, so an architecture test checks every piece of
           scenario-level code.
         verification: >-
-          An architecture test scans every module under `vultron/demo/` for the
-          two shapes scenario-level code takes — a `_phase_*` function, and a
-          story fragment, which is a module-level function taking a
-          `StoryState` wherever it lives (DEMOCI-11-019) — and reports every
+          An architecture test scans every module under `vultron/demo/` for
+          scenario-level code — a story fragment, which is a module-level
+          function taking a `StoryState` wherever it lives (DEMOCI-11-019), and
+          the retired `_phase_*` function it still recognizes — and reports every
           raising `wait_for_*` call that sits in neither a `demo_step`, a
           `demo_check` nor a `demo_gate`. It fails when it resolves no story
           fragment, and, every scenario being written as composition, it fails
