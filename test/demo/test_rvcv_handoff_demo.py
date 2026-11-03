@@ -789,11 +789,12 @@ class TestBothVendorsFixTheVul:
 
 
 # ---------------------------------------------------------------------------
-# Publication and closure (DEMOMA-11-006, DEMOMA-07-003)
+# Publication and closure (DEMOMA-11-006, DEMOMA-11-018, DEMOMA-07-003)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.spec("DEMOMA-11-006")
+@pytest.mark.spec("DEMOMA-11-018")
 class TestEveryonePublishes:
     """The Coordinator, the Case Owner since the handoff, publishes last."""
 
@@ -1023,6 +1024,7 @@ class TestRvcvHandoffLedgerDump:
         }
 
     @pytest.mark.spec("DEMOMA-06-005")
+    @pytest.mark.spec("DEMOMA-06-009")
     def test_the_canonical_ledger_is_read_on_the_dedicated_container(
         self, tmp_path, monkeypatch
     ):
@@ -1203,8 +1205,12 @@ class TestRvcvHandoffRegistryEntry:
         assert spec.in_pr_set is True
 
     def test_the_path_is_read_off_the_story(self, spec):
-        """``composed=True`` is what tells a check it places no step marks."""
-        assert spec.composed is True
+        """The registry holds the path this scenario's story chooses.
+
+        Compared against the story object rather than against a literal, which
+        this module's path test pins separately: together they say the
+        registered path is both derived and the intended one.
+        """
         assert spec.path == demo.STORY.path
 
     def test_the_derived_paths_point_at_this_module_and_its_harness(

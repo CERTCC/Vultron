@@ -456,7 +456,7 @@ An actor reports its own Case State (CS) progress with a participant status upda
 Vendor Awareness (CV), Fix Readiness (CF), and Fix Deployed (CD) are all `Add(ParticipantStatus)` activities.
 So are Public Awareness (CP), Exploit Public (CX), and Attacks Observed (CA).
 These three are in the case status that the participant status embeds.
-Only the Case Manager sends `Add(CaseStatus)`.
+Only the CASE_MANAGER sends `Add(CaseStatus)`.
 
 See [How to Post a Status Update or a Case Note](../howto/activitypub/activities/status_updates.md) for details.
 
@@ -543,7 +543,7 @@ Two workflows are shown:
 2. **Invalidate and close** — the reporter submits a second report.
    The vendor calls `trigger/invalidate-report` and ends the embargo of the case with `trigger/terminate-embargo`.
    Then it closes the case that it opened for the report with `trigger/leave-case`, which sends `Leave(VulnerabilityCase)`.
-   Once a case holds a report, its owner closes the case this way, never with `Close(Report)`.
+   Once a case holds a report, its owner closes the case this way, never with `Reject(Offer(VulnerabilityReport))`.
    The vendor ends the embargo first, because `leave-case` refuses the Case Owner while the embargo of the case is active.
 
 Notice that each trigger response carries the ActivityStreams activity that the actor produced.

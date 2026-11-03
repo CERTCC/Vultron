@@ -16,7 +16,7 @@
 
 """Outbound-activity emit leaf nodes for the CaseProposal received tree.
 
-Queue ``Accept(as_CaseProposal)`` and ``Create(VulnerabilityCase)`` to the
+Queue ``Accept(CaseProposal)`` and ``Create(VulnerabilityCase)`` to the
 CaseActor outbox. Composed by ``create_case_proposal_received_tree``
 (BTND-07-003).
 """
@@ -243,11 +243,22 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
         assert self.datalayer is not None
         # Materialise each participant ref so store_embedded_participants
         # on the owner's side receives full objects, not bare ID strings (AC-5).
+        # The owner seeds from this Create before it trusts the CASE_MANAGER,
+        # so the records travel inline (CP-09-004): a participant this store
+        # cannot read is refused here rather than sent as a bare id, which the
+        # owner would refuse anyway (CBT-05-008).
         materialized: list[Any] = []
         for ref in raw_case.case_participants:
             if isinstance(ref, str):
                 p_obj = self.datalayer.read(ref)
-                materialized.append(p_obj if p_obj is not None else ref)
+                if p_obj is None:
+                    raise VultronValidationError(
+                        f"case '{raw_case.id_}' names participant '{ref}',"
+                        " which this store cannot read, so the"
+                        " Create(VulnerabilityCase) cannot carry it inline"
+                        " (CP-09-004, CBT-05-008)"
+                    )
+                materialized.append(p_obj)
             else:
                 materialized.append(ref)
         updates: dict[str, Any] = {"case_participants": materialized}
@@ -257,9 +268,19 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
         # when this store cannot read it — sending the bare id would only
         # hand every recipient a case it must refuse.
         if isinstance(raw_case.active_embargo, str):
+            try:
+                embargo = read_embargo_event(
+                    self.datalayer, raw_case.active_embargo
+                )
+            except (VultronNotFoundError, VultronValidationError) as exc:
+                raise VultronValidationError(
+                    f"case '{raw_case.id_}' names active embargo"
+                    f" '{raw_case.active_embargo}', which this store cannot"
+                    " read, so the Create(VulnerabilityCase) cannot carry it"
+                    f" inline (EMB-18-003): {exc}"
+                ) from exc
             updates["embargo_register"] = carry_embargo_inline(
-                raw_case.embargo_register,
-                read_embargo_event(self.datalayer, raw_case.active_embargo),
+                raw_case.embargo_register, embargo
             )
         case_copy = raw_case.model_copy(update=updates)
         # A missing port is a composition fault, not the sender's: raise
@@ -267,10 +288,10 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
         port = self._require_wire_render_port()
         case_dict = port.render(case_copy)
         case_dict.setdefault("type", "VulnerabilityCase")
-        # Inline full VulnerabilityReport dicts after render so invited
-        # actors' _store_embedded_reports stores them (CBT-01-012, ISSUE-2134).
-        # Done post-render because VulnerabilityCase.vulnerability_reports is
-        # typed list[str]; embedding objects directly triggers Pydantic warnings.
+        # Inline full VulnerabilityReport dicts after render so the owner
+        # stores them (AKM-02-004, ISSUE-2134).  Done post-render because
+        # VulnerabilityCase.vulnerability_reports is typed list[str];
+        # embedding objects directly triggers Pydantic warnings.
         inlined_reports: list[Any] = []
         for report_ref in raw_case.vulnerability_reports:
             if isinstance(report_ref, str):
@@ -280,6 +301,17 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
                     r_dict.setdefault("type", "VulnerabilityReport")
                     inlined_reports.append(r_dict)
                 else:
+                    # A proposal that did not inline its report (CP-01-004)
+                    # still makes a case here (ADR-0041 AC-2); the owner
+                    # holds the report it proposed, so the id stays.
+                    logger.warning(
+                        "%s: case '%s' names report '%s', which this store"
+                        " cannot read, so the Create carries its id, not the"
+                        " object; the proposal did not inline it (CP-01-004)",
+                        self.name,
+                        raw_case.id_,
+                        report_ref,
+                    )
                     inlined_reports.append(report_ref)
             else:
                 inlined_reports.append(report_ref)
@@ -328,15 +360,15 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
         self, case: VulnerabilityCase, accept_activity_id: str
     ) -> dict[str, Any] | Status:
         """Return the Create's AS2 rendering, or FAILURE when the case names
-        an active embargo this store cannot read (EMB-18-003)."""
+        an active embargo (EMB-18-003) or a participant this store cannot
+        read, so the Create cannot carry it inline (CP-09-004)."""
         assert self.actor_id is not None
         try:
             case_object = self._build_case_object(case)
         except (VultronNotFoundError, VultronValidationError) as exc:
-            self.feedback_message = (
-                f"Invariant violation (EMB-18-003): case '{case.id_}' names"
-                f" an active embargo this store cannot read: {exc}"
-            )
+            # Each refusal in _build_case_object names its own cause and
+            # requirement, so the message cites only the one that fired.
+            self.feedback_message = f"Invariant violation: {exc}"
             logger.exception("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         # The report receiver (the Case Owner) is the only addressee

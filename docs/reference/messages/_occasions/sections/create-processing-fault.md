@@ -8,7 +8,7 @@ Tells the sender that its message was received but not understood, or understood
 
     - **When…** a Participant has received a message it cannot process
     - **Send:** `Create(ProcessingFault)`
-    - **Send to:** the case manager
+    - **Send to:** the CASE_MANAGER
     - **Sent by:** an active participant
     - **Seen in:** [How to Report a Protocol Fault](../../../../howto/activitypub/activities/error.md)
     - **Mapping status:** [evolved](../../index.md#mapping-status)

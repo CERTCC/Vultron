@@ -3,31 +3,26 @@ title: Demo Scenario Tree — Names, Index, Prefix Check, Composition, Starting 
 status: active
 kind: plan
 tracks:
-  - "#4733"
   - "#4747"
   - "#5303"
-  - "#5304"
   - "#5344"
   - "#5345"
   - "#5346"
   - "#5347"
   - "#5348"
   - "#5349"
-  - "#5533"
-  - "#5534"
-  - "#5535"
-  - "#5536"
-  - "#5537"
-  - "#5589"
-  - "#5591"
   - "#5613"
+  - "#5649"
+  - "#5650"
+  - "#5651"
+  - "#5652"
 description: >
   Design for the remaining scenario-tree work (#4726): the letter-grammar names
   and how a rename keeps old URLs, the generated tree index the demo UI reads,
-  the isomorphic shared-prefix check over recordings, how integration tests
+  the byte-identical shared-prefix check over recordings, how integration tests
   start from named points on the tree, how a branching story is written as
-  composition on one fixed cast, and the Task order. The branch-point
-  table and the `@scenario` path declarations are built; their rules live in
+  composition on one fixed cast, and the Task order. The branch-point table and
+  the story-derived path declarations are built; their rules live in
   demo-scenario-registry.md.
 related_specs:
   - specs/demo-ci.yaml
@@ -57,16 +52,13 @@ both amended 2026-10-15; ADR-0098 amended again 2026-10-30. Requirements:
 DEMOCI-11-013 through DEMOCI-11-025, DEMOCI-11-034 and DEMOCI-11-035.
 Parent Epic: #4747.
 
-The `@scenario(path=...)` declarations are the interim form. Composition
-(§ "Composition") writes a branching story once and retires each family's
-declarations as it lands.
-
 ---
 
 ## The tree is declared in code
 
-The branch-point table (`vultron/demo/scenario/branch_points.py`) and each
-scenario's `@scenario(path=...)` are the tree; `scenario_tree()` in
+The branch-point table (`vultron/demo/scenario/branch_points.py`) and the
+choices of each scenario's story (§ "Composition") are the tree;
+`scenario_tree()` in
 `registry.py` merges the paths and discovery fails unless every scenario is one
 ending (DEMOCI-11-013, DEMOCI-11-014). The declaration rules are in
 [demo-scenario-registry.md](demo-scenario-registry.md) § "The path and the
@@ -82,24 +74,27 @@ branch-point table". Read the tree there, not from a copy here.
   point is the Reporter's, so a Vendor that finds the vul itself is not one of
   its choices. It is either a second root or the Vendor acting as the Reporter;
   decide when that scenario is designed. Its name begins with `v` either way.
-- **Siblings share logic, not yet bytes.** The steps before a branch point
-  must be the same across its siblings, note text and order included. The
-  shared-prefix test fails when they drift; fix the order in the scenario
-  without changing a verdict (DEMOMA-17-002), then regenerate the recordings.
-  A shared step goes in one helper (`reporter_asks_vendor_timeline`,
-  `vendor_answers_workaround`), so its siblings cannot drift apart.
+- **Siblings share bytes, not only logic.** The steps before a branch point
+  are one copy of the code for all its siblings, so their recordings agree
+  byte for byte up to it (§ "Shared-prefix check"). The shared-prefix test
+  fails when they drift; fix the order in the shared fragment without changing
+  a verdict (DEMOMA-17-002), then regenerate the recordings.
 - **Regenerate every scenario together, in one process.** One seed and one
   cast mean a run draws the same ids in every scenario, so a single fresh
   recording beside stale siblings fails the pairwise check even when nothing
-  drifted. There is a second reason, measured in #5534: a scenario's bytes
-  depend on where it sits in the run. `rcv-embargo` stamps its
-  `activate_embargo_on_case` entry 80 ms later as the first scenario of a
-  process than as any later one, reproducibly, so
-  `export-demo-recordings --scenario rcv-embargo` and a full run disagree. The
-  daily freshness check runs `export-demo-recordings` with no `--scenario`
-  (`demo-recordings.yml`), so that is the only form whose output may be
-  committed; a per-scenario run is for looking, never for committing. The
-  leaked process state behind the 80 ms is #5591.
+  drifted. The daily freshness check runs `export-demo-recordings` with no
+  `--scenario` (`demo-recordings.yml`), so that is the form whose output is
+  committed. A per-scenario run now gives the same bytes as the whole-tree
+  one, so it is usable for looking: what made the two disagree was a
+  scenario's position in the process, and both causes are closed — a
+  pending-assertion lookup read the stepping clock, and the store that holds
+  those entries is process-global and was not dropped between runs, so the
+  first scenario of a process stamped `rcv-embargo`'s
+  `activate_embargo_on_case` entry 80 ms later than any later one (#5591).
+  **Anything else that survives a scenario run brings the dependence back**:
+  a process-global store a run writes must be dropped in
+  `vultron.demo.recordings.runner._scenario_nodes`, beside the DataLayer, the
+  py_trees blackboard and the pending-assertion registry.
 
 ## Names
 
@@ -136,30 +131,41 @@ Built: `uv run export-demo-tree` writes `ui/src/data/scenario_tree.json`
 
 ## Shared-prefix check
 
-Each declared branch is proved the way position-independent code is compared:
-same logic, different addresses (DEMOCI-11-017; byte identity once composed is
-DEMOCI-11-018). The test is `TestSharedPrefixes` in
-`test/demo_unit/test_recordings.py`, over the committed recordings.
+**Every two registered scenarios are compared byte for byte up to the branch
+point where their paths part** (DEMOCI-11-017, DEMOCI-11-018). The test is
+`TestSharedPrefixes` in `test/demo_unit/test_recordings.py`, over the committed
+recordings.
 
-- Each recording's ids are relabeled by first appearance and its timestamps
-  dropped; the entries must then be equal up to the branch point, references
-  between objects included.
-- Byte identity is not required yet: siblings still place their shared steps
-  by hand, so the order can differ even where the logic matches. The addresses
-  no longer can — one cast and one seed (DEMOCI-11-020, DEMOCI-11-025). A
-  composed family tightens to byte identity, which then holds by construction;
-  name it in `COMPOSED_FAMILIES` (`vultron/demo/recordings/prefix.py`).
+- **Every pair, no exemption table.** `shared_prefixes()`
+  (`vultron/demo/recordings/prefix.py`) returns all `C(n, 2)` pairs of
+  registered scenarios and each one is compared. A pair that is not
+  byte-identical over its shared prefix is a defect in the shared code, not a
+  pair to hold out: a list of exempt pairs makes the ones nobody listed the
+  ones nobody checks.
+- **A pair that parts at the root compares nothing.** The root branch point is
+  the Reporter's and is decided before the case exists, so two scenarios that
+  part there share zero ledger entries. Those pairs are still compared, and
+  they pass on an empty prefix; the pairs that part later are what the check
+  rests on. A test records per pair that each pair parting after the root does
+  compare entries, so a collapse of the step marks to zero cannot leave the
+  whole suite green over nothing.
+- **Byte identity holds by construction, and the conditions are strict.** One
+  copy of the shared code, one fixed cast and one tree-wide seed
+  (DEMOCI-11-020, DEMOCI-11-025) make both recordings draw the same ids and
+  read the clock the same number of times. What that requires of a shared
+  stretch is in § "Composition".
 - A container slot is not only an address. The proposer's container sets its
   default case roles (CP-01-013), which is why only the three fixed-role slots
   declare any: a case owner holds the same roles in every sibling, or the first
   entry already differs.
-- The check reads where each branch point falls from the step marks. A
-  scenario calls `harness.reach_step(branch_point, choice, by=actor_id)` where
-  it makes the decision, before another role's steps that run ahead of the
-  choice's trigger; inside a phase it calls the module-level `reach_step`. A
-  shared helper takes a hook instead (`before_answer=step_reporter(...)` on the
-  invite chain). The recorder commits the marks as `steps.json` beside each
-  recording and refuses a run that leaves a declared step unmarked.
+- The check reads where each branch point falls from the step marks, and the
+  marks come only from the runner: `run_story` calls
+  `harness.reach_step(branch_point, choice, by=actor_id)` as it passes each
+  `choose(...)` item, so no scenario or fragment places one and no step is
+  marked twice (DEMOCI-11-019). The recorder commits the marks as `steps.json`
+  beside each recording and refuses a run that leaves a declared step
+  unmarked. `test/architecture/test_scenario_reports_every_step.py` is the
+  ratchet that keeps the runner the only source.
 - The harness also checks the `by` actor holds the branch point's role; the
   rule is in [demo-scenario-registry.md](demo-scenario-registry.md) §
   "The path and the branch-point table".
@@ -167,14 +173,12 @@ DEMOCI-11-018). The test is `TestSharedPrefixes` in
 ## Composition
 
 A branching story is written once: shared steps up to a branch point, then one
-continuation per choice (DEMOCI-11-019, ADR-0098). Built in #5533 and piloted
-on `rcv` and `rcv-reject`, then finished across the whole
-Reporter → Coordinator → Vendor family in #5534 (`rcvcv`, `rcv-embargo`,
-`rcvv-embargo`) and the two-coordinator pair in #5535 (`rccv-extension`,
-`rccv-handoff`), which is the whole coordinator-first subtree; the
-vendor-first half came in #5536 (`rv`, `rvv`, `rvcv-extension`,
-`rvcv-handoff`), so every scenario of the tree is composed. What remains is
-retiring `path=` and the hand-placed `reach_step` (#5537).
+continuation per choice (DEMOCI-11-019, ADR-0098). Every registered scenario is
+a story, and a story is the only way one places itself on the tree — the
+registry takes no path parameter, so the path cannot be stated a second time
+(DEMOCI-11-024). The tree has two halves, each with its own nested prefixes:
+the coordinator-first subtree, whose Reporter tells a Coordinator, and the
+vendor-first half, whose Reporter tells a Vendor.
 
 - **The API is four names.** `vultron/demo/helpers/story.py` holds them:
   `choose(branch point, choice, by=<cast name>)` declares one decision,
@@ -197,7 +201,7 @@ retiring `path=` and the hand-placed `reach_step` (#5537).
   and that is the property the fragments rely on. The embargo pair carries its
   embargo ids this way (`PROPOSED_EMBARGO`, `REVISED_EMBARGO`,
   `VENDOR2_SIGNED`) and `rcvcv` carries the note its late joiners reply to
-  (`TIMELINE_ANSWER`); #5536's reply note is the same shape. A case whose owner
+  (`TIMELINE_ANSWER`), as does the vendor-first reply note. A case whose owner
   changed mid-story is the one artifact a prop does not serve, because
   fragments read the case through `state.case`: it has a setter beside
   `open_case`, `restate_case`, which replaces the case without re-arming the
@@ -257,14 +261,22 @@ retiring `path=` and the hand-placed `reach_step` (#5537).
   replica checks between them, so it starts with the shorter prefix and places
   the note fragment itself. A poll and a verification write nothing, so they
   advance no stepping clock, and the four vendor-first recordings still agree
-  to the branch point: measured, `rv`'s recording came out byte-identical to
-  the one committed before the composition. Keeping the two checks where they
-  were is also what leaves `rv`'s verdict and its milestone order untouched
-  (DEMOMA-17-002, #5536). An *act* placed the same way would move the bytes,
-  and the byte-identity check would catch it. The exception is a read that
-  reads the clock itself, as `PendingAssertionStore.pending_for_subject` does
-  to check expiry (#5591, below): slipping one of those into a shared stretch
-  would move the bytes too, so measure rather than assume.
+  to the branch point. Keeping a scenario's own checks where they were is also
+  what leaves its verdict and its milestone order untouched (DEMOMA-17-002).
+  An *act* placed the same way would move the bytes,
+  and the byte-identity check would catch it. **A read that reads the clock
+  is not read-only for this purpose** and would move the bytes too: under the
+  recording clock a read costs a 10 ms tick, so slipping one into a shared
+  stretch shifts every later timestamp and digest, and on a racing thread it
+  shifts them by a different amount on each run. `PendingAssertionStore`'s
+  lookups were the one such read reached from a shared stretch; they now take
+  the instant from the act whose check they are (#5591), which is the shape a
+  read that needs a time should take — a new clock read inside a read path is
+  a defect, not a measurement problem.
+  Other read paths still read it — the decision-tree builders (#5649), five
+  guard nodes (#5650), the sync cooldown checks (#5651) and the inbound
+  extraction edge (#5652) — so a stretch that reaches one of those is not
+  byte-stable yet even though it is deterministic today.
 - **A decision both halves make gets its own module, not a family's.** The
   owner-keep-case choice — keep the case and approve the joiner's suggestion,
   or hand the case over and let the new owner invite — appears in the
@@ -281,16 +293,15 @@ retiring `path=` and the hand-placed `reach_step` (#5537).
 - **The path is read off the choices.** `@scenario(story=STORY)` derives the
   path from `Story.path`, so the tree index (DEMOCI-11-016) follows the code
   with no new sync step. `run_story` records each step mark as it passes a
-  `choose`, so a composed scenario places no `reach_step` by hand. During
-  migration the registry accepts either form; declaring both fails discovery
-  (DEMOCI-11-024), and `ScenarioSpec.composed` is how a check tells them
-  apart.
+  `choose`, so nothing places a `reach_step` by hand and the invitee's
+  decision is placed by a fragment boundary rather than by a hook on a shared
+  helper (DEMOCI-11-019).
 - **One opener serves every family.** The reset, the seeding and the seating a
   family's opening does are the same three steps whichever family it is, so
   they are written once in `story_cast.py` (`CastSeat`, `open_story_cast`,
   `story_open_cast`) and each family supplies only its seats, in its
   `seed_containers_*` return order, and that seeder as a closure. A second
-  family copying the first one's opener is what DEMOMA-17-001 forbids, and the
+  family copying the first one's opener is what DEMOMA-17-003 forbids, and the
   seat order is load-bearing: the opener binds each session to the seat's own
   container, so a seeder returning a different number of actors raises rather
   than seating one actor on another's client (#5536).
@@ -331,50 +342,34 @@ retiring `path=` and the hand-placed `reach_step` (#5537).
   `demo_gate` and stops the story when the run has already recorded a failure,
   so the failed act stays the headline instead of being reported as a role
   defect; with a clean accumulator the mark still raises, because then the
-  declaration really is wrong (DEMOCI-01-003, EDF-06-005). The hand-placed
-  form got this from nesting: the invitee's mark sat inside the Invite's
-  delivery gate.
+  declaration really is wrong (DEMOCI-01-003, EDF-06-005).
 - **Clear process-global registries between runs.** One seed means the second
   scenario in a process redraws the first one's ids, so a runner that plays
   more than one story must reset them — `reset_blackboard()` is the one that
   bit, because py_trees refuses a blackboard client id it already holds.
-- **Byte identity is decided before the case opens.** With the cast and the
-  tree-wide seed fixed, five of the twelve sibling pairs that share a prefix
-  were already byte-identical, where none was before (#5532). The seven that
-  were not all paired `rcvcv` or `rcvv-embargo` with a narrower sibling, and
-  the cause was setup length, measured in #5534: the shared prefix was already
-  isomorphic and drew the *same* ids — actor ids come from container slugs, so
-  seeding draws no uuid — and differed only by a constant offset of 360 ms
-  (`rcvcv`, two extra containers) or 160 ms (`rcvv-embargo`, one), about
-  sixteen reads of the 10 ms stepping clock per extra container. Only writes
-  read the clock, so where a poll or a verification sits does not matter; how
-  many actor and peer records are written before `create_case` does. Seeding
-  the character actors in the step that invites them, after the branch point,
-  took both offsets to zero and made every checked pair of that family
-  byte-identical. The two-coordinator pair came in the same way: its C2 is a
-  character actor, so its opening seeds the same three containers `rcv`'s
-  does, and every checked pair of the coordinator-first subtree is
-  byte-identical (#5535). The vendor-first half measured the same way — `rv`
-  at two containers, `rvv` at three and the `rvcv` pair at four, 120 ms and
-  160 ms apart — and its opening seeds the two every one of the four uses, so
-  the Coordinator joins the `rvcv` pair's stories as an unseated container
-  like any character actor although it sits in a fixed cast slot: what decides
-  is whether *every* sibling uses it, not which slot it is in (#5536). A
-  family joins `COMPOSED_FAMILIES` when
-  its scenarios share one authored opening *and* that opening writes the same
-  records in every one of them (DEMOCI-11-018).
-- **A shared prefix that runs past the embargo activation is not checkable
-  yet.** All but one pair of the coordinator-first subtree are byte-identical;
-  that one, `{rcv-embargo, rcvv-embargo}`, shares four steps, so its prefix
-  reaches ledger entry 33 — where `PendingAssertionStore.pending_for_subject`
-  reads the clock to check expiry, on a thread that races the owner's accept
-  trigger. The two came out 80 ms apart in a whole-tree run and identical in
-  solo runs (#5591). The table therefore names the subtree as two overlapping
-  families, which is how it says "every pair but one"; collapsing them is
-  #5591's acceptance criterion. Read the table's comment before adding a
-  family whose members share four or more steps. The vendor-first half parts
-  at ledger entry 15 or 22, well ahead of that race, so it is one family and
-  every pair of it is checked (#5536).
+- **Byte identity is decided before the case opens.** Only a write reads the
+  recording clock, so where a poll or a verification sits does not matter; how
+  many actor and peer records a story writes before `create_case` does. Each
+  one is about sixteen reads of the 10 ms stepping clock, so one extra
+  container seeded in a shared opening moves every later timestamp and digest
+  by a constant offset and the siblings cease to be byte-identical. **A shared
+  opening therefore seeds only the containers every one of its siblings uses**;
+  the rest are reset with it and seeded by the step that brings each actor in
+  (see the character-actor bullet above). What decides is whether *every*
+  sibling uses a container, not which cast slot it sits in: the Coordinator of
+  the `rvcv` pair joins as an unseated container although its slot is fixed.
+- **No read on a shared stretch may read the recording clock, and no store a
+  run writes may survive it.** These are the two conditions beyond a shared
+  authored opening, and both are stated here rather than restated elsewhere:
+  `prefix.py`'s module docstring and DEMOCI-11-018's rationale cite this
+  section (DF-10-001). The longest shared prefix in the tree is
+  `{rcv-embargo, rcvv-embargo}`'s, which reaches ledger entry 36, past the
+  embargo activation, and it is the stretch that will find a new violation of
+  either rule first: a clock read on a thread racing a trigger moves the two
+  recordings apart by a varying amount, and a process-global store a run
+  writes carries one scenario's rows into the next. A store a run writes is
+  dropped in `vultron.demo.recordings.runner._scenario_nodes`, beside the
+  DataLayer, the py_trees blackboard and the pending-assertion registry.
 - **Key a composed view on the scenario and the case, never the case alone.**
   One seed also means every scenario draws the *same* case id, which is what
   lets siblings record identical bytes for a shared opening (DEMOCI-11-025) and
@@ -388,44 +383,46 @@ retiring `path=` and the hand-placed `reach_step` (#5537).
   DEMOMA-21-015, DEMOMA-13-012, DEMOMA-14-017). Give a shared
   stretch its own spec group only when one change to it must be edited in
   several scenario groups.
-- **Verdicts do not move.** Every migration is a consolidation, so no
-  scenario's pass or fail may change in it (DEMOMA-17-002). An unchanged
-  recording is the cheapest evidence of that; a scenario whose seeding moved
-  has none, so read its diff instead: the semantic-type sequence and the entry
-  count must be unchanged, and the bytes may differ only in timestamps,
-  hash-chain digests and the uuids drawn after the branch point. That diff is
-  what catches an act the migration added — giving a joining coordinator the
-  RM triage a vendor gets adds an `engage_case` entry and drops a participant
-  status at closure (#5534). A shared join helper therefore takes `triages=`:
-  a vendor judges the report it was invited over, a coordinator joining to
-  coordinate does not.
+- **Verdicts do not move.** A change that extracts or merges demo code is a
+  consolidation, so no scenario's pass or fail may change in it
+  (DEMOMA-17-002). An unchanged recording is the cheapest evidence of that; a
+  scenario whose seeding moved has none, so read its diff instead: the
+  semantic-type sequence and the entry count must be unchanged, and the bytes
+  may differ only in timestamps, hash-chain digests and the uuids drawn after
+  the branch point. That diff is what catches an act the change added —
+  giving a joining coordinator the RM triage a vendor gets adds an
+  `engage_case` entry and drops a participant status at closure. A shared join
+  helper therefore takes `triages=`: a vendor judges the report it was invited
+  over, a coordinator joining to coordinate does not.
 - **The plot manifest catches a reorder; nothing at PR time catches an edit.**
   Nothing in PR CI regenerates a recording: the freshness check runs daily on
   `main` and files a refresh Task rather than failing (`demo-recordings.yml`).
-  `TestComposedFamilies` compares the two *committed* recordings with each
+  `TestSharedPrefixes` compares the two *committed* recordings with each
   other, so a reordered shared fragment moves both alike and still passes.
   The plot manifest (DEMOCI-11-034, DEMOCI-11-035) closes the reorder half for
-  free: it lists each composed story's choices and fragment names, read
-  without running anything, and drift-fails on any change in order. In a
-  consolidation PR a manifest diff is a sign the PR may change what a scenario
-  passes or fails on, which DEMOMA-17-002 forbids; check it before merging. It
-  cannot see an edit inside a fragment's body, so run
-  `export-demo-recordings --scenario <a> --scenario <b> --report-changes` in a
-  composition PR that edits a fragment, and in every composition PR until the
-  manifest is built; that run is DEMOMA-17-002's evidence.
+  free: it lists each story's choices and fragment names, read without running
+  anything, and drift-fails on any change in order. A manifest diff is a sign
+  the PR may change what a scenario passes or fails on, which DEMOMA-17-002
+  forbids; check it before merging. It cannot see an edit inside a fragment's
+  body, so until the manifest is built, run `export-demo-recordings
+  --report-changes` from a clean tree in any PR that edits a fragment; that
+  run is DEMOMA-17-002's evidence, and it exits 3 when a recording changed.
+  Run it from a clean tree and not twice: the first run overwrites the
+  committed files, so a second run compares them against themselves and
+  reports no change (#5589).
 - **Byte-comparing a fresh run with the committed files is a rejected gate.**
   The recording clock ticks 10 ms on every read, so a refactor that adds one
-  `now_utc()` call shifts every later timestamp and digest, and #5591 makes
-  some reads race. Comparing on every PR would also undo #3901's rule that no
-  PR regenerates recordings. A fresh-versus-fresh comparison of base and head
-  that ignores timestamps and digests is the open alternative.
+  `now_utc()` call shifts every later timestamp and digest. Comparing on every
+  PR would also undo #3901's rule that no PR regenerates recordings. A
+  fresh-versus-fresh comparison of base and head that ignores timestamps and
+  digests is the open alternative.
 
 ## Test starting points
 
 The multi-actor integration tests start from the same tree (TB-15). A **named
-starting point** is a declared step on a scenario path: the point each scenario
-reports to the harness with `reach_step` for the shared-prefix check
-(DEMOCI-11-017), so the harness that builds a point stops a run there.
+starting point** is a declared step on a scenario path: the point the runner
+marks for the shared-prefix check (DEMOCI-11-017), so the harness that builds a
+point stops a run there.
 
 - **Build once, copy per test.** Once per session the harness runs a path up to
   the point, in-process, and saves each actor's store; every test loads its own
@@ -459,13 +456,8 @@ reports to the harness with `reach_step` for the shared-prefix check
 
 ## Task order
 
-1. Composition, one PR per step, in this order: the story runner, piloted on
-   `rcv` and `rcv-reject` (#5533); the rest of the
-   "Coordinator invites Vendor" subtree, `rcvcv`, `rcv-embargo` and
-   `rcvv-embargo` (#5534); the two-coordinator subtree, `rccv-*` (#5535); the
-   vendor-first half, `rv`, `rvv` and `rvcv-*` (#5536, done); then retiring
-   `path=`
-   and hand-placed `reach_step` (#5537).
-2. Test starting points: #5344 (one act cheap) and #5345 (the harness, which
-   stops a run at a `reach_step` mark), then the pilot #5346, then the
-   migrations #5347 and #5348, and last #5349.
+1. Test starting points: #5344 (one act cheap) and #5345 (the harness, which
+   stops a run at a step mark), then the pilot #5346, then the migrations
+   #5347 and #5348, and last #5349.
+2. The plot manifest (#5613), then the clock-reading read paths that keep a
+   shared stretch from being byte-stable: #5649, #5650, #5651 and #5652.

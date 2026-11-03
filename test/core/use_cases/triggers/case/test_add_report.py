@@ -36,10 +36,11 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.pending_assertion import (
-    _reset_stores,
     get_pending_assertion_store,
+    reset_pending_assertion_stores,
 )
 from vultron.core.use_cases.triggers.case import (
     SvcAddObjectToCaseUseCase,
@@ -100,7 +101,7 @@ class TestSvcAddReportToCaseUseCase:
         yield
         self.dl.clear_all()
         reset_datalayer(self.actor.id_)
-        _reset_stores()
+        reset_pending_assertion_stores()
 
     def _execute(self, report_id: str, case_id: str | None = None):
         request = AddReportToCaseTriggerRequest(
@@ -184,6 +185,7 @@ class TestSvcAddReportToCaseUseCase:
             self.case.id_,
             MessageSemantics.ADD_REPORT_TO_CASE.value,
             activity_of(result)["id"],
+            at=now_utc(),
         )
 
     def test_add_report_to_case_raises_when_report_not_found(self):

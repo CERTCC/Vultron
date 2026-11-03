@@ -79,29 +79,54 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      Demo scripts MUST be relocated to `vultron/demo/` and MUST be importable as `vultron.demo.<script_name>`
+      Each demo script MUST live in the `vultron/demo/` package.
     rationale: >-
       The CLI imports each demo as a module. When the demos are in the `vultron`
       package, the CLI, the tests and the Docker image can import them the same way,
       without changes to the import path.
-  - id: DC-02-003
+  - id: DC-02-004
     priority: MUST
     kind: project
     verification_debt: '#2573'
     statement: >-
-      `demo_step` and `demo_check` MUST NOT be used interchangeably. `demo_step` is an
-      **action step**: it performs a side-effecting operation and swallows any exception into
-      the demo failure accumulator so the scenario continues. `demo_check` is an
-      **observation-only assertion block**: it verifies that state meets expectations and
-      accumulates assertion failures, but MUST NOT perform any side-effecting operation.
+      Each demo script MUST be importable as `vultron.demo.exchange.<script_name>` or
+      `vultron.demo.scenario.<script_name>`.
     rationale: >-
-      Using `demo_step` for observation or `demo_check` for actions obscures the semantic
-      intent of the scenario. An action disguised as a check will not be correctly identified
-      as a side-effecting step in scenario tracing and logging; an observation disguised as
-      a step will mislead readers about what the scenario is doing vs. verifying.
+      Exchange demos drive one backend directly, and scenario demos run several actors
+      in containers. One sub-package for each kind keeps the two apart, and a fixed
+      module path lets the CLI and the tests find each script by its name.
+    relationships:
+    - rel_type: extends
+      spec_id: DC-02-002
+  - id: DC-02-003
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      A demo MUST NOT use `demo_step` for an observation-only assertion block, or
+      `demo_check` for an action step.
+    rationale: >-
+      `demo_step` wraps an action step: it performs a side-effecting operation and
+      puts any exception in the demo failure accumulator, so the scenario continues.
+      `demo_check` wraps an observation-only assertion block: it checks state and
+      collects assertion failures. A swap hides which steps act and which only verify,
+      in scenario tracing, in logs and for readers.
     relationships:
     - rel_type: refines
       spec_id: DC-02-001
+  - id: DC-02-005
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      A `demo_check` block MUST NOT perform a side-effecting operation.
+    rationale: >-
+      A `demo_check` failure is recorded and the scenario continues. If the block also
+      changed state, a failed check could leave that change half done, and the trace
+      would not show the change as an action step.
+    relationships:
+    - rel_type: refines
+      spec_id: DC-02-003
 - id: DC-03
   title: Demo Isolation
   specs:
@@ -120,23 +145,44 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      Demos run in sequence (via the `all` sub-command) MUST NOT share mutable state; each
-      demo MUST operate on a freshly initialized DataLayer context
+      Demos that the `all` sub-command runs in sequence MUST NOT share mutable state.
     rationale: >-
       When demos share mutable state, the result of one demo depends on the demos that
-      ran before it. Then a demo can pass in `all` and fail alone, or the reverse. A
-      fresh DataLayer context for each demo makes each result independent of the order.
+      ran before it. Then a demo can pass in `all` and fail alone, or the reverse.
+  - id: DC-03-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      Each demo that the `all` sub-command runs MUST operate on a freshly initialized
+      DataLayer context.
+    rationale: >-
+      A fresh DataLayer context for each demo is how the demos avoid shared state. It
+      makes each result independent of the order in which the demos run.
+    relationships:
+    - rel_type: implements
+      spec_id: DC-03-002
   - id: DC-03-003
     priority: MUST_NOT
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The CLI MUST NOT assume a globally pre-initialized DataLayer; each demo invocation MUST
-      create and clean up its own context
+      The CLI MUST NOT assume a globally pre-initialized DataLayer.
     rationale: >-
       A demo that depends on a DataLayer it did not create works only when something
-      else prepared that DataLayer first. When each demo creates and cleans up its own
-      context, the demo works the same from the CLI, from a test and from Docker.
+      else prepared that DataLayer first.
+  - id: DC-03-005
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      Each demo invocation MUST create and clean up its own DataLayer context.
+    rationale: >-
+      When each demo creates and cleans up its own context, the demo works the same
+      from the CLI, from a test and from Docker, and leaves nothing for the next run.
+    relationships:
+    - rel_type: implements
+      spec_id: DC-03-003
 - id: DC-04
   title: Docker Packaging
   specs:

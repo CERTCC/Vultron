@@ -53,7 +53,7 @@ def test_demo(demo_env, demo_fn, caplog):
     - invite-actor-to-case trigger fired (creates inert participant, CM-11-006)
     - Invite also delivered to coordinator inbox
     - Coordinator rejection sent to vendor inbox
-    - Coordinator in actor_participant_index at RM.CLOSED (DEMOMA-27-002)
+    - Coordinator in actor_participant_index at RM.CLOSED (DEMOMA-27-007)
     """
     import logging
 

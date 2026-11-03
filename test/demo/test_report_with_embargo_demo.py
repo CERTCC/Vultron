@@ -33,7 +33,7 @@ from vultron.demo.exchange import report_with_embargo_demo as demo
 
 @pytest.fixture(scope="module")
 def demo_env(client):
-    """Route the demo's client at the in-process TestClient (DEMOMA-26-002)."""
+    """Route the demo's client at the in-process TestClient (DEMOMA-26-008)."""
     with route_exchange_demo_at_testclient(client, demo):
         yield
 

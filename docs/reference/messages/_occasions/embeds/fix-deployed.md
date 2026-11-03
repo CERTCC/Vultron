@@ -6,8 +6,8 @@
 
     - **When…** a Deployer has deployed the fix
     - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
-    - **Send to:** the case manager
-    - **Sent by:** the case manager or the case owner or the participant status's author (usually: deployer)
+    - **Send to:** the CASE_MANAGER
+    - **Sent by:** the CASE_MANAGER or the Case Owner or the participant status's author (usually: deployer)
     - **Distinguished by:** `dState` = `D`
     - **Reference:** [Fix Deployed (CD)](../../cs.md#fix-deployed)
 

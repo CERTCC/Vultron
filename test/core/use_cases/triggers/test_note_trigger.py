@@ -42,14 +42,15 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import (
     RmDimension,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.pending_assertion import (
-    _reset_stores,
     get_pending_assertion_store,
+    reset_pending_assertion_stores,
 )
 from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
@@ -206,7 +207,7 @@ class TestSvcAddNoteToCaseUseCase:
         # _dispose_actor_stores_between_tests fixture in test/conftest.py already
         # drops every per-actor store after each test (ADR-0073), which is
         # strictly more thorough than clearing rows.
-        _reset_stores()
+        reset_pending_assertion_stores()
 
     def _execute(self, actor_id=None, in_reply_to=None):
         """Build and execute the use case; return the result dict."""
@@ -467,6 +468,7 @@ class TestSvcAddNoteToCaseUseCase:
             self.case.id_,
             MessageSemantics.ADD_NOTE_TO_CASE.value,
             add_activity_id,
+            at=now_utc(),
         ), (
             "Expected pending-assertion store to suppress the Add(Note) "
             "activity until the matching Announce(CaseLedgerEntry) arrives"
@@ -484,6 +486,7 @@ class TestSvcAddNoteToCaseUseCase:
             self.case.id_,
             MessageSemantics.ADD_NOTE_TO_CASE.value,
             add_activity_id,
+            at=now_utc(),
         )
 
         # Simulate the Announce(CaseLedgerEntry) round-trip clearing the entry
@@ -496,6 +499,7 @@ class TestSvcAddNoteToCaseUseCase:
             self.case.id_,
             MessageSemantics.ADD_NOTE_TO_CASE.value,
             add_activity_id,
+            at=now_utc(),
         ), "After clear(), suppression must be lifted"
 
     @pytest.mark.spec("SYNC-11-004")
@@ -590,4 +594,5 @@ class TestSvcAddNoteToCaseUseCase:
             self.case.id_,
             MessageSemantics.ADD_NOTE_TO_CASE.value,
             add_activity_id,
+            at=now_utc(),
         ), "Zero-timeout store must never suppress"

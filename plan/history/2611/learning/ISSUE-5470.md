@@ -1,0 +1,48 @@
+---
+title: >-
+  CBT-01-007 requires "the bootstrap" Create(VulnerabilityCase) to carry every
+  nested object inline, but the specs disagree on whether the CASE_MANAGER's
+  Create to the Case Owner is that bootstrap
+type: learning
+timestamp: 2026-11-02T18:30:00Z
+source: ISSUE-5470
+signal: spec-ambiguity
+---
+
+## Trigger
+
+You are applying CBT-01-002 or CBT-01-007 (inline case and nested objects) to
+the `Create(VulnerabilityCase)` the CASE_MANAGER sends the Case Owner, or you
+find that Create carrying a report by bare id.
+
+## The question `learn` must settle
+
+Is the CASE_MANAGER's `Create(VulnerabilityCase)` to the Case Owner "the
+bootstrap" that CBT-01-002 and CBT-01-007 govern?
+
+- **CBT-01-001** defines the bootstrap as the report receiver's `Create` to the
+  reporter, and **CBT-01-010** names the CASE_MANAGER's `Create` to the Case
+  Owner separately.
+- **ADR-0157** calls the CASE_MANAGER's `Create` the case's first participant's
+  "bootstrap", and the Case Owner receives it through the same received tree
+  (`create_case_received_tree.py`) as the reporter.
+- **CP-09-004** governs the CASE_MANAGER's `Create` and requires only its
+  participant records inline (#5470).
+
+The answer decides whether a report must be inline there too. When a proposal
+does not inline its report (CP-01-004), the CASE_MANAGER still makes the case
+(ADR-0041 AC-2, `test_no_reporter_when_report_absent`) and sends the report's
+id with a WARNING (`EmitCreateVulnerabilityCaseNode._build_case_object`). If
+that `Create` is the bootstrap, it breaks CBT-01-007, and the CASE_MANAGER
+would have to refuse such a proposal instead. #5470 read CBT-01's own
+definition and left the report path as it was.
+
+## Resolution
+
+The maintainer settled it on 2026-11-02 (#5691): the protocol requires an
+object inline only when its receiver cannot already hold it. Neither `Create`
+must carry the report inline: the Case Owner proposed it, and the reporter
+offered it. Both carry the case and its participant records inline
+(CBT-01-002, CBT-01-007, CP-09-004). CBT-01-007 now names only the participant
+records, ADR-0170 carries a dated Amendment, and the bootstrap sender no longer
+refuses a report it cannot read. The CASE_MANAGER's report-by-id path stays.

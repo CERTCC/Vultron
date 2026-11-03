@@ -556,7 +556,9 @@ def test_accept_of_an_invite_the_case_manager_did_not_issue_is_refused(
 def test_reject_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
     cm_store, owned_case, make_payload, recorded
 ):
-    """The same sender check applies to Reject(Invite(stub))."""
+    """The same sender check applies to
+    Reject(Invite(Actor)[target=VulnerabilityCaseStub]).
+    """
     cm_store.create(owned_case)
     if recorded:
         invite = _record_stub_invite(cm_store, owned_case)

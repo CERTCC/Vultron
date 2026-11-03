@@ -119,7 +119,7 @@ globals().update(
 def test_rcv_embargo_semantic_type_literals_match_the_commit_path() -> None:
     """The literals in the expected list are the strings the manager commits.
 
-    DEMOMA-20-006 requires the invariant check to use the semantic types the
+    DEMOMA-20-016 requires the invariant check to use the semantic types the
     CASE_MANAGER's commit path emits, read from the code.  The expected list
     must be a literal for the notes ratchet, so this pins it to the code.
     """

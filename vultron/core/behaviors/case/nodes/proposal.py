@@ -39,7 +39,7 @@ from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 
 
 class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
-    """Send ``Create(as_CaseProposal)`` from ``report_id`` without a prior case.
+    """Send ``Create(CaseProposal)`` from ``report_id`` without a prior case.
 
     Used by the slimmed ``receive_report_case_tree`` (ADR-0041).  Unlike
     the deleted ``ProposeCaseToActorNode`` (issue #4353),
@@ -125,7 +125,7 @@ class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
             return Status.FAILURE
 
         self.logger.info(
-            "%s: queued Create(as_CaseProposal) '%s' to outbox"
+            "%s: queued Create(CaseProposal) '%s' to outbox"
             " for case-actor '%s' (report '%s')",
             self.name,
             activity_id,

@@ -82,7 +82,7 @@ The CASE_MANAGER records the proposer's row for the revision as `AGREED`, becaus
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-18-001", "CM-18-019", "CM-18-020", "CM-18-021", "EP-05-002"))
 ```
 
-**The case owner activates the revision.**
+**The Case Owner activates the revision.**
 The register activates the revision's entry and supersedes the entry in force, in one step.
 EM returns to `Active`, or stays at `Revised` while another revision is open.
 The owner's row for the revision becomes `AGREED` unless it already is.
@@ -97,7 +97,7 @@ A participant that has already agreed to the revision is its signatory by lookup
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-18-005", "EP-05-001", "EP-05-003", "MSM-07-005", "MSM-07-021", "MSM-07-022", "MSM-07-023", "MSM-07-024", "MSM-07-019", "MSM-07-020"))
 ```
 
-**The case owner rejects the revision.**
+**The Case Owner rejects the revision.**
 The register rejects the revision's entry.
 EM returns to `Active` once no other revision is open.
 No consent row changes, the owner's included, and the prior terms stand.

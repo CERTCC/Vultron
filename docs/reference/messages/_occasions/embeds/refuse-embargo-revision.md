@@ -6,7 +6,7 @@
 
     - **When…** a Participant refuses a proposed embargo revision
     - **Send:** `Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])`
-    - **Send to:** the case manager
+    - **Send to:** the CASE_MANAGER
     - **Sent by:** the invitee
     - **Distinguished by:** EM state `REVISE`
     - **Reference:** [Refuse an embargo revision](../../em.md#refuse-embargo-revision)

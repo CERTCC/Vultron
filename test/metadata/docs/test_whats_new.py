@@ -178,12 +178,12 @@ def test_render_recent_pages_filters_non_navigable():
     out = render_recent_pages(
         [
             "docs/howto/activitypub/activities/_demo_prerequisites.md",
-            "docs/includes/curr_ver.md",
+            "docs/includes/normative.md",
             "docs/reference/quick_reference.md",
         ]
     )
     assert "_demo_prerequisites" not in out
-    assert "curr_ver" not in out
+    assert "normative" not in out
     assert "quick_reference" in out
 
 

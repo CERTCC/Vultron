@@ -14,6 +14,7 @@ Shared scripts and reference documents referenced by multiple skills.
 | `sizing.md` | What the `size:` labels mean, estimate vs. measurement, who applies each, and why `size:XL` is a review-coverage warning (PAD-05). Band values come from `pr-size`, never prose | `plan-issue`, `update-plan`, `build`, `bugfix` |
 | `weighing-decision-records.md` | How far to trust a decision record whose body you read: settled versus challengeable, and why a stale code reference is not a challenge (ADR-0127, ADR-0043) | `deepen-context` Step 2, whose exception table names every skill that loads it |
 | `pre-review-self-check.md` | The four-item check the author runs on a finished diff (affected-text sweep, failure-path pass, branch coverage, reuse check) and the reviewer runs as review prompts; results go under `Self-check:` in the PR body (PAD-07-009) | `build` Phase 5, `bugfix` Phase 4, `pr-triage` Phase 8 |
+| `build-context.md` | How `build`/`bugfix` hand the context they loaded forward to the pr-ship phases (the `build-context` console script), what a phase loads when the file is usable, and the fallback when it is not (PAD-07-015 to PAD-07-019) | `build` Phase 3, `bugfix` Phase 2g, `pr-triage` Phases 1 and 4, `pr-execute` Phase 1, `pr-verify` Phase 7 |
 | `upward-reflection.md` | Mandatory end-of-session checklist and the routing table that sends each finding to a GitHub issue, an in-session fix, an assertion at the site, or a learning file | `build` Phase 8, `bugfix` Phase 3, `pr-execute` Phase 3 |
 
 ## Scripts
@@ -36,6 +37,9 @@ Shared scripts and reference documents referenced by multiple skills.
 | `freshen-branch.sh` | Rebase-free freshening onto `origin/main` **before the first push** | `bash .agents/skills/shared/freshen-branch.sh` |
 | `sync-with-main.sh` | Merge the base branch into an **already-pushed** PR branch; leaves conflicts for the caller | `bash .agents/skills/shared/sync-with-main.sh [<base-branch>]` |
 | `merge-state.sh` | Report a PR's mergeability, polling past GitHub's transient `UNKNOWN` | `bash .agents/skills/shared/merge-state.sh [<pr-number>]` |
+| `sync-decision.sh` | `pr-execute` Phase 5 Step 2: fetch the base, run `merge-state.sh`, a trial `git merge-tree` and `targeted-tests --overlap`, and print one `verdict=` (`merge`, `update-on-github`, `no-merge`, `setup-error`) with its `merge_reason` (PAD-18-004, PAD-18-014). `--decide` takes the four inputs directly | `bash .agents/skills/shared/sync-decision.sh <pr-number> <base-ref>` |
+| `verify-merge-gate.sh` | `pr-verify` Phase 2: the live merge-state gate; prints one `verdict=` and a `flag=` line per flag raised (PAD-18-005) | `bash .agents/skills/shared/verify-merge-gate.sh <pr-number> [--check-markers]` |
+| `verify-ci-gate.sh` | `pr-verify` Phase 3: wait for CI with `wait-for-ci.sh` and print one `verdict=` (`ci-green`, `ci-failing`, `ci-pending`) | `bash .agents/skills/shared/verify-ci-gate.sh <pr-number> [--integration]` |
 | `spec-amendments.sh` | List requirements whose `statement:` or `priority:` the branch changed or removed (parsed-YAML compare). Exit 1 means the PR body needs `## Spec amended` | `bash .agents/skills/shared/spec-amendments.sh [<base>] [<head>]` |
 | `graph-freshness.sh` | Check this worktree's graphify graph is present and fresh before relying on it; exit 1 means use grep/code search | `bash .agents/skills/shared/graph-freshness.sh [max-commits-behind]` |
 

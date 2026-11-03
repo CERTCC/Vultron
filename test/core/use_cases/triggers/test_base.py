@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import py_trees.behaviour
 import pytest
 
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.use_case_result import ActivityResult, OfferResult
 from vultron.core.use_cases.triggers._base import (
     SvcActivityTriggerBase,
@@ -285,7 +286,10 @@ def test_embargo_handle_result_records_the_ask_and_skips_the_lifecycle():
 
     assert not uc.log_called
     pending = get_pending_assertion_store(_ACTOR_ID).pending_for_subject(
-        _CASE_ID, "test_embargo_event", "proposal-1"
+        _CASE_ID,
+        "test_embargo_event",
+        "proposal-1",
+        at=now_utc(),
     )
     assert pending is not None
     assert pending.object_id == "https://example.org/act/1"

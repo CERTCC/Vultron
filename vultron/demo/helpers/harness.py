@@ -50,35 +50,21 @@ Before that point the harness writes a manifest-only artifact, which is enough
 for the invariant harness to distinguish "the demo produced no ledgers" from
 "the demo never ran".
 
-**Step marks.** A scenario also reports reaching each step of its path with
-:meth:`ScenarioHarness.reach_step`, at the point where it makes that decision,
-naming the actor that decides there.  A composed scenario places none by hand:
-``run_story`` makes the call as it passes each ``choose`` item of the story
-the path is read from (DEMOCI-11-019).  The
-harness checks the step is the next one declared and that the actor holds the
-branch point's role (DEMOCI-11-013, :mod:`.deciding_role`), and records the
-canonical ledger's tail there: how many entries the case had when the
-decision was made.  The marks are written beside the
-dump manifest on the way out, however the scenario ends, and the recorder
-commits them with each recording so the shared-prefix check knows where each
-branch point falls (DEMOCI-11-017, ``notes/demo-scenario-tree.md``)::
+**Step marks.** Each step of a scenario's path is reported to the harness with
+:meth:`ScenarioHarness.reach_step`, naming the actor that decides there.
+:func:`~vultron.demo.helpers.story.run_story` is the sole caller: it makes the
+call as it passes each ``choose`` item of the story the path is read from, so
+no scenario or fragment places a mark by hand and no step can be marked twice
+(DEMOCI-11-019).  The harness checks the step is the next one declared and that
+the actor holds the branch point's role (DEMOCI-11-047, :mod:`.deciding_role`),
+and records the canonical ledger's tail there: how many entries the case had
+when the decision was made.  The marks are written beside the dump manifest on
+the way out, however the scenario ends, and the recorder commits them with each
+recording so the shared-prefix check knows where each branch point falls
+(DEMOCI-11-017, ``notes/demo-scenario-tree.md``).
 
-    with scenario_harness("rv") as harness:
-        reporter = ...  # seeded, before the report is submitted
-        harness.reach_step("reporter-whom-to-tell", "vendor", by=reporter.id_)
-        ..., case = submit_and_open(...)
-        harness.follow_ledger(case_actor_client, case.id_)
-        ...
-        harness.reach_step(
-            "vendor-after-answer", "report-fix-ready", by=vendor.id_
-        )
-
-A step reported from a helper that was handed no harness uses the module-level
-:func:`reach_step` (and the ledger is followed with :func:`follow_ledger`),
-which go to the harness of the scenario running now.  Outside a harness — a
-fragment called directly by a test, for example — both do nothing: the marks
-belong to a scenario run, and the recorder refuses a run whose marks do not
-cover its declared path.
+The recorder refuses a run whose marks do not cover its declared path, so a
+dropped ``choose`` is a failed recording rather than a short comparison.
 """
 
 import json
@@ -86,7 +72,6 @@ import logging
 import pathlib
 from collections.abc import Callable, Generator, Mapping, Sequence
 from contextlib import contextmanager
-from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -214,7 +199,7 @@ class ScenarioHarness:
 
         If the root step was reached before the case existed, this is where
         its deciding actor is checked: it must be the author of the case's
-        report (DEMOCI-11-013).
+        report (DEMOCI-11-047).
 
         Args:
             case_actor_client: Client bound to the CaseActor.
@@ -235,11 +220,15 @@ class ScenarioHarness:
     def reach_step(self, branch_point: str, choice: str, *, by: str) -> None:
         """Report that the scenario is at a declared step of its path.
 
-        Call it where the scenario makes the decision, before the choice's
-        trigger and before any step of another role that runs between the two
-        (DEMOCI-11-013).  The harness checks that *by* holds the branch
-        point's role and records the canonical ledger's tail as the step's
-        mark.
+        Called by :func:`~vultron.demo.helpers.story.run_story` as it passes
+        each ``choose`` item of the story, which is where the scenario makes
+        the decision: before the choice's trigger and before any step of
+        another role that runs between the two (DEMOCI-11-047,
+        DEMOCI-11-048).  Nothing else calls it — a scenario or fragment that
+        placed a mark of its own would mark one step twice
+        (``test/architecture/test_scenario_reports_every_step.py``).  The
+        harness checks that *by* holds the branch point's role and records the
+        canonical ledger's tail as the step's mark.
 
         The role is read from the case the harness follows
         (:func:`~vultron.demo.helpers.deciding_role.require_case_role`).  A
@@ -270,8 +259,8 @@ class ScenarioHarness:
             )
             raise DemoScenarioStepError(
                 f"scenario {self.demo_name!r} reached {step}, but its declared "
-                f"path says {expected}. Fix the reach_step() call or the "
-                "@scenario path (DEMOCI-11-014)."
+                f"path says {expected}. Fix the order of the choose(...) items "
+                "in its story (DEMOCI-11-014, DEMOCI-11-019)."
             )
         if self._ledger is None and index > 0:
             raise DemoScenarioStepError(
@@ -296,7 +285,7 @@ class ScenarioHarness:
 
         The check runs when :meth:`follow_ledger` first names the case, so a
         scenario that reaches the root step and ends cleanly without following
-        a ledger would otherwise pass unchecked (DEMOCI-11-013).
+        a ledger would otherwise pass unchecked (DEMOCI-11-047).
 
         Raises:
             DemoScenarioStepError: When a root step is still unchecked.
@@ -306,7 +295,7 @@ class ScenarioHarness:
             raise DemoScenarioStepError(
                 f"{step} was decided by {actor_id!r} as the Reporter, but the "
                 "scenario ended without following a case ledger, so nothing "
-                "checked that it submitted the report (DEMOCI-11-013)."
+                "checked that it submitted the report (DEMOCI-11-047)."
             )
 
     def _check_role(self, step: PathStep, actor_id: str) -> None:
@@ -320,64 +309,13 @@ class ScenarioHarness:
             raise DemoScenarioStepError(
                 f"{label} is decided by the {role.name} before any case "
                 "exists; only the Reporter decides before the case, by "
-                "submitting the report (DEMOCI-11-013)."
+                "submitting the report (DEMOCI-11-047)."
             )
         self._report_submitter = (label, actor_id)
 
 
-#: The harness of the scenario running now, set by :func:`scenario_harness`.
-_ACTIVE: ContextVar["ScenarioHarness | None"] = ContextVar(
-    "active_scenario_harness", default=None
-)
-
-
-def reach_step(branch_point: str, choice: str, *, by: str) -> None:
-    """Report a declared step to the running scenario's harness.
-
-    As :meth:`ScenarioHarness.reach_step`; does nothing outside
-    :func:`scenario_harness`.
-    """
-    harness = _ACTIVE.get()
-    if harness is None:
-        logger.debug(
-            "No scenario harness is running; step %s:%s is not recorded",
-            branch_point,
-            choice,
-        )
-        return
-    harness.reach_step(branch_point, choice, by=by)
-
-
-def follow_ledger(case_actor_client: DataLayerClient, case_id: str) -> None:
-    """Have the running scenario's harness follow this case's ledger.
-
-    As :meth:`ScenarioHarness.follow_ledger`; does nothing outside
-    :func:`scenario_harness`.
-    """
-    harness = _ACTIVE.get()
-    if harness is not None:
-        harness.follow_ledger(case_actor_client, case_id)
-
-
-def step_reporter(
-    branch_point: str, choice: str, *, by: str
-) -> Callable[[], None]:
-    """Return a callable that reports this step when a helper calls it.
-
-    For a step that falls inside a shared helper, which cannot know the
-    scenario's branch points: the scenario passes the callable as the
-    helper's hook
-    (``before_answer=step_reporter("vendor-join", "accept", by=vendor.id_)``).
-    """
-
-    def report() -> None:
-        reach_step(branch_point, choice, by=by)
-
-    return report
-
-
 def _declared_path(demo_name: str) -> tuple[PathStep, ...]:
-    """Return the ``@scenario`` path of *demo_name*.
+    """Return the registered path of *demo_name*, its story's choices.
 
     Raises:
         DemoScenarioStepError: When no scenario of that name is registered.
@@ -530,7 +468,6 @@ def scenario_harness(
     """
     reset_demo_failures()
     harness = ScenarioHarness(demo_name=demo_name)
-    token = _ACTIVE.set(harness)
     try:
         yield harness
     except BaseException as exc:
@@ -542,8 +479,6 @@ def scenario_harness(
         _record_marks(harness)
         _note_accumulated_failures(exc)
         raise
-    finally:
-        _ACTIVE.reset(token)
     _run_dump(harness)
     _record_marks(harness)
     try:

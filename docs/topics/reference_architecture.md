@@ -115,6 +115,7 @@ Delivery is also ordered per recipient: one drain runs per actor outbox at a tim
 This is what keeps a ledger fan-out from reaching a replica out of order and turning the receiver's gap recovery into the normal path.
 An outbox holds at most one pending row per activity id, so queuing an id that is already waiting adds nothing (OX-06-002).
 A retry that rebuilds an activity under the id its first attempt used therefore sends it once.
+An activity is not delivered before the act that queued it commits: the outbox write and the ledger commit that records the activity are one transaction, so a commit that fails sends nothing (OX-03-002).
 An outbound activity always carries a non-empty `to:` field (OX-08-001).
 It also carries full inline objects, because a recipient can only act on what it has received or can fetch, and the reference implementation fetches only a few objects by reference (AKM-03-003; see the [Actor Knowledge Model](actor-knowledge-model.md)).
 

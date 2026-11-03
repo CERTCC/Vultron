@@ -13,7 +13,7 @@
 
 """Check that the actor deciding at a scenario step holds the step's role.
 
-DEMOCI-11-013: when a scenario reports reaching a declared step, the harness
+DEMOCI-11-047: when a scenario reports reaching a declared step, the harness
 fails it if the calling actor does not hold the branch point's role.  Each
 role is read from the canonical case in the CaseActor's own store
 (DEMOMA-06-005), where it is recorded by the act that gave it:
@@ -79,7 +79,7 @@ def _author(report: object) -> str | None:
 def _unreadable(key: str, what: str) -> DemoScenarioStepError:
     return DemoScenarioStepError(
         f"the CaseActor's record {key!r} {what}, so the step's role cannot "
-        "be read (DEMOCI-11-013)."
+        "be read (DEMOCI-11-047)."
     )
 
 
@@ -123,7 +123,7 @@ def require_case_role(
         raise DemoScenarioStepError(
             f"{step} is decided by {actor_id!r}, which is not a participant "
             f"in case {case_id!r}, so it holds no {role.name} role there "
-            "(DEMOCI-11-013)."
+            "(DEMOCI-11-047)."
         )
     participant = _read(case_actor_client, _dl_key(participant_id))
     roles = _field(participant, "caseRoles", "case_roles")
@@ -133,7 +133,7 @@ def require_case_role(
         raise DemoScenarioStepError(
             f"{step} is decided by {actor_id!r}, whose participant in case "
             f"{case_id!r} holds {roles}, not the branch point's role "
-            f"{role.value!r} (DEMOCI-11-013)."
+            f"{role.value!r} (DEMOCI-11-047)."
         )
 
 
@@ -146,7 +146,7 @@ def require_report_submitter(
     """Fail unless *actor_id* authored a report of *case_id*.
 
     The Reporter decides the root step before the case exists, so its role
-    comes from submitting the report (DEMOCI-11-013).
+    comes from submitting the report (DEMOCI-11-047).
 
     Args:
         case_actor_client: Client bound to the CaseActor, whose store holds
@@ -175,5 +175,5 @@ def require_report_submitter(
         raise DemoScenarioStepError(
             f"{step} is decided by {actor_id!r} as the Reporter, but the "
             f"reports of case {case_id!r} are by {authors}; the Reporter is "
-            "the actor that submits the report (DEMOCI-11-013)."
+            "the actor that submits the report (DEMOCI-11-047)."
         )

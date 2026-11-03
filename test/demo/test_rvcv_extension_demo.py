@@ -235,7 +235,7 @@ class TestRvcvExtensionStoryShape:
         reach from this scenario's story back to
         ``THE_VENDOR_ANSWERS_THE_REPORTER`` — and the pair's own prefix must
         *nest* that opening rather than restate its fragments, or the two
-        copies could drift (DEMOMA-17-001).
+        copies could drift (DEMOMA-17-003).
         """
         shared = len(THE_VENDOR_ANSWERS_THE_REPORTER.items)
 
@@ -470,12 +470,13 @@ class TestReplicasDrainBeforeTheSecondVendor:
 
 # ---------------------------------------------------------------------------
 # The Coordinator suggests Vendor2; Vendor1, keeping the case, approves
-# (DEMOMA-10-004, DEMOMA-10-005, ADR-0026)
+# (DEMOMA-10-004, DEMOMA-10-005, DEMOMA-10-014, ADR-0026)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.spec("DEMOMA-10-004")
 @pytest.mark.spec("DEMOMA-10-005")
+@pytest.mark.spec("DEMOMA-10-014")
 class TestTheCoordinatorSuggestsTheSecondVendor:
     """The ADR-0026 suggest-actor flow, with Vendor1 as approving owner."""
 
@@ -777,7 +778,7 @@ class TestTheFourExchangeNotes:
 
 
 # ---------------------------------------------------------------------------
-# Both vendors stop at VFd (CSB-15-002, DEMOMA-10-006)
+# Both vendors stop at VFd (CSB-15-002, DEMOMA-10-015)
 # ---------------------------------------------------------------------------
 
 
@@ -1150,7 +1151,7 @@ class TestRvcvExtensionCastAndOpening:
 
 
 # ---------------------------------------------------------------------------
-# The devlogs the invariant harness reads (DEMOMA-23-002, DEMOMA-06-005)
+# The devlogs the invariant harness reads (DEMOMA-23-002, DEMOMA-06-005, DEMOMA-06-009)
 # ---------------------------------------------------------------------------
 
 
@@ -1185,7 +1186,7 @@ class TestRvcvExtensionLedgerDump:
             "case-actor",
         ]
         # The canonical ledger is read on the dedicated container, never from
-        # a participant's replica (DEMOMA-06-005).
+        # a participant's replica (DEMOMA-06-005, DEMOMA-06-009).
         assert targets[-1].client is state.case_actor_client
         assert targets[-1].route_key == "case-actor"
 
@@ -1242,7 +1243,7 @@ class TestRvcvExtensionCliCommand:
         assert option in help_text
 
     def test_the_case_actor_carries_no_id_option(self, help_text: str):
-        """Only ``rvcv-handoff`` exposes one (DEMOMA-14-008)."""
+        """Only ``rvcv-handoff`` exposes one (DEMOMA-14-023)."""
         assert "--case-actor-id" not in help_text
 
     def test_main_builds_one_client_per_container_and_runs_the_story(self):
@@ -1324,8 +1325,12 @@ class TestRvcvExtensionRegistryEntry:
         assert spec.in_pr_set is False
 
     def test_the_path_is_read_off_the_story(self, spec):
-        """``composed=True`` is what tells a check it places no step marks."""
-        assert spec.composed is True
+        """The registry holds the path this scenario's story chooses.
+
+        Compared against the story object rather than against a literal, which
+        this module's path test pins separately: together they say the
+        registered path is both derived and the intended one.
+        """
         assert spec.path == demo.STORY.path
 
     def test_the_derived_paths_point_at_this_module_and_its_harness(

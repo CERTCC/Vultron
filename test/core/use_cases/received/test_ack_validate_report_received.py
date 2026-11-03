@@ -13,7 +13,7 @@
 """Tests for AckReport, ValidateReport, and full-flow integration.
 
 ADR-0041: SubmitReportReceivedUseCase no longer creates a VulnerabilityCase.
-Instead it writes a pending VultronReportCaseLink and sends Create(as_CaseProposal).
+Instead it writes a pending VultronReportCaseLink and sends Create(CaseProposal).
 """
 
 from typing import cast
@@ -136,7 +136,8 @@ class TestAckReportNoStandaloneStatus:
 
 
 class TestFullReportFlow:
-    """Integration test: Offer(Report) receipt → ValidateReport full flow.
+    """Integration test: Offer(VulnerabilityReport) receipt → ValidateReport full
+    flow.
 
     Per IDEA-260408-01-7 and ADR-0015:
     1. SubmitReportReceivedUseCase creates a as_VulnerabilityCase at RM.RECEIVED.
@@ -266,7 +267,10 @@ class TestFullReportFlow:
         ).execute()
 
     def _make_submit_event(self):
-        """Build a SubmitReportReceivedEvent (Offer(Report) from finder to vendor)."""
+        """Build a SubmitReportReceivedEvent.
+
+        It is an Offer(VulnerabilityReport) from finder to vendor.
+        """
         activity = VultronActivity(
             id_=self.OFFER_ID,
             type_="Offer",
@@ -286,7 +290,10 @@ class TestFullReportFlow:
         )
 
     def _make_validate_event(self):
-        """Build a ValidateReportReceivedEvent (Accept(Offer(Report)) from vendor)."""
+        """Build a ValidateReportReceivedEvent.
+
+        It is an Accept(Offer(VulnerabilityReport)) from the vendor.
+        """
         activity = VultronActivity(
             id_=self.ACCEPT_ID,
             type_="Accept",
@@ -329,7 +336,8 @@ class TestFullReportFlow:
         assert link.case_id is None
 
     def test_full_flow_validate_does_not_recreate_case(self):
-        """validate-report does NOT create a new case after Offer(Report) receipt.
+        """validate-report does NOT create a new case after
+        Offer(VulnerabilityReport) receipt.
 
         Per ADR-0015: the case was already created at RM.RECEIVED, so
         ValidateReportReceivedUseCase must not create an additional case.

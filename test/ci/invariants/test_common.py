@@ -841,7 +841,7 @@ class TestLoadDevlogsManifestHandling:
         assert "no case-ledger" in message.lower()
         assert "The scenario failed before a case existed." in message
 
-    @pytest.mark.spec("DEMOCI-10-014")
+    @pytest.mark.spec("DEMOCI-10-014", "DEMOCI-10-018")
     def test_upstream_abort_is_not_called_a_real_invariant_failure(
         self, tmp_path, monkeypatch
     ):
@@ -879,7 +879,7 @@ class TestLoadDevlogsManifestHandling:
         assert "not exercised" in message
         assert "before a case existed" in message
 
-    @pytest.mark.spec("DEMOCI-10-014")
+    @pytest.mark.spec("DEMOCI-10-014", "DEMOCI-10-020")
     def test_missing_ledgers_for_an_existing_case_stay_a_real_invariant_failure(
         self, tmp_path, monkeypatch
     ):
@@ -919,7 +919,7 @@ class TestLoadDevlogsManifestHandling:
         assert "real invariant failure" in message
         assert "not exercised" not in message
 
-    @pytest.mark.spec("DEMOCI-10-014")
+    @pytest.mark.spec("DEMOCI-10-014", "DEMOCI-10-019")
     def test_crashed_dump_is_not_called_an_upstream_abort_or_an_invariant_failure(
         self, tmp_path, monkeypatch
     ):

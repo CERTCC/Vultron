@@ -83,7 +83,7 @@ from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
 from vultron.core.behaviors.status.nodes.lifecycle import (
     ThreatTerminationBranchNode,
 )
-from vultron.core.models._helpers import _as_id, days_from_now_utc
+from vultron.core.models._helpers import _as_id, days_from_now_utc, now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
@@ -1310,6 +1310,7 @@ class TestThreatTerminationBranchNode:
             CASE_ID,
             EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             f"{CASE_ID}/embargo_events/e1",
+            at=now_utc(),
         )
 
     def _announce_managers_teardown_entry(self, dl, ask_id: str) -> None:

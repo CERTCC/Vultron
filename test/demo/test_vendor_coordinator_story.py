@@ -613,7 +613,7 @@ class TestEveryReplicaConverges:
 
         Vendor1 is the authority in both scenarios: it holds the case from
         its own triage onward, so its replica is complete whether or not the
-        ownership moved (DEMOMA-10-007, DEMOMA-11-007).
+        ownership moved (DEMOMA-10-016, DEMOMA-11-019).
         """
         state = _four_party_state()
 

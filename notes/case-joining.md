@@ -62,13 +62,13 @@ the case), ADR-0116 (removal and reinstatement). The participant-facing flow is 
 |---|---|---|---|---|---|
 | 1 | CASE_MANAGER sends `Invite(Actor)[target=VulnerabilityCaseStub]`; record created | `RECEIVED` | `v` | `INVITED` if an embargo is active | yes |
 | — | optional on-behalf `v→V` by the Case Manager or Case Owner | — | `V` | — | yes |
-| 2a | `Accept(Invite(stub))` — join, and consent to the active embargo | `RECEIVED` | `V` | `AGREED` if an embargo is active, unless `DECLINED` | **no** |
-| 2b | `Reject(Invite(stub))` — hard no | `CLOSED` | `V` | `DECLINED` if an embargo is active | yes, permanently |
+| 2a | `Accept(Invite(Actor)[target=VulnerabilityCaseStub])` — join, and consent to the active embargo | `RECEIVED` | `V` | `AGREED` if an embargo is active, unless `DECLINED` | **no** |
+| 2b | `Reject(Invite(Actor)[target=VulnerabilityCaseStub])` — hard no | `CLOSED` | `V` | `DECLINED` if an embargo is active | yes, permanently |
 | 3 | CASE_MANAGER sends `Announce(VulnerabilityCase)` and replays the ledger | — | — | — | no |
 | 4 | CASE_MANAGER sends `Invite(Actor)[target=VulnerabilityCase]` with its ledger position | — | — | — | no |
-| 5a | `Accept(Invite(case))` (RV) | `VALID` | — | — | no |
-| 5b | `TentativeReject(Invite(case))` (RI) | `INVALID` | — | — | no |
-| 5c | `Reject(Invite(case))` (RC) | `CLOSED` | — | — | stops receiving |
+| 5a | `Accept(Invite(Actor)[target=VulnerabilityCase])` (RV) | `VALID` | — | — | no |
+| 5b | `TentativeReject(Invite(Actor)[target=VulnerabilityCase])` (RI) | `INVALID` | — | — | no |
+| 5c | `Reject(Invite(Actor)[target=VulnerabilityCase])` (RC) | `CLOSED` | — | — | stops receiving |
 | 6 | `Join(VulnerabilityCase)` (RA) / `Ignore(VulnerabilityCase)` (RD) | `ACCEPTED` / `DEFERRED` | — | — | no |
 
 A stub Invite has two replies, not three: accepting a stub is not a judgement of the
@@ -134,7 +134,7 @@ from its role (CLP-09).
   (`case_owner_completes=True`, CM-23-002). A failed owner `Leave` keeps none of
   its closure (CLP-07-015), so no redelivery has a half-done closure to finish.
   Any other invitee reply from it is `REFUSED` at the same door, before its
-  `INVITEE` guard runs. A `Close(Report)`
+  `INVITEE` guard runs. A `Reject(Offer(VulnerabilityReport))`
   on a case is refused from every sender, closed or not (CM-23-019).
 - **A closed Case Owner holds no `CASE_OWNER` standing.** The factory composes the
   closure check ahead of the role check for that kind (`_case_owner_node()`), and
@@ -251,9 +251,9 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 |---|---|---|
 | the CASE_MANAGER sends the stub Invite | `invite_actor_to_case` | applies nothing |
 | the CASE_MANAGER creates the inert record and puts it on the roster | `create_case_participant` | stores the record carried |
-| the invitee sends `Accept(Invite(stub))`: consent signed, joined | `accept_invite_actor_to_case`, the Accept itself | applies the same writes, `updated` = the Accept's `published`; fails if it holds no record |
+| the invitee sends `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`: consent signed, joined | `accept_invite_actor_to_case`, the Accept itself | applies the same writes, `updated` = the Accept's `published`; fails if it holds no record |
 | VF to `Vf` (VENDOR role only) | `add_participant_status_to_participant` | stores the status |
-| the invitee sends `Reject(Invite(stub))`: consent `DECLINED` | `reject_invite_actor_to_case`, the Reject itself | applies the same write |
+| the invitee sends `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`: consent `DECLINED` | `reject_invite_actor_to_case`, the Reject itself | applies the same write |
 | the record closes (RM `CLOSED`, vendor `Vf`) | `add_participant_status_to_participant` | stores the status |
 | expiry | none | nothing changed (CM-11-040) |
 

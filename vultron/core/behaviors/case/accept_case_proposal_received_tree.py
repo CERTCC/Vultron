@@ -1,6 +1,6 @@
 """BT tree for the AcceptCaseProposal received-side use case.
 
-Report-receiver side: handles an inbound ``Accept(as_CaseProposal)`` by recording
+Report-receiver side: handles an inbound ``Accept(CaseProposal)`` by recording
 the case-actor URI in the receiver's ``VultronReportCaseLink``, making it
 available for the subsequent ``Create(VulnerabilityCase)`` bootstrap.
 
@@ -116,7 +116,7 @@ def create_accept_case_proposal_received_tree(
     *,
     sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
-    """Return the received-side BT for processing ``Accept(as_CaseProposal)``.
+    """Return the received-side BT for processing ``Accept(CaseProposal)``.
 
     Records the case-actor URI in the receiver's ``VultronReportCaseLink``
     so the subsequent ``Create(VulnerabilityCase)`` bootstrap step can

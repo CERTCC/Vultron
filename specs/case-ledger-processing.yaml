@@ -1180,7 +1180,7 @@ groups:
       The per-case genesis hash MUST be derived as `SHA-256(case_id + "|" + created_at +
       "|" + owner_actor_id)`, where `case_id` is the canonical case URI, `created_at` is
       the case creation UTC timestamp (the case's `published`) in ISO 8601 format, and
-      `owner_actor_id` is the actor id of the case owner, the case's `attributedTo` when
+      `owner_actor_id` is the actor id of the Case Owner, the case's `attributedTo` when
       the case is created. The same derivation applies on every creation path, including
       a case the CASE_MANAGER creates from the owner's `CaseProposal`.
     rationale: Including all three values cryptographically anchors the chain's
@@ -2033,14 +2033,14 @@ groups:
     rationale: >-
       `to:` and `cc:` arrive as the sender wrote them, and the receiving actor id is
       canonical. An exact match misses a recipient written with a trailing slash, and
-      the receiver refuses mail that was addressed to it. `Offer(Report)` can have
-      several recipients and reads its eligibility from `to:` (HP-09-001), so this
-      mistake refuses a valid report.
+      the receiver refuses mail that was addressed to it.
+      `Offer(VulnerabilityReport)` can have several recipients and reads its
+      eligibility from `to:` (HP-09-001), so this mistake refuses a valid report.
     verification: >-
       `test_submit_report_trailing_slash_recipient_creates_case` in
       `test/core/use_cases/received/test_submit_report_received.py` addresses
-      an `Offer(Report)` to the receiver with a trailing slash and asserts the
-      case is created; `test/core/predicates/test_addressing.py` pins the
+      an `Offer(VulnerabilityReport)` to the receiver with a trailing slash and
+      asserts the case is created; `test/core/predicates/test_addressing.py` pins the
       comparison.
     relationships:
     - rel_type: refines

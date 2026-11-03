@@ -2,7 +2,7 @@
 #
 # Kept separate from python-app.yml so that the Docker-compose build time
 # does not block the unit-test and lint pipeline; both workflows run
-# concurrently on PRs.  See specs/demo-ci.yaml DEMOCI-02-001.
+# concurrently on PRs.  See specs/demo-ci.yaml DEMOCI-02-019.
 #
 # Triggers:
 #   pull_request  — minimum PR validation set (DEMOCI-06-002); targets `main`
@@ -125,7 +125,7 @@ jobs:
   # DEMOCI-02-004: the Dependabot guard lives here, on a job with no matrix, so
   # a Dependabot PR resolves to an empty matrix and every downstream job is
   # skipped rather than failing (see also DEMOCI-04-005).
-  # DEMOCI-05-004: github.head_ref is empty on push events, so the guard is a
+  # DEMOCI-05-005: github.head_ref is empty on push events, so the guard is a
   # no-op there and the on-main run is never inadvertently skipped.
   scenarios:
     name: Select scenarios
@@ -197,7 +197,7 @@ jobs:
         env:
           DEMO: ${{ matrix.demo }}
         run: |
-          python3 -c "import json,os,pathlib; d=os.environ['DEMO']; p=pathlib.Path('devlogs')/d; p.mkdir(parents=True,exist_ok=True); (p/'dump-manifest.json').write_text(json.dumps({'demoName':d,'caseId':None,'ledgerFileCount':0,'targetCount':0,'reason':'Pre-run sentinel: demo-runner had not yet started.','actors':[]},indent=2)+'\n',encoding='utf-8')"
+          python3 -c "import json,os,pathlib; d=os.environ['DEMO']; p=pathlib.Path('devlogs')/d; p.mkdir(parents=True,exist_ok=True); (p/'dump-manifest.json').write_text(json.dumps({'demoName':d,'caseId':None,'ledgerFileCount':0,'targetCount':0,'reason':'Pre-run sentinel: demo-runner had not yet started.','actors':[],'unreplicatedActors':[]},indent=2)+'\n',encoding='utf-8')"
 
       - name: Build Docker images
         uses: ./.github/actions/build-demo-images
@@ -275,7 +275,7 @@ jobs:
     # runs (2026-10-30). Cap at 5 min so a hang fails fast instead of holding a runner
     # until GitHub's 6-h limit (TB-14-006).
     timeout-minutes: 5
-    # DEMOCI-04-002: always run after the demo job, even on demo failure.
+    # DEMOCI-04-010: always run after the demo job, even on demo failure.
     # DEMOCI-04-005, DEMOCI-02-004: the Dependabot guard is enforced upstream on
     # the `scenarios` job; `always()` must not resurrect this job when that job
     # was skipped or failed, so the condition tests the scenarios job directly
@@ -387,10 +387,11 @@ jobs:
       # cancellation alone. The invariant-harness skip above (DEMOCI-04-007)
       # is what keeps a superseded run free of a laundered `failure`, so every
       # `failure` in the aggregate is genuine. Do NOT add
-      # `!contains(needs.*.result, 'cancelled')` as defense in depth: it
-      # suppresses a real demo failure whenever a newer push cancels the
-      # harness mid-run (#3294). Any future job that consumes an artifact must
-      # skip on a cancelled producer, as the harness does.
+      # `!contains(needs.*.result, 'cancelled')` as defense in depth
+      # (CISEC-05-015): it suppresses a real demo failure whenever a newer
+      # push cancels the harness mid-run (CISEC-05-014, #3294). Any future job
+      # that consumes an artifact must skip on a cancelled producer, as the
+      # harness does (CISEC-05-016).
       - name: Notify CI failure
         if: contains(needs.*.result, 'failure')
         uses: ./.github/actions/notify-failure
@@ -398,9 +399,10 @@ jobs:
           mode: notify
           workflow-label: ci:workflow-demo-integration
           token: ${{ secrets.GITHUB_TOKEN }}
-      # CISEC-05-002: a superseded run must not declare recovery, so the close
-      # step keeps `!contains(needs.*.result, 'cancelled')` — a cancelled leg
-      # might have failed had it run to completion.
+      # CISEC-05-009, CISEC-05-010: a superseded run must not declare
+      # recovery, so the close step keeps
+      # `!contains(needs.*.result, 'cancelled')` — a cancelled leg might have
+      # failed had it run to completion.
       - name: Close CI failure issue
         if: >-
           !contains(needs.*.result, 'failure') &&

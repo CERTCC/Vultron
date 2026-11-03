@@ -847,7 +847,7 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
         """BT attaches note ID to case replica when entry is add_note_to_case.
 
         A non-CaseActor participant must learn about note additions exclusively
-        via Announce(as_CaseLedgerEntry) fan-out (SYNC-02-002, ADR-0022).
+        via Announce(CaseLedgerEntry) fan-out (SYNC-02-002, ADR-0022).
         """
         entry = _make_add_note_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)

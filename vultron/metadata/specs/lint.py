@@ -1033,7 +1033,7 @@ def lint(
             ``verification_debt`` marker or owner entry naming a closed issue
             (MS-10-024; ``--check-debt-owners`` on the CLI), and on nothing
             else, so an unrelated lint error cannot file the owners-closed
-            tracking issue (ARCH-18-004). Needs the ``gh`` CLI and a token, so
+            tracking issue (ARCH-18-008). Needs the ``gh`` CLI and a token, so
             CI runs it and the pre-commit hook does not.
         closing_pr: Also fail when this pull request closes an owner issue
             that a marker or owner entry still names (MS-10-023;

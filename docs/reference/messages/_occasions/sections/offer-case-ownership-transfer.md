@@ -6,10 +6,10 @@ Offers the case to the actor named by the target, on the Case Owner's behalf: `a
 
 === "Details"
 
-    - **When…** the Case Manager offers the case to the actor the Case Owner proposed
+    - **When…** the CASE_MANAGER offers the case to the actor the Case Owner proposed
     - **Send:** `Offer(VulnerabilityCase)`
     - **Send to:** a participant
-    - **Sent by:** the case manager
+    - **Sent by:** the CASE_MANAGER
     - **Mapping status:** [none](../../index.md#mapping-status)
 
 === "Example activity"

@@ -1291,6 +1291,98 @@ groups:
         relationships:
         - rel_type: extends
           spec_id: PAD-07-009
+      - id: PAD-07-015
+        priority: MUST
+        kind: process
+        statement: >-
+          After `deepen-context`, before the branch's first commit, the `build`
+          and `bugfix` skills MUST write the build context file with
+          `build-context write`. The file records the branch, the head and base
+          commits, the Spec manifest's loaded IDs, the domain hints, and the
+          notes and glossary sections loaded, and no other field.
+        rationale: >-
+          Each later pipeline phase is a fresh agent that would load the same
+          context again. A list of facts found, with no reasoning, lets the
+          phase skip that work and still review with a fresh eye (PAD-07-001).
+        verification: >-
+          Test: `test/metadata/test_build_context.py` checks that the file
+          holds the listed fields and that a record carrying any other field is
+          refused. Inspection: `build` Phase 3 and `bugfix` Phase 2g run
+          `build-context write`.
+      - id: PAD-07-016
+        priority: MUST
+        kind: process
+        statement: >-
+          A pull-request pipeline phase (`pr-triage` in every mode,
+          `pr-execute`) MUST reuse the build context file only when
+          `build-context check` reports it usable. Usable means that the file
+          exists, holds a valid record, names the PR's branch, and was recorded
+          at a commit that is an ancestor of the PR head.
+        rationale: >-
+          pr-ship often runs from another agent system or machine, or on a
+          branch whose file was written for older work. Only a file that
+          provably describes this branch may stand in for loading context.
+        verification: >-
+          Test: `test/metadata/test_build_context.py` checks that `check` reports
+          `mode=reuse` only for a valid file of the current branch recorded at
+          an ancestor of `HEAD`.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-07-015
+      - id: PAD-07-017
+        priority: MUST
+        kind: process
+        statement: >-
+          When `build-context check` reports the build context file unusable,
+          the phase MUST load its context with `orient-agent` and
+          `deepen-context`, as it does when no file exists.
+        rationale: >-
+          The file is an optimization. A phase that cannot use it must reach
+          the same context, and so the same verdict, as before the file
+          existed.
+        verification: >-
+          Test: `test/metadata/test_build_context.py` checks that `check` reports
+          `mode=fallback` with a reason for an absent, malformed, other-branch
+          and stale file. Inspection: `pr-triage` Phase 1 and `pr-execute`
+          Phase 1 run `orient-agent` or `deepen-context` on that result.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-07-016
+      - id: PAD-07-018
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          A pull-request pipeline phase MUST NOT fail, skip a check, or narrow a
+          check because the build context file is missing or unusable.
+        rationale: >-
+          A PR shipped from a checkout that never ran `build` is the ordinary
+          case, not an error. Making the file a precondition would block those
+          PRs or review them less.
+        verification: >-
+          Inspection: `.agents/skills/shared/build-context.md` § "Reading it"
+          sends exit 2 and exit 3 to the same context load as no file, and no
+          `pr-triage`, `pr-execute` or `pr-verify` step reads the file for a
+          check.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-07-016
+      - id: PAD-07-019
+        priority: MUST
+        kind: process
+        statement: >-
+          `pr-triage` MUST name in its comment header whether it reused the
+          build context file, and the `build-context check` reason when it did
+          not.
+        rationale: >-
+          A reviewer reading the triage needs to know which context the findings
+          rest on. When the file was unusable, the reason shows why.
+        verification: >-
+          Inspection: the `pr-triage` REFERENCE.md comment format carries a
+          `**Context**:` line, and `pr_metadata.build_context` records the mode
+          and reason.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-07-016
 
   - id: PAD-08
     title: Build Skill — Issue-Based Task Selection
@@ -2294,14 +2386,18 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          Before a Pull Request's first push, `create-pr` MUST gate a Pull
-          Request that changes no Python with the linters alone.
+          Before a Pull Request that changes no Python is first pushed,
+          `create-pr` MUST gate it with the linters and `prepush-ci-mirror`.
+          That gate runs no unit or integration suite.
         rationale: >-
-          A docs-only branch has nothing for the suite to catch, so the linters are the
-          whole gate.
+          A docs-only branch has nothing for the suites to catch. CI's guards
+          still read its Markdown and specs, though: AGENTS.md ceilings, ADR
+          back-edges, line limits. Three of the #5580 audit's failures came
+          from docs-typed PRs that ran no local check at all.
         verification: >-
-          Inspection: `create-pr` Phase 3 runs linters only on its docs-PR
-          path.
+          Inspection: `create-pr` Phase 3 runs only the linters on its
+          docs-PR path, and Phase 3c runs `prepush-ci-mirror` on every PR
+          type.
       - id: PAD-18-002
         adr:
         - ADR-0126
@@ -2431,9 +2527,11 @@ groups:
           most merges to a full local suite run for paths that the merge did not
           change.
         verification: >-
-          Inspection: `pr-execute` Phase 5 Step 2 merges the base locally on
-          `CONFLICTING`, `DIRTY`, or a `git merge-tree` conflict only, and
-          records an overlap as `merge_reason: "deferred"` without merging.
+          Test: `test/metadata/test_sync_decision_script.py` runs
+          `sync-decision.sh`, which `pr-execute` Phase 5 Step 2 calls, and checks
+          that it answers `merge` on `CONFLICTING`, `DIRTY`, or a
+          `git merge-tree` conflict only, and `no-merge` with
+          `merge_reason=deferred` on an overlap alone.
         relationships:
         - rel_type: extends
           spec_id: PAD-11-001
@@ -2511,6 +2609,10 @@ groups:
           Inspection: `pr-verify`'s `UNSYNCED-EXECUTE` check reads the
           execute artifact's conflict-free result and GitHub's reported merge
           state, and performs no base-tip containment comparison of its own.
+          Test: `test/metadata/test_verify_gate_scripts.py` checks that
+          `verify-merge-gate.sh` answers `clear` for a branch behind its base
+          that GitHub reports `CLEAN`, and raises `BRANCH-BEHIND` only when
+          GitHub reports `BEHIND`.
         relationships:
         - rel_type: depends_on
           spec_id: PAD-18-004
@@ -2686,6 +2788,121 @@ groups:
         relationships:
         - rel_type: extends
           spec_id: PAD-18-009
+      - id: PAD-18-021
+        adr:
+        - ADR-0173
+        priority: MUST
+        kind: process
+        statement: >-
+          Before each push of a Pull Request branch, the agent MUST run
+          `prepush-ci-mirror` on the whole branch diff and push only when it
+          exits 0. That covers `create-pr`'s first push and each push
+          `pr-execute` makes.
+        rationale: >-
+          About one Pull Request in seven spent a push and a CI round on
+          something CI found without running a suite: a line limit, a line
+          ceiling, a link, an ADR epoch. Pre-commit hooks see only staged
+          files, and several of those checks run only in CI, so a local
+          step must run them on the diff the push sends (#5580).
+        verification: >-
+          Inspection: `create-pr` Phase 3c and `pr-execute` Phase 5 Step 3 run
+          `prepush-ci-mirror` before their push steps and stop on a non-zero
+          `exit:` line. `test/metadata/test_ci_mirror_skill_wiring.py` pins
+          both placements.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-18-001
+        - rel_type: extends
+          spec_id: PAD-18-002
+      - id: PAD-18-022
+        adr:
+        - ADR-0173
+        priority: MUST
+        kind: process
+        statement: >-
+          Every step that a `pull_request` run of `.github/workflows/` can
+          execute MUST be either mirrored by `prepush-ci-mirror` or excluded in
+          its registry with a reason.
+        rationale: >-
+          A mirror that silently misses a new workflow step drifts back into
+          the gap it closes. Checking each step against the registry makes a
+          new CI check a failing test until someone decides whether it runs
+          locally.
+        verification: >-
+          `test/ci/test_prepush_ci_mirror_parity.py`: the registry accounts for
+          every pull-request step, names no step that does not run, and a
+          step that is neither mirrored nor excluded fails it.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-021
+      - id: PAD-18-023
+        adr:
+        - ADR-0173
+        priority: MUST
+        kind: process
+        statement: >-
+          `prepush-ci-mirror` MUST run its limit-enforcing guard tests on every
+          run, whatever the Pull Request's type and whatever the targeted set
+          holds.
+        rationale: >-
+          The guards behind most mechanical CI failures are pytest files: line
+          length, statement and module limits, AGENTS.md ceilings, the OpenAPI
+          snapshot. A docs-typed Pull Request runs no pytest locally, and a fix
+          commit's targeted set can leave a guard out, so the mirror runs them
+          on every push.
+        verification: >-
+          `test/metadata/test_ci_mirror.py`: the guard check runs on an empty
+          diff and on a docs-only diff. `test/ci/test_prepush_ci_mirror_parity.py`
+          checks each guard file exists.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-021
+      - id: PAD-18-024
+        adr:
+        - ADR-0173
+        priority: MUST
+        kind: process
+        statement: >-
+          When the base and a pushed Pull Request changed the same path without
+          a conflict, `pr-execute` MUST test their merge before it pushes. It
+          runs the tests for the shared paths on the merge of `HEAD` with the
+          base, in a scratch worktree.
+        rationale: >-
+          CI tests the Pull Request merged into its base. After the first push
+          the base moves, and a fix that passes on the branch alone can fail on
+          a file both sides changed. Testing that merge locally catches the
+          drift without merging the base into the branch, which PAD-18-004
+          forbids. Selecting for the shared paths alone, as PAD-18-015 does
+          after a conflict, keeps the run from escalating to the full suite
+          for paths the base never touched (ADR-0138).
+        verification: >-
+          `test/metadata/test_merged_tree_tests.py`: the gate runs on a tree
+          that holds both sides' changes, for the shared paths, and it does not
+          run when nothing overlaps. Inspection: `pr-execute` Phase 5 Step 3 runs
+          `merged-tree-tests` on a `no-merge` verdict with a `deferred` reason.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-004
+      - id: PAD-18-025
+        adr:
+        - ADR-0173
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          The merged-tree run of PAD-18-024 MUST NOT move the Pull Request
+          branch or leave its scratch worktree behind.
+        rationale: >-
+          The run tests a merge that PAD-18-004 keeps out of the branch, so it
+          must leave no trace in it. `.git` is shared across host and container
+          mounts, so a stray worktree is cleaned with `git worktree remove`.
+          `git worktree prune` would destroy live worktrees.
+        verification: >-
+          `test/metadata/test_merged_tree_tests.py`: after a pass, a failure
+          and a conflict, the branch head is unchanged and no scratch worktree
+          is listed.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-024
 
   - id: PAD-19
     title: Epic Claim for an Epic Run

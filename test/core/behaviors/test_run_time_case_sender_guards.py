@@ -15,16 +15,16 @@
 
 """Who the trees whose case is resolved at run time admit (#4696, AC-4).
 
-The Engage, Invalidate(Report), Announce(CaseLedgerEntry) and
-Reject(CaseLedgerEntry) trees take their sender guard from the receive-tree
-factory, composed from the use case's declared rule (HP-01-025).  Each case
-below builds the real tree, finds the guard the factory placed in it, and
-runs that guard at a store holding the case, once for a sender the rule
-entitles and once for one it does not.
+The Join(VulnerabilityCase), TentativeReject(Offer(VulnerabilityReport)),
+Announce(CaseLedgerEntry) and Reject(CaseLedgerEntry) trees take their sender
+guard from the receive-tree factory, composed from the use case's declared
+rule (HP-01-025).  Each case below builds the real tree, finds the guard the
+factory placed in it, and runs that guard at a store holding the case, once
+for a sender the rule entitles and once for one it does not.
 
-A Close(Report) on a case entitles no sender (CM-23-019), so it has no
-entitled sender to run here; ``test_close_report_on_case.py`` drives its
-refusal.
+A Reject(Offer(VulnerabilityReport)) on a case entitles no sender (CM-23-019),
+so it has no entitled sender to run here; ``test_close_report_on_case.py``
+drives its refusal.
 """
 
 from collections.abc import Callable

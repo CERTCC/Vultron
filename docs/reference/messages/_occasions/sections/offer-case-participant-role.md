@@ -2,14 +2,14 @@
 
 ## Offer case participant role { #offer-case-participant-role }
 
-Offers one role on the case to the participant named by the target. The Case Manager records the offer and forwards it to that participant.
+Offers one role on the case to the participant named by the target. The CASE_MANAGER records the offer and forwards it to that participant.
 
 === "Details"
 
     - **When…** the Case Owner offers a CVD role on the case to another participant
     - **Send:** `Offer(CaseParticipantRole)[context=VulnerabilityCase]`
-    - **Send to:** the case manager
-    - **Sent by:** the case owner
+    - **Send to:** the CASE_MANAGER
+    - **Sent by:** the Case Owner
     - **Seen in:** [How to Delegate a Role to Another Participant](../../../../howto/activitypub/activities/role_delegation.md)
     - **Mapping status:** [none](../../index.md#mapping-status)
 

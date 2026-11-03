@@ -240,7 +240,7 @@ We have:
 - **Go deeper on report submission** — read
   [How to Report a Vulnerability](../howto/activitypub/activities/report_vulnerability.md)
   to see how a report is validated, accepted, and turned into a Case, and how
-  the `Offer(Report)` activity fits alongside `Create(Report)`.
+  the `Offer(VulnerabilityReport)` activity fits alongside `Create(VulnerabilityReport)`.
 - **Decide whether to submit at all** — read
   [How to Decide Who Owns a Case](../howto/decide_who_owns_a_case.md) to
   choose between submitting a report, creating the case yourself, and

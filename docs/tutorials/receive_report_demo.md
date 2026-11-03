@@ -188,7 +188,7 @@ sequenceDiagram
 
 A third report is submitted.
 The vendor first invalidates it with a Report Invalid (RI), and then closes the case it opened for the report.
-Once a case holds a report, its Case Owner closes the case with `Leave(VulnerabilityCase)`, never with a Report Closed (RC), `Reject(Offer(VulnerabilityReport))`, which the case manager refuses from every sender.
+Once a case holds a report, its Case Owner closes the case with `Leave(VulnerabilityCase)`, never with a Report Closed (RC), `Reject(Offer(VulnerabilityReport))`, which the CASE_MANAGER refuses from every sender.
 The case has an active embargo, and the Case Owner cannot leave while it is active, so the vendor ends the embargo first with its `terminate-embargo` trigger.
 The reporter then leaves the case, and the vendor leaves last, each through its own `leave-case` trigger.
 Notice the ✅ lines confirming that the CaseActor records every participant at `RM.CLOSED`, and that the reporter again accepted the vendor's introduction of the case.

@@ -21,15 +21,12 @@ decorating its own ``main()``::
         participants="Reporter + Vendor",
         feature="Baseline two-actor CVD",
         in_pr_set=True,
-        path=(
-            ("reporter-whom-to-tell", "vendor"),
-            ("vendor-after-answer", "report-fix-ready"),
-        ),
+        story=STORY,
     )
     def main(skip_health_check: bool = False, ...) -> None:
 
 The registry is then the **sole** declaration point for the set of scenarios
-that exist (DEMOCI-11-001), and `.github/demo-scenarios.json`, the scenario
+that exist (DEMOCI-11-036), and `.github/demo-scenarios.json`, the scenario
 tables in `test/ci/README-case-log-ratchet.md` and
 `vultron/demo/scenario/README.md`, and the narrative index at
 `docs/topics/scenarios/index.md` are all derived from it by
@@ -44,23 +41,24 @@ Two design rules are load-bearing and easy to undo by accident:
   scenario, not just the one that needed it.
 - **Discovery walks the package.** Import-time registration only sees modules
   that were imported, so a hand-maintained import list here would recreate
-  exactly the silent omission the registry exists to remove (DEMOCI-11-002).
+  exactly the silent omission the registry exists to remove (DEMOCI-11-038).
   :func:`discover_scenarios` therefore enumerates the package with ``pkgutil``
   and raises when a discovered module did not register, so a generated table
   can never come out quietly short.
 
-**The path places the scenario on the tree.** ``path`` names entries of the
+**A scenario registers its story, and the story is its path.** A scenario is
+written as composition (:mod:`vultron.demo.helpers.story`), so it passes
+``story=`` and the registry reads the path off the story's choices — the path
+is never typed a second time beside the code that walks it (DEMOCI-11-019,
+DEMOCI-11-024). ``story`` is the only way a scenario places itself on the
+tree, so :func:`scenario` takes no path parameter and nothing can declare a
+second copy.
+
+**The path places the scenario on the tree.** The path names entries of the
 branch-point table (:mod:`vultron.demo.scenario.branch_points`) and is checked
 against it when the spec is built; :func:`discover_scenarios` then merges every
 path into one tree (:mod:`vultron.demo.scenario.tree`) and fails unless each
 scenario is exactly one ending (DEMOCI-11-023).
-
-**A composed scenario registers its story, not a path.** A scenario written as
-composition (:mod:`vultron.demo.helpers.story`) passes ``story=`` and the
-registry reads the path off the story's choices, so the path is not typed a
-second time beside the code that walks it (DEMOCI-11-019). Declaring both
-fails here, where the second copy is written (DEMOCI-11-024). The ``path=``
-form stays until every family is composed (#5537).
 
 **Registration means built.** A scenario that has a spec group but no module
 is declared by the planned-scenario register in ``notes/demo-future-ideas.md``
@@ -75,7 +73,7 @@ from __future__ import annotations
 import importlib
 import pkgutil
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol, TypeVar
 
@@ -110,12 +108,11 @@ F = TypeVar("F", bound=Callable[..., None])
 class StoryPath(Protocol):
     """A scenario's assembled story, seen only as the path it walks.
 
-    A composed scenario registers its story instead of a ``path=``, and the
-    registry reads the path off the story's choices (DEMOCI-11-019).  Declared
-    structurally rather than imported so the registry keeps no dependency on
-    the demo helper library that owns stories
-    (:mod:`vultron.demo.helpers.story`), which imports the harness, which
-    imports this module.
+    A scenario registers its story, and the registry reads the path off the
+    story's choices (DEMOCI-11-019).  Declared structurally rather than
+    imported so the registry keeps no dependency on the demo helper library
+    that owns stories (:mod:`vultron.demo.helpers.story`), which imports the
+    harness, which imports this module.
     """
 
     @property
@@ -221,17 +218,10 @@ class ScenarioSpec:
     #: The scenario's full path from the root of the scenario tree: ordered
     #: ``(branch point id, choice id)`` pairs naming entries of
     #: :data:`~vultron.demo.scenario.branch_points.BRANCH_POINTS`
-    #: (DEMOCI-11-014). The prompts and choice labels are read from that table,
-    #: never declared here (DEMOCI-11-013).
+    #: (DEMOCI-11-014), read off the choices of the scenario's assembled story
+    #: (DEMOCI-11-019). The prompts and choice labels are read from the
+    #: branch-point table, never declared here (DEMOCI-11-050).
     path: tuple[PathStep, ...]
-    #: Whether :attr:`path` was read off an assembled story rather than typed
-    #: on ``@scenario(path=...)`` (DEMOCI-11-019). It is not a second way to
-    #: declare anything: ``scenario()`` sets it from which argument it was
-    #: given. The ``path=`` form, and so a ``False`` here, goes away when the
-    #: last family is composed (#5537); until then this is how a check tells
-    #: the two forms apart — a composed scenario places no ``reach_step`` by
-    #: hand, where one still declaring ``path=`` must place one per step.
-    composed: bool = False
 
     def __post_init__(self) -> None:
         if not _NAME_RE.match(self.name):
@@ -244,13 +234,6 @@ class ScenarioSpec:
         for field_name in ("label", "participants", "feature"):
             _require_table_cell(
                 self.name, field_name, getattr(self, field_name)
-            )
-        if not isinstance(self.composed, bool):
-            raise DemoScenarioRegistryError(
-                f"scenario {self.name!r} has a non-boolean composed "
-                f"({self.composed!r}); a check reads it to decide which "
-                "declaration form the scenario uses, and a truthy "
-                "non-boolean would silently pick the composed one."
             )
         if not isinstance(self.in_pr_set, bool):
             raise DemoScenarioRegistryError(
@@ -328,8 +311,7 @@ def scenario(
     participants: str,
     feature: str,
     in_pr_set: bool,
-    path: Sequence[PathStep] | None = None,
-    story: StoryPath | None = None,
+    story: StoryPath,
 ) -> Callable[[F], F]:
     """Register the decorated ``main()`` as a demo scenario.
 
@@ -337,10 +319,11 @@ def scenario(
     swappable positionally, and a swapped ``label``/``participants`` pair would
     render as a plausible-looking wrong table rather than failing.
 
-    Exactly one of ``path`` and ``story`` states where the scenario sits on the
-    tree.  ``story`` is the composed form and the one new work takes; ``path``
-    is the interim form the scenarios not yet composed still use (#5537
-    retires it).
+    ``story`` is the only thing that places the scenario on the tree, and it is
+    required: there is no path parameter to type a second copy into
+    (DEMOCI-11-019, DEMOCI-11-024).  A scenario that gives no story therefore
+    fails with a ``TypeError`` at import, before any check can run on a spec
+    that has nowhere to sit.
 
     Args:
         name: Sub-command spelling; the stem of all derived paths.
@@ -348,24 +331,23 @@ def scenario(
         participants: Prose participant list.
         feature: One-line notable protocol feature.
         in_pr_set: Whether the scenario runs on ``pull_request`` events.
-        path: The scenario's full path from the root of the scenario tree, as
-            ordered ``(branch point id, choice id)`` pairs (DEMOCI-11-014).
-            Prompts and choice labels come from the branch-point table, so
-            this decorator takes neither (DEMOCI-11-013).
         story: The scenario's assembled story
-            (:mod:`vultron.demo.helpers.story`), whose choices are read as the
-            path (DEMOCI-11-019).
+            (:mod:`vultron.demo.helpers.story`), whose choices are read as its
+            full path from the root of the tree (DEMOCI-11-014,
+            DEMOCI-11-019).  Prompts and choice labels come from the
+            branch-point table, so this decorator takes neither
+            (DEMOCI-11-050).
 
     Returns:
         A decorator that registers the spec and returns the function unchanged.
 
     Raises:
-        DemoScenarioRegistryError: If neither or both of ``path`` and ``story``
-            are given (DEMOCI-11-024), if the spec is malformed, if the name is
-            already registered with a different spec, or if the decorator is
-            applied in a module whose name contradicts ``name``.
+        DemoScenarioRegistryError: If ``story`` names no path, if the spec is
+            malformed, if the name is already registered with a different
+            spec, or if the decorator is applied in a module whose name
+            contradicts ``name``.
     """
-    declared = _declared_path(name, path, story)
+    declared = _story_path(name, story)
 
     def register(func: F) -> F:
         spec = ScenarioSpec(
@@ -375,7 +357,6 @@ def scenario(
             feature=feature,
             in_pr_set=in_pr_set,
             path=declared,
-            composed=story is not None,
         )
         _register(spec, func.__module__)
         return func
@@ -383,31 +364,26 @@ def scenario(
     return register
 
 
-def _declared_path(
-    name: str, path: Sequence[PathStep] | None, story: StoryPath | None
-) -> tuple[PathStep, ...]:
-    """Return the path *name* declares, from its story or its ``path=``.
+def _story_path(name: str, story: StoryPath) -> tuple[PathStep, ...]:
+    """Return the path *story* walks, as the scenario *name*'s path.
+
+    A required argument cannot be omitted, but it can still arrive as a
+    ``None`` a module-level name resolved to, which would reach
+    :class:`ScenarioSpec` as an ``AttributeError`` naming no scenario.  Tested
+    for identity rather than with ``getattr(story, "path", None)``, which would
+    also swallow an ``AttributeError`` raised inside a real ``path`` property
+    and report a genuine bug as a missing path.
 
     Raises:
-        DemoScenarioRegistryError: When both forms are given or neither is.
+        DemoScenarioRegistryError: When *story* is ``None``.
     """
-    if story is not None and path is not None:
+    if story is None:
         raise DemoScenarioRegistryError(
-            f"scenario {name!r} declares both a story and a path=. A composed "
-            "scenario's path is read off its story's choices, so a path "
-            "typed beside the story is a second copy of the same fact and "
-            "the two can disagree; drop the path= declaration "
-            "(DEMOCI-11-019, DEMOCI-11-024)."
+            f"scenario {name!r} was given None as its story, which names "
+            "no path; a scenario is placed on the tree by the choices of its "
+            "assembled story (DEMOCI-11-014, DEMOCI-11-019)."
         )
-    if story is not None:
-        return tuple(story.path)
-    if path is not None:
-        return tuple(path)
-    raise DemoScenarioRegistryError(
-        f"scenario {name!r} declares neither a story nor a path=, so nothing "
-        "places it on the scenario tree. Give it story=<its assembled story>, "
-        "or path= while it is not composed yet (DEMOCI-11-014)."
-    )
+    return tuple(story.path)
 
 
 def _register(spec: ScenarioSpec, origin_module: str) -> None:

@@ -9,7 +9,15 @@ subject: neutral
 
 # Vultron Release Versioning
 
-{% include-markdown "../includes/curr_ver.md" end="<!-- versioning-link -->" %}
+The footer of every page on this site names the publish and the build that the page came from.
+A published page shows the publish date and the `publish-YYYY-MM-DD.N` tag of that publish, with a link to the tag on GitHub.
+After the tag, the footer shows the release tag when the published commit has one, for example `v2026.11.0`.
+Otherwise it shows the build version, for example `2026.10.1.dev570+gabc123`.
+A page that no publish made, such as a local preview, shows "Unpublished build" and the build version.
+
+The build version is not a release version.
+The `setuptools-scm` tool derives it from the most recent release tag in the history of the commit, so a build after that tag gets a development version.
+Only the release tags, described below, number releases.
 
 Vultron releases follow [Calendar Versioning (CalVer)](https://calver.org/) using the format `vYYYY.M.P`.
 The release tag names a snapshot of the whole repository.
@@ -23,13 +31,17 @@ The format components are:
 - `M` is the month of the release, with no zero padding (e.g., `1`, `2`, ..., `12`).
 
 - `P` is the patch number for that release, starting at `0` for the first release in a given month.
-  Patch releases increment this number from the most recent non-patch release, even if the patch is published in a later month or year.
+  Each later release in the same month adds one.
   **The patch component is always present.**
+
+The year and month are those of the day the release is cut, in UTC.
+A release is cut by promoting a commit that the site already published, so a release that fixes an earlier one takes the month in which it is cut.
+Each release tag is greater than every earlier one.
 
 Examples:
 
 - The first release in October 2026 is `v2026.10.0`.
-- A third patch to that release is `v2026.10.3`, even if it is published in November 2026.
-- A subsequent non-patch release in March 2027 is `v2027.3.0`.
+- The third release after it in October 2026 is `v2026.10.3`.
+- A release cut in November 2026 is `v2026.11.0`, even when it fixes `v2026.10.3`.
 
 No compatibility commitments are made or implied by the release tag.

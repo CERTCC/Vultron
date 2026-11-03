@@ -86,42 +86,42 @@ An early termination may also record why the embargo ended, as one of four kinds
 
 | Cause | Detail | Who may name it |
 |---|---|---|
-| `THREAT_SIGNAL` | The signals that ended it: public awareness (`P`), a public exploit (`X`) or observed attacks (`A`) | The Case Manager only |
-| `FIX_READY` | The Vendors whose readiness made the quorum | The Case Owner or the Case Manager |
-| `FIX_DEPLOYED` | None | The Case Owner or the Case Manager |
-| `OTHER` | None; the termination message's human-readable summary gives the account | The Case Owner or the Case Manager |
+| `THREAT_SIGNAL` | The signals that ended it: public awareness (`P`), a public exploit (`X`) or observed attacks (`A`) | The CASE_MANAGER only |
+| `FIX_READY` | The Vendors whose readiness made the quorum | The Case Owner or the CASE_MANAGER |
+| `FIX_DEPLOYED` | None | The Case Owner or the CASE_MANAGER |
+| `OTHER` | None; the termination message's human-readable summary gives the account | The Case Owner or the CASE_MANAGER |
 
 An embargo that reached its end time has no cause.
 An early termination with no cause is valid.
 The termination message carries the cause beside the reason.
-The Case Manager records both on the entry of the ended embargo in the embargo register of the case.
+The CASE_MANAGER records both on the entry of the ended embargo in the embargo register of the case.
 
-When the Case Owner names `FIX_READY`, `FIX_DEPLOYED` or `OTHER`, the Case Manager records that cause as the Case Owner gave it.
-The Case Manager does not check it, because the decision to end early on a quorum of Vendors is the judgment of the Case Owner.
-A Case Owner does not name a threat signal in a termination message, and the Case Manager refuses a message that does.
+When the Case Owner names `FIX_READY`, `FIX_DEPLOYED` or `OTHER`, the CASE_MANAGER records that cause as the Case Owner gave it.
+The CASE_MANAGER does not check it, because the decision to end early on a quorum of Vendors is the judgment of the Case Owner.
+A Case Owner does not name a threat signal in a termination message, and the CASE_MANAGER refuses a message that does.
 Instead, the Case Owner reports the threat as a case status update that sets `P`, `X` or `A`.
-The Case Manager then ends the embargo with the signals that the case carries.
+The CASE_MANAGER then ends the embargo with the signals that the case carries.
 
 ## When the End Time Passes
 
 An embargo does not end by itself when its end time passes.
-The Case Manager ends it with the reason `END_TIME_REACHED`.
+The CASE_MANAGER ends it with the reason `END_TIME_REACHED`.
 This termination runs the same steps as all other terminations.
-The Case Manager cancels open proposals, the case leaves the embargo, and the Case Manager tells every Participant.
+The CASE_MANAGER cancels open proposals, the case leaves the embargo, and the CASE_MANAGER tells every Participant.
 
-The Case Manager checks the end time the next time it handles the case, for an incoming message or for one of its own actions.
+The CASE_MANAGER checks the end time the next time it handles the case, for an incoming message or for one of its own actions.
 So no scheduler is necessary.
 
-The Case Manager checks only after it confirms that the sender of the message may send it.
-So a message from someone with no standing in the case never causes the Case Manager to end the embargo.
+The CASE_MANAGER checks only after it confirms that the sender of the message may send it.
+So a message from someone with no standing in the case never causes the CASE_MANAGER to end the embargo.
 A request to end the embargo early can arrive after its end time.
-The Case Manager records that request as `END_TIME_REACHED`, because the embargo had already reached its end.
+The CASE_MANAGER records that request as `END_TIME_REACHED`, because the embargo had already reached its end.
 
-An outside service can also ask the Case Manager to end the embargo at its end time.
+An outside service can also ask the CASE_MANAGER to end the embargo at its end time.
 An example is a [Sentinel](../../../reference/glossary.md) that watches embargo timers.
 The two requests share one path.
-The request that arrives second finds the embargo already ended, and the Case Manager sends nothing more.
-The Case Manager refuses a termination that claims the end time was reached before it was.
+The request that arrives second finds the embargo already ended, and the CASE_MANAGER sends nothing more.
+The CASE_MANAGER refuses a termination that claims the end time was reached before it was.
 
 ## Waiting for All Vendors to Reach *Fix Ready* May Be Impractical
 

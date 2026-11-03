@@ -13,9 +13,9 @@
 """Unit tests for InvalidateReportReceivedUseCase and CloseReportReceivedUseCase:
 which store the tree runs in, and whose RM state it writes.
 
-``Close(Report)`` writes no one's RM state any more: once a case holds the
-report every sender's is refused (CM-23-019), so only its refusal is pinned
-here.
+``Reject(Offer(VulnerabilityReport))`` writes no one's RM state any more: once
+a case holds the report every sender's is refused (CM-23-019), so only its
+refusal is pinned here.
 
 Two rules, deliberately kept apart (``notes/bt-pitfalls.md`` § "The Store Is
 Not the Subject"):
@@ -30,7 +30,7 @@ Not the Subject"):
   the store, so the store is demonstrably where the write lands.
 - **The subject** — RSH-08-001, HP-00-001: a received activity is an assertion
   about the *sender's* state, so the RM write is about ``request.actor_id``.
-  ``TentativeReject(Offer(Report))`` moves the sender's participant to
+  ``TentativeReject(Offer(VulnerabilityReport))`` moves the sender's participant to
   ``INVALID``; the receiving actor's own participant is unchanged.
 
 These tests once read "the tree runs as the receiver" as "the write is about the
@@ -206,7 +206,7 @@ def _rm_state(dl: SqliteDataLayer, actor_id: str) -> RM | None:
 
 
 def _offer() -> as_Offer:
-    """The canonical ``Offer(Report)`` the verdict rejects (CLP-10-013)."""
+    """The canonical ``Offer(VulnerabilityReport)`` the verdict rejects (CLP-10-013)."""
     return rm_submit_report_activity(
         as_VulnerabilityReport(id_=REPORT_ID, name="r"),
         to=RECEIVING_ACTOR_ID,
@@ -220,7 +220,7 @@ def _make_invalidate_event(
     # RSH-08-003/#3814: the sender's RM write now runs behind the CASE_MANAGER
     # gate, which sits after the canonical ledger commit (CLP-10-013, #4304).
     # A hand-built bare-report activity is not canonical, so build the real
-    # ``TentativeReject(Offer(Report))`` the wire factory emits.
+    # ``TentativeReject(Offer(VulnerabilityReport))`` the wire factory emits.
     event = received_event(
         rm_invalidate_report_activity(
             _offer(), actor=SENDER_ACTOR_ID, to=[RECEIVING_ACTOR_ID]
@@ -281,7 +281,7 @@ def _run_close(dl, request):
 class TestInvalidateReportReceivedSubject:
     """The tree runs as the receiver (BT-17-006); the write is the sender's.
 
-    ``TentativeReject(Offer(Report))`` declares the *sender's* RM state
+    ``TentativeReject(Offer(VulnerabilityReport))`` declares the *sender's* RM state
     (RSH-08-001), so the sender's participant reaches INVALID and the
     receiving actor's participant is unchanged.
     """
@@ -375,7 +375,9 @@ class TestCloseInvalidateDisposition:
         "sender_rm", [RM.RECEIVED, RM.INVALID, RM.VALID], ids=lambda r: r.name
     )
     def test_close_on_a_case_is_refused(self, sender_rm):
-        """No ``Close(Report)`` for a report a case holds is applied.
+        """No report closure for a report a case holds is applied.
+
+        The closure is a ``Reject(Offer(VulnerabilityReport))``.
 
         Whatever the sender's RM state, nothing moves: the sender closes by
         ``Leave(VulnerabilityCase)`` instead (CM-23-019).

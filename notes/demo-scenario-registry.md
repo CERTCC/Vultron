@@ -9,8 +9,8 @@ description: >
   groups that specify a scenario, why discovery must walk the package, why
   `.github/demo-scenarios.json` stays committed, which consumers are generated
   versus checked in place, how the CLI builds its sub-commands from
-  `ActorRole` declarations, how a scenario declares its path through the
-  branch-point table and what discovery checks of the tree, and the registry's
+  `ActorRole` declarations, how a scenario declares its path as the choices of
+  its story and what discovery checks of the tree, and the registry's
   pitfalls.
 related_specs:
   - specs/demo-ci.yaml
@@ -46,7 +46,7 @@ ADR alone does not make obvious.
 ## What the decorator carries, and what it must not
 
 The decorator carries only facts the demo module is the authority for: `name`,
-`label`, `participants`, `feature`, `in_pr_set` and `path`.
+`label`, `participants`, `feature`, `in_pr_set` and `story`.
 
 **Do not add path fields.** The demo module, the invariant harness and the
 narrative page all derive from `name` (hyphens become underscores in file names;
@@ -57,19 +57,25 @@ the drift channel for every scenario.
 
 ## The path and the branch-point table
 
-Each scenario declares its full path from the root of the scenario tree as
-`path=` ordered `(branch point, choice)` pairs (DEMOCI-11-014). The pairs name
+Each scenario declares its full path from the root of the scenario tree as the
+ordered `(branch point, choice)` pairs its story chooses (DEMOCI-11-014,
+DEMOCI-11-019). The pairs name
 entries of `BRANCH_POINTS` (`vultron/demo/scenario/branch_points.py`), which
 defines each decision once: the deciding `CVDRole`, the prompt, and the choices,
-each a label and one trigger verb (DEMOCI-11-013). The rest of the tree's design
-is in [demo-scenario-tree.md](demo-scenario-tree.md). A scenario written as
-composition states no `path=`: its path is read off its story's choices
-(DEMOCI-11-019; that note's § "Composition").
+each a label and one trigger verb (DEMOCI-11-013, DEMOCI-11-047). The rest of
+the tree's design is in [demo-scenario-tree.md](demo-scenario-tree.md) §
+"Composition".
 
+- **`story` is the only way a scenario places itself on the tree.** It is a
+  required argument and there is no path parameter beside it, so the path
+  cannot be written twice and no check has to catch a disagreement
+  (DEMOCI-11-024). A scenario that gives no story fails with a `TypeError` at
+  import.
 - **Prompts and choice labels live only in the table.** `@scenario` takes no
   prompt or choice label (its `label` is the scenario's display casing), and
   `ui/` reads them from the generated index (#4727), so offline and live mode
-  cannot disagree. A test pins the decorator's parameters.
+  cannot disagree. A test pins the decorator's whole parameter set, as
+  equality, so a re-added path parameter under any name fails it.
 - **A choice is the deciding role's next trigger on that path.** Other roles'
   steps may run between the decision and that trigger, but the role's own
   earlier triggers may not: if the Vendor answers a note first, the decision
@@ -88,11 +94,10 @@ composition states no `path=`: its path is read off its story's choices
   another scenario already declares, a path that is a strict prefix of another,
   and paths that decide different branch points at one node. Each has a test on a
   mutated registry in `test/demo_unit/test_scenario_tree.py`.
-- **The deciding actor must hold the branch point's role.** A scenario names
-  it in `reach_step(..., by=actor_id)` — or, once composed, in
-  `choose(..., by=<cast name>)`, which `run_story` resolves to that actor's id
-  — and the harness reads its role from its participant in the canonical case
-  (DEMOCI-11-013,
+- **The deciding actor must hold the branch point's role.** A story names it
+  in `choose(..., by=<cast name>)`, which `run_story` resolves to that actor's
+  id, and the harness reads its role from its participant in the canonical case
+  (DEMOCI-11-047,
   `vultron/demo/helpers/deciding_role.py`). Before an actor is a participant,
   its role comes from the act that brings it in: the root step's actor must
   be the report's author, and an invitee holds the role its Invite offers,
@@ -179,13 +184,13 @@ Route each consumer by what it is:
 | `docs/` pages (`docs/topics/scenarios/index.md`, `docs/tutorials/container_demos.md`) | build-time render (DEMOCI-11-009) | Inside the mkdocs tree, so `markdown-exec` calls the renderer and nothing is committed; mind the link form (below) |
 | `.github/demo-scenarios.json` | generate + `--check` | CI needs it before Python exists |
 | `test/ci/README-case-log-ratchet.md`, `vultron/demo/scenario/README.md` | generate + `--check` | Outside the mkdocs tree, read raw, so an include directive would render literally |
-| `notes/` scenario tables | check in place (DEMOCI-11-006/007) | Rows interleave hand-written columns; a generator would have to write cells nobody wrote |
+| `notes/` scenario tables | check in place (DEMOCI-11-042/007) | Rows interleave hand-written columns; a generator would have to write cells nobody wrote |
 | `vultron/demo/cli.py` sub-commands | built at import time (DEMOCI-11-011) | No committed copy at all |
 | `ui/src/data/scenario_tree.json` | generate (`uv run export-demo-tree`) + `--check` (`demo-tree-sync`) | The UI reads the tree, not a copy; its case keys come from the committed recordings, so it follows them |
-| `ui/src/recordings/` (`case-actor.jsonl` and `steps.json` per scenario) | generate (`uv run export-demo-recordings`); `--check` hook on the recorded set and its two files; content checked daily on `main`, which files a refresh Task; siblings checked pairwise by the shared-prefix test | A run of every scenario takes minutes, and a stale recording is work to schedule, not a reason to block a PR: a few days of lag is accepted, so no PR has to regenerate |
+| `ui/src/recordings/` (`case-actor.jsonl` and `steps.json` per scenario) | generate (`uv run export-demo-recordings`); `--check` hook on the recorded set and its two files; content checked daily on `main`, which files a refresh Task; every pair checked byte for byte by the shared-prefix test | A run of every scenario takes minutes, and a stale recording is work to schedule, not a reason to block a PR: a few days of lag is accepted, so no PR has to regenerate |
 | `specs/` DEMOCI-06-002/003 and per-scenario DEMOMA-16 | check only | A requirement keeps its prose so it stays citable |
 | `mkdocs.yml` nav | check completeness | Hand-written labels |
-| `docs/topics/scenarios/*.md` narrative pages | check page set and frontmatter (DEMOCI-11-012) | Hand-written prose |
+| `docs/topics/scenarios/*.md` narrative pages | check page set and frontmatter (DEMOCI-11-012, DEMOCI-11-046) | Hand-written prose |
 | Any consumer's prose count | check absence (DEMOCI-11-008) | A count is another copy; the table is the count |
 
 **Name each column's authority.** In the checked `notes/` tables, `Scenario`
@@ -197,9 +202,10 @@ test module). A column with no named authority goes unratcheted and drifts.
 **A recording is generated, never hand-edited.** Run
 `uv run export-demo-recordings --scenario <name>` (`vultron/demo/recordings/`)
 to rewrite `ui/src/recordings/<name>/case-actor.jsonl` and its `steps.json`,
-the ledger tail at each declared step the scenario reports to its harness
-(`reach_step`). The shared-prefix test compares the committed recordings
-pairwise (DEMOCI-11-017), so regenerate a scenario's siblings with it: one fresh
+the ledger tail at each declared step, which `run_story` marks as it passes the
+story's choices. The shared-prefix test compares every pair of committed
+recordings byte for byte up to where their paths part (DEMOCI-11-017,
+DEMOCI-11-018), so regenerate a scenario's siblings with it: one fresh
 recording beside stale siblings can fail that test. A PR need not regenerate:
 the daily `demo-recordings` workflow regenerates the tree index alongside the
 recordings and files a refresh Task when recordings lag `main` (#5462). Its
@@ -223,7 +229,7 @@ whose stem names no registered scenario (no CI run exercises it) and refuses
 passes, and the live answer is the demo-integration workflow (MS-16-002). A
 missing page is `missing_derived_paths`'s finding, not this check's. A
 `_`-prefixed file in the directory is an include fragment the narratives share,
-not a page, so the check skips it (DEMOCI-11-012, DF-09-011).
+not a page, so the check skips it (DEMOCI-11-046, DF-09-011).
 
 ## The CLI is a registry consumer, and `ActorRole` is what lets it be one
 
@@ -281,9 +287,9 @@ which assumes `use_directory_urls`; a test pins that assumption.
 - **A count restated in prose is another copy.** Say "the scenarios" and let the
   table be the count (MS-16-001, DEMOCI-11-008).
 - **Do not widen the CI invariant command to the directory.** The
-  `_AllSkipGuard` in `test/ci/invariants/conftest.py` (DEMOCI-10-005) judges the
-  whole session, so it catches a vacuous green only because CI runs one harness
-  file at a time.
+  `_AllSkipGuard` in `test/ci/invariants/conftest.py` (DEMOCI-10-005,
+  DEMOCI-10-017) judges the whole session, so it catches a vacuous green only
+  because CI runs one harness file at a time.
 - **Do not make imports lazy.** Importing one demo module costs about the same as
   importing all of them (the shared `vultron` import dominates); lazy
   per-scenario imports would lose whole-package discovery.

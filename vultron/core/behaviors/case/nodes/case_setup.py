@@ -42,7 +42,7 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
 
     ``POST /actors/{slug}/inbox/`` resolves the actor from the store that slug
     names (``_resolve_actor_or_404``, ADR-0073), so the record has to be in the
-    CaseActor's **own** store before ``Create(as_CaseProposal)`` is delivered.
+    CaseActor's **own** store before ``Create(CaseProposal)`` is delivered.
     Writing it only into the sending actor's store is why delivery answered
     ``404 Actor not found`` and the proposal round-trip never began (#1872,
     CP-04-002, CP-04-004).

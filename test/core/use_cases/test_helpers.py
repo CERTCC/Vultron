@@ -476,7 +476,7 @@ class TestFindCaseActorId:
 
         This is the bootstrap window that broke the old hosting scan: under
         ADR-0041 the ``Service`` object the receiver writes ahead of
-        ``Create(as_CaseProposal)`` carries no ``context`` (the case does not
+        ``Create(CaseProposal)`` carries no ``context`` (the case does not
         exist yet), so a ``context == case_id`` scan found nothing and the real
         authority failed its own hosting test.  The roster has no such window.
         """

@@ -535,7 +535,7 @@ groups:
     verification: >-
       The `initialize_creation_embargo` service tests confirm that the creation-time
       operation hands the store one commit (`save_many`) holding the case with the
-      embargo attached, the participant consent records, the case owner's signatory seed
+      embargo attached, the participant consent records, the Case Owner's signatory seed
       and, for a contested creation, the revision's `EmbargoEvent`; that a refused P/X/A
       check, an unheld embargo, a missing owner record or a case that has left `EM.NONE`
       writes nothing; and that a failed commit writes nothing and a rerun completes.
@@ -1007,7 +1007,7 @@ groups:
       Which party lost is known at registration:
       `initial_embargo_duration.source` on the blackboard names whether the sender's proposal
       or the actor default became active. When
-      the reporter's longer terms lost, the reporter is the proposer and the case owner is
+      the reporter's longer terms lost, the reporter is the proposer and the Case Owner is
       invited; when the owner's longer default lost, the owner is the proposer and the
       reporter is invited. An exact tie registers no revision (EP-04-016) and relays
       nothing. The relay is part of the case-creation act
@@ -1171,7 +1171,7 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      This rule covers a `Create(as_CaseProposal)` that resolves to an existing
+      This rule covers a `Create(CaseProposal)` that resolves to an existing
       `VulnerabilityCase`. Its receiver MUST NOT run creation-time embargo
       initialization again in any EM state but `NONE`: `PROPOSED`, `ACTIVE`, `REVISE` or
       `EXITED`.
@@ -1208,7 +1208,7 @@ groups:
     kind: project
     statement: >-
       The CASE_MANAGER MUST NOT reconcile the embargo terms on a
-      `Create(as_CaseProposal)` that resolves to an existing case against that case.
+      `Create(CaseProposal)` that resolves to an existing case against that case.
       Terms that conflict with the case lose to the case.
     rationale: >-
       The embargo belongs to the case, not to the report. Skipping the whole creation
@@ -1244,7 +1244,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      This rule covers the case owner's activation of a revised embargo that ends later
+      This rule covers the Case Owner's activation of a revised embargo that ends later
       than the embargo it replaces (`REVISE → ACTIVE`). The CASE_MANAGER MUST NOT carry
       any participant's consent over to it.
     rationale: >-
@@ -1257,7 +1257,7 @@ groups:
       remains bound by `T1` for as long as `T1` is the active embargo (ADR-0093,
       ADR-0122).
     note: >-
-      Apart from the case owner's own agreement, no activation advances anyone: a
+      Apart from the Case Owner's own agreement, no activation advances anyone: a
       participant holding an `AGREED` row for the embargo now in force is its signatory
       by lookup.
     verification: >-
@@ -1280,7 +1280,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      This rule covers the case owner's activation of a revised embargo that ends no
+      This rule covers the Case Owner's activation of a revised embargo that ends no
       later than the one it replaces. The CASE_MANAGER MUST apply `CARRY_OVER` to the
       revised embargo's row of each participant with an `AGREED` row for the replaced
       embargo. That includes a participant whose row for the revision is `DECLINED`
@@ -1318,7 +1318,7 @@ groups:
       (`REVISE → REVISE`) MUST NOT change any participant's consent to the embargo in
       force. The proposer's row for the proposed embargo becomes `AGREED`
       (MSM-07-022). Every other participant gets an `UNINVITED` row for it
-      (CM-18-001). Every other row stays as it is until the case owner activates a
+      (CM-18-001). Every other row stays as it is until the Case Owner activates a
       revision (EP-05-001, EP-05-003). Until then the prior embargo stays in force,
       and every signatory to it remains one.
     rationale: >-
@@ -2202,7 +2202,7 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      The case owner MAY accept or reject an open revision at any time, without waiting for
+      The Case Owner MAY accept or reject an open revision at any time, without waiting for
       any other participant to answer the revision Invite. The owner's
       `Accept(EmbargoEvent)[target=VulnerabilityCase]` activates the revision and the owner's
       `Reject(EmbargoEvent)[target=VulnerabilityCase]` keeps the prior terms
@@ -2210,7 +2210,7 @@ groups:
       either is committed as a ledger entry and decides the embargo. The owner's `Accept` or
       `Reject` of the revision Invite is only its own consent (MSM-07-003, MSM-07-004).
     rationale: >-
-      Only the case owner's answer changes the embargo on the case; the other participants'
+      Only the Case Owner's answer changes the embargo on the case; the other participants'
       answers inform that decision, they do not make it (ADR-0093). The Invites are not a
       vote: they gather the consent records the activation cascade reads (EP-05-001). The
       owner's decision settles the embargo; the answers settle who is bound by it.
@@ -2236,7 +2236,7 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      The case owner SHOULD wait for at least some participants to answer a revision Invite
+      The Case Owner SHOULD wait for at least some participants to answer a revision Invite
       before accepting or rejecting the revision, so as to gauge consensus (VP-08-003). The
       protocol defines no quorum, no vote and no waiting period; which answers, how many and
       how long are actor policy.
@@ -2554,7 +2554,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the CASE_MANAGER admits a participant (`Accept(Invite(stub))`) while an embargo
+      When the CASE_MANAGER admits a participant
+      (`Accept(Invite(Actor)[target=VulnerabilityCaseStub])`) while an embargo
       proposal is open, it MUST relay an `Invite(EmbargoEvent)` for every open proposal to
       the joiner and commit each as a ledger entry, after the joiner holds the case and the
       prior ledger. Each Invite has `actor` set to the CASE_MANAGER's ID and `attributedTo`
@@ -2737,11 +2738,11 @@ groups:
     kind: protocol
     statement: >-
       This rule covers a participant with no embargo in force, one whose row for that
-      embargo is not `AGREED`, and the case owner. Each MUST NOT send
+      embargo is not `AGREED`, and the Case Owner. Each MUST NOT send
       `Leave(EmbargoEvent)` to withdraw.
     rationale: >-
       With no embargo in force there is nothing to withdraw from, and a participant
-      whose row is not `AGREED` is not bound by the embargo. The case owner ends an
+      whose row is not `AGREED` is not bound by the embargo. The Case Owner ends an
       embargo by terminating it (MSM-07-036), not by withdrawing from it.
     verification: >-
       `test/core/use_cases/triggers/embargo/test_withdraw.py`
@@ -2771,7 +2772,7 @@ groups:
     verification: >-
       `test/core/use_cases/triggers/embargo/test_withdraw.py` confirms the trigger
       exists (`test_a_withdraw_embargo_trigger_exists`) and refuses with no embargo in
-      force, from a row that is not `AGREED`, and for the case owner
+      force, from a row that is not `AGREED`, and for the Case Owner
       (`test_withdrawal_with_no_embargo_in_force_is_refused`,
       `test_withdrawal_from_a_row_that_is_not_agreed_is_refused`,
       `test_the_case_owner_cannot_withdraw`).

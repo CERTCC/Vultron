@@ -67,12 +67,12 @@ When you open a case, you are its owner.
 Ownership can move.
 A vendor that opened a case can give it to a coordinator, and every participant learns who decides for the case now ([Case Ownership Transfer](ownership_transfer.md)).
 
-The **Case Manager** keeps the case's authoritative history and passes case messages between participants.
+The [CASE_MANAGER](case_manager_and_ledger.md) keeps the case's authoritative history and passes case messages between participants.
 It acts for the Case Owner ([The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md)).
 It is the one participant that writes the shared record of the case.
-Every other participant holds a copy of that record, and the Case Manager sends each admitted change to all of them.
+Every other participant holds a copy of that record, and the CASE_MANAGER sends each admitted change to all of them.
 
-In practice, the Case Owner's own system usually holds the Case Manager role.
+In practice, the Case Owner's own system usually holds the CASE_MANAGER role.
 The owner may delegate it, for example to a coordinator that hosts cases for others ([§12.1 Role Assignment](../../reference/vultron-spec/interactions.md#121-role-assignment-n)).
 
 The practical consequence is the one that matters to a practitioner.
@@ -80,7 +80,7 @@ There is exactly one history of what happened in the case, and everyone in the c
 No participant reconciles competing versions, and nobody edits the record directly, not even the organization that opened the case.
 
 This is not a central clearinghouse.
-The Case Manager role is held per case, so a different case can go through a different organization.
+The CASE_MANAGER role is held per case, so a different case can go through a different organization.
 No service sees every case ([§3.2 What a Deployment Looks Like](../../reference/vultron-spec/introduction.md#32-what-a-deployment-looks-like)).
 
 ---
@@ -88,20 +88,20 @@ No service sees every case ([§3.2 What a Deployment Looks Like](../../reference
 ## What you see
 
 Your system holds its own copy of the case, assembled from the messages that have reached it ([§3.1 Coordination Model](../../reference/vultron-spec/introduction.md#31-coordination-model)).
-Every admitted change comes from the Case Manager and goes to every participant.
+Every admitted change comes from the CASE_MANAGER and goes to every participant.
 So after the messages have arrived, your copy and your partners' copies show the same case history.
 
 The table below lists what that copy tells you, whose state each item is, and who can change it.
 
 | What you see | Whose state it is | Who changes it |
 |---|---|---|
-| Who the participants are, and their roles | The case's | The Case Owner, through the Case Manager |
+| Who the participants are, and their roles | The case's | The Case Owner, through the CASE_MANAGER |
 | Where you stand on the report: received, valid, accepted, closed | Yours | Only you |
 | Where each other participant stands on the report | Theirs | Only that participant |
 | Whether a fix is ready or deployed, per vendor or deployer | That participant's | That participant |
-| Whether the case has an embargo, and its terms | The case's | The Case Owner, through the Case Manager |
+| Whether the case has an embargo, and its terms | The case's | The Case Owner, through the CASE_MANAGER |
 | Whether you have agreed to the Active Embargo's terms | Yours | You, by accepting or declining |
-| What is publicly known: the vulnerability, an exploit, attacks | The case's | Any participant may report it; the Case Manager records it |
+| What is publicly known: the vulnerability, an exploit, attacks | The case's | Any participant may report it; the CASE_MANAGER records it |
 
 Every message in a case states that something has already happened.
 An acceptance says *we accepted this report*.
@@ -185,7 +185,7 @@ What a good outcome looks like across the whole case, and how the roles pull tow
 | Question | Answer |
 |---|---|
 | Who owns the case? | The Case Owner, whose disclosure decision the case serves. Ownership can be transferred. |
-| Who keeps the record? | The Case Manager, the one participant that writes the shared history and sends every change to everyone. |
+| Who keeps the record? | The CASE_MANAGER, the one participant that writes the shared history and sends every change to everyone. |
 | What do I see? | The same case history as every other participant: who is in the case, where each stands on the report, the embargo, and what is public. |
 | What do I control? | Your own report handling, your own fix status, and your own answer to embargo terms. |
 | What does an embargo invitation ask? | One decision: accept the stated terms, decline them, or propose others. Silence counts as declining. |

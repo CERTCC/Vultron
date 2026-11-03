@@ -55,7 +55,7 @@ class _RejectLogEntryActivity(as_Reject):
     """Participant rejects a ``as_CaseLedgerEntry`` announcement due to hash-chain mismatch.
 
     Sent by a participant actor to the CaseActor when the incoming
-    ``Announce(as_CaseLedgerEntry)``'s ``prev_log_hash`` does not match the
+    ``Announce(CaseLedgerEntry)``'s ``prev_log_hash`` does not match the
     participant's local tail hash.
 
     The sender's ledger tail, which tells the CaseActor which entries to

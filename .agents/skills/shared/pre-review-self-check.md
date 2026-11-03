@@ -38,8 +38,8 @@ blank is not.
    nodes that fail loudly), `notes/bt-integration.md` § "The Received-Side
    Stages (ADR-0111, ADR-0135)" (commit before effects such as an outbox
    write), `notes/outbox-delivery-reliability.md` § "A
-   Response to an Inbound Activity Takes Its Id From the Request" (withdraw on
-   commit failure, retry-stable ids) and `vultron/core/AGENTS.md`
+   Response to an Inbound Activity Takes Its Id From the Request" (a send and
+   its commit in one transaction, retry-stable ids) and `vultron/core/AGENTS.md`
    § "Idempotency Responsibility Chain".
    *Result:* one line per write — outcome on failure, outcome on retry, test —
    or "no writes changed".

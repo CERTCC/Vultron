@@ -61,8 +61,12 @@ Run /pr-triage first (or /pr-ship to run the full pipeline).
 1. Detect PR number (current branch or explicit argument).
 2. Read `.claude/pr-{number}-triage.json`.
 3. Validate `schema_version == "1.0"`. If mismatch, stop and report.
-4. Extract `pr_metadata.domains` and invoke `deepen-context` with those hints
-   to load the same domain context that triage used.
+4. Extract `pr_metadata.domains` and load the same domain context that triage
+   used. Run `PYTHONPATH= uv run build-context check` first
+   (`.agents/skills/shared/build-context.md` § "Reading it"). On exit 0, load
+   what the file lists, then invoke `deepen-context` only for the domains that
+   no `hint=` line covers. On any other exit, invoke `deepen-context` with all
+   of them, as with no file.
 5. Note `pr_metadata.needs_integration_tests`. It is informational: Phase 5's
    gate does not read it: `targeted-tests` gates those paths by their
    importers, integration-marked ones included, and CI runs the rest
@@ -259,39 +263,31 @@ to read both sides and resolve it. Being behind the base, even when the base
 changed files this PR also changes, is not a reason to merge here: CI tests
 the PR merged into its base on every push, and the merger refreshes an
 overlapping PR on GitHub (`gh pr update-branch`) right before merging it, at
-no local cost (PAD-18-009, ADR-0138). Run the checks first:
+no local cost (PAD-18-009, ADR-0138). Commit Phase 2 and CI fixes first, then
+let the script decide:
 
 ```bash
-git fetch origin <base_ref> || { echo "fetch failed — stop and report"; false; }
-bash .agents/skills/shared/merge-state.sh <number>; ms=$?; echo "merge-state exit: $ms"
-git merge-tree --write-tree --name-only HEAD origin/<base_ref> > /tmp/merge-tree.txt; mt=$?; echo "merge-tree exit: $mt"
-PYTHONPATH= uv run targeted-tests --base origin/<base_ref> --overlap; ov=$?; echo "overlap exit: $ov"
+bash .agents/skills/shared/sync-decision.sh <number> <base_ref>; rc=$?; echo "sync-decision exit: $rc"
 ```
 
-If the fetch fails, stop and report: neither `merge-tree` nor `targeted-tests`
-fetches, so a stale `origin/<base_ref>` gives a stale answer. `merge-tree`
-tries the merge without touching the worktree and exits `1` when it would
-conflict, so a conflict is seen even when GitHub answers `UNKNOWN` or has not
-recomputed mergeability since the base moved. It reads committed work only;
-commit Phase 2 and CI fixes before this step. `--overlap` is recorded, not
-acted on: it lists the paths the base changed since the merge base that this
-branch also changes.
+It fetches `origin/<base_ref>`, runs `merge-state.sh`, a trial
+`git merge-tree` and `targeted-tests --overlap`, and applies the decision table
+in its header (DIRTY counts as `CONFLICTING`, first match wins). `merge-tree`
+reads committed work only, and it sees a conflict even when GitHub answers
+`UNKNOWN` or has not recomputed mergeability since the base moved. The script
+prints one `verdict=` line, a `merge_reason`, the four inputs, and
+one `conflict_path=` or `overlap_path=` line per path. Act on the verdict:
 
-Read `merge_state_status` from `merge-state.sh`'s JSON. Treat `DIRTY` as
-`CONFLICTING`, whatever the exit code. Then take the first row that matches:
-
-| `merge-state.sh` | `merge-tree` | Action |
+| `verdict=` | `merge_reason` | Action |
 |---|---|---|
-| any | not `0` or `1`, or `--overlap` exit `2` | Setup error (unknown base ref) — stop and report |
-| `1` (`CONFLICTING`) | any | Merge locally — record `merge_reason: "conflicting"` |
-| any | `1` | Merge locally — record `merge_reason: "conflicting"` |
-| `0`, `merge_state_status: BEHIND` | `0` | Update on GitHub (below) — record `merge_reason: "behind"` |
-| `0` or `2`, `--overlap` exit `1` | `0` | **Do not merge.** Record `merge_reason: "deferred"` and the listed paths; go to Step 3 |
-| `0` or `2` | `0` | **Do not merge.** Go to Step 3 |
+| `setup-error` (exit 2) | — | Stop and report its `reason=` (a failed fetch or an unknown base ref) |
+| `merge` | `conflicting` | Merge locally (below) |
+| `update-on-github` | `behind` | Update on GitHub (below) |
+| `no-merge` | `deferred` | **Do not merge.** Record the `overlap_path=` paths; go to Step 3 |
+| `no-merge` | `none` | **Do not merge.** Record `merge_reason: null`; go to Step 3 |
 
 `merge_state.merge_required` is `true` if any iteration merged (locally or on
-GitHub), and `false` only when every iteration reached one of the last two
-rows.
+GitHub), and `false` only when every iteration's verdict was `no-merge`.
 
 **`BEHIND`, updated on GitHub.** `BEHIND` is the one state in which GitHub
 itself refuses the merge until the branch contains the base, and `pr-verify`
@@ -310,8 +306,8 @@ The new merge commit is GitHub's, so the local worktree must fast-forward to it 
 any later commit (REFERENCE.md § "Merge, do not rewrite"). It changes no line the PR
 wrote, so it needs no local gate: go to Step 5, where CI tests it. Record its SHA as
 `sync_commit_ref`, and record triage's `BEHIND` finding as `outcome: fixed` with that
-SHA as `commit_ref`. If `update-branch` fails, or GitHub reports a conflict, take the
-`"conflicting"` row instead.
+SHA as `commit_ref`. If `update-branch` fails, or GitHub reports a conflict, merge
+locally as for the `merge` verdict instead.
 
 When a local merge is called for (`"conflicting"`):
 
@@ -381,8 +377,14 @@ Run the linters first, as their own command, and stop on a non-zero
 `lint exit:` — a lint failure must not be masked by the test-set step's status:
 
 ```bash
-uv run ruff check && uv run ruff format --check && uv run mypy && uv run pyright; rc=$?; echo "lint exit: $rc"; (exit $rc)
+G=.agents/skills/shared/run-if-changed.sh
+uv run ruff check && uv run ruff format --check \
+  && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy \
+  && "$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run pyright; rc=$?; echo "lint exit: $rc"; (exit $rc)
 ```
+
+mypy and pyright run through `run-if-changed.sh`, so the mirror below reuses
+their pass instead of type-checking the tree a second time.
 
 Then derive the set. `<scope>` is `--base origin/<base_ref>` for the
 branch-diff set, or `--paths <conflicted files>` after a conflict merge alone:
@@ -447,6 +449,45 @@ push failing code.
 
 After tests pass, run the xfail ratchet per [REFERENCE.md](REFERENCE.md)
 § "xfail Ratchet".
+
+**Merged-tree tests, when the base overlaps** (PAD-18-024). If this
+iteration's Step 2 verdict was `no-merge` with `merge_reason` `deferred`, the
+base changed files this PR also changes. CI will test the two merged, and a
+fix that passes on the branch alone can fail there. Test the merge first,
+without merging the base into the branch (PAD-18-004 is unchanged):
+
+```bash
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
+timeout -k 30 1800 uv run merged-tree-tests --base <base_ref> > "$logs-merged-tree.txt" 2>&1; rc=$?; cat "$logs-merged-tree.txt"; echo "exit: $rc"; (exit $rc)
+```
+
+The command merges `origin/<base_ref>` into a scratch worktree and runs there
+the tests `targeted-tests --paths` selects for the files both sides changed,
+each counted as wholly changed, as after a conflict merge. It never selects
+for the whole branch diff, which would escalate to the full suite (ADR-0173).
+It removes the worktree with `git worktree remove`, even when `timeout` stops
+it (exit `143`). It never runs `prune`, and the PR branch does not move
+(PAD-18-025). Exit `0`:
+the merge passes, or nothing overlaps now. Exit `1`: a test fails on the
+merged tree. It is a branch-owned failure under the same Test Failure Rules:
+fix it on the branch, commit, and rerun. Exit `3`: the base no longer merges
+cleanly, so return to Step 2, whose checks now call for the merge. Exit `2`
+is a setup error, never a pass. A run adds one to `suite_runs.targeted`.
+
+**The CI mirror, before every push** (PAD-18-021). Run it last, on the
+committed tree, with the PR number so the checks that read the PR run too:
+
+```bash
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
+timeout -k 30 1800 uv run prepush-ci-mirror --base <base_ref> --pr <number> > "$logs-mirror.txt" 2>&1; rc=$?; cat "$logs-mirror.txt"; echo "exit: $rc"; (exit $rc)
+```
+
+Act on the `exit:` line exactly as `create-pr` Phase 3c describes. A `FAIL`
+is fixed, committed and rerun. An `UNAVAILABLE` check is run another way,
+then passed with `--skip <id>` and the way recorded in the summary comment.
+Exit `2` is never a pass. The mirror is not a suite run and is not counted in
+`Suite runs:`. A fix made for the mirror is a fix commit: rerun this step's
+gate from the top before pushing it.
 
 #### Step 4 — Push
 

@@ -19,9 +19,9 @@ injects an activity into an inbox):
 
 - :func:`demo_propose_and_activate_embargo` — a proposal brought to
   ``EM.ACTIVE``, from ``EM.NONE`` or, for a case that already holds the
-  default embargo (EP-04-001), as a revision of it (DEMOMA-20-002);
+  default embargo (EP-04-001), as a revision of it (DEMOMA-20-014);
 - :func:`demo_propose_embargo_revision` — revised terms, ``EM.ACTIVE`` to
-  ``EM.REVISE`` and back (DEMOMA-21-002);
+  ``EM.REVISE`` and back (DEMOMA-21-018);
 - :func:`demo_terminate_embargo` — ``EM.ACTIVE`` to ``EM.EXITED``
   (DEMOMA-20-003).
 
@@ -32,11 +32,11 @@ no participant polls for another's message (EP-09-003).  The case owner's
 answer is also the decision that activates the embargo (EP-09-005), so the
 owner answers last, after the others have had their say (EP-09-006).  Shared
 steps live in private functions here so the revision does not copy the
-propose-and-activate sequence (DEMOMA-21-011).
+propose-and-activate sequence (DEMOMA-21-023).
 
 Each helper takes :class:`~vultron.demo.actor_session.ActorSession` objects
 rather than bare clients: a trigger needs the actor as well as its container
-(DEMOMA-26-001).  Every session MUST be bound to its own container's view of
+(DEMOMA-26-007).  Every session MUST be bound to its own container's view of
 the actor; the helpers bind the case themselves.
 """
 
@@ -283,7 +283,7 @@ def demo_propose_and_activate_embargo(
     as case owner, is sent as Accept(EmbargoEvent)[target=VulnerabilityCase] and
     activates the embargo (ADR-0122).  The helper then checks every replica
     for ``EM.ACTIVE`` and the coordinator's replica for an ``AGREED`` consent row on all
-    three participants (DEMOMA-20-002, DEMOMA-20-009).
+    three participants (DEMOMA-20-014, DEMOMA-20-009).
 
     Args:
         reporter: The proposer, bound to the reporter's container.
@@ -362,7 +362,7 @@ def demo_propose_embargo_revision(
     *owner* posts ``accept-embargo``, which as the case owner's decision —
     Accept(EmbargoEvent)[target=VulnerabilityCase], ADR-0122 — activates the revision
     (canonical ``EM.REVISE`` to ``EM.ACTIVE``).  The helper then checks the CASE_MANAGER's canonical case and every replica for
-    ``EM.ACTIVE`` with the revision as the active embargo (DEMOMA-21-002,
+    ``EM.ACTIVE`` with the revision as the active embargo (DEMOMA-21-018,
     DEMOMA-21-010).
 
     *owner* may be the same session as *proposing*; it is then never sent an

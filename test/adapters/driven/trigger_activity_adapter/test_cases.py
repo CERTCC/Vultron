@@ -571,8 +571,9 @@ class TestAnnounceVulnerabilityCase:
 
 
 class TestCaseOnTheWireCarriesItsParticipants:
-    """CBT-05-005 / CBT-01-012 / AKM-02-004: a case put on the wire carries
-    its participants (and reports) inline, not as ids.
+    """CBT-05-005 / CBT-01-007 / AKM-02-004: a case put on the wire carries
+    its participants inline, not as ids (CBT-01-007 at the bootstrap), and the
+    reports its sender holds (AKM-02-004, a prototype choice at the bootstrap).
 
     The recipient of a bootstrap ``Create`` or ``Announce`` stores each embedded
     participant as its own record; with ids alone it has no participant at
@@ -626,6 +627,7 @@ class TestCaseOnTheWireCarriesItsParticipants:
 
     @pytest.mark.spec("CBT-05-005")
     @pytest.mark.spec("CBT-01-007")
+    @pytest.mark.spec("AKM-02-004")
     def test_create_case_carries_participants_and_reports(self, adapter, dl):
         case, participant_ids, report_id = self._case_with_participant_ids(dl)
 
@@ -642,6 +644,47 @@ class TestCaseOnTheWireCarriesItsParticipants:
         assert {p["id"] for p in carried} == participant_ids
         [report] = wire_case["vulnerabilityReports"]
         assert report["id"] == report_id and report["content"] == "PoC"
+
+    @pytest.mark.spec("CBT-01-007")
+    def test_create_case_refuses_a_participant_the_sender_cannot_read(
+        self, adapter, dl
+    ):
+        """The bootstrap carries each participant record inline, so a case
+        naming one the sender's own store lacks is not sent with a bare id."""
+        from vultron.errors import VultronValidationError
+
+        case, participant_ids, _ = self._case_with_participant_ids(dl)
+        assert dl.delete("CaseParticipant", sorted(participant_ids)[0])
+
+        with pytest.raises(VultronValidationError, match="CBT-01-007"):
+            adapter.create_case(case_id=case.id_, actor=_ACTOR, to=[_PEER])
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CBT-01-007")
+    def test_create_case_names_a_report_the_sender_cannot_read_by_id(
+        self, adapter, dl, caplog
+    ):
+        """The bootstrap requires its participant records inline, not its
+        reports: the receiver offered the report, so it already holds it.  A
+        case naming a report the sender's own store lacks is sent with the
+        report's id and a WARNING, its participants still inline."""
+        case, participant_ids, report_id = self._case_with_participant_ids(dl)
+        assert dl.delete("VulnerabilityReport", report_id)
+
+        with caplog.at_level("WARNING"):
+            activity_id, _ = adapter.create_case(
+                case_id=case.id_, actor=_ACTOR, to=[_PEER]
+            )
+
+        wire_case = self._sealed_case(dl, activity_id)
+        assert wire_case["vulnerabilityReports"] == [report_id]
+        carried = wire_case["caseParticipants"]
+        assert {p["id"] for p in carried} == participant_ids
+        assert all(p["type"] == "CaseParticipant" for p in carried)
+        assert any(
+            report_id in r.message and "cannot be carried inline" in r.message
+            for r in caplog.records
+        )
 
     @pytest.mark.spec("SYNC-16-006")
     @pytest.mark.spec("PCR-02-004")
@@ -681,7 +724,7 @@ class TestCaseOnTheWireCarriesItsParticipants:
             str(CVDRole.COORDINATOR),
         }
 
-    @pytest.mark.spec("CBT-01-007")
+    @pytest.mark.spec("AKM-02-004")
     def test_announce_carries_participants(self, adapter, dl):
         case, participant_ids, _ = self._case_with_participant_ids(dl)
 
@@ -708,6 +751,9 @@ class TestCaseOnTheWireCarriesItsParticipants:
     def test_a_participant_the_store_lacks_stays_an_id(
         self, adapter, dl, caplog
     ):
+        """Outside the bootstrap a sender-side gap is carried as it stands,
+        with a WARNING; the bootstrap ``Create`` refuses it instead
+        (``test_create_case_refuses_a_participant_the_sender_cannot_read``)."""
         case = as_VulnerabilityCase(
             name="CVE-2025-031",
             attributed_to=_ACTOR,
@@ -716,8 +762,8 @@ class TestCaseOnTheWireCarriesItsParticipants:
         dl.create(case)
 
         with caplog.at_level("WARNING"):
-            activity_id, _ = adapter.create_case(
-                case_id=case.id_, actor=_ACTOR, to=[_PEER]
+            activity_id = adapter.announce_vulnerability_case(
+                case_id=case.id_, actor=_ACTOR, context_id=case.id_, to=[_PEER]
             )
 
         assert self._sealed_case(dl, activity_id)["caseParticipants"] == [
@@ -817,7 +863,7 @@ class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
         dl.create(case)
         return case
 
-    @pytest.mark.spec("CBT-01-007")
+    @pytest.mark.spec("AKM-02-004")
     def test_a_report_the_store_lacks_refuses_the_announce(self, adapter, dl):
         case = self._case_naming(
             dl, ["https://example.org/reports/not-in-this-store"]
@@ -833,7 +879,7 @@ class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
 
         assert dl.outbox_list() == []
 
-    @pytest.mark.spec("CBT-01-007")
+    @pytest.mark.spec("AKM-02-004")
     def test_a_held_report_is_embedded_inline(self, adapter, dl):
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
             as_VulnerabilityReport,

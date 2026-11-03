@@ -118,7 +118,7 @@ def test_rccv_extension_invite_actor_to_case_at_least_twice(
 ) -> None:
     """``invite_actor_to_case`` appears at least twice (C2 + Vendor invitations).
 
-    Spec: DEMOMA-13-003 (C1 invites C2), DEMOMA-13-005 (CaseActor invites
+    Spec: DEMOMA-13-015 (C1 invites C2), DEMOMA-13-017 (CaseActor invites
     Vendor via ADR-0026 path).
     """
     violations = check_semantic_type_count(
@@ -149,7 +149,7 @@ def test_rccv_extension_vendor_late_joiner_has_full_history(
 
     Vendor is a late joiner and must receive the full ledger backfill from
     CaseActor (LedgerFanout).
-    Spec: DEMOMA-13-007 (LedgerFanout convergence).
+    Spec: DEMOMA-13-019 (LedgerFanout convergence).
     """
     if not rccv_extension_replicas.get(
         "vendor"
@@ -172,7 +172,7 @@ def test_rccv_extension_c2_late_joiner_has_full_history(
 
     C2 joins after initial case creation when C1 invites them; CaseActor must
     backfill all prior entries to C2.
-    Spec: DEMOMA-13-007 (LedgerFanout convergence).
+    Spec: DEMOMA-13-019 (LedgerFanout convergence).
     """
     if not rccv_extension_replicas.get(
         "vendor"

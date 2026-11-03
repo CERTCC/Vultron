@@ -39,7 +39,6 @@ import pytest
 import yaml
 
 from vultron.demo.recordings.layout import RECORDINGS_DIR, recording_path
-from vultron.demo.recordings.prefix import COMPOSED_FAMILIES
 from vultron.demo.scenario.branch_points import (
     BRANCH_POINTS,
     BranchPoint,
@@ -65,10 +64,10 @@ from vultron.metadata.generated_files import read_committed, serialize_json
 
 ARTIFACT = "ui/src/data/scenario_tree.json"
 
-#: Every scenario belonging to a composed family, flattened and sorted.
-#: Hoisted out of the parametrization below, which collects zero cases on an
-#: empty ``COMPOSED_FAMILIES`` and reports a skip rather than a failure.
-_COMPOSED_NAMES = sorted(set().union(*COMPOSED_FAMILIES, set()))
+#: Every registered scenario's name, sorted.  Hoisted out of the
+#: parametrization below, which collects zero cases on an empty registry and
+#: reports a skip rather than a failure.
+_SCENARIO_NAMES = sorted(spec.name for spec in discover_scenarios())
 
 
 def _endings(node: dict[str, Any]) -> list[str]:
@@ -192,7 +191,7 @@ def test_pre_commit_runs_the_check() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Shape (DEMOCI-11-016)
+# Shape (DEMOCI-11-016, DEMOCI-11-052, DEMOCI-11-053)
 # ---------------------------------------------------------------------------
 
 
@@ -275,33 +274,30 @@ def test_one_entry_per_scenario_with_label_and_path(
         assert _path_to(payload["tree"], spec.name) == row["path"]
 
 
-def test_at_least_one_family_is_composed() -> None:
+def test_at_least_one_scenario_is_registered() -> None:
     """The check below is not a zero-target gate.
 
-    ``COMPOSED_FAMILIES`` is what parametrizes it, and an empty one collects
-    no cases: pytest then reports a skip, so AC-4's only gate would vanish
-    without a red test anywhere.
+    ``discover_scenarios()`` is what parametrizes it, and an empty registry
+    collects no cases: pytest then reports a skip, so the gate on a story's
+    derived path would vanish without a red test anywhere.
     """
-    assert _COMPOSED_NAMES, (
-        "no scenario belongs to a composed family, so nothing checks that a "
-        "composed story's derived path is the committed one; name the family "
-        "in vultron/demo/recordings/prefix.py COMPOSED_FAMILIES "
-        "(DEMOCI-11-019)"
+    assert _SCENARIO_NAMES, (
+        "no scenario is registered, so nothing checks that a story's derived "
+        "path is the committed one (DEMOCI-11-019)"
     )
 
 
-@pytest.mark.spec("DEMOCI-11-016", "DEMOCI-11-019")
-@pytest.mark.parametrize("name", _COMPOSED_NAMES)
-def test_a_composed_scenarios_derived_path_is_the_committed_one(
+@pytest.mark.spec("DEMOCI-11-016", "DEMOCI-11-019", "DEMOCI-11-052")
+@pytest.mark.parametrize("name", _SCENARIO_NAMES)
+def test_a_scenarios_derived_path_is_the_committed_one(
     name: str,
 ) -> None:
-    """The committed index follows a composed story with no new sync step.
+    """The committed index follows a scenario's story with no new sync step.
 
     Read from the committed file rather than a fresh export: the point is that
     the artifact the UI imports already holds the path the running code walks,
-    not that the exporter would produce it.  Parametrized over the composed
-    families (``COMPOSED_FAMILIES``), so each family that lands is covered the
-    moment it is named there.
+    not that the exporter would produce it.  Parametrized over the registry,
+    so a new scenario is covered the moment it registers.
     """
     spec = next(s for s in discover_scenarios() if s.name == name)
     module = importlib.import_module(spec.module_name)

@@ -41,8 +41,9 @@ Agents MAY: implement small–medium features, refactor without behavior change,
 add/update tests, improve typing/validation/error handling, update docs/specs,
 implement against `proposed` ADRs (the human touch is the epoch-2 ask, ADR-0120).
 
-Agents MUST NOT: introduce breaking API changes, modify auth/crypto logic,
-change persistence schemas without explicit instruction, touch CI/deployment/secrets.
+Agents MUST NOT: introduce breaking API changes, modify auth/crypto logic, change
+persistence schemas without explicit instruction, touch production deployment or
+secrets (CI workflows are in scope; follow `notes/ci-workflow-authoring.md`).
 **Crypto carve-out (ADR-0164):** agents MAY build the prototype's seeded-key signing
 and verification (epic #1156); production key handling (#1184) stays excluded, and
 a crypto PR waits for human review before merge.
@@ -196,11 +197,11 @@ entry vs. both.
 
 1. `run-linters` — ruff (lint + format), mypy and pyright must all pass.
    Supersedes `format-code`, so run it alone — no separate `format-code` step.
-2. `run-tests` — **before a PR's first push only**, once per tree state, in
-   `create-pr`: unit and integration suites; read the `exit:` line
-   (PAD-18-001, PAD-18-008). After the first push, a fix commit is gated by the
-   linters plus the targeted set from `targeted-tests`, which escalates to
-   `-m ""` itself (PAD-18-002/003).
+2. `run-tests` — **before a PR's first push only**, in `create-pr`: unit and
+   integration suites; read `exit:` (PAD-18-001/008). Later fix commits: linters
+   plus `targeted-tests`, which escalates to `-m ""` itself (PAD-18-002/003), and
+   on a base overlap `merged-tree-tests` (PAD-18-024). Every push, first or later,
+   runs `prepush-ci-mirror` last, CI's non-suite checks (PAD-18-021, ADR-0173).
 3. `build-docs` if `docs/` modified; `check-docs-sync` runs regardless (PD-03-008)
 4. `commit` skill — include Co-authored-by trailer
 

@@ -271,8 +271,9 @@ def demo_invalidate_path(
 
     The vendor opened a case for the report on receipt, so once the report is
     invalid the vendor, as Case Owner, closes that case with
-    ``Leave(VulnerabilityCase)``: no actor sends ``Close(Report)`` for a
-    report a case holds (CM-23-019).  The case is never engaged.
+    ``Leave(VulnerabilityCase)``: no actor sends
+    ``Reject(Offer(VulnerabilityReport))`` for a report a case holds
+    (CM-23-019).  The case is never engaged.
 
     Workflow steps:
     1. Reporter submits a report to the vendor

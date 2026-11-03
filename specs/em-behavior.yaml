@@ -581,16 +581,16 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      This rule binds a Participant that is neither case owner nor CASE_MANAGER. Its
+      This rule binds a Participant that is neither Case Owner nor CASE_MANAGER. Its
       EM is Active or Revise (q^em ∈ {A, R}) and the case is at P/X/A (q^cs ∉ ···pxa).
       That Participant, receiving EV, MUST NOT adopt the proposal, emit ET or change its
-      own EM state. Only the case owner, or the CASE_MANAGER when delegated, initiates
+      own EM state. Only the Case Owner, or the CASE_MANAGER when delegated, initiates
       termination (EP-09-003, EP-09-008, CM-24, ADR-0113, ADR-0118). The public, exploit
       or attack fact causes it, never a revision proposal.
     rationale: >-
       A proposal is at most the occasion on which a participant notices the case is
       public; making it the cause would tie termination to someone proposing terms.
-      Ending the embargo is the case owner's decision, and only the CASE_MANAGER writes
+      Ending the embargo is the Case Owner's decision, and only the CASE_MANAGER writes
       shared EM state (EP-09-008, ADR-0113). VP-06-001 and VP-09-001 are met by the
       owner's or CASE_MANAGER's termination (VP-11-002, VP-11-011), which in the
       CASE_MANAGER topology is the CS public-event cascade, not by each participant
@@ -653,7 +653,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      This rule binds the Participant of EMB-03-003: neither the case owner nor the
+      This rule binds the Participant of EMB-03-003: neither the Case Owner nor the
       CASE_MANAGER, in EM Active or Revise, with the case at P/X/A. That Participant,
       receiving EV, MUST answer the revision Invite with its own `Reject` of it to the
       CASE_MANAGER. EMB-01-002 requires the same answer to a proposal.
@@ -882,7 +882,7 @@ groups:
       public/exploit/attack (q^cs ∈ ···pxa).
       When it receives EC for the last open proposal, it MUST move its EM state back to
       Active (q^em R → A) with the revised terms.
-      The CASE_MANAGER's commit of the case owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]`,
+      The CASE_MANAGER's commit of the Case Owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]`,
       fanned out as `Announce(CaseLedgerEntry)`, discharges "Emit EK".
       No EK message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
@@ -898,7 +898,7 @@ groups:
       Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
       with CS matching ...pxa and no other open proposal transitions EM back to
       ACTIVE with revised terms, and that the
-      CASE_MANAGER's commit of the case owner's
+      CASE_MANAGER's commit of the Case Owner's
       `Accept(EmbargoEvent)[target=VulnerabilityCase]` and its announcement
       discharge EK with no EK message queued.
     testable: true
@@ -915,7 +915,7 @@ groups:
     - order: 2
       actor: receiver
       action: >-
-        CASE_MANAGER commits the case owner's
+        CASE_MANAGER commits the Case Owner's
         `Accept(EmbargoEvent)[target=VulnerabilityCase]` and announces the ledger entry
         (discharges EK)
       expected: Ledger entry committed and fanned out; no EK message exists
@@ -1632,7 +1632,7 @@ groups:
       Each way commits the CASE_MANAGER's `Remove(EmbargoEvent)` with `content`
       `END_TIME_REACHED` and runs the full termination cascade.
       The outside request is made to the CASE_MANAGER itself. A `Remove` from the
-      case owner is the owner's own message, ledgered on receipt like any other.
+      Case Owner is the owner's own message, ledgered on receipt like any other.
     rationale: >-
       VP-04-001 requires every accepted embargo to have an end time, so every
       embargo reaches one; recording the end as a termination keeps EM derived
@@ -1651,7 +1651,7 @@ groups:
       accept of a pending revision that cannot extend the expired embargo;
       `test/core/use_cases/received/test_termination_reason.py`
       covers the refusal of an early `END_TIME_REACHED` at the CASE_MANAGER and
-      at a replica, and a case owner's `Remove` after the termination.
+      at a replica, and a Case Owner's `Remove` after the termination.
     testable: true
     lint_suppress:
     - testable_without_steps
@@ -1945,7 +1945,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A `FIX_READY`, `FIX_DEPLOYED` or `OTHER` cause on the case owner's `Remove` to the
+      A `FIX_READY`, `FIX_DEPLOYED` or `OTHER` cause on the Case Owner's `Remove` to the
       CASE_MANAGER is the owner's claim.
       The CASE_MANAGER MUST record it as given.
     rationale: >-
@@ -1971,7 +1971,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST refuse a `THREAT_SIGNAL` cause on the case owner's `Remove`
+      The CASE_MANAGER MUST refuse a `THREAT_SIGNAL` cause on the Case Owner's `Remove`
       before it is committed. The refusal's reason directs the sender to a case
       status update that sets `P`, `X` or `A`, the way a threat signal ends an
       embargo.
@@ -2357,18 +2357,18 @@ groups:
     must decide how to respond. Two overture flows are distinguished: (Flow A)
     an EM-level embargo proposal (EP) proposing terms, whose acceptance moves
     the shared EM state; and (Flow B) a PEC-level invitation
-    (InviteToEmbargoOnCase) asking the actor to become a signatory to an
-    embargo, whose acceptance advances that participant's Participant Embargo
-    Consent (PEC) state. The pre-PEC simulator conflated these into a single
-    _ChooseEmProposedResponse fallback; the production protocol separates the
-    shared EM lifecycle (EMB-01..EMB-09) from per-participant consent (CM-18,
-    ADR-0048). This group specifies a single decision seam layered over both
-    flows: it selects the response (accept / defer-to-owner / reject / counter)
-    while delegating the mechanical transition to the existing received and
-    trigger BTs. The mechanics already exist (invite/accept/reject trees,
-    propose/accept/reject trigger use cases); what is missing is the decision
-    layer that chooses among them, with a default-accept policy and a
-    plug-in seam for owner adjudication.
+    (Invite(EmbargoEvent)[context=VulnerabilityCase]) asking the actor to become
+    a signatory to an embargo, whose acceptance advances that participant's
+    Participant Embargo Consent (PEC) state. The pre-PEC simulator conflated
+    these into a single _ChooseEmProposedResponse fallback; the production
+    protocol separates the shared EM lifecycle (EMB-01..EMB-09) from
+    per-participant consent (CM-18, ADR-0048). This group specifies a single
+    decision seam layered over both flows: it selects the response (accept /
+    defer-to-owner / reject / counter) while delegating the mechanical
+    transition to the existing received and trigger BTs. The mechanics already
+    exist (invite/accept/reject trees, propose/accept/reject trigger use cases);
+    what is missing is the decision layer that chooses among them, with a
+    default-accept policy and a plug-in seam for owner adjudication.
   trigger:
     type: message_received
     value: EP | InviteToEmbargoOnCase
@@ -2389,7 +2389,7 @@ groups:
       owner/agent adjudication without changing the tree.
     note: >-
       The seam's default is accept; it does not decide whether the seam runs. For a
-      relayed revision Invite the case owner's answer is its own (EP-09-005, EP-09-006),
+      relayed revision Invite the Case Owner's answer is its own (EP-09-005, EP-09-006),
       so the Flow B tree reaches this seam for the owner only inside the prototype's
       bounded auto-accept (EM `NONE`, terms within the owner's policy duration) and holds
       the answer otherwise (#4179). A non-owner participant always reaches the seam.
@@ -2504,7 +2504,7 @@ groups:
     kind: project
     verification: >-
       `test/core/behaviors/embargo/test_response_decision_tree.py::TestBTBridgeIntegration::test_case_owner_skips_case_owner_approves_call_out`
-      confirms the case owner's response bypasses the approval call-out.
+      confirms the Case Owner's response bypasses the approval call-out.
     statement: >-
       When the deciding actor holds `CVDRole.CASE_OWNER`, the owner's stated
       response is authoritative and the seam MUST NOT require external approval.
@@ -2616,7 +2616,7 @@ groups:
     kind: protocol
     statement: >-
       An actor that rejects an embargo overture MUST answer with the activity that
-      matches what it rejects. The case owner deciding a proposal for the case sends ER,
+      matches what it rejects. The Case Owner deciding a proposal for the case sends ER,
       its `Reject(EmbargoEvent)[target=VulnerabilityCase]`, which returns the shared EM
       to NONE
       (EMB-06, MSM-07-009). A participant answering an embargo Invite sends a `Reject`
@@ -2630,8 +2630,8 @@ groups:
       any local acceptance policy.
     verification: >-
       `test/core/use_cases/triggers/embargo/test_reject.py`
-      (`test_non_manager_owner_reject_asks_the_manager_to_reject`) confirms the case
-      owner's rejection of a proposal is
+      (`test_non_manager_owner_reject_asks_the_manager_to_reject`) confirms the Case
+      Owner's rejection of a proposal is
       `Reject(EmbargoEvent)[target=VulnerabilityCase]`, and
       `test/core/behaviors/embargo/nodes/test_invite_answer.py`
       (`test_queues_the_answer_to_the_case_manager`) confirms an invitee's rejection of
@@ -2646,7 +2646,7 @@ groups:
       actor: participant
       action: Answer with the rejection that matches the overture
       expected: >-
-        The case owner's decision on a proposal is ER (EM → NONE); an embargo Invite
+        The Case Owner's decision on a proposal is ER (EM → NONE); an embargo Invite
         gets a Reject of the Invite, recording DECLINED
     postconditions:
     - description: Overture rejected with the activity that matches it
@@ -2664,7 +2664,7 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      The case owner MAY send a `Reject(Invite(EmbargoEvent))` besides its decision for
+      The Case Owner MAY send a `Reject(Invite(EmbargoEvent))` besides its decision for
       the case. That Reject records only the owner's own consent, like any sender's
       (MSM-07-004).
     rationale: >-
@@ -3883,7 +3883,7 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST NOT address the teardown `Announce(EmbargoEvent)`
-      (EMB-19-001) to the Case Manager.
+      (EMB-19-001) to the CASE_MANAGER.
     rationale: >-
       The tree that commits the teardown runs as the CASE_MANAGER, because the ledger
       commit is gated on that role. An announcement addressed to the CASE_MANAGER
@@ -3906,8 +3906,8 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      When a case has no participants besides the Case Manager, the teardown announcement MUST be
-      skipped rather than emitted with an empty recipient list.
+      When a case has no participants besides the CASE_MANAGER, the teardown
+      announcement MUST be skipped rather than emitted with an empty recipient list.
     rationale: >-
       An activity addressed to nobody is undeliverable, and delivery discards it anyway; constructing one
       only adds a queue entry that can never be resolved. Skipping keeps the teardown itself unaffected,

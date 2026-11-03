@@ -241,7 +241,7 @@ class TestDefaultCaseRolesFollowTheCast:
     A report receiver seats itself with its configured default case roles
     (CP-01-013).  The Coordinator slot needs ``coordinator`` there: without it
     a Coordinator that owns the case holds only ``case_owner``, and the harness
-    fails every Coordinator step of its scenario (#5467, DEMOCI-11-013).  A
+    fails every Coordinator step of its scenario (#5467, DEMOCI-11-047).  A
     character actor must *not* declare one — its role comes from the act that
     seats it (DEMOCI-11-021), and a container default would give it that role
     in every scenario.

@@ -44,10 +44,10 @@ The tree shapes are in the module docstrings of
 ## One move, one mover: the pipeline is the authority (ADR-0108)
 
 A participant-state move arrives in two layers: the **act** (an activity such as
-`Accept(Offer(Report))`, `Join(Case)` or `Accept(Invite(EmbargoEvent))`) and the
-**declaration** (`Add(ParticipantStatus)` / `Add(CaseStatus)`). Both are
-expected, and neither is "the" authoritative form (RSH-08-002). Authority is a
-property of the pipeline:
+`Accept(Offer(VulnerabilityReport))`, `Join(VulnerabilityCase)` or
+`Accept(Invite(EmbargoEvent))`) and the **declaration**
+(`Add(ParticipantStatus)` / `Add(CaseStatus)`). Both are expected, and neither is
+"the" authoritative form (RSH-08-002). Authority is a property of the pipeline:
 
 - **Only the CASE_MANAGER turns an announcement into case state.** It applies the
   state machine's acceptance rule to the *sender's* declaration, whichever

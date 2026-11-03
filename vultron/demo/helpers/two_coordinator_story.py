@@ -156,7 +156,7 @@ def two_coordinator_roles(*, case_actor: ActorRole) -> list[ActorRole]:
     One list for both scenarios, because the CLI options and the devlogs
     directories they generate are the same four (DEMOCI-11-011); the CaseActor
     role is the caller's, because only ``rccv-handoff`` exposes a
-    ``--case-actor-id`` option (DEMOMA-14-008).
+    ``--case-actor-id`` option (DEMOMA-14-023).
 
     Args:
         case_actor: The scenario's :func:`~vultron.demo.helpers.actor_roles\
@@ -317,7 +317,7 @@ def every_replica_converges(state: StoryState) -> None:
     Thin call to the shared sync helper (DEMOMA-23-007), naming only this
     pair's authority, replicas and late joiner.  C1 is the authority in both
     scenarios: it holds the case from its own triage onward, so its replica is
-    complete whether or not the ownership moved (DEMOMA-13-007, DEMOMA-14-006).
+    complete whether or not the ownership moved (DEMOMA-13-019, DEMOMA-14-006).
     """
     run_sync_verification_phase(
         auth_client=state.client(C1),
@@ -384,7 +384,7 @@ def all_four_publish(state: StoryState, *, owner: Part, other: Part) -> None:
 
     Per DEMOMA-07-003(4) the Case Owner triggers CS.P, which is C1 in the
     extension and C2 after the handoff; the embargo reads ``EM.EXITED`` once
-    it has (DEMOMA-13-006, DEMOMA-14-014).  Then the Vendor, the other
+    it has (DEMOMA-13-018, DEMOMA-14-014).  Then the Vendor, the other
     Coordinator and the Reporter report, the Reporter last and only once the
     termination has reached its own replica.
 

@@ -262,7 +262,7 @@ then picks its mode (`pr-triage` § "Modes"):
 
 | Phase | Pre-push (`build` Phase 7) | Step 4, delta mode | Step 4, full mode |
 |---|---|---|---|
-| 1 Orient | orient only | yes | yes |
+| 1 Orient (`build-context check` first: a usable file replaces `orient-agent`) | orient only | yes | yes |
 | 2 Issue linkage | scope against the issues | closing refs as posted; scope on the delta | yes |
 | 3 PR body format | — | yes | yes |
 | 4–8 Domain context, spec conformance, ADR check, AGENTS.md, code review | yes | delta files only | yes |

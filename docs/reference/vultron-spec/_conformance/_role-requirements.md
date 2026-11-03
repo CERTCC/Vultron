@@ -23,7 +23,7 @@ A CASE_MANAGER refuses a received status that states a fix-readiness value from 
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("PRM-06-001", "CSB-15-001", "CSB-15-007", "CSB-15-002", "CSB-15-009", "CSB-15-004", "RSH-09-003"))
 ```
 
-Two transitions can also be asserted on another participant's behalf, by the Case Manager or the Case Owner.
+Two transitions can also be asserted on another participant's behalf, by the CASE_MANAGER or the Case Owner.
 Vendor awareness (`v→V`) is the usual case: the party that notified the vendor knows that the vendor has the information.
 The assertion needs evidence of the notification, for example the vendor's acknowledgment of its Invite.
 A Deployer's fix deployment (`d→D`) can be asserted the same way, which is expected to be rare: deployment is normally the Deployer's own report.

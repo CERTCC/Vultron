@@ -387,7 +387,10 @@ class TestRejectReportOnACase:
         case_with_owner: VulnerabilityCase,
         report_case_link: VultronReportCaseLink,
     ):
-        """Once a case holds the report, no Close(Report) is sent for it."""
+        """Once a case holds the report, no Reject(Offer(VulnerabilityReport)) is sent.
+
+        No actor sends one for a report that a case holds.
+        """
         before = set(scenario.dl.outbox_list())
         result_out: dict = {}
         tree = create_reject_report_trigger_tree(

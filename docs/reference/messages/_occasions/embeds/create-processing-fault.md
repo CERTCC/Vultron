@@ -6,7 +6,7 @@
 
     - **When…** a Participant has received a message it cannot process
     - **Send:** `Create(ProcessingFault)`
-    - **Send to:** the case manager
+    - **Send to:** the CASE_MANAGER
     - **Sent by:** an active participant
     - **Reference:** [Create processing fault](../../faults_and_acknowledgements.md#create-processing-fault)
 

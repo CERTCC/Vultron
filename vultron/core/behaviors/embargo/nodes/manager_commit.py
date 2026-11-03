@@ -121,18 +121,6 @@ class CommitEmbargoDecisionNode(
         self._result_out = result_out
         self._decision_from = decision_from
 
-    def update(self) -> Status:
-        """Build, queue and commit the act, with its rows, in one transaction.
-
-        The build stores the activity, so it joins the transaction the
-        commits run in: an act that fails anywhere leaves nothing it wrote
-        behind (ADR-0146).
-        """
-        if self.datalayer is None:
-            return super().update()  # reports the missing store
-        with cast(CaseOutboxPersistence, self.datalayer).transaction():
-            return super().update()
-
     def _build(self, to: list[str] | None) -> tuple[str, str]:
         activity_id, blob = self._builder(to)
         if self._result_out is not None:

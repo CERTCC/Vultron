@@ -2,11 +2,11 @@
 
 !!! info "Reject case ledger entry"
 
-    Tells the Case Manager that the entry's previous hash does not match the sender's ledger tail, and the Case Manager replays every entry after the last accepted hash. This negative acknowledgment serves the purpose of the formal EK and CK messages.
+    Tells the CASE_MANAGER that the entry's previous hash does not match the sender's ledger tail, and the CASE_MANAGER replays every entry after the last accepted hash. This negative acknowledgment serves the purpose of the formal EK and CK messages.
 
     - **When…** a received ledger entry does not chain onto the Participant's own ledger
     - **Send:** `Reject(CaseLedgerEntry)`
-    - **Send to:** the case manager
+    - **Send to:** the CASE_MANAGER
     - **Sent by:** an active participant, including one that has left the case
     - **Reference:** [Reject case ledger entry](../../ledger_replication.md#reject-case-ledger-entry)
 

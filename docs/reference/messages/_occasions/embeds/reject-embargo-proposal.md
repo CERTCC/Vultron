@@ -6,8 +6,8 @@
 
     - **When…** the Case Owner decides to reject a proposed embargo for a case with no active embargo
     - **Send:** `Reject(EmbargoEvent)[target=VulnerabilityCase]`
-    - **Send to:** the case manager
-    - **Sent by:** the case owner
+    - **Send to:** the CASE_MANAGER
+    - **Sent by:** the Case Owner
     - **Distinguished by:** EM state `PROPOSED`
     - **Reference:** [Reject embargo proposal](../../em.md#reject-embargo-proposal)
 

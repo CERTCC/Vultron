@@ -140,7 +140,7 @@ print("```")
 
 ## Announce Log Entry Tree
 
-Processes an incoming log entry announcement from the case manager. Constructed from
+Processes an incoming log entry announcement from the CASE_MANAGER. Constructed from
 `vultron.core.behaviors.sync.announce_tree.create_announce_log_entry_tree`.
 
 ```python exec="true" idprefix=""

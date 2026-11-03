@@ -35,7 +35,7 @@ the signature are read by humans side by side; a reordered pair is a review
 hazard even though click passes by keyword.
 
 The analogue for ``ActorSession`` is
-``test_actor_session_kwargs_match_request_models.py`` (DEMOMA-26-004), the
+``test_actor_session_kwargs_match_request_models.py`` (DEMOMA-26-012), the
 consolidation this one follows.
 """
 

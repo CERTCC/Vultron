@@ -19,7 +19,7 @@ Four actor containers plus a dedicated CaseActor:
 
 - Reporter: the report submitter;
 - C1 (cast slot 2, the first Coordinator): CASE_OWNER throughout — ownership
-  never moves (DEMOMA-13-002);
+  never moves (DEMOMA-13-014);
 - C2 (cast slot 3, a character actor): a participant holding
   ``CVDRole.COORDINATOR`` and **not** ``CVDRole.CASE_MANAGER``, which suggests
   the Vendor through the ADR-0026 suggest-actor flow;
@@ -206,7 +206,7 @@ def the_four_exchange_notes(state: StoryState) -> None:
 
 
 def everyone_publishes(state: StoryState) -> None:
-    """C1, still the Case Owner, publishes first (DEMOMA-13-006)."""
+    """C1, still the Case Owner, publishes first (DEMOMA-13-018)."""
     all_four_publish(state, owner=C1_PART, other=C2_PART)
 
 

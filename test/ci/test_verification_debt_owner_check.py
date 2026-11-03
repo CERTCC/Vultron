@@ -1,7 +1,7 @@
 """CI verification test — the ``verification_debt`` owner checks run as built.
 
 MS-10-006 checks owners against GitHub at two points, split by who can cause a
-closed owner (ARCH-18-004):
+closed owner (ARCH-18-009):
 
 - a pull request that closes an owner still in use fails — closing it is that
   PR's own act, so failing it races no other PR;

@@ -48,9 +48,11 @@ is wrong. See [`notes/ownership-transfer.md`](../../notes/ownership-transfer.md)
 
 A scenario module declares itself, and nothing else anywhere does:
 
-- `@scenario(name, label, participants, feature, in_pr_set, story | path)` on `main()`,
-  from `scenario/registry.py`; `story=` is the composed form, `path=` the interim one,
-  and both name `scenario/branch_points.py` entries. Every table
+- `@scenario(name, label, participants, feature, in_pr_set, story)` on `main()`,
+  from `scenario/registry.py`. `story` is **required** and is the only thing that
+  places the scenario on the tree: its path is read off the story's `choose(...)`
+  items, which name `scenario/branch_points.py` entries, and there is no path
+  parameter to state it a second time (DEMOCI-11-019, DEMOCI-11-024). Every table
   and `.github/demo-scenarios.json` are generated from it (`demo-scenarios --write`,
   gated by `demo-scenarios-sync`): never hand-edit one, change the decorator. Script,
   harness and narrative paths are **derived** from `name` (`<name_>_demo.py`,
@@ -61,7 +63,7 @@ A scenario module declares itself, and nothing else anywhere does:
   scenario's `--<role>-url` / `--<role>-id` options and its `--help`; each address
   comes off the role's cast slot, read by the family's shared client factory, so a
   scenario module declares no `*_BASE_URL` constant of its own. So **never add a
-  `@main.command` block to `cli.py`** (DEMOCI-11-011), and mind the quiet drift
+  `@main.command` block to `cli.py`** (DEMOCI-11-045), and mind the quiet drift
   direction the `main()`-signature ratchet catches: a keyword no role declares gets
   no option, keeps its default, and runs against the wrong container without failing.
 
@@ -103,7 +105,7 @@ sub-issues were this one defect in different scenarios.
 5. **Put the gate in `vultron/demo/helpers/`** — scenario modules MUST NOT define
    their own polling loops. That is how the #2178 fix landed in one handoff
    scenario and not its sibling, until #5535 put both on one copy
-   (DEMOMA-22-002, DEMOMA-17-001).
+   (DEMOMA-22-008, DEMOMA-17-001).
 6. **Label irreducibly temporal waits as such** at the call site — liveness
    probes, embargo deadlines, transport backoff (EDF-06-006).
 7. **Raising a timeout is not a fix.** Either the observable is wrong (1–3) or the

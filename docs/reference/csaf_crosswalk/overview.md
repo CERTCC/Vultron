@@ -78,10 +78,10 @@ The reasons come from the CSAF design.
 |---|---|
 | The action `status` has no state machine. The design proposal calls it "descriptive and observational", and the draft gives only an informative common order for a `notification`. | CSAF cannot hold the rules that decide which change is permitted. |
 | The involvement timeline holds selected events. | A case of record holds all events. |
-| One issuing party publishes each document. | A case has many participants, and each one writes to it through the [Case Manager](../glossary.md#cvd-roles-and-participants). |
+| One issuing party publishes each document. | A case has many participants, and each one writes to it through the [CASE_MANAGER](../glossary.md#cvd-roles-and-participants). |
 | Entity identifiers, action identifiers, and the `dl_vuln_id` of a vulnerability are local to one document. | A case needs identifiers that stay the same in all messages. |
 | CSAF has no rule to merge documents from different issuing parties. | A case combines the contributions of all participants. |
-| Only the issuing party revises a CSAF document. A different party that changes it issues a new document (CSAF Modifier). | A case has shared authority to change it, which Vultron gives to the Case Owner and the Case Manager. |
+| Only the issuing party revises a CSAF document. A different party that changes it issues a new document (CSAF Modifier). | A case has shared authority to change it, which Vultron gives to the Case Owner and the CASE_MANAGER. |
 
 For a small case between two parties, an exchange of CSAF documents can be sufficient without Vultron.
 Vultron becomes necessary when more parties, an embargo, or a disagreement make the rules for change important.

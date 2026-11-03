@@ -34,7 +34,7 @@ causal_edges:
     consequent: invite_actor_to_case
     consequent_actor: case-actor
     note: >
-      As the new case owner, C2 invites the Vendor.  This invite must follow
+      As the new Case Owner, C2 invites the Vendor.  This invite must follow
       the ownership acceptance.
   - antecedent: invite_actor_to_case
     consequent: accept_invite_actor_to_case
@@ -46,7 +46,7 @@ causal_edges:
     consequent_actor: coordinator
     note: >
       Closure requires a validated, engaged case.  C2, as the post-handoff
-      case owner, commits the final close entry.
+      Case Owner, commits the final close entry.
   - antecedent: close_case
     consequent: close_case
     consequent_actor: coordinator
@@ -86,7 +86,7 @@ subject: implementation
 
 The RCCV-handoff scenario exercises **coordinator-to-coordinator case-ownership
 transfer**.  The Reporter reports to C1.  C1 creates and initially owns the case.
-C1 invites C2, then transfers ownership to C2.  C2, now the case owner, invites
+C1 invites C2, then transfers ownership to C2.  C2, now the Case Owner, invites
 the Vendor.  All participants eventually disclose and close the case.
 
 **Participants:**
@@ -149,7 +149,7 @@ The `CASE_OWNER` role moves to C2 and the case's `attributed_to` field is update
 
 ### 8. C2 invites the Vendor
 
-C2, as the new case owner, identifies the Vendor as affected and sends an
+C2, as the new Case Owner, identifies the Vendor as affected and sends an
 `invite_actor_to_case` entry.
 
 *Antecedent:* `accept_case_ownership_transfer` is in the ledger.

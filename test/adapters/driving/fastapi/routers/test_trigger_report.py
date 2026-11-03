@@ -637,7 +637,8 @@ def test_trigger_reject_report_on_an_owner_case_returns_409_and_queues_nothing(
     """Once a case holds the report, even its Case Owner's reject-report is 409.
 
     The owner closes the case by ``Leave(VulnerabilityCase)`` through
-    ``leave-case``, never by ``Close(Report)``, so nothing is queued.
+    ``leave-case``, never by ``Reject(Offer(VulnerabilityReport))``, so nothing
+    is queued.
     """
     outbox_before = set(dl.outbox_list())
     resp = client_triggers.post(

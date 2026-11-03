@@ -70,7 +70,7 @@ PLANNED_REGISTER = "notes/demo-future-ideas.md"
 #: missing.
 PLANNED_REGISTER_HEADING = "Planned scenario register"
 
-#: Column headers the register must carry.  DEMOCI-11-010 requires a planned
+#: Column headers the register must carry.  DEMOCI-11-043 requires a planned
 #: entry to name its tracking issue and its spec IDs, so both are columns rather
 #: than prose: a column can be empty and detected, a sentence cannot.
 PLANNED_COLUMNS = ("Scenario", "Tracking issue", "Spec IDs")
@@ -234,7 +234,7 @@ def planned_scenarios(root: Path | None = None) -> tuple[PlannedScenario, ...]:
     if missing:
         raise ValueError(
             f"{PLANNED_REGISTER} planned-scenario register is missing the "
-            f"{missing} column(s); DEMOCI-11-010 requires the scenario name, "
+            f"{missing} column(s); DEMOCI-11-043 requires the scenario name, "
             "its tracking issue and its spec IDs each in their own column."
         )
 
@@ -331,12 +331,12 @@ def partition_problems(
         if not entry.issues:
             problems.append(
                 f"planned scenario {entry.name!r} names no tracking issue; "
-                "DEMOCI-11-010 requires one."
+                "DEMOCI-11-043 requires one."
             )
         if not entry.spec_ids:
             problems.append(
                 f"planned scenario {entry.name!r} names no spec IDs; "
-                "DEMOCI-11-010 requires them."
+                "DEMOCI-11-043 requires them."
             )
 
     return problems
