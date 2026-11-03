@@ -9329,6 +9329,31 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-29-001
+  - id: CM-29-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST reject at message validation an inbound activity carrying a
+      `VulnerabilityCase` with no `caseStatuses`.
+    rationale: >-
+      Every case has a current status (CM-29-001), and the sender holds it. A
+      receiver that seeded a missing history would stamp its own clock on the
+      case's first status, a time no sender claimed (CLP-15-007), and that status
+      could outrank one the sender timed earlier. A case named by its `id` and
+      `type` alone is a reference, not a case, so this does not apply to it.
+    verification: >-
+      `test_parse_refuses_a_case_with_no_case_statuses` in
+      `test/wire/as2/test_nested_timestamps.py` asserts `parse_activity` refuses a
+      case whose `caseStatuses` is absent or empty, and
+      `test_authored_case_without_statuses_is_seeded` in the same file confirms a
+      case this process builds is still seeded.
+    stories:
+    - story_2022_075
+    relationships:
+    - rel_type: refines
+      spec_id: CM-29-001
+    - rel_type: refines
+      spec_id: CLP-15-007
 - id: CM-30
   title: Sender Entitlement for Case Content Changes
   description: >-

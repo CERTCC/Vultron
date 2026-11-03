@@ -106,6 +106,15 @@ KINDS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
             "genesisHash": SENDER_GENESIS,
             # The wire form names the case's ledger position (SYNC-16-005).
             "ledgerPosition": {"logIndex": -1, "entryHash": SENDER_GENESIS},
+            # A received case carries its status history (CM-29-004).
+            "caseStatuses": [
+                {
+                    "type": "CaseStatus",
+                    "id": f"{CASE_ID}/statuses/0",
+                    "context": CASE_ID,
+                    "published": SENDER_PUBLISHED,
+                }
+            ],
         },
         {},
     ),
@@ -657,3 +666,26 @@ def test_untimed_status_refusal_names_every_fault_in_the_activity():
     assert "also refused: object.caseStatuses[0].emState" in message
     assert "BOGUS" in message
     assert "valid string" not in message
+
+
+@pytest.mark.spec("CM-29-004")
+@pytest.mark.parametrize("statuses", ["absent", "empty"])
+def test_parse_refuses_a_case_with_no_case_statuses(statuses: str):
+    """A received case carries its own status history; none is seeded."""
+    case = dict(KINDS["VulnerabilityCase"][0])
+    case.pop("caseStatuses", None)
+    if statuses == "empty":
+        case["caseStatuses"] = []
+
+    with pytest.raises(VultronParseValidationError, match="CM-29-004"):
+        parse_activity(_body(case))
+
+
+@pytest.mark.spec("CM-29-004")
+def test_authored_case_without_statuses_is_seeded():
+    """The refusal is the inbound path's: a case this process builds is seeded."""
+    from vultron.core.models.case import VulnerabilityCase
+
+    case = VulnerabilityCase(attributed_to=ACTOR, id_=CASE_ID)
+
+    assert len(case.case_statuses) == 1
