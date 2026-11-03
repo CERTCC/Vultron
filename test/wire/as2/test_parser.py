@@ -628,3 +628,44 @@ def test_missing_claimed_time_refusal_ignores_other_faults():
     _refuse_missing_claimed_time(
         ValueError("not a validation error"), "object"
     )
+
+
+@pytest.fixture
+def network_blocked(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail any attempt to resolve a host or open a connection."""
+    import socket
+
+    def _refuse(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("the receiver tried to reach the network")
+
+    monkeypatch.setattr(socket, "getaddrinfo", _refuse)
+    monkeypatch.setattr(socket, "create_connection", _refuse)
+    monkeypatch.setattr(socket.socket, "connect", _refuse)
+    monkeypatch.setattr(socket.socket, "connect_ex", _refuse)
+
+
+@pytest.mark.spec("VM-10-003")
+@pytest.mark.usefixtures("network_blocked")
+def test_parse_activity_processes_the_vultron_context_without_fetching_it():
+    """A receiver processes a message without dereferencing its ``@context``.
+
+    The Vultron context URI (VM-10-001) does not resolve yet, so a receiver
+    that fetched it would fail on every sender's message.  With the network
+    blocked, a body declaring that context on the activity and its nested
+    objects parses and extracts its semantics all the same.
+    """
+    from vultron.wire.as2.vocab.base.base import VULTRON_CONTEXT_URI
+
+    body = _invite_response_body("Accept")
+    body["@context"] = VULTRON_CONTEXT_URI
+    invite = body["object"]
+    assert isinstance(invite, dict)
+    invite["@context"] = VULTRON_CONTEXT_URI
+    invite["target"]["@context"] = VULTRON_CONTEXT_URI
+
+    event = extract_event(parse_activity(body))
+
+    assert event.semantic_type == MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
+    assert (
+        getattr(event, "case_id", None) == "https://example.org/cases/case-1"
+    )

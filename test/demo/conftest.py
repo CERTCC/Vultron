@@ -14,6 +14,7 @@
 """Shared fixtures and helpers for demo tests."""
 
 import logging
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -506,3 +507,20 @@ def stub_full_case_reply():
 
     with patch.object(invite_links, "reply_to_full_case_invite", reply):
         yield
+
+
+@pytest.fixture
+def fresh_demo_failures() -> Iterator[None]:
+    """Clear the process-global failure accumulator around one test.
+
+    ``vultron.demo.utils._demo_failures`` is process-global, and a fragment
+    that records a failure leaves it there for the next test — where it
+    changes what ``demo_gate`` does (a gate skips its body once anything is
+    recorded).  Opt-in, by ``pytestmark =
+    pytest.mark.usefixtures("fresh_demo_failures")``, rather than autouse for
+    the directory: a test that asserts on failures a module-scoped run
+    recorded must not have them wiped at its own setup.
+    """
+    demo_utils.reset_demo_failures()
+    yield
+    demo_utils.reset_demo_failures()

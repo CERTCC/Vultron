@@ -4,7 +4,7 @@ Every MUST-tier requirement with no ``verification:`` carries a marker naming
 the issue that owns verifying it. Each rule here is judged one requirement at
 a time, so no committed count exists for concurrent PRs to race on (#3984).
 
-The owner table lives in ``vultron/metadata/specs/verification.py``. To see the
+The owner table lives in ``vultron/metadata/specs/verification/debt.py``. To see the
 marked IDs::
 
     uv run spec-lint --list-unverified
@@ -20,8 +20,9 @@ import pytest
 import yaml
 from pydantic import TypeAdapter, ValidationError
 
-import vultron.metadata.specs.verification as verification_module
+import vultron.metadata.specs.verification.owners as verification_module
 from test.metadata.specs.conftest import spec_file_data
+from vultron.metadata.base import issue_number
 from vultron.metadata.specs.registry import SpecRegistry
 from vultron.metadata.specs.schema import (
     IssueRefStr,
@@ -39,7 +40,6 @@ from vultron.metadata.specs.verification import (
     debt_owner_refs,
     gh_pr_closing_issues,
     idle_owners,
-    issue_number,
     verification_problems,
 )
 

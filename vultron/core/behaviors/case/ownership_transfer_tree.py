@@ -106,7 +106,7 @@ def _reply_stages(
     ``end_time`` is refused from that time alone, and nothing records the
     expiry (CM-21-043, ADR-0152).  With *transferee_must_be_active* (the
     Accept), the transferee must then still be an active participant
-    (CM-21-021).
+    (CM-21-022).
     """
     context = SenderCheckContext(
         sender_id=sender_id,
@@ -145,7 +145,7 @@ def create_accept_ownership_transfer_tree(
     Announce broadcast) fires before ``AcceptRecordedOwnershipOfferNode``
     applies the change (CM-21-007) to the transferee the recorded Offer
     names, never to the sender.  A transferee that is no longer an active
-    participant is refused before the commit (CM-21-021).
+    participant is refused before the commit (CM-21-022).
 
     Args:
         case_id: URI of the case whose ownership is being transferred; ``None``

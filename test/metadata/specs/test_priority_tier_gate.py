@@ -60,7 +60,7 @@ _CONTAINER_BUILTINS = frozenset({"frozenset", "set", "tuple", "list"})
 _ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
     {
         (
-            "vultron/metadata/specs/lint.py",
+            "vultron/metadata/specs/lint/advisories.py",
             "priority == RFC2119Priority.MUST",
         ),
     }

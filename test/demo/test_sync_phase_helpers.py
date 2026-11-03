@@ -43,17 +43,12 @@ from vultron.demo.helpers.sync import (
     run_sync_verification_phase,
     wait_for_replica_ledger_coverage,
 )
-from vultron.demo.utils import reset_demo_failures
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 _CASE_ID = "urn:uuid:test-case-3846-0001"
 _TAIL = [{"log_index": 5, "entry_hash": "abc123def456789a"}]
-
-
-@pytest.fixture(autouse=True)
-def _clean_accumulator():
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 def _client(name: str) -> MagicMock:

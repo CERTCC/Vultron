@@ -18,6 +18,7 @@ import contextlib
 import importlib
 import inspect
 import logging
+import pkgutil
 import re
 from collections.abc import Iterator, Sequence
 from types import ModuleType
@@ -225,12 +226,13 @@ def functions_referencing(module: ModuleType, name: str) -> list[str]:
     by nothing earlier, because every record written before the case exists is
     one more read of the recording clock (DEMOCI-11-018, #5532).  Read from the
     source rather than by patching, so the claim holds for the code as written
-    and not only for the path a test happens to drive.
+    and not only for the path a test happens to drive.  A package is read
+    across every submodule, so a split leaves no fragment unscanned.
     """
-    tree = ast.parse(inspect.getsource(module))
     return [
         node.name
-        for node in ast.walk(tree)
+        for source in modules_resolving_names(module)
+        for node in ast.walk(ast.parse(inspect.getsource(source)))
         if isinstance(node, ast.FunctionDef)
         and any(
             isinstance(child, ast.Name) and child.id == name
@@ -690,15 +692,43 @@ def null_demo_contexts(stack: contextlib.ExitStack, demo: ModuleType) -> None:
     A module imports only the names it uses, so a name it never opens is
     skipped rather than patched into existence.  :func:`no_demo_banners` is
     this over several modules, as its own context manager.
+
+    A package stands for every submodule in it: a split module's fragments
+    resolve the banners in the submodule that holds them, and its
+    ``__init__`` only re-exports names, so patching the package itself would
+    leave every banner real (CS-18-003, #5592).
     """
-    for name in ("demo_gate", "demo_check", "demo_step"):
-        if not hasattr(demo, name):
-            continue
-        stack.enter_context(
-            patch.object(
-                demo, name, side_effect=lambda _: contextlib.nullcontext()
+    for module in modules_resolving_names(demo):
+        for name in ("demo_gate", "demo_check", "demo_step"):
+            if not hasattr(module, name):
+                continue
+            stack.enter_context(
+                patch.object(
+                    module,
+                    name,
+                    side_effect=lambda _: contextlib.nullcontext(),
+                )
             )
+
+
+def modules_resolving_names(module: ModuleType) -> list[ModuleType]:
+    """*module* itself, or every module below it when it is a package.
+
+    The modules whose globals a fragment of *module* reads a name from: a
+    split package's ``__init__`` only re-exports, so its submodules are where
+    a patch or a source scan has to look (CS-18-003, #5592).  The walk is
+    recursive, so a submodule later split into a package of its own is read
+    too; a package found on the way is itself an ``__init__`` and is left out.
+    """
+    if not hasattr(module, "__path__"):
+        return [module]
+    return [
+        importlib.import_module(info.name)
+        for info in pkgutil.walk_packages(
+            module.__path__, f"{module.__name__}."
         )
+        if not info.ispkg
+    ]
 
 
 def _reporter_links(

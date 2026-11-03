@@ -1,7 +1,7 @@
 """Tests for vultron.metadata.specs.kind_classification (MS-12-006/007/008).
 
 The lint-path behaviour — exit code, story-bearing exemption, suppression — is
-covered in ``test_lint.py``. This module pins the detector itself: the closed
+covered in ``lint/test_kind_checks.py``. This module pins the detector itself: the closed
 token set MS-12-006 names, the domain-English shapes it must leave alone, and
 the carrier sets the MS-12-007 guard and the MS-12-008 assertion read.
 """

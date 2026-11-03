@@ -26,7 +26,7 @@ compose these nodes into the diversion the two received trees carry.
 The ``Reject`` is the receiver's record of its decision: its id derives from the
 rejecting actor and the Invite, so a redelivery finds it already sent and is
 skipped rather than answered twice (HP-01-003, CLP-13-001), and a ``Reject``
-sealed but never queued is queued again (ID-04-005).
+sealed but never queued is queued again (EMB-01-007, ID-04-005).
 """
 
 from py_trees.common import Status
@@ -139,7 +139,7 @@ class EmbargoInviteNotYetRefusedNode(
     FAILURE means the ``Reject`` was already sent; the handler reads it as a
     re-delivery (CLP-13-001, HP-01-003).  The ``Reject`` is sealed before
     it is queued, so one sealed but no longer pending is queued again under its
-    own id rather than taken as delivered (ID-04-005).  A missing
+    own id rather than taken as delivered (EMB-01-007, ID-04-005).  A missing
     trigger-activity port sends nothing, so there is nothing to repeat.
     """
 

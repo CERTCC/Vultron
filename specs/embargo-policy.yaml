@@ -131,6 +131,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EP-01-003
+    stories:
+    - story_2022_010
   - id: EP-01-007
     priority: SHOULD
     kind: protocol
@@ -143,6 +145,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EP-01-003
+    stories:
+    - story_2022_010
 - id: EP-02
   title: API Endpoint
   specs:
@@ -505,6 +509,8 @@ groups:
       `TestCreationTimeEmbargoCommitsItsEffectsWithIt` faults the owner-seed write and the
       revision write in turn and asserts the case stays at `EM.NONE` and that a rerun seeds
       the owner and registers the revision (#4142).
+    stories:
+    - story_2022_010
   - id: EP-04-013
     priority: MUST_NOT
     kind: project
@@ -1360,6 +1366,9 @@ groups:
       spec_id: CM-13-005
     - rel_type: implements
       spec_id: CM-18-001
+    stories:
+    - story_2026_014
+    - story_2026_001
 - id: EP-07
   title: Embargo Invite RSVP Window Policy
   description: >-
@@ -1651,6 +1660,8 @@ groups:
       spec_id: EP-07-003
     adr:
     - ADR-0065
+    stories:
+    - story_2022_014
   - id: EP-07-005
     priority: MUST
     kind: project
@@ -2198,6 +2209,8 @@ groups:
     - ADR-0113
     - ADR-0093
     - ADR-0122
+    stories:
+    - story_2026_001
   - id: EP-09-005
     priority: MAY
     kind: protocol

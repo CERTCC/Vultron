@@ -29,7 +29,7 @@ therefore sit here on three things:
   and the devlogs names the invariant harness reads (DEMOMA-19-018).
 
 What the shared opening does is not re-tested here; it is one copy of the code
-and ``test/demo/test_coordinated_story.py`` owns it.  Every test patches the
+and ``test/demo/coordinated_story/`` owns it.  Every test patches the
 collaborators out, so no HTTP happens; ``demo_gate`` / ``demo_check`` /
 ``demo_step`` stay real wherever the test is about control flow and are
 stubbed to ``nullcontext`` only where it is about call shape
@@ -70,35 +70,27 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER_ASKS_THE_VENDOR,
     TIMELINE_ANSWER,
     VENDOR,
+    cast as coordinated_cast,
+    continuations as coordinated_continuations,
+    joining as coordinated_joining,
 )
 from vultron.demo.helpers.invite_chain import links as invite_links
 from vultron.demo.helpers.polling import LATE_JOINER_TIMEOUT
 from vultron.demo.helpers.story import Choose, UnseatedContainer, choose
 from vultron.demo.scenario import rcv_demo
 from vultron.demo.scenario.registry import registered_scenarios
-from vultron.demo.utils import reset_demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: The scenario's five cast names, in ``ROLES`` order.
 _CAST = (REPORTER, demo.C1, demo.V1, demo.C2, demo.V2)
 
 #: How many items of ``STORY`` are the shared opening.
 _PREFIX_LEN = len(REPORTER_ASKS_THE_VENDOR.items)
-
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, so a fragment
-    that records a failure would otherwise leave it for the next test to read
-    as its own (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 @contextlib.contextmanager
@@ -263,7 +255,7 @@ class TestCharacterActorsSeededAfterTheBranchPoint:
                 "vultron.demo.helpers.seeding.seed_case_actor_identity"
             ) as reseed,
             patch.object(
-                coordinated_story,
+                coordinated_cast,
                 "seed_containers_rcv",
                 return_value=tuple(seeded),
             ) as seed_three,
@@ -366,7 +358,7 @@ class TestCharacterActorsSeededAfterTheBranchPoint:
                 demo, "seed_containers_rcvcv", return_value=seeded
             ) as seed,
             patch.object(
-                coordinated_story,
+                coordinated_cast,
                 "get_actor_by_id",
                 side_effect=[seeded[3], seeded[4]],
             ) as lookup,
@@ -406,7 +398,7 @@ class TestCharacterActorsSeededAfterTheBranchPoint:
                     mock_actor(f"urn:test:{name}") for name in _CAST
                 ),
             ),
-            patch.object(coordinated_story, "get_actor_by_id"),
+            patch.object(coordinated_cast, "get_actor_by_id"),
             _no_banners(),
             pytest.raises(DemoStoryError, match="no container waiting"),
         ):
@@ -429,15 +421,17 @@ class TestC1InvitesTheSecondCoordinator:
         invitee's roster check is reached.
         """
         with (
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
             patch.object(
-                coordinated_story, "run_invite_path_rm_triage"
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch.object(
+                coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,
             patch.object(
-                coordinated_story, "wait_for_case_participants"
+                coordinated_joining, "wait_for_case_participants"
             ) as roster,
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
             _no_banners(),
         ):
@@ -496,19 +490,16 @@ class TestC1InvitesTheSecondCoordinator:
         state = _five_party_state(joined=False)
 
         with (
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
             patch.object(
-                coordinated_story,
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch.object(
+                coordinated_joining,
                 "wait_for_case_participants",
                 side_effect=AssertionError("roster never filled"),
             ),
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
-            ),
-            patch.object(
-                coordinated_story,
-                "demo_step",
-                side_effect=lambda _: contextlib.nullcontext(),
+                coordinated_joining, "wait_for_case_on_container"
             ),
         ):
             demo.c1_invites_the_second_coordinator(state)
@@ -596,7 +587,7 @@ class TestC2SuggestsTheVendorDeployer:
                 side_effect=lambda *a, **kw: order.append("triage"),
             ) as triage,
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ),
             _no_banners(),
         ):
@@ -677,7 +668,7 @@ class TestC2SuggestsTheVendorDeployer:
                 owner_decision_story, "invitee_triages_after_joining"
             ) as triage,
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ),
         ):
             demo.c2_suggests_the_vendor_deployer(state)
@@ -716,7 +707,7 @@ class TestC2SuggestsTheVendorDeployer:
                 owner_decision_story, "invitee_triages_after_joining"
             ),
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ),
         ):
             demo.c2_suggests_the_vendor_deployer(state)
@@ -761,7 +752,7 @@ class TestC2SuggestsTheVendorDeployer:
                 owner_decision_story, "invitee_triages_after_joining"
             ),
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
         ):
             demo.c2_suggests_the_vendor_deployer(state)
@@ -807,7 +798,7 @@ class TestC2SuggestsTheVendorDeployer:
                 owner_decision_story, "invitee_triages_after_joining"
             ),
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
         ):
             demo.c2_suggests_the_vendor_deployer(state)
@@ -847,13 +838,13 @@ class TestC2SuggestsTheVendorDeployer:
             ),
             patch.object(owner_decision_story, "run_case_invite_chain"),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "run_invite_path_rm_triage",
                 side_effect=lambda **_kw: order.append("triage"),
             ),
-            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch.object(coordinated_joining, "wait_for_case_participants"),
             patch_chain_shared(
-                coordinated_story,
+                coordinated_joining,
                 "wait_for_case_on_container",
                 side_effect=_wait_for_case,
             ),
@@ -890,11 +881,11 @@ class TestC2SuggestsTheVendorDeployer:
             ),
             patch.object(owner_decision_story, "run_case_invite_chain"),
             patch.object(
-                coordinated_story, "run_invite_path_rm_triage"
+                coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,
-            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch.object(coordinated_joining, "wait_for_case_participants"),
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ),
             _no_banners(),
         ):
@@ -1120,7 +1111,8 @@ class TestBothVendorsRunTheFixLifecycle:
 
         The per-vendor half — the RM gate, the trigger and the vendor's own VF
         check — is the shared ``vendor_notifies_fix_ready`` (#5534), which
-        resolves its polls in ``coordinated_story``; the coordinator-side
+        resolves its polls in ``coordinated_story.continuations``; the
+        coordinator-side
         milestones this scenario batches over both vendors resolve theirs
         here.  Both modules are patched, because a patch on one alone would
         leave the other polling a stand-in client.
@@ -1128,11 +1120,13 @@ class TestBothVendorsRunTheFixLifecycle:
         order = [] if order is None else order
         with (
             patch.object(
-                coordinated_story,
+                coordinated_continuations,
                 "wait_for_participant_rm_state",
                 side_effect=rm_wait or (lambda **_kw: order.append("rm_wait")),
             ),
-            patch.object(coordinated_story, "wait_for_participant_vf_state"),
+            patch.object(
+                coordinated_continuations, "wait_for_participant_vf_state"
+            ),
             patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "wait_for_participant_d_state"),
             patch.object(demo, "verify_fix_ready") as fix_ready,
@@ -1249,8 +1243,12 @@ class TestBothVendorsRunTheFixLifecycle:
         state = _five_party_state()
 
         with (
-            patch.object(coordinated_story, "wait_for_participant_rm_state"),
-            patch.object(coordinated_story, "wait_for_participant_vf_state"),
+            patch.object(
+                coordinated_continuations, "wait_for_participant_rm_state"
+            ),
+            patch.object(
+                coordinated_continuations, "wait_for_participant_vf_state"
+            ),
             patch.object(demo, "wait_for_participant_vf_state") as vf_wait,
             patch.object(demo, "wait_for_participant_d_state") as d_wait,
             patch.object(demo, "verify_fix_ready"),
@@ -1406,7 +1404,7 @@ class TestAllFiveCloseTheCase:
             patch.object(ActorSession, "leave_case"),
             stub_closure_gate(),
             patch.object(
-                coordinated_story, "close_case_owner_last"
+                coordinated_continuations, "close_case_owner_last"
             ) as closure,
         ):
             demo.all_five_close_the_case(state)
@@ -1625,7 +1623,7 @@ class TestRcvcvUnseatedContainers:
     def test_run_rcvcv_demo_declares_both_character_actors_unseated(self):
         """The cast opening is told which containers to wait on.
 
-        Patched on ``coordinated_story``, where the shared
+        Patched on ``coordinated_story.cast``, where the shared
         ``coordinated_open_cast`` factory looks the opening up: this scenario
         builds its ``open_cast`` callable through that factory rather than
         writing the closure out, so a patch on this module would not reach it.
@@ -1633,7 +1631,7 @@ class TestRcvcvUnseatedContainers:
         with (
             patch.object(demo, "run_story") as run_story,
             patch.object(
-                coordinated_story, "open_coordinated_cast"
+                coordinated_cast, "open_coordinated_cast"
             ) as open_coordinated_cast,
         ):
             demo.run_rcvcv_demo(

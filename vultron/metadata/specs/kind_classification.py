@@ -21,9 +21,8 @@ mechanical checks back it:
   :func:`suppression_status_lines` prints the live totals from ``spec-lint``,
   so they are visible without being committed.
 
-The module sits beside ``lint.py`` rather than inside it so the guards can
-import the very check the linter runs — one detector, two gates — and because
-``lint.py`` is already past the module-size target (CS-18).
+The module sits beside the ``lint`` package rather than inside it so the
+guards can import the very check the linter runs — one detector, two gates.
 
 Scope decisions, each measured against the live corpus (the derivation is in
 ``notes/spec-authoring-rules.md`` § "Why MS-12-006 is scoped the way it is"):
@@ -86,7 +85,7 @@ _TOKEN_TAIL_RE = re.compile(r"[\w./-]*")
 #: names the test that checks a rule, which MS-10-003 and MS-15-001 oblige it
 #: to do, and says nothing about whether the rule is protocol content (#3943).
 #: Behavioral ``steps``, preconditions and postconditions are excluded too,
-#: unlike the MS-15 phantom checks in ``lint.py``: an ECA step carries protocol
+#: unlike the MS-15 phantom checks in ``lint/``: an ECA step carries protocol
 #: shorthand, and the requirement names ``statement`` only.
 _SCANNED_FIELDS = ("statement",)
 

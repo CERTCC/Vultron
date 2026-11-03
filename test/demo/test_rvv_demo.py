@@ -31,9 +31,9 @@ therefore sit here on three things:
   harness reads.
 
 What the shared opening does is not re-tested here: it is one copy of the
-code, and ``test/demo/test_vendor_story.py`` owns it, along with every
+code, and ``test/demo/vendor_story/`` owns it, along with every
 continuation more than one of the four scenarios tells;
-``test/demo/test_coordinated_story.py`` owns the fragments the vendor-first
+``test/demo/coordinated_story/`` owns the fragments the vendor-first
 family reads from the rcv family.  The seeding helper this
 scenario's character actor arrives through is driven for real, against a
 FastAPI TestClient, in ``TestSeedContainersRvv``; so are the two ledger
@@ -87,6 +87,9 @@ from vultron.demo.helpers.cast import CAST, REPORTER_SLOT, VENDOR_SLOT
 from vultron.demo.helpers.coordinated_story import (
     REPORTER,
     REPORTER_LABEL,
+    cast as coordinated_cast,
+    continuations as coordinated_continuations,
+    joining as coordinated_joining,
 )
 from vultron.demo.helpers.polling import (
     wait_for_contiguous_ledger_coverage,
@@ -111,6 +114,9 @@ from vultron.demo.helpers.vendor_story import (
     VENDOR2_LABEL,
     VENDOR_LABEL,
     VENDORS_ANSWER,
+    cast as vendor_cast,
+    continuations as vendor_continuations,
+    opening as vendor_opening,
 )
 from vultron.demo.scenario import (
     rv_demo,
@@ -126,6 +132,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
+
 #: The scenario's three cast names, in the order the story seats them.
 _CAST = (REPORTER, VENDOR, VENDOR2)
 
@@ -136,20 +145,6 @@ _PREFIX_LEN = len(THE_VENDOR_ANSWERS_THE_REPORTER.items)
 #: word: every scenario of the family names its actors the same on the command
 #: line, in ``ROLES`` and in its devlogs (``dump_vendor_ledgers``).
 _DEVLOG_REPLICAS = tuple((name, name) for name in _CAST)
-
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, so a fragment
-    that records a failure would otherwise leave it for the next test to read
-    as its own — where it also changes what ``demo_gate`` does, because a gate
-    skips its body once anything is recorded (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 @contextlib.contextmanager
@@ -354,7 +349,7 @@ class TestRvvCast:
             ) as reset,
             patch.object(seeding, "seed_case_actor_identity") as reseed,
             patch.object(
-                vendor_story, "seed_containers", return_value=tuple(seeded)
+                vendor_cast, "seed_containers", return_value=tuple(seeded)
             ) as seed_two,
             patch.object(
                 story_cast, "get_actor_by_id", side_effect=list(seeded)
@@ -540,7 +535,7 @@ class TestTheSecondVendorIsSeeded:
                 demo, "seed_containers_rvv", return_value=seeded
             ) as seed,
             patch.object(
-                coordinated_story, "get_actor_by_id", side_effect=[seeded[2]]
+                coordinated_cast, "get_actor_by_id", side_effect=[seeded[2]]
             ) as lookup,
             _no_banners(),
         ):
@@ -591,7 +586,7 @@ class TestTheSecondVendorIsSeeded:
 
         with (
             patch.object(demo, "seed_containers_rvv"),
-            patch.object(coordinated_story, "get_actor_by_id"),
+            patch.object(coordinated_cast, "get_actor_by_id"),
             _no_banners(),
             pytest.raises(DemoStoryError, match="no container waiting"),
         ):
@@ -650,10 +645,10 @@ class TestVendor1InvitesTheSecondVendor:
         state = _three_party_state()
 
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
-            patch.object(coordinated_story, "run_case_invite_chain"),
-            patch.object(coordinated_story, "wait_for_case_participants"),
-            patch.object(coordinated_story, "run_invite_path_rm_triage"),
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
+            patch.object(coordinated_joining, "run_case_invite_chain"),
+            patch.object(coordinated_joining, "wait_for_case_participants"),
+            patch.object(coordinated_joining, "run_invite_path_rm_triage"),
             _no_banners(),
             caplog.at_level(logging.INFO),
         ):
@@ -673,11 +668,13 @@ class TestVendor1InvitesTheSecondVendor:
         state = _three_party_state()
 
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
-            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
             patch.object(
-                coordinated_story, "run_invite_path_rm_triage"
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch.object(coordinated_joining, "wait_for_case_participants"),
+            patch.object(
+                coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,
             _no_banners(),
         ):
@@ -711,16 +708,16 @@ class TestVendor1InvitesTheSecondVendor:
 
         with (
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "wait_for_case_on_container",
                 side_effect=lambda client, **_kw: order.append(
                     f"replica:{devlogs_name_of(state, client, _DEVLOG_REPLICAS)}"
                 ),
             ),
-            patch.object(coordinated_story, "run_case_invite_chain"),
-            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch.object(coordinated_joining, "run_case_invite_chain"),
+            patch.object(coordinated_joining, "wait_for_case_participants"),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "run_invite_path_rm_triage",
                 side_effect=lambda **_kw: order.append("triage"),
             ),
@@ -742,11 +739,13 @@ class TestVendor1InvitesTheSecondVendor:
         state = _three_party_state()
 
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
-            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
             patch.object(
-                coordinated_story, "run_invite_path_rm_triage"
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch.object(coordinated_joining, "wait_for_case_participants"),
+            patch.object(
+                coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,
             _no_banners(),
         ):
@@ -770,8 +769,8 @@ class TestTheCaseIsActive:
     """M1: every participant is seated and the embargo is still on.
 
     Whose replicas the shared check reads is the same in all four scenarios,
-    so ``test_vendor_story.py`` owns it; the number and the participants this
-    scenario expects by then are the only thing it decides.
+    so ``test/demo/vendor_story/`` owns it; the number and the participants
+    this scenario expects by then are the only thing it decides.
     """
 
     def test_the_milestone_is_this_scenarios_m1(self):
@@ -929,7 +928,7 @@ class TestTheSecondVendorAddsItsNote:
     """Vendor2 answers the thread the shared opening posted.
 
     That a thread whose answer never landed stops the story is the shared
-    step's own guarantee, which ``test_vendor_story.py`` owns; what this
+    step's own guarantee, which ``test/demo/vendor_story/`` owns; what this
     scenario decides is the single post it hands that step.
     """
 
@@ -951,7 +950,7 @@ class TestTheSecondVendorAddsItsNote:
         state = _three_party_state()
         answer = self._answered(state)
 
-        with patch.object(vendor_story, "add_note_thread") as thread:
+        with patch.object(vendor_continuations, "add_note_thread") as thread:
             demo.the_second_vendor_adds_its_note(state)
 
         watching_client, case, posts = thread.call_args.args
@@ -976,7 +975,7 @@ class TestBothVendorsFixTheVul:
     """Each vendor has a fix path of its own, and both stop at VFd.
 
     The two triggers, their per-vendor RM gates and the order they run in are
-    the shared step's, which ``test_vendor_story.py`` owns; the milestone
+    the shared step's, which ``test/demo/vendor_story/`` owns; the milestone
     numbers are this scenario's.
     """
 
@@ -1025,14 +1024,16 @@ class TestEveryonePublishes:
 
         with (
             patch.object(
-                vendor_story,
+                vendor_continuations,
                 "wait_for_case_em_terminated",
                 side_effect=lambda client, case_id: order.append(
                     f"em_exited:{_name_of(client)}"
                 ),
             ),
-            patch.object(vendor_story, "wait_for_participant_vf_state"),
-            patch.object(vendor_story, "verify_publicly_disclosed"),
+            patch.object(
+                vendor_continuations, "wait_for_participant_vf_state"
+            ),
+            patch.object(vendor_continuations, "verify_publicly_disclosed"),
             patch.object(
                 ActorSession,
                 "notify_published",
@@ -1089,7 +1090,7 @@ class TestEveryoneCloses:
             patch.object(ActorSession, "leave_case"),
             stub_closure_gate(),
             patch.object(
-                coordinated_story, "close_case_owner_last"
+                coordinated_continuations, "close_case_owner_last"
             ) as closure_step,
         ):
             demo.everyone_closes(state)
@@ -1188,30 +1189,30 @@ class TestARosterThatNeverFillsStopsTheStory:
     def _roster(self, *, fills: bool):
         """Run the opening with its roster filling or timing out.
 
-        The roster gate in ``vendor_story`` and the prop read in
+        The roster gate in ``vendor_story.opening`` and the prop read in
         ``required_participants_are_present`` are the subject, so both stay
         real; only the container reads around them are stubbed.
         """
         case = mock_case()
         with (
             patch.object(
-                vendor_story,
+                vendor_opening,
                 "reporter_submits_report",
                 return_value=(MagicMock(), MagicMock(id_="urn:test:offer")),
             ),
             patch.object(
-                vendor_story, "run_direct_path_rm_triage", return_value=case
+                vendor_opening, "run_direct_path_rm_triage", return_value=case
             ),
             patch.object(
-                vendor_story,
+                vendor_opening,
                 "wait_for_case_participants",
                 side_effect=None
                 if fills
                 else AssertionError("roster never filled"),
             ),
-            patch.object(vendor_story, "await_reporter_case_replica"),
-            patch.object(vendor_story, "as_VulnerabilityCase") as mock_vc,
-            patch.object(vendor_story, "verify_case_active") as verify,
+            patch.object(vendor_opening, "await_reporter_case_replica"),
+            patch.object(vendor_opening, "as_VulnerabilityCase") as mock_vc,
+            patch.object(vendor_continuations, "verify_case_active") as verify,
         ):
             # The re-read must be the case the story opened, or restate_case
             # refuses it (#5535); a distinct object with the same id is what
