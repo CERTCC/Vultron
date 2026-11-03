@@ -107,7 +107,7 @@ def _steps_in(tree: ast.AST) -> Counter[tuple[str, str]]:
     every call site today, but nothing stops a hand-placed
     ``reach_step(branch_point="x", choice="y", by=...)``, and a scan that
     required two positional arguments would not see it — leaving the
-    "a composed scenario places no reach_step by hand" ratchet below passing
+    "a scenario places no reach_step by hand" ratchet below passing
     over the one call it exists to forbid (#5533).
     """
     steps: Counter[tuple[str, str]] = Counter()

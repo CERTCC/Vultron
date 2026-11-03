@@ -2814,7 +2814,7 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The flattened story of every scenario written as composition MUST be
+          The flattened story of every registered scenario MUST be
           committed as a generated plot manifest. An entry lists the story's
           items in order: each choice by branch point, choice and deciding cast
           member, and each fragment by qualified name.
@@ -2828,9 +2828,9 @@ groups:
           DEMOMA-17-002 forbids. The manifest cannot see an edit inside a
           fragment's body; only a recording can.
         verification: >-
-          A shape test asserts the manifest holds one entry per scenario
-          written as composition, whose items equal its story's choices and
-          fragment names in order.
+          A shape test asserts the manifest holds one entry per registered
+          scenario, whose items equal its story's choices and fragment names
+          in order.
         adr:
           - ADR-0098
 

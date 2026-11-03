@@ -13,12 +13,14 @@
 """Ratchets over the branch-point table and the scenario tree (DEMOCI-11-013/014).
 
 The branch-point table defines every decision of the demo once; each
-registered scenario declares its path through it on ``@scenario``; discovery
-merges the paths into one tree. These tests prove the table is well formed,
-that every choice is a trigger the routers expose, that a malformed path or a
-set of paths that is not one tree fails discovery (each on a mutated fixture
-registry), and that the committed registry is one tree in which every
-scenario is exactly one ending.
+registered scenario declares its path through it as the choices of its
+assembled story, never on ``@scenario``, which takes no path parameter
+(DEMOCI-11-019, DEMOCI-11-024); discovery merges the paths into one tree.
+These tests prove the table is well formed, that every choice is a trigger
+the routers expose, that a malformed path or a set of paths that is not one
+tree fails discovery (each on a mutated fixture registry), and that the
+committed registry is one tree in which every scenario is exactly one
+ending.
 
 Kept in ``test/demo_unit/`` for the reason ``test_scenario_registry.py``
 gives: ``test/demo/`` is auto-marked ``integration`` and deselected by default.
