@@ -210,8 +210,6 @@ groups:
       cannot correct the proposal or decide whether to escalate. A reason gives the
       participant something to act on; it is a SHOULD because a refusal can stand
       without one.
-    stories:
-    - story_2026_006
   - id: RF-03-003
     priority: MUST
     kind: protocol
@@ -276,8 +274,6 @@ groups:
       A provisional refusal invites a revised proposal. Without a reason the initiator
       cannot tell what would make the proposal acceptable; it is a SHOULD because a
       refusal can stand without one.
-    stories:
-    - story_2026_006
   - id: RF-04-003
     priority: MUST
     kind: protocol

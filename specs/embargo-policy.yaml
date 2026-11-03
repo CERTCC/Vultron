@@ -132,7 +132,7 @@ groups:
     - rel_type: refines
       spec_id: EP-01-003
     stories:
-    - story_2022_014
+    - story_2022_010
   - id: EP-01-007
     priority: SHOULD
     kind: protocol
@@ -146,7 +146,7 @@ groups:
     - rel_type: refines
       spec_id: EP-01-003
     stories:
-    - story_2022_014
+    - story_2022_010
 - id: EP-02
   title: API Endpoint
   specs:
@@ -510,7 +510,7 @@ groups:
       revision write in turn and asserts the case stays at `EM.NONE` and that a rerun seeds
       the owner and registers the revision (#4142).
     stories:
-    - story_2022_014
+    - story_2022_010
   - id: EP-04-013
     priority: MUST_NOT
     kind: project
