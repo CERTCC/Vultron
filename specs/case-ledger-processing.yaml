@@ -834,25 +834,25 @@ groups:
       and skip it, and the hash chain then depends on traffic that the CASE_MANAGER did
       not admit.
     stories:
-    - story_2026_023
+    - story_2026_002
   - id: CLP-05-003
-    priority: MUST
+    priority: MUST_NOT
     kind: protocol
     verification: >-
       Inspection confirms local tracking and duplicate-detection markers are held in
       per-actor stores such as `PendingAssertionStore` and that no code path constructs
       a `CaseLedgerEntry` for one.
     statement: >-
-      An actor's local tracking markers and duplicate-detection markers MUST be kept in
-      that actor's own ephemeral state, outside the canonical case ledger, which holds
-      only admitted entries (CLP-04-007).
+      Implementations MUST NOT record local-only tracking markers or duplicate-detection
+      markers as `CaseLedgerEntry` objects of any kind; such markers belong in ephemeral
+      per-actor state, not in the canonical ledger.
     rationale: >-
       A duplicate marker or a local tracking marker is one actor's working state. If it
       is an entry, it replicates to every participant and becomes part of the hash
       chain. Then the chain depends on the timing of one actor's processing and not on
       the case history.
     stories:
-    - story_2026_023
+    - story_2026_002
 - id: CLP-06
   title: Pending Assertion Suppression
   specs:
@@ -1390,17 +1390,16 @@ groups:
     - story_2022_045
     - story_2022_089
   - id: CLP-07-004
-    priority: MUST
+    priority: MUST_NOT
     kind: protocol
     verification: >-
       Inspection confirms no code path commits a `CaseLedgerEntry` for a diagnostic,
       demo checkpoint, verification marker or other per-actor observability event; such
       events go to the process log.
     statement: >-
-      Runtime diagnostics, demo checkpoints, synthetic verification markers,
-      troubleshooting events and other per-actor observability content MUST be kept in
-      each actor's own logs, outside the canonical case ledger, which holds only
-      admitted entries (CLP-04-007).
+      The canonical case ledger MUST NOT contain runtime diagnostics, demo checkpoints,
+      synthetic verification markers, troubleshooting events, or any per-actor observability
+      content; such content belongs in each actor's own logs.
     rationale: >-
       The ledger replicates to every participant and the hash chain covers it.
       Diagnostics and checkpoints depend on one actor's runtime. If they enter the
@@ -1409,7 +1408,7 @@ groups:
     adr:
     - ADR-0019
     stories:
-    - story_2026_023
+    - story_2026_002
   - id: CLP-07-005
     priority: SHOULD
     kind: project
@@ -1938,12 +1937,12 @@ groups:
     adr:
     - ADR-0021
   - id: CLP-10-004
-    priority: MUST
+    priority: MUST_NOT
     kind: protocol
     statement: >-
-      The `payloadSnapshot` of a canonical ledger entry MUST be the case activity that
-      the entry admits. An `Announce(CaseLedgerEntry)` replication envelope only carries
-      canonical entries to participants, so it is not a case activity.
+      An `Announce(CaseLedgerEntry)` replication envelope MUST NOT itself be recorded as the
+      `payloadSnapshot` of a canonical ledger entry; it is the envelope that carries
+      canonical entries to participants, not a ledger event.
     rationale: >-
       The `Announce(CaseLedgerEntry)` envelope only delivers entries. An entry whose
       payload is the envelope would itself need an envelope to deliver it. Each
@@ -1956,7 +1955,7 @@ groups:
       reaches no ledger commit, so an `Announce(CaseLedgerEntry)` is never committed as a
       canonical entry's `payloadSnapshot`.
     stories:
-    - story_2026_023
+    - story_2026_002
   - id: CLP-10-023
     priority: MUST_NOT
     kind: project
