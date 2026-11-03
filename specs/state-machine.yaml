@@ -18,12 +18,16 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: All protocol state axes (RM, EM, VFD, PXA) MUST be defined using Python `StrEnum`
+    statement: >-
+      RM, EM, VF, D and PEC MUST each be a Python `StrEnum`, and PXA an `Enum` of
+      three-flag `PxaState` tuples that serializes by member name.
     rationale: >-
       A `StrEnum` member is equal to its string value and serializes as that string. A
       state that is stored or sent as a bare label (SM-08-001, SM-08-003) thus reads
       back as the same member, and code can compare it with a received string without a
-      conversion step.
+      conversion step. A PXA state is three flags, and code reads each flag off the
+      member's tuple value. Its member name, such as `pxa`, is still a bare label, so
+      `PxaDimension` writes that name and reads it back to the same member.
   - id: SM-01-002
     priority: SHOULD
     kind: project
@@ -158,15 +162,23 @@ groups:
   - id: SM-05-002
     priority: MUST
     kind: project
-    statement: The `current_status` property (or equivalent) MUST return the single most-recently-timestamped entry from the
-      history list
+    statement: >-
+      A participant's current status MUST be the last `ParticipantStatus` appended to
+      its history, the baseline its transition guards judge an update against. A case's
+      current status is the one CM-29-001's timestamp rule selects.
     rationale: >-
       A history holds more than one entry, and each reader needs the same current value
-      from it. One fixed rule picks the entry with the latest timestamp, and the last
-      entry appended when two timestamps are equal. Every reader of one history then
-      gets the same answer.
-    verification: A unit test confirms `current_status` returns the entry with the latest timestamp when the history
-      list contains multiple entries; a single-entry history returns that entry.
+      from it. A participant's statuses are appended only after the transition guards
+      accept them, so append order is the order this actor accepted them in. A
+      received status carries the sender's time, which can be earlier than a status
+      already held (ADR-0103), so a timestamp rule could make an older status current
+      and judge the next update against the wrong baseline.
+    verification: >-
+      `TestParticipantStatusProperty.test_returns_last_appended_even_when_earlier_status_has_newer_timestamp`
+      in `test/wire/as2/vocab/test_case_participant.py` confirms that a participant's
+      current status is the last one appended, even when an earlier one has a newer
+      timestamp. `TestVulnerabilityCaseCurrentStatus` in
+      `test/core/models/test_case.py` confirms the case rule.
     relationships:
     - rel_type: implements
       spec_id: CM-03-006
@@ -178,26 +190,19 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: Status history entries MUST record a trusted server-side timestamp (`received_at` or `updated`) set via `now_utc()`
-      at write time
+    statement: >-
+      Each status MUST carry its author's time: the sender's `published` and `updated`,
+      as sent or absent, when received, and `now_utc()` at creation when authored here. The trusted time of a received event is its ledger entry's commit
+      stamp (CM-02-009), not a field on the status.
     rationale: >-
-      The rule that picks the current status (SM-05-002) is only as good as the
-      timestamps it compares. A time that a sender gives can be wrong, or it can be
-      absent. A time that the writer sets from its own clock gives an order that the
-      writer can trust.
-    relationships:
-    - rel_type: implements
-      spec_id: CM-02-009
-      note: case-management.md
-  - id: SM-05-004
-    priority: SHOULD
-    kind: architecture
-    statement: The case state log SHOULD store references (IDs) to entries in the main case history log rather than duplicating
-      full record content
-    rationale: >-
-      When a status record is stored in full in two logs, the two copies can differ
-      after one of them changes. A reference by ID keeps one copy of the record, so the
-      state log and the history log cannot disagree.
+      A status's `published` and `updated` say when its author made it. A receiver that
+      wrote its own clock there would replace that claim with its arrival time, and two
+      replicas of one status would then disagree. A receiver that filled an omitted
+      time would claim a time that the sender never sent (ADR-0103). The time that this
+      actor can trust for ordering is the commit stamp on the ledger entry
+      (CLP-14-002), so the status needs no second trusted field.
+    adr:
+    - ADR-0103
 - id: SM-06
   title: In-Memory (Transient) State
   specs:

@@ -18,6 +18,8 @@ TestRehydrateFields (_rehydrate_fields expansion), and hydrate() for list fields
 Fixtures (dl) come from conftest.
 """
 
+import pytest
+
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.wire.as2.factories import rm_submit_report_activity
@@ -236,6 +238,7 @@ def test_hydrate_leaves_already_expanded_participants_unchanged(dl):
     assert len(hydrated.case_participants) == 1
 
 
+@pytest.mark.spec("VM-06-004")
 def test_hydrate_keeps_unresolvable_string_ids(dl):
     """hydrate() keeps participant IDs that don't exist in the DataLayer."""
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -252,6 +255,7 @@ def test_hydrate_keeps_unresolvable_string_ids(dl):
     assert hydrated.case_participants[0] == missing_id
 
 
+@pytest.mark.spec("VM-06-004")
 def test_hydrate_warns_for_unresolvable_string_ids(dl, caplog):
     """hydrate() logs a WARNING when a list item ID cannot be resolved."""
     import logging
