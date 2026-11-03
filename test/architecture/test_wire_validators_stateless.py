@@ -32,10 +32,12 @@ import ast
 import inspect
 import sys
 import textwrap
+from pathlib import Path
 from types import ModuleType
 
 import pytest
 
+from test.architecture import _corpus
 from test.support.core_vocab import import_all_core_models
 from vultron.subclasses import all_subclasses
 from vultron.wire.as2.vocab.base.base import as_Base
@@ -88,7 +90,7 @@ def _validator_functions(cls: type[as_Base]) -> list[object]:
 
 
 def _imported_modules(module: ModuleType) -> set[str]:
-    tree = ast.parse(inspect.getsource(module))
+    tree = _corpus.tree_of(Path(inspect.getfile(module)))
     names: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -100,7 +102,7 @@ def _imported_modules(module: ModuleType) -> set[str]:
 
 def _names_in(func: object) -> set[str]:
     raw = getattr(func, "__func__", func)
-    tree = ast.parse(textwrap.dedent(inspect.getsource(raw)))  # type: ignore[arg-type]
+    tree = _corpus.parse_inline(textwrap.dedent(inspect.getsource(raw)))  # type: ignore[arg-type]
     names: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Name):
