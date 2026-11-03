@@ -135,6 +135,7 @@ def owner_world(actor_store):
 
 @pytest.mark.spec("TRIG-11-006")
 @pytest.mark.spec("CM-21-015")
+@pytest.mark.spec("TRIG-11-004")
 def test_withdrawal_is_addressed_to_the_case_manager(owner_world):
     dl, owner, case_manager, _, offer = owner_world
 

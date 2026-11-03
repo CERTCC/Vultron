@@ -51,12 +51,13 @@ groups:
       wire class name, such as `as_VultronPerson`. This codebase MUST NOT read a
       `VOCABULARY` key as an AS2 `type` value.
     lint_suppress:
-    # compound_statement: the MUST NOT has no check, and this item has no
-    # verification_debt marker that a split child could carry (MS-10-016), so
-    # the split PR writes that check for the new ID (#5662). The
-    # inbound lookup (find_in_vocabulary) still consults VOCABULARY keys, but an
-    # inbound `"type": "as_Accept"` is then refused by the class's `type` Literal,
-    # so it never resolves.
+    # compound_statement: the MUST NOT does not hold yet, so a split child has no
+    # passing check, and this item has no verification_debt marker for it to carry
+    # (MS-10-016). find_in_vocabulary consults VOCABULARY keys for every `type`
+    # value, and only a class's `type` Literal refuses one: `"type": "as_Accept"`
+    # is refused, but `as_Activity.type_` is a bare `str`, so `"type":
+    # "as_Activity"` resolves. Split it once #5738 lands and a test checks that
+    # half (#5662).
     - compound_statement
     rationale: >-
       The two registries answer different questions, so they carry different key forms:
@@ -590,9 +591,6 @@ groups:
       keeps an unresolved nested `object` URI, names it in a DEBUG record, logs no
       WARNING, and raises nothing.
     relationships:
-    - rel_type: implements
-      spec_id: SE-01-003
-      note: semantic-extraction.md
     - rel_type: refines
       spec_id: ARCH-25-029
   - id: VM-06-005
@@ -789,9 +787,11 @@ groups:
     kind: project
     statement: Serialized wire-layer objects MUST exclude `None` fields and MUST exclude empty string fields
     lint_suppress:
-    # compound_statement: the empty-string half has no check, and this item has no
-    # verification_debt marker that a split child could carry (MS-10-016). The split
-    # PR writes that check for the new ID (#5662).
+    # compound_statement: the empty-string half does not hold yet: nothing strips a
+    # blank value on output, so `as_Object(name="")` serializes `"name": ""`. A split
+    # child has no passing check, and this item has no verification_debt marker for
+    # it to carry (MS-10-016). Split it once #5739 lands and a test checks that
+    # half (#5662).
     - compound_statement
     rationale: >-
       Under the rule "if present, then non-empty" (CS-08-001), a blank value means the

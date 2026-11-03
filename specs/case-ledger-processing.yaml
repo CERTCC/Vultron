@@ -1818,8 +1818,9 @@ groups:
   description: Requirements for the end-to-end routing path that delivers protocol-significant
     activities to the CASE_MANAGER's inbox so the CASE_MANAGER can author canonical ledger
     entries. Covers outbound addressing rules, the rule that the CASE_MANAGER commits its
-    own emissions in the emitting tree rather than mailing itself a copy (ADR-0109), and
-    the rule that a received-side use case runs its tree only as the receiving actor.
+    own emissions in the emitting tree rather than addressing a copy to itself
+    (ADR-0109), and the rule that a received-side use case runs its tree only as the
+    receiving actor.
   specs:
   - id: CLP-10-001
     priority: MUST
@@ -2624,7 +2625,7 @@ groups:
     rationale: >-
       `to:` and `cc:` arrive as the sender wrote them, and the receiving actor id is
       canonical. An exact match misses a recipient written with a trailing slash, and
-      the receiver refuses mail that was addressed to it.
+      the receiver refuses an activity that was addressed to it.
       `Offer(VulnerabilityReport)` can have several recipients and reads its
       eligibility from `to:` (HP-09-001), so this mistake refuses a valid report.
     verification: >-
@@ -3366,7 +3367,7 @@ groups:
       example is `invite_actor_to_case`.
     rationale: >-
       The CASE_MANAGER's store holds the canonical ledger, so its own act is committed
-      where it is sent, with no copy mailed to itself.
+      where it is sent, with no copy addressed to itself.
     verification: >-
       `test_note_is_recorded_and_announced_to_the_owner` in
       `test/core/behaviors/case/nodes/test_suggest_actor_owner_recipient.py` runs the

@@ -49,7 +49,7 @@ payload or manifest, bad base ref, a checkout not at the PR's head, failed
 ``spec-amendments.sh`` call).
 
 Requirements: specs/parallel-development.yaml PAD-20;
-specs/project-documentation.yaml PD-03-008, PD-03-013.
+specs/project-documentation.yaml PD-03-008, PD-03-013, PD-03-014.
 """
 
 from __future__ import annotations
@@ -119,7 +119,7 @@ RULES: tuple[Rule, ...] = (
         "PRB-04",
         "issues-line",
         "An implementation PR's `## Summary` ends with `Issues: closed N, "
-        "opened M`.",
+        "opened M`, or with that line followed by the `Questions:` line.",
     ),
     Rule(
         "PRB-05",
@@ -145,7 +145,8 @@ RULES: tuple[Rule, ...] = (
         "An implementation PR, or one closing a Task, Feature or Bug, has a "
         "line beginning `Docs:`; at the final "
         "stage it is not the placeholder and takes a final form "
-        "(`updated …`, `no docs impact — …`, `deferred to #N`).",
+        "(`updated …`, `no docs impact — …`, `no maintainer docs impact — …`, "
+        "`deferred to #N`).",
     ),
     Rule(
         "PRB-09",
@@ -163,6 +164,20 @@ RULES: tuple[Rule, ...] = (
         "PRB-11",
         "body-length",
         "The body is at most GitHub's 65,536-character limit, at every stage.",
+    ),
+    Rule(
+        "PRB-12",
+        "maintainer-docs-followup",
+        "When the diff changes a workflow or tooling file and no "
+        "maintainer-facing doc, a `Docs:` line exists; at the final stage it "
+        "names the follow-up issue (`deferred to #N`) or says why no "
+        "maintainer doc needs the change (`no maintainer docs impact — …`).",
+    ),
+    Rule(
+        "PRB-13",
+        "questions-line",
+        "An implementation PR's `## Summary` ends with `Questions: asked N, "
+        "filed M`, directly after the `Issues:` line.",
     ),
 )
 
@@ -195,11 +210,93 @@ _SECTION_LEVEL = 2
 _BLOCK_LEVEL = 3
 _COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 _ISSUES_RE = re.compile(r"^Issues: closed \d+, opened \d+\b")
+_QUESTIONS_RE = re.compile(r"^Questions: asked \d+, filed \d+\b")
 _RANGE_RE = re.compile(r"\b[A-Z]+-\d\d(?:-\d{3})?\.\.")
 _ATTRIBUTION_RE = re.compile(r"Generated with \[[^\]]+\]\([^)]+\)")
 _DOCS_FINAL_RE = re.compile(
     r"^Docs: (?:updated \S.*|no docs impact — \S.*|deferred to #\d+)$"
 )
+#: The fourth final form, which answers only the maintainer-docs question: a
+#: final form only on a PR with a maintainer-docs gap (PRB-12), since it says
+#: nothing about ``docs/`` pages (PD-03-013).
+_DOCS_MAINTAINER_ONLY_RE = re.compile(
+    r"^Docs: no maintainer docs impact — \S.*$"
+)
+#: A ``Docs:`` line that accounts for a maintainer-docs gap (PRB-12): it names
+#: the follow-up issue, or says why no maintainer doc needs the change. Each
+#: clause starts the line or follows a ``; `` separator, so a reason that
+#: merely mentions a deferral does not count. The reader-facing
+#: ``no docs impact`` verdict does not count either: it answers whether a
+#: ``docs/`` page describes the change, not whether a maintainer doc does.
+_DOCS_GAP_RE = re.compile(
+    r"(?:^Docs: |; )(?:deferred to #\d+(?:;|$)|no maintainer docs impact — \S)"
+)
+
+#: Path prefixes of workflow and tooling files: CI workflows and their
+#: scripts, the skills agents run, the project's metadata tools, and the
+#: development container and images (PRB-12).
+TOOLING_PREFIXES: tuple[str, ...] = (
+    ".github/workflows/",
+    ".github/scripts/",
+    ".github/actions/",
+    ".agents/skills/",
+    "vultron/metadata/",
+    "scripts/",
+    ".devcontainer/",
+    "docker/",
+    ".githooks/",
+)
+#: Single tooling files at the repository root (PRB-12).
+TOOLING_FILES: frozenset[str] = frozenset(
+    {".pre-commit-config.yaml", "mdlint.sh", "Makefile", "start-dev.sh"}
+)
+
+#: Path prefixes of maintainer-facing documentation: the maintainer and agent
+#: docs trees, design notes, and contributor instructions (PRB-12). Any
+#: ``AGENTS.md`` and any Markdown file under ``.agents/skills/`` count too.
+MAINTAINER_DOC_PREFIXES: tuple[str, ...] = (
+    "docs/developer/",
+    "docs/agents/",
+    "notes/",
+    ".github/instructions/",
+)
+MAINTAINER_DOC_FILES: frozenset[str] = frozenset(
+    {
+        "CONTRIBUTING.md",
+        "README-DEV.md",
+        ".devcontainer/README.md",
+        ".github/copilot-instructions.md",
+    }
+)
+
+
+def is_maintainer_doc(path: str) -> bool:
+    """Whether *path* is maintainer-facing documentation (PD-03-006)."""
+    return (
+        path in MAINTAINER_DOC_FILES
+        or path.startswith(MAINTAINER_DOC_PREFIXES)
+        or Path(path).name == "AGENTS.md"
+        or (path.startswith(".agents/skills/") and path.endswith(".md"))
+    )
+
+
+def undocumented_tooling(files: Sequence[str]) -> tuple[str, ...]:
+    """The workflow or tooling files in *files*, when *files* has no doc.
+
+    Empty when the diff changes no workflow or tooling file, or changes at
+    least one maintainer-facing doc (PD-03-006): only a tooling change with
+    no maintainer doc beside it needs a ``Docs:`` line to account for the
+    gap (PD-03-014).
+    """
+    if any(is_maintainer_doc(f) for f in files):
+        return ()
+    return tuple(
+        sorted(
+            f
+            for f in files
+            if f in TOOLING_FILES or f.startswith(TOOLING_PREFIXES)
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -214,6 +311,9 @@ class BodyFacts:
         manifest: The resolved Spec manifest text, when one was given.
         closes_work_item: The PR closes a ``Task``, ``Feature`` or ``Bug``,
             which needs a ``Docs:`` line whatever the template (PD-03-013).
+        undocumented_tooling: The workflow or tooling files the diff changes
+            when it changes no maintainer-facing doc (PD-03-014); see
+            :func:`undocumented_tooling`.
     """
 
     pr_type: PrType
@@ -222,6 +322,7 @@ class BodyFacts:
     stage: Stage = Stage.PRE_PUSH
     manifest: str | None = None
     closes_work_item: bool = False
+    undocumented_tooling: tuple[str, ...] = ()
 
     @property
     def needs_docs_line(self) -> bool:
@@ -318,18 +419,26 @@ def _check_closing(body: _Body) -> Iterator[Finding]:
 
 
 def _check_sections(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
-    """PRB-03, PRB-04 and PRB-07."""
+    """PRB-03, PRB-04, PRB-07 and PRB-13."""
     for name in ("Summary", "Changes"):
         if body.section(name) is None:
             yield Finding("PRB-03", f"no `## {name}` section")
     summary = body.section("Summary")
     if facts.pr_type is PrType.IMPLEMENTATION and summary is not None:
-        last = next((ln.strip() for ln in reversed(summary) if ln.strip()), "")
-        if not _ISSUES_RE.match(last):
+        lines = [ln.strip() for ln in summary if ln.strip()] or [""]
+        has_questions = bool(_QUESTIONS_RE.match(lines[-1]))
+        issues = lines[-2] if has_questions and len(lines) > 1 else lines[-1]
+        if not _ISSUES_RE.match(issues):
             yield Finding(
                 "PRB-04",
-                "the last line of `## Summary` is not `Issues: closed N, "
-                "opened M`",
+                "`## Summary` does not end with `Issues: closed N, opened M` "
+                "(followed only by the `Questions:` line)",
+            )
+        if not has_questions:
+            yield Finding(
+                "PRB-13",
+                "the last line of `## Summary` is not `Questions: asked N, "
+                "filed M`",
             )
     if facts.py_changed and body.section("Verification") is None:
         yield Finding(
@@ -374,15 +483,42 @@ def _check_specs(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
                 )
 
 
-def _check_docs(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
-    """PRB-08."""
-    if not facts.needs_docs_line:
-        return
-    docs = [
+def _docs_lines(body: _Body) -> list[str]:
+    """Every unfenced line of *body* that begins ``Docs:``, stripped."""
+    return [
         ln.strip()
         for ln, fenced in zip(body.lines, body.fenced, strict=True)
         if not fenced and ln.strip().startswith("Docs:")
     ]
+
+
+def _is_final_docs_line(line: str, facts: BodyFacts) -> bool:
+    """Whether *line* takes a final ``Docs:`` form for this PR.
+
+    The bare ``no maintainer docs impact — …`` form is final only on a PR
+    with a maintainer-docs gap (PRB-12).
+    """
+    return bool(
+        _DOCS_FINAL_RE.match(line)
+        or (
+            facts.undocumented_tooling and _DOCS_MAINTAINER_ONLY_RE.match(line)
+        )
+    )
+
+
+def _not_final_message(line: str, facts: BodyFacts) -> str:
+    """The finding text for a ``Docs:`` line in no final form."""
+    forms = "`updated <page>, ...`, `no docs impact — <reason>`, "
+    if facts.undocumented_tooling:
+        forms += "`no maintainer docs impact — <reason>`, "
+    return f"{line!r} is not a final `Docs:` form: {forms}or `deferred to #N`"
+
+
+def _check_docs(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
+    """PRB-08."""
+    if not facts.needs_docs_line:
+        return
+    docs = _docs_lines(body)
     if not docs:
         yield Finding(
             "PRB-08",
@@ -399,12 +535,64 @@ def _check_docs(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
                 "the `Docs:` line is still the placeholder; replace it with "
                 "the line check-docs-sync reported (PD-03-013)",
             )
-        elif not _DOCS_FINAL_RE.match(line):
+        elif not _is_final_docs_line(line, facts):
+            yield Finding("PRB-08", _not_final_message(line, facts))
+
+
+def _check_maintainer_docs(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
+    """PRB-12 (PD-03-014).
+
+    On a PR that PRB-08 covers, PRB-08 already reports a missing line and
+    the placeholder at the final stage, so this rule stays silent there; on
+    any other PR it reports both itself, and a line in no final form. The
+    gap test is coarse: any maintainer-facing doc in the diff closes it, so
+    whether that doc covers the change is left to review (``pr-triage``).
+    """
+    if not facts.undocumented_tooling:
+        return
+    shown = ", ".join(facts.undocumented_tooling[:3])
+    if len(facts.undocumented_tooling) > 3:
+        shown += f" and {len(facts.undocumented_tooling) - 3} more"
+    docs = _docs_lines(body)
+    if not docs:
+        if not facts.needs_docs_line:
             yield Finding(
-                "PRB-08",
-                f"{line!r} is not a final `Docs:` form: `updated <page>, ...`, "
-                f"`no docs impact — <reason>`, or `deferred to #N`",
+                "PRB-12",
+                f"the diff changes workflow or tooling files ({shown}) and "
+                f"no maintainer-facing doc, but the body has no `Docs:` "
+                f"line; add `Docs: deferred to #N` naming the follow-up "
+                f"docs issue, or `Docs: no maintainer docs impact — <reason>`",
             )
+        return
+    if facts.stage is Stage.FINAL:
+        yield from _judge_maintainer_docs_line(docs, facts, shown)
+
+
+def _judge_maintainer_docs_line(
+    docs: Sequence[str], facts: BodyFacts, shown: str
+) -> Iterator[Finding]:
+    """PRB-12 at the final stage, on a body that has a ``Docs:`` line."""
+    if facts.needs_docs_line:
+        if any(line == DOCS_PLACEHOLDER for line in docs):
+            return
+    else:
+        # PRB-08 does not judge a docs PR's line, so this rule checks its
+        # form; a line in no final form is reported once, as that.
+        unfinished = [ln for ln in docs if not _is_final_docs_line(ln, facts)]
+        for line in unfinished:
+            yield Finding("PRB-12", _not_final_message(line, facts))
+        if unfinished:
+            return
+    if not any(_DOCS_GAP_RE.search(line) for line in docs):
+        yield Finding(
+            "PRB-12",
+            f"the diff changes workflow or tooling files ({shown}) and no "
+            f"maintainer-facing doc, but the `Docs:` line names no follow-up "
+            f"issue; update the maintainer docs in this PR, or add "
+            f"`deferred to #N` naming the follow-up docs issue, or "
+            f"`no maintainer docs impact — <reason>` when no maintainer doc "
+            f"needs the change",
+        )
 
 
 def _check_amended(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
@@ -474,6 +662,7 @@ def lint_body(text: str, facts: BodyFacts) -> list[Finding]:
         *_check_amended(body, facts),
         *_check_attribution(body),
         *_check_length(text),
+        *_check_maintainer_docs(body, facts),
     ]
     order = {rule.rule_id: i for i, rule in enumerate(RULES)}
     return sorted(findings, key=lambda f: order[f.rule_id])
@@ -640,6 +829,7 @@ def _gather(
         stage=Stage(args.stage),
         manifest=_read(args.manifest) if args.manifest else None,
         closes_work_item=args.closes_work_item,
+        undocumented_tooling=undocumented_tooling(files),
     )
     return text, facts
 
@@ -678,6 +868,8 @@ def cli() -> None:
 
 __all__ = [
     "DOCS_PLACEHOLDER",
+    "MAINTAINER_DOC_FILES",
+    "MAINTAINER_DOC_PREFIXES",
     "MANIFEST_LINES",
     "RULES",
     "RULES_BY_ID",
@@ -687,8 +879,12 @@ __all__ = [
     "Rule",
     "SetupError",
     "Stage",
+    "TOOLING_FILES",
+    "TOOLING_PREFIXES",
     "amended_ids",
     "cli",
+    "is_maintainer_doc",
     "lint_body",
     "main",
+    "undocumented_tooling",
 ]

@@ -49,6 +49,11 @@ STORY_ROOT = f"docs/{STORY_DIR}"
 #: filenames are stories (SR-11-002).
 STORY_ID_RE = re.compile(STORY_ID_PATTERN)
 
+#: The markers around a story page's text. The generated table and matrix
+#: quote what lies between them, so every page carries each exactly once.
+STORY_START = "<!-- story-start -->"
+STORY_END = "<!-- story-end -->"
+
 
 def story_page(story_id: str) -> str:
     """Return the ``STORY_DIR``-relative page name of *story_id*."""
@@ -101,8 +106,10 @@ def story_catalog(root: Path) -> frozenset[str]:
 
 __all__ = [
     "STORY_DIR",
+    "STORY_END",
     "STORY_ID_RE",
     "STORY_ROOT",
+    "STORY_START",
     "story_catalog",
     "story_ids",
     "story_page",

@@ -34,8 +34,9 @@ groups:
       A scenario under `vultron/demo/scenario/`, and the helper code it calls, MUST NOT
       post an activity to the inbox of any actor.
     rationale: >-
-      Delivery is the job of the transport. When a scenario carries the mail itself, the
-      outbox, delivery and inbox path never runs, and demo CI proves nothing end to end.
+      Delivery is the job of the transport. When a scenario delivers an activity itself,
+      the outbox, delivery and inbox path never runs, and demo CI proves nothing end to
+      end.
       The rule has no self-delivery exception: an actor's replica updates from the
       CaseActor's `Announce`, so a replica that does not update means that the routing
       is wrong. The exchange demos under `vultron/demo/exchange/` drive one backend
@@ -3027,12 +3028,15 @@ groups:
     statement: >-
       The `vultron-demo rccv-handoff` sub-command MUST expose the `--reporter-url`,
       `--c1-url`, `--c2-url`, `--vendor-url`, `--case-actor-url`, `--reporter-id`,
-      `--c1-id`, `--c2-id`, `--vendor-id`, `--case-actor-id` and `--skip-health-check`
-      options.
+      `--c1-id`, `--c2-id`, `--vendor-id` and `--skip-health-check` options.
     rationale: >-
-      Each container of the scenario needs an address and an actor id that an operator
-      can override, and a CI run can skip the health check. The options come from the
-      module's `ROLES`, so a role that is missing there has no option.
+      Each container of the scenario needs an address an operator can override, each
+      cast actor needs an id an operator can override, and a CI run can skip the health
+      check.
+      The CaseActor takes no id option: its container seeds the one fixed CaseActor id
+      of the cast (DEMOCI-11-020), so an override would have nothing to select.
+      The options come from the module's `ROLES`, so a role that is missing there has no
+      option.
     verification: >-
       `TestRccvHandoffCliCommand::test_the_option_is_offered` in
       `test/demo/test_rccv_handoff_demo.py` asserts that each named option appears in
@@ -4382,10 +4386,9 @@ groups:
     verification_debt: '#2573'
     statement: >-
       The RCVCV scenario MUST use polling helpers (not `post_to_inbox_and_wait`) to
-      deliver the invite to V2's inbox, consistent with the no-mail-carrying rule
-      (DEMOMA-00-002).
+      deliver the invite to V2's inbox, consistent with DEMOMA-00-002.
     rationale: >-
-      The no-mail-carrying rule requires that the demo orchestrator never post
+      DEMOMA-00-002 requires that the demo orchestrator never post
       directly to another actor's inbox; the invite must arrive via the normal
       routing path and be detected by polling.
     relationships:
@@ -4533,8 +4536,8 @@ groups:
     rationale: >-
       The CASE_MANAGER relays every embargo proposal and records each step (ADR-0113).
       Each participant then reads the relayed `Invite(EmbargoEvent)` from its own
-      replica. A participant that polled for another's message would depend on mail it
-      was never sent.
+      replica. A participant that polled for another's message would depend on an
+      activity it was never sent.
     adr:
     - ADR-0113
     relationships:
@@ -4934,8 +4937,8 @@ groups:
       Inviting V2 after the revision is complete — rather than before — is the
       defining characteristic of variation (f): the coordinator delays
       notification of a short-deadline vendor until the embargo terms are
-      settled. The invitation reaches V2 through normal delivery, never by mail
-      carrying (DEMOMA-00-002).
+      settled. The invitation reaches V2 through normal delivery, never by a post from
+      the scenario to its inbox (DEMOMA-00-002).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-21-001
@@ -5234,10 +5237,9 @@ groups:
     verification_debt: '#2573'
     statement: >-
       The rcvv-embargo scenario MUST use polling helpers (not `post_to_inbox_and_wait`)
-      to detect the invite in V2's inbox, consistent with the no-mail-carrying rule
-      (DEMOMA-00-002).
+      to detect the invite in V2's inbox, consistent with DEMOMA-00-002.
     rationale: >-
-      The no-mail-carrying rule requires that the demo orchestrator never post
+      DEMOMA-00-002 requires that the demo orchestrator never post
       directly to another actor's inbox; polling ensures the invite arrives via
       the normal routing path.
     relationships:

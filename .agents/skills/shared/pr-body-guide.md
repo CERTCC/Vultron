@@ -34,7 +34,7 @@ This table and the tool's `RULES` are one list; a test fails when they differ.
 | PRB-01 | closes-first | No closing reference after the opening block of `- Closes #N` lines |
 | PRB-02 | closes-one-per-line | Each closing reference is its own `- Closes #N` bullet |
 | PRB-03 | required-sections | `## Summary` and `## Changes` exist |
-| PRB-04 | issues-line | Implementation: `## Summary` ends with `Issues: closed N, opened M` |
+| PRB-04 | issues-line | Implementation: `## Summary` ends with `Issues: closed N, opened M`, or with it then the `Questions:` line |
 | PRB-05 | specs-manifest | Implementation: `## Specs` holds the four manifest lines, no `..` ranges |
 | PRB-06 | manifest-verbatim | With `--manifest`: every manifest line is in `## Specs` unchanged |
 | PRB-07 | verification-section | `## Verification` exists when the diff changes `.py` |
@@ -42,6 +42,8 @@ This table and the tool's `RULES` are one list; a test fails when they differ.
 | PRB-09 | spec-amended | A `### <ID>` block per amended ID; at `final`, no `<TODO>` |
 | PRB-10 | attribution-last | The `Generated with [...]` line, when present, is the last line |
 | PRB-11 | body-length | The body is at most GitHub's 65,536-character limit |
+| PRB-12 | maintainer-docs-followup | Tooling diff with no maintainer doc: a `Docs:` line; at `final`, `deferred to #N` or `no maintainer docs impact — …` |
+| PRB-13 | questions-line | Implementation: `## Summary` ends with `Questions: asked N, filed M`, right after the `Issues:` line |
 
 ---
 
@@ -60,6 +62,7 @@ Use for `build`, `bugfix`, and any PR that modifies `.py` files.
 "Replaces…". Focus on the outcome.>
 
 Issues: closed <N>, opened <M>   <!-- see the Issues rule below -->
+Questions: asked <A>, filed <F>   <!-- see the Questions rule below -->
 
 ## Motivation
 
@@ -114,8 +117,8 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
   reviewer comparing the closing list to the diff should never be surprised —
   clarity about what the PR does and why, mapped to the issues it closes,
   matters more than keeping the PR small.
-- **Issues**: required on implementation PRs; the last line of `## Summary`,
-  in the form `Issues: closed N, opened M`. Count per
+- **Issues**: required on implementation PRs; the line before `Questions:`
+  at the end of `## Summary`, in the form `Issues: closed N, opened M`. Count per
   `completeness-doctrine.md` § "Net Issues: Close More Than You Open": `N` is
   pre-existing, non-Epic issues the PR closes, and `excursion` issues the PR
   files and closes are left out of both counts. List each issue opened with its
@@ -123,6 +126,16 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
   none writes `opened 0`. Also close any nearby `opened:debt` issues (a
   `- Closes #N` bullet each, plus a one-line reason when "nearby" is by spec or
   area rather than file).
+- **Questions**: required on implementation PRs; the last line of
+  `## Summary`, directly after `Issues:`, in the form
+  `Questions: asked A, filed F`. `A` counts decisions this PR's work put to
+  the user (or, from a sub-agent, to its orchestrator) and got answered; `F`
+  counts questions filed as an issue instead of asked (a Concern, or a Task
+  with a `Decision:` line), each listed with why it could not be asked, for
+  example `Questions: asked 1, filed 1 (#4402 out of this PR's scope)`. Count
+  every session that worked the PR, `pr-execute` included; a PR that met no
+  decision writes `asked 0, filed 0`. See `completeness-doctrine.md`
+  § "Ask, Then Finish".
 - **Summary**: required; 1–2 sentences, present tense.
 - **Motivation**: optional; omit when Summary is self-explanatory.
 - **Changes**: required; use backtick-wrapped file paths and concrete
@@ -167,7 +180,7 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
   whether the PR's change is described anywhere in reader-facing `docs/`.
   `create-pr` writes the placeholder `Docs: pending check-docs-sync`, and the
   caller replaces it with the line `check-docs-sync` reports, in one of three
-  final forms:
+  final forms (a tooling PR has a fourth, below):
   - `Docs: updated <page>, <page>` — the `docs/` pages this PR updated, as
     repo-relative paths.
   - `Docs: no docs impact — <reason>` — no `docs/` page describes the changed
@@ -178,6 +191,26 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
     `type:Concern` still validates (PD-03-009). The issue may be open or
     already closed as planned; it must exist. An updated-and-deferred PR
     carries both: `Docs: updated <page>; deferred to #N`.
+
+  A PR whose diff changes a workflow or tooling file and no maintainer-facing
+  doc carries a `Docs:` line whatever its template (PRB-12, PD-03-014).
+  Tooling is a file under `.github/workflows/`, `.github/scripts/`,
+  `.github/actions/`, `.agents/skills/`, `vultron/metadata/`, `scripts/`,
+  `.devcontainer/`, `docker/` or `.githooks/`, or `.pre-commit-config.yaml`,
+  `mdlint.sh`, `Makefile` or `start-dev.sh`. A maintainer-facing doc is a file
+  under `docs/developer/`, `docs/agents/`, `notes/` or `.github/instructions/`,
+  any `AGENTS.md`, a skill's Markdown, `CONTRIBUTING.md`, `README-DEV.md`,
+  `.devcontainer/README.md`, or `.github/copilot-instructions.md`. At the final
+  stage that line takes a final form and names the follow-up docs issue
+  (`deferred to #N`) or says why no maintainer doc needs the change
+  (`no maintainer docs impact — <reason>`), each clause opening the line or
+  following a `;`. The reader-facing `no docs impact` verdict does not count,
+  so append the clause to it:
+  `Docs: no docs impact — <reason>; no maintainer docs impact — <reason>`.
+  On such a PR only, the clause alone,
+  `Docs: no maintainer docs impact — <reason>`, is a fourth final form. The
+  check is coarse: any maintainer-facing doc in the diff closes the gap, and
+  whether that doc covers the change is `pr-triage`'s judgment.
 
   The session that opened the PR is not done while the placeholder remains,
   and `pr-triage` treats a missing or placeholder `Docs:` line as a FAIL

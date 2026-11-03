@@ -242,7 +242,7 @@ def trigger_create_case(
     Trigger the create-case behavior for the given actor.
 
     Implements:
-        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-004, TRIG-03-001, TRIG-03-002,
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-004, TRIG-03-002,
         TRIG-04-001, TRIG-12-001
     """
     return run_trigger(

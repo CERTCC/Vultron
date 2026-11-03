@@ -60,6 +60,8 @@ from vultron.metadata.docs.requirement_catalog import (
 )
 from vultron.metadata.docs.story_pages import (
     STORY_DIR,
+    STORY_END,
+    STORY_START,
     story_ids,
     story_page,
 )
@@ -82,8 +84,8 @@ _TABLE_PAGE = f"{STORY_DIR}/table.md"
 UNCITED_NOTE = "No mapped requirements"
 
 _INCLUDE = (
-    '{{% include-markdown "./{page}" start="<!-- story-start -->" '
-    'end="<!-- story-end -->" trailing-newlines=false %}}'
+    f'{{{{% include-markdown "./{{page}}" start="{STORY_START}" '
+    f'end="{STORY_END}" trailing-newlines=false %}}}}'
 )
 
 

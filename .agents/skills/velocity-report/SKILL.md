@@ -93,6 +93,28 @@ You Open".
 - There is no flag threshold yet. Report the numbers, and once a few weeks exist,
   say what a typical week looks like so a threshold can be chosen with evidence.
 
+### 8. Asking vs. filing (`concern_resolution_by_week`, the `Questions:` totals)
+
+Each `concern_resolution_by_week` row has `filed` (Concerns created that
+week), `closed` (completed that week), and the subsets `closed_by_planning_pr`
+(the closing PR's branch starts with `plan/`) and `closed_within_1_day`, plus
+`median_days_to_close`. The `Questions: asked A, filed F` PR-body line is read
+into each `pipeline_cost.per_pr` record (`questions_asked`,
+`questions_filed`, `null` when absent) and totalled per week in
+`weekly_pr_cost` (`total_questions_asked`, `total_questions_filed`). The rule
+they measure: `completeness-doctrine.md` § "Ask, Then Finish".
+
+- A high `closed_within_1_day` share means questions are being filed that
+  sessions could have asked: the answer came back about as fast as an ask,
+  and a planning session was paid for it.
+- `closed_by_planning_pr` over `closed` is the share of Concerns that took the
+  full planning route.
+- Compare `total_questions_asked` with `total_questions_filed`. Asked should
+  dominate. The line is new: weeks before it read `null`, not zero, so say the
+  data is absent.
+- Pair a falling `filed` with the net-issues lens: fewer Concerns filed should
+  also mean fewer planned Tasks behind the backlog growth.
+
 ## Granularity check: monthly vs. weekly
 
 Monthly buckets smooth over short-term spikes and can reverse conclusions
@@ -119,7 +141,7 @@ cross-checked at weekly granularity, especially for:
 If the script does not yet produce weekly buckets, note this limitation
 explicitly in the narrative and flag it as a future improvement.
 
-### 8. Pipeline cost (`pipeline_cost`)
+### 9. Pipeline cost (`pipeline_cost`)
 
 The `pipeline_cost` section is the empirical check for ADR-0126.
 It is absent when the script ran with `--no-pipeline-cost`.
