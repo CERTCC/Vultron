@@ -16,7 +16,7 @@
 ``wait_for_replica_ledger_coverage`` and ``run_sync_verification_phase`` in
 ``vultron/demo/helpers/sync.py`` replace the per-scenario copies of the
 read-authority-tail-then-poll-each-replica loop and of the sync-verification
-phase body (DEMOMA-23-005, DEMOMA-23-007, #3846).  The eight per-scenario
+story fragment (DEMOMA-23-005, DEMOMA-23-007, #3846).  The eight per-scenario
 "skip the coverage wait when the Reporter case never arrives" tests collapsed
 into this module.
 

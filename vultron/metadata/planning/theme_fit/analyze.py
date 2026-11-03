@@ -13,7 +13,8 @@
 """The structural theme rules, as one pure function over open Issues.
 
 Requirements: PAD-01-002, PAD-01-007, PAD-02-001, PAD-02-008, PAD-02-014, PAD-02-015,
-PAD-02-017, PAD-02-018, PAD-02-028.
+PAD-02-017, PAD-02-018, PAD-02-028, PAD-02-030, PAD-02-032, PAD-02-034,
+PAD-02-038.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from itertools import chain
 
 from vultron.metadata.planning.bundle_fit.model import SCHEDULE_ORDER
 from vultron.metadata.planning.theme_fit.model import (
+    EPIC_TITLE_PREFIX,
     UNSCHEDULED,
     Finding,
     FindingKind,
@@ -31,6 +33,8 @@ from vultron.metadata.planning.theme_fit.model import (
     ThemeFitReport,
     TierCoherence,
     UntriagedIssue,
+    restates,
+    title_ids,
 )
 from vultron.metadata.planning.themes import ThemeCatalog, ThemeStatus
 
@@ -123,6 +127,89 @@ def label_findings(
             FindingKind.MISSING_REASON_LINE,
             f"no `Theme:` line names {_fmt(unnamed)}",
         )
+
+
+def _title_findings(
+    epic: OpenIssue, spec_topics: frozenset[str]
+) -> Iterator[tuple[FindingKind, str]]:
+    ids = title_ids(epic.title, spec_topics)
+    if ids:
+        yield FindingKind.EPIC_TITLE_ID, f"names {_fmt(ids)}"
+    if EPIC_TITLE_PREFIX.match(epic.title):
+        yield FindingKind.EPIC_TITLE_PREFIX, "a label, not a claim"
+
+
+def _design_idea_findings(
+    epic: OpenIssue,
+) -> Iterator[tuple[FindingKind, str]]:
+    ideas = epic.design_ideas()
+    if not ideas:
+        yield (
+            FindingKind.MISSING_DESIGN_IDEA,
+            _missing_design_idea_detail(epic.near_design_idea_lines()),
+        )
+        return
+    copied = [("the title", epic.title)] + [
+        ("the `Theme:` outcome", outcome)
+        for outcome in epic.reason_line_outcomes()
+    ]
+    for idea in ideas:
+        for name, text in copied:
+            if _overlaps(idea, text):
+                yield FindingKind.DESIGN_IDEA_REPEATS, f"repeats {name}"
+                break
+    sections = epic.design_idea_sections()
+    if any(_overlaps(s, idea) for s in sections for idea in ideas):
+        yield (
+            FindingKind.DESIGN_SECTION_REPEATS,
+            "a `## Design idea` section repeats the line",
+        )
+
+
+def _missing_design_idea_detail(near: tuple[str, ...]) -> str:
+    detail = "no `Design idea:` line"
+    if not near:
+        return detail
+    if near[0] == "Design idea:":
+        return f"{detail}; the `Design idea:` line has no approach after the colon"
+    return (
+        f"{detail}; `{near[0][:60]}` does not count: start the line with "
+        "`Design idea:`"
+    )
+
+
+def _outcome_findings(epic: OpenIssue) -> Iterator[tuple[FindingKind, str]]:
+    if any(_overlaps(o, epic.title) for o in epic.reason_line_outcomes()):
+        yield FindingKind.THEME_OUTCOME_REPEATS, "repeats the title"
+
+
+def _overlaps(first: str, second: str) -> bool:
+    """True when either text restates the other (:func:`.model.restates`).
+
+    Both ways, so a cut-down copy is caught as well as a copy with more added.
+    """
+    return restates(first, second) or restates(second, first)
+
+
+def epic_form_findings(
+    epic: OpenIssue, spec_topics: frozenset[str] = frozenset()
+) -> Iterator[tuple[FindingKind, str]]:
+    """Title and body form findings for one Epic (PAD-02-030 to PAD-02-038).
+
+    Only the form a script can see: an ID or an ``Epic:`` label in the
+    title, a missing ``Design idea:`` line, and a line or section that
+    restates another. Whether the title states the right claim stays a
+    reviewer's call. Public because ``theme-gate --epic`` applies the same
+    checks before the Epic exists (:mod:`.gate`).
+
+    Args:
+        epic: The Epic to check.
+        spec_topics: The spec topic prefixes (``PAD``, ``SYNC``) a bare group
+            ID in the title is matched against (:func:`.model.title_ids`).
+    """
+    yield from _title_findings(epic, spec_topics)
+    yield from _outcome_findings(epic)
+    yield from _design_idea_findings(epic)
 
 
 def _epic_findings(
@@ -242,6 +329,7 @@ def analyze(
     issues: Iterable[OpenIssue],
     catalog: ThemeCatalog,
     schedule_read: bool = True,
+    spec_topics: frozenset[str] = frozenset(),
 ) -> ThemeFitReport:
     """Apply every structural theme rule to the open *issues*.
 
@@ -251,6 +339,9 @@ def analyze(
         schedule_read: False when the *issues* were fetched without their
             Project #24 ``Schedule`` (``fetch_open_issues(read_schedule=False)``);
             the report then says its coherence has no per-tier split.
+        spec_topics: The spec topic prefixes an Epic title's bare group ID is
+            matched against (:func:`epic_form_findings`); the CLI passes
+            :func:`.spec_topics.load_spec_topics`.
     """
     ordered = sorted(issues, key=lambda i: i.number)
     by_number = {i.number: i for i in ordered}
@@ -265,6 +356,7 @@ def analyze(
         found = chain(
             label_findings(issue, catalog, is_leaf=children == 0),
             _hierarchy_findings(issue, epic_number, children, by_number),
+            epic_form_findings(issue, spec_topics) if issue.is_epic else (),
         )
         findings.extend(
             Finding(kind, issue.number, issue.title, detail)

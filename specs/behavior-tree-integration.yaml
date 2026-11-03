@@ -58,7 +58,9 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: Prototype handlers MUST implement BT execution using industry- standard BT library
+    statement: >-
+      Prototype handlers MUST implement BT execution using an industry-standard BT
+      library.
     rationale: Mature libraries provide visualization, debugging, and standard BT semantics
     adr:
     - ADR-0008
@@ -131,7 +133,11 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: Handler protocol MUST be preserved (decorator, signature, registration)
+    statement: >-
+      A received-side handler MUST keep its use-case class contract when its work moves
+      into a behavior tree. That contract is `__init__(dl, request)`, an `execute()`
+      that returns a `HandlerResult`, and routing by semantic-type key in
+      `use_case_map()`.
     rationale: >-
       When the work inside a handler moves into a tree, the path of messages to the
       handler must not change. A fixed handler contract keeps the dispatcher, the
@@ -1142,9 +1148,13 @@ groups:
       the ledger entry with no error. With per-actor storage, `actor_id` also selects
       the store, so a run as the sender reads and writes the wrong replica.
     verification: >-
-      Search all received-side use-case call sites of `execute_with_setup` that
-      contain a `GuardedCommitCaseLedgerEntryBT`; assert each passes
-      `actor_id=request.receiving_actor_id`.
+      `test_received_side_execute_with_setup_never_passes_request_actor_id` in
+      `test/architecture/test_received_side_actor_id.py` scans every received-side
+      call of `execute_with_setup` and fails on one that passes `request.actor_id`.
+      `test_engage_without_receiving_actor_executes_as_store_owner` in
+      `test/core/use_cases/received/case/test_engage_defer.py` runs a guarded-commit
+      use case with no `receiving_actor_id`, so the store owner is the receiver, and
+      asserts that the guarded commit records its entries.
     relationships:
     - rel_type: refines
       spec_id: BT-17-005
@@ -1591,11 +1601,6 @@ groups:
       as a parameter (rather than hardcoding the fuzzer import) is what makes each call-out point an actual injection seam
       rather than a tightly-coupled stub. Without this, replacing any backend requires editing the tree-building function,
       defeating the abstraction layer's purpose.
-    relationships:
-    - rel_type: implements
-      spec_id: BT-04-001
-      note: Factory-based injection for call-out points is an application of the existing factory pattern required for all
-        BT construction.
     adr:
     - ADR-0025
   - id: BT-18-008
@@ -1628,10 +1633,8 @@ groups:
       REST API is still a Retriever. The automation only means that its implementation
       needs no human action. If you select the shape from the automation potential, you
       build the incorrect call-out point, and you must then do the work on it again.
-      BT-18-013 lists the canonical shapes. A node that calls an external system to
-      cause a side effect, and makes no content artifact, is an Actuator, not a
-      Composer. The reason is that the effect, not an artifact, comes out of the
-      call-out point.
+      BT-18-013 lists the canonical shapes, and BT-18-028 defines each one by what it
+      produces.
     relationships:
     - rel_type: implements
       spec_id: BT-16-005
@@ -2072,6 +2075,37 @@ groups:
       spec_id: BT-18-015
     adr:
     - ADR-0097
+  - id: BT-18-028
+    priority: MUST
+    kind: project
+    statement: >-
+      A call-out point node MUST be classified by what it produces. An Evaluator
+      records a decision, a Retriever returns external data, and a Composer produces a
+      content artifact. An Actuator causes a side effect in an external system and
+      places no artifact on the blackboard.
+    rationale: >-
+      This is how the ADR-0024 seam-structure decision tree (BT-18-005) answers its
+      question of how output exits the call-out point, one answer for each shape. The
+      output of a node, not the work that it does, separates the shapes. A node that
+      calls an external system looks like a Composer, because it sends something out.
+      If no content artifact comes back to the blackboard, the effect is the output,
+      and the node is an Actuator.
+    verification: >-
+      `test/demo/fuzzer/test_call_out_point.py` checks each shape's output:
+      `test_evaluate_report_credibility_writes_blackboard_on_success` (Evaluator),
+      `test_gather_validation_info_writes_blackboard_on_success` (Retriever),
+      `test_prepare_report_output_keys_declared` (Composer declares its artifact key),
+      and `test_on_accept_output_keys_empty` and `test_on_defer_output_keys_empty`
+      (Actuator declares no output key).
+    adr:
+    - ADR-0024
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-013
+      note: BT-18-013 names the four shapes; this entry defines each by its output.
+    - rel_type: refines
+      spec_id: BT-18-005
+      note: Restates the seam-structure tree's output question for each shape.
 - id: BT-19
   title: Routing-Gated State Mutation in Lifecycle BT Sequences
   specs:
@@ -2460,18 +2494,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: BT-21-001
-  - id: BT-21-002
-    priority: MUST
-    kind: process
-    verification_debt: '#2571'
-    statement: >-
-      When a production equivalent replaces a fuzzer node, the pull request that does so
-      MUST remove the `PROVISIONAL` marker from the corresponding BT-20 rationale note.
-    rationale: Provisional notes that survive after the production replacement is merged become misleading documentation.
-      The two-step close (update spec + close issue) ensures the spec and the project board remain consistent.
-    relationships:
-    - rel_type: refines
-      spec_id: BT-21-001
   - id: BT-21-004
     priority: MUST
     kind: process
@@ -2485,7 +2507,7 @@ groups:
       board consistent.
     relationships:
     - rel_type: extends
-      spec_id: BT-21-002
+      spec_id: BT-21-001
 - id: BT-22
   title: BT Layer Dependency Model
   description: Rules governing the dependency direction between BT nodes and use-case classes. Violations
@@ -2586,8 +2608,7 @@ groups:
     rationale: >-
       Three named modes keep the choice of backend explicit: a fixed answer, a simulated
       answer, or a production answer. The mode names also show the intended path from
-      DETERMINISTIC to REAL as the production implementations become available (FUZZ-08d
-      through FUZZ-08h).
+      DETERMINISTIC to REAL as the production implementations become available.
     adr:
     - ADR-0025
   - id: BT-23-014
@@ -2803,8 +2824,7 @@ groups:
       similar gates do not qualify, for example the accept-direction
       CaseOwnerApprovesEmbargoResponse (EMB-15-001) and the trigger-side
       EmbargoExitPolicyGuard. This rule sets only the default posture. RSH-07-004
-      (ADR-0080) tells how to compose a qualifying gate. A backend factory that always
-      returns FAILURE must not be that default (RSH-07-004).
+      (ADR-0080) tells how to compose a qualifying gate.
     relationships:
     - rel_type: supersedes
       spec_id: BT-23-002

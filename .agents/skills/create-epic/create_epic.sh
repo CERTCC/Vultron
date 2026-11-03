@@ -9,14 +9,17 @@
 # The theme gate (`theme-gate`, notes/epic-themes.md) runs before anything is
 # created: the Epic must carry one active theme (or two with a named split),
 # and <body> must hold a `Theme: <label> — <outcome>` line naming it
-# (PAD-02-015, PAD-02-018). On refusal the script exits 1 and creates nothing.
+# (PAD-02-015, PAD-02-018). <title> must hold no ADR number or spec ID and not
+# start with `Epic:`, and <body> must hold a `Design idea:` line that restates
+# neither the title nor the `Theme:` outcome (PAD-02-030, PAD-02-032,
+# PAD-02-034, PAD-02-038). On refusal the script exits 1 and creates nothing.
 #
 # Prints the new issue number on stdout.
 # All other output goes to stderr.
 #
 # Example:
 #   EPIC_NUM=$(./create_epic.sh \
-#     "Architecture Hardening (Phase 2): Import violations and BT sync" \
+#     "Core, wire and adapters depend on each other only in the allowed directions" \
 #     "$(cat body.md)" Next theme:capability-architecture)
 
 set -euo pipefail
@@ -46,7 +49,8 @@ BOARD_ID="${SCRIPT_DIR}/../shared/board-id.sh"
 PROJECT_DIR="${VULTRON_PROJECT_DIR:-$(cd "${SCRIPT_DIR}/../../.." && pwd)}"
 
 # Theme gate: refuse before creating anything.
-GATE_ARGS=(--epic --catalog "${PROJECT_DIR}/notes/epic-themes.md" --body-file -)
+GATE_ARGS=(--epic --title "${EPIC_TITLE}"
+           --catalog "${PROJECT_DIR}/notes/epic-themes.md" --body-file -)
 for T in "${THEMES[@]}"; do GATE_ARGS+=(--label "${T}"); done
 GATE_RC=0
 printf '%s' "${EPIC_BODY}" | PYTHONPATH= uv run --quiet --project "${PROJECT_DIR}" \

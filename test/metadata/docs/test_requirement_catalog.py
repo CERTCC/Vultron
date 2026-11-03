@@ -25,6 +25,7 @@ from vultron.metadata.docs.requirement_catalog import (
     AnchorHome,
     CatalogPage,
     NotInCatalogError,
+    anchor_home_of,
     anchor_homes,
     catalog_location,
     current_page,
@@ -32,6 +33,7 @@ from vultron.metadata.docs.requirement_catalog import (
     placement_faults,
     requirement_linker,
     site_href,
+    source_href,
 )
 from vultron.metadata.specs.docs_render import render_catalog_page
 from vultron.metadata.specs.registry import SpecRegistry, load_registry
@@ -456,3 +458,41 @@ def test_unplaced_tier_file_has_no_home(registry: SpecRegistry) -> None:
     homes = anchor_homes(registry, PAGES[1:])
     assert "aaa-01-001" not in homes
     assert "aaa" not in homes
+
+
+def test_source_href_is_relative_to_the_linking_page() -> None:
+    """The ``.md`` path MkDocs rewrites, resolved against *from_page*."""
+    assert (
+        source_href(
+            "reference/specs/project.md",
+            "tb-03-001",
+            from_page="reference/user_stories/traceability.md",
+        )
+        == "../specs/project.md#tb-03-001"
+    )
+
+
+def test_source_href_from_a_page_at_the_docs_root() -> None:
+    """A ``from_page`` with no directory resolves against ``.``."""
+    assert (
+        source_href(
+            "reference/specs/project.md", "tb-03-001", from_page="index.md"
+        )
+        == "reference/specs/project.md#tb-03-001"
+    )
+
+
+def test_anchor_home_of_keys_the_lookup_like_anchor_homes(
+    registry: SpecRegistry,
+) -> None:
+    homes = anchor_homes(registry, PAGES)
+    home = anchor_home_of(homes, _rid("AAA", 1))
+    assert home is not None
+    assert (home.page, home.fragment) == (PAGES[0].path, "aaa-01-001")
+
+
+def test_anchor_home_of_returns_none_for_an_id_with_no_home(
+    registry: SpecRegistry,
+) -> None:
+    homes = anchor_homes(registry, PAGES[1:])
+    assert anchor_home_of(homes, _rid("AAA", 1)) is None

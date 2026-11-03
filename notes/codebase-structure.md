@@ -117,10 +117,12 @@ a `VultronOfferRecord` id (`offer-record/urn%3Auuid%3A…` — `build_id`
 percent-quotes the suffix, and a server decodes the path once before it matches),
 read only the segment after the slash, and answered 404 for a row the store held
 (#5529). A key is one string: a route that splits one across placeholders falls
-back to the whole matched path as the key before it reports 404 — keep the route
-and read the suffix first, so a URL that works today keeps working. A key whose
-suffix also names a row stays shadowed by it; the quoting is what keeps the two
-sets apart.
+back to the whole matched path as the key before it reports 404. The first
+placeholder asserts the type of the row the second names, and the route falls back
+whenever that row is absent or of another type. A key is therefore shadowed by the
+row its suffix names only when the key's first part is that row's type, and a
+segment that is neither the row's type nor the start of a stored key serves nothing
+(#5551).
 
 ---
 

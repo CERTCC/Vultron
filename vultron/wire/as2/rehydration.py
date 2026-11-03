@@ -390,9 +390,12 @@ def _rehydrate_nested_object_field(
         # Keep the original ID string reference: no pattern's object_
         # accepts it (SE-01-006), so the activity is
         # UNKNOWN_UNRESOLVABLE_OBJECT and the inbox fetches the object.
+        # DEBUG, not WARNING: across containers this is the normal path,
+        # and the inbox fetches the object next (VM-06-004, AKM-05-007).
         logger.debug(
-            "Could not rehydrate nested 'object_' of %s; "
+            "Could not rehydrate nested 'object_' '%s' of %s; "
             "keeping original reference.",
+            getattr(obj_with_object.object_, "id_", obj_with_object.object_),
             obj.type_,
         )
         return None

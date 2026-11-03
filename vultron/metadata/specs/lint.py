@@ -52,6 +52,7 @@ from vultron.metadata.specs.schema import (
     TriggerType,
 )
 from vultron.metadata.specs.statement_style import compound_listing
+from vultron.metadata.specs.story_links import check_cited_story_pages
 from vultron.metadata.specs.verification import (
     VERIFICATION_DEBT_OWNERS,
     check_closing_pr,
@@ -720,11 +721,11 @@ def sr_11_003_gate_applies(kind: SpecKind, priority: RFC2119Priority) -> bool:
     ``stories:`` still await their stories (#3601 adjudicated them; #2717
     holds the list) and the gate extends to them as #2717's closing step once
     their stories exist — see the spec's
-    ``note:``. This is the only place that decision is written down;
-    ``scripts/backfill_stories.py`` selects through it too, so the exception
-    cannot drift into a second hand-written copy. When it is retired, replace
-    the member comparison with ``priority.is_must_tier`` and drop the matching
-    allowlist entry in ``test/metadata/specs/test_priority_tier_gate.py``.
+    ``note:``. This is the only place that decision is written down, so the
+    exception cannot drift into a second hand-written copy. When it is
+    retired, replace the member comparison with ``priority.is_must_tier`` and
+    drop the matching allowlist entry in
+    ``test/metadata/specs/test_priority_tier_gate.py``.
     """
     return (
         kind == SpecKind.PROTOCOL
@@ -1089,6 +1090,7 @@ def lint(
     hard_errors.extend(_check_phantom_spec_id_citations(registry, source_scan))
     hard_errors.extend(_check_phantom_symbols(registry, source_scan))
     hard_errors.extend(_check_missing_story_references(registry))
+    hard_errors.extend(check_cited_story_pages(registry, spec_dir.parent))
     hard_errors.extend(check_implementer_kind_code_references(registry))
     hard_errors.extend(check_foundation_standard_tags(registry))
 

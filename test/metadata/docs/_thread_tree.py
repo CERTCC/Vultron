@@ -14,6 +14,7 @@ import yaml
 from vultron.metadata.docs.threads import LISTING_BEGIN, LISTING_END
 
 from ._lookup_tree import LOOKUP_LINK, with_lookup
+from ._story_tree import with_stories
 
 
 def member(page: str, blurb: str = "what you get.", **extra: str) -> dict:
@@ -53,7 +54,7 @@ def tree(
     ``adr/`` is the working record; ``not_in_nav`` covers it so the tree is
     otherwise valid.
     """
-    files, full_nav = with_lookup(files, nav or [])
+    files, full_nav = with_lookup(with_stories(files), nav or [])
     (tmp_path / "mkdocs.yml").write_text(
         yaml.safe_dump({"nav": full_nav, "not_in_nav": "adr/**\n"})
     )

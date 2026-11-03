@@ -1676,9 +1676,18 @@ class TestReceiverValidatesReport:
         report_id, _ = _extract_offer_ids(vendor_client, offer)
         assert report_id is not None, "Could not extract report_id from offer"
         link_id = VultronReportCaseLink.build_id(report_id)
-        assert vendor_client.get(vendor_client.dl_path(link_id)) is not None, (
+        # The key holds ``%3A``.  A server decodes the request path once, and
+        # ``TestClient`` decodes it twice, so the key is quoted twice here; an
+        # unquoted key decodes to ``report-case-link/<report-id>``, which names
+        # the report, not the link (#5551).
+        from urllib.parse import quote
+
+        encoded = quote(quote(link_id, safe=""), safe="")
+        link = vendor_client.get(vendor_client.dl_path(encoded))
+        assert isinstance(link, dict) and link.get("id") == link_id, (
             f"Expected a VultronReportCaseLink at '{link_id}' after"
-            " validate-report (ADR-0041 pending proposal marker, CP-04-001)"
+            " validate-report (ADR-0041 pending proposal marker, CP-04-001),"
+            f" got {link!r}"
         )
 
 

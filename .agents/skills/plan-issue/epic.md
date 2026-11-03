@@ -17,18 +17,26 @@ Research and present findings on:
 4. **Hierarchy** — Does the Epic still belong under its current parent, or
    has the project structure shifted?
 5. **Title/body gaps** — Proposed edits to the Epic title or body if the
-   validated understanding differs from what is written.
+   validated understanding differs from what is written. A new title is a
+   done-state claim with no ADR number or spec ID, and the body keeps its
+   `Theme:` and `Design idea:` lines, each with its own job (`notes/epic-themes.md`
+   § "Epic Titles and Bodies", PAD-02-030 to PAD-02-038).
 6. **Governing specs** — The spec topics or groups the Epic as a whole must
    satisfy (from the Spec manifest). Add or refresh a `Governing specs:`
    line in the Epic body; its Tasks narrow it to specific IDs.
 
 Present all findings as a brief, ask for confirmation or correction, and
-apply any agreed Epic title/body edits before proceeding to Phase B:
+apply any agreed Epic title/body edits before proceeding to Phase B. Run the
+create-time gate on the edited title and body first, and fix every breach it
+prints; `gh issue edit` applies no check of its own:
 
 ```bash
-gh issue edit "${ISSUE_NUMBER}" --repo CERTCC/Vultron \
-  --title "<updated title>" \
-  --body "<updated body>"
+PYTHONPATH= uv run theme-gate --epic --title "<updated title>" \
+  --label "<the Epic's theme label(s), comma-separated>" \
+  --body-file - < body.md \
+  && gh issue edit "${ISSUE_NUMBER}" --repo CERTCC/Vultron \
+    --title "<updated title>" \
+    --body-file body.md
 ```
 
 ## Phase B — Decompose into Tasks
