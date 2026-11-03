@@ -43,6 +43,13 @@ A role-gate skip is not a benign no-op. The message was the CASE_MANAGER's to
 act on and reached an actor that is not it, so the handler reports ``REFUSED``
 (HP-01-005) through :func:`not_case_manager_refusal`; ``SKIPPED`` is reserved
 for a duplicate or an otherwise idempotent re-delivery.
+
+A tree that declares its paths needs no such reading: its path door stage
+refuses the undeclared path itself, :func:`door_refusal` returns that refusal
+with the reason the stage composed from the resolved path and the declaration
+(HP-01-039), and the handler asks :func:`received_path` which of the three
+paths it is on.  :func:`not_case_manager` and
+:func:`not_case_manager_refusal` remain for the trees still to be migrated.
 """
 
 import logging
@@ -74,6 +81,10 @@ from vultron.core.behaviors.case.nodes.ownership_reply_guard import (
 )
 from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
+)
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+    ReceivedPathNode,
 )
 from vultron.core.behaviors.case.nodes.reference_list import (
     CaseReferenceEditPendingNode,
@@ -223,6 +234,38 @@ def door_guards_admitted(
             " tree, so it has no door guards to ask about (CLP-10-010)"
         )
     return root.door_guards_admitted
+
+
+def received_path(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+) -> ReceivedPath | None:
+    """The path the tree's path door stage resolved for this receiver.
+
+    ``None`` for a tree that declared no paths, and for one whose stage did
+    not run.  This is how a handler reads which of the three paths it is on
+    (ADR-0153): the answer comes from the one role question the stage asked,
+    never from inferring "not the manager" out of a failed gate anywhere in
+    the tree (:func:`not_case_manager`, which the migration retires).
+    """
+    stage = find_node(tree, ReceivedPathNode)
+    return None if stage is None else stage.resolved_path
+
+
+def path_refusal(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+) -> HandlerResult | None:
+    """The refusal owed when the path door stage turned this receiver away.
+
+    ``None`` unless the tree's
+    :class:`~vultron.core.behaviors.case.nodes.received_path.ReceivedPathNode`
+    refused: the receiver is on a path this message type declares no branch
+    for, so the message was never its to act on (HP-01-005).  The reason is
+    the stage's own, composed in one place for every message type
+    (HP-01-039); :func:`door_refusal` asks this after the post-close
+    boundary and the addressee check, in the stage order the factory places
+    them in (CLP-10-010).
+    """
+    return guard_refusal(tree, ReceivedPathNode)
 
 
 def not_case_manager(tree: py_trees.behaviour.Behaviour | _HasRoot) -> bool:
@@ -747,16 +790,21 @@ def door_refusal(
 ) -> HandlerResult | None:
     """The refusal owed when a door guard every received tree carries refused.
 
-    The post-close boundary (:func:`post_close_refusal`, CM-23-013), then the
-    addressee check (:func:`addressee_refusal`, HP-01-005); each keeps its
-    guard's own reason.  ``None`` when neither refused.  The factory places
-    both in every received tree unless it declares an exemption, so
+    The post-close boundary (:func:`post_close_refusal`, CM-23-013), the
+    addressee check (:func:`addressee_refusal`, HP-01-005), then the path
+    stage (:func:`path_refusal`, ADR-0153); each keeps its guard's own
+    reason, and they are asked in the order the factory places them
+    (CLP-10-010).  ``None`` when none refused.  The factory places the first
+    two in every received tree unless it declares an exemption, and the path
+    stage in every tree that declared its paths, so
     :func:`verdict_from_bt` and :func:`applied_or_raise` ask this first, and
     a handler that maps a tree's failure itself asks it too.
     """
     if (refusal := post_close_refusal(tree)) is not None:
         return refusal
-    return addressee_refusal(tree)
+    if (refusal := addressee_refusal(tree)) is not None:
+        return refusal
+    return path_refusal(tree)
 
 
 def verdict_from_bt(
@@ -880,7 +928,9 @@ __all__ = [
     "node_succeeded",
     "not_case_manager",
     "not_case_manager_refusal",
+    "path_refusal",
     "post_close_refusal",
+    "received_path",
     "pxa_refusal_verdict",
     "rm_declaration_verdict",
     "taken_diversion",
