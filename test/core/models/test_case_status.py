@@ -52,9 +52,9 @@ def test_authored_case_status_updated_equals_published():
     seeded.updated = seeded.published - timedelta(days=1)
     case.append_case_status(pxa=CS_pxa.Pxa)
     appended = case.current_status
-    for status in (built, appended):
-        assert status.updated in (None, status.published)
     assert appended is not seeded
+    assert built.updated is None
+    assert appended.updated is None
 
 
 @pytest.mark.spec("ARCH-21-001")

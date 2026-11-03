@@ -23,8 +23,7 @@
       "type": "CaseStatus",
       "name": "NONE Pxa",
       "context": "https://vultron.example/cases/1",
-      "published": "2026-06-01T19:12:00.000000+00:00",
-      "updated": "2026-06-01T19:12:00.000000+00:00",
+      "published": "2026-06-01T19:16:00.000000+00:00",
       "emState": "NONE",
       "pxaState": "Pxa",
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
