@@ -25,7 +25,6 @@ claim, which the CASE_MANAGER's snapshot decides whether to promote
 """
 
 import typing
-from typing import cast
 
 import pytest
 from pydantic import BaseModel, ValidationError
@@ -50,8 +49,9 @@ from vultron.core.models.dimensions import (
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.states.cs import CS_pxa
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 
 CASE_ID = "https://example.org/cases/case-axis"
 PARTICIPANT_ID = "https://example.org/participants/vendor-cp-axis"
@@ -94,11 +94,13 @@ def case_with_participant(
     actor: VultronService,
     report: VulnerabilityReport,
 ) -> VulnerabilityCase:
-    """A case whose one participant (the actor) is in RM.VALID."""
+    """A case whose one participant (the actor, a vendor and deployer) is in
+    RM.VALID."""
     participant = CaseParticipant(
         id_=PARTICIPANT_ID,
         attributed_to=actor.id_,
         context=CASE_ID,
+        case_roles=[CVDRole.VENDOR, CVDRole.DEPLOYER],
         participant_statuses=[
             ParticipantStatus(
                 attributed_to=actor.id_,
@@ -133,7 +135,32 @@ def _case(bt_scenario: BTTestScenario) -> VulnerabilityCase:
 def _statuses(bt_scenario: BTTestScenario) -> list[ParticipantStatus]:
     participant = bt_scenario.dl.read(PARTICIPANT_ID)
     assert isinstance(participant, CaseParticipant)
-    return cast(list[ParticipantStatus], participant.participant_statuses)
+    return participant.participant_statuses
+
+
+def _write_status(
+    bt_scenario: BTTestScenario,
+    actor: VultronService,
+    *,
+    rm_state: RM | None = None,
+    vf_state: CS_vf | None = None,
+    d_state: CS_d | None = None,
+    pxa_state: CS_pxa | None = None,
+) -> None:
+    """Run ``CreateParticipantStatusNode`` for *actor* on the test case."""
+    bt_scenario.assert_success(
+        bt_scenario.run(
+            CreateParticipantStatusNode(
+                actor_id=actor.id_,
+                rm_state=rm_state,
+                vf_state=vf_state,
+                d_state=d_state,
+                pxa_state=pxa_state,
+            ),
+            actor_id=actor.id_,
+            case_id=CASE_ID,
+        )
+    )
 
 
 def _case_status_ids(case: VulnerabilityCase) -> list[str]:
@@ -153,43 +180,56 @@ class TestParticipantAxesNeverWriteCaseStatus:
         assert _field_types(CaseStatus) == set(_CASE_AXES)
         for key, value in (
             ("rmState", "ACCEPTED"),
-            ("vfState", "Vfd"),
+            ("vfState", "Vf"),
             ("dState", "D"),
         ):
+            # Positive control: the value is valid on its owning model, so
+            # the refusal below comes from the missing field.
+            ParticipantStatus.model_validate(
+                {"context": CASE_ID, "cvdRole": ["VENDOR"], key: value}
+            )
             with pytest.raises(ValidationError):
                 CaseStatus.model_validate({"context": CASE_ID, key: value})
 
     @pytest.mark.spec("SM-10-003")
-    def test_rm_transition_leaves_case_status_unchanged(
+    @pytest.mark.parametrize(
+        ("rm_state", "vf_state", "d_state", "attr", "expected"),
+        [
+            pytest.param(RM.ACCEPTED, None, None, "rm", RM.ACCEPTED, id="rm"),
+            pytest.param(None, CS_vf.Vf, None, "vf", CS_vf.Vf, id="vf"),
+            # D needs RM.ACCEPTED first (cross-machine entailment).
+            pytest.param(RM.ACCEPTED, None, CS_d.D, "d", CS_d.D, id="d"),
+        ],
+    )
+    def test_participant_axis_transition_leaves_case_status_unchanged(
         self,
         bt_scenario: BTTestScenario,
         actor: VultronService,
         case_with_participant: VulnerabilityCase,
+        rm_state: RM | None,
+        vf_state: CS_vf | None,
+        d_state: CS_d | None,
+        attr: str,
+        expected: RM | CS_vf | CS_d,
     ) -> None:
-        """An RM move lands on the participant's ParticipantStatus, and the
-        case's CaseStatus history is left as it was."""
+        """An RM, VF or D move lands on the participant's ParticipantStatus,
+        and the case's CaseStatus history is left as it was."""
         before = _case(bt_scenario)
         before_ids = _case_status_ids(before)
         before_current = before.current_status
         before_count = len(_statuses(bt_scenario))
 
-        bt_scenario.assert_success(
-            bt_scenario.run(
-                CreateParticipantStatusNode(
-                    actor_id=actor.id_,
-                    rm_state=RM.ACCEPTED,
-                    vf_state=None,
-                    d_state=None,
-                    pxa_state=None,
-                ),
-                actor_id=actor.id_,
-                case_id=CASE_ID,
-            )
+        _write_status(
+            bt_scenario,
+            actor,
+            rm_state=rm_state,
+            vf_state=vf_state,
+            d_state=d_state,
         )
 
         statuses = _statuses(bt_scenario)
         assert len(statuses) == before_count + 1
-        assert statuses[-1].rm.state == RM.ACCEPTED
+        assert getattr(statuses[-1], attr).state == expected
         after = _case(bt_scenario)
         assert _case_status_ids(after) == before_ids
         assert after.current_status.em.state == before_current.em.state
@@ -233,7 +273,7 @@ class TestCaseAxesNeverWriteParticipantProgress:
                 context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
             ),
         )
-        participant.participant_statuses.append(report)
+        participant.add_participant_status(report)
         bt_scenario.dl.save(participant)
         bt_scenario.seed(report)
         before = _case(bt_scenario)
@@ -271,19 +311,7 @@ class TestCaseAxesNeverWriteParticipantProgress:
         before_ids = _case_status_ids(before)
         assert before.current_status.pxa.state == CS_pxa.pxa
 
-        bt_scenario.assert_success(
-            bt_scenario.run(
-                CreateParticipantStatusNode(
-                    actor_id=actor.id_,
-                    rm_state=None,
-                    vf_state=None,
-                    d_state=None,
-                    pxa_state=CS_pxa.Pxa,
-                ),
-                actor_id=actor.id_,
-                case_id=CASE_ID,
-            )
-        )
+        _write_status(bt_scenario, actor, pxa_state=CS_pxa.Pxa)
 
         claim = _statuses(bt_scenario)[-1].case_status
         assert claim is not None

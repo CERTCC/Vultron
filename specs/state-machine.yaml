@@ -441,8 +441,8 @@ groups:
       embargo or public state that every participant of the case sees (CM-04-006).
     verification: >-
       `test/core/behaviors/case/nodes/participant/test_state_axis_scoping.py::TestParticipantAxesNeverWriteCaseStatus`
-      checks that `CaseStatus` holds no RM, VF or D value and that an RM transition
-      leaves the case's `CaseStatus` history unchanged.
+      checks that `CaseStatus` holds no RM, VF or D value and that an RM, VF or D
+      transition leaves the case's `CaseStatus` history unchanged.
     relationships:
     - rel_type: refines
       spec_id: CM-04-006
