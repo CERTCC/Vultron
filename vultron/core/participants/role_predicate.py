@@ -33,15 +33,16 @@ the same reason
 (ARCH-24-002).  Authority is the ``CVDRole.CASE_MANAGER`` role, so asking
 whether *this* actor is the case's authority is
 ``has_role(actor_id, case_id, CVDRole.CASE_MANAGER, dl)`` — never a name, a
-URL shape or a hosting location (CM-02-011, CM-02-013, ARCH-24-004).
+URL shape or a hosting location (CM-02-011, CM-02-013, ARCH-24-004).  That
+one role is delegated to the single resolver rather than answered here, so
+authority keeps exactly one implementation (ARCH-24-001, ARCH-24-006).
 """
 
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.participants._lookup import iter_case_participants
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import CVDRole
-from vultron.primitives import same_actor_id
 
 __all__ = ["has_role"]
 
@@ -65,6 +66,18 @@ def has_role(
     is a union over the actor's participant records (CM-26-001), so any
     record of *actor_id* that holds *role* answers ``True``.
 
+    ``CVDRole.CASE_MANAGER`` is answered by
+    :func:`~vultron.core.participants.authority.resolve_case_manager_id`, the
+    single role-authority resolver, and not by the roster scan below
+    (ARCH-24-001, ARCH-24-006).  Authority has one answer per case, so it must
+    not have two implementations: a roster that records the role on more than
+    one participant — the window a role delegation opens (CM-33) — would
+    otherwise make this predicate say "yes" to a holder the resolver says
+    "no" to, and a tree whose path stage admitted on one answer while its
+    CASE_MANAGER gate skipped on the other would report ``APPLIED`` with
+    every gated effect skipped (HP-01-005).  Every caller therefore gets the
+    same authority answer as every ``CheckIsCaseManagerNode`` in the tree.
+
     Args:
         actor_id: The actor whose roles are in question, usually the
             receiving actor.
@@ -78,11 +91,11 @@ def has_role(
     case = dl.read_case(case_id)
     if case is None:
         return False
+    if role is CVDRole.CASE_MANAGER:
+        return resolve_case_manager_id(case, dl) == actor_id
     for participant in iter_case_participants(case, dl):
-        if not isinstance(participant, CaseParticipant):
-            continue
         attributed = _as_id(getattr(participant, "attributed_to", None))
-        if not attributed or not same_actor_id(attributed, actor_id):
+        if not attributed or attributed != actor_id:
             continue
         if participant.has_role(role):
             return True

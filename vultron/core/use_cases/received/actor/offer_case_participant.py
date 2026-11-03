@@ -52,6 +52,7 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
+    case_manager_absence_refusal,
     intake_verdict,
     received_path,
     verdict_from_bt,
@@ -150,9 +151,22 @@ class OfferCaseParticipantReceivedUseCase:
             return verdict
         if received_path(tree) is ReceivedPath.PARTICIPANT_REPLICA:
             # The tree's path stage put this receiver on the participant
-            # replica path, one of the two the tree declares (ADR-0153):
-            # the ledger commit is the CASE_MANAGER's, so this store keeps
-            # what arrived and takes the entry from the ledger.
+            # replica path, one of the two the tree declares (ADR-0153).
+            # The path says the receiver does not hold the role; it does not
+            # say the case has anyone holding it, and a case whose roster
+            # names no CASE_MANAGER has nobody to defer the commit to
+            # (CM-24-006, CM-24-008), so that is refused rather than stored.
+            if (
+                refusal := case_manager_absence_refusal(self._dl, case_id)
+            ) is not None:
+                logger.warning(
+                    "ReceiveOfferCaseParticipantBT refused '%s': %s",
+                    activity_id,
+                    refusal.reason,
+                )
+                return refusal
+            # Otherwise the ledger commit is the CASE_MANAGER's, so this
+            # store keeps what arrived and takes the entry from the ledger.
             # Past the tree's door and sender guards, the Offer is addressed
             # to this store, by name or as an active participant of a
             # participants collection its `to` names (HP-01-012).  The Offer

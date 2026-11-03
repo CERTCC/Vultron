@@ -109,7 +109,9 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
 
     Returns:
         SUCCESS when the resolved path is one the tree declared, with the
-        path on :attr:`resolved_path` for every later node.
+        path on :attr:`resolved_path` for every later node and, on the
+        manager path, the resolved manager's id on ``/case_actor_id``, the
+        key :class:`CheckIsCaseManagerNode` publishes there.
 
         FAILURE otherwise, with :func:`undeclared_path_reason` as the
         feedback message, logged at WARNING.  Intake has archived the copy
@@ -149,9 +151,17 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
         "activity": PortInformation(data_type=object, required=False),
     }
 
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "case_actor_id": PortInformation(data_type=str, required=True),
+    }
+
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id", "activity": "/activity"}
+        return {
+            "case_id": "/case_id",
+            "activity": "/activity",
+            "case_actor_id": "/case_actor_id",
+        }
 
     def initialise(self) -> None:
         super().initialise()
@@ -192,6 +202,13 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
         self.resolved_case_id = case_id
         path = self._path(case_id)
         self.resolved_path = path
+        if path is ReceivedPath.CASE_MANAGER:
+            # The same ``/case_actor_id`` CheckIsCaseManagerNode publishes
+            # when it admits the manager, so a later node that reads the
+            # resolved manager's id finds it whichever of the two answered
+            # (BTND-03-009).  On this path the manager is the receiver.
+            assert self.actor_id is not None
+            self._set_output("case_actor_id", self.actor_id)
         if path in self.declared:
             self.logger.debug(
                 "%s: '%s' takes the %s path of case '%s'",
@@ -224,8 +241,15 @@ class CheckReceivedPathNode(py_trees.behaviour.Behaviour):
 
     Returns:
         SUCCESS when the stage resolved *path*; FAILURE for any other path,
-        and for a stage that has not run (so an arm cannot be entered before
-        the door stage answered).
+        and for a stage that has not run.
+
+    FAILURE for a stage that has not run is not a safe default on its own:
+    in the sender guard's two arms a FAILURE here skips the
+    at-the-CASE_MANAGER rule and runs the at-a-participant one, so an unrun
+    stage would judge the sender by the participant rule.  What makes that
+    unreachable is the stage order, not this node: the factory places the
+    path stage among the door guards, ahead of the guard it feeds, and a
+    stage that refused ends the tree (CLP-10-010, HP-01-035).
     """
 
     def __init__(

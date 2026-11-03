@@ -718,9 +718,9 @@ groups:
     priority: MUST
     kind: architecture
     statement: >-
-      In a received tree whose message type declares the paths it handles, the
-      receive-tree factory MUST place the path stage directly after the HP-01-012
-      addressee check and before the sender guard.
+      A received tree whose message type declares the paths it handles carries the
+      path stage. The receive-tree factory MUST place that stage directly after the
+      HP-01-012 addressee check, and before the sender guard.
     rationale: >-
       The path stage sits in the factory for the reason HP-01-012 gives for the
       addressee check: a check each tree has to ask for is a check a tree can forget.
@@ -743,9 +743,9 @@ groups:
     priority: MUST
     kind: architecture
     statement: >-
-      In a received tree that carries the HP-01-035 path stage, the sender guard's
-      at-the-CASE_MANAGER and at-a-participant arms MUST be selected from the path
-      that stage resolved, never from a second read of the receiver's role.
+      The sender guard's at-the-CASE_MANAGER and at-a-participant arms MUST be
+      selected from the path the HP-01-035 stage resolved, never from a second role
+      read.
     rationale: >-
       One cause gets one verdict only if the role question is asked once. A second
       read can disagree with the first, which is how a role refusal fired for the

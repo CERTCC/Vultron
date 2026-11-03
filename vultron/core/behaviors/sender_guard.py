@@ -513,9 +513,16 @@ def compose_sender_guard(
         path_stage: The tree's path door stage, when it declared its paths.
             The rule's ``at_case_manager`` and ``at_participant`` arms are
             then selected from the path that stage resolved, so the role
-            question is asked once, ahead of this guard (ADR-0153 detail 3,
-            HP-01-012).  Without it the arms read the role themselves, as
-            every tree did before the path stage.
+            question is asked once, ahead of this guard (HP-01-036).
+            Without it the arms read the role themselves, as every tree did
+            before the path stage.  The ``outside_case`` side is still
+            selected by the context naming no case, not by the no-case path
+            that ADR-0153 detail 3 maps it onto: that side is chosen at
+            composition time, and a tree whose context names a case the
+            receiver does not hold has always been judged by the
+            ``at_participant`` side.  Moving it is a behaviour change beyond
+            what HP-01-036 asks for, so it stays with the migration (#5042,
+            #5043).
 
     Returns:
         The guard, or ``None`` when the receiver's side admits any actor.

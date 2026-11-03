@@ -146,9 +146,11 @@ KNOWN_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
         (f"{_B}/status/nodes/status_subject.py", CONDITION),
         # Inline "the resolved manager is me" comparisons (ADR-0153
         # detail 1): each is replaced by the predicate or by the path.
+        (f"{_C}/nodes/conditions.py", INLINE),
         (f"{_C}/nodes/embargo.py", INLINE),
         (f"{_C}/nodes/full_case_invite.py", INLINE),
         (f"{_C}/nodes/post_close.py", INLINE),
+        (f"{_C}/nodes/reporter_introduction.py", INLINE),
     }
 )
 
@@ -202,19 +204,71 @@ def _is_executing_actor(node: ast.expr) -> bool:
     )
 
 
+def _resolver_bindings(tree: ast.AST) -> frozenset[str]:
+    """Every name the module binds to a resolver call.
+
+    ``manager_id = resolve_case_manager_id(case, dl)`` and its walrus and
+    ``self.<attr>`` spellings, so a comparison one statement later is still
+    the same act.  Without this the detector saw only the one-liner, and two
+    real sites — the reporter introduction's and the condition node's own —
+    were silently exempt (#5041 review).
+    """
+    bound: set[str] = set()
+
+    def record(target: ast.expr) -> None:
+        if isinstance(target, ast.Name):
+            bound.add(target.id)
+        elif isinstance(target, ast.Attribute) and isinstance(
+            target.value, ast.Name
+        ):
+            bound.add(f"{target.value.id}.{target.attr}")
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and _is_resolver_call(node.value):
+            for target in node.targets:
+                record(target)
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and node.value is not None
+            and _is_resolver_call(node.value)
+        ) or (
+            isinstance(node, ast.NamedExpr) and _is_resolver_call(node.value)
+        ):
+            record(node.target)
+    return frozenset(bound)
+
+
+def _side_name(node: ast.expr) -> str | None:
+    """The dotted name one side of a comparison reads, if it is a name."""
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+        return f"{node.value.id}.{node.attr}"
+    return None
+
+
 def _has_inline_comparison(tree: ast.AST) -> bool:
     """True when *tree* compares the resolved manager with ``self.actor_id``.
 
     Either order, and either operator: the act is the comparison, not the
-    way it is spelled.
+    way it is spelled.  The resolved manager is the resolver call itself or
+    any name the module bound to one (:func:`_resolver_bindings`).
+
+    The other side must be ``self.actor_id``, the executing actor's own id.
+    A comparison against a *local* of that name is usually about the sender
+    or a ledger entry's author, which ADR-0153 leaves legal, so it is not
+    this act.
     """
+    bound = _resolver_bindings(tree)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Compare):
             continue
         sides = [node.left, *node.comparators]
-        if any(_is_resolver_call(side) for side in sides) and any(
-            _is_executing_actor(side) for side in sides
-        ):
+        resolved = any(
+            _is_resolver_call(side) or _side_name(side) in bound
+            for side in sides
+        )
+        if resolved and any(_is_executing_actor(side) for side in sides):
             return True
     return False
 
@@ -353,6 +407,26 @@ def test_the_detector_finds_every_shape() -> None:
     )
     tree = _corpus.parse_inline(source, filename="<synthetic>")
     assert shapes_in(tree) == frozenset({GATE, CONDITION, INLINE})
+
+
+@pytest.mark.spec("ARCH-18-001")
+def test_the_detector_finds_the_comparison_a_statement_later() -> None:
+    """Assigning the resolved manager first does not hide the comparison.
+
+    The spelling both real sites use.  The detector matched only the
+    one-liner at first, so two live sites were silently exempt and
+    ARCH-18-001's "a new site fails" guarantee was void (#5041 review).
+    """
+    source = (
+        f"class Node:\n"
+        f"    def update(self):\n"
+        f"        held = {_RESOLVER_NAME}(case, self.datalayer)\n"
+        f"        if held == self.{_EXECUTING_ACTOR_ATTR}:\n"
+        f"            return True\n"
+        f"        return False\n"
+    )
+    tree = _corpus.parse_inline(source, filename="<synthetic>")
+    assert INLINE in shapes_in(tree)
 
 
 @pytest.mark.spec("ARCH-18-001")

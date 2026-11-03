@@ -531,6 +531,7 @@ def create_receive_activity_tree(
         name,
         path_stage_case_id(case_id, manager_case_id, sender_context),
         paths,
+        case_resolved_at_run_time=bool(case_resolution),
     )
     if path_stage is not None:
         children.append(path_stage)

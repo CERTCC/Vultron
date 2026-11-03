@@ -2117,21 +2117,31 @@ groups:
     priority: MUST
     kind: architecture
     statement: >-
-      Exactly one authority condition node MUST answer "is the executing actor the case
-      authority".
+      Every condition node that answers "is the executing actor the case authority"
+      MUST take its answer from the single role-authority resolver (ARCH-24-001). The
+      nodes that ask it therefore cannot disagree. Two ask it: the authority condition
+      node, and the received tree's path stage, which asks once per message to pick the
+      receiver's path (HP-01-035).
     rationale: >-
-      When several condition nodes each resolve authority, they can give different
-      answers for the same actor and case. A negation decorator answers the opposite
-      question with no second node.
+      Nodes that each resolve authority by their own logic can give different answers
+      for the same actor and case. A roster recording the role on two participants, the
+      window a role delegation opens, is where they diverge: a path stage admitting a
+      delivery on one answer while the tree's CASE_MANAGER gate skips on the other
+      reports `APPLIED` with every gated effect skipped (HP-01-005). One resolver makes
+      that impossible rather than unlikely.
     verification: >-
-      A test asserts one authority condition node is the only thing resolving "am I
-      the authority"; `CheckIsOwnCaseActorNode` / `CheckIsNotOwnCaseActorNode` are
-      removed or aliased.
+      `test/architecture/test_role_authority_resolver.py` pins the resolver to one
+      module; `test/core/participants/test_role_predicate.py::test_authority_agrees_with_the_single_resolver`
+      asserts `has_role` and the resolver agree on a two-manager roster, and
+      `test/core/use_cases/received/actor/test_offer_case_participant.py::TestOfferCaseParticipantDecisionsAtNonCaseManager::test_a_second_manager_record_is_refused_not_silently_applied`
+      pins the disposition that disagreement would break.
+      `CheckIsOwnCaseActorNode` / `CheckIsNotOwnCaseActorNode` are removed or aliased.
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-24-001
     adr:
     - ADR-0088
+    - ADR-0153
   - id: ARCH-24-006
     priority: MUST
     kind: architecture

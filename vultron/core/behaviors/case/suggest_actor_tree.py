@@ -655,13 +655,16 @@ def create_recommendation_answer_received_tree(
         ├── IntakeReceivedActivityNode     — archive what arrived (CLP-10-018)
         ├── CaseOpenToExternalWrites       — post-close boundary (CM-23-013)
         ├── ActivityAddressedToReceiver    — addressee door guard (HP-01-005)
-        ├── ReceivedPathNode               — the participant replica alone
         └── sender guard                   — only the CASE_MANAGER (PCR-03-001)
 
-    The declared path is what selects the sender rule's ``at_participant``
-    arm: the rule states that side only, and the arm is chosen from the path
-    the stage resolved rather than by reading the role again (ADR-0153
-    detail 3, HP-01-008).
+    The tree declares no paths yet.  Its one refusal at the case's
+    CASE_MANAGER — which ledgered the answer when it sent it and never
+    receives it — is the sender rule's, which states no CASE_MANAGER side
+    (HP-01-008).  A participant-replica-only declaration would move that
+    refusal to the path stage, where the one shared reason, "not the
+    CASE_MANAGER of case …", would be false of the actual CASE_MANAGER; the
+    wording a replica-only declaration needs is #5042's and #5043's to settle
+    (ADR-0153 detail 5).
 
     Args:
         name: Name for the root ``Sequence``; the handler's own tree name.
@@ -683,13 +686,6 @@ def create_recommendation_answer_received_tree(
     return create_receive_activity_tree(
         name=name,
         case_id=None,
-        # The answer is addressed to the recommender, a participant of the
-        # case: it is the participant-replica path's alone.  The CASE_MANAGER
-        # ledgered the answer when it sent it and never receives it
-        # (CM-16-010), and a receiver that holds no replica of the case has
-        # no recommendation of its own to be answered, so both other paths
-        # are refused by the stage (ADR-0153, HP-01-005).
-        paths={ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id

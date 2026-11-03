@@ -3,7 +3,7 @@ status: accepted-provisional
 date: 2026-10-21
 created: 2026-10-21
 updated: 2026-11-03
-revision: 1
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0088, ADR-0111, ADR-0115, ADR-0129, ADR-0135;

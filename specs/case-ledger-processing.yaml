@@ -2163,10 +2163,10 @@ groups:
       commits nothing and leaves the disposition of the act to the later stages. Refusal
       effects (CLP-10-022) belong to stage (4): they run only
       after a precondition guard refuses, and the tree then ends without
-      reaching (5) or (6). The path stage is present in a tree whose message type
-      declares the paths it handles: it asks the receiver''s role once, picks the
-      manager, participant-replica or no-case path, refuses a path the declaration
-      omits, and writes nothing.'
+      reaching (5) or (6). A tree whose message type declares the paths it
+      handles carries the path stage. It asks the receiver''s role once and picks the
+      manager, participant-replica or no-case path. It refuses a path the declaration
+      omits, and it writes nothing.'
     rationale: Intake records what arrived. The canonical case ledger records the cause
       (the received activity the CASE_MANAGER accepted) and replicates it to all
       participants, so cause precedes effects. A clock decision is the CASE_MANAGER's

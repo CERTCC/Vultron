@@ -34,6 +34,9 @@ from vultron.core.behaviors.case.invite_actor_to_case_received_tree import (
 from vultron.core.behaviors.case.nodes.addressee import (
     ActivityAddressedToReceiverNode,
 )
+from vultron.core.behaviors.case.nodes.case_lookup import (
+    RequireCaseForReport,
+)
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
@@ -47,6 +50,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.inbox.nodes.pipeline import DeferCheckNode
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
@@ -75,6 +79,7 @@ MANAGER_ID = "https://example.org/actors/coordinator"
 VENDOR_ID = "https://example.org/actors/vendor"
 OWNER_ID = "https://example.org/actors/owner"
 STRANGER_ID = "https://example.org/actors/stranger"
+REPORT_ID = "https://example.org/reports/path-stage"
 
 #: Every path, so a test that sweeps them cannot miss one the enum gains.
 PATHS_IN_ORDER: list[ReceivedPath] = list(ReceivedPath)
@@ -244,7 +249,7 @@ def _declared_tree() -> ReceivedActivityTree:
 
 
 @pytest.mark.spec("CLP-10-010")
-@pytest.mark.spec("HP-01-012")
+@pytest.mark.spec("HP-01-035")
 def test_the_stage_runs_after_the_addressee_check_and_before_the_guard() -> (
     None
 ):
@@ -260,7 +265,59 @@ def test_the_stage_runs_after_the_addressee_check_and_before_the_guard() -> (
     assert addressee < path < guard
 
 
+@pytest.mark.spec("HP-01-005")
+def test_the_reason_names_the_activitys_case_when_no_case_is_known() -> None:
+    """With no case resolvable the reason names the activity, not ``None``.
+
+    The branch a tree reaches when neither its commit case, its manager case
+    nor its sender context names one: the reason still has to read as a
+    sentence rather than interpolate a missing id.
+    """
+    assert undeclared_path_reason(None) == (
+        "not the CASE_MANAGER of the case this activity names"
+    )
+    assert undeclared_path_reason(CASE_ID) == (
+        f"not the CASE_MANAGER of case '{CASE_ID}'"
+    )
+
+
+@pytest.mark.spec("BTND-03-009")
+def test_the_manager_path_publishes_the_resolved_manager_id() -> None:
+    """The stage publishes ``/case_actor_id``, as the gate it stands in for does.
+
+    A later node that reads the resolved manager's id must find it whichever
+    of the two answered the role question, or swapping a sender-guard arm
+    onto the path check would silently drop the key.
+    """
+    stage = _run_stage(ReceivedPath.CASE_MANAGER, ALL_PATHS)
+    published = py_trees.blackboard.Blackboard.get("/case_actor_id")
+
+    assert stage.resolved_path is ReceivedPath.CASE_MANAGER
+    assert published == MANAGER_ID
+
+
 @pytest.mark.spec("CLP-10-010")
+@pytest.mark.spec("HP-01-035")
+def test_the_door_guards_run_in_the_clp_10_010_order() -> None:
+    """The whole door-guard sequence, pinned by name and in order.
+
+    The relative assertions above each pin one edge; this pins the sequence,
+    so a stage inserted anywhere among the door guards is a deliberate edit
+    to this list (CLP-10-010).
+    """
+    tree = _declared_tree()
+
+    assert [type(guard).__name__ for guard in tree.door_guards] == [
+        "IntakeReceivedActivityNode",
+        "CaseOpenToExternalWritesNode",
+        "ActivityAddressedToReceiverNode",
+        "ReceivedPathNode",
+        "Sequence",  # the composed SenderRuleGuard
+    ]
+
+
+@pytest.mark.spec("CLP-10-010")
+@pytest.mark.spec("HP-01-035")
 def test_the_stage_is_one_of_the_trees_door_guards() -> None:
     """A delivery the stage refused did not get past the door."""
     tree = _declared_tree()
@@ -283,6 +340,33 @@ def test_a_declaration_naming_no_path_is_a_wiring_error() -> None:
         )
 
 
+@pytest.mark.spec("HP-01-035")
+def test_declaring_paths_on_a_run_time_resolved_case_is_a_wiring_error() -> (
+    None
+):
+    """The stage runs before ``case_resolution``, so it must name its case.
+
+    A tree whose case only ``case_resolution`` publishes would have the
+    stage read the no-case path for every delivery and refuse any tree that
+    did not declare it — a refusal with nothing wrong with the delivery.  The
+    factory refuses the combination instead of shipping that trap.
+    """
+    with pytest.raises(
+        VultronWiringError, match="runs before case_resolution"
+    ):
+        create_receive_activity_tree(
+            name="RunTimeCaseBT",
+            case_id=None,
+            precondition_guards=[],
+            paths={ReceivedPath.CASE_MANAGER},
+            sender_rule=_RULE,
+            sender_context=SenderCheckContext(
+                sender_id=OWNER_ID, case_id=None
+            ),
+            case_resolution=[RequireCaseForReport(report_id=REPORT_ID)],
+        )
+
+
 # ---------------------------------------------------------------------------
 # HP-01-008: the sender guard reads the path instead of asking again
 # ---------------------------------------------------------------------------
@@ -292,7 +376,7 @@ def _leaf_types(node: py_trees.behaviour.Behaviour) -> set[str]:
     return {type(each).__name__ for each in node.iterate()}
 
 
-@pytest.mark.spec("HP-01-008")
+@pytest.mark.spec("HP-01-036")
 def test_the_sender_guards_arms_read_the_path_stages_answer() -> None:
     """With a path stage the arms are path checks, not a second role read."""
     stage = ReceivedPathNode(
@@ -311,7 +395,7 @@ def test_the_sender_guards_arms_read_the_path_stages_answer() -> None:
     )
 
 
-@pytest.mark.spec("HP-01-008")
+@pytest.mark.spec("HP-01-036")
 def test_without_a_path_stage_the_arms_read_the_role_themselves() -> None:
     """The unmigrated shape is unchanged, so a tree may declare paths later."""
     guard = compose_sender_guard(_RULE, _CONTEXT)
@@ -322,7 +406,7 @@ def test_without_a_path_stage_the_arms_read_the_role_themselves() -> None:
     assert CheckReceivedPathNode.__name__ not in types
 
 
-@pytest.mark.spec("HP-01-008")
+@pytest.mark.spec("HP-01-036")
 def test_the_declared_tree_asks_the_role_question_once() -> None:
     """One role read answers the path and both sender-guard arms.
 
@@ -342,7 +426,7 @@ def test_the_declared_tree_asks_the_role_question_once() -> None:
     ]
 
 
-@pytest.mark.spec("HP-01-008")
+@pytest.mark.spec("HP-01-036")
 @pytest.mark.parametrize("path", PATHS_IN_ORDER)
 def test_the_manager_arm_matches_only_the_manager_path(
     path: ReceivedPath,
@@ -357,7 +441,7 @@ def test_the_manager_arm_matches_only_the_manager_path(
     assert arm.update() is expected
 
 
-@pytest.mark.spec("HP-01-008")
+@pytest.mark.spec("HP-01-036")
 def test_an_arm_whose_stage_has_not_run_does_not_match() -> None:
     """No arm is entered before the door stage answered."""
     stage = ReceivedPathNode(declared=ALL_PATHS, case_id=CASE_ID)
@@ -381,6 +465,43 @@ def _event(semantics: MessageSemantics) -> VultronEvent:
     )
 
 
+class _UnknownCaseQueue:
+    """An inbox queue that holds no case and records what it was asked to hold."""
+
+    def __init__(self) -> None:
+        self.queued: list[tuple[str, str, str | None]] = []
+
+    def is_case_known(self, case_id: str) -> bool:
+        return False
+
+    def check_and_expire(self, case_id: str) -> bool:
+        return False
+
+    def queue(
+        self,
+        activity_id: str,
+        case_id: str,
+        case_actor_id: str | None = None,
+    ) -> None:
+        self.queued.append((activity_id, case_id, case_actor_id))
+
+
+def _defer_check(semantics: MessageSemantics) -> _UnknownCaseQueue:
+    """Tick the inbox's defer check for *semantics* at a store with no case."""
+    queue = _UnknownCaseQueue()
+    client = py_trees.blackboard.Client(name="_defer_check_setup")
+    for key in ("inbox_event", "inbox_context_id", "inbox_queue"):
+        client.register_key(key, access=py_trees.common.Access.WRITE)
+    client.inbox_event = _event(semantics)
+    client.inbox_context_id = CASE_ID
+    client.inbox_queue = queue
+
+    tree = py_trees.trees.BehaviourTree(root=DeferCheckNode(name="Defer"))
+    tree.setup()
+    tree.tick()
+    return queue
+
+
 @pytest.mark.spec("HP-01-005")
 def test_a_case_scoped_type_waits_for_its_case_rather_than_being_refused() -> (
     None
@@ -388,16 +509,27 @@ def test_a_case_scoped_type_waits_for_its_case_rather_than_being_refused() -> (
     """The inbox's defer check holds a case-scoped type, so no path refuses it.
 
     ``Accept(Offer(CaseParticipant))`` is case-scoped and not deferral
-    exempt, so it never reaches its received tree — and its path stage —
-    until the receiver holds the case (ADR-0153 detail 6, IO-02-001).  Only
-    the activities that precede or establish their case are exempt, and the
-    stub Invite is the one that precedes it.
+    exempt, so the inbox queues it and it never reaches its received tree —
+    or its path stage — until the receiver holds the case (ADR-0153
+    detail 6).  The stub Invite, whose tree declares the no-case branch
+    (see the next test), is exempt and proceeds.  The pairing is the point:
+    a type takes the no-case path only when the defer check lets it.
     """
     case_scoped = MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT
-
     assert case_scoped not in CASE_PRECEDING_SEMANTICS
     assert not is_deferral_exempt(_event(case_scoped))
-    assert is_deferral_exempt(_event(MessageSemantics.INVITE_ACTOR_TO_CASE))
+
+    held = _defer_check(case_scoped)
+    assert [case_id for _, case_id, _ in held.queued] == [CASE_ID], (
+        "a case-scoped type at a store with no case is queued by the inbox,"
+        " not delivered to a tree whose path stage would refuse it"
+    )
+
+    proceeds = _defer_check(MessageSemantics.INVITE_ACTOR_TO_CASE)
+    assert proceeds.queued == [], (
+        "the stub Invite precedes its case by design, so the inbox lets it"
+        " reach the tree that declares the no-case branch"
+    )
 
 
 @pytest.mark.spec("HP-01-005")

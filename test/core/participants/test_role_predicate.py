@@ -21,6 +21,7 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.role_predicate import has_role
 from vultron.enums.roles import CVDRole
 
@@ -98,37 +99,68 @@ def test_a_case_the_store_does_not_hold_answers_false(
 def test_a_role_changed_mid_case_is_read_fresh(
     seeded: SqliteDataLayer,
 ) -> None:
-    """The roster is read per call, so a delegated role answers at once.
+    """The roster is read per call, so a granted role answers at once.
 
     A role belongs to an ``(actor, case)`` pair and changes while the case
     runs (ADR-0153), so the answer may not be cached from an earlier read.
     """
-    assert has_role(VENDOR_ID, CASE_ID, CVDRole.CASE_MANAGER, seeded) is False
+    assert has_role(VENDOR_ID, CASE_ID, CVDRole.COORDINATOR, seeded) is False
 
     vendor = seeded.read(f"{CASE_ID}/participants/vendor")
     assert isinstance(vendor, CaseParticipant)
+    vendor.add_role(CVDRole.COORDINATOR)
+    seeded.save(vendor)
+
+    assert has_role(VENDOR_ID, CASE_ID, CVDRole.COORDINATOR, seeded) is True
+
+    vendor = seeded.read(f"{CASE_ID}/participants/vendor")
+    assert isinstance(vendor, CaseParticipant)
+    vendor.remove_role(CVDRole.COORDINATOR)
+    seeded.save(vendor)
+
+    assert has_role(VENDOR_ID, CASE_ID, CVDRole.COORDINATOR, seeded) is False
+
+
+@pytest.mark.spec("CM-02-011")
+def test_the_case_manager_role_follows_a_delegation_mid_case(
+    seeded: SqliteDataLayer,
+) -> None:
+    """Handing the CASE_MANAGER role over changes the answer at once.
+
+    The delegation sequence, as the resolver sees it: while the first holder
+    still holds the role it is the authority, and only once the role moves
+    does the new holder answer ``True`` (CM-33, ARCH-24-001).
+    """
+    manager = seeded.read(f"{CASE_ID}/participants/manager")
+    vendor = seeded.read(f"{CASE_ID}/participants/vendor")
+    assert isinstance(manager, CaseParticipant)
+    assert isinstance(vendor, CaseParticipant)
+
+    manager.remove_role(CVDRole.CASE_MANAGER)
+    seeded.save(manager)
     vendor.add_role(CVDRole.CASE_MANAGER)
     seeded.save(vendor)
 
     assert has_role(VENDOR_ID, CASE_ID, CVDRole.CASE_MANAGER, seeded) is True
-
-    vendor = seeded.read(f"{CASE_ID}/participants/vendor")
-    assert isinstance(vendor, CaseParticipant)
-    vendor.remove_role(CVDRole.CASE_MANAGER)
-    seeded.save(vendor)
-
-    assert has_role(VENDOR_ID, CASE_ID, CVDRole.CASE_MANAGER, seeded) is False
+    assert has_role(MANAGER_ID, CASE_ID, CVDRole.CASE_MANAGER, seeded) is False
 
 
-@pytest.mark.spec("CM-02-011")
-def test_a_trailing_slash_still_names_the_same_actor(
+@pytest.mark.spec("OID-01-007")
+def test_an_unnormalised_actor_id_names_no_participant(
     seeded: SqliteDataLayer,
 ) -> None:
-    """Actor ids that differ only by a trailing slash are one actor."""
+    """An id is compared exactly, as every other role check compares it.
+
+    Ids are normalised where they are extracted (OID-01-006, OID-01-007), so
+    one carrying a trailing slash is an upstream defect; absorbing it here
+    would make this predicate more lenient than the ``CheckIsCaseManagerNode``
+    gates it has to agree with.
+    """
     assert (
         has_role(f"{MANAGER_ID}/", CASE_ID, CVDRole.CASE_MANAGER, seeded)
-        is True
+        is False
     )
+    assert has_role(f"{VENDOR_ID}/", CASE_ID, CVDRole.VENDOR, seeded) is False
 
 
 @pytest.mark.spec("CM-26-001")
@@ -142,3 +174,37 @@ def test_role_stacking_is_a_union(seeded: SqliteDataLayer) -> None:
     assert has_role(MANAGER_ID, CASE_ID, CVDRole.CASE_MANAGER, seeded) is True
     assert has_role(MANAGER_ID, CASE_ID, CVDRole.COORDINATOR, seeded) is True
     assert has_role(MANAGER_ID, CASE_ID, CVDRole.VENDOR, seeded) is False
+
+
+@pytest.mark.spec("ARCH-24-001")
+@pytest.mark.spec("ARCH-24-006")
+def test_authority_agrees_with_the_single_resolver(
+    seeded: SqliteDataLayer,
+) -> None:
+    """The CASE_MANAGER answer is the resolver's, on any roster.
+
+    Authority has one answer per case, so the predicate must not derive a
+    second one.  A roster that records the role on two participants — the
+    window a role delegation opens (CM-33) — is where a second
+    implementation would disagree: a scan over the actor's own records would
+    call the later holder the manager while
+    :func:`resolve_case_manager_id`, and so every ``CheckIsCaseManagerNode``
+    in a tree, names the first.  A tree admitted on one answer and gated on
+    the other reports ``APPLIED`` with every gated effect skipped
+    (HP-01-005), which is the defect ADR-0153 closes.
+    """
+    second = _participant(
+        "second-manager", VENDOR_ID, CVDRole.VENDOR, CVDRole.CASE_MANAGER
+    )
+    case = seeded.read_case(CASE_ID)
+    assert case is not None
+    seeded.save(second)
+
+    resolved = resolve_case_manager_id(case, seeded)
+    for actor_id in (MANAGER_ID, VENDOR_ID, STRANGER_ID):
+        assert has_role(actor_id, CASE_ID, CVDRole.CASE_MANAGER, seeded) is (
+            resolved == actor_id
+        ), actor_id
+
+    # The vendor's own second record still answers for its other role.
+    assert has_role(VENDOR_ID, CASE_ID, CVDRole.VENDOR, seeded) is True

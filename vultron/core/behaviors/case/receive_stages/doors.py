@@ -156,6 +156,8 @@ def received_path_stage(
     name: str,
     case_id: str | None,
     paths: Collection[ReceivedPath] | None,
+    *,
+    case_resolved_at_run_time: bool = False,
 ) -> ReceivedPathNode | None:
     """The path door stage of a tree that declared its paths (ADR-0153).
 
@@ -170,17 +172,28 @@ def received_path_stage(
     ``test/architecture/test_received_path_role_question.py``.
 
     Raises:
-        VultronWiringError: The declaration names no path.  A tree that
+        VultronWiringError: The declaration names no path — a tree that
             handles no path would refuse every delivery, so an empty
-            declaration is a wiring mistake, not a path stage.
+            declaration is a wiring mistake, not a path stage — or the tree
+            names no case at build time and resolves it with
+            ``case_resolution``, which runs *after* this stage: the stage
+            would read the no-case path for every delivery and refuse any
+            tree that did not declare it.
     """
     if paths is None:
         return None
     declared = declared_paths(paths)
+    where = f"create_receive_activity_tree({name})"
     if not declared:
         raise VultronWiringError(
-            f"create_receive_activity_tree({name}): paths must name at"
-            " least one ReceivedPath (ADR-0153)"
+            f"{where}: paths must name at least one ReceivedPath (ADR-0153)"
+        )
+    if case_id is None and case_resolved_at_run_time:
+        raise VultronWiringError(
+            f"{where}: the path stage runs before case_resolution, so a tree"
+            " whose case only that stage resolves has no case to read the"
+            " receiver's role in; name the case at build time or declare no"
+            " paths yet (ADR-0153, HP-01-025)"
         )
     return ReceivedPathNode(declared=declared, case_id=case_id, label=name)
 
