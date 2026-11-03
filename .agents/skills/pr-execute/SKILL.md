@@ -130,7 +130,8 @@ Deferring" and "The Two Gates".
    issue and let the PR proceed. Silence is never consent to defer.
 
 Only *second-order* findings are eligible for `defer-ask`. A first-order
-finding is never deferred — fix it.
+finding is never deferred — fix it. The one exception is a missing test or
+check the task needs (`completeness-doctrine.md` § "Depth").
 
 **`inversion-halt`** (Gate 2 — the work inverts an issue/spec/ADR premise):
 

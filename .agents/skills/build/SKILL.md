@@ -216,28 +216,37 @@ focus hints, notes and glossary sections `deepen-context` read.
 3. Do not assume missing functionality; verify in code.
 4. **A missing prerequisite is part of the task.** When the work needs
    something that does not exist yet (most often a test or check, such as the
-   `verification:` check a spec split needs, MS-10-016), the task becomes
-   "build the prerequisite, then do the task". A person given the task would
-   do the backfill, and nobody else in the workflow will. Take the first tier
-   that fits:
+   `verification:` check that a split of a requirement with no
+   `verification_debt:` marker needs, MS-10-016), the task becomes "build the
+   prerequisite, then do the task". A person given the task would do the
+   backfill, and nobody else in the workflow will. Take the first tier that
+   fits:
 
    1. **Small enough to build in this PR: build it.** This is the default.
       Do not file it, and do not stop.
    2. **Too big for this PR, but its test can be written now: ask first.**
       Present the deferral through Gate 1 (`completeness-doctrine.md`
-      § "Gate 1"): what remains, measured, in plain language. On approval,
-      do the task anyway, write a strict `xfail` test that states the missing
-      behavior and cites a new follow-up issue (`reason="<ID>: <what>.
-      Tracked by #N."`), and file that issue through `create-issue`. The gap
-      is held by a test that fails loudly once the work lands, not by a note.
-      Unattended, or on silence, this tier is unavailable: build it, or hold
-      the PR as a draft with the missing piece stated.
+      § "Gate 1"): what remains, measured, in plain language. This is the one
+      first-order item Gate 1 accepts (§ "Depth"). On approval, file the
+      follow-up issue through `create-issue` (type `Task`, reason
+      `opened-as deferred`, a `size:` from its AC count, a `Governing specs:`
+      line, the approval cited in its body, and no `blocks`: the task is done
+      anyway). Then do the task, and write a strict `xfail` test, with
+      `@pytest.mark.spec("<ID>")`, that states the missing behavior and cites
+      that issue (`reason="<ID>: <what>. Tracked by #N."`;
+      `notes/spec-authoring-rules.md` § "Use a Strict `xfail` for
+      Not-Yet-Implemented Specs"). The gap is held by a test that fails
+      loudly once the work lands, not by a note. Unattended, or on silence,
+      this tier is unavailable: build it, or hold the PR as a draft with the
+      missing piece stated.
    3. **No test can be written yet** (the behavior is outside what agents may
       build, such as production key handling, ADR-0164, or it needs a design
       decision first): ask the user. If a separate issue is the answer, file it
       through `create-issue` (type `Task`, reason `opened-as separate-defect`,
-      a `size:` from its AC count, `blocks` the current issue, a
-      `Governing specs:` line), and stop.
+      a `size:` from its AC count, `blocks` the current issue, the current
+      issue's Epic as the suggested parent, a `Governing specs:` line), and
+      stop. Unattended, or on silence: stop, with the open question stated
+      on the current issue.
 
    Never stop at "can't do X until someone writes the test". Writing the test
    is the move that unblocks it. A learning file is not a substitute for any
@@ -313,7 +322,8 @@ later) are separate decisions. Apply
   silence (unattended), **DEFER is unavailable**: finish it in this PR, or hold
   the PR (draft, blocked, the unfinished item stated). Never file an issue as the
   way to get the PR merged, and do not park the rationale in a learning file as a
-  substitute for doing the work. Only second-order findings are eligible.
+  substitute for doing the work. Only second-order findings are eligible, apart
+  from the missing check of Phase 4 step 4, tier 2.
 - Inverts a premise the issue or its specs/ADRs rested on → Gate 2: explain the
   overturned premise, ask if/what to file. On silence (unattended), **halt** —
   leave the PR blocked rather than acting on the new premise unreviewed.
