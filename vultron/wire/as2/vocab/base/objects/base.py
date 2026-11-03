@@ -22,6 +22,7 @@ from pydantic import ConfigDict, Field, field_serializer, field_validator
 
 from vultron.core.models._helpers import as_utc, format_timestamp, now_utc
 from vultron.core.models.base import CoreObject
+from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.links import (
     ActivityStreamRef,
@@ -64,9 +65,10 @@ class as_Object(as_Base):
         default_factory=now_utc, json_schema_extra={"format": "date-time"}
     )
 
-    # content
-    content: Any | None = None
-    summary: Any | None = None
+    # content: blank text is refused when the object is built (CS-08-001,
+    # VM-07-005)
+    content: NonEmptyString | None = None
+    summary: NonEmptyString | None = None
     icon: Any | None = None
     image: Any | None = None
     attachment: Any | None = None

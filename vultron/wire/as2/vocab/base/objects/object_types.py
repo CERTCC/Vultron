@@ -20,6 +20,7 @@ from typing import TypeAlias
 from pydantic import Field
 
 from vultron.core.models._helpers import timestamp_serializer
+from vultron.primitives import NonEmptyString
 from vultron.wire.as2.enums import as_ObjectType as O_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object, as_ObjectRef
@@ -99,9 +100,6 @@ class as_Note(as_Object):
         serialization_alias="type",
     )
 
-    # notes must have content
-    content: str = Field(default="")
-
 
 as_NoteRef: TypeAlias = ActivityStreamRef[as_Note]
 
@@ -143,7 +141,7 @@ class as_Tombstone(as_Object):
         serialization_alias="type",
     )
 
-    former_type: str | None = None
+    former_type: NonEmptyString | None = None
     deleted: datetime | None = None
     _serialize_deleted = timestamp_serializer("deleted")
 
@@ -163,7 +161,7 @@ class as_Relationship(as_Object):
     subject: as_ObjectRef | None = None
     object: as_ObjectRef | None = None
     # AS2 spec allows a string term or a URI (e.g. from https://vocab.org/relationship/); str covers both
-    relationship: str | None = None
+    relationship: NonEmptyString | None = None
 
 
 as_RelationshipRef: TypeAlias = ActivityStreamRef[as_Relationship]
@@ -183,7 +181,7 @@ class as_Place(as_Object):
     altitude: float | None = None
     radius: float | None = None
     accuracy: float | None = None
-    units: str | None = None
+    units: NonEmptyString | None = None
 
 
 as_PlaceRef: TypeAlias = ActivityStreamRef[as_Place]

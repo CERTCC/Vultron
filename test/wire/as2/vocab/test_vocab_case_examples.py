@@ -11,6 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 import unittest
+from itertools import pairwise
 from typing import cast
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
@@ -258,6 +259,7 @@ class TestVocabCaseNoteExamples(unittest.TestCase):
         self.assertIsInstance(note, as_Note)
 
         self.assertTrue(hasattr(note, "to_json"))
+        assert note.content is not None
         self.assertIn("This is a note", note.content)
 
     def test_add_note_to_case(self):
@@ -373,6 +375,15 @@ class TestVocabCaseStatusExamples(unittest.TestCase):
         self.assertIsInstance(obj, as_CaseStatus)
         self.assertIn(obj.em.state, EM)
         self.assertIn(obj.pxa.state, CS_pxa)
+
+    def test_case_status_published_rises_with_its_number(self):
+        # The examples show a history the CASE_MANAGER appended (CM-29-005),
+        # and an authored status carries no ``updated`` (CM-29-006).
+        statuses = [examples.case_status(number=n) for n in range(1, 8)]
+        for earlier, later in pairwise(statuses):
+            self.assertLess(earlier.published, later.published)
+        for status in statuses:
+            self.assertIsNone(status.updated)
 
     def test_add_case_status_to_case(self):
         activity = examples.add_status_to_case()

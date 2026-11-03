@@ -11,14 +11,15 @@
    `@activitystreams_activity` decorators. Registration is automatic via
    `as_Base.__init_subclass__` when a class sets `type_` to `Literal[...]`.
 
-2. `find_in_vocabulary()` checks `WIRE_TYPE_MAP`, then `VOCABULARY`, and stops
-   there by default: a wire caller only ever gets a class the wire registry
-   holds (VM-06-008). Only a persistence read path that reconstructs whatever
-   was stored passes `include_core=True` to fall back to `CORE_TYPE_MAP` (core
-   domain types that MUST NOT appear in the wire `VOCABULARY` per
-   ARCH-12-014), and it says why in a comment at the call. It MUST raise `KeyError` for
-   names not
-   found in any registry — never return `None`. Callers that previously
+2. `find_in_vocabulary()` resolves a wire `type` value through `WIRE_TYPE_MAP`
+   alone, and stops there by default: a wire caller only ever gets a class the
+   wire registry holds (VM-06-008). It never consults `VOCABULARY`, because a
+   class name such as `as_Activity` is not an AS2 `type` value (VM-01-016).
+   Only a persistence read path that reconstructs whatever was stored passes
+   `include_core=True` to fall back to `CORE_TYPE_MAP` (core domain types that
+   MUST NOT appear in the wire `VOCABULARY` per ARCH-12-014), and it says why in
+   a comment at the call. It MUST raise `KeyError` for names not found in any
+   registry — never return `None`. Callers that previously
    checked `if vocab_cls is not None` must use `try/except KeyError` instead.
    Do NOT add core-layer types to `VOCABULARY` as a workaround for a
    missing lookup — fix the registration in `CORE_TYPE_MAP` instead.
@@ -32,10 +33,11 @@
    `type_` of its own (so auto-registration skips it) yet is stored concretely
    as `type_="Actor"`. If a new class shares an existing class's `type` value,
    declare `_wire_type_alias: ClassVar[bool] = True` on it rather than letting
-   import order decide who owns the key; it stays reachable through
-   `VOCABULARY`. The only unflagged sharers are the five `as_Vultron*` actor
-   shadows, enumerated in the ratchet `test/architecture/test_vocab_registry_keys.py`,
-   which fails on any other collision.
+   import order decide who owns the key; it is still listed in `VOCABULARY`
+   under its class name, but no wire `type` value resolves to it. The only
+   unflagged sharers are the five `as_Vultron*` actor shadows, enumerated in the
+   ratchet `test/architecture/test_vocab_registry_keys.py`, which fails on any
+   other collision.
 
 ## The Wire Branch Inherits Nothing From Core
 

@@ -36,13 +36,11 @@ See: GitHub issue #2982.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import importlib
-import pkgutil
 from typing import ClassVar
 
 from pydantic import Field
 
-import vultron.wire.as2.vocab as _vocab
+from test.support.wire_vocab import import_all_wire_vocab
 from vultron.subclasses import all_subclasses
 from vultron.wire.as2.enums import as_ObjectType
 from vultron.wire.as2.vocab.base.base import as_Base
@@ -81,10 +79,7 @@ _SANCTIONED_SHADOWS = {
 
 def _force_full_registration() -> None:
     """Import every wire vocabulary submodule so the registry is populated."""
-    for module in pkgutil.walk_packages(
-        _vocab.__path__, f"{_vocab.__name__}."
-    ):
-        importlib.import_module(module.name)
+    import_all_wire_vocab()
 
 
 def _declared_type_wire_classes() -> list[type[as_Base]]:

@@ -29,8 +29,8 @@ groups:
       before dispatch.
     note: >-
       Two distinct type lookups act on an inbound activity, and this requirement
-      governs the first. Vocabulary-level type resolution (the AS2 `WIRE_TYPE_MAP` /
-      `VOCABULARY`, consulted by `parse_activity`) is refused at the parse
+      governs the first. Vocabulary-level type resolution (the AS2 `WIRE_TYPE_MAP`,
+      consulted by `parse_activity`, VM-01-016) is refused at the parse
       threshold: an activity whose `type` is absent from the AS2 vocabulary is
       rejected with `VultronParseUnknownTypeError` → HTTP 422 and never reaches
       dispatch. The separate "route to `UNKNOWN`" behaviour (MV-01-006) applies to

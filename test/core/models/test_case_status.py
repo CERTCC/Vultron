@@ -1,16 +1,19 @@
-"""Tests for the core ``CaseStatus`` time requirement (CM-29-001, CLP-15-010)."""
+"""Tests for the core ``CaseStatus`` times (SM-05-003, CM-29-006, CLP-15-010)."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
 
 from test.support.blank_strings import BLANKS
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
     MissingClaimedTimeError,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.states.cs import CS_pxa
 
 CASE_ID = "https://example.org/cases/1"
 _INBOUND = {INBOUND_CONTEXT_KEY: True}
@@ -20,7 +23,7 @@ def _cause(exc: ValidationError) -> object:
     return exc.errors()[0].get("ctx", {}).get("error")
 
 
-@pytest.mark.spec("CM-29-001")
+@pytest.mark.spec("SM-05-003")
 @pytest.mark.spec("ARCH-10-001")
 def test_case_status_requires_published():
     """A status built without a time fails at construction, not at sorting."""
@@ -28,11 +31,30 @@ def test_case_status_requires_published():
         CaseStatus(context=CASE_ID, published=None)  # type: ignore[arg-type]
 
 
-@pytest.mark.spec("CM-29-001")
+@pytest.mark.spec("SM-05-003")
 def test_authored_case_status_takes_the_local_clock():
     before = datetime.now(tz=UTC)
     status = CaseStatus(context=CASE_ID)
     assert before <= status.published <= datetime.now(tz=UTC)
+
+
+@pytest.mark.spec("CM-29-006")
+def test_authored_case_status_updated_equals_published():
+    """An authored status has one time: no ``updated`` besides ``published``.
+
+    Covers a status built directly (the snapshot node's and the case seed's
+    path) and one built by ``append_case_status``, which copies the current
+    status and so would otherwise carry its old ``updated`` forward.
+    """
+    built = CaseStatus(context=CASE_ID)
+    case = VulnerabilityCase(id_=CASE_ID, attributed_to=CASE_OWNER_ID)
+    seeded = case.current_status
+    seeded.updated = seeded.published - timedelta(days=1)
+    case.append_case_status(pxa=CS_pxa.Pxa)
+    appended = case.current_status
+    assert appended is not seeded
+    assert built.updated is None
+    assert appended.updated is None
 
 
 @pytest.mark.spec("ARCH-21-001")

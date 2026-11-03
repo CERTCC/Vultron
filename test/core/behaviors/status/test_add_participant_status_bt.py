@@ -2033,8 +2033,8 @@ def _case_status_entries(dl: SqliteDataLayer) -> list:
 def _seed_case_pxa(dl: SqliteDataLayer, pxa: CS_pxa) -> None:
     """Record *pxa* as the case's status.
 
-    ``append_case_status`` stamps it from the clock, so the status the tree
-    commits later sorts after it (CM-29-001).
+    ``append_case_status`` appends it, so it is the current status until the
+    tree commits the next one (CM-29-001).
     """
     case = dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)

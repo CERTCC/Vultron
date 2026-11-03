@@ -50,6 +50,7 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
     _SingleSemanticTypeNode,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.sync_helpers import case_status_from_snapshot
@@ -59,6 +60,42 @@ logger = logging.getLogger(__name__)
 
 #: Ledger ``semantic_type`` of a case-status entry.
 ADD_CASE_STATUS_SEMANTIC_TYPE = MessageSemantics.ADD_CASE_STATUS_TO_CASE.value
+
+
+def warn_if_out_of_order(
+    case: VulnerabilityCase,
+    status: CaseStatus,
+    log: logging.Logger,
+    node_name: str,
+) -> None:
+    """Log a WARNING when *status* is timed no later than the one before it.
+
+    The CASE_MANAGER broke CM-29-005, but append order still picks the
+    current status (CM-29-001), so the status is applied all the same:
+    refusing it would stall the replica for a fault that changes nothing it
+    reads (CM-29-007).  The log is the fault's only record (CM-29-008).
+
+    The one place a replica slot reads the replica's own current status, and
+    only to compare two times for this log: it fills no field, so the
+    copy-only rule (CM-23-044) exempts it by name.
+    """
+    try:
+        previous = case.current_status
+    except ValueError:
+        return  # nothing materialized to compare against
+    if status.published > previous.published:
+        return
+    log.warning(
+        "%s: case status '%s' (published %s) in case '%s' is not later"
+        " than the status before it, '%s' (published %s); applied in"
+        " ledger order (CM-29-007, CM-29-008)",
+        node_name,
+        status.id_,
+        status.published.isoformat(),
+        case.id_,
+        previous.id_,
+        previous.published.isoformat(),
+    )
 
 
 class IsAddCaseStatusEventNode(_SingleSemanticTypeNode):
@@ -80,6 +117,10 @@ class ApplyCaseStatusFromLedgerNode(_LedgerEffectNode):
     * the replica holds no copy of the case (Regime 2, ADR-0087);
     * the status is already in ``case.case_statuses`` — the genesis status a
       seeded replica holds, or a re-delivery (CLP-13-001).
+
+    A status timed no later than the replica's current one is still
+    appended, and becomes current, with a WARNING naming both (CM-29-007,
+    CM-29-008): append order, not time, picks the current status.
 
     FAILURE, so the entry is not persisted (SYNC-12-001): the snapshot names
     no status, or carries one that is not a valid ``CaseStatus``.  Persisting
@@ -109,6 +150,7 @@ class ApplyCaseStatusFromLedgerNode(_LedgerEffectNode):
             )
             return Status.SUCCESS
 
+        warn_if_out_of_order(case, status, self.logger, self.name)
         self.datalayer.save(status)
         case.add_case_status(status)
         self.datalayer.save(case)
