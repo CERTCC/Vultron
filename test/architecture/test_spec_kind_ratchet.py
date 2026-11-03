@@ -19,7 +19,7 @@ Three layers enforce MS-12 and no single one is sufficient (issue #3600):
 1. the check inside ``spec-lint``, which the pre-commit hook runs — but only
    when a ``specs/*.yaml`` file is staged, so editing the linter alone never
    triggers it locally;
-2. unit tests in ``test/metadata/specs/test_lint.py`` on synthetic fixtures;
+2. unit tests in ``test/metadata/specs/lint/`` on synthetic fixtures;
 3. this module, which runs against the **live** corpus on every local pytest
    run regardless of what is staged.
 

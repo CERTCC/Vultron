@@ -10,77 +10,33 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""PR-only growth guard over a per-item set (SR-05-005, MS-12-007).
-
-A committed count of debt items races every concurrent PR that moves it
-(``notes/testing-pitfalls.md`` § "A Two-Sided Count Pin Races Every Concurrent
-PR"), and a one-sided ceiling collects silent slack instead (#3959). This
-module holds back growth without committing a number: it evaluates one
-*extractor* — a function from a repository tree to the set of item IDs that
-are in debt — at the merge base with the base branch and at the working tree,
-and returns only the items the branch **added**. Items that leave the set, or
-that were already in it at the base, are not this branch's doing and never
-fail it.
-
-The base tree is materialized from git (``git archive``) into a temporary
-directory holding only the *paths* the extractor reads, so the extractor runs
-on the base exactly as it runs on the working tree. An extractor whose result
-for each file depends on that file alone can skip the files the branch left
-alone on both sides (:func:`compare_changed_with_base`), so its cost follows
-the size of the change rather than of the tree.
-
-The base branch is ``origin/$GITHUB_BASE_REF`` when that variable is set (a
-GitHub Actions ``pull_request`` run) and ``origin/main`` otherwise. When the
-base cannot be resolved — no such ref, or a shallow clone with no common
-history — the check is **skipped with a logged reason**, never passed: the
-result carries ``skipped`` and the caller reports it (``pytest.skip``). CI
-checks out with ``fetch-depth: 0`` so the base resolves there, and under GitHub
-Actions (``GITHUB_ACTIONS=true``) a missing base raises instead of skipping, so
-a checkout that loses its history cannot turn the guard into a green skip.
-
-An *extractor* error on the base tree is not a skip either: it is re-raised as
-:class:`BaseExtractionError`, naming the merge base, because the failing tree
-is the one materialized from git, not the working tree.
-
-Consumers: the marker-coverage guard (SR-05-005), the
-``missing_story_reference`` guard (MS-12-007), the compound-statement guard
-(MS-03-007) and the ``verification_debt`` guard (MS-10-016) under
-``test/architecture/``. A guard that must see both trees at once, rather than
-a set difference, uses :func:`compare_with_base` directly: the kind-change
-marker guard (MS-12-011) compares each ID's kind and marker at the base with
-the working tree.
+"""Run a per-item extractor at the merge base and on the working tree, and
+report what the branch added.
 """
 
 from __future__ import annotations
 
-import io
 import logging
-import os
 import shutil
-import subprocess  # nosec B404 - runs fixed git commands only
-import tarfile
 import tempfile
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from vultron.metadata.specs.growth_guard.base_tree import (
+    BaseUnavailableError,
+    _extract_archive,
+    base_ref_name,
+    changed_files,
+    materialize_tree,
+    resolve_merge_base,
+    running_in_ci,
+)
+
 logger = logging.getLogger(__name__)
-
-#: Set by GitHub Actions on ``pull_request`` runs to the base branch name.
-BASE_REF_ENV = "GITHUB_BASE_REF"
-
-#: Set to ``true`` by GitHub Actions; there a missing base fails, not skips.
-CI_ENV = "GITHUB_ACTIONS"
-
-#: The base branch when :data:`BASE_REF_ENV` is unset or empty.
-DEFAULT_BASE_REF = "origin/main"
 
 #: A per-item extractor: repository root in, the IDs of items in debt out.
 Extractor = Callable[[Path], frozenset[str]]
-
-
-class BaseUnavailableError(Exception):
-    """The merge base with the base branch cannot be resolved or read."""
 
 
 class BaseExtractionError(Exception):
@@ -138,154 +94,6 @@ class BaseComparison[T]:
     base_value: T | None
     head_value: T
     skipped: str | None = None
-
-
-def _git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
-    try:
-        return subprocess.run(  # nosec B603 B607 - fixed git argv
-            ["git", *args], cwd=repo_root, capture_output=True, check=False
-        )
-    except FileNotFoundError as exc:
-        raise BaseUnavailableError(f"git is not available: {exc}") from exc
-
-
-def _stderr(proc: subprocess.CompletedProcess[bytes]) -> str:
-    detail = proc.stderr.decode(errors="replace").strip()
-    return f": {detail}" if detail else ""
-
-
-def running_in_ci(env: Mapping[str, str] | None = None) -> bool:
-    """Whether :data:`CI_ENV` says this is a GitHub Actions run."""
-    return (os.environ if env is None else env).get(CI_ENV, "") == "true"
-
-
-def base_ref_name(env: Mapping[str, str] | None = None) -> str:
-    """The base branch ref: ``origin/$GITHUB_BASE_REF``, else ``origin/main``."""
-    value = (os.environ if env is None else env).get(BASE_REF_ENV, "").strip()
-    return f"origin/{value}" if value else DEFAULT_BASE_REF
-
-
-def resolve_merge_base(repo_root: Path, base_ref: str) -> str:
-    """Return the merge-base commit of *base_ref* and ``HEAD``.
-
-    Raises:
-        BaseUnavailableError: *base_ref* names no commit here, or it shares
-            no history with ``HEAD`` (typically a shallow clone).
-    """
-    ref = _git(
-        repo_root, "rev-parse", "--verify", "--quiet", f"{base_ref}^{{commit}}"
-    )
-    if ref.returncode != 0:
-        raise BaseUnavailableError(
-            f"base ref {base_ref!r} is not a commit in {repo_root} "
-            f"(fetch it, or check out with fetch-depth: 0){_stderr(ref)}"
-        )
-    mb = _git(repo_root, "merge-base", base_ref, "HEAD")
-    if mb.returncode != 0:
-        raise BaseUnavailableError(
-            f"no merge base between {base_ref!r} and HEAD in {repo_root} "
-            f"(shallow clone?){_stderr(mb)}"
-        )
-    return mb.stdout.decode().strip()
-
-
-def materialize_tree(
-    repo_root: Path, commit: str, paths: Sequence[str], dest: Path
-) -> None:
-    """Write *paths* as they are at *commit* under *dest*.
-
-    A path absent at *commit* is skipped rather than an error, so a guard
-    whose input directory is new on the branch sees an empty base.
-    """
-    present = [
-        p
-        for p in paths
-        if _git(repo_root, "cat-file", "-e", f"{commit}:{p}").returncode == 0
-    ]
-    _extract_archive(repo_root, commit, present, dest)
-
-
-def _extract_archive(
-    repo_root: Path, commit: str, present: Sequence[str], dest: Path
-) -> None:
-    """Write *present*, paths that all exist at *commit*, under *dest*."""
-    if not present:
-        return
-    archive = _git(
-        repo_root, "archive", "--format=tar", commit, "--", *present
-    )
-    if archive.returncode != 0:
-        raise BaseUnavailableError(
-            f"git archive {commit} failed{_stderr(archive)}"
-        )
-    with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
-        tar.extractall(dest, filter="data")
-
-
-@dataclass(frozen=True)
-class ChangedFiles:
-    """The files under some paths that differ between a commit and the tree.
-
-    Attributes:
-        at_base: Changed files that exist at the commit.
-        at_head: Changed files that exist in the working tree, untracked
-            files that are not ignored included.
-    """
-
-    at_base: tuple[str, ...]
-    at_head: tuple[str, ...]
-
-
-def changed_files(
-    repo_root: Path, commit: str, paths: Sequence[str]
-) -> ChangedFiles:
-    """The files under *paths* whose content differs from *commit*.
-
-    Compares the working tree, staged or not, with *commit*. A rename is a
-    deletion and an addition, so both names are listed. Ignored files are not
-    listed: they are not part of either tree.
-
-    Raises:
-        BaseUnavailableError: git cannot compare the trees.
-    """
-    if not paths:
-        return ChangedFiles((), ())
-    diff = _git(
-        repo_root,
-        "diff",
-        "--name-status",
-        "--no-renames",
-        "-z",
-        commit,
-        "--",
-        *paths,
-    )
-    untracked = _git(
-        repo_root,
-        "ls-files",
-        "--others",
-        "--exclude-standard",
-        "-z",
-        "--",
-        *paths,
-    )
-    for proc in (diff, untracked):
-        if proc.returncode != 0:
-            raise BaseUnavailableError(
-                f"git could not list the files changed since {commit[:12]}"
-                f"{_stderr(proc)}"
-            )
-    fields = diff.stdout.decode("utf-8", "surrogateescape").split("\0")
-    at_base: list[str] = []
-    at_head: list[str] = []
-    for status, path in zip(fields[0::2], fields[1::2], strict=False):
-        if status != "A":
-            at_base.append(path)
-        if status != "D":
-            at_head.append(path)
-    listed = untracked.stdout.decode("utf-8", "surrogateescape")
-    at_head.extend(p for p in listed.split("\0") if p)
-    return ChangedFiles(tuple(at_base), tuple(at_head))
 
 
 def _base_settings(
@@ -453,24 +261,3 @@ def added_since_base(
     return GrowthCheck(
         seen.base, head_items - seen.base_value, len(head_items)
     )
-
-
-__all__ = [
-    "BASE_REF_ENV",
-    "BaseComparison",
-    "BaseExtractionError",
-    "BaseUnavailableError",
-    "CI_ENV",
-    "ChangedFiles",
-    "DEFAULT_BASE_REF",
-    "Extractor",
-    "GrowthCheck",
-    "added_since_base",
-    "base_ref_name",
-    "changed_files",
-    "compare_changed_with_base",
-    "compare_with_base",
-    "materialize_tree",
-    "resolve_merge_base",
-    "running_in_ci",
-]

@@ -734,7 +734,7 @@ groups:
     verification: >-
       `test_lint_one_summary_line_per_kind_computed_from_markers` and
       `test_lint_kind_with_owner_entry_prints_its_line_even_at_zero_markers` in
-      `test/metadata/specs/test_lint.py`, and
+      `test/metadata/specs/lint/test_driver.py`, and
       `test_debt_by_kind_groups_markers_and_tallies_owners` and
       `test_summary_names_every_owner_including_those_at_zero` in
       `test/metadata/specs/test_verification.py`, check one line per kind with the
@@ -767,7 +767,7 @@ groups:
       `test_summary_does_not_depend_on_any_committed_count` in
       `test/metadata/specs/test_verification.py` and
       `test_lint_one_summary_line_per_kind_computed_from_markers` in
-      `test/metadata/specs/test_lint.py` check that the line follows the markers.
+      `test/metadata/specs/lint/test_driver.py` check that the line follows the markers.
     relationships:
     - rel_type: extends
       spec_id: MS-10-005
@@ -789,7 +789,7 @@ groups:
       `test_lint_default_output_has_no_per_item_unverified_lines`,
       `test_lint_list_unverified_prints_ids_under_their_kind`,
       `test_main_list_unverified_flag` and `test_main_default_does_not_list_ids` in
-      `test/metadata/specs/test_lint.py`, and
+      `test/metadata/specs/lint/test_driver.py`, and
       `test_listing_is_opt_in_and_names_each_marker` in
       `test/metadata/specs/test_verification.py`, check the default output and the
       opt-in listing.
@@ -874,7 +874,7 @@ groups:
       `test_relabel_that_keeps_the_old_kinds_marker_fails` in
       `test/metadata/specs/test_verification.py`, and
       `test_lint_unmarked_unverified_must_tier_is_hard_error` in
-      `test/metadata/specs/test_lint.py`, check each per-item failure.
+      `test/metadata/specs/lint/test_driver.py`, check each per-item failure.
     relationships:
     - rel_type: verifies
       spec_id: MS-10-006
@@ -900,7 +900,7 @@ groups:
       `test_closing_pr_lookup_failure_is_an_error` in
       `test/metadata/specs/test_verification.py`, and
       `test_lint_check_closing_pr_fails_a_pr_closing_an_owner_in_use` in
-      `test/metadata/specs/test_lint.py`, check the verdict.
+      `test/metadata/specs/lint/test_driver.py`, check the verdict.
       `test_closing_pr_check_fails_the_pr_on_every_pull_request` in
       `test/ci/test_verification_debt_owner_check.py` checks that
       `.github/workflows/verification-debt-owners.yml` runs it through
@@ -930,7 +930,7 @@ groups:
       `test/metadata/specs/test_verification.py`, and
       `test_lint_check_debt_owners_fails_on_a_closed_owner` and
       `test_lint_check_debt_owners_ignores_unrelated_lint_errors` in
-      `test/metadata/specs/test_lint.py`, check the report.
+      `test/metadata/specs/lint/test_driver.py`, check the report.
       `test_open_owner_check_reports_and_never_fails_the_build` and
       `test_open_owner_check_runs_at_least_hourly` in
       `test/ci/test_verification_debt_owner_check.py` check that
@@ -1009,7 +1009,7 @@ groups:
       `test/metadata/specs/test_verification.py`, and
       `test_lint_marker_on_a_kind_with_no_owner_entry_is_hard_error` and
       `test_lint_verified_must_tier_passes_without_owner_entry` in
-      `test/metadata/specs/test_lint.py`, check that a marked MUST and a marked
+      `test/metadata/specs/lint/test_driver.py`, check that a marked MUST and a marked
       MUST_NOT each fail and that verified items pass.
     relationships:
     - rel_type: refines
@@ -1594,7 +1594,7 @@ groups:
       story-less protocol or foundation spec whose statement names a `.py` suffix, a `vultron/`, `test/`, or
       `scripts/` path, or `pytest`, `pydantic`, or `py_trees` is a hard error, and its message
       advises rewording or splitting and never relabeling (MS-12-015). Covered by
-      `test/metadata/specs/test_lint.py::test_protocol_code_reference_message_advises_reword_or_split`.
+      `test/metadata/specs/lint/test_kind_checks.py::test_protocol_code_reference_message_advises_reword_or_split`.
     adr:
     - ADR-0134
     tags:
@@ -1681,7 +1681,7 @@ groups:
       MS-12-006's check names the split rule and the who-must-obey question rather than a
       replacement kind (MS-12-015), so its error message cannot route a spec around this
       ordering. Covered by
-      `test/metadata/specs/test_lint.py::test_protocol_code_reference_message_advises_reword_or_split`.
+      `test/metadata/specs/lint/test_kind_checks.py::test_protocol_code_reference_message_advises_reword_or_split`.
     adr:
     - ADR-0134
     tags:
@@ -1698,7 +1698,8 @@ groups:
     verification: >-
       The MS-12-006 error message advises splitting the spec (MS-12-015), and
       `test_protocol_code_reference_message_advises_reword_or_split` in
-      `test/metadata/specs/test_lint.py` checks it. Beyond that, the reviewer checks
+      `test/metadata/specs/lint/test_kind_checks.py` checks it. Beyond that, the
+      reviewer checks
       the split at spec review.
     relationships:
     - rel_type: extends
@@ -1732,7 +1733,7 @@ groups:
       `test_protocol_no_stories_code_reference_is_hard_error`,
       `test_foundation_no_stories_code_reference_is_hard_error` and
       `test_protocol_with_stories_and_code_reference_passes` in
-      `test/metadata/specs/test_lint.py` cover the hard error and the story-bearing
+      `test/metadata/specs/lint/test_kind_checks.py` cover the hard error and the story-bearing
       exemption, and
       `test_live_corpus_has_no_unsuppressed_protocol_kind_code_references` in
       `test/architecture/test_spec_kind_ratchet.py` asserts the live corpus has no
@@ -1761,7 +1762,7 @@ groups:
       applies to `foundation`. Specs use that name, and a new name would break them.
       MS-12-008 holds the code at no carrier.
     verification: >-
-      `test_protocol_code_reference_suppressed` in `test/metadata/specs/test_lint.py`
+      `test_protocol_code_reference_suppressed` in `test/metadata/specs/lint/test_kind_checks.py`
       checks that the code silences the error.
     relationships:
     - rel_type: extends
@@ -1785,7 +1786,7 @@ groups:
       reword or split the spec.
     verification: >-
       `test_protocol_code_reference_message_advises_reword_or_split` in
-      `test/metadata/specs/test_lint.py` checks the message.
+      `test/metadata/specs/lint/test_kind_checks.py` checks the message.
     relationships:
     - rel_type: extends
       spec_id: MS-12-006
@@ -1941,7 +1942,8 @@ groups:
       `test_foundation_with_standard_tag_passes`,
       `test_foundation_standard_tag_inherited_from_file_passes` and
       `test_foundation_spec_tags_replace_file_standard_tag` in
-      `test/metadata/specs/test_lint.py` check which tags spec-lint accepts, on the
+      `test/metadata/specs/lint/test_kind_checks.py` check which tags spec-lint accepts,
+      on the
       spec or its file, and spec-lint fails a spec with none (MS-12-019).
     relationships:
     - rel_type: extends
@@ -1962,7 +1964,7 @@ groups:
       keeps every `foundation` spec traceable to its standard.
     verification: >-
       `test_foundation_without_standard_tag_is_hard_error` in
-      `test/metadata/specs/test_lint.py` fails a `foundation` spec with no standard
+      `test/metadata/specs/lint/test_kind_checks.py` fails a `foundation` spec with no standard
       tag.
     relationships:
     - rel_type: verifies
@@ -2446,7 +2448,7 @@ groups:
       `test/metadata/test_adr_lifecycle.py` checks that an edit leaving `updated`
       alone passes, and
       `test_lint_adr_status_disagreeing_with_epoch_is_not_a_lint_failure` in
-      `test/metadata/specs/test_lint.py` checks that `spec-lint` does not fail a
+      `test/metadata/specs/lint/test_adr_refs.py` checks that `spec-lint` does not fail a
       status the clock has made stale.
     relationships:
     - rel_type: constrains
@@ -2848,7 +2850,8 @@ groups:
       rather than silently passing a phantom-path check by accident.
     verification: >-
       `test_lint_phantom_path_placeholder_exempt` and
-      `test_lint_phantom_path_suppress` in `test/metadata/specs/test_lint.py` confirm
+      `test_lint_phantom_path_suppress` in
+      `test/metadata/specs/lint/test_phantom_paths.py` confirm
       both opt-out forms clear the hard error.
     relationships:
     - rel_type: refines
@@ -2876,7 +2879,7 @@ groups:
       reference. The rule excludes `rationale`, as MS-15-001 does, because the problem
       that a rationale names (MS-10-012) can be a removed symbol that must not return.
     verification: >-
-      `test_lint_phantom_symbol_is_hard_error` in `test/metadata/specs/test_lint.py`
+      `test_lint_phantom_symbol_is_hard_error` in `test/metadata/specs/lint/test_phantom_symbols.py`
       confirms a spec naming an absent symbol exits non-zero; the sibling
       `_existing_symbol_passes` and `_resolves_from_test_tree` cases confirm a live
       symbol in either tree is accepted.
@@ -2901,7 +2904,7 @@ groups:
       `PROD_ONLY`). The explicit opt-out shows both as deliberate choices. Without it,
       they look the same as the stale MUSTs that MS-15-004 finds.
     verification: >-
-      `test_lint_phantom_symbol_suppress` in `test/metadata/specs/test_lint.py`
+      `test_lint_phantom_symbol_suppress` in `test/metadata/specs/lint/test_phantom_symbols.py`
       confirms the opt-out clears the hard error.
     relationships:
     - rel_type: refines

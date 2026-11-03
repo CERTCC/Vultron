@@ -1203,7 +1203,8 @@ def test_a_renamed_story_page_is_a_removal(story_repo):
 @pytest.mark.spec("TRACE-03-002")
 def test_story_catalog_guard_without_base_ref_skips(story_repo, monkeypatch):
     monkeypatch.setattr(
-        "vultron.metadata.specs.growth_guard.DEFAULT_BASE_REF", "origin/nope"
+        "vultron.metadata.specs.growth_guard.base_tree.DEFAULT_BASE_REF",
+        "origin/nope",
     )
     check = removed_story_pages(story_repo)
     assert check.skipped is not None
