@@ -23,13 +23,11 @@ valid until the next recording.  So a dropped call would pass every PR check.
 These tests read each scenario module's source instead, so a dropped or
 misspelled report fails here.
 
-Every scenario is written as composition (#5533 through #5536), so each
-declares its steps as the ``choose(...)`` items of its story, which is also
-what the runner emits the marks from (DEMOCI-11-019): a mark cannot go
-missing.  What a scenario can still do is place a ``reach_step`` by hand
-beside the runner's, which would mark one step twice, and that is what is
-forbidden here.  The ``path=`` form that placed each call by hand has no
-declarer left; retiring the form itself from the registry is #5537.
+Every scenario is written as composition, so each declares its steps as the
+``choose(...)`` items of its story, which is also what the runner emits the
+marks from (DEMOCI-11-019): a mark cannot go missing.  What a scenario can
+still do is place a ``reach_step`` by hand beside the runner's, which would
+mark one step twice, and that is what is forbidden here.
 """
 
 import ast
@@ -51,14 +49,11 @@ _FRAGMENT_MODULES = sorted(
 )
 
 
-def _specs(composed: bool) -> list[ScenarioSpec]:
-    """Registered scenarios using one declaration form."""
-    return [spec for spec in discover_scenarios() if spec.composed is composed]
-
-
-#: The calls that report a step: the harness method, the module-level function
-#: and the hook factory, each taking the branch point and the choice.
-_REPORTERS = frozenset({"reach_step", "step_reporter"})
+#: The call that reports a step: the harness method, which
+#: :func:`~vultron.demo.helpers.story.run_story` is the only legitimate caller
+#: of.  The module-level function and the hook factory that let a helper place
+#: one by hand are gone, so this is the whole surface a scenario could reach.
+_REPORTERS = frozenset({"reach_step"})
 
 
 def _reported_steps(module_name: str) -> Counter[tuple[str, str]]:
@@ -134,9 +129,9 @@ _STEP = Counter({("vendor-join", "accept"): 1})
         'h.reach_step(branch_point="vendor-join", choice="accept", by=v)',
         'h.reach_step(choice="accept", branch_point="vendor-join", by=v)',
         'h.reach_step("vendor-join", choice="accept", by=v)',
-        'step_reporter(branch_point="vendor-join", choice="accept", by=v)',
+        'reach_step(branch_point="vendor-join", choice="accept", by=v)',
     ],
-    ids=["positional", "keyword", "keyword-reversed", "mixed", "reporter"],
+    ids=["positional", "keyword", "keyword-reversed", "mixed", "bare-name"],
 )
 def test_a_hand_placed_report_is_seen_in_every_argument_form(
     source: str,
@@ -161,26 +156,16 @@ def test_a_call_that_names_no_literal_pair_counts_as_no_step(
     assert _steps_in(_corpus.parse_inline(source)) == Counter()
 
 
-def test_every_scenario_is_written_as_composition() -> None:
-    """The check below is not a zero-target gate, and no scenario declares a path.
+def test_at_least_one_scenario_is_registered() -> None:
+    """The check below is not a zero-target gate.
 
-    The last family was composed in #5536, so every registered scenario
-    declares a story and the hand-placed ``reach_step`` the ``path=`` form
-    needed has no declarer left.  Both halves are asserted: an empty composed
-    set would leave the check below passing over nothing
+    ``discover_scenarios()`` is what parametrizes it, and an empty registry
+    collects no cases: pytest then reports a skip, so this module's only
+    ratchet would vanish without a red test anywhere
     (``notes/documentation-strategy.md`` § "A gate that resolves zero targets
-    must fail"), and a scenario that went back to ``path=`` would place its
-    marks by hand again, which nothing here would check.  Retiring the
-    ``path=`` form from the registry itself is #5537.
+    must fail").
     """
-    assert _specs(composed=True), "no scenario is written as composition"
-    assert not _specs(composed=False), (
-        "a scenario declares @scenario(path=...) rather than a story; every "
-        "scenario reads its path off its story's choices (DEMOCI-11-019), and "
-        "a hand-placed path brings back the hand-placed reach_step calls this "
-        "module's deleted half used to check: "
-        f"{[spec.name for spec in _specs(composed=False)]}"
-    )
+    assert discover_scenarios(), "no scenario is registered"
 
 
 def _fragment_steps() -> Counter[tuple[str, str]]:
@@ -192,10 +177,11 @@ def _fragment_steps() -> Counter[tuple[str, str]]:
     return total
 
 
+@pytest.mark.spec("DEMOCI-11-019")
 @pytest.mark.parametrize(
-    "spec", _specs(composed=True), ids=lambda spec: spec.name
+    "spec", discover_scenarios(), ids=lambda spec: spec.name
 )
-def test_a_composed_scenario_places_no_reach_step_by_hand(
+def test_a_scenario_places_no_reach_step_by_hand(
     spec: ScenarioSpec,
 ) -> None:
     """The runner is the only source of a composed scenario's marks.

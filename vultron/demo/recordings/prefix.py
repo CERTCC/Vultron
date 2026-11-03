@@ -14,110 +14,33 @@
 """The shared-prefix check over the committed recordings (DEMOCI-11-017/018).
 
 Two scenarios whose declared paths share a prefix run the same story up to the
-branch point where the paths part, so their recorded ledgers must agree up to
-that point.  The agreement is checked the way position-independent code is
-compared: same logic, different addresses.
+branch point where the paths part, so their recorded ledgers must be
+**byte-identical** up to that point (DEMOCI-11-017, DEMOCI-11-018).  Every
+scenario is written as composition, so each shared stretch is one copy of the
+code running on one fixed cast under one seed (DEMOCI-11-020, DEMOCI-11-025):
+identical bytes hold by construction, and nothing about the comparison is
+scoped to a declared subset of the tree — :func:`shared_prefixes` returns every
+pair of registered scenarios and every one of them is compared.
 
-- **Isomorphism** (DEMOCI-11-017).  Each ledger prefix has its ids relabeled
-  in order of first appearance and its timestamps removed; the two results
-  must then be equal.  One relabeling covers the whole prefix, so a reference
-  between objects must map the same way everywhere it occurs.
-- **Byte identity** (DEMOCI-11-018).  A family written as composition (#4733)
-  shares one copy of the prefix code, so its recordings must agree byte for
-  byte up to the branch point.  :data:`COMPOSED_FAMILIES` names those
-  families.
+A pair that parts at the root shares no ledger entries, because the root branch
+point is decided before the case exists.  Its comparison is therefore true of
+an empty prefix; what carries the check is the pairs that part later.
 
-Where a branch point falls in a ledger is recorded by the run: each scenario
-reports reaching each declared step to its harness, which records the ledger
-tail there (:mod:`vultron.demo.helpers.harness`).  The recorder commits those
-marks beside each recording (:mod:`.layout`).
+Where a branch point falls in a ledger is recorded by the run:
+:func:`~vultron.demo.helpers.story.run_story` reports each choice of the story
+to the harness, which records the ledger tail there
+(:mod:`vultron.demo.helpers.harness`).  The recorder commits those marks beside
+each recording (:mod:`.layout`).
 
 Design: ``notes/demo-scenario-tree.md`` § "Shared-prefix check".
 """
 
-import json
-import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import combinations
 
 from vultron.demo.recordings.layout import Recording
 from vultron.demo.scenario.tree import PathStep, TreeNode
-
-#: A string that names an object, wherever it occurs in an entry: an actor or
-#: other URL, a ``urn:uuid:`` id, a bare UUID, the actor part of a
-#: participant id (``<case>/participants/<uuid or actor slug>``, since the
-#: fixed cast seeds every container a slug rather than a UUID,
-#: DEMOCI-11-020), or a SHA-256 hex digest (``entryHash``, ``prevLogHash``).
-#: Each one is relabeled by first appearance, including inside a longer string
-#: such as an activity ``name`` and in a mapping key such as an
-#: ``actorParticipantIndex`` entry.
-_ID_RE = re.compile(
-    r"https?://[^\s\"']+"
-    r"|urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-    r"|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-    r"|(?<=/participants/)[A-Za-z0-9._~-]+"
-    r"|\b[0-9a-f]{64}\b"
-)
-
-#: An ISO 8601 timestamp.  Timestamps are excluded from the comparison
-#: (DEMOCI-11-017): the recording clock steps on every read, so two scenarios
-#: that do the same thing after different amounts of setup stamp it differently.
-_TIMESTAMP_RE = re.compile(
-    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?"
-)
-
-_TIMESTAMP = "<timestamp>"
-
-#: Scenario families written as composition (#4733), each the names of its
-#: scenarios.  Every two scenarios in one family must be byte-identical up to
-#: the branch point where their paths part (DEMOCI-11-018).  A family is
-#: admitted here when its scenarios share one authored opening, not when two
-#: hand-placed openings happen to agree.
-#:
-#: The coordinator-first subtree — every scenario whose Reporter tells a
-#: Coordinator — is the first family, composed in four steps: ``rcv`` and
-#: ``rcv-reject`` piloted the story runner (#5533), the rest of the
-#: Reporter → Coordinator → Vendor branch followed (#5534), the
-#: two-coordinator pair joined it on the opening all seven share (#5535), and
-#: ``{rcv-embargo, rcvv-embargo}`` — the one pair whose shared prefix runs
-#: past the embargo activation — joined once a pending-assertion lookup
-#: stopped reading the recording clock (#5591).  Each assembles its story from
-#: the nested prefixes in
-#: :mod:`vultron.demo.helpers.coordinated_story`,
-#: :mod:`vultron.demo.helpers.coordinated_embargo_story` and
-#: :mod:`vultron.demo.helpers.two_coordinator_story`, so the bytes before each
-#: pair's branch point come from one copy of the code and byte identity holds
-#: by construction.
-#:
-#: The vendor-first half — every scenario whose Reporter tells a Vendor — is
-#: the second entry, composed in one step (#5536): ``rv``, ``rvv``,
-#: ``rvcv-extension`` and ``rvcv-handoff`` assemble their stories from the
-#: nested prefixes in :mod:`vultron.demo.helpers.vendor_story` and
-#: :mod:`vultron.demo.helpers.vendor_coordinator_story`.  Its opening seeds
-#: only the two containers every one of the four uses, which is what closed
-#: the setup-length gap that kept the half on the isomorphism check alone:
-#: each actor and peer record written before the case exists is one more read
-#: of the recording clock, and the four started 120 and 160 ms apart with two,
-#: three and four containers seeded (#5532).
-#:
-#: What a family must satisfy before it is named here, and why a read that
-#: reads the clock breaks it, is stated once in
-#: ``notes/demo-scenario-tree.md`` § "Composition".
-COMPOSED_FAMILIES: tuple[frozenset[str], ...] = (
-    frozenset(
-        {
-            "rcv",
-            "rcv-reject",
-            "rcvcv",
-            "rccv-extension",
-            "rccv-handoff",
-            "rcv-embargo",
-            "rcvv-embargo",
-        }
-    ),
-    frozenset({"rv", "rvv", "rvcv-extension", "rvcv-handoff"}),
-)
 
 
 @dataclass(frozen=True)
@@ -157,19 +80,6 @@ def shared_prefixes(root: TreeNode) -> list[SharedPrefix]:
     ]
 
 
-def composed_pairs(
-    pairs: Iterable[SharedPrefix],
-    families: Iterable[frozenset[str]] = COMPOSED_FAMILIES,
-) -> list[SharedPrefix]:
-    """Return the *pairs* whose two scenarios are in one composed family."""
-    family_list = list(families)
-    return [
-        pair
-        for pair in pairs
-        if any({pair.first, pair.second} <= family for family in family_list)
-    ]
-
-
 def prefix_lines(recording: Recording, depth: int) -> list[str]:
     """Return the ledger lines of *recording* before its step at *depth*.
 
@@ -179,22 +89,13 @@ def prefix_lines(recording: Recording, depth: int) -> list[str]:
     return recording.entries[: recording.steps[depth].ledger_tail]
 
 
-def pair_isomorphism_mismatch(
-    pair: SharedPrefix, first: Recording, second: Recording
-) -> str | None:
-    """Compare *pair*'s recordings up to its branch point (DEMOCI-11-017)."""
-    return isomorphism_mismatch(
-        [json.loads(line) for line in prefix_lines(first, pair.depth)],
-        [json.loads(line) for line in prefix_lines(second, pair.depth)],
-    )
-
-
 def pair_byte_mismatch(
     pair: SharedPrefix, first: Recording, second: Recording
 ) -> str | None:
     """Compare *pair*'s recordings byte for byte up to its branch point.
 
-    The check for a composed family (DEMOCI-11-018).
+    The check every pair of registered scenarios gets (DEMOCI-11-017,
+    DEMOCI-11-018).
     """
     return byte_mismatch(
         prefix_lines(first, pair.depth), prefix_lines(second, pair.depth)
@@ -210,80 +111,6 @@ def _common_depth(
     ):
         depth += 1
     return depth
-
-
-def relabeled(entries: Iterable[Mapping[str, object]]) -> list[object]:
-    """Return *entries* with ids relabeled by first appearance, sans timestamps.
-
-    One relabeling spans every entry, so two ledgers relabel to equal values
-    exactly when one consistent renaming of ids turns one into the other.
-    Mapping keys are relabeled too, and are visited in document order, the
-    order the recorder wrote them, so first appearance does not depend on how
-    the original ids sort.
-    """
-    labels: dict[str, str] = {}
-
-    def label(match: re.Match[str]) -> str:
-        return labels.setdefault(match.group(0), f"<id {len(labels)}>")
-
-    def text(value: str) -> str:
-        return _ID_RE.sub(label, _TIMESTAMP_RE.sub(_TIMESTAMP, value))
-
-    def walk(value: object) -> object:
-        if isinstance(value, Mapping):
-            return {text(str(key)): walk(item) for key, item in value.items()}
-        if isinstance(value, list):
-            return [walk(item) for item in value]
-        if isinstance(value, str):
-            return text(value)
-        return value
-
-    return [walk(entry) for entry in entries]
-
-
-def isomorphism_mismatch(
-    first: Sequence[Mapping[str, object]],
-    second: Sequence[Mapping[str, object]],
-) -> str | None:
-    """Describe where two ledger prefixes stop being isomorphic, if they do.
-
-    Returns:
-        ``None`` when the prefixes are isomorphic (DEMOCI-11-017); otherwise
-        a description naming the first entry that differs.
-    """
-    first_form, second_form = relabeled(first), relabeled(second)
-    for index, (a, b) in enumerate(zip(first_form, second_form, strict=False)):
-        if a != b:
-            return (
-                f"entry {index} differs after relabeling ids by first "
-                f"appearance: {_differing_keys(a, b)}"
-            )
-    if len(first) != len(second):
-        return (
-            f"the prefixes hold {len(first)} and {len(second)} entries; "
-            "one scenario commits more before the branch point."
-        )
-    return None
-
-
-def _differing_keys(first: object, second: object) -> str:
-    """Name the top-level fields of two entries that differ, with both values."""
-    if not (isinstance(first, Mapping) and isinstance(second, Mapping)):
-        return f"{_short(first)} vs {_short(second)}"
-    keys = [
-        key
-        for key in dict.fromkeys([*first, *second])
-        if first.get(key) != second.get(key)
-    ]
-    return "; ".join(
-        f"{key}: {_short(first.get(key))} vs {_short(second.get(key))}"
-        for key in keys
-    )
-
-
-def _short(value: object, limit: int = 160) -> str:
-    rendered = json.dumps(value, sort_keys=True)
-    return rendered if len(rendered) <= limit else rendered[:limit] + "…"
 
 
 def byte_mismatch(first: Sequence[str], second: Sequence[str]) -> str | None:
@@ -314,14 +141,9 @@ def byte_mismatch(first: Sequence[str], second: Sequence[str]) -> str | None:
 
 
 __all__ = [
-    "COMPOSED_FAMILIES",
     "SharedPrefix",
     "byte_mismatch",
-    "composed_pairs",
-    "isomorphism_mismatch",
     "pair_byte_mismatch",
-    "pair_isomorphism_mismatch",
     "prefix_lines",
-    "relabeled",
     "shared_prefixes",
 ]

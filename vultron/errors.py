@@ -528,13 +528,12 @@ class DemoScenarioRegistryError(VultronError):
     """Raised when a demo scenario's self-registration is invalid.
 
     Raised at import time by the ``@scenario`` decorator in
-    ``vultron.demo.scenario.registry`` — a malformed spec, a name already
-    registered with a different spec, a declared name that contradicts the
-    module it was declared in, or a composed scenario that also declares
-    ``path=`` (DEMOCI-11-024) — and by ``discover_scenarios()`` when a
-    discovered ``*_demo`` module registered nothing at all, or when the
-    declared paths do not merge into one tree in which every registered
-    scenario is exactly one ending (DEMOCI-11-023).
+    ``vultron.demo.scenario.registry`` — a malformed spec, a story that names
+    no path (DEMOCI-11-019), a name already registered with a different spec,
+    or a declared name that contradicts the module it was declared in — and by
+    ``discover_scenarios()`` when a discovered ``*_demo`` module registered
+    nothing at all, or when the declared paths do not merge into one tree in
+    which every registered scenario is exactly one ending (DEMOCI-11-023).
 
     Fails fast for the same reason :class:`RegistryOrderError` does: every
     committed scenario artifact is generated from this registry, so a registry
@@ -597,12 +596,12 @@ class DemoScenarioStepError(VultronError):
 
     Raised by :meth:`~vultron.demo.helpers.harness.ScenarioHarness.reach_step`
     when the reported ``(branch point, choice)`` is not the next step of the
-    scenario's declared path — ``@scenario(path=...)``, or the choices of its
-    assembled story once it is written as composition (DEMOCI-11-019) — or
-    when a step after the first is reached before the harness follows a case
-    ledger.  Either way the code and the declaration disagree about where the
-    scenario is on the tree, so the step mark the shared-prefix check reads
-    would be wrong (DEMOCI-11-014, DEMOCI-11-019, DEMOCI-11-017).
+    scenario's declared path — the choices of its assembled story
+    (DEMOCI-11-019) — or when a step after the first is reached before the
+    harness follows a case ledger.  Either way the code and the declaration
+    disagree about where the scenario is on the tree, so the step mark the
+    shared-prefix check reads would be wrong (DEMOCI-11-014, DEMOCI-11-019,
+    DEMOCI-11-017).
     """
 
 

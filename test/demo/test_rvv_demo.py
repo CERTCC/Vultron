@@ -1517,8 +1517,12 @@ class TestRvvRegistryEntry:
         assert spec.in_pr_set is False
 
     def test_the_path_is_read_off_the_story(self, spec):
-        """``composed=True`` is what tells a check it places no step marks."""
-        assert spec.composed is True
+        """The registry holds the path this scenario's story chooses.
+
+        Compared against the story object rather than against a literal, which
+        this module's path test pins separately: together they say the
+        registered path is both derived and the intended one.
+        """
         assert spec.path == demo.STORY.path
 
     def test_the_derived_paths_point_at_this_module_and_its_harness(

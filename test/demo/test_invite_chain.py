@@ -460,28 +460,17 @@ def test_then_runs_after_a_reject(chain_mocks):
     chain_mocks.replica.assert_not_called()
 
 
-@pytest.mark.parametrize("respond", ["accept", "reject"])
-def test_before_answer_runs_once_the_invite_is_delivered(chain_mocks, respond):
-    """The invitee's decision point: after delivery, before its answer (#4727)."""
-    order: list[str] = []
-    chain_mocks.find.side_effect = lambda *a, **k: order.append("delivered")
-    chain_mocks.accept.side_effect = lambda *a, **k: order.append("answer")
-    chain_mocks.reject.side_effect = lambda *a, **k: order.append("answer")
+def test_the_chain_takes_no_hook_between_delivery_and_the_answer(chain_mocks):
+    """An invitee's decision is a fragment boundary, not a hook (#5537).
 
-    _run(respond=respond, before_answer=lambda: order.append("decide"))
-
-    assert order == ["delivered", "decide", "answer"]
-
-
-def test_before_answer_is_skipped_when_the_invite_is_not_delivered(
-    chain_mocks,
-):
-    chain_mocks.find.side_effect = AssertionError("timed out")
-    ran = []
-
-    _run(before_answer=lambda: ran.append(True))
-
-    assert ran == []
+    A story splits the chain into ``invite_and_await_delivery`` and
+    ``answer_case_invite`` and places its ``choose(...)`` between them, which
+    is what gives the mark the invitee's own role to check (CM-17-003,
+    DEMOCI-11-019).  A hook on this function would be a second way to put a
+    step there, and the two could disagree about where the decision falls.
+    """
+    with pytest.raises(TypeError, match="before_answer"):
+        _run(before_answer=lambda: None)
 
 
 def test_step_and_gate_labels_are_pinned(chain_mocks):
