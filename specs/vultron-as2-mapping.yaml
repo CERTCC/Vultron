@@ -1518,18 +1518,6 @@ groups:
 - id: VAM-09
   title: Unrecognized Activities
   specs:
-  - id: VAM-09-001
-    priority: MUST
-    kind: project
-    statement: >-
-      An inbound AS2 activity that does not match any registered pattern MUST be
-      assigned `MessageSemantics.UNKNOWN`, except where VAM-01-009 requires
-      `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`
-    rationale: >-
-      A received activity needs one defined result even when no pattern describes it, so
-      that the inbox can refuse and log it in place of failing on an exception.
-    verification: A unit test confirms that when the `SEMANTIC_REGISTRY` loop exhausts all entries without a
-      match, `find_matching_semantics()` returns `MessageSemantics.UNKNOWN` as the fallback value.
   - id: VAM-09-002
     priority: MUST_NOT
     kind: project

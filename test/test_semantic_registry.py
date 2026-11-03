@@ -144,6 +144,22 @@ def test_every_dispatcher_fallback_routes_to_a_use_case():
     } <= set(ucm)
 
 
+@pytest.mark.spec("SE-04-002")
+def test_each_sentinel_routes_to_its_own_use_case():
+    """Each cause of an unrecognized activity reaches its own handler."""
+    from vultron.core.use_cases.received.unknown import (
+        UnknownUseCase,
+        UnresolvableObjectUseCase,
+    )
+
+    ucm = use_case_map()
+    assert ucm[MessageSemantics.UNKNOWN] is UnknownUseCase
+    assert (
+        ucm[MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT]
+        is UnresolvableObjectUseCase
+    )
+
+
 @pytest.mark.spec("HP-02-002")
 @pytest.mark.spec("HP-03-002")
 def test_each_use_case_accepts_the_event_class_its_semantics_route():

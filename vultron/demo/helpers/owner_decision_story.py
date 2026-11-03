@@ -180,8 +180,8 @@ def the_owner_approves_a_suggested_actor(
     ``accept-actor-recommendation``, the CaseActor sends the Invite, and
     *newcomer* accepts and runs its RM triage (CM-11-002).  The invite chain
     polls *newcomer*'s DataLayer for the Invite and puppeteers the accept —
-    polling only, no mail-carrying — nesting the accept and the replica wait
-    inside the Invite's gate (EDF-06-005, #3038).
+    polling only, no post to its inbox (DEMOMA-00-002) — nesting the accept
+    and the replica wait inside the Invite's gate (EDF-06-005, #3038).
 
     The owner keeping the case is what makes this the ``keep`` continuation:
     it is the owner, not the joiner, that converts the suggestion into an

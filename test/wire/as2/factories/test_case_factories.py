@@ -1049,7 +1049,16 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     }
     status = stub["caseStatus"]
     assert status["emState"] == EM.ACTIVE.value
-    assert set(status) <= {"@context", "id", "type", "context", "emState"}
+    # ``published`` is the time every status carries (CLP-15-010).
+    assert set(status) <= {
+        "@context",
+        "id",
+        "type",
+        "context",
+        "published",
+        "emState",
+    }
+    assert status["published"]
 
 
 @pytest.mark.spec("CM-17-014")

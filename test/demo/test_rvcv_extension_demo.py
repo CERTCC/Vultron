@@ -1166,7 +1166,7 @@ class TestRvcvExtensionLedgerDump:
         )
         state.harness.demo_name = "rvcv-extension"
 
-        with patch.object(coordinated_story, "dump_case_ledgers") as dump:
+        with patch.object(story_cast, "dump_case_ledgers") as dump:
             dump_vendor_coordinator_ledgers(state)
         return dump.call_args.kwargs
 
@@ -1260,9 +1260,7 @@ class TestRvcvExtensionCliCommand:
         }
 
         with (
-            patch.object(
-                demo, "coordinated_clients", return_value=clients
-            ) as built,
+            patch.object(demo, "story_clients", return_value=clients) as built,
             patch.object(demo, "run_rvcv_extension_demo") as run,
         ):
             demo.main(

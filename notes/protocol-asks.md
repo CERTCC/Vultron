@@ -7,6 +7,7 @@ tracks:
   - "#3188"
   - "#3471"
   - "#4981"
+  - "#5720"
 description: >
   Design guidance for the protocol-ask primitive: asking and terminating rather
   than suspending, conversation-state routing, the outstanding-ask register, ask
@@ -19,6 +20,7 @@ related_specs:
   - specs/embargo-policy.yaml
   - specs/case-management.yaml
   - specs/sync-ledger-replication.yaml
+  - specs/idempotency.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/bt-pitfalls.md
@@ -176,6 +178,15 @@ Ephemerality is a safety property, not an oversight: a suppressor entry that
 survived a restart would suppress a re-send that *should* happen. Forgetting
 fails **open** (you might duplicate, which idempotency handles) rather than
 **closed** (you stay silent forever).
+
+**The suppression window saves traffic; the CASE_MANAGER decides the repeat.**
+Every repeat `PendingAssertionStore` suppresses must also be a no-op on its effect
+at the CASE_MANAGER: same object id (ID-04-004), same answer (CM-13-005), same
+embargo end time (EP-09-032). Do not replace the window with an effect check at the
+participant. Reason: a replica learns its own assertion's effect only from the entry
+the round trip returns (CLP-07-013), so until then every repeat reads as a change.
+A new kind of suppressed repeat needs its own effect rule at the CASE_MANAGER first
+(#5720).
 
 **An ask may only park an action whose not-yet state is legitimate.** Nothing
 suspends, so the case sits in the pre-authorization state for the whole

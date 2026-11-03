@@ -57,13 +57,11 @@ from vultron.demo.helpers.cast import (
     VENDOR_SLOT,
 )
 from vultron.demo.helpers.coordinated_story import (
-    CASE_ACTOR_NAME,
     COORDINATOR,
     COORDINATOR_LABEL,
     REPORTER,
     REPORTER_LABEL,
     close_the_case,
-    coordinated_clients,
     reports_published,
 )
 from vultron.demo.helpers.notes import NotePost
@@ -71,6 +69,7 @@ from vultron.demo.helpers.owner_decision_story import (
     the_owner_approves_a_suggested_actor,
 )
 from vultron.demo.helpers.story import StoryState, choose, run_story, story
+from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME, story_clients
 from vultron.demo.helpers.sync import wait_for_replica_ledger_coverage
 from vultron.demo.helpers.vendor_coordinator_story import (
     COORDINATOR_JOINED,
@@ -113,7 +112,7 @@ ROLES: list[ActorRole] = [
     ActorRole(VENDOR2, CAST[3], VENDOR2_LABEL, has_id=True),
     case_actor_role(),
 ]
-#: Indexed for the CLI factory and for ``coordinated_clients()``, which reads
+#: Indexed for the CLI factory and for ``story_clients()``, which reads
 #: each actor's container address off its cast slot — so this module declares
 #: no ``*_BASE_URL`` constant of its own (DEMOCI-11-020).
 _ROLES = role_map(ROLES)
@@ -397,7 +396,7 @@ def main(
         coordinator_id: Optional deterministic URI for the Coordinator actor.
         vendor2_id: Optional deterministic URI for the Vendor2 actor.
     """
-    clients = coordinated_clients(
+    clients = story_clients(
         _ROLES,
         vendor_coordinator_cast_members(
             reporter_url=reporter_url,

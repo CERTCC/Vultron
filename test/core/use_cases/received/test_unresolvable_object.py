@@ -50,6 +50,7 @@ def _make_unresolvable_event() -> UnresolvableObjectReceivedEvent:
 class TestUnresolvableObjectUseCase:
     """Tests for the UnresolvableObjectUseCase dead-letter handler."""
 
+    @pytest.mark.spec("SE-04-007")
     def test_execute_stores_dead_letter_record(self):
         """execute() stores a DeadLetterRecord in the DataLayer."""
         dl = SqliteDataLayer(
@@ -170,6 +171,7 @@ class TestUnresolvableObjectUseCase:
         # not currently mandated by spec)
         assert len(stored) >= 1
 
+    @pytest.mark.spec("SE-04-007")
     def test_execute_logs_warning(self, caplog):
         """execute() logs a WARNING identifying the unresolvable URI."""
         import logging
@@ -184,7 +186,9 @@ class TestUnresolvableObjectUseCase:
             UnresolvableObjectUseCase(dl, event).execute()
 
         assert any(
-            UNRESOLVABLE_URI in record.message for record in caplog.records
+            record.levelno == logging.WARNING
+            and UNRESOLVABLE_URI in record.message
+            for record in caplog.records
         ), (
             f"Expected warning about {UNRESOLVABLE_URI!r} in {[r.message for r in caplog.records]}"
         )

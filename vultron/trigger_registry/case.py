@@ -38,6 +38,7 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.trigger_registry._entry import (
     GENERAL_TRIGGER_SPECS,
+    TARGETLESS_BODY_TRIGGER_SPECS,
     TriggerEntry,
     TriggerExposure,
 )
@@ -93,7 +94,8 @@ ENTRIES: list[TriggerEntry] = [
         result_type=CaseResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        spec_ids=_COMMON,
+        # Its body names an optional ``report_id``, not a case or an offer.
+        spec_ids=(*TARGETLESS_BODY_TRIGGER_SPECS, "TRIG-02-004"),
     ),
     TriggerEntry(
         verb="add-report-to-case",
@@ -117,6 +119,7 @@ ENTRIES: list[TriggerEntry] = [
         spec_ids=(
             "CM-17-010",
             "MV-10-001",
+            "TRIG-03-001",
             "TRIG-09-001",
             "TRIG-09-004",
         ),

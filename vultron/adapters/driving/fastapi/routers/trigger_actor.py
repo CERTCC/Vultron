@@ -131,7 +131,7 @@ def trigger_accept_case_invite(
     Trigger the accept-case-invite behavior for the given actor.
 
     Implements:
-        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-001, TRIG-03-002,
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-002,
         TRIG-04-001, TRIG-12-001
     """
     return run_trigger(
@@ -167,7 +167,7 @@ def trigger_reject_case_invite(
     Trigger the reject-case-invite behavior for the given actor.
 
     Implements:
-        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-001, TRIG-03-002,
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-002,
         TRIG-04-001, TRIG-12-001
     """
     return run_trigger(
@@ -204,7 +204,7 @@ def trigger_accept_full_case_invite(
     Trigger the accept-full-case-invite behavior for the given actor.
 
     Implements:
-        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-001, TRIG-03-002,
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-002,
         TRIG-04-001, TRIG-12-001
     """
     return run_trigger(
@@ -241,7 +241,7 @@ def trigger_tentative_reject_full_case_invite(
     Trigger the tentative-reject-full-case-invite behavior for the given actor.
 
     Implements:
-        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-001, TRIG-03-002,
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-002,
         TRIG-04-001, TRIG-12-001
     """
     return run_trigger(
@@ -278,7 +278,7 @@ def trigger_reject_full_case_invite(
     Trigger the reject-full-case-invite behavior for the given actor.
 
     Implements:
-        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-001, TRIG-03-002,
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-002,
         TRIG-04-001, TRIG-12-001
     """
     return run_trigger(

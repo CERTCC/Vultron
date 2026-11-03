@@ -62,6 +62,16 @@ GENERAL_TRIGGER_SPECS: tuple[str, ...] = (
 )
 
 
+#: ``GENERAL_TRIGGER_SPECS`` without TRIG-03-001.  That rule binds the body of
+#: a case-scoped verb or an offer response, which carries ``case_id``,
+#: ``offer_id`` or ``cp_offer_id``; a verb whose body names its target by
+#: another field (``recipient_id``, ``report_id``, ``invite_id``) builds on
+#: this tuple instead.
+TARGETLESS_BODY_TRIGGER_SPECS: tuple[str, ...] = tuple(
+    s for s in GENERAL_TRIGGER_SPECS if s != "TRIG-03-001"
+)
+
+
 @dataclass(frozen=True, slots=True)
 class TriggerEntry:
     """One trigger verb: the data a route, a ratchet or the dispatcher reads.

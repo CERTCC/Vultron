@@ -38,6 +38,16 @@ The [protocol definition](protocol_definition.md) introduces $succ$ as the fourt
     - Left-harpoons ($\leftharpoondown$) indicate a message received.
     - Right-harpoons ($\rightharpoonup$) indicate a message sent.
 
+!!! tip "Acknowledgments and Errors in the Tables Below"
+
+    The tables give the formal model, in which every Participant is a peer.
+    Once a case exists, every Participant addresses its messages to the case's CASE_MANAGER, which fans them out to the others.
+    So an acknowledgment in a response column names a duty, not a message.
+    $RK$ is a message only in reply to $RS$.
+    Every other acknowledgment ($RK$, $EK$ or $CK$) is discharged by the CASE_MANAGER's ledger entry for the received message, fanned out to the participants as `Announce(CaseLedgerEntry)`.
+    No $EK$ or $CK$ message exists.
+    The errors $RE$, $EE$ and $CE$ have no wire activity of their own either: each is sent as `Create(ProcessingFault)`.
+
 ## RM Transition Functions
 
 Because it only reflects an individual Participant's report handling status,
@@ -75,8 +85,7 @@ Otherwise,
 
 !!! note "[RMB-07](../vultron-spec/requirements/state-behavior.md#protocol-rmb-07)"
 
-    Participants SHOULD send $RE$ regardless of the state when any error
-    is encountered.
+    Participants SHOULD answer an $R*$ message they cannot process with `Create(ProcessingFault)`, which plays the role of $RE$, whatever their state.
 
 !!! note "[RMB-14](../vultron-spec/requirements/state-behavior.md#protocol-rmb-14)"
 
@@ -84,8 +93,9 @@ Otherwise,
 
 !!! note "[RMB-08](../vultron-spec/requirements/state-behavior.md#protocol-rmb-08)"
 
-    Recipients SHOULD send $RK$ in acknowledgment of any $R*$ message
-    except $RK$ itself.
+    Recipients SHOULD acknowledge any $R*$ message except $RK$ itself.
+    Only $RS$ is acknowledged with an $RK$ message.
+    Once a case exists, the acknowledgment of any other $R*$ message is the CASE_MANAGER's ledger entry for it, fanned out to the participants.
 
 !!! note "[RMB-01](../vultron-spec/requirements/state-behavior.md#protocol-rmb-01)"
 
@@ -95,16 +105,13 @@ Otherwise,
 
 !!! note "[RMB-02](../vultron-spec/requirements/state-behavior.md#protocol-rmb-02) — [RMB-06](../vultron-spec/requirements/state-behavior.md#protocol-rmb-06)"
 
-    Any $R*$ message, aside from $RS$, received by recipient in
-    $q^{rm} \in S$ is an error because it indicates the sender thought
-    the receiver was aware of a report they had no knowledge of. The
-    Recipient SHOULD respond with both an $RE$ to signal the error and
-    $GI$ to find out what the sender expected.
+    Any $R*$ message, aside from $RS$, received by recipient in $q^{rm} \in S$ is an error because it indicates the sender thought the receiver was aware of a report they had no knowledge of.
+    The Recipient SHOULD answer it with `Create(ProcessingFault)`, which plays the role of $RE$, to signal the error.
 
 !!! note "[RMB-07](../vultron-spec/requirements/state-behavior.md#protocol-rmb-07)"
 
-    Recipients SHOULD acknowledge $RE$ messages ($RK$) and inquire
-    ($GI$) as to the nature of the error.
+    Recipients of a processing fault about an $R*$ message they sent ($RE$) SHOULD inquire ($GI$) as to the nature of the error.
+    They do not acknowledge the fault with $RK$.
 
 !!! note inline end "RM Messages Sent and State Transitions"
 
@@ -146,7 +153,7 @@ expected response message.
 |                       $RS$                        | $\{ R, I, V,D,A\},*,*$ | $-,-,-$ |                $RK$ (non-vendor)                 |
 |               $\{RI,RV,RD,RA,RC\}$                | $\{R,I,V,D,A\},*,*$ | $-,-,-$ |                       $RK$                       |
 |               $\{RI,RV,RD,RA,RC\}$                | $S,*,*$ | $-,-,-$ |           `Create(ProcessingFault)`            |
-|                       $RE$                        | $*,*,*$ | $-,-,-$ |                    $RK + GI$                    |
+|                       $RE$                        | $*,*,*$ | $-,-,-$ |                      $GI$                       |
 |                       $RK$                        | $\{R,I,V,D,A\},*,*$ | $-,-,-$ |                       $-$                        |
 |                       $RK$                        | $S,*,*$ | $-,-,-$ |           `Create(ProcessingFault)`            |
 
@@ -187,13 +194,14 @@ $q^{cs}$ is in $\cdot\cdot\cdot pxa$ or not.
 
 !!! note "[EMB-01](../vultron-spec/requirements/state-behavior.md#protocol-emb-01) — [EMB-07](../vultron-spec/requirements/state-behavior.md#protocol-emb-07)"
 
-    Participants SHOULD send $EK$ in acknowledgment of any other $E*$
-    message except $EK$ itself.
+    Recipients SHOULD acknowledge the $E*$ messages they receive.
+    Once a case exists, the acknowledgment ($EK$) is the CASE_MANAGER's ledger entry for the message, fanned out to the participants.
+    No $EK$ message exists.
 
 !!! note "[EMB-08](../vultron-spec/requirements/state-behavior.md#protocol-emb-08)"
 
-    Participants SHOULD acknowledge ($EK$) and inquire ($GI$) about the
-    nature of any error reported by an incoming $EE$ message.
+    Recipients of a processing fault about an $E*$ message they sent ($EE$) SHOULD inquire ($GI$) about the nature of the error.
+    No $EK$ message is sent for the fault.
 
 !!! note inline end "EM Messages Sent and State Transitions"
 
@@ -216,10 +224,10 @@ the corresponding sender state transition.
 | $\lnot \{S,C\},P,*$ | $-,\xrightarrow{r} N,-$ |                      $ER$                       |
 | $\lnot \{S,C\},A,*$ | $-,\xrightarrow{t} X,-$ |                      $ET$                       |
 | $\lnot \{S,C\},R,*$ | $-,\xrightarrow{t} X,-$ |                      $ET$                       |
-| $\lnot C,*,*$ | $-,-,-$ |                      $EK$                       |
+| $\lnot \{S,C\},*,*$ | $-,-,-$ |                      $EK$                       |
 | $\lnot C,*,*$ | $-,-,-$ |                      $EE$                       |
 
-A Participant still in RM *Start* has no case to negotiate, so the only EM messages it sends are $EE$, the error it returns when an EM message reaches it before the report does, and $EK$, its acknowledgment of an $EE$.
+A Participant still in RM *Start* has no case to negotiate, so the only EM message it sends is $EE$, the processing fault it returns when an EM message reaches it before the report does.
 
 !!! note inline end "EM Messages Received and State Transitions"
 
@@ -255,7 +263,7 @@ The next table lists the effects of receiving an EM message to the receiving Par
 |                           $EJ$                           | $\lnot \{S,C\},R,\lnot \cdot\cdot\cdot pxa$ | $-,\xrightarrow{t} X,-$ |                       $ET$                       |
 |                           $EC$                           | $\lnot \{S,C\},R,\lnot \cdot\cdot\cdot pxa$ | $-,\xrightarrow{t} X,-$ |                       $ET$                       |
 |           $\{EP,EA,EV,EJ,EC,ER,ET\}$           | $S,*,*$ | $-,-,-$ |                     $EE+GI$                      |
-|                           $EE$                           | $\lnot C,*,*$ | $-,-,-$ |                     $EK+GI$                      |
+|                           $EE$                           | $\lnot C,*,*$ | $-,-,-$ |                       $GI$                       |
 |                           $EK$                           | $\lnot C,*,*$ | $-,-,-$ |                       $-$                        |
 |           Any EM msg. not<br/> addressed above           | $\lnot C,*,*$ | $-,-,-$ |                       $EE$                       |
 
@@ -345,7 +353,7 @@ CS message to the receiving Participant's state coupled with the expected respon
 |                       $CA$                        | $\lnot C,\{N,X\},\cdot\cdot\cdot p \cdot a$ | $-,-,\xrightarrow{\mathbf{A}} \cdot\cdot\cdot p \cdot A$ |                       $CK$                       |
 |                       $CA$                        | $\lnot C,*,\cdot\cdot\cdot P \cdot a$ | $-,-,\xrightarrow{\mathbf{A}} \cdot\cdot\cdot P \cdot A$ |                       $CK$                       |
 |                       $CA$                        | $\lnot C,*,\cdot\cdot\cdot\cdot\cdot A$ | $-,-,-$ |                       $CK$                       |
-| $CE$ | $\lnot C,*,*$ | $-,-,-$ |                     $CK+GI$                      |
+| $CE$ | $\lnot C,*,*$ | $-,-,-$ |                       $GI$                       |
 | $CK$ | $\lnot C,*,*$ | $-,-,-$ |                       $-$                        |
 
 ## General Transition Functions
