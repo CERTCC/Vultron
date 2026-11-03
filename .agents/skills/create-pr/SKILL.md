@@ -163,7 +163,10 @@ A caller-supplied `Docs:` line is left as written. The placeholder is not a
 final value: the caller runs `check-docs-sync` after the push and replaces it
 with one of the final forms in `.agents/skills/shared/pr-body-guide.md`
 § "Implementation PR rules". A `docs` PR that closes no Task, Feature, or
-Bug issue carries no `Docs:` line.
+Bug issue carries no `Docs:` line, unless it changes a workflow or tooling
+file and no maintainer-facing doc: then it carries one whose final form names
+the follow-up docs issue or says why no maintainer doc needs the change
+(PRB-12, PD-03-014).
 
 ### 1d — Spec-amended placeholder (any PR type)
 

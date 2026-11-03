@@ -145,7 +145,8 @@ RULES: tuple[Rule, ...] = (
         "An implementation PR, or one closing a Task, Feature or Bug, has a "
         "line beginning `Docs:`; at the final "
         "stage it is not the placeholder and takes a final form "
-        "(`updated …`, `no docs impact — …`, `deferred to #N`).",
+        "(`updated …`, `no docs impact — …`, `no maintainer docs impact — …`, "
+        "`deferred to #N`).",
     ),
     Rule(
         "PRB-09",
@@ -169,8 +170,8 @@ RULES: tuple[Rule, ...] = (
         "maintainer-docs-followup",
         "When the diff changes a workflow or tooling file and no "
         "maintainer-facing doc, a `Docs:` line exists; at the final stage it "
-        "names the follow-up issue (`deferred to #N`) or says why no update "
-        "is needed (`no docs impact — …`).",
+        "names the follow-up issue (`deferred to #N`) or says why no "
+        "maintainer doc needs the change (`no maintainer docs impact — …`).",
     ),
 )
 
@@ -206,14 +207,20 @@ _ISSUES_RE = re.compile(r"^Issues: closed \d+, opened \d+\b")
 _RANGE_RE = re.compile(r"\b[A-Z]+-\d\d(?:-\d{3})?\.\.")
 _ATTRIBUTION_RE = re.compile(r"Generated with \[[^\]]+\]\([^)]+\)")
 _DOCS_FINAL_RE = re.compile(
-    r"^Docs: (?:updated \S.*|no docs impact — \S.*|deferred to #\d+)$"
+    r"^Docs: (?:updated \S.*|no docs impact — \S.*"
+    r"|no maintainer docs impact — \S.*|deferred to #\d+)$"
 )
 #: A ``Docs:`` line that accounts for a maintainer-docs gap (PRB-12): it names
-#: the follow-up issue, or says why no update is needed.
-_DOCS_GAP_RE = re.compile(r"\bdeferred to #\d+\b|\bno docs impact — \S")
+#: the follow-up issue, or says why no maintainer doc needs the change. The
+#: reader-facing ``no docs impact`` verdict does not count: it answers whether
+#: a ``docs/`` page describes the change, not whether a maintainer doc does.
+_DOCS_GAP_RE = re.compile(
+    r"\bdeferred to #\d+\b|\bno maintainer docs impact — \S"
+)
 
 #: Path prefixes of workflow and tooling files: CI workflows and their
-#: scripts, the skills agents run, and the project's metadata tools (PRB-12).
+#: scripts, the skills agents run, the project's metadata tools, and the
+#: development container and images (PRB-12).
 TOOLING_PREFIXES: tuple[str, ...] = (
     ".github/workflows/",
     ".github/scripts/",
@@ -221,6 +228,12 @@ TOOLING_PREFIXES: tuple[str, ...] = (
     ".agents/skills/",
     "vultron/metadata/",
     "scripts/",
+    ".devcontainer/",
+    "docker/",
+)
+#: Single tooling files at the repository root (PRB-12).
+TOOLING_FILES: frozenset[str] = frozenset(
+    {".pre-commit-config.yaml", "mdlint.sh", "Makefile", "start-dev.sh"}
 )
 
 #: Path prefixes of maintainer-facing documentation: the maintainer and agent
@@ -233,7 +246,12 @@ MAINTAINER_DOC_PREFIXES: tuple[str, ...] = (
     ".github/instructions/",
 )
 MAINTAINER_DOC_FILES: frozenset[str] = frozenset(
-    {"CONTRIBUTING.md", ".github/copilot-instructions.md"}
+    {
+        "CONTRIBUTING.md",
+        "README-DEV.md",
+        ".devcontainer/README.md",
+        ".github/copilot-instructions.md",
+    }
 )
 
 
@@ -257,7 +275,13 @@ def undocumented_tooling(files: Sequence[str]) -> tuple[str, ...]:
     """
     if any(is_maintainer_doc(f) for f in files):
         return ()
-    return tuple(sorted(f for f in files if f.startswith(TOOLING_PREFIXES)))
+    return tuple(
+        sorted(
+            f
+            for f in files
+            if f in TOOLING_FILES or f.startswith(TOOLING_PREFIXES)
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -470,15 +494,17 @@ def _check_docs(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
             yield Finding(
                 "PRB-08",
                 f"{line!r} is not a final `Docs:` form: `updated <page>, ...`, "
-                f"`no docs impact — <reason>`, or `deferred to #N`",
+                f"`no docs impact — <reason>`, "
+                f"`no maintainer docs impact — <reason>`, or `deferred to #N`",
             )
 
 
 def _check_maintainer_docs(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
     """PRB-12 (PD-03-014).
 
-    PRB-08 already reports a missing line on a PR that needs one, and the
-    placeholder at the final stage, so this rule stays silent there.
+    On a PR that PRB-08 covers, PRB-08 already reports a missing line and
+    the placeholder at the final stage, so this rule stays silent there; on
+    any other PR it reports both itself.
     """
     if not facts.undocumented_tooling:
         return
@@ -493,12 +519,14 @@ def _check_maintainer_docs(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
                 f"the diff changes workflow or tooling files ({shown}) and "
                 f"no maintainer-facing doc, but the body has no `Docs:` "
                 f"line; add `Docs: deferred to #N` naming the follow-up "
-                f"docs issue, or `Docs: no docs impact — <reason>`",
+                f"docs issue, or `Docs: no maintainer docs impact — <reason>`",
             )
         return
     if facts.stage is not Stage.FINAL:
         return
-    if any(line == DOCS_PLACEHOLDER for line in docs):
+    if facts.needs_docs_line and any(
+        line == DOCS_PLACEHOLDER for line in docs
+    ):
         return
     if not any(_DOCS_GAP_RE.search(line) for line in docs):
         yield Finding(
@@ -507,7 +535,8 @@ def _check_maintainer_docs(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
             f"maintainer-facing doc, but the `Docs:` line names no follow-up "
             f"issue; update the maintainer docs in this PR, or add "
             f"`deferred to #N` naming the follow-up docs issue, or "
-            f"`no docs impact — <reason>` when no update is needed",
+            f"`no maintainer docs impact — <reason>` when no maintainer doc "
+            f"needs the change",
         )
 
 

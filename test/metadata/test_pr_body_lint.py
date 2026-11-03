@@ -267,6 +267,7 @@ class TestDocsLine:
         [
             "Docs: updated docs/a.md, docs/b.md",
             "Docs: no docs impact — internal refactor",
+            "Docs: no maintainer docs impact — flags unchanged",
             "Docs: deferred to #12",
             "Docs: updated docs/a.md; deferred to #12",
         ],
@@ -315,11 +316,22 @@ class TestMaintainerDocs:
         [
             "Docs: deferred to #12",
             "Docs: updated docs/a.md; deferred to #12",
-            "Docs: no docs impact — the script's flags are unchanged",
+            "Docs: no maintainer docs impact — the script's flags are "
+            "unchanged",
+            "Docs: no docs impact — internal; no maintainer docs impact — "
+            "the flags are unchanged",
         ],
     )
-    def test_a_named_follow_up_or_reason_passes(self, line):
-        assert _ids(self._docs_body(line), self._facts()) == []
+    @pytest.mark.parametrize("pr_type", list(PrType))
+    def test_a_named_follow_up_or_reason_passes(self, line, pr_type):
+        body = _body(docs=line)
+        assert _ids(body, self._facts(pr_type=pr_type)) == []
+
+    @pytest.mark.parametrize("pr_type", list(PrType))
+    def test_the_reader_facing_verdict_alone_is_found(self, pr_type):
+        """``no docs impact`` judges ``docs/`` pages, not maintainer docs."""
+        body = _body(docs="Docs: no docs impact — internal refactor")
+        assert _ids(body, self._facts(pr_type=pr_type)) == ["PRB-12"]
 
     def test_an_updated_line_with_no_follow_up_is_found(self):
         body = self._docs_body("Docs: updated docs/reference/a.md")
@@ -338,6 +350,11 @@ class TestMaintainerDocs:
     def test_the_placeholder_is_left_to_prb_08(self):
         facts = self._facts(pr_type=PrType.IMPLEMENTATION)
         assert _ids(_body(docs=DOCS_PLACEHOLDER), facts) == ["PRB-08"]
+
+    def test_the_placeholder_on_a_docs_pr_is_found_at_the_final_stage(self):
+        """PRB-08 does not cover this PR, so PRB-12 reports it itself."""
+        body = self._docs_body(DOCS_PLACEHOLDER)
+        assert _ids(body, self._facts()) == ["PRB-12"]
 
     def test_the_line_is_not_judged_before_the_push(self):
         facts = self._facts(stage=Stage.PRE_PUSH)
@@ -366,6 +383,12 @@ class TestUndocumentedTooling:
             ".agents/skills/build/script.sh",
             "vultron/metadata/planning/tool.py",
             "scripts/velocity.py",
+            ".devcontainer/devcontainer.json",
+            "docker/Dockerfile",
+            ".pre-commit-config.yaml",
+            "mdlint.sh",
+            "Makefile",
+            "start-dev.sh",
         ],
     )
     def test_a_tooling_file_alone_is_a_gap(self, path):
@@ -381,6 +404,8 @@ class TestUndocumentedTooling:
             "AGENTS.md",
             ".agents/skills/build/SKILL.md",
             "CONTRIBUTING.md",
+            "README-DEV.md",
+            ".devcontainer/README.md",
             ".github/copilot-instructions.md",
             ".github/instructions/python.instructions.md",
         ],
@@ -390,7 +415,13 @@ class TestUndocumentedTooling:
         assert undocumented_tooling(["scripts/velocity.py", doc]) == ()
 
     @pytest.mark.parametrize(
-        "path", ["docs/reference/a.md", "README.md", "vultron/core/x.py"]
+        "path",
+        [
+            "docs/reference/a.md",
+            "README.md",
+            "vultron/core/x.py",
+            "x/Makefile",
+        ],
     )
     def test_other_files_are_neither(self, path):
         assert not is_maintainer_doc(path)

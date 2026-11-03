@@ -42,7 +42,7 @@ This table and the tool's `RULES` are one list; a test fails when they differ.
 | PRB-09 | spec-amended | A `### <ID>` block per amended ID; at `final`, no `<TODO>` |
 | PRB-10 | attribution-last | The `Generated with [...]` line, when present, is the last line |
 | PRB-11 | body-length | The body is at most GitHub's 65,536-character limit |
-| PRB-12 | maintainer-docs-followup | Tooling diff with no maintainer doc: a `Docs:` line; at `final`, `deferred to #N` or `no docs impact — …` |
+| PRB-12 | maintainer-docs-followup | Tooling diff with no maintainer doc: a `Docs:` line; at `final`, `deferred to #N` or `no maintainer docs impact — …` |
 
 ---
 
@@ -168,7 +168,7 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
   whether the PR's change is described anywhere in reader-facing `docs/`.
   `create-pr` writes the placeholder `Docs: pending check-docs-sync`, and the
   caller replaces it with the line `check-docs-sync` reports, in one of three
-  final forms:
+  final forms (a tooling PR has a fourth, below):
   - `Docs: updated <page>, <page>` — the `docs/` pages this PR updated, as
     repo-relative paths.
   - `Docs: no docs impact — <reason>` — no `docs/` page describes the changed
@@ -180,14 +180,21 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
     already closed as planned; it must exist. An updated-and-deferred PR
     carries both: `Docs: updated <page>; deferred to #N`.
 
-  A PR whose diff changes a workflow or tooling file (under `.github/workflows/`,
-  `.github/scripts/`, `.github/actions/`, `.agents/skills/`, `vultron/metadata/`
-  or `scripts/`) and no maintainer-facing doc (`docs/developer/`, `docs/agents/`,
-  `notes/`, any `AGENTS.md`, a skill's Markdown, `CONTRIBUTING.md` or the
-  `.github` agent instructions) carries a `Docs:` line whatever its template.
-  At the final stage that line names the follow-up docs issue
-  (`deferred to #N`) or says why no maintainer doc needs the change
-  (`no docs impact — <reason>`) (PRB-12, PD-03-014).
+  A PR whose diff changes a workflow or tooling file and no maintainer-facing
+  doc carries a `Docs:` line whatever its template (PRB-12, PD-03-014).
+  Tooling is a file under `.github/workflows/`, `.github/scripts/`,
+  `.github/actions/`, `.agents/skills/`, `vultron/metadata/`, `scripts/`,
+  `.devcontainer/` or `docker/`, or `.pre-commit-config.yaml`, `mdlint.sh`,
+  `Makefile` or `start-dev.sh`. A maintainer-facing doc is a file under
+  `docs/developer/`, `docs/agents/` or `notes/`, any `AGENTS.md`, a skill's
+  Markdown, `CONTRIBUTING.md`, `README-DEV.md`, `.devcontainer/README.md`, or
+  the `.github` agent instructions. At the final stage that line names the
+  follow-up docs issue (`deferred to #N`) or says why no maintainer doc needs
+  the change (`no maintainer docs impact — <reason>`). The reader-facing
+  `no docs impact` verdict does not count, so append the clause to it:
+  `Docs: no docs impact — <reason>; no maintainer docs impact — <reason>`.
+  The clause alone, `Docs: no maintainer docs impact — <reason>`, is a fourth
+  final form.
 
   The session that opened the PR is not done while the placeholder remains,
   and `pr-triage` treats a missing or placeholder `Docs:` line as a FAIL
