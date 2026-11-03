@@ -167,6 +167,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-001
       note: 'RS shorthand wire-type mapping'
+    stories:
+    - story_2022_107
 
   - id: RMB-01-004
     priority: SHOULD
@@ -201,6 +203,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-001
       note: 'RS shorthand wire-type mapping'
+    stories:
+    - story_2026_014
 
   - id: RMB-01-005
     priority: MAY
@@ -231,6 +235,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-001
       note: 'RS shorthand wire-type mapping'
+    stories:
+    - story_2022_068
 
 - id: RMB-02
   title: Receive RI (Report Invalid)
@@ -273,6 +279,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-002
       note: 'RI shorthand wire-type mapping'
+    stories:
+    - story_2022_075
 
   - id: RMB-02-002
     priority: SHOULD
@@ -306,6 +314,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-002
       note: 'RI shorthand wire-type mapping'
+    stories:
+    - story_2026_006
 
 - id: RMB-03
   title: Receive RV (Report Valid)
@@ -347,6 +357,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-003
       note: 'RV shorthand wire-type mapping'
+    stories:
+    - story_2022_075
 
   - id: RMB-03-002
     priority: SHOULD
@@ -379,6 +391,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-003
       note: 'RV shorthand wire-type mapping'
+    stories:
+    - story_2026_006
 
 - id: RMB-04
   title: Receive RD (Report/Case Deferred)
@@ -420,6 +434,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-004
       note: 'RD shorthand wire-type mapping'
+    stories:
+    - story_2022_075
 
   - id: RMB-04-002
     priority: SHOULD
@@ -451,6 +467,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-004
       note: 'RD shorthand wire-type mapping'
+    stories:
+    - story_2026_006
 
 - id: RMB-05
   title: Receive RA (Report/Case Accepted)
@@ -493,6 +511,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-005
       note: 'RA shorthand wire-type mapping'
+    stories:
+    - story_2022_075
 
   - id: RMB-05-002
     priority: SHOULD
@@ -525,6 +545,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-005
       note: 'RA shorthand wire-type mapping'
+    stories:
+    - story_2026_006
 
 - id: RMB-06
   title: Receive RC (Report Closed)
@@ -567,6 +589,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-006
       note: 'RC shorthand wire-type mapping'
+    stories:
+    - story_2022_075
 
   - id: RMB-06-002
     priority: MAY
@@ -595,6 +619,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-006
       note: 'RC shorthand wire-type mapping'
+    stories:
+    - story_2022_066
 
   - id: RMB-06-003
     priority: SHOULD
@@ -626,6 +652,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-006
       note: 'RC shorthand wire-type mapping'
+    stories:
+    - story_2026_006
 
 - id: RMB-07
   title: Receive RE (Report Error)
@@ -672,6 +700,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-007
       note: 'RE shorthand wire-type mapping'
+    stories:
+    - story_2022_039
 
   - id: RMB-07-002
     priority: SHOULD
@@ -706,6 +736,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-007
       note: 'RE shorthand wire-type mapping'
+    stories:
+    - story_2026_006
 
 - id: RMB-08
   title: Receive RK (Report Acknowledgment)
@@ -743,6 +775,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-008
       note: 'RK shorthand wire-type mapping'
+    stories:
+    - story_2022_016
 
   - id: RMB-08-002
     priority: SHOULD
@@ -778,6 +812,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-008
       note: 'RK shorthand wire-type mapping'
+    stories:
+    - story_2026_006
 
   - id: RMB-08-003
     priority: MUST
@@ -979,6 +1015,8 @@ groups:
       note: Proceed only after validating received reports
     adr:
     - ADR-0121
+    stories:
+    - story_2022_006
 
   - id: RMB-09-002
     priority: MAY
@@ -1005,6 +1043,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-02-013
       note: SHOULD give Reporters an opportunity to update with additional info
+    stories:
+    - story_2022_077
 
 - id: RMB-10
   title: Enter RM Valid
@@ -1067,6 +1107,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-02-004
       note: Participants MUST NOT close cases from the Valid state
+    stories:
+    - story_2022_086
 
   - id: RMB-10-003
     priority: SHOULD
@@ -1097,6 +1139,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-012
       note: SHOULD send a message for each RM state transition
+    stories:
+    - story_2022_062
 
   - id: RMB-10-004
     priority: SHOULD
@@ -1119,6 +1163,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-02-015
       note: SHOULD create a case for reports entering the Valid state
+    stories:
+    - story_2022_074
 
 - id: RMB-11
   title: Enter RM Invalid
@@ -1155,6 +1201,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-012
       note: SHOULD send a message for each RM state transition
+    stories:
+    - story_2022_062
 
   - id: RMB-11-002
     priority: SHOULD_NOT
@@ -1205,6 +1253,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-02-013
       note: SHOULD give Reporters an opportunity to update with additional info
+    stories:
+    - story_2022_077
 
   - id: RMB-11-004
     priority: MAY
@@ -1229,6 +1279,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-13-005
       note: SHOULD NOT close while an active embargo is in force
+    stories:
+    - story_2022_066
 
 - id: RMB-12
   title: Enter RM Deferred
@@ -1268,6 +1320,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-02-024
       note: Vendors SHOULD communicate prioritization choices including deferral
+    stories:
+    - story_2022_062
 
   - id: RMB-12-002
     priority: SHOULD
@@ -1290,6 +1344,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-02-017
       note: Reports SHOULD exit Deferred when work resumes or no further action planned
+    stories:
+    - story_2022_087
 
   - id: RMB-12-003
     priority: MAY
@@ -1312,6 +1368,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-02-031
       note: MAY set a policy timer on Deferred reports
+    stories:
+    - story_2026_004
 
 - id: RMB-13
   title: Enter RM Accepted
@@ -1382,6 +1440,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-02-024
       note: Vendors SHOULD communicate prioritization choices including acceptance
+    stories:
+    - story_2022_062
 
   - id: RMB-13-003
     priority: SHOULD
@@ -1401,6 +1461,8 @@ groups:
       description: Participant is in RM Accepted
     lint_suppress:
     - testable_without_steps
+    stories:
+    - story_2022_086
 
 - id: RMB-14
   title: Enter RM Closed
@@ -1437,6 +1499,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-012
       note: SHOULD send a message for each RM state transition
+    stories:
+    - story_2022_062
 
   - id: RMB-14-002
     priority: MAY
@@ -1465,6 +1529,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-013
       note: Recipients MAY ignore messages received on Closed cases
+    stories:
+    - story_2022_068
 
   - id: RMB-14-003
     priority: SHOULD_NOT
@@ -1500,6 +1566,8 @@ groups:
       note: >-
         SHOULD communicate intent to adhere or terminate compliance when closing
         during an active embargo
+    stories:
+    - story_2022_067
 
   - id: RMB-14-004
     priority: MUST
@@ -1601,6 +1669,8 @@ groups:
       the CLOSED state.
     adr:
     - ADR-0085
+    stories:
+    - story_2022_066
   - id: RMB-14-007
     priority: SHOULD
     kind: protocol

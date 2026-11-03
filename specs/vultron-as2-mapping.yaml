@@ -205,8 +205,8 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that every registered
       `ActivityPattern` uses a completed-action activity type (e.g., `Create`, `Accept`, `Reject`) and that
       no imperative or request-type activity variant appears in any pattern.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_011
   - id: VAM-01-010
     priority: MUST
     kind: project
