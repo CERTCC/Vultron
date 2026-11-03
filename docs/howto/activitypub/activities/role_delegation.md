@@ -9,7 +9,7 @@ subject: protocol
 
 Use this guide to offer a [`CVDRole`](../../../topics/case_lifecycle/case_model.md) on a case to another participant.
 Delegation is an offer, so the participant offered the role decides whether to take it.
-The offer and the answer both travel through the case's [Case Manager](../../../topics/case_lifecycle/case_manager_and_ledger.md), which checks the offer, records it in the case ledger and forwards it.
+The offer and the answer both travel through the case's [CASE_MANAGER](../../../topics/case_lifecycle/case_manager_and_ledger.md), which checks the offer, records it in the case ledger and forwards it.
 You finish with the participant holding the role, or with the roster unchanged.
 
 ---
@@ -19,7 +19,7 @@ You finish with the participant holding the role, or with the roster unchanged.
 {% include-markdown "./_demo_prerequisites.md" %}
 
 - An existing case on which you are the Case Owner.
-  The Case Manager acts on a role offer it receives only when the Case Owner sent it, and refuses one from anyone else ([CM-33-002](../../../reference/vultron-spec/requirements/case-management.md#cm-33-002)).
+  The CASE_MANAGER acts on a role offer it receives only when the Case Owner sent it, and refuses one from anyone else ([CM-33-002](../../../reference/vultron-spec/requirements/case-management.md#cm-33-002)).
 - The target participant's Uniform Resource Identifier (URI).
   The target must already be a participant in the case.
 - The specific `CVDRole` you intend to offer.
@@ -31,16 +31,16 @@ You finish with the participant holding the role, or with the roster unchanged.
 ## The exchange
 
 The sequence diagram below shows both outcomes.
-The Case Owner sends the offer to the Case Manager, never to the target.
-The Case Manager records it and forwards it to the target, and the target answers the Case Manager.
+The Case Owner sends the offer to the CASE_MANAGER, never to the target.
+The CASE_MANAGER records it and forwards it to the target, and the target answers the CASE_MANAGER.
 
 ```mermaid
 ---
-title: Role Delegation Through the Case Manager
+title: Role Delegation Through the CASE_MANAGER
 ---
 sequenceDiagram
     actor O as Case Owner
-    participant M as Case Manager
+    participant M as CASE_MANAGER
     actor T as Target Participant
     O ->> M: Offer(CaseParticipantRole)[context=VulnerabilityCase]
     note over M: Check sender, role and target<br/>Record the offer in the ledger
@@ -63,7 +63,7 @@ sequenceDiagram
 
 ## Offer the role
 
-1. Send `Offer(CaseParticipantRole)` to the case's Case Manager only, with the Case Manager as the sole `to` recipient ([CM-33-001](../../../reference/vultron-spec/requirements/case-management.md#cm-33-001)).
+1. Send `Offer(CaseParticipantRole)` to the case's CASE_MANAGER only, with the CASE_MANAGER as the sole `to` recipient ([CM-33-001](../../../reference/vultron-spec/requirements/case-management.md#cm-33-001)).
 2. Carry the role in a `CaseParticipantRole` object, name the target participant in `target`, and name the case in `context`.
    `CaseParticipantRole` is a Vultron vocabulary type.
 
@@ -72,18 +72,18 @@ sequenceDiagram
 3. Wait for the reply.
    Nothing changes until the target answers.
 
-The Case Manager refuses the offer, records nothing and forwards nothing when any of these is true:
+The CASE_MANAGER refuses the offer, records nothing and forwards nothing when any of these is true:
 
 - you are not the Case Owner;
 - the offer carries no readable role, or offers `CASE_OWNER` or `CASE_MANAGER`;
 - the target is not a participant in the case, or already holds the role.
 
-When it admits the offer, the Case Manager records it in the case ledger and then sends the target its own `Offer(CaseParticipantRole)`.
-The forward names the Case Manager as its `actor` and you as its `attributedTo`, and its `inReplyTo` is the id of the offer the Case Manager recorded.
-The Case Manager does not give the target the role at this point.
+When it admits the offer, the CASE_MANAGER records it in the case ledger and then sends the target its own `Offer(CaseParticipantRole)`.
+The forward names the CASE_MANAGER as its `actor` and you as its `attributedTo`, and its `inReplyTo` is the id of the offer the CASE_MANAGER recorded.
+The CASE_MANAGER does not give the target the role at this point.
 
 In the reference implementation this is the `offer-case-participant-role` trigger behavior.
-The trigger addresses the offer to the case's Case Manager, and fails without sending anything when the case names no Case Manager.
+The trigger addresses the offer to the case's CASE_MANAGER, and fails without sending anything when the case names no CASE_MANAGER.
 The request must name the role to offer: it has no default.
 No `vultron-demo` scenario exercises role delegation yet; drive it through the [Trigger API](../../../reference/trigger-api.md#actor-participation) endpoints listed under Further reading.
 
@@ -97,10 +97,10 @@ No `vultron-demo` scenario exercises role delegation yet; drive it through the [
 
 ## Answer a role offer
 
-Act only on a role offer the Case Manager sent you.
+Act only on a role offer the CASE_MANAGER sent you.
 A role offer from any other actor, the Case Owner included, is refused with no answer ([CM-33-004](../../../reference/vultron-spec/requirements/case-management.md#cm-33-004)).
 
-Reply to the Case Manager only, never to the Case Owner, with the forwarded `Offer` as your `object` ([CM-33-015](../../../reference/vultron-spec/requirements/case-management.md#cm-33-015)).
+Reply to the CASE_MANAGER only, never to the Case Owner, with the forwarded `Offer` as your `object` ([CM-33-015](../../../reference/vultron-spec/requirements/case-management.md#cm-33-015)).
 
 - If you are taking the role, send `Accept(Offer(CaseParticipantRole))`.
 
@@ -111,13 +111,13 @@ Reply to the Case Manager only, never to the Case Owner, with the forwarded `Off
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/reject-case-participant-role.md" %}
 
-The Case Manager acts on your answer only if you are the target of a role offer it recorded, and only while that offer is open ([CM-33-005](../../../reference/vultron-spec/requirements/case-management.md#cm-33-005)).
-The offer is open until the Case Manager records an `Accept` or `Reject` of it.
+The CASE_MANAGER acts on your answer only if you are the target of a role offer it recorded, and only while that offer is open ([CM-33-005](../../../reference/vultron-spec/requirements/case-management.md#cm-33-005)).
+The offer is open until the CASE_MANAGER records an `Accept` or `Reject` of it.
 An answer that names the forward is matched to the recorded offer through the forward's `inReplyTo`, never through the copy of the offer your answer carries ([CM-33-017](../../../reference/vultron-spec/requirements/case-management.md#cm-33-017)).
 That copy must still name the offered role and you as the target, because every participant reads the grant from it.
 Thus the role granted is always the one the case offered, and never one your answer names.
 
-The Case Manager refuses these answers and records nothing for them:
+The CASE_MANAGER refuses these answers and records nothing for them:
 
 - an answer from anyone else;
 - an answer to an offer that is no longer open;
@@ -125,11 +125,11 @@ The Case Manager refuses these answers and records nothing for them:
 
 It can refuse your own answer because the offer is no longer open or your copy differs.
 In that case, it sends you the [refusal notice](../../../reference/messages/faults_and_acknowledgements.md#refusal-notice): a `Reject` of your answer, with the reason in `summary`.
-If your answer is delivered again after the Case Manager recorded it, the Case Manager changes nothing ([CM-33-018](../../../reference/vultron-spec/requirements/case-management.md#cm-33-018)).
+If your answer is delivered again after the CASE_MANAGER recorded it, the CASE_MANAGER changes nothing ([CM-33-018](../../../reference/vultron-spec/requirements/case-management.md#cm-33-018)).
 
-When it admits your answer, the Case Manager records it in the case ledger and announces the entry to every participant in the case ([CM-33-006](../../../reference/vultron-spec/requirements/case-management.md#cm-33-006), [CM-33-019](../../../reference/vultron-spec/requirements/case-management.md#cm-33-019)).
-On an `Accept`, the Case Manager grants the role on its own copy of the case, and every other participant grants it when it replays the entry ([CM-33-020](../../../reference/vultron-spec/requirements/case-management.md#cm-33-020)).
-You hold the role once the Case Manager records your `Accept` in the case ledger ([CM-02-016](../../../reference/specs/project.md#cm-02-016)).
+When it admits your answer, the CASE_MANAGER records it in the case ledger and announces the entry to every participant in the case ([CM-33-006](../../../reference/vultron-spec/requirements/case-management.md#cm-33-006), [CM-33-019](../../../reference/vultron-spec/requirements/case-management.md#cm-33-019)).
+On an `Accept`, the CASE_MANAGER grants the role on its own copy of the case, and every other participant grants it when it replays the entry ([CM-33-020](../../../reference/vultron-spec/requirements/case-management.md#cm-33-020)).
+You hold the role once the CASE_MANAGER records your `Accept` in the case ledger ([CM-02-016](../../../reference/specs/project.md#cm-02-016)).
 Consider what the role obliges you to do before accepting.
 
 ---
@@ -138,13 +138,13 @@ Consider what the role obliges you to do before accepting.
 
 | What you sent | What to confirm |
 |---|---|
-| `Offer(CaseParticipantRole)` | The Case Manager's ledger holds an `offer_case_participant_role` entry, and the target holds the Case Manager's forward. |
-| `Accept(Offer(CaseParticipantRole))` | The Case Manager's ledger holds an `accept_case_participant_role` entry, and the role appears on your participant record once the Case Manager's entry is replayed on your copy of the case. |
-| `Reject(Offer(CaseParticipantRole))` | The Case Manager's ledger holds a `reject_case_participant_role` entry, and your roles are unchanged. |
+| `Offer(CaseParticipantRole)` | The CASE_MANAGER's ledger holds an `offer_case_participant_role` entry, and the target holds the CASE_MANAGER's forward. |
+| `Accept(Offer(CaseParticipantRole))` | The CASE_MANAGER's ledger holds an `accept_case_participant_role` entry, and the role appears on your participant record once the CASE_MANAGER's entry is replayed on your copy of the case. |
+| `Reject(Offer(CaseParticipantRole))` | The CASE_MANAGER's ledger holds a `reject_case_participant_role` entry, and your roles are unchanged. |
 
-Only the Case Manager writes to the case ledger.
-Your answer adds no entry to your own copy of the ledger; the Case Manager records it and announces the entry to every participant.
-The role appears only once the Case Manager's entry is replayed, never from your `Accept` itself.
+Only the CASE_MANAGER writes to the case ledger.
+Your answer adds no entry to your own copy of the ledger; the CASE_MANAGER records it and announces the entry to every participant.
+The role appears only once the CASE_MANAGER's entry is replayed, never from your `Accept` itself.
 
 ---
 

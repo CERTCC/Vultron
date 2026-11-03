@@ -8,8 +8,8 @@ Announces that the Deployer whose participant record is the target has deployed 
 
     - **When…** a Deployer has deployed the fix
     - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
-    - **Send to:** the case manager
-    - **Sent by:** the case manager or the case owner or the participant status's author (usually: deployer)
+    - **Send to:** the CASE_MANAGER
+    - **Sent by:** the CASE_MANAGER or the Case Owner or the participant status's author (usually: deployer)
     - **Distinguished by:** `dState` = `D`
     - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
     - **Formal definition:** [Fix Deployed (CD)](../../../formal_protocol/messages.md#cs-message-types)

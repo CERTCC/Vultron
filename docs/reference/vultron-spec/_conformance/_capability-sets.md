@@ -143,7 +143,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
     An implementation cannot demonstrate conformance to the replication mechanics from this document alone.
     The reasoning for splitting them is recorded in [ADR-0077](../../../adr/0077-ledger-replication-companion-spec.md).
 
-    Distributed consensus among several case managers is a possible future extension and is out of scope here.
+    Distributed consensus among several CASE_MANAGERs is a possible future extension and is out of scope here.
 
 #### Named configurations
 
@@ -154,7 +154,7 @@ These names are informative; conformance claims use the full capability set list
 |---|---|---|
 | **Hosting Coordinator** | Case Observer + Case Decision + Case Hosting | Coordinator + Case Owner |
 | **Self-coordinating Vendor** | Case Observer + Case Decision + Case Hosting | Vendor + Deployer + Case Owner |
-| **Bug Bounty Platform** | Case Observer + Case Hosting | Case Manager (Case Decision optional) |
+| **Bug Bounty Platform** | Case Observer + Case Hosting | CASE_MANAGER (Case Decision optional) |
 
 A Hosting Coordinator is a `type:service` actor that holds both `CASE_OWNER` and `CASE_MANAGER` roles.
 It decides and executes without a separate human approval step for its own status updates.

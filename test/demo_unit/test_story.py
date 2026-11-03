@@ -12,12 +12,12 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The story API: fragments, named prefixes, choices and the runner (#5533).
 
-A scenario written as composition states its story once and the registry reads
-its path off the story's choices (DEMOCI-11-019); declaring both forms fails
-discovery (DEMOCI-11-024).  These tests cover the derivation, both declaration
-forms, the refusals, and the runner's own job: play the items in order and
-report each choice to the harness with the deciding actor's id, so a composed
-scenario places no ``reach_step`` by hand.
+A scenario states its story once and the registry reads its path off the
+story's choices, which is the only way it places itself on the tree
+(DEMOCI-11-019, DEMOCI-11-024).  These tests cover the derivation, the
+refusals, and the runner's own job: play the items in order and report each
+choice to the harness with the deciding actor's id, so nothing places a
+``reach_step`` by hand.
 
 Kept in ``test/demo_unit/`` for the reason ``test_scenario_registry.py``
 gives: ``test/demo/`` is auto-marked ``integration`` and deselected by default.
@@ -174,12 +174,11 @@ def _named_prefixes() -> dict[str, Story]:
 
 
 def _registered_stories() -> dict[str, Story]:
-    """``{scenario name: its story}`` for every composed registered scenario.
+    """``{scenario name: its story}`` for every registered scenario.
 
-    Read from the registry rather than from a list of module names, so a
+    Read from the registry rather than from a list of module names, so a new
     scenario composed onto one of these prefixes counts towards it the moment
-    it is registered (DEMOCI-11-002).  A scenario still written as phases
-    declares no ``STORY`` and is simply absent.
+    it is registered (DEMOCI-11-002).
     """
     import importlib
 
@@ -947,8 +946,7 @@ def _register_fixture(
     monkeypatch: pytest.MonkeyPatch,
     *,
     name: str,
-    story_obj: Story | None = None,
-    path: Any = None,
+    story_obj: Story,
 ) -> ScenarioSpec:
     """Register a fixture scenario in an isolated copy of the registry."""
     monkeypatch.setattr(registry, "_REGISTRY", dict(registry._REGISTRY))
@@ -960,7 +958,6 @@ def _register_fixture(
         feature="Fixture",
         in_pr_set=False,
         story=story_obj,
-        path=path,
     )
 
     def fixture_main() -> None:
@@ -973,54 +970,49 @@ def _register_fixture(
 
 class TestRegisteringAStory:
     @pytest.mark.spec("DEMOCI-11-019")
-    def test_a_composed_scenarios_path_is_its_storys_choices(
+    def test_a_scenarios_path_is_its_storys_choices(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The derived path is the one the fixture registry's tree holds."""
         composed = _rv_story()
         spec = _register_fixture(monkeypatch, name="rv", story_obj=composed)
         assert spec.path == composed.path
-        # Which form declared the path is what the ratchets read to decide
-        # whether the scenario may place a reach_step by hand (DEMOCI-11-019).
-        assert spec.composed is True
 
         tree = build_scenario_tree(registry.registered_scenarios())
         assert tree.endings()["rv"].prefix == composed.path
 
-    @pytest.mark.spec("DEMOCI-11-014")
-    def test_a_scenario_not_yet_composed_still_declares_a_path(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        spec = _register_fixture(monkeypatch, name="rv", path=_RV_CHOICES)
-        assert spec.path == _RV_CHOICES
-        assert spec.composed is False
+    @pytest.mark.spec("DEMOCI-11-014", "DEMOCI-11-024")
+    def test_a_scenario_cannot_register_without_a_story(self) -> None:
+        """``story`` is required, so there is no second way to declare a path.
 
-    @pytest.mark.spec("DEMOCI-11-024")
-    def test_declaring_both_a_story_and_a_path_fails_discovery(self) -> None:
-        with pytest.raises(
-            DemoScenarioRegistryError, match="both a story and a path"
-        ):
-            scenario(
+        A ``TypeError`` rather than a ``DemoScenarioRegistryError``: the
+        registry no longer accepts a spec with nowhere to sit, so the refusal
+        is the signature's, at import, before any check could run.
+        """
+        with pytest.raises(TypeError, match="story"):
+            scenario(  # type: ignore[call-arg]
                 name="rv",
                 label="RV",
                 participants="Reporter + Vendor",
                 feature="Fixture",
                 in_pr_set=False,
-                story=_rv_story(),
-                path=_RV_CHOICES,
             )
 
-    @pytest.mark.spec("DEMOCI-11-014")
-    def test_declaring_neither_fails_discovery(self) -> None:
-        with pytest.raises(
-            DemoScenarioRegistryError, match="neither a story nor a path"
-        ):
+    @pytest.mark.spec("DEMOCI-11-019")
+    def test_a_story_that_names_no_path_is_refused(self) -> None:
+        """A required argument can still arrive as a ``None``.
+
+        A module-level ``STORY`` that resolved to ``None`` would otherwise
+        reach the spec as an ``AttributeError`` naming no scenario.
+        """
+        with pytest.raises(DemoScenarioRegistryError, match="names no path"):
             scenario(
                 name="rv",
                 label="RV",
                 participants="Reporter + Vendor",
                 feature="Fixture",
                 in_pr_set=False,
+                story=None,  # type: ignore[arg-type]
             )
 
 

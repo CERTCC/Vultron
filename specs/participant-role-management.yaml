@@ -387,7 +387,7 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      A Case Manager or Case Owner MAY assert ``v→V`` (``Vf``) on behalf of a
+      A CASE_MANAGER or Case Owner MAY assert ``v→V`` (``Vf``) on behalf of a
       Vendor-role participant when the notification or invite is evidenced. Any vendor
       acknowledgement, including
       ``Read(Invite(Actor)[target=VulnerabilityCaseStub])``, is evidence. The target is
@@ -416,7 +416,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      An on-behalf ``v→V`` write by a Case Manager or Case Owner MUST NOT change the
+      An on-behalf ``v→V`` write by a CASE_MANAGER or Case Owner MUST NOT change the
       target's RM state (ADR-0121).
     rationale: >-
       RM records the vendor's own report decisions. The on-behalf assertion speaks
@@ -440,7 +440,7 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      A Case Manager or Case Owner MAY assert ``d→D`` (``D``) on behalf of a
+      A CASE_MANAGER or Case Owner MAY assert ``d→D`` (``D``) on behalf of a
       Deployer-role participant, under the same externally-evidenced pattern as
       PRM-06-003. The target must already be a participant (PRM-06-006).
     rationale: >-

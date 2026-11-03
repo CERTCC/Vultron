@@ -533,9 +533,9 @@ groups:
     verification: >-
       `test/demo/test_rv_demo.py` asserts that the scenario's story begins
       with the items of `REPORTER_TELLS_THE_VENDOR`, and
-      `TestComposedFamilies` in `test/demo_unit/test_recordings.py` compares
-      the pairs of the family named in `COMPOSED_FAMILIES` byte for byte up to
-      the branch point where each pair's paths part.
+      `TestSharedPrefixes` in `test/demo_unit/test_recordings.py` compares
+      every pair of registered scenarios byte for byte up to the branch point
+      where each pair's paths part.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -832,6 +832,11 @@ groups:
       to typed domain objects; the referenced objects are never written to the receiver's
       DataLayer. Downstream BT nodes (e.g., `SenderIsParticipantNode`) then fail because
       participant records are absent.
+    note: >-
+      This demo rule is wider than CBT-01-007, which requires only the participant
+      records inline (ADR-0170, amended 2026-11-02). Inlining the report here is a
+      choice of the demo, whose sender holds the report; the protocol lets the
+      bootstrap name it by reference.
     relationships:
     - rel_type: refines
       spec_id: CBT-01-007
@@ -1036,9 +1041,9 @@ groups:
       `test/demo/test_rvv_demo.py` asserts that the scenario's story begins
       with the items of `THE_VENDOR_ANSWERS_THE_REPORTER`, and that those
       items in turn begin with `REPORTER_TELLS_THE_VENDOR`;
-      `TestComposedFamilies` in `test/demo_unit/test_recordings.py` compares
-      the pairs of the family named in `COMPOSED_FAMILIES` byte for byte up to
-      the branch point where each pair's paths part.
+      `TestSharedPrefixes` in `test/demo_unit/test_recordings.py` compares
+      every pair of registered scenarios byte for byte up to the branch point
+      where each pair's paths part.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -1401,10 +1406,10 @@ groups:
       `test/demo/test_rvcv_extension_demo.py` asserts that the scenario's
       story begins with the items of `THE_VENDOR_INVITES_A_COORDINATOR`, and
       that the prefix itself reaches back to the items of
-      `THE_VENDOR_ANSWERS_THE_REPORTER`; `TestComposedFamilies` in
-      `test/demo_unit/test_recordings.py` compares the pairs of the family
-      named in `COMPOSED_FAMILIES` byte for byte up to the branch point where
-      each pair's paths part.
+      `THE_VENDOR_ANSWERS_THE_REPORTER`; `TestSharedPrefixes` in
+      `test/demo_unit/test_recordings.py` compares every pair of registered
+      scenarios byte for byte up to the branch point where each pair's paths
+      part.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -1771,7 +1776,7 @@ groups:
       After the RVCV-handoff ownership transfer, the Coordinator MUST hold
       CVDRole.CASE_OWNER.
     rationale: >-
-      The ownership transfer postcondition for the Coordinator: it becomes the case owner.
+      The ownership transfer postcondition for the Coordinator: it becomes the Case Owner.
   - id: DEMOMA-11-012
     priority: MUST
     kind: project
@@ -1800,7 +1805,7 @@ groups:
       After the RVCV-handoff ownership transfer, Vendor1 MUST become a plain
       participant (no longer holding CVDRole.CASE_OWNER).
     rationale: >-
-      The ownership transfer postcondition for Vendor1: it relinquishes the case-owner
+      The ownership transfer postcondition for Vendor1: it relinquishes the Case Owner
       role and becomes an ordinary participant.
   - id: DEMOMA-11-015
     priority: MUST
@@ -1819,7 +1824,7 @@ groups:
     verification: >-
       `test/demo/test_rvcv_handoff_demo.py` asserts that the scenario's story
       begins with the items of `THE_VENDOR_INVITES_A_COORDINATOR`, the same
-      prefix `rvcv-extension` starts with, and `TestComposedFamilies` in
+      prefix `rvcv-extension` starts with, and `TestSharedPrefixes` in
       `test/demo_unit/test_recordings.py` compares the two recordings byte for
       byte up to the `owner-keep-case` branch point.
     relationships:
@@ -1993,7 +1998,7 @@ groups:
     rationale: >-
       Coordinator is CASE_OWNER, so a direct `invite-actor-to-case` is correct;
       the ADR-0026 suggest/approve chain is for participants recommending actors to
-      the case owner, not for the owner inviting directly.
+      the Case Owner, not for the owner inviting directly.
     preconditions:
     - description: >-
         Reporter is a signatory with a case replica (DEMOMA-12-020 postconditions
@@ -2266,7 +2271,7 @@ groups:
     verification: >-
       `test/demo_unit/test_story.py::test_the_two_composed_scenarios_share_one_opening`
       asserts that `rcv`'s story begins with the items of
-      `COORDINATOR_INVITES_VENDOR`, and `TestComposedFamilies` in
+      `COORDINATOR_INVITES_VENDOR`, and `TestSharedPrefixes` in
       `test/demo_unit/test_recordings.py` compares the `rcv` and `rcv-reject`
       recordings byte for byte up to the `vendor-join` branch point.
     relationships:
@@ -2293,9 +2298,9 @@ groups:
     verification: >-
       `test/demo/test_rcvcv_demo.py` asserts that `rcv`'s and `rcvcv`'s
       stories begin with the items of `REPORTER_ASKS_THE_VENDOR`, and
-      `TestComposedFamilies` in `test/demo_unit/test_recordings.py` compares
-      the pairs of the family named in `COMPOSED_FAMILIES` byte for byte up to
-      the branch point where each pair's paths part.
+      `TestSharedPrefixes` in `test/demo_unit/test_recordings.py` compares
+      every pair of registered scenarios byte for byte up to the branch point
+      where each pair's paths part.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-12-017
@@ -2756,10 +2761,10 @@ groups:
       `REPORTER_TELLS_THE_COORDINATOR`;
       `test_a_named_prefix_nests_the_shorter_one_it_carries` in
       `test/demo_unit/test_story.py` asserts that `C1_INVITES_C2` begins with
-      those items rather than restating them; `TestComposedFamilies` in
-      `test/demo_unit/test_recordings.py` compares the pairs of the family
-      named in `COMPOSED_FAMILIES` byte for byte up to the branch point where
-      each pair's paths part.
+      those items rather than restating them; `TestSharedPrefixes` in
+      `test/demo_unit/test_recordings.py` compares every pair of registered
+      scenarios byte for byte up to the branch point where each pair's paths
+      part.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -3172,7 +3177,7 @@ groups:
     verification: >-
       `test/demo/test_rccv_handoff_demo.py` asserts that the scenario's story
       begins with the items of `C1_INVITES_C2`, the same prefix
-      `rccv-extension` starts with, and `TestComposedFamilies` in
+      `rccv-extension` starts with, and `TestSharedPrefixes` in
       `test/demo_unit/test_recordings.py` compares the two recordings byte for
       byte up to the `owner-keep-case` branch point.
     relationships:
@@ -3613,10 +3618,10 @@ groups:
       as reporter at case creation (DEMOMA-12-003).
     rationale: >-
       RCVD exercises a four-actor coordination chain with one full invitation
-      cycle per non-case-owner actor; `invite_actor_to_case` and
+      cycle per actor other than the Case Owner; `invite_actor_to_case` and
       `accept_invite_actor_to_case` confirm the invitation/accept path was
       exercised for each. Unlike scenarios with ADR-0026 suggest-actor flows,
-      RCVD uses only direct case-owner invitations.
+      RCVD uses only direct invitations from the Case Owner.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -4399,11 +4404,11 @@ groups:
       `coordinator-after-answer` branch point (DEMOCI-11-018). Naming it here
       keeps this group a whole story.
     verification: >-
-      `test/demo_unit/test_recordings.py::TestComposedFamilies` compares the
-      pairs of the family named in `COMPOSED_FAMILIES` byte for byte up to the
-      branch point where each pair's paths part — `{rcv, rcvcv}` among them —
-      and the scenario's own test module asserts that its story begins with
-      the items of the named prefix.
+      `test/demo_unit/test_recordings.py::TestSharedPrefixes` compares every
+      pair of registered scenarios byte for byte up to the branch point where
+      each pair's paths part — `{rcv, rcvcv}` among them — and the scenario's
+      own test module asserts that its story begins with the items of the
+      named prefix.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -4451,7 +4456,7 @@ groups:
     report submission and case setup, R proposes an embargo (EP). Case creation
     has already activated the default embargo (EP-04-001), so the case is at
     EM.ACTIVE before R proposes and R's proposal revises that embargo
-    (ACTIVE → REVISE). V and C accept the Invite; C, as case owner, activates the
+    (ACTIVE → REVISE). V and C accept the Invite; C, as Case Owner, activates the
     revision (EC), returning EM to ACTIVE with the revision as the active embargo and
     all three parties as signatories to it. The fix lifecycle then proceeds. Before
     the natural embargo window expires, C deliberately terminates the embargo
@@ -4521,7 +4526,7 @@ groups:
       sequence (EP-09). First, the reporter posts `trigger_propose_embargo`, which sends
       the proposal to the CASE_MANAGER. Then the coordinator and the vendor each poll
       their own replica for the `Invite(EmbargoEvent)` the CASE_MANAGER relays to them.
-      Each posts `trigger_accept_embargo`. The coordinator's answer, as case owner,
+      Each posts `trigger_accept_embargo`. The coordinator's answer, as Case Owner,
       activates the embargo, and the vendor's answer records its consent. Last, the
       helper polls every replica for `em_state == EM.ACTIVE`. No participant polls for
       another participant's message.
@@ -4790,16 +4795,14 @@ groups:
       Reporter's revision of it and the note thread that follows, which
       rcvv-embargo tells identically (DEMOMA-21-015). Each shared stretch is
       one copy of the code, so the two recordings agree to the
-      `vendor-after-embargo` branch point — isomorphically today
-      (DEMOCI-11-017), byte for byte once #5591 lands.
+      `vendor-after-embargo` branch point byte for byte, as every pair that
+      shares a prefix does (DEMOCI-11-017, DEMOCI-11-018).
     verification: >-
       The scenario's own test module asserts that its story begins with the
-      items of `REPORTER_PROPOSES_EMBARGO`, which is what carries this clause
-      while the byte comparison is held open: `COMPOSED_FAMILIES` does not
-      name `{rcv-embargo, rcvv-embargo}` in one family, because their shared
-      prefix runs past the embargo activation and #5591 is the read that moves
-      it. `TestComposedFamilies` does compare each of the two against the
-      narrower siblings it is in a family with.
+      items of `REPORTER_PROPOSES_EMBARGO`, and `TestSharedPrefixes`
+      compares the two recordings byte for byte up to the
+      `vendor-after-embargo` branch point, as it does every pair of
+      registered scenarios (DEMOCI-11-017, DEMOCI-11-018).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -4887,7 +4890,7 @@ groups:
       The `owner` argument of `demo_propose_embargo_revision` MAY be the same session as
       its `proposing` argument.
     rationale: >-
-      In rcvv-embargo the Coordinator proposes the revision and, as case owner, also
+      In rcvv-embargo the Coordinator proposes the revision and, as Case Owner, also
       decides it. The CASE_MANAGER does not invite the proposer (EP-09-002), so one
       session can play both parts.
     adr:
@@ -4906,7 +4909,7 @@ groups:
       manager). Then `accepting` polls its own replica for the relayed
       `Invite(EmbargoEvent)` and posts `trigger_accept_embargo`. That answer records its
       consent and moves no EM state. Then `owner` posts `trigger_accept_embargo`. As the
-      case owner's answer, it activates the revision (canonical
+      Case Owner's answer, it activates the revision (canonical
       `em_state: REVISE → ACTIVE`). Last, the helper polls every replica for
       `em_state == EM.ACTIVE`.
     rationale: >-
@@ -5116,7 +5119,7 @@ groups:
         embargo_revision phase — call demo_propose_embargo_revision
         (DEMOMA-21-002): C posts trigger_propose_embargo_revision to the
         CASE_MANAGER (canonical ACTIVE → REVISE); V1 answers the relayed
-        Invite with trigger_accept_embargo (consent); C, as case owner, posts
+        Invite with trigger_accept_embargo (consent); C, as Case Owner, posts
         trigger_accept_embargo (canonical REVISE → ACTIVE)
       expected: >-
         em_state returns to EM.ACTIVE with the revised terms on every replica
@@ -5273,17 +5276,16 @@ groups:
     rationale: >-
       The revision cycle is the first thing this scenario tells differently, so
       everything before it is one copy of the code shared with rcv-embargo, so
-      the two recordings agree up to the `vendor-after-embargo` branch point —
-      isomorphically today (DEMOCI-11-017), and byte for byte once #5591
-      lands. Naming the opening here keeps this group a whole story.
+      the two recordings agree up to the `vendor-after-embargo` branch point
+      byte for byte, as every pair that shares a prefix does (DEMOCI-11-017,
+      DEMOCI-11-018). Naming the opening here keeps this group a whole
+      story.
     verification: >-
       The scenario's own test module asserts that its story begins with the
-      items of `REPORTER_PROPOSES_EMBARGO`, which is what carries this clause
-      while the byte comparison is held open: `COMPOSED_FAMILIES` does not
-      name `{rcv-embargo, rcvv-embargo}` in one family, because their shared
-      prefix runs past the embargo activation and #5591 is the read that moves
-      it. `TestComposedFamilies` does compare each of the two against the
-      narrower siblings it is in a family with.
+      items of `REPORTER_PROPOSES_EMBARGO`, and `TestSharedPrefixes`
+      compares the two recordings byte for byte up to the
+      `vendor-after-embargo` branch point, as it does every pair of
+      registered scenarios (DEMOCI-11-017, DEMOCI-11-018).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -7169,7 +7171,7 @@ groups:
     verification: >-
       `test/demo_unit/test_story.py::test_the_two_composed_scenarios_share_one_opening`
       asserts that `rcv-reject`'s story begins with the items of
-      `COORDINATOR_INVITES_VENDOR`, and `TestComposedFamilies` in
+      `COORDINATOR_INVITES_VENDOR`, and `TestSharedPrefixes` in
       `test/demo_unit/test_recordings.py` compares the `rcv` and `rcv-reject`
       recordings byte for byte up to the `vendor-join` branch point.
     relationships:

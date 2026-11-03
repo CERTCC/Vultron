@@ -13,12 +13,14 @@
 """Ratchets over the branch-point table and the scenario tree (DEMOCI-11-013/014).
 
 The branch-point table defines every decision of the demo once; each
-registered scenario declares its path through it on ``@scenario``; discovery
-merges the paths into one tree. These tests prove the table is well formed,
-that every choice is a trigger the routers expose, that a malformed path or a
-set of paths that is not one tree fails discovery (each on a mutated fixture
-registry), and that the committed registry is one tree in which every
-scenario is exactly one ending.
+registered scenario declares its path through it as the choices of its
+assembled story, never on ``@scenario``, which takes no path parameter
+(DEMOCI-11-019, DEMOCI-11-024); discovery merges the paths into one tree.
+These tests prove the table is well formed, that every choice is a trigger
+the routers expose, that a malformed path or a set of paths that is not one
+tree fails discovery (each on a mutated fixture registry), and that the
+committed registry is one tree in which every scenario is exactly one
+ending.
 
 Kept in ``test/demo_unit/`` for the reason ``test_scenario_registry.py``
 gives: ``test/demo/`` is auto-marked ``integration`` and deselected by default.
@@ -179,11 +181,22 @@ def test_malformed_choice_is_refused(
         Choice(**fields)
 
 
-@pytest.mark.spec("DEMOCI-11-050")
-def test_scenario_decorator_takes_no_prompt_or_choice_label() -> None:
-    """Prompts and choice labels live only in the table, never on ``@scenario``.
+@pytest.mark.spec("DEMOCI-11-019", "DEMOCI-11-024", "DEMOCI-11-050")
+def test_scenario_decorator_takes_no_path_prompt_or_choice_label() -> None:
+    """What the decorator accepts, pinned as the whole set.
 
-    ``label`` is the scenario's own display casing, not a choice label.
+    Two rules meet in this one set, and both are about a fact the decorator
+    must not be able to restate:
+
+    - a scenario's path comes from the choices of its story and from nowhere
+      else, so there is no ``path`` parameter to type a second copy into
+      (DEMOCI-11-019, DEMOCI-11-024);
+    - prompts and choice labels live only in the branch-point table
+      (DEMOCI-11-050).  ``label`` is the scenario's own display casing, not a
+      choice label.
+
+    Pinned as equality rather than as a set of absent names: a check that only
+    forbade ``path`` would pass on ``path_override`` or ``steps``.
     """
     assert set(inspect.signature(scenario).parameters) == {
         "name",
@@ -191,7 +204,6 @@ def test_scenario_decorator_takes_no_prompt_or_choice_label() -> None:
         "participants",
         "feature",
         "in_pr_set",
-        "path",
         "story",
     }
 

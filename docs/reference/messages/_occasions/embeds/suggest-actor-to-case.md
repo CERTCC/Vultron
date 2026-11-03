@@ -2,13 +2,13 @@
 
 !!! info "Suggest actor to case"
 
-    Recommends an actor to the Case Manager for the case named by the target.
+    Recommends an actor to the CASE_MANAGER for the case named by the target.
 
     - **When…** a Participant suggests an actor that the case should include
     - **Send:** `Offer(Actor)[target=VulnerabilityCase]`
-    - **Send to:** the case manager
+    - **Send to:** the CASE_MANAGER
     - **Sent by:** a participant
-    - **Distinguished by:** sender is not the case owner
+    - **Distinguished by:** sender is not the Case Owner
     - **Reference:** [Suggest actor to case](../../general.md#suggest-actor-to-case)
 
     ??? example "Example activity"

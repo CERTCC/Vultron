@@ -212,11 +212,11 @@ def test_scenario_rejects_a_name_that_contradicts_its_module() -> None:
     *from*.  Comparing the declared name against the declaring module is what
     catches it.
 
-    The fixture declares ``rv``'s own story rather than a ``path=``, so the
-    offered spec matches the registered one exactly and the module check is
-    what rejects it; a spec that differed in any field would be rejected one
-    step earlier, by the already-registered check, and this test would pass
-    without exercising what it names.
+    The fixture declares ``rv``'s own story, so the offered spec matches the
+    registered one exactly and the module check is what rejects it; a spec
+    that differed in any field would be rejected one step earlier, by the
+    already-registered check, and this test would pass without exercising what
+    it names.
     """
     decorate = scenario(
         name="rv",
@@ -299,27 +299,6 @@ def test_scenario_spec_rejects_non_boolean_in_pr_set() -> None:
             feature="Something",
             in_pr_set=1,  # type: ignore[arg-type]
             path=_PATH,
-        )
-
-
-def test_scenario_spec_rejects_non_boolean_composed() -> None:
-    """``composed`` must be a real bool, not merely truthy.
-
-    A check reads it to tell the two declaration forms apart — a composed
-    scenario places no ``reach_step`` by hand, where one still declaring
-    ``path=`` places one per step (DEMOCI-11-019) — so a truthy non-boolean
-    would silently pick the composed branch and leave the hand-placed marks
-    unchecked.
-    """
-    with pytest.raises(DemoScenarioRegistryError, match="non-boolean"):
-        ScenarioSpec(
-            name="xy",
-            label="XY",
-            participants="Reporter + Vendor",
-            feature="Something",
-            in_pr_set=True,
-            path=_PATH,
-            composed=1,  # type: ignore[arg-type]
         )
 
 

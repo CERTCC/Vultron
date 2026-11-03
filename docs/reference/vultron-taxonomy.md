@@ -148,7 +148,7 @@ This page names them and says how they relate to the other concepts; it does not
 |---|---|---|
 | **Case Observer** | The participation floor every case Participant provides: track the five state machines, take part in embargo negotiation, and route case-scoped messages through the CASE_MANAGER. There is no sub-Observer participation level. | [Case Observer capability set](vultron-spec/conformance.md#case-observer-capability-set) |
 | **Case Decision** | The Case Owner's governance obligations, separable from hosting a case. | [Case Decision capability set](vultron-spec/conformance.md#case-decision-capability-set) |
-| **Case Hosting** | The Case Manager's infrastructure obligations, separable from deciding for a case: host the actor enacting the CASE_MANAGER role and run the canonical ledger. | [Case Hosting capability set](vultron-spec/conformance.md#case-hosting-capability-set) |
+| **Case Hosting** | The CASE_MANAGER's infrastructure obligations, separable from deciding for a case: host the actor enacting the CASE_MANAGER role and run the canonical ledger. | [Case Hosting capability set](vultron-spec/conformance.md#case-hosting-capability-set) |
 
 Which transitions a Participant may drive on top of the Case Observer floor depends on the roles it holds; [§13.4 Role-Specific Normative Requirements](vultron-spec/conformance.md#134-role-specific-normative-requirements) states those role-specific requirements.
 Common combinations of capability sets and roles have names — Hosting Coordinator, Self-coordinating Vendor, Bug Bounty Platform — listed under [Named configurations](vultron-spec/conformance.md#named-configurations) in the specification.
@@ -234,8 +234,8 @@ Both are defined in [§2.2 Roles in the Vultron Protocol Specification](vultron-
 
 **Process roles** — Reporter, Vendor, Deployer, Coordinator, CVE Numbering Authority (CNA), and Observer — define what an actor does within a case and which protocol transitions it is authorized to drive ([§13.3.1 Process Roles](vultron-spec/conformance.md#1331-process-roles), [§13.4 Role-Specific Normative Requirements](vultron-spec/conformance.md#134-role-specific-normative-requirements)).
 
-**Protocol authority roles** — Case Owner and Case Manager — define what an actor controls in the protocol machinery ([§13.3.2 Protocol Coordination Roles (protocol authority)](vultron-spec/conformance.md#1332-protocol-coordination-roles-protocol-authority)).
-The Case Manager is the Participant that writes the canonical case ledger and relays case-scoped messages on the Case Owner's behalf; it is the case's single-writer authority.
+**Protocol authority roles** — Case Owner and CASE_MANAGER — define what an actor controls in the protocol machinery ([§13.3.2 Protocol Coordination Roles (protocol authority)](vultron-spec/conformance.md#1332-protocol-coordination-roles-protocol-authority)).
+The CASE_MANAGER is the Participant that writes the canonical case ledger and relays case-scoped messages on the Case Owner's behalf; it is the case's single-writer authority.
 That authority follows the role, never the name, Uniform Resource Identifier (URI), or hosting location of the actor that holds it (ADR-0088).
 
 **Role assignment.**
@@ -243,8 +243,8 @@ That authority follows the role, never the name, Uniform Resource Identifier (UR
 Roles are assigned, not self-declared.
 
 1. A case starts with a Case Owner (the actor who initiated the case).
-2. The Case Owner may delegate the Case Manager role to another actor.
-3. The Case Manager designates other actors into process roles.
+2. The Case Owner may delegate the CASE_MANAGER role to another actor.
+3. The CASE_MANAGER designates other actors into process roles.
 
 Self-assignment is not permitted. This rule prevents an actor from declaring a role (for example, Coordinator) on a case it is not ready to coordinate.
 
@@ -258,7 +258,7 @@ The relationship between capabilities and roles is bidirectional.
 **What is in scope.**
 
 - The two categories of roles and their definitions
-- The assignment chain (Case Owner → Case Manager → others)
+- The assignment chain (Case Owner → CASE_MANAGER → others)
 - The bidirectional relationship between capabilities and roles
 
 **Relationship to other concepts.**

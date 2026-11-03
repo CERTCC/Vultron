@@ -2,13 +2,13 @@
 
 ## Read case ledger entry { #read-case-ledger-entry }
 
-States the last ledger entry the sender has applied. The Case Manager resends every Invite the sender has not answered and, for an active participant, records the position as the sender's acknowledged position and replays every entry after it.
+States the last ledger entry the sender has applied. The CASE_MANAGER resends every Invite the sender has not answered and, for an active participant, records the position as the sender's acknowledged position and replays every entry after it.
 
 === "Details"
 
     - **When…** a Participant checks that its ledger is current, such as after a restart
     - **Send:** `Read(CaseLedgerEntry)`
-    - **Send to:** the case manager
+    - **Send to:** the CASE_MANAGER
     - **Sent by:** a participant
     - **Mapping status:** [none](../../index.md#mapping-status)
 

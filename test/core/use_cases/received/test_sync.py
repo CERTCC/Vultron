@@ -35,6 +35,7 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
@@ -1191,7 +1192,10 @@ class TestUnaddressedAnnounceActsOnNothing:
         )
         assert held_depth(dl, CASE_URI) == 1
         assert pending.is_suppressed(
-            CASE_URI, genesis.semantic_type, genesis.log_object_id
+            CASE_URI,
+            genesis.semantic_type,
+            genesis.log_object_id,
+            at=now_utc(),
         )
         assert sync_port.mock_calls == []
         assert dl.list_objects("CaseLedgerEntry") == []

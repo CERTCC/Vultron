@@ -1,7 +1,7 @@
 ## 10. Case Coordination [N]
 
-Every case has a Case Manager.
-The Case Manager is a protocol **role**, `CASE_MANAGER`, and a participant holds it from case creation onward.
+Every case has a CASE_MANAGER.
+The CASE_MANAGER is a protocol **role** (`CVDRole.CASE_MANAGER`), and a participant holds it from case creation onward.
 The participant that holds it may be the actor that created the case, or an actor that the case's creator delegated case maintenance to.
 This section names the authority *the CASE_MANAGER*: whichever participant holds the role for the case ([§2.2 Roles](introduction.md#22-roles)).
 
@@ -116,7 +116,8 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 **The case-creation message carries the whole case inline.**
 A receiver seeds its replica of the case from this one message, and it trusts no actor to fetch a missing part from until it accepts the message.
-So the message carries the complete case and every object nested in it, such as each `CaseParticipant`, inline rather than by reference.
+So the message carries the complete case and each `CaseParticipant` record inline rather than by reference.
+It may name the report by reference: the receiver offered that report, so it already holds it.
 A receiver that finds a required participant missing, or named only by reference, rejects the message as a protocol error.
 
 ```python exec="true" idprefix=""

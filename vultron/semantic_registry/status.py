@@ -70,8 +70,8 @@ _PARTICIPANT_PXA_NOTES = (
     "A participant status is a snapshot of every dimension the sender "
     "holds, so it can also carry an unchanged `vfState` or `dState`; the "
     "dimension that changed makes the occasion. The report is the "
-    "sender's view of the case status, not a change to it. The Case "
-    "Manager records the status on the sender's participant record and "
+    "sender's view of the case status, not a change to it. The "
+    "CASE_MANAGER records the status on the sender's participant record and "
     "chooses whether to adopt the reported `pxaState` for the case, by "
     "default only with the Case Owner's authorization. Only an adopted "
     "value changes the case status, and while an embargo is active or "
@@ -82,21 +82,21 @@ _PARTICIPANT_PXA_NOTES = (
 #: When the CASE_MANAGER records each adopted P/X/A in ``Add(CaseStatus)``.
 _CASE_PXA_WHEN: dict[CS_pxa, str] = {
     CS_pxa.Pxa: (
-        "the Case Manager records that the public knows of the vulnerability"
+        "the CASE_MANAGER records that the public knows of the vulnerability"
     ),
     CS_pxa.PXa: (
-        "the Case Manager records that an exploit for the vulnerability is "
+        "the CASE_MANAGER records that an exploit for the vulnerability is "
         "public"
     ),
     CS_pxa.pxA: (
-        "the Case Manager records that attackers are exploiting the "
+        "the CASE_MANAGER records that attackers are exploiting the "
         "vulnerability"
     ),
 }
 
 #: What every case P/X/A occasion says about who sends it.
 _CASE_PXA_NOTES = (
-    "Only the Case Manager sends a case status, as its record of the "
+    "Only the CASE_MANAGER sends a case status, as its record of the "
     "`pxaState` it adopted, and a receiver refuses one from any other "
     "sender. A participant reports public awareness, a public exploit or "
     "observed attacks in its own participant status instead."

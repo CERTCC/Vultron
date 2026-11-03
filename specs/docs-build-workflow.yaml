@@ -891,13 +891,13 @@ groups:
           always present.
         rationale: >-
           The newest `publish-*` tag then always names what is live, and a failed
-          deploy leaves no tag for the skip rule to honour. A push that finds its
-          name taken by a hand-made tag is renumbered, so the counter cannot
-          collide. A push that reports failure but landed, and a re-run of the
-          tag job, find the tag already pushed, so neither makes a second one.
+          deploy leaves no tag for the skip rule to honour. The date is the one
+          on which the gate named the tag (DOCBW-06-031). A push that reports
+          failure but landed, and a re-run of the tag job, find the tag already
+          pushed, so neither makes a second one.
         verification: >-
-          `test_next_publish_name`, `test_create_tag_pushes_one_annotated_tag`,
-          `test_create_tag_renumbers_past_a_taken_name`,
+          `test_next_publish_name`, `test_next_publish_tag_counts_local_and_remote_tags`,
+          `test_create_tag_pushes_the_named_annotated_tag`,
           `test_create_tag_accepts_a_push_that_landed`,
           `test_a_rerun_finds_the_tag_it_pushed` and
           `test_the_tag_job_follows_the_deploy` in
@@ -1014,7 +1014,7 @@ groups:
           grant the GitHub Actions app a bypass, so such a step could only fail.
         verification: >-
           `test_no_step_moves_or_deletes_a_tag` and
-          `test_create_tag_renumbers_past_a_taken_name` in
+          `test_a_name_taken_by_hand_fails_the_job_and_is_left_alone` in
           `test/ci/test_publish_gate.py`.
         adr:
           - ADR-0171
@@ -1145,6 +1145,43 @@ groups:
           `test/ci/test_publish_gate.py`.
         adr:
           - ADR-0171
+      - id: DOCBW-06-031
+        priority: MUST
+        kind: project
+        statement: >-
+          A run that publishes MUST name its DOCBW-06-016 tag before the site
+          build, pass that name, its date and the newest `v*` tag on the
+          deployed commit to the build, and create the tag under exactly that
+          name, failing rather than renumbering when the name is taken.
+        rationale: >-
+          Every page's footer names the publish it belongs to (#5544), and the
+          build prints the footer before the deploy, so the name must be fixed
+          first. A tag renumbered after the deploy would leave every page naming
+          a tag the publish did not make. A taken name is a collision with a
+          hand-made tag, which tags being append-only (DOCBW-06-022) cannot
+          repair, so the tag job fails and its notice says how to recover
+          (DOCBW-06-025). The build job checks, before the upload, that the
+          name is still free and that the footer prints it: a re-run reuses the
+          gate's outputs, and the variables reach the build only through the
+          shared action.
+        verification: >-
+          `test_gate_command_skips_the_gate_on_request`,
+          `test_the_footer_and_the_free_name_are_checked_before_the_upload`,
+          `test_the_footer_check_fails_before_the_upload`,
+          `test_the_footer_check_passes_a_free_name_the_footer_prints`,
+          `test_the_footer_check_only_notes_a_page_without_the_footer`,
+          `test_gate_command_rolls_back_to_a_commit_on_main`,
+          `test_the_build_and_the_tag_job_share_the_gates_tag_name`,
+          `test_another_runs_tag_of_the_same_name_fails_the_job`,
+          `test_a_name_taken_by_hand_fails_the_job_and_is_left_alone` and
+          `test_a_name_taken_during_the_push_fails_the_job` in
+          `test/ci/test_publish_gate.py`; `test/metadata/docs/test_build_version.py`
+          for the footer the build prints.
+        adr:
+          - ADR-0171
+        relationships:
+          - rel_type: refines
+            spec_id: DOCBW-06-016
 
   - id: DOCBW-07
     title: Release Promotion and Site Staleness

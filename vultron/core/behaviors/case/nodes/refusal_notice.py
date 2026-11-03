@@ -64,6 +64,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
     _EmitSingleActivityBase,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.pending_assertion import (
     PendingAssertion,
@@ -292,9 +293,11 @@ class ClearRefusedAssertionNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.actor_id is not None
+        # This node commits a state change, so its clock read is on a write
+        # path; the store's own lookups read no clock (#5591).
         self.cleared = get_pending_assertion_store(
             self.actor_id
-        ).clear_activity(self.case_id, self.refused_activity_id)
+        ).clear_activity(self.case_id, self.refused_activity_id, at=now_utc())
         self.logger.warning(
             "CASE_MANAGER '%s' refused activity '%s' from actor '%s' on case"
             " '%s': %s; %d pending assertion(s) cleared, nothing re-sent"

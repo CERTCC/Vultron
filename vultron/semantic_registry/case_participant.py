@@ -60,7 +60,7 @@ ENTRIES: list[SemanticEntry] = [
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Add case participant to case",
                 description=(
-                    "Asks the Case Manager to reinstate the participant record"
+                    "Asks the CASE_MANAGER to reinstate the participant record"
                     " named by the object. The Participant becomes active "
                     "again and receives the ledger entries it missed."
                 ),
@@ -88,7 +88,7 @@ ENTRIES: list[SemanticEntry] = [
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Remove case participant from case",
                 description=(
-                    "Asks the Case Manager to remove the participant record "
+                    "Asks the CASE_MANAGER to remove the participant record "
                     "named by the object. The removed Participant receives a "
                     "direct notice."
                 ),
@@ -113,7 +113,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager creates a participant record, such as "
+                    "the CASE_MANAGER creates a participant record, such as "
                     "the inert record for the invitee of a stub Invite"
                 ),
                 anchor="create-case-participant",
@@ -143,7 +143,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager changes a participant record, such as "
+                    "the CASE_MANAGER changes a participant record, such as "
                     "moving the CASE_OWNER role on an ownership transfer"
                 ),
                 anchor="update-case-participant",
@@ -151,7 +151,7 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Update case participant",
                 description=(
                     "Carries the changed participant record in full, as the "
-                    "Case Manager stored it."
+                    "CASE_MANAGER stored it."
                 ),
                 example="update_participant",
                 notes=(

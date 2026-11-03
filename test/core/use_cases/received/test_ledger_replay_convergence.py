@@ -51,7 +51,7 @@ from vultron.core.behaviors.case.nodes.stub_reissue import (
     ReissueStubInvitesNode,
 )
 from vultron.core.behaviors.embargo.nodes import termination_commit
-from vultron.core.models._helpers import _as_id, days_from_now_utc
+from vultron.core.models._helpers import _as_id, days_from_now_utc, now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -685,7 +685,9 @@ def test_add_note_trigger_makes_one_add_note_to_case_entry():
     queued = net.queued(BYSTANDER, to=MANAGER)
     assert [(a.type_, a.id_) for a in queued] == [("Add", add_id)]
     pending = get_pending_assertion_store(BYSTANDER)
-    assert pending.is_suppressed(net.case_id, "add_note_to_case", add_id)
+    assert pending.is_suppressed(
+        net.case_id, "add_note_to_case", add_id, at=now_utc()
+    )
 
     # The Note itself travels inside the Add; the CASE_MANAGER has never
     # seen it before this delivery.
@@ -710,7 +712,9 @@ def test_add_note_trigger_makes_one_add_note_to_case_entry():
     # The author already holds the note; the entry's Announce only clears
     # its pending assertion and attaches nothing twice.
     assert "add_note_to_case" in _replay(net, BYSTANDER)
-    assert not pending.is_suppressed(net.case_id, "add_note_to_case", add_id)
+    assert not pending.is_suppressed(
+        net.case_id, "add_note_to_case", add_id, at=now_utc()
+    )
     assert [_as_id(n) for n in net.case(BYSTANDER).notes].count(note_id) == 1
 
     # A redelivered Add commits no second entry and attaches nothing twice.
@@ -782,7 +786,9 @@ def test_add_object_trigger_pending_entry_clears_on_the_managers_commit(
     assert first.activity is not None
     add_id: str = first.activity["id"]
     pending = get_pending_assertion_store(sender)
-    assert pending.is_suppressed(net.case_id, semantic_type, add_id)
+    assert pending.is_suppressed(
+        net.case_id, semantic_type, add_id, at=now_utc()
+    )
     assert _add().activity is None  # a repeat while pending is suppressed
 
     verdicts = net.deliver(sender, to=MANAGER)
@@ -798,7 +804,9 @@ def test_add_object_trigger_pending_entry_clears_on_the_managers_commit(
     assert [e.log_object_id for e in entries] == [add_id]
 
     assert semantic_type in _replay(net, sender)
-    assert not pending.is_suppressed(net.case_id, semantic_type, add_id)
+    assert not pending.is_suppressed(
+        net.case_id, semantic_type, add_id, at=now_utc()
+    )
     assert _add().activity is not None
 
 

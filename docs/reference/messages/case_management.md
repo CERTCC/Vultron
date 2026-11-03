@@ -37,7 +37,7 @@ A reply to a stub `Invite` carries none either, because its sender does not hold
 
 A refused `Offer` or `Invite` is answered with a `Reject` of it, which the sender reads as the decline of its request.
 The [close-case](#close-case) decline is the one message on this page with an answer of its own, so it gets no refusal notice.
-The 300-level introduction is [The Case Manager and the Case Ledger](../../topics/case_lifecycle/case_manager_and_ledger.md).
+The 300-level introduction is [The CASE_MANAGER and the Case Ledger](../../topics/case_lifecycle/case_manager_and_ledger.md).
 
 ## Occasions
 
@@ -311,7 +311,7 @@ Only `caseRoles` on the attached object differs.
 
 - **Protocol role:** every change the CASE_MANAGER makes to the case file is its own ledger entry ([CLP-07-013](../vultron-spec/requirements/ledger-replication.md#clp-07-013)).
   An `Update` carrying the case in full is the shape that such an entry takes for a change to a case field.
-  The prototype commits one such entry, `update_case_owner`, when an ownership transfer changes the case owner ([CM-21-024](../vultron-spec/requirements/case-management.md#cm-21-024)), and replicas copy it from the ledger fan-out ([§10.2 Routing Topology](../vultron-spec/interactions.md#102-routing-topology)).
+  The prototype commits one such entry, `update_case_owner`, when an ownership transfer changes the Case Owner ([CM-21-024](../vultron-spec/requirements/case-management.md#cm-21-024)), and replicas copy it from the ledger fan-out ([§10.2 Routing Topology](../vultron-spec/interactions.md#102-routing-topology)).
   A participant that wants a change made asks the CASE_MANAGER.
   It does not send `Update` to the CASE_MANAGER or to its peers.
 - **On receipt:** the activity is recognized, but no use case handles it, so an inbox reports "no use case found" and changes nothing.

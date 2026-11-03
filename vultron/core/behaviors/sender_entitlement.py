@@ -275,10 +275,10 @@ class SenderEntitlementKind(Enum):
         member.term = term
         return member
 
-    CASE_MANAGER = ("the case manager", "Case Manager")
+    CASE_MANAGER = ("the CASE_MANAGER", "Case Manager")
     """Sender must be the case's ``CVDRole.CASE_MANAGER``."""
 
-    CASE_OWNER = ("the case owner", "Case Owner")
+    CASE_OWNER = ("the Case Owner", "Case Owner")
     """Sender must hold ``CVDRole.CASE_OWNER``."""
 
     ACTIVE_PARTICIPANT = ("an active participant", "Active Participant")
@@ -383,7 +383,7 @@ class AddresseeSide(Enum):
         member.term = term
         return member
 
-    CASE_MANAGER = ("the case manager", "Case Manager")
+    CASE_MANAGER = ("the CASE_MANAGER", "Case Manager")
     """Sent to the case's CASE_MANAGER (``SenderRule.at_case_manager``)."""
 
     PARTICIPANT = ("a participant", "Participant")

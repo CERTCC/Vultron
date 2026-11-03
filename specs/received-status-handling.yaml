@@ -1126,7 +1126,7 @@ groups:
     kind: protocol
     statement: >-
       A participant that declares its own RM, VF or D state MUST NOT append the status
-      to a participant record in its own case replica. Nor may a case owner that
+      to a participant record in its own case replica. Nor may a Case Owner that
       asserts one on another participant's behalf. Each sends the declaration to the
       CASE_MANAGER. Its replica copies the status the CASE_MANAGER commits for it, as
       every other replica does.

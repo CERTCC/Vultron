@@ -75,7 +75,7 @@ For these intervals, both claimed times come from the clock of that participant,
 A fixed offset in the clock of that participant cancels out of the interval.
 Thus the claimed times are often the better data for an interval inside one participant.
 An event of a participant is not always in an entry that the participant sent.
-For example, the CASE_MANAGER or the case owner can report a deployment for a deployer, and the CASE_MANAGER records the join of an Invitee.
+For example, the CASE_MANAGER or the Case Owner can report a deployment for a deployer, and the CASE_MANAGER records the join of an Invitee.
 An interval with ends from two senders mixes two clocks.
 
 The clock skew of a participant, listed under process health below, is not by itself a test of its claimed times.
@@ -137,19 +137,19 @@ For an Invitee $i$, $\evR_i$ and $\evJ_i$ are the same event.
 The reason is that acceptance of the Stub Invite puts the Invitee at RM Received (CM-11-001).
 For an Invitee, then, time to validate is time to judge plus the wait between joining and receiving the Full-Case Invite.
 
-The case owner's $\evR$ and the reporter's $\evAc$ are set when the case is created ([What a Case Records](./what_a_case_records.md#statuses-seated-at-case-creation)).
-The validation and acceptance by the case owner come later, each in its own ledger entry.
-Thus time to validate is measurable for the case owner from case creation, and time to accept is measurable from the validation.
+The Case Owner's $\evR$ and the reporter's $\evAc$ are set when the case is created ([What a Case Records](./what_a_case_records.md#statuses-seated-at-case-creation)).
+The validation and acceptance by the Case Owner come later, each in its own ledger entry.
+Thus time to validate is measurable for the Case Owner from case creation, and time to accept is measurable from the validation.
 The reporter's $\evAc$ is not a decision, so the reporter has no time to accept.
-The time that the case owner held the report before it created the case is not on the ledger.
+The time that the Case Owner held the report before it created the case is not on the ledger.
 
 Report to case is a bound on that time.
 The ledger entry that adds the report to the case carries the report as received, with the time that the reporter put on the report, when the reporter put a time on it (CLP-15-007).
-The case owner received the report after that time and before it created the case.
-Thus, when the reporter's clock agrees with the CASE_MANAGER's clock, report to case is an upper bound on how long the case owner held the report.
+The Case Owner received the report after that time and before it created the case.
+Thus, when the reporter's clock agrees with the CASE_MANAGER's clock, report to case is an upper bound on how long the Case Owner held the report.
 A reporter's clock that runs fast makes report to case too small, and it can make the value negative.
 The interval uses two clocks, so it is a research measure.
-A report that the case owner adds to the case later has no report to case.
+A report that the Case Owner adds to the case later has no report to case.
 
 ---
 
@@ -162,7 +162,7 @@ Embargo Management (EM) is per-case, and Participant Embargo Consent (PEC) is pe
 
     | Term | Meaning |
     |---|---|
-    | Proposal | A participant proposes an embargo, and the case owner accepts or rejects the proposal |
+    | Proposal | A participant proposes an embargo, and the Case Owner accepts or rejects the proposal |
     | Revision, EM Revise | A proposal to change the active embargo; the EM state is Revise while a revision is open |
     | RSVP deadline | The time by which an invited participant must answer an embargo Invite |
     | Pocket veto | An embargo Invite that reaches its RSVP deadline without an answer, so the consent row moves to `TIMED_OUT` |
@@ -174,13 +174,13 @@ Embargo Management (EM) is per-case, and Participant Embargo Consent (PEC) is pe
 | Metric | Definition |
 |---|---|
 | Time to embargo | Case creation to the embargo start ($\evE$), usually zero because a case starts with an active embargo |
-| Decision latency | A proposal to the case owner's decision on it |
+| Decision latency | A proposal to the Case Owner's decision on it |
 | Revision count and time in Revise | How many revisions were proposed, and the dwell time in EM Revise |
 | Planned and actual length | The embargo's end time minus $t(\evE)$, against the time of the embargo exit ($t(\evEx)$) minus $t(\evE)$ |
 | Time left at exit | The embargo's end time minus $t(\evEx)$; zero when the end time was reached |
 | Exit cause | Whether the end time was reached, or the embargo ended early, and for an early end its recorded cause |
 | Response latency | Each participant's time from an embargo Invite to its answer |
-| Pocket-veto rate | The share of embargo Invites that move to `TIMED_OUT` at their RSVP deadline, not counting Invites that time out because the case owner closes the case |
+| Pocket-veto rate | The share of embargo Invites that move to `TIMED_OUT` at their RSVP deadline, not counting Invites that time out because the Case Owner closes the case |
 | Lapse count | How many participants lapsed when a revision with longer terms came into force |
 
 Time left at exit and exit cause together separate the two ways an embargo ends.
@@ -257,7 +257,7 @@ Exploit exposure measures a related race as a duration: the time during which an
 | Embargo Invites timed out at close | Embargo Invites still awaiting a reply that the owner's close moves to `TIMED_OUT` (CM-23-014) |
 | Ownership transfer latency | An offer to transfer case ownership to its acceptance, rejection, withdrawal, or expiry |
 
-A case is fully closed when the case owner leaves the case and the CASE_MANAGER closes its own report (CM-23-002).
+A case is fully closed when the Case Owner leaves the case and the CASE_MANAGER closes its own report (CM-23-002).
 
 ---
 

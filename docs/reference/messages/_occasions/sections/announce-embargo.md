@@ -6,10 +6,10 @@ Tells participants the terms of the active embargo. It proposes nothing.
 
 === "Details"
 
-    - **When…** the Case Manager states the terms of the embargo in force
+    - **When…** the CASE_MANAGER states the terms of the embargo in force
     - **Send:** `Announce(EmbargoEvent)[context=VulnerabilityCase]`
     - **Send to:** a participant
-    - **Sent by:** the case manager
+    - **Sent by:** the CASE_MANAGER
     - **Distinguished by:** register status of the named embargo `ACTIVE`
     - **Seen in:** [How to Establish an Embargo](../../../../howto/activitypub/activities/establish_embargo.md), [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
     - **Mapping status:** [none](../../index.md#mapping-status)

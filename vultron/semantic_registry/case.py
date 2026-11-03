@@ -165,7 +165,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager has opened a case for a submitted report"
+                    "the CASE_MANAGER has opened a case for a submitted report"
                 ),
                 anchor="create-case",
                 addressee=AddresseeSide.PARTICIPANT,
@@ -271,21 +271,21 @@ ENTRIES: list[SemanticEntry] = [
         pattern=UpdateCaseOwnerPattern,
         event_class=UpdateCaseOwnerReceivedEvent,
         use_case_class=None,
-        phrase="{actor} named a new case owner",
+        phrase="{actor} named a new Case Owner",
         wire_activity_class=_UpdateCaseActivity,
         include_activity=True,
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager records the new Case Owner once a case "
+                    "the CASE_MANAGER records the new Case Owner once a case "
                     "ownership transfer is accepted"
                 ),
                 anchor="update-case-owner",
                 addressee=AddresseeSide.PARTICIPANT,
-                heading="Update case owner",
+                heading="Update Case Owner",
                 description=(
                     "Carries the case with its new owner in attributedTo. The "
-                    "Case Manager commits it after the Accept of the transfer "
+                    "CASE_MANAGER commits it after the Accept of the transfer "
                     "and after each participant record whose CASE_OWNER role "
                     "moved."
                 ),

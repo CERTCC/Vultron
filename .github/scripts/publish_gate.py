@@ -10,12 +10,18 @@ workflow and this script are always ``main``'s reviewed copies:
   skipped, rollback), picks the commit to publish, applies the skip rule and
   the CI gate, and writes ``publish``, ``trigger``, ``commit`` and
   ``tag-message`` to ``$GITHUB_OUTPUT`` and its reason to
-  ``$GITHUB_STEP_SUMMARY``. A skip is a green run, never a failure; a run it
-  cannot serve (an unknown rollback target, a manual run off ``main``) fails.
-- ``tag`` creates one annotated ``publish-*`` tag on the deployed commit and
-  pushes it. It only ever creates a tag: nothing here moves or deletes one,
-  which the tag ruleset would refuse (#5545). A re-run of the same workflow
-  run finds the tag it already pushed instead of making a second.
+  ``$GITHUB_STEP_SUMMARY``. A run that publishes also decides the name of its
+  ``publish-*`` tag and writes it, its date and the commit's newest ``v*``
+  release tag as ``publish-tag``, ``publish-date`` and ``release-tag``, so the
+  build can print them in every page's footer (DOCBW-06-031). A skip is a
+  green run, never a failure; a run it cannot serve (an unknown rollback
+  target, a manual run off ``main``) fails.
+- ``tag`` creates the annotated ``publish-*`` tag the gate named on the
+  deployed commit and pushes it. It never renumbers: a name taken in between
+  fails the job, since the deployed footer names the gate's tag. It only ever
+  creates a tag: nothing here moves or deletes one, which the tag ruleset
+  would refuse (#5545). A re-run of the same workflow run finds the tag it
+  already pushed instead of making a second.
 
 The decisions (``classify_trigger``, ``resolve_rollback``,
 ``blocking_issues``, ``pending_runs``, ``tag_message``, ``wait_for_runs``,
@@ -28,7 +34,7 @@ the staleness alarm share.
 Usage:
   publish_gate.py gate --repo OWNER/NAME --sha SHA --event EVENT --ref REF
       --actor LOGIN --run-id ID [--skip-ci-gate true|false] [--rollback-to TAG]
-  publish_gate.py tag --sha SHA --message TEXT --run-url URL
+  publish_gate.py tag --sha SHA --name TAG --message TEXT --run-url URL
 """
 
 from __future__ import annotations
@@ -57,11 +63,14 @@ from release_tags import (
     BOT_GIT_IDENTITY,
     BOT_NAME,
     PUBLISH_PREFIX,
+    PUBLISH_TAG_RE,
     Tag,
+    latest_release,
     next_publish_name,
     publish_tags,
     publish_tags_on,
     read_tag_message,
+    release_tags_on,
     split_publish_tags,
     tag_commit,
     tag_object,
@@ -77,9 +86,6 @@ POLL_SECONDS = 60
 PENDING_STATUSES = frozenset(
     {"queued", "in_progress", "waiting", "requested", "pending"}
 )
-# A push of a freshly numbered tag can lose to a tag of the same name made in
-# between; renumber and try again this many times.
-TAG_PUSH_ATTEMPTS = 5
 
 # What a rollback may name: a publish tag, or a release tag (ADR-0006).
 _ROLLBACK_TAG_RE = re.compile(r"^(publish-\d{4}-\d{2}-\d{2}\.\d+|v\d\S*)$")
@@ -101,6 +107,10 @@ class Trigger(StrEnum):
 
 class UnsupportedRunError(ValueError):
     """The run asks for something the publish workflow does not serve."""
+
+
+class TagNameTakenError(RuntimeError):
+    """The ``publish-*`` name the gate chose was taken before the tag job ran."""
 
 
 @dataclass(frozen=True)
@@ -477,58 +487,77 @@ def _remote_tags() -> dict[str, str]:
     return tags
 
 
-def _tag_from_this_run(
-    sha: str, run_url: str, remote: dict[str, str]
-) -> str | None:
-    """A tag this workflow run already pushed on *sha*, if a re-run finds one."""
-    marker = _run_line(run_url)
-    for tag in workflow_publish_tags_on(sha):
-        if tag.name not in remote:
-            continue
-        if marker in read_tag_message(tag.name).splitlines():
-            return tag.name
-    return None
+def next_publish_tag(day: str) -> str:
+    """The name the next publish on *day* takes, from local and remote tags.
 
-
-def create_tag(
-    sha: str, message: str, run_url: str, *, today: str | None = None
-) -> str:
-    """Create and push one annotated ``publish-*`` tag on *sha*; return it.
-
-    A re-run of the same workflow run returns the tag the first attempt
-    pushed. The concurrency group keeps two runs of this workflow apart, but
-    anyone can create a ``publish-*`` tag, so a push can still find its name
-    taken: then the tag is renumbered and pushed again. A push that reports
-    failure but landed is recognised by its object id, so it is never pushed
-    twice. Any other push failure raises. No tag is ever moved or deleted,
-    here or on the remote.
+    The remote is read too because the gate may wait an hour for CI after
+    its checkout, and a tag pushed meanwhile must not be reused.
     """
-    day = today or datetime.now(UTC).strftime("%Y-%m-%d")
-    if found := _tag_from_this_run(sha, run_url, _remote_tags()):
-        return found
-    for attempt in range(1, TAG_PUSH_ATTEMPTS + 1):
-        local = [t.name for t in publish_tags()]
-        name = next_publish_name(day, [*local, *_remote_tags()])
-        run(
-            "git",
-            *BOT_GIT_IDENTITY,
-            "tag",
-            "--annotate",
-            name,
-            "--message",
-            message,
-            sha,
+    local = [t.name for t in publish_tags()]
+    return next_publish_name(day, [*local, *_remote_tags()])
+
+
+def release_tag_on(sha: str) -> str:
+    """The newest version-shaped ``v*`` tag on *sha*, or ``""``."""
+    return latest_release(t.name for t in release_tags_on(sha)) or ""
+
+
+def _pushed_by_this_run(name: str, sha: str, run_url: str, oid: str) -> bool:
+    """Whether the remote's *name*, object *oid*, is this run's tag on *sha*."""
+    if tag_object(name) != oid:
+        return False
+    return (
+        any(tag.name == name for tag in workflow_publish_tags_on(sha))
+        and _run_line(run_url) in read_tag_message(name).splitlines()
+    )
+
+
+def create_tag(sha: str, name: str, message: str, run_url: str) -> str:
+    """Create and push the annotated ``publish-*`` tag *name* on *sha*.
+
+    *name* is the one the gate chose and the build printed in every page's
+    footer (DOCBW-06-031), so it is created exactly or not at all. A re-run
+    of the same workflow run returns the tag the first attempt pushed. The
+    concurrency group keeps two runs of this workflow apart, but anyone can
+    create a ``publish-*`` tag: a name taken by anything else raises
+    ``TagNameTakenError`` instead of renumbering to a name the deployed site
+    does not show. A push that reports failure but landed is recognised by
+    its object id, so it is never pushed twice. Any other push failure
+    raises. No tag is ever moved or deleted, here or on the remote.
+    """
+    if not PUBLISH_TAG_RE.match(name):
+        raise ValueError(
+            f"{name!r} is not a {PUBLISH_PREFIX}YYYY-MM-DD.N name"
         )
-        try:
-            run("git", "push", "origin", f"refs/tags/{name}")
+    if (oid := _remote_tags().get(name)) is not None:
+        if _pushed_by_this_run(name, sha, run_url, oid):
             return name
-        except subprocess.CalledProcessError:
-            remote = _remote_tags().get(name)
-            if remote is not None and remote == tag_object(name):
-                return name
-            if remote is None or attempt == TAG_PUSH_ATTEMPTS:
-                raise
-    raise AssertionError("unreachable")  # pragma: no cover
+        raise TagNameTakenError(
+            f"{name} was taken on the remote after the gate chose it, so the "
+            "deployed site's footer names a tag this publish did not make"
+        )
+    run(
+        "git",
+        *BOT_GIT_IDENTITY,
+        "tag",
+        "--annotate",
+        name,
+        "--message",
+        message,
+        sha,
+    )
+    try:
+        run("git", "push", "origin", f"refs/tags/{name}")
+    except subprocess.CalledProcessError:
+        remote = _remote_tags().get(name)
+        if remote is not None and remote == tag_object(name):
+            return name
+        if remote is not None:
+            raise TagNameTakenError(
+                f"{name} was taken on the remote while this run pushed it"
+            ) from None
+        raise
+    return name
 
 
 def _summary(decision: Decision) -> str:
@@ -588,6 +617,13 @@ def cmd_gate(args: argparse.Namespace) -> int:
         ),
     )
     message = tag_message(ctx, _run_url(args.repo, args.run_id))
+    day = publish_tag = release_tag = ""
+    if decision.publish:
+        # Named after the wait, so the counter sees every tag made during it.
+        day = _utc_today()
+        publish_tag = next_publish_tag(day)
+        release_tag = release_tag_on(commit)
+        decision.notes.append(f"The publish will be tagged `{publish_tag}`.")
     print(_summary(decision))
     write_github_file("GITHUB_STEP_SUMMARY", _summary(decision))
     write_github_file(
@@ -595,13 +631,20 @@ def cmd_gate(args: argparse.Namespace) -> int:
         f"publish={'true' if decision.publish else 'false'}\n"
         f"trigger={trigger}\n"
         f"commit={commit}\n"
+        f"publish-tag={publish_tag}\n"
+        f"publish-date={day}\n"
+        f"release-tag={release_tag}\n"
         f"tag-message<<EOF_TAG_MESSAGE\n{message}EOF_TAG_MESSAGE\n",
     )
     return 0
 
 
+def _utc_today() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%d")
+
+
 def cmd_tag(args: argparse.Namespace) -> int:
-    name = create_tag(args.sha, args.message, args.run_url)
+    name = create_tag(args.sha, args.name, args.message, args.run_url)
     print(f"Tagged {args.sha} as {name}")
     write_github_file("GITHUB_STEP_SUMMARY", f"Published as `{name}`.\n")
     write_github_file("GITHUB_OUTPUT", f"tag={name}\n")
@@ -625,6 +668,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     gate.set_defaults(func=cmd_gate)
     tag = sub.add_parser("tag")
     tag.add_argument("--sha", required=True)
+    tag.add_argument("--name", required=True)
     tag.add_argument("--message", required=True)
     tag.add_argument("--run-url", required=True)
     tag.set_defaults(func=cmd_tag)

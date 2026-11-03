@@ -1571,7 +1571,7 @@ groups:
       The per-case genesis hash MUST be derived as `SHA-256(case_id + "|" + created_at +
       "|" + owner_actor_id)`, where `case_id` is the canonical case URI, `created_at` is
       the case creation UTC timestamp (the case's `published`) in ISO 8601 format, and
-      `owner_actor_id` is the actor id of the case owner, the case's `attributedTo` when
+      `owner_actor_id` is the actor id of the Case Owner, the case's `attributedTo` when
       the case is created. The same derivation applies on every creation path, including
       a case the CASE_MANAGER creates from the owner's `CaseProposal`.
     rationale: Including all three values cryptographically anchors the chain's

@@ -35,6 +35,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -137,7 +138,10 @@ def test_non_manager_trigger_asks_and_writes_no_em_state(
     activity_id = activity_of(result)["id"]
     store = get_pending_assertion_store(finder.id_)
     assert store.is_suppressed(
-        case.id_, MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value, activity_id
+        case.id_,
+        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value,
+        activity_id,
+        at=now_utc(),
     )
 
 
@@ -314,6 +318,7 @@ def test_non_manager_propose_on_exited_case_is_refused_locally(
             case.id_,
             MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value,
             request.end_time.isoformat(),
+            at=now_utc(),
         )
         is None
     )

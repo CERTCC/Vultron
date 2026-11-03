@@ -496,8 +496,9 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: BT nodes that create a case-owner participant record for the local actor MUST source the actor's CVD roles
-      from `ActorConfig.default_case_roles`, not from a hardcoded constant.
+    statement: BT nodes that create a Case Owner participant record for the local actor
+      MUST source the actor's CVD roles from `ActorConfig.default_case_roles`, not from
+      a hardcoded constant.
     rationale: >-
       A hardcoded constant would give every node the same roles. A Vendor, a Coordinator
       and a Reporter have different roles in a case, and the participant record must

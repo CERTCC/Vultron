@@ -14,7 +14,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.participant_embargo_consent import (
@@ -240,7 +240,9 @@ def _assert_asked_case_manager(
         dl, case_id
     ), "a non-manager must not declare an EM state it has not been given"
     store = get_pending_assertion_store(actor_id)
-    assert store.is_suppressed(case_id, semantic_type, asks[0].id_)
+    assert store.is_suppressed(
+        case_id, semantic_type, asks[0].id_, at=now_utc()
+    )
     return asks[0].id_
 
 

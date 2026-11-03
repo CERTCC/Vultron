@@ -38,6 +38,9 @@ from vultron.adapters.driving.fastapi.outbox_lanes import (
     StallOrder,
 )
 from vultron.config import config_override
+from vultron.core.models.pending_assertion import (
+    reset_pending_assertion_stores,
+)
 from vultron.demo.determinism import (
     TREE_RECORDING_SEED,
     deterministic_run,
@@ -119,9 +122,17 @@ def _scenario_nodes(
     tree-wide seed (DEMOCI-11-025) the second run in a process redraws the
     first run's blackboard-client ids, and py_trees refuses an id it already
     holds with "this unique identifier has already been registered".
+
+    So is the pending-assertion registry
+    (:func:`reset_pending_assertion_stores`).  It is keyed by actor URI and
+    the cast is fixed, and one tree-wide seed draws the same case id in every
+    scenario, so a pending ask the previous run left behind suppresses the
+    same ask in this one and the recording depends on which scenario ran
+    first (#5591).
     """
     reset_datalayer()
     reset_blackboard()
+    reset_pending_assertion_stores()
     router = InProcessRouter()
     nodes = _Nodes()
     try:
@@ -145,6 +156,7 @@ def _scenario_nodes(
     finally:
         reset_datalayer()
         reset_blackboard()
+        reset_pending_assertion_stores()
 
 
 def _one_row_at_a_time(

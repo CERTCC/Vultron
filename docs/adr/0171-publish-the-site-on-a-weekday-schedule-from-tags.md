@@ -61,6 +61,7 @@ The decision has these parts:
   Its message records the trigger (scheduled, manual, manual with the CI gate skipped, rollback) and the actor.
   The newest `publish-*` tag therefore always names what is live.
   Every tag is kept, and nothing moves or deletes one.
+  The gate names the tag before the build, because every page's footer prints it (#5544), and the tag job creates exactly that name.
   The deploy and the tag cannot succeed or fail together; when the tag push fails after a deploy, the failure notice says the live site is untagged, and re-running the tag job finds any tag an earlier attempt pushed instead of adding a second.
 - **Skip rule.** A scheduled run skips a commit that already has a `publish-*` tag that this workflow made, so the schedule never publishes a commit twice and never undoes a rollback.
   "This workflow made it" means an annotated tag whose tagger is `github-actions[bot]`.
@@ -81,7 +82,8 @@ The decision has these parts:
 - **Least privilege.** Building, deploying and tagging run as separate jobs.
   The build runs project code with a read-only token; only the deploy job can deploy, and only the tag job can push.
 - **One run at a time.** Scheduled, manual and rollback runs share one concurrency group that never cancels a running publish.
-  The tag counter is computed inside it, and a push that finds its name already taken by a hand-made tag is renumbered and retried.
+  The tag counter is computed inside it, from the local and the remote tags.
+  A hand-made tag can still take the name between the gate and the tag job; the tag job then fails instead of renumbering, since a renumbered tag would not be the one the deployed footer names.
   The group covers the whole run, the gate's wait included, so two runs never interleave their deploy and tag steps.
   GitHub keeps one pending run per group, so a newer queued run replaces an older queued one, which ends as cancelled with no failure notice.
 - **Release by promotion.** A formal release is a `v*` tag promoted from a `publish-*` tag, built in a follow-up (#5543).
@@ -106,4 +108,4 @@ It also checks the publication workflow's triggers, blocking list, job order and
 
 ## More Information
 
-Generated spec requirements: `docs-build-workflow.yaml` DOCBW-06-007 through DOCBW-06-029.
+Generated spec requirements: `docs-build-workflow.yaml` DOCBW-06-007 through DOCBW-06-031.

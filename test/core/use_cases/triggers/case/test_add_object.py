@@ -39,12 +39,12 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.pending_assertion import (
-    _reset_stores,
     get_pending_assertion_store,
+    reset_pending_assertion_stores,
 )
 from vultron.core.use_cases.triggers.case import SvcAddObjectToCaseUseCase
 from vultron.core.use_cases.triggers.requests import (
@@ -111,7 +111,7 @@ class TestSvcAddObjectToCaseUseCase:
         yield
         self.dl.clear_all()
         reset_datalayer(self.actor.id_)
-        _reset_stores()
+        reset_pending_assertion_stores()
 
     def _execute(self, object_id: str, case_id: str | None = None):
         request = AddObjectToCaseTriggerRequest(
@@ -208,7 +208,10 @@ class TestSvcAddObjectToCaseUseCase:
 
         store = get_pending_assertion_store(self.actor.id_)
         assert store.is_suppressed(
-            self.case.id_, semantics.value, activity_of(result)["id"]
+            self.case.id_,
+            semantics.value,
+            activity_of(result)["id"],
+            at=now_utc(),
         )
 
     @pytest.mark.spec("SYNC-11-002")

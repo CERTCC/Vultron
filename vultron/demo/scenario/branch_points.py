@@ -18,8 +18,8 @@ with a label and the one trigger the deciding role calls. The prompt and the
 labels live nowhere else (not on ``@scenario``, not in ``ui/``), so the
 offline and live forms of the demo cannot disagree about them.
 
-Each registered scenario then declares its full path through this table on
-``@scenario(path=...)`` (DEMOCI-11-014), and
+Each registered scenario then declares its full path through this table as the
+``choose(...)`` items of its story (DEMOCI-11-014, DEMOCI-11-019), and
 :func:`vultron.demo.scenario.tree.build_scenario_tree` merges the paths into
 the tree.
 

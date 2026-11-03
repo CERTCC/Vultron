@@ -15,15 +15,16 @@
 
 Covers:
 - add / is_suppressed / clear semantics
-- timeout expiry (status → timed_out, no suppression after)
+- timeout expiry on a write or a sweep, never on a lookup (#5591)
 - zero timeout disables suppression entirely
 - configurable timeout override
-- module-level registry (get_pending_assertion_store, _reset_stores)
+- module-level registry (get_pending_assertion_store, reset_pending_assertion_stores)
 - expire_timed_out sweep helper
 
 Spec: SYNC-07-001 through SYNC-07-005.
 """
 
+import logging
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
@@ -35,15 +36,27 @@ from vultron.core.models.pending_assertion import (
     PendingAssertion,
     PendingAssertionStore,
     ProtocolPair,
-    _reset_stores,
     get_pending_assertion_store,
     record_pending_assertion,
+    reset_pending_assertion_stores,
 )
+from vultron.demo.determinism import deterministic_run
 
 CASE_ID = "https://example.org/cases/case-001"
 SEMANTIC_TYPE = "submit_report"
 OBJECT_ID = "https://example.org/activities/act-001"
+OTHER_OBJECT_ID = "https://example.org/activities/act-002"
 SUBJECT_ID = "https://example.org/cases/case-001/embargo_events/e1"
+
+#: A fixed instant for a lookup that must draw nothing from the clock.
+_PINNED = datetime(2026, 1, 1, tzinfo=UTC)
+
+#: The store key of the ``(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)`` entry.
+_KEY = ProtocolPair(
+    case_id=CASE_ID,
+    request_semantic_type=SEMANTIC_TYPE,
+    object_id=OBJECT_ID,
+)
 
 ACTOR_A = "https://example.org/actors/alice"
 ACTOR_B = "https://example.org/actors/bob"
@@ -57,9 +70,9 @@ ACTOR_B = "https://example.org/actors/bob"
 @pytest.fixture(autouse=True)
 def reset_registry():
     """Prevent cross-test leakage in the module-level store registry."""
-    _reset_stores()
+    reset_pending_assertion_stores()
     yield
-    _reset_stores()
+    reset_pending_assertion_stores()
 
 
 @pytest.fixture
@@ -117,21 +130,30 @@ class TestPendingAssertionDataclass:
 @pytest.mark.spec("SYNC-07-004")
 class TestAddAndIsSuppress:
     def test_new_store_does_not_suppress(self, store):
-        assert not store.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        assert not store.is_suppressed(
+            CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=now_utc()
+        )
 
     def test_add_then_is_suppressed(self, store):
         store.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
-        assert store.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        assert store.is_suppressed(
+            CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=now_utc()
+        )
 
     def test_different_case_id_not_suppressed(self, store):
         store.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
         assert not store.is_suppressed(
-            "https://example.org/cases/case-002", SEMANTIC_TYPE, OBJECT_ID
+            "https://example.org/cases/case-002",
+            SEMANTIC_TYPE,
+            OBJECT_ID,
+            at=now_utc(),
         )
 
     def test_different_semantic_type_not_suppressed(self, store):
         store.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
-        assert not store.is_suppressed(CASE_ID, "engage_case", OBJECT_ID)
+        assert not store.is_suppressed(
+            CASE_ID, "engage_case", OBJECT_ID, at=now_utc()
+        )
 
     def test_different_object_id_not_suppressed(self, store):
         store.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
@@ -139,6 +161,7 @@ class TestAddAndIsSuppress:
             CASE_ID,
             SEMANTIC_TYPE,
             "https://example.org/activities/act-999",
+            at=now_utc(),
         )
 
     def test_len_increases_on_add(self, store):
@@ -156,7 +179,9 @@ class TestClear:
     def test_clear_prevents_suppression(self, store):
         store.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
         store.clear(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
-        assert not store.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        assert not store.is_suppressed(
+            CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=now_utc()
+        )
 
     def test_clear_sets_status_cleared(self, store):
         store.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
@@ -188,7 +213,9 @@ class TestClear:
         store.clear(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
         # A new add should reset suppression
         store.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
-        assert store.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        assert store.is_suppressed(
+            CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=now_utc()
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -197,68 +224,178 @@ class TestClear:
 
 
 class TestTimeout:
-    def test_expired_entry_is_not_suppressed(self, store_short):
-        """is_suppressed returns False once the timeout has elapsed."""
+    """A lookup applies the timeout against the instant its caller gives it.
+
+    Under the demo recording clock a read costs a tick, so a lookup that read
+    the clock itself moved every later timestamp in the recording when it
+    raced another thread (#5591). The caller passes the instant of the act it
+    is performing instead, and the lookup still times out an entry that has
+    aged out (SYNC-11-005) — no separate sweep is needed for that to happen.
+    """
+
+    def test_a_lookup_stops_an_aged_out_entry_suppressing(self, store_short):
+        """is_suppressed returns False once the caller's instant is past it."""
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
 
         # Simulate time passing beyond the 60-second window
-        future = datetime.now(UTC) + timedelta(seconds=61)
-        with patch("vultron.core.models._helpers.datetime") as mock_dt:
-            mock_dt.now.return_value = future
-            assert not store_short.is_suppressed(
-                CASE_ID, SEMANTIC_TYPE, OBJECT_ID
-            )
+        future = now_utc() + timedelta(seconds=61)
+
+        assert not store_short.is_suppressed(
+            CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=future
+        )
 
     @pytest.mark.spec("CLP-06-004")
-    def test_expired_entry_status_becomes_timed_out(self, store_short):
+    def test_a_lookup_marks_an_aged_out_entry_timed_out(self, store_short):
+        """SYNC-11-005's mark is applied by the lookup, not by a later sweep."""
+        store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        future = now_utc() + timedelta(seconds=61)
+
+        store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=future)
+
+        assert store_short._store[_KEY].status == "timed_out"
+
+    def test_a_subject_lookup_marks_an_aged_out_entry_too(self, store_short):
+        store_short.add(
+            CASE_ID, SEMANTIC_TYPE, OBJECT_ID, subject_id=SUBJECT_ID
+        )
+        future = now_utc() + timedelta(seconds=61)
+
+        assert (
+            store_short.pending_for_subject(
+                CASE_ID, SEMANTIC_TYPE, SUBJECT_ID, at=future
+            )
+            is None
+        )
+        assert store_short._store[_KEY].status == "timed_out"
+
+    def test_an_activity_clear_marks_an_aged_out_entry_too(self, store_short):
+        """The third lookup applies the mark against its own instant.
+
+        ``clear_activity`` is a lookup like the other two: it judges the
+        entry's age against the instant its caller gives it, marks what that
+        instant shows is overdue, and does not clear it — it was no longer
+        pending (SYNC-11-005).
+        """
+        store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        future = now_utc() + timedelta(seconds=61)
+
+        assert store_short.clear_activity(CASE_ID, OBJECT_ID, at=future) == []
+
+        assert store_short._store[_KEY].status == "timed_out"
+
+    def test_a_later_write_also_stops_an_aged_out_entry_suppressing(
+        self, store_short
+    ):
+        """The instant a new entry carries expires the entries it outlived."""
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
 
-        future = datetime.now(UTC) + timedelta(seconds=61)
+        future = now_utc() + timedelta(seconds=61)
         with patch("vultron.core.models._helpers.datetime") as mock_dt:
             mock_dt.now.return_value = future
-            store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+            store_short.add(CASE_ID, "engage_case", OTHER_OBJECT_ID)
 
-        key = ProtocolPair(
-            case_id=CASE_ID,
-            request_semantic_type=SEMANTIC_TYPE,
-            object_id=OBJECT_ID,
+        assert store_short._store[_KEY].status == "timed_out"
+
+    def test_a_lookup_reads_no_clock(self):
+        """Every lookup leaves the recording clock where it found it (AC-1).
+
+        Measured the way the DataLayer read paths are (#5510): a seeded run
+        mints the same next instant whether or not the lookups ran.
+        """
+        subject_lookups = 5
+
+        def next_instant(lookups: int) -> datetime:
+            with deterministic_run("pending-assertion-lookup"):
+                store = PendingAssertionStore()
+                store.add(
+                    CASE_ID, SEMANTIC_TYPE, OBJECT_ID, subject_id=SUBJECT_ID
+                )
+                at = _PINNED
+                for _ in range(lookups):
+                    assert store.is_suppressed(
+                        CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=at
+                    )
+                    assert (
+                        store.pending_for_subject(
+                            CASE_ID, SEMANTIC_TYPE, SUBJECT_ID, at=at
+                        )
+                        is not None
+                    )
+                    assert (
+                        store.clear_activity(CASE_ID, OTHER_OBJECT_ID, at=at)
+                        == []
+                    )
+                return now_utc()
+
+        assert next_instant(subject_lookups) == next_instant(0)
+
+    def test_an_unexpired_entry_still_suppresses(self, store_short):
+        store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        soon = now_utc() + timedelta(seconds=30)
+
+        assert store_short.is_suppressed(
+            CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=soon
         )
-        assert store_short._store[key].status == "timed_out"
+        assert store_short._store[_KEY].status == "pending"
 
     @pytest.mark.spec("CLP-06-008")
     def test_timed_out_entry_logs_error(self, store_short, caplog):
-        import logging
-
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
-        future = datetime.now(UTC) + timedelta(seconds=61)
+        future = now_utc() + timedelta(seconds=61)
         with caplog.at_level(
             logging.ERROR,
             logger="vultron.core.models.pending_assertion",
         ):
-            with patch("vultron.core.models._helpers.datetime") as mock_dt:
-                mock_dt.now.return_value = future
-                store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+            store_short.is_suppressed(
+                CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=future
+            )
 
         assert any("timed out" in r.message for r in caplog.records)
 
-    def test_unexpired_entry_still_suppresses(self, store_short):
-        store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
-        future = datetime.now(UTC) + timedelta(seconds=30)
-        with patch("vultron.core.models._helpers.datetime") as mock_dt:
-            mock_dt.now.return_value = future
-            assert store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
-
     def test_timed_out_entry_allows_subsequent_add(self, store_short):
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
-        future = datetime.now(UTC) + timedelta(seconds=61)
-        with patch("vultron.core.models._helpers.datetime") as mock_dt:
-            mock_dt.now.return_value = future
-            # expire the entry
-            store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        future = now_utc() + timedelta(seconds=61)
+        store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=future)
 
         # A fresh add should work and suppress again
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
-        assert store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        assert store_short.is_suppressed(
+            CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=now_utc()
+        )
+
+    def test_an_earlier_instant_does_not_un_expire_an_entry(self, store_short):
+        """The mark is sticky, so two callers out of order still agree."""
+        store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        future = now_utc() + timedelta(seconds=61)
+        past = now_utc() - timedelta(seconds=600)
+
+        store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=future)
+
+        assert not store_short.is_suppressed(
+            CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=past
+        )
+        assert store_short._store[_KEY].status == "timed_out"
+
+    def test_a_write_after_a_future_lookup_suppresses_again(self, store_short):
+        """An instant one caller gave does not age the next caller's entry.
+
+        The store keeps no high-water mark: an instant ahead of the clock —
+        a peer's stamp, or a test's — would otherwise time out every entry
+        written after it.
+        """
+        store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        store_short.is_suppressed(
+            CASE_ID,
+            SEMANTIC_TYPE,
+            OBJECT_ID,
+            at=now_utc() + timedelta(seconds=61),
+        )
+
+        store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+
+        assert store_short.is_suppressed(
+            CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=now_utc()
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -269,10 +406,26 @@ class TestTimeout:
 class TestZeroTimeout:
     def test_add_then_not_suppressed_with_zero_timeout(self, store_zero):
         store_zero.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
-        assert not store_zero.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        assert not store_zero.is_suppressed(
+            CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=now_utc()
+        )
 
     def test_zero_timeout_always_returns_false(self, store_zero):
-        assert not store_zero.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        assert not store_zero.is_suppressed(
+            CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=now_utc()
+        )
+
+    def test_a_zero_timeout_sweep_times_nothing_out(self, store_zero):
+        """Zero disables suppression, so there is nothing to time out.
+
+        Pinned because the sweep used to mark every pending entry here: with
+        no window, an age of zero already met the deadline. An entry a
+        zero-timeout store never suppressed has nothing to lift (SYNC-11-005).
+        """
+        store_zero.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+
+        assert store_zero.expire_timed_out() == 0
+        assert store_zero._store[_KEY].status == "pending"
 
 
 # ---------------------------------------------------------------------------
@@ -334,11 +487,13 @@ class TestRegistry:
         sa.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
 
         sb = get_pending_assertion_store(ACTOR_B)
-        assert not sb.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        assert not sb.is_suppressed(
+            CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=now_utc()
+        )
 
     def test_reset_stores_clears_registry(self):
         s1 = get_pending_assertion_store(ACTOR_A)
-        _reset_stores()
+        reset_pending_assertion_stores()
         s2 = get_pending_assertion_store(ACTOR_A)
         assert s1 is not s2
 
@@ -368,7 +523,9 @@ class TestRegistry:
 class TestPendingForSubject:
     def test_pending_entry_matches_its_subject(self, store):
         store.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID, subject_id=SUBJECT_ID)
-        entry = store.pending_for_subject(CASE_ID, SEMANTIC_TYPE, SUBJECT_ID)
+        entry = store.pending_for_subject(
+            CASE_ID, SEMANTIC_TYPE, SUBJECT_ID, at=now_utc()
+        )
         assert entry is not None
         assert entry.object_id == OBJECT_ID
 
@@ -377,35 +534,36 @@ class TestPendingForSubject:
             CASE_ID, SEMANTIC_TYPE, OBJECT_ID, subject_id=SUBJECT_ID
         )
         assert (
-            store_zero.pending_for_subject(CASE_ID, SEMANTIC_TYPE, SUBJECT_ID)
+            store_zero.pending_for_subject(
+                CASE_ID, SEMANTIC_TYPE, SUBJECT_ID, at=now_utc()
+            )
             is None
         )
 
-    def test_expired_entry_times_out_and_no_longer_matches(self, store_short):
+    def test_a_swept_entry_times_out_and_no_longer_matches(self, store_short):
         store_short.add(
             CASE_ID, SEMANTIC_TYPE, OBJECT_ID, subject_id=SUBJECT_ID
         )
         future = datetime.now(UTC) + timedelta(seconds=61)
         with patch("vultron.core.models._helpers.datetime") as mock_dt:
             mock_dt.now.return_value = future
-            assert (
-                store_short.pending_for_subject(
-                    CASE_ID, SEMANTIC_TYPE, SUBJECT_ID
-                )
-                is None
+            store_short.expire_timed_out()
+
+        assert (
+            store_short.pending_for_subject(
+                CASE_ID, SEMANTIC_TYPE, SUBJECT_ID, at=now_utc()
             )
-        key = ProtocolPair(
-            case_id=CASE_ID,
-            request_semantic_type=SEMANTIC_TYPE,
-            object_id=OBJECT_ID,
+            is None
         )
-        assert store_short._store[key].status == "timed_out"
+        assert store_short._store[_KEY].status == "timed_out"
 
     def test_cleared_entry_does_not_match(self, store):
         store.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID, subject_id=SUBJECT_ID)
         store.clear(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
         assert (
-            store.pending_for_subject(CASE_ID, SEMANTIC_TYPE, SUBJECT_ID)
+            store.pending_for_subject(
+                CASE_ID, SEMANTIC_TYPE, SUBJECT_ID, at=now_utc()
+            )
             is None
         )
 
@@ -423,7 +581,9 @@ class TestPendingForSubject:
     ):
         store.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID, subject_id=SUBJECT_ID)
         assert (
-            store.pending_for_subject(case_id, semantic_type, subject_id)
+            store.pending_for_subject(
+                case_id, semantic_type, subject_id, at=now_utc()
+            )
             is None
         )
 
@@ -434,9 +594,11 @@ def test_record_pending_assertion_records_in_the_actors_store():
         ACTOR_A, CASE_ID, SEMANTIC_TYPE, OBJECT_ID, subject_id=SUBJECT_ID
     )
     store = get_pending_assertion_store(ACTOR_A)
-    assert store.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+    assert store.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=now_utc())
     assert (
-        store.pending_for_subject(CASE_ID, SEMANTIC_TYPE, SUBJECT_ID)
+        store.pending_for_subject(
+            CASE_ID, SEMANTIC_TYPE, SUBJECT_ID, at=now_utc()
+        )
         is not None
     )
     assert len(get_pending_assertion_store(ACTOR_B)) == 0
@@ -450,10 +612,12 @@ class TestClearActivity:
         store = PendingAssertionStore()
         store.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
 
-        cleared = store.clear_activity(CASE_ID, OBJECT_ID)
+        cleared = store.clear_activity(CASE_ID, OBJECT_ID, at=now_utc())
 
         assert [e.object_id for e in cleared] == [OBJECT_ID]
-        assert not store.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        assert not store.is_suppressed(
+            CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=now_utc()
+        )
 
     def test_leaves_other_activities_and_cases_pending(self):
         store = PendingAssertionStore()
@@ -462,16 +626,18 @@ class TestClearActivity:
         store.add(CASE_ID, SEMANTIC_TYPE, other)
         store.add(other_case, SEMANTIC_TYPE, OBJECT_ID)
 
-        assert store.clear_activity(CASE_ID, OBJECT_ID) == []
-        assert store.is_suppressed(CASE_ID, SEMANTIC_TYPE, other)
-        assert store.is_suppressed(other_case, SEMANTIC_TYPE, OBJECT_ID)
+        assert store.clear_activity(CASE_ID, OBJECT_ID, at=now_utc()) == []
+        assert store.is_suppressed(CASE_ID, SEMANTIC_TYPE, other, at=now_utc())
+        assert store.is_suppressed(
+            other_case, SEMANTIC_TYPE, OBJECT_ID, at=now_utc()
+        )
 
     def test_an_already_cleared_entry_is_not_cleared_again(self):
         store = PendingAssertionStore()
         store.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
-        store.clear_activity(CASE_ID, OBJECT_ID)
+        store.clear_activity(CASE_ID, OBJECT_ID, at=now_utc())
 
-        assert store.clear_activity(CASE_ID, OBJECT_ID) == []
+        assert store.clear_activity(CASE_ID, OBJECT_ID, at=now_utc()) == []
 
     def test_a_timed_out_entry_is_not_cleared(self):
         store = PendingAssertionStore(timeout_seconds=10)
@@ -480,7 +646,8 @@ class TestClearActivity:
 
         with patch("vultron.core.models._helpers.datetime") as mock_dt:
             mock_dt.now.return_value = later
-            cleared = store.clear_activity(CASE_ID, OBJECT_ID)
+            store.expire_timed_out()
+        cleared = store.clear_activity(CASE_ID, OBJECT_ID, at=now_utc())
 
         assert cleared == []
         entry = next(iter(store._store.values()))
@@ -489,7 +656,7 @@ class TestClearActivity:
     def test_a_zero_timeout_store_clears_its_entry(self, store_zero):
         store_zero.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
 
-        cleared = store_zero.clear_activity(CASE_ID, OBJECT_ID)
+        cleared = store_zero.clear_activity(CASE_ID, OBJECT_ID, at=now_utc())
 
         assert [e.object_id for e in cleared] == [OBJECT_ID]
         assert cleared[0].status == "cleared"

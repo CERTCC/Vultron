@@ -536,8 +536,8 @@ def test_distinguished_by_renders_a_register_status_as_the_named_embargos():
 @pytest.mark.parametrize(
     ("holds", "expected"),
     [
-        (True, "sender is the case owner"),
-        (False, "sender is not the case owner"),
+        (True, "sender is the Case Owner"),
+        (False, "sender is not the Case Owner"),
     ],
     ids=["holds", "lacks"],
 )
@@ -610,8 +610,8 @@ def test_fix_readiness_row_reads_as_specified(table):
     assert row == (
         "| a Vendor has a fix ready"
         " | `Add(ParticipantStatus)[target=CaseParticipant]`"
-        " | the case manager"
-        " | the case manager or the case owner or the participant status's"
+        " | the CASE_MANAGER"
+        " | the CASE_MANAGER or the Case Owner or the participant status's"
         " author (usually: vendor)"
         " | `vfState` = `VF`"
         " | [Fix Readiness (CF)](../cs.md#fix-readiness) |"
@@ -626,7 +626,7 @@ def test_an_unhandled_entry_renders_internal_to_the_case_manager():
 
     The fix-readiness entry stands in for a recognized type with no use
     case: its rows still render, through the YAML, with "Sent by" stating
-    that the act is internal to the case manager rather than failing on a
+    that the act is internal to the CASE_MANAGER rather than failing on a
     missing sender rule.
     """
     semantics = MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
@@ -644,10 +644,10 @@ def test_an_unhandled_entry_renders_internal_to_the_case_manager():
         for line in contents[f"{gen.FRAGMENT_DIR}/lookup-cs.md"].splitlines()
         if "fix-readiness" in line
     )
-    assert " | internal to the case manager (usually: vendor) | " in row
+    assert " | internal to the CASE_MANAGER (usually: vendor) | " in row
     section = contents[f"{gen.FRAGMENT_DIR}/sections/fix-readiness.md"]
     assert (
-        "- **Sent by:** internal to the case manager (usually: vendor)"
+        "- **Sent by:** internal to the CASE_MANAGER (usually: vendor)"
         in section
     )
 
