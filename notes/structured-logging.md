@@ -7,7 +7,8 @@ description: >
   Log-call shape (SL-01-005: literal template plus lazy positional args, never an
   f-string), how correlation fields reach a record (SL-02-003: boundary filter,
   not per-call `extra=`), narrative log template (SL-04-006), infrastructure
-  demotion list (SL-04-007), and where new narrative lines go so INFO logs read
+  demotion list (SL-04-007), why a Selector arm a sibling can overrule logs at
+  DEBUG (SL-03-001), and where new narrative lines go so INFO logs read
   as a CVD protocol story.
 related_specs:
   - specs/structured-logging.yaml
@@ -209,3 +210,26 @@ the same module.
 A node whose failure a wired fallback handles (a Selector sibling, a reject-and-replay
 loop) logs a self-healing event: use WARNING or INFO and name the recovery in the
 message. ERROR is for conditions with no recovery path (ISSUE-2169).
+
+## A Selector Arm a Sibling Can Overrule Logs at DEBUG, Not WARNING
+
+An arm that fails so the next arm can succeed has decided nothing, so its line is
+DEBUG: WARNING is for a recoverable anomaly (SL-03-001), and a reader who sees one
+takes it as the outcome. A sender guard's any-of side is the case — it composes its
+kinds into a Selector, so the CASE_MANAGER check failing is how a Case Owner's
+activity reaches the CASE_OWNER check that admits it. At WARNING that read as a
+refusal in every demo log of three passing runs (#5460).
+
+Decide the level from the node's own placement at tick time, not from a flag the
+composer sets: `failure_is_the_refusal(node)` in
+`vultron/core/behaviors/sender_entitlement.py` walks the parents and answers `False`
+at the first Selector with a later sibling, or at any decorator. A flag can disagree
+with the tree that is running; the walk cannot. `SenderEntitlementConditionNode._refuse`
+is its only caller in `vultron/`, so the whole check family takes one rule.
+
+**Keep the refusal wording to the refusal.** `— REFUSED (IDs)` is the token the demo
+tests' `expect_no_sender_refusals` matches, so the DEBUG line states the same facts
+with that group stripped. The WARNING line logs `feedback_message` itself
+(`logger.warning("%s: %s", self.name, msg)`), so the text a reader greps and the
+reason `BTBridge.get_failure_reason` reports are one string — a bespoke second
+template is how this WARNING escaped that matcher while the three runs passed.

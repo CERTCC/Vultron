@@ -321,8 +321,8 @@ linked file before touching that area. New pitfalls MUST be routed per
   [notes/architecture-adapters.md](notes/architecture-adapters.md); idempotency chain
   [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md); no `BaseModel` in ports
   [`vultron/core/ports/AGENTS.md`](vultron/core/ports/AGENTS.md).
-- **Logging**: bulk level refactors need a consistency grep; self-healing paths never
-  log at ERROR — [notes/structured-logging.md](notes/structured-logging.md).
+- **Logging**: level refactors need a grep pass; self-healing never at ERROR; an arm a
+  sibling can overrule at DEBUG — [structured-logging](notes/structured-logging.md).
 - **Agent workflow**: archive superseded notes sections with `append-history note`
   (PD-03-002/004, [notes/history-management.md](notes/history-management.md));
   partition large migrations by node shape, then domain, within the 200-turn fork
