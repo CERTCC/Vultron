@@ -49,8 +49,10 @@ def test_tutorial_flow_creates_submits_and_stores_report():
     assert created["type"] == t.VENDOR_ACTOR_TYPE
     assert created["id"].endswith(f"/actors/{t.VENDOR_SLUG}")
 
-    # Step 4: the actor acknowledges the report with 202 Accepted.
+    # Step 4: the actor acknowledges the report with 202 Accepted, and the
+    # answer carries no body (IE-08-001), as the tutorial says.
     assert submit.status_code == 202
+    assert submit.content == b""
 
     # Step 5: the report is now in the vendor's store, keyed by its id.  Pin the
     # whole record: the tutorial renders ``STORED_REPORT_RESPONSE`` verbatim, so

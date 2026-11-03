@@ -591,8 +591,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The endpoint MUST answer an accepted activity with a 202 that carries no body. A
-      refusal carries the error body of EH-05-001 instead.
+      The endpoint MUST answer an accepted activity with a 202 that carries no body.
     rationale: >-
       The endpoint answers before it processes the activity (IE-05-001), so it knows
       nothing yet beyond acceptance. The sender already holds the activity's id, and the
@@ -602,7 +601,26 @@ groups:
     verification: >-
       `test_an_accepted_delivery_is_answered_with_an_empty_202` in
       `test/adapters/driving/fastapi/routers/test_actors.py` asserts that an accepted
-      delivery is answered 202 with an empty body, not even JSON `null`.
+      delivery is answered 202 with an empty body, not even JSON `null`, at both
+      `/inbox` and `/inbox/`.
+  - id: IE-08-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The endpoint MUST answer each refused activity with the error body of
+      EH-05-001.
+    rationale: >-
+      A refusal is the one answer that tells the sender something beyond acceptance:
+      why its activity was not taken. One body shape for every refusal lets a sender
+      read the reason without a parser for each status code.
+    verification: >-
+      `test_a_refused_delivery_carries_the_error_body` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` asserts top-level
+      `error`, `message` and `status` on a 422 refusal. It is a strict `xfail` until
+      #5756 lands.
+    relationships:
+    - rel_type: refines
+      spec_id: EH-05-001
 - id: IE-09
   title: Logging
   specs:

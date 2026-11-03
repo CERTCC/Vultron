@@ -209,8 +209,7 @@ def _record_scheduled_pipelines(monkeypatch) -> list[str | None]:
     return scheduled
 
 
-def _published_now() -> str:
-    return "2026-01-02T03:04:05+00:00"
+_PUBLISHED = "2026-01-02T03:04:05+00:00"
 
 
 @pytest.mark.spec("IE-04-001")
@@ -221,7 +220,7 @@ def _published_now() -> str:
             {
                 "type": "Question",
                 "id": "https://example.org/activities/two-answer-forms",
-                "published": _published_now(),
+                "published": _PUBLISHED,
                 "anyOf": [{"type": "Note", "name": "yes"}],
                 "oneOf": [{"type": "Note", "name": "no"}],
             },
@@ -232,7 +231,7 @@ def _published_now() -> str:
             {
                 "type": "Reject",
                 "id": "https://example.org/activities/objectless-reject",
-                "published": _published_now(),
+                "published": _PUBLISHED,
             },
             "SYNC-16-028",
             id="reject-with-no-object",
@@ -276,18 +275,52 @@ def test_an_activity_in_its_types_form_is_scheduled_for_processing(
 
 
 @pytest.mark.spec("IE-08-001")
+@pytest.mark.parametrize("path_suffix", ["/inbox", "/inbox/"])
 def test_an_accepted_delivery_is_answered_with_an_empty_202(
-    client_actors, created_actors
+    client_actors, created_actors, path_suffix
 ):
-    """A 202 carries no body: not even JSON ``null`` (IE-08-001)."""
+    """A 202 carries no body: not even JSON ``null`` (IE-08-001).
+
+    Both registrations are pinned: ``/inbox`` is the address a hosted actor's
+    profile names (OX-12-009), ``/inbox/`` the documented one.
+    """
     actor = created_actors[0]
     activity = as_Create(object_=as_Note(content="hello"), actor=actor.id_)
     resp = client_actors.post(
-        _inbox_path(actor.id_),
+        f"/actors/{_route_key(actor.id_)}{path_suffix}",
         json=jsonable_encoder(activity, exclude_none=True),
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
     assert resp.content == b""
+
+
+@pytest.mark.spec("IE-08-002")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "IE-08-002: an inbox refusal answers FastAPI's {'detail': ...} body,"
+        " not the EH-05-001 error body. Tracked by #5756."
+    ),
+)
+def test_a_refused_delivery_carries_the_error_body(
+    client_actors, created_actors
+):
+    """A refusal carries top-level ``error``, ``message`` and ``status``."""
+    actor = created_actors[0]
+    resp = client_actors.post(
+        _inbox_path(actor.id_),
+        json={
+            "type": "Bogus",
+            "id": "https://example.org/activities/bogus",
+            "actor": actor.id_,
+            "published": _PUBLISHED,
+        },
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    body = resp.json()
+    assert isinstance(body.get("error"), str)
+    assert isinstance(body.get("message"), str)
+    assert body.get("status") == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def _create_note_body(actor_id: str) -> str:

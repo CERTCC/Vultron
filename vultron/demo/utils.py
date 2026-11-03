@@ -333,6 +333,7 @@ class DataLayerClient(BaseModel):
         Returns:
             Parsed JSON response body.  Most endpoints return a ``dict``, but
             list endpoints (e.g. the case-ledger endpoint) return a ``list``.
+            An empty body, such as the inbox's 202 (IE-08-001), returns ``{}``.
 
         Raises:
             httpx.HTTPStatusError: When the response status is not OK.

@@ -752,21 +752,6 @@ groups:
       a path that is not the one that the protocol uses (OX-12-001).
     adr:
     - ADR-0042
-  - id: OX-12-007
-    priority: MUST_NOT
-    kind: project
-    verification_debt: '#2575'
-    statement: >-
-      The ASGIEmitter in-process delivery adapter MUST NOT be wired as the default
-      emitter.
-    rationale: >-
-      Wiring ASGIEmitter as default restores the in-process shortcut prohibited by
-      OX-12-001 and masks inter-actor delivery bugs. See ADR-0042.
-    relationships:
-    - rel_type: derives_from
-      spec_id: OX-12-002
-    adr:
-    - ADR-0042
   - id: OX-12-003
     priority: MUST
     kind: project
