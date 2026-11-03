@@ -1466,17 +1466,17 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 *No mapped requirements* (TRACE-01-002).
 
-## [story_2026_028](story_2026_028.md)
+## [story_2026_031](story_2026_031.md)
 
-{% include-markdown "./story_2026_028.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+{% include-markdown "./story_2026_031.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
 
 | Spec file | Citing requirements |
 |---|---|
 | ASK — Protocol Asks and Outstanding-Ask Registers | [ASK-02-004](../vultron-spec/requirements/case-management.md#ask-02-004), [ASK-03-003](../vultron-spec/requirements/case-management.md#ask-03-003), [ASK-03-006](../vultron-spec/requirements/case-management.md#ask-03-006), [ASK-03-009](../vultron-spec/requirements/case-management.md#ask-03-009) |
 
-## [story_2026_029](story_2026_029.md)
+## [story_2026_032](story_2026_032.md)
 
-{% include-markdown "./story_2026_029.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+{% include-markdown "./story_2026_032.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
 
 | Spec file | Citing requirements |
 |---|---|
