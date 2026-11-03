@@ -125,18 +125,6 @@ def _received_offers(datalayer: DataLayer) -> dict[str, as_Activity]:
     }
 
 
-def _concerns_actor(offer: as_Offer, actor_uri: str) -> bool:
-    """Whether *offer* is addressed to, or was sent by, *actor_uri*.
-
-    Ids are compared whole: a recipient whose id merely ends with the actor's
-    is a different actor.
-    """
-    recipients = offer.to if isinstance(offer.to, list) else [offer.to]
-    addressed = {getattr(r, "id_", r) for r in recipients if r is not None}
-    sender = getattr(offer.actor, "id_", offer.actor)
-    return actor_uri in addressed or sender == actor_uri
-
-
 def _serve_stored(obj: PersistableModel) -> AS2JSONResponse | dict[str, Any]:
     """Serve *obj* as the store holds it, without rebuilding it.
 
@@ -162,8 +150,10 @@ def _serve_stored(obj: PersistableModel) -> AS2JSONResponse | dict[str, Any]:
     "/Offers/{offer_id}",
     response_model=as_Offer,
     description=(
-        "Returns an Offer the actor received or sent, by actor id and offer"
-        " id."
+        "Returns an Offer the actor's store holds, received or authored, by"
+        " offer id. Like every datalayer read, it is not scoped to the"
+        " requester: it serves the Offer whether or not the Offer names the"
+        " actor as its sender or an addressee."
     ),
     operation_id="datalayer_get_actor_offer",
 )
@@ -172,12 +162,11 @@ def get_actor_offer(
 ) -> AS2JSONResponse:
     obj = _read_offer(datalayer, offer_id)
 
+    # No check of whether the Offer concerns the actor: the store is already
+    # the actor's own (ADR-0073), no request names an asker, and every other
+    # read of the same Offer serves it, so a check here made only this read
+    # answer 404 (#5547).
     if not obj:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-
-    # ``actor_id`` is the raw path segment; compare the canonical URI the
-    # store was opened for (ADR-0073), as ``get_actor_outbox`` does.
-    if not _concerns_actor(obj, actor_hosts.canonical_actor_uri(actor_id)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     # Served as held, as the by-id reads serve it through ``_serve_stored``
@@ -193,7 +182,14 @@ def get_actor_offer(
 
 @router.get(
     "/{object_type}/{object_id}",
-    description="Returns a specific object by type and ID.",
+    description=(
+        "Returns the object stored under `object_id` when its type is"
+        " `object_type`. Otherwise the whole path is read as one key that"
+        " holds a `/` (a `VultronOfferRecord` id, say), and `object_type` is"
+        " the first part of that key, not a type. A path that names neither"
+        " answers 404, so a type segment that is not the stored object's type"
+        " serves nothing."
+    ),
     operation_id="datalayer_get_by_type_and_id",
 )
 def get_object(
@@ -201,18 +197,16 @@ def get_object(
     object_id: str,
     datalayer: DataLayer = Depends(get_actor_dl),
 ):
-    # A key that holds one ``/`` (a ``VultronOfferRecord`` id, say) also fits
-    # this pattern, and the ``{key:path}`` route below never sees a two-segment
-    # path.  When the part after the slash names nothing, read the whole path
-    # as the key, so a record whose key holds one ``/`` is readable by it
-    # (#5529).  The suffix is still read first, so every URL that resolved
-    # before resolves to the same row; a key whose suffix also names a row is
-    # therefore still shadowed by it.  Every record keyed this way
-    # percent-quotes its suffix (``VultronOfferRecord.build_id``), so no stored
-    # key collides with a bare object id.
-    obj = datalayer.read(object_id) or datalayer.read(
-        f"{object_type}/{object_id}"
-    )
+    # The segment asserts the type of the row under ``object_id`` (#5551):
+    # ``Banana/<report-id>`` once served the report.  A key that holds one
+    # ``/`` also fits this pattern, and the ``{key:path}`` route below never
+    # sees a two-segment path, so a path whose segment is not that row's type
+    # is read whole as a key (#5529).  The type is checked before the key
+    # read, so a key whose suffix also names a row is no longer shadowed by
+    # that row unless the key's first part is the row's type.
+    obj = datalayer.read(object_id)
+    if obj is None or obj.type_ != object_type:
+        obj = datalayer.read(f"{object_type}/{object_id}")
 
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)

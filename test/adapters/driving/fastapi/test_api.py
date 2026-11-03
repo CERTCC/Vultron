@@ -74,7 +74,7 @@ def test_datalayer_get_nonexistent_actor(client, dl_route_key):
 def test_datalayer_get_existing_actor(
     client, datalayer, dl_route_key, hosted_actor, monkeypatch
 ):
-    """Test retrieving an existing actor from the Actors endpoint.
+    """Test retrieving an existing actor by its type and ID.
 
     The read lands in a later wall-clock second than the create, so the
     round-trip equality below is a claim about what was stored, not about
@@ -87,7 +87,7 @@ def test_datalayer_get_existing_actor(
     _pin_clock_past_a_second_boundary(monkeypatch)
 
     response = client.get(
-        f"/actors/{dl_route_key}/datalayer/Actors/{actor.id_}"
+        f"/actors/{dl_route_key}/datalayer/Person/{actor.id_}"
     )
     assert response.status_code == 200
     data = response.json()
