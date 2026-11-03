@@ -35,10 +35,15 @@ CASE_OWNER_ID = "https://example.org/actors/case-owner"
 #: A receiver keeps a carried hash rather than rederiving it (ADR-0103).
 CASE_GENESIS_HASH = "0" * 64
 
+#: The time the case status in :data:`INBOUND_CASE_OWNERSHIP` claims.
+INBOUND_CASE_STATUS_PUBLISHED = "2026-01-01T00:00:00.000000+00:00"
+
 #: The keys a wire-shaped (inbound) test case needs to validate: its owner, its
-#: genesis hash, and the ledger position its wire form must name (SYNC-16-005),
-#: here the empty ledger's.  Spread into a case dict as
-#: ``{**INBOUND_CASE_OWNERSHIP, "type": "VulnerabilityCase", ...}``.
+#: genesis hash, the ledger position its wire form must name (SYNC-16-005),
+#: here the empty ledger's, and a timed status history (CM-29-004, CLP-15-010).
+#: The status's ``context`` is rewritten to the enclosing case's id.  Spread
+#: into a case dict as ``{**INBOUND_CASE_OWNERSHIP, "type": "VulnerabilityCase",
+#: ...}``.
 INBOUND_CASE_OWNERSHIP: dict[str, object] = {
     "attributedTo": CASE_OWNER_ID,
     "genesisHash": CASE_GENESIS_HASH,
@@ -46,10 +51,19 @@ INBOUND_CASE_OWNERSHIP: dict[str, object] = {
         "logIndex": EMPTY_LEDGER_LOG_INDEX,
         "entryHash": CASE_GENESIS_HASH,
     },
+    "caseStatuses": [
+        {
+            "type": "CaseStatus",
+            "id": "https://example.org/case-statuses/inbound-0",
+            "context": "https://example.org/cases/inbound",
+            "published": INBOUND_CASE_STATUS_PUBLISHED,
+        }
+    ],
 }
 
-#: The same keys under field names, for a case built with ``model_construct``,
-#: which runs no validator to compute the hash or start the position.
+#: The ownership keys (no status history) under field names, for a case built
+#: with ``model_construct``, which runs no validator to compute the hash or
+#: start the position.
 CONSTRUCTED_CASE_OWNERSHIP: dict[str, Any] = {
     "attributed_to": CASE_OWNER_ID,
     "genesis_hash": CASE_GENESIS_HASH,
@@ -58,7 +72,8 @@ CONSTRUCTED_CASE_OWNERSHIP: dict[str, Any] = {
     ),
 }
 
-#: The same keys as a stored row holds them: plain JSON, field names.
+#: The ownership keys (no status history) as a stored row holds them: plain JSON,
+#: field names.
 STORED_CASE_OWNERSHIP: dict[str, object] = {
     "attributed_to": CASE_OWNER_ID,
     "genesis_hash": CASE_GENESIS_HASH,

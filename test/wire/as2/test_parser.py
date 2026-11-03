@@ -551,3 +551,32 @@ def test_parse_activity_refuses_inbound_case_without_owner(owner: object):
 
     with pytest.raises(VultronParseValidationError, match="attributed"):
         parse_activity(body)
+
+
+@pytest.mark.spec("CLP-15-010")
+def test_missing_claimed_time_refusal_reads_the_object_alone_without_a_position():
+    """A refusal raised for the object itself names no position, only the rule."""
+    from pydantic import ValidationError
+
+    from vultron.core.models._helpers import INBOUND_CONTEXT_KEY
+    from vultron.core.models.case_status import CaseStatus
+    from vultron.wire.as2.parser import _refuse_missing_claimed_time
+
+    with pytest.raises(ValidationError) as caught:
+        CaseStatus.model_validate(
+            {"type": "CaseStatus", "context": "https://example.org/cases/1"},
+            context={INBOUND_CONTEXT_KEY: True},
+        )
+
+    with pytest.raises(VultronParseMissingPublishedError) as refused:
+        _refuse_missing_claimed_time(caught.value, "")
+    assert str(refused.value).startswith("Missing 'published': ")
+
+
+def test_missing_claimed_time_refusal_ignores_other_faults():
+    """Any other validation fault is left to the caller's schema-fault refusal."""
+    from vultron.wire.as2.parser import _refuse_missing_claimed_time
+
+    _refuse_missing_claimed_time(
+        ValueError("not a validation error"), "object"
+    )
