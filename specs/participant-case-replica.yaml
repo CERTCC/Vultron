@@ -340,6 +340,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-02-010
+    stories:
+    - story_2026_002
   - id: PCR-03-003
     priority: MUST
     kind: protocol
@@ -389,6 +391,8 @@ groups:
       spec_id: PCR-03-001
     - rel_type: refines
       spec_id: PCR-02-003
+    stories:
+    - story_2026_030
   - id: PCR-03-005
     priority: MUST
     kind: protocol
@@ -633,6 +637,8 @@ groups:
       has no reason to send the activity again, and a discarded activity is lost.
       Keeping it, or reporting the drop, keeps the participant from losing a case
       change without a record.
+    stories:
+    - story_2026_005
   - id: PCR-06-002
     priority: SHOULD
     kind: protocol
@@ -647,6 +653,8 @@ groups:
       dropped once the participant states its ledger position (SYNC-17-008, ADR-0163).
     adr:
     - ADR-0163
+    stories:
+    - story_2026_005
   - id: PCR-06-003
     priority: MUST_NOT
     kind: protocol
@@ -665,6 +673,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: PCR-06-005
+    stories:
+    - story_2026_030
   - id: PCR-06-005
     priority: MUST
     kind: protocol
@@ -787,6 +797,8 @@ groups:
       case ledger holds. A participant that sends its message to other participants as
       well gives them a change that the CASE_MANAGER has not yet checked or recorded,
       and they may act on a change that the CASE_MANAGER later refuses.
+    stories:
+    - story_2026_002
   - id: PCR-08-003
     priority: MUST
     kind: protocol
@@ -997,15 +1009,17 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-08-010
+    stories:
+    - story_2022_006
   - id: PCR-08-010
-    priority: MUST_NOT
+    priority: MUST
     kind: protocol
     verification: >-
       Inspection of the received-side use cases and the factories they call confirms
       each emitted activity's `actor` is the executing actor's own ID.
     statement: >-
-      An actor processing a received activity MUST NOT construct or emit an activity whose
-      `actor` is a different actor's ID (identity spoofing).
+      Every activity that an actor constructs or emits while processing a received
+      activity MUST name that actor's own ID as its `actor`.
     rationale: >-
       Receivers trust the `actor` field to name the actor that made the decision, and
       the sender checks depend on that. An activity that names another actor forges
@@ -1014,6 +1028,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
+    stories:
+    - story_2022_089
   - id: PCR-08-015
     priority: MUST_NOT
     kind: project

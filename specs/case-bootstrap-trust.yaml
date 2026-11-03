@@ -396,8 +396,8 @@ groups:
       spec_id: CBT-01-002
     - rel_type: refines
       spec_id: CBT-01-007
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_011
   - id: CBT-01-019
     priority: MUST
     kind: protocol
@@ -520,6 +520,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: AKM-01-002
+    stories:
+    - story_2026_030
   - id: CBT-02-003
     priority: MUST
     kind: protocol
@@ -562,6 +564,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-06-002
+    stories:
+    - story_2026_005
   - id: CBT-03-002
     priority: MUST_NOT
     kind: protocol
@@ -575,6 +579,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-06-003
+    stories:
+    - story_2026_030
   - id: CBT-03-003
     priority: MUST
     kind: protocol
@@ -868,8 +874,8 @@ groups:
       spec_id: CBT-01-007
     - rel_type: implements
       spec_id: CBT-01-008
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_013
 - id: CBT-06
   title: One Report Offered to Several Recipients
   specs:

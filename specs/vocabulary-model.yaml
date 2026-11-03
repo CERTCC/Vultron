@@ -1028,8 +1028,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VM-08-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_015
   - id: VM-08-004
     priority: MUST
     kind: project
@@ -1101,6 +1101,8 @@ groups:
       The statement names no store for the kept message. A Case Event records a state
       change, and such a message changes no state. It may also belong to no case. The
       case ledger is not a process log either (CLP-07).
+    stories:
+    - story_2026_013
 - id: VM-10
   title: Vocabulary Namespace and JSON-LD Context
   specs:
