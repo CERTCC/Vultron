@@ -34,6 +34,7 @@ related_notes:
   - notes/ownership-transfer.md
   - notes/sync-ledger-replication.md
   - notes/case-ledger-parsing.md
+  - notes/case-event-history.md
   - notes/case-ledger-genesis-hardening.md
   - notes/wire-artifact-immutability.md
   - notes/outbox-delivery-reliability.md

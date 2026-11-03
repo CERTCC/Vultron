@@ -11,6 +11,7 @@ related_specs:
   - specs/demo-report.yaml
 related_notes:
   - notes/case-ledger-authority.md
+  - notes/case-event-history.md
   - notes/sync-ledger-replication.md
   - notes/status-dimension-objects.md
 relevant_packages:
