@@ -696,5 +696,9 @@ def test_a_participants_case_status_gets_no_notice_and_no_fault():
     verdict = net.receive(MANAGER, json.loads(dump_outbound_body(activity)))
 
     assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason
-    assert "HP-01-006" in (verdict.reason or "")
+    # Add(CaseStatus) is the CASE_MANAGER's to send and a participant's to
+    # receive (RSH-04-005), so its type declares the replica path alone and
+    # the path stage turns the CASE_MANAGER away before any guard could owe
+    # a notice (HP-01-039, CLP-05-001).
+    assert "does not address" in (verdict.reason or "")
     assert net.queued(MANAGER, to=BYSTANDER) == []
