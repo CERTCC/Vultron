@@ -52,10 +52,11 @@ groups:
       `VOCABULARY` key as an AS2 `type` value.
     lint_suppress:
     # compound_statement: the MUST NOT has no check, and this item has no
-    # verification_debt marker that a split child could carry (MS-10-016). The
+    # verification_debt marker that a split child could carry (MS-10-016), so
+    # the split PR writes that check for the new ID (#5662). The
     # inbound lookup (find_in_vocabulary) still consults VOCABULARY keys, but an
     # inbound `"type": "as_Accept"` is then refused by the class's `type` Literal,
-    # so it never resolves. Split it once it has a check.
+    # so it never resolves.
     - compound_statement
     rationale: >-
       The two registries answer different questions, so they carry different key forms:
@@ -789,8 +790,8 @@ groups:
     statement: Serialized wire-layer objects MUST exclude `None` fields and MUST exclude empty string fields
     lint_suppress:
     # compound_statement: the empty-string half has no check, and this item has no
-    # verification_debt marker that a split child could carry (MS-10-016). Split it
-    # once that half has a check.
+    # verification_debt marker that a split child could carry (MS-10-016). The split
+    # PR writes that check for the new ID (#5662).
     - compound_statement
     rationale: >-
       Under the rule "if present, then non-empty" (CS-08-001), a blank value means the

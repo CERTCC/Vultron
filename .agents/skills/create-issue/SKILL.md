@@ -131,9 +131,11 @@ its title.
      candidates) or calve a new one. Calving goes through `calve-epics`
      Mode 2, which the user confirms.
    - **No user present**: calve a Someday Epic yourself through `create-epic`
-     with the Phase 4 theme. Its body starts with a `Theme:` line, states the
-     one-sentence design idea the issue advances, and carries the line
-     `<!-- auto-calved -->` (`notes/epic-themes.md` § "The Structural
+     with the Phase 4 theme. Its title is a done-state claim with no ADR
+     number or spec ID (PAD-02-030, PAD-02-032). Its body starts with a
+     `Theme:` line, then a `Design idea:` line stating the approach the issue
+     advances (PAD-02-038), and carries the line `<!-- auto-calved -->`
+     (`notes/epic-themes.md` § "Epic Titles and Bodies", § "The Structural
      Check"). Report the new Epic in Phase 8 so a person reviews it
      (PAD-02-024).
      - Before calving, run `theme-gate` on the issue's labels and body with

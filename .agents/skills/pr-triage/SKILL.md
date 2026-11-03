@@ -57,7 +57,8 @@ record.
 
 **Depth cap**: `defer-ask` is only legal for *second-order* findings (revealed
 while fixing an excursion). *First-order* findings (revealed by the original
-work) are always "just do it" — never `defer-ask`.
+work) are always "just do it" — never `defer-ask`, apart from a missing test
+or check the task needs (`completeness-doctrine.md` § "Depth").
 
 There is no `new-issue-no-ask`: silent deferral does not exist. There is no
 `fix-now-expand-scope`: size is not a constraint, so an "also" excursion that

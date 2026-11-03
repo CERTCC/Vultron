@@ -117,7 +117,10 @@ far it reaches, so a session does not eat its own tail.
 
 - **First-order** findings — discovered by the *original* work on A — are
   **"don't ask, just do."** You never defer first-order work. Fixing it *is*
-  finishing A.
+  finishing A. The one exception is a missing test or check the task needs
+  that is too big for this PR: it may go through Gate 1, and an approved
+  deferral still does the task and holds the gap with a strict `xfail`
+  (§ "Gate 1").
 - **Second-order** findings — discovered *while fixing* a first-order
   excursion (B revealed C) — are the *only* findings eligible for a
   deferral-ask. Without this cap, every fix is a new surface revealing more
@@ -170,6 +173,18 @@ Note what "needs separate design effort" is *not*: it is not a category that
 authorizes deferral. If a few questions to the human would resolve the design,
 that is not deferral — that is *asking the questions and then fixing it*. Only
 a genuine, evidenced multi-session design problem earns a deferral-ask.
+
+**A deferred check is held by a failing test, not a note.** When the work
+being deferred is a missing test or check that the task needs (the
+`verification:` check that a split of a requirement with no
+`verification_debt:` marker needs, MS-10-016), an approved deferral still
+does the task. It files the follow-up issue (`opened-as deferred`, citing the
+approval), then adds a strict `xfail` test that states the missing behavior
+and cites that issue. The test fails loudly once the check lands, so the gap
+cannot drift out of sight. A missing test is never a reason to skip the task
+it blocks: either write it, or, with approval, `xfail` it. The one exception
+is a test that cannot be written yet; then ask and stop (`build` Phase 4
+step 4, tier 3).
 
 **On silence (no human response): FIX IT NOW.** No response means no approval,
 so the fix-now default stands. Silence is *never* consent to defer. (This
@@ -244,7 +259,7 @@ carries none):
 | `opened:excursion` | Filed so this PR could close it. Nets to zero. |
 | `opened:separate-defect` | A real defect in code the PR does not touch. |
 | `opened:debt` | A known weakness seen but not fixed now. It carries a `Where:` line naming a file, directory, or spec. The type follows the work, usually `Task` or `Bug` (`issue-creation-requirements.md` § "Determining the right values"). |
-| `opened:deferred` | This PR's own work, left undone. Forbidden for unsupervised runs; always flagged. |
+| `opened:deferred` | This PR's own work, left undone. Forbidden for unsupervised runs; always flagged, and legitimate only with a recorded Gate 1 approval. |
 
 **The net** is the pre-existing, non-Epic issues closed by merged PRs, minus the
 `separate-defect`, `debt`, and `deferred` issues opened. `excursion` issues are
@@ -255,8 +270,9 @@ and does not count toward the net.
 line (see `pr-body-guide.md`). `work-epic-tasks` and `pr-ship` print the run
 total at the end. `velocity-report` shows net issues per week by reason. No
 threshold flags a run yet: report the numbers until `velocity-report` shows what
-a typical run looks like. The one exception is `opened:deferred`: any nonzero
-count is a process defect and is called out as such.
+a typical run looks like. The one exception is `opened:deferred`: any such
+issue without a recorded Gate 1 approval is a process defect and is called
+out as such.
 
 **Nearby debt is fixed now.** Before opening the PR, list open `opened:debt`
 issues whose `Where:` names a file the diff touches, and fix them in the PR with

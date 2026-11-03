@@ -1267,15 +1267,17 @@ groups:
       requirement to another file, does not. Nor does the same marker on a new ID whose
       own `relationships:` name a requirement that carried it at the merge base. A new
       ID whose own `relationships:` name such a new ID, with the same marker, is exempt
-      too. The guard lists each requirement it fails and compares against no committed
+      too. No other new ID is exempt, even one split off a requirement with no marker.
+      Such a split gives its new ID a `verification:` check instead.
+      The guard lists each requirement it fails and compares against no committed
       count.
     rationale: >-
       spec-lint judges each marker alone, so it passes a new unverified requirement
       with a marker, and a relabel that re-points its marker at another kind's owner,
       which MS-10-008 forbids. Either adds debt to a backlog that may only shrink. A
-      split (MS-03-001) adds none: it moves an unverified obligation to a new ID that
-      links back. Per-item sets compared with the merge base leave no committed number
-      for concurrent pull requests to race on (#3984).
+      split (MS-03-001) moves a marker to a new ID that links back, adding none; an
+      unmarked parent has none to move. Per-item sets compared with the merge base
+      leave no committed number for concurrent pull requests to race on (#3984).
     verification: >-
       `test/architecture/test_verification_debt_guard.py::test_no_pr_adds_a_verification_debt_marker`
       runs the guard on the live corpus, and the `test_debt_*` tests in
@@ -1283,8 +1285,9 @@ groups:
       verified requirement, a removed marker, an edited marked requirement, a marker
       moved to another file, a relabel that keeps or re-points its marker, a split
       child or grandchild that keeps or re-points its parent's marker, a child of a
-      verified or newly marked parent, an existing ID that gains a link, and a
-      skipped run with no base ref that logs its reason.
+      verified, unmarked or newly marked parent, an existing ID that gains a link, a
+      split child of an unmarked parent that names its own check and so adds no
+      marker, and a skipped run with no base ref that logs its reason.
     relationships:
     - rel_type: refines
       spec_id: MS-10-007

@@ -21,9 +21,11 @@ from them.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import StrEnum
 
+from vultron.metadata.markdown_tables import fenced_lines
 from vultron.metadata.planning.themes import THEME_PREFIX
 
 EPIC_TYPE = "Epic"
@@ -49,10 +51,109 @@ The labels and the outcome are split by the first dash with space on both
 sides (an em dash, an en dash or a hyphen), and the outcome must not be empty.
 """
 
+DESIGN_IDEA_LINE = re.compile(r"^Design idea:\s*(?P<idea>\S.*)$")
+"""An Epic's ``Design idea: <approach>`` line (PAD-02-038).
+
+The approach after the colon must not be empty.
+"""
+
+NEAR_DESIGN_IDEA_LINE = re.compile(r"^\W*design\s+idea\W*:", re.IGNORECASE)
+"""A line that looks like a ``Design idea:`` line but is not one.
+
+A bulleted, bold or lowercase form; named in the finding so an author who
+wrote one knows why it does not count.
+"""
+
+
+def _body_lines(body: str) -> Iterator[tuple[str, bool]]:
+    """Each stripped *body* line, with True when it is a fence or fenced.
+
+    Fences come from :func:`~vultron.metadata.markdown_tables.fenced_lines`,
+    so a ```` ``` ```` line inside a ``~~~`` block is fenced text, not a close.
+    """
+    fenced = fenced_lines(body)
+    for number, line in enumerate(body.splitlines(), start=1):
+        yield line.strip(), number in fenced
+
+
+DESIGN_IDEA_HEADING = re.compile(
+    r"^#{1,6}\s+Design idea\s*#*\s*$", re.IGNORECASE
+)
+"""A ``## Design idea`` section heading, at any level."""
+
+_HEADING = re.compile(r"^#{1,6}(?:\s|$)")
+
+_DASH = r"[-\u2010-\u2015]"
+
+_ADR_NUMBER = re.compile(rf"\bADR\s*{_DASH}?\s*\d{{1,4}}\b", re.IGNORECASE)
+_FULL_SPEC_ID = re.compile(
+    rf"\b[A-Z]{{2,8}}{_DASH}\d{{2}}{_DASH}\d{{3}}\b", re.IGNORECASE
+)
+_GROUP_ID = re.compile(
+    rf"\b(?P<prefix>[A-Z]{{2,8}}){_DASH}\d{{2}}\b", re.IGNORECASE
+)
+
+
+def title_ids(title: str, spec_topics: frozenset[str]) -> tuple[str, ...]:
+    """The ADR numbers and spec IDs in an Epic *title*, in title order.
+
+    PAD-02-032. An ADR number (``ADR-0099``) and a full requirement ID
+    (``PAD-02-030``, MS-04-001) count in any case and with any dash. A bare
+    group ID (``SYNC-19``) counts only when its prefix is one of the
+    *spec_topics*, so ``UTF-16`` or ``COVID-19`` is not an ID; with no topics
+    given, group IDs are not looked for.
+    """
+    topics = {t.casefold() for t in spec_topics}
+    found = [(m.start(), m.group()) for m in _ADR_NUMBER.finditer(title)]
+    full = list(_FULL_SPEC_ID.finditer(title))
+    found += [(m.start(), m.group()) for m in full]
+    found += [
+        (m.start(), m.group())
+        for m in _GROUP_ID.finditer(title)
+        if m["prefix"].casefold() in topics
+        and not any(f.start() == m.start() for f in full)
+    ]
+    return tuple(text for _, text in sorted(found))
+
+
+EPIC_TITLE_PREFIX = re.compile(r"^\s*Epic\s*:", re.IGNORECASE)
+"""A title that opens with the ``Epic:`` label instead of a claim (PAD-02-030)."""
+
 THEME_LABEL_PATTERN = re.compile(
     r"(?<![\w:-])theme:[a-z0-9]+(?:-[a-z0-9]+)*", re.IGNORECASE
 )
 """A ``theme:`` label named in body text."""
+
+
+RESTATED_RUN = 4
+"""The fewest words of a copied line that count as a restatement inside more.
+
+A shorter line restates *text* only when it is all of *text*, so a two-word
+outcome that recurs inside a longer design idea by chance is not a repeat.
+"""
+
+
+def restates(text: str, copied: str) -> bool:
+    """True when *text* holds every word of *copied*, in order and unbroken.
+
+    Case, punctuation, backticks and spacing are ignored, so a line copied
+    with a trailing period, or reflowed, or with more said after it, still
+    counts as a restatement (PAD-02-034). An empty *copied* restates nothing,
+    and one shorter than :data:`RESTATED_RUN` words only all of *text*.
+    """
+    words, run = _words(text), _words(copied)
+    if not run:
+        return False
+    if len(run) < RESTATED_RUN:
+        return words == run
+    return any(
+        words[i : i + len(run)] == run
+        for i in range(len(words) - len(run) + 1)
+    )
+
+
+def _words(text: str) -> tuple[str, ...]:
+    return tuple(re.findall(r"\w+", text.casefold()))
 
 
 def named_themes(line: str) -> frozenset[str]:
@@ -70,6 +171,12 @@ class FindingKind(StrEnum):
     UNPARENTED = "unparented"
     NESTED_EPIC = "nested-epic"
     SINGLE_CHILD_CALVED_EPIC = "single-child-calved-epic"
+    EPIC_TITLE_ID = "epic-title-id"
+    EPIC_TITLE_PREFIX = "epic-title-prefix"
+    MISSING_DESIGN_IDEA = "missing-design-idea"
+    DESIGN_IDEA_REPEATS = "design-idea-repeats"
+    DESIGN_SECTION_REPEATS = "design-section-repeats"
+    THEME_OUTCOME_REPEATS = "theme-outcome-repeats"
     UNKNOWN_THEME = "unknown-theme"
     RETIRING_THEME = "retiring-theme"
 
@@ -92,6 +199,16 @@ _HEADINGS: dict[FindingKind, str] = {
     FindingKind.UNPARENTED: "Parent chain reaches no open Epic",
     FindingKind.NESTED_EPIC: "Epic nested under an Epic",
     FindingKind.SINGLE_CHILD_CALVED_EPIC: "Auto-calved Epic still single-child",
+    FindingKind.EPIC_TITLE_ID: "Epic title holds an ADR number or spec ID",
+    FindingKind.EPIC_TITLE_PREFIX: "Epic title starts with `Epic:`",
+    FindingKind.MISSING_DESIGN_IDEA: "Epic without a `Design idea:` line",
+    FindingKind.DESIGN_IDEA_REPEATS: (
+        "`Design idea:` line repeats the `Theme:` outcome or the title"
+    ),
+    FindingKind.DESIGN_SECTION_REPEATS: (
+        "`## Design idea` section repeats the `Design idea:` line"
+    ),
+    FindingKind.THEME_OUTCOME_REPEATS: "`Theme:` outcome repeats the title",
     FindingKind.UNKNOWN_THEME: "Theme label not in the catalog",
     FindingKind.RETIRING_THEME: "Retiring theme label",
 }
@@ -104,6 +221,12 @@ _RULES: dict[FindingKind, str] = {
     FindingKind.UNPARENTED: "PAD-01-007",
     FindingKind.NESTED_EPIC: "PAD-01-002",
     FindingKind.SINGLE_CHILD_CALVED_EPIC: "PAD-02-008",
+    FindingKind.EPIC_TITLE_ID: "PAD-02-032",
+    FindingKind.EPIC_TITLE_PREFIX: "PAD-02-030",
+    FindingKind.MISSING_DESIGN_IDEA: "PAD-02-038",
+    FindingKind.DESIGN_IDEA_REPEATS: "PAD-02-034",
+    FindingKind.DESIGN_SECTION_REPEATS: "PAD-02-034",
+    FindingKind.THEME_OUTCOME_REPEATS: "PAD-02-034",
     FindingKind.UNKNOWN_THEME: "PAD-02-014",
     FindingKind.RETIRING_THEME: "PAD-02-014",
 }
@@ -177,6 +300,58 @@ class OpenIssue:
             if match:
                 named |= named_themes(match["labels"])
         return frozenset(named)
+
+    def reason_line_outcomes(self) -> tuple[str, ...]:
+        """The outcome text of each well-formed reason line, in body order."""
+        return tuple(
+            match["outcome"]
+            for line in self.body.splitlines()
+            if (match := REASON_LINE.match(line.strip()))
+        )
+
+    def design_ideas(self) -> tuple[str, ...]:
+        """The approach text of each ``Design idea:`` line, in body order.
+
+        A ``Design idea:`` line with nothing after the colon states nothing,
+        and one inside a code fence is an example, not the Epic's line.
+        """
+        return tuple(
+            match["idea"]
+            for line, fenced in _body_lines(self.body)
+            if not fenced and (match := DESIGN_IDEA_LINE.match(line))
+        )
+
+    def design_idea_sections(self) -> tuple[str, ...]:
+        """The text under each ``## Design idea`` heading, to the next heading.
+
+        The ``Design idea:`` line itself is not section text, and a ``#`` line
+        inside a code fence is not a heading.
+        """
+        sections: list[list[str]] = []
+        current: list[str] | None = None
+        for line, fenced in _body_lines(self.body):
+            if not fenced and DESIGN_IDEA_HEADING.match(line):
+                current = []
+                sections.append(current)
+                continue
+            if not fenced and _HEADING.match(line):
+                current = None
+            if current is not None and not DESIGN_IDEA_LINE.match(line):
+                current.append(line)
+        return tuple(" ".join(s).strip() for s in sections)
+
+    def near_design_idea_lines(self) -> tuple[str, ...]:
+        """Unfenced lines that look like a ``Design idea:`` line but do not count.
+
+        A bare ``Design idea:`` with no approach after the colon is one.
+        """
+        return tuple(
+            line
+            for line, fenced in _body_lines(self.body)
+            if not fenced
+            and NEAR_DESIGN_IDEA_LINE.match(line)
+            and not DESIGN_IDEA_LINE.match(line)
+        )
 
     def names_split(self, first: str, second: str) -> bool:
         """True when one body line names both *first* and *second*."""

@@ -13,19 +13,20 @@
 """Structural theme-fit check over open Issues (``theme-fit``).
 
 Requirements: PAD-01-002, PAD-01-007, PAD-02-008, PAD-02-014, PAD-02-015, PAD-02-017,
-PAD-02-018, PAD-02-028.
+PAD-02-018, PAD-02-028, PAD-02-030, PAD-02-032, PAD-02-034, PAD-02-038.
 
 The package splits along its seams: :mod:`.fetch` owns the GraphQL query and
 response shape, :mod:`.analyze` applies the rules as a pure function,
 :mod:`.render` writes the Markdown report body, and :mod:`.cli` wires them.
-:mod:`.gate` (``theme-gate``) applies the label and parent rules to an Issue
-before it is created.
+:mod:`.gate` (``theme-gate``) applies the label and parent rules, and for an
+Epic the title and body form rules, to an Issue before it is created.
 The theme set comes from ``notes/epic-themes.md`` through
 :func:`~vultron.metadata.planning.themes.load_theme_catalog`.
 """
 
 from vultron.metadata.planning.theme_fit.analyze import (
     analyze,
+    epic_form_findings,
     label_findings,
     nearest_epic,
 )
@@ -72,6 +73,7 @@ __all__ = [
     "UntriagedIssue",
     "WORD_JOINER",
     "analyze",
+    "epic_form_findings",
     "fetch_open_issues",
     "main",
     "label_findings",
