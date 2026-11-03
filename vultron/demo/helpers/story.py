@@ -12,11 +12,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Write a branching demo story once: fragments, named prefixes and choices.
 
-Sibling scenarios used to be copies: ``rcv`` and ``rcv-reject`` told the same
-opening — the Reporter tells the Coordinator, the Coordinator invites the
-Vendor — in two hand-placed copies, free to drift (DEMOMA-17-001).  A story is
-that opening written **once**, with one continuation per choice
-(DEMOCI-11-019, ADR-0098):
+Sibling scenarios share an opening, and a second copy of it would be free to
+drift (DEMOMA-17-001).  A story is that opening written **once**, with one
+continuation per choice (DEMOCI-11-019, ADR-0098):
 
 * a **fragment** is one step of a story, a callable taking the run's
   :class:`StoryState`.  It names no container of its own: the cast and the
@@ -33,12 +31,14 @@ that opening written **once**, with one continuation per choice
   fragment's type forbids.
 
 The path is then read off the choices (:attr:`Story.path`), never typed a
-second time beside the story: ``@scenario(story=STORY)`` instead of
-``@scenario(path=...)``, and a scenario that declares both fails discovery
-(DEMOCI-11-024).  :func:`run_story` plays the sequence inside
+second time beside the story: ``@scenario(story=STORY)`` is the only way a
+scenario places itself on the tree, and the registry takes no path parameter
+to type a second copy into (DEMOCI-11-019, DEMOCI-11-024).  :func:`run_story`
+plays the sequence inside
 :func:`~vultron.demo.helpers.harness.scenario_harness` and records each step
-mark as it passes a choice, with the harness's deciding-role check, so a
-composed scenario places no ``reach_step`` by hand (DEMOCI-11-013).
+mark as it passes a choice, with the harness's deciding-role check, so the
+runner is the sole source of a scenario's marks and nothing places one by hand
+(DEMOCI-11-019).
 
 Usage from a scenario module::
 
@@ -132,9 +132,8 @@ class Choose:
     by: str
 
     def __post_init__(self) -> None:
-        # The same validation the `@scenario(path=...)` form gets, so an
-        # unknown branch point or choice fails where it is written rather than
-        # when the tree is merged.
+        # Validated here rather than when the registry merges the tree, so an
+        # unknown branch point or choice fails where it is written.
         validate_path(((self.branch_point, self.choice),))
         if not isinstance(self.by, str) or not self.by:
             raise DemoStoryError(
@@ -589,8 +588,8 @@ def run_story(
     The harness resets the failure accumulator, always dumps the case ledgers
     and only then asserts success (DEMOMA-23-001).  Each choice the story
     passes is reported to it as a step mark, with the deciding actor read off
-    the cast, so the role check runs exactly as it does for a hand-placed
-    ``reach_step`` and a composed scenario places none (DEMOCI-11-013).
+    the cast, and this is the only place a mark is made: no scenario or
+    helper places one by hand (DEMOCI-11-019).
 
     Args:
         name: The scenario's registered name.
@@ -625,11 +624,10 @@ def _run_fragment(name: str, state: StoryState, item: Fragment) -> bool:
 
     A fragment reads what an earlier one made through an accessor that raises
     (:meth:`StoryState.kept` and its siblings), so a failed act shows up here
-    as a :class:`DemoStoryError` in the fragment that depended on it.  That is
-    the hand-placed form's nesting seen from the other end: ``rcv-embargo``
-    ran its termination, publication and closure phases inside one
-    ``demo_gate`` on the revised embargo, so a failed revision skipped all
-    three (DEMOCI-01-007).
+    as a :class:`DemoStoryError` in the fragment that depended on it.  A flat
+    sequence of fragments gets from that what nesting gets from a
+    ``demo_gate``: the steps that presuppose a failed act do not run
+    (DEMOCI-01-007).
 
     A missing artifact is therefore treated exactly as an unmakeable step mark
     is (:func:`_mark_step`): on a run that has already recorded a failure it
@@ -686,9 +684,7 @@ def _mark_step(
     on a run that has already recorded a failure it is reported the way a
     dependent step is — inside a ``demo_gate``, recorded and never raised, and
     the story stops there so the first failure stays the headline
-    (DEMOCI-01-003, EDF-06-005).  The whole chain nested the same way before
-    the stories were composed: the invitee's mark sat inside the Invite's
-    delivery gate, so a failed invite skipped it with the answer.
+    (DEMOCI-01-003, EDF-06-005).
 
     On a run with nothing recorded, the mark raises: then the step really is
     mis-declared, and a declaration defect must not be reported as a soft

@@ -706,7 +706,7 @@ class TestParseStepMarks:
         )
 
     def test_a_missing_step_is_refused(self):
-        with pytest.raises(DemoRecordingError, match="reach_step"):
+        with pytest.raises(DemoRecordingError, match=r"choose\(\.\.\.\) item"):
             ledger_dump.parse_step_marks(
                 self._text(("reporter-whom-to-tell", "vendor", 0)),
                 "rv",
@@ -765,10 +765,9 @@ def _entry(index: int, actor: str, obj: str, kind: str = "Add") -> dict:
     }
 
 
-#: Two unrelated sets of addresses for the same three objects.  The comparison
-#: is address-independent on purpose (DEMOCI-11-017): the fixed cast makes
-#: siblings agree on addresses, and byte identity is the stronger check that
-#: then applies to a composed family (DEMOCI-11-018).
+#: Two unrelated sets of addresses for the same three objects, for the control
+#: that shows byte identity is not satisfied by telling the same story at other
+#: addresses (DEMOCI-11-018).
 _FIRST = (
     "http://one.test/api/v2/actors/a",
     "urn:uuid:" + "1" * 8 + "-1111-4111-8111-" + "1" * 12,
@@ -779,92 +778,8 @@ _SECOND = (
 )
 
 
-class TestIsomorphism:
-    """The shared-prefix check's comparison (DEMOCI-11-017)."""
-
-    def test_the_same_story_at_other_addresses_is_isomorphic(self):
-        actor, case = _FIRST
-        other_actor, other_case = _SECOND
-        first = [_entry(0, actor, case), _entry(1, actor, case, "Join")]
-        second = [
-            _entry(0, other_actor, other_case),
-            _entry(1, other_actor, other_case, "Join"),
-        ]
-        # Shift the second ledger's own ids and clock, too.
-        for entry in second:
-            entry["id"] = entry["id"].replace("8000", "9000")
-            entry["published"] = "2026-03-04T05:06:07.890000+00:00"
-        assert prefix.isomorphism_mismatch(first, second) is None
-
-    def test_a_reordered_step_is_not_isomorphic(self):
-        actor, case = _FIRST
-        first = [
-            _entry(0, actor, case, "Offer"),
-            _entry(1, actor, case, "Join"),
-        ]
-        second = [
-            _entry(0, actor, case, "Join"),
-            _entry(1, actor, case, "Offer"),
-        ]
-        mismatch = prefix.isomorphism_mismatch(first, second)
-        assert mismatch is not None and mismatch.startswith("entry 0 differs")
-
-    def test_references_that_map_inconsistently_are_not_isomorphic(self):
-        actor, case = _FIRST
-        other_actor, other_case = _SECOND
-        # The first ledger acts on one case twice; the second on two cases.
-        first = [_entry(0, actor, case), _entry(1, actor, case)]
-        second = [
-            _entry(0, other_actor, other_case),
-            _entry(1, other_actor, actor),
-        ]
-        mismatch = prefix.isomorphism_mismatch(first, second)
-        assert mismatch is not None and mismatch.startswith("entry 1 differs")
-
-    def test_an_id_inside_a_string_and_a_key_maps_with_the_rest(self):
-        actor, case = _FIRST
-        other_actor, other_case = _SECOND
-        first = [{"index": {actor: case}, "name": f"{actor} owns {case}"}]
-        second = [
-            {
-                "index": {other_actor: other_case},
-                "name": f"{other_actor} owns {other_case}",
-            }
-        ]
-        swapped = [
-            {
-                "index": {other_actor: other_case},
-                "name": f"{other_case} owns {other_actor}",
-            }
-        ]
-        assert prefix.isomorphism_mismatch(first, second) is None
-        assert prefix.isomorphism_mismatch(first, swapped) is not None
-
-    def test_a_named_participant_id_maps_like_a_uuid_one(self):
-        _, case = _FIRST
-        uuid = "3" * 8 + "-3333-4333-8333-" + "3" * 12
-        named = [{"participant": f"{case}/participants/vendor"}]
-        unnamed = [{"participant": f"{case}/participants/{uuid}"}]
-        assert prefix.isomorphism_mismatch(named, unnamed) is None
-
-    def test_different_literal_text_is_not_isomorphic(self):
-        actor, case = _FIRST
-        first = [_entry(0, actor, case)]
-        second = [_entry(0, actor, case)]
-        second[0]["payloadSnapshot"]["content"] = "a different note"
-        mismatch = prefix.isomorphism_mismatch(first, second)
-        assert mismatch is not None and "content" in mismatch
-
-    def test_a_longer_prefix_is_not_isomorphic(self):
-        actor, case = _FIRST
-        first = [_entry(0, actor, case)]
-        second = [_entry(0, actor, case), _entry(1, actor, case)]
-        mismatch = prefix.isomorphism_mismatch(first, second)
-        assert mismatch is not None and "1 and 2 entries" in mismatch
-
-
 class TestByteIdentity:
-    """The composed families' comparison (DEMOCI-11-018)."""
+    """The shared-prefix comparison itself (DEMOCI-11-018)."""
 
     def test_identical_prefixes_pass(self):
         assert prefix.byte_mismatch(["a", "b"], ["a", "b"]) is None
@@ -873,7 +788,14 @@ class TestByteIdentity:
         mismatch = prefix.byte_mismatch(['{"x": 1}', "b"], ['{"x": 2}', "b"])
         assert mismatch == "entry 0 differs from byte 6 on."
 
-    def test_an_isomorphic_pair_is_not_byte_identical(self):
+    def test_the_same_story_at_other_addresses_is_not_byte_identical(self):
+        """Byte identity includes the ids and the timestamps.
+
+        The retired comparison relabeled ids and dropped timestamps, so it
+        passed this pair; byte identity is the stricter check the fixed cast
+        and the one tree-wide seed make reachable (DEMOCI-11-020,
+        DEMOCI-11-025).
+        """
         actor, case = _FIRST
         other_actor, other_case = _SECOND
         first = [json.dumps(_entry(0, actor, case))]
@@ -891,7 +813,13 @@ def _committed(name: str) -> Recording:
 
 
 class TestSharedPrefixes:
-    """Every two scenarios agree up to where their paths part (DEMOCI-11-017)."""
+    """Every two scenarios agree byte for byte up to where their paths part.
+
+    One check over the whole tree (DEMOCI-11-017, DEMOCI-11-018).  Every
+    scenario is written as composition, so each shared stretch is one copy of
+    the code on one fixed cast under one seed and byte identity holds by
+    construction: there is no family list and no pair is held out.
+    """
 
     def test_every_pair_of_scenarios_is_checked(self):
         names = {spec.name for spec in discover_scenarios()}
@@ -914,13 +842,14 @@ class TestSharedPrefixes:
             _spec(name).path
         )
 
+    @pytest.mark.spec("DEMOCI-11-017", "DEMOCI-11-018")
     @pytest.mark.parametrize(
         "pair",
         prefix.shared_prefixes(scenario_tree()),
         ids=lambda pair: pair.id,
     )
-    def test_the_ledgers_are_isomorphic_up_to_the_branch_point(self, pair):
-        mismatch = prefix.pair_isomorphism_mismatch(
+    def test_the_ledgers_are_byte_identical_up_to_the_branch_point(self, pair):
+        mismatch = prefix.pair_byte_mismatch(
             pair, _committed(pair.first), _committed(pair.second)
         )
         assert mismatch is None, (
@@ -929,6 +858,47 @@ class TestSharedPrefixes:
             f"{_spec(pair.first).path[pair.depth][0]}: {mismatch} "
             f"Regenerate with {cli.REGENERATE_COMMAND} after fixing the order."
         )
+
+    @pytest.mark.parametrize(
+        "pair",
+        [p for p in prefix.shared_prefixes(scenario_tree()) if p.depth > 0],
+        ids=lambda pair: pair.id,
+    )
+    def test_a_pair_that_parts_after_the_root_compares_entries(self, pair):
+        """A pair past the root compares a non-empty prefix.
+
+        The check above is true of an empty prefix, and a pair that parts at
+        the root has one: the root branch point is decided before the case
+        exists, so there are no ledger entries to compare.  Those pairs are
+        still checked — a later root choice would give them entries — but they
+        carry nothing.  This records, per pair, that each pair parting later
+        does compare real entries, so a collapse of the step marks to zero
+        cannot leave the whole suite passing over nothing.
+        """
+        for name in (pair.first, pair.second):
+            lines = prefix.prefix_lines(_committed(name), pair.depth)
+            assert lines, (
+                f"{pair.first} and {pair.second} share {pair.depth} steps, but "
+                f"{name}'s mark at step {pair.depth} puts the branch point at "
+                "ledger tail 0, so the byte comparison reads no entries on "
+                f"that side. Regenerate with {cli.REGENERATE_COMMAND}."
+            )
+
+    def test_a_pair_that_parts_at_the_root_shares_no_entries(self):
+        """The empty-prefix case is a fact about the tree, not a gap to fix.
+
+        Pinned so that a change making the root branch point fall after the
+        case exists shows up here, where the reader of the comparison's reach
+        is told, rather than as a silently wider check.
+        """
+        root_pairs = [
+            pair
+            for pair in prefix.shared_prefixes(scenario_tree())
+            if pair.depth == 0
+        ]
+        assert root_pairs, "no pair parts at the root"
+        for pair in root_pairs:
+            assert prefix.prefix_lines(_committed(pair.first), 0) == []
 
     def test_a_missing_committed_recording_names_the_command(
         self, tmp_path, monkeypatch
@@ -950,66 +920,57 @@ def _fixture(name: str, lines: list[str]) -> Recording:
     return Recording(name, "".join(f"{line}\n" for line in lines), _RV_MARKS)
 
 
-class TestComposedFamilies:
-    """A composed family is byte-identical up to the branch point (DEMOCI-11-018)."""
+def _rv_rvv_pair() -> prefix.SharedPrefix:
+    """The committed ``rv``/``rvv`` pair, which parts after one step."""
+    (pair,) = [
+        candidate
+        for candidate in prefix.shared_prefixes(scenario_tree())
+        if {candidate.first, candidate.second} == {"rv", "rvv"}
+    ]
+    return pair
 
-    # Parametrizes over the pairs of the families named in COMPOSED_FAMILIES,
-    # which a family joins when its scenarios share one authored opening
-    # (#4733).  A family that still places its shared steps by hand is absent
-    # whole, because the order can then differ where the logic matches and
-    # only the isomorphism above can hold.  What else a family must satisfy is
-    # stated once in notes/demo-scenario-tree.md § "Composition" and
-    # cited from COMPOSED_FAMILIES; no pair of a composed family is held out.
-    @pytest.mark.parametrize(
-        "pair",
-        prefix.composed_pairs(prefix.shared_prefixes(scenario_tree())),
-        ids=lambda pair: pair.id,
-    )
-    def test_the_ledgers_are_byte_identical_up_to_the_branch_point(self, pair):
-        mismatch = prefix.pair_byte_mismatch(
-            pair, _committed(pair.first), _committed(pair.second)
-        )
-        assert mismatch is None, (
-            f"{pair.first} and {pair.second} are one composed family, but "
-            f"their ledgers differ before the branch point: {mismatch}"
-        )
 
-    def test_every_composed_family_names_registered_scenarios(self):
-        # The loop below is vacuous on an empty tuple, and the comment above
-        # already treats non-emptiness as a fact (#5533).
-        assert prefix.COMPOSED_FAMILIES, (
-            "no family is named as composed, so the byte-identity check "
-            "above runs over nothing (DEMOCI-11-018)"
-        )
-        names = {spec.name for spec in discover_scenarios()}
-        for family in prefix.COMPOSED_FAMILIES:
-            assert len(family) >= 2 and family <= names, family
+class TestTheByteComparisonFailsOnAChangedPrefix:
+    """The positive controls for the check over the whole tree.
 
-    def test_only_pairs_inside_one_family_are_selected(self):
-        pairs = prefix.shared_prefixes(scenario_tree())
-        selected = prefix.composed_pairs(
-            pairs, [frozenset({"rv", "rvv"}), frozenset({"rcv", "rcv-reject"})]
-        )
-        assert [pair.id for pair in selected] == [
-            "rcv~rcv-reject@2",
-            "rv~rvv@1",
-        ]
+    Without these the parametrized check above asserts an absence and would
+    pass on a comparison that never compares anything (#5589).
+    """
 
-    def test_a_marked_family_pair_one_byte_apart_fails(self):
-        (pair,) = prefix.composed_pairs(
-            prefix.shared_prefixes(scenario_tree()), [frozenset({"rv", "rvv"})]
-        )
+    def test_a_pair_one_byte_apart_before_the_branch_fails(self):
+        pair = _rv_rvv_pair()
         first = _fixture("rv", ['{"a": 1}', '{"b": 2}', '{"rv": 3}'])
         second = _fixture("rvv", ['{"a": 1}', '{"b": 3}', '{"rvv": 3}'])
         assert prefix.pair_byte_mismatch(pair, first, second) == (
             "entry 1 differs from byte 6 on."
         )
 
-    def test_a_marked_family_pair_that_differs_after_the_branch_passes(self):
-        (pair,) = prefix.composed_pairs(
-            prefix.shared_prefixes(scenario_tree()), [frozenset({"rv", "rvv"})]
-        )
+    def test_a_pair_whose_shared_entries_are_reordered_fails(self):
+        """A reordered shared fragment moves the bytes it writes.
+
+        What no comparison of two committed recordings can catch is a reorder
+        that moves *both* of them alike, which is the plot manifest's job
+        (#5589); a reorder in one of them is what this one does catch.
+        """
+        pair = _rv_rvv_pair()
+        first = _fixture("rv", ['{"a": 1}', '{"b": 2}', '{"rv": 3}'])
+        second = _fixture("rvv", ['{"b": 2}', '{"a": 1}', '{"rvv": 3}'])
+        assert prefix.pair_byte_mismatch(pair, first, second) is not None
+
+    def test_a_pair_that_differs_after_the_branch_passes(self):
+        pair = _rv_rvv_pair()
         first = _fixture("rv", ['{"a": 1}', '{"b": 2}', '{"rv": 3}'])
         second = _fixture("rvv", ['{"a": 1}', '{"b": 2}', '{"rvv": 3}'])
         assert prefix.pair_byte_mismatch(pair, first, second) is None
-        assert prefix.pair_isomorphism_mismatch(pair, first, second) is None
+
+    def test_a_depth_the_recording_has_no_mark_for_names_the_scenario(self):
+        """The index into the marks is checked, not left to an IndexError.
+
+        It is in range only while two rules in other modules hold
+        (DEMOCI-11-023 and the one-mark-per-step rule the recorder enforces),
+        so relaxing either should name the scenario that stopped satisfying
+        it.
+        """
+        recording = _fixture("rv", ['{"a": 1}', '{"b": 2}'])
+        with pytest.raises(DemoRecordingError, match="marked only 2 step"):
+            prefix.prefix_lines(recording, 2)

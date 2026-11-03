@@ -151,13 +151,13 @@ class TestRegistration:
 
     @pytest.mark.spec("DEMOCI-11-019")
     def test_the_registered_path_is_read_off_the_story(self):
-        """The scenario declares a story, so its path is the story's choices.
+        """The registry holds the path this scenario's story chooses.
 
-        ``composed`` is what the registry records about having derived it; a
-        scenario still typing ``path=`` would register ``False``.
+        Compared against the story object rather than against a literal, which
+        ``TestStoryPath`` below pins: together they say the registered path is
+        both derived and the intended one.
         """
         spec = {s.name: s for s in discover_scenarios()}["rcv-embargo"]
-        assert spec.composed is True
         assert spec.path == demo.STORY.path
 
 

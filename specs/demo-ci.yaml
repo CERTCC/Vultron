@@ -2568,7 +2568,7 @@ groups:
           Labels held in one table cannot become different between the live and offline
           modes. A second copy on the decorator or in the UI could drift from the table.
         verification: >-
-          `test/demo_unit/test_scenario_tree.py::test_scenario_decorator_takes_no_prompt_or_choice_label`
+          `test/demo_unit/test_scenario_tree.py::test_scenario_decorator_takes_no_path_prompt_or_choice_label`
           asserts that `@scenario` accepts no prompt or label argument. The UI's copy of
           the labels is the generated index, whose drift test (DEMOCI-11-016,
           `test/metadata/demo_scenarios/test_export_tree.py::test_committed_index_matches_a_fresh_export`)
@@ -2584,17 +2584,21 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Each registered scenario MUST declare its full path: the ordered
+          Each registered scenario MUST declare its full path — the ordered
           sequence of (branch point, choice) pairs from the tree's root to its
           ending, each naming an entry of the branch-point table
-          (DEMOCI-11-013).
+          (DEMOCI-11-013) — as the choices of its assembled story
+          (DEMOCI-11-019).
         rationale: >-
           Sibling scenarios such as `rv` and `rvv` are not a prefix of each other, so a
           pointer to a parent scenario does not treat them the same. A full path treats
-          siblings the same, and the tree is the merge of the paths.
+          siblings the same, and the tree is the merge of the paths. The story
+          is where the path is declared because it is also what walks it, so
+          there is one statement of it rather than two that can disagree.
         verification: >-
           A registry test asserts that every registered scenario has a path
-          whose pairs each name an entry of the branch-point table.
+          whose pairs each name an entry of the branch-point table, and that
+          the path it registers is the choices of its story.
         adr:
           - ADR-0098
         relationships:
@@ -2753,22 +2757,24 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Take two registered scenarios whose paths share a prefix. A check MUST show
-          that their recorded ledgers are isomorphic up to the branch point where the
-          paths part. Two recorded ledgers are isomorphic when their entries are equal
-          after the ids of each are relabeled in order of first appearance. The
-          comparison includes every reference between objects and excludes timestamps.
+          A check MUST compare the recorded ledgers of every two registered
+          scenarios, up to the branch point where their paths part. Each
+          recording's step marks locate that branch point in it. No registered
+          scenario and no pair of them is held out of the comparison.
         rationale: >-
-          Byte identity cannot hold for scenarios that are still copies:
-          siblings place their shared steps by hand, so the order can differ
-          even where the logic matches. Isomorphism checks the logic and the
-          relationships without the literal addresses, much as
-          position-independent code is compared, and still fails a declaration
-          that misstates where two scenarios diverge.
+          The comparison is what holds a declared branch honest: it fails when
+          two scenarios do not run the same thing up to the point their paths
+          say they diverge. Scoping it to a declared subset of the tree makes
+          the pairs nobody listed the ones nobody checks, so the obligation is
+          over every pair. A pair that parts at the root shares no ledger
+          entries, because the root branch point is decided before the case
+          exists; those pairs carry nothing and the pairs that part later are
+          what the check rests on.
         verification: >-
-          A test runs the check over the committed recordings, and fails on a
-          fixture pair with a reordered step and on a pair whose references map
-          inconsistently.
+          A test parametrizes the comparison over every pair the tree yields,
+          asserting that count is the number of pairs of registered scenarios,
+          and records per pair that one parting after the root compares a
+          non-empty prefix.
         adr:
           - ADR-0098
         relationships:
@@ -2779,23 +2785,25 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Once a family of scenarios is written as composition, the recordings
-          of every two scenarios in it whose paths share a prefix MUST be
-          byte-identical up to the branch point where the paths part.
+          The comparison of DEMOCI-11-017 MUST be byte for byte: the ledger
+          entries before the branch point are the same bytes in both
+          recordings, ids and timestamps included.
         rationale: >-
-          Composition makes the shared prefix one copy of the code, so byte
-          identity holds by construction and is the stricter check that
-          DEMOCI-11-017's isomorphism stands in for until then.
+          Every scenario is written as composition, so a shared stretch is one
+          copy of the code on one fixed cast under one seed (DEMOCI-11-020,
+          DEMOCI-11-025): both recordings draw the same ids and read the clock
+          the same number of times, and byte identity holds by construction.
+          It is also the only form that catches a shared stretch writing the
+          same objects in a different order. What a shared stretch must satisfy
+          is in `notes/demo-scenario-tree.md` § "Composition".
         verification: >-
-          The shared-prefix test compares byte for byte the scenario pairs of
-          each family marked as composed, and fails on a fixture pair of a
-          marked family that differs in one byte before the branch point. It
-          parametrizes over the families named in `COMPOSED_FAMILIES`, which a
-          family joins when its scenarios share one authored opening, and no
-          pair of a composed family is held out. What a family must satisfy
-          first, including the rule that no read on a shared stretch may read
-          the recording clock, is stated once in
-          `notes/demo-scenario-tree.md` § "Composition".
+          `TestSharedPrefixes` in `test/demo_unit/test_recordings.py` compares
+          every pair of registered scenarios byte for byte up to the branch
+          point where each pair's paths part, and
+          `TestTheByteComparisonFailsOnAChangedPrefix` in the same module
+          fails the comparison on a fixture pair that differs in one byte
+          before the branch point and on one whose shared entries are
+          reordered.
         adr:
           - ADR-0098
         relationships:
@@ -2806,7 +2814,7 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The flattened story of every scenario written as composition MUST be
+          The flattened story of every registered scenario MUST be
           committed as a generated plot manifest. An entry lists the story's
           items in order: each choice by branch point, choice and deciding cast
           member, and each fragment by qualified name.
@@ -2820,9 +2828,9 @@ groups:
           DEMOMA-17-002 forbids. The manifest cannot see an edit inside a
           fragment's body; only a recording can.
         verification: >-
-          A shape test asserts the manifest holds one entry per scenario
-          written as composition, whose items equal its story's choices and
-          fragment names in order.
+          A shape test asserts the manifest holds one entry per registered
+          scenario, whose items equal its story's choices and fragment names
+          in order.
         adr:
           - ADR-0098
 
@@ -2853,18 +2861,17 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The path of a scenario written as composition MUST be read from the
-          choices in its assembled story, and not from a `path=` declaration on
-          `@scenario`.
+          A registered scenario's path MUST be read from the choices in its
+          assembled story.
         rationale: >-
-          A path that is typed by hand beside the story is a second copy of the
-          same fact, and the two copies can disagree. When the path is read from
-          the story, the registry, the scenario-tree index and the step marks in
-          the recordings all come from the code that runs.
+          A path typed beside the story is a second copy of the same fact, and
+          the two copies can disagree. When the path is read from the story,
+          the registry, the scenario-tree index and the step marks in the
+          recordings all come from the code that runs.
         verification: >-
-          A registry test builds the path of a composed fixture scenario from its
-          story and asserts it equals that scenario's path in the tree built
-          from the fixture registry.
+          A registry test builds the path of a fixture scenario from its story
+          and asserts it equals that scenario's path in the tree built from
+          the fixture registry.
         adr:
           - ADR-0098
         relationships:
@@ -2872,18 +2879,22 @@ groups:
             spec_id: DEMOCI-11-014
 
       - id: DEMOCI-11-024
-        priority: MUST
+        priority: MUST_NOT
         kind: project
         statement: >-
-          Discovery MUST fail when a scenario written as composition also
-          declares `path=` on `@scenario`.
+          The `@scenario` decorator MUST NOT take a path parameter.
         rationale: >-
-          A composed scenario that also declares `path=` carries the second copy
-          that DEMOCI-11-019 removes, and nothing would keep the two copies the
-          same.
+          A parameter that accepts a path is the place where the second copy
+          DEMOCI-11-019 removes would be written, and nothing would keep the
+          two copies the same. Removing the parameter rather than refusing a
+          scenario that uses it means the second copy cannot be written at
+          all, so no check has to catch it.
         verification: >-
-          A registry test asserts discovery fails on a mutated fixture registry
-          in which a composed scenario also declares `path=`.
+          `test_scenario_decorator_takes_no_path_prompt_or_choice_label` in
+          `test/demo_unit/test_scenario_tree.py` pins the decorator's whole
+          parameter set, so a re-added path parameter under any name fails it,
+          and a registry test asserts a scenario cannot register without a
+          story.
         adr:
           - ADR-0098
         relationships:

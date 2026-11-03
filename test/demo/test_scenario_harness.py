@@ -31,10 +31,7 @@ import pytest
 import vultron.demo.helpers.harness as harness_module
 from vultron.demo.helpers.harness import (
     StepMark,
-    follow_ledger,
-    reach_step,
     scenario_harness,
-    step_reporter,
 )
 from vultron.demo.helpers.ledger_dump import (
     DUMP_MANIFEST_FILENAME,
@@ -408,30 +405,6 @@ class TestStepMarks:
                 harness.reach_step(
                     "reporter-whom-to-tell", "vendor", by=REPORTER
                 )
-
-    def test_module_functions_report_to_the_running_harness(
-        self, _devlogs, tails
-    ) -> None:
-        with scenario_harness("rv") as harness:
-            step_reporter("reporter-whom-to-tell", "vendor", by=REPORTER)()
-            follow_ledger(_rv_store(), "urn:case")
-            reach_step("vendor-after-answer", "report-fix-ready", by=VENDOR)
-        assert [mark.ledger_tail for mark in harness.marks] == [0, 7]
-
-    def test_module_functions_do_nothing_outside_a_harness(
-        self, tails
-    ) -> None:
-        follow_ledger(MagicMock(), "urn:case")
-        reach_step("vendor-after-answer", "report-fix-ready", by=VENDOR)
-        step_reporter("reporter-whom-to-tell", "vendor", by=REPORTER)()
-        assert tails == []
-
-    def test_the_running_harness_is_cleared_on_exit(self, _devlogs) -> None:
-        with pytest.raises(RuntimeError):
-            with scenario_harness("rv"):
-                raise RuntimeError("boom")
-        # A step after the run is not recorded anywhere, nor refused.
-        reach_step("vendor-after-answer", "report-fix-ready", by=VENDOR)
 
 
 @pytest.mark.spec("DEMOCI-11-013", "DEMOCI-11-047")
