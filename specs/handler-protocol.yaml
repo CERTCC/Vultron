@@ -817,6 +817,15 @@ groups:
       gets the stage. The migration of the trees that have not declared yet is
       ratcheted by
       `test/architecture/test_received_path_role_question.py::test_received_side_role_question_sites_are_ratcheted`.
+      `test/core/behaviors/test_declared_received_paths.py` holds the declaration of
+      every tree in the migrated areas: `::test_the_declared_paths_are_pinned` pins
+      which paths each names,
+      `::test_every_factory_call_site_in_these_areas_is_accounted_for` fails a tree
+      added without a declaration, and `::test_the_disposition_at_a_non_manager_receiver`
+      asserts what each declaration gives a participant replica. A branch for part
+      of a declaration is an `OnPaths` the factory builds; a branch naming an
+      undeclared path, or every declared path, is a wiring error
+      (`test/core/behaviors/case/test_received_path_branch.py`).
     relationships:
     - rel_type: refines
       spec_id: HP-01-007

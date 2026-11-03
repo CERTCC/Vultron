@@ -47,6 +47,9 @@ from vultron.core.behaviors.case.nodes.case_copy import (
     RequestCaseCopyBackfillNode,
     StateSeededLedgerPositionNode,
 )
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -127,6 +130,18 @@ def create_announce_vulnerability_case_received_tree(
     root = create_receive_activity_tree(
         name=_NAME,
         case_id=None,
+        # The Announce is how a participant learns the case exists, so the
+        # first one lands on the no-case path and seeds the replica
+        # (HP-01-041, SYNC-02-002); a later one updates the copy it seeded.
+        # The CASE_MANAGER receives its own broadcast as one of the case's
+        # participants, where the copy's source is its own case and so
+        # changes nothing (SYNC-16-006, ADR-0124): that is a path this type
+        # handles, not one it refuses (HP-01-038).
+        paths={
+            ReceivedPath.CASE_MANAGER,
+            ReceivedPath.PARTICIPANT_REPLICA,
+            ReceivedPath.NO_CASE,
+        },
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=request.actor_id,

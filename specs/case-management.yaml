@@ -6000,9 +6000,11 @@ groups:
       A proposal is sent to the CASE_MANAGER alone (CM-21-005). A replica that admitted
       one would act for the CASE_MANAGER, which only the CASE_MANAGER may do.
     verification: >-
-      `test_own_copy_is_refused_by_the_sender_guard` in
+      `test_own_copy_is_refused_at_the_path_stage` in
       `test/core/use_cases/received/actor/test_ownership.py` asserts that a replica
-      refuses the owner's own copy of its proposal and writes nothing.
+      refuses the owner's own copy of its proposal and writes nothing. The
+      proposal's type declares the manager path alone, so the path stage refuses
+      the replica ahead of the sender guard (HP-01-038, HP-01-039).
     relationships:
     - rel_type: refines
       spec_id: HP-01-006

@@ -40,9 +40,7 @@ from enum import Enum
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
-)
+from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.models._helpers import now_utc
@@ -322,7 +320,7 @@ def case_manager_ownership_offer_open_guard(
     now: datetime | None = None,
     *,
     transferee_must_be_active: bool = False,
-) -> py_trees.behaviour.Behaviour:
+) -> OnPaths:
     """Precondition guard: at the CASE_MANAGER, the replied-to Offer is open.
 
     With *transferee_must_be_active*, the Accept's case, the transferee must
@@ -330,11 +328,12 @@ def case_manager_ownership_offer_open_guard(
     (:class:`OwnershipTransfereeActiveNode`, CM-21-022), checked after the
     Offer is found open so a redelivery is still recognised first.
 
-    A replica skips it as ``SUCCESS``: it takes the change from the
+    Declared on the manager path alone: a receiver on the tree's other
+    declared path skips it, because it takes the change from the
     CASE_MANAGER alone, which the sender check establishes (PCR-03-001),
-    and changes nothing when an Offer expires (CM-21-043).  A
-    receiver that does not hold the case is not its CASE_MANAGER (ADR-0087
-    Regime 3).
+    and changes nothing when an Offer expires (CM-21-043).  The branch
+    reads the path the tree's stage resolved and asks no role question of
+    its own (HP-01-036, HP-01-038).
     """
     children: list[py_trees.behaviour.Behaviour] = [
         OwnershipOfferOpenNode(
@@ -350,10 +349,8 @@ def case_manager_ownership_offer_open_guard(
         children.append(
             OwnershipTransfereeActiveNode(case_id=case_id, offer_id=offer_id)
         )
-    return create_case_manager_gated_tree(
-        name="OwnershipOfferOpenIfCaseManager",
-        case_id=case_id,
+    return OnPaths.at_case_manager(
+        "OwnershipOfferOpenIfCaseManager",
+        *children,
         body_name="OwnershipOfferOpen",
-        children=children,
-        case_may_be_absent=True,
     )

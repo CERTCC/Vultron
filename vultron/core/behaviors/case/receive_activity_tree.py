@@ -105,6 +105,10 @@ from vultron.core.behaviors.case.nodes.diversion_stage import (
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
+from vultron.core.behaviors.case.nodes.path_branch import (
+    OnPaths,
+    resolve_path_branches,
+)
 from vultron.core.behaviors.case.nodes.post_close import (
     PostCloseExemption,
 )
@@ -163,7 +167,9 @@ logger = logging.getLogger(__name__)
 def create_receive_activity_tree(
     name: str,
     case_id: str | None,
-    precondition_guards: Sequence[py_trees.behaviour.Behaviour | Diversion],
+    precondition_guards: Sequence[
+        py_trees.behaviour.Behaviour | Diversion | OnPaths
+    ],
     case_may_be_absent: bool = False,
     *,
     addressee_exemption: AddresseeExemption | None = None,
@@ -172,7 +178,8 @@ def create_receive_activity_tree(
     sender_rule: SenderRule | None = None,
     sender_context: SenderContext | None = None,
     case_resolution: list[py_trees.behaviour.Behaviour] | None = None,
-    replica_effects: list[py_trees.behaviour.Behaviour] | None = None,
+    replica_effects: Sequence[py_trees.behaviour.Behaviour | OnPaths]
+    | None = None,
     replica_emit_exemption: ReplicaEmitExemption | None = None,
     manager_effects: list[py_trees.behaviour.Behaviour] | None = None,
     manager_case_id: str | None = None,
@@ -244,6 +251,19 @@ def create_receive_activity_tree(
     a case declares the no-case branch and takes it (HP-01-041).  A tree that
     omits ``paths`` keeps the role gates it had, and the migration is
     ratcheted by ``test/architecture/test_received_path_role_question.py``.
+
+    Work that belongs to some of the declared paths rather than to all of
+    them is passed as an
+    :class:`~vultron.core.behaviors.case.nodes.path_branch.OnPaths`
+    declaration, among ``precondition_guards`` or ``replica_effects``, and
+    the factory builds a
+    :class:`~vultron.core.behaviors.case.nodes.path_branch.PathBranch` at
+    that spot (HP-01-038): the CASE_MANAGER's adjudication guards with
+    ``OnPaths.at_case_manager``, and the work no CASE_MANAGER does with
+    ``OnPaths.off_case_manager``, the replacement for the
+    participant-replica gate a received tree used to build for itself.  The
+    branch reads the path the stage resolved and asks no role question of
+    its own (HP-01-036).  A tree with no ``paths`` cannot carry one.
 
     ``closed_sender`` places the closed-sender door guard
     (:func:`~vultron.core.behaviors.sender_guard.closed_sender_door`) on
@@ -417,7 +437,7 @@ def create_receive_activity_tree(
         name: Name for the root ``Sequence`` node.
         case_id: Case URI for the guarded-commit stage; ``None`` omits it.
         precondition_guards: Read-only guard nodes after the sender guard,
-            and any diversions, in order.
+            and any diversions or path branches, in order.
         case_may_be_absent: Pass ``True`` when the receiver may not hold the
             case yet (e.g. an invitee seeing the first Invite).
         addressee_exemption: Why this tree carries no addressee door guard;
@@ -437,7 +457,7 @@ def create_receive_activity_tree(
             case the sender guard reads, run just before it; requires
             ``sender_rule``.
         replica_effects: Ungated effects, run on every replica after the
-            commit.
+            commit, and any path branches among them.
         replica_emit_exemption: The registered decision that lets an
             emit-capable node run in ``replica_effects``.
         manager_effects: Effects run only at the CASE_MANAGER, gated by the
@@ -488,7 +508,9 @@ def create_receive_activity_tree(
             with no case, or a ``case_resolution`` without ``sender_rule``
             or holding a node that is not a read-only ``CaseResolving`` step
             (HP-01-008), or a
-            ``paths`` names no path (ADR-0153), or a
+            ``paths`` names no path (ADR-0153), or an ``OnPaths`` branch
+            names no declared path, every declared path, or sits in a tree
+            that declared none (HP-01-038), or a
             diversion is ill-formed (CLP-10-026), or ``clock_decisions`` name no
             case, come without a ``sender_rule`` or with a
             ``post_close_exemption``, or hold the received activity's commit
@@ -502,7 +524,7 @@ def create_receive_activity_tree(
     ``specs/behavior-tree-integration.yaml``
     BT-17-008 and ``specs/case-management.yaml`` CM-23-013.
     """
-    replica = replica_effects or []
+    where = f"create_receive_activity_tree({name})"
     manager = manager_effects or []
     check_gate_arguments(
         name,
@@ -514,7 +536,6 @@ def create_receive_activity_tree(
             or manager_case_may_be_absent
         ),
     )
-    check_replica_effects(name, replica, replica_emit_exemption)
 
     intake = IntakeReceivedActivityNode()
     children: list[py_trees.behaviour.Behaviour] = [intake]
@@ -536,6 +557,10 @@ def create_receive_activity_tree(
     )
     if path_stage is not None:
         children.append(path_stage)
+    # Every path branch the tree declared, built from the stage's answer
+    # before anything checks what the branches hold (HP-01-038).
+    replica = resolve_path_branches(where, replica_effects or [], path_stage)
+    check_replica_effects(name, replica, replica_emit_exemption)
     if closed_sender is not None:
         children.append(
             closed_sender_stage(
@@ -591,6 +616,7 @@ def create_receive_activity_tree(
         name,
         precondition_guards,
         case_id or manager_case_id,
+        path_stage,
     )
     if effects:
         children.append(

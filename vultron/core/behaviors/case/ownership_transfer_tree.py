@@ -67,6 +67,10 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptRecordedOwnershipOfferNode,
     MakeOwnershipTransferOfferNode,
 )
+from vultron.core.behaviors.case.nodes.path_branch import OnPaths
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -83,7 +87,7 @@ class _ReplyStages(NamedTuple):
     """What every reply to an Offer passes the received-tree factory."""
 
     sender_context: SenderCheckContext
-    precondition_guards: list[py_trees.behaviour.Behaviour]
+    precondition_guards: list[py_trees.behaviour.Behaviour | OnPaths]
 
 
 def _reply_stages(
@@ -114,7 +118,7 @@ def _reply_stages(
         request=OwnershipOfferRequest(offer_id=offer_id, reply_id=reply_id),
         case_manager_required=True,
     )
-    guards = [
+    guards: list[py_trees.behaviour.Behaviour | OnPaths] = [
         case_manager_ownership_offer_open_guard(
             case_id=case_id,
             offer_id=offer_id,
@@ -185,6 +189,11 @@ def create_accept_ownership_transfer_tree(
     tree = create_receive_activity_tree(
         name="AcceptOwnershipTransferBT",
         case_id=case_id,
+        # The transferee answers the CASE_MANAGER, which adjudicates the
+        # answer, and the CASE_MANAGER relays the answer to a participant
+        # replica, which archives it and takes the ownership change from the
+        # ledger (CM-21-013, RSH-08-003, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         sender_context=stages.sender_context,
         precondition_guards=stages.precondition_guards,
@@ -258,6 +267,11 @@ def create_reject_ownership_transfer_tree(
     tree = create_receive_activity_tree(
         name="RejectOwnershipTransferBT",
         case_id=case_id,
+        # The transferee answers the CASE_MANAGER, which adjudicates the
+        # answer, and the CASE_MANAGER relays the answer to a participant
+        # replica, which archives it and takes the ownership change from the
+        # ledger (CM-21-013, RSH-08-003, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         # The Accept's sender rule (CM-21-013) and open-Offer guard, so a
         # closed Offer refuses either answer and a redelivery is recognised.
         sender_rule=sender_rule,
@@ -323,6 +337,11 @@ def create_undo_ownership_transfer_tree(
     tree = create_receive_activity_tree(
         name="UndoOwnershipTransferBT",
         case_id=case_id,
+        # The Case Owner withdraws to the CASE_MANAGER, which adjudicates
+        # the withdrawal, and the CASE_MANAGER relays it to a participant
+        # replica, which archives it and takes the change from the ledger
+        # (CM-21-013, RSH-08-003, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         sender_context=stages.sender_context,
         precondition_guards=stages.precondition_guards,
@@ -417,16 +436,14 @@ def create_propose_ownership_transfer_tree(
             "ProposeOwnershipTransferBT",
             "ownership-transfer proposal names no case",
         )
-    guards = [
-        case_manager_admits_ownership_proposal_guard(
-            case_id=case_id,
-            proposal_id=proposal_id,
-            proposed_case_id=proposed_case_id,
-            transferee_id=transferee_id,
-            proposer_id=sender_id,
-            now=now,
-        )
-    ]
+    guards = case_manager_admits_ownership_proposal_guard(
+        case_id=case_id,
+        proposal_id=proposal_id,
+        proposed_case_id=proposed_case_id,
+        transferee_id=transferee_id,
+        proposer_id=sender_id,
+        now=now,
+    )
     # The guards refuse a proposal naming no transferee before this runs,
     # so the effect is built only when there is an Offer to make.
     effects: list[py_trees.behaviour.Behaviour] = (
@@ -445,6 +462,11 @@ def create_propose_ownership_transfer_tree(
     tree = create_receive_activity_tree(
         name="ProposeOwnershipTransferBT",
         case_id=case_id,
+        # The Case Owner proposes to the CASE_MANAGER, which alone
+        # adjudicates the proposal and makes the Offer; no other receiver
+        # is addressed, and the rule admits no sender there (CM-21-026,
+        # PCR-08-001, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
         sender_context=proposal_sender_context(
             sender_id, case_id, proposal_id
@@ -500,6 +522,10 @@ def create_offer_ownership_transfer_tree(
     tree = create_receive_activity_tree(
         name="OfferOwnershipTransferBT",
         case_id=case_id,
+        # The Offer is the CASE_MANAGER's, made to the transferee's own
+        # replica; the CASE_MANAGER records it in the tree that emits it and
+        # never receives one (CM-21-013, HP-01-038).
+        paths={ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id, case_manager_required=True

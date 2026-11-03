@@ -34,7 +34,7 @@ Structure::
     │                                        # a participant (CM-33-002, -004)
     ├── RoleOfferAdmissibleNode              # CM-33-003
     ├── GuardedCommit                        # CASE_MANAGER only
-    ├── AnswerRoleOfferOnReplica (participant replica gate)
+    ├── AnswerRoleOfferOnReplica (off the manager path)
     │   ├── IsRoleOfferTargetNode
     │   └── AcceptOrReject (Selector)
     │       ├── AutoAcceptCaseParticipantRoleNode
@@ -55,8 +55,9 @@ from vultron.core.behaviors.case.nodes.delegation import (
     ForwardRoleOfferToTargetNode,
     IsRoleOfferTargetNode,
 )
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_participant_replica_gated_tree,
+from vultron.core.behaviors.case.nodes.path_branch import OnPaths
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
 )
 from vultron.core.behaviors.case.nodes.role_offer_guard import (
     RoleOfferAdmissibleNode,
@@ -137,37 +138,45 @@ def create_offer_case_participant_role_received_tree(
         return create_receive_activity_tree(
             name="OfferCaseParticipantRoleReceivedBT",
             case_id=case_id,
+            # The Offer reaches two stores: the Case Owner's own at the
+            # CASE_MANAGER, which checks, commits and forwards it, and the
+            # CASE_MANAGER's forward at the target's replica, which answers it
+            # (CM-33-002, CM-33-015, HP-01-038).
+            paths={
+                ReceivedPath.CASE_MANAGER,
+                ReceivedPath.PARTICIPANT_REPLICA,
+            },
             sender_rule=sender_rule,
             sender_context=sender_context,
             precondition_guards=[admissible],
         )
 
-    answer = create_participant_replica_gated_tree(
-        name="AnswerRoleOfferOnReplica",
-        case_id=case_id,
-        children=[
-            IsRoleOfferTargetNode(target_actor_id=target_actor_id),
-            py_trees.composites.Selector(
-                name="AcceptOrReject",
-                memory=False,
-                children=[
-                    AutoAcceptCaseParticipantRoleNode(
-                        offer_id=offer_id,
-                        case_id=case_id,
-                        role=role,
-                        target_actor_id=target_actor_id,
-                        vendor_id=sender_id,
-                    ),
-                    EmitRejectCaseParticipantRoleNode(
-                        offer_id=offer_id,
-                        case_id=case_id,
-                        role=role,
-                        target_actor_id=target_actor_id,
-                        vendor_id=sender_id,
-                    ),
-                ],
-            ),
-        ],
+    # Only the target answers, and only off the manager path: the
+    # CASE_MANAGER never answers for the target (CM-33-004, CM-33-009).  The
+    # branch reads the path the stage resolved (HP-01-036, HP-01-038).
+    answer = OnPaths.off_case_manager(
+        "AnswerRoleOfferOnReplica",
+        IsRoleOfferTargetNode(target_actor_id=target_actor_id),
+        py_trees.composites.Selector(
+            name="AcceptOrReject",
+            memory=False,
+            children=[
+                AutoAcceptCaseParticipantRoleNode(
+                    offer_id=offer_id,
+                    case_id=case_id,
+                    role=role,
+                    target_actor_id=target_actor_id,
+                    vendor_id=sender_id,
+                ),
+                EmitRejectCaseParticipantRoleNode(
+                    offer_id=offer_id,
+                    case_id=case_id,
+                    role=role,
+                    target_actor_id=target_actor_id,
+                    vendor_id=sender_id,
+                ),
+            ],
+        ),
     )
     forward = ForwardRoleOfferToTargetNode(
         case_id=case_id,
@@ -179,6 +188,11 @@ def create_offer_case_participant_role_received_tree(
     return create_receive_activity_tree(
         name="OfferCaseParticipantRoleReceivedBT",
         case_id=case_id,
+        # The Offer reaches two stores: the Case Owner's own at the
+        # CASE_MANAGER, which checks, commits and forwards it, and the
+        # CASE_MANAGER's forward at the target's replica, which answers it
+        # (CM-33-002, CM-33-015, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         sender_context=sender_context,
         precondition_guards=[admissible],

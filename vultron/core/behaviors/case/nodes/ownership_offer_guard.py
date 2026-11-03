@@ -45,9 +45,6 @@ from vultron.core.behaviors.case.nodes.ownership_reply_guard import (
     OwnershipTransfereeActiveNode,
     case_manager_ownership_offer_open_guard,
 )
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
-)
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.models._helpers import now_utc
@@ -253,35 +250,33 @@ def case_manager_admits_ownership_proposal_guard(
     transferee_id: str | None,
     proposer_id: str,
     now: datetime | None = None,
-) -> py_trees.behaviour.Behaviour:
-    """Precondition guards: at the CASE_MANAGER, the proposal is admissible.
+) -> list[py_trees.behaviour.Behaviour]:
+    """Precondition guards: the proposal is admissible at the CASE_MANAGER.
 
     The open-Offer check runs first, so a redelivery is recognised as such
     before its inner Offer is judged again; then the inner Offer is checked
     (:class:`OwnershipProposalAdmissibleNode`).  A refused proposal is
-    neither committed nor made into an Offer (CM-21-026, CM-21-014).  A
-    replica never receives a proposal (its sender guard admits no one); it
-    skips the guards as ``SUCCESS``.
+    neither committed nor made into an Offer (CM-21-026, CM-21-014).
+
+    No role gate and no path branch: a proposal reaches the CASE_MANAGER
+    alone, so its tree declares the manager path by itself and the path
+    stage refuses every other receiver before these guards run (HP-01-038,
+    HP-01-039).
     """
-    return create_case_manager_gated_tree(
-        name="OwnershipProposalAdmissibleIfCaseManager",
-        case_id=case_id,
-        body_name="OwnershipProposalAdmissible",
-        children=[
-            NoOpenOwnershipOfferNode(
-                case_id=case_id,
-                proposal_id=proposal_id,
-                proposer_id=proposer_id,
-                now=now,
-            ),
-            OwnershipProposalAdmissibleNode(
-                case_id=case_id,
-                proposed_case_id=proposed_case_id,
-                transferee_id=transferee_id,
-                proposer_id=proposer_id,
-            ),
-        ],
-    )
+    return [
+        NoOpenOwnershipOfferNode(
+            case_id=case_id,
+            proposal_id=proposal_id,
+            proposer_id=proposer_id,
+            now=now,
+        ),
+        OwnershipProposalAdmissibleNode(
+            case_id=case_id,
+            proposed_case_id=proposed_case_id,
+            transferee_id=transferee_id,
+            proposer_id=proposer_id,
+        ),
+    ]
 
 
 __all__ = [

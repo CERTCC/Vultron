@@ -42,8 +42,11 @@ def ungated_nodes(
     """Every *marker* instance in *roots* outside a CASE_MANAGER gate.
 
     The walk does not descend into a :class:`CaseManagerGate`: whatever runs
-    there runs only at the CASE_MANAGER (BT-17-001).  Any other composite,
-    including the participant-replica gate, is walked.
+    there runs only at the CASE_MANAGER (BT-17-001).  Any other composite is
+    walked, including the participant-replica gate and a
+    :class:`~vultron.core.behaviors.case.nodes.path_branch.PathBranch`: a
+    branch off the manager path runs at a replica, so an emit inside it is
+    ungated and needs its exemption (BT-17-008).
     """
     found: list[py_trees.behaviour.Behaviour] = []
     for root in roots:

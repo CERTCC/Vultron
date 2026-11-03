@@ -52,6 +52,9 @@ from vultron.core.behaviors.case.intake_only_received_tree import (
 from vultron.core.behaviors.case.nodes.delegation import (
     GrantCaseParticipantRoleNode,
 )
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.nodes.role_offer_guard import (
     RoleOfferOpenNode,
 )
@@ -155,6 +158,10 @@ def create_accept_case_participant_role_tree(
     )
     tree = create_receive_activity_tree(
         name="AcceptCaseParticipantRoleReceivedBT",
+        # The named actor answers the role Offer to the CASE_MANAGER, which
+        # alone records the roles (CM-17-016, PCR-08-001), so the manager path
+        # is the only one this type handles (HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=context,
@@ -217,6 +224,10 @@ def create_reject_case_participant_role_tree(
     )
     tree = create_receive_activity_tree(
         name="RejectCaseParticipantRoleReceivedBT",
+        # The named actor answers the role Offer to the CASE_MANAGER, which
+        # alone records the refusal (CM-17-016, PCR-08-001), so the manager
+        # path is the only one this type handles (HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=context,

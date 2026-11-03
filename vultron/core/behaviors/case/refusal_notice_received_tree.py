@@ -34,6 +34,9 @@ or one naming no case this store holds, is refused by the sender guard
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.nodes.refusal_notice import (
     ClearRefusedAssertionNode,
 )
@@ -76,6 +79,10 @@ def refusal_notice_received_tree(
     )
     return create_receive_activity_tree(
         name="RefusalNoticeReceivedBT",
+        # The notice is the CASE_MANAGER's answer to a participant's refused
+        # assertion, so only that participant's replica receives it; the
+        # CASE_MANAGER never receives its own (CLP-05-001, HP-01-038).
+        paths={ReceivedPath.PARTICIPANT_REPLICA},
         case_id=None,
         sender_rule=sender_rule,
         # A case this store does not hold, or one naming no CASE_MANAGER,

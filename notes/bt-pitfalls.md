@@ -528,8 +528,9 @@ never calls `create_case_manager_gated_tree` itself.
 - **Emit-capable nodes carry `EmitCapable`** (`vultron/core/behaviors/emit_capable.py`).
   The factory raises `VultronWiringError` when a marked node sits in
   `replica_effects` outside every `CaseManagerGate` without a covering exemption.
-  Only `create_case_manager_gated_tree` builds a `CaseManagerGate`; the
-  participant-replica gate does not count.
+  Only `create_case_manager_gated_tree` builds a `CaseManagerGate`; neither the
+  participant-replica gate nor a `PathBranch` off the manager path counts, since
+  both run at a replica.
 - **Ledger replication carries no marker.** Senders through `SyncActivityPort` or
   `create_commit_log_entry_tree` are gated by ledger authority
   (`DeclineForeignLedgerCommitNode`, ADR-0073) and pinned in

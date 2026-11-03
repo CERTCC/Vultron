@@ -134,12 +134,12 @@ def test_move_missing_an_id_is_refused_in_one_tree(
 def test_move_for_an_unknown_case_is_refused_in_one_tree(
     dl, make_payload, tree_runs, verb
 ):
-    """The CASE_MANAGER gate finds no case to defer to (HP-01-005)."""
+    """The path stage finds no replica of the case (HP-01-005, HP-01-039)."""
     event = _move_event(make_payload, verb)
 
     result = _run_move(verb, dl, event)
 
     assert result.disposition == HandlerDisposition.REFUSED
-    assert result.reason == f"unknown case '{_CASE_ID}'"
+    assert result.reason == f"holds no replica of case '{_CASE_ID}'"
     assert len(tree_runs) == 1
     _only_the_archive(dl, event.activity_id)

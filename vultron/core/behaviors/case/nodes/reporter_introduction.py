@@ -58,8 +58,9 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
 
     - the executing actor is not the case's owner: it is the reporter, or
       another participant, receiving an introduction, not making one;
-    - the executing actor is itself the CASE_MANAGER: its own ``Create`` is
-      the reporter's only one (CBT-02-001, CM-02-010);
+    - the case's owner is its CASE_MANAGER, so there is nobody to introduce
+      and that owner's own ``Create`` is the reporter's only one
+      (CBT-02-001, CM-02-010);
     - the snapshot names no CASE_MANAGER, so there is nobody to introduce;
     - no active reporter is on the roster (CM-10-004).
 
@@ -108,8 +109,15 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
                 self.case_id,
             )
             return "the case names no CASE_MANAGER"
-        if manager_id == self.actor_id:
-            return "this actor is the CASE_MANAGER (CBT-02-001)"
+        if manager_id == case.attributed_to:
+            # A fact about the case, not about this receiver: a case whose
+            # owner manages it has nobody to introduce, and that owner's own
+            # Create is the reporter's only one (CBT-02-001, CM-02-010).  The
+            # receiver's role is not the question — the bootstrap tree names
+            # no case at build time, so no declared path answers it
+            # (HP-01-040) — and the check above already found this actor to
+            # be the owner.
+            return "the case owner is the CASE_MANAGER (CBT-02-001)"
         self._sent_id = find_case_create_sent_by(
             self.datalayer, self.actor_id, self.case_id
         )

@@ -42,7 +42,8 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.role_predicate import has_role
+from vultron.enums.roles import CVDRole
 
 
 class CheckAutoCaseCreationEnabledNode(py_trees.behaviour.Behaviour):
@@ -180,10 +181,12 @@ def activity_case_id(activity: object | None) -> str | None:
 class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
     """Check whether the executing actor is the case's CASE_MANAGER.
 
-    Reads ``case_id`` and ``actor_id`` from the blackboard, resolves the
-    case's CASE_MANAGER participant via ``resolve_case_manager_id``, and
-    returns ``SUCCESS`` only when ``actor_id`` matches that participant's
-    ``attributed_to`` actor ID.
+    Reads ``case_id`` and ``actor_id`` from the blackboard and asks the
+    shared role predicate,
+    :func:`~vultron.core.participants.role_predicate.has_role`, whether that
+    actor holds ``CVDRole.CASE_MANAGER`` in that case; the predicate answers
+    the authority role from the single role-authority resolver
+    (ARCH-24-006, ARCH-24-007, ADR-0153).  ``SUCCESS`` only on ``True``.
 
     On SUCCESS, writes the resolved manager ID to the ``case_actor_id``
     output port for downstream nodes that need the resolved manager id.
@@ -281,19 +284,17 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        case, failure = self._require_case(case_id)
+        _, failure = self._require_case(case_id)
         if failure is not None:
             return failure  # Regime 1: case must exist (ADR-0087)
 
-        manager_id = resolve_case_manager_id(case, self.datalayer)
-        if manager_id is None:
-            self.logger.debug(
-                "%s: no CASE_MANAGER found for case '%s'", self.name, case_id
-            )
-            return Status.FAILURE
-
-        if manager_id == self.actor_id:
-            self._set_output("case_actor_id", manager_id)
+        if has_role(
+            self.actor_id, case_id, CVDRole.CASE_MANAGER, self.datalayer
+        ):
+            # On this answer the manager is the executing actor, so its own
+            # id is the resolved manager id downstream nodes read
+            # (BTND-03-009).
+            self._set_output("case_actor_id", self.actor_id)
             self.logger.debug(
                 "%s: actor '%s' is CASE_MANAGER for case '%s'",
                 self.name,
@@ -303,11 +304,10 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
             return Status.SUCCESS
 
         self.logger.debug(
-            "%s: actor '%s' is not CASE_MANAGER for case '%s' (manager=%s)",
+            "%s: actor '%s' is not CASE_MANAGER for case '%s'",
             self.name,
             self.actor_id,
             case_id,
-            manager_id,
         )
         return Status.FAILURE
 

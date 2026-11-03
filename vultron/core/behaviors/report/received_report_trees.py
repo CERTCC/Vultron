@@ -48,6 +48,9 @@ from vultron.core.behaviors.case.nodes.case_lookup import RequireCaseForReport
 from vultron.core.behaviors.case.nodes.participant.status_entries import (
     CommitParticipantStatusEntriesNode,
 )
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -191,6 +194,12 @@ def create_validate_report_received_tree(
     root = create_receive_activity_tree(
         name="ValidateReportReceivedBT",
         case_id=case_id,
+        # The participant declares RM.VALID to the CASE_MANAGER, which
+        # adjudicates and commits it; a participant replica that holds a copy
+        # archives it and takes the sender's RM state from the ledger entry
+        # that follows the act, never from the declaration itself
+        # (RSH-06-006, RSH-08-003, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_actor_id, case_id=case_id
@@ -242,6 +251,9 @@ def create_report_received_tree(
     root = create_receive_activity_tree(
         name="CreateReportReceivedBT",
         case_id=None,
+        # A report precedes any case, so its receiver holds none when the
+        # stage asks (HP-01-041, HP-01-038).
+        paths={ReceivedPath.NO_CASE},
         precondition_guards=[],
         replica_effects=[
             StoreReportNode(
@@ -291,6 +303,10 @@ def create_ack_report_received_tree(
     root = create_receive_activity_tree(
         name="AckReportReceivedBT",
         case_id=None,
+        # The acknowledgement goes to the reporter and never to the
+        # CASE_MANAGER, and the tree carries no case context, so its
+        # receiver holds no case for it (RMB-08-005, HP-01-038, HP-01-041).
+        paths={ReceivedPath.NO_CASE},
         precondition_guards=[],
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
@@ -401,6 +417,11 @@ def create_close_report_received_tree(
         # The case names the sender guard's side and the post-close boundary;
         # the guard admits no sender on a case, so the commit never runs.
         case_id=case_id,
+        # No receiver applies a CloseReport: the rule admits a sender only
+        # before any case exists, so that is the one path the type handles
+        # and a receiver holding the case is refused at the stage
+        # (CM-23-019, HP-01-038, HP-01-039).
+        paths={ReceivedPath.NO_CASE},
         precondition_guards=[
             RequireCaseForReport(report_id=request.report_id)
         ],
@@ -478,6 +499,17 @@ def create_invalidate_report_received_tree(
     )
     return create_receive_activity_tree(
         name="InvalidateReportReceivedBT",
+        # The participant declares RM.INVALID to the CASE_MANAGER, which
+        # adjudicates and commits it; a participant replica archives its copy
+        # and takes the RM state from the ledger entry that follows
+        # (RSH-06-006, RSH-08-003, HP-01-038).  The stage runs before
+        # ``case_resolution``, so a tree whose case only that stage resolves
+        # declares no path (HP-01-040).
+        paths=(
+            {ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA}
+            if case_id is not None
+            else None
+        ),
         # A canonical signature: the CASE_MANAGER commits it after the guards,
         # and replicas replay it (CLP-10-013, RSH-08-004).  RSH-08-003: the
         # sender's RM → INVALID is committed as the status entry that follows
