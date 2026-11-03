@@ -30,13 +30,15 @@ to the Issue about to be created, and checks the parent's theme:
 - the ``--parent``, when given, is open and carries that theme (PAD-02-017,
   PAD-01-007);
 - an Epic's ``--title`` holds no ADR number or spec ID and does not start with
-  ``Epic:``, and its body has a ``Design idea:`` line that neither holds nor
-  cuts down the title or a ``Theme:`` outcome, with no ``## Design idea``
-  section restating the line (:func:`.analyze.epic_form_findings`; PAD-02-030,
-  PAD-02-032, PAD-02-034, PAD-02-038).
+  ``Epic:``, no ``Theme:`` outcome holds or cuts down the title, and its body
+  has a ``Design idea:`` line that neither holds nor cuts down the title or a
+  ``Theme:`` outcome, with no ``## Design idea`` section restating the line
+  (:func:`.analyze.epic_form_findings`; PAD-02-030, PAD-02-032, PAD-02-034,
+  PAD-02-038).
 
 Every violation is printed, not only the first. Exit codes: 0 the Issue may be
-created, 1 it may not, 2 the catalog cannot be loaded or a ``gh`` call fails.
+created, 1 it may not, 2 the catalog or the spec corpus cannot be loaded or a
+``gh`` call fails.
 """
 
 from __future__ import annotations
@@ -48,7 +50,6 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.planning.gh import (
     DEFAULT_REPO,
     GH_FAILURES,
@@ -257,7 +258,7 @@ def main(argv: list[str] | None = None, run: Runner = run_gh) -> int:
     try:
         catalog = load_theme_catalog(args.catalog)
         spec_topics = load_spec_topics() if args.epic else frozenset()
-    except (MetadataLoadError, OSError, UnicodeDecodeError) as exc:
+    except (ValueError, OSError) as exc:  # MetadataLoadError(s), bad UTF-8
         print(f"theme-gate: {exc}", file=sys.stderr)
         return 2
 

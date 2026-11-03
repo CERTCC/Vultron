@@ -34,7 +34,6 @@ import json
 import sys
 from pathlib import Path
 
-from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.planning.gh import (
     DEFAULT_REPO,
     GH_FAILURES,
@@ -106,7 +105,7 @@ def main(argv: list[str] | None = None, run: Runner = run_gh) -> int:
     try:
         catalog = load_theme_catalog(args.catalog)
         spec_topics = load_spec_topics()
-    except (MetadataLoadError, OSError, UnicodeDecodeError) as exc:
+    except (ValueError, OSError) as exc:  # MetadataLoadError(s), bad UTF-8
         print(f"theme-fit: {exc}", file=sys.stderr)
         return 2
     try:

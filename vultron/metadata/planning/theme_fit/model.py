@@ -21,9 +21,11 @@ from them.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import StrEnum
 
+from vultron.metadata.markdown_tables import fenced_lines
 from vultron.metadata.planning.themes import THEME_PREFIX
 
 EPIC_TYPE = "Epic"
@@ -62,7 +64,17 @@ A bulleted, bold or lowercase form; named in the finding so an author who
 wrote one knows why it does not count.
 """
 
-_FENCE = re.compile(r"^(```|~~~)")
+
+def _body_lines(body: str) -> Iterator[tuple[str, bool]]:
+    """Each stripped *body* line, with True when it is a fence or fenced.
+
+    Fences come from :func:`~vultron.metadata.markdown_tables.fenced_lines`,
+    so a ```` ``` ```` line inside a ``~~~`` block is fenced text, not a close.
+    """
+    fenced = fenced_lines(body)
+    for number, line in enumerate(body.splitlines(), start=1):
+        yield line.strip(), number in fenced
+
 
 DESIGN_IDEA_HEADING = re.compile(
     r"^#{1,6}\s+Design idea\s*#*\s*$", re.IGNORECASE
@@ -164,6 +176,7 @@ class FindingKind(StrEnum):
     MISSING_DESIGN_IDEA = "missing-design-idea"
     DESIGN_IDEA_REPEATS = "design-idea-repeats"
     DESIGN_SECTION_REPEATS = "design-section-repeats"
+    THEME_OUTCOME_REPEATS = "theme-outcome-repeats"
     UNKNOWN_THEME = "unknown-theme"
     RETIRING_THEME = "retiring-theme"
 
@@ -195,6 +208,7 @@ _HEADINGS: dict[FindingKind, str] = {
     FindingKind.DESIGN_SECTION_REPEATS: (
         "`## Design idea` section repeats the `Design idea:` line"
     ),
+    FindingKind.THEME_OUTCOME_REPEATS: "`Theme:` outcome repeats the title",
     FindingKind.UNKNOWN_THEME: "Theme label not in the catalog",
     FindingKind.RETIRING_THEME: "Retiring theme label",
 }
@@ -212,6 +226,7 @@ _RULES: dict[FindingKind, str] = {
     FindingKind.MISSING_DESIGN_IDEA: "PAD-02-038",
     FindingKind.DESIGN_IDEA_REPEATS: "PAD-02-034",
     FindingKind.DESIGN_SECTION_REPEATS: "PAD-02-034",
+    FindingKind.THEME_OUTCOME_REPEATS: "PAD-02-034",
     FindingKind.UNKNOWN_THEME: "PAD-02-014",
     FindingKind.RETIRING_THEME: "PAD-02-014",
 }
@@ -297,12 +312,13 @@ class OpenIssue:
     def design_ideas(self) -> tuple[str, ...]:
         """The approach text of each ``Design idea:`` line, in body order.
 
-        A ``Design idea:`` line with nothing after the colon states nothing.
+        A ``Design idea:`` line with nothing after the colon states nothing,
+        and one inside a code fence is an example, not the Epic's line.
         """
         return tuple(
             match["idea"]
-            for line in self.body.splitlines()
-            if (match := DESIGN_IDEA_LINE.match(line.strip()))
+            for line, fenced in _body_lines(self.body)
+            if not fenced and (match := DESIGN_IDEA_LINE.match(line))
         )
 
     def design_idea_sections(self) -> tuple[str, ...]:
@@ -313,28 +329,28 @@ class OpenIssue:
         """
         sections: list[list[str]] = []
         current: list[str] | None = None
-        fenced = False
-        for line in self.body.splitlines():
-            stripped = line.strip()
-            if _FENCE.match(stripped):
-                fenced = not fenced
-            elif not fenced and DESIGN_IDEA_HEADING.match(stripped):
+        for line, fenced in _body_lines(self.body):
+            if not fenced and DESIGN_IDEA_HEADING.match(line):
                 current = []
                 sections.append(current)
                 continue
-            elif not fenced and _HEADING.match(stripped):
+            if not fenced and _HEADING.match(line):
                 current = None
-            if current is not None and not DESIGN_IDEA_LINE.match(stripped):
-                current.append(stripped)
+            if current is not None and not DESIGN_IDEA_LINE.match(line):
+                current.append(line)
         return tuple(" ".join(s).strip() for s in sections)
 
     def near_design_idea_lines(self) -> tuple[str, ...]:
-        """Lines that look like a ``Design idea:`` line but do not count."""
+        """Unfenced lines that look like a ``Design idea:`` line but do not count.
+
+        A bare ``Design idea:`` with no approach after the colon is one.
+        """
         return tuple(
-            stripped
-            for line in self.body.splitlines()
-            if NEAR_DESIGN_IDEA_LINE.match(stripped := line.strip())
-            and not DESIGN_IDEA_LINE.match(stripped)
+            line
+            for line, fenced in _body_lines(self.body)
+            if not fenced
+            and NEAR_DESIGN_IDEA_LINE.match(line)
+            and not DESIGN_IDEA_LINE.match(line)
         )
 
     def names_split(self, first: str, second: str) -> bool:

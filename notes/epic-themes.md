@@ -434,7 +434,9 @@ findings, 1 with any, and 2 when the catalog or `gh` fails.
   number or a spec ID in any case and with any dash, or a group ID whose prefix
   is a spec topic, so `SYNC-19` counts and `UTF-16` does not (`epic-title-id`,
   PAD-02-032), a title that
-  starts with `Epic:` (`epic-title-prefix`, PAD-02-030), no `Design idea:`
+  starts with `Epic:` (`epic-title-prefix`, PAD-02-030), a `Theme:` outcome
+  holding, or a cut-down copy of, the title (`theme-outcome-repeats`,
+  PAD-02-034), no unfenced `Design idea:`
   line with text after the colon (`missing-design-idea`, PAD-02-038; a bold,
   bulleted or lowercase near miss is named in the finding), a `Design idea:`
   line holding, or a cut-down copy of, the title or a `Theme:` outcome

@@ -635,11 +635,13 @@ groups:
         verification: >-
           A reviewer checks the body with PAD-02-033. The repeats a script can
           see, `theme-gate --epic` refuses and `theme-fit` reports: a
-          `Design idea:` line holding, or a cut-down copy of, the title or a
-          `Theme:` outcome (`design-idea-repeats`), and a `## Design idea`
-          section that repeats the line (`design-section-repeats`). `TestEpicForm` in
+          `Theme:` outcome holding, or a cut-down copy of, the title
+          (`theme-outcome-repeats`), a `Design idea:` line holding, or a
+          cut-down copy of, the title or a `Theme:` outcome
+          (`design-idea-repeats`), and a `## Design idea` section that repeats
+          the line (`design-section-repeats`). `TestEpicForm` in
           `test/metadata/test_theme_gate.py` and in
-          `test/metadata/test_theme_fit.py` checks both.
+          `test/metadata/test_theme_fit.py` checks all three.
       - id: PAD-02-035
         priority: SHOULD
         kind: process

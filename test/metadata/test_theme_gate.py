@@ -18,8 +18,13 @@ from pathlib import Path
 
 import pytest
 
+from test.metadata.specs._helpers import write_yaml
+from vultron.metadata.file_loading import MetadataLoadErrors
 from vultron.metadata.planning.gh import GhError
-from vultron.metadata.planning.theme_fit import FindingKind
+from vultron.metadata.planning.theme_fit import (
+    FindingKind,
+    gate as gate_module,
+)
 from vultron.metadata.planning.theme_fit.gate import (
     ParentIssue,
     fetch_parent,
@@ -347,6 +352,55 @@ class TestEpicForm:
             FindingKind.MISSING_DESIGN_IDEA
         ]
 
+    @pytest.mark.spec("PAD-02-038")
+    def test_an_empty_design_idea_line_is_named_as_empty(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        found = gate_findings(
+            ["theme:alpha"],
+            f"{_ALPHA_BODY}\nDesign idea:",
+            catalog,
+            title=_ALPHA_TITLE,
+            epic=True,
+        )
+        assert found == [
+            (
+                FindingKind.MISSING_DESIGN_IDEA,
+                "no `Design idea:` line; the `Design idea:` line has no "
+                "approach after the colon",
+            )
+        ]
+
+    @pytest.mark.spec("PAD-02-038")
+    def test_a_fenced_design_idea_line_does_not_count(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = f"{_ALPHA_BODY}\n```md\n{_IDEA}\n**Design idea:** x\n```\n"
+        found = gate_findings(
+            ["theme:alpha"], body, catalog, title=_ALPHA_TITLE, epic=True
+        )
+        assert found == [
+            (FindingKind.MISSING_DESIGN_IDEA, "no `Design idea:` line")
+        ]
+
+    @pytest.mark.spec("PAD-02-034")
+    @pytest.mark.parametrize(
+        "outcome",
+        [
+            "alpha checks agree on every input",
+            "Alpha checks agree on every input, for every reader",
+            "alpha checks agree on every",
+        ],
+        ids=["copy", "copy-with-more", "cut-down"],
+    )
+    def test_an_outcome_repeating_the_title_is_refused(
+        self, catalog: ThemeCatalog, outcome: str
+    ) -> None:
+        body = f"Theme: theme:alpha — {outcome}\n{_IDEA}"
+        assert self._gate(catalog, body=body) == [
+            FindingKind.THEME_OUTCOME_REPEATS
+        ]
+
     @pytest.mark.spec("PAD-02-034")
     @pytest.mark.parametrize(
         "idea",
@@ -408,6 +462,35 @@ class TestEpicForm:
             FindingKind.DESIGN_SECTION_REPEATS
         ]
 
+    @pytest.mark.spec("PAD-02-034")
+    @pytest.mark.parametrize(
+        "fence",
+        ["~~~\n```\n~~~", "````\n```\n````"],
+        ids=["backticks-in-tildes", "short-run-in-long"],
+    )
+    def test_an_inner_fence_does_not_close_the_outer_one(
+        self, catalog: ThemeCatalog, fence: str
+    ) -> None:
+        body = (
+            f"{_ALPHA_EPIC_BODY}\n\n## Design idea\n\n"
+            "The parser lives in `alpha/parse.py`.\n"
+            f"{fence}\n\n## Children\n\nOne parser feeds every alpha check.\n"
+        )
+        assert self._gate(catalog, body=body) == []
+
+    @pytest.mark.spec("PAD-02-034")
+    def test_a_repeating_section_is_one_finding_for_two_lines(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = (
+            f"{_ALPHA_EPIC_BODY}\nDesign idea: every alpha check shares it."
+            "\n\n## Design idea\n\nOne parser feeds every alpha check, and "
+            "every alpha check shares it.\n"
+        )
+        assert self._gate(catalog, body=body) == [
+            FindingKind.DESIGN_SECTION_REPEATS
+        ]
+
     @pytest.mark.spec("PAD-02-038")
     @pytest.mark.parametrize(
         "line",
@@ -460,17 +543,45 @@ class TestEpicForm:
         assert found == []
 
 
+def _spec_file(topic: str) -> dict[str, object]:
+    """The smallest spec file the registry loads, declaring *topic*."""
+    return {
+        "id": topic,
+        "title": f"{topic} specs",
+        "description": "Test spec file",
+        "scope": ["production"],
+        "groups": [
+            {
+                "id": f"{topic}-01",
+                "title": "Group",
+                "specs": [
+                    {
+                        "id": f"{topic}-01-001",
+                        "priority": "SHOULD",
+                        "kind": "process",
+                        "statement": "A thing SHOULD be done.",
+                        "rationale": "Because testing.",
+                    }
+                ],
+            }
+        ],
+    }
+
+
 class TestLoadSpecTopics:
     def test_reads_each_file_s_top_level_id(self, tmp_path: Path) -> None:
-        (tmp_path / "a.yaml").write_text("id: PAD\ntitle: x\n")
-        (tmp_path / "b.yaml").write_text(
-            "title: y\nid: SYNC\n  - id: SYNC-01\n"
-        )
+        write_yaml(tmp_path, _spec_file("PAD"), filename="a.yaml")
+        write_yaml(tmp_path, _spec_file("SYNC"), filename="b.yaml")
         (tmp_path / "notes.md").write_text("id: NOPE\n")
         assert load_spec_topics(tmp_path) == frozenset({"PAD", "SYNC"})
 
     def test_no_topics_raises(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
+            load_spec_topics(tmp_path)
+
+    def test_an_invalid_spec_file_raises(self, tmp_path: Path) -> None:
+        (tmp_path / "a.yaml").write_text("id: PAD\ntitle: x\n")
+        with pytest.raises(MetadataLoadErrors, match=r"a\.yaml"):
             load_spec_topics(tmp_path)
 
     def test_the_repository_topics_load(self) -> None:
@@ -563,6 +674,23 @@ class TestMain:
             main(self._args(note, body, "--label", "theme:alpha"), fake) == 0
         )
         assert fake.calls == []
+
+    def test_an_unloadable_spec_corpus_exits_2(
+        self,
+        note: Path,
+        body: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        def broken() -> frozenset[str]:
+            raise MetadataLoadErrors([], summary="1 spec file(s) failed")
+
+        monkeypatch.setattr(gate_module, "load_spec_topics", broken)
+        args = self._args(
+            note, body, "--epic", "--title", _ALPHA_TITLE, "--label", "x"
+        )
+        assert main(args, run=_FakeGh("")) == 2
+        assert "spec file(s) failed" in capsys.readouterr().err
 
     def test_gh_failure_exits_2(self, note: Path, body: Path) -> None:
         def failing(args: Sequence[str]) -> str:

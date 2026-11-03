@@ -144,14 +144,10 @@ def _design_idea_findings(
 ) -> Iterator[tuple[FindingKind, str]]:
     ideas = epic.design_ideas()
     if not ideas:
-        near = epic.near_design_idea_lines()
-        detail = "no `Design idea:` line"
-        if near:
-            detail += (
-                f"; `{near[0][:60]}` does not count: start the line with "
-                "`Design idea:`"
-            )
-        yield FindingKind.MISSING_DESIGN_IDEA, detail
+        yield (
+            FindingKind.MISSING_DESIGN_IDEA,
+            _missing_design_idea_detail(epic.near_design_idea_lines()),
+        )
         return
     copied = [("the title", epic.title)] + [
         ("the `Theme:` outcome", outcome)
@@ -162,13 +158,29 @@ def _design_idea_findings(
             if _overlaps(idea, text):
                 yield FindingKind.DESIGN_IDEA_REPEATS, f"repeats {name}"
                 break
-        if any(
-            _overlaps(section, idea) for section in epic.design_idea_sections()
-        ):
-            yield (
-                FindingKind.DESIGN_SECTION_REPEATS,
-                "a `## Design idea` section repeats the line",
-            )
+    sections = epic.design_idea_sections()
+    if any(_overlaps(s, idea) for s in sections for idea in ideas):
+        yield (
+            FindingKind.DESIGN_SECTION_REPEATS,
+            "a `## Design idea` section repeats the line",
+        )
+
+
+def _missing_design_idea_detail(near: tuple[str, ...]) -> str:
+    detail = "no `Design idea:` line"
+    if not near:
+        return detail
+    if near[0] == "Design idea:":
+        return f"{detail}; the `Design idea:` line has no approach after the colon"
+    return (
+        f"{detail}; `{near[0][:60]}` does not count: start the line with "
+        "`Design idea:`"
+    )
+
+
+def _outcome_findings(epic: OpenIssue) -> Iterator[tuple[FindingKind, str]]:
+    if any(_overlaps(o, epic.title) for o in epic.reason_line_outcomes()):
+        yield FindingKind.THEME_OUTCOME_REPEATS, "repeats the title"
 
 
 def _overlaps(first: str, second: str) -> bool:
@@ -196,6 +208,7 @@ def epic_form_findings(
             ID in the title is matched against (:func:`.model.title_ids`).
     """
     yield from _title_findings(epic, spec_topics)
+    yield from _outcome_findings(epic)
     yield from _design_idea_findings(epic)
 
 

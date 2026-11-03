@@ -597,6 +597,39 @@ class TestEpicForm:
         assert report.findings[0].detail == detail
 
     @pytest.mark.spec("PAD-02-034")
+    def test_a_theme_outcome_that_repeats_the_title(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = "Theme: theme:alpha — alpha readers notice it.\n" + _DESIGN_IDEA
+        report = analyze(
+            [
+                _epic_issue(
+                    1,
+                    "theme:alpha",
+                    title="Alpha readers notice it",
+                    body=body,
+                )
+            ],
+            catalog,
+        )
+        assert _kinds(report) == [(FindingKind.THEME_OUTCOME_REPEATS, 1)]
+        assert report.findings[0].detail == "repeats the title"
+
+    @pytest.mark.spec("PAD-02-034")
+    def test_a_section_repeating_two_lines_is_one_finding(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = (
+            f"{_FORM_BODY}{_DESIGN_IDEA}"
+            "Design idea: each child cuts one slice.\n\n## Design idea\n\n"
+            "One approach ties the children together; each child cuts one "
+            "slice.\n"
+        )
+        assert self._report(catalog, "Alpha is done", body) == [
+            (FindingKind.DESIGN_SECTION_REPEATS, 1)
+        ]
+
+    @pytest.mark.spec("PAD-02-034")
     def test_a_design_idea_section_that_repeats_the_line(
         self, catalog: ThemeCatalog
     ) -> None:
