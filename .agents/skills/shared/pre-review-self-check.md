@@ -20,6 +20,16 @@ blank is not.
    claim or name, and update every hit. Build the search set from the consumers,
    per `notes/agentic-workflow.md` § "Enumerate the Affected Set From Its
    Consumers".
+
+   **A gate's trigger list is one of its consumers.** A new or widened check
+   reads inputs, and two lists decide whether it ever sees them: the `files:`
+   pattern of its `.pre-commit-config.yaml` hook, and the `paths:` of every
+   `.github/workflows/` job that runs it. A check whose new input is in neither
+   is installed but unreachable on the pull-request shape it exists to police,
+   and every suite still passes. Enumerate both lists for each check the diff
+   adds or widens, and say which you checked (#4506 shipped a `MUST NOT` whose
+   verification could not run, because this item was read as naming source
+   files only).
    *Result:* the search terms used and the files updated, or "no hits".
 2. **Failure-path pass.** For each new or changed store write, ledger commit,
    outbox write or send: what is left behind if it fails halfway, what happens

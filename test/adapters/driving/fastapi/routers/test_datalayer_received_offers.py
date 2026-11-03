@@ -170,25 +170,22 @@ def test_a_received_activity_of_another_type_is_not_an_offer(
         assert response.status_code == status.HTTP_404_NOT_FOUND, path
 
 
-@pytest.mark.parametrize(
-    "addressee",
-    [
-        "https://x.example/actors/o",
-        # Ends with the route's segment but names another actor.
-        "http://localhost:7999/api/v2/actors/other-test-actor",
-    ],
-    ids=["another-actor", "suffix-collision"],
-)
-def test_an_offer_addressed_to_another_actor_is_not_found(
-    client_datalayer, datalayer, dl_route_key, addressee
+def test_an_offer_addressed_to_another_actor_is_served_by_id(
+    client_datalayer, datalayer, dl_route_key
 ):
-    archive_received(datalayer, _received_offer(addressee))
+    """The route is not scoped to the requester; it serves what the store holds.
+
+    A received Offer addressed to another actor is still a row of this
+    actor's store, so the by-id read serves it as the list does (#5547).
+    """
+    archive_received(datalayer, _received_offer("https://x.example/actors/o"))
 
     response = client_datalayer.get(
         f"/actors/{dl_route_key}/datalayer/Offers/{OFFER_UUID}"
     )
 
-    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.status_code == status.HTTP_200_OK, response.text
+    assert response.json()["id"] == OFFER_ID
 
 
 def test_an_offer_the_actor_sent_is_served_by_id(

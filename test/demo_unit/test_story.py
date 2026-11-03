@@ -1017,7 +1017,7 @@ class TestRegisteringAStory:
 
 
 # ---------------------------------------------------------------------------
-# The composed scenarios keep their place on the tree (DEMOMA-17-002)
+# Every scenario keeps its place on the tree (DEMOMA-17-002)
 # ---------------------------------------------------------------------------
 
 
@@ -1091,10 +1091,10 @@ class TestRegisteringAStory:
         ),
     ],
 )
-def test_a_composed_scenario_keeps_the_path_it_declared(
+def test_a_scenario_keeps_the_path_it_declared(
     module_name: str, expected: tuple[tuple[str, str], ...]
 ) -> None:
-    """Composition moved the code, not the scenario's place on the tree.
+    """Story migration moved the code, not the scenario's place on the tree.
 
     Pinned against literals rather than against the registry, which would
     compare the derivation with itself.
@@ -1106,7 +1106,7 @@ def test_a_composed_scenario_keeps_the_path_it_declared(
 
 
 @pytest.mark.spec("DEMOMA-17-001")
-def test_the_two_composed_scenarios_share_one_opening() -> None:
+def test_both_scenarios_share_one_opening() -> None:
     """``rcv`` and ``rcv-reject`` start from the same prefix object's items."""
     import importlib
 
