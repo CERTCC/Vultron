@@ -206,7 +206,7 @@ groups:
     tags:
     - security
     stories:
-    - story_2026_031
+    - story_2026_034
   - id: ASK-02-005
     stories:
     - story_2022_045
@@ -306,7 +306,7 @@ groups:
     - security
     - configuration
     stories:
-    - story_2026_031
+    - story_2026_034
   - id: ASK-03-009
     priority: MUST_NOT
     kind: protocol
@@ -328,7 +328,7 @@ groups:
     tags:
     - security
     stories:
-    - story_2026_031
+    - story_2026_034
   - id: ASK-03-004
     stories:
     - story_2022_032
@@ -381,7 +381,7 @@ groups:
     tags:
     - security
     stories:
-    - story_2026_031
+    - story_2026_034
   - id: ASK-03-007
     priority: MUST
     kind: protocol
@@ -841,7 +841,7 @@ groups:
     tags:
     - security
     stories:
-    - story_2026_032
+    - story_2026_035
   - id: ASK-07-003
     stories:
     - story_2022_039
@@ -957,7 +957,7 @@ groups:
     - security
     - logging
     stories:
-    - story_2026_032
+    - story_2026_035
   - id: ASK-07-007
     stories:
     - story_2022_039

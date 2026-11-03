@@ -1506,17 +1506,17 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | CBT — Case Bootstrap Trust | [CBT-02-002](../vultron-spec/requirements/ledger-replication.md#cbt-02-002), [CBT-03-002](../vultron-spec/requirements/ledger-replication.md#cbt-03-002) |
 | PCR — Participant Case Replica | [PCR-03-004](../vultron-spec/requirements/ledger-replication.md#pcr-03-004), [PCR-06-003](../vultron-spec/requirements/ledger-replication.md#pcr-06-003) |
 
-## [story_2026_031](story_2026_031.md)
+## [story_2026_034](story_2026_034.md)
 
-{% include-markdown "./story_2026_031.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+{% include-markdown "./story_2026_034.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
 
 | Spec file | Citing requirements |
 |---|---|
 | ASK — Protocol Asks and Outstanding-Ask Registers | [ASK-02-004](../vultron-spec/requirements/case-management.md#ask-02-004), [ASK-03-003](../vultron-spec/requirements/case-management.md#ask-03-003), [ASK-03-006](../vultron-spec/requirements/case-management.md#ask-03-006), [ASK-03-009](../vultron-spec/requirements/case-management.md#ask-03-009) |
 
-## [story_2026_032](story_2026_032.md)
+## [story_2026_035](story_2026_035.md)
 
-{% include-markdown "./story_2026_032.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+{% include-markdown "./story_2026_035.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
 
 | Spec file | Citing requirements |
 |---|---|
