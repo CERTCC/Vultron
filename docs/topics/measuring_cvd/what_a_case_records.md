@@ -215,6 +215,8 @@ The CASE_MANAGER ledgers the status update with the claimed time of the particip
 The PXA state of the case changes only when the CASE_MANAGER adopts the report.
 To adopt the report, the CASE_MANAGER commits its own `Add(CaseStatus)`.
 Both times on the `Add(CaseStatus)` entry come from the CASE_MANAGER's clock at adoption.
+The case status in the entry is always timed later than the one before it ([CM-29-005](../../reference/vultron-spec/requirements/case-management.md#cm-29-005)).
+So when two adoptions fall in one clock tick, the second status is a microsecond past that clock.
 
 Thus the case-level time of $\evP$, $\evX$, or $\evA$ is the time that the CASE_MANAGER adopted the report.
 The case-level time is not the time that a participant first reported the event.
