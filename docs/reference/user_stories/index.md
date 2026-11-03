@@ -50,7 +50,7 @@ The specifications hold the mapping, so both this table and the matrix are gener
 
 The story pages from the 2022 catalog still carry a **Support Level** line under Metadata, reading *Provided*, *Allowed*, *Unsupported* or *Out-of-scope* as of v0.4.0.
 That line is a dated judgment that coverage replaces, and it is being removed from those pages.
-Most of the stories it calls out-of-scope are cited by requirements today, which is why it cannot be trusted.
+Most of the stories it calls out-of-scope are cited by requirements today.
 Read the coverage count, not the support level.
 
 ## User Stories Table
