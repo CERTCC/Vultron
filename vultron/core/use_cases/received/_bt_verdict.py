@@ -46,8 +46,9 @@ for a duplicate or an otherwise idempotent re-delivery.
 
 A tree that declares its paths needs no such reading: its path door stage
 refuses the undeclared path itself, :func:`door_refusal` returns that refusal
-with the one shared reason, and the handler asks :func:`received_path` which
-of the three paths it is on (ADR-0153).  :func:`not_case_manager` and
+with the reason the stage composed from the resolved path and the declaration
+(HP-01-039), and the handler asks :func:`received_path` which of the three
+paths it is on.  :func:`not_case_manager` and
 :func:`not_case_manager_refusal` remain for the trees still to be migrated.
 """
 

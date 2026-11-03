@@ -165,7 +165,8 @@ def received_path_stage(
     (CLP-10-010, HP-01-012): one role question picks the manager,
     participant-replica or no-case path, the sender guard reads that answer
     instead of asking again, and a path the message type did not declare is
-    refused there with the one shared reason (HP-01-005).
+    refused there, with the reason the stage composes from the resolved path
+    and the declaration (HP-01-005, HP-01-039).
 
     ``None`` for a tree that has not declared its paths yet; the migration
     onto the declaration is tracked by the ratchet in

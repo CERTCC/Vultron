@@ -32,8 +32,8 @@ A tree that declares its ``paths`` also gets the path door stage (ADR-0153):
 one role question picks the manager, participant-replica or no-case path, the
 sender guard's ``at_case_manager`` and ``at_participant`` arms are selected
 from that answer rather than asking again, and a path the message type did
-not declare is refused there, with one reason shared by every message type
-(HP-01-005, HP-01-012).
+not declare is refused there, with a reason composed in one place from the
+resolved path and the declaration (HP-01-005, HP-01-012, HP-01-039).
 A tree whose CASE_MANAGER must record a decision from its own clock before
 it judges the activity (an expiry) passes ``clock_decisions``: the factory
 runs them at the CASE_MANAGER only, after the door guards, and a refused
