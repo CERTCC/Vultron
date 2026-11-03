@@ -20,7 +20,7 @@ Exposes endpoints used exclusively by demo scripts to puppeteer actors through
 steps their own BTs would handle autonomously in a real deployment.
 
 This router is conditionally mounted only when
-``get_config().server.run_mode == RunMode.PROTOTYPE`` (TRIG-09-002).
+``get_config().mode == RunMode.PROTOTYPE`` (TRIG-09-002).
 In ``RunMode.PROD`` these paths are simply not registered, so any request to
 ``/actors/{id}/demo/`` returns HTTP 404 (TRIG-09-003).
 

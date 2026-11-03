@@ -1992,8 +1992,8 @@ groups:
       relay nobody but the proposer would be asked. Proposing terms is consenting to
       them (ADR-0093), so the proposer is not invited. The CASE_MANAGER is the Case
       Owner's delegate that routes communications and manages ledger entries, with no
-      view of its own on the embargo, and a container never mails an actor it hosts
-      (ADR-0109).
+      view of its own on the embargo, and the CASE_MANAGER never addresses an activity
+      it emits to itself (ADR-0109).
     note: >-
       Excluding the proposer costs one filter: the proposer's identity is on the
       activity just adjudicated. The emit runs on the container that hosts the
@@ -2082,8 +2082,8 @@ groups:
       is the proposer. Otherwise the actor's own embargo-proposal policy decides
       `AGREED` or `DECLINED` (EMB-15-001).
     rationale: >-
-      The CASE_MANAGER relays the Invite and never mails an actor it hosts (ADR-0109),
-      so a stakeholder that holds the role would never be asked.
+      The CASE_MANAGER relays the Invite and never addresses an activity it emits to
+      itself (ADR-0109), so a stakeholder that holds the role would never be asked.
     note: >-
       The CASE_MANAGER role alone carries no embargo stake: no consent is solicited or
       recorded for a bare container. When the actor holding the role also holds

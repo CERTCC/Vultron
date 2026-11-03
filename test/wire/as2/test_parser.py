@@ -32,9 +32,57 @@ def test_parse_activity_raises_missing_type_when_type_absent():
 
 
 @pytest.mark.spec("MV-01-001")
+@pytest.mark.spec("MV-04-001")
 def test_parse_activity_raises_unknown_type_for_unrecognized_type():
     with pytest.raises(VultronParseUnknownTypeError):
         parse_activity({"type": "NoSuchActivityType"})
+
+
+@pytest.mark.spec("MV-04-001")
+def test_parse_activity_refuses_a_known_type_that_is_not_an_activity():
+    """A vocabulary type that is not an activity cannot be one at top level."""
+    with pytest.raises(VultronParseUnknownTypeError, match="not an activity"):
+        parse_activity(
+            {
+                "type": "Note",
+                "actor": "https://example.org/alice",
+                "published": PUBLISHED,
+            }
+        )
+
+
+@pytest.mark.spec("MV-04-001")
+@pytest.mark.spec("MV-04-004")
+@pytest.mark.spec("VAM-01-007")
+def test_parse_activity_keeps_an_inline_object_of_unknown_type():
+    """Only the activity's own ``type`` is refused at parse (MV-04-001).
+
+    An inline object whose ``type`` names no wire class is left to its parent
+    field, which reads it as a plain ``as_Object`` (MV-04-004); the activity
+    then matches no pattern and is ``UNKNOWN`` (VAM-01-007), not refused.
+    """
+    from vultron.semantic_registry import find_matching_semantics
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+    from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+    result = parse_activity(
+        {
+            "type": "Create",
+            "actor": "https://example.org/alice",
+            "published": PUBLISHED,
+            "object": {
+                "type": "FooWidget",
+                "id": "https://example.org/widgets/1",
+            },
+        }
+    )
+
+    assert isinstance(result, as_Create)
+    assert type(result.object_) is as_Object
+    assert result.object_.type_ == "FooWidget"
+    assert find_matching_semantics(result) == MessageSemantics.UNKNOWN
 
 
 @pytest.mark.spec("MV-01-001")

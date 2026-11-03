@@ -342,3 +342,26 @@ def test_every_row_spec_id_resolves_in_the_spec_registry() -> None:
         if spec_id not in known
     )
     assert unresolved == [], unresolved
+
+
+#: The body fields TRIG-03-001 names: a case-scoped verb's ``case_id`` and an
+#: offer response's ``offer_id`` (``cp_offer_id`` for an actor recommendation).
+_TARGET_ID_FIELDS = frozenset({"case_id", "offer_id", "cp_offer_id"})
+
+
+@pytest.mark.spec("TRIG-03-001")
+@pytest.mark.spec("TRIG-12-004")
+def test_every_row_citing_the_target_id_rule_carries_a_target_id() -> None:
+    """A row cites TRIG-03-001 only when its request names a case or offer.
+
+    The rule binds case-scoped verbs and offer responses; a verb whose body
+    names its target by another field (``recipient_id``, ``report_id``,
+    ``invite_id``) builds on ``TARGETLESS_BODY_TRIGGER_SPECS`` instead.
+    """
+    miscited = sorted(
+        row.verb
+        for row in _rows()
+        if "TRIG-03-001" in row.spec_ids
+        and not _TARGET_ID_FIELDS & set(row.request_model.model_fields)
+    )
+    assert miscited == [], miscited

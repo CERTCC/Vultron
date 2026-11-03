@@ -79,18 +79,24 @@ groups:
   - id: SE-01-003
     priority: MUST
     kind: project
-    statement: 'If rehydration fails for any nested object, the system MUST: (1) log a WARNING identifying the unresolvable URI, (2) return MessageSemantics.UNKNOWN for the containing activity, and (3) store the activity in a dead-letter record per SE-04-003.'
+    statement: >-
+      This rule covers an activity of a type that has registered patterns, whose
+      `object` chain still ends in a bare URI after rehydration. When no pattern
+      matches such an activity, `find_matching_semantics()` MUST return
+      `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`.
     rationale: >-
-      The receiver cannot classify an activity whose object it cannot resolve. This is
-      not a defect in the receiver, and the object can become available later. The
-      WARNING shows the problem to an operator. The unknown semantic type keeps the
-      activity away from each handler that needs a resolved object. The dead-letter
-      record keeps the activity so that the receiver can try it again.
+      The receiver cannot classify an activity whose object it cannot resolve, and the
+      object can become available later. A sentinel of its own keeps the activity away
+      from each handler that needs a resolved object. The matcher only classifies: its
+      handler logs and dead-letters the activity (SE-04-007). A type with no registered
+      pattern is `UNKNOWN` whatever its object (VAM-01-007).
     verification: >-
-      A unit test confirms that when `object_` rehydration fails,
-      `find_matching_semantics()` logs a WARNING, returns
-      `MessageSemantics.UNKNOWN`, and stores the activity in a dead-letter record
-      without raising an exception.
+      `test_accept_with_bare_string_object_returns_unresolvable` and
+      `test_case_proposal_with_string_object_returns_unresolvable` in
+      `test/test_semantic_activity_patterns.py` confirm that an `Accept` with a bare
+      `object` returns `UNKNOWN_UNRESOLVABLE_OBJECT`.
+      `test_unknown_activity_type_with_bare_string_object_returns_unknown` in the same
+      file confirms that a `Flag`, which has no registered pattern, returns `UNKNOWN`.
   - id: SE-01-004
     priority: MUST
     kind: project
@@ -185,7 +191,9 @@ groups:
   - id: SE-02-003
     priority: MUST
     kind: project
-    statement: The function MUST return MessageSemantics.UNKNOWN if no patterns match
+    statement: >-
+      `find_matching_semantics()` MUST return `MessageSemantics.UNKNOWN` if no pattern
+      matches, except where SE-01-003 requires `UNKNOWN_UNRESOLVABLE_OBJECT`.
     rationale: >-
       The dispatcher needs a semantic type for each received activity. With a defined
       fallback, the receiver logs and handles an unrecognized activity in one place. The
@@ -304,27 +312,67 @@ groups:
       act on the message. The WARNING lets an operator see that the receiver dropped a
       message.
     verification: >-
-      A unit test confirms that presenting an activity with no matching pattern to
-      `find_matching_semantics()` causes a WARNING-level log message to be emitted
-      before returning `MessageSemantics.UNKNOWN`.
+      `TestUnknownUseCase.test_execute_logs_warning` in
+      `test/core/ports/test_use_case.py` confirms that `UnknownUseCase`, the handler
+      for `MessageSemantics.UNKNOWN`, logs a WARNING. The matcher
+      `find_matching_semantics()` logs nothing.
   - id: SE-04-002
     priority: MUST
     kind: project
     statement: >-
-      The system MUST distinguish two causes of `MessageSemantics.UNKNOWN`: 1. **No pattern
-      match**: No registered `ActivityPattern` matched the activity structure → raise `VultronApiHandlerMissingSemanticError`
-      2. **Unresolvable `object_`**: `object_` remains a bare string URI after rehydration
-      (per VAM-01-009) → do NOT raise an error; instead log a WARNING, store the activity
-      in a dead-letter record, and return silently
+      The system MUST route an `UNKNOWN` activity to `UnknownUseCase` and an
+      `UNKNOWN_UNRESOLVABLE_OBJECT` activity to `UnresolvableObjectUseCase`.
     rationale: >-
-      An unresolvable `object_` URI is not a programming error; it is a data completeness
-      issue that may resolve later. Treating it as a 5xx error would cause unnecessary noise
-      and fail legitimate protocol flows.
+      The two sentinels have different causes. An `UNKNOWN` activity has a shape that
+      no registered pattern knows (VAM-01-007). An `UNKNOWN_UNRESOLVABLE_OBJECT`
+      activity has an `object` that the receiver could not resolve (SE-01-003), which
+      is a data gap that can close later. Each cause needs its own handler: only the
+      second keeps the activity for a retry.
     verification: >-
-      A unit test confirms that `find_matching_semantics()` raises
-      `VultronApiHandlerMissingSemanticError` for a no-pattern-match and returns
-      silently (storing a dead-letter record) for an unresolvable `object_` URI,
-      distinguishing the two causes.
+      `test_every_dispatcher_fallback_routes_to_a_use_case` in
+      `test/test_semantic_registry.py` confirms that `use_case_map()` routes both
+      sentinels, and `test_a_dispatcher_fallback_needs_a_use_case` in
+      `test/test_semantic_registry_occasions.py` confirms that a fallback entry without
+      a use case is refused. The two `Accept` tests that SE-01-003 cites confirm that
+      the matcher tells the two causes apart.
+  - id: SE-04-006
+    priority: MUST
+    kind: project
+    statement: >-
+      `UnknownUseCase` MUST answer an `UNKNOWN` activity with a `REFUSED` verdict, not
+      an exception.
+    rationale: >-
+      An activity that no pattern knows is often from a peer that uses a form Vultron
+      does not support. That is not a receiver defect. The dispatcher lets every handler
+      exception propagate (DR-03-002), so a raise would report a bug that does not
+      exist. A `REFUSED` verdict records that the receiver did not act on the activity.
+    verification: >-
+      `TestUnknownUseCase.test_execute_refuses_unrecognized_activity` in
+      `test/core/ports/test_use_case.py` confirms that `UnknownUseCase` returns a
+      `REFUSED` verdict whose reason names the unrecognized semantics.
+    relationships:
+    - rel_type: refines
+      spec_id: SE-04-002
+  - id: SE-04-007
+    priority: MUST
+    kind: project
+    statement: >-
+      `UnresolvableObjectUseCase` MUST log a WARNING naming the unresolvable URI, store
+      the activity in a dead-letter record (SE-04-003), and return a `REFUSED` verdict,
+      not an exception.
+    rationale: >-
+      An unresolvable `object` URI is not a programming error; it is a data
+      completeness issue that may resolve later. The WARNING shows the problem to an
+      operator, and the dead-letter record keeps the activity so that the receiver can
+      try it again. The receiver did not process the activity, so the verdict is a
+      refusal, and a raise would report a bug that does not exist (DR-03-002).
+    verification: >-
+      `test_execute_logs_warning` and `test_execute_stores_dead_letter_record` in
+      `test/core/use_cases/received/test_unresolvable_object.py` confirm the WARNING
+      naming the URI, the stored dead-letter record and the `REFUSED` verdict.
+    relationships:
+    - rel_type: refines
+      spec_id: SE-04-002
   - id: SE-04-003
     priority: MUST
     kind: project
@@ -359,9 +407,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      For any future synchronous processing path (non-background), UNKNOWN due to unresolvable
-      `object_` MUST return HTTP 422 with an explanatory error body identifying the unresolvable
-      URI
+      For any future synchronous processing path (non-background), an
+      `UNKNOWN_UNRESOLVABLE_OBJECT` activity MUST return HTTP 422 with an explanatory
+      error body identifying the unresolvable URI
     rationale: >-
       A synchronous caller waits for the answer, so the receiver can tell it why it did
       not process the activity. A 422 status tells the sender that the request was
@@ -467,11 +515,9 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      The `ActivityPatternRegistry` MUST include an import-time guard function
-      `_validate_registry_order()` that raises `RegistryOrderError` if any registered
-      `ActivityPattern` appears in the registry in an order that would cause a more-specific
-      pattern to be shadowed by a less-specific one that matches a superset of the same
-      activities.
+      `vultron/semantic_registry/` MUST run the guard `_validate_registry_order()` on
+      `SEMANTIC_REGISTRY` at import time. The guard raises `RegistryOrderError` when a
+      less-specific pattern precedes a more-specific one that it shadows.
     rationale: >-
       `find_matching_semantics()` reads the registry in order and returns the first
       match. If a less specific pattern comes before a more specific one, the less
@@ -487,8 +533,7 @@ groups:
     verification_debt: '#2575'
     statement: >-
       The registry order guard MUST raise `RegistryOrderError`, a named exception class
-      in the semantic extraction module, not a generic `ValueError` or
-      `AssertionError`.
+      in `vultron/errors.py`, not a generic `ValueError` or `AssertionError`.
     rationale: >-
       With a dedicated exception, a test or a caller can tell an order defect from any
       other `ValueError` or failed assertion. The import failure also names its cause.

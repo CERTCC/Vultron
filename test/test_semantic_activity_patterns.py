@@ -302,6 +302,7 @@ def test_offer_case_ownership_transfer_with_inline_case_dispatches_correctly():
     assert result == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
 
 
+@pytest.mark.spec("SE-01-003")
 @pytest.mark.spec("SE-04-002")
 @pytest.mark.spec("VAM-01-009")
 def test_accept_with_bare_string_object_returns_unresolvable():
@@ -320,6 +321,7 @@ def test_accept_with_bare_string_object_returns_unresolvable():
     assert result == MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
 
 
+@pytest.mark.spec("SE-01-003")
 @pytest.mark.spec("SE-02-003")
 @pytest.mark.spec("VAM-01-007")
 def test_unknown_activity_type_with_bare_string_object_returns_unknown():
@@ -829,6 +831,7 @@ def test_accept_case_proposal_not_confused_with_other_accept_semantics():
 
 
 @pytest.mark.spec("VAM-01-009")
+@pytest.mark.spec("SE-01-003")
 @pytest.mark.spec("SE-04-002")
 def test_case_proposal_with_string_object_returns_unresolvable():
     """Accept with a bare CaseProposal URI returns UNKNOWN_UNRESOLVABLE_OBJECT.

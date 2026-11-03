@@ -19,7 +19,7 @@ freezes the client-visible trigger API contract: every path under
 ``app.openapi()`` renders it — ``operation_id``, status codes, summary,
 description, request and response schemas — plus every component schema those
 operations reference, directly or transitively.  It is captured with
-``run_mode=PROTOTYPE`` so the demo router is mounted (TRIG-09-001).
+``mode=PROTOTYPE`` so the demo router is mounted (TRIG-09-001).
 
 **A red test here is a report that the contract moved.**  The fix is to make
 the contract stop moving, or to decide — in review, with the diff in front of
@@ -150,7 +150,7 @@ def trigger_contract(document: dict[str, Any]) -> TriggerContractSnapshot:
 def build_prototype_app() -> FastAPI:
     """Build an isolated app with the demo router mounted (TRIG-09-001).
 
-    Forces ``run_mode=PROTOTYPE`` for the duration of construction so the
+    Forces ``mode=PROTOTYPE`` for the duration of construction so the
     result does not depend on the caller's environment; ``config_override``
     restores the config cache on exit (CFG-06-006).
     """
