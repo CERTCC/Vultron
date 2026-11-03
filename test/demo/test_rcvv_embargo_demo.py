@@ -82,9 +82,12 @@ from vultron.demo.scenario.rcvv_embargo_demo import (
     vendor2_joins_under_the_revision,
 )
 from vultron.demo.scenario.registry import discover_scenarios
-from vultron.demo.utils import _demo_failures, reset_demo_failures
+from vultron.demo.utils import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: The cast the shared opening seats.  Vendor2 is not in it: it is a character
 #: actor, seeded and seated by the fragment that brings it into the case.
@@ -101,20 +104,6 @@ EXPECTED_PATH = (
     ("reporter-after-join", "propose-embargo"),
     ("vendor-after-embargo", "propose-revision"),
 )
-
-
-@pytest.fixture(autouse=True)
-def _clean_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, and a fragment
-    that records a failure leaves it there for the next test — where it also
-    changes what ``demo_gate`` does, since a gate skips its body once anything
-    is recorded.
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 def _item_names(items: Sequence[Choose | Fragment]) -> list[str]:

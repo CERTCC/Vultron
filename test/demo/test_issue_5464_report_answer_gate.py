@@ -36,19 +36,15 @@ import pytest
 from vultron.demo import utils as demo_utils
 from vultron.demo.helpers import workflow
 
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
+
 _OFFER_ID = "urn:uuid:offer-5464"
 
 _ANSWERS: list[tuple[str, Callable[..., dict]]] = [
     ("validate_report", workflow.receiver_validates_report),
     ("invalidate_report", workflow.receiver_invalidates_report),
 ]
-
-
-@pytest.fixture(autouse=True)
-def _clean_failures():
-    demo_utils.reset_demo_failures()
-    yield
-    demo_utils.reset_demo_failures()
 
 
 @pytest.fixture

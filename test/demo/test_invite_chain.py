@@ -18,15 +18,10 @@ from vultron.demo.helpers.invite_chain import (
     invite_and_await_delivery,
     run_case_invite_chain,
 )
-from vultron.demo.utils import reset_demo_failures
 from vultron.enums.roles import CVDRole
 
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 
 @pytest.fixture(autouse=True)

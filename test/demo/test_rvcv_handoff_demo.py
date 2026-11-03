@@ -133,6 +133,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
+
 #: The scenario's four cast names, in the order the story seats them.
 _CAST = (REPORTER, VENDOR, COORDINATOR, VENDOR2)
 
@@ -143,19 +146,6 @@ _PREFIX_LEN = len(THE_VENDOR_INVITES_A_COORDINATOR.items)
 #: pair is named the same on the command line, in ``ROLES`` and in its devlogs
 #: (DEMOMA-19-018), so each pair is a name beside itself.
 _DEVLOGS = tuple((name, name) for name in DEVLOG_REPLICAS)
-
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, so a fragment
-    that records a failure would otherwise leave it for the next test to read
-    as its own (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 @contextlib.contextmanager
@@ -1246,7 +1236,7 @@ class TestARosterThatNeverFillsSkipsTheTransfer:
     def _roster(self, *, fills: bool):
         """Run the join with its roster filling or timing out.
 
-        The roster gate in ``coordinated_story`` and the prop read in
+        The roster gate in ``coordinated_story.joining`` and the prop read in
         ``owner_decision_story`` are the subject, so both stay real.  Every
         poll *after* the transfer trigger is stubbed: left real they would
         each spend the whole ``OWNER_DECISION_TIMEOUT`` against a

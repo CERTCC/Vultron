@@ -12,15 +12,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from vultron.demo.helpers import invite_chain
-from vultron.demo.utils import reset_demo_failures
 
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """The real reply's gate records the stopped wait; drop it after."""
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 
 class _ReplyRan(Exception):

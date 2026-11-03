@@ -49,6 +49,9 @@ from vultron.demo.helpers.coordinated_story import (
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
+
 
 @contextlib.contextmanager
 def _join_stubs() -> Iterator[SimpleNamespace]:

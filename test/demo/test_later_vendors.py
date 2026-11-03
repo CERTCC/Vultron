@@ -51,9 +51,12 @@ from vultron.demo.helpers.coordinated_story import (
 )
 from vultron.demo.helpers.story import StoryState
 from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME, dump_story_ledgers
-from vultron.demo.utils import demo_failures, reset_demo_failures
+from vultron.demo.utils import demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: What ``rcvv-embargo`` calls its two vendors.  Vendor1 is the family's
 #: Vendor, seated under the name ``rcv-embargo``'s only Vendor uses, because
@@ -66,18 +69,6 @@ VENDOR2_LABEL = "Vendor2"
 
 #: The four-party cast of a scenario with a later vendor, in roster order.
 _FOUR = (REPORTER, COORDINATOR, VENDOR1, VENDOR2)
-
-
-@pytest.fixture(autouse=True)
-def _clean_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``demo_gate`` skips its body once anything is recorded, so a leftover
-    failure from another test would silently turn these runs into no-ops.
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 class TestALaterVendorJoins:

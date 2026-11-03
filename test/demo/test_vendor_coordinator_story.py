@@ -69,9 +69,11 @@ from vultron.demo.helpers.vendor_story import (
     VENDOR2_LABEL,
     VENDOR_LABEL,
 )
-from vultron.demo.utils import reset_demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: The pair's four cast names, in ``ROLES`` order.
 _CAST = (REPORTER, VENDOR, COORDINATOR, VENDOR2)
@@ -89,19 +91,6 @@ _BRANCH = Choose(
     choice="invite-coordinator",
     by=VENDOR,
 )
-
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, and a gate skips
-    its own body once anything is recorded, so a leftover failure changes what
-    the next test observes (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 def _failures(prefix: str) -> list[str]:
@@ -207,7 +196,7 @@ def _seeding_stubs(
     ``pair``'s own ``demo_step`` is left **real**: the tests here are about
     what a failed seeding leaves seated, and patching the step out would make
     its failure propagate instead of being recorded.  The read-back is looked
-    up on ``coordinated_story``, where ``seat_character_actors`` lives.
+    up on ``coordinated_story.cast``, where ``seat_character_actors`` lives.
     """
     with (
         patch.object(

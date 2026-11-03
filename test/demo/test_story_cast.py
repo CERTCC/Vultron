@@ -71,9 +71,12 @@ from vultron.demo.helpers.story_cast import (
     open_story_cast,
     story_clients,
 )
-from vultron.demo.utils import case_actor_id_on, reset_demo_failures
+from vultron.demo.utils import case_actor_id_on
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: The two fixed-role seats a vendor-first family opens with, as the smallest
 #: cast that can still be seated in the wrong order (``vendor_seats``).
@@ -91,18 +94,6 @@ _SEED_STEP = "Seeding the Reporter and Vendor containers"
 #: take whatever names a scenario's ``ROLES`` seats.
 _REPORTER, _COORDINATOR, _VENDOR = "reporter", "coordinator", "vendor"
 _CAST = (_REPORTER, _COORDINATOR, _VENDOR)
-
-
-@pytest.fixture(autouse=True)
-def _fresh_failures() -> Iterator[None]:
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, and the failed
-    seeding below records one, which the next test would read as its own.
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 def _seats(*names: str) -> tuple[CastSeat, ...]:

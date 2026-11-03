@@ -132,6 +132,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
+
 #: The scenario's three cast names, in the order the story seats them.
 _CAST = (REPORTER, VENDOR, VENDOR2)
 
@@ -142,20 +145,6 @@ _PREFIX_LEN = len(THE_VENDOR_ANSWERS_THE_REPORTER.items)
 #: word: every scenario of the family names its actors the same on the command
 #: line, in ``ROLES`` and in its devlogs (``dump_vendor_ledgers``).
 _DEVLOG_REPLICAS = tuple((name, name) for name in _CAST)
-
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, so a fragment
-    that records a failure would otherwise leave it for the next test to read
-    as its own — where it also changes what ``demo_gate`` does, because a gate
-    skips its body once anything is recorded (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 @contextlib.contextmanager
@@ -1200,7 +1189,7 @@ class TestARosterThatNeverFillsStopsTheStory:
     def _roster(self, *, fills: bool):
         """Run the opening with its roster filling or timing out.
 
-        The roster gate in ``vendor_story`` and the prop read in
+        The roster gate in ``vendor_story.opening`` and the prop read in
         ``required_participants_are_present`` are the subject, so both stay
         real; only the container reads around them are stubbed.
         """

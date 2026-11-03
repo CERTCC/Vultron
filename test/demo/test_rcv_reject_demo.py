@@ -123,7 +123,8 @@ class TestRcvRejectDumpTargetsTheCaseActorContainer:
     """The ``case-actor`` ledger is dumped from the dedicated container.
 
     The dump is one shared fragment now (#5534), so the export is patched
-    where that fragment looks it up — in ``coordinated_story`` — rather than on
+    where that fragment looks it up — in ``coordinated_story.continuations``
+    — rather than on
     this scenario's own module, which no longer imports it.
     """
 

@@ -70,8 +70,8 @@ the family every scenario shares.
 
 A test that patches a name a fragment looks up patches it on the submodule
 that resolves it, never on this package: the package holds only the re-exports,
-so a patch here reaches no fragment (``test/demo/coordinated_story/\
-test_patch_targets.py``).
+so a patch here reaches no fragment
+(``test/demo_unit/test_story_patch_targets.py``).
 """
 
 from vultron.demo.helpers.coordinated_story.cast import (

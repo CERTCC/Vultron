@@ -63,21 +63,6 @@ _CHAIN_OWNED = frozenset({"find_case_invite_for_actor"})
 _CHAIN_SHARED = frozenset({"wait_for_case_on_container"})
 
 
-@pytest.fixture(autouse=True)
-def fresh_demo_failures() -> Iterator[None]:
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, and a fragment
-    that records a failure leaves it there for the next test — where it
-    changes what ``demo_gate`` does (a gate skips its body once anything is
-    recorded).  Autouse only where a ``conftest.py`` imports it, so a
-    directory opts in once rather than each module keeping its own copy.
-    """
-    demo_utils.reset_demo_failures()
-    yield
-    demo_utils.reset_demo_failures()
-
-
 @contextlib.contextmanager
 def patch_chain_shared(
     demo: ModuleType, name: str, **kwargs: Any
@@ -240,12 +225,13 @@ def functions_referencing(module: ModuleType, name: str) -> list[str]:
     by nothing earlier, because every record written before the case exists is
     one more read of the recording clock (DEMOCI-11-018, #5532).  Read from the
     source rather than by patching, so the claim holds for the code as written
-    and not only for the path a test happens to drive.
+    and not only for the path a test happens to drive.  A package is read
+    across every submodule, so a split leaves no fragment unscanned.
     """
-    tree = ast.parse(inspect.getsource(module))
     return [
         node.name
-        for node in ast.walk(tree)
+        for source in modules_resolving_names(module)
+        for node in ast.walk(ast.parse(inspect.getsource(source)))
         if isinstance(node, ast.FunctionDef)
         and any(
             isinstance(child, ast.Name) and child.id == name
@@ -711,7 +697,7 @@ def null_demo_contexts(stack: contextlib.ExitStack, demo: ModuleType) -> None:
     ``__init__`` only re-exports names, so patching the package itself would
     leave every banner real (CS-18-003, #5592).
     """
-    for module in _modules_resolving_names(demo):
+    for module in modules_resolving_names(demo):
         for name in ("demo_gate", "demo_check", "demo_step"):
             if not hasattr(module, name):
                 continue
@@ -724,8 +710,13 @@ def null_demo_contexts(stack: contextlib.ExitStack, demo: ModuleType) -> None:
             )
 
 
-def _modules_resolving_names(module: ModuleType) -> list[ModuleType]:
-    """*module* itself, or each submodule of it when it is a package."""
+def modules_resolving_names(module: ModuleType) -> list[ModuleType]:
+    """*module* itself, or each submodule of it when it is a package.
+
+    The modules whose globals a fragment of *module* reads a name from: a
+    split package's ``__init__`` only re-exports, so its submodules are where
+    a patch or a source scan has to look (CS-18-003, #5592).
+    """
     if not hasattr(module, "__path__"):
         return [module]
     return [

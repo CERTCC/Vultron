@@ -98,24 +98,14 @@ from vultron.demo.utils import reset_demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
+
 #: The scenario's four cast names, in ``ROLES`` order.
 _CAST = (REPORTER, demo.C1, demo.C2, VENDOR)
 
 #: How many items of ``STORY`` are the shared opening.
 _PREFIX_LEN = len(C1_INVITES_C2.items)
-
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, so a fragment
-    that records a failure would otherwise leave it for the next test to read
-    as its own (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 @contextlib.contextmanager
@@ -685,7 +675,7 @@ class TestRccvExtensionDedicatedCaseActor:
     def test_the_unseated_container_is_declared_through_the_pair_helper(self):
         """The cast opening is told which container to wait on.
 
-        Patched on ``coordinated_story``, where the shared
+        Patched on ``coordinated_story.cast``, where the shared
         ``coordinated_open_cast`` factory looks the opening up: this scenario
         builds its ``open_cast`` callable through that factory rather than
         writing the closure out, so a patch on this module would not reach it.
@@ -965,7 +955,7 @@ class TestARosterThatNeverFillsSkipsTheSuggestion:
     def _roster(self, *, fills: bool):
         """Run the join with its roster filling or timing out.
 
-        The roster gate in ``coordinated_story`` and the prop read in
+        The roster gate in ``coordinated_story.joining`` and the prop read in
         ``owner_decision_story`` are the subject, so both stay real.  Every
         poll after the suggestion trigger is stubbed: left real each would
         spend the whole ``OWNER_DECISION_TIMEOUT`` against a ``MagicMock``

@@ -44,6 +44,9 @@ from vultron.demo.helpers.story import (
 )
 from vultron.errors import DemoStoryError
 
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
+
 # ---------------------------------------------------------------------------
 # The shared cast opening
 # ---------------------------------------------------------------------------
@@ -53,11 +56,12 @@ class TestOpenCoordinatedCast:
     """One reset and one seeding for every scenario of the family.
 
     The reset and the read-back are patched on
-    ``vultron.demo.helpers.story_cast``, not on this module: the opening every
-    composed family shares lives there (``open_story_cast``) and this family's
-    opening only supplies its seats and its seeder, so ``reset_datalayer`` and
-    ``get_actor_by_id`` are resolved on ``story_cast``.  ``seed_containers_rcv``
-    stays on this module, which is the only place that names it.
+    ``vultron.demo.helpers.story_cast``, not on the family's cast module: the
+    opening every composed family shares lives there (``open_story_cast``) and
+    this family's opening only supplies its seats and its seeder, so
+    ``reset_datalayer`` and ``get_actor_by_id`` are resolved on
+    ``story_cast``.  ``seed_containers_rcv`` is patched on
+    ``coordinated_story.cast``, the only module that names it.
     """
 
     def test_the_reset_covers_every_container(self):

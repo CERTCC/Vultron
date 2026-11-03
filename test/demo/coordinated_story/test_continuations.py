@@ -43,6 +43,9 @@ from vultron.demo.helpers.coordinated_story import (
     vendor_reports_the_fix_ready,
 )
 
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
+
 # ---------------------------------------------------------------------------
 # Milestone assertions — AC-4 of ISSUE-1976, now on the fragments
 # ---------------------------------------------------------------------------

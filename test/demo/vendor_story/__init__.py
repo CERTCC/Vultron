@@ -27,5 +27,5 @@ collaborators out, so no HTTP happens; ``demo_gate`` / ``demo_check`` /
 stubbed to ``nullcontext`` only where it is about call shape
 (``test_demo_context_managers.py`` owns their behaviour).  Each patch names
 the submodule that looks the patched name up, never the package
-(``test/demo/test_story_patch_targets.py``).
+(``test/demo_unit/test_story_patch_targets.py``).
 """

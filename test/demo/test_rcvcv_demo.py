@@ -79,29 +79,18 @@ from vultron.demo.helpers.polling import LATE_JOINER_TIMEOUT
 from vultron.demo.helpers.story import Choose, UnseatedContainer, choose
 from vultron.demo.scenario import rcv_demo
 from vultron.demo.scenario.registry import registered_scenarios
-from vultron.demo.utils import reset_demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: The scenario's five cast names, in ``ROLES`` order.
 _CAST = (REPORTER, demo.C1, demo.V1, demo.C2, demo.V2)
 
 #: How many items of ``STORY`` are the shared opening.
 _PREFIX_LEN = len(REPORTER_ASKS_THE_VENDOR.items)
-
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, so a fragment
-    that records a failure would otherwise leave it for the next test to read
-    as its own (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 @contextlib.contextmanager
@@ -1122,7 +1111,8 @@ class TestBothVendorsRunTheFixLifecycle:
 
         The per-vendor half — the RM gate, the trigger and the vendor's own VF
         check — is the shared ``vendor_notifies_fix_ready`` (#5534), which
-        resolves its polls in ``coordinated_story``; the coordinator-side
+        resolves its polls in ``coordinated_story.continuations``; the
+        coordinator-side
         milestones this scenario batches over both vendors resolve theirs
         here.  Both modules are patched, because a patch on one alone would
         leave the other polling a stand-in client.
@@ -1633,7 +1623,7 @@ class TestRcvcvUnseatedContainers:
     def test_run_rcvcv_demo_declares_both_character_actors_unseated(self):
         """The cast opening is told which containers to wait on.
 
-        Patched on ``coordinated_story``, where the shared
+        Patched on ``coordinated_story.cast``, where the shared
         ``coordinated_open_cast`` factory looks the opening up: this scenario
         builds its ``open_cast`` callable through that factory rather than
         writing the closure out, so a patch on this module would not reach it.

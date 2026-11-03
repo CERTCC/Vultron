@@ -49,11 +49,13 @@ from vultron.demo.helpers import story_cast
 from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
 from vultron.demo.helpers.story import Story, StoryState, story
 from vultron.demo.helpers.vendor_story import cast as vendor_cast
-from vultron.demo.utils import reset_demo_failures
 from vultron.errors import DemoFailureError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: What the scenario does before a case exists, as a patch target: a bare name
 #: is read off the scenario's own module, a dotted one is taken as written.
@@ -159,14 +161,6 @@ def _client_kwargs(run_fn) -> dict[str, MagicMock]:
         for name in inspect.signature(run_fn).parameters
         if name.endswith("_client")
     }
-
-
-@pytest.fixture(autouse=True)
-def _clean_failure_accumulator():
-    """Isolate the module-level demo failure accumulator between tests."""
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 class TestManifestWrittenWhenScenarioDiesEarly:

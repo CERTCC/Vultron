@@ -56,9 +56,11 @@ from vultron.demo.helpers.owner_decision_story import (
     Part,
 )
 from vultron.demo.helpers.story import StoryProp
-from vultron.demo.utils import reset_demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: A neutral cast, named for the part each plays rather than for either pair's
 #: actors: the two-coordinator pair runs these continuations with C1, C2 and a
@@ -77,19 +79,6 @@ _CAST = (REPORTER, OWNER.name, JOINER.name, NEWCOMER.name)
 
 #: The roster both continuations gate their newcomer's triage on.
 _SEATED = (REPORTER, OWNER.name, JOINER.name, NEWCOMER.name)
-
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, and a gate skips
-    its own body once anything is recorded, so a leftover failure changes what
-    the next test observes (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 @contextlib.contextmanager

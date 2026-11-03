@@ -22,7 +22,7 @@ Every test patches the collaborators out, so no HTTP happens; ``demo_gate`` /
 control flow, and stubbed to ``nullcontext`` only where it is about call
 shape (``test_demo_context_managers.py`` owns their behaviour).  Each patch
 names the submodule that looks the patched name up, never the package
-(``test/demo/test_story_patch_targets.py``).
+(``test/demo_unit/test_story_patch_targets.py``).
 
 These tests are mock-only, yet they live under ``test/demo/`` rather than
 ``test/demo_unit/`` — and so are auto-marked ``integration`` by that

@@ -151,6 +151,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
+
 #: The scenario's two actor cast names, in ``ROLES`` order.
 _CAST = (REPORTER, VENDOR)
 
@@ -205,19 +208,6 @@ def patch_datalayer_call(client: TestClient, base: str):
         yield
     finally:
         mp.undo()
-
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, so a fragment
-    that records a failure would otherwise leave it for the next test to read
-    as its own (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 @contextlib.contextmanager
@@ -963,7 +953,7 @@ class TestARosterThatNeverFillsStopsTheStory:
     def _roster(self, case, *, fills: bool):
         """Run the opening with its roster filling or timing out.
 
-        The roster gate in ``vendor_story`` and the prop read in
+        The roster gate in ``vendor_story.opening`` and the prop read in
         ``required_participants_are_present`` are the subject, so both stay
         real.  Everything that talks to a container is stubbed: left real each
         would poll a ``MagicMock`` store for its whole budget and buy no

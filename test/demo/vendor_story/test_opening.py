@@ -54,6 +54,9 @@ from vultron.demo.helpers.vendor_story import (
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
+
 
 def _gate_failures() -> list[str]:
     """Every recorded gate failure, in order."""

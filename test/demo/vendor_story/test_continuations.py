@@ -49,10 +49,13 @@ from vultron.demo.helpers.vendor_story import (
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
+
 
 @contextlib.contextmanager
 def _recording_checks() -> Iterator[list[str]]:
-    """Stub this module's ``demo_check`` and collect the labels it was given.
+    """Stub the continuations' ``demo_check`` and collect its labels.
 
     Each milestone's label is the *caller's* — a scenario numbers its own
     milestones — so the labels are what a test of a shared continuation can

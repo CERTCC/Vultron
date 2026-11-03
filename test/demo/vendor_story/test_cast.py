@@ -49,6 +49,9 @@ from vultron.demo.helpers.vendor_story import (
 )
 from vultron.errors import DemoStoryError
 
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
+
 #: A cast name the ``rvcv`` pair brings in after the branch point, used here
 #: to stand for any container the opening resets but does not seed (#5532).
 _JOINER = family.VENDOR2
@@ -153,7 +156,7 @@ class TestVendorSeats:
         repeats its arguments is a question of duplication, not of when the
         seeding runs, and both answers satisfy this rule.
         """
-        seeders = functions_referencing(vendor_cast, "seed_containers")
+        seeders = functions_referencing(family, "seed_containers")
 
         assert seeders, (
             "the source walk found no caller of the seeding — the check is"
@@ -173,7 +176,8 @@ def _cast_stubs(seeded, *, seed_error=None) -> Iterator[SimpleNamespace]:
     ``open_vendor_cast`` delegates to
     :func:`~vultron.demo.helpers.story_cast.open_story_cast`, so the reset and
     the read-back are looked up on **that** module while the seeder closure
-    is looked up on ``vendor_story``: patching all three on one module would
+    is looked up on ``vendor_story.cast``: patching all three on one module
+    would
     stub nothing the code under test calls.
     """
     with (
