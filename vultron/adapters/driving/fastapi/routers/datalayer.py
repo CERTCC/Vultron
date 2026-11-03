@@ -158,7 +158,7 @@ def _serve_stored(obj: PersistableModel) -> AS2JSONResponse | dict[str, Any]:
     operation_id="datalayer_get_actor_offer",
 )
 def get_actor_offer(
-    actor_id: str, offer_id: str, datalayer: DataLayer = Depends(get_actor_dl)
+    offer_id: str, datalayer: DataLayer = Depends(get_actor_dl)
 ) -> AS2JSONResponse:
     obj = _read_offer(datalayer, offer_id)
 

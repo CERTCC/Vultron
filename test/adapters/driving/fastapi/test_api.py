@@ -64,9 +64,13 @@ def test_datalayer_empty(client):
 
 
 def test_datalayer_get_nonexistent_actor(client, dl_route_key):
-    """Test retrieving an actor that does not exist"""
+    """Test retrieving an actor that does not exist.
+
+    The segment names the type an actor would be stored as, so the 404
+    comes from the missing row, not from a type segment no row carries.
+    """
     response = client.get(
-        f"/actors/{dl_route_key}/datalayer/Actors/nonexistent-actor"
+        f"/actors/{dl_route_key}/datalayer/Person/nonexistent-actor"
     )
     assert response.status_code == 404
 
