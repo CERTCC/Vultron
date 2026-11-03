@@ -45,14 +45,15 @@ _RUNNER_MODULE = "story.py"
 #: Every other helper module.  DEMOCI-11-019 forbids a mark placed by any
 #: helper, not only by one holding story fragments, so the scan takes the whole
 #: package rather than a suffix glob: a `choose`'s trigger is called from
-#: ``workflow.py`` and the invite halves from ``invite_chain.py``, and a mark
+#: ``workflow.py`` and the invite halves from ``invite_chain/``, and a mark
 #: slipped into either would have been invisible to a ``*_story.py`` glob.
+#: Every module at any depth, because a split helper is a subpackage
+#: (CS-18-005) and a flat glob would silently drop every module inside one.
+_HELPERS_DIR = _corpus.REPO_ROOT / "vultron" / "demo" / "helpers"
 _HELPER_MODULES = sorted(
     path
-    for path in (_corpus.REPO_ROOT / "vultron" / "demo" / "helpers").glob(
-        "*.py"
-    )
-    if path.name != _RUNNER_MODULE
+    for path, _ in _corpus.all_sources(_HELPERS_DIR)
+    if path.relative_to(_HELPERS_DIR).as_posix() != _RUNNER_MODULE
 )
 
 
@@ -234,9 +235,13 @@ def test_the_runner_is_the_one_module_held_out_of_the_scan() -> None:
         "marks each choose(...) item it passes."
     )
     assert runner not in _HELPER_MODULES
-    names = {path.name for path in _HELPER_MODULES}
+    names = {
+        path.relative_to(_HELPERS_DIR).as_posix() for path in _HELPER_MODULES
+    }
     assert _RUNNER_MODULE not in names
-    assert "invite_chain.py" in names and "workflow.py" in names, sorted(names)
+    assert "invite_chain/chain.py" in names and "workflow.py" in names, sorted(
+        names
+    )
 
 
 @pytest.mark.parametrize(

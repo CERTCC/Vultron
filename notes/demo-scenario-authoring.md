@@ -94,7 +94,7 @@ It also double-delivers when the real delivery succeeds too (#3980).
    the effect, read from its own container — and gate on it with `demo_gate`
    (see [event-driven-control-flow.md](event-driven-control-flow.md)
    § "Temporal Sequence vs. Causal Sequence"). The polling helpers are in
-   `vultron/demo/helpers/polling.py`, `invite_chain.py` and `milestones.py`.
+   `vultron/demo/helpers/polling.py`, `invite_chain/` and `milestones.py`.
 2. A wait that times out reliably in CI points at the delivery path (retries,
    health checks, startup order), not at the demo script.
 3. There is no self-delivery exception: an actor's own replica updates from the
@@ -120,7 +120,7 @@ and call it from both places (DEMOMA-17-001, the MUST-level form of CS-22-001).
 1. Grep `vultron/demo/helpers/` for a helper before writing a step.
 2. If the second use differs, parameterize the helper; differing variants are a
    design task, not a reason to skip. `run_case_invite_chain`
-   (`helpers/invite_chain.py`) is the model: the variants are parameters and what
+   (`helpers/invite_chain/`) is the model: the variants are parameters and what
    follows is a `then` callback. It is a callback, not a `with` block, because
    `demo_gate` suppresses an exception before a generator-based context manager
    could yield. `test_demo_scenarios_use_invite_chain_helper.py` enforces it.

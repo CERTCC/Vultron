@@ -49,7 +49,8 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import invite_chain, runner, workflow
+from vultron.demo.helpers import runner, workflow
+from vultron.demo.helpers.invite_chain import links as invite_links
 from vultron.demo.helpers.story import StoryState, UnseatedContainer
 from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME
 from vultron.demo.in_process import response_value
@@ -72,7 +73,7 @@ def patch_chain_shared(
     the scenario's calls and the chain's alike.
     """
     with patch.object(demo, name, **kwargs) as mock:
-        with patch.object(invite_chain, name, new=mock):
+        with patch.object(invite_links, name, new=mock):
             yield mock
 
 

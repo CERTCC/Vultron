@@ -58,7 +58,7 @@ from test.demo._helpers import (
     story_state,
 )
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import coordinated_story, invite_chain, story_cast
+from vultron.demo.helpers import coordinated_story, story_cast
 from vultron.demo.helpers.coordinated_story import (
     COORDINATOR,
     COORDINATOR_LABEL,
@@ -81,6 +81,10 @@ from vultron.demo.helpers.coordinated_story import (
     vendor_accepts_and_joins,
     vendor_rejects_invite,
     vendor_reports_the_fix_ready,
+)
+from vultron.demo.helpers.invite_chain import (
+    chain as invite_runs,
+    links as invite_links,
 )
 from vultron.demo.helpers.story import (
     StoryProp,
@@ -1032,7 +1036,7 @@ class TestReporterCaseReplicaWaitBeforeVendorTriage:
                 side_effect=lambda **_kw: call_order.append("triage"),
             ),
             patch.object(ActorSession, "accept_case_invite"),
-            patch.object(invite_chain, "reply_to_full_case_invite"),
+            patch.object(invite_links, "reply_to_full_case_invite"),
             patch.object(coordinated_story, "wait_for_case_participants"),
             no_demo_banners(coordinated_story),
         ):
@@ -1084,7 +1088,7 @@ class TestVendorAcceptsAndJoins:
             ),
             patch.object(coordinated_story, "run_invite_path_rm_triage"),
             patch.object(ActorSession, "accept_case_invite"),
-            patch.object(invite_chain, "reply_to_full_case_invite") as reply,
+            patch.object(invite_links, "reply_to_full_case_invite") as reply,
             patch.object(coordinated_story, "wait_for_case_participants"),
             no_demo_banners(coordinated_story),
         ):
@@ -1126,7 +1130,7 @@ class TestInviteChainSkipsDependents:
             # case-manager client is a mock, and ``story_state`` builds mocks
             # (#5444).
             patch.object(
-                invite_chain, "find_case_invite_for_actor", **invite_lookup
+                invite_links, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
         ):
             coordinator_invites_vendor(state)
@@ -1167,7 +1171,7 @@ class TestInviteChainSkipsDependents:
 
         with (
             patch.object(ActorSession, "invite_actor_to_case") as invite,
-            patch.object(invite_chain, "find_case_invite_for_actor") as find,
+            patch.object(invite_links, "find_case_invite_for_actor") as find,
             pytest.raises(DemoStoryError, match="roster"),
         ):
             coordinator_invites_vendor(state)
@@ -1208,7 +1212,7 @@ class TestInviteChainSkipsDependents:
         state = story_state(*_CAST, case=mock_case())
         state.keep(ENGAGED_CASE, str(state.case.id_))
         with (
-            patch.object(invite_chain, "_seed_stub_summary") as seed,
+            patch.object(invite_runs, "_seed_stub_summary") as seed,
             patch.object(
                 ActorSession,
                 "invite_actor_to_case",
@@ -1217,7 +1221,7 @@ class TestInviteChainSkipsDependents:
                 ),
             ),
             patch.object(
-                invite_chain,
+                invite_links,
                 "find_case_invite_for_actor",
                 return_value="urn:test:invite",
             ),

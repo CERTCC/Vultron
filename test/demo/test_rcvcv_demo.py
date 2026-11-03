@@ -61,7 +61,6 @@ from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main as cli_main
 from vultron.demo.helpers import (
     coordinated_story,
-    invite_chain,
     owner_decision_story,
     story_cast,
 )
@@ -72,6 +71,7 @@ from vultron.demo.helpers.coordinated_story import (
     TIMELINE_ANSWER,
     VENDOR,
 )
+from vultron.demo.helpers.invite_chain import links as invite_links
 from vultron.demo.helpers.polling import LATE_JOINER_TIMEOUT
 from vultron.demo.helpers.story import Choose, UnseatedContainer, choose
 from vultron.demo.scenario import rcv_demo
@@ -753,7 +753,7 @@ class TestC2SuggestsTheVendorDeployer:
                 return_value="urn:test:case-actor-participant",
             ),
             patch.object(
-                invite_chain,
+                invite_links,
                 "find_case_invite_for_actor",
                 return_value="urn:test:v2-invite",
             ) as find_invite,
@@ -799,7 +799,7 @@ class TestC2SuggestsTheVendorDeployer:
                 return_value="urn:test:case-actor-participant",
             ),
             patch.object(
-                invite_chain,
+                invite_links,
                 "find_case_invite_for_actor",
                 side_effect=AssertionError("timed out polling for Invite"),
             ),
