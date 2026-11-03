@@ -12,7 +12,8 @@ description: >
   `GITHUB_TOKEN`-raised event never triggers another workflow, why a bot-filed
   issue gets a theme but no Epic parent, why an artifact name needs the run
   attempt, why a GitHub write is retried and a label swap is
-  split, and how to read a red CI job correctly.
+  split, how to read a red CI job correctly, and why a new pull-request step
+  must be mirrored locally or excluded with a reason.
 related_notes:
   - notes/demo-ci-invariants.md
   - notes/demo-ci-scenario-coverage.md
@@ -37,6 +38,17 @@ test is wrong or "can never pass" (CONCERN-2243). The inverse trap: an
 all-skipped pytest run exits 0 and reports **green** while checking nothing.
 See [notes/demo-ci-invariants.md](demo-ci-invariants.md) for reading a red
 Invariant Harness job.
+
+## A New Pull-Request Step Is Mirrored Locally or Excluded With a Reason
+
+`prepush-ci-mirror` runs every step a `pull_request` run executes, before each
+push. A step added to a pull-request workflow, or to a local composite action
+one calls, fails `test/ci/test_prepush_ci_mirror_parity.py` until it has an
+entry in `vultron/metadata/planning/ci_mirror/_registry.py`. Add a
+`MirrorCheck`, which runs the step's own `run:` script when it needs no GitHub
+expression. Or add an `EXCLUSIONS` entry saying why it cannot run locally.
+Without that entry the mirror would silently fall behind CI, the gap it closes
+(PAD-18-022, ADR-0173).
 
 ## Push-to-`main` and Scheduled Workflows MUST Wire `notify-failure`
 

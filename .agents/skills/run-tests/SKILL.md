@@ -79,8 +79,8 @@ The first command covers the unit suite (integration tests excluded by
 `addopts = "-m 'not integration'"`). The second explicitly runs the
 integration suite. Both must pass; a branch that only breaks integration
 tests must not reach a non-draft PR. A PR that changes no Python is gated by
-the linters alone, and its `Suite runs:` full count starts at zero
-(PAD-18-006).
+the linters and the CI mirror, with no suite run, and its `Suite runs:` full
+count starts at zero (PAD-18-006).
 
 ## After the First Push (targeted gate)
 

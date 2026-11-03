@@ -462,7 +462,7 @@ Derivation, so the count is cumulative across every execute run on the PR:
    happened: start from `full = 1, targeted = 0` when `create-pr` ran the full
    suites before the first push (an implementation PR that changes Python, on
    the happy path), and from `full = 0, targeted = 0` when it ran none — a
-   docs-only PR gated by the linters alone (PAD-18-010, PAD-18-016). Decide from the PR
+   docs-only PR gated without a suite run (PAD-18-010, PAD-18-016). Decide from the PR
    body's `## Verification` section and the changed files: a PR whose diff
    changes no Python ran no first-push suite.
 3. Add each Phase 5 Step 3 gate run of this execute run: one to `full` per

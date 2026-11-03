@@ -530,6 +530,18 @@ def overlap(branch: Iterable[str], base: Iterable[str]) -> list[str]:
     return sorted(set(branch) & set(base))
 
 
+def branch_overlap(git: GitRunner, start: str, base: str) -> list[str]:
+    """Paths the branch and *base* both changed since *start*, their merge base.
+
+    The one overlap computation: ``targeted-tests --overlap`` and
+    ``merged-tree-tests`` both read it, so they agree on when a branch
+    overlaps its base.
+    """
+    return overlap(
+        changed_paths(git, start), base_changed_paths(git, start, base)
+    )
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -658,9 +670,7 @@ def _run_paths(args: argparse.Namespace, root: Path) -> int:
 def _run_overlap(args: argparse.Namespace, root: Path) -> int:
     git = run_git(root)
     start = merge_base(git, args.base)
-    both = overlap(
-        changed_paths(git, start), base_changed_paths(git, start, args.base)
-    )
+    both = branch_overlap(git, start, args.base)
     if args.json:
         payload = {"base": args.base, "merge_base": start, "overlap": both}
         print(json.dumps(payload, indent=2))
