@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for the shared object-id minter — OID-01-001, OID-01-004."""
+"""Tests for the shared object-id minter — OID-01-001."""
 
 import re
 
@@ -34,7 +34,6 @@ class TestNewObjectId:
     def test_default_is_not_a_bare_uuid(self):
         assert not _UUID_PATTERN.fullmatch(new_object_id())
 
-    @pytest.mark.spec("OID-01-004")
     def test_prefix_form_appends_the_uuid_after_a_slash(self):
         prefix = "https://example.org/objects"
         id_ = new_object_id(prefix=prefix)

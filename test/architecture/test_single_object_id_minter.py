@@ -17,11 +17,17 @@ minter.  Two checks pin it:
 
 * Both layers' ``id_`` default factories *are* that function, so a model built
   without an id gets one from it whichever layer the model lives in.
-* No other module under ``vultron/`` names ``uuid1`` or ``uuid4``, called or
-  not, so no second minter can grow beside it.  A random UUID drawn for
-  something that is not an object id is listed in
-  :data:`NON_ID_RANDOM_UUID_EXEMPTIONS` with the reason.  A derived id
-  (``uuid5``, ``derived_activity_id``) is not minted and is not scanned.
+* No function under ``vultron/`` but the minter names ``uuid1`` or ``uuid4``,
+  called or not, so no second minter can grow beside it.  The scan works per
+  enclosing function, not per module, so a second minter cannot hide in a
+  module that already has an allowed use.  A random UUID drawn for something
+  that is not an object id is listed in :data:`NON_ID_RANDOM_UUID_EXEMPTIONS`
+  with the reason.  A derived id (``uuid5``, ``derived_activity_id``) is not
+  minted and is not scanned.
+
+The scan covers the ``uuid`` module's random draws only.  Random bytes from
+``secrets`` or ``os.urandom`` are not object-id minters by this codebase's
+convention and are not looked for.
 """
 
 import ast
@@ -36,49 +42,92 @@ from vultron.wire.as2.vocab.base.utils import generate_new_id
 
 _VULTRON_ROOT = _corpus.REPO_ROOT / "vultron"
 
-#: The shared minter's own module, the one place an object id is drawn.
-MINTER_MODULE = "vultron/core/models/_helpers.py"
+#: The scope name of code outside any function or class.
+MODULE_SCOPE = "<module>"
 
-#: Modules that draw a random UUID for something other than an object id.
+#: The shared minter: the one function that draws an object id.
+MINTER_SITE = ("vultron/core/models/_helpers.py", "new_object_id")
+
+#: Functions that draw a random UUID for something other than an object id,
+#: keyed on (repo-relative path, dotted enclosing function).
 #: Pinned exemption set: each entry is a recorded decision, not a debt.
 # permanent: OID-01-004 (each entry draws a UUID that never becomes an object id)
-NON_ID_RANDOM_UUID_EXEMPTIONS: dict[str, str] = {
-    "vultron/adapters/driving/fastapi/app.py": (
-        "the name of an app's private in-memory SQLite database"
-    ),
-    "vultron/demo/determinism.py": (
+NON_ID_RANDOM_UUID_EXEMPTIONS: dict[tuple[str, str], str] = {
+    (
+        "vultron/adapters/driving/fastapi/app.py",
+        "_auto_inject_isolated_datalayer",
+    ): "the name of an app's private in-memory SQLite database",
+    ("vultron/demo/determinism.py", "deterministic_run"): (
         "replaces uuid4 with a seeded stand-in for a recording run, so the "
         "shared minter's ids repeat; it mints nothing itself"
     ),
 }
 
 _RANDOM_UUID_NAMES = frozenset({"uuid1", "uuid4"})
+_STAR_IMPORT = "from uuid import *"
 
 
-def _names_a_random_uuid(node: ast.AST) -> bool:
-    """Whether *node* names ``uuid1``/``uuid4``, called or not.
+class _RandomUuidSites(ast.NodeVisitor):
+    """Collect the enclosing scopes in which ``uuid1``/``uuid4`` is named.
 
-    A bare reference counts as well as a call, so ``default_factory=uuid4``
-    is caught, and so is ``from uuid import uuid4 as fresh``: the import names
-    the function whatever the local alias is.
+    A bare reference counts as well as a call, so ``default_factory=uuid4`` is
+    caught.  ``from uuid import uuid4 as fresh`` makes ``fresh`` a name to
+    look for, so an alias is caught where it is used.  ``from uuid import *``
+    hides which names it binds, so the import itself is a site.
     """
-    if isinstance(node, ast.Name):
-        return node.id in _RANDOM_UUID_NAMES
-    if isinstance(node, ast.Attribute):
-        return node.attr in _RANDOM_UUID_NAMES
-    if isinstance(node, ast.ImportFrom) and node.module == "uuid":
-        return any(alias.name in _RANDOM_UUID_NAMES for alias in node.names)
-    return False
+
+    def __init__(self) -> None:
+        self._scope: list[str] = []
+        self._names = set(_RANDOM_UUID_NAMES)
+        self.sites: set[str] = set()
+
+    def _record(self) -> None:
+        self.sites.add(".".join(self._scope) or MODULE_SCOPE)
+
+    def _visit_scope(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
+    ) -> None:
+        self._scope.append(node.name)
+        self.generic_visit(node)
+        self._scope.pop()
+
+    visit_FunctionDef = _visit_scope
+    visit_AsyncFunctionDef = _visit_scope
+    visit_ClassDef = _visit_scope
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        if node.module != "uuid":
+            return
+        for alias in node.names:
+            if alias.name == "*":
+                self._record()
+            elif alias.name in _RANDOM_UUID_NAMES:
+                self._names.add(alias.asname or alias.name)
+
+    def visit_Name(self, node: ast.Name) -> None:
+        if node.id in self._names:
+            self._record()
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        if node.attr in _RANDOM_UUID_NAMES:
+            self._record()
+        self.generic_visit(node)
 
 
-def _random_uuid_drawers() -> frozenset[str]:
-    """Repo-relative paths of ``vultron/`` modules that name ``uuid1``/``uuid4``."""
+def _sites_in(tree: ast.AST) -> set[str]:
+    finder = _RandomUuidSites()
+    finder.visit(tree)
+    return finder.sites
+
+
+def _random_uuid_sites() -> frozenset[tuple[str, str]]:
+    """(path, enclosing function) of every ``vultron/`` use of ``uuid1``/``uuid4``."""
     return frozenset(
-        path.relative_to(_corpus.REPO_ROOT).as_posix()
+        (path.relative_to(_corpus.REPO_ROOT).as_posix(), site)
         for path, tree in _corpus.files_mentioning(
-            *_RANDOM_UUID_NAMES, under=_VULTRON_ROOT
+            *_RANDOM_UUID_NAMES, _STAR_IMPORT, under=_VULTRON_ROOT
         )
-        if any(_names_a_random_uuid(node) for node in ast.walk(tree))
+        for site in _sites_in(tree)
     )
 
 
@@ -87,15 +136,28 @@ def _random_uuid_drawers() -> frozenset[str]:
     "source",
     [
         "import uuid\nx = uuid.uuid4()\n",
-        "from uuid import uuid4\n",
+        "from uuid import uuid4\nf = Field(default_factory=uuid4)\n",
         "from uuid import uuid4 as fresh\nx = fresh()\n",
         "import uuid\nf = Field(default_factory=uuid.uuid4)\n",
         "import uuid\nx = uuid.uuid1()\n",
+        "from uuid import *\n",
     ],
 )
 def test_the_scan_sees_every_way_of_naming_a_random_uuid(source: str):
-    tree = _corpus.parse_inline(source)
-    assert any(_names_a_random_uuid(node) for node in ast.walk(tree))
+    assert _sites_in(_corpus.parse_inline(source)) == {MODULE_SCOPE}
+
+
+@pytest.mark.spec("OID-01-004")
+def test_the_scan_names_the_enclosing_function():
+    tree = _corpus.parse_inline(
+        "import uuid\n"
+        "class Minter:\n"
+        "    def mint(self):\n"
+        "        return uuid.uuid4()\n"
+        "def other():\n"
+        "    return 1\n"
+    )
+    assert _sites_in(tree) == {"Minter.mint"}
 
 
 @pytest.mark.spec("OID-01-004")
@@ -103,7 +165,7 @@ def test_the_scan_ignores_a_derived_uuid():
     tree = _corpus.parse_inline(
         "import uuid\nx = uuid.uuid5(uuid.NAMESPACE_URL, 'a')\n"
     )
-    assert not any(_names_a_random_uuid(node) for node in ast.walk(tree))
+    assert _sites_in(tree) == set()
 
 
 @pytest.mark.spec("OID-01-004")
@@ -114,14 +176,14 @@ def test_core_and_wire_id_default_factories_are_the_shared_minter():
 
 
 @pytest.mark.spec("OID-01-004")
-def test_no_module_but_the_shared_minter_draws_a_random_uuid():
-    drawers = _random_uuid_drawers()
-    assert MINTER_MODULE in drawers, (
+def test_no_function_but_the_shared_minter_draws_a_random_uuid():
+    sites = _random_uuid_sites()
+    assert MINTER_SITE in sites, (
         "the scan no longer sees the shared minter draw a UUID; "
         "fix the scan before trusting it"
     )
-    assert drawers - {MINTER_MODULE} == set(NON_ID_RANDOM_UUID_EXEMPTIONS), (
-        "a module outside the shared minter names uuid1/uuid4: mint object "
+    assert sites - {MINTER_SITE} == set(NON_ID_RANDOM_UUID_EXEMPTIONS), (
+        "a function outside the shared minter names uuid1/uuid4: mint object "
         "ids with new_object_id (OID-01-004), or list a non-id use in "
         "NON_ID_RANDOM_UUID_EXEMPTIONS with its reason"
     )

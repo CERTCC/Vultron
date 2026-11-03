@@ -65,8 +65,8 @@ groups:
     verification: >-
       `test_env_override_base_url` in `test/test_config.py` confirms that the base URI
       comes from `VULTRON_SERVER__BASE_URL` rather than a hardcoded value, and
-      `test_get_actor_dl_expands_a_bare_segment_to_the_canonical_uri` in
-      `test/adapters/driving/fastapi/test_deps.py` confirms that a hosted actor's id is
+      `TestCanonicalActorUri::test_falls_back_to_configured_base_url` in
+      `test/adapters/driven/test_actor_hosts.py` confirms that a hosted actor's id is
       built on the configured base.
     stories:
     - story_2022_029

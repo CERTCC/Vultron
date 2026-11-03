@@ -16,14 +16,19 @@
 import importlib
 import sys
 import threading
+import types
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
-import vultron.adapters.driving.fastapi.app as fastapi_app
 from vultron.core.models import _helpers
-from vultron.core.models._helpers import now_utc
+from vultron.core.models._helpers import (
+    URN_UUID_PREFIX,
+    new_object_id,
+    now_utc,
+)
+from vultron.core.models.base import CoreRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.demo.determinism import (
     RECORDING_CLOCK_STEP,
@@ -34,6 +39,15 @@ from vultron.demo.determinism import (
 )
 
 _START = datetime(2026, 3, 1, tzinfo=UTC)
+
+
+@pytest.fixture
+def from_import_user(monkeypatch) -> types.ModuleType:
+    """A throwaway module binding ``uuid4`` as ``from uuid import uuid4`` does."""
+    module = types.ModuleType("from_import_uuid_user")
+    vars(module)["uuid4"] = uuid.uuid4
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    return module
 
 
 class TestSeededUuid4:
@@ -121,20 +135,28 @@ class TestDeterministicRun:
         assert entry.published.year == _START.year
         assert entry.published.month == _START.month
 
-    def test_module_and_from_import_bindings_are_both_seeded(self):
+    def test_module_and_from_import_bindings_are_both_seeded(
+        self, from_import_user
+    ):
         expected = SeededUuid4("rv")
         with deterministic_run("rv"):
             assert uuid.uuid4() == expected()
-            # The FastAPI app module binds `uuid4` with `from uuid import`.
-            assert fastapi_app.uuid4() == expected()
+            assert from_import_user.uuid4() == expected()
 
-    def test_everything_is_restored_on_exit(self):
+    @pytest.mark.spec("OID-01-004")
+    def test_the_shared_minter_repeats_its_ids(self):
+        expected = SeededUuid4("rv")
+        with deterministic_run("rv"):
+            assert new_object_id() == f"{URN_UUID_PREFIX}{expected()}"
+            assert CoreRecord().id_ == f"{URN_UUID_PREFIX}{expected()}"
+
+    def test_everything_is_restored_on_exit(self, from_import_user):
         real_uuid4 = uuid.uuid4
         real_datetime = _helpers.datetime
         with deterministic_run("rv"):
             pass
         assert uuid.uuid4 is real_uuid4
-        assert fastapi_app.uuid4 is real_uuid4
+        assert from_import_user.uuid4 is real_uuid4
         assert _helpers.datetime is real_datetime
 
     def test_a_module_imported_inside_the_block_is_restored(
