@@ -8,7 +8,8 @@ description: >
   decisions that bind new trees, actor and identity isolation, the BT
   concurrency lock, why all protocol-significant behavior lives in the tree,
   why a delivery's trees are composed and never chained, the received-side
-  stages, and how to translate a simulator tree.
+  stages including the path stage that asks the receiver's role once, and how
+  to translate a simulator tree.
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/handler-protocol.yaml
@@ -259,8 +260,8 @@ answer, clock decisions, guards, commit, effects.
    object; the record core keeps is written by an effect node after the guards,
    because a stored case row *is* the replica (PCR-03-004, CBT-01-005).
 2. **Door guards** — in order: the post-close write boundary (CM-23-013), the
-   addressee check (HP-01-005), the closed-sender door (CM-23-018) and the
-   sender guard (HP-01-006).
+   addressee check (HP-01-005), the path stage (HP-01-012), the closed-sender
+   door (CM-23-018) and the sender guard (HP-01-006).
 
    Directly after intake the factory places `CaseOpenToExternalWritesNode`
    (`case/nodes/post_close.py`), the CM-23-013 write boundary: at the case's
@@ -291,6 +292,31 @@ answer, clock decisions, guards, commit, effects.
    `test/architecture/test_received_tree_addressee_guard.py` pins each use.
    The check reads `event.activity`, so a registry entry must set
    `include_activity` or every delivery of that message is refused.
+
+   Ask the receiver's role once, in the path stage, and never again in the
+   same tree. `ReceivedPathNode` (`case/nodes/received_path.py`) reads
+   `has_role(actor_id, case_id, CVDRole.CASE_MANAGER, dl)` and the answer is
+   the *manager*, *participant replica* or *no case yet* path; the sender
+   guard's at-the-CASE_MANAGER and at-a-participant arms read that answer, so
+   one cause gives one verdict (HP-01-012). A tree gets the stage by declaring
+   the paths its message type handles, once, as the factory's `paths=`
+   argument; a delivery on a path the declaration omits is `REFUSED` there
+   with the factory's single reason, so no handler infers "not the manager"
+   from a gate skip anywhere in the tree (HP-01-005). Declare a branch per
+   path the type does real work on, never a narrower set with an ungated
+   effect making up the difference.
+
+   `has_role()` (`core/participants/role_predicate.py`) is the only sanctioned
+   way to ask whether an actor holds a role in a case: it reads the roster
+   fresh per message, because a role belongs to an `(actor, case)` pair and
+   changes while the case runs (CM-02-011). No case yet either waits or
+   proceeds: a case-scoped type is held by the inbox's defer check until its
+   case is known, so only a type that precedes or establishes its case
+   declares the no-case branch (`CASE_PRECEDING_SEMANTICS`,
+   `CASE_BOOTSTRAP_SEMANTICS` in `core/models/events/case_context.py`).
+   Every received-side site that still asks the role question another way is
+   listed in `test/architecture/test_received_path_role_question.py`, whose
+   set only shrinks (ARCH-18-001).
 
    A tree whose sender may already be closed on the case and whose answer must
    be told apart (a `Leave`, a stub or full-case Invite reply) passes

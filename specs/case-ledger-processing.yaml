@@ -2150,7 +2150,8 @@ groups:
     kind: project
     statement: 'In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT`
       subtree, the ordering MUST be: (1) intake, (2) door guards, in order: the
-      post-close write boundary (CM-23-013), the addressee check (HP-01-005) and
+      post-close write boundary (CM-23-013), the addressee check (HP-01-005), the
+      path stage (ADR-0153) and
       the sender guard (HP-01-006), (2a) the ledger-position answer (SYNC-18-004,
       SYNC-18-005, SYNC-18-007), (3) clock decisions
       (CLP-10-025), (4) precondition guards, (5) commit, (6) all protocol effects.
@@ -2162,7 +2163,10 @@ groups:
       commits nothing and leaves the disposition of the act to the later stages. Refusal
       effects (CLP-10-022) belong to stage (4): they run only
       after a precondition guard refuses, and the tree then ends without
-      reaching (5) or (6).'
+      reaching (5) or (6). The path stage is present in a tree whose message type
+      declares the paths it handles: it asks the receiver''s role once, picks the
+      manager, participant-replica or no-case path, refuses a path the declaration
+      omits, and writes nothing.'
     rationale: Intake records what arrived. The canonical case ledger records the cause
       (the received activity the CASE_MANAGER accepted) and replicates it to all
       participants, so cause precedes effects. A clock decision is the CASE_MANAGER's
@@ -2171,11 +2175,17 @@ groups:
       unentitled sender never makes it write (ADR-0135). The ledger-position answer
       runs before the guards because it answers the sender's stated position
       whatever the act's own outcome (SYNC-18-007), and after the door guards for
-      the same reason as a clock decision.
-    verification: Covered by the structural test named in CLP-10-006.
+      the same reason as a clock decision. The path stage runs among the door guards
+      because the role question decides whether the message is this receiver's to act
+      on at all, and ahead of the sender guard so the guard reads the path instead of
+      asking the same question a second time (HP-01-012).
+    verification: Covered by the structural test named in CLP-10-006;
+      `test/core/behaviors/case/test_received_path_stage.py` pins the path stage's
+      place among the door guards.
     adr:
     - ADR-0111
     - ADR-0135
+    - ADR-0153
   - id: CLP-10-011
     priority: MUST
     kind: project

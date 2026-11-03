@@ -70,6 +70,10 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
+from vultron.core.behaviors.case.nodes.received_path import (
+    CheckReceivedPathNode,
+    ReceivedPathNode,
+)
 from vultron.core.behaviors.sender_check_context import (
     AddresseeRequest,
     AuthoredCaseProposal,
@@ -495,7 +499,9 @@ def _ledger_guard(rule: SenderRule) -> py_trees.behaviour.Behaviour | None:
 
 
 def compose_sender_guard(
-    rule: SenderRule, ctx: SenderContext
+    rule: SenderRule,
+    ctx: SenderContext,
+    path_stage: ReceivedPathNode | None = None,
 ) -> py_trees.behaviour.Behaviour | None:
     """Compose the guard *rule* requires for the activity *ctx* describes.
 
@@ -504,6 +510,12 @@ def compose_sender_guard(
         ctx: The sender and the records its kinds are checked against, or a
             :class:`LedgerActivityContext` for an activity whose case the
             ledger entry it carries names.
+        path_stage: The tree's path door stage, when it declared its paths.
+            The rule's ``at_case_manager`` and ``at_participant`` arms are
+            then selected from the path that stage resolved, so the role
+            question is asked once, ahead of this guard (ADR-0153 detail 3,
+            HP-01-012).  Without it the arms read the role themselves, as
+            every tree did before the path stage.
 
     Returns:
         The guard, or ``None`` when the receiver's side admits any actor.
@@ -516,14 +528,32 @@ def compose_sender_guard(
             ``case_id``; or a ledger activity's rule declares a kind that
             cannot read the case at run time, or differs by side.
     """
-    guard = _compose(rule, ctx)
+    guard = _compose(rule, ctx, path_stage)
     if guard is not None:
         setattr(guard, _COMPOSED_GUARD_MARK, True)
     return guard
 
 
+def _at_case_manager(
+    case_id: str, path_stage: ReceivedPathNode | None
+) -> py_trees.behaviour.Behaviour:
+    """The condition "this receiver is the case's CASE_MANAGER", for an arm.
+
+    The path stage's answer when the tree declared its paths (ADR-0153), and
+    the role read of
+    :class:`~vultron.core.behaviors.case.nodes.conditions.CheckIsCaseManagerNode`
+    otherwise.  One helper, so both arms of the rule guard agree on which it
+    is.
+    """
+    if path_stage is not None:
+        return CheckReceivedPathNode.on_manager_path(path_stage)
+    return CheckIsCaseManagerNode(case_id=case_id, case_may_be_absent=True)
+
+
 def _compose(
-    rule: SenderRule, ctx: SenderContext
+    rule: SenderRule,
+    ctx: SenderContext,
+    path_stage: ReceivedPathNode | None = None,
 ) -> py_trees.behaviour.Behaviour | None:
     """The guard :func:`compose_sender_guard` returns, before it is marked."""
     if isinstance(ctx, LedgerActivityContext):
@@ -563,9 +593,7 @@ def _compose(
                 children=[
                     py_trees.decorators.Inverter(
                         name="NotAtCaseManager",
-                        child=CheckIsCaseManagerNode(
-                            case_id=ctx.case_id, case_may_be_absent=True
-                        ),
+                        child=_at_case_manager(ctx.case_id, path_stage),
                     ),
                     manager,
                 ],
@@ -574,9 +602,7 @@ def _compose(
                 name="AtParticipant",
                 memory=False,
                 children=[
-                    CheckIsCaseManagerNode(
-                        case_id=ctx.case_id, case_may_be_absent=True
-                    ),
+                    _at_case_manager(ctx.case_id, path_stage),
                     participant,
                 ],
             ),

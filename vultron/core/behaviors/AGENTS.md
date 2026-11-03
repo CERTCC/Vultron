@@ -123,6 +123,19 @@ it from its base). The pre-BT-17-008 `effect_nodes` parameter was retired
 `notes/bt-pitfalls.md` § "A Received Tree Gets Its CASE_MANAGER Gate From the
 Factory".
 
+**One role question per message picks the path (ADR-0153).** Declare the paths
+a message type handles once, as the factory's `paths={ReceivedPath...}`: the
+path stage (`case/nodes/received_path.py`) asks
+`has_role(actor_id, case_id, CVDRole.CASE_MANAGER, dl)` among the door guards,
+the sender guard's addressee arms read that answer, and a delivery on an
+undeclared path is `REFUSED` there with the factory's one reason (HP-01-005,
+HP-01-012). `has_role()` (`core/participants/role_predicate.py`) is the only
+sanctioned way to ask whether an actor holds a role in a case; a handler reads
+the answer with `received_path(tree)`, never by inferring "not the manager"
+from a failed gate. Every site still asking it another way is listed in
+`test/architecture/test_received_path_role_question.py`. Full write-up:
+`notes/bt-integration.md` § "The Received-Side Stages".
+
 ---
 
 ## Compose Before Create: Node Discovery Gate

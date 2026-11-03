@@ -32,6 +32,7 @@ import logging
 from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.suggest_actor_tree import (
     create_accept_actor_recommendation_received_tree,
     create_receive_offer_case_participant_tree,
@@ -51,9 +52,8 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
-    case_manager_verdict,
     intake_verdict,
-    not_case_manager,
+    received_path,
     verdict_from_bt,
 )
 
@@ -148,19 +148,17 @@ class OfferCaseParticipantReceivedUseCase:
                 verdict.reason,
             )
             return verdict
-        if not_case_manager(tree):
-            # The ledger commit is this tree's only work, and it is the
-            # CASE_MANAGER's; a missing case also fails that gate (rule 3).
-            if self._dl.read(case_id) is None:
-                return HandlerResult.refused(f"unknown case '{case_id}'")
+        if received_path(tree) is ReceivedPath.PARTICIPANT_REPLICA:
+            # The tree's path stage put this receiver on the participant
+            # replica path, one of the two the tree declares (ADR-0153):
+            # the ledger commit is the CASE_MANAGER's, so this store keeps
+            # what arrived and takes the entry from the ledger.
             # Past the tree's door and sender guards, the Offer is addressed
             # to this store, by name or as an active participant of a
-            # participants collection its `to` names (HP-01-012).  Only the
-            # CASE_MANAGER sends an Offer(CaseParticipant), and it addresses
-            # the Case Owner, so a non-CASE_MANAGER store never holds its own
-            # copy (HP-01-005).  The Offer is now the addressee's to decide,
-            # by a separate outbound Accept or Reject; a redelivery archives
-            # nothing new and is SKIPPED.
+            # participants collection its `to` names (HP-01-012).  The Offer
+            # is now the addressee's to decide, by a separate outbound
+            # Accept or Reject; a redelivery archives nothing new and is
+            # SKIPPED.
             return intake_verdict(
                 tree, result, label="ReceiveOfferCaseParticipantBT"
             )
@@ -234,10 +232,13 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         result = bridge.execute_with_setup(
             tree, actor_id=local_actor_id, activity=request
         )
+        # The tree declares the manager path alone, so a receiver on any
+        # other path is refused by its path door stage, with the one shared
+        # reason (ADR-0153, HP-01-005): the handler reads the verdict and
+        # infers nothing from a gate skip.
         verdict = verdict_from_bt(
             tree, result, label="AcceptActorRecommendationBT"
         )
-        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "AcceptActorRecommendationBT refused '%s': %s",
@@ -312,10 +313,11 @@ class RejectOfferCaseParticipantReceivedUseCase:
         result = bridge.execute_with_setup(
             tree, actor_id=local_actor_id, activity=request
         )
+        # As for the Accept: the path stage refuses any receiver that is not
+        # the case's CASE_MANAGER (ADR-0153, HP-01-005).
         verdict = verdict_from_bt(
             tree, result, label="RejectActorRecommendationBT"
         )
-        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "RejectActorRecommendationBT refused '%s': %s",

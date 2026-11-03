@@ -230,10 +230,18 @@ def test_answer_naming_no_case_is_archived_and_refused(verb: Verb):
     assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
 
-@pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("HP-01-005")
 @pytest.mark.parametrize("verb", ["accept", "reject"])
 def test_case_manager_refuses_an_answer_addressed_to_itself(verb: Verb):
-    """The rule names no sender at the CASE_MANAGER, so it refuses its own."""
+    """The tree declares the participant path alone, so it refuses its own.
+
+    The CASE_MANAGER ledgered the answer when it sent it and never receives
+    it, so the manager path is undeclared and the path door stage refuses the
+    delivery with the reason every message type shares (ADR-0153, HP-01-005).
+    Before the path stage the same copy was refused one stage later, by the
+    sender rule stating no CASE_MANAGER side; the verdict is unchanged and the
+    cause now has one name.
+    """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_ACTOR_ID)
     case = as_VulnerabilityCase(
         id_=CASE_ID,
@@ -247,6 +255,6 @@ def test_case_manager_refuses_an_answer_addressed_to_itself(verb: Verb):
     result = _run(dl, verb, _event(verb, to=[CASE_ACTOR_ID]))
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert "No sender is entitled" in (result.reason or "")
+    assert result.reason == f"not the CASE_MANAGER of case '{CASE_ID}'"
     assert dl.list_objects("CaseLedgerEntry") == []
     assert dl.outbox_list() == []

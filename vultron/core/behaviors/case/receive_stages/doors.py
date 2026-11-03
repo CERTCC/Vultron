@@ -15,10 +15,12 @@
 
 """The door guards of a received tree (CLP-10-010, HP-01-005, CM-23-013).
 
-Intake is followed by the post-close guard, the addressee check, the
-closed-sender check, any case resolution and the sender guard.  Split out of
-``receive_activity_tree.py`` (CS-18-005).
+Intake is followed by the post-close guard, the addressee check, the path
+stage, the closed-sender check, any case resolution and the sender guard.
+Split out of ``receive_activity_tree.py`` (CS-18-005).
 """
+
+from collections.abc import Collection
 
 import py_trees
 
@@ -35,6 +37,11 @@ from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
     PostCloseExemption,
 )
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+    ReceivedPathNode,
+    declared_paths,
+)
 from vultron.core.behaviors.case.receive_stages.guards import refusal_stage
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.exemption_registry import require_registered
@@ -42,6 +49,7 @@ from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import (
     ClosedSenderCheck,
     LedgerActivityContext,
+    SenderCheckContext,
     SenderContext,
     closed_sender_door,
     compose_sender_guard,
@@ -120,6 +128,63 @@ def post_close_stage(
     ]
 
 
+def path_stage_case_id(
+    case_id: str | None,
+    manager_case_id: str | None,
+    sender_context: SenderContext | None,
+) -> str | None:
+    """The case the path stage reads the receiver's role in (ADR-0153).
+
+    The tree's commit case, else the case whose CASE_MANAGER gates its
+    effects, else the case its sender context names — the same case the
+    sender guard judges the sender against, which is the case the activity
+    is about even in a tree that commits nothing (HP-01-025).  ``None`` for
+    a tree that names no case at build time; the stage then resolves it at
+    run time, from the blackboard or the activity, and reads a case it
+    cannot find as the no-case path.
+    """
+    if case_id is not None:
+        return case_id
+    if manager_case_id is not None:
+        return manager_case_id
+    if isinstance(sender_context, SenderCheckContext):
+        return sender_context.case_id
+    return None
+
+
+def received_path_stage(
+    name: str,
+    case_id: str | None,
+    paths: Collection[ReceivedPath] | None,
+) -> ReceivedPathNode | None:
+    """The path door stage of a tree that declared its paths (ADR-0153).
+
+    Placed after the addressee check and before the sender guard
+    (CLP-10-010, HP-01-012): one role question picks the manager,
+    participant-replica or no-case path, the sender guard reads that answer
+    instead of asking again, and a path the message type did not declare is
+    refused there with the one shared reason (HP-01-005).
+
+    ``None`` for a tree that has not declared its paths yet; the migration
+    onto the declaration is tracked by the ratchet in
+    ``test/architecture/test_received_path_role_question.py``.
+
+    Raises:
+        VultronWiringError: The declaration names no path.  A tree that
+            handles no path would refuse every delivery, so an empty
+            declaration is a wiring mistake, not a path stage.
+    """
+    if paths is None:
+        return None
+    declared = declared_paths(paths)
+    if not declared:
+        raise VultronWiringError(
+            f"create_receive_activity_tree({name}): paths must name at"
+            " least one ReceivedPath (ADR-0153)"
+        )
+    return ReceivedPathNode(declared=declared, case_id=case_id, label=name)
+
+
 def closed_sender_stage(
     name: str, case_id: str | None, check: ClosedSenderCheck
 ) -> py_trees.behaviour.Behaviour:
@@ -192,6 +257,7 @@ def sender_guard_stage(
     manager_case_id: str | None,
     sender_rule: SenderRule | None,
     sender_context: SenderContext | None,
+    path_stage: ReceivedPathNode | None = None,
 ) -> py_trees.behaviour.Behaviour | None:
     """The tree's sender guard, composed from the declared rule (HP-01-025).
 
@@ -202,6 +268,10 @@ def sender_guard_stage(
     :class:`~vultron.core.behaviors.sender_guard.LedgerActivityContext`
     reads the case from the activity at run time, so it is given only to a
     tree with no commit case at build time.
+
+    With *path_stage* the rule's ``at_case_manager`` and ``at_participant``
+    arms are selected from the path that stage resolved, so the role
+    question is asked once (ADR-0153 detail 3).
     """
     if sender_rule is None:
         if sender_context is not None:
@@ -223,4 +293,4 @@ def sender_guard_stage(
             f"{name}: sender_context names case {context_case!r}"
             f" but the tree's case is {tree_case!r} (HP-01-025)"
         )
-    return compose_sender_guard(sender_rule, sender_context)
+    return compose_sender_guard(sender_rule, sender_context, path_stage)

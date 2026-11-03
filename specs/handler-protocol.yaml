@@ -714,6 +714,56 @@ groups:
       spec_id: HP-01-005
     - rel_type: refines
       spec_id: CLP-10-010
+  - id: HP-01-035
+    priority: MUST
+    kind: architecture
+    statement: >-
+      In a received tree whose message type declares the paths it handles, the
+      receive-tree factory MUST place the path stage directly after the HP-01-012
+      addressee check and before the sender guard.
+    rationale: >-
+      The path stage sits in the factory for the reason HP-01-012 gives for the
+      addressee check: a check each tree has to ask for is a check a tree can forget.
+      It sits after the addressee check because a copy the receiver was never
+      addressed is refused before its role is asked about at all, and before the
+      sender guard because the guard reads the path the stage chose (HP-01-036).
+    verification: >-
+      `test/core/behaviors/case/test_received_path_stage.py::test_the_stage_runs_after_the_addressee_check_and_before_the_guard`
+      asserts the stage's index falls between the addressee check's and the sender
+      guard's, and `::test_the_stage_is_one_of_the_trees_door_guards` asserts the
+      factory records it as a door guard.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-010
+    - rel_type: implements
+      spec_id: HP-01-005
+    adr:
+    - ADR-0153
+  - id: HP-01-036
+    priority: MUST
+    kind: architecture
+    statement: >-
+      In a received tree that carries the HP-01-035 path stage, the sender guard's
+      at-the-CASE_MANAGER and at-a-participant arms MUST be selected from the path
+      that stage resolved, never from a second read of the receiver's role.
+    rationale: >-
+      One cause gets one verdict only if the role question is asked once. A second
+      read can disagree with the first, which is how a role refusal fired for the
+      wrong receiver (#4851, #4970), and it reads a roster that another delivery may
+      have changed between the two reads.
+    verification: >-
+      `test/core/behaviors/case/test_received_path_stage.py::test_the_sender_guards_arms_read_the_path_stages_answer`
+      asserts the composed guard holds path checks bound to the tree's stage and no
+      receiver-role condition node, and
+      `::test_the_declared_tree_asks_the_role_question_once` asserts the stage is the
+      only door node that reads the role.
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-008
+    - rel_type: depends_on
+      spec_id: HP-01-035
+    adr:
+    - ADR-0153
   - id: HP-01-032
     priority: MUST
     kind: architecture

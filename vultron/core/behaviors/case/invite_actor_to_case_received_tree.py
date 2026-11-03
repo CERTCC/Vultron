@@ -29,6 +29,9 @@ from vultron.core.behaviors.case.nodes.invite_received import (
 from vultron.core.behaviors.case.nodes.invite_reject_participant import (
     ApplyInviteRejectToParticipantNode,
 )
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_participant_replica_gated_tree,
 )
@@ -131,6 +134,8 @@ def create_invite_actor_to_case_received_tree(
         InviteActorToCaseReceivedBT (Sequence)
         ├── Intake                       # stores the Invite idempotently
         ├── CaseOpenToExternalWrites     # post-close boundary (CM-23-013)
+        ├── ActivityAddressedToReceiver  # addressee door guard (HP-01-005)
+        ├── ReceivedPathNode             # no case yet, a replica, or manager
         ├── <sender guard>               # composed from the declared rule
         ├── ClockDecisions               # CASE_MANAGER only — skips here
         ├── GuardedCommitCaseLedgerEntryBT   # CASE_MANAGER only — skips here
@@ -138,9 +143,12 @@ def create_invite_actor_to_case_received_tree(
             ├── LogInviteReceivedNode        # SL-04-006
             └── RecordInviteTrustAnchorNode  # PCR-03-004
 
-    Both gates read a case the receiver does not hold as "not the
-    CASE_MANAGER" (``case_may_be_absent``), because an invitee has no replica
-    until the case is announced.
+    The path stage declares the no-case branch the invitee takes, so the
+    Invite is admitted at a receiver that holds no replica rather than
+    waiting for one (ADR-0153 detail 6, HP-01-012).  Both gates read a case
+    the receiver does not hold as "not the CASE_MANAGER"
+    (``case_may_be_absent``), because an invitee has no replica until the
+    case is announced.
 
     The factory composes the sender guard from the use case's declared rule
     (HP-01-008): the sender must be the case's CASE_MANAGER, which alone
@@ -166,6 +174,21 @@ def create_invite_actor_to_case_received_tree(
         name="InviteActorToCaseReceivedBT",
         case_id=case_id,
         precondition_guards=[],
+        # The stub Invite precedes its case (MV-10-004), so the invitee is
+        # on the no-case path and this is the type that declares that
+        # branch and takes it (ADR-0153 detail 6): the inbox's defer check
+        # exempts the stub Invite rather than holding it for a case that
+        # only the answer brings.  An invitee that already holds a replica
+        # takes the participant path, and the CASE_MANAGER's own
+        # self-addressed copy of the Invite it sent takes the manager path
+        # (ADR-0109), where intake records it and the gate below keeps the
+        # invitee-only effects off it.  All three are handled, so the stage
+        # refuses none of them and only chooses which arms run.
+        paths={
+            ReceivedPath.NO_CASE,
+            ReceivedPath.PARTICIPANT_REPLICA,
+            ReceivedPath.CASE_MANAGER,
+        },
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=inviter_id, case_id=case_id
