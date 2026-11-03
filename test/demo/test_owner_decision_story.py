@@ -415,7 +415,7 @@ class TestTheOwnerApprovesASuggestedActor:
         Only the Invite lookup and the primitives the chain polls with are
         stubbed, so the accept and the replica wait are reached exactly as a
         run reaches them: by the CaseActor's Invite landing in the newcomer's
-        own container (no mail-carrying, no inbox injection).
+        own container (no inbox injection, DEMOMA-00-002).
         """
         with (
             patch.object(ActorSession, "suggest_actor_to_case"),

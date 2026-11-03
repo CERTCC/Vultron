@@ -56,15 +56,20 @@ class TestUseCaseProtocol:
 
 
 class TestUnknownUseCase:
+    @pytest.mark.spec("SE-04-001")
     def test_execute_logs_warning(self, mock_dl, unknown_event, caplog):
         import logging
 
         use_case = UnknownUseCase(mock_dl, unknown_event)
         with caplog.at_level(logging.WARNING):
             use_case.execute()
-        assert any("unknown use case" in r.message for r in caplog.records)
+        assert any(
+            r.levelno == logging.WARNING and "unknown use case" in r.message
+            for r in caplog.records
+        )
 
     @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("SE-04-006")
     def test_execute_refuses_unrecognized_activity(
         self, mock_dl, unknown_event
     ):

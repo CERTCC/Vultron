@@ -302,3 +302,13 @@ repos:
         # itself unchanged. About 7 s per run.
         files: ^(specs/.*\.yaml|docs/adr/.*\.md|docs/reference/user_stories/.*\.md|vultron/metadata/adr/.*\.py|test/.*\.py)$
         pass_filenames: false
+
+      - id: story-page-shape
+        name: User-story pages keep the documented shape
+        # Story pages are added in docs-only PRs, which the unit-test workflow
+        # does not run on; this hook and its step in spec-check.yml are what
+        # check a new page's frontmatter, markers and ID (#4507).
+        entry: uv run pytest test/metadata/docs/test_story_pages.py -q -n 0
+        language: system
+        files: ^(docs/reference/user_stories/story_.*\.md|test/metadata/docs/test_story_pages\.py|vultron/metadata/docs/story_pages\.py)$
+        pass_filenames: false

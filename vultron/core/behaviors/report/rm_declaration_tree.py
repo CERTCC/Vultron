@@ -31,6 +31,9 @@ them and the ``Add(ParticipantStatus)`` path alike:
 - :func:`rm_gap_note` — the refusal effect: a tree passes it as
   ``refusal_effects`` so a refused regression still posts the RSH-06-004 note
   (CLP-10-022).
+- :func:`unless_rm_already_recorded` — the repeat guard the effects above are
+  built from, and which a tree hanging further effects on the move wraps those
+  in too, so one question is asked about one subject (ID-05-003, #5006).
 
 The write is :class:`~vultron.core.behaviors.case.nodes.participant.status\
 .CreateParticipantStatusNode` with ``rm_rule=RMRule.DECLARATION``: it keeps its
@@ -73,7 +76,66 @@ from vultron.core.behaviors.status.nodes.rm_declaration import (
 )
 from vultron.core.states.rm import RM, RMRule
 
-__all__ = ["record_rm_declaration", "rm_declaration_guard", "rm_gap_note"]
+__all__ = [
+    "record_rm_declaration",
+    "rm_declaration_guard",
+    "rm_gap_note",
+    "unless_rm_already_recorded",
+]
+
+
+def unless_rm_already_recorded(
+    sender_actor_id: str,
+    declared_rm: RM,
+    case_id: str | None,
+    *,
+    name: str,
+    guard_name: str,
+    children: list[py_trees.behaviour.Behaviour],
+) -> py_trees.composites.Selector:
+    """Run *children* unless the sender is already recorded at *declared_rm*.
+
+    The one shape for "a declaration that moves nothing does nothing": a
+    Selector whose **first** child reads the sender's recorded RM state and
+    whose second is the work.  Reading first is what makes the answer
+    meaningful — a guard asked after the write would always find
+    *declared_rm* and the work would never run (RSH-08-002, ID-05-003).
+
+    Both the RM write itself (:func:`record_rm_declaration`) and a tree that
+    hangs further effects on the move build their repeat guard from here, so
+    the two cannot drift on what "already recorded" means, and every
+    :class:`~vultron.core.behaviors.report.nodes.conditions\
+.CheckParticipantRMState` a tree holds asks one question.  That matters
+    because :func:`~vultron.core.use_cases.received._bt_verdict\
+.rm_declaration_verdict` reads the answer by node *type* (CS-22-001, #5006).
+
+    There is deliberately no ``Success`` fallback: a failure of *children*
+    propagates as FAILURE rather than reading as a benign skip.  The engage
+    tree's children end in a peer broadcast, and a guaranteed SUCCESS beside
+    a fan-out would mask a delivery failure (BT-14-001).
+
+    Args:
+        sender_actor_id: The subject — ``request.actor_id`` (RSH-08-001).
+        declared_rm: The RM state the activity declares.
+        case_id: The case the declaration is about.
+        name: Name of the Selector.
+        guard_name: Name of the condition node, so a tree dump says which
+            question was asked (BTND-08-002).
+        children: The work to skip when the state is already recorded.
+    """
+    return py_trees.composites.Selector(
+        name=name,
+        memory=False,
+        children=[
+            CheckParticipantRMState(
+                case_id=case_id,
+                actor_id=sender_actor_id,
+                target_rm=declared_rm,
+                name=guard_name,
+            ),
+            *children,
+        ],
+    )
 
 
 def rm_declaration_guard(
@@ -110,16 +172,13 @@ def record_rm_declaration(
     """
     written: list[str] = []
     return [
-        py_trees.composites.Selector(
+        unless_rm_already_recorded(
+            sender_actor_id,
+            declared_rm,
+            case_id,
             name=f"Idempotent{name}",
-            memory=False,
+            guard_name=f"AlreadyRecorded{declared_rm.name.title()}",
             children=[
-                CheckParticipantRMState(
-                    case_id=case_id,
-                    actor_id=sender_actor_id,
-                    target_rm=declared_rm,
-                    name=f"AlreadyRecorded{declared_rm.name.title()}",
-                ),
                 CreateParticipantStatusNode(
                     actor_id=sender_actor_id,
                     rm_state=declared_rm,

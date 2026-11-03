@@ -3,7 +3,7 @@
 
 ``UnresolvableObjectUseCase`` runs ``create_store_dead_letter_tree`` from
 ``dead_letter_tree.py``; the leaf node lives in ``nodes/`` (BTND-07-001,
-BTND-07-003).  See ``specs/semantic-extraction.yaml`` SE-04-002, SE-04-003.
+BTND-07-003).  See ``specs/semantic-extraction.yaml`` SE-04-003, SE-04-007.
 
 This is its own process area rather than part of
 ``vultron.core.behaviors.inbox``: the inbox package exposes only

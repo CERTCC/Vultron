@@ -38,6 +38,9 @@ from vultron.core.behaviors.case.nodes.refusal_stage import (
 )
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.case.receive_activity_tree import received_stages
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckParticipantRMState,
+)
 from vultron.core.behaviors.report.prioritize_tree import (
     create_defer_case_tree,
     create_engage_case_tree,
@@ -436,8 +439,19 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
     gate = stages[8]
     assert isinstance(gate, CaseManagerGate)
     assert gate.name == "EngageEffectsIfCaseManager"
+    # One idempotency Selector guards the whole effect block: a sender already
+    # recorded at ACCEPTED has no move to record and so no change to announce,
+    # so a restated Join queues no second Announce (ID-05-003, #5006).  The
+    # guard is its first child, so it reads the RM state before the write
+    # below sets it.
     body = gate.gated_branch
-    names = [n.name for n in body.children]
+    assert body.name == "IdempotentEngageEffects"
+    assert [n.name for n in body.children] == [
+        "SenderAlreadyAccepted",
+        "RecordEngageAndAnnounce",
+    ]
+    effects = body.children[1]
+    names = [n.name for n in effects.children]
     # Idempotency Selector: skip write when already ACCEPTED (RSH-08-002)
     # ... then the status it wrote is committed as its own entry
     # (CLP-07-013)
@@ -448,8 +462,19 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
         "CaptureCaseUpdateBroadcastExclusionsNode",
         "BroadcastCaseUpdateNode",
     ]
-    assert body.children[0].children[0].name == "AlreadyRecordedAccepted"
-    assert body.children[0].children[1].name == "TransitionRMtoAccepted"
+    assert effects.children[0].children[0].name == "AlreadyRecordedAccepted"
+    assert effects.children[0].children[1].name == "TransitionRMtoAccepted"
+    # ``rm_declaration_verdict`` reads "already recorded" by node *type*
+    # (``node_succeeded(tree, CheckParticipantRMState)``), so every node of
+    # that type in this tree must ask the same question. Two now do; a third
+    # about another actor or another RM state would make the handler report a
+    # redelivery that was not one (#5006).
+    asked = {
+        (node._actor_id, node._target_rm)
+        for node in tree.iterate()
+        if isinstance(node, CheckParticipantRMState)
+    }
+    assert asked == {(actor_id, RM.ACCEPTED)}
 
 
 def test_defer_tree_node_names(case_with_participant, actor_id):

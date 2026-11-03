@@ -32,6 +32,7 @@ ENTRIES: list[TriggerEntry] = [
         bt_backed=True,
         spec_ids=(
             "TRIG-02-006",
+            "TRIG-03-001",
             "TRIG-09-001",
             "TRIG-09-004",
             "TRIG-10-004",

@@ -70,7 +70,6 @@ the work. The spec registry can.
 | New story IDs | `story_<year added>_NNN`, numbered from 001 within the year; `story_2022_*` is frozen | SR-11-002's pattern already allows any year; the year says which catalog generation a story belongs to |
 | Retiring a story | Never. A story that is split or withdrawn keeps its page, marked superseded with the IDs that replace it, and its ID is never reused | A `stories:` reference in a spec must resolve for as long as any revision of that spec exists |
 | Support level (`as of v0.4.0`) | Retired from every page and from the index legend. The index table and the traceability matrix are generated from the specs' `stories:` fields and show coverage instead | A dated judgment cannot stay true; most of the stories it marks Out-of-scope are cited by requirements today. Coverage is a fact the registry already holds |
-| … in two steps | The index legend and the table column went in #4506; the per-page **Support Level** line on the 2022 pages is #4507's. Until then the index says the remaining field is a dated judgment that the coverage column replaces | Generating the table is what retires the column, and rewriting the 2022 pages' footers is a separate edit (#4507 owns the count). Saying so on the index is what keeps the interim field from reading as undefined |
 | Traceability matrix | Generated and gated by a check mode, like the other committed site artifacts (TRACE-01-001, TRACE-03-003; built in #4506) | Hand editing is how it reached 161 of 801 |
 | A cited story must exist | Hard lint error, not suppressible, when a `stories:` entry names a story page that is not in the catalog (TRACE-03-001; built in #4506) | Checking only the ID pattern makes a typo a silent broken edge |
 | A story page is never removed | A PR-only guard fails a branch that deletes one; a superseded story keeps its page (TRACE-03-002; built in #4506) | A `stories:` entry must resolve for every revision of its citers, and a freed ID can be reused |
@@ -83,54 +82,33 @@ the work. The spec registry can.
 
 ## Persona hierarchy
 
-Each documentation stakeholder type (DF-11-001, glossary § Documentation
-Audience) is the top of one persona family. A story's speaker is written at the
-highest level of the family that includes every relevant party and no irrelevant
-one, so "As a Participant" still means every CVD role, and "As a Vendor" means
-one.
+The glossary's § Story Personas is the registry of persona names, the
+speaker rule, and the family-to-stakeholder-type mapping
+(`docs/reference/glossary.md`); the catalog index restates them for readers.
+Rules for extending it:
 
-| Stakeholder type | Family (story voice) | Members |
-|---|---|---|
-| `cvd-practitioner` | **Participant** | the CVD roles: Reporter, Vendor, Coordinator, Deployer, Observer, CVE Numbering Authority, Case Owner, Case Manager (glossary § CVD Roles and Participants) |
-| `platform-developer` | **Implementer** | **Peer Implementer** (builds a Vultron-compatible peer), **Node Operator** (runs a Vultron deployment), **Tool Author** (builds conformance suites, clients, or automated clients that consume the API) |
-| `process-researcher` | **Researcher** | **Protocol Author** (writes or audits the protocol model), **Auditor** (reviews a case record after the fact) |
-| `project-contributor` | **Contributor** | **Maintainer** (owns the repository's gates and releases), **Coding Agent** (an AI or scripted contributor working under the repository's rules), **Demo Operator** (runs the multi-actor demos to evaluate the protocol) |
-
-Rules:
-
-- The family name is the speaker when the story holds for every member. Name a
-  member when it does not.
-- Members are added when a story needs one, never speculatively. Demo Operator
-  and Coding Agent are defined so the hierarchy is complete; no story is owed
-  to them by this plan.
-- Every persona name is registered in `docs/reference/glossary.md` by the seed
-  task before a story uses it. Two names need care: the glossary lists "Agent"
-  as an alias to avoid for **Actor** and "Operator" as an alias to avoid for
-  **Deployer**. The compound names **Coding Agent** and **Node Operator** are
-  registered as distinct terms with those rows cross-referenced, so the bare
-  words keep their protocol meanings.
+- Add a member only when a story needs one, never speculatively; register it
+  in the glossary before a story uses it. Demo Operator and Coding Agent exist
+  so the hierarchy is complete, and no story is owed to them.
+- A persona name that collides with an alias to avoid ("Agent" for Actor,
+  "Operator" for Deployer, "Researcher" for Finder, "maintainer" for Vendor)
+  is registered as a distinct term with the colliding row cross-referenced,
+  so the bare word keeps its protocol meaning.
 - A persona is a story speaker, not a `CVDRole` and not a `stakeholder_type`
-  value; the three vocabularies stay disjoint except that the family rows above
-  map one to one onto the stakeholder types.
+  value; do not add persona names to `StakeholderType`.
 
 ## Story page shape
 
-Every story page is a working-record page (DF-11-003): frontmatter declares
-`stakeholder_type: [project-contributor]` and no `level` (DF-11-033),
-`page_type` (DF-11-036) or `subject` (DF-11-026). The
-story text sits between the `<!-- story-start -->` and `<!-- story-end -->`
-markers so the generated table can quote it.
+The catalog index § Adding a Story states the page shape, and
+`test/metadata/docs/test_story_pages.py` enforces it on every page (the
+`story-page-shape` pre-commit hook and its step in spec-check.yml).
+The test checks that the Metadata labels are present, not what they say.
+What it cannot check:
 
-Pages added from 2026 on carry, under **Metadata**: the speaker (family and
-member), the CVD roles it concerns where the speaker is a Participant, the
-issue the story was drafted for, and the date added. They do not carry the
-2022 fields (`Original ID`, `2022 Whitepaper ID`, `Potential future process or
-service`) and no page carries a support level. A superseded page keeps its
-story text and adds a **Superseded by** line listing the replacement IDs.
-
-New story pages are reached the way existing ones are: the `not_in_nav` pattern
-in `mkdocs.yml` already covers `reference/user_stories/story_*.md`, and the
-generated index table and traceability matrix link every page (DF-11-006).
+- A superseded page keeps its story text and adds a **Superseded by** line
+  listing the replacement IDs (TRACE-03-002).
+- Metadata labels keep the order `story_2026_001` onward uses: Speaker, Roles
+  (Participant speaker only), Related issues, Drafted for, Added.
 
 ## Working the protocol story gap
 
@@ -184,75 +162,21 @@ than a Task of their own.
 
 ## Seed stories
 
-Distilled from the five Ideas' suggested framings and deduplicated. The seed
-task writes these as pages, finalizing wording; the area tasks cite them before
-adding new ones. Spec prefixes are the expected citers, not a commitment.
+The seed stories distilled from the five SR-11 gap Ideas and #4487 are
+`story_2026_010`–`story_2026_027` (#4507). The area Tasks cite them before
+adding new ones; the prefixes are the expected citers, not a commitment.
 
-Number the seed pages from `story_2026_010`: IDs never repeat, and
-`story_2026_001`–`story_2026_009` are taken by stories on what sets
-Vultron apart from ticket-based CVD (PR #5425).
-
-### Implementer family
-
-- *Peer Implementer*: every response activity (Accept, Reject, TentativeReject)
-  has one specified wire encoding, so that a peer interoperates without guessing.
-  (RF, VAM)
-- *Peer Implementer*: the wire mapping of every message semantic is specified,
-  including acknowledgments and error signals that change no state, so that a
-  peer knows which activities carry them and what receipt obliges. (MSM, VAM)
-- *Peer Implementer*: datetimes and durations have one canonical wire
-  serialization, so that interoperability does not rest on implementation
-  choices. (DUR, CS)
-- *Peer Implementer*: an unrecognized or malformed activity is handled by a
-  specified rule — classified unknown, dead-lettered, or refused with a defined
-  status — so that two conforming peers fail the same way. (VAM, MV, SE, IE)
-- *Peer Implementer*: message handling is idempotent, so that duplicate delivery
-  and retries converge on the same case state. (CM-13, MV-09, OX)
-- *Peer Implementer*: a ledger entry is committed before the message announcing
-  it is delivered, so that no recipient holds an announcement the canonical
-  record lacks. (CM-16, CM-17, OX-03, CLP)
-- *Peer Implementer*: every object reference resolves to a full URI that
-  round-trips through storage, so that identity is stable across peers and
-  restarts. (OID, VM)
-- *Node Operator*: malformed, oversized or undecryptable requests are refused
-  with specified HTTP statuses and structured error bodies, so that clients
-  diagnose faults without operator help. (IE, ENC)
-- *Node Operator*: every log entry carries the activity and actor identifiers it
-  concerns, so that one protocol event can be followed through the system.
-  (SL, IE-09)
-- *Node Operator*: pending assertions and retries time out on documented
-  defaults, so that stale state does not accumulate. (CLP-06, SYNC-05)
-- *Tool Author*: the semantic pattern registry is complete, ordered and
-  discriminating by rule, so that a conformance suite can verify that an
-  implementation routes every activity to the right handler. (SE, VAM-01)
-- *Tool Author*: every endpoint is discoverable in the published OpenAPI schema,
-  so that a client can be generated without reading the source. (AR)
-
-### Researcher family
-
-- *Protocol Author*: the case state machine's forbidden states, ephemeral states
-  and forced successors are stated as invariants, so that an implementation is
-  checked against the model rather than against examples. (CSB-17–19, SM)
-- *Auditor*: the case ledger is append-only, tamper-evident and written by one
-  authority, so that disputes about what happened and when are settled by the
-  record. (CLP, SYNC, VP-17, CM-02) — a candidate product of splitting story
-  045.
-
-### Participant family
-
-- *Participant*: embargo deadlines are computed from one timezone-aware formula,
-  so that expiry is unambiguous for every party. (DUR-06, CM-28)
-
-### Contributor family
-
-- *Contributor*: every requirement states why it exists and links to what
-  motivated it, so that the system can be changed without breaking an unstated
-  intent. (SR-11, MS-10, the rationale rule from #4482)
-- *Maintainer*: lint and ratchet gates fail on new debt and not on inherited
-  debt, so that the corpus improves without blocking unrelated work.
-  (MS-12-007, MS-12-008, the growth guards from #4315)
-- *Contributor*: the traceability record is generated and checked, so that no
-  one hand-edits a matrix that drifts. (TRACE)
+| Stories | Speaker | Expected citers |
+|---|---|---|
+| 010, 011, 012 | Peer Implementer: response encoding, semantic wire mapping, datetime serialization | RF, VAM, MSM, DUR, CS |
+| 013, 014 | Peer Implementer: malformed-activity rule, idempotency | VAM, MV, SE, IE, CM-13, OX |
+| 015, 016 | Peer Implementer: commit before announce, URI round-trip | CM-16, CM-17, OX-03, CLP, OID, VM |
+| 017, 018, 019 | Node Operator: HTTP error statuses, log identifiers, timeouts | IE, ENC, SL, CLP-06, SYNC-05 |
+| 020, 021 | Tool Author: semantic registry, OpenAPI schema | SE, VAM-01, AR |
+| 022 | Protocol Author: case state invariants | CSB-17–19, SM |
+| 023 | Auditor: append-only single-writer ledger (candidate split of 045) | CLP, SYNC, VP-17, CM-02 |
+| 024 | Participant: timezone-aware embargo deadlines | DUR-06, CM-28 |
+| 025, 026, 027 | Contributor / Maintainer: requirement rationale, ratchet gates, generated traceability | SR-11, MS-10, MS-12-007, MS-12-008, TRACE |
 
 ## Splitting the catch-all stories
 

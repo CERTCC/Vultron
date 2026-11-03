@@ -27,7 +27,7 @@ reporter a case another way (#4675).
 Submit through ``vultron.demo.helpers.workflow.reporter_submits_report`` and
 check the introduction with ``verify_reporter_trusts_introduction``.  This
 covers all of ``vultron/demo/``, exchange demos included: their exemption
-from the mail-carrying rule does not extend to forging these two activities.
+from DEMOMA-00-002's no-inbox-post rule does not extend to forging these two activities.
 """
 
 import ast

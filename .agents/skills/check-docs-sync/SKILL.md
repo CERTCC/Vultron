@@ -32,7 +32,9 @@ session is not done while the placeholder remains (PD-03-013). `pr-triage`
 reports a missing or placeholder `Docs:` line as a FAIL (PD-03-009), so an
 unrecorded run is indistinguishable from no run. `learn` opens a docs-only
 PR, which carries no `Docs:` line, so it applies the updates and records
-nothing.
+nothing, unless the PR changes a workflow or tooling file and no
+maintainer-facing doc: such a PR needs a `Docs:` line on any template (PRB-12,
+PD-03-014; Step 5).
 
 Prose rules for every page this skill touches live in
 [`../shared/docs-style-guide.md`](../shared/docs-style-guide.md), made normative
@@ -197,6 +199,19 @@ Docs: deferred to #1234
 Use `updated …; deferred to #N` when the PR did both. The reason in the
 `no docs impact` form names *why* no page applies — "none needed" alone does
 not tell a reviewer what was checked.
+
+When the diff changes a workflow or tooling file and no maintainer-facing doc
+(the path lists are in `pr-body-guide.md` § "Implementation PR rules"), the
+line must also account for the maintainer docs, or `pr-body-lint` fails it at
+the final stage (PRB-12, PD-03-014). `updated …` and `no docs impact — …` do
+not: they judge `docs/` pages. Have the caller update the maintainer doc in
+this PR (this skill edits only `docs/`), or append
+`deferred to #N` naming the follow-up docs issue, or append
+`no maintainer docs impact — <reason>`:
+
+```text
+Docs: no docs impact — internal tool; no maintainer docs impact — flags unchanged
+```
 
 The caller writes this line into the PR body, replacing the placeholder:
 

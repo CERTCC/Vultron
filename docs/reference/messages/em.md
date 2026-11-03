@@ -265,8 +265,8 @@ Some deliveries get no notice:
 - An `Invite` or `Accept` that arrives once the case is public, an exploit is public, or attacks are observed is answered with a `Reject` of the Invite instead (EMB-01-002, EMB-02-004).
   The CASE_MANAGER's `Reject` of an `Accept` reaches the participant.
   The participant then closes its pending `Accept`.
-- A late `Accept` of the embargo in force is recorded in the same way as an on-time `Accept`.
-  A late `Accept` of replaced terms is answered with a relayed invitation to the current terms (EMB-17).
+- A late `Accept` of the embargo in force, or of an open proposal, is recorded in the same way as an on-time `Accept` (EMB-17-002).
+  A late `Accept` of replaced terms is answered with a relayed invitation to the case's current terms — the embargo in force, or the earliest-expiring open proposal when none is in force (EMB-17-003, EP-08-002).
   A late `Accept` of an embargo the case no longer has changes nothing, so the CASE_MANAGER records and sends nothing for it (EMB-17-004).
 - A failure inside the CASE_MANAGER is not a refusal, and is never answered with a notice.
 
