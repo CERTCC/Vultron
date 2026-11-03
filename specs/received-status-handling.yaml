@@ -34,7 +34,7 @@ groups:
       `StatusAdoptionGate` after `AppendParticipantStatusNode` and before any canonicalization step.
     stories:
     - story_2022_046
-    - story_2022_088
+    - story_2026_041
   - id: RSH-01-002
     priority: MUST
     kind: project
@@ -52,7 +52,7 @@ groups:
       spec_id: RSH-07-006
     stories:
     - story_2022_046
-    - story_2022_088
+    - story_2026_041
   - id: RSH-01-003
     priority: MUST
     kind: protocol
@@ -75,7 +75,7 @@ groups:
     - ADR-0108
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_041
   - id: RSH-01-005
     priority: MUST
     kind: protocol
@@ -100,7 +100,7 @@ groups:
     - ADR-0108
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_041
   - id: RSH-01-004
     priority: MUST
     kind: project
@@ -383,7 +383,7 @@ groups:
       commit is committed.
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_041
   - id: RSH-04-008
     priority: MUST_NOT
     kind: protocol
@@ -407,7 +407,7 @@ groups:
     - ADR-0108
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_059
   - id: RSH-04-009
     priority: MUST_NOT
     kind: protocol
@@ -433,7 +433,7 @@ groups:
     - ADR-0152
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_041
   - id: RSH-04-006
     priority: MUST
     kind: project
@@ -589,7 +589,7 @@ groups:
       path. Both paths MUST accept with the same policy.
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_039
   - id: RSH-06-002
     priority: MUST
     kind: protocol
@@ -609,7 +609,7 @@ groups:
     - ADR-0067
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_039
   - id: RSH-06-003
     priority: MUST
     kind: project
@@ -761,7 +761,7 @@ groups:
     - ADR-0121
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_039
 - id: RSH-07
   title: Conservative Default Authorization Policy for Status Gates
   description: >
@@ -959,7 +959,7 @@ groups:
     - ADR-0108
     stories:
     - story_2022_062
-    - story_2022_088
+    - story_2026_037
   - id: RSH-08-005
     priority: MUST
     kind: project
@@ -1021,7 +1021,7 @@ groups:
     - ADR-0108
     stories:
     - story_2022_062
-    - story_2022_088
+    - story_2026_039
   - id: RSH-08-003
     priority: MUST
     kind: project
@@ -1181,7 +1181,7 @@ groups:
     adr:
     - ADR-0124
     stories:
-    - story_2022_088
+    - story_2026_038
   - id: RSH-08-013
     priority: MAY
     kind: protocol
@@ -1202,7 +1202,7 @@ groups:
     adr:
     - ADR-0124
     stories:
-    - story_2022_088
+    - story_2026_036
   - id: RSH-08-007
     priority: MUST
     kind: protocol
@@ -1287,7 +1287,7 @@ groups:
       appends nothing and commits nothing.
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_040
     adr:
     - ADR-0107
   - id: RSH-09-010
@@ -1313,7 +1313,7 @@ groups:
       dimension is recorded as omitted.
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_040
     adr:
     - ADR-0075
     - ADR-0107
@@ -1335,7 +1335,7 @@ groups:
       spec_id: RSH-09-001
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_040
   - id: RSH-09-011
     priority: MUST
     kind: protocol
@@ -1356,7 +1356,7 @@ groups:
       notice names every refused dimension with its reason.
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_040
   - id: RSH-09-003
     priority: MUST
     kind: protocol
@@ -1390,7 +1390,7 @@ groups:
     - rel_type: refines
       spec_id: RSH-09-001
     stories:
-    - story_2022_088
+    - story_2026_039
     - story_2022_107
   - id: RSH-09-004
     priority: MUST
@@ -1434,7 +1434,7 @@ groups:
       spec_id: RSH-09-001
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_039
   - id: RSH-09-012
     priority: MUST
     kind: protocol
@@ -1456,7 +1456,7 @@ groups:
       the same state, and both refuse it.
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_039
   - id: RSH-09-005
     priority: MUST
     kind: protocol
@@ -1495,7 +1495,7 @@ groups:
       by this predicate.
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_039
     adr:
     - ADR-0107
     - ADR-0122

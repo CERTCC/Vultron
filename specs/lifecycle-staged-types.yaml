@@ -166,7 +166,7 @@ groups:
     adr:
     - ADR-0033
     stories:
-    - story_2022_088
+    - story_2026_036
     - story_2022_045
   - id: LST-05-003
     priority: MUST
@@ -180,4 +180,4 @@ groups:
     - ADR-0033
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_063
