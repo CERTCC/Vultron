@@ -289,6 +289,7 @@ class TestRoleGates:
                 for v in violations
             ), f"d={requested_d!r} must be gated on DEPLOYER (CSB-15-002)"
 
+    @pytest.mark.spec("PRM-06-002")
     def test_vendor_cannot_disclaim_awareness(self):
         """PRM-06-002: a VENDOR can never report vendor-unaware.
 
