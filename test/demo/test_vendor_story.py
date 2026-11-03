@@ -1157,7 +1157,7 @@ class TestDumpVendorLedgers:
         state.case_actor_client.actor_id = (
             "http://case-actor:7999/actors/case-actor"
         )
-        with patch.object(coordinated_story, "dump_case_ledgers") as dump:
+        with patch.object(story_cast, "dump_case_ledgers") as dump:
             family.dump_vendor_ledgers(state, replicas)
         return dump.call_args.kwargs["targets"]
 

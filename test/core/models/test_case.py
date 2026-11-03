@@ -202,32 +202,34 @@ class TestVulnerabilityCaseCurrentStatus:
         c.case_statuses = [older, newer]
         assert c.current_status is newer
 
+    @pytest.mark.spec("CM-29-003")
     @pytest.mark.parametrize(
-        "stamp",
+        "updated",
         [datetime(2026, 1, 1, tzinfo=UTC), None],
-        ids=["equal", "absent"],
+        ids=["updated", "published-only"],
     )
     def test_current_status_tie_goes_to_the_last_appended(
-        self, stamp: datetime | None
+        self, updated: datetime | None
     ):
-        """Equal or absent timestamps resolve to the last-appended status.
+        """Equal times resolve to the last-appended status.
 
-        Received statuses carry the sender's time or none at all
-        (ISSUE-3257), so ties are ordinary.  ``max`` kept the *first* maximal
-        element, so a new status sharing the previous one's time never
-        became current.
+        Received statuses carry the sender's time (ISSUE-3257), so ties are
+        ordinary.  ``max`` kept the *first* maximal element, so a new status
+        sharing the previous one's time never became current.  The tie holds
+        whether the time is ``updated`` or, without one, ``published``.
         """
+        published = datetime(2026, 1, 1, tzinfo=UTC)
         first = CaseStatus(
             id_="urn:uuid:00000000-0000-0000-0000-000000000002",
             context=_CASE_ID,
-            published=stamp,
-            updated=stamp,
+            published=published,
+            updated=updated,
         )
         second = CaseStatus(
             id_="https://coord.example/status/1",
             context=_CASE_ID,
-            published=stamp,
-            updated=stamp,
+            published=published,
+            updated=updated,
         )
         c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         c.case_statuses = [first, second]

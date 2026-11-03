@@ -4105,3 +4105,34 @@ groups:
     - ADR-0079
     stories:
     - story_2022_074
+  - id: CLP-15-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST reject at message validation an inbound activity carrying a
+      `CaseStatus` with no `published`, wherever the status sits in it.
+    rationale: >-
+      A case's current status is the one with the latest time (CM-29-001), so every
+      status needs one. Any place a receiver chose for an untimed status would be a
+      rule no sender agreed to. Ordering statuses is a decision that needs the time,
+      so it is refused at message validation (CLP-15-009), as CLP-15-008 refuses an
+      activity with no time.
+      Participant statuses are not covered: nothing reads their time.
+    verification: >-
+      `test_parse_refuses_inline_case_status_without_published`,
+      `test_parse_refuses_case_status_without_published_in_case_statuses` and
+      `test_parse_refuses_case_status_without_published_in_a_participant_status`
+      in `test/wire/as2/test_nested_timestamps.py` assert `parse_activity` raises
+      `VultronParseMissingPublishedError` naming the status's position, and
+      `test_post_untimed_case_status_to_actor_inbox_returns_422` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` asserts the inbox
+      answers 422.
+    adr:
+    - ADR-0103
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-15-009
+    - rel_type: refines
+      spec_id: CM-29-001
+    stories:
+    - story_2022_075

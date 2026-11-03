@@ -207,16 +207,18 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       (q^cs ∈ ···p··) and EM None or Exited (q^em ∈ {N, X}) receiving CP MUST
-      transition their local CS to Public Aware (q^cs ···p·· → ···P··) and emit
-      CK to acknowledge receipt.
+      transition their local CS to Public Aware (q^cs ···p·· → ···P··).
+      "Emit CK" is discharged by the
+      CASE_MANAGER's commit of the received activity, fanned out as
+      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
       CP is a global (participant-agnostic) CS transition. All receivers must
       update their own CS state. When EM is None or Exited, no embargo teardown
       is needed.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CP with EM None or
-      Exited transitions local CS to ···P·· and emits CK without triggering
-      embargo teardown.
+      Exited transitions local CS to ···P·· without triggering embargo
+      teardown.
     testable: true
     preconditions:
     - cs_pattern: "...p.."
@@ -231,10 +233,12 @@ groups:
       expected: Receiver CS public bit set to P
     - order: 2
       actor: receiver
-      action: Emit CK to acknowledge receipt of CP
-      expected: CK queued for sender
+      action: >-
+        CASE_MANAGER commits the received CP and announces the ledger
+        entry (discharges CK)
+      expected: Ledger entry committed and fanned out; no CK message exists
     postconditions:
-    - description: Receiver CS is public-aware; CK emitted
+    - description: Receiver CS is public-aware; CK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: MSM-03-004
@@ -256,7 +260,7 @@ groups:
       embargo cannot be negotiated once the information is public (VP-06-001).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CP with EM Proposed
-      transitions local CS to ···P··, sets EM to NONE, and emits CK.
+      transitions local CS to ···P·· and sets EM to NONE.
     testable: true
     preconditions:
     - cs_pattern: "...p.."
@@ -274,10 +278,12 @@ groups:
       expected: Receiver EM state is NONE
     - order: 3
       actor: receiver
-      action: Emit CK to acknowledge receipt of CP
-      expected: CK queued for sender
+      action: >-
+        CASE_MANAGER commits the received CP and announces the ledger
+        entry (discharges CK)
+      expected: Ledger entry committed and fanned out; no CK message exists
     postconditions:
-    - description: Receiver CS is public-aware; EM is NONE; CK emitted
+    - description: Receiver CS is public-aware; EM is NONE; CK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-09-001
@@ -302,8 +308,7 @@ groups:
       (CSB-12-004).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CP with EM Active or
-      Revise transitions CS to ···P·· and that the CASE_MANAGER emits ET before
-      CK.
+      Revise transitions CS to ···P·· and that the CASE_MANAGER emits ET.
     testable: true
     preconditions:
     - cs_pattern: "...p.."
@@ -324,12 +329,14 @@ groups:
       expected: ET queued for participants; EM begins transitioning to EXITED
     - order: 3
       actor: receiver
-      action: Emit CK to acknowledge receipt of CP
-      expected: CK queued for sender
+      action: >-
+        CASE_MANAGER commits the received CP and announces the ledger
+        entry (discharges CK)
+      expected: Ledger entry committed and fanned out; no CK message exists
     postconditions:
     - description: >-
         Receiver CS is public-aware; the CASE_MANAGER has emitted ET; EM is
-        EXITED; CK emitted
+        EXITED; CK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-09-001
@@ -351,14 +358,15 @@ groups:
     kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) already in CS Public
-      Aware (q^cs ∈ ···P··) receiving a duplicate CP MUST emit CK without any
-      CS or EM state transition.
+      Aware (q^cs ∈ ···P··) receiving a duplicate CP MUST make no CS or EM
+      state transition. "Emit CK" is discharged by the
+      CASE_MANAGER's commit of the received activity, fanned out as
+      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
-      All C* messages warrant acknowledgment. Duplicate CP does not re-trigger
-      CS or EM transitions.
+      Duplicate CP does not re-trigger CS or EM transitions.
     verification: >-
       Integration tests in `test/demo/` confirm that a duplicate CP (CS already
-      ···P··) emits CK and leaves all CS and EM states unchanged.
+      ···P··) leaves all CS and EM states unchanged.
     testable: true
     preconditions:
     - cs_pattern: "...P.."
@@ -366,10 +374,10 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit CK to acknowledge receipt of CP (no state change)
-      expected: CK queued for sender; CS and EM states unchanged
+      action: Make no state change for the duplicate CP
+      expected: CS and EM states unchanged; no CK message exists
     postconditions:
-    - description: CK emitted; no state change
+    - description: No state change; no CK message emitted
     relationships:
     - rel_type: satisfies
       spec_id: MSM-03-004
@@ -401,22 +409,6 @@ groups:
     stories:
     - story_2022_014
     - story_2022_023
-  - id: CSB-04-006
-    priority: MUST
-    kind: protocol
-    statement: >-
-      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
-      (q^cs ∈ ···p··) and EM Proposed (q^em ∈ P) receiving CP MUST emit CK to
-      acknowledge receipt.
-    rationale: >-
-      All C* messages warrant acknowledgment per VP-12 messaging norms.
-    verification: >-
-      Integration tests in `test/demo/` confirm that receiving CP with EM Proposed
-      and CS ···p·· enqueues CK to the sender.
-    testable: true
-
-    stories:
-    - story_2022_016
   - id: CSB-04-007
     priority: MUST
     kind: protocol
@@ -450,22 +442,6 @@ groups:
     stories:
     - story_2022_023
     - story_2022_014
-  - id: CSB-04-008
-    priority: MUST
-    kind: protocol
-    statement: >-
-      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
-      (q^cs ∈ ···p··) and EM Active or Revise (q^em ∈ {A, R}) receiving CP MUST
-      emit CK to acknowledge receipt.
-    rationale: >-
-      All C* messages warrant acknowledgment per VP-12 messaging norms.
-    verification: >-
-      Integration tests in `test/demo/` confirm that receiving CP with EM Active or
-      Revise and CS ···p·· enqueues CK to the sender.
-    testable: true
-
-    stories:
-    - story_2022_016
 - id: CSB-05
   title: Receive CX (Exploit Public)
   description: Behaviors triggered when a participant receives a CX (Exploit Public) message, recording public availability of an exploit and initiating embargo teardown if an active embargo exists.
@@ -480,15 +456,17 @@ groups:
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and not yet exploit-public (q^cs ∈ ···px·) and EM None or Exited
       (q^em ∈ {N, X}) receiving CX MUST transition their local CS to both
-      Public Aware and Exploit Public (q^cs ···px· → ···PX·) and emit CK to
-      acknowledge receipt.
+      Public Aware and Exploit Public (q^cs ···px· → ···PX·).
+      "Emit CK" is discharged by the
+      CASE_MANAGER's commit of the received activity, fanned out as
+      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
       CX in state ···px· implies the pX→PX invariant (constraint C-15): exploit
       public without prior public awareness is an ephemeral state that
       immediately resolves to both P and X. The CS transition is atomic.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CX in CS ···px· with
-      EM None or Exited atomically sets both P and X bits (···PX·) and emits CK.
+      EM None or Exited atomically sets both P and X bits (···PX·).
     testable: true
     preconditions:
     - cs_pattern: "...px."
@@ -503,10 +481,12 @@ groups:
       expected: Receiver CS public bit P and exploit bit X both set
     - order: 2
       actor: receiver
-      action: Emit CK to acknowledge receipt of CX
-      expected: CK queued for sender
+      action: >-
+        CASE_MANAGER commits the received CX and announces the ledger
+        entry (discharges CK)
+      expected: Ledger entry committed and fanned out; no CK message exists
     postconditions:
-    - description: Receiver CS is ···PX·; CK emitted
+    - description: Receiver CS is ···PX·; CK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: MSM-03-005
@@ -528,7 +508,7 @@ groups:
       The pX→PX invariant applies (constraint C-15).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CX in CS ···px· with
-      EM Proposed transitions CS to ···PX·, sets EM to NONE, and emits CK.
+      EM Proposed transitions CS to ···PX· and sets EM to NONE.
     testable: true
     preconditions:
     - cs_pattern: "...px."
@@ -546,10 +526,12 @@ groups:
       expected: Receiver EM state is NONE
     - order: 3
       actor: receiver
-      action: Emit CK to acknowledge receipt of CX
-      expected: CK queued for sender
+      action: >-
+        CASE_MANAGER commits the received CX and announces the ledger
+        entry (discharges CK)
+      expected: Ledger entry committed and fanned out; no CK message exists
     postconditions:
-    - description: Receiver CS is ···PX·; EM is NONE; CK emitted
+    - description: Receiver CS is ···PX·; EM is NONE; CK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-09-001
@@ -574,9 +556,8 @@ groups:
       recorded before teardown begins (CSB-05-010).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CX in CS ···px· with
-      EM Active or Revise transitions CS to ···PX·, that the CASE_MANAGER emits
-      ET, then CK is emitted, with the CS transition recorded before
-      teardown.
+      EM Active or Revise transitions CS to ···PX· and that the CASE_MANAGER
+      emits ET, with the CS transition recorded before teardown.
     testable: true
     preconditions:
     - cs_pattern: "...px."
@@ -597,12 +578,14 @@ groups:
       expected: ET queued for participants; EM begins transitioning to EXITED
     - order: 3
       actor: receiver
-      action: Emit CK to acknowledge receipt of CX
-      expected: CK queued for sender
+      action: >-
+        CASE_MANAGER commits the received CX and announces the ledger
+        entry (discharges CK)
+      expected: Ledger entry committed and fanned out; no CK message exists
     postconditions:
     - description: >-
         Receiver CS is ···PX·; the CASE_MANAGER has emitted ET; EM is EXITED;
-        CK emitted
+        CK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-09-001
@@ -620,15 +603,18 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS already public
       but not yet exploit-public (q^cs ∈ ···Px·) receiving CX MUST transition
-      their local CS exploit bit to X (q^cs ···Px· → ···PX·) and emit CK.
+      their local CS exploit bit to X (q^cs ···Px· → ···PX·).
+      "Emit CK" is discharged by the
+      CASE_MANAGER's commit of the received activity, fanned out as
+      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
       When public awareness already exists, CX transitions only the exploit bit.
       No new embargo teardown is triggered since the embargo should already have
       been terminated when P was reached.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CX in CS ···Px·
-      transitions the exploit bit to X (···PX·) and enqueues CK without triggering
-      embargo teardown.
+      transitions the exploit bit to X (···PX·) without triggering embargo
+      teardown.
     testable: true
     preconditions:
     - cs_pattern: "...Px."
@@ -640,10 +626,12 @@ groups:
       expected: Receiver CS exploit bit X set; public bit P remains set
     - order: 2
       actor: receiver
-      action: Emit CK to acknowledge receipt of CX
-      expected: CK queued for sender
+      action: >-
+        CASE_MANAGER commits the received CX and announces the ledger
+        entry (discharges CK)
+      expected: Ledger entry committed and fanned out; no CK message exists
     postconditions:
-    - description: Receiver CS is ···PX·; CK emitted
+    - description: Receiver CS is ···PX·; CK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: MSM-03-005
@@ -657,14 +645,15 @@ groups:
     kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS already
-      exploit-public (q^cs ∈ ···PX·) receiving a duplicate CX MUST emit CK
-      without any CS or EM state transition.
+      exploit-public (q^cs ∈ ···PX·) receiving a duplicate CX MUST make no CS
+      or EM state transition. "Emit CK" is discharged by the
+      CASE_MANAGER's commit of the received activity, fanned out as
+      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
-      All C* messages warrant acknowledgment. Duplicate CX does not re-trigger
-      CS or EM transitions.
+      Duplicate CX does not re-trigger CS or EM transitions.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CX when CS is already
-      ···PX· enqueues CK and leaves all CS and EM states unchanged.
+      ···PX· leaves all CS and EM states unchanged.
     testable: true
     preconditions:
     - cs_pattern: "...PX."
@@ -672,10 +661,10 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit CK to acknowledge receipt of CX (no state change)
-      expected: CK queued for sender; CS and EM states unchanged
+      action: Make no state change for the duplicate CX
+      expected: CS and EM states unchanged; no CK message exists
     postconditions:
-    - description: CK emitted; no state change
+    - description: No state change; no CK message emitted
     relationships:
     - rel_type: satisfies
       spec_id: MSM-03-005
@@ -707,22 +696,6 @@ groups:
     stories:
     - story_2022_014
     - story_2022_023
-  - id: CSB-05-007
-    priority: MUST
-    kind: protocol
-    statement: >-
-      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
-      and not yet exploit-public (q^cs ∈ ···px·) and EM Proposed
-      (q^em ∈ P) receiving CX MUST emit CK to acknowledge receipt.
-    rationale: >-
-      All C* messages warrant acknowledgment per VP-12 messaging norms.
-    verification: >-
-      Integration tests in `test/demo/` confirm that receiving CX with EM Proposed
-      and CS ···px· enqueues CK to the sender.
-    testable: true
-
-    stories:
-    - story_2022_016
   - id: CSB-05-008
     priority: MUST
     kind: protocol
@@ -755,22 +728,6 @@ groups:
 
     stories:
     - story_2022_023
-  - id: CSB-05-009
-    priority: MUST
-    kind: protocol
-    statement: >-
-      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
-      and not yet exploit-public (q^cs ∈ ···px·) and EM Active or Revise
-      (q^em ∈ {A, R}) receiving CX MUST emit CK to acknowledge receipt.
-    rationale: >-
-      All C* messages warrant acknowledgment per VP-12 messaging norms.
-    verification: >-
-      Integration tests in `test/demo/` confirm that receiving CX with EM Active or
-      Revise and CS ···px· enqueues CK to the sender.
-    testable: true
-
-    stories:
-    - story_2022_016
   - id: CSB-05-010
     priority: MUST
     kind: protocol
@@ -806,7 +763,10 @@ groups:
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and attacks not yet observed (q^cs ∈ ···p·a) and EM None or Exited
       (q^em ∈ {N, X}) receiving CA MUST transition their local CS attacks bit
-      to A (q^cs ···p·a → ···p·A) and emit CK.
+      to A (q^cs ···p·a → ···p·A).
+      "Emit CK" is discharged by the
+      CASE_MANAGER's commit of the received activity, fanned out as
+      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
       An observed attack is evidence of exploitation, not public information
       about the vulnerability: an attack can be seen on one network while
@@ -818,8 +778,7 @@ groups:
       Tests marked CSB-06-001 in
       `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
       that a CA received in CS ···p·a with EM None sets the attacks bit
-      (···p·A) and leaves the public bit unset. Integration tests in
-      `test/demo/` confirm that CK is emitted.
+      (···p·A) and leaves the public bit unset.
     testable: true
     preconditions:
     - cs_pattern: "...p.a"
@@ -834,10 +793,12 @@ groups:
       expected: Receiver CS attacks bit A set; public bit p remains unset
     - order: 2
       actor: receiver
-      action: Emit CK to acknowledge receipt of CA
-      expected: CK queued for sender
+      action: >-
+        CASE_MANAGER commits the received CA and announces the ledger
+        entry (discharges CK)
+      expected: Ledger entry committed and fanned out; no CK message exists
     postconditions:
-    - description: Receiver CS is ···p·A; CK emitted
+    - description: Receiver CS is ···p·A; CK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: MSM-03-006
@@ -864,7 +825,7 @@ groups:
       `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
       that a CA received in CS ···p·a with EM Proposed transitions CS to
       ···p·A, leaving the public bit unset. Integration tests in `test/demo/`
-      confirm that EM is set to NONE and CK is emitted.
+      confirm that EM is set to NONE.
     testable: true
     preconditions:
     - cs_pattern: "...p.a"
@@ -882,10 +843,12 @@ groups:
       expected: Receiver EM state is NONE
     - order: 3
       actor: receiver
-      action: Emit CK to acknowledge receipt of CA
-      expected: CK queued for sender
+      action: >-
+        CASE_MANAGER commits the received CA and announces the ledger
+        entry (discharges CK)
+      expected: Ledger entry committed and fanned out; no CK message exists
     postconditions:
-    - description: Receiver CS is ···p·A; EM is NONE; CK emitted
+    - description: Receiver CS is ···p·A; EM is NONE; CK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-09-003
@@ -915,8 +878,7 @@ groups:
       `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
       that a CA received in CS ···p·a with EM Active transitions CS to ···p·A,
       leaving the public bit unset, and that the CASE_MANAGER tears the
-      embargo down after recording it. Integration tests in `test/demo/`
-      confirm that CK is emitted.
+      embargo down after recording it.
     testable: true
     preconditions:
     - cs_pattern: "...p.a"
@@ -937,12 +899,14 @@ groups:
       expected: ET queued for participants; EM begins transitioning to EXITED
     - order: 3
       actor: receiver
-      action: Emit CK to acknowledge receipt of CA
-      expected: CK queued for sender
+      action: >-
+        CASE_MANAGER commits the received CA and announces the ledger
+        entry (discharges CK)
+      expected: Ledger entry committed and fanned out; no CK message exists
     postconditions:
     - description: >-
         Receiver CS is ···p·A; the CASE_MANAGER has emitted ET; EM is EXITED;
-        CK emitted
+        CK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-09-003
@@ -960,15 +924,16 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS already public
       but attacks not yet observed (q^cs ∈ ···P·a) receiving CA MUST
-      transition their local CS attacks bit to A (q^cs ···P·a → ···P·A) and
-      emit CK.
+      transition their local CS attacks bit to A (q^cs ···P·a → ···P·A).
+      "Emit CK" is discharged by the
+      CASE_MANAGER's commit of the received activity, fanned out as
+      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
       When public awareness already exists, CA transitions only the attacks bit.
       The public bit is already set; no new P transition is needed.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CA in CS ···P·a
-      transitions the attacks bit to A (···P·A) and enqueues CK without a new P
-      transition.
+      transitions the attacks bit to A (···P·A) without a new P transition.
     testable: true
     preconditions:
     - cs_pattern: "...P.a"
@@ -980,10 +945,12 @@ groups:
       expected: Receiver CS attacks bit A set; public bit P remains set
     - order: 2
       actor: receiver
-      action: Emit CK to acknowledge receipt of CA
-      expected: CK queued for sender
+      action: >-
+        CASE_MANAGER commits the received CA and announces the ledger
+        entry (discharges CK)
+      expected: Ledger entry committed and fanned out; no CK message exists
     postconditions:
-    - description: Receiver CS is ···P·A; CK emitted
+    - description: Receiver CS is ···P·A; CK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: MSM-03-006
@@ -997,18 +964,18 @@ groups:
     kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS attacks already
-      observed (q^cs ∈ ·····A) receiving a duplicate CA MUST emit CK without
-      any CS or EM state transition.
+      observed (q^cs ∈ ·····A) receiving a duplicate CA MUST make no CS or EM
+      state transition. "Emit CK" is discharged by the
+      CASE_MANAGER's commit of the received activity, fanned out as
+      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
-      All C* messages warrant acknowledgment. Duplicate CA does not re-trigger
-      CS or EM transitions, whether or not the case is public: ···p·A is a
-      resting state (CSB-17-003).
+      Duplicate CA does not re-trigger CS or EM transitions, whether or not the
+      case is public: ···p·A is a resting state (CSB-17-003).
     verification: >-
       Tests marked CSB-06-005 in
       `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
       that a CA received when CS is already ···p·A leaves the case CS at
-      ···p·A. Integration tests in `test/demo/` confirm that CK is enqueued
-      and that EM is unchanged.
+      ···p·A. Integration tests in `test/demo/` confirm that EM is unchanged.
     testable: true
     preconditions:
     - cs_pattern: ".....A"
@@ -1016,10 +983,10 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit CK to acknowledge receipt of CA (no state change)
-      expected: CK queued for sender; CS and EM states unchanged
+      action: Make no state change for the duplicate CA
+      expected: CS and EM states unchanged; no CK message exists
     postconditions:
-    - description: CK emitted; no state change
+    - description: No state change; no CK message emitted
     relationships:
     - rel_type: satisfies
       spec_id: MSM-03-006
@@ -1051,22 +1018,6 @@ groups:
     stories:
     - story_2022_014
     - story_2022_023
-  - id: CSB-06-007
-    priority: MUST
-    kind: protocol
-    statement: >-
-      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
-      and attacks not yet observed (q^cs ∈ ···p·a) and EM Proposed
-      (q^em ∈ P) receiving CA MUST emit CK to acknowledge receipt.
-    rationale: >-
-      All C* messages warrant acknowledgment per VP-12 messaging norms.
-    verification: >-
-      Integration tests in `test/demo/` confirm that receiving CA with EM Proposed
-      and CS ···p·a enqueues CK to the sender.
-    testable: true
-
-    stories:
-    - story_2022_016
   - id: CSB-06-008
     priority: MUST
     kind: protocol
@@ -1099,22 +1050,6 @@ groups:
 
     stories:
     - story_2022_023
-  - id: CSB-06-009
-    priority: MUST
-    kind: protocol
-    statement: >-
-      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
-      and attacks not yet observed (q^cs ∈ ···p·a) and EM Active or Revise
-      (q^em ∈ {A, R}) receiving CA MUST emit CK to acknowledge receipt.
-    rationale: >-
-      All C* messages warrant acknowledgment per VP-12 messaging norms.
-    verification: >-
-      Integration tests in `test/demo/` confirm that receiving CA with EM Active or
-      Revise and CS ···p·a enqueues CK to the sender.
-    testable: true
-
-    stories:
-    - story_2022_016
   - id: CSB-06-010
     priority: MUST
     kind: protocol
@@ -1147,22 +1082,20 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      This rule covers a Participant in a non-Closed RM state (q^rm ∉ C) that receives
-      CE. It SHOULD emit CK to acknowledge it, and SHOULD emit GI to ask about the
-      nature of the CS error.
-    lint_suppress:
-    # compound_statement: CE has no receive path in this codebase (MSM-03-007), so
-    # no test can carry a marker for a split child, and the marker-coverage guard
-    # (SR-05-005) fails a new protocol ID without one. Split it when CE handling is
-    # built and tested.
-    - compound_statement
+      A Participant in a non-Closed RM state (q^rm ∉ C) that receives
+      `Create(ProcessingFault)` about a CS activity it sent SHOULD inquire about the
+      nature of the error (GI) when the fault does not say what went wrong. CE has no
+      wire activity of its own (MSM-03-007, MSM-05-001). The receiver emits no CK for
+      the fault (MSM-03-008).
     rationale: >-
-      CE signals a protocol error in the CS process. Acknowledging with CK and
-      following up with GI allows the sender to explain the error and enables
-      recovery. CE does not trigger a CS state transition.
+      A fault about a CS activity says the sender could not process it, but not
+      always why. Following up with GI allows the sender to explain the error and
+      enables recovery. A fault does not trigger a CS state transition, and faults
+      are grouped by failure mode, not by state machine, so no CE or CK message
+      exists.
     note: >-
-      Not verified today: CE has no receive path in this codebase (MSM-03-007), so
-      no test can show a received CE enqueues CK and GI.
+      Not verified today: no test shows that a received fault about a CS activity
+      enqueues GI.
     testable: true
     preconditions:
     - rm_state:
@@ -1175,14 +1108,12 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit CK to acknowledge receipt of CE
-      expected: CK queued for sender
-    - order: 2
-      actor: receiver
-      action: Emit GI to inquire about the nature of the error
-      expected: GI queued for sender
+      action: >-
+        Emit GI to inquire about the nature of the error, when the fault does
+        not say what went wrong
+      expected: GI queued for sender; no CK message exists
     postconditions:
-    - description: CK and GI emitted; CS state unchanged
+    - description: GI emitted; CS state unchanged
     relationships:
     - rel_type: satisfies
       spec_id: MSM-03-007
@@ -1192,7 +1123,10 @@ groups:
 
 - id: CSB-08
   title: Receive CK (CS Acknowledgment)
-  description: Behaviors triggered when a participant receives a CK (CVD Case State Acknowledgment) passthrough signal, which has no dedicated semantic dispatch value and requires no state transition.
+  description: >-
+    Behaviors triggered when a participant receives the acknowledgment (CK) of a CS
+    activity it sent. No CK message exists (MSM-03-008): the acknowledgment is the
+    CASE_MANAGER's commit of the activity, fanned out as `Announce(CaseLedgerEntry)`.
   trigger:
     type: message_received
     value: CK
@@ -1201,15 +1135,19 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      A Participant receiving CK MAY process it as a passthrough acknowledgment
-      with no state transition and no required response.
+      A Participant that receives the CASE_MANAGER's `Announce(CaseLedgerEntry)` for a
+      CS activity it sent MAY treat that entry as the acknowledgment (CK) of the
+      activity, with no further state transition and no required response. No CK
+      message exists (MSM-03-008, MSM-05-002).
     rationale: >-
-      CK is a pure acknowledgment message. It confirms the sender received a
-      prior C* message. No state change or response is required from the
-      receiver.
+      The ledger entry confirms that the CASE_MANAGER received and recorded the
+      earlier C* message. As an acknowledgment it asks nothing more of the
+      receiver. The replica acknowledges the entry itself through its unbroken hash
+      chain (MSM-05-002).
     verification: >-
-      Inspection of the message-handling code confirms that CK is dispatched as a
-      passthrough with no state transition triggered and no response enqueued.
+      Inspection of `MessageSemantics` and the semantic registry confirms that no CK
+      message is dispatched, so no handler can change state or enqueue a response
+      for one.
     testable: false
     lint_suppress:
     - testable_without_steps

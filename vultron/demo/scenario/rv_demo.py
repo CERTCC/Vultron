@@ -51,17 +51,19 @@ from vultron.demo.helpers.actor_roles import (
 )
 from vultron.demo.helpers.cast import REPORTER_SLOT, VENDOR_SLOT
 from vultron.demo.helpers.coordinated_story import (
-    CASE_ACTOR_NAME,
     REPORTER,
     REPORTER_LABEL,
-    CastContainer,
     close_the_case,
-    coordinated_clients,
     reports_published,
     vendor_notifies_fix_ready,
 )
 from vultron.demo.helpers.polling import wait_for_participant_vf_state
 from vultron.demo.helpers.story import StoryState, choose, run_story, story
+from vultron.demo.helpers.story_cast import (
+    CASE_ACTOR_NAME,
+    CastContainer,
+    story_clients,
+)
 from vultron.demo.helpers.sync import run_sync_verification_phase
 from vultron.demo.helpers.vendor_story import (
     REPORTER_TELLS_THE_VENDOR,
@@ -109,7 +111,7 @@ ROLES: list[ActorRole] = [
     ActorRole(VENDOR, VENDOR_SLOT, VENDOR_ROLE_LABEL, has_id=True),
     case_actor_role(),
 ]
-#: Indexed for the CLI factory and for ``coordinated_clients()``, which reads
+#: Indexed for the CLI factory and for ``story_clients()``, which reads
 #: each actor's container address off its cast slot — so this module declares
 #: no ``*_BASE_URL`` constant of its own (DEMOCI-11-020).
 _ROLES = role_map(ROLES)
@@ -377,7 +379,7 @@ def main(
         reporter_id: Optional deterministic URI for the Reporter actor.
         vendor_id: Optional deterministic URI for the Vendor actor.
     """
-    clients = coordinated_clients(
+    clients = story_clients(
         _ROLES,
         [
             CastContainer(REPORTER, REPORTER_LABEL, reporter_url),

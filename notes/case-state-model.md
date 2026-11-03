@@ -138,7 +138,9 @@ on-behalf trigger trees. The gate is deliberately case-wide, not per vendor
   (ADR-0103), so a timestamp rule would pick a stale baseline.
 - A case's current status is the one with the latest `updated`, else
   `published`, with a tie going to the last appended:
-  `VulnerabilityCase.current_status` (CM-29-001).
+  `VulnerabilityCase.current_status` (CM-29-001, CM-29-003). Every `CaseStatus`
+  carries a `published`, and a received one without it is refused at parse
+  (CLP-15-010), so no status is ever placed by a fallback.
 - A status update carrying a future timestamp is an error.
 - The CASE_MANAGER's trusted timestamp for a state-changing event is its
   `CaseLedgerEntry` commit, not an edit to the object's own timestamp, which
