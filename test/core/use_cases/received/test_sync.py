@@ -346,7 +346,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
             == as_TransitiveActivityType.REJECT
         )
         # No case, no ledger to state: the Reject states no position, which
-        # the CASE_MANAGER reads as last_accepted_hash="" (SYNC-18-001).
+        # the CASE_MANAGER reads as last_accepted_hash="" (SYNC-18-017).
         assert getattr(reject_obj, "ledger_position", None) is None
 
     @pytest.mark.spec("SYNC-03-003")

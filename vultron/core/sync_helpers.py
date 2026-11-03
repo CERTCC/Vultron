@@ -230,7 +230,7 @@ def first_case_with_ledger(
     genesis hash, the anchor of an empty chain (CLP-08-004), or an entry of
     its chain: the CASE_MANAGER from creating the case, a participant from
     its first copy or entry.  Before that it has no tail to state, so its
-    activities about the case carry no ``ledgerPosition`` (SYNC-18-001), and
+    activities about the case carry no ``ledgerPosition`` (SYNC-18-017), and
     :func:`ledger_tail_position` would raise.  ``None`` is an answer, not a
     failure: the sender holds no ledger for any of them.
 
@@ -288,7 +288,7 @@ def store_ledger_entry(
 
     The position never moves back.  A replica whose case a copy seeded or
     replaced ahead of its chain stores the entries at or before the copy's
-    position as idempotent no-ops (SYNC-16-007): the entry is stored and the
+    position as idempotent no-ops (SYNC-16-023): the entry is stored and the
     case stays at the copy's position, which already reflects it.  An entry
     at the position's index with another hash is refused, not stored: the
     chain would name one entry there and the case another.
@@ -300,7 +300,7 @@ def store_ledger_entry(
         VultronNotFoundError: *dl* holds no case for the entry; a ledger entry
             belongs to a stored case, whose genesis hash anchors it.
         VultronEntryRefusedError: *entry* is at the index the case's position
-            names, with another hash (SYNC-16-007).
+            names, with another hash (SYNC-16-025).
     """
     with dl.transaction():
         case = dl.read_case(entry.case_id)
@@ -315,7 +315,7 @@ def store_ledger_entry(
                 f"ledger entry '{entry.id_}' is at index {entry.log_index}"
                 f" with hash {entry.entry_hash:.16}…, but case"
                 f" '{entry.case_id}' names {held.entry_hash:.16}… there: the"
-                " chains conflict (SYNC-16-007)"
+                " chains conflict (SYNC-16-025)"
             )
         dl.save(entry)
         if entry.log_index <= held.log_index:

@@ -292,14 +292,14 @@ class LedgerPositionedEvent(VultronEvent):
     sender's ledger tail for that case as ``ledgerPosition`` (SYNC-18-001,
     ADR-0156).  The extractor parses it at the parse edge and refuses an
     activity of such a class that carries none or a malformed one, naming the
-    activity (SYNC-18-003), so core always receives the position (ADR-0032).
+    activity (SYNC-18-015), so core always receives the position (ADR-0032).
 
     The event classes that subclass this one are the received semantics in
-    SYNC-18-001's scope; a class outside it is a semantic whose sender holds
-    no ledger when it sends (a report, a case proposal, a stub-Invite reply),
-    whose object states its own position (``Announce(CaseLedgerEntry)``, a
-    case copy), or that any receiver may send about any activity
-    (``Create(ProcessingFault)``).
+    SYNC-18-001's scope; a class outside it (SYNC-18-017) is a semantic
+    whose sender holds no ledger when it sends (a report, a case proposal, a
+    stub-Invite reply), whose object states its own position
+    (``Announce(CaseLedgerEntry)``, a case copy), or that any receiver may
+    send about any activity (``Create(ProcessingFault)``).
     """
 
     ledger_position: LedgerPosition

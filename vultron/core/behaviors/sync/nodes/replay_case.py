@@ -40,7 +40,7 @@ def replay_case_id(activity: Any, node_name: str) -> str:
 
     The activity's ``replay_case_id``: for a ``Reject(CaseLedgerEntry)`` the
     rejected entry's case, or the ``target`` of the Reject that names no
-    entry because its sender holds none (SYNC-16-007); for a
+    entry because its sender holds none (SYNC-16-027); for a
     ``Read(CaseLedgerEntry)`` the case its ``context`` names (SYNC-17-001).
     Raises ``VultronError`` when the activity names none (BT-HELPER-01).
     """

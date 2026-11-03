@@ -28,7 +28,7 @@ under test reads it the way production does.
 
 A sender's adapter stamps each case activity with its ledger tail
 (SYNC-18-001), and the parse edge refuses a case activity without one
-(SYNC-18-003).  A test that builds an activity with a wire factory has no
+(SYNC-18-015).  A test that builds an activity with a wire factory has no
 sender store, so :func:`delivered` stamps an activity that states none, as
 the sender's adapter would have stamped its tail: in step with the
 receiver's ledger when the test passes the receiver's store (``at=``), else

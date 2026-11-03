@@ -610,7 +610,7 @@ class TestHoldsLedgerPosition:
 
 
 @pytest.mark.spec("SYNC-18-007")
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-029")
 @pytest.mark.parametrize(
     ("position", "expected"),
     [

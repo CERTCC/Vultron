@@ -860,7 +860,7 @@ def test_a_held_back_genesis_replay_covers_only_the_entries_before_the_hold(
 def test_genesis_reject_naming_no_entry_is_not_declined(
     datalayer, case_manager_case, monkeypatch
 ):
-    """The Reject that names no entry (SYNC-16-007) has no index to compare,
+    """The Reject that names no entry (SYNC-16-027) has no index to compare,
     so it is answered under the cooldown alone."""
     entries = _five_entry_ledger(datalayer)
     bridge, sync_port, trigger_activity = _replay_bridge(datalayer)

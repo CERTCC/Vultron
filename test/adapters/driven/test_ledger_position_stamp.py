@@ -91,7 +91,7 @@ def test_a_store_holding_entries_stamps_its_last_entry(dl) -> None:
     )
 
 
-@pytest.mark.spec("SYNC-18-001")
+@pytest.mark.spec("SYNC-18-001", "SYNC-18-017")
 def test_a_store_holding_no_ledger_for_the_case_stamps_nothing(dl) -> None:
     note = _note()
 
@@ -144,7 +144,7 @@ def test_the_stored_activity_and_its_sealed_body_carry_one_position(
     )
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-027")
 def test_a_genesis_replay_request_needs_the_case_it_names(dl) -> None:
     """The objectless Reject states the empty chain's position, which only a
     store holding the case can state: one that does not raises before it
@@ -160,7 +160,7 @@ def test_a_genesis_replay_request_needs_the_case_it_names(dl) -> None:
     assert list(dl.outbox_list()) == []
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-027")
 def test_a_genesis_replay_request_states_the_empty_chain(dl) -> None:
     case = VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR)
     dl.create(case)

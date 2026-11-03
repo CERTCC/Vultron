@@ -467,7 +467,7 @@ RejectLogEntryPattern = LedgerEntryRejectPattern(
         "Participant rejects a CaseLedgerEntry announcement due to "
         "hash-chain mismatch. The object is the rejected CaseLedgerEntry, or "
         "absent when the participant holds no entry and asks for a replay "
-        "from genesis, naming the case as its target (SYNC-16-007)."
+        "from genesis, naming the case as its target (SYNC-16-027)."
     ),
     activity_=TAtype.REJECT,
     object_=VOtype.CASE_LEDGER_ENTRY,

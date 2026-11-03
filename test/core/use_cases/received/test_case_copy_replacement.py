@@ -113,7 +113,7 @@ def _short_replica(net: LedgerNetwork) -> None:
 
 @pytest.mark.spec("SYNC-16-024")
 @pytest.mark.spec("SYNC-16-006")
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-007", "SYNC-16-023")
 @pytest.mark.spec("CM-23-016")
 def test_a_short_replica_is_replaced_then_backfilled_to_the_tail(
     caplog: pytest.LogCaptureFixture,
@@ -224,7 +224,7 @@ def _genesis_request(case_id: str, sender: str) -> dict[str, Any]:
     ).model_dump(mode="json", by_alias=True, exclude_none=True)
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-029")
 @pytest.mark.spec("SYNC-03-005")
 def test_a_genesis_request_for_a_case_the_manager_lacks_is_refused() -> None:
     """The Reject's target is the only case it names; one the CASE_MANAGER
@@ -302,7 +302,7 @@ def _same_note(net: LedgerNetwork, note_id: str) -> None:
     assert note_id in [_as_id(n) for n in net.case(OWNER).notes]
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-023")
 @pytest.mark.spec("CM-23-016")
 @pytest.mark.spec("PCR-02-003")
 def test_a_fresh_replica_seeded_by_a_copy_holds_the_notes_it_names() -> None:
@@ -320,7 +320,7 @@ def test_a_fresh_replica_seeded_by_a_copy_holds_the_notes_it_names() -> None:
     _same_note(net, note_id)
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-007", "SYNC-16-023")
 @pytest.mark.spec("CM-23-016")
 def test_a_replaced_replica_backfilled_holds_the_notes_it_names() -> None:
     """A replica replaced by a copy ahead of it, then backfilled, holds the

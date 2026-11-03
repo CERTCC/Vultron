@@ -87,7 +87,7 @@ class EntryReflectedByCaseCopyNode(DataLayerConditionWithPorts):
 
     ``SUCCESS`` for an entry at or before the case's stored ledger position,
     which a copy that seeded or replaced the case put ahead of the chain
-    (SYNC-16-007,
+    (SYNC-16-023,
     :func:`~vultron.core.services.case_copy.entry_reflected_by_case_copy`):
     its effects are already in the case file, so the tree stores it without
     applying them again, an idempotent no-op rather than a refusal.  The
@@ -120,7 +120,7 @@ class EntryReflectedByCaseCopyNode(DataLayerConditionWithPorts):
         self.logger.info(
             "%s: log entry '%s' (index %d) is already reflected in the case"
             " copy that replaced case '%s'; storing it as a no-op"
-            " (SYNC-16-007)",
+            " (SYNC-16-023)",
             self.name,
             entry.id_,
             entry.log_index,
@@ -135,7 +135,7 @@ class CheckEntryAgreesWithCasePositionNode(DataLayerConditionWithPorts):
     ``FAILURE``, logged at ERROR, for an entry at the index the case's
     stored ``ledger_position`` names whose hash differs: the chain and the
     copy that set the position disagree, so the entry is neither stored as a
-    no-op, applied nor stored (SYNC-16-007,
+    no-op, applied nor stored (SYNC-16-025,
     :func:`~vultron.core.services.case_copy.entry_conflicts_with_case_position`).
     ``SUCCESS`` for any other entry.
     """
@@ -165,7 +165,7 @@ class CheckEntryAgreesWithCasePositionNode(DataLayerConditionWithPorts):
             "%s: refusing ledger entry '%s' (case '%s', log_index=%d) in"
             " activity '%s' from actor '%s': the case's ledger position names"
             " another entry at that index, so the chains conflict"
-            " (SYNC-16-007)",
+            " (SYNC-16-025, SYNC-16-026)",
             self.name,
             entry.id_,
             entry.case_id,

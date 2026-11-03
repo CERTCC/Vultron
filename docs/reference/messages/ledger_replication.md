@@ -35,7 +35,7 @@ They carry other protocol messages as ledger entries, and are not a Vultron prot
 Every case message a participant or the CASE_MANAGER sends also states how far its sender's ledger had got.
 The sender puts its ledger tail in the activity's `ledgerPosition`, the same property and shape a case copy carries (SYNC-18-001, SYNC-16-005).
 The position is the tail when the sender built the message, and a resend keeps it (SYNC-18-002, SYNC-18-009).
-A receiver refuses a case message that carries no position or one that does not parse (SYNC-18-003).
+A receiver refuses a case message that carries no position or one that does not parse (SYNC-18-015).
 The position is part of the received body, so the ledger entry for the message records it (SYNC-18-006).
 `Announce(CaseLedgerEntry)` and `Announce(VulnerabilityCase)` carry none, because the entry and the case state their own positions.
 `Create(ProcessingFault)` carries none either: any receiver sends one, about an activity it could not process.
@@ -113,7 +113,7 @@ It replays that `Announce` when the predecessor arrives (ADR-0037, SYNC-14-009).
 
 A participant that holds no entry has none to reject.
 If its case is replaced by a copy ahead of its chain, it sends a `Reject` with no `object`, the `ledgerPosition` of its empty chain (`logIndex` -1) and the case as its `target`.
-That `Reject` asks for a replay from genesis (SYNC-16-007).
+That `Reject` asks for a replay from genesis (SYNC-16-027, SYNC-16-029).
 A `Reject` with no `object` that states no `ledgerPosition`, or one that names an entry, is refused when it is parsed.
 
 Buffering takes priority over rejection (ADR-0037).
@@ -218,7 +218,7 @@ It refuses a copy that names a different entry at an index the participant holds
 Any other copy replaces the case, position included (SYNC-16-022).
 
 After a replacement whose position is ahead of its chain, the participant sends `Reject(CaseLedgerEntry)` naming its own tail.
-It stores each entry the copy already reflects as a no-op, and does not move its case's position back (SYNC-16-007).
+It stores each entry the copy already reflects as a no-op, and does not move its case's position back (SYNC-16-023, SYNC-16-024).
 
 The activity and its rendered example are documented under [Announce vulnerability case](case_management.md#announce-vulnerability-case).
 

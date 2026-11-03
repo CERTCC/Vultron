@@ -488,7 +488,7 @@ class TestReplicaCopies:
         assert _rows(net.record(BYSTANDER, BYSTANDER)) == _rows(diverged)
 
     @pytest.mark.spec("CM-23-016")
-    @pytest.mark.spec("SYNC-16-007")
+    @pytest.mark.spec("SYNC-16-023")
     def test_a_held_entry_is_stored_once_a_fresh_copy_reflects_it(self):
         """A refused entry's held Announce is retried; it is never dropped.
 
@@ -497,7 +497,7 @@ class TestReplicaCopies:
         (SYNC-16-006).  Its tree replays the held Announce through the inbox,
         and that delivery stores the entry as the no-op the copy already
         reflects, so the replica's rows match the CASE_MANAGER's
-        (SYNC-14-009, SYNC-16-007).
+        (SYNC-14-009, SYNC-16-023).
         """
         net = _net("cc-gap-retry")
         replica = net.stores[BYSTANDER]
@@ -520,7 +520,7 @@ class TestReplicaCopies:
 
         # The CASE_MANAGER's copy names its tail, the entry the replica
         # holds (SYNC-16-005), so it replaces the case and the held entry is
-        # stored as the no-op the copy already reflects (SYNC-16-007).
+        # stored as the no-op the copy already reflects (SYNC-16-023).
         seed_id = TriggerActivityAdapter(
             net.stores[MANAGER]
         ).announce_vulnerability_case(

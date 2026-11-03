@@ -130,7 +130,7 @@ hashes must stay valid if the chain later becomes a Merkle tree (SYNC-01-005).
   CASE_MANAGER's own entry agree. A resend relays the sealed body, so it keeps the
   first position (SYNC-18-009, OX-07-001).
 - **Scope is decided by the receiver's event class.** A `LedgerPositionedEvent`
-  requires the position at the parse edge (SYNC-18-003); every other received
+  requires the position at the parse edge (SYNC-18-015); every other received
   semantic is listed with its reason in `test/wire/as2/test_ledger_position_scope.py`.
   The sender stamps whenever its store holds the case's ledger, so an activity sent
   before that is never stamped. `Read(CaseLedgerEntry)` is in scope: the entry it
@@ -429,13 +429,13 @@ same entry forever (ADR-0142).
 - **A position never moves back.** Storing an entry at or before the case's
   position leaves the position where it is: a replica seeded ahead of its chain
   stores the replayed entries as no-ops, and moving back would make the next
-  copy look ahead again (SYNC-16-007).
+  copy look ahead again (SYNC-16-024).
 - **A different entry at the position is refused, never stored.** The entries
   before the position carry no hash the case names, so a divergence among them
   shows only at the position's index. `CheckEntryAgreesWithCasePositionNode`
   refuses that entry at ERROR before any effect, and `store_ledger_entry()`
   raises for it, so the chain never names one entry and the case another
-  (SYNC-16-007).
+  (SYNC-16-025, SYNC-16-026).
 - **A case copy is judged by the position it names.** Chain already past it:
   stale, `SKIPPED`, because an old copy can arrive late. A different entry at its
   index: `REFUSED` at ERROR. Otherwise the copy replaces the case, position
@@ -457,7 +457,7 @@ same entry forever (ADR-0142).
   `case.ledger_position` without effects, so no apply node needs its own "copy is
   past" test; `case_file_is_past()` stays for the embargo register's own replays.
   That includes the held refused entry, which the seed drains before any replay
-  arrives, and the backfill after a join seed (SYNC-16-007).
+  arrives, and the backfill after a join seed (SYNC-16-023).
 - **An empty chain still asks.** A replica with no stored entry sends the `Reject`
   that names none: the empty chain's `ledgerPosition` (index -1), case as `target`.
   The parser admits an objectless `Reject` only in that form

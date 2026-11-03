@@ -122,7 +122,7 @@ __all__ = [
     "recommend_actor_activity",
     "reject_actor_recommendation_activity",
     "reject_case_participant_offer_activity",
-    # ledger position (SYNC-18-001)
+    # ledger position (SYNC-18-001, SYNC-18-017)
     "ledger_position_case_ids",
     "object_states_its_own_position",
     "stamp_ledger_position",

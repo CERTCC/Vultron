@@ -10,12 +10,15 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Which received activities must state a ledger position (SYNC-18-001, -003).
+"""Which received activities must state a ledger position (SYNC-18-001).
+
+The parse edge refuses one in scope that states none (SYNC-18-015), and
+SYNC-18-017 keeps the rest out of scope.
 
 A received event class requires ``ledger_position`` by subclassing
 ``LedgerPositionedEvent``, and the parse edge refuses an activity of such a
 class that states none.  Every other received semantic is listed here with
-the reason SYNC-18-001 leaves it out, so a new message type is either stamped
+the reason SYNC-18-017 leaves it out, so a new message type is either stamped
 and required or out of scope by an explicit decision.
 """
 
@@ -44,7 +47,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 _NO_LEDGER_YET = "its sender holds no ledger for the case when it sends it"
 _STATES_ITS_OWN = "its object states its own ledger position"
 
-#: Received semantics outside SYNC-18-001's scope, with the reason.
+#: Received semantics SYNC-18-017 leaves out of scope, with the reason.
 OUT_OF_SCOPE: dict[MessageSemantics, str] = {
     MessageSemantics.CREATE_REPORT: _NO_LEDGER_YET,
     MessageSemantics.SUBMIT_REPORT: _NO_LEDGER_YET,
@@ -88,7 +91,7 @@ def _semantics_of(event_class: type[VultronEvent]) -> MessageSemantics:
 
 
 @pytest.mark.spec("SYNC-18-001")
-@pytest.mark.spec("SYNC-18-003")
+@pytest.mark.spec("SYNC-18-003", "SYNC-18-015", "SYNC-18-017")
 @pytest.mark.parametrize(
     "event_class", _received_event_classes(), ids=lambda cls: cls.__name__
 )
@@ -106,7 +109,7 @@ def test_every_received_class_requires_a_position_or_is_out_of_scope(
         assert event_class.model_fields["ledger_position"].is_required()
 
 
-@pytest.mark.spec("SYNC-18-003")
+@pytest.mark.spec("SYNC-18-017")
 def test_the_scope_table_names_only_received_semantics() -> None:
     received = {_semantics_of(cls) for cls in _received_event_classes()}
 
@@ -129,7 +132,7 @@ def _note_on_case():
     )
 
 
-@pytest.mark.spec("SYNC-18-003")
+@pytest.mark.spec("SYNC-18-015")
 def test_an_in_scope_activity_without_a_position_is_refused_by_name() -> None:
     note = _note_on_case()
 
@@ -145,7 +148,7 @@ def test_an_in_scope_activity_extracts_the_position_it_states() -> None:
     assert event.ledger_position == TEST_SENDER_POSITION
 
 
-@pytest.mark.spec("SYNC-18-001")
+@pytest.mark.spec("SYNC-18-017")
 def test_an_out_of_scope_activity_needs_no_position() -> None:
     report = as_VulnerabilityReport(
         id_="https://example.org/reports/scope", content="a vul"

@@ -156,7 +156,7 @@ def create_announce_vulnerability_case_received_tree(
             # was received, through this actor's inbox as a delivery of its
             # own (SYNC-15-005, SYNC-14-009).  After a replacement, an entry
             # held because the old case refused it extends the chain too, and
-            # is stored as a no-op if the copy reflects it (SYNC-16-007).
+            # is stored as a no-op if the copy reflects it (SYNC-16-023).
             ReplayHeldSuccessorNode(
                 case_id=case_id, name="ReplayHeldPreGenesisEntry"
             ),

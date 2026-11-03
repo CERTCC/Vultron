@@ -287,7 +287,7 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
         "names, by its ledger coordinates, an entry the receiver holds"
     ),
     # Names no entry at all, only the case the CASE_MANAGER holds, as the
-    # target of a request for a replay from genesis (SYNC-16-007).
+    # target of a request for a replay from genesis (SYNC-16-027).
     "genesis_replay_reject_activity": NoIntroduction(
         "names no object, only the case the receiver holds as its target"
     ),

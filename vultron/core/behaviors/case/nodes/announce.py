@@ -114,7 +114,7 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
     replaces the stored case with it, position included, refreshes its
     participants, stores any report it lacks and links them, in one
     transaction.  A case stored at a position ahead of the replica's chain
-    stores the entries up to it as no-ops (SYNC-16-007).  A re-delivery of
+    stores the entries up to it as no-ops (SYNC-16-023).  A re-delivery of
     the same Announce takes the same judgement (SYNC-16-006): at the case's
     own position it is current and replaces the case with itself; once the
     chain is past it, it is stale and skipped.

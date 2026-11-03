@@ -40,7 +40,7 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 _Activity = TypeVar("_Activity", bound=as_Activity)
 
 #: ``(activity type, object type)`` pairs whose object states its own ledger
-#: position, so the activity carries none (SYNC-18-001): a ledger entry names
+#: position, so the activity carries none (SYNC-18-017): a ledger entry names
 #: its own index and hash, and a case copy its ``ledgerPosition``
 #: (SYNC-16-005).  ``Create(VulnerabilityCase)`` is the creator's first copy
 #: and ``Update(VulnerabilityCase)`` the CASE_MANAGER's copy recording a new

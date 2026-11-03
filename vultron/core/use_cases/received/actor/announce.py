@@ -45,7 +45,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
     repeat of the same Announce is judged the same way (SYNC-16-006).  After a
     replacement whose position is ahead of the chain the replica asks for
     the missing entries and stores each one the copy reflects as a no-op
-    (SYNC-16-007).
+    (SYNC-16-007, SYNC-16-023).
 
     Only the case's CASE_MANAGER sends it, and every receiver, a participant
     replica, takes it from the CASE_MANAGER alone (PCR-03-001): the one its

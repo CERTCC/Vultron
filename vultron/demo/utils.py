@@ -511,7 +511,7 @@ def _stamped_as_in_step(
     An exchange demo posts a factory-built activity straight to an actor's
     inbox in place of a peer.  A peer that holds the case states its ledger
     tail on every case activity, and the receiver refuses one that states
-    none (SYNC-18-001, SYNC-18-003).  The demo stands in for a peer in step
+    none (SYNC-18-001, SYNC-18-015).  The demo stands in for a peer in step
     with the receiver, so it states the position of the receiver's own copy
     of the case.  An activity naming no case the receiver holds is posted as
     it is.

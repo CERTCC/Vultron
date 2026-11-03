@@ -162,7 +162,7 @@ def test_an_active_participants_fault_is_answered_with_the_case() -> None:
 
 @pytest.mark.spec("SYNC-16-003")
 @pytest.mark.spec("SYNC-16-006")
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-007", "SYNC-16-023")
 def test_a_reseeded_replica_converges_to_the_case_managers_case() -> None:
     """The copy replaces the diverged case and drains the held entry.
 

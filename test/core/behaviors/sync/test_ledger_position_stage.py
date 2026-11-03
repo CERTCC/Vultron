@@ -420,7 +420,7 @@ def test_a_stamp_at_the_tail_needs_no_sync_port(dl) -> None:
 
 
 @pytest.mark.spec("SYNC-18-007")
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-18-001")
 def test_an_empty_replicas_stamp_is_recorded_and_replayed_from_genesis(
     dl,
 ) -> None:

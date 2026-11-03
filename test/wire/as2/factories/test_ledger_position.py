@@ -113,7 +113,7 @@ def test_a_stub_invite_and_its_reply_name_the_case_the_stub_stands_for() -> (
     assert _CASE in list(ledger_position_case_ids(reply))
 
 
-@pytest.mark.spec("SYNC-18-001")
+@pytest.mark.spec("SYNC-18-017")
 @pytest.mark.parametrize(
     "build",
     [

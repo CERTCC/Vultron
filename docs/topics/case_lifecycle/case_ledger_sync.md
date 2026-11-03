@@ -358,9 +358,9 @@ A copy that names a different entry at a position the replica holds is refused a
 
 Any other copy replaces the replica's case.
 When that copy is ahead of the replica's chain, the replica asks for the missing entries with a `Reject`.
-It also stores each entry the copy already reflects, without applying it again or moving its position back ([SYNC-16-007](../../reference/vultron-spec/requirements/ledger-replication.md#sync-16-007)).
+It also stores each entry the copy already reflects, without applying it again or moving its position back ([SYNC-16-023](../../reference/vultron-spec/requirements/ledger-replication.md#sync-16-023), [SYNC-16-024](../../reference/vultron-spec/requirements/ledger-replication.md#sync-16-024)).
 An entry at the copy's position that is not the entry the copy names comes from a different chain.
-So the replica refuses it as a conflict and does not store it ([SYNC-16-007](../../reference/vultron-spec/requirements/ledger-replication.md#sync-16-007)).
+So the replica refuses it as a conflict and does not store it ([SYNC-16-025](../../reference/vultron-spec/requirements/ledger-replication.md#sync-16-025)).
 
 ---
 
@@ -378,7 +378,7 @@ The CASE_MANAGER cannot see the order in which one participant sent two messages
 So a decision must not depend on that order ([SYNC-19-001](../../reference/vultron-spec/requirements/ledger-replication.md#sync-19-001)).
 
 A sender may deliver its messages to each recipient in order, and this implementation does ([OX-01-005](../../reference/specs/project.md#ox-01-005)).
-That is an optimization, not a guarantee another implementation must give, and no participant may rely on it ([SYNC-19-003](../../reference/vultron-spec/requirements/ledger-replication.md#sync-19-003), [SYNC-19-005](../../reference/vultron-spec/requirements/ledger-replication.md#sync-19-005), [SYNC-19-006](../../reference/vultron-spec/requirements/ledger-replication.md#sync-19-006)).
+That is an optimization, not a guarantee another implementation must give, and no participant may rely on it ([SYNC-19-007](../../reference/vultron-spec/requirements/ledger-replication.md#sync-19-007), [SYNC-19-003](../../reference/vultron-spec/requirements/ledger-replication.md#sync-19-003), [SYNC-19-005](../../reference/vultron-spec/requirements/ledger-replication.md#sync-19-005), [SYNC-19-006](../../reference/vultron-spec/requirements/ledger-replication.md#sync-19-006)).
 
 ### Messages the CASE_MANAGER sends outside the ledger
 

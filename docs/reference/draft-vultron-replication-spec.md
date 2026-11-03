@@ -278,11 +278,11 @@ A participant that already holds the case compares the copy's position with its 
 - If its chain is already past the position, the copy is stale and the participant leaves its case unchanged.
 - If it holds a different entry at the position's index, the chains conflict and the participant leaves its case unchanged.
 - Otherwise it replaces its case with the copy.
-  If its chain falls short of the copy's position, it sends `Reject(CaseLedgerEntry)` with its own tail, and stores each entry at or before that position, replayed or drained from its holding area, as a no-op. (SYNC-16-007)
+  If its chain falls short of the copy's position, it sends `Reject(CaseLedgerEntry)` with its own tail, and stores each entry at or before that position, replayed or drained from its holding area, as a no-op. (SYNC-16-007, SYNC-16-023)
 
 Committing or storing an entry at or before the case's position leaves the position where it is, so a case a copy put ahead of its chain never moves back while the chain catches up.
-A participant refuses an entry at the position's index whose hash differs from the one the position names, and logs the conflict as an error, because that entry belongs to a different chain from the copy. (SYNC-16-007)
-A participant first seeded from a copy stores the entries up to the copy's position the same way, as no-ops. (SYNC-16-007)
+A participant refuses an entry at the position's index whose hash differs from the one the position names, and logs the conflict as an error, because that entry belongs to a different chain from the copy. (SYNC-16-025, SYNC-16-026)
+A participant first seeded from a copy stores the entries up to the copy's position the same way, as no-ops. (SYNC-16-023)
 
 [I] In this implementation, the position travels as the `ledgerPosition` property of the case object, with `logIndex` and `entryHash` members.
 A received case with no owner or no `ledgerPosition` is refused when it is parsed, so every copy a replica judges names a position.
@@ -293,7 +293,7 @@ The replica's own position is the later of its chain's tail and its case's posit
 A re-delivery of the same announcement is judged the same way: current while the replica is still at the copy's position, stale once its chain is past it.
 A replica stores an entry the copy reflects without applying it, but still stores each record the entry carries that the copy names by id only, such as a note, a case status or a proposed embargo.
 The `Reject(CaseLedgerEntry)` names the last entry the replica's chain stores.
-A replica whose chain stores no entry has none to name, so its `Reject` names no entry, states the `ledgerPosition` of its empty chain (`logIndex` -1) and names the case as its `target`; the CASE_MANAGER answers it with a replay from genesis. (SYNC-16-007)
+A replica whose chain stores no entry has none to name, so its `Reject` names no entry, states the `ledgerPosition` of its empty chain (`logIndex` -1) and names the case as its `target`; the CASE_MANAGER answers it with a replay from genesis. (SYNC-16-027, SYNC-16-028, SYNC-16-029)
 A `Reject` that names no entry and states no position, or a position naming an entry, is refused when it arrives.
 
 A divergence fault for an entry the last re-seed already reflected, from a participant whose acknowledged position is at or past that re-seed's position, with a claimed `published` time after the time the participant claimed for that acknowledgement, means the CASE_MANAGER's case disagrees with its own ledger, and the CASE_MANAGER SHOULD log it as an error. (SYNC-16-008)
@@ -415,7 +415,7 @@ That covers a participant's handling of a direct message and the entries it rela
 It also covers the CASE_MANAGER's record of two assertions that one sender sent before the first was committed. (SYNC-19-001)
 
 Per-recipient delivery order MUST NOT be a protocol guarantee.
-An implementation MAY deliver in order per recipient as an optimization, but neither a sender nor a receiver may rely on it. (SYNC-19-003, SYNC-19-005, SYNC-19-006)
+An implementation MAY deliver in order per recipient as an optimization, but neither a sender nor a receiver may rely on it. (SYNC-19-007, SYNC-19-003, SYNC-19-005, SYNC-19-006)
 
 ## 7. Commit Discipline [N]
 
@@ -506,8 +506,8 @@ restart. (SYNC-04-002)
 Every activity about a case whose ledger its sender holds, from any sender, MUST state the sender's ledger tail as the activity's `ledgerPosition`: the `logIndex` and `entryHash` of the last entry it had committed or stored when it built the activity. (SYNC-18-001)
 The position MUST be the tail when the sender builds the activity, and a resend MUST carry the position it was first sent with. (SYNC-18-002, SYNC-18-009)
 Only `vultron.wire.as2.factories` produces it. (SYNC-18-008)
-An activity sent before its sender holds the case's ledger, an activity whose object states its own position (`Announce(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`, `Create(VulnerabilityCase)`, `Update(VulnerabilityCase)`), and `Create(ProcessingFault)` carry none. (SYNC-18-001)
-A receiver MUST refuse an activity in that scope whose `ledgerPosition` is missing or does not parse. (SYNC-18-003)
+An activity sent before its sender holds the case's ledger, an activity whose object states its own position (`Announce(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`, `Create(VulnerabilityCase)`, `Update(VulnerabilityCase)`), and `Create(ProcessingFault)` carry none. (SYNC-18-017)
+A receiver MUST refuse an activity in that scope whose `ledgerPosition` is missing or does not parse. (SYNC-18-015)
 The stamp lets the CASE_MANAGER see that a participant is behind without waiting for an explicit sync request.
 
 The CASE_MANAGER MUST NOT refuse, hold or defer an activity because its `ledgerPosition` is behind its own ledger tail, and MUST log such a lag at DEBUG; a reply to the full-case Invite is the one exception, judged against its Invite's floor. (SYNC-18-004, SYNC-18-010)
@@ -686,6 +686,13 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-16-021 | §5.5 | A conflicting copy MUST be refused |
 | SYNC-16-022 | §5.5 | Any other copy MUST replace the case file |
 | SYNC-16-007 | §5.5 | After replacement, participant MUST backfill to the copy's position |
+| SYNC-16-023 | §5.5 | A participant ahead of its chain MUST store each entry at or before the position as a no-op |
+| SYNC-16-024 | §5.5 | Storing such an entry MUST NOT move the position back |
+| SYNC-16-025 | §5.5 | An entry at the position's index with another hash MUST be refused |
+| SYNC-16-026 | §5.5 | That conflict MUST be logged at ERROR |
+| SYNC-16-027 | §5.5 | A chain that stores no entry MUST send the empty-chain `Reject` |
+| SYNC-16-028 | §5.5 | A receiver MUST refuse a no-entry `Reject` without the empty chain's position |
+| SYNC-16-029 | §5.5 | CASE_MANAGER MUST answer the empty-chain `Reject` as a replay from genesis |
 | SYNC-16-008 | §5.5 | CASE_MANAGER SHOULD log divergence after an acknowledged re-seed as an error |
 | SYNC-17-001 | §5.6 | Participant MAY state its position with `Read(CaseLedgerEntry)` |
 | SYNC-17-002 | §5.6 | CASE_MANAGER MUST refuse a stated position from a sender that is not active |
@@ -699,10 +706,13 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-17-011 | §5.6, §10 | Reference participant SHOULD support an optional interval, off by default |
 | SYNC-17-008 | §5.6 | Participant SHOULD state its position once a case copy seeds its replica |
 | SYNC-18-001 | §9 | Every case activity MUST state its sender's ledger tail as `ledgerPosition` |
+| SYNC-18-017 | §9 | An activity outside that scope MUST NOT carry a position |
 | SYNC-18-002 | §9 | The position MUST be the tail when the activity is built |
 | SYNC-18-008 | §9 | Only `vultron.wire.as2.factories` MUST produce the position |
 | SYNC-18-009 | §9 | A resend MUST keep its first position |
-| SYNC-18-003 | §9 | A receiver MUST refuse a case activity whose `ledgerPosition` is missing or malformed |
+| SYNC-18-003 | §9 | A receiver MUST parse `ledgerPosition` at the parse edge |
+| SYNC-18-015 | §9 | A receiver MUST refuse a case activity whose `ledgerPosition` is missing or malformed |
+| SYNC-18-016 | §9 | A `Reject(CaseLedgerEntry)` that names an entry MUST NOT be refused for a missing position |
 | SYNC-18-004 | §9 | CASE_MANAGER MUST NOT refuse an activity whose `ledgerPosition` lags |
 | SYNC-18-010 | §9 | CASE_MANAGER MUST log a lag at DEBUG |
 | SYNC-18-005 | §9 | An activity with a split `ledgerPosition` MUST be judged without the position |
@@ -717,6 +727,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-19-003 | §6.7 | Per-recipient delivery order MUST NOT be a protocol guarantee |
 | SYNC-19-005 | §6.7 | A receiver MUST NOT rely on delivery order |
 | SYNC-19-006 | §6.7 | A sender MUST NOT rely on its own ordered delivery |
+| SYNC-19-007 | §6.7 | An implementation MAY deliver in order per recipient as an optimization |
 | SYNC-20-001 | §5.7 | A stated position MUST resend the Invites its sender owes, inert senders included |
 | SYNC-20-002 | §5.7 | An Invite is owed only while its answer can still count |
 | SYNC-20-003 | §5.7 | A resent Invite MUST be the activity as first sent |
