@@ -576,7 +576,7 @@ def test_the_apply_function_reads_no_clock_mints_no_id_and_reads_no_store(
 
     The function takes no store: its only inputs are the case file and the
     change.  Every core module's ``datetime`` reads the clock through
-    ``datetime.now``, and every minted id goes through ``uuid.uuid4``; all of
+    ``datetime.now``, and every minted id goes through ``new_object_id``; all of
     them fail here.
     """
     case_file = _case_file()

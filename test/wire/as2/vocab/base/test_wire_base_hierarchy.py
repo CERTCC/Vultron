@@ -26,11 +26,11 @@ from typing import Literal
 import pytest
 from pydantic import BaseModel, Field
 
+from vultron.core.models._helpers import URN_UUID_PREFIX
 from vultron.core.models.base import CoreObject, CoreRecord
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
-from vultron.wire.as2.vocab.base.utils import URN_UUID_PREFIX
 
 # --- Own root (ARCH-25-004, ARCH-12-001; ADR-0099) -----------------------------
 
@@ -66,7 +66,7 @@ def test_as_object_mro_is_wire_only():
 
 
 def test_as_base_id_uses_wire_default():
-    """as_Base.id_ still uses generate_new_id (urn:uuid: prefix)."""
+    """as_Base.id_ defaults through the shared minter (urn:uuid: prefix)."""
     obj = as_Base()
     assert obj.id_.startswith(URN_UUID_PREFIX)
 
@@ -154,7 +154,7 @@ def test_as_object_attributed_to_accepts_non_string():
 
 
 def test_as_object_id_uses_wire_default():
-    """as_Object.id_ still uses wire generate_new_id."""
+    """as_Object.id_ defaults through the shared minter."""
     obj = as_Object()
     assert obj.id_.startswith(URN_UUID_PREFIX)
 
