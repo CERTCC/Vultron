@@ -23,7 +23,7 @@ TRIG-08-003 and TRIG-08-004, which until the registry existed read
 
 The mounted routes are read from the OpenAPI document the app renders — the
 same document the golden snapshot freezes (TRIG-12-003) — built with the demo
-router mounted (``run_mode=PROTOTYPE``) so the demo-only rows are visible
+router mounted (``mode=PROTOTYPE``) so the demo-only rows are visible
 (TRIG-09-001).  Two ``GET`` routes also live under ``/demo/`` — the case-ledger
 read endpoints — and are not triggers; they are pinned by name, in a pinned
 exemption set rather than a ratchet (ARCH-18-005), so a third

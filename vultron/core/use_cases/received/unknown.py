@@ -68,11 +68,11 @@ class UnresolvableObjectUseCase:
     """Stores a dead-letter record for activities whose object_ URI could not
     be resolved after rehydration.
 
-    See ``specs/semantic-extraction.yaml`` SE-04-002, SE-04-003.
+    See ``specs/semantic-extraction.yaml`` SE-04-003, SE-04-007.
     """
 
     # The dead-letter record is the receiver's own diagnostic, not an
-    # assertion applied to any case (SE-04-002).
+    # assertion applied to any case (SE-04-007).
     sender_entitlement: ClassVar[SenderEntitlement] = no_sender_check(
         "the activity's object cannot be resolved, so it has no meaning to"
         " apply: the receiver only stores a dead-letter record for its own"
@@ -130,7 +130,7 @@ class UnresolvableObjectUseCase:
             )
             return verdict
         # The record is bookkeeping; the activity itself was not processed
-        # (SE-04-002), so the sender sees it rejected (HP-01-003).
+        # (SE-04-007), so the sender sees it rejected (HP-01-003).
         return HandlerResult.refused(
             f"unresolvable object '{unresolvable_uri}'; dead-lettered"
         )

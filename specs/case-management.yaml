@@ -7859,7 +7859,7 @@ groups:
       An emit in the name of the CASE_MANAGER from a container that does not host it
       bypasses the CASE_MANAGER. The activity leaves a store that does not hold the
       ledger. The canonical entry can then come only from a copy of the emit that is
-      mailed to the CASE_MANAGER. Also, such a container cannot sign the activity
+      delivered to the CASE_MANAGER. Also, such a container cannot sign the activity
       (OX-10).
     verification: >-
       `test_invite_is_queued_in_the_owners_outbox_only` and

@@ -732,7 +732,7 @@ class TestC2SuggestsTheVendorDeployer:
 
         The real invite chain runs, so the Invite is located by polling V2's
         DataLayer and the Accept is puppeteered from V2's own container — no
-        mail-carrying and no inbox injection (DEMOMA-19-022).
+        inbox injection (DEMOMA-00-002, DEMOMA-19-022).
         """
         state = _five_party_state()
 
