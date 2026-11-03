@@ -135,7 +135,10 @@ For each requirement in the worklist:
    `verification:` clause if the move requires one (MS-10-008). Record the
    verdict in the PR.
 4. **Remove the suppression** when a story is added; `scripts/apply_story_mappings.py`
-   does the formatting-preserving edit. Never add one (MS-12-007).
+   does the formatting-preserving edit. Never add one (MS-12-007). That script
+   edits only items that carry the suppression; for an unsuppressed item, give
+   `scripts/relabel_spec_kinds.py` `{"kind": null, "stories": [...]}`, which
+   handles both shapes.
 
 Order relative to the rationale backfill: the rationale backfill for every
 area (#4483–#4486) is complete, so no drafting Task waits on it. Every

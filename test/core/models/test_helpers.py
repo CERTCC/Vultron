@@ -102,46 +102,6 @@ def test_as_id_object_without_id_():
     assert _as_id(Obj()) == "fallback"
 
 
-# --- status_recency_key (CM-29-001) ---------------------------------------
-
-
-def test_status_recency_key_prefers_updated_over_published():
-    from datetime import datetime
-
-    from vultron.core.models._helpers import status_recency_key
-
-    updated = datetime(2026, 6, 1, tzinfo=UTC)
-    published = datetime(2026, 1, 1, tzinfo=UTC)
-    assert status_recency_key(updated, published) == updated
-
-
-def test_status_recency_key_falls_back_to_published():
-    from datetime import datetime
-
-    from vultron.core.models._helpers import status_recency_key
-
-    published = datetime(2026, 1, 1, tzinfo=UTC)
-    assert status_recency_key(None, published) == published
-
-
-def test_status_recency_key_normalises_naive_to_utc():
-    """Naive timestamps (wire ISO strings without offset) are treated as UTC.
-
-    Regression for #2979: a naive key compared against an aware one would
-    otherwise raise ``TypeError`` in ``max()``.
-    """
-    from datetime import datetime
-
-    from vultron.core.models._helpers import status_recency_key
-
-    naive = datetime(2026, 1, 1)  # noqa: DTZ001 — deliberately naive
-    aware = datetime(2025, 1, 1, tzinfo=UTC)
-    assert status_recency_key(naive, aware) == datetime(2026, 1, 1, tzinfo=UTC)
-    assert status_recency_key(None, naive) == datetime(2026, 1, 1, tzinfo=UTC)
-    # Comparable against an aware key without raising.
-    assert status_recency_key(naive, aware) > status_recency_key(None, aware)
-
-
 # --- as_utc ---------------------------------------------------------------
 
 

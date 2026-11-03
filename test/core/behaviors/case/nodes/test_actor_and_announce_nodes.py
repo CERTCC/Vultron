@@ -148,7 +148,7 @@ class TestAcceptCaseOwnershipTransferNode:
     def test_transfers_ownership(self, bridge, dl) -> None:
         """Happy path: case.attributed_to updated to new_owner_id."""
         # The new owner is a participant: the Accept's guards admit only an
-        # active transferee (CM-21-021), and the node refuses any other.
+        # active transferee (CM-21-022), and the node refuses any other.
         participant = CaseParticipant(
             id_="https://example.org/participants/p-new-owner",
             attributed_to=NEW_OWNER_ID,

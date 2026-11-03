@@ -48,31 +48,42 @@ groups:
     kind: project
     statement: >-
       The `VOCABULARY` registry MUST map each wire class from a key that is its full
-      wire class name, such as `as_VultronPerson`. This codebase MUST NOT read a
-      `VOCABULARY` key as an AS2 `type` value.
-    lint_suppress:
-    # compound_statement: the MUST NOT does not hold yet, so a split child has no
-    # passing check, and this item has no verification_debt marker for it to carry
-    # (MS-10-016). find_in_vocabulary consults VOCABULARY keys for every `type`
-    # value, and only a class's `type` Literal refuses one: `"type": "as_Accept"`
-    # is refused, but `as_Activity.type_` is a bare `str`, so `"type":
-    # "as_Activity"` resolves. Split it once #5738 lands and a test checks that
-    # half (#5662).
-    - compound_statement
+      wire class name, such as `as_VultronPerson`.
     rationale: >-
       The two registries answer different questions, so they carry different key forms:
       `VOCABULARY` answers "which class is named this?", `WIRE_TYPE_MAP` answers "which class
       does this wire `type` value deserialize to?" (VM-01-008). The `as_` prefix is never
       part of an AS2 `type` value, so nothing external depends on this key form
       (ARCH-23-003).
-    note: >-
-      Resolving an inbound `"type": "..."` value is `WIRE_TYPE_MAP`'s job (VM-01-008).
     verification: >-
       `test/architecture/test_vocab_registry_keys.py` asserts every `VOCABULARY` key equals its
       registered class's `__name__`, behind the same population guard the `WIRE_TYPE_MAP` ratchets
       use.
     adr:
     - ADR-0082
+  - id: VM-01-016
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      This codebase MUST NOT read a `VOCABULARY` key as an AS2 `type` value.
+    rationale: >-
+      A `VOCABULARY` key is a Python class name, which no peer emits as a `type`. A
+      lookup that accepts one lets an inbound `"type": "as_Activity"` resolve to a
+      class, so a message no AS2 sender could write is parsed. A class's `type_`
+      annotation does not refuse it for every class: `as_Activity.type_` is a bare
+      `str`.
+    note: >-
+      Resolving an inbound `"type": "..."` value is `WIRE_TYPE_MAP`'s job (VM-01-008),
+      and `find_in_vocabulary` consults no other wire registry.
+    verification: >-
+      `test/wire/as2/test_vocabulary_key_is_not_a_wire_type.py` tries every
+      `VOCABULARY` key as the `type` of an inbound activity and as a type lookup, and
+      asserts each one is refused.
+    adr:
+    - ADR-0082
+    relationships:
+    - rel_type: refines
+      spec_id: VM-01-004
   - id: VM-01-009
     priority: MUST
     kind: project
@@ -262,8 +273,9 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      A class declared as an alias MUST NOT hold a `WIRE_TYPE_MAP` key. It stays
-      reachable by class name through `VOCABULARY` (VM-01-004).
+      A class declared as an alias MUST NOT hold a `WIRE_TYPE_MAP` key. It is still
+      listed in `VOCABULARY` under its class name (VM-01-004), but no wire `type`
+      value resolves to it (VM-01-016).
     rationale: >-
       An alias is not what its `type` value deserializes to, so a key of its own would
       give the inbound lookup a second answer for that value.
@@ -381,13 +393,14 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      A semantic alias that must not be reachable under its own class name MUST NOT
-      declare its own `type_` annotation.
+      A semantic alias that must not be listed in `VOCABULARY` under its own class
+      name MUST NOT declare its own `type_` annotation.
     rationale: >-
-      Any own `type_` declaration registers the class under its class name. The
-      prohibition covers only aliases that must not be reachable by class name. A class
-      that shares another class's `type` but must stay reachable by class name declares
-      `_wire_type_alias` instead (VM-01-014).
+      Any own `type_` declaration lists the class in `VOCABULARY` under its class
+      name. The prohibition covers only aliases that must not be listed there. A class
+      that shares another class's `type` but must stay listed declares
+      `_wire_type_alias` instead (VM-01-014). A listing is not a lookup: no wire
+      `type` value resolves through `VOCABULARY` (VM-01-016).
     note: >-
       Such an alias is the `_XxxActivity` pattern, which presents an ancestor's `type`.
     verification: >-
@@ -785,22 +798,35 @@ groups:
   - id: VM-07-001
     priority: MUST
     kind: project
-    statement: Serialized wire-layer objects MUST exclude `None` fields and MUST exclude empty string fields
-    lint_suppress:
-    # compound_statement: the empty-string half does not hold yet: nothing strips a
-    # blank value on output, so `as_Object(name="")` serializes `"name": ""`. A split
-    # child has no passing check, and this item has no verification_debt marker for
-    # it to carry (MS-10-016). Split it once #5739 lands and a test checks that
-    # half (#5662).
-    - compound_statement
+    statement: Serialized wire-layer objects MUST exclude `None` fields.
     rationale: >-
-      Under the rule "if present, then non-empty" (CS-08-001), a blank value means the
-      same as no value. A sender that emits `null` or `""` gives receivers two more
-      forms of one absence to handle, and a receiver that reads them as values can act
-      on them. Leaving the field out gives one form.
+      Under the rule "if present, then non-empty" (CS-08-001), a `null` value means
+      the same as no value. A sender that emits `null` gives receivers a second form
+      of one absence to handle, and a receiver that reads it as a value can act on
+      it. Leaving the field out gives one form.
     verification: Unit tests `test_render_excludes_none_fields` in `test/adapters/driven/test_wire_render_adapter.py` and
       `test_exclude_none_true` in `test/adapters/driving/fastapi/test_responses.py` confirm that `None` fields are absent
       from serialized output.
+  - id: VM-07-005
+    priority: MUST
+    kind: project
+    statement: Serialized wire-layer objects MUST exclude empty string fields.
+    rationale: >-
+      Under CS-08-001 a blank string means the same as no value, so a sender that
+      emits `""` gives receivers another form of one absence, and a receiver that
+      reads it as a value can act on it.
+    note: >-
+      This codebase meets it by refusing a blank when an object is built
+      (`NonEmptyString`, CS-08-002), not by stripping blanks at serialization, which
+      would change stored data silently.
+    verification: >-
+      `test/wire/as2/test_wire_text_fields_reject_blank.py` asserts every wire
+      string field refuses a blank, building or parsing an object with a blank
+      `name`, `summary`, `content` or `mediaType` is refused, and no serialized
+      example activity holds an empty string.
+    relationships:
+    - rel_type: refines
+      spec_id: VM-07-001
   - id: VM-07-002
     priority: MUST
     kind: foundation
@@ -1151,6 +1177,32 @@ groups:
     - ADR-0069
     relationships:
     - rel_type: implements
+      spec_id: VM-10-001
+    stories:
+    - story_2022_039
+  - id: VM-10-003
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver MUST NOT require dereferencing the Vultron JSON-LD context URI
+      (VM-10-001) to process a message.
+    rationale: >-
+      A receiver reads Vultron's compact JSON form and needs no JSON-LD expansion, so the
+      context URI is an identifier, not an input. A fetch per message would also make
+      processing depend on the network and on the host serving the context. Today the
+      URI does not resolve at all: the context document is withheld until it is served
+      at the wire-versioned path ADR-0106 defines, so a receiver that fetched it would
+      fail on every sender's message.
+    verification: >-
+      A test marked `VM-10-003` in `test/wire/as2/test_parser.py` blocks network
+      access, then parses an inbound activity whose activity and nested objects declare
+      the Vultron context, and asserts semantic extraction succeeds. Parsing and
+      extraction are the receiver's only steps that read `@context`.
+    adr:
+    - ADR-0069
+    - ADR-0106
+    relationships:
+    - rel_type: uses_definition
       spec_id: VM-10-001
     stories:
     - story_2022_039

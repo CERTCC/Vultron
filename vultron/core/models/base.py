@@ -281,7 +281,7 @@ class CoreObject(CoreRecord):
     #: :meth:`_carry_absent_times_on_inbound` refuses its absence (CLP-15-010).
     _inbound_requires_published: ClassVar[bool] = False
 
-    content: Any | None = None
+    content: NonEmptyString | None = None
     summary: NonEmptyString | None = None
     icon: Any | None = None
     image: Any | None = None

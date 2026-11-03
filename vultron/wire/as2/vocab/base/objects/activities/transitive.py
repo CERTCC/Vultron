@@ -19,6 +19,7 @@ from pydantic import Field, field_validator, model_validator
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.models.ledger_position import EMPTY_LEDGER_LOG_INDEX
+from vultron.primitives import NonEmptyString
 from vultron.wire.as2.enums import as_TransitiveActivityType as TA_type
 from vultron.wire.as2.vocab.base.base import VULTRON_PROPERTY_EXTRA
 from vultron.wire.as2.vocab.base.objects.activities.base import (
@@ -122,7 +123,7 @@ class as_Offer(as_TransitiveActivity):
     # reconstructed as a bare as_Offer, so without the field here the suggested
     # roles are dropped on the DataLayer round-trip (#1990).  Aliased
     # explicitly, matching the convention in this module.
-    suggested_roles: list[str] | None = Field(
+    suggested_roles: list[NonEmptyString] | None = Field(
         default=None,
         validation_alias="suggestedRoles",
         serialization_alias="suggestedRoles",
@@ -172,7 +173,7 @@ class as_Invite(as_Offer):
         validation_alias="type",
         serialization_alias="type",
     )
-    roles: list[str] | None = None
+    roles: list[NonEmptyString] | None = None
 
 
 class as_Flag(as_TransitiveActivity):

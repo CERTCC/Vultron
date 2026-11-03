@@ -5,7 +5,14 @@
 **Actor identity.** The protocol uses actor URIs as process identifiers. An
 actor URI is the identity anchor for all messages sent by that actor, and for
 the canonical case ledger if the actor holds the CASE_MANAGER role.
-Actor URI equality is identity equality: two messages with the same `actor` URI are from the same actor.
+Actor URI equality is identity equality:
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("OID-01-010"))
+```
+
+The rule states identity, not trust.
+Whether a message really comes from the actor that it names is the work of the signatures below.
 
 **Verification.** An actor signs each activity that it sends with a `proof` inside the activity, in the FEP-8b32 `eddsa-jcs-2022` form (SIG-01-001, SIG-01-002).
 A receiver refuses an activity whose `proof` is missing or does not verify (SIG-03-002).

@@ -21,6 +21,8 @@ imported directly from the submodule, and EmitCaseStatusUpdateNode.
 Per issue #758 AC-1, AC-3.
 """
 
+from datetime import timedelta
+
 import py_trees
 import pytest
 from py_trees.common import Status
@@ -390,6 +392,58 @@ class TestEmitCaseStatusUpdateNode:
         entries = _case_status_entries(populated_dl)
         assert len(entries) == 2
         assert entries[-1].payload_snapshot["object"]["emState"] == "PROPOSED"
+
+    @pytest.mark.spec("CM-29-005")
+    def test_snapshot_published_is_strictly_after_the_previous_status(
+        self, populated_dl, populated_bridge, monkeypatch
+    ):
+        """Two snapshots with the clock fixed get strictly rising times.
+
+        The clock is pinned before the seeded status's time, so it has also
+        stepped back: only ``now_utc_after`` keeps each snapshot after the
+        status it follows, and the last appended stays current.
+        """
+        from vultron.core.models import _helpers
+        from vultron.core.models.embargo_register import RegisterChange
+        from vultron.core.states.embargo_register import RegisterTrigger
+        from vultron.demo.determinism import SteppingClock
+
+        case = populated_dl.read(CASE_ID)
+        assert isinstance(case, CoreCase)
+        seeded = case.current_status
+        pinned = seeded.published - timedelta(seconds=1)
+        monkeypatch.setattr(
+            _helpers, "datetime", SteppingClock(pinned, step=timedelta(0))
+        )
+
+        first = populated_bridge.execute_with_setup(
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+        assert first.status == Status.SUCCESS
+        case = populated_dl.read(CASE_ID)
+        assert isinstance(case, CoreCase)
+        case.apply_embargo_register_step(
+            [
+                RegisterChange(
+                    embargo_id="https://example.org/embargoes/e1",
+                    trigger=RegisterTrigger.PROPOSE,
+                )
+            ]
+        )
+        populated_dl.save(case)
+        second = populated_bridge.execute_with_setup(
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+        assert second.status == Status.SUCCESS
+
+        case = populated_dl.read(CASE_ID)
+        assert isinstance(case, CoreCase)
+        statuses = [s for s in case.case_statuses if isinstance(s, CaseStatus)]
+        assert len(statuses) == 3
+        times = [s.published for s in statuses]
+        assert times[0] < times[1] < times[2]
+        assert case.current_status.id_ == statuses[-1].id_
+        assert all(s.updated is None for s in statuses[1:])
 
     @pytest.mark.spec("ARCH-15-001")
     @pytest.mark.parametrize(

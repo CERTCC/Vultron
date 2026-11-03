@@ -20,6 +20,7 @@ from typing import Any, ClassVar, TypeAlias
 
 from pydantic import Field
 
+from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.base import VULTRON_CONTEXT_URI
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
@@ -103,7 +104,7 @@ class as_VultronObject(as_Object):
     """
 
     _vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.VULTRON
-    context_: str = Field(
+    context_: NonEmptyString = Field(
         default=VULTRON_CONTEXT_URI,
         validation_alias="@context",
         serialization_alias="@context",

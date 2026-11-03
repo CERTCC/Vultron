@@ -601,7 +601,7 @@ def why_may_not_act_on_case(
     :func:`may_act_on_case`'s, so the two cannot disagree; the reason only
     describes the first condition the actor's record misses.  The ownership
     transfer checks it for the transferee, which the Offer sends the case to
-    and which then acts as its owner (CM-21-021).
+    and which then acts as its owner (CM-21-021, CM-21-022).
     """
     if may_act_on_case(case, dl, actor_id):
         return None
@@ -631,7 +631,7 @@ def listed_participant_record(
     resolve (:func:`_resolve_record`: the stored record first, an inline copy
     as the fallback).  The one lookup behind :func:`may_act_on_case`, so a
     writer that must change the record an entitlement check admitted reads it
-    here too (CM-21-021).
+    here too (CM-21-022).
     """
     participant_id = case.actor_participant_index.get(actor_id)
     if participant_id is None:

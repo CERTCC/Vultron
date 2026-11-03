@@ -154,6 +154,11 @@ vocabulary (`as_Link`, `as_Collection`, …).
 | `VOCABULARY` | full `as_*` class name | `"as_Collection"` | VM-01-004 |
 | `WIRE_TYPE_MAP` | emitted wire `type` value | `"Collection"` | VM-01-008 |
 
+Only `WIRE_TYPE_MAP` answers a `type` lookup: `find_in_vocabulary()` never
+consults `VOCABULARY`, so an inbound `"type": "as_Activity"` is an unknown type
+(VM-01-016). Do not rely on a class's `type_` annotation to refuse its own class
+name: `as_Activity.type_` is a bare `str` and refuses nothing (#5738).
+
 Both keys are derived by `as_Base.__init_subclass__`, `WIRE_TYPE_MAP` via
 `wire_type_value()`. Two classes cannot own one `type` value, so a class that
 shares another's declares `_wire_type_alias: ClassVar[bool] = True` and takes no

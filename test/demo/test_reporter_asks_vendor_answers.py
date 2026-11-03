@@ -8,6 +8,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from vultron.demo.helpers import notes
+from vultron.demo.helpers.coordinated_story import (
+    continuations as coordinated_continuations,
+    opening as coordinated_opening,
+)
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
@@ -411,7 +415,7 @@ def test_the_rejection_fragment_posts_one_thread() -> None:
 
     state = story_state("reporter", "coordinator", "vendor", case=mock_case())
 
-    with patch.object(coordinated_story, "add_note_thread") as thread:
+    with patch.object(coordinated_continuations, "add_note_thread") as thread:
         coordinated_story.reporter_asks_about_the_rejection(state)
 
     watching, case, posts = thread.call_args.args
@@ -443,7 +447,7 @@ def test_the_timeline_fragment_gates_its_thread_on_the_vendors_replica() -> (
     answer = as_Note(name="Coordinator Summary", content="x")
 
     with patch.object(
-        coordinated_story, "gated_note_thread", return_value=answer
+        coordinated_opening, "gated_note_thread", return_value=answer
     ) as thread:
         coordinated_story.reporter_asks_about_the_timeline(state)
 
@@ -467,7 +471,7 @@ def test_the_timeline_fragment_keeps_nothing_when_its_thread_fails() -> None:
     state = story_state("reporter", "coordinator", "vendor", case=mock_case())
 
     with patch.object(
-        coordinated_story, "gated_note_thread", return_value=None
+        coordinated_opening, "gated_note_thread", return_value=None
     ):
         coordinated_story.reporter_asks_about_the_timeline(state)
 
