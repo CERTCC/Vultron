@@ -1060,3 +1060,33 @@ def test_extract_intent_normalises_slash_spelled_sender_id():
     assert event.actor_id == canonical
     assert event.activity is not None
     assert event.activity.actor == canonical + "/"
+
+
+@pytest.mark.spec("OID-01-010")
+def test_extract_intent_attributes_both_actor_spellings_to_one_actor():
+    """Two messages whose ``actor`` differs only by a trailing slash share a sender.
+
+    Normalised as OID-01-006 normalises an extracted actor id, the two
+    ``actor`` URIs are equal, so the receiver attributes both messages to
+    the same actor.  The rule is identity, not trust: whether a message
+    really comes from that actor is the signing work (ADR-0164).
+    """
+    from vultron.wire.as2.factories import add_note_to_case_activity
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    canonical = "https://example.org/alice"
+    case_id = "https://example.org/cases/1"
+
+    def _event_from(actor: str) -> Any:
+        note = as_Note(
+            content="Note body", attributed_to=actor, context=case_id
+        )
+        return extract_stamped(
+            add_note_to_case_activity(note, target=case_id, actor=actor)
+        )
+
+    plain = _event_from(canonical)
+    slashed = _event_from(canonical + "/")
+
+    assert plain.activity_id != slashed.activity_id
+    assert plain.actor_id == slashed.actor_id == canonical

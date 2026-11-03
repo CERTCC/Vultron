@@ -40,12 +40,12 @@
 | [2022_031](story_2022_031.md) | {% include-markdown "./story_2022_031.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [4](traceability.md#story_2022_031) |
 | [2022_032](story_2022_032.md) | {% include-markdown "./story_2022_032.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [8](traceability.md#story_2022_032) |
 | [2022_033](story_2022_033.md) | {% include-markdown "./story_2022_033.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [3](traceability.md#story_2022_033) |
-| [2022_034](story_2022_034.md) | {% include-markdown "./story_2022_034.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [9](traceability.md#story_2022_034) |
+| [2022_034](story_2022_034.md) | {% include-markdown "./story_2022_034.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [10](traceability.md#story_2022_034) |
 | [2022_035](story_2022_035.md) | {% include-markdown "./story_2022_035.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [60](traceability.md#story_2022_035) |
 | [2022_036](story_2022_036.md) | {% include-markdown "./story_2022_036.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [15](traceability.md#story_2022_036) |
 | [2022_037](story_2022_037.md) | {% include-markdown "./story_2022_037.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [2](traceability.md#story_2022_037) |
 | [2022_038](story_2022_038.md) | {% include-markdown "./story_2022_038.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [20](traceability.md#story_2022_038) |
-| [2022_039](story_2022_039.md) | {% include-markdown "./story_2022_039.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [32](traceability.md#story_2022_039) |
+| [2022_039](story_2022_039.md) | {% include-markdown "./story_2022_039.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [33](traceability.md#story_2022_039) |
 | [2022_040](story_2022_040.md) | {% include-markdown "./story_2022_040.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [8](traceability.md#story_2022_040) |
 | [2022_041](story_2022_041.md) | {% include-markdown "./story_2022_041.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [10](traceability.md#story_2022_041) |
 | [2022_042](story_2022_042.md) | {% include-markdown "./story_2022_042.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [3](traceability.md#story_2022_042) |

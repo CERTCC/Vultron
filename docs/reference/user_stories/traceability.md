@@ -403,7 +403,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | CM — Case Management | [CM-24-002](../vultron-spec/requirements/case-management.md#cm-24-002) |
 | EP — Embargo Policy | [EP-01-005](../vultron-spec/requirements/state-behavior.md#ep-01-005) |
 | MV — Message Validation | [MV-05-001](../vultron-spec/requirements/foundation.md#mv-05-001) |
-| OID — Object ID | [OID-01-001](../vultron-spec/requirements/foundation.md#oid-01-001), [OID-01-005](../specs/project.md#oid-01-005) |
+| OID — Object ID | [OID-01-001](../vultron-spec/requirements/foundation.md#oid-01-001), [OID-01-005](../specs/project.md#oid-01-005), [OID-01-010](../vultron-spec/requirements/messages.md#oid-01-010) |
 | VP — Vultron Protocol | [VP-15-002](../specs/architecture.md#vp-15-002), [VP-15-003](../specs/architecture.md#vp-15-003) |
 
 ## [story_2022_035](story_2022_035.md)
@@ -479,7 +479,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | TB — Testability | [TB-03-001](../specs/project.md#tb-03-001) |
 | TRIG — Triggerable Behaviors | [TRIG-07-001](../specs/project.md#trig-07-001) |
 | VAM — Vultron Semantic–AS2 Mapping | [VAM-07-002](../vultron-spec/requirements/messages.md#vam-07-002) |
-| VM — Vocabulary Model | [VM-10-001](../vultron-spec/requirements/messages.md#vm-10-001), [VM-10-002](../specs/project.md#vm-10-002) |
+| VM — Vocabulary Model | [VM-10-001](../vultron-spec/requirements/messages.md#vm-10-001), [VM-10-002](../specs/project.md#vm-10-002), [VM-10-003](../vultron-spec/requirements/messages.md#vm-10-003) |
 | VP — Vultron Protocol | [VP-03-012](../vultron-spec/requirements/vultron-protocol.md#vp-03-012) |
 
 ## [story_2022_040](story_2022_040.md)

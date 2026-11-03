@@ -17,7 +17,11 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 That URI does not currently dereference.
 The context document is withheld from publication until it is served at the wire-versioned path that ADR-0106 defines.
 At this version the namespace is therefore a stable identifier, not a retrievable document.
-An implementation therefore cites the URI as an identifier, and processes a message without fetching it.
+A receiver processes a message without fetching it:
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VM-10-003"))
+```
 
 **AS2 extension type naming conventions.** Vultron type names follow PascalCase
 without an `as_` prefix in wire output (for example, `"type": "VulnerabilityCase"`

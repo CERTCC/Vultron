@@ -601,7 +601,7 @@ def why_may_not_act_on_case(
     :func:`may_act_on_case`'s, so the two cannot disagree; the reason only
     describes the first condition the actor's record misses.  The ownership
     transfer checks it for the transferee, which the Offer sends the case to
-    and which then acts as its owner (CM-21-021).
+    and which then acts as its owner (CM-21-021, CM-21-022).
     """
     if may_act_on_case(case, dl, actor_id):
         return None
