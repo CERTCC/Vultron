@@ -720,17 +720,24 @@ groups:
     kind: project
     statement: >-
       Every ownership-transfer trigger MUST return the emitted ActivityStreams object in
-      the `activity` field of its response body. This is the response contract of all
-      other trigger endpoints (TRIG-04-001).
+      the `activity` field of its response body.
     rationale: >-
-      A later step names the activity that a transfer trigger sent: a withdrawal names
-      the proposal of the owner (TRIG-11-006). When the response returns the activity in
-      `activity`, as other triggers do, the caller gets that id without a second lookup.
+      TRIG-04-001 recommends this response shape for every trigger, and TRIG-04-002 lets
+      a long-running trigger return a job object instead. A transfer trigger makes the
+      shape binding because a later step names the activity that it sent: a withdrawal
+      names the proposal of the owner (TRIG-11-006). When the response returns the
+      activity in `activity`, the caller gets that id without a second lookup.
     verification: >-
-      Integration tests in `test/demo/` confirm that every ownership-transfer
-      trigger response includes an `activity` field containing the emitted
-      ActivityStreams object.
+      `test_route_answers_202_with_exactly_the_rows_keys` in
+      `test/adapters/driving/fastapi/test_trigger_routes_contract.py` pins the
+      `activity` key on each transfer route's response. The use-case tests marked
+      TRIG-11-004 in `test/core/use_cases/triggers/` (`test_actor_triggers.py`,
+      `test_reject_case_ownership_transfer.py` and
+      `test_withdraw_case_ownership_transfer.py`) check that each of the four transfer
+      triggers returns the activity it emitted.
     relationships:
+    - rel_type: refines
+      spec_id: TRIG-04-001
     - rel_type: refines
       spec_id: TRIG-11-001
     - rel_type: refines
