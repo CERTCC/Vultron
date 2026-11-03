@@ -49,10 +49,10 @@ _RUNNER = _HELPERS_DIR / "story" / "runner.py"
 #: package rather than a suffix glob: a `choose`'s trigger is called from
 #: ``workflow.py`` and the invite halves from ``invite_chain/``, and a mark
 #: slipped into either would have been invisible to a ``*_story.py`` glob.
-#: Recursive, because a split helper is a subpackage (CS-18-005) and a flat
+#: Every module at any depth, because a split helper is a subpackage (CS-18-005) and a flat
 #: glob would silently drop every module inside one.
 _HELPER_MODULES = sorted(
-    path for path in _HELPERS_DIR.rglob("*.py") if path != _RUNNER
+    path for path, _ in _corpus.all_sources(_HELPERS_DIR) if path != _RUNNER
 )
 
 
