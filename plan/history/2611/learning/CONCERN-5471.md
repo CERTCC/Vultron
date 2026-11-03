@@ -44,7 +44,8 @@ Docs PR: <https://github.com/CERTCC/Vultron/pull/5751>.
 Finding: every append to `VulnerabilityCase.case_statuses` is the CASE_MANAGER's,
 each a valid next step on its own clock (genesis seeding on both creation paths,
 `EmitCaseStatusUpdateNode`), and replicas copy the list and append in ledger
-order. So append order is safe, and it is the stronger key: the snapshot node
+order. `CreateCaseNode` also builds a case, so seeds a genesis status, but only
+tests call it. So append order is safe, and it is the stronger key: the snapshot node
 already measures change against the ledger's last status, plain `now_utc()`
 stamps lose to a clock step back, and role delegation can move the CASE_MANAGER
 role to another clock. Decision: `current_status` becomes the last appended;
