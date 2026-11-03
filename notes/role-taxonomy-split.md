@@ -154,9 +154,10 @@ because it has nothing to claim. The character-actor slots carry none by
 DEMOCI-11-026, so the original report goes to a fixed-role slot.
 
 The leftover want — catching a scenario that lets the *wrong* actor decide, a
-Vendor answering a Coordinator decision — is a different and weaker check, and
-it needs a decider-to-container mapping that exists only once every scenario is
-written as composition (#5536, #5537).
+Vendor answering a Coordinator decision — is a different and weaker check. Its
+precondition is met: every scenario is written as composition, so each decision
+names its deciding cast member in a `choose(..., by=...)` item and the
+decider-to-container mapping it needs exists.
 
 ---
 

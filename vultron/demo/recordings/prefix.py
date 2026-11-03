@@ -32,7 +32,9 @@ to the harness, which records the ledger tail there
 (:mod:`vultron.demo.helpers.harness`).  The recorder commits those marks beside
 each recording (:mod:`.layout`).
 
-Design: ``notes/demo-scenario-tree.md`` § "Shared-prefix check".
+Design: ``notes/demo-scenario-tree.md`` § "Shared-prefix check"; what a shared
+stretch must satisfy for byte identity to hold is § "Composition" of the same
+note.
 """
 
 from collections.abc import Sequence
@@ -41,6 +43,7 @@ from itertools import combinations
 
 from vultron.demo.recordings.layout import Recording
 from vultron.demo.scenario.tree import PathStep, TreeNode
+from vultron.errors import DemoRecordingError
 
 
 @dataclass(frozen=True)
@@ -85,7 +88,27 @@ def prefix_lines(recording: Recording, depth: int) -> list[str]:
 
     The step at *depth* is where the pair's paths part, so its mark is the
     branch point's place in this ledger.
+
+    ``depth`` indexes the marks, and it is in range because two rules in other
+    modules hold: no registered path equals or is a strict prefix of another
+    (DEMOCI-11-023, :func:`~vultron.demo.scenario.tree.build_scenario_tree`),
+    so a shared depth is shorter than either path; and a recording is kept only
+    with one mark per declared step
+    (:func:`~vultron.demo.recordings.ledgers.parse_step_marks`), so the marks
+    are as many as the path's steps.  Checked here rather than left to an
+    ``IndexError``, because relaxing either rule should name the scenario that
+    stopped satisfying it.
+
+    Raises:
+        DemoRecordingError: When *recording* holds no mark at *depth*.
     """
+    if depth >= len(recording.steps):
+        raise DemoRecordingError(
+            f"scenario {recording.scenario!r} was asked for the ledger before "
+            f"step {depth}, but it marked only {len(recording.steps)} step(s). "
+            "A shared depth is shorter than either path (DEMOCI-11-023) and "
+            "every declared step is marked, so one of those no longer holds."
+        )
     return recording.entries[: recording.steps[depth].ledger_tail]
 
 

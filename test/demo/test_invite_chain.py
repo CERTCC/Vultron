@@ -1,5 +1,6 @@
 """Unit tests for the shared case-invite chain (DEMOMA-17-001, #4192)."""
 
+import inspect
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -460,7 +461,7 @@ def test_then_runs_after_a_reject(chain_mocks):
     chain_mocks.replica.assert_not_called()
 
 
-def test_the_chain_takes_no_hook_between_delivery_and_the_answer(chain_mocks):
+def test_the_chain_takes_no_hook_between_delivery_and_the_answer():
     """An invitee's decision is a fragment boundary, not a hook (#5537).
 
     A story splits the chain into ``invite_and_await_delivery`` and
@@ -468,9 +469,45 @@ def test_the_chain_takes_no_hook_between_delivery_and_the_answer(chain_mocks):
     is what gives the mark the invitee's own role to check (CM-17-003,
     DEMOCI-11-019).  A hook on this function would be a second way to put a
     step there, and the two could disagree about where the decision falls.
+
+    Pinned as the whole parameter set rather than by forbidding the name
+    ``before_answer``, which a hook re-added as ``on_decision`` or ``decide``
+    would pass.  Both the public entry point and the private step that ran the
+    hook are pinned, so moving it one level down does not hide it.
     """
-    with pytest.raises(TypeError, match="before_answer"):
-        _run(before_answer=lambda: None)
+    assert set(inspect.signature(run_case_invite_chain).parameters) == {
+        "case",
+        "invitee_name",
+        "invitee_client",
+        "invitee",
+        "invitee_in_own_container",
+        "inviter",
+        "case_manager_client",
+        "ledger_client",
+        "respond",
+        "invite_timeout",
+        "replica_timeout",
+        "expect_emitted_by",
+        "reply_timeout",
+        "then",
+    }
+    assert set(
+        inspect.signature(invite_chain._await_and_answer).parameters
+    ) == {
+        "case",
+        "invitee_name",
+        "invitee_client",
+        "invitee",
+        "invitee_in_own_container",
+        "gate_label",
+        "respond",
+        "invite_timeout",
+        "replica_timeout",
+        "expect_emitted_by",
+        "reply_timeout",
+        "authority_client",
+        "then",
+    }
 
 
 def test_step_and_gate_labels_are_pinned(chain_mocks):

@@ -2789,17 +2789,13 @@ groups:
           entries before the branch point are the same bytes in both
           recordings, ids and timestamps included.
         rationale: >-
-          Every scenario is written as composition, so each shared stretch is
-          one copy of the code running on one fixed cast under one tree-wide
-          seed (DEMOCI-11-020, DEMOCI-11-025) and the two recordings draw the
-          same ids and read the clock the same number of times. Byte identity
-          therefore holds by construction, and it catches what a comparison
-          that relabeled ids and dropped timestamps could not: a shared
-          stretch that writes the same objects in a different order, or an
-          extra clock read on one side. What a shared stretch must satisfy for
-          this to hold, including the rule that no read on it may read the
-          recording clock, is stated once in `notes/demo-scenario-tree.md`
-          § "Composition".
+          Every scenario is written as composition, so a shared stretch is one
+          copy of the code on one fixed cast under one seed (DEMOCI-11-020,
+          DEMOCI-11-025): both recordings draw the same ids and read the clock
+          the same number of times, and byte identity holds by construction.
+          It is also the only form that catches a shared stretch writing the
+          same objects in a different order. What a shared stretch must satisfy
+          is in `notes/demo-scenario-tree.md` § "Composition".
         verification: >-
           `TestSharedPrefixes` in `test/demo_unit/test_recordings.py` compares
           every pair of registered scenarios byte for byte up to the branch

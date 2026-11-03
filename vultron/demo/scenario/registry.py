@@ -369,19 +369,21 @@ def _story_path(name: str, story: StoryPath) -> tuple[PathStep, ...]:
 
     A required argument cannot be omitted, but it can still arrive as a
     ``None`` a module-level name resolved to, which would reach
-    :class:`ScenarioSpec` as an ``AttributeError`` naming no scenario.
+    :class:`ScenarioSpec` as an ``AttributeError`` naming no scenario.  Tested
+    for identity rather than with ``getattr(story, "path", None)``, which would
+    also swallow an ``AttributeError`` raised inside a real ``path`` property
+    and report a genuine bug as a missing path.
 
     Raises:
-        DemoScenarioRegistryError: When *story* exposes no readable path.
+        DemoScenarioRegistryError: When *story* is ``None``.
     """
-    path = getattr(story, "path", None)
-    if path is None:
+    if story is None:
         raise DemoScenarioRegistryError(
-            f"scenario {name!r} was given {story!r} as its story, which names "
+            f"scenario {name!r} was given None as its story, which names "
             "no path; a scenario is placed on the tree by the choices of its "
             "assembled story (DEMOCI-11-014, DEMOCI-11-019)."
         )
-    return tuple(path)
+    return tuple(story.path)
 
 
 def _register(spec: ScenarioSpec, origin_module: str) -> None:

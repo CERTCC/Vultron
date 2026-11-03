@@ -875,13 +875,14 @@ class TestSharedPrefixes:
         does compare real entries, so a collapse of the step marks to zero
         cannot leave the whole suite passing over nothing.
         """
-        lines = prefix.prefix_lines(_committed(pair.first), pair.depth)
-        assert lines, (
-            f"{pair.first} and {pair.second} share {pair.depth} steps, but "
-            f"{pair.first}'s mark at step {pair.depth} puts the branch point "
-            "at ledger tail 0, so the byte comparison reads no entries. "
-            f"Regenerate with {cli.REGENERATE_COMMAND}."
-        )
+        for name in (pair.first, pair.second):
+            lines = prefix.prefix_lines(_committed(name), pair.depth)
+            assert lines, (
+                f"{pair.first} and {pair.second} share {pair.depth} steps, but "
+                f"{name}'s mark at step {pair.depth} puts the branch point at "
+                "ledger tail 0, so the byte comparison reads no entries on "
+                f"that side. Regenerate with {cli.REGENERATE_COMMAND}."
+            )
 
     def test_a_pair_that_parts_at_the_root_shares_no_entries(self):
         """The empty-prefix case is a fact about the tree, not a gap to fix.
@@ -961,3 +962,15 @@ class TestTheByteComparisonFailsOnAChangedPrefix:
         first = _fixture("rv", ['{"a": 1}', '{"b": 2}', '{"rv": 3}'])
         second = _fixture("rvv", ['{"a": 1}', '{"b": 2}', '{"rvv": 3}'])
         assert prefix.pair_byte_mismatch(pair, first, second) is None
+
+    def test_a_depth_the_recording_has_no_mark_for_names_the_scenario(self):
+        """The index into the marks is checked, not left to an IndexError.
+
+        It is in range only while two rules in other modules hold
+        (DEMOCI-11-023 and the one-mark-per-step rule the recorder enforces),
+        so relaxing either should name the scenario that stopped satisfying
+        it.
+        """
+        recording = _fixture("rv", ['{"a": 1}', '{"b": 2}'])
+        with pytest.raises(DemoRecordingError, match="marked only 2 step"):
+            prefix.prefix_lines(recording, 2)
