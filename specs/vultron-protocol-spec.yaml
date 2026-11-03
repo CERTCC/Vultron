@@ -2136,7 +2136,7 @@ groups:
       revision proposal changes the end time through the usual agreement process, rather
       than leaving participants unsure whether the embargo still holds.
     stories:
-    - story_2022_014
+    - story_2022_015
   - id: VP-11-009
     priority: MAY
     kind: protocol
