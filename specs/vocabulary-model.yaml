@@ -290,8 +290,7 @@ groups:
       A class with its own configuration can send snake_case keys or refuse a field
       given by its Python name, and only the activities that use that class show the
       defect. Strict mode stays off because it would refuse lenient inbound data that
-      the wire branch exists to accept, such as an ISO string for a datetime field
-      (ARCH-21-002).
+      the wire branch exists to accept, such as an ISO string for a datetime field.
     note: >-
       A class can inherit the configuration through an intermediate class, such as
       `as_Object`, that inherits from `as_Base`.
@@ -568,9 +567,10 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Rehydration MUST keep an unresolved URI, carry on without raising, and log the
-      URI at its path's level: WARNING in `dl.hydrate()`, DEBUG in `rehydrate()`. An unresolved URI is a reference, in a slot that admits a URI, to
-      an object the DataLayer does not hold.
+      Rehydration MUST keep a URI it cannot resolve, carry on without raising, and log
+      it: at WARNING in `dl.hydrate()`, at DEBUG in `rehydrate()`. This covers a
+      reference in a slot that admits a URI, to an object the DataLayer does not hold.
+      Of those slots, `rehydrate()` resolves only an activity's nested `object`.
     rationale: >-
       An unresolved reference is normal: the object can be on another server or not
       yet received, and raising would refuse a valid activity. Keeping the URI lets a

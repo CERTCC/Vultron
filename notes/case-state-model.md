@@ -15,6 +15,7 @@ related_specs:
   - specs/em-behavior.yaml
   - specs/received-status-handling.yaml
   - specs/rm-behavior.yaml
+  - specs/state-machine.yaml (SM-05-002)
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/message-type-reference.md
@@ -128,10 +129,16 @@ on-behalf trigger trees. The gate is deliberately case-wide, not per vendor
 
 ## Status Lists Are Append-Only History
 
-- `VulnerabilityCase.case_status` and `CaseParticipant.participant_status` are
-  append-only lists. The current entry is the one with the latest `updated`
-  timestamp; items may arrive out of order. Use `current_status`, never list
-  indexing.
+- `VulnerabilityCase.case_statuses` and `CaseParticipant.participant_statuses`
+  are append-only lists, and each has its own current-entry rule (SM-05-002).
+  Read the current entry through the accessor, never by indexing the list.
+- A participant's current status is the last one appended:
+  `CaseParticipant.participant_status`. Transition guards judge an update against
+  it, and a received status can carry an earlier time than one already held
+  (ADR-0103), so a timestamp rule would pick a stale baseline.
+- A case's current status is the one with the latest `updated`, else
+  `published`, with a tie going to the last appended:
+  `VulnerabilityCase.current_status` (CM-29-001).
 - A status update carrying a future timestamp is an error.
 - The CASE_MANAGER's trusted timestamp for a state-changing event is its
   `CaseLedgerEntry` commit, not an edit to the object's own timestamp, which

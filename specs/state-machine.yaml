@@ -20,7 +20,7 @@ groups:
     verification_debt: '#2575'
     statement: >-
       RM, EM, VF, D and PEC MUST each be a Python `StrEnum`, and PXA an `Enum` of
-      three-flag `PxaState` tuples that serializes by member name.
+      three-flag `PxaState` tuples, serialized by member name.
     rationale: >-
       A `StrEnum` member is equal to its string value and serializes as that string. A
       state that is stored or sent as a bare label (SM-08-001, SM-08-003) thus reads
@@ -174,8 +174,9 @@ groups:
       already held (ADR-0103), so a timestamp rule could make an older status current
       and judge the next update against the wrong baseline.
     verification: >-
-      `TestParticipantStatusProperty.test_returns_last_appended_even_when_earlier_status_has_newer_timestamp`
-      in `test/wire/as2/vocab/test_case_participant.py` confirms that a participant's
+      `test_returns_last_appended_even_when_earlier_status_has_newer_timestamp` of
+      `TestParticipantStatusProperty` in
+      `test/wire/as2/vocab/test_case_participant.py` confirms that a participant's
       current status is the last one appended, even when an earlier one has a newer
       timestamp. `TestVulnerabilityCaseCurrentStatus` in
       `test/core/models/test_case.py` confirms the case rule.
@@ -192,8 +193,9 @@ groups:
     verification_debt: '#2575'
     statement: >-
       Each status MUST carry its author's time: the sender's `published` and `updated`,
-      as sent or absent, when received, and `now_utc()` at creation when authored here. The trusted time of a received event is its ledger entry's commit
-      stamp (CM-02-009), not a field on the status.
+      as sent or absent, when received, and `now_utc()` at creation when authored here.
+      The trusted time of a received event is its ledger entry's commit stamp
+      (CM-02-009), not a field on the status.
     rationale: >-
       A status's `published` and `updated` say when its author made it. A receiver that
       wrote its own clock there would replace that claim with its arrival time, and two
