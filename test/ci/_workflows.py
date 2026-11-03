@@ -11,7 +11,13 @@ import re
 from pathlib import Path
 from typing import Any
 
-import yaml
+from vultron.metadata.planning.ci_mirror._workflows import (
+    composite_steps,
+    expand_steps,
+    load_mapping,
+    on_block,
+    workflow_files as _workflow_files,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
@@ -40,15 +46,12 @@ _IGNORED_EXIT = re.compile(
 
 def workflow_files() -> list[Path]:
     """Return every workflow file, ``*.yml`` and ``*.yaml``, sorted by path."""
-    return sorted(
-        [*WORKFLOWS_DIR.glob("*.yml"), *WORKFLOWS_DIR.glob("*.yaml")]
-    )
+    return _workflow_files(REPO_ROOT)
 
 
 # Parsed workflow YAML is untyped by nature; ``Any`` here is the YAML boundary.
 def load_workflow(path: Path) -> dict[str, Any]:
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return data if isinstance(data, dict) else {}
+    return load_mapping(path)
 
 
 def triggers(wf_data: dict[Any, Any]) -> dict[str, Any]:
@@ -56,7 +59,7 @@ def triggers(wf_data: dict[Any, Any]) -> dict[str, Any]:
 
     PyYAML reads a bare ``on:`` key as the boolean ``True``, so look there too.
     """
-    block = wf_data.get("on", wf_data.get(True, {}))
+    block = on_block(wf_data)
     return block if isinstance(block, dict) else {}
 
 
@@ -83,18 +86,7 @@ def index_of(
 
 def local_action_steps(uses: str) -> list[dict[str, Any]]:
     """Return the steps of the local composite action a ``uses:`` names."""
-    action_dir = REPO_ROOT / uses.removeprefix("./")
-    action_file = next(
-        (
-            action_dir / name
-            for name in ("action.yml", "action.yaml")
-            if (action_dir / name).is_file()
-        ),
-        None,
-    )
-    assert action_file is not None, f"Local action {uses} has no action.yml."
-    runs = load_workflow(action_file).get("runs", {})
-    return [s for s in runs.get("steps", []) if isinstance(s, dict)]
+    return composite_steps(REPO_ROOT, uses)
 
 
 def expanded_steps(step_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -103,14 +95,7 @@ def expanded_steps(step_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
     Expansion recurses, so a step a local action reaches through another local
     action is returned too.
     """
-    flat: list[dict[str, Any]] = []
-    for step in step_list:
-        uses = str(step.get("uses", ""))
-        if uses.startswith("./"):
-            flat.extend(expanded_steps(local_action_steps(uses)))
-        else:
-            flat.append(step)
-    return flat
+    return [dict(step) for _label, step in expand_steps(REPO_ROOT, step_list)]
 
 
 def site_building_workflows() -> list[Path]:

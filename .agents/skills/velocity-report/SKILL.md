@@ -227,7 +227,7 @@ bad merge that breaks three workflows is one failed CI run on `main`.
   `null` as zero — say the data is absent.
 - The full count includes `create-pr`'s first-push run only when it ran
   (PAD-18-006): an implementation PR whose fixes all passed the targeted gate
-  reads `1 full`, and a docs-only PR gated by the linters alone reads `0 full`.
+  reads `1 full`, and a docs-only PR, which runs no suite, reads `0 full`.
 - The script takes the line from the PR's latest summary, since the count is
   cumulative (PAD-18-006).
 - Once populated: the ratio of `full_suite_runs` to `targeted_suite_runs`
