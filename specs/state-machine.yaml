@@ -449,7 +449,7 @@ groups:
     - rel_type: refines
       spec_id: CM-04-006
     stories:
-    - story_2026_028
+    - story_2026_031
   - id: SM-10-004
     priority: MUST_NOT
     kind: protocol
@@ -478,7 +478,7 @@ groups:
     - rel_type: refines
       spec_id: CM-04-010
     stories:
-    - story_2026_028
+    - story_2026_031
 - id: SM-11
   title: Generated Statecharts
   specs:

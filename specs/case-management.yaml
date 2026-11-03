@@ -757,7 +757,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-03-008
     stories:
-    - story_2026_028
+    - story_2026_031
   - id: CM-04-010
     priority: MUST_NOT
     kind: protocol
@@ -778,7 +778,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-03-008
     stories:
-    - story_2026_028
+    - story_2026_031
   - id: CM-04-007
     priority: MUST
     kind: protocol
@@ -848,7 +848,7 @@ groups:
       `test/core/models/test_distinct_domain_types.py` confirms that the serialized form
       of each of the six types validates as that type.
     stories:
-    - story_2026_029
+    - story_2026_032
   - id: CM-05-015
     priority: MUST_NOT
     kind: protocol
@@ -867,7 +867,7 @@ groups:
     - rel_type: extends
       spec_id: CM-05-001
     stories:
-    - story_2026_029
+    - story_2026_032
   - id: CM-05-013
     priority: MUST
     kind: project

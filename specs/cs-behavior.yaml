@@ -1930,7 +1930,7 @@ groups:
       spec_id: VP-06-001
       note: Once Attacks observed, new embargoes SHALL NOT be sought
     stories:
-    - story_2026_030
+    - story_2026_033
 
   - id: CSB-14-004
     priority: SHOULD
@@ -3000,7 +3000,7 @@ groups:
     adr:
     - ADR-0166
     stories:
-    - story_2026_030
+    - story_2026_033
   - id: CSB-18-003
     priority: MUST_NOT
     kind: protocol
@@ -3028,7 +3028,7 @@ groups:
     - rel_type: refines
       spec_id: CSB-18-002
     stories:
-    - story_2026_030
+    - story_2026_033
   - id: CSB-18-004
     priority: MUST_NOT
     kind: protocol
@@ -3055,7 +3055,7 @@ groups:
     - rel_type: refines
       spec_id: CSB-18-002
     stories:
-    - story_2026_030
+    - story_2026_033
 - id: CSB-19
   title: CS Ordering Invariants Under Out-of-Order Ledger Delivery
   description: Normative requirements for how CS ordering invariants interact

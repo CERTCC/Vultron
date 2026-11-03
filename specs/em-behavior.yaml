@@ -388,7 +388,7 @@ groups:
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
     stories:
-    - story_2026_030
+    - story_2026_033
 
   - id: EMB-02-003
     priority: SHOULD_NOT
@@ -2150,7 +2150,7 @@ groups:
         No new embargo once public awareness, exploit publication or attacks
         have occurred
     stories:
-    - story_2026_030
+    - story_2026_033
 
 - id: EMB-14
   title: Actor-Voluntary Embargo Termination (Trigger Side)
