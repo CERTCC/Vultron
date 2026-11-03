@@ -1,8 +1,9 @@
 id: TRACE
 title: Specification Traceability
 description: >-
-  Requirements for maintaining the traceability matrix that maps user stories to specification
-  requirements, including coverage flagging and maintenance obligations.
+  Requirements for the story graph: the generated traceability matrix and index table
+  that map user stories to specification requirements, the integrity of the story-page
+  catalog they enumerate, and the report of the protocol requirements with no story.
 scope:
 - prototype
 - production
@@ -16,36 +17,55 @@ groups:
   - id: TRACE-01-001
     priority: MUST
     kind: project
-    verification_debt: '#2575'
+    adr:
+    - ADR-0072
+    verification: >-
+      `test_the_matrix_has_one_entry_per_story_page` and
+      `test_a_citation_links_the_page_that_defines_its_anchor` in
+      `test/metadata/docs/test_story_coverage.py`.
     statement: >-
-      A traceability file MUST exist at `docs/reference/user_stories/traceability.md` mapping each user story
-      in `docs/reference/user_stories/` to the implementing specification(s) and specific requirement
-      ID(s)
+      A traceability matrix exists at `docs/reference/user_stories/traceability.md`
+      holding one entry per story page in `docs/reference/user_stories/`. Each entry
+      lists the requirements that name that story in their `stories:` field, grouped
+      by spec file. Each requirement links the page that renders its row.
     rationale: >-
       Without one map from stories to requirement IDs, nobody can tell which user needs
       the specs cover. Nobody can tell which stories a requirement change affects. The
       map is in the docs tree, so it is published next to the stories that it describes.
+    relationships:
+    - rel_type: depends_on
+      spec_id: TRACE-03-003
+      note: >-
+        The entries hold what the registry says because they are generated from it.
   - id: TRACE-01-002
     priority: MUST
     kind: project
-    verification_debt: '#2575'
+    verification: >-
+      `test_an_uncited_story_is_marked_in_the_matrix` and
+      `test_an_uncited_story_is_marked_in_the_table` in
+      `test/metadata/docs/test_story_coverage.py`.
     statement: >-
-      User stories without specification coverage MUST be flagged with an explicit note indicating
-      they lack coverage
+      A user story that no requirement names in a `stories:` field is flagged in both
+      the traceability matrix and the index table. The flag is an explicit note
+      stating that the story has no mapped requirements.
     rationale: >-
       An unmapped story looks the same as a story that nobody checked. An explicit note
       shows a known gap, not an error by omission, and a search can find the note.
   - id: TRACE-01-003
     priority: MUST
     kind: project
-    verification_debt: '#2575'
+    verification: >-
+      `test_committed_site_artifacts_are_in_sync` and
+      `test_a_hand_edited_traceability_matrix_is_stale` in
+      `test/metadata/docs/test_site_sync.py`.
     statement: >-
-      The traceability matrix MUST be updated when new specifications are added or existing
-      requirements are significantly changed in a way that affects story coverage
+      The committed traceability matrix agrees with the `stories:` fields in `specs/`
+      and with the story-page catalog, and a check mode fails when it does not.
     rationale: >-
-      If the matrix is not current, it shows coverage that the specs removed, or it does
-      not show coverage that they added. Update the matrix in the change that changes
-      coverage, because the author knows then what changed.
+      A matrix that disagrees with the spec files shows coverage that was removed, or
+      hides coverage that was added. Hand maintenance is how the matrix came to link
+      161 of the 801 requirements that carried a story. A check mode makes disagreement
+      a failure in the change that causes it, rather than a discovery months later.
 - id: TRACE-02
   title: Maintenance
   specs:
@@ -53,12 +73,12 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      The traceability matrix SHOULD be reviewed and updated as part of any spec-authoring
-      or user-story-authoring activity
+      A change to a requirement's `stories:` field, or to the story-page catalog,
+      SHOULD regenerate the committed matrix and index table in the same change.
     rationale: >-
-      Coverage changes when authors write specs and stories, and the author has the
-      context at that time. A review of the matrix in the same activity costs less than
-      a later audit, which must find that context again.
+      The generated artifacts are committed, so a change that leaves them stale fails
+      the next check mode for whoever touches them next instead of for its own author.
+      Regenerating costs one command while the author still holds the context.
   - id: TRACE-02-002
     priority: SHOULD
     kind: project
@@ -70,3 +90,100 @@ groups:
       A gap in the matrix shows only that coverage is missing. It does not show what to
       do. A learning file goes into the queue that `learn` turns into specs and Issues,
       so the gap goes to a person who can close it.
+- id: TRACE-03
+  title: Story Graph Generation and Catalog Integrity
+  description: >-
+    The story graph has two sides: a requirement's `stories:` field in `specs/`, which
+    ADR-0072 made authoritative, and the story pages under
+    `docs/reference/user_stories/`. This group holds the edges between them sound — a
+    cited page exists and is never removed — and makes the artifacts that display the
+    graph derived rather than hand-kept.
+  specs:
+  - id: TRACE-03-001
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0072
+    verification: >-
+      `test_a_cited_story_with_no_page_is_a_hard_error`,
+      `test_a_cited_story_with_a_page_passes` and
+      `test_the_cited_story_page_check_is_not_suppressible` in
+      `test/metadata/specs/test_lint.py`.
+    statement: >-
+      The spec linter reports as a hard error each `stories:` entry naming a story that
+      has no page under `docs/reference/user_stories/`. The error names the citing
+      requirement and every absent story ID, and no `lint_suppress` code silences it.
+    rationale: >-
+      Checking only the ID pattern lets a typo pass as a citation that resolves to
+      nothing: the matrix cannot show the edge, and a reader cannot reach the need the
+      requirement claims to serve. Unlike "this requirement has no story", which can be
+      true, a citation that resolves to no page is always a mistake, so there is nothing
+      for a suppression to express.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-11-002
+      note: >-
+        SR-11-002 checks the shape of the ID; this adds that it must resolve.
+  - id: TRACE-03-002
+    priority: MUST_NOT
+    kind: project
+    verification: >-
+      `test_no_pr_removes_a_story_page` in
+      `test/architecture/test_story_catalog_guard.py`.
+    statement: >-
+      A pull request MUST NOT remove a story page from
+      `docs/reference/user_stories/`. A story that is withdrawn, split or replaced
+      keeps its page, which names the story IDs that supersede it.
+    rationale: >-
+      A `stories:` entry must resolve for as long as any revision of the citing spec
+      exists, and a removed page is also a freed ID that a later story could reuse,
+      silently repointing every citation of the old one. Keeping the page costs a file
+      and makes reuse impossible.
+  - id: TRACE-03-003
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0072
+    verification: >-
+      `test_committed_site_artifacts_are_in_sync`,
+      `test_a_hand_edited_story_table_is_stale` and
+      `test_a_hand_edited_traceability_matrix_is_stale` in
+      `test/metadata/docs/test_site_sync.py`.
+    statement: >-
+      This codebase generates both `docs/reference/user_stories/table.md` and
+      `docs/reference/user_stories/traceability.md` from the requirement registry's
+      `stories:` fields and the story-page catalog, gated by a check mode, not by hand.
+      The table's third column states each story's coverage, the number of requirements
+      that cite it.
+    rationale: >-
+      The spec files are the authoritative side of the story graph (ADR-0072), so an
+      artifact that displays the graph is derivable and a hand-kept one can only drift.
+      The column the coverage replaces held a support level assigned once against
+      v0.4.0, which no check could keep true and which nine of the eleven out-of-scope
+      stories already contradicted.
+    relationships:
+    - rel_type: depends_on
+      spec_id: TRACE-03-001
+      note: >-
+        A citation that resolves to no page cannot be rendered as an entry.
+  - id: TRACE-03-004
+    priority: MUST
+    kind: project
+    verification: >-
+      `test_the_default_report_is_one_line_per_spec_file`,
+      `test_gaps_are_grouped_by_spec_file_and_priority`,
+      `test_a_suppression_carrier_is_marked` and
+      `test_a_spec_file_selector_narrows_the_report` in
+      `test/metadata/specs/test_story_gaps.py`.
+    statement: >-
+      This codebase reports every `kind: protocol` requirement with no `stories:`
+      entry, grouped by spec file and then by priority, marking each requirement that
+      carries `lint_suppress: [missing_story_reference]`. By default the report prints
+      one summary line per spec file. A selector narrows it to a spec file or a
+      requirement-ID prefix.
+    rationale: >-
+      Closing the protocol story gap is worked one spec-file area at a time, so each
+      area needs its own worklist. The hand-written lists that preceded this report
+      were measured once, and a third of the IDs on them had been relabelled or retired
+      before anyone read them; a list derived from the registry on each run cannot go
+      stale that way.

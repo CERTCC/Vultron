@@ -1,9 +1,10 @@
 """Generate and check the committed docs-site artifacts.
 
 Requirements: DF-11-005, DF-11-008, DF-11-011, DF-11-014, DF-11-021, DF-11-028,
-DF-11-029, DF-11-042 and DF-11-023 in specs/diataxis-requirements.yaml.
+DF-11-029, DF-11-042 and DF-11-023 in specs/diataxis-requirements.yaml, and
+TRACE-01-001 and TRACE-03-003 in specs/traceability.yaml.
 
-Six kinds of artifact are generated and committed:
+Eight kinds of artifact are generated and committed:
 
 - each section **landing page** under ``docs/`` whose index declares
   ``contents: generated`` — only the contents listing between the markers, so
@@ -23,7 +24,13 @@ Six kinds of artifact are generated and committed:
 - ``docs/includes/stakeholder_types.md`` — whole file, from the schema
   (:mod:`~vultron.metadata.docs.stakeholder_fragment`);
 - ``notes/site-coverage-matrix.md`` — whole file, from page frontmatter
-  (:mod:`~vultron.metadata.docs.coverage_matrix`).
+  (:mod:`~vultron.metadata.docs.coverage_matrix`);
+- ``docs/reference/user_stories/table.md`` and
+  ``docs/reference/user_stories/traceability.md`` — whole files, from the
+  requirement registry's ``stories:`` fields and the story-page catalog
+  (:mod:`~vultron.metadata.docs.story_coverage`, TRACE-01-001, TRACE-03-003).
+  These two are the only artifacts here whose input is ``specs/`` rather than
+  ``docs/``, so the hook's ``files:`` list covers the spec corpus too.
 
 Two things are checked but never written: a section index that declares
 ``contents: routing`` must link every member of its section (DF-11-029's
@@ -74,6 +81,13 @@ from vultron.metadata.docs.stakeholder_fragment import (
     FRAGMENT_PATH,
     render_fragment,
 )
+from vultron.metadata.docs.story_coverage import (
+    MATRIX_PATH as STORY_MATRIX_PATH,
+    TABLE_PATH as STORY_TABLE_PATH,
+    measure_story_coverage,
+    render_matrix as render_story_matrix,
+    render_table as render_story_table,
+)
 from vultron.metadata.docs.threads import (
     BOX_DIR,
     load_threads,
@@ -82,6 +96,7 @@ from vultron.metadata.docs.threads import (
     splice_thread_listing,
 )
 from vultron.metadata.file_loading import MetadataLoadError, MetadataLoadErrors
+from vultron.metadata.specs.registry import load_registry
 
 
 def _read(target: Path) -> str:
@@ -96,7 +111,9 @@ def desired_contents(root: Path) -> dict[str, str]:
             empty, or unreadable (a landing page's hand-written prose cannot
             be regenerated), a page's declarations do not validate, a
             group-opening index declares no ``contents:``, or a target set is
-            empty (DF-09-009).
+            empty (DF-09-009); or if the story catalog resolves no pages, or a
+            requirement's ``stories:`` entry names a story with no page
+            (TRACE-03-001).
         MetadataLoadErrors: If a routing index fails to link a member of its
             section, or the home page or a start page fails to link the
             lookup page, every missing link listed (DF-11-029, DF-11-042); if
@@ -106,7 +123,7 @@ def desired_contents(root: Path) -> dict[str, str]:
             (DF-11-041), or any other fault ``lookup_sections`` raises,
             reported with the missing links (EH-07-001).
         ValueError: If a landing, start or lookup page's markers are missing
-            or malformed.
+            or malformed, or the requirement registry does not load.
     """
     contents = {
         FRAGMENT_PATH: render_fragment(),
@@ -169,6 +186,11 @@ def desired_contents(root: Path) -> dict[str, str]:
         )
     for fragment, box in render_boxes(threads, titles).items():
         contents[f"docs/{fragment}"] = box
+    # Last, so a fault in the docs tree above is still reported as itself: the
+    # story graph is the one input here that is not a docs page.
+    story = measure_story_coverage(root, load_registry(root / "specs"))
+    contents[STORY_TABLE_PATH] = render_story_table(story)
+    contents[STORY_MATRIX_PATH] = render_story_matrix(story)
     return contents
 
 
@@ -206,9 +228,14 @@ def write_artifacts(root: Path | None = None) -> list[str]:
     """Rewrite every stale artifact in place; return the paths written.
 
     A box fragment no thread implies is deleted, and its path is returned
-    too. One pass is enough: writing a page rewrites only the text between its
-    markers, never its frontmatter, so it never changes what the coverage
-    matrix counts.
+    too. One pass is enough, because no artifact written here is an input to
+    another. A spliced page is rewritten only between its markers, never in
+    its frontmatter, so it cannot change what the coverage matrix counts; the
+    two whole-file story artifacts do carry frontmatter, but the matrix skips
+    ``traceability.md`` as working record (``WORKING_RECORD_PATTERNS``) and
+    ``table.md`` declares none, being an include fragment. A whole-file
+    artifact added here that the coverage matrix *would* count needs a second
+    pass, so check that before adding one.
     """
     written: list[str] = []
     for target, path, desired in _out_of_date(root or repo_root()):
@@ -255,7 +282,8 @@ def main(argv: list[str] | None = None) -> None:
         for path in stale:
             print(
                 f"[ERROR] {path} is stale — run '{WRITE_COMMAND}' "
-                "(DF-11-005, DF-11-014, DF-11-021, DF-11-023).",
+                "(DF-11-005, DF-11-014, DF-11-021, DF-11-023, "
+                "TRACE-01-001, TRACE-03-003).",
                 file=sys.stderr,
             )
         sys.exit(1)

@@ -136,9 +136,17 @@ AdrIdStr = Annotated[
     StringConstraints(pattern=r"^ADR-\d{4}$"),
 ]
 
+#: The shape of a user-story ID (SR-11-002). A named constant because the
+#: story-page catalog scanner decides from a filename which pages are stories
+#: (``docs/story_pages.py``), and a second copy of the pattern would let the
+#: two disagree: a widened pattern the scanner did not learn would make every
+#: citation of a new page a hard TRACE-03-001 error and drop the page from
+#: both generated artifacts.
+STORY_ID_PATTERN = r"^story_\d{4}_\d{3}$"
+
 StoryIdStr = Annotated[
     str,
-    StringConstraints(pattern=r"^story_\d{4}_\d{3}$"),
+    StringConstraints(pattern=STORY_ID_PATTERN),
 ]
 
 #: The issue that owns verifying an unverified MUST-tier requirement

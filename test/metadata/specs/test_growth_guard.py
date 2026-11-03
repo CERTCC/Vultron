@@ -5,7 +5,8 @@ base, edits the working tree, and runs a real guard: the marker-coverage guard
 over ``protocol`` and ``foundation`` specs (:func:`uncovered_implementer_ids`)
 and the ``missing_story_reference`` guard
 (:func:`missing_story_suppression_carriers`) through :func:`added_since_base`,
-and the ``verification_debt`` guard (:func:`debt_added_since_base`).
+and the ``verification_debt`` guard (:func:`debt_added_since_base`), and
+the story-catalog removal guard (:func:`removed_story_pages`).
 """
 
 import logging
@@ -16,6 +17,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from vultron.metadata.docs.story_pages import STORY_ROOT
 from vultron.metadata.specs.coverage import (
     kinds_and_markers,
     markers_dropped_by_kind_change,
@@ -39,6 +41,7 @@ from vultron.metadata.specs.growth_guard import (
 from vultron.metadata.specs.kind_classification import (
     missing_story_suppression_carriers,
 )
+from vultron.metadata.specs.story_links import removed_story_pages
 from vultron.metadata.specs.verification import debt_added_since_base
 
 _SUPPRESS = ["missing_story_reference"]
@@ -1076,3 +1079,72 @@ def test_compare_changed_skips_a_listed_path_that_is_not_a_file(files_repo):
         _file_names, repo_root=files_repo, paths=("d",)
     )
     assert seen.head_value == {"d/edited"}
+
+
+# --- story-catalog removal guard (TRACE-03-002) -----------------------------
+
+
+def _write_stories(repo: Path, *stories: str) -> None:
+    directory = repo / STORY_ROOT
+    directory.mkdir(parents=True, exist_ok=True)
+    for story in stories:
+        (directory / f"{story}.md").write_text(
+            "---\nstakeholder_type: [project-contributor]\n---\n\n"
+            f"# User Story `{story.removeprefix('story_')}`\n",
+            encoding="utf-8",
+        )
+
+
+@pytest.fixture
+def story_repo(tmp_path):
+    """Base: a catalog of two story pages, at ``origin/main``."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "main")
+    _write_stories(repo, "story_2022_001", "story_2022_002")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "base")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    return repo
+
+
+@pytest.mark.spec("TRACE-03-002")
+def test_story_catalog_unchanged_removes_nothing(story_repo):
+    check = removed_story_pages(story_repo)
+    assert check.skipped is None
+    assert check.removed == frozenset()
+
+
+@pytest.mark.spec("TRACE-03-002")
+def test_a_deleted_story_page_is_a_removal(story_repo):
+    (story_repo / STORY_ROOT / "story_2022_002.md").unlink()
+    check = removed_story_pages(story_repo)
+    assert check.removed == frozenset({"story_2022_002"})
+    assert "TRACE-03-002" in check.failure_message()
+    assert "story_2022_002" in check.failure_message()
+
+
+@pytest.mark.spec("TRACE-03-002")
+def test_a_new_story_page_is_not_a_removal(story_repo):
+    _write_stories(story_repo, "story_2026_010")
+    assert removed_story_pages(story_repo).removed == frozenset()
+
+
+@pytest.mark.spec("TRACE-03-002")
+def test_a_renamed_story_page_is_a_removal(story_repo):
+    """Renaming frees the old ID, so it is the removal TRACE-03-002 forbids."""
+    catalog = story_repo / STORY_ROOT
+    (catalog / "story_2022_002.md").rename(catalog / "story_2026_010.md")
+    assert removed_story_pages(story_repo).removed == frozenset(
+        {"story_2022_002"}
+    )
+
+
+@pytest.mark.spec("TRACE-03-002")
+def test_story_catalog_guard_without_base_ref_skips(story_repo, monkeypatch):
+    monkeypatch.setattr(
+        "vultron.metadata.specs.growth_guard.DEFAULT_BASE_REF", "origin/nope"
+    )
+    check = removed_story_pages(story_repo)
+    assert check.skipped is not None
+    assert check.removed == frozenset()
