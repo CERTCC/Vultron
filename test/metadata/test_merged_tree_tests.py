@@ -99,13 +99,16 @@ def _run(gate: _Gate) -> int:
 @pytest.mark.spec("PAD-18-024")
 def test_the_gate_runs_on_the_merge_of_both_sides(repo: Path, capsys):
     _commit(repo, "shared.txt", "one\ntwo\nthree\nfour\nFIVE branch\n")
+    _commit(repo, "branch_only.txt", "branch\n")
     head = _rev(repo)
     gate = _Gate()
 
     assert _run(gate) == 0
 
     [tree] = gate.trees
+    # The shared paths, not the whole branch diff (ADR-0173).
     assert gate.paths == [["shared.txt"]]
+    assert tree["branch_only.txt"] == "branch\n"
     assert tree["shared.txt"] == "ONE base\ntwo\nthree\nfour\nFIVE branch\n"
     assert tree["base_only.txt"] == "base\n"
     out = capsys.readouterr().out

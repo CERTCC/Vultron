@@ -22,9 +22,9 @@ PR branch for that, so this command tests the merge somewhere else::
     merged-tree-tests --base B
     merged-tree-tests --no-fetch
 
-When ``targeted-tests --overlap`` finds no path both sides changed, it
-prints ``merged-tree: no overlap`` and exits 0: the branch's own gate already
-covers it. Otherwise it adds a detached scratch worktree at ``HEAD``, merges
+When no path was changed on both sides (the overlap ``targeted-tests
+--overlap`` reports, from the same helper), it prints ``merged-tree: no
+overlap`` and exits 0: the branch's own gate already covers it. Otherwise it adds a detached scratch worktree at ``HEAD``, merges
 ``origin/<base>`` into that worktree only, runs there the tests that
 ``targeted-tests --paths`` selects for the shared files, and removes the
 worktree with ``git worktree remove`` whatever the result. It never runs
@@ -56,11 +56,10 @@ from pathlib import Path
 from types import FrameType
 
 from vultron.metadata.planning.ci_mirror._run import log_tail, run_in_session
-from vultron.metadata.planning.targeted_tests import overlap
+from vultron.metadata.planning.targeted_tests import branch_overlap
 from vultron.metadata.specs.backstop import (
     BackstopError,
-    base_changed_paths,
-    changed_paths,
+    git_toplevel,
     merge_base,
     run_git,
 )
@@ -101,10 +100,7 @@ def _checked(root: Path, *args: str) -> str:
 def shared_paths(root: Path, base_ref: str) -> list[str]:
     """The paths both the branch and *base_ref* changed since their merge base."""
     git = run_git(root)
-    start = merge_base(git, base_ref)
-    return overlap(
-        changed_paths(git, start), base_changed_paths(git, start, base_ref)
-    )
+    return branch_overlap(git, merge_base(git, base_ref), base_ref)
 
 
 def run_targeted_gate(
@@ -214,7 +210,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _run(args: argparse.Namespace, run_gate: GateRunner) -> int:
-    root = Path(_checked(Path.cwd(), "rev-parse", "--show-toplevel").strip())
+    try:
+        root = git_toplevel(Path.cwd())
+    except BackstopError as exc:
+        raise MergedTreeError(str(exc)) from exc
     if _checked(root, "status", "--porcelain").strip():
         raise MergedTreeError("the working tree is dirty; commit first")
     if not args.no_fetch:

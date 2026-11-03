@@ -29,6 +29,7 @@ from vultron.metadata.planning.ci_mirror._run import (
     PlannedCheck,
     plan,
     run_checks,
+    run_in_session,
 )
 from vultron.metadata.planning.ci_mirror._workflows import (
     PullRequestTrigger,
@@ -541,6 +542,34 @@ def test_a_timeout_kills_the_whole_process_group(tmp_path: Path):
     )
 
     assert result.status is CheckStatus.FAILED
+    time.sleep(2.5)
+    assert not marker.exists()
+
+
+def test_an_interrupt_kills_the_whole_process_group(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    # merged-tree-tests' SIGTERM unwinds through this wait; the gate's
+    # workers must not outlive it in the removed scratch worktree.
+    marker = tmp_path / "grandchild-survived"
+    script = f"bash -c 'sleep 2 && touch {marker}' & wait"
+    real_wait = subprocess.Popen.wait
+
+    def interrupted(proc: subprocess.Popen[str], timeout: float | None = None):
+        if timeout is not None:
+            raise KeyboardInterrupt
+        return real_wait(proc)
+
+    monkeypatch.setattr(subprocess.Popen, "wait", interrupted)
+
+    with (
+        (tmp_path / "out.log").open("w") as out,
+        pytest.raises(KeyboardInterrupt),
+    ):
+        run_in_session(
+            ["bash", "-c", script], cwd=tmp_path, env={}, out=out, timeout=60
+        )
+
     time.sleep(2.5)
     assert not marker.exists()
 
