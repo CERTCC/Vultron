@@ -22,12 +22,9 @@ Spec: `specs/vocabulary-model.yaml` VM-01-016.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import importlib
-import pkgutil
-
 import pytest
 
-import vultron.wire.as2.vocab as _vocab
+from test.support.wire_vocab import import_all_wire_vocab
 from vultron.wire.as2.errors import VultronParseUnknownTypeError
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.registry import (
@@ -42,10 +39,7 @@ _MIN_REGISTERED_TYPES = 50
 
 def _vocabulary_keys() -> list[str]:
     """Every ``VOCABULARY`` key, once every vocabulary submodule is imported."""
-    for module in pkgutil.walk_packages(
-        _vocab.__path__, f"{_vocab.__name__}."
-    ):
-        importlib.import_module(module.name)
+    import_all_wire_vocab()
     keys = sorted(VOCABULARY)
     assert len(keys) >= _MIN_REGISTERED_TYPES, keys
     return keys

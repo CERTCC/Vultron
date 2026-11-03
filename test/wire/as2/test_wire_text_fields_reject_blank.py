@@ -28,15 +28,12 @@ CS-08-001, CS-08-002.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import importlib
 import json
-import pkgutil
 from typing import Any
 
 import pytest
 from pydantic import BaseModel, ValidationError
 
-import vultron.wire.as2.vocab as _vocab
 from test.architecture._vocab_example_corpus import activity_examples
 from test.support.blank_strings import (
     BLANKS,
@@ -45,6 +42,7 @@ from test.support.blank_strings import (
     rejects_blank,
     string_leaves,
 )
+from test.support.wire_vocab import import_all_wire_vocab
 from vultron.core.models.base import CoreObject
 from vultron.primitives import NonEmptyString
 from vultron.subclasses import all_subclasses
@@ -88,10 +86,7 @@ _DECLARED_TEXT_FIELDS: list[tuple[type[BaseModel], str]] = [
 
 def wire_classes() -> dict[str, type[BaseModel]]:
     """Every ``as_Base`` subclass the wire package defines, by qualified name."""
-    for module in pkgutil.walk_packages(
-        _vocab.__path__, f"{_vocab.__name__}."
-    ):
-        importlib.import_module(module.name)
+    import_all_wire_vocab()
     classes: list[type[as_Base]] = [as_Base, *all_subclasses(as_Base)]
     found: dict[str, type[BaseModel]] = {
         cls.__qualname__: cls
