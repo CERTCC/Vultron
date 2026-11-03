@@ -835,7 +835,7 @@ groups:
       asserts the reporter's participant record is stored at `RM.ACCEPTED` after
       bootstrap.
     stories:
-    - story_2026_036
+    - story_2026_055
     - story_2022_038
     statement: >-
       Tests MUST verify that the bootstrap stores the reporter's participant record

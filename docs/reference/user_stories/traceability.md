@@ -1580,13 +1580,10 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CBT — Case Bootstrap Trust | [CBT-05-007](../specs/project.md#cbt-05-007) |
 | CM — Case Management | [CM-06-003](../vultron-spec/requirements/case-management.md#cm-06-003) |
 | CP — CaseProposal Protocol | [CP-06-001](../specs/project.md#cp-06-001), [CP-06-002](../specs/project.md#cp-06-002), [CP-06-003](../specs/project.md#cp-06-003), [CP-06-004](../specs/project.md#cp-06-004) |
 | CSB — CVD Case State Behavioral Requirements | [CSB-01-001](../vultron-spec/requirements/state-behavior.md#csb-01-001), [CSB-02-001](../vultron-spec/requirements/state-behavior.md#csb-02-001), [CSB-03-001](../vultron-spec/requirements/state-behavior.md#csb-03-001), [CSB-04-001](../vultron-spec/requirements/state-behavior.md#csb-04-001), [CSB-05-001](../vultron-spec/requirements/state-behavior.md#csb-05-001), [CSB-05-004](../vultron-spec/requirements/state-behavior.md#csb-05-004), [CSB-06-001](../vultron-spec/requirements/state-behavior.md#csb-06-001), [CSB-06-004](../vultron-spec/requirements/state-behavior.md#csb-06-004) |
 | HP — Handler Protocol | [HP-00-002](../vultron-spec/requirements/message-processing.md#hp-00-002) |
-| LST — Lifecycle-Staged Domain Types | [LST-05-002b](../specs/project.md#lst-05-002b) |
-| RSH — Received-Side Status Authorization | [RSH-08-013](../vultron-spec/requirements/message-processing.md#rsh-08-013) |
 | SM — State Machine | [SM-05-002](../specs/project.md#sm-05-002) |
 | TB — Testability | [TB-03-003](../specs/project.md#tb-03-003) |
 | VP — Vultron Protocol | [VP-01-001](../vultron-spec/requirements/vultron-protocol.md#vp-01-001), [VP-01-002](../vultron-spec/requirements/vultron-protocol.md#vp-01-002) |
@@ -1609,7 +1606,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 |---|---|
 | BTND — Behavior Tree Node Design | [BTND-10-001](../specs/project.md#btnd-10-001) |
 | CSB — CVD Case State Behavioral Requirements | [CSB-16-001](../vultron-spec/requirements/state-behavior.md#csb-16-001), [CSB-16-002](../vultron-spec/requirements/state-behavior.md#csb-16-002), [CSB-16-005](../vultron-spec/requirements/state-behavior.md#csb-16-005), [CSB-16-007](../vultron-spec/requirements/state-behavior.md#csb-16-007) |
-| RSH — Received-Side Status Authorization | [RSH-08-012](../vultron-spec/requirements/message-processing.md#rsh-08-012) |
+| RSH — Received-Side Status Authorization | [RSH-08-012](../vultron-spec/requirements/message-processing.md#rsh-08-012), [RSH-08-013](../vultron-spec/requirements/message-processing.md#rsh-08-013) |
 | SDO — Status Dimension Objects | [SDO-02-001](../specs/project.md#sdo-02-001), [SDO-02-002](../specs/project.md#sdo-02-002), [SDO-02-004](../specs/project.md#sdo-02-004) |
 
 ## [story_2026_039](story_2026_039.md)
@@ -1755,7 +1752,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CBT — Case Bootstrap Trust | [CBT-01-002](../vultron-spec/requirements/ledger-replication.md#cbt-01-002), [CBT-01-007](../vultron-spec/requirements/ledger-replication.md#cbt-01-007), [CBT-02-001](../vultron-spec/requirements/ledger-replication.md#cbt-02-001), [CBT-04-003](../vultron-spec/requirements/ledger-replication.md#cbt-04-003) |
+| CBT — Case Bootstrap Trust | [CBT-01-002](../vultron-spec/requirements/ledger-replication.md#cbt-01-002), [CBT-01-007](../vultron-spec/requirements/ledger-replication.md#cbt-01-007), [CBT-02-001](../vultron-spec/requirements/ledger-replication.md#cbt-02-001), [CBT-04-003](../vultron-spec/requirements/ledger-replication.md#cbt-04-003), [CBT-05-007](../specs/project.md#cbt-05-007) |
 | CP — CaseProposal Protocol | [CP-09-006](../specs/project.md#cp-09-006) |
 | PCR — Participant Case Replica | [PCR-01-007](../vultron-spec/requirements/ledger-replication.md#pcr-01-007), [PCR-02-001](../vultron-spec/requirements/ledger-replication.md#pcr-02-001), [PCR-02-003](../vultron-spec/requirements/ledger-replication.md#pcr-02-003), [PCR-02-004](../vultron-spec/requirements/ledger-replication.md#pcr-02-004), [PCR-02-005](../vultron-spec/requirements/ledger-replication.md#pcr-02-005), [PCR-05-002](../vultron-spec/requirements/ledger-replication.md#pcr-05-002) |
 
@@ -1870,3 +1867,11 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | CBT — Case Bootstrap Trust | [CBT-06-001](../vultron-spec/requirements/ledger-replication.md#cbt-06-001), [CBT-06-003](../vultron-spec/requirements/ledger-replication.md#cbt-06-003) |
+
+## [story_2026_068](story_2026_068.md)
+
+{% include-markdown "./story_2026_068.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| LST — Lifecycle-Staged Domain Types | [LST-05-002b](../specs/project.md#lst-05-002b) |

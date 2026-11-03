@@ -186,9 +186,10 @@ adding new ones; the prefixes are the expected citers, not a commitment.
 Candidate axes; the splitting task decides the final set by reading the citing
 requirements, not the other way round.
 
-- **088** "maintain knowledge of the state of case and what options are
-  available" (156): knowing the current case state; knowing which actions are
-  available now; detecting and recovering loss of sync.
+- **088** is split into `story_2026_036`–`068` (#4516, part 1). Its citers
+  needed two axes the candidate list lacked: every copy matching the
+  CASE_MANAGER's, and deployment needs told by an Implementer. Read the axes
+  below as a start, not a closed set.
 - **045** "produce a shared verified public record of case activity" (135):
   a record every participant shares; a record whose integrity can be verified;
   a record that becomes public on disclosure.

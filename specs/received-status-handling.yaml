@@ -1202,7 +1202,7 @@ groups:
     adr:
     - ADR-0124
     stories:
-    - story_2026_036
+    - story_2026_038
   - id: RSH-08-007
     priority: MUST
     kind: protocol

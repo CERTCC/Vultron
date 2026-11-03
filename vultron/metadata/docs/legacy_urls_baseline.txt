@@ -585,6 +585,7 @@ reference/user_stories/story_2026_064.md
 reference/user_stories/story_2026_065.md
 reference/user_stories/story_2026_066.md
 reference/user_stories/story_2026_067.md
+reference/user_stories/story_2026_068.md
 reference/user_stories/table.md
 reference/user_stories/traceability.md
 reference/versioning.md
