@@ -380,6 +380,22 @@ def test_a_key_with_one_slash_is_readable_by_its_key(
     )
 
 
+@pytest.mark.parametrize("segment", ["Banana", "VulnerabilityCase"])
+def test_a_type_segment_that_does_not_name_the_rows_type_is_not_found(
+    client: TestClient, stored: dict[str, str], segment: str
+) -> None:
+    """The type segment asserts the served row's type (#5551).
+
+    A segment that is not the type of the row named by the id, made up or
+    real, serves nothing, rather than serving that row whatever its type.
+    """
+    response = client.get(
+        _by_type_and_id(segment, stored["VulnerabilityReport"])
+    )
+
+    assert response.status_code == 404
+
+
 def test_a_one_slash_path_that_names_no_key_is_not_found(
     client: TestClient,
 ) -> None:
@@ -449,16 +465,34 @@ def test_an_offer_route_serves_the_inline_object_whole(
     assert body == by_id.json()
 
 
-def test_the_offers_route_refuses_an_offer_that_does_not_concern_the_actor(
+def test_every_offer_read_serves_an_offer_that_does_not_concern_the_actor(
     client: TestClient, datalayer: DataLayer
 ) -> None:
-    """Serving the Offer as stored keeps the route's sender/addressee check."""
+    """Every read of a stored Offer serves it, whoever sent or was sent it.
+
+    The datalayer reads inspect one actor's store (ADR-0073) and are not
+    scoped to the requester: no request names an asker.  The by-id Offer
+    route once answered 404 for an Offer the store's actor neither sent nor
+    was addressed by, while the other three reads served it (#5547).
+    """
     offer = offer_case_participant_role()
     datalayer.create(offer)
+    recipients = offer.to if isinstance(offer.to, list) else [offer.to]
+    assert ACTOR_ID not in {getattr(r, "id_", r) for r in recipients}
+    assert getattr(offer.actor, "id_", offer.actor) != ACTOR_ID
 
-    path, params = _offers_by_id(offer.id_)
+    by_key = client.get(_by_key("Offer", offer.id_))
+    assert by_key.status_code == 200, by_key.text
 
-    assert client.get(path, params=params).status_code == 404
+    for read in _OFFER_READS:
+        path, params = read(offer.id_)
+        response = client.get(path, params=params)
+        assert response.status_code == 200, (path, response.text)
+        assert response.json() == by_key.json(), path
+
+    listed = client.get(f"{_BASE}/Offers/")
+    assert listed.status_code == 200, listed.text
+    assert listed.json()[offer.id_] == by_key.json()
 
 
 def test_an_offer_route_refuses_an_object_that_is_not_an_offer(
