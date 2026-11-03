@@ -48,6 +48,8 @@ groups:
       A direct shortcut between co-located actors bypasses the inbox pipeline, so its
       exchanges skip validation, the addressee and entitlement gates, and the case
       ledger, and leave nothing a remote participant would receive.
+    stories:
+    - story_2026_002
   - id: AKM-01-003
     priority: MUST
     kind: protocol
@@ -99,6 +101,8 @@ groups:
       it unable to read what the activity acts on, so it must refuse the activity or
       guess. Carrying such an object inline, or by a reference the recipient can fetch,
       keeps every activity processable by its addressee.
+    stories:
+    - story_2026_016
   - id: AKM-02-004
     priority: MUST
     kind: project

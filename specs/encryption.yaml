@@ -113,6 +113,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ENC-01-001
+    stories:
+    - story_2022_090
+    - story_2022_091
 - id: ENC-02
   title: Message Encryption
   specs:
