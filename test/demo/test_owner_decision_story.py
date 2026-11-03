@@ -38,18 +38,27 @@ from test.demo._helpers import (
     mock_case,
     no_demo_banners,
     patch_chain_shared,
+    patch_shared,
     story_state,
 )
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import (
     coordinated_story,
-    invite_chain,
     owner_decision_story as ods,
 )
-from vultron.demo.helpers.coordinated_story import REPORTER, REPORTER_LABEL
+from vultron.demo.helpers.coordinated_story import (
+    REPORTER,
+    REPORTER_LABEL,
+    joining as coordinated_joining,
+    opening as coordinated_opening,
+)
+from vultron.demo.helpers.invite_chain import links as invite_links
 from vultron.demo.helpers.owner_decision_story import (
     HANDED_OVER_CASE,
     Part,
+    handover as owner_handover,
+    keep as owner_keep,
+    parts as owner_parts,
 )
 from vultron.demo.helpers.story import StoryProp
 from vultron.demo.utils import reset_demo_failures
@@ -73,6 +82,26 @@ _CAST = (REPORTER, OWNER.name, JOINER.name, NEWCOMER.name)
 
 #: The roster both continuations gate their newcomer's triage on.
 _SEATED = (REPORTER, OWNER.name, JOINER.name, NEWCOMER.name)
+
+#: The submodule each collaborator of the ``keep`` continuation is looked up
+#: in, so a stub reaches the call it stands in for (CS-18-003).
+_KEEP_LOOKUPS = {
+    "find_cp_offer_for_case": owner_keep,
+    "find_case_actor_participant_id": owner_parts,
+    "run_case_invite_chain": owner_keep,
+    "invitee_triages_after_joining": owner_keep,
+}
+
+#: The same, for the handover's two halves.
+_HANDOVER_LOOKUPS = {
+    "find_ownership_transfer_offer_for_actor": owner_handover,
+    "wait_for_case_actor_ledger_event": owner_handover,
+    "wait_for_case_attributed_to": owner_handover,
+    "wait_for_semantic_type_in_ledger": owner_handover,
+    "find_case_actor_participant_id": owner_parts,
+    "run_case_invite_chain": owner_handover,
+    "invitee_triages_after_joining": owner_handover,
+}
 
 
 @pytest.fixture(autouse=True)
@@ -154,7 +183,7 @@ class TestCaseActorParticipant:
         state = _state()
 
         with patch.object(
-            ods,
+            owner_parts,
             "find_case_actor_participant_id",
             return_value="urn:test:case-actor-participant",
         ) as lookup:
@@ -179,7 +208,9 @@ class TestCaseActorParticipant:
 
         with (
             patch.object(
-                ods, "find_case_actor_participant_id", return_value=None
+                owner_parts,
+                "find_case_actor_participant_id",
+                return_value=None,
             ),
             pytest.raises(AssertionError, match="no CaseActor participant"),
         ):
@@ -220,7 +251,9 @@ class TestTheOwnerApprovesASuggestedActor:
         patches.update(overrides)
         with contextlib.ExitStack() as stack:
             mocks = {
-                name: stack.enter_context(patch.object(ods, name, **kwargs))
+                name: stack.enter_context(
+                    patch.object(_KEEP_LOOKUPS[name], name, **kwargs)
+                )
                 for name, kwargs in patches.items()
             }
             mocks["suggest"] = stack.enter_context(
@@ -241,7 +274,7 @@ class TestTheOwnerApprovesASuggestedActor:
             )
             mocks["replica_wait"] = stack.enter_context(
                 patch_chain_shared(
-                    coordinated_story, "wait_for_case_on_container"
+                    coordinated_joining, "wait_for_case_on_container"
                 )
             )
             ods.the_owner_approves_a_suggested_actor(
@@ -335,17 +368,23 @@ class TestTheOwnerApprovesASuggestedActor:
         with contextlib.ExitStack() as stack:
             stack.enter_context(
                 patch.object(
-                    ods, "find_cp_offer_for_case", return_value="urn:test:cp"
+                    owner_keep,
+                    "find_cp_offer_for_case",
+                    return_value="urn:test:cp",
                 )
             )
             stack.enter_context(
                 patch.object(
-                    ods,
+                    owner_parts,
                     "find_case_actor_participant_id",
                     return_value="urn:test:case-actor-participant",
                 )
             )
-            stack.enter_context(patch.object(ods, "run_case_invite_chain"))
+            stack.enter_context(
+                patch_shared(
+                    (owner_keep, owner_handover), "run_case_invite_chain"
+                )
+            )
             stack.enter_context(
                 patch.object(ActorSession, "suggest_actor_to_case")
             )
@@ -354,17 +393,20 @@ class TestTheOwnerApprovesASuggestedActor:
             )
             stack.enter_context(
                 patch.object(
-                    coordinated_story,
+                    coordinated_joining,
                     "run_invite_path_rm_triage",
                     side_effect=lambda **_kw: order.append("triage"),
                 )
             )
             stack.enter_context(
-                patch.object(coordinated_story, "wait_for_case_participants")
+                patch_shared(
+                    (coordinated_joining, coordinated_opening),
+                    "wait_for_case_participants",
+                )
             )
             stack.enter_context(
                 patch_chain_shared(
-                    coordinated_story,
+                    coordinated_joining,
                     "wait_for_case_on_container",
                     side_effect=_wait_for_case,
                 )
@@ -424,19 +466,23 @@ class TestTheOwnerApprovesASuggestedActor:
                 ActorSession, "accept_case_invite", autospec=True
             ) as accept,
             patch.object(
-                ods, "find_cp_offer_for_case", return_value="urn:test:cp-offer"
+                owner_keep,
+                "find_cp_offer_for_case",
+                return_value="urn:test:cp-offer",
             ),
             patch.object(
-                ods,
+                owner_parts,
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
             patch.object(
-                invite_chain, "find_case_invite_for_actor", **invite_lookup
+                invite_links, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
-            patch.object(ods, "invitee_triages_after_joining"),
+            patch_shared(
+                (owner_keep, owner_handover), "invitee_triages_after_joining"
+            ),
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
         ):
             ods.the_owner_approves_a_suggested_actor(
@@ -544,13 +590,15 @@ class TestTheOwnerHandsTheCaseOver:
         patches.update(overrides)
         with contextlib.ExitStack() as stack:
             mocks = {
-                name: stack.enter_context(patch.object(ods, name, **kwargs))
+                name: stack.enter_context(
+                    patch.object(_HANDOVER_LOOKUPS[name], name, **kwargs)
+                )
                 for name, kwargs in patches.items()
             }
             # The re-read case must be the case the story opened: nothing a
             # scenario does changes a case's id (CM-21-002).
             wire_case = stack.enter_context(
-                patch.object(ods, "as_VulnerabilityCase")
+                patch.object(owner_handover, "as_VulnerabilityCase")
             )
             wire_case.model_validate.return_value = (
                 mock_case(state.case.id_) if restated is None else restated
@@ -656,16 +704,16 @@ class TestTheOwnerHandsTheCaseOver:
         with (
             _no_banners(),
             patch.object(
-                ods,
+                owner_handover,
                 "find_ownership_transfer_offer_for_actor",
                 return_value="urn:test:ownership-offer",
             ),
-            patch.object(ods, "wait_for_case_actor_ledger_event"),
-            patch.object(ods, "wait_for_case_attributed_to"),
+            patch.object(owner_handover, "wait_for_case_actor_ledger_event"),
+            patch.object(owner_handover, "wait_for_case_attributed_to"),
             patch.object(
-                ods, "wait_for_semantic_type_in_ledger"
+                owner_handover, "wait_for_semantic_type_in_ledger"
             ) as witness_wait,
-            patch.object(ods, "as_VulnerabilityCase") as wire_case,
+            patch.object(owner_handover, "as_VulnerabilityCase") as wire_case,
             patch.object(ActorSession, "offer_case_ownership_transfer"),
             patch.object(ActorSession, "accept_case_ownership_transfer"),
         ):
@@ -761,7 +809,7 @@ class TestTheOwnerHandsTheCaseOver:
         with contextlib.ExitStack() as stack:
             lookup = stack.enter_context(
                 patch.object(
-                    ods,
+                    owner_handover,
                     "find_ownership_transfer_offer_for_actor",
                     return_value="urn:test:ownership-offer",
                 )
@@ -771,9 +819,9 @@ class TestTheOwnerHandsTheCaseOver:
                 "wait_for_case_attributed_to",
                 "wait_for_semantic_type_in_ledger",
             ):
-                stack.enter_context(patch.object(ods, name))
+                stack.enter_context(patch.object(owner_handover, name))
             wire_case = stack.enter_context(
-                patch.object(ods, "as_VulnerabilityCase")
+                patch.object(owner_handover, "as_VulnerabilityCase")
             )
             wire_case.model_validate.return_value = mock_case(state.case.id_)
             stack.enter_context(
@@ -819,12 +867,14 @@ class TestTheNewOwnerInvites:
         patches.update(overrides)
         with contextlib.ExitStack() as stack:
             mocks = {
-                name: stack.enter_context(patch.object(ods, name, **kwargs))
+                name: stack.enter_context(
+                    patch.object(_HANDOVER_LOOKUPS[name], name, **kwargs)
+                )
                 for name, kwargs in patches.items()
             }
             mocks["replica_wait"] = stack.enter_context(
                 patch_chain_shared(
-                    coordinated_story, "wait_for_case_on_container"
+                    coordinated_joining, "wait_for_case_on_container"
                 )
             )
             ods.the_new_owner_invites(
@@ -848,8 +898,10 @@ class TestTheNewOwnerInvites:
         state = _state()
 
         with (
-            patch.object(ods, "run_case_invite_chain") as chain,
-            patch.object(ods, "find_case_actor_participant_id"),
+            patch_shared(
+                (owner_keep, owner_handover), "run_case_invite_chain"
+            ) as chain,
+            patch.object(owner_parts, "find_case_actor_participant_id"),
             pytest.raises(DemoStoryError, match="handed over"),
         ):
             ods.the_new_owner_invites(

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from test.demo._helpers import mock_actor, mock_case
+from test.demo._helpers import mock_actor, mock_case, patch_shared
 from vultron.demo import utils as demo_utils
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import invite_chain
@@ -15,7 +15,9 @@ from vultron.demo.helpers.invite_chain import (
     CaseInviter,
     EmittedBy,
     answer_case_invite,
+    chain as invite_runs,
     invite_and_await_delivery,
+    links as invite_links,
     run_case_invite_chain,
 )
 from vultron.demo.utils import reset_demo_failures
@@ -53,19 +55,19 @@ def chain_mocks():
         patch.object(ActorSession, "accept_case_invite") as accept,
         patch.object(ActorSession, "reject_case_invite") as reject,
         patch.object(
-            invite_chain,
+            invite_links,
             "find_case_invite_for_actor",
             return_value="urn:t:invite",
         ) as find,
-        patch.object(invite_chain, "assert_received_from") as received,
-        patch.object(invite_chain, "wait_for_case_on_container") as replica,
+        patch.object(invite_links, "assert_received_from") as received,
+        patch.object(invite_links, "wait_for_case_on_container") as replica,
         patch.object(
-            invite_chain,
+            invite_links,
             "find_full_case_invite_for_actor",
             return_value="urn:t:full-invite",
         ) as full_invite,
         patch.object(
-            invite_chain, "wait_for_replica_ledger_coverage"
+            invite_links, "wait_for_replica_ledger_coverage"
         ) as coverage,
         patch.object(ActorSession, "accept_full_case_invite") as full_reply,
     ):
@@ -492,7 +494,7 @@ def test_the_chain_takes_no_hook_between_delivery_and_the_answer():
         "then",
     }
     assert set(
-        inspect.signature(invite_chain._await_and_answer).parameters
+        inspect.signature(invite_links._await_and_answer).parameters
     ) == {
         "case",
         "invitee_name",
@@ -514,9 +516,9 @@ def test_step_and_gate_labels_are_pinned(chain_mocks):
     """Scenario logs and CI triage grep these labels; changing one is visible."""
     labels: list[str] = []
     real_step, real_gate, real_check = (
-        invite_chain.demo_step,
-        invite_chain.demo_gate,
-        invite_chain.demo_check,
+        invite_links.demo_step,
+        invite_links.demo_gate,
+        invite_links.demo_check,
     )
 
     def recording(real):
@@ -527,9 +529,13 @@ def test_step_and_gate_labels_are_pinned(chain_mocks):
         return wrapper
 
     with (
-        patch.object(invite_chain, "demo_step", recording(real_step)),
-        patch.object(invite_chain, "demo_gate", recording(real_gate)),
-        patch.object(invite_chain, "demo_check", recording(real_check)),
+        patch_shared(
+            (invite_links, invite_runs), "demo_step", recording(real_step)
+        ),
+        patch_shared(
+            (invite_links, invite_runs), "demo_gate", recording(real_gate)
+        ),
+        patch.object(invite_links, "demo_check", recording(real_check)),
     ):
         _run(
             expect_emitted_by=EmittedBy(case_actor_id="x", consequence="y"),
@@ -557,12 +563,12 @@ def test_chain_seeds_stub_summary_on_case_manager_before_inviting(chain_mocks):
     )[1]
     with (
         patch.object(
-            invite_chain,
+            invite_links,
             "find_case_actor_participant_id",
             return_value="urn:t:case-actor",
         ),
         patch.object(
-            invite_chain,
+            invite_links,
             "get_actor_by_id",
             return_value=mock_actor("urn:t:ca"),
         ) as get_actor,
@@ -601,11 +607,17 @@ def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
     import ast
     from pathlib import Path
 
-    helpers_dir = Path(invite_chain.__file__).parent
+    helpers_dir = Path(invite_chain.__file__).parent.parent
     scenario_dir = helpers_dir.parent / "scenario"
     starters = {"run_case_invite_chain", "invite_and_await_delivery"}
     scenario_sources = sorted(scenario_dir.glob("*_demo.py"))
-    fragment_sources = sorted(helpers_dir.glob("coordinated_*.py"))
+    # Recursive: a split family is a subpackage (CS-18-005), and a flat glob
+    # would drop every module inside it.
+    fragment_sources = sorted(
+        path
+        for path in helpers_dir.rglob("*.py")
+        if path.relative_to(helpers_dir).parts[0].startswith("coordinated_")
+    )
     # Each half asserted on its own: the scenario glob alone makes `sources`
     # non-empty, so a fragment glob that matched nothing — a renamed or moved
     # ``coordinated_*.py`` — would leave the composed half unguarded and the

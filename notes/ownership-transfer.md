@@ -31,7 +31,7 @@ relevant_packages:
   - vultron/core/use_cases/received/actor/
   - vultron/demo/exchange/transfer_ownership_demo.py
   - vultron/demo/scenario/rvcv_handoff_demo.py
-  - vultron/demo/helpers/owner_decision_story.py
+  - vultron/demo/helpers/owner_decision_story/
 ---
 
 # Ownership Transfer Protocol — Routing and Cascade Model

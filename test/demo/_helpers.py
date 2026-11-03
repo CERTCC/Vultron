@@ -18,11 +18,12 @@ import contextlib
 import importlib
 import inspect
 import logging
+import pkgutil
 import re
 from collections.abc import Iterator, Sequence
 from types import ModuleType
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import DEFAULT, MagicMock, patch
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -49,7 +50,8 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import invite_chain, runner, workflow
+from vultron.demo.helpers import runner, workflow
+from vultron.demo.helpers.invite_chain import links as invite_links
 from vultron.demo.helpers.story import StoryState, UnseatedContainer
 from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME
 from vultron.demo.in_process import response_value
@@ -63,6 +65,40 @@ _CHAIN_SHARED = frozenset({"wait_for_case_on_container"})
 
 
 @contextlib.contextmanager
+def patch_shared(
+    modules: Sequence[ModuleType],
+    name: str,
+    new: Any = DEFAULT,
+    **kwargs: Any,
+) -> Iterator[Any]:
+    """Stub *name* on each of *modules* with one shared mock.
+
+    A name is patched where it is looked up, and a split package's submodules
+    each look up their own copy of an imported name (CS-18-003): patching one
+    of them leaves the others calling the real function.  So every submodule
+    that looks *name* up is patched here, with the mock the first patch makes
+    (or the ``new=`` object given), and a test asserting on it sees every
+    caller's calls alike.
+
+    Args:
+        modules: Every module that looks *name* up, at least one.
+        name: The attribute to patch on each.
+        new: The replacement, as ``patch.object``'s own ``new``; a mock is
+            made when it is not given.
+        kwargs: Passed to the first ``patch.object``, as for a single patch.
+
+    Yields:
+        The shared mock, or the ``new=`` object.
+    """
+    first, *rest = modules
+    with contextlib.ExitStack() as stack:
+        mock = stack.enter_context(patch.object(first, name, new, **kwargs))
+        for module in rest:
+            stack.enter_context(patch.object(module, name, new=mock))
+        yield mock
+
+
+@contextlib.contextmanager
 def patch_chain_shared(
     demo: ModuleType, name: str, **kwargs: Any
 ) -> Iterator[MagicMock]:
@@ -71,9 +107,8 @@ def patch_chain_shared(
     Both call it (:data:`_CHAIN_SHARED`), so a test asserting on the mock sees
     the scenario's calls and the chain's alike.
     """
-    with patch.object(demo, name, **kwargs) as mock:
-        with patch.object(invite_chain, name, new=mock):
-            yield mock
+    with patch_shared((demo, invite_links), name, **kwargs) as mock:
+        yield mock
 
 
 def mock_actor(id_: str = "urn:test:actor") -> MagicMock:
@@ -224,12 +259,13 @@ def functions_referencing(module: ModuleType, name: str) -> list[str]:
     by nothing earlier, because every record written before the case exists is
     one more read of the recording clock (DEMOCI-11-018, #5532).  Read from the
     source rather than by patching, so the claim holds for the code as written
-    and not only for the path a test happens to drive.
+    and not only for the path a test happens to drive.  A split package is
+    read through every submodule, so the walk cannot miss a moved caller.
     """
-    tree = ast.parse(inspect.getsource(module))
     return [
         node.name
-        for node in ast.walk(tree)
+        for each in _modules_of(module)
+        for node in ast.walk(ast.parse(inspect.getsource(each)))
         if isinstance(node, ast.FunctionDef)
         and any(
             isinstance(child, ast.Name) and child.id == name
@@ -690,14 +726,34 @@ def null_demo_contexts(stack: contextlib.ExitStack, demo: ModuleType) -> None:
     skipped rather than patched into existence.  :func:`no_demo_banners` is
     this over several modules, as its own context manager.
     """
-    for name in ("demo_gate", "demo_check", "demo_step"):
-        if not hasattr(demo, name):
-            continue
-        stack.enter_context(
-            patch.object(
-                demo, name, side_effect=lambda _: contextlib.nullcontext()
+    for module in _modules_of(demo):
+        for name in ("demo_gate", "demo_check", "demo_step"):
+            if not hasattr(module, name):
+                continue
+            stack.enter_context(
+                patch.object(
+                    module,
+                    name,
+                    side_effect=lambda _: contextlib.nullcontext(),
+                )
             )
-        )
+
+
+def _modules_of(module: ModuleType) -> list[ModuleType]:
+    """*module*, and every submodule when it is a split package.
+
+    A package's ``__init__`` only re-exports what its submodules define
+    (CS-18-003), so the demo contexts a split story opens are looked up in
+    the submodules; passing the package must reach them, or every banner it
+    opens would stay real while the call read as patched.
+    """
+    path = getattr(module, "__path__", None)
+    if path is None:
+        return [module]
+    return [module] + [
+        importlib.import_module(f"{module.__name__}.{info.name}")
+        for info in pkgutil.iter_modules(path)
+    ]
 
 
 def _reporter_links(

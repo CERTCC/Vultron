@@ -37,16 +37,19 @@ import pytest
 from test.demo._helpers import (
     bind_container_actors,
     mock_case,
+    patch_shared,
     story_state,
     stub_closure_gate,
 )
-from vultron.demo.helpers import closure, coordinated_story, story_cast
+from vultron.demo.helpers import closure, story_cast
 from vultron.demo.helpers.coordinated_story import (
     COORDINATOR,
     REPORTER,
     VENDOR,
     close_the_case,
     invitee_joins_the_case,
+    joining as coordinated_joining,
+    opening as coordinated_opening,
 )
 from vultron.demo.helpers.story import StoryState
 from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME, dump_story_ledgers
@@ -93,13 +96,16 @@ class TestALaterVendorJoins:
         state = story_state(*_FOUR, case=mock_case())
 
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
             patch.object(
-                coordinated_story, "wait_for_case_participants"
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
+                "wait_for_case_participants",
             ) as roster,
             patch.object(
-                coordinated_story, "run_invite_path_rm_triage"
+                coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,
         ):
             invitee_joins_the_case(

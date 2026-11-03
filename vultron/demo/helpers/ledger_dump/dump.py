@@ -10,40 +10,16 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""Fetch each target's case ledger and write it to the devlogs.
 
-"""Shared case-ledger dump for demo scenarios.
-
-Every scenario exports each participant's view of the case ledger to
-``{DEVLOGS_DIR}/{demo_name}/{actor_name}/{case_id_slug}-case-ledger.jsonl``.
-The invariant harness (``test/ci/invariants/``) reads those files from the
-uploaded ``*-case-logs-attempt-*`` artifact, so the dump is the *only*
-forensic record a failed demo leaves behind.
-
-Two rules follow from that, and this module exists to hold them in one place
-rather than in nine near-identical scenario functions (DEMOMA-17-001):
-
-1. **The dump always writes a manifest.** ``DUMP_MANIFEST_FILENAME`` records
-   which actors were captured and why the others were not, so
-   ``{DEVLOGS_DIR}/{demo_name}/`` exists even when the scenario died before it
-   had a case. The artifact upload then always has something to upload, and the
-   invariant harness reports a real invariant result instead of failing on
-   artifact download (ISSUE-2239, DEMOCI-10-001).
-
-2. **A per-actor dump failure is recorded, not raised.** Each actor's dump runs
-   inside ``demo_step``, which accumulates the failure and continues
-   (DEMOCI-01-003), so one unreachable container cannot cost us the other
-   containers' ledgers.
-
-The scenario-facing entry point is :func:`dump_case_ledgers`; the harness in
-:mod:`vultron.demo.harness` calls :func:`write_dump_manifest` directly when a
-scenario failed before a case existed.
+The route key and target of each replica, then :func:`dump_case_ledgers`,
+which fetches and writes every target's ledger and always writes the
+manifest (:mod:`vultron.demo.helpers.ledger_dump`).
 """
 
 import json
 import logging
-import os
 import pathlib
-from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlparse
 
@@ -51,179 +27,21 @@ import httpx2 as httpx
 
 from vultron.adapters.utils import strip_id_prefix
 from vultron.demo.helpers.cast import slot_for
+from vultron.demo.helpers.ledger_dump.layout import (
+    LEDGER_FILE_SUFFIX,
+    ActorLedgerRecord,
+    LedgerDumpReport,
+    LedgerDumpTarget,
+    case_id_slug,
+    resolve_output_root,
+)
+from vultron.demo.helpers.ledger_dump.manifest import write_dump_manifest
 from vultron.demo.utils import CASE_ACTOR_SLUG, DataLayerClient, demo_step
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
 logger = logging.getLogger(__name__)
-
-DUMP_MANIFEST_FILENAME = "dump-manifest.json"
-"""Name of the per-scenario manifest written on every dump attempt."""
-
-STEP_MARKS_FILENAME = "step-marks.json"
-"""Name of the per-scenario file recording where each declared step fell in
-the canonical ledger (written by the scenario harness, DEMOCI-11-017)."""
-
-#: Repo root, used to resolve the default ``devlogs/`` directory. This module
-#: lives at ``vultron/demo/helpers/ledger_dump.py`` → ``parents[3]`` is the
-#: repository root.
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
-
-LEDGER_FILE_SUFFIX = "-case-ledger.jsonl"
-
-
-@dataclass(frozen=True)
-class LedgerDumpTarget:
-    """One actor whose case-ledger view should be exported.
-
-    Args:
-        actor_name: Output sub-directory name, e.g. ``"vendor2"``. This is the
-            name the invariant harness uses to identify the replica.
-        client: DataLayerClient for the container that holds the ledger.
-        route_key: In-container actor route key used to build the log path.
-    """
-
-    actor_name: str
-    client: DataLayerClient
-    route_key: str
-
-
-@dataclass
-class ActorLedgerRecord:
-    """Outcome of one actor's dump attempt, as recorded in the manifest."""
-
-    actor_name: str
-    route_key: str
-    captured: bool = False
-    entry_count: int = 0
-    ledger_file: str | None = None
-    reason: str | None = None
-
-    def as_manifest_entry(self) -> dict[str, Any]:
-        """Return the JSON-serializable manifest form of this record."""
-        return {
-            "actorName": self.actor_name,
-            "routeKey": self.route_key,
-            "captured": self.captured,
-            "entryCount": self.entry_count,
-            "ledgerFile": self.ledger_file,
-            "reason": self.reason,
-        }
-
-
-@dataclass
-class LedgerDumpReport:
-    """Aggregate result of a scenario's ledger dump."""
-
-    demo_name: str
-    case_id: str | None = None
-    records: list[ActorLedgerRecord] = field(default_factory=list)
-    reason: str | None = None
-    """Explicit summary; overrides the one derived from *records*."""
-    unreplicated: dict[str, str] = field(default_factory=dict)
-    """``{actorName: routeKey}`` of actors that acted in the case but hold no
-    ledger replica to dump (e.g. an invitee that rejected). Recorded so the
-    invariant harness can resolve them as the recorded actor of an entry."""
-
-    @property
-    def ledger_file_count(self) -> int:
-        """Number of actors whose ledger was written to disk."""
-        return sum(1 for record in self.records if record.captured)
-
-    def summary(self) -> str:
-        """Return a one-line human-readable explanation of the outcome."""
-        if self.reason:
-            return self.reason
-        if not self.records:
-            return (
-                "No dump targets: the scenario failed before a case existed, "
-                "so there were no participant ledgers to export."
-            )
-        missing = [r.actor_name for r in self.records if not r.captured]
-        if not missing:
-            return (
-                f"Captured case ledgers for all {len(self.records)} "
-                "participants."
-            )
-        return (
-            f"Captured {self.ledger_file_count} of {len(self.records)} "
-            f"participant case ledgers; missing: {', '.join(missing)}."
-        )
-
-    def as_manifest(self) -> dict[str, Any]:
-        """Return the JSON-serializable manifest for this report."""
-        return {
-            "demoName": self.demo_name,
-            "caseId": self.case_id,
-            "ledgerFileCount": self.ledger_file_count,
-            "targetCount": len(self.records),
-            "reason": self.summary(),
-            "actors": [record.as_manifest_entry() for record in self.records],
-            "unreplicatedActors": [
-                {"actorName": name, "routeKey": route_key}
-                for name, route_key in self.unreplicated.items()
-            ],
-        }
-
-
-def default_devlogs_root() -> pathlib.Path:
-    """Return ``DEVLOGS_DIR`` when set, else ``<repo root>/devlogs``.
-
-    The single resolution of the devlogs root for the whole project;
-    :func:`vultron.demo.report.default_input_dir` and the invariant harness
-    both delegate here so a writer and a reader can never disagree about where
-    the ledgers live (DEMOMA-17-001).
-
-    The default must not be a container path. ``docker-compose-multi-actor.yml``
-    sets ``DEVLOGS_DIR=/app/devlogs`` explicitly for the demo runner, so the
-    fallback only ever fires *outside* the container — on a CI runner or a
-    developer checkout, where ``/app`` cannot be created and ``mkdir`` raises
-    ``PermissionError`` (ISSUE-2239).
-
-    An empty ``DEVLOGS_DIR`` counts as unset; ``pathlib.Path("")`` is the
-    current directory, which is never what an empty env var means.
-
-    Returns:
-        The directory under which per-scenario dump sub-directories live.
-    """
-    env = os.environ.get("DEVLOGS_DIR")
-    if env:
-        return pathlib.Path(env)
-    return _REPO_ROOT / "devlogs"
-
-
-def resolve_output_root(
-    output_root: pathlib.Path | None = None,
-) -> pathlib.Path:
-    """Return the devlogs root, honouring the ``DEVLOGS_DIR`` environment var.
-
-    Args:
-        output_root: Explicit root; when given it is returned unchanged.
-
-    Returns:
-        The directory under which per-scenario dump sub-directories live.
-    """
-    if output_root is not None:
-        return output_root
-    return default_devlogs_root()
-
-
-def case_id_slug(case_id: str) -> str:
-    """Convert a case URI into a filesystem-safe slug.
-
-    Args:
-        case_id: The case's ``id_`` URI, e.g. ``https://example.org/cases/x``.
-
-    Returns:
-        The slug used in ledger file names, e.g. ``example.org_cases_x``.
-    """
-    return (
-        case_id.replace("://", "_")
-        .replace("/", "_")
-        .replace(":", "_")
-        .strip("_")
-    )
 
 
 def replica_route_key(client: DataLayerClient) -> str:
@@ -307,62 +125,6 @@ def case_actor_dump_target(
         CASE_ACTOR_SLUG,
         case_actor_client,
         replica_route_key(case_actor_client),
-    )
-
-
-def write_dump_manifest(
-    report: LedgerDumpReport,
-    output_root: pathlib.Path | None = None,
-) -> pathlib.Path:
-    """Write *report* to ``{output_root}/{demo_name}/dump-manifest.json``.
-
-    Called on every dump attempt — including the degenerate attempt made when a
-    scenario failed before it had a case — so the case-log artifact is never
-    empty (DEMOCI-10-001).
-
-    Args:
-        report: The dump outcome to record.
-        output_root: Devlogs root; defaults to ``DEVLOGS_DIR``.
-
-    Returns:
-        Path to the manifest that was written.
-    """
-    out_dir = resolve_output_root(output_root) / report.demo_name
-    out_dir.mkdir(parents=True, exist_ok=True)
-    manifest_path = out_dir / DUMP_MANIFEST_FILENAME
-    manifest_path.write_text(
-        json.dumps(report.as_manifest(), indent=2) + "\n", encoding="utf-8"
-    )
-    logger.info(
-        "Wrote dump manifest → %s (%s)", manifest_path, report.summary()
-    )
-    return manifest_path
-
-
-def ensure_dump_manifest(
-    demo_name: str,
-    reason: str,
-    output_root: pathlib.Path | None = None,
-) -> pathlib.Path | None:
-    """Write a fallback manifest for *demo_name* only if none exists yet.
-
-    Backstop for a dump that died before :func:`dump_case_ledgers` could write
-    its own manifest. Guarantees the case-log artifact is non-empty whatever
-    happened during the run.
-
-    Args:
-        demo_name: Scenario name; the devlogs sub-directory to check.
-        reason: Explanation recorded when a fallback manifest is written.
-        output_root: Devlogs root; defaults to ``DEVLOGS_DIR``.
-
-    Returns:
-        Path to the manifest written, or ``None`` if one already existed.
-    """
-    root = resolve_output_root(output_root)
-    if (root / demo_name / DUMP_MANIFEST_FILENAME).exists():
-        return None
-    return write_dump_manifest(
-        LedgerDumpReport(demo_name=demo_name, reason=reason), output_root=root
     )
 
 
@@ -503,46 +265,6 @@ def dump_case_ledgers(
         write_dump_manifest(report, output_root=root)
 
     return report
-
-
-_PRERUN_SENTINEL_REASON = "Pre-run sentinel: demo-runner had not yet started."
-"""Reason string written by :func:`write_prerun_sentinel`.
-
-Kept as a module constant so tests and the CI sentinel step can replicate the
-exact value without importing this module (DEMOCI-10-006).
-"""
-
-
-def write_prerun_sentinel(
-    demo_name: str,
-    output_root: pathlib.Path | None = None,
-) -> pathlib.Path:
-    """Write a pre-run sentinel manifest for *demo_name*.
-
-    Called immediately before the demo-runner container starts so the case-log
-    artifact is non-empty even when the runner exits before
-    ``scenario_harness()`` is entered (DEMOCI-10-006).
-
-    When the demo-runner subsequently reaches ``scenario_harness()``, the
-    harness overwrites this sentinel with the real dump manifest.  When the
-    runner exits early — container startup failure, import error, or
-    health-check gate — the sentinel survives and ``load_devlogs()`` reports a
-    real failure instead of a plumbing error.
-
-    Args:
-        demo_name: Scenario name; the devlogs sub-directory to create.
-        output_root: Devlogs root; defaults to ``DEVLOGS_DIR``.
-
-    Returns:
-        Path to the sentinel manifest written.
-    """
-    return write_dump_manifest(
-        LedgerDumpReport(
-            demo_name=demo_name,
-            reason=_PRERUN_SENTINEL_REASON,
-        ),
-        output_root=output_root,
-    )
 
 
 def _dump_one_target(

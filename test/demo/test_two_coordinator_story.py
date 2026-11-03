@@ -42,6 +42,7 @@ from test.demo._helpers import (
     mock_case,
     no_demo_banners,
     patch_chain_shared,
+    patch_shared,
     story_state,
 )
 from vultron.core.states.cs import CS_vf
@@ -63,6 +64,10 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER,
     REPORTER_TELLS_THE_COORDINATOR,
     VENDOR,
+    cast as coordinated_cast,
+    continuations as coordinated_continuations,
+    joining as coordinated_joining,
+    opening as coordinated_opening,
 )
 from vultron.demo.helpers.notes import (
     WORKAROUND_ANSWER,
@@ -261,7 +266,7 @@ class TestC2IsSeededAfterTheBranchPoint:
                 pair, "seed_containers_rccv", return_value=seeded
             ) as seed,
             patch.object(
-                coordinated_story,
+                coordinated_cast,
                 "get_actor_by_id",
                 side_effect=[seeded[2]],
             ) as lookup,
@@ -292,7 +297,7 @@ class TestC2IsSeededAfterTheBranchPoint:
 
         with (
             patch.object(pair, "seed_containers_rccv"),
-            patch.object(coordinated_story, "get_actor_by_id"),
+            patch.object(coordinated_cast, "get_actor_by_id"),
             _no_banners(),
             pytest.raises(DemoStoryError, match="no container waiting"),
         ):
@@ -316,25 +321,31 @@ class TestC1InvitesC2:
         a failing roster records its failure and keeps no prop.
         """
         with (
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
             patch.object(
-                coordinated_story, "run_invite_path_rm_triage"
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch.object(
+                coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,
-            patch.object(
-                coordinated_story,
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
                 "wait_for_case_participants",
                 side_effect=roster,
             ) as roster_wait,
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
-            patch.object(
-                coordinated_story,
+            patch_shared(
+                (
+                    coordinated_joining,
+                    coordinated_opening,
+                    coordinated_continuations,
+                ),
                 "demo_check",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
             patch.object(
-                coordinated_story,
+                coordinated_continuations,
                 "demo_step",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),

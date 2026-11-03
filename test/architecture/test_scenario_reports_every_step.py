@@ -38,21 +38,21 @@ import pytest
 from test.architecture import _corpus
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 
+_HELPERS_DIR = _corpus.REPO_ROOT / "vultron" / "demo" / "helpers"
+
 #: The module that is allowed to report a step: the story runner, which makes
 #: the call as it passes each ``choose(...)`` item (DEMOCI-11-019).
-_RUNNER_MODULE = "story.py"
+_RUNNER = _HELPERS_DIR / "story" / "runner.py"
 
 #: Every other helper module.  DEMOCI-11-019 forbids a mark placed by any
 #: helper, not only by one holding story fragments, so the scan takes the whole
 #: package rather than a suffix glob: a `choose`'s trigger is called from
-#: ``workflow.py`` and the invite halves from ``invite_chain.py``, and a mark
+#: ``workflow.py`` and the invite halves from ``invite_chain/``, and a mark
 #: slipped into either would have been invisible to a ``*_story.py`` glob.
+#: Recursive, because a split helper is a subpackage (CS-18-005) and a flat
+#: glob would silently drop every module inside one.
 _HELPER_MODULES = sorted(
-    path
-    for path in (_corpus.REPO_ROOT / "vultron" / "demo" / "helpers").glob(
-        "*.py"
-    )
-    if path.name != _RUNNER_MODULE
+    path for path in _HELPERS_DIR.rglob("*.py") if path != _RUNNER
 )
 
 
@@ -208,7 +208,7 @@ def _helper_reporter_calls() -> dict[str, int]:
     """Reporter calls per helper module other than the runner, where nonzero."""
     assert _HELPER_MODULES, "no demo helper module found"
     return {
-        path.name: count
+        str(path.relative_to(_HELPERS_DIR)): count
         for path in _HELPER_MODULES
         if (count := _reporter_calls(_corpus.tree_of(path)))
     }
@@ -226,17 +226,18 @@ def test_the_runner_is_the_one_module_held_out_of_the_scan() -> None:
     runner passes ``item.branch_point`` and ``item.choice``, so it names no
     literal pair and the literal scan reads nothing from it.
     """
-    runner = _corpus.REPO_ROOT / "vultron" / "demo" / "helpers" / "story.py"
+    runner = _RUNNER
     assert runner.is_file(), runner
     assert _reporter_calls(_corpus.tree_of(runner)), (
-        f"{_RUNNER_MODULE} is held out of the scan as the one module allowed "
-        "to report a step, but it calls no reporter; run_story must be what "
-        "marks each choose(...) item it passes."
+        f"{runner.relative_to(_HELPERS_DIR)} is held out of the scan as the "
+        "one module allowed to report a step, but it calls no reporter; "
+        "run_story must be what marks each choose(...) item it passes."
     )
     assert runner not in _HELPER_MODULES
-    names = {path.name for path in _HELPER_MODULES}
-    assert _RUNNER_MODULE not in names
-    assert "invite_chain.py" in names and "workflow.py" in names, sorted(names)
+    names = {str(path.relative_to(_HELPERS_DIR)) for path in _HELPER_MODULES}
+    assert "invite_chain/chain.py" in names and "workflow.py" in names, sorted(
+        names
+    )
 
 
 @pytest.mark.parametrize(

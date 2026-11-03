@@ -44,10 +44,10 @@ from test.demo._helpers import (
     mock_case,
     mock_client,
     patch_chain_shared,
+    patch_shared,
     story_state,
 )
 from vultron.demo.helpers import (
-    coordinated_story,
     vendor_coordinator_story as pair,
 )
 from vultron.demo.helpers.coordinated_story import (
@@ -55,6 +55,10 @@ from vultron.demo.helpers.coordinated_story import (
     COORDINATOR_LABEL,
     REPORTER,
     REPORTER_LABEL,
+    cast as coordinated_cast,
+    continuations as coordinated_continuations,
+    joining as coordinated_joining,
+    opening as coordinated_opening,
 )
 from vultron.demo.helpers.owner_decision_story import Part
 from vultron.demo.helpers.story import Choose, UnseatedContainer
@@ -216,7 +220,7 @@ def _seeding_stubs(
             side_effect=seed_error,
         ) as seed,
         patch.object(
-            coordinated_story,
+            coordinated_cast,
             "get_actor_by_id",
             side_effect=(
                 list(lookups) if lookups is not None else list(seeded[2:])
@@ -479,25 +483,31 @@ class TestTheJoinAsTheSharedHelperRunsIt:
         a failing roster records its failure and keeps no prop.
         """
         with (
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
             patch.object(
-                coordinated_story, "run_invite_path_rm_triage"
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch.object(
+                coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,
-            patch.object(
-                coordinated_story,
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
                 "wait_for_case_participants",
                 side_effect=roster,
             ) as roster_wait,
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
-            patch.object(
-                coordinated_story,
+            patch_shared(
+                (
+                    coordinated_joining,
+                    coordinated_opening,
+                    coordinated_continuations,
+                ),
                 "demo_check",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
             patch.object(
-                coordinated_story,
+                coordinated_continuations,
                 "demo_step",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),

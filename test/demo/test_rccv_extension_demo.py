@@ -55,6 +55,7 @@ from test.demo._helpers import (
     mock_client,
     no_demo_banners,
     patch_chain_shared,
+    patch_shared,
     story_state,
     stub_closure_gate,
 )
@@ -63,7 +64,6 @@ from vultron.demo.cli import main as cli_main
 from vultron.demo.helpers import (
     coordinated_story,
     owner_decision_story,
-    story as story_module,
     story_cast,
     two_coordinator_story,
 )
@@ -72,17 +72,26 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER,
     REPORTER_TELLS_THE_COORDINATOR,
     VENDOR,
+    cast as coordinated_cast,
+    continuations as coordinated_continuations,
+    joining as coordinated_joining,
+    opening as coordinated_opening,
 )
 from vultron.demo.helpers.notes import (
     WORKAROUND_ANSWER,
     WORKAROUND_QUESTION,
 )
-from vultron.demo.helpers.owner_decision_story import Part
+from vultron.demo.helpers.owner_decision_story import (
+    Part,
+    handover as owner_handover,
+    keep as owner_keep,
+)
 from vultron.demo.helpers.story import (
     Choose,
     UnseatedContainer,
     choose,
     run_story,
+    runner as story_runner,
     story,
 )
 from vultron.demo.helpers.two_coordinator_story import (
@@ -295,27 +304,27 @@ class TestC2SuggestsTheVendor:
                 side_effect=lambda *a, **kw: order.append("approve"),
             ) as approve,
             patch(
-                "vultron.demo.helpers.owner_decision_story"
+                "vultron.demo.helpers.owner_decision_story.keep"
                 ".find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ) as cp_offer,
             patch(
-                "vultron.demo.helpers.owner_decision_story"
+                "vultron.demo.helpers.owner_decision_story.parts"
                 ".find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
             patch(
-                "vultron.demo.helpers.owner_decision_story"
+                "vultron.demo.helpers.owner_decision_story.keep"
                 ".run_case_invite_chain",
                 side_effect=lambda **kw: order.append("invite-chain"),
             ) as chain,
             patch(
-                "vultron.demo.helpers.owner_decision_story"
+                "vultron.demo.helpers.owner_decision_story.keep"
                 ".invitee_triages_after_joining",
                 side_effect=lambda *a, **kw: order.append("triage"),
             ) as triage,
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ),
             _no_banners(),
         ):
@@ -374,27 +383,30 @@ class TestC2SuggestsTheVendor:
             patch.object(ActorSession, "suggest_actor_to_case"),
             patch.object(ActorSession, "accept_actor_recommendation"),
             patch(
-                "vultron.demo.helpers.owner_decision_story"
+                "vultron.demo.helpers.owner_decision_story.keep"
                 ".find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
             patch(
-                "vultron.demo.helpers.owner_decision_story"
+                "vultron.demo.helpers.owner_decision_story.parts"
                 ".find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
             patch(
-                "vultron.demo.helpers.owner_decision_story"
+                "vultron.demo.helpers.owner_decision_story.keep"
                 ".run_case_invite_chain"
             ),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "run_invite_path_rm_triage",
                 side_effect=lambda **_kw: order.append("triage"),
             ) as triage,
-            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
+                "wait_for_case_participants",
+            ),
             patch_chain_shared(
-                coordinated_story,
+                coordinated_joining,
                 "wait_for_case_on_container",
                 side_effect=_wait_for_case,
             ),
@@ -537,7 +549,7 @@ class TestEveryoneCloses:
             patch.object(ActorSession, "leave_case"),
             stub_closure_gate(),
             patch.object(
-                coordinated_story, "close_case_owner_last"
+                coordinated_continuations, "close_case_owner_last"
             ) as closure,
         ):
             demo.everyone_closes(state)
@@ -590,7 +602,7 @@ class TestRccvExtensionDedicatedCaseActor:
                 "vultron.demo.helpers.seeding.seed_case_actor_identity"
             ) as reseed,
             patch.object(
-                coordinated_story,
+                coordinated_cast,
                 "seed_containers_rcv",
                 return_value=tuple(seeded),
             ) as seed_three,
@@ -689,7 +701,7 @@ class TestRccvExtensionDedicatedCaseActor:
         with (
             patch.object(demo, "run_story") as run_story,
             patch.object(
-                coordinated_story, "open_coordinated_cast"
+                coordinated_cast, "open_coordinated_cast"
             ) as open_coordinated_cast,
         ):
             demo.run_rccv_extension_demo(
@@ -953,7 +965,7 @@ class TestARosterThatNeverFillsSkipsTheSuggestion:
         def stub(_demo_name: str):
             yield harness
 
-        monkeypatch.setattr(story_module, "scenario_harness", stub)
+        monkeypatch.setattr(story_runner, "scenario_harness", stub)
         yield harness
         reset_demo_failures()
 
@@ -968,32 +980,34 @@ class TestARosterThatNeverFillsSkipsTheSuggestion:
         store and buy no assertion.
         """
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "run_case_invite_chain",
                 side_effect=lambda **kw: kw["then"] and kw["then"](),
             ),
-            patch.object(
-                coordinated_story,
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
                 "wait_for_case_participants",
                 side_effect=None
                 if fills
                 else AssertionError("roster never filled"),
             ),
             patch.object(
-                coordinated_story,
+                coordinated_continuations,
                 "demo_step",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
             patch.object(
-                owner_decision_story,
+                owner_keep,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
-            patch.object(owner_decision_story, "run_case_invite_chain"),
-            patch.object(
-                owner_decision_story, "invitee_triages_after_joining"
+            patch_shared(
+                (owner_keep, owner_handover), "run_case_invite_chain"
+            ),
+            patch_shared(
+                (owner_keep, owner_handover), "invitee_triages_after_joining"
             ),
             patch.object(
                 ActorSession, "suggest_actor_to_case", autospec=True

@@ -55,10 +55,11 @@ from test.demo._helpers import (
     mock_client,
     no_demo_banners,
     patch_chain_shared,
+    patch_shared,
     story_state,
 )
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import coordinated_story, invite_chain, story_cast
+from vultron.demo.helpers import coordinated_story, story_cast
 from vultron.demo.helpers.coordinated_story import (
     COORDINATOR,
     COORDINATOR_LABEL,
@@ -68,19 +69,27 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER_LABEL,
     VENDOR,
     VENDOR_LABEL,
+    cast as coordinated_cast,
     close_the_case,
+    continuations as coordinated_continuations,
     coordinated_seats,
     coordinator_invites_vendor,
     everyone_closes,
     everyone_publishes,
     invitee_joins_the_case,
     invitee_triages_after_joining,
+    joining as coordinated_joining,
     open_coordinated_cast,
+    opening as coordinated_opening,
     reporter_tells_coordinator,
     reporter_then_coordinator_close,
     vendor_accepts_and_joins,
     vendor_rejects_invite,
     vendor_reports_the_fix_ready,
+)
+from vultron.demo.helpers.invite_chain import (
+    chain as invite_runs,
+    links as invite_links,
 )
 from vultron.demo.helpers.story import (
     StoryProp,
@@ -126,12 +135,15 @@ def _join_stubs() -> Iterator[SimpleNamespace]:
     say which of the three ran and what each was handed.
     """
     with (
-        patch.object(coordinated_story, "wait_for_case_on_container"),
-        patch.object(coordinated_story, "run_case_invite_chain") as chain,
-        patch.object(
-            coordinated_story, "wait_for_case_participants"
+        patch.object(coordinated_joining, "wait_for_case_on_container"),
+        patch.object(coordinated_joining, "run_case_invite_chain") as chain,
+        patch_shared(
+            (coordinated_joining, coordinated_opening),
+            "wait_for_case_participants",
         ) as roster,
-        patch.object(coordinated_story, "run_invite_path_rm_triage") as triage,
+        patch.object(
+            coordinated_joining, "run_invite_path_rm_triage"
+        ) as triage,
         no_demo_banners(coordinated_story),
     ):
         yield SimpleNamespace(chain=chain, roster=roster, triage=triage)
@@ -153,7 +165,11 @@ def _recorded_gates() -> Iterator[list[str]]:
         labels.append(label)
         return contextlib.nullcontext()
 
-    with patch.object(coordinated_story, "demo_gate", side_effect=_gate):
+    with patch_shared(
+        (coordinated_joining, coordinated_opening, coordinated_continuations),
+        "demo_gate",
+        side_effect=_gate,
+    ):
         yield labels
 
 
@@ -190,7 +206,7 @@ class TestOpenCoordinatedCast:
                 "vultron.demo.helpers.seeding.seed_case_actor_identity"
             ) as reseed,
             patch.object(
-                coordinated_story,
+                coordinated_cast,
                 "seed_containers_rcv",
                 return_value=tuple(actors),
             ),
@@ -245,7 +261,7 @@ class TestOpenCoordinatedCast:
             ) as reset_mock,
             patch("vultron.demo.helpers.seeding.seed_case_actor_identity"),
             patch.object(
-                coordinated_story,
+                coordinated_cast,
                 "seed_containers_rcv",
                 return_value=tuple(actors),
             ) as seeded,
@@ -281,7 +297,7 @@ class TestOpenCoordinatedCast:
             patch.object(story_cast, "reset_datalayer"),
             patch("vultron.demo.helpers.seeding.seed_case_actor_identity"),
             patch.object(
-                coordinated_story,
+                coordinated_cast,
                 "seed_containers_rcv",
                 side_effect=RuntimeError("container unreachable"),
             ),
@@ -382,20 +398,29 @@ class TestCoordinatedMilestones:
 
         with (
             patch.object(
-                coordinated_story,
+                coordinated_opening,
                 "reporter_submits_report",
                 return_value=(MagicMock(), MagicMock(id_="urn:test:offer")),
             ),
             patch.object(
-                coordinated_story,
+                coordinated_opening,
                 "run_direct_path_rm_triage",
                 return_value=case,
             ) as triage,
-            patch.object(coordinated_story, "wait_for_case_participants"),
-            patch.object(coordinated_story, "as_VulnerabilityCase") as mock_vc,
-            patch.object(coordinated_story, "verify_case_active") as mock_m1,
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
+                "wait_for_case_participants",
+            ),
             patch.object(
-                coordinated_story,
+                coordinated_opening, "as_VulnerabilityCase"
+            ) as mock_vc,
+            patch.object(coordinated_opening, "verify_case_active") as mock_m1,
+            patch_shared(
+                (
+                    coordinated_joining,
+                    coordinated_opening,
+                    coordinated_continuations,
+                ),
                 "demo_check",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
@@ -431,12 +456,23 @@ class TestCoordinatedMilestones:
         state = story_state(*_CAST, case=mock_case())
 
         with (
-            patch.object(coordinated_story, "wait_for_participant_rm_state"),
+            patch_shared(
+                (coordinated_opening, coordinated_continuations),
+                "wait_for_participant_rm_state",
+            ),
             patch.object(ActorSession, "notify_fix_ready"),
-            patch.object(coordinated_story, "wait_for_participant_vf_state"),
-            patch.object(coordinated_story, "verify_fix_ready") as mock_m5,
             patch.object(
-                coordinated_story,
+                coordinated_continuations, "wait_for_participant_vf_state"
+            ),
+            patch.object(
+                coordinated_continuations, "verify_fix_ready"
+            ) as mock_m5,
+            patch_shared(
+                (
+                    coordinated_joining,
+                    coordinated_opening,
+                    coordinated_continuations,
+                ),
                 "demo_check",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
@@ -458,16 +494,20 @@ class TestCoordinatedMilestones:
             call_order.append("rm_wait")
 
         with (
-            patch.object(
-                coordinated_story, "wait_for_participant_rm_state", _rm_wait
+            patch_shared(
+                (coordinated_opening, coordinated_continuations),
+                "wait_for_participant_rm_state",
+                _rm_wait,
             ),
             patch.object(
                 ActorSession,
                 "notify_fix_ready",
                 side_effect=lambda *a, **kw: call_order.append("fix_ready"),
             ),
-            patch.object(coordinated_story, "wait_for_participant_vf_state"),
-            patch.object(coordinated_story, "verify_fix_ready"),
+            patch.object(
+                coordinated_continuations, "wait_for_participant_vf_state"
+            ),
+            patch.object(coordinated_continuations, "verify_fix_ready"),
         ):
             vendor_reports_the_fix_ready(state)
 
@@ -495,13 +535,21 @@ class TestCoordinatedMilestones:
 
         with (
             patch.object(ActorSession, "notify_published"),
-            patch.object(coordinated_story, "wait_for_case_em_terminated"),
-            patch.object(coordinated_story, "wait_for_participant_vf_state"),
             patch.object(
-                coordinated_story, "verify_publicly_disclosed"
+                coordinated_continuations, "wait_for_case_em_terminated"
+            ),
+            patch.object(
+                coordinated_continuations, "wait_for_participant_vf_state"
+            ),
+            patch.object(
+                coordinated_continuations, "verify_publicly_disclosed"
             ) as mock_m6,
-            patch.object(
-                coordinated_story,
+            patch_shared(
+                (
+                    coordinated_joining,
+                    coordinated_opening,
+                    coordinated_continuations,
+                ),
                 "demo_check",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
@@ -530,7 +578,7 @@ class TestCloseTheCase:
         state = story_state(*_CAST, case=mock_case())
 
         with patch.object(
-            coordinated_story, "close_case_owner_last"
+            coordinated_continuations, "close_case_owner_last"
         ) as closure:
             everyone_closes(state)
 
@@ -547,7 +595,7 @@ class TestCloseTheCase:
         state = story_state(*_CAST, case=mock_case())
 
         with patch.object(
-            coordinated_story, "close_case_owner_last"
+            coordinated_continuations, "close_case_owner_last"
         ) as closure:
             reporter_then_coordinator_close(state)
 
@@ -571,7 +619,7 @@ class TestCloseTheCase:
         state = story_state(*_CAST, _JOINER, case=mock_case())
 
         with patch.object(
-            coordinated_story, "close_case_owner_last"
+            coordinated_continuations, "close_case_owner_last"
         ) as closure:
             close_the_case(
                 state,
@@ -603,7 +651,7 @@ class TestCloseTheCase:
         state = story_state(*_CAST, case=mock_case())
 
         with patch.object(
-            coordinated_story, "close_case_owner_last"
+            coordinated_continuations, "close_case_owner_last"
         ) as closure:
             close_the_case(state, others=(REPORTER,), milestone=None)
 
@@ -623,7 +671,7 @@ class TestCloseTheCase:
         state = story_state(*_CAST, case=mock_case())
 
         with patch.object(
-            coordinated_story, "close_case_owner_last"
+            coordinated_continuations, "close_case_owner_last"
         ) as closure:
             close_the_case(state, others=(REPORTER,))
 
@@ -727,11 +775,16 @@ class TestInviteeJoinsTheCase:
         state = story_state(*_CAST, _JOINER, case=mock_case())
 
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
-            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
             patch.object(
-                coordinated_story,
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
+                "wait_for_case_participants",
+            ),
+            patch.object(
+                coordinated_continuations,
                 "demo_step",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
@@ -761,15 +814,17 @@ class TestInviteeJoinsTheCase:
         state = story_state(*_CAST, _JOINER, case=mock_case())
 
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
             patch.object(
-                coordinated_story,
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
                 "wait_for_case_participants",
                 side_effect=AssertionError("roster never filled"),
             ),
             patch.object(
-                coordinated_story,
+                coordinated_continuations,
                 "demo_step",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
@@ -1022,18 +1077,21 @@ class TestReporterCaseReplicaWaitBeforeVendorTriage:
 
         with (
             patch_chain_shared(
-                coordinated_story,
+                coordinated_joining,
                 "wait_for_case_on_container",
                 side_effect=_wait_for_case,
             ),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "run_invite_path_rm_triage",
                 side_effect=lambda **_kw: call_order.append("triage"),
             ),
             patch.object(ActorSession, "accept_case_invite"),
-            patch.object(invite_chain, "reply_to_full_case_invite"),
-            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch.object(invite_links, "reply_to_full_case_invite"),
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
+                "wait_for_case_participants",
+            ),
             no_demo_banners(coordinated_story),
         ):
             vendor_accepts_and_joins(state)
@@ -1080,12 +1138,15 @@ class TestVendorAcceptsAndJoins:
 
         with (
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ),
-            patch.object(coordinated_story, "run_invite_path_rm_triage"),
+            patch.object(coordinated_joining, "run_invite_path_rm_triage"),
             patch.object(ActorSession, "accept_case_invite"),
-            patch.object(invite_chain, "reply_to_full_case_invite") as reply,
-            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch.object(invite_links, "reply_to_full_case_invite") as reply,
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
+                "wait_for_case_participants",
+            ),
             no_demo_banners(coordinated_story),
         ):
             vendor_accepts_and_joins(state)
@@ -1126,7 +1187,7 @@ class TestInviteChainSkipsDependents:
             # case-manager client is a mock, and ``story_state`` builds mocks
             # (#5444).
             patch.object(
-                invite_chain, "find_case_invite_for_actor", **invite_lookup
+                invite_links, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
         ):
             coordinator_invites_vendor(state)
@@ -1145,10 +1206,13 @@ class TestInviteChainSkipsDependents:
         with (
             patch.object(ActorSession, "accept_case_invite") as accept,
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ),
-            patch.object(coordinated_story, "wait_for_case_participants"),
-            patch.object(coordinated_story, "run_invite_path_rm_triage"),
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
+                "wait_for_case_participants",
+            ),
+            patch.object(coordinated_joining, "run_invite_path_rm_triage"),
         ):
             vendor_accepts_and_joins(state)
         accept.assert_not_called()
@@ -1167,7 +1231,7 @@ class TestInviteChainSkipsDependents:
 
         with (
             patch.object(ActorSession, "invite_actor_to_case") as invite,
-            patch.object(invite_chain, "find_case_invite_for_actor") as find,
+            patch.object(invite_links, "find_case_invite_for_actor") as find,
             pytest.raises(DemoStoryError, match="roster"),
         ):
             coordinator_invites_vendor(state)
@@ -1208,7 +1272,9 @@ class TestInviteChainSkipsDependents:
         state = story_state(*_CAST, case=mock_case())
         state.keep(ENGAGED_CASE, str(state.case.id_))
         with (
-            patch.object(invite_chain, "_seed_stub_summary") as seed,
+            patch_shared(
+                (invite_links, invite_runs), "_seed_stub_summary"
+            ) as seed,
             patch.object(
                 ActorSession,
                 "invite_actor_to_case",
@@ -1217,7 +1283,7 @@ class TestInviteChainSkipsDependents:
                 ),
             ),
             patch.object(
-                invite_chain,
+                invite_links,
                 "find_case_invite_for_actor",
                 return_value="urn:test:invite",
             ),
@@ -1246,16 +1312,18 @@ class TestVendorRejectsInvite:
         with (
             patch.object(ActorSession, "reject_case_invite"),
             patch.object(
-                coordinated_story, "wait_for_semantic_type_in_ledger"
+                coordinated_opening, "wait_for_semantic_type_in_ledger"
             ) as ledger,
-            patch.object(
-                coordinated_story, "wait_for_case_participants"
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
+                "wait_for_case_participants",
             ) as roster,
-            patch.object(
-                coordinated_story, "wait_for_participant_rm_state"
+            patch_shared(
+                (coordinated_opening, coordinated_continuations),
+                "wait_for_participant_rm_state",
             ) as rm_wait,
             patch.object(
-                coordinated_story, "_check_participant_rm_state_in"
+                coordinated_opening, "_check_participant_rm_state_in"
             ) as rm_check,
         ):
             vendor_rejects_invite(state)

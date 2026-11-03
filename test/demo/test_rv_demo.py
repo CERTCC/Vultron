@@ -69,6 +69,7 @@ from test.demo._helpers import (
     mock_case,
     mock_client,
     no_demo_banners,
+    patch_shared,
     seed_replicas_for_case_participants,
     story_state,
     stub_closure_gate,
@@ -86,7 +87,12 @@ from vultron.demo.helpers import (
     story_cast,
     vendor_story,
 )
-from vultron.demo.helpers.coordinated_story import REPORTER, REPORTER_LABEL
+from vultron.demo.helpers.coordinated_story import (
+    REPORTER,
+    REPORTER_LABEL,
+    continuations as coordinated_continuations,
+    opening as coordinated_opening,
+)
 from vultron.demo.helpers.ledger_commit import trigger_log_commit
 from vultron.demo.helpers.milestones import verify_case_active
 from vultron.demo.helpers.notes import (
@@ -107,7 +113,13 @@ from vultron.demo.helpers.polling import (
     wait_for_reporter_log_entry,
 )
 from vultron.demo.helpers.seeding import get_actor_by_id, seed_containers
-from vultron.demo.helpers.story import Choose, choose, run_story, story
+from vultron.demo.helpers.story import (
+    Choose,
+    choose,
+    run_story,
+    runner as story_runner,
+    story,
+)
 from vultron.demo.helpers.sync import verify_replica_state
 from vultron.demo.helpers.vendor_story import (
     REPORTER_TELLS_THE_VENDOR,
@@ -116,6 +128,9 @@ from vultron.demo.helpers.vendor_story import (
     VENDOR,
     VENDOR_LABEL,
     VENDORS_ANSWER,
+    cast as vendor_cast,
+    continuations as vendor_continuations,
+    opening as vendor_opening,
 )
 from vultron.demo.helpers.verification import (
     _all_fetchable_participants_rm_closed,
@@ -391,7 +406,7 @@ class TestRvCast:
                 "vultron.demo.helpers.seeding.seed_case_actor_identity"
             ) as reseed,
             patch.object(
-                vendor_story, "seed_containers", return_value=tuple(seeded)
+                vendor_cast, "seed_containers", return_value=tuple(seeded)
             ) as seed_two,
             patch.object(
                 story_cast, "get_actor_by_id", side_effect=list(seeded)
@@ -517,7 +532,7 @@ class TestTheCaseIsActive:
         state = _two_party_state()
 
         with (
-            patch.object(vendor_story, "verify_case_active") as active,
+            patch.object(vendor_continuations, "verify_case_active") as active,
             _no_banners(),
         ):
             demo.the_case_is_active(state)
@@ -714,8 +729,13 @@ class TestTheVendorReportsTheFixReady:
         order: list[str] = []
 
         with (
-            patch.object(coordinated_story, "wait_for_participant_rm_state"),
-            patch.object(coordinated_story, "wait_for_participant_vf_state"),
+            patch_shared(
+                (coordinated_opening, coordinated_continuations),
+                "wait_for_participant_rm_state",
+            ),
+            patch.object(
+                coordinated_continuations, "wait_for_participant_vf_state"
+            ),
             patch.object(
                 ActorSession,
                 "notify_fix_ready",
@@ -756,8 +776,13 @@ class TestTheVendorReportsTheFixReady:
         state = _two_party_state()
 
         with (
-            patch.object(coordinated_story, "wait_for_participant_rm_state"),
-            patch.object(coordinated_story, "wait_for_participant_vf_state"),
+            patch_shared(
+                (coordinated_opening, coordinated_continuations),
+                "wait_for_participant_rm_state",
+            ),
+            patch.object(
+                coordinated_continuations, "wait_for_participant_vf_state"
+            ),
             patch.object(ActorSession, "notify_fix_ready"),
             patch.object(
                 demo,
@@ -836,9 +861,11 @@ class TestBothPublish:
         published: list[str] = []
 
         with (
-            patch.object(vendor_story, "wait_for_case_em_terminated"),
-            patch.object(vendor_story, "wait_for_participant_vf_state"),
-            patch.object(vendor_story, "verify_publicly_disclosed"),
+            patch.object(vendor_continuations, "wait_for_case_em_terminated"),
+            patch.object(
+                vendor_continuations, "wait_for_participant_vf_state"
+            ),
+            patch.object(vendor_continuations, "verify_publicly_disclosed"),
             patch.object(
                 ActorSession,
                 "notify_published",
@@ -894,7 +921,7 @@ class TestBothClose:
             patch.object(ActorSession, "leave_case"),
             stub_closure_gate(),
             patch.object(
-                coordinated_story, "close_case_owner_last"
+                coordinated_continuations, "close_case_owner_last"
             ) as closure,
         ):
             demo.both_close(state)
@@ -938,7 +965,7 @@ class TestARosterThatNeverFillsStopsTheStory:
         def stub(_demo_name: str):
             yield harness
 
-        monkeypatch.setattr(story_module, "scenario_harness", stub)
+        monkeypatch.setattr(story_runner, "scenario_harness", stub)
         yield harness
         reset_demo_failures()
 
@@ -954,7 +981,7 @@ class TestARosterThatNeverFillsStopsTheStory:
         """
         with (
             patch.object(
-                vendor_story,
+                vendor_opening,
                 "reporter_submits_report",
                 return_value=(
                     MagicMock(id_="urn:test:report"),
@@ -962,18 +989,18 @@ class TestARosterThatNeverFillsStopsTheStory:
                 ),
             ),
             patch.object(
-                vendor_story, "run_direct_path_rm_triage", return_value=case
+                vendor_opening, "run_direct_path_rm_triage", return_value=case
             ),
-            patch.object(vendor_story, "await_reporter_case_replica"),
+            patch.object(vendor_opening, "await_reporter_case_replica"),
             patch.object(
-                vendor_story,
+                vendor_opening,
                 "wait_for_case_participants",
                 side_effect=None
                 if fills
                 else AssertionError("roster never filled"),
             ),
-            patch.object(vendor_story, "as_VulnerabilityCase") as mock_vc,
-            patch.object(vendor_story, "verify_case_active") as active,
+            patch.object(vendor_opening, "as_VulnerabilityCase") as mock_vc,
+            patch.object(vendor_continuations, "verify_case_active") as active,
         ):
             mock_vc.model_validate.return_value = case
             yield active
@@ -1071,7 +1098,7 @@ class TestRvLedgerDump:
         """DEMOMA-23-002: the fragment only says whose ledgers to dump."""
         state = _two_party_state()
 
-        with patch.object(vendor_story, "dump_story_ledgers") as dump:
+        with patch.object(vendor_cast, "dump_story_ledgers") as dump:
             demo._dump_ledgers(state)
 
         dump.assert_called_once()

@@ -69,6 +69,7 @@ from test.demo._helpers import (
     mock_case,
     mock_client,
     no_demo_banners,
+    patch_shared,
     story_state,
     stub_closure_gate,
 )
@@ -79,7 +80,6 @@ from vultron.demo.helpers import (
     closure,
     coordinated_story,
     seeding,
-    story as story_module,
     story_cast,
     vendor_story,
 )
@@ -87,6 +87,10 @@ from vultron.demo.helpers.cast import CAST, REPORTER_SLOT, VENDOR_SLOT
 from vultron.demo.helpers.coordinated_story import (
     REPORTER,
     REPORTER_LABEL,
+    cast as coordinated_cast,
+    continuations as coordinated_continuations,
+    joining as coordinated_joining,
+    opening as coordinated_opening,
 )
 from vultron.demo.helpers.polling import (
     wait_for_contiguous_ledger_coverage,
@@ -98,6 +102,7 @@ from vultron.demo.helpers.story import (
     UnseatedContainer,
     choose,
     run_story,
+    runner as story_runner,
     story,
 )
 from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME
@@ -111,6 +116,9 @@ from vultron.demo.helpers.vendor_story import (
     VENDOR2_LABEL,
     VENDOR_LABEL,
     VENDORS_ANSWER,
+    cast as vendor_cast,
+    continuations as vendor_continuations,
+    opening as vendor_opening,
 )
 from vultron.demo.scenario import (
     rv_demo,
@@ -354,7 +362,7 @@ class TestRvvCast:
             ) as reset,
             patch.object(seeding, "seed_case_actor_identity") as reseed,
             patch.object(
-                vendor_story, "seed_containers", return_value=tuple(seeded)
+                vendor_cast, "seed_containers", return_value=tuple(seeded)
             ) as seed_two,
             patch.object(
                 story_cast, "get_actor_by_id", side_effect=list(seeded)
@@ -540,7 +548,7 @@ class TestTheSecondVendorIsSeeded:
                 demo, "seed_containers_rvv", return_value=seeded
             ) as seed,
             patch.object(
-                coordinated_story, "get_actor_by_id", side_effect=[seeded[2]]
+                coordinated_cast, "get_actor_by_id", side_effect=[seeded[2]]
             ) as lookup,
             _no_banners(),
         ):
@@ -591,7 +599,7 @@ class TestTheSecondVendorIsSeeded:
 
         with (
             patch.object(demo, "seed_containers_rvv"),
-            patch.object(coordinated_story, "get_actor_by_id"),
+            patch.object(coordinated_cast, "get_actor_by_id"),
             _no_banners(),
             pytest.raises(DemoStoryError, match="no container waiting"),
         ):
@@ -650,10 +658,13 @@ class TestVendor1InvitesTheSecondVendor:
         state = _three_party_state()
 
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
-            patch.object(coordinated_story, "run_case_invite_chain"),
-            patch.object(coordinated_story, "wait_for_case_participants"),
-            patch.object(coordinated_story, "run_invite_path_rm_triage"),
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
+            patch.object(coordinated_joining, "run_case_invite_chain"),
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
+                "wait_for_case_participants",
+            ),
+            patch.object(coordinated_joining, "run_invite_path_rm_triage"),
             _no_banners(),
             caplog.at_level(logging.INFO),
         ):
@@ -673,11 +684,16 @@ class TestVendor1InvitesTheSecondVendor:
         state = _three_party_state()
 
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
-            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
             patch.object(
-                coordinated_story, "run_invite_path_rm_triage"
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
+                "wait_for_case_participants",
+            ),
+            patch.object(
+                coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,
             _no_banners(),
         ):
@@ -711,16 +727,19 @@ class TestVendor1InvitesTheSecondVendor:
 
         with (
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "wait_for_case_on_container",
                 side_effect=lambda client, **_kw: order.append(
                     f"replica:{devlogs_name_of(state, client, _DEVLOG_REPLICAS)}"
                 ),
             ),
-            patch.object(coordinated_story, "run_case_invite_chain"),
-            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch.object(coordinated_joining, "run_case_invite_chain"),
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
+                "wait_for_case_participants",
+            ),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "run_invite_path_rm_triage",
                 side_effect=lambda **_kw: order.append("triage"),
             ),
@@ -742,11 +761,16 @@ class TestVendor1InvitesTheSecondVendor:
         state = _three_party_state()
 
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
-            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
             patch.object(
-                coordinated_story, "run_invite_path_rm_triage"
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
+                "wait_for_case_participants",
+            ),
+            patch.object(
+                coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,
             _no_banners(),
         ):
@@ -951,7 +975,7 @@ class TestTheSecondVendorAddsItsNote:
         state = _three_party_state()
         answer = self._answered(state)
 
-        with patch.object(vendor_story, "add_note_thread") as thread:
+        with patch.object(vendor_continuations, "add_note_thread") as thread:
             demo.the_second_vendor_adds_its_note(state)
 
         watching_client, case, posts = thread.call_args.args
@@ -1025,14 +1049,16 @@ class TestEveryonePublishes:
 
         with (
             patch.object(
-                vendor_story,
+                vendor_continuations,
                 "wait_for_case_em_terminated",
                 side_effect=lambda client, case_id: order.append(
                     f"em_exited:{_name_of(client)}"
                 ),
             ),
-            patch.object(vendor_story, "wait_for_participant_vf_state"),
-            patch.object(vendor_story, "verify_publicly_disclosed"),
+            patch.object(
+                vendor_continuations, "wait_for_participant_vf_state"
+            ),
+            patch.object(vendor_continuations, "verify_publicly_disclosed"),
             patch.object(
                 ActorSession,
                 "notify_published",
@@ -1089,7 +1115,7 @@ class TestEveryoneCloses:
             patch.object(ActorSession, "leave_case"),
             stub_closure_gate(),
             patch.object(
-                coordinated_story, "close_case_owner_last"
+                coordinated_continuations, "close_case_owner_last"
             ) as closure_step,
         ):
             demo.everyone_closes(state)
@@ -1180,7 +1206,7 @@ class TestARosterThatNeverFillsStopsTheStory:
         def stub(_demo_name: str):
             yield harness
 
-        monkeypatch.setattr(story_module, "scenario_harness", stub)
+        monkeypatch.setattr(story_runner, "scenario_harness", stub)
         yield harness
         reset_demo_failures()
 
@@ -1195,23 +1221,23 @@ class TestARosterThatNeverFillsStopsTheStory:
         case = mock_case()
         with (
             patch.object(
-                vendor_story,
+                vendor_opening,
                 "reporter_submits_report",
                 return_value=(MagicMock(), MagicMock(id_="urn:test:offer")),
             ),
             patch.object(
-                vendor_story, "run_direct_path_rm_triage", return_value=case
+                vendor_opening, "run_direct_path_rm_triage", return_value=case
             ),
             patch.object(
-                vendor_story,
+                vendor_opening,
                 "wait_for_case_participants",
                 side_effect=None
                 if fills
                 else AssertionError("roster never filled"),
             ),
-            patch.object(vendor_story, "await_reporter_case_replica"),
-            patch.object(vendor_story, "as_VulnerabilityCase") as mock_vc,
-            patch.object(vendor_story, "verify_case_active") as verify,
+            patch.object(vendor_opening, "await_reporter_case_replica"),
+            patch.object(vendor_opening, "as_VulnerabilityCase") as mock_vc,
+            patch.object(vendor_continuations, "verify_case_active") as verify,
         ):
             # The re-read must be the case the story opened, or restate_case
             # refuses it (#5535); a distinct object with the same id is what

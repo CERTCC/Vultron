@@ -18,7 +18,7 @@ The chain — a participant triggers the invite, the invitee's DataLayer is
 polled for the CASE_MANAGER's Invite, the invitee answers it, and (on an
 accept) its case replica is awaited — was hand-nested in
 the ``vultron/demo/scenario/*_demo.py`` files, each copy free to drift
-(#4192, PR #3886).  ``vultron/demo/helpers/invite_chain.py`` now owns it with
+(#4192, PR #3886).  ``vultron/demo/helpers/invite_chain/`` now owns it with
 the variants as parameters.
 
 A scenario module that calls any link of the chain directly is re-introducing
@@ -36,7 +36,7 @@ from test.architecture import _corpus
 
 _SCENARIO_DIR = _corpus.REPO_ROOT / "vultron" / "demo" / "scenario"
 
-#: The links of the invite chain; each is owned by ``invite_chain.py``.
+#: The links of the invite chain; each is owned by ``invite_chain/``.
 _CHAIN_LINKS = frozenset(
     {
         "invite_actor_to_case",

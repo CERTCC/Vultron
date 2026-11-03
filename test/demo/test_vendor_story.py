@@ -56,7 +56,11 @@ from vultron.demo.helpers import (
     story_cast,
     vendor_story as family,
 )
-from vultron.demo.helpers.coordinated_story import REPORTER, REPORTER_LABEL
+from vultron.demo.helpers.coordinated_story import (
+    REPORTER,
+    REPORTER_LABEL,
+    joining as coordinated_joining,
+)
 from vultron.demo.helpers.notes import (
     WORKAROUND_ANSWER,
     WORKAROUND_ANSWER_NAME,
@@ -66,6 +70,11 @@ from vultron.demo.helpers.notes import (
 from vultron.demo.helpers.owner_decision_story import Part
 from vultron.demo.helpers.polling import LATE_JOINER_TIMEOUT
 from vultron.demo.helpers.story import Choose, StoryState, UnseatedContainer
+from vultron.demo.helpers.vendor_story import (
+    cast as vendor_cast,
+    continuations as vendor_continuations,
+    opening as vendor_opening,
+)
 from vultron.demo.utils import reset_demo_failures
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -110,7 +119,7 @@ def _recording_checks() -> Iterator[list[str]]:
         labels.append(label)
         return contextlib.nullcontext()
 
-    with patch.object(family, "demo_check", side_effect=_check):
+    with patch.object(vendor_continuations, "demo_check", side_effect=_check):
         yield labels
 
 
@@ -138,20 +147,20 @@ def _opening_stubs(
     """
     with (
         patch.object(
-            family,
+            vendor_opening,
             "reporter_submits_report",
             return_value=(MagicMock(), MagicMock(id_="urn:test:offer")),
         ) as submit,
         patch.object(
-            family, "run_direct_path_rm_triage", return_value=case
+            vendor_opening, "run_direct_path_rm_triage", return_value=case
         ) as triage,
         patch.object(
-            family, "wait_for_case_participants", side_effect=roster
+            vendor_opening, "wait_for_case_participants", side_effect=roster
         ) as roster_wait,
         patch.object(
-            coordinated_story, "wait_for_case_on_container"
+            coordinated_joining, "wait_for_case_on_container"
         ) as replica_wait,
-        patch.object(family, "as_VulnerabilityCase") as wire_case,
+        patch.object(vendor_opening, "as_VulnerabilityCase") as wire_case,
         no_demo_banners(coordinated_story),
     ):
         wire_case.model_validate.return_value = (
@@ -194,8 +203,8 @@ class TestTheFamilyCastNames:
         :mod:`vultron.demo.helpers.owner_decision_story` reads the Reporter
         under.
         """
-        assert family.REPORTER is REPORTER
-        assert family.REPORTER_LABEL is REPORTER_LABEL
+        assert vendor_cast.REPORTER is REPORTER
+        assert vendor_cast.REPORTER_LABEL is REPORTER_LABEL
 
     def test_each_part_pairs_a_cast_name_with_this_familys_label(self):
         """A ``Part`` is the ``(name, label)`` a shared continuation needs."""
@@ -517,7 +526,7 @@ class TestTheReporterAsksAboutTheWorkaround:
         state = story_state(*_SEATED, case=mock_case())
 
         with (
-            patch.object(family, "reporter_asks") as thread,
+            patch.object(vendor_opening, "reporter_asks") as thread,
             pytest.raises(DemoStoryError, match="roster the Vendor"),
         ):
             family.the_reporter_asks_about_the_workaround(state)
@@ -542,7 +551,7 @@ class TestTheReporterAsksAboutTheWorkaround:
         ]
 
         with patch.object(
-            family, "reporter_asks", return_value=posted
+            vendor_opening, "reporter_asks", return_value=posted
         ) as thread:
             family.the_reporter_asks_about_the_workaround(state)
 
@@ -571,7 +580,7 @@ class TestTheReporterAsksAboutTheWorkaround:
         answer = as_Note(name=WORKAROUND_ANSWER_NAME, content="a")
 
         with patch.object(
-            family, "reporter_asks", return_value=[question, answer]
+            vendor_opening, "reporter_asks", return_value=[question, answer]
         ):
             family.the_reporter_asks_about_the_workaround(state)
 
@@ -588,7 +597,7 @@ class TestTheReporterAsksAboutTheWorkaround:
         """
         state = _family_state()
 
-        with patch.object(family, "reporter_asks", return_value=[]):
+        with patch.object(vendor_opening, "reporter_asks", return_value=[]):
             family.the_reporter_asks_about_the_workaround(state)
 
         for prop in (family.REPORTERS_QUESTION, family.VENDORS_ANSWER):
@@ -606,7 +615,7 @@ class TestTheReporterAsksAboutTheWorkaround:
         question = as_Note(name="Question from Reporter", content="q")
 
         with patch.object(
-            family, "reporter_asks", return_value=[question, None]
+            vendor_opening, "reporter_asks", return_value=[question, None]
         ):
             family.the_reporter_asks_about_the_workaround(state)
 
@@ -633,7 +642,9 @@ class TestRequiredParticipantsArePresent:
         state = story_state(*_SEATED, case=mock_case())
 
         with (
-            patch.object(family, "verify_case_active") as milestone,
+            patch.object(
+                vendor_continuations, "verify_case_active"
+            ) as milestone,
             no_demo_banners(family),
             pytest.raises(DemoStoryError, match="roster the Vendor"),
         ):
@@ -652,7 +663,9 @@ class TestRequiredParticipantsArePresent:
         state = _family_state()
 
         with (
-            patch.object(family, "verify_case_active") as milestone,
+            patch.object(
+                vendor_continuations, "verify_case_active"
+            ) as milestone,
             _recording_checks() as labels,
         ):
             family.required_participants_are_present(
@@ -682,8 +695,12 @@ class TestTheFixReadyReachedTheReporter:
         state = _family_state()
 
         with (
-            patch.object(family, "wait_for_participant_vf_state") as vf_wait,
-            patch.object(family, "verify_fix_ready") as milestone,
+            patch.object(
+                vendor_continuations, "wait_for_participant_vf_state"
+            ) as vf_wait,
+            patch.object(
+                vendor_continuations, "verify_fix_ready"
+            ) as milestone,
             _recording_checks() as labels,
         ):
             family.the_fix_ready_reached_the_reporter(
@@ -727,14 +744,14 @@ class TestBothVendorsReportTheFixReady:
 
         with (
             patch.object(
-                family,
+                vendor_continuations,
                 "vendor_notifies_fix_ready",
                 side_effect=lambda _s, name, label: order.append(
                     f"notified:{name}:{label}"
                 ),
             ),
             patch.object(
-                family,
+                vendor_continuations,
                 "the_fix_ready_reached_the_reporter",
                 side_effect=lambda _s, milestones: order.append(
                     f"milestones:{list(milestones)}"
@@ -772,7 +789,7 @@ class TestTheJoinersAddTheirNotes:
             NotePost(state.actor(family.VENDOR2), "Vendor2 Update", "ours")
         ]
 
-        with patch.object(family, "add_note_thread") as thread:
+        with patch.object(vendor_continuations, "add_note_thread") as thread:
             family.the_joiners_add_their_notes(state, updates)
 
         watching, case, posts = thread.call_args.args
@@ -791,7 +808,7 @@ class TestTheJoinersAddTheirNotes:
         state = _family_state(family.VENDOR2)
 
         with (
-            patch.object(family, "add_note_thread") as thread,
+            patch.object(vendor_continuations, "add_note_thread") as thread,
             pytest.raises(DemoStoryError, match="workaround answer"),
         ):
             family.the_joiners_add_their_notes(state, [])
@@ -813,7 +830,9 @@ class TestTheEmbargoEndsFor:
         state = _family_state(family.VENDOR2)
 
         with (
-            patch.object(family, "wait_for_case_em_terminated") as em_wait,
+            patch.object(
+                vendor_continuations, "wait_for_case_em_terminated"
+            ) as em_wait,
             _recording_checks() as labels,
         ):
             family.the_embargo_ends_for(
@@ -840,9 +859,13 @@ class TestTheDisclosureReachedEveryReplica:
         state = _family_state()
 
         with (
-            patch.object(family, "wait_for_case_em_terminated") as em_wait,
-            patch.object(family, "wait_for_participant_vf_state"),
-            patch.object(family, "verify_publicly_disclosed"),
+            patch.object(
+                vendor_continuations, "wait_for_case_em_terminated"
+            ) as em_wait,
+            patch.object(
+                vendor_continuations, "wait_for_participant_vf_state"
+            ),
+            patch.object(vendor_continuations, "verify_publicly_disclosed"),
             _recording_checks() as labels,
         ):
             family.the_disclosure_reached_every_replica(state, check="M7")
@@ -863,9 +886,13 @@ class TestTheDisclosureReachedEveryReplica:
         watchers = ("coordinator", family.VENDOR, family.VENDOR2, REPORTER)
 
         with (
-            patch.object(family, "wait_for_case_em_terminated") as em_wait,
-            patch.object(family, "wait_for_participant_vf_state"),
-            patch.object(family, "verify_publicly_disclosed"),
+            patch.object(
+                vendor_continuations, "wait_for_case_em_terminated"
+            ) as em_wait,
+            patch.object(
+                vendor_continuations, "wait_for_participant_vf_state"
+            ),
+            patch.object(vendor_continuations, "verify_publicly_disclosed"),
             no_demo_banners(family),
         ):
             family.the_disclosure_reached_every_replica(
@@ -886,9 +913,13 @@ class TestTheDisclosureReachedEveryReplica:
         state = _family_state()
 
         with (
-            patch.object(family, "wait_for_case_em_terminated"),
-            patch.object(family, "wait_for_participant_vf_state") as vf_wait,
-            patch.object(family, "verify_publicly_disclosed") as disclosed,
+            patch.object(vendor_continuations, "wait_for_case_em_terminated"),
+            patch.object(
+                vendor_continuations, "wait_for_participant_vf_state"
+            ) as vf_wait,
+            patch.object(
+                vendor_continuations, "verify_publicly_disclosed"
+            ) as disclosed,
             no_demo_banners(family),
         ):
             family.the_disclosure_reached_every_replica(state, check="M7")
@@ -992,7 +1023,7 @@ def _cast_stubs(seeded, *, seed_error=None) -> Iterator[SimpleNamespace]:
             story_cast, "get_actor_by_id", side_effect=list(seeded)
         ) as lookup,
         patch.object(
-            family,
+            vendor_cast,
             "seed_containers",
             return_value=tuple(seeded),
             side_effect=seed_error,

@@ -82,7 +82,7 @@ inline with a comment marking it for extraction. MUST-level per
 CS-22-001). Rationale and the four-step application in
 [`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md)
 § "Extract Before Reuse". (ISSUE-1652) Siblings go further: a family writes its shared
-opening **once**, as a named prefix of story fragments (`helpers/story.py`), and each
+opening **once**, as a named prefix of story fragments (`helpers/story/`), and each
 scenario assembles its story from that prefix plus one continuation (DEMOCI-11-019,
 [demo-scenario-tree](../../notes/demo-scenario-tree.md) § "Composition", #5533).
 

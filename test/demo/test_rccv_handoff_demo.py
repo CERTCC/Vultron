@@ -64,6 +64,7 @@ from test.demo._helpers import (
     mock_case,
     mock_client,
     no_demo_banners,
+    patch_shared,
     story_state,
     stub_closure_gate,
 )
@@ -73,7 +74,6 @@ from vultron.demo.cli import main as cli_main
 from vultron.demo.helpers import (
     coordinated_story,
     owner_decision_story,
-    story as story_module,
     story_cast,
     two_coordinator_story,
 )
@@ -81,6 +81,15 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER,
     VENDOR,
     VENDOR_LABEL,
+    cast as coordinated_cast,
+    continuations as coordinated_continuations,
+    joining as coordinated_joining,
+    opening as coordinated_opening,
+)
+from vultron.demo.helpers.owner_decision_story import (
+    handover as owner_handover,
+    keep as owner_keep,
+    parts as owner_parts,
 )
 from vultron.demo.helpers.story import (
     Choose,
@@ -88,6 +97,7 @@ from vultron.demo.helpers.story import (
     UnseatedContainer,
     choose,
     run_story,
+    runner as story_runner,
     story,
 )
 from vultron.demo.helpers.two_coordinator_story import (
@@ -288,7 +298,7 @@ class TestRccvHandoffCast:
                 "vultron.demo.helpers.seeding.seed_case_actor_identity"
             ) as reseed,
             patch.object(
-                coordinated_story,
+                coordinated_cast,
                 "seed_containers_rcv",
                 return_value=tuple(seeded),
             ) as seed_three,
@@ -440,12 +450,10 @@ class TestC2InvitesTheVendor:
         state = _four_party_state()
 
         with (
-            patch.object(
-                owner_decision_story, "run_case_invite_chain"
+            patch_shared(
+                (owner_keep, owner_handover), "run_case_invite_chain"
             ) as chain,
-            patch.object(
-                owner_decision_story, "find_case_actor_participant_id"
-            ),
+            patch.object(owner_parts, "find_case_actor_participant_id"),
             pytest.raises(DemoStoryError, match="handed over"),
         ):
             demo.c2_invites_the_vendor(state)
@@ -582,7 +590,7 @@ class TestEveryoneCloses:
             patch.object(ActorSession, "leave_case"),
             stub_closure_gate(),
             patch.object(
-                coordinated_story, "close_case_owner_last"
+                coordinated_continuations, "close_case_owner_last"
             ) as closure,
         ):
             demo.everyone_closes(state)
@@ -722,7 +730,7 @@ class TestRccvHandoffLedgerDump:
         with (
             patch.object(demo, "run_story") as run_story,
             patch.object(
-                coordinated_story, "open_coordinated_cast"
+                coordinated_cast, "open_coordinated_cast"
             ) as open_coordinated_cast,
         ):
             demo.run_rccv_handoff_demo(
@@ -984,7 +992,7 @@ class TestARosterThatNeverFillsSkipsTheTransfer:
         def stub(_demo_name: str):
             yield harness
 
-        monkeypatch.setattr(story_module, "scenario_harness", stub)
+        monkeypatch.setattr(story_runner, "scenario_harness", stub)
         yield harness
         reset_demo_failures()
 
@@ -1001,36 +1009,32 @@ class TestARosterThatNeverFillsSkipsTheTransfer:
         Two-Tier").
         """
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "run_case_invite_chain",
                 side_effect=lambda **kw: kw["then"] and kw["then"](),
             ),
-            patch.object(
-                coordinated_story,
+            patch_shared(
+                (coordinated_joining, coordinated_opening),
                 "wait_for_case_participants",
                 side_effect=None
                 if fills
                 else AssertionError("roster never filled"),
             ),
             patch.object(
-                coordinated_story,
+                coordinated_continuations,
                 "demo_step",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
             patch.object(
-                owner_decision_story,
+                owner_handover,
                 "find_ownership_transfer_offer_for_actor",
                 return_value="urn:test:offer",
             ),
-            patch.object(
-                owner_decision_story, "wait_for_case_actor_ledger_event"
-            ),
-            patch.object(owner_decision_story, "wait_for_case_attributed_to"),
-            patch.object(
-                owner_decision_story, "wait_for_semantic_type_in_ledger"
-            ),
+            patch.object(owner_handover, "wait_for_case_actor_ledger_event"),
+            patch.object(owner_handover, "wait_for_case_attributed_to"),
+            patch.object(owner_handover, "wait_for_semantic_type_in_ledger"),
             patch.object(
                 ActorSession, "offer_case_ownership_transfer", autospec=True
             ) as offer,

@@ -36,7 +36,6 @@ import pytest
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import (
     harness as harness_module,
-    story as story_module,
 )
 from vultron.demo.helpers.harness import ScenarioHarness
 from vultron.demo.helpers.story import (
@@ -47,6 +46,7 @@ from vultron.demo.helpers.story import (
     UnseatedContainer,
     choose,
     run_story,
+    runner as story_runner,
     story,
 )
 from vultron.demo.scenario import registry
@@ -582,7 +582,7 @@ def fake_harness(
     def stub(_demo_name: str) -> Iterator[_FakeHarness]:
         yield harness
 
-    monkeypatch.setattr(story_module, "scenario_harness", stub)
+    monkeypatch.setattr(story_runner, "scenario_harness", stub)
     yield harness
     reset_demo_failures()
 

@@ -58,19 +58,24 @@ import vultron.demo.scenario.rv_demo as rv_demo_module
 import vultron.demo.utils as demo_utils
 from test.demo._helpers import mock_case, story_state
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import coordinated_story, vendor_story
-from vultron.demo.helpers.coordinated_story import REPORTER
+from vultron.demo.helpers.coordinated_story import (
+    REPORTER,
+    continuations as coordinated_continuations,
+)
 from vultron.demo.helpers.polling import (
     LATE_JOINER_COVERAGE_TIMEOUT,
     LEDGER_COVERAGE_TIMEOUT,
 )
-from vultron.demo.helpers.vendor_story import VENDOR
-from vultron.demo.scenario.rcvcv_demo import (
+from vultron.demo.helpers.rcvcv_story import (
     C1,
     C2,
     V1,
     V2,
     every_replica_converges,
+)
+from vultron.demo.helpers.vendor_story import (
+    VENDOR,
+    continuations as vendor_continuations,
 )
 from vultron.demo.scenario.rv_demo import the_vendor_reports_the_fix_ready
 from vultron.demo.utils import reset_demo_failures
@@ -138,10 +143,10 @@ def test_rv_reporter_timeout_records_single_gate_failure_not_two_check_failures(
         ActorSession, "notify_fix_ready", lambda *a, **kw: None
     )
     monkeypatch.setattr(
-        vendor_story, "verify_fix_ready", lambda *a, **kw: None
+        vendor_continuations, "verify_fix_ready", lambda *a, **kw: None
     )
     monkeypatch.setattr(
-        coordinated_story,
+        coordinated_continuations,
         "wait_for_participant_rm_state",
         lambda *a, **kw: None,
     )
@@ -155,11 +160,16 @@ def test_rv_reporter_timeout_records_single_gate_failure_not_two_check_failures(
 
     # Every module that polls a participant's vf_state, so a poll the
     # Reporter's replica never satisfies raises wherever it is made: the
-    # Vendor's own check in ``coordinated_story``, the Reporter gate in the
-    # scenario, and the milestone pair in ``vendor_story``.  Patching only
+    # Vendor's own check in ``coordinated_story.continuations``, the Reporter
+    # gate in the scenario, and the milestone pair in
+    # ``vendor_story.continuations``.  Patching only
     # one would leave the others able to poll the Reporter unguarded, which
     # is exactly the cascade #2361 removed.
-    for module in (coordinated_story, rv_demo_module, vendor_story):
+    for module in (
+        coordinated_continuations,
+        rv_demo_module,
+        vendor_continuations,
+    ):
         monkeypatch.setattr(module, "wait_for_participant_vf_state", _vfd_poll)
 
     the_vendor_reports_the_fix_ready(state)
@@ -200,7 +210,7 @@ def test_rv_fix_lifecycle_gates_on_rm_accepted(monkeypatch):
         call_order.append("rm_wait")
 
     monkeypatch.setattr(
-        coordinated_story, "wait_for_participant_rm_state", _rm_wait
+        coordinated_continuations, "wait_for_participant_rm_state", _rm_wait
     )
     monkeypatch.setattr(
         ActorSession,
@@ -208,9 +218,13 @@ def test_rv_fix_lifecycle_gates_on_rm_accepted(monkeypatch):
         lambda *a, **kw: call_order.append("fix_ready"),
     )
     monkeypatch.setattr(
-        vendor_story, "verify_fix_ready", lambda *a, **kw: None
+        vendor_continuations, "verify_fix_ready", lambda *a, **kw: None
     )
-    for module in (coordinated_story, rv_demo_module, vendor_story):
+    for module in (
+        coordinated_continuations,
+        rv_demo_module,
+        vendor_continuations,
+    ):
         monkeypatch.setattr(
             module, "wait_for_participant_vf_state", lambda *a, **kw: None
         )
