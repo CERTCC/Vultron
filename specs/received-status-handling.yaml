@@ -915,26 +915,26 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A received RM status declaration reports the sending actor's own RM state, so its
-      subject MUST be the sender, never the receiver. One write on receipt has as its
-      subject neither the sender nor the receiver. It is the CASE_MANAGER's creation of
-      an invitee's participant record when, answering a received activity, it emits the
-      stub Invite (CM-11-006, CM-17-018, CM-16-006). Its subject is the invitee, whose
-      RM.RECEIVED the CASE_MANAGER infers from its own send (BT-10-005).
+      A participant's RM status declaration is its assertion about itself, not about
+      another actor. A receiver MUST take a received RM status declaration as a
+      statement of the sending actor's own RM state. One participant record is not
+      declared by its participant: a new invitee's. The CASE_MANAGER creates it when
+      it emits the stub Invite in answer to a received activity (CM-11-006,
+      CM-17-018, CM-16-006). It sets the RM.RECEIVED that it infers from its own
+      send (BT-10-005).
     rationale: >-
-      A received activity is a statement about the state of the sender (HP-00-001), and
-      each participant declares its own status (ADR-0121). BT-17-006 selects the store
-      in which a received-side tree runs. It does not say whose state the tree writes,
-      and its sender-ID clause assumes that the two are different. If the tree uses the
-      store as the subject, it moves the incorrect participant: the RM of the receiver
-      changes on a declaration about the sender (ADR-0089).
+      A received activity is a statement about the state of the sender (HP-00-001),
+      and each participant declares its own status (ADR-0121). The mistake this rule
+      prevents has recurred (ADR-0089, CONCERN-3473): a tree that takes its store
+      (BT-17-006) as the subject moves the receiver's RM on a declaration about the
+      sender. RSH-08-005 states how this codebase records the declaration.
     verification: Regression tests for the report-invalid and report-closed received-side use cases assert the
       sender's participant reaches the target RM state and the receiving actor's participant is unchanged.
     adr:
     - ADR-0108
     - ADR-0114
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_062
   - id: RSH-08-008
     priority: MUST
     kind: protocol
@@ -996,8 +996,8 @@ groups:
       transition is recorded with no warning, no note, and no refusal.
     adr:
     - ADR-0108
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_014
   - id: RSH-08-009
     priority: MUST
     kind: protocol
@@ -1156,6 +1156,8 @@ groups:
       spec_id: RSH-08-003
     adr:
     - ADR-0124
+    stories:
+    - story_2026_023
   - id: RSH-08-012
     priority: MAY
     kind: protocol

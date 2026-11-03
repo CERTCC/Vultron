@@ -548,6 +548,9 @@ reference/user_stories/story_2026_027.md
 reference/user_stories/story_2026_028.md
 reference/user_stories/story_2026_029.md
 reference/user_stories/story_2026_030.md
+reference/user_stories/story_2026_031.md
+reference/user_stories/story_2026_032.md
+reference/user_stories/story_2026_033.md
 reference/user_stories/story_2026_034.md
 reference/user_stories/story_2026_035.md
 reference/user_stories/table.md

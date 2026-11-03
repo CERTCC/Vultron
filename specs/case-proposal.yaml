@@ -88,6 +88,8 @@ groups:
       is optional because the proposal is complete without it.
     adr:
     - ADR-0023
+    stories:
+    - story_2022_101
   - id: CP-01-007
     lint_suppress:
     - rationale_too_long
@@ -877,8 +879,8 @@ groups:
       spec_id: ASK-08-001
     - rel_type: depends_on
       spec_id: CM-23-013
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_014
   - id: CP-05-013
     priority: MUST_NOT
     kind: protocol
@@ -898,6 +900,8 @@ groups:
       after acceptance produces no second `VulnerabilityCase`.
     adr:
     - ADR-0080
+    stories:
+    - story_2026_014
   - id: CP-05-014
     priority: MUST
     kind: protocol
@@ -943,6 +947,8 @@ groups:
       `CaseLedgerEntry` for the case and no change to case or participant state.
     adr:
     - ADR-0080
+    stories:
+    - story_2026_014
   - id: CP-05-007
     priority: MUST
     kind: protocol
@@ -965,8 +971,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: ASK-05-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_006
   - id: CP-05-008
     priority: MUST
     kind: protocol
@@ -1652,6 +1658,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-09-002
+    stories:
+    - story_2022_063
   - id: CP-09-003
     priority: MUST
     kind: protocol
