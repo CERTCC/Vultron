@@ -53,8 +53,8 @@ T_co = TypeVar("T_co", covariant=True)
 
 # The IRI branch of every reference union is ``NonEmptyString`` (CS-08-001,
 # CS-08-002): a blank string names no resource, so it is refused inbound rather
-# than carried and then silently dropped on the way out (VM-07-001).  Code that
-# introspects these unions for their string branch must unwrap the ``Annotated``
+# than carried into the core and echoed on the way out.  Code that introspects
+# these unions for their string branch must unwrap the ``Annotated``
 # (``vultron.core.models._helpers.strip_annotated``) instead of testing
 # ``is str``.
 

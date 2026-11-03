@@ -492,10 +492,10 @@ def test_parse_activity_rejects_blank_reference(field: str, blank: str):
     """A blank reference names no resource, so the activity is refused.
 
     Before #3876 the wire reference aliases carried bare ``str``, so an inbound
-    ``"target": ""`` validated and reached the core, and VM-07-001 then dropped
-    it silently on the way out.  CS-08-001's "if present, then non-empty" is
-    now enforced by the aliases themselves, so the refusal surfaces here as a
-    schema fault on the offending field.
+    ``"target": ""`` validated and reached the core.  Nothing strips a blank
+    value on output, so refusing it here is the only guard.  CS-08-001's "if
+    present, then non-empty" is now enforced by the aliases themselves, so the
+    refusal surfaces here as a schema fault on the offending field.
     """
     body = {
         "type": "Create",
