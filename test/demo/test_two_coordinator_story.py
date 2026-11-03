@@ -468,7 +468,11 @@ class TestTheSharedCliSurfaces:
         assert roles[2].slot is CAST[3]
 
     def test_the_case_actor_role_is_the_callers(self):
-        """Only ``rccv-handoff`` exposes ``--case-actor-id`` (DEMOMA-14-023)."""
+        """The caller controls whether the CaseActor role carries an id option.
+
+        No registered scenario currently passes ``has_id=True`` (AC-1, #5550),
+        but the factory supports it and the contract is stable.
+        """
         without = pair.two_coordinator_roles(case_actor=case_actor_role())
         with_id = pair.two_coordinator_roles(
             case_actor=case_actor_role(has_id=True)

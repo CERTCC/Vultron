@@ -3027,12 +3027,15 @@ groups:
     statement: >-
       The `vultron-demo rccv-handoff` sub-command MUST expose the `--reporter-url`,
       `--c1-url`, `--c2-url`, `--vendor-url`, `--case-actor-url`, `--reporter-id`,
-      `--c1-id`, `--c2-id`, `--vendor-id`, `--case-actor-id` and `--skip-health-check`
-      options.
+      `--c1-id`, `--c2-id`, `--vendor-id` and `--skip-health-check` options.
     rationale: >-
-      Each container of the scenario needs an address and an actor id that an operator
-      can override, and a CI run can skip the health check. The options come from the
-      module's `ROLES`, so a role that is missing there has no option.
+      Each container of the scenario needs an address override and the cast actors need
+      id overrides; a CI run can skip the health check.
+      The options come from the module's `ROLES`, so a role that is missing there has no
+      option.
+      `--case-actor-id` was removed (2026-11-03, maintainer approval in Epic #4747): under
+      the fixed cast (DEMOCI-11-020) the CaseActor container holds one actor id in every
+      scenario, so the override has nothing to select, and the code never reads it.
     verification: >-
       `TestRccvHandoffCliCommand::test_the_option_is_offered` in
       `test/demo/test_rccv_handoff_demo.py` asserts that each named option appears in

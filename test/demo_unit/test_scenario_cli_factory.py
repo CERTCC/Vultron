@@ -531,11 +531,11 @@ class TestOptionsComeFromTheCast:
         }
         assert by_role_name != everything
 
-    def test_case_actor_id_only_on_the_handoff_scenarios(self) -> None:
-        """Only the ownership-handoff scenarios take ``--case-actor-id``.
+    def test_no_registered_scenario_offers_case_actor_id(self) -> None:
+        """No registered scenario exposes ``--case-actor-id`` (AC-1, #5550).
 
-        Required by DEMOMA-14-023; the cast fixes the id every other scenario
-        uses, so none of them offers an override.
+        The cast fixes the CaseActor id in every scenario
+        (DEMOCI-11-020), so no override is needed or offered.
         """
         with_id = {
             spec.name
@@ -543,7 +543,7 @@ class TestOptionsComeFromTheCast:
             for role in _roles_of(spec)
             if role.name == "case-actor" and role.has_id
         }
-        assert with_id == {"rvcv-handoff", "rccv-handoff"}
+        assert with_id == set()
 
     def test_every_scenario_declares_the_case_actor(self) -> None:
         """Each scenario names the dedicated CaseActor container (#1876).
