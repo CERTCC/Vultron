@@ -13,6 +13,7 @@
 
 # python
 import json
+import uuid
 from typing import cast
 
 import pytest
@@ -602,6 +603,16 @@ class TestCreateActor:
         resp = client_actors.post("/actors/", json=payload)
         assert resp.status_code == status.HTTP_201_CREATED
         assert resp.json()["type"] == "Organization"
+
+    @pytest.mark.spec("OID-01-004")
+    def test_create_actor_without_id_takes_a_uuid_slug_from_the_minter(
+        self, client_actors
+    ):
+        resp = client_actors.post("/actors/", json={"name": "NoIdActor"})
+        assert resp.status_code == status.HTTP_201_CREATED
+        head, _, slug = resp.json()["id"].rpartition("/")
+        assert head.endswith("/actors")
+        assert uuid.UUID(slug).version == 4
 
     def test_create_actor_with_custom_id(self, client_actors):
         payload = {

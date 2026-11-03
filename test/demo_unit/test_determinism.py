@@ -21,7 +21,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-import vultron.adapters.driving.fastapi.routers.actors._routes as actor_routes
+import vultron.adapters.driving.fastapi.app as fastapi_app
 from vultron.core.models import _helpers
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -125,8 +125,8 @@ class TestDeterministicRun:
         expected = SeededUuid4("rv")
         with deterministic_run("rv"):
             assert uuid.uuid4() == expected()
-            # The actor routes bind `uuid4` with `from uuid import`.
-            assert actor_routes.uuid4() == expected()
+            # The FastAPI app module binds `uuid4` with `from uuid import`.
+            assert fastapi_app.uuid4() == expected()
 
     def test_everything_is_restored_on_exit(self):
         real_uuid4 = uuid.uuid4
@@ -134,7 +134,7 @@ class TestDeterministicRun:
         with deterministic_run("rv"):
             pass
         assert uuid.uuid4 is real_uuid4
-        assert actor_routes.uuid4 is real_uuid4
+        assert fastapi_app.uuid4 is real_uuid4
         assert _helpers.datetime is real_datetime
 
     def test_a_module_imported_inside_the_block_is_restored(

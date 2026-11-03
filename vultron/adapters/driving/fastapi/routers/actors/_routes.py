@@ -24,7 +24,6 @@ dependencies provide.
 import logging
 from typing import Any, Literal, cast
 from urllib.parse import urlsplit
-from uuid import uuid4
 
 from fastapi import (
     APIRouter,
@@ -71,6 +70,7 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
 from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.adapters.utils import strip_id_prefix
 from vultron.config import get_config
+from vultron.core.models._helpers import new_object_id
 from vultron.core.models.actor import (
     CoreActor,
     VultronOrganization,
@@ -238,7 +238,8 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
     base_url = node_base_url(http_request)
     try:
         actor_id = actor_hosts.canonical_actor_uri(
-            request.id_ or str(uuid4()),
+            # The slug is the UUID of a freshly minted id (OID-01-004).
+            request.id_ or strip_id_prefix(new_object_id()),
             base_url=base_url,
         )
     except ValueError as exc:

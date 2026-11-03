@@ -14,6 +14,8 @@
 
 import re
 
+import pytest
+
 from vultron.core.models._helpers import URN_UUID_PREFIX, new_object_id
 
 _UUID_PATTERN = re.compile(
@@ -22,14 +24,17 @@ _UUID_PATTERN = re.compile(
 
 
 class TestNewObjectId:
+    @pytest.mark.spec("OID-01-001")
     def test_default_is_urn_uuid_with_a_version_4_uuid(self):
         id_ = new_object_id()
         assert id_.startswith(URN_UUID_PREFIX)
         assert _UUID_PATTERN.fullmatch(id_.removeprefix(URN_UUID_PREFIX))
 
+    @pytest.mark.spec("OID-01-001")
     def test_default_is_not_a_bare_uuid(self):
         assert not _UUID_PATTERN.fullmatch(new_object_id())
 
+    @pytest.mark.spec("OID-01-004")
     def test_prefix_form_appends_the_uuid_after_a_slash(self):
         prefix = "https://example.org/objects"
         id_ = new_object_id(prefix=prefix)
