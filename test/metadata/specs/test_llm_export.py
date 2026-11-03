@@ -595,6 +595,6 @@ class TestNoteIsExported:
         assert not unaccounted, (
             "StatementSpec fields neither exported nor listed as deliberately "
             f"dropped: {sorted(unaccounted)}. Add to the export in "
-            "vultron/metadata/specs/llm_export.py, or to `dropped` here with a "
+            "vultron/metadata/specs/llm_export/records.py, or to `dropped` here with a "
             "reason."
         )

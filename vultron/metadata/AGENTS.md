@@ -25,7 +25,7 @@ are the product**.
 
 | Subpackage | Reads | Validates against |
 |---|---|---|
-| `specs/` | `specs/*.yaml`; a branch diff and the source it touches (`backstop/`); the story-page catalog, for the hard error on a `stories:` entry naming no page and the PR-only guard on a removed page (`story_links.py`, TRACE-03-001/002) | `SpecFile` (schema.py) |
+| `specs/` | `specs/*.yaml`; a branch diff and the source it touches (`backstop/`); the story-page catalog, for the hard error on a `stories:` entry naming no page and the PR-only guard on a removed page (`story_links.py`, TRACE-03-001/002) | `SpecFile` (`schema/models.py`) |
 | `notes/` | `notes/*.md` frontmatter | `NotesFrontmatter` |
 | `adr/` | `docs/adr/*.md` frontmatter | `AdrFrontmatter` |
 | `history/` | `plan/history/**/*.md`, `plan/incoming/learnings/*.md` | `HistoryEntryFrontmatter` |
@@ -48,7 +48,7 @@ Shared helpers live in three places — `base.py`, `markdown_tables.py`, and
 | `nav_paths()` | every document path reachable from the nav, flattened. The ADR nav check, the docs-frontmatter check and the scenario-narrative nav check read it; it was `adr/index_gen._iter_nav_paths` until #3451 |
 | `not_in_nav_spec()` | the `not_in_nav` patterns, matched as MkDocs matches them (gitignore lines via `pathspec`); a hand-rolled glob here would disagree with the build |
 | `iter_tree_texts()`, `markdown_files()` | `(path, text)` for each file matching a pattern under some directories, unreadable files skipped. The PD-10 spec YAML line guard (`line_length.py`, also at the package root; its Python doc-line guard runs ruff's `W505` instead) and the MS-10-010 test index read through it. `markdown_files()` is every sorted `*.md` under one directory, not descending what its predicate prunes: use it, not `sorted(rglob("*.md"))` plus a filter, since a repository-wide `rglob` walks all of `.git` and `.venv` first |
-| `gh_issue_state()`, `gh_issue_missing()`, `gh_lookup_failure()`, `GH_LOOKUP_ERRORS`, `issue_number()` | one issue's state through `gh issue view`, whether a failed lookup means "no such issue", the failure as text with `gh`'s stderr, and what a lookup can raise. The `verification_debt` owner check (`specs/verification.py`) and the ratchet-baseline owner report (`ratchet_owners.py`, ARCH-18-004) both read owners through them; a lookup that raises is reported, never passed |
+| `gh_issue_state()`, `gh_issue_missing()`, `gh_lookup_failure()`, `GH_LOOKUP_ERRORS`, `issue_number()` | one issue's state through `gh issue view`, whether a failed lookup means "no such issue", the failure as text with `gh`'s stderr, and what a lookup can raise. The `verification_debt` owner check (`specs/verification/`) and the ratchet-baseline owner report (`ratchet_owners.py`, ARCH-18-004) both read owners through them; a lookup that raises is reported, never passed |
 | `nav_exclusion_fault()` | why a page that must stay out of the nav is misplaced (navved, or matched by no `not_in_nav` pattern), or `None`. The ADR check and the docs-frontmatter check share it (#3528) |
 
 `markdown_tables.py` — the structural reader for every ratchet over
@@ -126,8 +126,8 @@ What the helper absorbs, so you know not to re-solve it:
    — the contract the loaders document — would not catch it, and it would
    escape as a traceback in which no frame names the offending file
    (MS-17-002). The helper re-raises it as `MetadataLoadError`. Callers that
-   do not guard at all (`coverage.py`, `render.py`, `docs_render.py`,
-   `llm_export.py`) still surface a traceback, but its message now names the
+   do not guard at all (`coverage.py`, `render/`, `docs_render/`,
+   `llm_export/`) still surface a traceback, but its message now names the
    file.
 
 2. **Passing text instead of a stream costs you the filename.** PyYAML takes the
@@ -185,7 +185,7 @@ write-up: [`notes/spec-authoring-rules.md`](../../notes/spec-authoring-rules.md)
 
 A routinely true per-item advisory is not enforcement — mark each hit with its owning
 issue, check items one at a time, print a per-kind count from the markers
-(`specs/verification.py`, MS-10-005..008, MS-10-019, MS-10-022); never pin a committed
+(`specs/verification/`, MS-10-005..008, MS-10-019, MS-10-022); never pin a committed
 count. Select by tier, not keyword: `priority.is_must_tier`, not `== RFC2119Priority.MUST`
 (MS-02-004; `test_priority_tier_gate.py` fails it).
 

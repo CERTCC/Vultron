@@ -604,7 +604,7 @@ number.
 
 ### Hold Back Growth With a PR-Only Guard, Not a Pinned Total
 
-`added_since_base` in `vultron/metadata/specs/growth_guard.py` runs a per-item
+`added_since_base` in `vultron/metadata/specs/growth_guard/compare.py` runs a per-item
 extractor (repository root → set of item IDs in debt) on the merge base with
 `origin/main` and on the working tree, and returns only the items the branch
 added, so a sibling PR cannot turn this one red. `test_spec_coverage_ratchet.py`

@@ -1,38 +1,9 @@
-"""MkDocs Material markdown renderer for requirement pages and callouts.
-
-Renders the loaded :class:`SpecRegistry` for human readers of the published
-documentation site, unlike ``render.py`` (agent/LLM export). One row renderer,
-:func:`render_requirement_row`, produces every requirement table row the site
-shows, in three places:
-
-* the per-kind requirement pages under ``docs/reference/specs/``, for the
-  ``architecture``, ``project`` and ``process`` kinds (:func:`render_for_kind`);
-* the Protocol Specification's Requirements Catalog pages
-  (:func:`render_catalog_page`, DF-12-001);
-* the requirement callouts in the specification's narrative
-  (:func:`requirement_callout`, DF-12-003).
-
-A catalog row and a per-kind row define the requirement's anchor; a callout
-row links it instead (DF-12-010). Where each requirement's row is, and the
-link a row shows to it, come from
-:mod:`vultron.metadata.docs.requirement_catalog`.
-
-Usage (in a markdown-exec Python block)::
-
-    from vultron.metadata.specs import load_registry
-    from vultron.metadata.specs.docs_render import render_for_kind
-
-    registry = load_registry()
-    print(render_for_kind("architecture", registry))
-
-A callout is one line::
-
-    from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VM-10-001"))
+"""Requirement tables for docs pages: per-kind pages, catalog pages and
+callouts.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 
 from vultron.metadata.base import repo_root
@@ -41,12 +12,17 @@ from vultron.metadata.docs.requirement_catalog import (
     CATALOG_PAGES,
     FULL_PAGE,
     CatalogPage,
-    NotInCatalogError,
     catalog_location,
     current_page,
     kind_page,
     requirement_anchor,
     requirement_linker,
+)
+from vultron.metadata.specs.docs_render.rows import (
+    _EMPTY_KIND_NOTICE,
+    _TABLE_HEADER,
+    RequirementHref,
+    render_requirement_row,
 )
 from vultron.metadata.specs.registry import (
     SpecRegistry,
@@ -54,180 +30,12 @@ from vultron.metadata.specs.registry import (
 )
 from vultron.metadata.specs.schema import (
     BehavioralSpec,
-    RelationType,
-    RFC2119Priority,
     Spec,
     SpecFile,
     SpecGroup,
     SpecKind,
     SpecTag,
 )
-
-#: Maps a requirement ID to the link target its row shows on the page being
-#: rendered, or ``None`` when the ID names no requirement.
-RequirementHref = Callable[[str], str | None]
-
-# Maps RFC2119 priority to a distinct Material icon + bold label.
-# Icons are chosen to convey the strength of the obligation at a glance.
-_PRIORITY_BADGE: dict[RFC2119Priority, str] = {
-    RFC2119Priority.MUST: ":material-check-all: **MUST**",
-    RFC2119Priority.MUST_NOT: ":material-cancel: **MUST NOT**",
-    RFC2119Priority.SHOULD: ":material-check: **SHOULD**",
-    RFC2119Priority.SHOULD_NOT: ":material-alert-outline: **SHOULD NOT**",
-    RFC2119Priority.MAY: ":material-information-outline: **MAY**",
-}
-
-# Relationship type label → human-readable prefix
-_REL_LABEL: dict[RelationType, str] = {
-    RelationType.IMPLEMENTS: "Implements",
-    RelationType.SUPERSEDES: "Supersedes",
-    RelationType.EXTENDS: "Extends",
-    RelationType.DEPENDS_ON: "Depends on",
-    RelationType.CONFLICTS: "Conflicts with",
-    RelationType.REFINES: "Refines",
-    RelationType.DERIVES_FROM: "Derives from",
-    RelationType.VERIFIES: "Verifies",
-    RelationType.PART_OF: "Part of",
-    RelationType.CONSTRAINS: "Constrains",
-    RelationType.SATISFIES: "Satisfies",
-    RelationType.USES_DEFINITION: "Uses definition from",
-}
-
-#: Rendered in place of the requirement list for a kind no spec carries yet.
-_EMPTY_KIND_NOTICE = (
-    '!!! note "No requirements yet"\n\n'
-    "    No requirement in the specification corpus carries "
-    "`kind: {kind}` yet.\n"
-)
-
-_TABLE_HEADER = (
-    "| ID | Priority | Requirement | Related |",
-    "|---|---|---|---|",
-)
-
-
-def _render_relationships_cell(spec: Spec, href: RequirementHref) -> str:
-    """Return the Related cell content for a spec table row."""
-    if not spec.relationships:
-        return ""
-    parts = []
-    for rel in spec.relationships:
-        label = _REL_LABEL.get(rel.rel_type, rel.rel_type.value)
-        target_href = href(rel.spec_id)
-        target = (
-            rel.spec_id
-            if target_href is None
-            else f"[{rel.spec_id}]({target_href})"
-        )
-        note = f" — {rel.note}" if rel.note else ""
-        parts.append(f"*{label}*: {target}{note}")
-    return "<br>".join(parts)
-
-
-def _render_preconditions_lines(
-    lines: list[str], spec: BehavioralSpec
-) -> None:
-    if not spec.preconditions:
-        return
-    lines.append("**Preconditions**")
-    lines.append("")
-    for pc in spec.preconditions:
-        lines.append(f"- {pc.description}")
-        if pc.rm_state:
-            lines.append(
-                f"    - RM state: `{', '.join(s.value for s in pc.rm_state)}`"
-            )
-        if pc.em_state:
-            lines.append(
-                f"    - EM state: `{', '.join(s.value for s in pc.em_state)}`"
-            )
-        if pc.role:
-            lines.append(
-                f"    - Role: `{', '.join(r.value for r in pc.role)}`"
-            )
-        if pc.cs_pattern:
-            lines.append(f"    - CS pattern: `{pc.cs_pattern}`")
-    lines.append("")
-
-
-def _render_steps_lines(lines: list[str], spec: BehavioralSpec) -> None:
-    if not spec.steps:
-        return
-    lines.append("**Steps**")
-    lines.append("")
-    for step in spec.steps:
-        expected = f" → {step.expected}" if step.expected else ""
-        lines.append(f"{step.order}. [{step.actor}] {step.action}{expected}")
-    lines.append("")
-
-
-def _render_postconditions_lines(
-    lines: list[str], spec: BehavioralSpec
-) -> None:
-    if not spec.postconditions:
-        return
-    lines.append("**Postconditions**")
-    lines.append("")
-    for pc in spec.postconditions:
-        lines.append(f"- {pc.description}")
-    lines.append("")
-
-
-def _render_behavioral_cell(spec: BehavioralSpec) -> str:
-    """Return inline collapsible ECA details for embedding in a table cell."""
-    if not any([spec.preconditions, spec.steps, spec.postconditions]):
-        return ""
-    lines: list[str] = []
-    lines.append("<details><summary>ECA Details</summary>")
-    lines.append("")
-    _render_preconditions_lines(lines, spec)
-    _render_steps_lines(lines, spec)
-    _render_postconditions_lines(lines, spec)
-    lines.append("</details>")
-    return "<br>".join(lines)
-
-
-def _render_requirement_cell(
-    spec: Spec,
-) -> str:
-    """Return the Requirement cell content for a spec table row."""
-    cell = f"{spec.statement}<br><br>*{spec.rationale}*"
-    if isinstance(spec, BehavioralSpec):
-        eca = _render_behavioral_cell(spec)
-        if eca:
-            cell += "<br><br>" + eca
-    return cell
-
-
-def render_requirement_row(
-    spec: Spec, href: RequirementHref, *, define_anchor: bool
-) -> str:
-    """Return the requirement table row for *spec*.
-
-    Every requirement row on the site comes from here: the per-kind pages,
-    the Requirements Catalog and the callouts share one format (DF-12-003).
-
-    Args:
-        spec: The requirement.
-        href: Link targets for the IDs the row names, on the page rendered.
-        define_anchor: ``True`` for the row that is the requirement's anchor
-            (a catalog or per-kind row); ``False`` for a callout row, whose
-            ID cell links that anchor and defines none (DF-12-002).
-    """
-    if define_anchor:
-        id_cell = f'<a id="{requirement_anchor(spec.id)}"></a>`{spec.id}`'
-    else:
-        id_href = href(spec.id)
-        id_cell = (
-            f"`{spec.id}`" if id_href is None else f"[`{spec.id}`]({id_href})"
-        )
-    priority_cell = _PRIORITY_BADGE[spec.priority]
-    requirement_cell = _render_requirement_cell(spec)
-    related_cell = _render_relationships_cell(spec, href)
-    # Escape pipe chars inside cells to avoid breaking the table
-    requirement_cell = requirement_cell.replace("|", "&#124;")
-    related_cell = related_cell.replace("|", "&#124;")
-    return f"| {id_cell} | {priority_cell} | {requirement_cell} | {related_cell} |"
 
 
 def _render_group(
@@ -528,15 +336,3 @@ def requirement_callout(
     ]
     body = [*_TABLE_HEADER, *rows]
     return f'!!! info "{title}"\n\n' + "".join(f"    {r}\n" for r in body)
-
-
-__all__ = [
-    "CATALOG_KINDS",
-    "NotInCatalogError",
-    "RequirementHref",
-    "load_registry",
-    "render_catalog_page",
-    "render_for_kind",
-    "render_requirement_row",
-    "requirement_callout",
-]
