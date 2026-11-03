@@ -6,9 +6,9 @@ and for each non-no_match spec:
   - Removes the ``- missing_story_reference`` line from ``lint_suppress:``
   - If ``lint_suppress:`` only had that one item, removes the whole block
 
-Text-manipulation approach: items are sliced by the shared
-``vultron.metadata.specs.yaml_items.iter_blocks``. No YAML load/dump
-round-trip — preserves all formatting.
+Text-manipulation approach: items are sliced, and their suppressions and
+stories edited, by the shared ``vultron.metadata.specs.yaml_items`` helpers.
+No YAML load/dump round-trip — preserves all formatting.
 
 Usage:
     uv run python scripts/apply_story_mappings.py mappings.json [--dry-run]
@@ -19,16 +19,16 @@ import re
 import sys
 from pathlib import Path
 
-from vultron.metadata.specs.yaml_items import iter_blocks
+from vultron.metadata.specs.yaml_items import (
+    SpecItem,
+    append_list_field,
+    iter_blocks,
+    remove_lint_suppression,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Matches lint_suppress: line
-_LINT_SUPPRESS_RE = re.compile(r"^(\s+)lint_suppress:\s*$")
-# Matches "- missing_story_reference"
-_MSR_ITEM_RE = re.compile(r"^\s+-\s+missing_story_reference\s*$")
-# Matches any list item under lint_suppress
-_LIST_ITEM_RE = re.compile(r"^\s+-\s+\S")
+_SUPPRESSION = "missing_story_reference"
 
 
 def _build_story_map(spec_mappings: list[dict]) -> dict[str, list[str]]:
@@ -40,78 +40,27 @@ def _build_story_map(spec_mappings: list[dict]) -> dict[str, list[str]]:
     return story_map
 
 
-def _collect_suppress_items(
-    item_lines: list[str], j: int
-) -> tuple[list[str], int]:
-    """Collect the lint_suppress list items starting at item_lines[j].
-
-    Returns (suppress_items, next_index).
-    """
-    suppress_items: list[str] = []
-    while j < len(item_lines) and _LIST_ITEM_RE.match(item_lines[j]):
-        suppress_items.append(item_lines[j])
-        j += 1
-    return suppress_items, j
-
-
-def _rewrite_suppress_block(
-    header: str,
-    suppress_items: list[str],
-    field_indent: str,
-    story_ids: list[str],
-) -> list[str] | None:
-    """Replace missing_story_reference in a lint_suppress block with stories.
-
-    Returns the replacement lines, or None if the block has no
-    missing_story_reference item.
-    """
-    if not any(_MSR_ITEM_RE.match(si) for si in suppress_items):
-        return None
-
-    remaining = [si for si in suppress_items if not _MSR_ITEM_RE.match(si)]
-
-    # Insert stories: block (before lint_suppress, or in its place)
-    new_lines = [f"{field_indent}stories:\n"]
-    for story in story_ids:
-        new_lines.append(f"{field_indent}- {story}\n")
-
-    # Keep the remaining lint_suppress items if any
-    if remaining:
-        new_lines.append(header)  # lint_suppress: header
-        new_lines.extend(remaining)
-    return new_lines
-
-
 def _rewrite_item(
-    item_lines: list[str], field_indent: str, story_ids: list[str]
+    item: SpecItem, story_ids: list[str]
 ) -> tuple[list[str], bool]:
-    """Rewrite every lint_suppress block in one spec item.
+    """Swap one item's missing_story_reference suppression for a stories list.
+
+    The edit goes through the shared ``yaml_items`` helpers, which keep each
+    justification comment with its entry and raise ``ValueError`` on a block
+    they cannot parse rather than corrupt it. An item without the
+    suppression is returned unchanged.
 
     Returns (new_item_lines, modified).
     """
-    new_item: list[str] = []
-    j = 0
-    modified = False
-    while j < len(item_lines):
-        il = item_lines[j]
-        j += 1
-        if not _LINT_SUPPRESS_RE.match(il):
-            new_item.append(il)
-            continue
-
-        suppress_items, j = _collect_suppress_items(item_lines, j)
-        replacement = _rewrite_suppress_block(
-            il, suppress_items, field_indent, story_ids
-        )
-        if replacement is None:
-            # Put back unchanged
-            new_item.append(il)
-            new_item.extend(suppress_items)
-            continue
-
-        new_item.extend(replacement)
-        modified = True
-    return new_item, modified
+    lines, removed = remove_lint_suppression(item, _SUPPRESSION)
+    if not removed:
+        return list(item.lines), False
+    return (
+        append_list_field(
+            SpecItem(item.spec_id, item.indent, lines), "stories", story_ids
+        ),
+        True,
+    )
 
 
 def apply_file_mappings(
@@ -139,7 +88,6 @@ def apply_file_mappings(
             result.append(block)
             continue
 
-        field_indent = block.field_indent
         item_lines = block.lines
 
         # Check if this spec needs story mapping
@@ -154,7 +102,7 @@ def apply_file_mappings(
             skipped += 1
             continue
 
-        new_item, modified = _rewrite_item(item_lines, field_indent, story_ids)
+        new_item, modified = _rewrite_item(block, story_ids)
         if modified:
             result.extend(new_item)
             applied += 1

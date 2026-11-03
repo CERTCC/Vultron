@@ -29,6 +29,21 @@ themselves (ARCH-01-001).
 
 import uuid
 
+from vultron.core.models._helpers import URN_UUID_PREFIX
+
+
+def derived_object_id(*parts: str) -> str:
+    """Return a stable ``urn:uuid`` id derived from *parts*: the one derivation.
+
+    The id is a version-5 UUID of *parts* in the URL namespace, so the same
+    parts always name the same object.  Parts are joined with a separator no
+    IRI can contain, so distinct part lists never collide; a single part is
+    used as is.  A fresh id comes from
+    :func:`vultron.core.models._helpers.new_object_id` instead.
+    """
+    name = "\x1f".join(parts)
+    return f"{URN_UUID_PREFIX}{uuid.uuid5(uuid.NAMESPACE_URL, name)}"
+
 
 def derived_activity_id(*parts: str) -> str:
     """Return a stable ``urn:uuid`` id derived from *parts*.
@@ -40,4 +55,4 @@ def derived_activity_id(*parts: str) -> str:
     never collide; callers put a kind label first so two kinds
     of response to one activity do not share an id.
     """
-    return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, '\x1f'.join(parts))}"
+    return derived_object_id(*parts)

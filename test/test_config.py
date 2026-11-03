@@ -155,6 +155,7 @@ def test_get_config_is_injectable_with_depends():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("OID-01-003")
 def test_env_override_base_url(monkeypatch):
     monkeypatch.setenv("VULTRON_SERVER__BASE_URL", "http://myserver:8080")
     reload_config()
