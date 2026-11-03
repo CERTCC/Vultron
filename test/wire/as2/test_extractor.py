@@ -13,7 +13,7 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.dimensions import (
     VfDimension,
 )
-from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events import AnyReceivedEvent, MessageSemantics
 from vultron.semantic_registry import (
     SEMANTIC_REGISTRY,
     find_matching_semantics,
@@ -1077,7 +1077,7 @@ def test_extract_intent_attributes_both_actor_spellings_to_one_actor():
     canonical = "https://example.org/alice"
     case_id = "https://example.org/cases/1"
 
-    def _event_from(actor: str) -> Any:
+    def _event_from(actor: str) -> AnyReceivedEvent:
         note = as_Note(
             content="Note body", attributed_to=actor, context=case_id
         )

@@ -1,4 +1,4 @@
-## 15. IANA and Namespace Considerations [I]
+## 15. IANA and Namespace Considerations [N/I]
 
 **Vultron vocabulary namespace.** The Vultron ActivityStreams 2.0 (AS2) vocabulary namespace is
 `https://certcc.github.io/Vultron/ns`. This is the initial, provisional Uniform Resource Identifier (URI),

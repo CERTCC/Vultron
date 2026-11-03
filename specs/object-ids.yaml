@@ -209,10 +209,8 @@ groups:
       activities whose `actor` differs only by a trailing slash and asserts both
       events name the same sender.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: OID-01-001
-    - rel_type: depends_on
-      spec_id: OID-01-006
     adr:
     - ADR-0164
     stories:

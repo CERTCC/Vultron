@@ -89,7 +89,7 @@ How a case ledger entry records the objects of the activity it records is specif
 
 !!! note "Provisional namespace URI"
     The namespace is currently hosted on GitHub Pages.
-    A permanent URI may be registered in a future version ([§15 IANA and Namespace Considerations](considerations.md#15-iana-and-namespace-considerations-i)).
+    A permanent URI may be registered in a future version ([§15 IANA and Namespace Considerations](considerations.md#15-iana-and-namespace-considerations-ni)).
 
 ### 5.3 Transport [N/I]
 
