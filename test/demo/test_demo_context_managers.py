@@ -31,13 +31,8 @@ from vultron.demo.utils import (
 )
 from vultron.errors import DemoFailureError
 
-
-@pytest.fixture(autouse=True)
-def clear_failures():
-    """Reset the failure accumulator before and after each test."""
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 
 class TestDemoStep:

@@ -22,7 +22,7 @@ copy of the code: the named prefix
 tell afterwards (DEMOMA-10, DEMOMA-11, DEMOMA-17-001).
 
 The tests here own what the pair shares; each scenario's own module owns its
-own fragments, ``test_vendor_story.py`` owns the vendor-first opening this
+own fragments, ``test/demo/vendor_story/`` owns the vendor-first opening this
 prefix only names, and ``test_owner_decision_story.py`` owns the two
 ``owner-keep-case`` continuations this module only names the parts of.  Every
 test patches the collaborators out, so no HTTP happens; ``demo_gate`` /
@@ -47,7 +47,6 @@ from test.demo._helpers import (
     story_state,
 )
 from vultron.demo.helpers import (
-    coordinated_story,
     vendor_coordinator_story as pair,
 )
 from vultron.demo.helpers.coordinated_story import (
@@ -55,6 +54,8 @@ from vultron.demo.helpers.coordinated_story import (
     COORDINATOR_LABEL,
     REPORTER,
     REPORTER_LABEL,
+    cast as coordinated_cast,
+    joining as coordinated_joining,
 )
 from vultron.demo.helpers.owner_decision_story import Part
 from vultron.demo.helpers.story import Choose, UnseatedContainer
@@ -68,9 +69,11 @@ from vultron.demo.helpers.vendor_story import (
     VENDOR2_LABEL,
     VENDOR_LABEL,
 )
-from vultron.demo.utils import reset_demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: The pair's four cast names, in ``ROLES`` order.
 _CAST = (REPORTER, VENDOR, COORDINATOR, VENDOR2)
@@ -88,19 +91,6 @@ _BRANCH = Choose(
     choice="invite-coordinator",
     by=VENDOR,
 )
-
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, and a gate skips
-    its own body once anything is recorded, so a leftover failure changes what
-    the next test observes (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 def _failures(prefix: str) -> list[str]:
@@ -206,7 +196,7 @@ def _seeding_stubs(
     ``pair``'s own ``demo_step`` is left **real**: the tests here are about
     what a failed seeding leaves seated, and patching the step out would make
     its failure propagate instead of being recorded.  The read-back is looked
-    up on ``coordinated_story``, where ``seat_character_actors`` lives.
+    up on ``coordinated_story.cast``, where ``seat_character_actors`` lives.
     """
     with (
         patch.object(
@@ -216,7 +206,7 @@ def _seeding_stubs(
             side_effect=seed_error,
         ) as seed,
         patch.object(
-            coordinated_story,
+            coordinated_cast,
             "get_actor_by_id",
             side_effect=(
                 list(lookups) if lookups is not None else list(seeded[2:])
@@ -467,7 +457,7 @@ class TestTheJoinAsTheSharedHelperRunsIt:
     One pass with the chain stubbed rather than the whole helper, because the
     combination is what this pair relies on: ``triages=False`` moves the
     roster into the chain's own gate, and ``joined=`` makes that gate keep
-    the prop (``test_coordinated_story.py`` owns the helper itself).
+    the prop (``test/demo/coordinated_story/`` owns the helper itself).
     """
 
     def _invite(self, state, *, run_then: bool = False, roster=None):
@@ -479,26 +469,23 @@ class TestTheJoinAsTheSharedHelperRunsIt:
         a failing roster records its failure and keeps no prop.
         """
         with (
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
             patch.object(
-                coordinated_story, "run_invite_path_rm_triage"
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch.object(
+                coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "wait_for_case_participants",
                 side_effect=roster,
             ) as roster_wait,
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "demo_check",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-            patch.object(
-                coordinated_story,
-                "demo_step",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):

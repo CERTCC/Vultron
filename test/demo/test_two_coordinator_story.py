@@ -20,7 +20,7 @@ rcv family's ``REPORTER_TELLS_THE_COORDINATOR``, plus every continuation both
 scenarios tell afterwards (DEMOMA-13-012, DEMOMA-14-017, DEMOMA-17-001).
 
 The tests here own what the pair shares; each scenario's own module owns its
-own fragments, and ``test_coordinated_story.py`` owns the rcv family's
+own fragments, and ``test/demo/coordinated_story/`` owns the rcv family's
 opening, which this prefix only names.  Every test patches the collaborators
 out, so no HTTP happens; ``demo_gate`` / ``demo_check`` / ``demo_step`` stay
 real wherever the test is about control flow and are stubbed to
@@ -63,6 +63,8 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER,
     REPORTER_TELLS_THE_COORDINATOR,
     VENDOR,
+    cast as coordinated_cast,
+    joining as coordinated_joining,
 )
 from vultron.demo.helpers.notes import (
     WORKAROUND_ANSWER,
@@ -71,28 +73,17 @@ from vultron.demo.helpers.notes import (
 )
 from vultron.demo.helpers.owner_decision_story import Part
 from vultron.demo.helpers.story import Choose, UnseatedContainer
-from vultron.demo.utils import reset_demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: The pair's four cast names, in ``ROLES`` order.
 _CAST = (REPORTER, pair.C1, pair.C2, VENDOR)
 
 #: How many items of :data:`C1_INVITES_C2` are the rcv family's own opening.
 _RCV_PREFIX_LEN = len(REPORTER_TELLS_THE_COORDINATOR.items)
-
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, so a fragment
-    that records a failure would otherwise leave it for the next test to read
-    as its own (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 @contextlib.contextmanager
@@ -261,7 +252,7 @@ class TestC2IsSeededAfterTheBranchPoint:
                 pair, "seed_containers_rccv", return_value=seeded
             ) as seed,
             patch.object(
-                coordinated_story,
+                coordinated_cast,
                 "get_actor_by_id",
                 side_effect=[seeded[2]],
             ) as lookup,
@@ -292,7 +283,7 @@ class TestC2IsSeededAfterTheBranchPoint:
 
         with (
             patch.object(pair, "seed_containers_rccv"),
-            patch.object(coordinated_story, "get_actor_by_id"),
+            patch.object(coordinated_cast, "get_actor_by_id"),
             _no_banners(),
             pytest.raises(DemoStoryError, match="no container waiting"),
         ):
@@ -316,26 +307,23 @@ class TestC1InvitesC2:
         a failing roster records its failure and keeps no prop.
         """
         with (
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
             patch.object(
-                coordinated_story, "run_invite_path_rm_triage"
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch.object(
+                coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "wait_for_case_participants",
                 side_effect=roster,
             ) as roster_wait,
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "demo_check",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-            patch.object(
-                coordinated_story,
-                "demo_step",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):

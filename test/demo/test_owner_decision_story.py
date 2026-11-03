@@ -46,15 +46,21 @@ from vultron.demo.helpers import (
     invite_chain,
     owner_decision_story as ods,
 )
-from vultron.demo.helpers.coordinated_story import REPORTER, REPORTER_LABEL
+from vultron.demo.helpers.coordinated_story import (
+    REPORTER,
+    REPORTER_LABEL,
+    joining as coordinated_joining,
+)
 from vultron.demo.helpers.owner_decision_story import (
     HANDED_OVER_CASE,
     Part,
 )
 from vultron.demo.helpers.story import StoryProp
-from vultron.demo.utils import reset_demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: A neutral cast, named for the part each plays rather than for either pair's
 #: actors: the two-coordinator pair runs these continuations with C1, C2 and a
@@ -73,19 +79,6 @@ _CAST = (REPORTER, OWNER.name, JOINER.name, NEWCOMER.name)
 
 #: The roster both continuations gate their newcomer's triage on.
 _SEATED = (REPORTER, OWNER.name, JOINER.name, NEWCOMER.name)
-
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, and a gate skips
-    its own body once anything is recorded, so a leftover failure changes what
-    the next test observes (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 @contextlib.contextmanager
@@ -241,7 +234,7 @@ class TestTheOwnerApprovesASuggestedActor:
             )
             mocks["replica_wait"] = stack.enter_context(
                 patch_chain_shared(
-                    coordinated_story, "wait_for_case_on_container"
+                    coordinated_joining, "wait_for_case_on_container"
                 )
             )
             ods.the_owner_approves_a_suggested_actor(
@@ -354,17 +347,17 @@ class TestTheOwnerApprovesASuggestedActor:
             )
             stack.enter_context(
                 patch.object(
-                    coordinated_story,
+                    coordinated_joining,
                     "run_invite_path_rm_triage",
                     side_effect=lambda **_kw: order.append("triage"),
                 )
             )
             stack.enter_context(
-                patch.object(coordinated_story, "wait_for_case_participants")
+                patch.object(coordinated_joining, "wait_for_case_participants")
             )
             stack.enter_context(
                 patch_chain_shared(
-                    coordinated_story,
+                    coordinated_joining,
                     "wait_for_case_on_container",
                     side_effect=_wait_for_case,
                 )
@@ -436,7 +429,7 @@ class TestTheOwnerApprovesASuggestedActor:
             ) as find_invite,
             patch.object(ods, "invitee_triages_after_joining"),
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
         ):
             ods.the_owner_approves_a_suggested_actor(
@@ -824,7 +817,7 @@ class TestTheNewOwnerInvites:
             }
             mocks["replica_wait"] = stack.enter_context(
                 patch_chain_shared(
-                    coordinated_story, "wait_for_case_on_container"
+                    coordinated_joining, "wait_for_case_on_container"
                 )
             )
             ods.the_new_owner_invites(
