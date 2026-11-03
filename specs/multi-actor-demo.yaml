@@ -2269,7 +2269,7 @@ groups:
       (DEMOCI-11-018). Naming it here keeps this group a whole story: a reader
       sees where RCV's own telling begins without reading the sibling's group.
     verification: >-
-      `test/demo_unit/test_story.py::test_the_two_composed_scenarios_share_one_opening`
+      `test/demo_unit/test_story.py::test_both_scenarios_share_one_opening`
       asserts that `rcv`'s story begins with the items of
       `COORDINATOR_INVITES_VENDOR`, and `TestSharedPrefixes` in
       `test/demo_unit/test_recordings.py` compares the `rcv` and `rcv-reject`
@@ -5610,7 +5610,7 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      Every `run_<name>_demo()` orchestrator MUST run its phase body inside the
+      Every `run_<name>_demo()` orchestrator MUST run its story inside the
       shared `scenario_harness("<demo-name>")` context manager from
       `vultron.demo.helpers.harness`. That harness resets the failure accumulator,
       always dumps the case ledgers, and only then asserts demo success.
@@ -5690,9 +5690,8 @@ groups:
       The harness can only dump what it has been given. Registering the dump at
       the first point where a case exists is what makes every later failure
       survivable: the ledgers that existed at the moment of failure are still
-      exported. A scenario written as phases calls `harness.dump_with(...)`
-      itself; one written as composition calls `state.open_case(...)`, which
-      arms the `dump=` fragment it was built with (DEMOCI-11-019).
+      exported. Every scenario calls `state.open_case(...)`, which arms the
+      `dump=` fragment it was built with (DEMOCI-11-019).
     relationships:
     - rel_type: implements
       spec_id: DEMOCI-10-001
@@ -7169,7 +7168,7 @@ groups:
       (DEMOCI-11-018). Naming it here keeps this group a whole story: a reader
       sees where the rejection path begins without reading RCV's group.
     verification: >-
-      `test/demo_unit/test_story.py::test_the_two_composed_scenarios_share_one_opening`
+      `test/demo_unit/test_story.py::test_both_scenarios_share_one_opening`
       asserts that `rcv-reject`'s story begins with the items of
       `COORDINATOR_INVITES_VENDOR`, and `TestSharedPrefixes` in
       `test/demo_unit/test_recordings.py` compares the `rcv` and `rcv-reject`
