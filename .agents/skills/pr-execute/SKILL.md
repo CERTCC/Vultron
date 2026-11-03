@@ -377,8 +377,14 @@ Run the linters first, as their own command, and stop on a non-zero
 `lint exit:` — a lint failure must not be masked by the test-set step's status:
 
 ```bash
-uv run ruff check && uv run ruff format --check && uv run mypy && uv run pyright; rc=$?; echo "lint exit: $rc"; (exit $rc)
+G=.agents/skills/shared/run-if-changed.sh
+uv run ruff check && uv run ruff format --check \
+  && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy \
+  && "$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run pyright; rc=$?; echo "lint exit: $rc"; (exit $rc)
 ```
+
+mypy and pyright run through `run-if-changed.sh`, so the mirror below reuses
+their pass instead of type-checking the tree a second time.
 
 Then derive the set. `<scope>` is `--base origin/<base_ref>` for the
 branch-diff set, or `--paths <conflicted files>` after a conflict merge alone:
@@ -443,6 +449,45 @@ push failing code.
 
 After tests pass, run the xfail ratchet per [REFERENCE.md](REFERENCE.md)
 § "xfail Ratchet".
+
+**Merged-tree tests, when the base overlaps** (PAD-18-024). If this
+iteration's Step 2 verdict was `no-merge` with `merge_reason` `deferred`, the
+base changed files this PR also changes. CI will test the two merged, and a
+fix that passes on the branch alone can fail there. Test the merge first,
+without merging the base into the branch (PAD-18-004 is unchanged):
+
+```bash
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
+timeout -k 30 1800 uv run merged-tree-tests --base <base_ref> > "$logs-merged-tree.txt" 2>&1; rc=$?; cat "$logs-merged-tree.txt"; echo "exit: $rc"; (exit $rc)
+```
+
+The command merges `origin/<base_ref>` into a scratch worktree and runs there
+the tests `targeted-tests --paths` selects for the files both sides changed,
+each counted as wholly changed, as after a conflict merge. It never selects
+for the whole branch diff, which would escalate to the full suite (ADR-0173).
+It removes the worktree with `git worktree remove`, even when `timeout` stops
+it (exit `143`). It never runs `prune`, and the PR branch does not move
+(PAD-18-025). Exit `0`:
+the merge passes, or nothing overlaps now. Exit `1`: a test fails on the
+merged tree. It is a branch-owned failure under the same Test Failure Rules:
+fix it on the branch, commit, and rerun. Exit `3`: the base no longer merges
+cleanly, so return to Step 2, whose checks now call for the merge. Exit `2`
+is a setup error, never a pass. A run adds one to `suite_runs.targeted`.
+
+**The CI mirror, before every push** (PAD-18-021). Run it last, on the
+committed tree, with the PR number so the checks that read the PR run too:
+
+```bash
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
+timeout -k 30 1800 uv run prepush-ci-mirror --base <base_ref> --pr <number> > "$logs-mirror.txt" 2>&1; rc=$?; cat "$logs-mirror.txt"; echo "exit: $rc"; (exit $rc)
+```
+
+Act on the `exit:` line exactly as `create-pr` Phase 3c describes. A `FAIL`
+is fixed, committed and rerun. An `UNAVAILABLE` check is run another way,
+then passed with `--skip <id>` and the way recorded in the summary comment.
+Exit `2` is never a pass. The mirror is not a suite run and is not counted in
+`Suite runs:`. A fix made for the mirror is a fix commit: rerun this step's
+gate from the top before pushing it.
 
 #### Step 4 — Push
 

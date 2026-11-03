@@ -43,16 +43,28 @@ groups:
     kind: architecture
     verification_debt: '#2569'
     statement: >-
-      The LedgerFanout phase MUST implement one-way replication from the actor holding the
-      CASE_MANAGER role to all Participant Actors via `Announce(CaseLedgerEntry)` messages.
-      A participant replica MUST be treated as synchronized when and only when its log tail
-      hash matches the CASE_MANAGER's authoritative tail hash.
+      The LedgerFanout phase MUST replicate the case ledger one way, from the actor
+      holding the CASE_MANAGER role to each active participant (CM-10-004), through
+      `Announce(CaseLedgerEntry)` messages.
     rationale: >-
       Participants need their own copy of the case ledger to know the case state.
       One-way replication from the CASE_MANAGER keeps one source of truth, so replicas
-      cannot disagree about which entry is canonical. The tail hash covers the whole
-      chain, so equal tail hashes prove equal ledgers. A count or an index alone cannot
-      prove this.
+      cannot disagree about which entry is canonical. Only an active participant gets
+      the entries, because an inert or closed participant is held back from new case
+      content (CM-10-004, SYNC-02-003).
+  - id: SYNC-00-009
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: >-
+      An implementation MUST treat a participant's replica as synchronized when, and
+      only when, its log tail hash matches the CASE_MANAGER's authoritative tail hash.
+    rationale: >-
+      The tail hash covers the whole chain, so equal tail hashes prove equal ledgers.
+      A count or an index alone cannot prove this.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-00-002
   - id: SYNC-00-003
     priority: MUST
     kind: architecture
@@ -83,10 +95,10 @@ groups:
     priority: SHOULD
     kind: architecture
     statement: >-
-      The PeerLedgerSync phase SHOULD enable multi-peer synchronisation between actors
-      with equal standing. Where LedgerFanout assumes one actor holds CASE_MANAGER
-      authority, PeerLedgerSync SHOULD allow two or more actors to reconcile their
-      ledgers with each other to support federated and ownership-transfer scenarios.
+      The PeerLedgerSync phase SHOULD let two or more actors with equal standing
+      reconcile their ledgers with each other, for federated and ownership-transfer
+      scenarios. LedgerFanout instead assumes that one actor holds CASE_MANAGER
+      authority.
     rationale: >-
       A case can move to a new owner, and a federated deployment can have more than one
       actor with authority. Fan-out from one CASE_MANAGER cannot reconcile two ledgers
@@ -98,19 +110,17 @@ groups:
   - id: SYNC-01-001
     priority: MUST
     kind: protocol
-    statement: The canonical recorded case ledger MUST be append-only; log entries MUST be immutable once appended
+    statement: The canonical recorded case ledger MUST be append-only.
     rationale: >-
-      The ledger is the record of what happened in the case. If an entry can change or
-      go away, the hash chain breaks, replicas disagree, and nobody can audit the case
-      history. Append-only entries let every replica apply the same history and reach
-      the same case state.
+      The ledger is the record of what happened in the case. If an entry can go away
+      or move to a new place, the hash chain breaks, replicas disagree, and nobody can
+      audit the case history. An append-only ledger lets every replica apply the same
+      history and reach the same case state. Each entry's own immutability is
+      SYNC-08-001.
     verification: >-
-      Unit tests confirm that appended log entries are immutable and that any
-      modification attempt is rejected.
-    relationships:
-    - rel_type: refines
-      spec_id: SYNC-00-005
-      note: Restates the immutability of SYNC-00-005 for the canonical case ledger
+      `TestCaseLedgerAppendOnly` in `test/core/models/test_case_ledger.py` asserts that
+      the ledger hands out its entries only as a tuple a caller cannot change, and that
+      a later append does not change an earlier read.
     stories:
     - story_2022_074
   - id: SYNC-01-002
@@ -132,16 +142,37 @@ groups:
   - id: SYNC-01-003
     priority: MUST
     kind: protocol
-    statement: Each log entry MUST include a cryptographic hash of its own content and MUST reference the hash of its immediate
-      predecessor, forming a forward-linked hash chain (Merkle chain style)
+    statement: Each log entry MUST include a cryptographic hash of its own content.
     rationale: >-
       The content hash lets a receiver check that an entry's content matches the hash
-      the entry states. The link to the predecessor's hash fixes the entry's place in
-      the chain. A receiver can then detect an entry whose content does not match its
-      hash and an entry in the wrong place.
+      the entry states. A receiver can then detect an entry whose content does not
+      match its hash (SYNC-03-006).
     verification: >-
-      Unit tests confirm that each log entry's entry_hash and prev_log_hash fields are
-      correctly populated and form a valid forward-linked hash chain.
+      `TestCaseLedgerEntry` in `test/core/models/test_case_ledger.py` asserts that an
+      entry computes its `entry_hash` from its content
+      (`test_entry_hash_auto_computed`) and that a changed field no longer matches it
+      (`test_entry_hash_tamper_detection`).
+    stories:
+    - story_2022_045
+    - story_2022_089
+  - id: SYNC-01-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Each log entry MUST reference the hash of its immediate predecessor, so the
+      entries form a forward-linked hash chain (Merkle chain style).
+    rationale: >-
+      The link to the predecessor's hash fixes the entry's place in the chain. A
+      receiver can then detect an entry in the wrong place (SYNC-03-001).
+    verification: >-
+      `test_commit_tree_uses_existing_tail_hash` in
+      `test/core/behaviors/sync/test_commit_tree.py` asserts a new entry's
+      `prev_log_hash` is the current tail's hash, and
+      `test_second_entry_prev_hash_equals_first_entry_hash` in
+      `test/core/models/test_case_ledger.py` asserts the same for the ledger model.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-01-003
     stories:
     - story_2022_045
     - story_2022_089
@@ -255,7 +286,7 @@ groups:
     kind: project
     statement: >-
       This codebase MUST embed the full inline `CaseLedgerEntry` in the `object` of each
-      `Announce(CaseLedgerEntry)` and MUST NOT use a URI-only reference there.
+      `Announce(CaseLedgerEntry)`, never a URI-only reference.
     rationale: >-
       An inline entry lets the recipient check the hash chain without a request back to
       the sender. This codebase never fetches a ledger entry that a message names by
@@ -310,8 +341,9 @@ groups:
   - id: SYNC-03-003
     priority: MUST_NOT
     kind: protocol
-    statement: 'Replication MUST be idempotent: repeated delivery of the same log entry MUST NOT produce duplicate entries
-      in the receiver''s log'
+    statement: >-
+      A receiver MUST NOT add a duplicate entry to its log when the same log entry is
+      delivered again, so that replication is idempotent.
     rationale: >-
       The outbox retries and replays send entries again, so a receiver often gets one
       entry more than once. A duplicate in the log would break the gapless index and
@@ -331,18 +363,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST act on `Reject(CaseLedgerEntry)` only when the sender is an
-      active participant in the case (CM-10-004). From any other sender it MUST refuse
-      the message, record no replication state for the sender, and replay no entry and
-      no case to it.
+      The CASE_MANAGER MUST refuse a `Reject(CaseLedgerEntry)` whose sender is not an
+      active participant in the case (CM-10-004).
     rationale: >-
       A rejection that states no ledger position, or the position of an empty chain,
       makes the CASE_MANAGER replay the whole ledger and send the case. Without this
       check, any sender could get embargoed case content just by asking. The replay
       cooldown limits how often a replay occurs, not who gets it.
     verification: >-
-      A test marked `SYNC-03-005`
-      sends the Reject from a non-participant and asserts `REFUSED` with an empty outbox.
+      A test marked `SYNC-03-005` sends the Reject from a non-participant and asserts
+      `REFUSED` with an empty outbox.
     stories:
     - story_2022_035
     - story_2022_045
@@ -353,21 +383,43 @@ groups:
       spec_id: SYNC-03-002
     adr:
     - ADR-0115
+  - id: SYNC-03-011
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER refuses a `Reject(CaseLedgerEntry)` under SYNC-03-005, it
+      MUST NOT record replication state for the sender or replay any entry or case to
+      it.
+    rationale: >-
+      A refusal that still replayed the ledger or the case would hand the sender the
+      content the sender check withholds. Recording its position would let a later
+      answer send that content too.
+    verification: >-
+      `test_ledger_reject_from_non_participant_is_refused` in
+      `test/core/use_cases/received/test_sender_entitlement.py` asserts `REFUSED` with
+      an empty outbox, and `test_reject_from_stranger_halts_before_any_write` in
+      `test/core/behaviors/sync/test_reject_tree.py` asserts no replication state is
+      written.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-03-005
+    adr:
+    - ADR-0115
+    stories:
+    - story_2022_035
+    - story_2022_045
   - id: SYNC-03-006
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver MUST recompute the hash of a received `CaseLedgerEntry` from its
-      content and compare it with the entry's stated `entryHash` before buffering,
-      applying or storing the entry. An entry that states no hash, or whose content does
-      not reproduce it, MUST be refused, and MUST NOT be buffered, applied or stored.
+      Before a receiver buffers, applies or stores a received `CaseLedgerEntry`, it MUST
+      recompute the entry's hash from its content. It compares that hash with the
+      entry's stated `entryHash`.
     rationale: >-
       The predecessor check (SYNC-03-001) proves only that an entry claims the right
-      place in the chain. It does not prove that the content matches the entry's hash. A
-      refused entry gets no `Reject(CaseLedgerEntry)`, because a replay would send the
-      same entry again. The receiver's tail does not move, so the next entry does not
-      extend it and causes a Reject in the usual way. The receiver reports the refusal
-      with a processing fault instead (SYNC-03-007).
+      place in the chain. It does not prove that the content matches the entry's hash.
+      Checking before the entry is buffered, applied or stored keeps broken content out
+      of every place the replica reads from.
     verification: >-
       Tests marked `SYNC-03-006` deliver an entry whose content no longer matches its
       hash and assert it is not stored and not buffered.
@@ -379,15 +431,39 @@ groups:
       spec_id: SYNC-01-003
     - rel_type: refines
       spec_id: SYNC-08-001
+  - id: SYNC-03-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST refuse, and never buffer, apply or store, a `CaseLedgerEntry` that
+      states no hash or whose content does not reproduce it.
+    rationale: >-
+      An entry whose content does not match its hash is not the entry the CASE_MANAGER
+      committed. A refused entry gets no `Reject(CaseLedgerEntry)`, because a replay
+      would send the same entry again. The receiver's tail does not move, so the next
+      entry does not extend it and causes a Reject in the usual way. The receiver
+      reports the refusal with a processing fault instead (SYNC-03-007).
+    verification: >-
+      `test_replica_refuses_entry_whose_hash_does_not_match_content` and
+      `test_replica_does_not_buffer_forward_gap_entry_with_bad_hash` in
+      `test/core/behaviors/sync/test_announce_tree.py` assert a tampered entry is
+      neither stored nor buffered, and `test_entry_stating_no_hash_is_not_intact` in
+      `test/core/models/test_case_ledger.py` asserts an entry stating no hash fails the
+      check.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-03-006
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-03-007
     priority: MUST
     kind: protocol
     statement: >-
-      A participant that refuses a `CaseLedgerEntry` under SYNC-03-006 MUST send
+      A participant that refuses a `CaseLedgerEntry` under SYNC-03-012 MUST send
       `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` to
       the case's CASE_MANAGER, naming the refused `Announce(CaseLedgerEntry)` by
-      reference. The fault's id MUST be derived from the refused `Announce` and the
-      failure class.
+      reference.
     rationale: >-
       The entry was received but could not be processed, which ASK-07-001 and MSM-05-001
       answer with a processing fault. Without it only the replica's log shows the
@@ -397,7 +473,7 @@ groups:
       fault, it is replication signalling and is never ledgered (SYNC-16-002).
     relationships:
     - rel_type: refines
-      spec_id: SYNC-03-006
+      spec_id: SYNC-03-012
     - rel_type: refines
       spec_id: ASK-07-001
     verification: >-
@@ -407,14 +483,32 @@ groups:
     stories:
     - story_2022_045
     - story_2022_088
-  - id: SYNC-03-008
+  - id: SYNC-03-013
     priority: MUST
     kind: protocol
     statement: >-
-      When the CASE_MANAGER receives the SYNC-03-007 fault from an active participant of
-      the case (CM-10-004), it MUST NOT send anything, re-seed the peer or record
-      replication state because of the fault. From any other sender it MUST refuse the
-      fault.
+      A participant MUST derive the id of the SYNC-03-007 fault from the refused
+      `Announce(CaseLedgerEntry)` and the failure class.
+    rationale: >-
+      The CASE_MANAGER's replay delivers the same refused entry again. A derived id
+      makes each repeat name the same fault, so the outbox and the CASE_MANAGER see one
+      fault, not one per delivery (ID-04-004).
+    verification: >-
+      `test_a_redelivered_tampered_entry_builds_no_second_fault` in
+      `test/core/behaviors/sync/test_hash_mismatch_fault.py` delivers the same refused
+      `Announce` twice and asserts one fault is built.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-03-007
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-03-008
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT send anything, re-seed the peer or record replication
+      state because of a SYNC-03-007 fault from an active participant (CM-10-004).
     rationale: >-
       A hash mismatch comes from deterministic content: a fault in rendering or parsing
       the wire form, or a broken stored entry the send-side check (SYNC-03-009) did not
@@ -428,10 +522,27 @@ groups:
       spec_id: SYNC-16-002
     verification: >-
       `test/core/behaviors/sync/test_hash_mismatch_fault.py::test_hash_mismatch_fault_from_an_active_participant_changes_nothing`
-      asserts `SKIPPED`, an empty outbox, unchanged replication state and no new
-      ledger entry for a fault from an active participant of a seeded case.
-      `::test_hash_mismatch_fault_from_a_non_participant_is_refused` asserts `REFUSED`
-      and the same for one from a sender that is not a participant of that case.
+      asserts `SKIPPED`, an empty outbox, unchanged replication state and no new ledger
+      entry for a fault from an active participant of a seeded case.
+    stories:
+    - story_2022_045
+  - id: SYNC-03-014
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST refuse the SYNC-03-007 fault from a sender that is not an
+      active participant of the case (CM-10-004).
+    rationale: >-
+      Only a participant the CASE_MANAGER replicates to can have been sent the refused
+      entry. A fault from any other sender reports nothing the CASE_MANAGER sent, and
+      refusing it gives such a sender no effect on the case.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-03-008
+    verification: >-
+      `test/core/behaviors/sync/test_hash_mismatch_fault.py::test_hash_mismatch_fault_from_a_non_participant_is_refused`
+      asserts `REFUSED`, an empty outbox, unchanged replication state and no new ledger
+      entry for a fault from a sender that is not a participant of the case.
     stories:
     - story_2022_045
   - id: SYNC-03-010
@@ -439,48 +550,94 @@ groups:
     kind: project
     statement: >-
       When this codebase's CASE_MANAGER receives the SYNC-03-007 fault from an active
-      participant of the case (CM-10-004), it MUST log the fault at ERROR, MUST
-      recompute the hash of its own stored copy of the named entry as SYNC-03-006 does,
-      and MUST log whether that copy is intact, or that it holds no copy of the named
-      entry.
+      participant of the case (CM-10-004), it MUST log the fault at ERROR.
     rationale: >-
-      The fault's purpose is to make the problem visible where the ledger is kept, and
-      the self-check says which side is broken (SYNC-03-008).
+      The fault's purpose is to make the problem visible where the ledger is kept.
     verification: >-
       `test/core/behaviors/sync/test_hash_mismatch_fault.py::test_hash_mismatch_fault_from_an_active_participant_is_logged_at_error`
-      asserts one ERROR record naming the case, the `Announce`, the entry, the sender
-      and the self-check result (intact, not intact, or no stored copy) for a fault
-      from an active participant of a seeded case.
+      asserts one ERROR record naming the case, the `Announce`, the entry and the sender
+      for a fault from an active participant of a seeded case.
     relationships:
     - rel_type: implements
       spec_id: SYNC-03-008
+  - id: SYNC-03-015
+    priority: MUST
+    kind: project
+    statement: >-
+      When this codebase's CASE_MANAGER logs the fault under SYNC-03-010, it MUST
+      recompute the hash of its own stored copy of the named entry. It recomputes it as
+      SYNC-03-006 does.
+    rationale: >-
+      The self-check says which side is broken (SYNC-03-008): the CASE_MANAGER's stored
+      entry, or the wire form between the two actors.
+    verification: >-
+      `test/core/behaviors/sync/test_hash_mismatch_fault.py::test_hash_mismatch_fault_from_an_active_participant_is_logged_at_error`
+      asserts the ERROR record carries the self-check result for an intact copy, a copy
+      that is not intact and no stored copy.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-03-010
+  - id: SYNC-03-016
+    priority: MUST
+    kind: project
+    statement: >-
+      When this codebase's CASE_MANAGER logs the fault under SYNC-03-010, it MUST log
+      the result of the SYNC-03-015 self-check. The result says whether its copy is
+      intact, or that it holds no copy of the named entry.
+    rationale: >-
+      An operator reads the log to decide what to repair. The self-check result in the
+      log says whether the stored entry or the wire form is at fault.
+    verification: >-
+      `test/core/behaviors/sync/test_hash_mismatch_fault.py::test_hash_mismatch_fault_from_an_active_participant_is_logged_at_error`
+      asserts one ERROR record naming the self-check result (intact, not intact, or no
+      stored copy).
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-03-010
   - id: SYNC-03-009
     priority: MUST
     kind: protocol
     statement: >-
       Before the CASE_MANAGER sends a `CaseLedgerEntry` in `Announce(CaseLedgerEntry)`,
-      whether by fan-out, replay or backfill, it MUST recompute the entry's hash from its
-      content as SYNC-03-006 does. An entry that states no hash, or whose content does
-      not reproduce it, MUST NOT be sent and MUST be logged at ERROR with the case, the
-      entry, its `log_index` and the recipients, and the CASE_MANAGER MUST NOT send any
-      later entry of the same send. This takes precedence over SYNC-03-002, SYNC-17-004
-      and CM-10-006, which otherwise oblige it to send every entry in a range.
+      it MUST recompute the entry's hash from its content, as SYNC-03-006 does. This
+      holds for fan-out, replay and backfill alike.
     rationale: >-
       A broken entry in the CASE_MANAGER's own store is found where it starts, not after
-      a replica refuses it (SYNC-03-006) and reports it (SYNC-03-007), and broken content
-      never leaves the CASE_MANAGER. Holding the entry back stalls the replica at it, as
-      sending it would. The replica's `Reject` loop stays bounded without the replay
-      cooldown: a replay that starts at the broken entry, as the replica's stalled
-      `Reject` makes it, sends nothing, so it records no position (SYNC-15-011), and
-      the replica sends one `Reject` per later fan-out, with nothing replayed to amplify
-      it. A later entry is not sent because the replica could
-      only hold it as a forward gap (SYNC-14-001). The receiver's check stays, because a
-      fault in rendering or parsing the wire form still shows up first at the receiver.
+      a replica refuses it (SYNC-03-012) and reports it (SYNC-03-007). The receiver's
+      check stays, because a fault in rendering or parsing the wire form still shows up
+      first at the receiver.
     relationships:
     - rel_type: refines
       spec_id: SYNC-03-006
     - rel_type: refines
       spec_id: SYNC-08-001
+    verification: >-
+      `test/core/behaviors/sync/nodes/test_send_side_hash_check_sites.py` runs a broken
+      entry through each send path and asserts that the sending node returns `FAILURE`,
+      except the fan-out's held-back catch-up of a paused peer, which skips that peer
+      and returns `SUCCESS` (BT-14-003), and
+      `test/architecture/test_send_announce_log_entry_has_one_caller.py` asserts no
+      other code in `vultron/core/` calls `send_announce_log_entry`.
+    stories:
+    - story_2022_045
+  - id: SYNC-03-017
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT send an entry that states no hash, or whose content does
+      not reproduce it, under SYNC-03-009. This takes precedence over SYNC-03-002,
+      SYNC-17-004 and CM-10-006, which otherwise oblige it to send every entry in a
+      range.
+    rationale: >-
+      Broken content never leaves the CASE_MANAGER. Holding the entry back stalls the
+      replica at it, as sending it would. The replica's `Reject` loop stays bounded
+      without the replay cooldown: a replay that starts at the broken entry, as the
+      replica's stalled `Reject` makes it, sends nothing, so it records no position
+      (SYNC-15-011). The replica then sends one `Reject` per later fan-out, with
+      nothing replayed to amplify it.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-03-009
     - rel_type: constrains
       spec_id: SYNC-03-002
     - rel_type: constrains
@@ -488,16 +645,56 @@ groups:
     - rel_type: constrains
       spec_id: CM-10-006
     verification: >-
-      `test/core/behaviors/sync/test_send_side_hash_check.py` gives a send a ledger with
-      an entry whose content does not reproduce its hash, and one with an entry that
-      states no hash, and asserts that the entries before it are queued, that it and
-      every later entry are not, and that the hold-back is logged at ERROR.
-      `test/core/behaviors/sync/nodes/test_send_side_hash_check_sites.py` runs the same
-      cases through each send path and asserts that the sending node returns `FAILURE`,
-      except the fan-out's held-back catch-up of a paused peer, which skips that peer
-      and returns `SUCCESS` (BT-14-003), and
-      `test/architecture/test_send_announce_log_entry_has_one_caller.py` asserts no other
-      code in `vultron/core/` calls `send_announce_log_entry`.
+      `test_replay_stops_at_an_entry_that_does_not_verify` and
+      `test_the_verified_send_raises_and_queues_nothing` in
+      `test/core/behaviors/sync/test_send_side_hash_check.py` give a send an entry whose
+      content does not reproduce its hash, and one that states no hash, and assert that
+      entry is not queued.
+    stories:
+    - story_2022_045
+  - id: SYNC-03-018
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST log at ERROR each entry it holds back under SYNC-03-017,
+      with the case, the entry, its `log_index` and the recipients.
+    rationale: >-
+      A held-back entry stalls every replica the send was for. The ERROR record names
+      what to repair and who is waiting for it.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-03-017
+    verification: >-
+      `test_replay_stops_at_an_entry_that_does_not_verify` in
+      `test/core/behaviors/sync/test_send_side_hash_check.py` asserts the hold-back is
+      logged at ERROR naming the peer, and
+      `test_the_verified_send_raises_and_queues_nothing` asserts the error names the
+      case, the entry, its `log_index` and the recipients.
+    stories:
+    - story_2022_045
+  - id: SYNC-03-019
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER holds back an entry under SYNC-03-017, it MUST NOT send any
+      later entry of the same send. This takes precedence over SYNC-03-002, SYNC-17-004
+      and CM-10-006, which otherwise oblige it to send every entry in a range.
+    rationale: >-
+      The replica could only hold a later entry as a forward gap (SYNC-14-001), because
+      its chain stops at the held-back entry.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-03-017
+    - rel_type: constrains
+      spec_id: SYNC-03-002
+    - rel_type: constrains
+      spec_id: SYNC-17-004
+    - rel_type: constrains
+      spec_id: CM-10-006
+    verification: >-
+      `test_replay_stops_at_an_entry_that_does_not_verify` in
+      `test/core/behaviors/sync/test_send_side_hash_check.py` asserts that the entries
+      before the broken one are queued, and that it and every later entry are not.
     stories:
     - story_2022_045
 - id: SYNC-04
@@ -575,25 +772,40 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The per-recipient HTTP POST timeout MUST be a configurable parameter of the
-      delivery adapter with a documented default value. The default MUST be set high
-      enough to tolerate a recipient that is briefly busy under normal protocol load
-      (e.g. draining its own outbox); a value of 5 seconds or less is insufficient
-      under CI-representative multi-actor load.
+      The delivery adapter MUST expose the per-recipient HTTP POST timeout as a
+      configurable parameter with a documented default value.
+    rationale: >-
+      A configurable timeout lets each deployment fit its load (SYNC-05-002). Other
+      implementations can set this adapter limit differently, so it is `project`
+      (ADR-0134).
+    verification: >-
+      Inspection of the delivery adapter confirms that the per-recipient HTTP POST
+      timeout is exposed as a configurable parameter with a documented default value.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-05-002
+    adr:
+    - ADR-0066
+    stories:
+    - story_2022_088
+  - id: SYNC-05-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The default per-recipient HTTP POST timeout MUST tolerate a recipient that is
+      briefly busy under normal protocol load, such as one draining its own outbox. A
+      value of 5 seconds or less is too short under CI-representative multi-actor load.
     rationale: >-
       A busy recipient, for example one that sends its own outbox, can take several
       seconds to answer. A short timeout marks a working delivery as a failure, and the
       retries add more load to that recipient. A value of 5 seconds or less fails this
-      way under multi-actor load such as CI. A configurable timeout lets each
-      deployment fit its load (SYNC-05-002). Other implementations can set this adapter
-      limit differently, so it is `project` (ADR-0134).
+      way under multi-actor load such as CI.
     verification: >-
-      Inspection of the delivery adapter confirms that the per-recipient HTTP POST
-      timeout is exposed as a configurable parameter with a documented default value
-      greater than 5 seconds.
+      Inspection of the delivery adapter confirms that the documented default
+      per-recipient HTTP POST timeout is greater than 5 seconds.
     relationships:
-    - rel_type: refines
-      spec_id: SYNC-05-002
+    - rel_type: extends
+      spec_id: SYNC-05-004
     adr:
     - ADR-0066
     stories:
@@ -648,12 +860,24 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      A future multi-node CASE_MANAGER cluster (Phase 3) SHOULD provide high-availability write
-      authority via Raft consensus. This is a distinct replication tier from participant
-      replication: participant replication (LedgerFanout) is pull-based fan-out via
-      `Announce(CaseLedgerEntry)`, whereas the multi-node CASE_MANAGER cluster uses Raft
-      consensus to elect a single write authority among CASE_MANAGER nodes. The two tiers
-      operate independently and SHOULD NOT be conflated.
+      A future multi-node CASE_MANAGER cluster (Phase 3) SHOULD provide
+      high-availability write authority through Raft consensus, which elects a single
+      write authority among the CASE_MANAGER nodes.
+    rationale: >-
+      A CASE_MANAGER that runs on one node stops the case when that node fails. A Raft
+      cluster keeps one node able to commit while the others stand by, so the
+      single-writer rule (SYNC-01-004) still holds.
+    verification: >-
+      Inspection of design documentation confirms that the multi-node Phase 3 cluster
+      elects its write authority with Raft consensus.
+  - id: SYNC-06-005
+    priority: SHOULD_NOT
+    kind: project
+    statement: >-
+      An implementation SHOULD NOT conflate the CASE_MANAGER cluster of SYNC-06-004 with
+      participant replication (LedgerFanout). In LedgerFanout the CASE_MANAGER pushes
+      committed entries to participants in `Announce(CaseLedgerEntry)`. The two tiers
+      operate independently.
     rationale: >-
       Participant replication and a highly available CASE_MANAGER solve different
       problems. Participant replication sends committed entries to other actors. A Raft
@@ -664,6 +888,9 @@ groups:
       Inspection of design documentation confirms that the multi-node Phase 3 Raft
       cluster and participant LedgerFanout replication are described as two
       distinct tiers that must not be conflated.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-06-004
 - id: SYNC-09
   title: Commit Discipline
   specs:
@@ -671,18 +898,37 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An implementation MUST treat a log entry as committed only after it has been
-      durably written to the authoritative log and its content hash has been recorded;
-      an entry that has not met these conditions MUST NOT be applied to the case state
-      machine.
+      An implementation MUST treat a log entry as committed only once it is durably
+      written to the authoritative log with its content hash recorded.
+    rationale: >-
+      A durable entry with its hash recorded survives a crash and can be checked on
+      replay. An entry treated as committed before that could vanish while other
+      actors already rely on it.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a log entry counts as committed
+      only after it has been durably written with its content hash recorded in the
+      authoritative log.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-09-005
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An implementation MUST NOT apply a log entry to the case state machine before the
+      entry is committed under SYNC-09-001.
     rationale: >-
       If an actor applies an entry that is not yet durable, a crash can leave state
       changes with no entry that records them. The replica then holds state that its
       ledger cannot explain, and a replay cannot rebuild it.
     verification: >-
-      Integration tests in `test/demo/` confirm that log entries are not applied to
-      case state until after the entry has been durably written with its content hash
-      recorded in the authoritative log.
+      `test_no_effect_node_is_used_as_a_precondition_guard` and
+      `test_only_permitted_stages_write_ahead_of_the_commit` in
+      `test/architecture/test_receive_side_bt_commit_ordering.py` assert no received
+      tree applies a protocol effect to the case ahead of its ledger commit.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-09-001
     stories:
     - story_2022_045
     - story_2022_088
@@ -690,11 +936,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A node MUST commit the `CaseLedgerEntry` that records a Vultron message it
-      sends only after the message has been written to its own outbox, and MUST NOT
-      commit it before that write. `Announce(CaseLedgerEntry)` is the one message
-      sent after its commit: it delivers a committed entry, and is not an act the
-      ledger records.
+      A node MUST commit the `CaseLedgerEntry` that records a Vultron message it sends
+      only after it writes the message to its own outbox, never before. The one message
+      sent after its commit is `Announce(CaseLedgerEntry)`: it delivers a committed
+      entry, and is not an act the ledger records.
     rationale: >-
       A ledger entry records a complete act, and a send is complete when the message is
       in the sender's outbox, which owns delivery and retries. An entry committed
@@ -808,11 +1053,12 @@ groups:
     verification: >-
       `test/core/models/test_pending_assertion.py::TestRegistry` covers distinct
       per-actor stores, the configurable timeout applied on first creation, and
-      `_reset_stores` cleanup.
+      `reset_pending_assertion_stores` cleanup.
     statement: >-
       Unit tests MUST cover per-actor pending-assertion store isolation via
       the module-level registry: distinct store instances per actor, configurable
-      timeout applied on first creation, and _reset_stores cleanup.
+      timeout applied on first creation, and the
+      reset_pending_assertion_stores cleanup.
     rationale: >-
       Several actors can run in one process, for example in tests and in the demo. If
       two actors share one store, a pending assertion of one actor suppresses a send of
@@ -824,19 +1070,38 @@ groups:
   - id: SYNC-08-001
     priority: MUST
     kind: protocol
-    statement: 'Append-only integrity: log entries MUST be immutable once committed and MUST be uniquely identified by their
-      content hash'
+    statement: >-
+      Append-only integrity: a log entry MUST be immutable once committed.
     rationale: >-
-      Replays and the drain find an entry by its hash. If two different entries could
-      have the same hash, or an entry could change after commit, a replica could apply
-      the wrong entry and still pass the chain check.
+      An entry that changes after commit no longer matches its hash, so every later
+      entry in the chain breaks. A replica could also apply the changed entry and still
+      pass the chain check.
     verification: >-
-      Unit tests confirm that log entries are immutable once committed and that each
-      entry is uniquely identified by its content hash.
+      Unit tests confirm that log entries are immutable once committed.
     relationships:
     - rel_type: refines
       spec_id: SYNC-00-005
       note: Restates the immutability of SYNC-00-005 as a system invariant
+    stories:
+    - story_2022_045
+    - story_2022_089
+  - id: SYNC-08-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Content-hash identity: each log entry MUST be uniquely identified by its content
+      hash.
+    rationale: >-
+      Replays and the drain find an entry by its hash. If two different entries could
+      have the same hash, a replica could apply the wrong entry and still pass the
+      chain check.
+    verification: >-
+      `test_different_entries_have_different_hashes` and `test_all_entry_hashes_unique`
+      in `test/core/models/test_case_ledger.py` assert that different entries get
+      different hashes.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-08-001
     stories:
     - story_2022_045
     - story_2022_089
@@ -886,19 +1151,41 @@ groups:
   - id: SYNC-08-005
     priority: MUST
     kind: protocol
-    statement: 'Reject-on-divergence: entries that do not extend the current hash chain MUST be rejected and MUST trigger
-      resynchronization'
+    statement: >-
+      Reject-on-divergence: a receiver MUST reject an entry that does not extend its
+      current hash chain.
     rationale: >-
-      "Rejected" means "not applied and not persisted as the current tail"; it
-      does NOT require discarding the entry. A forward-gap entry (a valid entry
-      whose predecessor has not yet arrived) MAY be retained in the non-ledger
-      holding area of SYNC-14 pending its predecessor, and MUST still trigger
-      resynchronization (the Reject remains the backstop for genuinely lost
-      entries). See ADR-0037 (docs/adr/0037-buffer-out-of-order-ledger-entries.md).
+      "Rejected" means "not applied and not persisted as the current tail"; it does
+      not require discarding the entry. A forward-gap entry (a valid entry whose
+      predecessor has not yet arrived) may be held in the non-ledger holding area of
+      SYNC-14 until its predecessor arrives. See ADR-0037
+      (docs/adr/0037-buffer-out-of-order-ledger-entries.md).
     verification: >-
       Integration tests in `test/demo/` confirm that an entry whose predecessor hash
-      does not match the current chain tail is rejected and triggers
-      resynchronization.
+      does not match the current chain tail is rejected.
+    adr:
+    - ADR-0037
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-08-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST trigger resynchronization for each entry it rejects under
+      SYNC-08-005, a held forward-gap entry included.
+    rationale: >-
+      Holding an entry covers one that arrives out of order, not one that was lost.
+      The Reject that triggers resynchronization stays the backstop for entries that
+      never arrive (SYNC-14-002).
+    verification: >-
+      `test_hash_mismatch_sends_reject_and_does_not_store` in
+      `test/core/behaviors/sync/test_announce_tree.py` asserts that an entry that does
+      not extend the chain is not stored and that the receiver sends a
+      `Reject(CaseLedgerEntry)`.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-08-005
     adr:
     - ADR-0037
     stories:
@@ -968,9 +1255,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The catch-up gate MUST require a contiguous canonical log prefix from genesis through
-      the actor's currently acknowledged tip; any gap in that prefix MUST block
-      protocol-significant case actions
+      The catch-up gate MUST block protocol-significant case actions while the actor's
+      canonical log prefix, from genesis through its currently acknowledged tip, has
+      any gap.
     rationale: >-
       A gap means that a committed effect is missing from the replica's case state. An
       action based on that state can contradict the missing entry. The hash chain shows
@@ -1057,13 +1344,37 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      A pending assertion that exceeds its configured timeout window SHOULD be marked
-      timed-out and SHOULD no longer suppress future re-emits, allowing operator retry or
-      the catch-up gate to resubmit the assertion
+      This codebase SHOULD mark a pending assertion timed-out when it exceeds its
+      configured timeout window.
     rationale: >-
       An assertion can be lost in transit or refused, and then no matching entry comes
-      back. Without a timeout, the store would suppress every later send of it, and the
-      participant could never make the assertion again.
+      back. A timeout marks the point after which the participant stops waiting for it.
+    verification: >-
+      `test/core/models/test_pending_assertion.py::TestTimeout` covers the marking. All
+      three lookups apply the mark, and so does the write that stamps the next entry;
+      each judges the entry's age against an instant it is given rather than one it
+      reads, because a lookup that read the clock itself moved every later timestamp in
+      a demo recording (#5591, `notes/demo-scenario-tree.md`). The `expire_timed_out()`
+      sweep applies it too, covered by `TestExpireTimedOut`, and is the one caller that
+      reads an instant, for a caller holding none; nothing depends on it for the mark
+      to be applied.
+  - id: SYNC-11-006
+    priority: SHOULD_NOT
+    kind: project
+    statement: >-
+      A timed-out pending assertion (SYNC-11-005) SHOULD NOT suppress later re-emits, so
+      an operator retry or the catch-up gate can submit the assertion again.
+    rationale: >-
+      Without this, the store would suppress every later send of a lost assertion, and
+      the participant could never make the assertion again.
+    verification: >-
+      `test_a_lookup_stops_an_aged_out_entry_suppressing` and
+      `test_a_later_write_also_stops_an_aged_out_entry_suppressing` in
+      `test/core/models/test_pending_assertion.py::TestTimeout` cover the lifted
+      suppression.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-11-005
 - id: SYNC-12
   title: Effects-Before-Persist Invariant
   specs:
@@ -1071,9 +1382,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A participant MUST apply all domain effects derived from a CaseLedgerEntry (embargo
-      teardown, participant-status update, note attachment, invite-accept) BEFORE persisting
-      the entry to its local ledger; if any effect fails, the entry MUST NOT be persisted
+      A participant MUST apply all domain effects derived from a CaseLedgerEntry before
+      it persists the entry to its local ledger. The effects include embargo teardown,
+      participant-status update, note attachment and invite-accept.
     rationale: >-
       A stored entry is the replica's proof that the entry's effects were applied
       (SYNC-12-002). If the replica stored the entry first and an effect then failed,
@@ -1082,7 +1393,27 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that domain effects (embargo teardown,
       participant-status update, note attachment, invite-accept) are applied before a
-      CaseLedgerEntry is persisted and that a failed effect prevents persistence.
+      CaseLedgerEntry is persisted.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-12-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant MUST NOT persist a CaseLedgerEntry when any domain effect derived
+      from it fails.
+    rationale: >-
+      A stored entry tells every later delivery that its effects are done (SYNC-12-003).
+      An entry stored after a failed effect would keep that effect from ever running.
+    verification: >-
+      `TestEffectsFailureBlocksPersist` in
+      `test/core/behaviors/sync/test_announce_tree.py` asserts that a failed embargo,
+      participant-status, note or invite-accept effect keeps the entry from being
+      persisted.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-12-001
     stories:
     - story_2022_045
     - story_2022_088
@@ -1208,36 +1539,64 @@ groups:
     kind: project
     verification: >-
       `test/adapters/driving/fastapi/test_ingress_ledger_entry_routing.py::test_ingress_routes_ledger_entry_without_prestoring_entry`
-      confirms routing resolves an inbound `Announce(CaseLedgerEntry)` from the
-      in-memory entry without pre-storing it.
+      confirms routing resolves an inbound `Announce(CaseLedgerEntry)` without
+      pre-storing it.
     statement: >-
       Message ingress MUST NOT use the canonical ledger/DataLayer store as a scratch or
       lookup cache for routing, semantic classification, or rehydration of an inbound
-      Announce(CaseLedgerEntry). The inline CaseLedgerEntry parsed from the wire envelope
-      MUST be carried forward in-memory (or via a dedicated, non-ledger holding area)
-      so that semantic routing and effect application do not depend on pre-storing the entry.
+      Announce(CaseLedgerEntry).
     rationale: >-
       If ingress stores an inbound entry to classify or rehydrate it, the entry is in
       the DataLayer before its effects run. The already-stored check (SYNC-12-003) then
-      skips the effects on first delivery (SYNC-13-001). An in-memory entry lets
-      routing work without that write.
+      skips the effects on first delivery (SYNC-13-001).
+  - id: SYNC-13-008
+    priority: MUST
+    kind: project
+    statement: >-
+      Message ingress MUST carry the inline CaseLedgerEntry parsed from the wire
+      envelope forward in memory, or in a dedicated non-ledger holding area. Semantic
+      routing and effect application then do not depend on pre-storing the entry.
+    rationale: >-
+      Routing still needs the entry. An in-memory entry lets routing work without the
+      ledger write that SYNC-13-003 forbids.
+    verification: >-
+      `test/adapters/driving/fastapi/test_ingress_ledger_entry_routing.py::test_ingress_routes_ledger_entry_without_prestoring_entry`
+      confirms routing resolves an inbound `Announce(CaseLedgerEntry)` from the
+      in-memory entry.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-13-003
   - id: SYNC-13-004
     priority: MUST
     kind: protocol
     statement: >-
       A receiver MUST treat an inbound Announce(CaseLedgerEntry) as the announcement of
-      a ledger entry on first delivery, without needing any stored record of the entry;
-      whether the entry is already stored (SYNC-12-003) MUST be the only test that
-      distinguishes first delivery from repeat delivery.
+      a ledger entry on first delivery, without needing any stored record of the entry.
     rationale: >-
       On first delivery the receiver has no stored record of the entry, so routing
-      cannot depend on one. One test for repeat delivery keeps all implementations in
-      agreement about when effects run. A second test could disagree with it and skip
-      or repeat effects.
+      cannot depend on one.
     verification: >-
-      Integration tests in `test/demo/` confirm that an inbound Announce(CaseLedgerEntry)
-      is routed to ANNOUNCE_CASE_LEDGER_ENTRY on first delivery, without a DataLayer
-      lookup.
+      Integration tests in `test/demo/` confirm that an inbound
+      Announce(CaseLedgerEntry) is routed to ANNOUNCE_CASE_LEDGER_ENTRY on first
+      delivery, without a DataLayer lookup.
+    stories:
+    - story_2022_045
+  - id: SYNC-13-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST use only the already-stored check (SYNC-12-003) to tell the first
+      delivery of a ledger entry from a repeat delivery.
+    rationale: >-
+      One test for repeat delivery keeps all implementations in agreement about when
+      effects run. A second test could disagree with it and skip or repeat effects.
+    verification: >-
+      `test_already_stored_entry_is_skipped` in
+      `test/core/use_cases/received/test_sync.py` asserts that an entry already stored
+      is skipped on a repeat delivery.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-13-004
     stories:
     - story_2022_045
   - id: SYNC-13-007
@@ -1279,28 +1638,48 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a participant receives a valid Announce(CaseLedgerEntry) whose prev_log_hash does
-      not match its current chain tail but whose log_index is strictly greater than
-      tail_index + 1 (a forward gap), the participant MUST NOT permanently discard the entry;
-      it MUST retain the Announce(CaseLedgerEntry) that carried it, as the body that arrived
-      (VM-08-002), in a holding area pending arrival of its predecessor. It MUST NOT retain
-      the entry apart from that Announce.
+      A forward gap is a valid Announce(CaseLedgerEntry) whose prev_log_hash does not
+      match the participant's chain tail and whose log_index is greater than
+      tail_index + 1. A participant MUST keep the Announce that carried a forward-gap
+      entry, as the body that arrived (VM-08-002), in a holding area until its
+      predecessor arrives.
     rationale: >-
       The hash chain makes it safe to hold an entry for any length of time. The replica
       applies a held entry only after it commits an entry whose `entry_hash` equals the
       held entry's `prev_log_hash`, so a fork or a rewrite cannot act as the
-      predecessor. The replica holds the Announce and not the entry alone, so the drain
-      applies what the replica received. An entry held alone can only reach the inbox
-      again inside an Announce that the replica makes up, which names a sender that
-      never sent it.
+      predecessor. Discarding the entry for good would leave the replica to wait for a
+      replay that the next delivery may lose again.
     adr:
     - ADR-0037
     - ADR-0135
     verification: >-
       `test/core/use_cases/received/test_sync.py` asserts that a forward-gap
-      Announce(CaseLedgerEntry) is held as the body intake archived, with no ledger entry
-      stored; integration tests in `test/demo/` confirm a forward-gap entry is retained
-      rather than permanently discarded.
+      Announce(CaseLedgerEntry) is held as the body intake archived, with no ledger
+      entry stored; integration tests in `test/demo/` confirm a forward-gap entry is
+      retained rather than permanently discarded.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-14-010
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant MUST NOT hold a forward-gap entry apart from the
+      Announce(CaseLedgerEntry) that carried it.
+    rationale: >-
+      The replica holds the Announce and not the entry alone, so the drain applies what
+      the replica received. An entry held alone can only reach the inbox again inside
+      an Announce that the replica makes up, which names a sender that never sent it.
+    verification: >-
+      `test_forward_gap_holds_the_received_announce` in
+      `test/core/use_cases/received/test_sync.py` asserts that a forward-gap entry is
+      held as the Announce body intake archived, with no ledger entry stored.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-14-001
+    adr:
+    - ADR-0037
+    - ADR-0135
     stories:
     - story_2022_045
     - story_2022_088
@@ -1308,10 +1687,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A forward-gap entry whose Announce is held MUST still trigger resynchronization (SYNC-08-005)
-      — the participant MUST send Reject(CaseLedgerEntry) carrying its last accepted hash so
-      the CASE_MANAGER replays entries that are genuinely lost (never delivered) rather than
-      merely reordered.
+      A participant that holds a forward-gap entry's Announce MUST still send
+      `Reject(CaseLedgerEntry)` carrying its last accepted hash (SYNC-08-007). The
+      Reject makes the CASE_MANAGER replay entries that were lost, never delivered,
+      rather than merely reordered.
     rationale: >-
       Holding an entry covers an entry that arrives out of order. It does not cover an
       entry that was lost. The Reject tells the CASE_MANAGER where the replica's chain
@@ -1320,8 +1699,9 @@ groups:
     adr:
     - ADR-0037
     verification: >-
-      Integration tests in `test/demo/` confirm that holding a forward-gap entry causes a
-      Reject(CaseLedgerEntry) carrying the last accepted hash to be sent to the CASE_MANAGER.
+      Integration tests in `test/demo/` confirm that holding a forward-gap entry causes
+      a Reject(CaseLedgerEntry) carrying the last accepted hash to be sent to the
+      CASE_MANAGER.
     stories:
     - story_2022_045
     - story_2022_088
@@ -1329,9 +1709,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      After a participant commits a CaseLedgerEntry, it MUST drain the holding area: for each
-      newly committed tail, it MUST locate the held Announce (if any) whose entry's
-      prev_log_hash equals the new tail's entry_hash, apply that entry, and repeat, cascading
+      After a participant commits a CaseLedgerEntry, it MUST drain the holding area. For
+      each newly committed tail, it finds the held Announce, if any, whose entry's
+      prev_log_hash equals the tail's entry_hash. It applies that entry, and repeats
       until no held Announce extends the current tail.
     rationale: >-
       A held entry can apply only after its predecessor. Each commit can make one held
@@ -1341,8 +1721,9 @@ groups:
     adr:
     - ADR-0037
     verification: >-
-      Integration tests in `test/demo/` confirm that committing a CaseLedgerEntry triggers a
-      cascading drain of held entries whose prev_log_hash chains from the new tail.
+      Integration tests in `test/demo/` confirm that committing a CaseLedgerEntry
+      triggers a cascading drain of held entries whose prev_log_hash chains from the new
+      tail.
     stories:
     - story_2022_045
     - story_2022_088
@@ -1400,37 +1781,25 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When a held Announce(CaseLedgerEntry) becomes appliable, either because a
-      participant committed its entry's predecessor or because the participant
-      seeded the case (SYNC-15-005), the drain MUST replay that held Announce
-      through the receiving actor's own inbox processing as a delivery of its
-      own, through the inbox's sole entry point (IO-02-003) and under the
-      receiving actor, rather than running its tree inside the delivery that
-      made it appliable. The replay MUST be the Announce that was received,
-      parsed again from the body held for it, so it carries the first
-      delivery's received evidence (VM-08-002); the participant MUST NOT build
-      an Announce of its own, or attribute one to the CASE_MANAGER or to any
-      sender that did not send it. The replayed Announce's own tree replays the
-      next one, so the cascade (SYNC-14-003) needs no loop in the use case.
+      When a held Announce(CaseLedgerEntry) becomes appliable (SYNC-14-003,
+      SYNC-15-005), the drain MUST replay it as a delivery of its own. The replay runs
+      through the inbox's sole entry point (IO-02-003), under the receiving actor, never
+      inside the delivery that made it appliable. The replayed Announce's own tree
+      replays the next one, so the cascade needs no loop in the use case.
     rationale: >-
       One delivery runs one tree (CLP-10-005), so a drain that ran its successor inline
       would run several trees in one delivery. A drain inside the tree would run one
       tree inside another, and an internal error in the inner tree would then not be
       reported. A delivery of its own goes through the same path as in-order delivery
-      (SYNC-14-008, ADR-0135). The replay must be the Announce that arrived, because
-      intake archives what it receives as received evidence. A receiver that did not
-      receive an Announce cannot make one up.
+      (SYNC-14-008, ADR-0135).
     verification: >-
       `test/core/use_cases/received/test_sync.py` asserts that committing an
-      entry whose successor's Announce is held replays that Announce, by its
-      own id and with its own sender and received body, and runs no second
-      tree in the same `execute()`;
+      entry whose successor's Announce is held replays that Announce and runs no
+      second tree in the same `execute()`;
       `test/core/use_cases/received/actor/test_announce.py` asserts the same
       for an Announce held before the case was seeded; and
       `test/adapters/driving/fastapi/test_ledger_replay_pipeline.py` asserts an
-      out-of-order pair and a pre-genesis pair converge through the replay,
-      with an intake archive that holds each delivered body once, as it
-      arrived, and no record of an Announce nobody sent.
+      out-of-order pair and a pre-genesis pair converge through the replay.
     relationships:
     - rel_type: refines
       spec_id: SYNC-14-008
@@ -1442,53 +1811,153 @@ groups:
       spec_id: SYNC-14-001
     adr:
     - ADR-0135
+  - id: SYNC-14-015
+    priority: MUST
+    kind: project
+    statement: >-
+      The drain MUST replay the Announce(CaseLedgerEntry) that was received, parsed
+      again from the body held for it (VM-08-008). The replay then carries the first
+      delivery's received evidence.
+    rationale: >-
+      Intake archives what it receives as received evidence. A replay parsed from that
+      body is the Announce that arrived, with its own id and sender.
+    verification: >-
+      `test/core/use_cases/received/test_sync.py` asserts that the replay carries the
+      held Announce's own id, its own sender and its received body, and
+      `test/adapters/driving/fastapi/test_ledger_replay_pipeline.py` asserts an intake
+      archive that holds each delivered body once, as it arrived.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-14-009
+    adr:
+    - ADR-0135
+  - id: SYNC-14-016
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A participant MUST NOT replay an Announce(CaseLedgerEntry) it built itself, or one
+      it attributes to a sender that did not send it.
+    rationale: >-
+      A receiver that did not receive an Announce cannot make one up. A made-up
+      Announce would name a sender that never sent it, and its received evidence would
+      be false.
+    verification: >-
+      `test/adapters/driving/fastapi/test_ledger_replay_pipeline.py` asserts that the
+      replayed pairs leave no record of an Announce nobody sent.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-14-009
+    adr:
+    - ADR-0135
   - id: SYNC-14-005
     priority: MUST_NOT
     kind: project
     verification: >-
-      Inspection confirms the out-of-order holding area holds received Announces, apart
-      from the ledger, and that a held entry is persisted as a `CaseLedgerEntry` only when
-      its replayed Announce is applied.
+      Inspection confirms the out-of-order holding area holds received Announces apart
+      from the ledger.
     statement: >-
-      The out-of-order holding area MUST NOT be the canonical ledger: it MAY keep
-      the held Announce in the receiver's DataLayer only as records of its own
-      kind, never as a CaseLedgerEntry, and a held entry MUST NOT be persisted as
-      a CaseLedgerEntry until it is drained (i.e. until its predecessor is
-      present), so that presence of a CaseLedgerEntry in the DataLayer continues
-      to mean "committed and effects applied" (SYNC-13-001).
+      The out-of-order holding area MUST NOT be the canonical ledger.
     rationale: >-
       A stored `CaseLedgerEntry` means that the entry is committed and its effects are
-      applied (SYNC-13-001). A held entry has neither. If the holding area stored a
-      held entry as a ledger entry, the already-stored check would skip its effects
-      when it drains.
+      applied (SYNC-13-001). A held entry has neither, so the place that holds it must
+      be apart from the ledger.
     adr:
     - ADR-0037
+  - id: SYNC-14-011
+    priority: MAY
+    kind: project
+    statement: >-
+      The holding area MAY keep a held Announce in the receiver's DataLayer, but only as
+      records of its own kind, never as a CaseLedgerEntry.
+    rationale: >-
+      A held Announce has to survive a restart, so the DataLayer is a fit place for it.
+      A record of its own kind keeps it apart from the ledger entries that SYNC-13-001
+      reads.
+    verification: >-
+      Inspection confirms the holding area stores held Announces as records of their
+      own kind, apart from the ledger.
     relationships:
+    - rel_type: extends
+      spec_id: SYNC-14-005
+    adr:
+    - ADR-0037
+  - id: SYNC-14-012
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A participant MUST NOT persist a held entry as a CaseLedgerEntry until it is
+      drained, that is, until its predecessor is present. A stored CaseLedgerEntry then
+      still means "committed and effects applied" (SYNC-13-001).
+    rationale: >-
+      If the holding area stored a held entry as a ledger entry, the already-stored
+      check would skip its effects when it drains.
+    verification: >-
+      Inspection confirms a held entry is persisted as a `CaseLedgerEntry` only when its
+      replayed Announce is applied, and `test_forward_gap_holds_the_received_announce`
+      in `test/core/use_cases/received/test_sync.py` asserts no ledger entry is stored
+      for a held entry.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-14-005
     - rel_type: depends_on
       spec_id: SYNC-13-001
       note: >-
         Holding an entry as a CaseLedgerEntry would break the presence-means-committed
         invariant
+    adr:
+    - ADR-0037
   - id: SYNC-14-006
     priority: SHOULD
     kind: project
     statement: >-
-      The holding area SHOULD be bounded in size per case; when full it SHOULD evict the
-      held Announce whose entry is farthest ahead of the current gap (highest log_index),
-      body and all, and log a warning, or decline to hold the new one when its entry is
-      itself the farthest ahead. Eviction is recoverable because SYNC-14-002 already
-      sent a Reject, so eviction MUST NOT be relied upon to trigger recovery by itself.
+      This codebase SHOULD bound the holding area in size per case.
     rationale: >-
       A peer that sends many entries, or a long gap, could fill the receiver's store
-      without limit. The entry farthest ahead is the last one the drain needs, so
-      evicting it loses the least. Eviction is safe because the Reject (SYNC-14-002)
-      already asked for a replay, and the replay sends the entry again.
+      without limit.
     adr:
     - ADR-0037
+    verification: >-
+      `test/core/use_cases/received/test_sync.py` (`TestHeldAnnounceBound`) asserts that
+      the holding area stops growing at its bound.
+  - id: SYNC-14-013
+    priority: SHOULD
+    kind: project
+    statement: >-
+      When the holding area is full, it SHOULD drop the Announce whose entry is farthest
+      ahead of the current gap (highest log_index). When a held one is farthest ahead,
+      it evicts that one, body and all, and logs a warning. When the new entry is itself
+      the farthest ahead, it declines to hold the new one.
+    rationale: >-
+      The entry farthest ahead is the last one the drain needs, so dropping it loses the
+      least. Eviction is safe because the Reject (SYNC-14-002) already asked for a
+      replay, and the replay sends the entry again.
     verification: >-
       `test/core/use_cases/received/test_sync.py` (`TestHeldAnnounceBound`)
       asserts that a full holding area drops the farthest-ahead Announce with
       its body and a warning, and declines one farther still.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-14-006
+    adr:
+    - ADR-0037
+  - id: SYNC-14-014
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      This codebase MUST NOT rely on an eviction under SYNC-14-013 to trigger recovery
+      by itself.
+    rationale: >-
+      Eviction is recoverable only because SYNC-14-002 already sent a Reject. An
+      eviction that was expected to start recovery would strand the evicted entry when
+      no Reject went out.
+    verification: >-
+      Inspection of `_make_room` in `vultron/core/services/held_ledger_announces.py`
+      confirms that an eviction sends nothing and starts no recovery of its own.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-14-013
+    adr:
+    - ADR-0037
 - id: SYNC-15
   title: Genesis-Unavailable Buffer-and-Reject
   description: >-
@@ -1517,12 +1986,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a participant receives an Announce(CaseLedgerEntry) but cannot reconstruct
-      the per-case genesis hash because it does not yet hold the VulnerabilityCase
-      (CLP-08-005), the participant MUST tell the CASE_MANAGER by sending it a
-      Reject(CaseLedgerEntry) with last_accepted_hash="", so that the CASE_MANAGER replays
-      all entries from the beginning once the case is delivered, unless an earlier such
-      Reject for the same case lets it withhold one (SYNC-15-016).
+      A participant that receives an Announce(CaseLedgerEntry) before it holds the
+      VulnerabilityCase cannot reconstruct the per-case genesis hash (CLP-08-002). Such
+      a participant MUST tell the CASE_MANAGER by sending it a Reject(CaseLedgerEntry)
+      with last_accepted_hash="". The CASE_MANAGER then replays all entries from the
+      beginning once the case is delivered. The one exception is a Reject that an
+      earlier such Reject for the same case lets the participant withhold (SYNC-15-016).
     rationale: >-
       An empty `last_accepted_hash` means "I hold no entries; replay from genesis." The
       CASE_MANAGER's replay path (SYNC-03-002) replays every entry after the hash it
@@ -1540,8 +2009,8 @@ groups:
       withheld Reject and the request after the interval.
     relationships:
     - rel_type: depends_on
-      spec_id: CLP-08-005
-      note: The missing-case failure originates from the genesis-hash requirement in CLP-08-005
+      spec_id: CLP-08-002
+      note: The missing-case failure originates from the genesis-hash derivation in CLP-08-002
     - rel_type: depends_on
       spec_id: SYNC-08-005
       note: Reject-on-divergence applies equally to the genesis-unavailable case
@@ -1606,15 +2075,15 @@ groups:
       Genesis cannot be exempted outright, however, because a peer that cannot anchor
       its chain reports genesis on every Reject.
     relationships:
-    - rel_type: depends_on
-      spec_id: SYNC-08-005
+    - rel_type: constrains
+      spec_id: SYNC-08-007
       note: >-
-        Bounds the replay that the SYNC-08-005 resynchronization triggers; the
+        Bounds the replay that the SYNC-08-007 resynchronization triggers; the
         reject-on-divergence contract itself is unchanged
-    - rel_type: depends_on
+    - rel_type: constrains
       spec_id: SYNC-03-002
       note: The replay-from-hash path whose rate this rule limits
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: SYNC-15-001
       note: >-
         The genesis Reject that SYNC-15-001 mandates is the highest-volume source of
@@ -1687,22 +2156,20 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a participant receives a valid Announce(CaseLedgerEntry) but cannot
-      reconstruct the per-case genesis hash because it does not yet hold the
-      VulnerabilityCase (CLP-08-005), the participant MUST NOT rely solely on the
-      reject/replay round-trip; it MUST retain the Announce that carried the entry, as
-      received, in the same non-ledger holding area used for forward gaps (SYNC-14-001),
-      keyed by the entry's prev_log_hash, pending arrival of the case seed. Unlike a
-      forward gap (SYNC-14-001) this hold applies without a tail_index comparison — no
-      chain tail exists in the pre-genesis window — so every entry for the missing case
-      is held, including the genesis entry (log_index 0) whose prev_log_hash equals the
-      per-case genesis hash.
+      This rule covers a participant that receives a valid Announce(CaseLedgerEntry)
+      before it holds the VulnerabilityCase, so it cannot reconstruct the per-case
+      genesis hash (CLP-08-002). Such a participant MUST keep the Announce, as received,
+      in the forward-gap holding area (SYNC-14-001), keyed by the entry's prev_log_hash,
+      until the case seed arrives. Unlike a forward gap, this hold needs no tail_index
+      comparison, because no chain tail exists before genesis. Every entry for the
+      missing case is held, the genesis entry (log_index 0) included.
     rationale: >-
       The reject and replay recovery (SYNC-15-001) does not converge when deliveries
       arrive out of order, for the same reason that forward gaps are held (SYNC-14). The
       replay sends entries one by one over the same unordered transport, so each early
       entry is rejected again. This adds load, and each round can lose an entry. Holding
-      the entry lets it drain in order once the case is seeded.
+      the entry lets it drain in order once the case is seeded, so the participant does
+      not rely on the round-trip alone.
     adr:
     - ADR-0059
     verification: >-
@@ -1716,7 +2183,7 @@ groups:
         Reuses the same non-ledger holding area and prev_log_hash keying as the
         forward-gap hold
     - rel_type: depends_on
-      spec_id: SYNC-14-005
+      spec_id: SYNC-14-012
       note: A pre-genesis entry MUST NOT be persisted as a CaseLedgerEntry while held
     - rel_type: refines
       spec_id: SYNC-15-001
@@ -1730,13 +2197,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      After a participant seeds the VulnerabilityCase (via Create or Announce(VulnerabilityCase)),
-      which anchors the deterministic per-case genesis hash (CLP-08), it MUST drain the holding
-      area for that case: it MUST locate the held Announce (if any) whose entry's
-      prev_log_hash equals the per-case genesis hash, replay it (SYNC-14-009) so
-      its entry is applied-then-persisted via the same path as in-order delivery
-      (SYNC-14-004), and cascade in hash-chain order (SYNC-14-003) until no held
-      Announce extends the current tail.
+      After a participant seeds the VulnerabilityCase, through Create or
+      Announce(VulnerabilityCase), it MUST drain the holding area for that case. Seeding
+      anchors the deterministic per-case genesis hash (CLP-08). The participant finds
+      the held Announce, if any, whose entry's prev_log_hash equals that genesis hash,
+      and replays it (SYNC-14-009). The replay applies the entry and then persists it,
+      as in-order delivery does (SYNC-14-004). The drain cascades in hash-chain order
+      (SYNC-14-003) until no held Announce extends the current tail.
     rationale: >-
       A participant can compute the genesis hash from the case object alone: it comes
       from the case id, the creation time and the Case Owner's actor id (CLP-08-002).
@@ -1746,8 +2213,8 @@ groups:
     adr:
     - ADR-0059
     verification: >-
-      Integration tests in `test/demo/` confirm that seeding the VulnerabilityCase triggers a
-      cascading drain of pre-genesis held entries in hash-chain order via the
+      Integration tests in `test/demo/` confirm that seeding the VulnerabilityCase
+      triggers a cascading drain of pre-genesis held entries in hash-chain order via the
       apply-then-persist path.
     relationships:
     - rel_type: depends_on
@@ -1794,10 +2261,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Each consecutive non-empty replay the CASE_MANAGER sends to a peer from an unchanged
-      replication position MUST lengthen the cooldown before the next one (doubling it, up
-      to a fixed ceiling), and a replay from a different position MUST reset the cooldown
-      to its base value.
+      The CASE_MANAGER MUST lengthen the cooldown after each consecutive non-empty
+      replay it sends a peer from an unchanged replication position. It doubles the
+      cooldown each time, up to a fixed ceiling.
     rationale: >-
       A fixed cooldown ends the Reject and replay loop only when one round trip
       completes inside it. On a loaded host, or with a peer that can never anchor its
@@ -1813,10 +2279,29 @@ groups:
       note: The per-peer record carries the count of replays at its position
     verification: >-
       `test/core/behaviors/sync/nodes/test_replay_guard.py` (`TestNoProgressBackoff`)
-      confirms the cooldown doubles per replay, resets on progress and stays capped;
+      confirms the cooldown doubles per replay and stays capped;
       `test/demo/test_rvcv_handoff_demo.py` (`TestUnanchoredPeerRejectStormIsBounded`)
       confirms the loop to two unanchored peers settles under a clock that makes every
       round slower than the base cooldown.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-15-026
+    priority: MUST
+    kind: project
+    statement: >-
+      A replay the CASE_MANAGER sends to a peer from a different replication position
+      MUST reset the cooldown to its base value.
+    rationale: >-
+      A changed position means the peer made progress, so it is not stuck. Starting
+      again from the base cooldown keeps a peer that is catching up from waiting out a
+      backoff it earned while stuck.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-15-013
+    verification: >-
+      `test/core/behaviors/sync/nodes/test_replay_guard.py` (`TestNoProgressBackoff`)
+      confirms the cooldown resets on progress.
     stories:
     - story_2022_045
     - story_2022_088
@@ -2122,12 +2607,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a participant refuses a `CaseLedgerEntry` whose `prev_log_hash` matches its
-      chain tail because the entry's starting state does not match its case file, and its
-      case file is not already past the entry, it MUST send `Create(ProcessingFault)`
-      with failure class `LedgerEntryRefused/CaseDiverged` to the case's CASE_MANAGER,
-      naming the refused `Announce(CaseLedgerEntry)` by reference. It MUST keep holding
-      the refused entry as SYNC-14-001 holds a forward gap.
+      This rule covers a participant that refuses a `CaseLedgerEntry` whose
+      `prev_log_hash` matches its chain tail. It refuses the entry because the entry's
+      starting state does not match its case file. The rule applies only when the
+      participant's case file is not already past the entry. Such a participant MUST
+      send `Create(ProcessingFault)` with failure class
+      `LedgerEntryRefused/CaseDiverged` to the case's CASE_MANAGER, naming the refused
+      `Announce(CaseLedgerEntry)` by reference.
     rationale: >-
       The entry was received but could not be processed, which MSM-05-001 assigns to a
       processing fault. Without it the CASE_MANAGER sees only gap Rejects, and its
@@ -2143,8 +2629,30 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_embargo_consent_copy.py` drives a refused copy
       entry that extends the chain and asserts the replica queues the fault to the
-      CASE_MANAGER alone and keeps holding the entry;
+      CASE_MANAGER alone;
       `test/core/behaviors/sync/test_divergence_recovery.py` pins the failure class.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-16-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant that sends the SYNC-16-001 fault MUST keep holding the refused
+      entry, as SYNC-14-001 holds a forward gap.
+    rationale: >-
+      The re-seed that answers the fault (SYNC-16-003) lets the replica apply the held
+      entry once its case file is replaced. A dropped entry would need another replay
+      after the re-seed.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-001
+    adr:
+    - ADR-0142
+    verification: >-
+      `test_a_diverged_replica_tells_the_case_manager_and_no_one_else` in
+      `test/core/use_cases/received/test_embargo_consent_copy.py` asserts that the
+      refused entry stays held and is not stored.
     stories:
     - story_2022_045
     - story_2022_088
@@ -2179,16 +2687,11 @@ groups:
     statement: >-
       When the CASE_MANAGER receives the SYNC-16-001 fault from an active participant of
       the case (CM-10-004), it MUST send that participant `Announce(VulnerabilityCase)`
-      of its current case. From any other sender it MUST refuse the fault, send nothing
-      and record no replication state for the sender.
+      of its current case.
     rationale: >-
       The CASE_MANAGER's case is authoritative (PCR-03-001), and a copy carrying its
       ledger position (SYNC-16-005) lets the replica replace its case file and backfill
-      (SYNC-16-006, SYNC-16-007). The sender gate is the active-participant standing
-      (CM-10-004, CM-23-020), not the gap Reject's (SYNC-03-005): that one admits a
-      closed participant, but a copy of the current case would cross the closure
-      cutoff such a participant is held to (CM-23-004), so its diverged replica is not
-      repaired this way.
+      (SYNC-16-022, SYNC-16-007).
     relationships:
     - rel_type: depends_on
       spec_id: SYNC-16-005
@@ -2196,10 +2699,53 @@ groups:
     - ADR-0142
     verification: >-
       `test/core/use_cases/received/test_case_diverged_reseed.py` asserts the
-      CASE_MANAGER answers the fault from an active participant with the case, and
-      refuses it, with nothing recorded or sent, from a stranger and from a
-      participant that is not active; `test/demo/test_sync_ledger_replication.py`
-      shows a diverged replica converging across two isolated actor apps.
+      CASE_MANAGER answers the fault from an active participant with the case;
+      `test/demo/test_sync_ledger_replication.py` shows a diverged replica converging
+      across two isolated actor apps.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-16-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST refuse the SYNC-16-001 fault from a sender that is not an
+      active participant of the case (CM-10-004).
+    rationale: >-
+      The sender gate is the active-participant standing (CM-10-004, CM-23-020), not the
+      gap Reject's (SYNC-03-005): that one admits a closed participant, but a copy of
+      the current case would cross the closure cutoff such a participant is held to
+      (CM-23-004), so its diverged replica is not repaired this way.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-003
+    adr:
+    - ADR-0142
+    verification: >-
+      `test_a_fault_from_a_sender_not_active_is_refused` in
+      `test/core/use_cases/received/test_case_diverged_reseed.py` asserts the fault from
+      a stranger and from a participant that is not active is refused.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-16-011
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER refuses the SYNC-16-001 fault under SYNC-16-010, it MUST NOT
+      send anything or record replication state for the sender.
+    rationale: >-
+      A refusal that still sent the case, or recorded the sender's position, would give
+      the sender the case content the gate withholds.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-010
+    adr:
+    - ADR-0142
+    verification: >-
+      `test_a_fault_from_a_sender_not_active_is_refused` in
+      `test/core/use_cases/received/test_case_diverged_reseed.py` asserts that nothing
+      is recorded or sent for the refused fault.
     stories:
     - story_2022_045
     - story_2022_088
@@ -2208,9 +2754,8 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST bound the rate at which it re-seeds a peer under
-      SYNC-16-003. It MUST record, per peer, the time and ledger tail of the last
-      re-seed, and a fault received within the cooldown MUST NOT trigger another
-      re-seed; a fault after it MUST.
+      SYNC-16-003. A fault received within the cooldown triggers no new re-seed, and a
+      fault after it does.
     rationale: >-
       A diverged replica faults once per replayed entry it refuses. A rate limit stops a
       re-seed storm without stranding a peer whose re-seed was lost, which a permanent
@@ -2225,66 +2770,179 @@ groups:
       fault within the cooldown sends no case, and one after it does.
     stories:
     - story_2022_045
+  - id: SYNC-16-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST record, per peer, the time and the ledger tail of its last
+      re-seed under SYNC-16-003.
+    rationale: >-
+      The rate bound of SYNC-16-004 needs the time of the last re-seed to measure the
+      cooldown. The tail it sent lets a later fault be judged against the copy the peer
+      was given (SYNC-16-008).
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-004
+    adr:
+    - ADR-0142
+    verification: >-
+      `test_reseeds_are_rate_bounded_per_peer_not_suppressed` in
+      `test/core/use_cases/received/test_case_diverged_reseed.py` asserts that the
+      peer has a re-seed record after its first re-seed, and the SYNC-16-008 tests in
+      that file judge later faults against the tail it records.
+    stories:
+    - story_2022_045
   - id: SYNC-16-005
     priority: MUST
     kind: protocol
     statement: >-
       Each `VulnerabilityCase` MUST store its ledger position (`ledgerPosition`), the
-      position its case file is a projection of: the `log_index` and `entry_hash` of the
-      last entry applied to it, or, before any, index -1 and the per-case genesis hash.
-      Committing an entry, or storing one as a replica, MUST move the position to that
-      entry atomically with storing the entry, unless the position is already past it
-      or names it, which MUST leave the position unchanged. A ledger entry whose
-      `payloadSnapshot` carries the case MUST carry it at the position before that
-      entry. The position MUST travel with the case on its wire form, so a copy names
-      the position it reflects, and a received case that carries none MUST be refused.
+      position its case file is a projection of. The position is the `log_index` and
+      `entry_hash` of the last entry applied to the case or, before any, index -1 and
+      the per-case genesis hash.
     rationale: >-
       A case copy is the case as applying the ledger up to some entry leaves it
-      (ADR-0124); the position names that entry, so a receiver can tell a current
-      copy from a stale one. Stored on the case, it is right on a replica too, whose
-      case can be ahead of its own chain after it replaces its case with a copy.
-      Moving it with the entry it names keeps the two from disagreeing, and a
-      snapshot taken before the entry keeps any entry's hash from depending on
-      itself. Never moving it back keeps a case a copy put ahead of its chain at
-      the copy's position while the chain catches up (SYNC-16-007); a different entry at
-      the position's index is a conflict, not one it already reflects.
+      (ADR-0124); the position names that entry, so a receiver can tell a current copy
+      from a stale one. Stored on the case, it is right on a replica too, whose case can
+      be ahead of its own chain after it replaces its case with a copy.
     relationships:
     - rel_type: refines
       spec_id: PCR-02-001
     adr:
     - ADR-0142
     verification: >-
-      `test/core/behaviors/sync/test_case_ledger_position.py` asserts that a case
-      stored after a commit or a replica's store names that entry, that the store and
-      the move commit together, that a case-carrying snapshot names the position
-      before its entry, and that a stored or received case without the field is
-      refused; `test/core/behaviors/sync/test_divergence_recovery.py` asserts that
-      storing an entry behind the position leaves it; the rebuild check in
-      `test/demo/_helpers.py`, run after every exchange demo test such as
-      `test/demo/test_establish_embargo_demo.py`, asserts the CASE_MANAGER's and
+      `test/core/behaviors/sync/test_case_ledger_position.py` asserts that a new case
+      starts at its empty ledger and that a stored case without the field is refused;
+      the rebuild check in `test/demo/_helpers.py`, run after every exchange demo test
+      such as `test/demo/test_establish_embargo_demo.py`, asserts the CASE_MANAGER's and
       every replica's case names its chain tail after each demo.
+    stories:
+    - story_2022_088
+  - id: SYNC-16-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor that commits an entry, or stores one as a replica, MUST move the case's
+      ledger position to that entry atomically with storing it. The exception is an
+      entry the position is already past or already names (SYNC-16-016).
+    rationale: >-
+      Moving the position with the entry it names keeps the two from disagreeing. A
+      crash between the two writes would leave a case that names an entry its ledger
+      lacks, or a ledger past the case it explains.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-005
+    adr:
+    - ADR-0142
+    verification: >-
+      `test_storing_an_entry_moves_the_case_to_it`,
+      `test_the_entry_and_the_move_commit_together`,
+      `test_the_case_manager_commit_moves_its_case` and
+      `test_a_replica_store_moves_its_case` in
+      `test/core/behaviors/sync/test_case_ledger_position.py` assert that a case stored
+      after a commit or a replica's store names that entry, and that the store and the
+      move commit together.
+    stories:
+    - story_2022_088
+  - id: SYNC-16-016
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor MUST leave the case's ledger position unchanged when it stores an entry
+      that the position is already past or already names.
+    rationale: >-
+      Never moving the position back keeps a case that a copy put ahead of its chain at
+      the copy's position while the chain catches up (SYNC-16-007). A different entry at
+      the position's index is a conflict, not one the position already reflects.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-16-015
+    adr:
+    - ADR-0142
+    verification: >-
+      `test_storing_an_entry_behind_the_case_position_leaves_it` in
+      `test/core/behaviors/sync/test_divergence_recovery.py` asserts that storing an
+      entry behind the position leaves it.
+    stories:
+    - story_2022_088
+  - id: SYNC-16-017
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A ledger entry whose `payloadSnapshot` carries the case MUST carry the case at the
+      position before that entry.
+    rationale: >-
+      A snapshot taken before the entry keeps any entry's hash from depending on
+      itself.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-005
+    adr:
+    - ADR-0142
+    verification: >-
+      `test_the_genesis_entry_carries_the_case_before_it` in
+      `test/core/use_cases/triggers/case/test_create.py` asserts that a case-carrying
+      snapshot names the position before its entry, and
+      `test_the_snapshot_check_reads_a_case_in_either_slot` in
+      `test/core/behaviors/sync/test_case_ledger_position.py` checks either slot.
+    stories:
+    - story_2022_088
+  - id: SYNC-16-018
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The ledger position MUST travel with the case on its wire form, so a copy names
+      the position it reflects.
+    rationale: >-
+      A receiver can judge a copy only against the position the copy states
+      (SYNC-16-006). A copy that left its position behind could not be told from a
+      stale one.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-005
+    adr:
+    - ADR-0142
+    verification: >-
+      `test_the_position_travels_on_the_wire_form` in
+      `test/core/behaviors/sync/test_case_ledger_position.py` asserts the wire form of
+      a case carries its position.
+    stories:
+    - story_2022_088
+  - id: SYNC-16-019
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST refuse a received case that carries no ledger position.
+    rationale: >-
+      A case with no position cannot be compared with the receiver's own, so taking it
+      could move the receiver's case back to a stale copy.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-018
+    adr:
+    - ADR-0142
+    verification: >-
+      `test_a_received_case_without_a_position_is_refused` in
+      `test/core/behaviors/sync/test_case_ledger_position.py` and
+      `test_extract_refuses_a_case_object_naming_no_ledger_position` in
+      `test/wire/as2/test_extractor.py` assert a received case without the field is
+      refused.
     stories:
     - story_2022_088
   - id: SYNC-16-006
     priority: MUST
     kind: protocol
     statement: >-
-      A participant that receives `Announce(VulnerabilityCase)` from the case's
-      CASE_MANAGER for a case it already holds, a repeat of an earlier Announce
-      included, MUST compare the copy's ledger position (SYNC-16-005) with its own:
-      the later of its chain's tail and its case's stored position. If its own is
-      already past the copy's, it MUST leave its case file unchanged, as for a repeat
-      delivery. If it holds an entry at the position's index, or its case names one
-      there, whose hash differs, it MUST leave its case file unchanged and refuse the
-      copy. Otherwise it MUST replace its case file with the copy, taking the copy's
-      position.
+      This rule covers a participant that receives `Announce(VulnerabilityCase)` from
+      the case's CASE_MANAGER for a case it already holds, a repeat of an earlier
+      Announce included. Such a participant MUST compare the copy's ledger position
+      (SYNC-16-005) with its own. Its own position is the later of its chain's tail and
+      its case's stored position.
     rationale: >-
-      The transport is unordered and the outbox retries, so an old copy can arrive late;
-      replacing with it would drop the effects of the entries the replica already holds
-      past the copy. A different entry at the same index means the chains themselves
-      disagree, which no copy repairs. The case's stored position counts as well as
-      the chain, because after a replacement the case can be ahead of the chain, and
-      a copy older than the replacing one must not move it back.
+      The transport is unordered and the outbox retries, so an old copy can arrive late.
+      The case's stored position counts as well as the chain, because after a
+      replacement the case can be ahead of the chain, and a copy older than the
+      replacing one must not move it back.
     relationships:
     - rel_type: refines
       spec_id: PCR-02-004
@@ -2298,38 +2956,81 @@ groups:
       same Announce.
     stories:
     - story_2022_088
+  - id: SYNC-16-020
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a participant's own position (SYNC-16-006) is already past the copy's, it
+      MUST leave its case file unchanged, as for a repeat delivery.
+    rationale: >-
+      Replacing the case file with an older copy would drop the effects of the entries
+      the replica already holds past the copy.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-006
+    adr:
+    - ADR-0142
+    verification: >-
+      `test_a_copy_behind_the_replica_chain_is_skipped`,
+      `test_a_copy_the_chain_is_past_is_skipped` and
+      `test_a_copy_behind_the_last_replacement_is_stale` in
+      `test/core/behaviors/sync/test_divergence_recovery.py` assert a stale copy leaves
+      the case file unchanged.
+    stories:
+    - story_2022_088
+  - id: SYNC-16-021
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant MUST refuse the copy, leaving its case file unchanged, when it
+      holds, or its case names, another entry at the copy's index.
+    rationale: >-
+      A different entry at the same index means the chains themselves disagree, which
+      no copy repairs.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-006
+    adr:
+    - ADR-0142
+    verification: >-
+      `test_a_genesis_copy_naming_another_genesis_hash_is_refused` and
+      `test_a_copy_conflicting_with_the_last_replacement_is_refused` in
+      `test/core/behaviors/sync/test_divergence_recovery.py` assert a conflicting copy
+      is refused.
+    stories:
+    - story_2022_088
+  - id: SYNC-16-022
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When neither SYNC-16-020 nor SYNC-16-021 applies, the participant MUST replace its
+      case file with the copy, taking the copy's position.
+    rationale: >-
+      A copy at or past the participant's own position, with no conflicting entry, is
+      the CASE_MANAGER's current case. Replacing the case file with it repairs a
+      diverged replica (SYNC-16-003).
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-006
+    adr:
+    - ADR-0142
+    verification: >-
+      `test_a_copy_at_the_replicas_tail_replaces_its_case` and
+      `test_the_inbox_takes_the_position_of_a_copy_ahead` in
+      `test/core/behaviors/sync/test_divergence_recovery.py` assert a current copy
+      replaces the case file and gives it the copy's position.
+    stories:
+    - story_2022_088
   - id: SYNC-16-007
     priority: MUST
     kind: protocol
     statement: >-
-      After replacing its case file under SYNC-16-006 with a copy whose position is
-      ahead of its chain, a participant MUST send `Reject(CaseLedgerEntry)` carrying its
-      own tail. A participant whose case is at a position ahead of its chain, after
-      such a replacement or a first seed from a copy (PCR-02-003), MUST store each entry
-      it receives at or before that position, whether replayed or drained from its
-      holding area (SYNC-14-003), as an idempotent no-op, not refuse it, and MUST NOT
-      move the case's position back for it (SYNC-16-005). It MUST refuse, not store, an
-      entry at the position's index whose hash differs from the one the position
-      names, and log the conflict at ERROR. When its chain stores no
-      entry, the `Reject` MUST name no rejected entry, MUST state the empty chain's
-      `ledgerPosition` (index -1, SYNC-18-001) and MUST name the case as its `target`,
-      asking for a replay from genesis; a receiver MUST refuse a `Reject` that names no
-      entry and states no position, or a position other than the empty chain's, and the
-      CASE_MANAGER MUST answer the empty-chain form as it answers any replay from
-      genesis (SYNC-15-015).
+      A participant MUST send `Reject(CaseLedgerEntry)` carrying its own tail after it
+      replaces its case file under SYNC-16-006 with a copy ahead of its chain.
     rationale: >-
-      Those entries are already reflected in the copy. The refused entry the replica
-      held under SYNC-16-001 drains first, before any replay arrives, so a rule that
-      covered only replayed entries would refuse it again. Storing them advances the chain
-      to the copy's position, after which the entries that follow apply normally, so the
-      replica ends where seed-plus-replay leaves it (ADR-0114). A first seed is the same
-      case: the copy already reflects the entries the joining replica's backfill
-      brings. The entries before the position carry no hash the case names, so a
-      chain that diverged among them shows only at the position's index; refusing the
-      entry there keeps the chain from naming one entry and the case another. A replica
-      with no entry has none for the `Reject` to name; waiting for
-      the next fan-out would stall it on a quiet case, so it names the case instead and
-      asks for everything.
+      The copy is ahead of the chain, so the replica lacks the entries between them.
+      The Reject asks the CASE_MANAGER to replay them, so the replica ends where
+      seed-plus-replay leaves it (ADR-0114).
     relationships:
     - rel_type: depends_on
       spec_id: SYNC-16-006
@@ -2339,21 +3040,180 @@ groups:
     - ADR-0142
     - ADR-0156
     verification: >-
+      `test_a_copy_ahead_of_the_chain_asks_for_the_rest` in
       `test/core/behaviors/sync/test_divergence_recovery.py` replaces a short replica's
-      case and asserts its chain reaches the CASE_MANAGER's tail with matching case
-      files, that a replica with no entry sends the `Reject` that names none, that such
-      a `Reject` stating no position, or one past the empty chain, is refused at parse,
-      and that a first seed ahead of the
-      chain stores the backfilled entries as no-ops at the copy's position, and that an
-      entry at the position's index with another hash is refused at ERROR, unstored;
+      case and asserts it sends the Reject;
       `test/core/use_cases/received/test_case_copy_replacement.py` backfills a replaced
-      replica without moving its position back, and replays a replica with no entry
-      from genesis to the CASE_MANAGER's tail.
+      replica to the CASE_MANAGER's tail with matching case files.
     stories:
     - story_2022_045
     - story_2022_088
-    lint_suppress:
-    - compound_statement  # one empty-chain rule (ADR-0156)
+  - id: SYNC-16-023
+    priority: MUST
+    kind: protocol
+    statement: >-
+      This rule covers a participant whose case's position is ahead of its chain. Such a
+      participant MUST store each entry it receives at or before that position as an
+      idempotent no-op, never refusing it. This covers a case put ahead by a replacement
+      or by a first seed from a copy (PCR-02-003). It covers an entry replayed or
+      drained from the holding area (SYNC-14-003) alike.
+    rationale: >-
+      Those entries are already reflected in the copy. The refused entry the replica
+      held under SYNC-16-001 drains first, before any replay arrives, so a rule that
+      covered only replayed entries would refuse it again. Storing them advances the
+      chain to the copy's position, after which the entries that follow apply normally.
+      A first seed is the same case: the copy already reflects the entries the joining
+      replica's backfill brings.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-007
+    adr:
+    - ADR-0142
+    verification: >-
+      `test_a_first_seed_ahead_of_the_chain_stores_the_backfill_as_no_ops` in
+      `test/core/behaviors/sync/test_divergence_recovery.py` asserts a first seed ahead
+      of the chain stores the backfilled entries as no-ops at the copy's position.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-16-024
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant MUST NOT move the case's position back for an entry it stores under
+      SYNC-16-023 (SYNC-16-005).
+    rationale: >-
+      The case already reflects the copy's position. Moving it back for an older entry
+      would make the case name a position its case file is past.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-16-016
+    adr:
+    - ADR-0142
+    verification: >-
+      `test_storing_an_entry_behind_the_case_position_leaves_it` in
+      `test/core/behaviors/sync/test_divergence_recovery.py` asserts that storing an
+      entry behind the position leaves it, and
+      `test_a_short_replica_is_replaced_then_backfilled_to_the_tail` in
+      `test/core/use_cases/received/test_case_copy_replacement.py` backfills a replaced
+      replica without moving its position back.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-16-025
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant that SYNC-16-023 covers MUST refuse, not store, an entry at the
+      position's index whose hash differs from the one the position names.
+    rationale: >-
+      The entries before the position carry no hash the case names, so a chain that
+      diverged among them shows only at the position's index. Refusing the entry there
+      keeps the chain from naming one entry and the case another.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-023
+    adr:
+    - ADR-0142
+    verification: >-
+      `test_storing_another_entry_at_the_case_position_is_refused` in
+      `test/core/behaviors/sync/test_divergence_recovery.py` asserts that such an entry
+      is refused and not stored.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-16-026
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant MUST log at ERROR each conflicting entry it refuses under
+      SYNC-16-025.
+    rationale: >-
+      A conflict at the position's index means the replica's chain and its case
+      disagree, which no replay repairs. The ERROR record makes it visible to an
+      operator.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-025
+    adr:
+    - ADR-0142
+    verification: >-
+      `test_an_entry_conflicting_with_the_case_position_is_refused_at_error` in
+      `test/core/behaviors/sync/test_divergence_recovery.py` asserts the refusal is
+      logged at ERROR.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-16-027
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the participant's chain stores no entry, its `Reject` under SYNC-16-007 MUST
+      take the empty-chain form, asking for a replay from genesis. That form names no
+      rejected entry, states the empty chain's `ledgerPosition` (index -1, SYNC-18-001)
+      and names the case as its `target`.
+    rationale: >-
+      A replica with no entry has none for the `Reject` to name. Waiting for the next
+      fan-out would stall it on a quiet case, so it names the case instead and asks for
+      everything.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-007
+    adr:
+    - ADR-0142
+    - ADR-0156
+    verification: >-
+      `test_a_replica_with_no_entry_asks_for_a_replay_from_genesis` in
+      `test/core/behaviors/sync/test_divergence_recovery.py` asserts that a replica with
+      no entry sends the `Reject` that names none.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-16-028
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST refuse a `Reject(CaseLedgerEntry)` that names no entry and states
+      no position, or a position other than the empty chain's.
+    rationale: >-
+      Only the empty-chain form of SYNC-16-027 may leave out the rejected entry. Any
+      other Reject that names no entry gives no point to replay from.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-027
+    adr:
+    - ADR-0156
+    verification: >-
+      `test_a_reject_naming_no_entry_but_a_hash_is_refused_at_parse` in
+      `test/core/behaviors/sync/test_divergence_recovery.py` asserts such a `Reject`
+      stating no position, or one past the empty chain, is refused at parse, and
+      `test_a_reject_naming_neither_an_entry_nor_a_case_is_refused` in
+      `test/core/use_cases/received/test_case_copy_replacement.py` refuses one that
+      names neither an entry nor a case.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-16-029
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST answer the empty-chain `Reject` of SYNC-16-027 as it answers
+      any replay from genesis (SYNC-15-015).
+    rationale: >-
+      The replica holds no entry, so a replay from genesis brings it every entry, the
+      same answer a peer that lacks the case gets.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-16-027
+    adr:
+    - ADR-0156
+    verification: >-
+      `test_a_replica_with_no_entry_is_replayed_from_genesis` in
+      `test/core/use_cases/received/test_case_copy_replacement.py` replays a replica with
+      no entry from genesis to the CASE_MANAGER's tail.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-16-008
     priority: SHOULD
     kind: project
@@ -2437,10 +3297,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST act on a participant's stated ledger position in
-      `Read(CaseLedgerEntry)` (SYNC-17-001) only when the sender is an active
-      participant in the case (CM-10-004). From any other sender it MUST record no
-      replication state for the sender, send nothing in answer, and report `REFUSED`.
+      The CASE_MANAGER MUST refuse a `Read(CaseLedgerEntry)` position statement
+      (SYNC-17-001) from a sender that is not an active participant in the case
+      (CM-10-004). It reports `REFUSED`.
     rationale: >-
       An inert or closed participant's replica stops on purpose, so its stated position
       always lags, and answering it would send withheld case content (SYNC-03-005).
@@ -2460,8 +3319,27 @@ groups:
     verification: >-
       Tests marked `SYNC-17-002` send `Read(CaseLedgerEntry)` with a lagging position
       from a removed participant and from an unconsented participant, and assert
-      `REFUSED`, no replication state for the sender and no `Announce(CaseLedgerEntry)`
-      queued to it.
+      `REFUSED`.
+    stories:
+    - story_2022_045
+  - id: SYNC-17-009
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER refuses a stated position under SYNC-17-002, it MUST NOT
+      record replication state for the sender or send anything in answer.
+    rationale: >-
+      A recorded position would let a later answer send the withheld content, and any
+      answer now would send it at once.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-17-002
+    verification: >-
+      `test_removed_participant_with_lagging_position_is_refused`,
+      `test_unconsented_participant_with_lagging_position_is_refused` and
+      `test_closed_participant_with_lagging_position_is_refused` in
+      `test/core/behaviors/sync/test_position_statements.py` assert no replication
+      state for the sender and no `Announce(CaseLedgerEntry)` queued to it.
     stories:
     - story_2022_045
   - id: SYNC-17-003
@@ -2490,11 +3368,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the position the CASE_MANAGER acts on (SYNC-17-002) is behind its ledger
-      tail, it MUST send the sender every canonical entry after that position, in log
-      order, as `Announce(CaseLedgerEntry)`, under the same replay rate bound (SYNC-15-003,
-      SYNC-15-013) and outbox de-duplication (SYNC-15-012) as a `Reject`-triggered
-      replay. When the position is the tail it MUST send nothing.
+      When the stated position the CASE_MANAGER acts on (SYNC-17-002) is behind its
+      tail, it MUST send the sender each later canonical entry, in log order. It sends
+      them as `Announce(CaseLedgerEntry)`, under the replay rate bound (SYNC-15-003,
+      SYNC-15-013) and outbox de-duplication (SYNC-15-012) of a `Reject`-triggered
+      replay.
     rationale: >-
       This is the retry that SYNC-00-008 requires. It runs whenever the participant
       reads, so a lost last entry is recovered without waiting for a new commit. A
@@ -2514,11 +3392,29 @@ groups:
       Tests marked `SYNC-17-004` drop the last `Announce(CaseLedgerEntry)` to a
       participant, send no further entry and no `Reject`, and assert that the
       participant's `Read(CaseLedgerEntry)` brings its tail to the CASE_MANAGER's. They
-      also assert that a position at the tail queues nothing, and that a second lagging
-      position inside the replay cooldown queues no second replay.
+      also assert that a second lagging position inside the replay cooldown queues no
+      second replay.
     stories:
     - story_2022_045
     - story_2022_088
+  - id: SYNC-17-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the stated position the CASE_MANAGER acts on (SYNC-17-002) is its ledger
+      tail, it MUST send nothing in answer.
+    rationale: >-
+      A participant at the tail is missing nothing, so any entry sent would be a
+      duplicate.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-17-004
+    verification: >-
+      `test_position_at_the_tail_is_recorded_and_sends_nothing` in
+      `test/core/behaviors/sync/test_position_statements.py` asserts that a position at
+      the tail queues nothing.
+    stories:
+    - story_2022_045
   - id: SYNC-17-005
     priority: MUST
     kind: protocol
@@ -2562,18 +3458,33 @@ groups:
     kind: project
     statement: >-
       The reference implementation's participant SHOULD send `Read(CaseLedgerEntry)`
-      for each case it holds after a restart, and SHOULD support sending it on a
-      configurable interval that is off by default, with that default documented beside
-      the retry defaults (SYNC-05-003).
+      for each case it holds after a restart.
     rationale: >-
       When to check is the participant's own policy (ADR-0155). A restart is the moment
-      it is most likely to have missed an entry; a periodic check costs traffic that a
-      deployment should choose.
+      it is most likely to have missed an entry.
     adr:
     - ADR-0155
     verification: >-
       A test marked `SYNC-17-007` restarts a participant holding a case and asserts one
       `Read(CaseLedgerEntry)` naming its tail is queued to the CASE_MANAGER.
+  - id: SYNC-17-011
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The reference implementation's participant SHOULD support sending
+      `Read(CaseLedgerEntry)` on a configurable interval. The interval is off by
+      default, and that default is documented beside the retry defaults (SYNC-05-003).
+    rationale: >-
+      A periodic check costs traffic that a deployment should choose, so the default
+      sends none.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-17-007
+    verification: >-
+      `test_the_interval_is_off_by_default` and
+      `test_a_configured_interval_repeats_until_shutdown` in
+      `test/adapters/driving/fastapi/test_ledger_position_statements.py` assert the
+      default and a configured interval.
   - id: SYNC-17-008
     priority: SHOULD
     kind: protocol
@@ -2612,30 +3523,18 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An activity about a case whose ledger its sender holds, sent by any actor, MUST
-      carry the sender's ledger tail for that case as the activity's `ledgerPosition`: an
-      object whose `logIndex` and `entryHash` name the last entry the sender had
-      committed, or had stored as a replica, when it built the activity; for an empty
-      ledger, index -1 and the per-case genesis hash. A `Read(CaseLedgerEntry)` carries
-      it as the position of the entry it names, which is that tail (SYNC-17-001). An
-      activity sent before its sender holds the case's ledger, an activity whose object
-      already states a ledger position (`Announce(CaseLedgerEntry)`,
-      `Announce(VulnerabilityCase)`, `Create(VulnerabilityCase)`,
-      `Update(VulnerabilityCase)`), and a `Create(ProcessingFault)` MUST NOT carry
-      one.
+      Every activity about a case whose ledger its sender holds MUST carry the sender's
+      ledger tail for that case as its `ledgerPosition`. Its `logIndex` and `entryHash`
+      name the last entry the sender had committed, or stored as a replica, when it
+      built the activity. For an empty ledger they are index -1 and the per-case
+      genesis hash. A `Read(CaseLedgerEntry)` carries it as the position of the entry it
+      names, which is that tail (SYNC-17-001).
     rationale: >-
       One rule for every sender and message type gives every ledgered act its
-      provenance, and a new message type needs no decision about whether it counts. A
-      stub-Invite reply or a report `Offer` comes from an actor with no ledger to
-      state. An entry and a case copy already state their own positions, and
-      `Create(VulnerabilityCase)` and `Update(VulnerabilityCase)` are copies too.
+      provenance, and a new message type needs no decision about whether it counts.
       `Join`, `Ignore`, `Leave` and `Offer` of a case name the case and act on it, so
-      they carry the sender's position. A `Create(ProcessingFault)` is about the
-      processing of one activity, not about a case. Any receiver sends one, including
-      for an activity it could not parse and so cannot place in any case (ASK-07-001),
-      and it names no case (ASK-07-004). This applies to the replica's faults too. The
-      property is the `ledgerPosition` term that a case copy already carries
-      (SYNC-16-005), so one fact keeps one wire form.
+      they carry the sender's position. The property is the `ledgerPosition` term that
+      a case copy already carries (SYNC-16-005), so one fact keeps one wire form.
     relationships:
     - rel_type: refines
       spec_id: SYNC-16-005
@@ -2644,37 +3543,101 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_activity_ledger_tail.py` asserts that a
       participant's `Add(Note)` and a CASE_MANAGER-sent one, built by each sender's
-      trigger adapter, carry `ledgerPosition`, that one built by an actor that holds no
-      ledger for the case does not, and that an `Announce(CaseLedgerEntry)` does not;
+      trigger adapter, carry `ledgerPosition`.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-18-017
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A sender MUST NOT put a `ledgerPosition` on three kinds of activity. They are one
+      sent before it holds the case's ledger, one whose object already states a ledger
+      position, and a `Create(ProcessingFault)`. The objects that state their own
+      position are in `Announce(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`,
+      `Create(VulnerabilityCase)` and `Update(VulnerabilityCase)`.
+    rationale: >-
+      A stub-Invite reply or a report `Offer` comes from an actor with no ledger to
+      state. An entry and a case copy state their own positions, and
+      `Create(VulnerabilityCase)` and `Update(VulnerabilityCase)` are copies too. A
+      `Create(ProcessingFault)` is about one activity's processing, not a case: any
+      receiver sends one, even for an activity it could not parse (ASK-07-001), and it
+      names no case (ASK-07-004).
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-18-001
+    adr:
+    - ADR-0156
+    verification: >-
+      `test_a_sender_that_holds_no_ledger_for_the_case_states_none` in
+      `test/core/use_cases/received/test_activity_ledger_tail.py` asserts that an
+      activity built by an actor that holds no ledger for the case carries no position,
+      and `test_a_processing_fault_names_no_case` in
       `test/wire/as2/factories/test_ledger_position.py` asserts which activities the
       stamp skips.
     stories:
     - story_2022_045
     - story_2022_088
-    lint_suppress:
-    - compound_statement  # one rule and its exclusions (ADR-0156)
   - id: SYNC-18-002
     priority: MUST
     kind: protocol
     statement: >-
       `ledgerPosition` MUST be the sender's ledger tail for the case at the moment the
-      activity is built, and MUST be produced only by `vultron.wire.as2.factories`. A
-      resent activity MUST carry the position it was first sent with.
+      activity is built.
     rationale: >-
-      The position describes the moment of the act, so a later resend that restamped
-      it would misstate what the sender knew. The outbox already relays the sealed
-      body (OX-07-001), which keeps the first position.
+      The position describes the moment of the act, so a receiver learns how far the
+      sender had got when it acted.
     relationships:
     - rel_type: refines
       spec_id: SYNC-18-001
     adr:
     - ADR-0156
     verification: >-
+      `test_the_stamp_is_the_senders_tail_when_it_built_the_activity` in
       `test/core/use_cases/received/test_activity_ledger_tail.py` advances the sender's
       ledger past genesis and asserts the stamped position equals its tail when the
-      activity was built, and that rebuilding the activity after the tail moved hands
-      back the body it was first sealed with. The resend clause holds through the
-      outbox's sealed-body relay (OX-07-001), which its own tests cover.
+      activity was built.
+    stories:
+    - story_2022_045
+  - id: SYNC-18-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      This codebase MUST produce `ledgerPosition` only in `vultron.wire.as2.factories`.
+    rationale: >-
+      One producer stamps every activity the same way, so no other code path can send a
+      position that is not the sender's tail.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-18-002
+    adr:
+    - ADR-0156
+    verification: >-
+      `test_the_stamp_is_a_copy_stating_the_position` in
+      `test/wire/as2/factories/test_ledger_position.py` checks the factory stamp;
+      inspection confirms no other module sets `ledgerPosition`.
+    stories:
+    - story_2022_045
+  - id: SYNC-18-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A resent activity MUST carry the `ledgerPosition` it was first sent with.
+    rationale: >-
+      A later resend that restamped the position would misstate what the sender knew.
+      The outbox already relays the sealed body (OX-07-001), which keeps the first
+      position.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-18-002
+    adr:
+    - ADR-0156
+    verification: >-
+      `test_a_rebuilt_activity_keeps_the_position_it_was_first_sent_with` in
+      `test/core/use_cases/received/test_activity_ledger_tail.py` asserts that
+      rebuilding the activity after the tail moved hands back the body it was first
+      sealed with. The resend itself holds through the outbox's sealed-body relay
+      (OX-07-001), which its own tests cover.
     stories:
     - story_2022_045
   - id: SYNC-18-003
@@ -2682,40 +3645,73 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST parse `ledgerPosition` as the core `LedgerPosition` at the parse
-      edge, and MUST refuse an activity that SYNC-18-001 requires to carry one when
-      its `ledgerPosition` is missing or does not parse, naming the activity and writing
-      nothing. A `Reject(CaseLedgerEntry)` that names an entry and carries no position
-      MUST NOT be refused for it: it comes from a peer that does not hold the case yet,
-      which the CASE_MANAGER seeds and replays from genesis (SYNC-15-015).
+      edge.
     rationale: >-
       Core code then receives a non-optional position (ADR-0032), and every ledgered
-      act carries one. A receiver cannot tell from a `Reject(CaseLedgerEntry)` alone
-      whether its sender holds the case, and the peer that does not is the one the
-      replay from genesis exists to repair.
+      act carries one.
     relationships:
     - rel_type: refines
       spec_id: SYNC-18-001
     adr:
     - ADR-0156
     verification: >-
-      `test/core/use_cases/received/test_activity_ledger_tail.py` delivers an
-      unstamped `Add(Note)` and one whose `ledgerPosition` does not parse, and asserts
-      each is refused with a reason naming the activity, and that no ledger entry is
-      written; `test/wire/as2/test_ledger_position_scope.py` asserts that every
-      received event class either requires the position or is listed out of scope
-      with its reason.
+      `test/wire/as2/test_ledger_position_scope.py` asserts that every received event
+      class either requires the position or is listed out of scope with its reason,
+      and that an in-scope activity extracts the position it states.
     stories:
     - story_2022_045
-    lint_suppress:
-    - compound_statement  # one parse-edge rule (ADR-0156)
+  - id: SYNC-18-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST refuse an activity whose required `ledgerPosition` (SYNC-18-001)
+      is missing or does not parse, naming the activity and writing nothing.
+    rationale: >-
+      An act in scope with no position, or one that cannot be read, could not be
+      ledgered with the provenance SYNC-18-001 gives every act.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-18-003
+    adr:
+    - ADR-0156
+    verification: >-
+      `test_an_unstamped_case_activity_is_refused_and_writes_nothing` and
+      `test_a_malformed_ledger_position_is_refused_and_writes_nothing` in
+      `test/core/use_cases/received/test_activity_ledger_tail.py` deliver an unstamped
+      `Add(Note)` and one whose `ledgerPosition` does not parse, and assert each is
+      refused with a reason naming the activity and that no ledger entry is written.
+    stories:
+    - story_2022_045
+  - id: SYNC-18-016
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver MUST NOT refuse, for its missing position, a `Reject(CaseLedgerEntry)`
+      that names an entry and carries no `ledgerPosition`.
+    rationale: >-
+      Such a Reject comes from a peer that does not hold the case yet, which the
+      CASE_MANAGER seeds and replays from genesis (SYNC-15-015). A receiver cannot tell
+      from the Reject alone whether its sender holds the case, and the peer that does
+      not is the one the replay from genesis exists to repair.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-18-015
+    adr:
+    - ADR-0156
+    verification: >-
+      `test_a_reject_of_an_entry_may_state_no_position` in
+      `test/wire/as2/test_ledger_position_scope.py` asserts such a Reject is accepted
+      without a position.
+    stories:
+    - story_2022_045
   - id: SYNC-18-004
     priority: MUST_NOT
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST NOT refuse, hold or defer an activity because its
-      `ledgerPosition` is behind the CASE_MANAGER's own ledger tail, and MUST log such a
-      lag at DEBUG with the activity and actor. A reply to the full-case Invite is
-      the one exception, judged against its Invite's floor (CM-11-012).
+      `ledgerPosition` is behind the CASE_MANAGER's own ledger tail. A reply to the
+      full-case Invite is the one exception, judged against its Invite's floor
+      (CM-11-012, CM-11-035).
     rationale: >-
       Under asynchronous fan-out an active participant is routinely a few entries
       behind, and SYNC-10-005 lets it act while it lags. A stale answer to a replaced
@@ -2729,27 +3725,40 @@ groups:
     - ADR-0156
     verification: >-
       `test/core/use_cases/received/test_activity_ledger_tail.py` delivers an
-      `Add(Note)` stamped behind the CASE_MANAGER's tail and asserts it is applied and
-      the lag is logged at DEBUG with the activity and actor ids.
+      `Add(Note)` stamped behind the CASE_MANAGER's tail and asserts it is applied.
+    stories:
+    - story_2022_045
+  - id: SYNC-18-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST log at DEBUG, with the activity and the actor, each activity
+      whose `ledgerPosition` is behind its own ledger tail.
+    rationale: >-
+      A lag is routine, so it is not a warning, but the record shows how far behind a
+      participant acted when an outcome needs explaining.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-18-004
+    adr:
+    - ADR-0156
+    verification: >-
+      `test_a_lagging_stamp_is_applied_and_the_lag_logged` in
+      `test/core/use_cases/received/test_activity_ledger_tail.py` asserts the lag is
+      logged at DEBUG with the activity and actor ids.
     stories:
     - story_2022_045
   - id: SYNC-18-005
     priority: MUST
     kind: protocol
     statement: >-
-      When an activity's `ledgerPosition` names an index the CASE_MANAGER's ledger holds
-      with a different entry hash, or an index past its own tail, the CASE_MANAGER
-      MUST judge the activity as it would without the position, MUST log the split at
-      ERROR, and, when the sender is an active participant of the case (CM-10-004),
-      MUST send it `Announce(VulnerabilityCase)` of its current case under the rate
-      bound of SYNC-16-004. It MUST NOT re-seed any other sender.
+      A split position is a `ledgerPosition` naming an index the CASE_MANAGER's ledger
+      holds with a different entry hash, or an index past its tail. The CASE_MANAGER
+      MUST judge an activity with a split position as it would without the position.
     rationale: >-
       The CASE_MANAGER is the single writer, so no participant can hold an entry it
-      did not commit; such a position means the sender's chain has split. The fresh
-      copy repairs it with the path SYNC-16-003 already uses for a reported
-      divergence. A `Read(CaseLedgerEntry)` naming such a position is answered with
-      nothing instead (SYNC-17-005); that difference, and whether the act itself should
-      be refused, are open (`notes/sync-ledger-replication.md`).
+      did not commit; such a position means the sender's chain has split. Whether the
+      act itself should be refused is open (`notes/sync-ledger-replication.md`).
     relationships:
     - rel_type: refines
       spec_id: SYNC-16-003
@@ -2758,9 +3767,77 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_activity_ledger_tail.py` delivers an
       `Add(Note)` whose position names a wrong hash, and one whose position is past the
-      tail, and asserts each is applied, the split is logged at ERROR and a case copy is
-      queued to the sender; the same activity from a removed participant queues no case
-      copy.
+      tail, and asserts each is applied.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-18-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST log at ERROR each activity with a split position
+      (SYNC-18-005).
+    rationale: >-
+      A split chain is a fault that a re-seed may not explain. The ERROR record makes
+      it visible to an operator.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-18-005
+    adr:
+    - ADR-0156
+    verification: >-
+      `test_a_split_stamp_is_applied_logged_and_the_sender_reseeded` in
+      `test/core/use_cases/received/test_activity_ledger_tail.py` asserts the split is
+      logged at ERROR.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-18-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST send `Announce(VulnerabilityCase)` of its current case to an
+      active participant (CM-10-004) whose activity has a split position (SYNC-18-005).
+      It sends the copy under the rate bound of SYNC-16-004.
+    rationale: >-
+      The fresh copy repairs the split with the path SYNC-16-003 already uses for a
+      reported divergence. A `Read(CaseLedgerEntry)` naming such a position is answered
+      with nothing instead (SYNC-17-005); that difference is open
+      (`notes/sync-ledger-replication.md`).
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-18-005
+    adr:
+    - ADR-0156
+    verification: >-
+      `test_a_split_stamp_is_applied_logged_and_the_sender_reseeded` in
+      `test/core/use_cases/received/test_activity_ledger_tail.py` asserts a case copy is
+      queued to the sender, and
+      `test_a_second_split_inside_the_cooldown_reseeds_nothing` in
+      `test/core/behaviors/sync/test_ledger_position_stage.py` asserts the rate bound.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-18-013
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT re-seed a sender that is not an active participant
+      because its activity has a split position (SYNC-18-005).
+    rationale: >-
+      A copy of the current case is withheld content for a sender that is not active
+      (CM-10-004), so a split position must not become a way to get it.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-18-012
+    adr:
+    - ADR-0156
+    verification: >-
+      `test_an_inert_senders_split_is_logged_and_reseeds_nothing` in
+      `test/core/behaviors/sync/test_ledger_position_stage.py` asserts no case copy is
+      queued to a sender that is not active, and
+      `test/core/use_cases/received/test_activity_ledger_tail.py` asserts the same for a
+      participant that withdrew its consent.
     stories:
     - story_2022_045
     - story_2022_088
@@ -2768,8 +3845,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `ledgerPosition` of an admitted activity MUST be recorded in its ledger entry
-      as part of the received body (CLP-07-011), and MUST NOT be removed from it.
+      The `ledgerPosition` of an admitted activity MUST stay in its ledger entry as part
+      of the received body (CLP-07-011), never removed.
     rationale: >-
       The entry is the received envelope with a postmark (ADR-0107), so the position
       is ledgered with the act it describes and replicas receive it unchanged.
@@ -2787,20 +3864,17 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When an activity's `ledgerPosition` names an entry in the CASE_MANAGER's ledger
-      and the sender is an active participant of the case (CM-10-004), the CASE_MANAGER
-      MUST answer the position as it answers one stated in `Read(CaseLedgerEntry)`: it
-      MUST record the entry's hash as the sender's acknowledged position (SYNC-17-003)
-      and, when the position is behind its tail, send the entries after it under the
-      replay rate bound and de-duplication of SYNC-17-004. From any other sender it MUST
-      record no replication state and send nothing in answer to the position. Neither
-      the record nor the replay changes the activity's own outcome.
+      This rule covers an activity whose `ledgerPosition` names an entry in the
+      CASE_MANAGER's ledger, from an active participant of the case (CM-10-004). The
+      CASE_MANAGER MUST answer that position as it answers one stated in
+      `Read(CaseLedgerEntry)`. It records the entry's hash as the sender's acknowledged
+      position (SYNC-17-003). When the position is behind its tail, it sends the later
+      entries as SYNC-17-004 does. Neither the record nor the replay changes the
+      activity's own outcome.
     rationale: >-
       A stamp states the same fact as a `Read(CaseLedgerEntry)`, so one answer serves
       both (ADR-0155): a participant that sends anything also tells the CASE_MANAGER how
-      far it has got, and one that lost the last entry is repaired by its next act. A
-      removed, unconsented or closed participant lags on purpose, so answering it would
-      send withheld case content (SYNC-17-002).
+      far it has got, and one that lost the last entry is repaired by its next act.
     relationships:
     - rel_type: extends
       spec_id: SYNC-17-003
@@ -2812,8 +3886,29 @@ groups:
       `test/core/use_cases/received/test_activity_ledger_tail.py` delivers an
       `Add(Note)` stamped behind the CASE_MANAGER's tail and asserts it is applied, the
       sender's acknowledged position is the stamped entry and the missing entries are
-      queued to it; the same activity from a removed participant records no
-      replication state and queues no entry.
+      queued to it.
+    stories:
+    - story_2022_045
+  - id: SYNC-18-014
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      For an activity from a sender that is not an active participant (CM-10-004), the
+      CASE_MANAGER MUST NOT record replication state or answer the `ledgerPosition`.
+    rationale: >-
+      A removed, unconsented or closed participant lags on purpose, so answering it
+      would send withheld case content (SYNC-17-002).
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-18-007
+    adr:
+    - ADR-0156
+    verification: >-
+      `test_an_inert_senders_lag_is_neither_recorded_nor_answered` in
+      `test/core/behaviors/sync/test_ledger_position_stage.py` asserts no replication
+      state is recorded and no entry is queued for a sender that is not active, and
+      `test/core/use_cases/received/test_activity_ledger_tail.py` asserts the same for a
+      participant that withdrew its consent.
     stories:
     - story_2022_045
 - id: SYNC-19
@@ -2833,13 +3928,13 @@ groups:
     statement: >-
       A coordination decision MUST NOT depend on an arrival order that the case ledger
       does not define. The CASE_MANAGER's observation order is the case's causal order
-      (CLP-14-001): when it takes concurrent assertions from different senders in the
-      order it observes them, its ledger records that order and every replica learns
-      the same outcome. Every other decision MUST be the same whatever order its
-      messages arrive in: what a participant applies, stores or answers, given a
-      message the CASE_MANAGER sent outside the ledger and the ledger entries it relates
-      to; and what the CASE_MANAGER records, given two assertions one sender sent before
-      the first was committed.
+      (CLP-14-001). When it takes concurrent assertions from different senders in
+      observed order, its ledger records that order and every replica learns the same
+      outcome. Every other decision is the same whatever order its messages arrive in.
+      That covers what a participant applies, stores or answers, given a message the
+      CASE_MANAGER sent outside the ledger and the ledger entries it relates to. It
+      also covers what the CASE_MANAGER records, given two assertions one sender sent
+      before the first was committed.
     rationale: >-
       Arrival order differs between recipients, between implementations and between
       runs. A decision that reads it gives different coordination outcomes for the same
@@ -2847,7 +3942,7 @@ groups:
       observe the order one sender sent two messages in, so that order is lost unless
       the decision does not need it.
     note: >-
-      The second clause covers one sender's changed embargo answer: CM-13-005 and
+      The last sentence covers one sender's changed embargo answer: CM-13-005 and
       CM-18-003 record a changed `Accept` or `Reject` of one Invite as it arrives, so
       two answers sent back to back are recorded in arrival order until the CASE_MANAGER
       can tell which was sent last (#5202).
@@ -2858,10 +3953,10 @@ groups:
     - ADR-0161
     - ADR-0037
     verification: >-
-      `test/core/use_cases/received/test_arrival_order.py` delivers an embargo revision's
-      proposal entry, its relayed `Invite(EmbargoEvent)` and the Invite's emission
-      entry to a participant in every order and asserts one final case file, one
-      proposal index and one answer; its strict-`xfail` tests reproduce each order
+      `test/core/use_cases/received/test_arrival_order.py` delivers an embargo
+      revision's proposal entry, its relayed `Invite(EmbargoEvent)` and the Invite's
+      emission entry to a participant in every order and asserts one final case file,
+      one proposal index and one answer; its strict-`xfail` tests reproduce each order
       dependency still open.
     stories:
     - story_2022_045
@@ -2870,18 +3965,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Eventual consistency MUST be the ordering guarantee the protocol makes: every
-      active participant's replica that receives the CASE_MANAGER's committed ledger
-      entries, in any order, MUST reach the CASE_MANAGER's case file through hash-chain
-      apply (SYNC-03-001, SYNC-14) and gap repair (SYNC-00-007, SYNC-00-008, SYNC-16,
-      SYNC-17). A message the CASE_MANAGER sends outside `Announce(CaseLedgerEntry)` MUST
-      NOT leave a replica in a final state that the ledger entries it relates to do not
-      determine.
+      Every active participant's replica that receives the CASE_MANAGER's committed
+      ledger entries, in any order, MUST reach the CASE_MANAGER's case file. It gets
+      there through hash-chain apply (SYNC-03-001, SYNC-14) and gap repair (SYNC-00-007,
+      SYNC-00-008, SYNC-16, SYNC-17). This eventual consistency is the ordering
+      guarantee the protocol makes.
     rationale: >-
       Replicas see the case at different times, so a stronger guarantee would need a
-      delivery order the transport does not give. A direct message that wrote state the
-      ledger later cannot correct would let two replicas holding the same ledger
-      disagree for good.
+      delivery order the transport does not give.
     relationships:
     - rel_type: refines
       spec_id: SYNC-08-002
@@ -2894,18 +3985,37 @@ groups:
     stories:
     - story_2022_045
     - story_2022_088
+  - id: SYNC-19-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A message the CASE_MANAGER sends outside `Announce(CaseLedgerEntry)` MUST NOT
+      leave a replica in a final state that its related ledger entries do not determine.
+    rationale: >-
+      A direct message that wrote state the ledger later cannot correct would let two
+      replicas holding the same ledger disagree for good.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-19-002
+    adr:
+    - ADR-0161
+    verification: >-
+      `test_every_order_reaches_one_case_file` in
+      `test/core/use_cases/received/test_arrival_order.py` delivers the relayed
+      `Invite(EmbargoEvent)` before, between and after its ledger entries and asserts
+      every order ends with the CASE_MANAGER's case file.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-19-003
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      Per-recipient delivery order MUST NOT be a protocol guarantee. A receiver MUST NOT
-      rely on a sender delivering its messages in the order it sent them, and a sender
-      MUST NOT rely on its own ordered delivery for a receiver's correctness. An
-      implementation MAY deliver in order per recipient as an optimization (OX-01-005).
+      Per-recipient delivery order MUST NOT be a protocol guarantee.
     rationale: >-
       Another implementation may share the wire with no ordered outbox, and even an
-      ordered outbox loses that order when an `Announce` is lost and replayed later, so a
-      rule that holds only under ordered delivery fails in exactly the cases recovery
+      ordered outbox loses that order when an `Announce` is lost and replayed later, so
+      a rule that holds only under ordered delivery fails in exactly the cases recovery
       exists for.
     relationships:
     - rel_type: constrains
@@ -2916,10 +4026,68 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_arrival_order.py` delivers the CASE_MANAGER's
       messages for one revision in orders other than the one its outbox sends, and
-      asserts that each order is realized and every order ends the same. A receiver
-      that relied on per-recipient order, or a sender whose messages are correct only
-      when delivered in its own order, fails that test, so the one check covers both
-      clauses.
+      asserts that each order is realized and every order ends the same.
+    stories:
+    - story_2022_045
+  - id: SYNC-19-007
+    priority: MAY
+    kind: protocol
+    statement: >-
+      An implementation MAY deliver its messages in order per recipient as an
+      optimization (OX-01-005).
+    rationale: >-
+      Ordered delivery makes reordering rare, so fewer entries are held or replayed. It
+      stays an optimization, because SYNC-19-003 gives no one a right to rely on it.
+    verification: >-
+      The OX-01-005 tests in `test/adapters/driving/fastapi/test_outbox_handler_lanes.py`
+      assert the outbox delivers each recipient's messages in the order it queued them.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-19-003
+    adr:
+    - ADR-0161
+    - ADR-0112
+    stories:
+    - story_2022_045
+  - id: SYNC-19-005
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver MUST NOT rely on a sender delivering its messages in the order it sent
+      them.
+    rationale: >-
+      Delivery order is no guarantee (SYNC-19-003), so a receiver that relied on it
+      would apply the wrong outcome whenever messages arrive in another order.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-19-003
+    adr:
+    - ADR-0161
+    verification: >-
+      `test_every_order_reaches_one_case_file` in
+      `test/core/use_cases/received/test_arrival_order.py` delivers one revision's
+      messages in every order; a receiver that relied on per-recipient order fails it.
+    stories:
+    - story_2022_045
+  - id: SYNC-19-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A sender MUST NOT rely on its own ordered delivery for a receiver's correctness.
+    rationale: >-
+      Even an ordered outbox loses its order when an `Announce` is lost and replayed
+      later, so a sender whose messages are correct only in its own order fails during
+      recovery.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-19-003
+    adr:
+    - ADR-0161
+    verification: >-
+      `test_every_order_reaches_one_case_file` in
+      `test/core/use_cases/received/test_arrival_order.py` delivers the CASE_MANAGER's
+      messages in orders other than the one its outbox sends; a sender whose messages
+      are correct only in its own order fails it.
     stories:
     - story_2022_045
 - id: SYNC-20

@@ -105,7 +105,7 @@ class CaseCopyNotStaleNode(
         self.case_id = case_id
         self.case_obj = case_obj
         self._request = request
-        #: True only after the copy was found stale (SYNC-16-006).
+        #: True only after the copy was found stale (SYNC-16-020).
         self.is_stale = False
         #: True only after the copy was found to conflict with the chain.
         self.is_conflict = False
@@ -186,7 +186,7 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
     chain stores none has no entry to name, so it sends the ``Reject`` that
     names no entry, stating the empty chain's position and the case as its
     target: the CASE_MANAGER answers it by replaying from genesis, and each
-    entry up to the copy's position is stored as a no-op (SYNC-16-007).
+    entry up to the copy's position is stored as a no-op (SYNC-16-023).
 
     A repeat of the same copy, such as the one the CASE_MANAGER's genesis
     answer starts with, asks again while the chain is still short.  The
@@ -271,7 +271,7 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
             self._request.actor_id,
         )
         if chain_tail is None:
-            # No entry to name: ask for a replay from genesis (SYNC-16-007).
+            # No entry to name: ask for a replay from genesis (SYNC-16-027).
             self._sync_port.send_genesis_replay_reject(
                 case_id=self.case_id,
                 copy_tail_hash=position.entry_hash,
@@ -299,7 +299,7 @@ class StateSeededLedgerPositionNode(DataLayerActionWithPorts):
     That is the replica's tail: a first seed finds no entry stored, since a
     replica stores no entry for a case it does not hold, and the case is at
     the copy's position, which reflects every entry up to it (SYNC-16-005,
-    SYNC-16-007).  If the send fails after the seed, a redelivery replaces
+    SYNC-16-023).  If the send fails after the seed, a redelivery replaces
     the case and states nothing; the participant's restart statement
     (SYNC-17-007) states the same position instead.  The statement
     tells the CASE_MANAGER the replica is ready, so it can resend an Invite

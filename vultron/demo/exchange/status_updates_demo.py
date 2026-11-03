@@ -226,7 +226,7 @@ def demo_status_workflow(
         "Step 1: Vendor reports public awareness in its own ParticipantStatus"
     ):
         # A snapshot of every dimension the vendor holds, with the public
-        # awareness it reports in the embedded case status (RSH-04-001).
+        # awareness it reports in the embedded case status (RSH-04-007).
         participant_status = as_ParticipantStatus(
             context=case.id_,
             rm=current.rm,

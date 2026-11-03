@@ -134,7 +134,7 @@ from its role (CLP-09).
   (`case_owner_completes=True`, CM-23-002). A failed owner `Leave` keeps none of
   its closure (CLP-07-015), so no redelivery has a half-done closure to finish.
   Any other invitee reply from it is `REFUSED` at the same door, before its
-  `INVITEE` guard runs. A `Close(Report)`
+  `INVITEE` guard runs. A `Reject(Offer(VulnerabilityReport))`
   on a case is refused from every sender, closed or not (CM-23-019).
 - **A closed Case Owner holds no `CASE_OWNER` standing.** The factory composes the
   closure check ahead of the role check for that kind (`_case_owner_node()`), and
@@ -297,7 +297,7 @@ distinction in new messages: we accept offers and invitations, never bare object
   `SKIPPED`; see [received-status-authorization](received-status-authorization.md).
 - **The full-case Invite's position is its `ledgerPosition`** (VAM-04-011,
   SYNC-18-001); `target` stays the plain case URI (AKM-02-003). The extractor refuses
-  a missing or non-parsing one (SYNC-18-003). A stored stub Invite states the
+  a missing or non-parsing one (SYNC-18-015). A stored stub Invite states the
   CASE_MANAGER's tail too, but sets no floor (`stored_invite_floor`). An empty ledger
   is `logIndex` -1 with the case's `genesisHash` (CLP-08-004).
 - **Resolve the case from the stub's `caseId`, never its id.** Stub-Invite reply

@@ -692,7 +692,7 @@ def test_a_replica_follows_the_managing_owners_revision_by_trigger():
     dl = net.stores[MANAGER]
 
     revision_id = _manager_revises(net, days=30)
-    # The manager mails itself nothing (CLP-10-001); each participant gets
+    # The manager mails itself nothing (CLP-10-032); each participant gets
     # its relayed Invite (EP-09-002).
     assert net.queued(MANAGER, to=MANAGER) == []
     assert len(net.queued(MANAGER, to=BYSTANDER, type_="Invite")) == 1

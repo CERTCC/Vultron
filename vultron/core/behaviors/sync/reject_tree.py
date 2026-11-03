@@ -55,12 +55,12 @@ def create_reject_log_entry_tree(
     (:class:`~vultron.core.behaviors.sender_guard.LedgerActivityContext`),
     or, for the ``Reject`` that names no entry because the peer holds none,
     from its ``target``; that form states no entry (index -1), so it is answered
-    as a replay from genesis (SYNC-16-007).
+    as a replay from genesis (SYNC-16-029).
 
     Args:
         case_id: The case the peer's ``Reject`` is about: its rejected
             entry's case, or the case its ``target`` names when it names no
-            entry (SYNC-16-007).  Its CASE_MANAGER gates the answer.
+            entry (SYNC-16-027).  Its CASE_MANAGER gates the answer.
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
     # The envelope is never a canonical entry (CLP-10-004): no commit stage.

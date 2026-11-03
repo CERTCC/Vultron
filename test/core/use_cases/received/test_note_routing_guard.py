@@ -115,7 +115,7 @@ class TestAddNoteToCaseLedgerRouting:
     ):
         """Guarded commit fires when receiving_actor_id == case_actor_id.
 
-        Per CLP-10-002: the CaseActor MUST commit a canonical ledger entry
+        Per CLP-09-001: the CaseActor MUST commit a canonical ledger entry
         when it receives an AddNoteToCase activity.
         """
         dl = _make_case_actor_dl()

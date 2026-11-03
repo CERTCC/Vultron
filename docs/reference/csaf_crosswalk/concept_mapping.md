@@ -230,7 +230,7 @@ The two have the same shape: an actor, recipients, a time, a type, and an option
 <td markdown="span">No change proposed: a projection mints one `action_id` for each activity that it includes.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">Two times: the `published` time that the sender claims, and the commit time of the Case Manager (CLP-14-002, CLP-15-005)</td>
+<td markdown="span">Two times: the `published` time that the sender claims, and the commit time of the CASE_MANAGER (CLP-14-002, CLP-15-005)</td>
 <td markdown="span">`date`, one time</td>
 <td markdown="span">Many to one</td>
 <td markdown="span">Mechanical</td>
@@ -259,7 +259,7 @@ The two have the same shape: an actor, recipients, a time, a type, and an option
 <td markdown="span">One to many</td>
 <td markdown="span">Derived</td>
 <td markdown="span">Interpretive</td>
-<td markdown="span">No change proposed: different purpose. A ledger entry records a completed act, so the entry of each act becomes a `completed` action. The follow-on entries that an act causes (CLP-07-013) go into that action. A projection derives `outstanding`, `deferred`, and `discontinued` from the state at its ledger position. It does not make `attempted`, because a failed delivery is a fact about the outbox, not about the case. It does not make `planned`, because Vultron does not record intentions.</td>
+<td markdown="span">No change proposed: different purpose. A ledger entry records a completed act, so the entry of each act becomes a `completed` action. The follow-on entries that an act causes (CLP-07-021) go into that action. A projection derives `outstanding`, `deferred`, and `discontinued` from the state at its ledger position. It does not make `attempted`, because a failed delivery is a fact about the outbox, not about the case. It does not make `planned`, because Vultron does not record intentions.</td>
 </tr>
 </tbody>
 </table>

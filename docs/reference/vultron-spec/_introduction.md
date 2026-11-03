@@ -69,11 +69,11 @@ parties to be available at the same moment.
 assembled from the messages it has received. A participant is the authority on its
 own report and fix status. What the case as a whole asserts — its embargo state
 and what is publicly known — has a single writer, the participant holding the
-Case Manager role, so that concurrent claims resolve to one answer
+CASE_MANAGER role, so that concurrent claims resolve to one answer
 ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)).
 
 **Coordination is scoped to a case, not to a system.**
-The Case Manager role is held per case, and different cases may be managed by different actors.
+The CASE_MANAGER role is held per case, and different cases may be managed by different actors.
 Nothing in the protocol routes every case through one shared service.
 Within a case, though, shared state has one writer.
 
@@ -81,7 +81,7 @@ Within a case, though, shared state has one writer.
     Two readings should both be avoided.
 
     Vultron does **not** require a single central authority holding all cases. Any
-    actor able to satisfy the Case Manager role can manage a case, and the role is
+    actor able to satisfy the CASE_MANAGER role can manage a case, and the role is
     transferable ([§12.3 Case Ownership Transfer](interactions.md#123-case-ownership-transfer-n)).
 
     Equally, Vultron as it stands is **not** a fully decentralized design. Within

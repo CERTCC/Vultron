@@ -238,7 +238,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0135 Compose Received Trees, Never Chain Them](0135-compose-received-trees-never-chain-them.md) *(revision 3)* *(provisional)* — partially superseded by 0154-a-received-message-is-one-staged-record-archived-only-when-applied.md; partially supersedes 0111-intake-is-the-first-received-side-stage.md
 - [ADR-0136 Organize the Site's Top Level by Subject and Reader, Not Diátaxis Type](0136-organize-the-site-top-level-by-subject-and-reader-not-diataxis-type.md) *(revision 2)* *(provisional)* — partially supersedes 0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md
 - [ADR-0137 Case Records and Notes Are Attached by One Message, Never Created First](0137-case-records-are-attached-by-one-message-never-created-first.md) *(revision 2)* *(provisional)*
-- [ADR-0138 A Pushed Pull Request Is Merged Locally Only on Conflict](0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md) *(provisional)* — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md
+- [ADR-0138 A Pushed Pull Request Is Merged Locally Only on Conflict](0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md) *(provisional)* — partially superseded by 0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md; partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md
 - [ADR-0139 A Fresh Agent Reviews the Branch Before Its First Push](0139-a-fresh-agent-reviews-the-branch-before-its-first-push.md) *(provisional)*
 - [ADR-0140 A Ledger Entry's Semantic Type Is the Registry Label of Its AS2 Payload](0140-a-ledger-entrys-semantic-type-is-the-registry-label-of-its-as2-payload.md) *(revision 4)* *(provisional)* — partially superseded by 0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md
 - [ADR-0141 A Refused Assertion Is Answered With a Reject of the Refused Activity](0141-a-refused-assertion-is-answered-with-a-reject-of-the-refused-activity.md) *(provisional)*
@@ -261,8 +261,9 @@ General information about architectural decision records is available at <https:
 - [ADR-0166 Adopting P, X or A and Ending the Embargo Are One Authorized Step](0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md) *(provisional)* — partially supersedes 0046-received-status-authorization.md
 - [ADR-0167 Times Keep Microseconds and Always Serialize Six Fractional Digits](0167-times-keep-microseconds-and-serialize-six-fractional-digits.md) *(provisional)*
 - [ADR-0168 A Replay from the Start Is Asked Once per Wait and Answered Once per Need](0168-a-replay-from-the-start-is-asked-once-per-wait-and-answered-once-per-need.md) *(provisional)*
-- [ADR-0170 The Bootstrap Create Carries Its Case and Nested Objects Inline](0170-the-bootstrap-create-carries-its-case-and-nested-objects-inline.md) *(provisional)*
+- [ADR-0170 The Bootstrap Create Carries Its Case and Nested Objects Inline](0170-the-bootstrap-create-carries-its-case-and-nested-objects-inline.md) *(revision 2)* *(provisional)*
 - [ADR-0171 Publish the Site on a Weekday Schedule From Tags](0171-publish-the-site-on-a-weekday-schedule-from-tags.md) *(provisional)*
+- [ADR-0173 A Push Is Gated by CI's Non-Suite Checks and a Scratch Merge of the Overlap](0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md) *(provisional)* — partially supersedes 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md
 
 ## Proposed ADRs
 

@@ -34,6 +34,18 @@ def run(*argv: str) -> str:
         raise
 
 
+def write_github_file(env_var: str, text: str) -> None:
+    """Append *text* to the Actions file *env_var* names, if it names one.
+
+    ``GITHUB_OUTPUT`` and ``GITHUB_STEP_SUMMARY`` are such files; outside a
+    workflow run the variable is unset and nothing is written.
+    """
+    path = os.environ.get(env_var)
+    if path:
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(text)
+
+
 def gh(*args: str, retry: bool = True) -> str:
     """``gh``'s stdout; on failure its stderr goes to the log, then it raises.
 

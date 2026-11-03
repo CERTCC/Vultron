@@ -253,7 +253,7 @@ answer, clock decisions, guards, commit, effects.
    from it (ADR-0149). Never store under the sender's id: one id-keyed table per
    actor lets a sender squat an id we derive for our own records. Readers load
    the archive (`read_received_activity`), never parse it themselves. Intake
-   decides nothing, ledgers nothing, and writes nothing else (CLP-10-017); it
+   decides nothing, ledgers nothing, and writes nothing else (CLP-10-038); it
    runs first so a refusal still leaves the archive (CLP-10-018). An object
    carried inline (case, note, status, embargo) is a message shaped like that
    object; the record core keeps is written by an effect node after the guards,
@@ -357,7 +357,7 @@ answer, clock decisions, guards, commit, effects.
    The factory adds that answer, the refusal notice, to every tree that commits
    to a case and has precondition guards, unless the tree names a registered
    `RefusalNoticeExemption`; a tree passes only further feedback (the RSH-06-004
-   note) as `refusal_effects` (CLP-02-005, CLP-10-022). The factory wraps the
+   note) as `refusal_effects` (CLP-02-005, CLP-10-041). The factory wraps the
    guards in a `PreconditionGuardStage` (`case/nodes/refusal_stage.py`) that
    runs the refusal effects, each best-effort on its own, only when a
    precondition guard (not the sender guard) fails, inside a CASE_MANAGER
@@ -388,7 +388,7 @@ answer, clock decisions, guards, commit, effects.
    and both effect lists in one `ActTransaction` by default, so the act's
    entry becomes durable only when the act commits, and a failure keeps
    nothing (CLP-07-015, ADR-0151); only a registered `OneActExemption`
-   (CLP-07-016) opts a tree out. So an effect that fails as a normal outcome
+   (CLP-07-024) opts a tree out. So an effect that fails as a normal outcome
    (a withheld status adoption) must not return FAILURE, or the act loses its
    entry: make it the success arm of a Selector. Read the stages through
    `received_stages()`, which opens that block in place.

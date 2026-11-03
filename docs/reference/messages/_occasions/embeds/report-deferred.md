@@ -6,7 +6,7 @@
 
     - **When…** a Participant defers further action on the case
     - **Send:** `Ignore(VulnerabilityCase)`
-    - **Send to:** the case manager
+    - **Send to:** the CASE_MANAGER
     - **Sent by:** a participant
     - **Reference:** [Report/Case Deferred (RD)](../../rm.md#report-deferred)
 

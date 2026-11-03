@@ -102,10 +102,11 @@ def parse_step_marks(
 ) -> tuple[StepMark, ...]:
     """Parse step marks, after checking they cover *path*.
 
-    The harness records one mark per declared step the scenario reports
-    reaching (:meth:`~vultron.demo.helpers.harness.ScenarioHarness.reach_step`).
-    A recording is kept only with a mark for every step, in order, so the
-    shared-prefix check never reads a guessed branch point (DEMOCI-11-017).
+    The harness records one mark per declared step, as
+    :func:`~vultron.demo.helpers.story.run_story` passes each ``choose(...)``
+    item of the scenario's story.  A recording is kept only with a mark for
+    every step, in order, so the shared-prefix check never reads a guessed
+    branch point (DEMOCI-11-017).
 
     Args:
         text: The marks, as the harness writes them.
@@ -130,7 +131,7 @@ def parse_step_marks(
         raise DemoRecordingError(
             f"scenario {scenario!r} reported reaching {reached}, but its "
             f"declared path is {list(path)}; every step needs a "
-            "harness.reach_step() call."
+            "choose(...) item in the scenario's story."
         )
     tails = [mark.ledger_tail for mark in marks]
     if (

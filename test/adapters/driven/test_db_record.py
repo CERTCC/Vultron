@@ -892,7 +892,7 @@ def test_ownership_transferee_round_trips_as_an_object(received):
 
     The CASE_MANAGER holds no record of the transferee, so a stored Offer
     whose ``target`` collapsed to an id could not be read back whole, and the
-    ledger commit refused the bare ``target`` (CLP-07-006).  A received Offer
+    ledger commit refused the bare ``target`` (CLP-07-018).  A received Offer
     is stored as the parser's base ``as_Offer``, which declares nothing, so
     storage must also honour the declaration of the semantic class the
     activity matches (DL-08-001).

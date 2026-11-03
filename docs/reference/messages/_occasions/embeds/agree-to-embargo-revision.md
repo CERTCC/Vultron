@@ -6,7 +6,7 @@
 
     - **When…** a Participant agrees to a proposed embargo revision
     - **Send:** `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])`
-    - **Send to:** the case manager
+    - **Send to:** the CASE_MANAGER
     - **Sent by:** the invitee
     - **Distinguished by:** EM state `REVISE`
     - **Reference:** [Agree to an embargo revision](../../em.md#agree-to-embargo-revision)

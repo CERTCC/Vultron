@@ -32,7 +32,7 @@ causal_edges:
     consequent: accept_actor_recommendation
     consequent_actor: case-actor
     note: >
-      Vendor1, as case owner, approves the Coordinator's suggestion.
+      Vendor1, as Case Owner, approves the Coordinator's suggestion.
   - antecedent: accept_actor_recommendation
     consequent: invite_actor_to_case
     consequent_actor: case-actor
@@ -83,7 +83,7 @@ The RVCV-extension scenario shows a **Vendor-initiated case** that grows through
 a Coordinator to include a second Vendor via the actor-suggestion flow.  The
 Reporter reports to Vendor1, who owns and coordinates the case.  Vendor1 invites a
 Coordinator; the Coordinator then suggests Vendor2 to the case.  Vendor1, as
-case owner, approves the suggestion, and the Case Actor formally invites Vendor2.
+Case Owner, approves the suggestion, and the Case Actor formally invites Vendor2.
 
 Both vendors reach the fix-ready state before joint disclosure.
 
@@ -146,7 +146,7 @@ The Coordinator recognizes that Vendor2 is affected and submits an
 
 ### 8. Vendor1 approves the recommendation
 
-Vendor1, as case owner, reviews and approves the suggestion.  An
+Vendor1, as Case Owner, reviews and approves the suggestion.  An
 `accept_actor_recommendation` entry is recorded.
 
 *Antecedent:* `offer_case_participant` is in the ledger.

@@ -57,7 +57,7 @@ These stub nodes belong to two trees.
 ## Closure model
 
 Case closure is always the decision of the Case Owner, sent as `Leave(VulnerabilityCase)` through the `leave-case` trigger (CM-23-001, TRIG-13-001).
-After a case holds the report, no actor sends `Close(Report)` for it, and the CASE_MANAGER refuses one from every sender (CM-23-019).
+After a case holds the report, no actor sends `Reject(Offer(VulnerabilityReport))` for it, and the CASE_MANAGER refuses one from every sender (CM-23-019).
 No protocol state closes a case on its own.
 Public awareness (CS `P`) already tears down the embargo, and coordination often continues after embargo exit and disclosure.
 

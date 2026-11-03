@@ -1197,6 +1197,9 @@ class TestAddParticipantStatusTree:
     @pytest.mark.spec("RSH-01-002")
     @pytest.mark.spec("RSH-04-004")
     @pytest.mark.spec("RSH-04-006")
+    @pytest.mark.spec("RSH-04-008")
+    @pytest.mark.spec("RSH-04-010")
+    @pytest.mark.spec("RSH-04-011")
     def test_emit_node_present_rsh_01_001(
         self,
         populated_dl,
@@ -1486,7 +1489,7 @@ class TestRejectionValidatorBeforeCommit:
 
         The whole status is refused in the precondition guard, so no receipt
         entry is committed and the vf advance is not recorded either: the
-        ledger never records a status the sender did not send (RSH-09-001).
+        ledger never records a status the sender did not send (RSH-09-010).
         """
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
         from vultron.core.states.cs import CS_vf
@@ -2159,7 +2162,7 @@ class TestAdoptedPxaReachesTheCaseStatus:
         } == ledger_before
         assert _case_pxa(populated_dl) == CS_pxa.pxa
 
-    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.spec("RSH-01-005")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_a_report_omitting_a_latch_keeps_it(
         self, populated_dl, make_payload, caplog
@@ -2192,7 +2195,7 @@ class TestAdoptedPxaReachesTheCaseStatus:
             "PXa"
         ]
 
-    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.spec("RSH-01-005")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_a_report_without_case_status_keeps_case_pxa(
         self, populated_dl, make_payload
@@ -2218,7 +2221,7 @@ class TestAdoptedPxaReachesTheCaseStatus:
         assert result.status == Status.SUCCESS, result.feedback_message
         assert _case_pxa(populated_dl) == CS_pxa.Pxa
 
-    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.spec("RSH-01-005")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_a_mixed_report_adds_its_new_latch(
         self, populated_dl, make_payload

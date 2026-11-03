@@ -142,7 +142,7 @@ def test_pxa_dimensions_ride_case_status():
 @pytest.mark.spec("MSM-03-006")
 def test_pxa_also_rides_a_participant_status_embedded_case_status():
     """A participant reports `CP`/`CX`/`CA` in the `CaseStatus` its
-    `Add(ParticipantStatus)` embeds (RSH-04-001, #4569)."""
+    `Add(ParticipantStatus)` embeds (RSH-04-007, #4569)."""
     pattern = _pattern(MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT)
     assert pattern.activity_ is TAtype.ADD
     assert pattern.object_ == "ParticipantStatus"

@@ -19,7 +19,7 @@ A replica that refuses a received ``Announce(CaseLedgerEntry)`` tells the
 CASE_MANAGER with ``Create(ProcessingFault)`` naming that ``Announce`` by
 reference (ASK-07-001, ASK-07-004, MSM-05-001).  The failure class says why:
 the entry describes an impossible participant status
-(``StatusAssertionRefused/ImpossibleState``, RSH-09-006), its content does not
+(``StatusAssertionRefused/ImpossibleState``, RSH-09-013), its content does not
 reproduce its hash (``LedgerEntryRefused/HashMismatch``, SYNC-03-007), or the
 replica's case has diverged from the CASE_MANAGER's
 (``LedgerEntryRefused/CaseDiverged``, SYNC-16-001).

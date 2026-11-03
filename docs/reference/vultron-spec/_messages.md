@@ -58,7 +58,7 @@ What a participant knows about another comes from the messages it has received, 
 This is what makes a participant's knowledge independent of any other participant being reachable.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("AKM-01-002", "AKM-01-003", "PCR-01-003"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("AKM-01-002", "AKM-01-003", "PCR-01-003", "PCR-01-004", "PCR-01-005", "PCR-01-006", "PCR-01-007"))
 ```
 
 **A recipient can obtain what a message names.**
@@ -126,13 +126,13 @@ Each row is one occasion, and its columns say:
 |---|---|
 | When… | The sender's situation |
 | Send | The wire activity that conveys it |
-| Send to | The addressee: the case manager, a participant, or, before a case exists, an actor outside any case |
+| Send to | The addressee: the CASE_MANAGER, a participant, or, before a case exists, an actor outside any case |
 | Sent by | The standing a receiver requires of the sender |
 | Distinguished by | What tells this occasion apart from another occasion that shares its wire activity and addressee |
 | Details | The occasion's section in the message reference, named by its protocol shorthand where it has one |
 
-"The case manager" in a table is the participant that holds the CASE_MANAGER role for the case, whichever actor that is ([§10 Case Coordination](interactions.md#10-case-coordination-n)).
-A row whose "Sent by" reads "internal to the case manager" is an act the CASE_MANAGER performs on its own case.
+"The CASE_MANAGER" in a table is the participant that holds the CASE_MANAGER role for the case, whichever actor that is ([§10 Case Coordination](interactions.md#10-case-coordination-n)).
+A row whose "Sent by" reads "internal to the CASE_MANAGER" is an act the CASE_MANAGER performs on its own case.
 No receiver handles such an activity, though the CASE_MANAGER may commit it to the case ledger.
 
 ### 4.5 Report Management Messages
@@ -245,7 +245,7 @@ A participant reports them as a claim in a `ParticipantStatus`, and the CASE_MAN
     Only the CASE_MANAGER sends `Add(CaseStatus)` ([§10.5 Claims and Canonical Status](interactions.md#105-claims-and-canonical-status)).
 
     ```python exec="true" idprefix=""
-    from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-04-001", "RSH-04-005"))
+    from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-04-001", "RSH-04-007", "RSH-04-005", "RSH-04-012"))
     ```
 
 The Vendor aware, Fix ready, fix Deployed (VFD) occasions report the sender's own progress, so receiving one updates the receiver's model of the sender rather than the receiver's own state ([§8.4 Receiving CS Messages: Own State vs. Model of Others](tracking-models.md#84-receiving-cs-messages-own-state-vs-model-of-others)).
@@ -336,7 +336,7 @@ A participant that wants to check its replica is current, after a restart for ex
 Whenever a participant states a position, the CASE_MANAGER also resends each Invite that participant still owes an answer to, as first sent, so an Invite lost before the participant could answer it reaches it again.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-05-002", "MSM-05-007", "MSM-05-008", "SYNC-17-001", "SYNC-17-004", "SYNC-20-001"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-05-002", "MSM-05-007", "MSM-05-008", "SYNC-17-001", "SYNC-17-004", "SYNC-17-010", "SYNC-20-001"))
 ```
 
 ### 4.13 Formal Message Set

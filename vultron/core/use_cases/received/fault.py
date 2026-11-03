@@ -224,7 +224,7 @@ def _reseed_verdict(
         return verdict
     # The re-seed this fault asks for sits in the tree's own CASE_MANAGER
     # gate; the factory's answer to a stamped ledger position holds another,
-    # which a fault (no ledgerPosition, SYNC-18-001) never runs.
+    # which a fault (no ledgerPosition, SYNC-18-017) never runs.
     gate = find_named(tree, RESEED_GATE_NAME)
     reseed = None if gate is None else find_node(gate, ReseedPeerNode)
     if reseed is None:

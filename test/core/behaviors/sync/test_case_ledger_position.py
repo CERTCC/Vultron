@@ -133,7 +133,7 @@ def test_an_empty_ledger_position_must_name_the_genesis_hash() -> None:
         _case(ledger_position={"log_index": -1, "entry_hash": "b" * 64})
 
 
-@pytest.mark.spec("SYNC-16-005")
+@pytest.mark.spec("SYNC-16-018")
 def test_the_position_travels_on_the_wire_form() -> None:
     case = _case(ledger_position={"log_index": 4, "entry_hash": "c" * 64})
     body = create_case_activity(case, actor=OWNER).model_dump(
@@ -152,7 +152,7 @@ def test_the_position_travels_on_the_wire_form() -> None:
     )
 
 
-@pytest.mark.spec("SYNC-16-005")
+@pytest.mark.spec("SYNC-16-019")
 def test_a_received_case_without_a_position_is_refused() -> None:
     body = create_case_activity(_case(), actor=OWNER).model_dump(
         mode="json", by_alias=True, exclude_none=True
@@ -211,7 +211,7 @@ def test_the_store_reads_an_old_shape_case_as_absent_and_says_why(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("SYNC-16-005")
+@pytest.mark.spec("SYNC-16-015")
 def test_storing_an_entry_moves_the_case_to_it(dl: SqliteDataLayer) -> None:
     case = _case()
     dl.save(case)
@@ -227,7 +227,7 @@ def test_storing_an_entry_moves_the_case_to_it(dl: SqliteDataLayer) -> None:
     assert dl.read(second.id_) is not None
 
 
-@pytest.mark.spec("SYNC-16-005")
+@pytest.mark.spec("SYNC-16-015")
 def test_the_entry_and_the_move_commit_together(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -263,7 +263,7 @@ def test_an_entry_for_a_case_the_store_does_not_hold_is_not_stored(
     assert dl.read(entry.id_) is None
 
 
-@pytest.mark.spec("SYNC-16-005")
+@pytest.mark.spec("SYNC-16-015")
 def test_the_case_manager_commit_moves_its_case(dl: SqliteDataLayer) -> None:
     case = _case()
     dl.save(case)
@@ -281,7 +281,7 @@ def test_the_case_manager_commit_moves_its_case(dl: SqliteDataLayer) -> None:
     assert stored.ledger_position == _position(entry)
 
 
-@pytest.mark.spec("SYNC-16-005")
+@pytest.mark.spec("SYNC-16-015")
 def test_a_replica_store_moves_its_case() -> None:
     replica = SqliteDataLayer("sqlite:///:memory:", actor_id=REPLICA)
     case = _case()
@@ -343,7 +343,7 @@ def test_the_commit_check_catches_a_write_that_puts_the_position_back(
     assert "before committing entry 1" in failures[0]
 
 
-@pytest.mark.spec("SYNC-16-005")
+@pytest.mark.spec("SYNC-16-017")
 @pytest.mark.parametrize("slot", ["object", "target"])
 def test_the_snapshot_check_reads_a_case_in_either_slot(slot: str) -> None:
     """A case carried as the object or the target (full-case Invite) is checked.

@@ -25,7 +25,7 @@ stakeholder_type: [project-contributor]
      The ledger-position answer is the CASE_MANAGER's answer to the sender's stamped `ledgerPosition` (SYNC-18-004, SYNC-18-005, SYNC-18-007): it records a held position, replays a lag and re-seeds a split, commits nothing and never decides the act.
      Clock decisions are the CASE_MANAGER's own decisions from its clock, such as an expiry; the factory runs them only at the CASE_MANAGER, and a refused commit there logs a warning and lets the tree continue (CLP-10-025).
      The embargo end-time check is a clock decision of every tree with a case and both door guards, and the first, CASE_MANAGER-gated step of every case-scoped trigger's tree (EMB-13-003, BT-15-003); no dispatcher runs it as a hook.
-     `refusal_effects`, when a tree passes them, run inside the guard stage only when a precondition guard refuses, and only at the CASE_MANAGER (CLP-10-022).
+     `refusal_effects`, when a tree passes them, run inside the guard stage only when a precondition guard refuses, and only at the CASE_MANAGER (CLP-10-042, CLP-10-043).
      They do not run for a redelivery, or for a guard failure that is an idempotent repeat the handler reports `SKIPPED` (`ReportsIdempotentRepeat` in `vultron/core/behaviors/idempotency.py`).
      The factory adds the refusal notice, `refusal_notice(case_id)` in `vultron/core/behaviors/case/nodes/refusal_notice.py`, as the first refusal effect of every tree that commits to a case and has precondition guards, to tell the asserting participant its assertion was refused (CLP-02-005, CLP-05-001).
      A tree goes without it only by naming a registered `RefusalNoticeExemption` (`refusal_notice_exemption`); `test/architecture/test_received_tree_refusal_notice.py` pins each use.

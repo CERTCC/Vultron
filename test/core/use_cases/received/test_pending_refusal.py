@@ -28,7 +28,7 @@ import pytest
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.embargo import (
@@ -125,7 +125,10 @@ def _receive_reject(
 
 def _pending(case_id: str, proposal_id: str) -> bool:
     return get_pending_assertion_store(_PROPOSER).is_suppressed(
-        case_id, _INVITE, proposal_id
+        case_id,
+        _INVITE,
+        proposal_id,
+        at=now_utc(),
     )
 
 
@@ -133,6 +136,7 @@ def _pending(case_id: str, proposal_id: str) -> bool:
 @pytest.mark.spec("SYNC-11-003")
 @pytest.mark.spec("EP-09-014")
 @pytest.mark.spec("EP-09-019")
+@pytest.mark.spec("CLP-05-009")
 def test_case_managers_reject_closes_the_pending_proposal() -> None:
     dl, case, proposal = _proposer_with_pending_proposal()
     assert _pending(case.id_, proposal.id_)

@@ -1803,7 +1803,7 @@ groups:
       participants time to prepare and to see why.
     verification: >-
       Inspection of `vultron/core/use_cases/` confirms that the case-split
-      handler emits a notification to sibling case managers before any earlier
+      handler emits a notification to sibling CASE_MANAGERs before any earlier
       child-case embargo end time takes effect.
     stories:
     - story_2022_104

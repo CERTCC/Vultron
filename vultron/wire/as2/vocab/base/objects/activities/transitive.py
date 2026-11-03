@@ -406,7 +406,7 @@ class as_Reject(as_TransitiveActivity):
     ``object`` may be absent in exactly one Vultron message: a replica that
     holds no ledger entry asks the CASE_MANAGER to replay a case from
     genesis with a ``Reject(CaseLedgerEntry)`` that names no entry, a
-    ``ledgerPosition`` naming none, and the case as ``target`` (SYNC-16-007).  Any other
+    ``ledgerPosition`` naming none, and the case as ``target`` (SYNC-16-027).  Any other
     ``Reject`` without an object is refused when it is built or parsed.
     """
 
@@ -425,7 +425,7 @@ class as_Reject(as_TransitiveActivity):
 
         A plain ``Reject`` with no ``object``, whose ``ledgerPosition`` is the
         empty chain's (index -1), and a ``target`` that names the case
-        (SYNC-16-007, SYNC-18-001): its id, or an inline
+        (SYNC-16-027, SYNC-16-028): its id, or an inline
         ``VulnerabilityCase``; an inline object of any other type names no
         case.  The one rule the parser and the router both read.
         """
@@ -451,7 +451,7 @@ class as_Reject(as_TransitiveActivity):
             f"{self.type_} names no object.  Only a Reject(CaseLedgerEntry)"
             " asking for a replay from genesis may: it states the empty"
             " chain's ledgerPosition (index -1) and names the case as its"
-            " target (SYNC-16-007)"
+            " target (SYNC-16-028)"
         )
 
 

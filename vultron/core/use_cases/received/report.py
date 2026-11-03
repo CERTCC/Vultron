@@ -456,14 +456,17 @@ class AckReportReceivedUseCase:
 
 
 class CloseReportReceivedUseCase:
-    """Refuse a ``Close(Report)``: no receiver applies one (CM-23-019).
+    """Refuse a report closure: no receiver applies one (CM-23-019).
+
+    A report closure is a ``Reject(Offer(VulnerabilityReport))``.
 
     A report that belongs to a case is held by the case's Case Owner alone,
     and the Case Owner closes the case by ``Leave(VulnerabilityCase)``
-    (CM-23-001).  A ``Close(Report)`` for it is the wrong closing act from
-    the owner and a message no other sender has a report to send, so the
-    declared rule admits no sender on either case side: the tree's sender
-    guard refuses every one, and nothing is written, committed or sent.
+    (CM-23-001).  A ``Reject(Offer(VulnerabilityReport))`` for it is the wrong
+    closing act from the owner and a message no other sender has a report to
+    send, so the declared rule admits no sender on either case side: the
+    tree's sender guard refuses every one, and nothing is written, committed
+    or sent.
     Before any case exists the receiver holds no case to apply the sender's
     closure to, so the tree refuses the activity as one about a case it does
     not hold (#2255), as it always has.  Either way intake archives what

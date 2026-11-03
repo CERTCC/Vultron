@@ -41,17 +41,17 @@ class LedgerConfig(BaseModel):
     Attributes:
         clock_skew_tolerance_seconds: How far *before* the parent case's own
             ``published`` timestamp an assertion's claimed timestamp may fall
-            before CLP-14-006 rejects it.  A non-zero tolerance is required
+            before CLP-14-013 rejects it.  A non-zero tolerance is required
             because participant and CaseActor clocks are not synchronized —
             ADR-0079 rejected wall-clock ordering (option C) for exactly this
-            reason.  The default matches the CLP-14-007 convention.  Default
+            reason.  The default matches the CLP-14-014 convention.  Default
             300 s (5 minutes).
         future_tolerance_seconds: How far *ahead* of the CaseActor's own clock
             an assertion's claimed timestamp may fall before CLP-14-007
-            rejects it.  CLP-14-007 sets the default ceiling at five minutes.
+            rejects it.  CLP-14-014 sets the default ceiling at five minutes.
         staleness_window_days: How far *behind* the CaseActor's own clock an
             assertion's claimed timestamp may fall before CLP-14-008 rejects
-            it.  CLP-14-008 sets the default at seven days.
+            it.  CLP-14-015 sets the default at seven days.
         position_statement_interval_seconds: How often a hosted participant
             states its ledger position for each case it holds, with
             ``Read(CaseLedgerEntry)``, beyond the statement it sends after
@@ -78,7 +78,7 @@ class LedgerConfig(BaseModel):
         default=300,
         ge=0,
         description=(
-            "Tolerance applied to the CLP-14-006 check that an assertion is "
+            "Tolerance applied to the CLP-14-013 check that an assertion is "
             "not stamped before its parent case was created. Default: 300 s."
         ),
     )
@@ -141,7 +141,7 @@ class LedgerConfig(BaseModel):
 
     @property
     def clock_skew_tolerance(self) -> timedelta:
-        """CLP-14-006 skew tolerance as a :class:`~datetime.timedelta`."""
+        """CLP-14-013 skew tolerance as a :class:`~datetime.timedelta`."""
         return timedelta(seconds=self.clock_skew_tolerance_seconds)
 
     @property

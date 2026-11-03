@@ -16,7 +16,7 @@
 """Ledger recording of the participant statuses a CASE_MANAGER act wrote.
 
 Every change the CASE_MANAGER makes to the case file is committed as its own
-entry carrying the changed object in full (CLP-07-013, ADR-0124).  When a
+entry carrying the changed object in full (CLP-07-021, ADR-0124).  When a
 received act moves a participant's RM state — a report verdict, an engagement
 decision, a reply to the full-case Invite, a Leave's closure — the act's own
 entry records the act, and each ``ParticipantStatus`` the CASE_MANAGER wrote as

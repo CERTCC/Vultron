@@ -543,7 +543,7 @@ def create_embargo_event_activity(
     """Build a Create(EmbargoEvent): the case's creation wrote an embargo.
 
     The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
-    embargo in full, right after the genesis entry (CLP-07-013); never sent
+    embargo in full, right after the genesis entry (CLP-07-021); never sent
     as a message.
 
     Args:
@@ -572,7 +572,7 @@ def create_embargo_consent_activity(
     """Build a Create(EmbargoConsent): the CASE_MANAGER created a row.
 
     The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
-    new consent row in full (ADR-0122, CLP-07-013); never sent as a message.
+    new consent row in full (ADR-0122, CLP-07-021); never sent as a message.
 
     Args:
         row: The new consent row; it names its participant actor.
@@ -600,7 +600,7 @@ def update_embargo_consent_activity(
     """Build an Update(EmbargoConsent): the CASE_MANAGER changed a row.
 
     The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
-    changed consent row in full (ADR-0122, CLP-07-013); never sent as a
+    changed consent row in full (ADR-0122, CLP-07-021); never sent as a
     message.
 
     Args:

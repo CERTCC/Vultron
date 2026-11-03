@@ -407,8 +407,8 @@ def test_only_positions_name_the_object_they_are_held_over():
 @pytest.mark.parametrize(
     ("kind", "wording"),
     [
-        (SenderEntitlementKind.CASE_MANAGER, "the case manager"),
-        (SenderEntitlementKind.CASE_OWNER, "the case owner"),
+        (SenderEntitlementKind.CASE_MANAGER, "the CASE_MANAGER"),
+        (SenderEntitlementKind.CASE_OWNER, "the Case Owner"),
         (SenderEntitlementKind.ACTIVE_PARTICIPANT, "an active participant"),
         (SenderEntitlementKind.PARTICIPANT, "a participant"),
         (
@@ -486,7 +486,7 @@ def test_sent_by_words_the_author_from_the_changed_object():
     )
     assert (
         sent_by(entry, entry.occasions[0])
-        == "the case owner or the note's author"
+        == "the Case Owner or the note's author"
     )
 
 
@@ -517,7 +517,25 @@ def test_sent_by_adds_the_usual_senders():
     )
     assert (
         sent_by(entry, occasion)
-        == "an active participant (usually: vendor, case owner)"
+        == "an active participant (usually: vendor, Case Owner)"
+    )
+
+
+@pytest.mark.spec("MSM-08-005")
+def test_sent_by_names_the_authority_roles_by_their_glossary_terms():
+    """A usual sender holding an authority role reads as its term (ADR-0088)."""
+    occasion = _occasion(
+        usual_senders=(CVDRole.CASE_MANAGER, CVDRole.CASE_OWNER)
+    )
+    entry = _entry(
+        occasion,
+        entitlement=SenderRule.in_case(
+            SenderEntitlementKind.ACTIVE_PARTICIPANT
+        ),
+    )
+    assert (
+        sent_by(entry, occasion)
+        == "an active participant (usually: CASE_MANAGER, Case Owner)"
     )
 
 
@@ -531,7 +549,7 @@ def test_sent_by_joins_an_any_of_side_with_or():
     )
     assert (
         sent_by(entry, entry.occasions[0])
-        == "the case manager or the case owner"
+        == "the CASE_MANAGER or the Case Owner"
     )
 
 
@@ -547,7 +565,7 @@ _TWO_SIDED = SenderRule(
     ("addressee", "wording"),
     [
         (AddresseeSide.CASE_MANAGER, "an active participant"),
-        (AddresseeSide.PARTICIPANT, "the case manager"),
+        (AddresseeSide.PARTICIPANT, "the CASE_MANAGER"),
     ],
 )
 def test_sent_by_words_the_side_of_the_occasions_addressee(
@@ -629,13 +647,13 @@ def test_an_unhandled_entry_reads_internal_to_the_case_manager(
 ):
     """With no use case there is no sender rule to word, and no failure.
 
-    The act is the case manager's own, which no receiver handles.
+    The act is the CASE_MANAGER's own, which no receiver handles.
     """
     occasion = _occasion(addressee=addressee)
     assert (
         sent_by(_unhandled(occasion), occasion)
         == CASE_MANAGER_INTERNAL
-        == "internal to the case manager"
+        == "internal to the CASE_MANAGER"
     )
 
 
@@ -644,13 +662,13 @@ def test_an_unhandled_entry_still_adds_the_usual_senders():
     occasion = _occasion(usual_senders=(CVDRole.CASE_OWNER,))
     assert (
         sent_by(_unhandled(occasion), occasion)
-        == "internal to the case manager (usually: case owner)"
+        == "internal to the CASE_MANAGER (usually: Case Owner)"
     )
 
 
 #: The "Send to" wording of each addressee, pinned as literals.
 _SEND_TO: dict[AddresseeSide, str] = {
-    AddresseeSide.CASE_MANAGER: "the case manager",
+    AddresseeSide.CASE_MANAGER: "the CASE_MANAGER",
     AddresseeSide.PARTICIPANT: "a participant",
     AddresseeSide.OUTSIDE_CASE: "an actor outside any case",
 }
@@ -753,27 +771,27 @@ def test_registry_sent_by_follows_the_side_of_the_addressee(
         (
             "embargo-proposal",
             AddresseeSide.CASE_MANAGER,
-            "the case manager or an active participant",
+            "the CASE_MANAGER or an active participant",
         ),
         (
             "relay-embargo-proposal",
             AddresseeSide.PARTICIPANT,
-            "the case manager",
+            "the CASE_MANAGER",
         ),
         (
             "embargo-termination",
             AddresseeSide.CASE_MANAGER,
-            "the case manager or the case owner",
+            "the CASE_MANAGER or the Case Owner",
         ),
         (
             "embargo-termination-notice",
             AddresseeSide.PARTICIPANT,
-            "the case manager",
+            "the CASE_MANAGER",
         ),
         (
             "remove-note-from-case",
             AddresseeSide.CASE_MANAGER,
-            "the case owner or the note's author",
+            "the Case Owner or the note's author",
         ),
         (
             "report-acknowledgment",

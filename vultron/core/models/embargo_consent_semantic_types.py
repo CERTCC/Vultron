@@ -18,7 +18,7 @@
 A consent row belongs to a participant, so each row the CASE_MANAGER brings
 into existence or changes as a consequence of an act is its own
 CASE_MANAGER activity and its own entry, after the act's entry (ADR-0122,
-ADR-0124, CLP-07-013).  Each carries the row in full, and every replica
+ADR-0124, CLP-07-021).  Each carries the row in full, and every replica
 writes it through the one apply function
 (:func:`~vultron.core.models.embargo_apply.apply_embargo_change`).
 

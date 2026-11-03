@@ -48,15 +48,37 @@ before submitting a PR.
 
 ## Cutting a Release (Maintainers)
 
+A release promotes a commit the site already published: one with a
+`publish-YYYY-MM-DD.N` tag made by the
+publish workflow (`.github/workflows/deploy_site.yml`). That commit passed CI and
+the site checks, and was live.
+
 To cut a Vultron release:
 
-1. Create a three-component CalVer tag: `git tag vYYYY.M.P` (for example, `v2026.10.0`).
-   The patch component is always present — do not omit it.
-   `snapshot-YYYYQn` tags are checkpoints; they do not get a GitHub Release.
-2. Push the tag: `git push origin vYYYY.M.P`.
-3. Create a GitHub Release for that tag.
-   - Title: the version tag (e.g., `v2026.10.0`).
-   - **Uncheck the Pre-release box** so the repository has a Latest release.
-   - Release notes MUST include the statement that all interfaces are experimental.
-   - Once #3658 ships, release notes MUST also include the list of requirement IDs
+1. Open **Actions → Promote a publish to a release** and click **Run workflow**.
+   Keep **Use workflow from** set to `main`; a run from any other branch or tag
+   is refused.
+2. Leave **publish-tag** empty to promote the newest publish, which is what the
+   site shows now, or enter an older `publish-*` tag. A tag pushed by hand is
+   refused.
+3. The run tags that commit with the next three-component CalVer tag,
+   `vYYYY.M.P`, for the current UTC month (ADR-0006), and opens a **draft**
+   GitHub Release. The run summary links to the draft.
+4. Edit the draft in the GitHub release editor:
+   - Keep the title, which is the version tag (e.g., `v2026.11.0`).
+   - The notes start with the statement that all interfaces are experimental,
+     followed by notes generated since the previous release. Keep the statement.
+   - Once #3658 ships, the notes MUST also include the list of requirement IDs
      added and removed since the previous release.
+   - **Leave the Pre-release box unchecked** so the repository has a Latest
+     release.
+5. Click **Publish release**.
+
+Do not tag a release by hand or from the **Draft a new release** dialog: the
+dialog's default target is the tip of `main`, which is usually not what the site
+shows. A `v*` tag pushed by hand whose commit has no `publish-*` tag files a
+failure issue through the release tag check (`.github/workflows/release_tag_check.yml`).
+Release and publish tags are append-only, so a wrong tag cannot be moved or
+deleted; cut a new release instead.
+
+`snapshot-YYYYQn` tags are checkpoints; they do not get a GitHub Release.

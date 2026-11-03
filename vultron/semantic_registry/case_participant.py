@@ -60,7 +60,7 @@ ENTRIES: list[SemanticEntry] = [
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Add case participant to case",
                 description=(
-                    "Asks the Case Manager to reinstate the participant record"
+                    "Asks the CASE_MANAGER to reinstate the participant record"
                     " named by the object. The Participant becomes active "
                     "again and receives the ledger entries it missed."
                 ),
@@ -88,7 +88,7 @@ ENTRIES: list[SemanticEntry] = [
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Remove case participant from case",
                 description=(
-                    "Asks the Case Manager to remove the participant record "
+                    "Asks the CASE_MANAGER to remove the participant record "
                     "named by the object. The removed Participant receives a "
                     "direct notice."
                 ),
@@ -99,7 +99,7 @@ ENTRIES: list[SemanticEntry] = [
         page=MessagePage.CASE_MANAGEMENT,
     ),
     # The CASE_MANAGER's own acts on participant records, each committed as
-    # its own entry carrying the record in full (ADR-0114, CLP-07-013).  Only
+    # its own entry carrying the record in full (ADR-0114, CLP-07-021).  Only
     # the CASE_MANAGER sends them, and a participant takes the record from
     # the ledger, so no received use case handles them (ADR-0140 item 5).
     SemanticEntry(
@@ -113,7 +113,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager creates a participant record, such as "
+                    "the CASE_MANAGER creates a participant record, such as "
                     "the inert record for the invitee of a stub Invite"
                 ),
                 anchor="create-case-participant",
@@ -143,7 +143,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager changes a participant record, such as "
+                    "the CASE_MANAGER changes a participant record, such as "
                     "moving the CASE_OWNER role on an ownership transfer"
                 ),
                 anchor="update-case-participant",
@@ -151,7 +151,7 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Update case participant",
                 description=(
                     "Carries the changed participant record in full, as the "
-                    "Case Manager stored it."
+                    "CASE_MANAGER stored it."
                 ),
                 example="update_participant",
                 notes=(

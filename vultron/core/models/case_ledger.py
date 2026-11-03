@@ -394,7 +394,7 @@ class CaseLedger:
     for a single case. Enforces:
 
     - **Append-only**: entries are immutable once added; no removal or
-      replacement is permitted (SYNC-01-001).
+      replacement is permitted (SYNC-01-001, SYNC-08-001).
     - **Hash-chain integrity**: each appended entry's ``prev_log_hash``
       references the ``entry_hash`` of the most recently appended entry
       (SYNC-01-003).

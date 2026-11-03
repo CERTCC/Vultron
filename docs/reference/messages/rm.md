@@ -46,7 +46,7 @@ The CASE_MANAGER sends no notice when the sender is not a participant of the cas
 - **Triggering transition:** emitted when the sender is Accepted (sender ∈ A).
 - **Receiver:** the receiver does not refuse a new report on the sender's standing; it acts only when it is in the Offer's `to` (HP-01-010, HP-09-001).
 - **Proposed embargo terms:** the Offer may carry `proposedEmbargo`, an inline `EmbargoEvent` whose `context` is the report.
-  At case creation, the case owner compares it with its own default, and the shorter embargo wins (EP-04-003, EP-04-004).
+  At case creation, the Case Owner compares it with its own default, and the shorter embargo wins (EP-04-003, EP-04-004).
 
 {% include-markdown "./_occasions/sections/report-acknowledgment.md" %}
 

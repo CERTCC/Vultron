@@ -346,7 +346,7 @@ def test_tree_structure_matches_spec(report, offer):
     assert validation_flow.children[1].name == "EvaluateReportCredibility"
     assert validation_flow.children[2].name == "EvaluateReportValidity"
     # Case-scoped preconditions precede any write (ISSUE-2548): the case must
-    # be in *this* actor's store (ADR-0073, PCR-01-003) and carry an embargo
+    # be in *this* actor's store (ADR-0073, PCR-01-005) and carry an embargo
     # (DUR-07-004).
     assert validation_flow.children[3].name == "RequireCaseForReport"
     assert validation_flow.children[4].name == "EnsureEmbargoExists"
@@ -525,6 +525,7 @@ def test_tree_execution_invalid_state_sends_validation(
 
 
 @pytest.mark.spec("RSH-08-006")
+@pytest.mark.spec("RSH-08-012")
 def test_tree_execution_refused_source_state_sends_nothing(
     bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):

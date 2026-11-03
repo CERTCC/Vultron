@@ -6,7 +6,7 @@
 
     - **When…** a report receiver judges the report invalid
     - **Send:** `TentativeReject(Offer(VulnerabilityReport))`
-    - **Send to:** the case manager
+    - **Send to:** the CASE_MANAGER
     - **Sent by:** a participant (usually: vendor, coordinator)
     - **Reference:** [Invalidate report](../../rm.md#report-invalid)
 

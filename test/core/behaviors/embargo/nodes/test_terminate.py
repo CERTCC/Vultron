@@ -42,7 +42,7 @@ from vultron.core.behaviors.embargo.nodes.terminate import (
     TeardownAskPendingNode,
     ask_case_manager_to_terminate_once,
 )
-from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     FixDeployedCause,
@@ -134,7 +134,10 @@ def _factory() -> MagicMock:
 
 def _pending_ask(actor_id: str) -> PendingAssertion | None:
     return get_pending_assertion_store(actor_id).pending_for_subject(
-        CASE_ID, EMBARGO_TEARDOWN_SEMANTIC_TYPE, _EMBARGO_ID
+        CASE_ID,
+        EMBARGO_TEARDOWN_SEMANTIC_TYPE,
+        _EMBARGO_ID,
+        at=now_utc(),
     )
 
 
@@ -422,7 +425,7 @@ class TestAskCaseManagerToTerminateOnce:
 
     def test_pending_guard_without_an_actor_is_a_wiring_fault(self) -> None:
         """A FAILURE here would read as "not pending" and send the ask."""
-        node = TeardownAskPendingNode(case_id=CASE_ID)
+        node = TeardownAskPendingNode(case_id=CASE_ID, at=now_utc())
         node.actor_id = None
         node.embargo_id = _EMBARGO_ID
 

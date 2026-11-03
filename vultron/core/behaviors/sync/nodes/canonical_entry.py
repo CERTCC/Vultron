@@ -70,9 +70,9 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Offer", "Offer"),
     ("Accept", "Offer"),  # validate_report (RV) — object_ is the Offer
     ("TentativeReject", "Offer"),  # invalidate_report (RI)
-    # A Reject of an Offer: the ownership transferee's decline (CLP-02-012),
+    # A Reject of an Offer: the ownership transferee's decline (CLP-02-016),
     # and close_report (RC) entries already in a ledger, though no
-    # Close(Report) on a case is admitted now (CM-23-019).
+    # Reject(Offer(VulnerabilityReport)) on a case is admitted now (CM-23-019).
     ("Reject", "Offer"),
     # No ``("Read", "Offer")``: RK is never ledgered (RMB-08-007, CLP-02-013).
     # The Case Owner's withdrawal of its ownership-transfer proposal
@@ -252,13 +252,13 @@ def _validate_entry_timestamps(
         payload_snapshot: The candidate ``payloadSnapshot``.
         case_published: The parent case's own ``published``, or ``None`` when
             the case is not yet readable (the genesis entry is committed
-            alongside case creation), which skips CLP-14-006.
+            alongside case creation), which skips CLP-14-013.
         prev_actor_published: Claimed ``published`` of the most recent recorded
             entry asserted by *this same actor* for this case, or ``None`` when
             this is that actor's first assertion, which skips CLP-15-003.
         future_tolerance: CLP-14-007 ceiling; ``None`` disables the check.
         staleness_window: CLP-14-008 window; ``None`` disables the check.
-        skew_tolerance: Slack allowed on CLP-14-006 for unsynchronised clocks.
+        skew_tolerance: Slack allowed on CLP-14-013 for unsynchronised clocks.
 
     Raises:
         VultronCanonicalEntryError: On any claimed-timestamp violation.
@@ -266,7 +266,7 @@ def _validate_entry_timestamps(
     # parse_published (not as_utc) so an aware non-UTC case_published — the
     # parent case chose its own offset — is *converted* to UTC, not merely
     # tagged.  entry_published is always UTC (below), so this keeps the
-    # CLP-14-006 violation message from rendering the two sides in different
+    # CLP-14-013 violation message from rendering the two sides in different
     # offsets, which reads as though the guard compared unlike quantities.
     # prev_actor_published already arrives UTC from _find_prev_actor_published,
     # so as_utc is sufficient there.
@@ -285,12 +285,12 @@ def _validate_entry_timestamps(
             f"{semantic_type}: CLP-07-011 — payloadSnapshot.published is not a "
             "valid ISO 8601 timestamp"
         )
-    if (  # CLP-14-006
+    if (  # CLP-14-013
         case_published is not None
         and entry_published < case_published - skew_tolerance
     ):
         raise VultronCanonicalEntryError(
-            f"{semantic_type}: CLP-14-006 — entry published {entry_published} "
+            f"{semantic_type}: CLP-14-013 — entry published {entry_published} "
             f"predates case created {case_published} by more than the "
             f"{skew_tolerance} clock-skew tolerance"
         )

@@ -48,7 +48,7 @@ from vultron.core.behaviors.embargo.nodes.answer_record import (
 from vultron.core.behaviors.embargo.nodes.teardown import (
     TerminationIsTimelyNode,
 )
-from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.embargo_termination import (
     OtherCause,
     TerminationCause,
@@ -191,7 +191,7 @@ def test_an_accept_of_an_embargo_missing_from_the_register_gets_the_notice():
 @pytest.mark.spec("CM-13-005")
 @pytest.mark.parametrize("accept", [True, False], ids=["accept", "reject"])
 def test_a_repeat_answer_under_a_new_id_gets_no_notice(accept: bool):
-    """A repeat is ``SKIPPED``, not refused (CM-13-005, CLP-10-022)."""
+    """A repeat is ``SKIPPED``, not refused (CM-13-005, CLP-10-042)."""
     net = _net(f"repeat-{accept}")
     _, invite_id = _invited(net, BYSTANDER, f"repeat-{accept}")
     first = _answer_body(net, BYSTANDER, invite_id, accept=accept, tag="1")
@@ -432,12 +432,14 @@ def test_an_invite_once_the_embargo_ended_gets_a_reject_of_it():
     )
     assert notice["object"]["type"] == "Invite"
     store = get_pending_assertion_store(BYSTANDER)
-    assert store.is_suppressed(net.case_id, _INVITE, body["id"])
+    assert store.is_suppressed(net.case_id, _INVITE, body["id"], at=now_utc())
 
     delivered = net.deliver(MANAGER, to=BYSTANDER, type_="Reject")
 
     assert [type_ for type_, _ in delivered] == ["Reject"]
-    assert not store.is_suppressed(net.case_id, _INVITE, body["id"])
+    assert not store.is_suppressed(
+        net.case_id, _INVITE, body["id"], at=now_utc()
+    )
 
 
 @pytest.mark.spec("CLP-05-001")
@@ -458,7 +460,9 @@ def test_the_notice_of_a_refused_accept_closes_the_accepters_ask():
     assert type_ == "Reject"
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
     store = get_pending_assertion_store(BYSTANDER)
-    assert not store.is_suppressed(net.case_id, _ACCEPT, body["id"])
+    assert not store.is_suppressed(
+        net.case_id, _ACCEPT, body["id"], at=now_utc()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -484,7 +488,7 @@ def test_the_case_managers_reject_to_an_accept_closes_the_accepters_ask():
         HandlerDisposition.REFUSED
     )
     store = get_pending_assertion_store(BYSTANDER)
-    assert store.is_suppressed(net.case_id, _ACCEPT, body["id"])
+    assert store.is_suppressed(net.case_id, _ACCEPT, body["id"], at=now_utc())
 
     ((type_, verdict),) = net.deliver(MANAGER, to=BYSTANDER, type_="Reject")
 
@@ -494,7 +498,9 @@ def test_the_case_managers_reject_to_an_accept_closes_the_accepters_ask():
     # CASE_MANAGER records an answer, so the tree still reports a refusal.
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert "not the invitee" not in (verdict.reason or ""), verdict.reason
-    assert not store.is_suppressed(net.case_id, _ACCEPT, body["id"])
+    assert not store.is_suppressed(
+        net.case_id, _ACCEPT, body["id"], at=now_utc()
+    )
 
 
 # ---------------------------------------------------------------------------

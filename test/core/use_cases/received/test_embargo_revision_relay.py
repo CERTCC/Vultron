@@ -880,7 +880,7 @@ def test_each_relayed_invite_is_committed_after_the_proposal(make_payload):
 
     everything = [e.semantic_type for e in _ledger_entries(dl, case_id)]
     # The proposal (the PROPOSE step), each participant's new row, then each
-    # relayed Invite followed by its invitee's row (ADR-0124, CLP-07-013).
+    # relayed Invite followed by its invitee's row (ADR-0124, CLP-07-021).
     invite, created, updated = (
         "invite_to_embargo_on_case",
         CREATE_EMBARGO_CONSENT_SEMANTIC_TYPE,

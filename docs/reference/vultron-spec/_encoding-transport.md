@@ -29,7 +29,7 @@ The fields that tell occasions apart, such as `target` and `context`, are the br
 Vultron's own types are declared in the vocabulary namespace `https://certcc.github.io/Vultron/ns`.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MV-01-001", "OX-02-002", "OID-01-001", "CLP-15-006"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MV-01-001", "OX-02-002", "OID-01-001", "CLP-15-006", "CLP-15-008"))
 ```
 
 Vultron uses AS2 verbs rather than defining its own:
@@ -74,7 +74,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 As AS2 allows, an Activity carries an object inline or names it by URI, and a receiver copes with either form.
 An object the recipient cannot be expected to hold is carried inline, or named by a reference the recipient can dereference ([§4.2 Knowledge Model and Actor Isolation](layers.md#42-knowledge-model-and-actor-isolation)).
 A production implementation can fetch an object named by a URI it holds no record of.
-The case-creation message that bootstraps a case is an exception: it carries the case and every object nested in it inline, and its receiver fetches none of them ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).
+The case-creation message that bootstraps a case is an exception: it carries the case and its participant records inline, and its receiver fetches none of them ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("SE-01-002", "AKM-05-004"))
@@ -209,9 +209,9 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
 
     | Step | Sender | Send to | Wire activity | Shorthand |
     |---|---|---|---|---|
-    | 1 | Vendor | the case manager | `Invite(EmbargoEvent)[context=VulnerabilityCase]` | `EP` |
-    | 2 | the case manager | Coordinator | `Invite(EmbargoEvent)[context=VulnerabilityCase]` | — |
-    | 3 | Coordinator | the case manager | `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])` | — |
+    | 1 | Vendor | the CASE_MANAGER | `Invite(EmbargoEvent)[context=VulnerabilityCase]` | `EP` |
+    | 2 | the CASE_MANAGER | Coordinator | `Invite(EmbargoEvent)[context=VulnerabilityCase]` | — |
+    | 3 | Coordinator | the CASE_MANAGER | `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])` | — |
 
 === "Wire JSON"
 
@@ -295,7 +295,7 @@ The `vfState` value `VF` is what distinguishes this occasion from the other clai
 
     | Step | Sender | Send to | Wire activity | Shorthand |
     |---|---|---|---|---|
-    | 1 | Vendor | the case manager | `Add(ParticipantStatus)[target=CaseParticipant]`, with `vfState` `VF` | `CF` |
+    | 1 | Vendor | the CASE_MANAGER | `Add(ParticipantStatus)[target=CaseParticipant]`, with `vfState` `VF` | `CF` |
 
 === "Wire JSON"
 
@@ -333,7 +333,7 @@ The two digests below are illustrative: they show the fields' shape and are not 
 
     | Step | Sender | Send to | Wire activity | Shorthand |
     |---|---|---|---|---|
-    | 1 | the case manager | each participant | `Announce(CaseLedgerEntry)` | — |
+    | 1 | the CASE_MANAGER | each participant | `Announce(CaseLedgerEntry)` | — |
 
 === "Wire JSON"
 

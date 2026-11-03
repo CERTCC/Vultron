@@ -34,7 +34,7 @@ refusals instead: :data:`REFUSAL_NOTICE_EXEMPTIONS` is the whole list, and
 uses each one.
 The factory runs the notice only when a precondition guard refuses, only at
 the case's CASE_MANAGER, never for a sender-guard refusal, a repeat reported
-``SKIPPED`` or a redelivery (CLP-10-022).  It writes no state: the notice's
+``SKIPPED`` or a redelivery (CLP-10-042, CLP-10-044).  It writes no state: the notice's
 id is derived from the CASE_MANAGER and the refused activity, so a retry
 queues it once (ID-04-004, OX-06-002).
 
@@ -64,6 +64,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
     _EmitSingleActivityBase,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.pending_assertion import (
     PendingAssertion,
@@ -263,7 +264,7 @@ class ClearRefusedAssertionNode(DataLayerActionWithPorts):
     (HP-01-006).  The assertion had no effect, so the participant marks its
     pending entry cleared and logs the refusal at WARNING with the refused
     activity, this actor and the reason.  It writes no case state and sends
-    nothing: what to do next is for later behavior to decide (CLP-05-001,
+    nothing: what to do next is for later behavior to decide (CLP-05-008,
     CLP-06-005).  A notice for an activity this actor holds no pending entry
     for clears nothing and still succeeds.
 
@@ -292,9 +293,11 @@ class ClearRefusedAssertionNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.actor_id is not None
+        # This node commits a state change, so its clock read is on a write
+        # path; the store's own lookups read no clock (#5591).
         self.cleared = get_pending_assertion_store(
             self.actor_id
-        ).clear_activity(self.case_id, self.refused_activity_id)
+        ).clear_activity(self.case_id, self.refused_activity_id, at=now_utc())
         self.logger.warning(
             "CASE_MANAGER '%s' refused activity '%s' from actor '%s' on case"
             " '%s': %s; %d pending assertion(s) cleared, nothing re-sent"

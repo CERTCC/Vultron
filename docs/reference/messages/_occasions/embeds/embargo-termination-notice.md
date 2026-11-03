@@ -2,12 +2,12 @@
 
 !!! info "Tell a participant the embargo has ended"
 
-    Tells one participant that the embargo has ended, with immediate effect. The Case Manager sends one to each participant other than itself, naming the Case Owner in `attributedTo` when the Case Owner asked for the termination.
+    Tells one participant that the embargo has ended, with immediate effect. The CASE_MANAGER sends one to each participant other than itself, naming the Case Owner in `attributedTo` when the Case Owner asked for the termination.
 
-    - **When…** the Case Manager ends the active embargo, on its own decision or on the Case Owner's
+    - **When…** the CASE_MANAGER ends the active embargo, on its own decision or on the Case Owner's
     - **Send:** `Remove(EmbargoEvent)`
     - **Send to:** a participant
-    - **Sent by:** the case manager
+    - **Sent by:** the CASE_MANAGER
     - **Reference:** [Tell a participant the embargo has ended](../../em.md#embargo-termination-notice)
 
     ??? example "Example activity"

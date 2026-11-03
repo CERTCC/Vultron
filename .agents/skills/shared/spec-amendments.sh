@@ -9,15 +9,36 @@
 # `statement:` is not). Newly added requirements are not amendments: nothing
 # built on the old text can be wrong.
 #
+# Both sides are git refs, so an uncommitted edit is invisible: run it after
+# committing the spec change (or pass an explicit <head-ref>). On a dirty tree
+# the answer would be a false negative, and the PR would then omit a
+# `## Spec amended` section pr-triage fails it for, so the default-head run
+# refuses instead of answering wrongly (#5591).
+#
 # Output: one line per amended requirement, `<ID>\t<changed|removed>\t<fields>`.
 # Exit:   0  no requirement amended
 #         1  at least one amended (the PR body needs a `## Spec amended` section)
-#         2  usage or load error
+#         2  usage error, uncommitted spec edit, or load error
 set -euo pipefail
 
 project="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 base="${1:-origin/main}"
 head="${2:-HEAD}"
+
+# An uncommitted specs/*.yaml edit is invisible to `git show`, so answering
+# from it would be a silent "no amendment" on a tree that has one. Refuse
+# instead. Only on the default head: an explicit <head-ref> says the caller
+# means that ref and not the worktree.
+if [ "$#" -lt 2 ]; then
+  dirty="$(git status --porcelain -- 'specs/*.yaml')" || exit 2
+  if [ -n "${dirty}" ]; then
+    printf 'spec-amendments: uncommitted specs/ edits — commit them first,\n' >&2
+    printf '  or pass an explicit <head-ref>. Comparing refs cannot see:\n' >&2
+    printf '%s\n' "${dirty}" >&2
+    exit 2
+  fi
+fi
+
 # Read the old YAML at the merge base, not the base tip: once the base branch
 # moves, its own edits to a spec file the branch also changes are not this
 # branch's amendments.

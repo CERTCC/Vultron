@@ -275,10 +275,10 @@ class SenderEntitlementKind(Enum):
         member.term = term
         return member
 
-    CASE_MANAGER = ("the case manager", "Case Manager")
+    CASE_MANAGER = ("the CASE_MANAGER", "Case Manager")
     """Sender must be the case's ``CVDRole.CASE_MANAGER``."""
 
-    CASE_OWNER = ("the case owner", "Case Owner")
+    CASE_OWNER = ("the Case Owner", "Case Owner")
     """Sender must hold ``CVDRole.CASE_OWNER``."""
 
     ACTIVE_PARTICIPANT = ("an active participant", "Active Participant")
@@ -383,7 +383,7 @@ class AddresseeSide(Enum):
         member.term = term
         return member
 
-    CASE_MANAGER = ("the case manager", "Case Manager")
+    CASE_MANAGER = ("the CASE_MANAGER", "Case Manager")
     """Sent to the case's CASE_MANAGER (``SenderRule.at_case_manager``)."""
 
     PARTICIPANT = ("a participant", "Participant")
@@ -837,7 +837,7 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
     ``Reject(CaseLedgerEntry)`` resync request (SYNC-03-005).
     Reads ``activity`` from the blackboard and takes the case from the
     ``CaseLedgerEntry`` it carries, or, for the ``Reject`` that names no entry
-    because its sender holds none, from its ``target`` (SYNC-16-007).
+    because its sender holds none, from its ``target`` (SYNC-16-027).
     Returns ``SUCCESS`` only when the sender is an active participant of that
     case (:func:`~vultron.core.participants.recipients.is_case_content_recipient`,
     CM-10-004).
@@ -877,7 +877,7 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
         assert self.datalayer is not None
 
         # The rejected entry's case, or the case the objectless genesis
-        # Reject names as its target (SYNC-16-007).
+        # Reject names as its target (SYNC-16-027).
         try:
             case_id = replay_case_id(self.activity, self.name)
         except VultronError as exc:

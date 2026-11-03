@@ -16,7 +16,7 @@ Accepting a transfer changes three objects at the CASE_MANAGER: the old
 owner's participant record loses ``CASE_OWNER``, the new owner's gains it, and
 the case's ``attributed_to`` names the new owner.  Each change follows the
 ``Accept`` entry as its own CASE_MANAGER-authored entry carrying the changed
-object in full (CLP-07-013, ADR-0124), and a replica copies what each entry
+object in full (CLP-07-021, ADR-0124), and a replica copies what each entry
 carries (CM-23-016), so its roles and owner equal the CASE_MANAGER's.
 """
 

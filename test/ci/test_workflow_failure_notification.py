@@ -661,33 +661,36 @@ def test_notify_action_sets_bug_issue_type() -> None:
     """CISEC-05-007: a failure issue must carry the Bug type, in both arms.
 
     ``gh issue create`` cannot set an issue type, and a ``bug`` label applied
-    with ``GITHUB_TOKEN`` never fires the label-to-issue-type workflow, so the
-    action sets the type itself through the shared helper
-    (``ensure-issue-type.sh``). The helper runs on the comment-on-existing arm
-    too, so an issue left untyped by a failed assignment is repaired on the
-    next notify run.
+    with ``GITHUB_TOKEN`` never fires the label-to-issue-type workflow
+    (CISEC-05-020), so the action sets the type itself through the shared
+    helper (``ensure-issue-type.sh``, CISEC-05-017). The helper runs on the
+    comment-on-existing arm too, so an issue left untyped by a failed
+    assignment is repaired on the next notify run (CISEC-05-018).
     """
     script = _notify_action_create_script()
     assert "scripts/ensure-issue-type.sh" in script, (
         "The notify-failure action must set the issue type through "
-        f"{ENSURE_ISSUE_TYPE.relative_to(REPO_ROOT)} (CISEC-05-007)."
+        f"{ENSURE_ISSUE_TYPE.relative_to(REPO_ROOT)} (CISEC-05-017)."
     )
     assert '--label "bug"' not in script and "--label bug" not in script, (
         "The notify-failure action must not rely on a `bug` label for the "
         "label-to-issue-type workflow: GITHUB_TOKEN events never trigger it "
-        "(CISEC-05-007)."
+        "(CISEC-05-020)."
     )
     calls = _type_setting_calls(script, "Bug")
     assert len(calls) == 2, (
         "The Bug type must be set once on the create arm and once on the "
         "comment-on-existing arm, so an issue left untyped by a transient "
         f"mutation failure is repaired on the next run; found {len(calls)} "
-        "call(s) (CISEC-05-007)."
+        "call(s) (CISEC-05-018)."
     )
 
 
 def test_recordings_workflow_sets_task_issue_type() -> None:
-    """CISEC-05-007: the refresh Task is typed by the same helper, both arms."""
+    """CISEC-05-017, CISEC-05-018: the refresh Task is typed by the same helper.
+
+    The helper runs on both arms, as it does for the Bug type.
+    """
     workflow = (WORKFLOWS_DIR / "demo-recordings.yml").read_text()
     assert "ensure_type=.github/scripts/ensure-issue-type.sh" in workflow
     assert len(_type_setting_calls(workflow, "Task")) == 2
@@ -982,7 +985,7 @@ _DETAILS = "- #12 is CLOSED:\n  - `test/x.py:3` `KNOWN_A`"
 def test_notify_action_includes_the_details_file(
     tmp_path: Path, open_issues: list[int]
 ) -> None:
-    """ARCH-18-004: a tracker can say what failed, filed or updated.
+    """ARCH-18-008: a tracker can say what failed, filed or updated.
 
     The new issue's body and the update comment both carry the caller's
     ``details-file`` text after the run link.

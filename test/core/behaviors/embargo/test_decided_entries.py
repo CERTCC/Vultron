@@ -89,6 +89,7 @@ def _accept_by_other(case_id: str, embargo_id: str):
 
 
 class TestConsentRowChanges:
+    @pytest.mark.spec("CLP-07-021")
     def test_a_new_row_is_a_create_and_a_changed_row_an_update(self):
         case, dl, embargo_id = _proposed("dec-rows")
         before = read_embargo_case_file(dl, case.id_)

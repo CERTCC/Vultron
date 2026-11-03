@@ -57,10 +57,11 @@ class RejectLogEntryReceivedEvent(VultronEvent):
     states as ``ledgerPosition`` (SYNC-18-001): the last entry it accepted,
     or index -1 and the genesis hash when it holds the case but no entry.
     A peer that does not hold the case yet holds no ledger to state, so its
-    ``Reject`` carries none (SYNC-18-001) and the position is ``None``; the
+    ``Reject`` carries none (SYNC-18-016) and the position is ``None``; the
     extractor still refuses a malformed one (SYNC-18-003).
 
-    Spec: SYNC-03-001, SYNC-03-002, SYNC-16-007, SYNC-18-001.
+    Spec: SYNC-03-001, SYNC-03-002, SYNC-16-007, SYNC-16-027, SYNC-18-001,
+    SYNC-18-016.
     """
 
     semantic_type: Literal[MessageSemantics.REJECT_CASE_LEDGER_ENTRY] = (
@@ -81,7 +82,7 @@ class RejectLogEntryReceivedEvent(VultronEvent):
 
         The rejected entry's case, or, for the Reject that names no entry
         because the peer holds none and asks for a replay from genesis, the
-        case its ``target`` names (SYNC-16-007).
+        case its ``target`` names (SYNC-16-027).
         """
         entry = self.rejected_entry
         if entry is not None:
@@ -104,7 +105,7 @@ class RejectLogEntryReceivedEvent(VultronEvent):
 
         ``""`` (empty string) when the peer states no position, or one at
         index -1, because it holds no entry: replay then starts from the
-        beginning of the recorded projection (CLP-08-005, SYNC-16-007).
+        beginning of the recorded projection (CLP-08-008, SYNC-16-029).
         """
         return accepted_entry_hash(self.ledger_position)
 

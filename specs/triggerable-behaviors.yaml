@@ -91,10 +91,11 @@ groups:
     rationale: >-
       Each of these steps is a decision that an actor makes about a report. A person or
       an agentic client must be able to make that decision through the behavior tree of
-      the actor. When a case holds a report, the case refuses `Close(Report)` from all
-      senders (CM-23-019, ADR-0144). An actor closes its part when it leaves the case
-      (TRIG-13-001). Thus no report trigger closes a report that a case holds. To close
-      a report that no case holds, an actor uses reject-report (ADR-0145).
+      the actor. When a case holds a report, the case refuses
+      `Reject(Offer(VulnerabilityReport))` from all senders (CM-23-019, ADR-0144). An
+      actor closes its part when it leaves the case (TRIG-13-001). Thus no report
+      trigger closes a report that a case holds. To close a report that no case holds,
+      an actor uses reject-report (ADR-0145).
     adr:
     - ADR-0145
   - id: TRIG-02-002
@@ -994,11 +995,11 @@ groups:
       `close-report` route is gone.
     rationale: >-
       A participant that joined a case closes its part in the case when it leaves the
-      case (CM-23-001). It never uses `Close(Report)`, which a case refuses from all
-      senders (CM-23-019, ADR-0144). A production deployment needs a trigger for this
-      step, because production mode does not mount demo verbs (TRIG-09-002). The verb
-      has the name of the message, not 'close'. When a participant that is not the owner
-      leaves, the case stays open (ADR-0145).
+      case (CM-23-001). It never uses `Reject(Offer(VulnerabilityReport))`, which a case
+      refuses from all senders (CM-23-019, ADR-0144). A production deployment needs a
+      trigger for this step, because production mode does not mount demo verbs
+      (TRIG-09-002). The verb has the name of the message, not 'close'. When a
+      participant that is not the owner leaves, the case stays open (ADR-0145).
     relationships:
     - rel_type: refines
       spec_id: TRIG-02-004

@@ -210,7 +210,10 @@ class TestCloseAndInvalidateReportCommit:
     )
     @pytest.mark.spec("CM-23-051")
     def test_close_on_a_case_commits_nothing_anywhere(self, receiver):
-        """``Close(Report)`` for a report a case holds is refused (CM-23-019)."""
+        """A report closure for a report a case holds is refused (CM-23-019).
+
+        The closure is a ``Reject(Offer(VulnerabilityReport))``.
+        """
         dl = _store(receiver)
         event = cast(
             CloseReportReceivedEvent,
@@ -325,8 +328,8 @@ class TestCloseAndInvalidateReportCommit:
     def test_redelivered_activity_commits_once(self):
         """A repeat of the same activity is skipped and adds no entry.
 
-        Invalidate, not Close: no ``Close(Report)`` on a case is applied at
-        all (CM-23-019).
+        Invalidate, not Close: no ``Reject(Offer(VulnerabilityReport))`` on a
+        case is applied at all (CM-23-019).
         """
         dl = _store(MANAGER_ID)
         event = cast(
@@ -382,6 +385,7 @@ def _assert_no_commit_stage(tree: py_trees.behaviour.Behaviour) -> None:
 
 
 @pytest.mark.spec("CLP-10-013")
+@pytest.mark.spec("CLP-10-034")
 def test_announce_case_tree_has_no_commit_stage():
     """``Announce(VulnerabilityCase)`` is the documented exemption.
 
@@ -409,6 +413,7 @@ def test_announce_case_tree_has_no_commit_stage():
 
 @pytest.mark.spec("CLP-10-013")
 @pytest.mark.spec("CLP-02-013")
+@pytest.mark.spec("CLP-10-034")
 def test_bootstrap_create_case_tree_has_no_commit_stage():
     """The bootstrap ``Create(VulnerabilityCase)`` is exempt like its Announce.
 

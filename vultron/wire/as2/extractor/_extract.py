@@ -390,8 +390,8 @@ def _ledger_position(
     ``LedgerPosition``, so a malformed one never reaches here.  An event
     class that requires the position (a ``LedgerPositionedEvent``) refuses
     an activity that carries none, naming it, before anything is written
-    (SYNC-18-003); one that admits its absence (``Reject(CaseLedgerEntry)``
-    from a peer that holds no ledger yet) gets ``None``.
+    (SYNC-18-015); one that admits its absence (``Reject(CaseLedgerEntry)``
+    from a peer that holds no ledger yet) gets ``None`` (SYNC-18-016).
 
     Raises:
         VultronParseValidationError: when the event class requires the
@@ -403,7 +403,7 @@ def _ledger_position(
     if event_class.model_fields["ledger_position"].is_required():
         raise VultronParseValidationError(
             f"activity {activity.id_!r} states no ledgerPosition: a case"
-            " activity must carry its sender's ledger tail (SYNC-18-003)"
+            " activity must carry its sender's ledger tail (SYNC-18-015)"
         )
     return None
 

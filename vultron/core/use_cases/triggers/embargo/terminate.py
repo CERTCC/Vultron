@@ -37,7 +37,6 @@ from vultron.core.behaviors.embargo.end_time_tree import (
     end_embargo_at_end_time_bt,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     OtherCause,
@@ -79,7 +78,10 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
         self._actor_id = actor.id_
         self._case = resolve_case(request.case_id, dl)
         self._reason: TerminationReason = request.reason
-        self._now = now_utc()
+        # This act's instant, read once by ``execute()`` before anything
+        # decides anything (#5591); the end-time claim and the clock
+        # decisions judge against the same one.
+        self._now = self._at
 
         # Resolve embargo_id only when active_embargo is set; when it is None
         # the HasActiveEmbargoNode BT precondition will halt the tree with a

@@ -88,7 +88,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager has committed a case event to the case "
+                    "the CASE_MANAGER has committed a case event to the case "
                     "ledger"
                 ),
                 anchor="announce-case-ledger-entry",
@@ -122,11 +122,11 @@ ENTRIES: list[SemanticEntry] = [
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Reject case ledger entry",
                 description=(
-                    "Tells the Case Manager that the entry's previous hash "
-                    "does not match the sender's ledger tail, and the Case "
-                    "Manager replays every entry after the last accepted hash."
-                    " This negative acknowledgment serves the purpose of the "
-                    "formal EK and CK messages."
+                    "Tells the CASE_MANAGER that the entry's previous hash "
+                    "does not match the sender's ledger tail, and the "
+                    "CASE_MANAGER replays every entry after the last accepted"
+                    " hash. This negative acknowledgment serves the purpose of"
+                    " the formal EK and CK messages."
                 ),
                 example="reject_case_ledger_entry",
                 evolved=True,
@@ -154,7 +154,7 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Read case ledger entry",
                 description=(
                     "States the last ledger entry the sender has applied. The "
-                    "Case Manager resends every Invite the sender has not "
+                    "CASE_MANAGER resends every Invite the sender has not "
                     "answered and, for an active participant, records the "
                     "position as the sender's acknowledged position and "
                     "replays every entry after it."

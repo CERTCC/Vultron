@@ -105,6 +105,7 @@ def _stage(condition_status: Status, effects_status: Status = Status.SUCCESS):
 
 class TestDiversionStage:
     @pytest.mark.spec("CLP-10-026")
+    @pytest.mark.spec("CLP-10-061")
     def test_a_condition_that_fails_lets_the_tree_go_on(self) -> None:
         root, stage, effects, after = _stage(Status.FAILURE)
 
@@ -115,6 +116,8 @@ class TestDiversionStage:
         assert root.status is Status.SUCCESS
 
     @pytest.mark.spec("CLP-10-026")
+    @pytest.mark.spec("CLP-10-062")
+    @pytest.mark.spec("CLP-10-063")
     def test_a_condition_that_holds_answers_and_ends_the_tree(self) -> None:
         root, stage, effects, after = _stage(Status.SUCCESS)
 
@@ -126,6 +129,7 @@ class TestDiversionStage:
         assert "diverted to Probe" in BTBridge.get_failure_reason(root)
 
     @pytest.mark.spec("CLP-10-026")
+    @pytest.mark.spec("CLP-10-063")
     def test_an_answer_that_fails_still_ends_the_tree(self) -> None:
         root, stage, _, after = _stage(Status.SUCCESS, Status.FAILURE)
 
@@ -145,11 +149,13 @@ def _tree(*guards, **kwargs) -> py_trees.composites.Sequence:
 
 class TestFactoryChecks:
     @pytest.mark.spec("CLP-10-026")
+    @pytest.mark.spec("CLP-10-061")
     def test_a_condition_must_be_read_only(self) -> None:
         with pytest.raises(VultronWiringError, match="read-only"):
             _tree(Diversion(name="D", condition=_Emitter("Emit")))
 
     @pytest.mark.spec("CLP-10-026")
+    @pytest.mark.spec("CLP-10-064")
     def test_no_diversion_commits_the_received_activity(self) -> None:
         with pytest.raises(VultronWiringError, match="never committed"):
             _tree(
@@ -161,6 +167,7 @@ class TestFactoryChecks:
             )
 
     @pytest.mark.spec("RSH-08-003")
+    @pytest.mark.spec("CLP-10-067")
     def test_a_receiver_diversion_writes_no_case_state(self) -> None:
         with pytest.raises(VultronWiringError, match="no case state"):
             _tree(
@@ -173,6 +180,7 @@ class TestFactoryChecks:
             )
 
     @pytest.mark.spec("CLP-10-026")
+    @pytest.mark.spec("CLP-10-067")
     def test_a_receiver_diversion_commits_no_entry(self) -> None:
         """A commit of the CASE_MANAGER's own entry runs only at the
         CASE_MANAGER, so a receiver's own answer may not hold one."""
@@ -193,6 +201,7 @@ class TestFactoryChecks:
             )
 
     @pytest.mark.spec("BT-17-008")
+    @pytest.mark.spec("CLP-10-069")
     def test_a_receiver_diversion_needs_an_exemption_to_emit(self) -> None:
         with pytest.raises(VultronWiringError, match="ReplicaEmitExemption"):
             _tree(
@@ -205,6 +214,8 @@ class TestFactoryChecks:
             )
 
     @pytest.mark.spec("BT-17-008")
+    @pytest.mark.spec("CLP-10-068")
+    @pytest.mark.spec("CLP-10-069")
     def test_a_receiver_diversion_with_a_covering_exemption_builds(
         self,
     ) -> None:
@@ -293,6 +304,7 @@ class TestCaseManagerDiversion:
 
     @pytest.mark.spec("BT-17-001")
     @pytest.mark.spec("CLP-10-026")
+    @pytest.mark.spec("CLP-10-065")
     def test_the_case_manager_diverts(self) -> None:
         stage, condition, effect = self._run(CASE_MANAGER_ACTOR)
 
@@ -301,6 +313,7 @@ class TestCaseManagerDiversion:
 
     @pytest.mark.spec("BT-17-001")
     @pytest.mark.spec("CLP-10-026")
+    @pytest.mark.spec("CLP-10-065")
     def test_another_store_never_diverts(self) -> None:
         stage, condition, effect = self._run(OTHER_PARTICIPANT_ACTOR)
 

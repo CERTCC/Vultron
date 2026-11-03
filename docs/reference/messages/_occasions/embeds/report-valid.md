@@ -6,7 +6,7 @@
 
     - **When…** a report receiver judges the report valid
     - **Send:** `Accept(Offer(VulnerabilityReport))`
-    - **Send to:** the case manager
+    - **Send to:** the CASE_MANAGER
     - **Sent by:** a participant (usually: vendor, coordinator)
     - **Reference:** [Validate report](../../rm.md#report-valid)
 

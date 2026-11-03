@@ -28,7 +28,7 @@ read-only routing guards, into two mutually exclusive arms
   propose and answer arms decide on a staged store and commit the act, then
   each consent row it changes, before applying them by copying (ADR-0124,
   CLP-07-013).
-  Nothing is addressed to the manager itself (CLP-10-001): its own proposal
+  Nothing is addressed to the manager itself (CLP-10-032): its own proposal
   is relayed to each participant (EP-09-002) and its teardown is told to
   every other one (EMB-19-001, #4112).
 - **As any other participant** the tree writes no EM state and declares none:
@@ -727,6 +727,10 @@ def terminate_embargo_bt(
             termination
             if isinstance(termination, ChosenTermination)
             else termination.participant_cause,
+            # The end-time paths hold this act's instant and pass it as
+            # *terminated_at*; the cascades hold none and the ask subtree
+            # reads one as it is built (#5591, #5650).
+            at=terminated_at,
         )
     capture, notices = embargo_ending_notice_nodes(
         case_id, requested_by=requested_by

@@ -83,7 +83,7 @@ def _read_offer(datalayer: DataLayer, offer_id: str) -> as_Offer | None:
     Read as :func:`~vultron.adapters.received_archive.read_held_as_received`
     reads any activity this actor holds: a received one parsed from the body
     its archive record keeps, under a key the receiver derives from the
-    sender's id (CLP-10-017, ADR-0149), since a receiver holds no received
+    sender's id (CLP-10-036, ADR-0149), since a receiver holds no received
     activity under the sender's id (DL-06-006); otherwise the row under
     *offer_id*, where an Offer the actor authored is stored.  *offer_id* may
     be a bare UUID, as the store's own lookup allows.

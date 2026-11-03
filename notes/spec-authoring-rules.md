@@ -28,7 +28,7 @@ related_specs:
   - specs/meta-specifications.yaml
   - specs/spec-registry.yaml
   - specs/testability.yaml
-  - specs/architecture.yaml (ARCH-18-004)
+  - specs/architecture.yaml (ARCH-18-004, ARCH-18-009)
   - specs/actor-knowledge-model.yaml (AKM-05-003, the inline-object ruling)
   - specs/http-protocol.yaml (HTTP-03, the status-code ruling)
   - specs/inbox-endpoint.yaml (IE-07-001, IE-07-002, IE-11-001)
@@ -100,8 +100,10 @@ by reference" (MS-12-020); the inline demand moves to a new `project` ID
 An inline rule stays `protocol` only when inlining serves a protocol purpose the
 prototype does not explain, and its rationale names that purpose: ledger snapshot
 content the hash chain must cover is one (CLP-07-006); the bootstrap's case and
-nested objects, which the receiver has no trusted source to fetch before it
-accepts the bootstrap, are another (CBT-01-007, ADR-0170). If no such purpose is
+participant records, which the receiver cannot hold and has no trusted source to
+fetch before it accepts the bootstrap, are another (CBT-01-007, ADR-0170). An
+object the receiver can already hold, such as the report it offered, gets no
+protocol inline rule (maintainer ruling 2026-11-02). If no such purpose is
 evident, ask; do not invent one.
 
 **An HTTP status code is `foundation` only when HTTP itself defines it for the
@@ -305,7 +307,7 @@ The MS-10 verification rule is built so it can only end at zero:
 2. **Each marker names an open owning issue** of its kind in
    `VERIFICATION_DEBT_OWNERS`. A PR that closes an owner while a marker still
    names it fails; an owner closed by hand is reported by the
-   `verification-debt-owners` workflow and never fails the build (ARCH-18-004).
+   `verification-debt-owners` workflow and never fails the build (ARCH-18-009).
 3. **Zero is terminal.** When a kind has no markers, delete its owner entry
    (MS-10-007); a marker of that kind is then a hard error (MS-10-026). While an entry
    exists, a PR-only growth guard fails any marker a branch adds or re-points

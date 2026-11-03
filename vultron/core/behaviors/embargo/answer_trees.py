@@ -123,7 +123,7 @@ def accept_invite_to_embargo_tree(
            └─ RecordEmbargoAcceptance (CaseManagerGate)
 
     The CASE_MANAGER first evaluates the Invite's RSVP deadline, a clock
-    decision the factory runs after the door guards (CLP-10-025, CM-28-014):
+    decision the factory runs after the door guards (CLP-10-049, CM-28-014):
     an expired invitation is ledgered ``TIMED_OUT`` (CM-28-009) before the
     Accept is judged.  A repeat of a recorded Accept then stops the tree.
     Once P/X/A is set the receiver answers with a ``Reject`` of the Invite

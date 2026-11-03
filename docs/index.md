@@ -28,8 +28,6 @@ Vultron is an open protocol for Coordinated Vulnerability Disclosure (CVD): it l
 It is a protocol in the way the Simple Mail Transfer Protocol (SMTP) is, not a product in the way a mail service is.
 It builds on decades of vulnerability coordination experience at the CERT Coordination Center (CERT/CC).
 
-{% include-markdown "./includes/curr_ver.md" %}
-
 !!! note "Work in progress"
 
     Vultron is a collection of ideas, models, code, and work in progress, and is **not yet ready for production use**.

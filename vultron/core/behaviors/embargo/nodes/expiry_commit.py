@@ -115,7 +115,7 @@ class _CommitConsentRowDecisionNode(
             )
         # A participant missing the row for a register entry is a broken
         # invariant (ADR-0122): ``consent_row_move`` raises, and the raise
-        # ends the tree as an internal error, never a refusal (CLP-10-025).
+        # ends the tree as an internal error, never a refusal (CLP-10-060).
         change = consent_row_move(
             before, self._invitee_id, self._embargo_id, self._TRIGGER
         )

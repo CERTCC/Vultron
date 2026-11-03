@@ -6,7 +6,11 @@ description: >
   the dependency set and the build command. Its one input picks which commit
   to build, never how, so no caller can build a commit differently. A caller
   checks the repository out first (a local action cannot load without it) and
-  adds its own steps only after this one.
+  adds its own steps only after this one. The publish workflow also sets the
+  VULTRON_PUBLISH_TAG, VULTRON_PUBLISH_DATE and VULTRON_RELEASE_TAG variables on
+  the step that calls it, which label every page's footer and leave the build
+  itself unchanged (DOCBW-06-031); without them the footer reads "Unpublished
+  build".
 
 inputs:
   ref:

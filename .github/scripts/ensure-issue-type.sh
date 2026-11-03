@@ -5,11 +5,12 @@
 #
 # `gh issue create` cannot set an issue type, and a label applied with
 # GITHUB_TOKEN never fires label-to-issue-type.yml, so a bot that files an
-# issue sets the type itself (CISEC-05-007). The type ID is resolved by name,
+# issue sets the type itself (CISEC-05-017). The type ID is resolved by name,
 # so it survives a type being re-created. Idempotent: an issue that already
 # carries a type is left alone, which also repairs an issue an earlier failed
-# assignment left untyped. A repository with no type of that name fails loudly
-# rather than leaving the issue silently untyped.
+# assignment left untyped (CISEC-05-018). A repository with no type of that
+# name fails loudly rather than leaving the issue silently untyped
+# (CISEC-05-019).
 #
 # Used by .github/actions/notify-failure (Bug) and
 # .github/workflows/demo-recordings.yml (Task). Needs GH_TOKEN.

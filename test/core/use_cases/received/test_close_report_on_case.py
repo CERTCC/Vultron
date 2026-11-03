@@ -10,15 +10,16 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""A ``Close(Report)`` for a report that belongs to a case is refused (CM-23-019).
+"""A ``Reject(Offer(VulnerabilityReport))`` for a case's report is refused (CM-23-019).
 
 Once a report belongs to a case, only the Case Owner holds it, and the Case
 Owner closes the case by ``Leave(VulnerabilityCase)``.  The CASE_MANAGER
-therefore refuses ``Close(Report)`` from every sender: from the owner it is
-the wrong closing act, from anyone else a message it has no report to send.
+therefore refuses ``Reject(Offer(VulnerabilityReport))`` from every sender:
+from the owner it is the wrong closing act, from anyone else a message it has
+no report to send.
 Nothing is committed, no RM state moves and nothing is sent.  Before this
-rule the owner's own ``Close(Report)`` moved it to RM ``CLOSED`` while the
-case stayed open (#4746).
+rule the owner's own ``Reject(Offer(VulnerabilityReport))`` moved it to RM
+``CLOSED`` while the case stayed open (#4746).
 """
 
 from typing import cast
@@ -84,7 +85,9 @@ def _store(
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver)
     dl.save(as_VulnerabilityReport(id_=_REPORT, name="On-case report"))
     case = as_VulnerabilityCase(
-        id_=_CASE, name="Close(Report) on a case", attributed_to=_MANAGER
+        id_=_CASE,
+        name="Reject(Offer(VulnerabilityReport)) on a case",
+        attributed_to=_MANAGER,
     )
     case.vulnerability_reports.append(_REPORT)
     seed_case_manager_participant(dl, case, _MANAGER)
@@ -144,7 +147,10 @@ def _run(
 @pytest.mark.parametrize("sender", [_OWNER, _VENDOR], ids=["owner", "vendor"])
 @pytest.mark.spec("CM-23-051")
 def test_close_report_on_an_open_case_is_refused(sender: str) -> None:
-    """The owner's and a participant's ``Close(Report)`` are both refused."""
+    """The owner's and a participant's report closure is refused.
+
+    Both send ``Reject(Offer(VulnerabilityReport))``, and both are refused.
+    """
     dl = _store()
 
     result = _run(dl, sender)
@@ -160,8 +166,10 @@ def test_close_report_on_an_open_case_is_refused(sender: str) -> None:
 @pytest.mark.spec("CM-23-019")
 @pytest.mark.spec("CM-23-051")
 def test_close_report_at_a_participant_replica_is_refused() -> None:
-    """A participant holding a replica refuses the owner's ``Close(Report)``
-    too: no sender is entitled to send it to any case actor."""
+    """A participant holding a replica refuses the owner's report closure too.
+
+    The owner's ``Reject(Offer(VulnerabilityReport))`` is refused there as
+    well: no sender is entitled to send it to any case actor."""
     dl = _store(receiver=_VENDOR)
 
     result = _run(dl, _OWNER, _close_report(_OWNER, receiver=_VENDOR))
@@ -177,7 +185,10 @@ def test_close_report_at_a_participant_replica_is_refused() -> None:
 @pytest.mark.spec("CM-23-018")
 @pytest.mark.spec("CM-23-049")
 def test_close_report_from_a_closed_sender_is_refused_not_skipped() -> None:
-    """A closed participant's ``Close(Report)`` is refused like any other."""
+    """A closed participant's report closure is refused like any other.
+
+    Its ``Reject(Offer(VulnerabilityReport))`` is refused, not skipped.
+    """
     dl = _store(closed=_VENDOR)
 
     result = _run(dl, _VENDOR)

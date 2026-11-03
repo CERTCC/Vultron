@@ -5,7 +5,7 @@ causal_edges:
     consequent: engage_case
     consequent_actor: c1
     note: >
-      C1 (the initial case owner) validates the report before engaging the case.
+      C1 (the initial Case Owner) validates the report before engaging the case.
   - antecedent: engage_case
     consequent: add_participant_status_to_participant
     consequent_actor: case-actor
@@ -32,7 +32,7 @@ causal_edges:
     consequent: accept_actor_recommendation
     consequent_actor: case-actor
     note: >
-      C1, as case owner, approves C2's suggestion.  The recommendation
+      C1, as Case Owner, approves C2's suggestion.  The recommendation
       acceptance follows the offer.
   - antecedent: accept_actor_recommendation
     consequent: invite_actor_to_case
@@ -84,7 +84,7 @@ subject: implementation
 The RCVCV scenario exercises the **actor-suggestion flow** (ADR-0026).  A
 Reporter reports to Coordinator 1 (C1), who creates the case and directly invites
 Vendor 1 (V1) and Coordinator 2 (C2).  After C2 joins, C2 *suggests* Vendor 2
-(V2) to the case; C1, as the case owner, approves the recommendation and the
+(V2) to the case; C1, as the Case Owner, approves the recommendation and the
 Case Actor sends V2 a formal invitation.
 
 This five-actor scenario validates the indirect participant onboarding path
@@ -163,7 +163,7 @@ entry proposing V2 for case membership (ADR-0026).
 
 ### 10. C1 approves C2's recommendation
 
-C1, as case owner, reviews the suggestion and approves it.  An
+C1, as Case Owner, reviews the suggestion and approves it.  An
 `accept_actor_recommendation` entry is recorded.
 
 *Antecedent:* `offer_case_participant` is in the ledger.

@@ -71,7 +71,7 @@ is a property of the queue's pop order, not a delivery guarantee.**
 
 - **Lane order is an optimization, never a correctness argument.** It makes
   reordering rare, not impossible: a lost row replayed later, or another
-  implementation, delivers in any order. No receiver may need it (SYNC-19-003).
+  implementation, delivers in any order. No receiver may need it (SYNC-19-005).
 
 - **One drain per actor, rows in per-recipient lanes.** `outbox_handler` takes a
   per-actor drain lock (OX-01-004) and hands each popped batch to

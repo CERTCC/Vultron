@@ -64,7 +64,8 @@ lookup table is mostly links.
   It is often broader than CVD convention (any participant may send
   `Add(ParticipantStatus)` with `vfState` `VF`), so an occasion may add a
   "usually" note typed as `CVDRole` values: "a participant (usually: vendor)"
-  (MSM-08-005).
+  (MSM-08-005). An authority role in it reads as its glossary term, "Case Owner"
+  or "CASE_MANAGER" (ADR-0088), never a lowercase alias.
 - "A participant" (`PARTICIPANT`) is any actor with a participant record on the
   case, active or not; "an active participant" (`ACTIVE_PARTICIPANT`) is one
   entitled to the case's content (CM-10-004). They are two kinds so that each
@@ -76,7 +77,7 @@ lookup table is mostly links.
   `{object}` placeholder ("the addressee of the case proposal", "the note's
   author"), and a nested request by its object and verb ("the addressee of the
   vulnerability case offer"); an exemption reads "not yet checked", and an
-  entry with no received use case reads "internal to the case manager", since
+  entry with no received use case reads "internal to the CASE_MANAGER", since
   it is the CASE_MANAGER's own act, possibly ledgered (SE-05-002). A request
   the pattern does not nest is named on the entry (`SemanticEntry.answers`):
   the bootstrap `Create(VulnerabilityCase)` answers a case proposal or a report
@@ -119,7 +120,7 @@ lookup table is mostly links.
 ## Row content rules
 
 - **One grammar for "When…"**: the sender's situation, from the sender's side,
-  for mechanics too ("the case manager has committed a case event"), so every
+  for mechanics too ("the CASE_MANAGER has committed a case event"), so every
   wire activity keeps at least one row.
 - **Occasion prose is docs prose.** It renders on reference pages and how-to
   guides, so it follows the docs style guide, glossary terms, and no "you"
@@ -128,7 +129,7 @@ lookup table is mostly links.
   (DF-09-010, MSM-08-008). Expansion rows (`GI`, `RV`, `RI`, `RC`) link by
   section heading instead, since one label would repeat on every row; so do
   `CP`, `CX` and `CA`, which have a row on both `Add(CaseStatus)` and
-  `Add(ParticipantStatus)` (RSH-04-001).
+  `Add(ParticipantStatus)` (RSH-04-007).
 - **A distinguisher is typed** (MSM-08-002): a field value checked against its
   enum, a state context naming a state machine and states (the EM state
   separating `EP` from `EV` on `Invite(EmbargoEvent)`), or a sender standing naming a

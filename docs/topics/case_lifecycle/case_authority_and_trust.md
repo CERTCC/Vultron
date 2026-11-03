@@ -292,7 +292,7 @@ When it accepts, the CASE_MANAGER sends the case snapshot and the earlier ledger
 No separate `Create` bootstrap is needed, because the invitation already did that job ([CBT-04-003](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-04-003)).
 
 Until the invitee accepts, a later invitation for the same case that names a different CASE_MANAGER replaces the recorded one.
-After the invitee accepts, the invitee refuses such an invitation and keeps the CASE_MANAGER it accepted ([PCR-03-004](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-03-004)).
+After the invitee accepts, the invitee refuses such an invitation and keeps the CASE_MANAGER it accepted ([PCR-03-010](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-03-010)).
 So a forged invitation cannot stop the invitee from joining when the real invitation follows.
 The invitee cannot yet tell a forged invitation from a real one, so if it accepts a forged invitation first, the forger stays recorded.
 
@@ -471,7 +471,7 @@ A repeat of an act that closed it, such as a second `Leave(VulnerabilityCase)`, 
 The Case Owner's second `Leave` is the exception while the case is not fully closed.
 The Case Owner's `Leave` also closes the case, so a repeat completes a closure that a failed first delivery left unfinished.
 
-A `Close(Report)` closes no one once a case holds the report.
+A `Reject(Offer(VulnerabilityReport))` closes no one once a case holds the report.
 The CASE_MANAGER refuses it from every sender, and the Case Owner closes the case with `Leave(VulnerabilityCase)` ([CM-23-019](../../reference/vultron-spec/requirements/case-management.md#cm-23-019)).
 
 A participant that expects to come back should move to RM `DEFERRED` instead ([RMB-14-007](../../reference/vultron-spec/requirements/state-behavior.md#rmb-14-007)).

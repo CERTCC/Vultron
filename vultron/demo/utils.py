@@ -511,7 +511,7 @@ def _stamped_as_in_step(
     An exchange demo posts a factory-built activity straight to an actor's
     inbox in place of a peer.  A peer that holds the case states its ledger
     tail on every case activity, and the receiver refuses one that states
-    none (SYNC-18-001, SYNC-18-003).  The demo stands in for a peer in step
+    none (SYNC-18-001, SYNC-18-015).  The demo stands in for a peer in step
     with the receiver, so it states the position of the receiver's own copy
     of the case.  An activity naming no case the receiver holds is posted as
     it is.
@@ -659,7 +659,7 @@ def read_stored_of_types(
 
 
 #: The stored type a received activity is read from: intake's archive record of
-#: the body that arrived, kept under a key the receiver derives (CLP-10-017,
+#: the body that arrived, kept under a key the receiver derives (CLP-10-036,
 #: ADR-0149).  A row of an
 #: activity type under its own id is one the actor authored, never one it
 #: received (DL-06-006).
@@ -669,7 +669,7 @@ RECEIVED_ACTIVITY_RECORD_TYPE = ReceivedActivityRecord.__name__
 def received_activity_in(record: dict) -> dict:
     """The activity a served ``ReceivedActivityRecord`` *record* archives.
 
-    The record keeps the body that arrived, as JSON text (CLP-10-017,
+    The record keeps the body that arrived, as JSON text (CLP-10-036,
     ADR-0149), so the activity is that body decoded: its sender's own wire
     form.
 

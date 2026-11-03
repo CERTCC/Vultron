@@ -14,7 +14,7 @@
 """Hold an out-of-order ``Announce(CaseLedgerEntry)`` as it was received.
 
 A participant that cannot apply a received ledger entry yet holds the
-``Announce`` that carried it, never the entry alone (SYNC-14-001,
+``Announce`` that carried it, never the entry alone (SYNC-14-010,
 SYNC-15-004): the body intake archived is held for the inbox replay in a
 :class:`~vultron.core.models.deferred_inbox_activity.DeferredInboxActivity`
 (IO-03-009), and a
@@ -25,9 +25,9 @@ reaches it.  The drain replays that held ``Announce`` through the inbox
 
 The holding area is per case and bounded (SYNC-14-006): when full, the held
 ``Announce`` farthest ahead of the gap (highest ``log_index``) is dropped
-with a warning, or the new one when it is itself the farthest.  A dropped
-``Announce`` is recovered by the ``Reject(CaseLedgerEntry)`` already sent for
-it (SYNC-14-002), never by the drop.
+with a warning, or the new one when it is itself the farthest (SYNC-14-013).
+A dropped ``Announce`` is recovered by the ``Reject(CaseLedgerEntry)`` already
+sent for it (SYNC-14-002), never by the drop (SYNC-14-014).
 
 Spec: SYNC-14-001, SYNC-14-005, SYNC-14-006, SYNC-14-009, SYNC-15-004.
 """
@@ -128,7 +128,7 @@ def _make_room(
     """Free a slot for *entry* in a full holding area, if it may have one.
 
     Returns ``False`` when *entry* is itself the farthest ahead of the gap,
-    so it is the one dropped (SYNC-14-006).
+    so it is the one dropped (SYNC-14-013).
     """
     held = held_ledger_announces(dl, entry.case_id)
     if len(held) < max_per_case:

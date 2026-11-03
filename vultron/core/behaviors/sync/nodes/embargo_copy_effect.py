@@ -27,7 +27,7 @@ An entry whose starting state does not match this replica's case is refused,
 never patched over: the frame holds the received ``Announce`` that carried
 it, keyed on its predecessor hash (``hold_ledger_announce``, SYNC-14-001),
 sends the CASE_MANAGER a ``LedgerEntryRefused/CaseDiverged`` fault
-(SYNC-16-001), and fails, so the entry is not persisted (SYNC-12-001), and the
+(SYNC-16-001), and fails, so the entry is not persisted (SYNC-12-004), and the
 receive path reports it deferred.  The entry extends the stored chain, so the drain that
 follows every received announce for the case replays that ``Announce`` and
 retries it; it stays held until this replica's case reaches the entry's

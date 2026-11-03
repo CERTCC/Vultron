@@ -156,7 +156,7 @@ class ApplyCaseParticipantUpdateFromLedgerNode(_LedgerEffectNode):
     or none of the record, which it then learns with the roster entry that
     seats it, or a record under another id; all are SUCCESS with nothing
     written.  An entry whose object is not a valid ``CaseParticipant`` fails
-    with a reason, so it is not persisted (SYNC-12-001).
+    with a reason, so it is not persisted (SYNC-12-004).
     """
 
     def update(self) -> Status:

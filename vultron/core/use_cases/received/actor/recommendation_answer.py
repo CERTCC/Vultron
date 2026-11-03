@@ -88,7 +88,7 @@ class _RecommendationAnswerReceivedUseCase:
     ) -> None:
         self._dl = dl
         # The tree's answer to the sender's stamped ledger position may
-        # re-seed it with a case copy, which this port builds (SYNC-18-005).
+        # re-seed it with a case copy, which this port builds (SYNC-18-012).
         self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port

@@ -37,7 +37,7 @@ path by which a participant's P, X or A report reaches the case status:
     ├─ SenderRuleGuard                        # Declared sender rule (HP-01-008, RSH-08-007)
     ├─ PreconditionGuardStage                 # Refusal-effects stage (CLP-10-022)
     │   ├─ CarriedObjectInTargetCaseNode      # Guard: status of this case (HP-08-007)
-    │   ├─ [OnBehalfStatusGuard]              # Another's record: only v→V/d→D (RSH-08-007)
+    │   ├─ [OnBehalfStatusGuard]              # Another's record: only v→V/d→D (RSH-08-014)
     │   ├─ CheckParticipantStatusAcceptableNode  # Guard: accept whole or refuse whole (RSH-09)
     │   └─ RefusalEffects → IfCaseManager[EmitRMGapNoteNode]  # Note on a wholly refused regression (RSH-06-004)
     └─ AddParticipantStatusBTAct (ActTransaction, only if case_id)  # One act (CLP-07-015)
@@ -264,7 +264,7 @@ def add_participant_status_tree(
             target participant names.  When it is not the sender, the
             status is an on-behalf assertion, and the tree admits only the
             v→V or d→D a CASE_MANAGER or Case Owner may assert for this
-            actor (RSH-08-007, PRM-06-003/004).  The sender guard has
+            actor (RSH-08-014, PRM-06-003/004).  The sender guard has
             already refused any other sender of such a status.
 
     Returns:
@@ -420,7 +420,7 @@ def add_participant_status_tree(
         ),
         # A refused regression owes the sender the same note
         # (RSH-06-004); the factory runs it only on the refusal, at the
-        # CASE_MANAGER, once per received activity (CLP-10-022).
+        # CASE_MANAGER, once per received activity (CLP-10-043).
         refusal_effects=[rm_gap_note(actor_id, tree_case_id)],
     )
     logger.debug(

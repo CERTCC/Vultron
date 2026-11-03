@@ -21,13 +21,14 @@ its pending-assertion store (EP-09-018, SYNC-11-002).  The manager's commit
 of an *admitted* ask clears that entry when it is announced (SYNC-11-003).  A
 *refused* one is never committed, so the entry closes when the CASE_MANAGER's
 ``Reject(Invite(EmbargoEvent))`` reaches the participant: of the proposal it
-sent (EP-09-017, CLP-05-001), or of the Invite whose Accept it refuses
+sent (EP-09-017, CLP-05-009), or of the Invite whose Accept it refuses
 once P/X/A is set (EMB-02-004).  A ``Reject`` from anybody
 else is a participant's answer, not the manager's refusal, and closes
 nothing.
 """
 
 import logging
+from datetime import datetime
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
@@ -46,7 +47,10 @@ _ACCEPT_SEMANTIC_TYPE = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
 
 
 def close_refused_embargo_ask(
-    dl: CasePersistence, request: RejectInviteToEmbargoOnCaseReceivedEvent
+    dl: CasePersistence,
+    request: RejectInviteToEmbargoOnCaseReceivedEvent,
+    *,
+    at: datetime,
 ) -> None:
     """Clear the pending entry for the ask the CASE_MANAGER refused.
 
@@ -55,6 +59,10 @@ def close_refused_embargo_ask(
     Accept names as its subject.  A no-op unless the ``Reject`` names a case
     this replica holds and the rejecting actor is that case's CASE_MANAGER;
     each clear is itself a no-op when no such entry is pending.
+
+    *at* is the instant this delivery is being handled at, which the lookup
+    for the pending Accept judges the entry's age against (SYNC-11-005); it
+    reads no clock of its own (#5591).
     """
     case_id, invite_id = request.case_id, request.invite_id
     if not case_id or not invite_id:
@@ -70,7 +78,7 @@ def close_refused_embargo_ask(
     store = get_pending_assertion_store(receiving_actor_id)
     store.clear(case_id, _PROPOSAL_SEMANTIC_TYPE, invite_id)
     accept = store.pending_for_subject(
-        case_id, _ACCEPT_SEMANTIC_TYPE, invite_id
+        case_id, _ACCEPT_SEMANTIC_TYPE, invite_id, at=at
     )
     if accept is not None:
         store.clear(case_id, _ACCEPT_SEMANTIC_TYPE, accept.object_id)

@@ -338,7 +338,7 @@ class LedgerNetwork:
         """*member*'s own ``Add(ParticipantStatus)`` reporting the case at *pxa*.
 
         A participant reports P, X or A only in the case status its
-        participant status embeds (RSH-04-001); every other dimension
+        participant status embeds (RSH-04-007); every other dimension
         restates the record the CASE_MANAGER holds, so only *pxa* is new.
         """
         case = self.case(MANAGER)

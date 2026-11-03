@@ -1308,8 +1308,12 @@ class TestRvRegistryEntry:
         assert spec.in_pr_set is True
 
     def test_the_path_is_read_off_the_story(self, spec):
-        """``composed=True`` is what tells a check it places no step marks."""
-        assert spec.composed is True
+        """The registry holds the path this scenario's story chooses.
+
+        Compared against the story object rather than against a literal, which
+        this module's path test pins separately: together they say the
+        registered path is both derived and the intended one.
+        """
         assert spec.path == demo.STORY.path
 
     def test_the_derived_paths_point_at_this_module_and_its_harness(
@@ -2484,6 +2488,7 @@ class TestDeliveryIsolation:
             f" but found: {cases}"
         )
 
+    @pytest.mark.spec("PCR-01-005")
     def test_vendor_dl_isolated_from_reporter(self, delivery_setup):
         """Objects in the Vendor's store are not visible in the Reporter's."""
         reporter_isolated, vendor_isolated, _reporter_tc, vendor_tc = (
@@ -2522,6 +2527,7 @@ class TestDeliveryIsolation:
             " store, but it was found."
         )
 
+    @pytest.mark.spec("PCR-01-006")
     def test_case_delivered_to_reporter_via_inbox(self, delivery_setup):
         """The Reporter receives the case via the delivery path.
 

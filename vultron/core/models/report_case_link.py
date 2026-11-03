@@ -39,7 +39,7 @@ class VultronReportCaseLink(RetiredFieldsRecord):
 
     That is not an isolation gap, because ADR-0073 gives every hosted actor its
     own store and forbids two actors sharing one DataLayer (a shared
-    multi-tenant store is the anti-pattern that decision removes; PCR-01-003).
+    multi-tenant store is the anti-pattern that decision removes; PCR-01-005).
     Under per-actor isolation "one link per report per store" already means
     "one link per report per actor", so each coordinator progresses its own
     report RM state independently.

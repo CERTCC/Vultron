@@ -186,7 +186,7 @@ class CaseIdInputPortMixin:
 
         Callers turn ``None`` into ``Status.FAILURE``.  Absence is expected and
         transient — the case replica has not been delivered to this actor's
-        store yet (ADR-0073, PCR-01-003) — but it still means the case-scoped
+        store yet (ADR-0073, PCR-01-007) — but it still means the case-scoped
         work cannot be performed, so it must never be reported as SUCCESS
         (ARCH-15-001, ISSUE-2548).
         """

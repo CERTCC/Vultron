@@ -98,8 +98,8 @@ The case therefore still gets an embargo in force at once, and does not stall in
 ### A Default Embargo Ends Like Any Other
 
 A default embargo is an ordinary embargo once it is in force.
-When its end time passes, the Case Manager ends it with the reason `END_TIME_REACHED` the next time it handles the case (EMB-13-003).
-In the same step, the Case Manager cancels any revision that is still open (EMB-13-003).
+When its end time passes, the CASE_MANAGER ends it with the reason `END_TIME_REACHED` the next time it handles the case (EMB-13-003).
+In the same step, the CASE_MANAGER cancels any revision that is still open (EMB-13-003).
 The termination writes no Participant's consent.
 With no embargo in force, nobody is bound by an embargo.
 The consent rows of each Participant stay as they were.
@@ -172,10 +172,10 @@ A generous fallback would remove the reason to publish at all.
     | **Protocol default** | The fallback when no proposal and no actor default applies | **No** |
 
     The actor default belongs to the Case Owner, which is the Receiver that received the report, and to no one else.
-    A policy that the Case Manager or any other actor published is never a candidate.
+    A policy that the CASE_MANAGER or any other actor published is never a candidate.
     The policy is a field of the Case Owner's profile.
     The Case Owner sends that profile inline as the `actor` of the case proposal.
-    The Case Manager therefore reads the default from that profile alone and keeps it for no other case (CP-01-010).
+    The CASE_MANAGER therefore reads the default from that profile alone and keeps it for no other case (CP-01-010).
 
 Nor is the protocol default a *minimum*.
 A Participant who proposes terms shorter than the protocol default gets the terms they proposed.
