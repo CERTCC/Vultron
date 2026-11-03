@@ -214,17 +214,34 @@ focus hints, notes and glossary sections `deepen-context` read.
 
 2. Search `vultron/` and `test/` to confirm the current state.
 3. Do not assume missing functionality; verify in code.
-4. If a blocking prerequisite is discovered, file it through `create-issue`
-   with type `Task`, reason `opened-as separate-defect`, a `size:` from its AC
-   count, `blocks` the current issue, and the current issue's Epic as the
-   suggested parent. Its body carries a `Governing specs:` line.
-   `create-issue` judges the prerequisite's own theme and routes it to a
-   same-theme Epic.
+4. **A missing prerequisite is part of the task.** When the work needs
+   something that does not exist yet (most often a test or check, such as the
+   `verification:` check a spec split needs, MS-10-016), the task becomes
+   "build the prerequisite, then do the task". A person given the task would
+   do the backfill, and nobody else in the workflow will. Take the first tier
+   that fits:
 
-   Record the dependency as a learning file in `plan/incoming/learnings/` and stop.
+   1. **Small enough to build in this PR: build it.** This is the default.
+      Do not file it, and do not stop.
+   2. **Too big for this PR, but its test can be written now: ask first.**
+      Present the deferral through Gate 1 (`completeness-doctrine.md`
+      § "Gate 1"): what remains, measured, in plain language. On approval,
+      do the task anyway, write a strict `xfail` test that states the missing
+      behavior and cites a new follow-up issue (`reason="<ID>: <what>.
+      Tracked by #N."`), and file that issue through `create-issue`. The gap
+      is held by a test that fails loudly once the work lands, not by a note.
+      Unattended, or on silence, this tier is unavailable: build it, or hold
+      the PR as a draft with the missing piece stated.
+   3. **No test can be written yet** (the behavior is outside what agents may
+      build, such as production key handling, ADR-0164, or it needs a design
+      decision first): ask the user. If a separate issue is the answer, file it
+      through `create-issue` (type `Task`, reason `opened-as separate-defect`,
+      a `size:` from its AC count, `blocks` the current issue, a
+      `Governing specs:` line), and stop.
 
-5. If more than one prerequisite is required, or the work is non-trivial,
-   create a learning file in `plan/incoming/learnings/` and stop.
+   Never stop at "can't do X until someone writes the test". Writing the test
+   is the move that unblocks it. A learning file is not a substitute for any
+   tier (`upward-reflection.md`).
 
 ### Phase 5 — Implement
 

@@ -171,6 +171,14 @@ authorizes deferral. If a few questions to the human would resolve the design,
 that is not deferral — that is *asking the questions and then fixing it*. Only
 a genuine, evidenced multi-session design problem earns a deferral-ask.
 
+**A deferred check is held by a failing test, not a note.** When the work
+being deferred is a missing test or check that the task needs (a spec split
+that needs a `verification:` check, MS-10-016), an approved deferral still
+does the task. It adds a strict `xfail` test that states the missing behavior
+and cites the follow-up issue it files. The test fails loudly once the check
+lands, so the gap cannot drift out of sight. A missing test is never a reason
+to skip the task it blocks: either write it, or, with approval, `xfail` it.
+
 **On silence (no human response): FIX IT NOW.** No response means no approval,
 so the fix-now default stands. Silence is *never* consent to defer. (This
 overturns the older "silence → record as deferred and continue" behavior, which
