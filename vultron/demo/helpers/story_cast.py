@@ -40,18 +40,160 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.actor_roles import ActorRole
+from vultron.demo.helpers.cast import CASE_ACTOR
 from vultron.demo.helpers.harness import ScenarioHarness
+from vultron.demo.helpers.ledger_dump import (
+    LedgerDumpTarget,
+    case_actor_dump_target,
+    dump_case_ledgers,
+    replica_route_key,
+)
+from vultron.demo.helpers.runner import check_all_containers
 from vultron.demo.helpers.seeding import get_actor_by_id, reset_containers
 from vultron.demo.helpers.story import (
     Fragment,
     StoryState,
     UnseatedContainer,
 )
-from vultron.demo.utils import DataLayerClient, demo_step, reset_datalayer
+from vultron.demo.utils import (
+    DataLayerClient,
+    bound_case_actor_client,
+    demo_step,
+    reset_datalayer,
+)
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 logger = logging.getLogger(__name__)
+
+#: The name of the dedicated CaseActor container slot (DEMOCI-11-020).
+#: Used as the key for the CaseActor client in the dict :func:`story_clients`
+#: returns, so every scenario can look it up without a literal.
+CASE_ACTOR_NAME: str = CASE_ACTOR.name
+
+
+@dataclass(frozen=True, slots=True)
+class CastContainer:
+    """One container a scenario drives.
+
+    Attributes:
+        role: The scenario's own name for the actor, as its ``ROLES`` seats
+            it — the stem of its ``--<role>-url`` option and of its devlogs
+            directory.  Its cast slot carries the address.
+        label: What :func:`~vultron.demo.helpers.runner.check_all_containers`
+            calls it when it is down.
+        url: Base-URL override from the command line, or ``None`` to take the
+            cast slot's own address (DEMOCI-11-020).
+    """
+
+    role: str
+    label: str
+    url: str | None = None
+
+
+def story_clients(
+    roles: Mapping[str, ActorRole],
+    members: Sequence[CastContainer],
+    *,
+    skip_health_check: bool,
+    case_actor_url: str | None = None,
+) -> dict[str, DataLayerClient]:
+    """Build one client per *member* plus the CaseActor's, health-checked.
+
+    Every scenario of every family builds its clients the same way, binds the
+    case-actor one to its CaseActor, and health-checks them all, so it is done
+    once here rather than once per ``main()`` (DEMOMA-17-001).  Each URL falls
+    back to the cast slot's own address, which is why scenario modules declare
+    no ``*_BASE_URL`` constants of their own (DEMOCI-11-020).
+
+    Args:
+        roles: The scenario's :func:`~vultron.demo.helpers.actor_roles\
+            .role_map`, which names the cast slot each actor sits in.
+        members: The scenario's actor containers, in ``ROLES`` order.
+        skip_health_check: Skip the server availability check.
+        case_actor_url: Override base URL for the CaseActor container.
+
+    Returns:
+        The clients, keyed by each member's ``role`` plus
+        :data:`CASE_ACTOR_NAME`.
+
+    Raises:
+        SystemExit: When a container is unreachable and the check ran.
+        KeyError: When *roles* seats no actor of a member's name — a scenario
+            whose ``ROLES`` and ``main()`` have drifted apart.
+    """
+    clients = {
+        member.role: DataLayerClient(
+            base_url=member.url or roles[member.role].url
+        )
+        for member in members
+    }
+    clients[CASE_ACTOR_NAME] = bound_case_actor_client(
+        case_actor_url or roles[CASE_ACTOR_NAME].url
+    )
+    if not skip_health_check:
+        check_all_containers(
+            [
+                *((member.label, clients[member.role]) for member in members),
+                ("CaseActor", clients[CASE_ACTOR_NAME]),
+            ]
+        )
+    return clients
+
+
+def dump_story_ledgers(
+    state: StoryState,
+    *,
+    replicas: Sequence[str | tuple[str, str]],
+    unreplicated: Sequence[str] = (),
+) -> None:
+    """Dump each named cast member's case ledger, and the canonical one.
+
+    Thin scenario-agnostic wrapper (DEMOMA-23-002) over
+    :func:`~vultron.demo.helpers.ledger_dump.dump_case_ledgers`, which owns
+    the per-actor export, the 404 handling and the dump manifest.  This only
+    says whose ledgers to dump and where each lives; the canonical one is read
+    from the dedicated case-actor container (DEMOMA-06-005).
+
+    Args:
+        state: The running story's state.
+        replicas: Whose replicas hold a copy, in dump order.  A cast name
+            stands for itself; a ``(devlogs name, cast name)`` pair is for a
+            scenario whose own name for an actor differs from the family role
+            the story seats it under — ``rcvcv`` calls its Coordinator ``c1``
+            in its devlogs, which is how its invariant harness finds it
+            (DEMOMA-19-018).
+        unreplicated: Cast names with no replica to dump, recorded in the
+            manifest so a narrative tag still resolves to them — the Vendor
+            that rejected its invitation was never a participant (#4248).
+    """
+    # Route keys come from each client's own actor id, not from its cast
+    # name: the key selects the store (ADR-0073), so a literal only happens
+    # to be right while a scenario seeds deterministic named ids.
+    named = [
+        (entry, entry) if isinstance(entry, str) else entry
+        for entry in replicas
+    ]
+    targets = [
+        LedgerDumpTarget(
+            devlogs_name,
+            state.client(member),
+            replica_route_key(state.client(member)),
+        )
+        for devlogs_name, member in named
+    ]
+    targets.append(case_actor_dump_target(state.case_actor_client))
+    dump_case_ledgers(
+        demo_name=state.harness.demo_name,
+        case=state.case,
+        targets=targets,
+        unreplicated={
+            name: replica_route_key(state.client(name))
+            for name in unreplicated
+        }
+        or None,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,7 +305,11 @@ def open_story_cast(
 
 
 __all__ = [
+    "CASE_ACTOR_NAME",
+    "CastContainer",
     "CastSeat",
     "CastSeeder",
+    "dump_story_ledgers",
     "open_story_cast",
+    "story_clients",
 ]

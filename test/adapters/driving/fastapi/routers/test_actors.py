@@ -161,6 +161,31 @@ def test_post_non_activity_to_actor_inbox_returns_422(
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
+@pytest.mark.spec("CLP-15-010")
+def test_post_untimed_case_status_to_actor_inbox_returns_422(
+    client_actors, created_actors
+):
+    """A case status with no ``published`` is refused at the inbox edge."""
+    actor = created_actors[0]
+    case_id = "https://example.org/cases/untimed"
+    payload = {
+        "type": "Add",
+        "id": "https://example.org/activities/untimed-status",
+        "actor": actor.id_,
+        "published": "2026-01-02T03:04:05+00:00",
+        "object": {
+            "type": "CaseStatus",
+            "id": f"{case_id}/statuses/1",
+            "context": case_id,
+            "emState": "NONE",
+        },
+        "target": case_id,
+    }
+    resp = client_actors.post(_inbox_path(actor.id_), json=payload)
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert "CLP-15-010" in resp.text
+
+
 def _inbox_path(actor_id: str) -> str:
     return f"/actors/{_route_key(actor_id)}/inbox/"
 

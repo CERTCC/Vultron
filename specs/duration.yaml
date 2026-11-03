@@ -99,7 +99,7 @@ groups:
     kind: protocol
     statement: >-
       Duration strings SHOULD be normalized to a canonical form: prefer the largest unit without
-      remainder
+      remainder, except for a zero-length duration, which is written `PT0S` (DUR-03-003).
     rationale: >-
       One duration can be written several ways (`P1D`, `PT24H`, `PT1440M`), so two
       records that hold the same value can fail a plain string comparison or show a

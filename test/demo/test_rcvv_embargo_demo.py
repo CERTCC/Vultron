@@ -861,7 +861,7 @@ class TestRcvvEmbargoLedgerDump:
     """Each seated replica is dumped, and an unseated Vendor2 is left out.
 
     The dump runs on the way out whether or not an earlier step failed
-    (DEMOMA-23-003), and ``dump_coordinated_ledgers`` *raises* on a cast name
+    (DEMOMA-23-003), and ``dump_story_ledgers`` *raises* on a cast name
     the run never seated, because there is no client to read that replica's
     ledger through (``test_later_vendors.py``).  So a run that failed before
     Vendor2 joined would lose every ledger — the artifacts the dump exists to
@@ -882,7 +882,7 @@ class TestRcvvEmbargoLedgerDump:
         state.case_actor_client.actor_id = (
             "https://example.org/actors/case-actor"
         )
-        with patch.object(coordinated_story, "dump_case_ledgers") as dump:
+        with patch.object(story_cast, "dump_case_ledgers") as dump:
             demo._dump_ledgers(state)
         return dump.call_args.kwargs["targets"]
 

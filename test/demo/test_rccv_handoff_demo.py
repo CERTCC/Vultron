@@ -809,9 +809,7 @@ class TestRccvHandoffCliCommand:
         }
 
         with (
-            patch.object(
-                demo, "coordinated_clients", return_value=clients
-            ) as built,
+            patch.object(demo, "story_clients", return_value=clients) as built,
             patch.object(demo, "run_rccv_handoff_demo") as run,
         ):
             demo.main(

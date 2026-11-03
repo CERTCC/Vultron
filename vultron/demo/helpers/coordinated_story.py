@@ -56,13 +56,10 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
 
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers.actor_roles import ActorRole
-from vultron.demo.helpers.cast import CASE_ACTOR
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.harness import ScenarioHarness
 from vultron.demo.helpers.invite_chain import (
@@ -70,12 +67,6 @@ from vultron.demo.helpers.invite_chain import (
     answer_case_invite,
     invite_and_await_delivery,
     run_case_invite_chain,
-)
-from vultron.demo.helpers.ledger_dump import (
-    LedgerDumpTarget,
-    case_actor_dump_target,
-    dump_case_ledgers,
-    replica_route_key,
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,
@@ -97,7 +88,6 @@ from vultron.demo.helpers.polling import (
     wait_for_participant_vf_state,
     wait_for_semantic_type_in_ledger,
 )
-from vultron.demo.helpers.runner import check_all_containers
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
     seed_containers_rcv,
@@ -110,7 +100,11 @@ from vultron.demo.helpers.story import (
     choose,
     story,
 )
-from vultron.demo.helpers.story_cast import CastSeat, open_story_cast
+from vultron.demo.helpers.story_cast import (
+    CastContainer,
+    CastSeat,
+    open_story_cast,
+)
 from vultron.demo.helpers.sync import run_sync_verification_phase
 from vultron.demo.helpers.verification import _check_participant_rm_state_in
 from vultron.demo.helpers.workflow import (
@@ -120,7 +114,6 @@ from vultron.demo.helpers.workflow import (
 )
 from vultron.demo.utils import (
     DataLayerClient,
-    bound_case_actor_client,
     demo_check,
     demo_gate,
     demo_step,
@@ -147,10 +140,6 @@ VENDOR = "vendor"
 REPORTER_LABEL = "Reporter"
 COORDINATOR_LABEL = "Coordinator"
 VENDOR_LABEL = "Vendor"
-
-#: What the scenarios of this family call the dedicated CaseActor container in
-#: their ``ROLES``: the cast slot's own name.
-CASE_ACTOR_NAME = CASE_ACTOR.name
 
 #: Seconds a cross-container wait of this lifecycle may take: the Invite's
 #: delivery, an invitee's case replica, and each wait of its RM triage.  One
@@ -190,74 +179,6 @@ ENGAGED_CASE: StoryProp[str] = StoryProp(
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True, slots=True)
-class CastContainer:
-    """One container a scenario of this family drives.
-
-    Attributes:
-        role: The scenario's own name for the actor, as its ``ROLES`` seats
-            it — the stem of its ``--<role>-url`` option and of its devlogs
-            directory.  Its cast slot carries the address.
-        label: What :func:`check_all_containers` calls it when it is down.
-        url: Base-URL override from the command line, or ``None`` to take the
-            cast slot's own address (DEMOCI-11-020).
-    """
-
-    role: str
-    label: str
-    url: str | None = None
-
-
-def coordinated_clients(
-    roles: Mapping[str, ActorRole],
-    members: Sequence[CastContainer],
-    *,
-    skip_health_check: bool,
-    case_actor_url: str | None = None,
-) -> dict[str, DataLayerClient]:
-    """Build one client per *member* plus the CaseActor's, health-checked.
-
-    Every scenario of the family builds its clients the same way, binds the
-    case-actor one to its CaseActor, and health-checks them all, so it is done
-    once here rather than once per ``main()`` (DEMOMA-17-001).  Each URL falls
-    back to the cast slot's own address, which is why the scenario modules
-    declare no ``*_BASE_URL`` constants of their own (DEMOCI-11-020).
-
-    Args:
-        roles: The scenario's :func:`~vultron.demo.helpers.actor_roles\
-            .role_map`, which names the cast slot each actor sits in.
-        members: The scenario's actor containers, in ``ROLES`` order.
-        skip_health_check: Skip the server availability check.
-        case_actor_url: Override base URL for the CaseActor container.
-
-    Returns:
-        The clients, keyed by each member's ``role`` plus
-        :data:`CASE_ACTOR_NAME`.
-
-    Raises:
-        SystemExit: When a container is unreachable and the check ran.
-        KeyError: When *roles* seats no actor of a member's name — a scenario
-            whose ``ROLES`` and ``main()`` have drifted apart.
-    """
-    clients = {
-        member.role: DataLayerClient(
-            base_url=member.url or roles[member.role].url
-        )
-        for member in members
-    }
-    clients[CASE_ACTOR_NAME] = bound_case_actor_client(
-        case_actor_url or roles[CASE_ACTOR_NAME].url
-    )
-    if not skip_health_check:
-        check_all_containers(
-            [
-                *((member.label, clients[member.role]) for member in members),
-                ("CaseActor", clients[CASE_ACTOR_NAME]),
-            ]
-        )
-    return clients
-
-
 def coordinated_cast_members(
     *,
     reporter_url: str | None = None,
@@ -285,7 +206,8 @@ def coordinated_cast_members(
         vendor_url: The same, for the Vendor's.
 
     Returns:
-        The three members, to hand to :func:`coordinated_clients`.
+        The three members, to hand to
+        :func:`~vultron.demo.helpers.story_cast.story_clients`.
     """
     return [
         CastContainer(REPORTER, REPORTER_LABEL, reporter_url),
@@ -463,60 +385,6 @@ def seat_character_actors(
     }
     for name, session in sessions.items():
         state.seat(name, session)
-
-
-def dump_coordinated_ledgers(
-    state: StoryState,
-    *,
-    replicas: Sequence[str | tuple[str, str]],
-    unreplicated: Sequence[str] = (),
-) -> None:
-    """Dump each named cast member's case ledger, and the canonical one.
-
-    Thin scenario-agnostic wrapper (DEMOMA-23-002) over
-    :func:`~vultron.demo.helpers.ledger_dump.dump_case_ledgers`, which owns
-    the per-actor export, the 404 handling and the dump manifest.  This only
-    says whose ledgers to dump and where each lives; the canonical one is read
-    from the dedicated case-actor container (DEMOMA-06-005).
-
-    Args:
-        state: The running story's state.
-        replicas: Whose replicas hold a copy, in dump order.  A cast name
-            stands for itself; a ``(devlogs name, cast name)`` pair is for a
-            scenario whose own name for an actor differs from the family role
-            the story seats it under — ``rcvcv`` calls its Coordinator ``c1``
-            in its devlogs, which is how its invariant harness finds it
-            (DEMOMA-19-018).
-        unreplicated: Cast names with no replica to dump, recorded in the
-            manifest so a narrative tag still resolves to them — the Vendor
-            that rejected its invitation was never a participant (#4248).
-    """
-    # Route keys come from each client's own actor id, not from its cast
-    # name: the key selects the store (ADR-0073), so a literal only happens
-    # to be right while a scenario seeds deterministic named ids.
-    named = [
-        (entry, entry) if isinstance(entry, str) else entry
-        for entry in replicas
-    ]
-    targets = [
-        LedgerDumpTarget(
-            devlogs_name,
-            state.client(member),
-            replica_route_key(state.client(member)),
-        )
-        for devlogs_name, member in named
-    ]
-    targets.append(case_actor_dump_target(state.case_actor_client))
-    dump_case_ledgers(
-        demo_name=state.harness.demo_name,
-        case=state.case,
-        targets=targets,
-        unreplicated={
-            name: replica_route_key(state.client(name))
-            for name in unreplicated
-        }
-        or None,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -1367,7 +1235,6 @@ def reporter_then_coordinator_close(state: StoryState) -> None:
 
 
 __all__ = [
-    "CASE_ACTOR_NAME",
     "ENGAGED_CASE",
     "COORDINATOR",
     "COORDINATOR_INVITES_VENDOR",
@@ -1382,16 +1249,13 @@ __all__ = [
     "VENDOR",
     "VENDOR_JOINS_THE_CASE",
     "VENDOR_LABEL",
-    "CastContainer",
     "await_reporter_case_replica",
     "close_the_case",
     "coordinated_cast_members",
     "coordinated_seats",
-    "coordinated_clients",
     "coordinated_open_cast",
     "coordinator_and_reporter_publish",
     "coordinator_invites_vendor",
-    "dump_coordinated_ledgers",
     "everyone_closes",
     "everyone_publishes",
     "invitee_joins_the_case",

@@ -53,11 +53,14 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.trigger_registry._entry import (
     GENERAL_TRIGGER_SPECS,
+    TARGETLESS_BODY_TRIGGER_SPECS,
     TriggerEntry,
     TriggerExposure,
 )
 
 _PARTICIPANT = (*GENERAL_TRIGGER_SPECS, "TRIG-02-005")
+#: An answer to a case invite names its ``invite_id``, not a case or an offer.
+_INVITE_ANSWER = (*TARGETLESS_BODY_TRIGGER_SPECS, "TRIG-02-005")
 _ROLE = (*GENERAL_TRIGGER_SPECS, "TRIG-02-007")
 
 ENTRIES: list[TriggerEntry] = [
@@ -77,7 +80,7 @@ ENTRIES: list[TriggerEntry] = [
         result_type=ActivityResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        spec_ids=_PARTICIPANT,
+        spec_ids=_INVITE_ANSWER,
     ),
     TriggerEntry(
         verb="reject-case-invite",
@@ -86,7 +89,7 @@ ENTRIES: list[TriggerEntry] = [
         result_type=ActivityResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        spec_ids=_PARTICIPANT,
+        spec_ids=_INVITE_ANSWER,
     ),
     TriggerEntry(
         verb="accept-full-case-invite",
@@ -95,7 +98,7 @@ ENTRIES: list[TriggerEntry] = [
         result_type=ActivityResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        spec_ids=_PARTICIPANT,
+        spec_ids=_INVITE_ANSWER,
     ),
     TriggerEntry(
         verb="tentative-reject-full-case-invite",
@@ -104,7 +107,7 @@ ENTRIES: list[TriggerEntry] = [
         result_type=ActivityResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        spec_ids=_PARTICIPANT,
+        spec_ids=_INVITE_ANSWER,
     ),
     TriggerEntry(
         verb="reject-full-case-invite",
@@ -113,7 +116,7 @@ ENTRIES: list[TriggerEntry] = [
         result_type=ActivityResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
-        spec_ids=_PARTICIPANT,
+        spec_ids=_INVITE_ANSWER,
     ),
     TriggerEntry(
         verb="invite-actor-to-case",

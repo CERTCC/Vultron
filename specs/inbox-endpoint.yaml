@@ -54,13 +54,13 @@ groups:
     kind: foundation
     statement: The endpoint MUST reject non-POST requests with HTTP 405
     rationale: >-
-      The inbox is a delivery target, not a mailbox other actors may read: ActivityPub
-      grants an inbox read only to the actor's own authenticated owner, and Vultron
-      has no authentication, so a GET here would open another actor's mail. The 405
-      covers both trailing-slash forms, and it does not fall out of having no GET
-      route: the profile route is a path catch-all (`/{actor_id:path}`) that answers
-      404 to an unrouted GET, so the inbox path needs its own method refusal declared
-      ahead of it.
+      The inbox is a delivery target, not a collection other actors may read:
+      ActivityPub grants an inbox read only to the actor's own authenticated owner, and
+      Vultron has no authentication, so a GET here would expose another actor's
+      activities. The 405 covers both trailing-slash forms, and it does not fall out of
+      having no GET route: the profile route is a path catch-all (`/{actor_id:path}`)
+      that answers 404 to an unrouted GET, so the inbox path needs its own method
+      refusal declared ahead of it.
     verification: >-
       `test/adapters/driving/fastapi/routers/test_actors.py` confirms that GET, HEAD,
       OPTIONS, PUT, PATCH, and DELETE on the inbox path each return HTTP 405 with

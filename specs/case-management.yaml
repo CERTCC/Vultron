@@ -516,8 +516,6 @@ groups:
     - rel_type: implements
       spec_id: VP-01-002
     - rel_type: implements
-      spec_id: VP-02-002
-    - rel_type: implements
       spec_id: VP-03-001
     stories:
     - story_2022_088
@@ -636,8 +634,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SM-10-001
-    - rel_type: implements
-      spec_id: VP-02-002
     - rel_type: implements
       spec_id: VP-02-003
     - rel_type: implements
@@ -917,8 +913,6 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VP-02-015
-    - rel_type: implements
-      spec_id: VP-02-020
     stories:
     - story_2022_102
   - id: CM-05-003
@@ -3797,7 +3791,8 @@ groups:
     rationale: >-
       The EM state tells the invitee whether a revision of the embargo is open. In EM
       `REVISE`, the invitee learns from it that a proposal is pending, which it
-      receives after it joins (EP-09-011).
+      receives after it joins (EP-09-011). The `caseStatus` is a `CaseStatus`, so it
+      also carries the `published` time every status carries (CLP-15-010).
     verification: >-
       `test_active_embargo_enriches_case_stub` and
       `test_revise_stub_carries_the_embargo_in_force` in
@@ -7866,7 +7861,7 @@ groups:
       An emit in the name of the CASE_MANAGER from a container that does not host it
       bypasses the CASE_MANAGER. The activity leaves a store that does not hold the
       ledger. The canonical entry can then come only from a copy of the emit that is
-      mailed to the CASE_MANAGER. Also, such a container cannot sign the activity
+      delivered to the CASE_MANAGER. Also, such a container cannot sign the activity
       (OX-10).
     verification: >-
       `test_invite_is_queued_in_the_owners_outbox_only` and
@@ -9272,21 +9267,44 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `VulnerabilityCase.current_status` MUST determine the most-recent
-      `CaseStatus` by comparing `updated` then `published` timestamps only.
+      `VulnerabilityCase.current_status` MUST return the `CaseStatus` with the latest
+      time, where a status's time is its `updated` if present, else its `published`.
     rationale: >-
       The status timestamps are the only record of when each status was made, so
       recency is read from them and from nothing else. `updated` comes first because
-      it records the latest change to a status.
+      it records the latest change to a status. A receiver refuses a status with no
+      `published` (CLP-15-010), so every status has a time.
     verification: >-
       `test_status_recency_key_prefers_updated_over_published` and
       `test_status_recency_key_falls_back_to_published` in
       `test/core/models/test_helpers.py` unit test the ordering key
       `status_recency_key` in `vultron/core/models/_helpers.py`, where both the
       `current_status` and the wire `as_CaseStatus` readers converge.
+      `test_case_status_requires_published` in
+      `test/core/models/test_case_status.py` confirms a `CaseStatus` cannot be
+      built without a `published`.
     relationships:
     - rel_type: refines
       spec_id: CM-27-001
+  - id: CM-29-003
+    priority: MUST
+    kind: project
+    statement: >-
+      Among `CaseStatus` entries with equal times, `VulnerabilityCase.current_status`
+      MUST return the one appended last.
+    rationale: >-
+      Received statuses carry the sender's time, so equal times are ordinary. Append
+      order is the only tiebreaker that is not an implementation detail (CM-29-002),
+      and without it a status appended with the same time as the one before it would
+      never become current.
+    verification: >-
+      `test_current_status_tie_goes_to_the_last_appended` in
+      `test/core/models/test_case.py` and in
+      `test/wire/as2/vocab/test_vulnerability_case.py` append two statuses with
+      equal times and assert the second is current.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-29-001
   - id: CM-29-002
     priority: MUST_NOT
     kind: project
@@ -9294,27 +9312,44 @@ groups:
       `VulnerabilityCase.current_status` MUST NOT use the `id_` field as a sort
       tiebreaker when it determines the most-recent `CaseStatus`.
     rationale: >-
-      If `id_` breaks ties when timestamps are absent, the order depends on the id
-      scheme. Auto-seeded statuses have `urn:uuid:` ids, which sort above `https://`
-      ids. Thus the initial auto-seeded status wins over a newer received status when
-      both have no timestamp. An id scheme is an implementation detail, not a measure of
-      time. If a missing timestamp counts as the earliest possible time (for example,
-      `datetime.min`), statuses without timestamps sort to the bottom, not the top.
+      If `id_` breaks ties between statuses with equal times, the order depends on
+      the id scheme. Auto-seeded statuses have `urn:uuid:` ids, which sort above
+      `https://` ids, so an initial auto-seeded status would win over a received
+      status with the same time. An id scheme is an implementation detail, not a
+      measure of time.
     verification: >-
-      Unit test the ordering key `status_recency_key` in
-      `vultron/core/models/_helpers.py` directly, since that is where both the
-      `current_status` and the wire `as_CaseStatus` readers converge. Construct
-      two status projections that carry no `updated`/`published` timestamps —
-      one with a `urn:uuid:` ID and one with an `https://` ID — and assert the
-      key orders them by neither ID scheme (both must sort to the bottom via the
-      `datetime.min` fallback). Note: only the wire-side projection can actually
-      present timestampless statuses; core `CaseStatus` re-narrows `published`
-      and `updated` to non-`Optional` aware datetimes via `CoreObject`, so the
-      timestamp-absent branch is unreachable defensive code on the core path and
-      only exercisable on the `as_CaseStatus` wire branch.
+      `test_current_status_ignores_id_scheme_when_times_are_equal` in
+      `test/wire/as2/vocab/test_vulnerability_case.py` gives a `urn:uuid:` status
+      and an `https://` status the same `published`, appends the `https://` one
+      last, and asserts it is current.
     relationships:
     - rel_type: extends
       spec_id: CM-29-001
+  - id: CM-29-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST reject at message validation an inbound activity carrying a
+      `VulnerabilityCase` with no `caseStatuses`.
+    rationale: >-
+      Every case has a current status (CM-29-001), and the sender holds it. A
+      receiver that seeded a missing history would stamp its own clock on the
+      case's first status, a time no sender claimed (CLP-15-007), and that status
+      could outrank one the sender timed earlier. A case named by its `id` and
+      `type` alone is a reference, not a case, so this does not apply to it.
+    verification: >-
+      `test_parse_refuses_a_case_with_no_case_statuses` in
+      `test/wire/as2/test_nested_timestamps.py` asserts `parse_activity` refuses a
+      case whose `caseStatuses` is absent or empty, and
+      `test_authored_case_without_statuses_is_seeded` in the same file confirms a
+      case this process builds is still seeded.
+    stories:
+    - story_2022_075
+    relationships:
+    - rel_type: refines
+      spec_id: CM-29-001
+    - rel_type: refines
+      spec_id: CLP-15-007
 - id: CM-30
   title: Sender Entitlement for Case Content Changes
   description: >-

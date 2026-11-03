@@ -1071,7 +1071,7 @@ class TestRvLedgerDump:
         """DEMOMA-23-002: the fragment only says whose ledgers to dump."""
         state = _two_party_state()
 
-        with patch.object(vendor_story, "dump_coordinated_ledgers") as dump:
+        with patch.object(vendor_story, "dump_story_ledgers") as dump:
             demo._dump_ledgers(state)
 
         dump.assert_called_once()
@@ -1219,9 +1219,7 @@ class TestRvCliCommand:
         }
 
         with (
-            patch.object(
-                demo, "coordinated_clients", return_value=clients
-            ) as built,
+            patch.object(demo, "story_clients", return_value=clients) as built,
             patch.object(demo, "run_rv_demo") as run,
         ):
             demo.main(

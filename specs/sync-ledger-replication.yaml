@@ -1295,11 +1295,13 @@ groups:
       CASE_MANAGER but not yet confirmed by a canonical Announce(CaseLedgerEntry) round-trip;
       the suppression window is configurable and zero disables suppression
     rationale: >-
-      A participant's assertion takes some time to come back as a committed entry. In
-      that time, the participant's own logic can decide again to send the same
-      assertion. Without a record of what is pending, the CASE_MANAGER receives
-      duplicates. A configurable window lets a deployment match it to its round-trip
-      time, and zero turns the feature off.
+      An assertion takes time to come back as a committed entry, and meanwhile the
+      participant's logic can decide to send it again. Without a record of what is
+      pending, the CASE_MANAGER receives duplicates. The window matches the
+      round-trip time; zero turns it off. The store only saves traffic: each repeat
+      kind it suppresses needs its own no-op rule at the CASE_MANAGER (ID-04-004,
+      CM-13-005, EP-09-032), as a replica cannot see a repeat's effect before the
+      round trip returns (CLP-07-013).
   - id: SYNC-11-002
     priority: SHOULD
     kind: project
@@ -1366,7 +1368,9 @@ groups:
       an operator retry or the catch-up gate can submit the assertion again.
     rationale: >-
       Without this, the store would suppress every later send of a lost assertion, and
-      the participant could never make the assertion again.
+      the participant could never make the assertion again. The timeout is the
+      outstanding ask's expiry (ASK-04-007, ASK-05-001), not a second duplicate check,
+      so a repeat it lets through is safe at the CASE_MANAGER.
     verification: >-
       `test_a_lookup_stops_an_aged_out_entry_suppressing` and
       `test_a_later_write_also_stops_an_aged_out_entry_suppressing` in
