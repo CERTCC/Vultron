@@ -37,6 +37,7 @@ from vultron.core.models._helpers import (
     STORED_CONTEXT_KEY,
     _as_id,
     most_recent_status,
+    new_object_id,
     now_utc,
     now_utc_after,
 )
@@ -64,7 +65,6 @@ from vultron.core.models.ledger_position import (
     EMPTY_LEDGER_LOG_INDEX,
     LedgerPosition,
 )
-from vultron.core.models.object_ids import new_object_id
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.retired_stored_fields import (
     RetiredFieldsRecord,

@@ -16,6 +16,7 @@
 """Shared helper utilities for core domain model types."""
 
 import types
+import uuid
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import (
@@ -39,6 +40,31 @@ from pydantic.fields import FieldInfo
 # break isinstance() calls in parse_published, so we capture the real class here
 # before any patch can replace the module-level name.
 _datetime_type = datetime
+
+
+URN_UUID_PREFIX = "urn:uuid:"
+"""The scheme and namespace every default minted object id starts with."""
+
+
+def new_object_id(prefix: str | None = None) -> str:
+    """Return a new, unique, full-URI object id: the one id minter (OID-01-004).
+
+    Core models use it as their ``id_`` default factory, and the wire layer's
+    ``generate_new_id`` is the same function, so every minted id has one form
+    whichever layer mints it.  By default the id is ``urn:uuid:`` followed by
+    a fresh version-4 UUID, a valid AS2 identifier that needs no server
+    configuration (OID-01-001).  When *prefix* is given the UUID is appended
+    to it after a ``/``, which yields HTTPS-style ids such as
+    ``https://example.org/reports/{uuid}``; the caller owns *prefix*, which
+    must itself be a full URI for the result to be one.
+
+    An id *derived* from what an activity answers is not minted; it comes from
+    :func:`vultron.core.models.activity_ids.derived_activity_id`.
+    """
+    minted = str(uuid.uuid4())
+    if prefix is None:
+        return f"{URN_UUID_PREFIX}{minted}"
+    return f"{prefix}/{minted}"
 
 
 def now_utc() -> datetime:

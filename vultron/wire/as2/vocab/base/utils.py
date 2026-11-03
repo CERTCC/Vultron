@@ -18,7 +18,7 @@ Provides utilities for the ActivityStreams Vocabulary.
 
 from typing import Any
 
-from vultron.core.models.object_ids import new_object_id
+from vultron.core.models._helpers import new_object_id
 from vultron.primitives import is_blank_string
 from vultron.wire.as2.vocab import VOCABULARY
 
@@ -111,7 +111,7 @@ generate_new_id = new_object_id
 
 The wire layer mints no ids of its own (OID-01-004).  The name stays because it
 is the ``as_Base.id_`` default factory (VM-04-001); it is the same function as
-:func:`vultron.core.models.object_ids.new_object_id`, prefix form included.
+:func:`vultron.core.models._helpers.new_object_id`, prefix form included.
 """
 
 

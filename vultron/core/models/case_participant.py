@@ -43,11 +43,11 @@ from pydantic import (
     model_validator,
 )
 
+from vultron.core.models._helpers import new_object_id
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_register import EmbargoRegisterEntry
-from vultron.core.models.object_ids import new_object_id
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,

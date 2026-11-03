@@ -18,14 +18,14 @@
 These utilities are used by driven adapters (e.g., the SQLite DataLayer) and
 driving adapters (e.g., demo scripts) to inspect URL- and URN-based object IDs
 and to name objects by a short key.  They mint no ids: every new object id
-comes from :func:`vultron.core.models.object_ids.new_object_id` (OID-01-004).
+comes from :func:`vultron.core.models._helpers.new_object_id` (OID-01-004).
 """
 
 import re
 from typing import TypedDict
 from urllib.parse import urlparse
 
-from vultron.core.models.object_ids import URN_UUID_PREFIX
+from vultron.core.models._helpers import URN_UUID_PREFIX
 
 _UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",

@@ -85,7 +85,7 @@ groups:
     verification: >-
       `test/architecture/test_single_object_id_minter.py` confirms that the core and
       wire `id_` default factories are both
-      `vultron.core.models.object_ids.new_object_id`, and that no other module under
+      `vultron.core.models._helpers.new_object_id`, and that no other module under
       `vultron/` draws a random UUID except the listed non-id uses.
   - id: OID-01-005
     priority: MUST

@@ -23,8 +23,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+import vultron.core.models._helpers as model_helpers
 from test.support.case_owner import CASE_OWNER_ID
-from vultron.core.models import embargo_register, object_ids
+from vultron.core.models import embargo_register
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_apply import (
@@ -592,6 +593,6 @@ def test_the_apply_function_reads_no_clock_mints_no_id_and_reads_no_store(
     def _no_mint() -> str:
         raise AssertionError("the apply function minted an id")
 
-    monkeypatch.setattr(object_ids.uuid, "uuid4", _no_mint)
+    monkeypatch.setattr(model_helpers.uuid, "uuid4", _no_mint)
     after = _apply_all(case_file, _LEDGER)
     assert after.case.em_state == EM.EXITED

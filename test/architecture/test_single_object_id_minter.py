@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Every new object id is minted by one helper the core and wire layers share.
 
-OID-01-004: ``vultron.core.models.object_ids.new_object_id`` is the only
+OID-01-004: ``vultron.core.models._helpers.new_object_id`` is the only
 minter.  Two checks pin it:
 
 * Both layers' ``id_`` default factories *are* that function, so a model built
@@ -28,15 +28,15 @@ import ast
 import pytest
 
 from test.architecture import _corpus
+from vultron.core.models._helpers import new_object_id
 from vultron.core.models.base import CoreRecord
-from vultron.core.models.object_ids import new_object_id
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.utils import generate_new_id
 
 _VULTRON_ROOT = _corpus.REPO_ROOT / "vultron"
 
 #: The shared minter's own module, the one place an object id is drawn.
-MINTER_MODULE = "vultron/core/models/object_ids.py"
+MINTER_MODULE = "vultron/core/models/_helpers.py"
 
 #: Modules that draw a random UUID for something other than an object id.
 NON_ID_RANDOM_UUIDS: dict[str, str] = {

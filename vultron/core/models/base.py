@@ -45,10 +45,10 @@ from vultron.core.models._helpers import (
     as_utc,
     blank_times_as_none,
     format_timestamp,
+    new_object_id,
     now_utc,
     refuse_absent_published,
 )
-from vultron.core.models.object_ids import new_object_id
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 from vultron.errors import Violation, VultronProtocolViolationError
 from vultron.primitives import NonEmptyString, UriString  # noqa: F401

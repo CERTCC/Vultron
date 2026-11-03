@@ -17,8 +17,8 @@ from typing import TypedDict, get_args
 
 from pydantic import BaseModel
 
+from vultron.core.models._helpers import new_object_id
 from vultron.core.models.actor import hosted_endpoints
-from vultron.core.models.object_ids import new_object_id
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Organization,

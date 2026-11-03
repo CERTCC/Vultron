@@ -26,8 +26,8 @@ from typing import Literal
 import pytest
 from pydantic import BaseModel, Field
 
+from vultron.core.models._helpers import URN_UUID_PREFIX
 from vultron.core.models.base import CoreObject, CoreRecord
-from vultron.core.models.object_ids import URN_UUID_PREFIX
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP

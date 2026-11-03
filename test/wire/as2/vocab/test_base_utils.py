@@ -20,7 +20,7 @@ import uuid
 
 import pytest
 
-from vultron.core.models.object_ids import URN_UUID_PREFIX, new_object_id
+from vultron.core.models._helpers import URN_UUID_PREFIX, new_object_id
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.utils import generate_new_id, name_of
 
@@ -33,7 +33,7 @@ _UUID_PATTERN = re.compile(
 class TestGenerateNewId:
     """``generate_new_id`` is the shared core minter — OID-01-004.
 
-    The minter's own behaviour is tested in ``test/core/models/test_object_ids.py``.
+    The minter's own behaviour is tested in ``test/core/models/test_new_object_id.py``.
     """
 
     def test_is_the_shared_core_minter(self):

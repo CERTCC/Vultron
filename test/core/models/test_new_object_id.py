@@ -14,7 +14,7 @@
 
 import re
 
-from vultron.core.models.object_ids import URN_UUID_PREFIX, new_object_id
+from vultron.core.models._helpers import URN_UUID_PREFIX, new_object_id
 
 _UUID_PATTERN = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
