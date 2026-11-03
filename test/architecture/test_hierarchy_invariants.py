@@ -45,7 +45,7 @@ is ever told to clean it up, and it gives no partial-progress signal along the w
 See ``test_validate_assignment_ratchet.py``, which uses the same three-part shape
 (exact backlog + strict goal + guard-the-guard).
 
-Spec: `specs/architecture.yaml` ARCH-12-001, ARCH-12-004, ARCH-12-007,
+Spec: `specs/architecture.yaml` ARCH-12-001, ARCH-12-007,
 ARCH-12-011, ARCH-12-013, ARCH-12-014
 Reference: `docs/adr/archived/0017-domain-wire-object-separation.md` (superseded by ADR-0099)
 """
@@ -447,8 +447,8 @@ class TestCoreTypeMapHierarchy:
         """Every ``CoreRecord`` that is not a ``CoreObject`` is in CORE_TYPE_MAP.
 
         These types register in CORE_TYPE_MAP (not CORE_VOCABULARY) so that
-        stored rows can be reconstructed by type string (ARCH-12-004,
-        ARCH-12-010, issue #2417) — under both the class name and the
+        stored rows can be reconstructed by type string (ARCH-12-010,
+        issue #2417) — under both the class name and the
         ``Literal`` value.  The subject set is discovered, not listed, so a new
         record type is covered the day it lands.  It includes the adapter's
         ``OutboxDeadLetterEntry``: the registration hook is inherited from

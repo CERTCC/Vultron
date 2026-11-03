@@ -503,21 +503,34 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      The wire branch MUST NOT carry domain validators. Wire-branch overrides exist solely for
-      AS2 serialization shape (field aliases, `@context`, lenient `Any | None` types).
+      A wire-branch validator MUST NOT apply a rule that depends on case state or on
+      stored data.
     rationale: >-
-      Domain rules belong in core, where every reader of an object gets the same checks
-      (ARCH-01-003). A wire class for AS2 vocabulary that core does not model must parse
-      loose inbound data. A domain validator on it could refuse data that core accepts,
-      or accept data that core refuses. The `as_*` name of a domain type is its core
-      class (ARCH-25-003), so the domain validators of that class already apply when it
-      is read from the wire.
-    verification: 'Confirmed by `test_no_wire_types_in_core_type_map` (imports wire vocab and asserts no `vultron.wire`
-      module class appears in `CORE_TYPE_MAP`) and `test_core_record_types_in_core_type_map` (discovers
-      every `CoreRecord` that is not a `CoreObject`, including the dead-letter records
-      `DeadLetterRecord` and the adapter''s `OutboxDeadLetterEntry`, and asserts each is reachable
-      by class name and Literal value; the subject set is discovered, not listed) in
-      `test/architecture/test_hierarchy_invariants.py`. Both MUST NOT be marked `xfail`.'
+      Rules about case state belong in core, where every reader of an object gets the
+      same checks (ARCH-01-003) and the state they read is the receiver's own. A parse
+      step sees one message, so a rule that needed stored data there would have to
+      reach into the store from the wire layer, against the dependency direction. The
+      `as_*` name of a domain type is its core class (ARCH-25-003), so the domain
+      validators of that class already apply when it is read from the wire.
+    verification: >-
+      `test/architecture/test_wire_validators_stateless.py` discovers every
+      wire-branch class that declares a field or model validator. It asserts that no
+      module defining one imports from the adapters, the core ports, behaviors, use
+      cases or services, and that no validator names the store or the case-status
+      record (`test_no_wire_validator_module_imports_stateful_code`,
+      `test_no_wire_validator_names_the_store_or_case_state`).
+  - id: ARCH-12-021
+    priority: MAY
+    kind: project
+    statement: >-
+      A wire-branch validator MAY refuse a message whose own form breaks a protocol
+      rule, such as CP-01-012, SYNC-16-028, CM-11-011 or EMB-13-004.
+    rationale: >-
+      A rule about the form of one message needs nothing but that message, so the parse
+      edge can apply it and refuse the message once, with a clear reason, before any
+      later step works on it (ADR-0032). A proposer that claims the CASE_MANAGER role
+      (CP-01-012) or a Reject that names no object (SYNC-16-028) is malformed whatever
+      the receiver holds.
   - id: ARCH-12-008
     priority: MUST
     kind: project
