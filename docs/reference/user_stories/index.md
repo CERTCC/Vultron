@@ -75,7 +75,9 @@ Reuse an existing story when one already states the need; add a story only when 
 - **Page.** The page is `story_<year>_NNN.md` in this directory.
   Its frontmatter declares only `stakeholder_type: [project-contributor]`.
   The story text sits on one line between the `<!-- story-start -->` and `<!-- story-end -->` markers.
-  A **Notes** section explains the need, and a **Metadata** section gives the speaker, the CVD roles concerned when the speaker is a Participant, the issues the story came from or relates to, the issue it was drafted for, and the date it was added.
+  A **Notes** section explains the need.
+  A **Metadata** section lists **Speaker** (the family, and the member when the story names one), **Roles** (the CVD roles concerned, only when the speaker is a Participant), **Related issues** (the issues the story came from or relates to), **Drafted for** (the issue it was written for) and **Added** (the date).
+  A test checks every page for this shape.
 - **Table and matrix.** Do not edit the table below or the [User Story Traceability Matrix](traceability.md).
   Both are generated from the specifications: run `uv run docs-site --write` after adding a page, and the new story appears with *No mapped requirements* until a requirement names it in its `stories:` field.
 

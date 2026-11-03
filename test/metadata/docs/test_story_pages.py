@@ -22,27 +22,32 @@ import re
 from pathlib import Path
 
 import pytest
-import yaml
 
 from vultron.metadata.base import repo_root
 from vultron.metadata.docs.story_pages import (
+    STORY_END,
     STORY_ID_RE,
     STORY_ROOT,
+    STORY_START,
     story_ids,
 )
+from vultron.metadata.file_loading import MetadataLoadError, load_frontmatter
 
 #: Files in the story directory that are not story pages.
 _NOT_STORIES = frozenset({"index.md", "table.md", "traceability.md"})
 
-_FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 _TITLE_RE = re.compile(
     r"^# User Story `(?P<short>[^`]+)`(?: #)?$", re.MULTILINE
 )
-_START = "<!-- story-start -->"
-_END = "<!-- story-end -->"
-_SUPPORT_LEVEL_RE = re.compile(r"support level|as of v0\.4\.0", re.IGNORECASE)
+_START = STORY_START
+_END = STORY_END
+#: The two retired forms: the Metadata line and the dated Notes marker.
+_SUPPORT_LEVEL_RE = re.compile(
+    r"^- \*\*Support Level:\*\*|\*\(as of v0\.4\.0\)\*", re.MULTILINE
+)
 
-#: The first year whose pages carry the 2026 Metadata shape.
+#: The first year whose pages carry the 2026 Metadata shape. The labels are
+#: the ones ``story_2026_001`` onward use and the catalog index names.
 _FIRST_2026_YEAR = 2026
 _REQUIRED_2026_FIELDS = ("Speaker", "Related issues", "Drafted for", "Added")
 _RETIRED_2022_FIELDS = (
@@ -51,13 +56,14 @@ _RETIRED_2022_FIELDS = (
     "Potential future process or service",
 )
 _FIELD_RE = re.compile(r"^- \*\*(?P<name>[^*]+):\*\*", re.MULTILINE)
+_SPEAKER_RE = re.compile(r"^- \*\*Speaker:\*\* (?P<speaker>.+)$", re.MULTILINE)
 
 
-def _frontmatter_faults(text: str) -> list[str]:
-    match = _FRONTMATTER_RE.match(text)
-    if match is None:
-        return ["no frontmatter block"]
-    metadata = yaml.safe_load(match.group(1)) or {}
+def _frontmatter_faults(path: Path) -> list[str]:
+    try:
+        metadata = load_frontmatter(path).metadata
+    except MetadataLoadError as error:
+        return [f"unreadable frontmatter: {error}"]
     if metadata == {"stakeholder_type": ["project-contributor"]}:
         return []
     return [
@@ -100,15 +106,27 @@ def _metadata_faults(path: Path, text: str) -> list[str]:
     if int(path.stem.split("_")[1]) < _FIRST_2026_YEAR:
         return []
     fields = set(_FIELD_RE.findall(text))
-    return [
-        f"missing Metadata field {name!r}"
-        for name in _REQUIRED_2026_FIELDS
-        if name not in fields
-    ] + [
-        f"carries the 2022-only field {name!r}"
-        for name in _RETIRED_2022_FIELDS
-        if name in fields
-    ]
+    speaker = _SPEAKER_RE.search(text)
+    roles = (
+        ["a Participant speaker needs a 'Roles' field"]
+        if speaker
+        and speaker.group("speaker").startswith("Participant")
+        and "Roles" not in fields
+        else []
+    )
+    return (
+        roles
+        + [
+            f"missing Metadata field {name!r}"
+            for name in _REQUIRED_2026_FIELDS
+            if name not in fields
+        ]
+        + [
+            f"carries the 2022-only field {name!r}"
+            for name in _RETIRED_2022_FIELDS
+            if name in fields
+        ]
+    )
 
 
 def story_page_faults(path: Path) -> list[str]:
@@ -116,7 +134,7 @@ def story_page_faults(path: Path) -> list[str]:
     text = path.read_text(encoding="utf-8")
     faults = [
         *_id_faults(path, text),
-        *_frontmatter_faults(text),
+        *_frontmatter_faults(path),
         *_marker_faults(text),
         *_metadata_faults(path, text),
     ]
@@ -137,12 +155,14 @@ def _real_pages() -> list[Path]:
     )
 
 
+@pytest.mark.spec_corpus
 def test_catalog_is_not_empty() -> None:
     """An empty catalog would make every corpus test below vacuous (DF-09-009)."""
     assert _real_pages()
     assert len(_real_pages()) == len(story_ids(repo_root()))
 
 
+@pytest.mark.spec_corpus
 @pytest.mark.spec("DF-11-012")
 @pytest.mark.spec("SR-11-002")
 @pytest.mark.parametrize("path", _real_pages(), ids=lambda path: path.stem)
@@ -194,7 +214,26 @@ def test_the_good_page_passes(tmp_path: Path) -> None:
         (
             "story_2026_999.md",
             _GOOD_2026.split("\n", 3)[3],
-            "no frontmatter block",
+            "got {}",
+        ),
+        (
+            "story_2026_999.md",
+            _GOOD_2026.replace(
+                "[project-contributor]", "[project-contributor"
+            ),
+            "unreadable frontmatter",
+        ),
+        (
+            "story_2026_999.md",
+            _GOOD_2026.replace(
+                "Implementer (Tool Author)", "Participant (Vendor)"
+            ),
+            "needs a 'Roles' field",
+        ),
+        (
+            "story_2026_999.md",
+            _GOOD_2026.replace("Why.", "*(as of v0.4.0)*\nWhy."),
+            "retired support level",
         ),
         ("story_2026_999.md", _GOOD_2026.replace(_END, ""), "appears 0 times"),
         (
@@ -246,3 +285,11 @@ def test_a_2022_page_keeps_its_provenance_fields(tmp_path: Path) -> None:
         .replace("- **Added:** 2026-11-03\n", "- **Original ID:** `1.0`\n")
     )
     assert story_page_faults(_write(tmp_path, "story_2022_999.md", body)) == []
+
+
+def test_prose_about_the_support_level_is_not_the_field(
+    tmp_path: Path,
+) -> None:
+    """Only the retired line and marker fail, not a sentence naming them."""
+    body = _GOOD_2026.replace("Why.", "Why. The support level was retired.")
+    assert story_page_faults(_write(tmp_path, "story_2026_999.md", body)) == []
