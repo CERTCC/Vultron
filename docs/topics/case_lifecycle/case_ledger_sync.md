@@ -183,7 +183,7 @@ A field that is present but empty carries no claimed time either.
 A blank `published` — an empty string, or one holding only whitespace — is refused the same way as an omitted one, and reports the same reason ([MV-03-002](../../reference/vultron-spec/requirements/messages.md#mv-03-002)).
 
 A case status is held to the same rule wherever it sits in a message.
-A case's current status is the one with the latest time, so a status with no time has no place in the case's history.
+Every case status carries its author's time, and the case manager gives each new status a time later than the one before it, so the history reads the same in time order as in the order it was recorded ([CM-29-005](../../reference/vultron-spec/requirements/case-management.md#cm-29-005)).
 A receiver therefore refuses an activity that carries a case status with no `published` ([CLP-15-010](../../reference/vultron-spec/requirements/ledger-replication.md#clp-15-010)).
 A receiver also refuses a case that arrives with no case statuses at all, because starting one would put the receiver's own clock on the case's first status ([CM-29-004](../../reference/vultron-spec/requirements/case-management.md#cm-29-004)).
 

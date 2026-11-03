@@ -180,60 +180,65 @@ class TestVulnerabilityCaseCurrentStatus:
         with pytest.raises(ValueError):
             _ = c.current_status
 
-    def test_current_status_prefers_newer_timestamp_over_id_scheme(self):
-        """A newer ``updated`` wins even when its ``id_`` sorts lower.
+    @pytest.mark.spec("CM-29-001")
+    def test_current_status_is_the_last_appended(self):
+        """The last appended status is current even when an earlier one is later.
 
-        Guards CM-29-002: the ``id_`` scheme must never arbitrate recency. A
-        urn:uuid ID (``'u'``) sorts lexically above an https ID (``'h'``), so
-        this catches any regression that reintroduced ``id_`` as a tiebreaker
-        overriding an authoritative timestamp.
+        Append order, not time, decides (CM-29-001): a clock that stepped
+        back, or a CASE_MANAGER on another clock, must not make the older
+        status current.  The ``id_`` schemes differ so that an ``id_``
+        tiebreak would also pick the wrong one (a urn:uuid sorts above an
+        https ID).
         """
-        older = CaseStatus(
+        earlier_appended = CaseStatus(
             id_="urn:uuid:00000000-0000-0000-0000-000000000001",
             context=_CASE_ID,
-            updated=datetime(2020, 1, 1, tzinfo=UTC),
+            published=datetime(2026, 1, 1, tzinfo=UTC),
         )
-        newer = CaseStatus(
+        last_appended = CaseStatus(
             id_="https://coord.example/status/1",
             context=_CASE_ID,
-            updated=datetime(2026, 1, 1, tzinfo=UTC),
+            published=datetime(2020, 1, 1, tzinfo=UTC),
         )
         c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
-        c.case_statuses = [older, newer]
-        assert c.current_status is newer
+        c.case_statuses = [earlier_appended, last_appended]
+        assert c.current_status is last_appended
 
-    @pytest.mark.spec("CM-29-003")
-    @pytest.mark.parametrize(
-        "updated",
-        [datetime(2026, 1, 1, tzinfo=UTC), None],
-        ids=["updated", "published-only"],
-    )
-    def test_current_status_tie_goes_to_the_last_appended(
-        self, updated: datetime | None
-    ):
-        """Equal times resolve to the last-appended status.
+    @pytest.mark.spec("CM-29-001")
+    def test_current_status_skips_a_trailing_reference(self):
+        """A bare id after the last materialized status is not a status."""
+        status = CaseStatus(context=_CASE_ID)
+        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
+        c.case_statuses = [status, "urn:uuid:some-id"]
+        assert c.current_status is status
 
-        Received statuses carry the sender's time (ISSUE-3257), so ties are
-        ordinary.  ``max`` kept the *first* maximal element, so a new status
-        sharing the previous one's time never became current.  The tie holds
-        whether the time is ``updated`` or, without one, ``published``.
+    @pytest.mark.spec("CM-29-001")
+    def test_em_stamp_with_no_materialized_status_changes_nothing(self):
+        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
+        c.case_statuses = ["urn:uuid:some-id"]
+        assert c._em_stamped_statuses() is None
+
+    def test_em_stamp_lands_on_the_last_appended_status(self):
+        """The register's EM is stamped on the status ``current_status`` picks.
+
+        The last appended status disagrees with the (empty) register, and the
+        earlier one carries the later time, so a timestamp rule would see the
+        earlier one agree and stamp nothing (ADR-0122).
         """
-        published = datetime(2026, 1, 1, tzinfo=UTC)
-        first = CaseStatus(
-            id_="urn:uuid:00000000-0000-0000-0000-000000000002",
-            context=_CASE_ID,
-            published=published,
-            updated=updated,
+        earlier_appended = CaseStatus(
+            context=_CASE_ID, published=datetime(2026, 1, 1, tzinfo=UTC)
         )
-        second = CaseStatus(
-            id_="https://coord.example/status/1",
-            context=_CASE_ID,
-            published=published,
-            updated=updated,
-        )
+        last_appended = CaseStatus(
+            context=_CASE_ID, published=datetime(2020, 1, 1, tzinfo=UTC)
+        ).with_em(EM.ACTIVE)
         c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
-        c.case_statuses = [first, second]
-        assert c.current_status is second
+        c.case_statuses = [earlier_appended, last_appended]
+        c._stamp_em()
+        first, last = c.case_statuses
+        assert first is earlier_appended
+        assert isinstance(last, CaseStatus)
+        assert last.id_ == last_appended.id_
+        assert last.em.state == c.em_state == EM.NONE
 
 
 class TestVulnerabilityCaseAddReport:
@@ -564,12 +569,13 @@ class TestVulnerabilityCaseAppendCaseStatusClock:
         self, frozen_clock: datetime
     ) -> None:
         case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
-        case.current_status.updated = frozen_clock - timedelta(hours=1)
+        case.current_status.published = frozen_clock - timedelta(hours=1)
         case.append_case_status(pxa=CS_pxa.Pxa)
         appended = _status_at(case, -1)
-        assert appended.updated == frozen_clock
         assert appended.published == frozen_clock
+        assert appended.updated is None
 
+    @pytest.mark.spec("CM-29-005")
     def test_same_tick_appends_stay_strictly_ordered(
         self, frozen_clock: datetime
     ) -> None:
@@ -577,16 +583,16 @@ class TestVulnerabilityCaseAppendCaseStatusClock:
         case.append_case_status(pxa=CS_pxa.Pxa)
         case.append_case_status(pxa=CS_pxa.PXa)
         first, second = _status_at(case, -2), _status_at(case, -1)
-        assert first.updated is not None and second.updated is not None
-        assert first.updated < second.updated
+        assert first.published < second.published
         assert case.current_status is second
 
+    @pytest.mark.spec("CM-29-005")
     def test_bump_from_a_latest_ahead_of_the_clock_sorts_after_it(
         self, frozen_clock: datetime
     ) -> None:
         case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
         latest = frozen_clock + timedelta(microseconds=500)
-        case.current_status.updated = latest
+        case.current_status.published = latest
         case.append_case_status(pxa=CS_pxa.Pxa)
-        stamp = _status_at(case, -1).updated
+        stamp = _status_at(case, -1).published
         assert stamp == latest + timedelta(microseconds=1)

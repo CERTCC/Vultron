@@ -4112,10 +4112,10 @@ groups:
       A receiver MUST reject at message validation an inbound activity carrying a
       `CaseStatus` with no `published`, wherever the status sits in it.
     rationale: >-
-      A case's current status is the one with the latest time (CM-29-001), so every
-      status needs one. Any place a receiver chose for an untimed status would be a
-      rule no sender agreed to. Ordering statuses is a decision that needs the time,
-      so it is refused at message validation (CLP-15-009), as CLP-15-008 refuses an
+      Every status carries its author's time (SM-05-003), and its `published`
+      follows its place in the case history (CM-29-005). A receiver that filled in
+      a missing time would claim one no sender made (CLP-15-007), so the status is
+      refused at message validation (CLP-15-009), as CLP-15-008 refuses an
       activity with no time.
       Participant statuses are not covered: nothing reads their time.
     verification: >-

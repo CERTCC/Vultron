@@ -9264,71 +9264,30 @@ groups:
     - ADR-0064
 - id: CM-29
   title: Case Status Recency Resolution
-  description: Rules for determining which CaseStatus snapshot is the most recent
-    when multiple snapshots exist in the case_statuses history.
+  description: Rules for determining which CaseStatus snapshot is current when
+    multiple snapshots exist in the case_statuses history, and how their times
+    follow that order.
   specs:
   - id: CM-29-001
     priority: MUST
     kind: project
     statement: >-
-      `VulnerabilityCase.current_status` MUST return the `CaseStatus` with the latest
-      time, where a status's time is its `updated` if present, else its `published`.
+      `VulnerabilityCase.current_status` MUST return the `CaseStatus` appended last to
+      the case's `case_statuses`.
     rationale: >-
-      The status timestamps are the only record of when each status was made, so
-      recency is read from them and from nothing else. `updated` comes first because
-      it records the latest change to a status. A receiver refuses a status with no
-      `published` (CLP-15-010), so every status has a time.
+      Every case status is the CASE_MANAGER's: it seeds the first at creation and
+      builds each later one from the current one, so each append is a valid next
+      step. A replica appends in ledger order (CLP-14-001), so append order is the
+      CASE_MANAGER's commit order everywhere. A timestamp rule would read a clock
+      instead: one that steps back, or a CASE_MANAGER role delegated to an actor on
+      another clock (CM-24-006), could make an older status current.
     verification: >-
-      `test_status_recency_key_prefers_updated_over_published` and
-      `test_status_recency_key_falls_back_to_published` in
-      `test/core/models/test_helpers.py` unit test the ordering key
-      `status_recency_key` in `vultron/core/models/_helpers.py`, where both the
-      `current_status` and the wire `as_CaseStatus` readers converge.
-      `test_case_status_requires_published` in
-      `test/core/models/test_case_status.py` confirms a `CaseStatus` cannot be
-      built without a `published`.
+      `test_current_status_is_the_last_appended` in `test/core/models/test_case.py`
+      gives the last appended status a `published` earlier than the one before it
+      and asserts the last appended one is current.
     relationships:
     - rel_type: refines
       spec_id: CM-27-001
-  - id: CM-29-003
-    priority: MUST
-    kind: project
-    statement: >-
-      Among `CaseStatus` entries with equal times, `VulnerabilityCase.current_status`
-      MUST return the one appended last.
-    rationale: >-
-      Received statuses carry the sender's time, so equal times are ordinary. Append
-      order is the only tiebreaker that is not an implementation detail (CM-29-002),
-      and without it a status appended with the same time as the one before it would
-      never become current.
-    verification: >-
-      `test_current_status_tie_goes_to_the_last_appended` in
-      `test/core/models/test_case.py` and in
-      `test/wire/as2/vocab/test_vulnerability_case.py` append two statuses with
-      equal times and assert the second is current.
-    relationships:
-    - rel_type: extends
-      spec_id: CM-29-001
-  - id: CM-29-002
-    priority: MUST_NOT
-    kind: project
-    statement: >-
-      `VulnerabilityCase.current_status` MUST NOT use the `id_` field as a sort
-      tiebreaker when it determines the most-recent `CaseStatus`.
-    rationale: >-
-      If `id_` breaks ties between statuses with equal times, the order depends on
-      the id scheme. Auto-seeded statuses have `urn:uuid:` ids, which sort above
-      `https://` ids, so an initial auto-seeded status would win over a received
-      status with the same time. An id scheme is an implementation detail, not a
-      measure of time.
-    verification: >-
-      `test_current_status_ignores_id_scheme_when_times_are_equal` in
-      `test/wire/as2/vocab/test_vulnerability_case.py` gives a `urn:uuid:` status
-      and an `https://` status the same `published`, appends the `https://` one
-      last, and asserts it is current.
-    relationships:
-    - rel_type: extends
-      spec_id: CM-29-001
   - id: CM-29-004
     priority: MUST
     kind: protocol
@@ -9337,10 +9296,10 @@ groups:
       `VulnerabilityCase` with no `caseStatuses`.
     rationale: >-
       Every case has a current status (CM-29-001), and the sender holds it. A
-      receiver that seeded a missing history would stamp its own clock on the
-      case's first status, a time no sender claimed (CLP-15-007), and that status
-      could outrank one the sender timed earlier. A case named by its `id` and
-      `type` alone is a reference, not a case, so this does not apply to it.
+      receiver that seeded a missing history would invent the case's first status
+      and stamp it with its own clock, a time no sender claimed (CLP-15-007). A
+      case named by its `id` and `type` alone is a reference, not a case, so this
+      does not apply to it.
     verification: >-
       `test_parse_refuses_a_case_with_no_case_statuses` in
       `test/wire/as2/test_nested_timestamps.py` asserts `parse_activity` refuses a
@@ -9354,6 +9313,88 @@ groups:
       spec_id: CM-29-001
     - rel_type: refines
       spec_id: CLP-15-007
+  - id: CM-29-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST give each `CaseStatus` it appends to a case a
+      `published` strictly later than the `published` of the status appended
+      before it.
+    rationale: >-
+      The current status is the last appended (CM-29-001), so a status's place in
+      the history is its order. Its `published` then agrees with that order, and a
+      reader who sorts the history by time gets the same order. The clock alone
+      does not ensure this: two statuses can be stamped in one clock tick, and a
+      clock can step back.
+    verification: >-
+      `test_snapshot_published_is_strictly_after_the_previous_status` in
+      `test/core/behaviors/status/nodes/test_case_status.py` commits two snapshots with
+      the clock fixed and asserts the second `published` is later than the first.
+    stories:
+    - story_2022_075
+    relationships:
+    - rel_type: refines
+      spec_id: CM-29-001
+    - rel_type: refines
+      spec_id: SM-05-003
+  - id: CM-29-006
+    priority: MUST
+    kind: project
+    statement: >-
+      A `CaseStatus` this codebase authors MUST carry an `updated` equal to its
+      `published`, or no `updated`.
+    rationale: >-
+      A committed case status never changes: a new state is a new status
+      (SM-05-001), and the EM stamp replaces the current status with a copy that
+      keeps its times (ADR-0122). So `published` is its one time, and an `updated`
+      that differs from it would claim a change that never happened.
+    verification: >-
+      `test_authored_case_status_updated_equals_published` in
+      `test/core/models/test_case_status.py` asserts that a status built here and
+      one built by `append_case_status` carry no `updated` other than their
+      `published`.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-29-005
+  - id: CM-29-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A replica MUST NOT refuse a ledgered `CaseStatus` because its `published` is
+      not later than that of the status before it.
+    rationale: >-
+      Append order decides the current status (CM-29-001), so an out-of-order time
+      cannot make the wrong status current. Refusing the entry would stall the
+      replica's ledger for a fault that changes nothing it reads. Claimed times are
+      reported, never refused, as the ledger treats them (CLP-15-005).
+    verification: >-
+      `test_out_of_order_case_status_is_applied_and_warned` in
+      `test/core/behaviors/sync/nodes/test_case_status_effect.py` applies an entry whose
+      status is timed before the replica's current status, and asserts the status
+      is appended, is current, and a WARNING names both statuses.
+    stories:
+    - story_2022_075
+    relationships:
+    - rel_type: refines
+      spec_id: CM-29-005
+    - rel_type: refines
+      spec_id: CLP-15-005
+  - id: CM-29-008
+    priority: MUST
+    kind: project
+    statement: >-
+      When a replica appends a ledgered `CaseStatus` whose `published` is not later
+      than that of the status before it, it MUST log a WARNING naming both
+      statuses and the case.
+    rationale: >-
+      The CASE_MANAGER broke CM-29-005, and the replica accepts the status anyway
+      (CM-29-007). The log is the only record that the fault happened.
+    verification: >-
+      `test_out_of_order_case_status_is_applied_and_warned` in
+      `test/core/behaviors/sync/nodes/test_case_status_effect.py` asserts the WARNING.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-29-007
 - id: CM-30
   title: Sender Entitlement for Case Content Changes
   description: >-

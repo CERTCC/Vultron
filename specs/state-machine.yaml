@@ -165,14 +165,15 @@ groups:
     statement: >-
       A participant's current status MUST be the last `ParticipantStatus` appended to
       its history, the baseline its transition guards judge an update against. A case's
-      current status is the one CM-29-001's timestamp rule selects.
+      current status is likewise the last `CaseStatus` appended (CM-29-001).
     rationale: >-
       A history holds more than one entry, and each reader needs the same current value
       from it. A participant's statuses are appended only after the transition guards
       accept them, so append order is the order this actor accepted them in. A
       received status carries the sender's time, which can be earlier than a status
       already held (ADR-0103), so a timestamp rule could make an older status current
-      and judge the next update against the wrong baseline.
+      and judge the next update against the wrong baseline. CM-29-001 gives the
+      case history's reasons.
     verification: >-
       `test_returns_last_appended_even_when_earlier_status_has_newer_timestamp` of
       `TestParticipantStatusProperty` in

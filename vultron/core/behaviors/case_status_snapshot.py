@@ -43,7 +43,7 @@ from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import _as_id, now_utc_after
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.events.base import MessageSemantics
@@ -165,7 +165,8 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
     After an EM or PXA lifecycle node mutates the case state, this node:
 
     1. Reads the VulnerabilityCase from the DataLayer (post-mutation).
-    2. Creates a new CaseStatus snapshotting the current ``em`` + ``pxa`` state.
+    2. Creates a new CaseStatus snapshotting the current ``em`` + ``pxa`` state,
+       its ``published`` strictly after the current status's (CM-29-005).
        With ``reported_status_id`` set, the ``pxa`` also sets every P/X/A
        latch the adopted ``ParticipantStatus`` reports, clearing none
        (RSH-01-003).  A snapshot whose EM and PXA equal the last committed
@@ -330,11 +331,15 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
         pxa = PxaDimension(state=self._adopted_pxa(current, reported))
         if (done := self._unchanged(em, pxa)) is not None:
             return done
+        # Strictly after the status it follows, so time order agrees with
+        # the append order that picks the current status (CM-29-005), even
+        # for two snapshots in one clock tick or after the clock steps back.
         new_status = CaseStatus(
             context=self.case_id,
             attributed_to=self.actor_id,
             em=em,
             pxa=pxa,
+            published=now_utc_after(current.published),
         )
 
         # The entry records the CASE_MANAGER's own Add(CaseStatus), built by

@@ -120,8 +120,7 @@
         "name": "NONE pxa",
         "published": "<clock>",
         "pxaState": "pxa",
-        "type": "CaseStatus",
-        "updated": "<clock>"
+        "type": "CaseStatus"
       }
     ],
     "childCases": [],

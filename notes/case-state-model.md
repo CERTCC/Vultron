@@ -130,17 +130,20 @@ on-behalf trigger trees. The gate is deliberately case-wide, not per vendor
 ## Status Lists Are Append-Only History
 
 - `VulnerabilityCase.case_statuses` and `CaseParticipant.participant_statuses`
-  are append-only lists, and each has its own current-entry rule (SM-05-002).
-  Read the current entry through the accessor, never by indexing the list.
-- A participant's current status is the last one appended:
-  `CaseParticipant.participant_status`. Transition guards judge an update against
-  it, and a received status can carry an earlier time than one already held
-  (ADR-0103), so a timestamp rule would pick a stale baseline.
-- A case's current status is the one with the latest `updated`, else
-  `published`, with a tie going to the last appended:
-  `VulnerabilityCase.current_status` (CM-29-001, CM-29-003). Every `CaseStatus`
-  carries a `published`, and a received one without it is refused at parse
-  (CLP-15-010), so no status is ever placed by a fallback.
+  are append-only lists with one current-entry rule: the current status is the
+  last one appended, never the one with the latest time (SM-05-002, CM-29-001).
+  Read it through the accessor (`participant_status`, `current_status`), never by
+  indexing the list, and add no timestamp sort: a clock that steps back, a
+  received time earlier than one held (ADR-0103), or a CASE_MANAGER role
+  delegated to an actor on another clock (CM-24-006) would make an older status
+  current.
+- Each `CaseStatus` the CASE_MANAGER appends takes a `published` strictly after
+  the previous status's, via `now_utc_after` (CM-29-005), so time order agrees
+  with append order. An authored `CaseStatus` carries no `updated` (CM-29-006):
+  a status never changes once appended, so `published` is its one time.
+- A replica applies a ledgered status whose `published` is not later than its
+  current one and logs a WARNING; it never refuses the entry for it
+  (CM-29-007, CM-29-008), since append order already picks the right status.
 - A status update carrying a future timestamp is an error.
 - The CASE_MANAGER's trusted timestamp for a state-changing event is its
   `CaseLedgerEntry` commit, not an edit to the object's own timestamp, which

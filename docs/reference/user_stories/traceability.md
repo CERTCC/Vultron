@@ -874,7 +874,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | CLP — Case Ledger Processing | [CLP-15-010](../vultron-spec/requirements/ledger-replication.md#clp-15-010) |
-| CM — Case Management | [CM-03-002](../vultron-spec/requirements/case-management.md#cm-03-002), [CM-29-004](../vultron-spec/requirements/case-management.md#cm-29-004) |
+| CM — Case Management | [CM-03-002](../vultron-spec/requirements/case-management.md#cm-03-002), [CM-29-004](../vultron-spec/requirements/case-management.md#cm-29-004), [CM-29-005](../vultron-spec/requirements/case-management.md#cm-29-005), [CM-29-007](../vultron-spec/requirements/case-management.md#cm-29-007) |
 | VAM — Vultron Semantic–AS2 Mapping | [VAM-08-004](../vultron-spec/requirements/messages.md#vam-08-004) |
 | VP — Vultron Protocol | [VP-01-001](../vultron-spec/requirements/vultron-protocol.md#vp-01-001), [VP-01-002](../vultron-spec/requirements/vultron-protocol.md#vp-01-002), [VP-03-012](../vultron-spec/requirements/vultron-protocol.md#vp-03-012) |
 
