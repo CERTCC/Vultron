@@ -34,6 +34,7 @@ from vultron.metadata.docs.page_schema import is_start_page
 from vultron.metadata.file_loading import MetadataLoadError, MetadataLoadErrors
 
 from ._lookup_tree import LOOKUP_LINK
+from ._story_tree import with_stories
 from ._thread_tree import stage, start_page
 
 pytestmark = pytest.mark.spec("DF-11-021")
@@ -64,7 +65,7 @@ def _repo(
     (tmp_path / "mkdocs.yml").write_text(
         yaml.safe_dump({"nav": nav, **config})
     )
-    for rel, text in files.items():
+    for rel, text in with_stories(files).items():
         path = tmp_path / "docs" / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")

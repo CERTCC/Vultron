@@ -45,9 +45,15 @@ from vultron.metadata.docs.stakeholder_fragment import (
     FRAGMENT_PATH,
     render_fragment,
 )
+from vultron.metadata.docs.story_coverage import (
+    MATRIX_PATH as STORY_MATRIX_PATH,
+    TABLE_PATH as STORY_TABLE_PATH,
+)
+from vultron.metadata.docs.story_pages import STORY_DIR
 from vultron.metadata.file_loading import MetadataLoadError, MetadataLoadErrors
 
 from ._lookup_tree import LOOKUP_NAV, with_lookup
+from ._story_tree import STORY_FILES
 
 _LANDING = (
     f"---\n{CONTENTS_KEY}: generated\n---\n\n"
@@ -91,13 +97,21 @@ def _repo(
     nav: list[object],
     *,
     lookup: bool = True,
+    stories: bool = True,
 ) -> Path:
     """A checkout with repo-relative *files* and *nav*, plus, unless *lookup*
     is false, the lookup page and its hosts every ``docs-site`` tree needs
-    (DF-11-021)."""
+    (DF-11-021), and unless *stories* is false, one user-story page
+    (TRACE-03-003). Pass ``stories=False`` for a tree that must resolve no
+    pages at all."""
     if lookup:
         docs, nav = with_lookup({}, nav)
         files = {**{f"docs/{k}": v for k, v in docs.items()}, **files}
+    if stories:
+        files = {
+            **{f"docs/{k}": v for k, v in STORY_FILES.items()},
+            **files,
+        }
     (tmp_path / "mkdocs.yml").write_text(yaml.safe_dump({"nav": nav}))
     for rel, text in files.items():
         path = tmp_path / rel
@@ -342,7 +356,7 @@ class TestEmptyTargetSet:
 
     def test_matrix_over_an_empty_tree_fails(self, tmp_path):
         (tmp_path / "docs").mkdir()
-        _repo(tmp_path, {}, [], lookup=False)
+        _repo(tmp_path, {}, [], lookup=False, stories=False)
         with pytest.raises(MetadataLoadError, match="DF-09-009"):
             measure_coverage(tmp_path)
 
@@ -906,6 +920,38 @@ class TestSiteSync:
         assert site_sync.stale_artifacts(repo_root()) == [], (
             "run 'uv run docs-site --write' and commit the result"
         )
+
+    @pytest.mark.spec("TRACE-03-003")
+    def test_a_hand_edited_story_table_is_stale(self, tmp_path):
+        """A hand edit of the generated story table fails the check mode."""
+        root = _guides_repo(tmp_path, a=_page("A"))
+        site_sync.write_artifacts(root)
+        (root / STORY_TABLE_PATH).write_text(
+            "| 2022_001 | hand-written | :material-check: |\n",
+            encoding="utf-8",
+        )
+        assert site_sync.stale_artifacts(root) == [STORY_TABLE_PATH]
+
+    @pytest.mark.spec("TRACE-01-003", "TRACE-03-003")
+    def test_a_hand_edited_traceability_matrix_is_stale(self, tmp_path):
+        """A hand edit of the generated matrix fails the check mode."""
+        root = _guides_repo(tmp_path, a=_page("A"))
+        site_sync.write_artifacts(root)
+        matrix = root / STORY_MATRIX_PATH
+        matrix.write_text(
+            matrix.read_text(encoding="utf-8") + "\n## story_9999_999\n",
+            encoding="utf-8",
+        )
+        assert site_sync.stale_artifacts(root) == [STORY_MATRIX_PATH]
+
+    @pytest.mark.spec("TRACE-03-003", "DF-09-009")
+    def test_a_tree_with_no_story_page_fails(self, tmp_path):
+        """An empty story catalog is a failure, not a pass (DF-09-009)."""
+        root = _guides_repo(tmp_path, a=_page("A"))
+        for page in (root / "docs" / STORY_DIR).glob("story_*.md"):
+            page.unlink()
+        with pytest.raises(MetadataLoadError, match="DF-09-009"):
+            site_sync.stale_artifacts(root)
 
     @pytest.mark.spec("DF-11-028")
     def test_committed_generated_pages_are_the_decided_set(self):
