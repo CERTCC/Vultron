@@ -33,7 +33,7 @@ What the shared opening does is not re-tested here: it is one copy of the code,
 and ``test/demo/coordinated_story/`` and
 ``test/demo/test_two_coordinator_story.py`` own it.  The two
 ``owner-keep-case`` continuations are shared with the vendor-first half, so
-``test/demo/test_owner_decision_story.py`` owns their mechanics and this module
+``test/demo/owner_decision_story/`` owns their mechanics and this module
 asserts only which parts ``rccv-handoff`` casts in them.
 
 Every test patches the collaborators out, so no HTTP happens except in
@@ -73,7 +73,6 @@ from vultron.demo.cli import main as cli_main
 from vultron.demo.helpers import (
     coordinated_story,
     owner_decision_story,
-    story as story_module,
     story_cast,
     two_coordinator_story,
 )
@@ -85,12 +84,17 @@ from vultron.demo.helpers.coordinated_story import (
     continuations as coordinated_continuations,
     joining as coordinated_joining,
 )
+from vultron.demo.helpers.owner_decision_story import (
+    handover as owner_handover,
+    parts as owner_parts,
+)
 from vultron.demo.helpers.story import (
     Choose,
     StoryState,
     UnseatedContainer,
     choose,
     run_story,
+    runner as story_runner,
     story,
 )
 from vultron.demo.helpers.two_coordinator_story import (
@@ -433,12 +437,8 @@ class TestC2InvitesTheVendor:
         state = _four_party_state()
 
         with (
-            patch.object(
-                owner_decision_story, "run_case_invite_chain"
-            ) as chain,
-            patch.object(
-                owner_decision_story, "find_case_actor_participant_id"
-            ),
+            patch.object(owner_handover, "run_case_invite_chain") as chain,
+            patch.object(owner_parts, "find_case_actor_participant_id"),
             pytest.raises(DemoStoryError, match="handed over"),
         ):
             demo.c2_invites_the_vendor(state)
@@ -977,7 +977,7 @@ class TestARosterThatNeverFillsSkipsTheTransfer:
         def stub(_demo_name: str):
             yield harness
 
-        monkeypatch.setattr(story_module, "scenario_harness", stub)
+        monkeypatch.setattr(story_runner, "scenario_harness", stub)
         yield harness
         reset_demo_failures()
 
@@ -1008,17 +1008,13 @@ class TestARosterThatNeverFillsSkipsTheTransfer:
                 else AssertionError("roster never filled"),
             ),
             patch.object(
-                owner_decision_story,
+                owner_handover,
                 "find_ownership_transfer_offer_for_actor",
                 return_value="urn:test:offer",
             ),
-            patch.object(
-                owner_decision_story, "wait_for_case_actor_ledger_event"
-            ),
-            patch.object(owner_decision_story, "wait_for_case_attributed_to"),
-            patch.object(
-                owner_decision_story, "wait_for_semantic_type_in_ledger"
-            ),
+            patch.object(owner_handover, "wait_for_case_actor_ledger_event"),
+            patch.object(owner_handover, "wait_for_case_attributed_to"),
+            patch.object(owner_handover, "wait_for_semantic_type_in_ledger"),
             patch.object(
                 ActorSession, "offer_case_ownership_transfer", autospec=True
             ) as offer,

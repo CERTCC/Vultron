@@ -74,6 +74,10 @@ from vultron.demo.helpers.coordinated_story import (
     joining as coordinated_joining,
 )
 from vultron.demo.helpers.invite_chain import links as invite_links
+from vultron.demo.helpers.owner_decision_story import (
+    keep as owner_keep,
+    parts as owner_parts,
+)
 from vultron.demo.helpers.polling import LATE_JOINER_TIMEOUT
 from vultron.demo.helpers.story import Choose, UnseatedContainer, choose
 from vultron.demo.scenario import rcv_demo
@@ -567,22 +571,22 @@ class TestC2SuggestsTheVendorDeployer:
                 side_effect=lambda *a, **kw: order.append("approve"),
             ) as approve,
             patch.object(
-                owner_decision_story,
+                owner_keep,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ) as cp_offer,
             patch.object(
-                owner_decision_story,
+                owner_parts,
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
             patch.object(
-                owner_decision_story,
+                owner_keep,
                 "run_case_invite_chain",
                 side_effect=lambda **kw: order.append("invite-chain"),
             ) as chain,
             patch.object(
-                owner_decision_story,
+                owner_keep,
                 "invitee_triages_after_joining",
                 side_effect=lambda *a, **kw: order.append("triage"),
             ) as triage,
@@ -650,22 +654,20 @@ class TestC2SuggestsTheVendorDeployer:
                 ActorSession, "accept_actor_recommendation"
             ) as approve,
             patch.object(
-                owner_decision_story,
+                owner_keep,
                 "find_cp_offer_for_case",
                 side_effect=AssertionError(
                     "timed out polling for Offer(CaseParticipant)"
                 ),
             ),
             patch.object(
-                owner_decision_story,
+                owner_parts,
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
+            patch.object(owner_keep, "run_case_invite_chain") as chain,
             patch.object(
-                owner_decision_story, "run_case_invite_chain"
-            ) as chain,
-            patch.object(
-                owner_decision_story, "invitee_triages_after_joining"
+                owner_keep, "invitee_triages_after_joining"
             ) as triage,
             patch_chain_shared(
                 coordinated_joining, "wait_for_case_on_container"
@@ -692,19 +694,17 @@ class TestC2SuggestsTheVendorDeployer:
                 ActorSession, "accept_actor_recommendation"
             ) as approve,
             patch.object(
-                owner_decision_story,
+                owner_keep,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
             patch.object(
-                owner_decision_story,
+                owner_parts,
                 "find_case_actor_participant_id",
                 return_value=None,
             ),
-            patch.object(owner_decision_story, "run_case_invite_chain"),
-            patch.object(
-                owner_decision_story, "invitee_triages_after_joining"
-            ),
+            patch.object(owner_keep, "run_case_invite_chain"),
+            patch.object(owner_keep, "invitee_triages_after_joining"),
             patch_chain_shared(
                 coordinated_joining, "wait_for_case_on_container"
             ),
@@ -733,12 +733,12 @@ class TestC2SuggestsTheVendorDeployer:
                 ActorSession, "accept_case_invite", autospec=True
             ) as accept,
             patch.object(
-                owner_decision_story,
+                owner_keep,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
             patch.object(
-                owner_decision_story,
+                owner_parts,
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
@@ -747,9 +747,7 @@ class TestC2SuggestsTheVendorDeployer:
                 "find_case_invite_for_actor",
                 return_value="urn:test:v2-invite",
             ) as find_invite,
-            patch.object(
-                owner_decision_story, "invitee_triages_after_joining"
-            ),
+            patch.object(owner_keep, "invitee_triages_after_joining"),
             patch_chain_shared(
                 coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
@@ -779,12 +777,12 @@ class TestC2SuggestsTheVendorDeployer:
             patch.object(ActorSession, "accept_actor_recommendation"),
             patch.object(ActorSession, "accept_case_invite") as accept,
             patch.object(
-                owner_decision_story,
+                owner_keep,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
             patch.object(
-                owner_decision_story,
+                owner_parts,
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
@@ -793,9 +791,7 @@ class TestC2SuggestsTheVendorDeployer:
                 "find_case_invite_for_actor",
                 side_effect=AssertionError("timed out polling for Invite"),
             ),
-            patch.object(
-                owner_decision_story, "invitee_triages_after_joining"
-            ),
+            patch.object(owner_keep, "invitee_triages_after_joining"),
             patch_chain_shared(
                 coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
@@ -826,16 +822,16 @@ class TestC2SuggestsTheVendorDeployer:
             patch.object(ActorSession, "suggest_actor_to_case"),
             patch.object(ActorSession, "accept_actor_recommendation"),
             patch.object(
-                owner_decision_story,
+                owner_keep,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
             patch.object(
-                owner_decision_story,
+                owner_parts,
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
-            patch.object(owner_decision_story, "run_case_invite_chain"),
+            patch.object(owner_keep, "run_case_invite_chain"),
             patch.object(
                 coordinated_joining,
                 "run_invite_path_rm_triage",
@@ -869,16 +865,16 @@ class TestC2SuggestsTheVendorDeployer:
             patch.object(ActorSession, "suggest_actor_to_case"),
             patch.object(ActorSession, "accept_actor_recommendation"),
             patch.object(
-                owner_decision_story,
+                owner_keep,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
             patch.object(
-                owner_decision_story,
+                owner_parts,
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
-            patch.object(owner_decision_story, "run_case_invite_chain"),
+            patch.object(owner_keep, "run_case_invite_chain"),
             patch.object(
                 coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,

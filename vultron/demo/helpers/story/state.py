@@ -10,63 +10,25 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Write a branching demo story once: fragments, named prefixes and choices.
+"""What one story run shares: its state, its props and its unseated containers.
 
-Sibling scenarios share an opening, and a second copy of it would be free to
-drift (DEMOMA-17-001).  A story is that opening written **once**, with one
-continuation per choice (DEMOCI-11-019, ADR-0098):
-
-* a **fragment** is one step of a story, a callable taking the run's
-  :class:`StoryState`.  It names no container of its own: the cast and the
-  tree-wide seed are fixed (DEMOCI-11-020, DEMOCI-11-025), so a fragment is
-  handed the cast's sessions and reads the case off the state;
-* :func:`choose` is one declared decision — a branch point, the choice this
-  story takes there, and the cast member that decides;
-* a **named prefix** is a :class:`Story` several scenarios start with.
-  :func:`story` concatenates prefixes, fragments and choices into one
-  sequence, so the whole story reads top to bottom in one file;
-* a **prop** (:class:`StoryProp`) is an artifact one family passes between its
-  own fragments — the embargo in force, the note a later poster replies to —
-  kept on the state rather than on a per-family subclass of it, which a
-  fragment's type forbids.
-
-The path is then read off the choices (:attr:`Story.path`), never typed a
-second time beside the story: ``@scenario(story=STORY)`` is the only way a
-scenario places itself on the tree, and the registry takes no path parameter
-to type a second copy into (DEMOCI-11-019, DEMOCI-11-024).  :func:`run_story`
-plays the sequence inside
-:func:`~vultron.demo.helpers.harness.scenario_harness` and records each step
-mark as it passes a choice, with the harness's deciding-role check, so the
-runner is the sole source of a scenario's marks and nothing places one by hand
-(DEMOCI-11-019).
-
-Usage from a scenario module::
-
-    STORY = story(
-        COORDINATOR_INVITES_VENDOR,                 # the named prefix
-        choose("vendor-join", "accept", by=VENDOR),
-        vendor_accepts_and_joins,
-        ...
-    )
-
-    @scenario(name="rcv", ..., story=STORY)
-    def main(...) -> None:
-        ...
-
-Design: ``notes/demo-scenario-tree.md`` § "Composition".
+:class:`StoryState` is what every fragment takes — the cast's sessions, the
+case-actor client, the harness and the artifacts the story has made so far.
+A family's own artifacts are :class:`StoryProp`\\ s kept on it, and a
+character actor's container waits as an :class:`UnseatedContainer` until the
+fragment that brings the actor in seeds and seats it.  :data:`Fragment` is
+here because it is the type of a callable on this state
+(:mod:`vultron.demo.helpers.story`).
 """
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers.harness import ScenarioHarness, scenario_harness
-from vultron.demo.scenario.branch_points import validate_path
-from vultron.demo.scenario.tree import PathStep
-from vultron.demo.utils import DataLayerClient, demo_failures, demo_gate
+from vultron.demo.helpers.harness import ScenarioHarness
+from vultron.demo.utils import DataLayerClient
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -75,8 +37,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
-
-logger = logging.getLogger(__name__)
 
 #: One step of a story: a callable run against the story's state.  Named
 #: rather than inlined because it is also what a named prefix is made of, and
@@ -110,126 +70,6 @@ class StoryProp[PropT]:
 
     name: str
     type_: type[PropT]
-
-
-@dataclass(frozen=True, slots=True)
-class Choose:
-    """One declared decision of a story (DEMOCI-11-013, DEMOCI-11-019).
-
-    Frozen: the item is read by the registry at import time to derive the
-    scenario's path and again by :func:`run_story` to record the step mark, and
-    the two must be the same fact.
-    """
-
-    #: The branch point decided here; an entry of
-    #: :data:`~vultron.demo.scenario.branch_points.BRANCH_POINTS`.
-    branch_point: str
-    #: The choice this story takes there.
-    choice: str
-    #: The cast member that decides, by the name its scenario seats it under
-    #: (:class:`~vultron.demo.helpers.actor_roles.ActorRole`), not its actor
-    #: id: a story is written before the run that draws the ids.
-    by: str
-
-    def __post_init__(self) -> None:
-        # Validated here rather than when the registry merges the tree, so an
-        # unknown branch point or choice fails where it is written.
-        validate_path(((self.branch_point, self.choice),))
-        if not isinstance(self.by, str) or not self.by:
-            raise DemoStoryError(
-                f"choice {self.branch_point}:{self.choice} names "
-                f"{self.by!r} as the actor that decides it; the name is the "
-                "one its scenario's ROLES seats the actor under, and the "
-                "harness reads that actor's role from the canonical case "
-                "(DEMOCI-11-013, DEMOCI-11-047)."
-            )
-
-    @property
-    def step(self) -> PathStep:
-        """This choice as one step of a scenario's path."""
-        return (self.branch_point, self.choice)
-
-
-def choose(branch_point: str, choice: str, *, by: str) -> Choose:
-    """Declare that the story decides *branch_point* by taking *choice*.
-
-    Args:
-        branch_point: The branch point decided here.
-        choice: The choice this story takes.
-        by: The deciding cast member's name in this scenario.
-
-    Returns:
-        The story item. ``by`` is keyword-only: the first two arguments are a
-        pair read from the branch-point table, and a third positional string
-        beside them would be trivially swappable with either.
-
-    Raises:
-        DemoScenarioRegistryError: When the branch point or the choice is not
-            in the branch-point table.
-        DemoStoryError: When ``by`` is not a cast member's name.
-    """
-    return Choose(branch_point=branch_point, choice=choice, by=by)
-
-
-@dataclass(frozen=True, slots=True)
-class Story:
-    """A scenario's story, or a named prefix several scenarios start with.
-
-    Build one with :func:`story`, which is where prefixes are concatenated and
-    the items are checked.
-    """
-
-    #: The story's items in order: fragments and declared choices.
-    items: tuple[Choose | Fragment, ...]
-
-    @property
-    def path(self) -> tuple[PathStep, ...]:
-        """The path this story walks: its choices, in order (DEMOCI-11-019).
-
-        This is what ``@scenario(story=...)`` registers as the scenario's
-        path, so the tree, the generated index and the step marks in the
-        recordings all come from the code that runs.
-        """
-        return tuple(
-            item.step for item in self.items if isinstance(item, Choose)
-        )
-
-
-def story(*parts: Story | Choose | Fragment) -> Story:
-    """Assemble one story from named prefixes, choices and fragments.
-
-    A :class:`Story` part is spliced in rather than nested, so a scenario that
-    starts with a named prefix has one flat sequence: the path is the choices
-    of the whole, and :func:`run_story` plays the items in the order written.
-
-    Args:
-        parts: Named prefixes, :func:`choose` items and fragments, in order.
-
-    Returns:
-        The assembled story.
-
-    Raises:
-        DemoStoryError: When no part is given, or a part is neither a story,
-            a choice nor a callable fragment.
-    """
-    items: list[Choose | Fragment] = []
-    for part in parts:
-        if isinstance(part, Story):
-            items.extend(part.items)
-        elif isinstance(part, Choose) or callable(part):
-            items.append(part)
-        else:
-            raise DemoStoryError(
-                f"story item {part!r} is neither a named prefix, a "
-                "choose(...) nor a fragment taking the story's state; a "
-                "story is a flat sequence of those three."
-            )
-    if not items:
-        raise DemoStoryError(
-            "a story has at least one item; an empty one would register a "
-            "scenario with no path and no steps to run."
-        )
-    return Story(items=tuple(items))
 
 
 @dataclass(frozen=True, slots=True)
@@ -578,158 +418,4 @@ class StoryState:
         return self._invites.get(name)
 
 
-def run_story(
-    name: str,
-    plot: Story,
-    open_cast: Callable[[ScenarioHarness], StoryState],
-) -> None:
-    """Play *plot* as the scenario *name*, inside the shared harness.
-
-    The harness resets the failure accumulator, always dumps the case ledgers
-    and only then asserts success (DEMOMA-23-001).  Each choice the story
-    passes is reported to it as a step mark, with the deciding actor read off
-    the cast, and this is the only place a mark is made: no scenario or
-    helper places one by hand (DEMOCI-11-019).
-
-    Args:
-        name: The scenario's registered name.
-        plot: Its assembled story.
-        open_cast: Builds the run's state — resets and seeds the containers
-            and binds the cast's sessions to the harness.  It runs inside the
-            harness, so a seeding failure is dumped and reported like any
-            other.
-
-    Raises:
-        DemoFailureError: When the story completed with recorded failures.
-        DemoScenarioStepError: When a choice is not the next step of the
-            scenario's declared path, or its actor does not hold the branch
-            point's role on a run that had not already failed
-            (:func:`_mark_step`).
-        DemoStoryError: When a fragment reads an artifact no earlier fragment
-            produced on a run that had recorded no failure (:func:`_run_item`).
-    """
-    with scenario_harness(name) as harness:
-        state = open_cast(harness)
-        for item in plot.items:
-            if isinstance(item, Choose):
-                if not _mark_step(harness, state, item):
-                    return
-                continue
-            if not _run_fragment(name, state, item):
-                return
-
-
-def _run_fragment(name: str, state: StoryState, item: Fragment) -> bool:
-    """Run *item*; return whether the story may go on.
-
-    A fragment reads what an earlier one made through an accessor that raises
-    (:meth:`StoryState.kept` and its siblings), so a failed act shows up here
-    as a :class:`DemoStoryError` in the fragment that depended on it.  A flat
-    sequence of fragments gets from that what nesting gets from a
-    ``demo_gate``: the steps that presuppose a failed act do not run
-    (DEMOCI-01-007).
-
-    A missing artifact is therefore treated exactly as an unmakeable step mark
-    is (:func:`_mark_step`): on a run that has already recorded a failure it
-    is that failure showing through, so it is recorded inside a ``demo_gate``
-    and the story stops, leaving the first failure as the headline and the
-    dependent fragments unrun.  On a run with nothing recorded the story is
-    mis-assembled — a fragment placed before the one that makes what it reads
-    — and that must not be reported as a soft failure the next regeneration
-    could bless, so it is raised.
-
-    Args:
-        name: The scenario's name, for the log line.
-        state: The story's state.
-        item: The fragment to run.
-
-    Returns:
-        Whether the fragment ran, and so whether the story continues.
-
-    Raises:
-        DemoStoryError: When the fragment read a missing artifact on a run
-            that had recorded no failure.
-    """
-    label = getattr(item, "__name__", repr(item))
-    logger.debug("%s runs %s", name, label)
-    stopped = False
-    try:
-        item(state)
-    except DemoStoryError:
-        if not demo_failures():
-            raise
-        stopped = True
-        with demo_gate(f"{name} cannot run {label} after an earlier failure"):
-            raise
-    if stopped:
-        logger.error(
-            "%s stopped before %s, which needs what an earlier failed step "
-            "would have made; the first failure stays the headline",
-            name,
-            label,
-        )
-        return False
-    return True
-
-
-def _mark_step(
-    harness: ScenarioHarness, state: StoryState, item: Choose
-) -> bool:
-    """Record *item*'s step mark; return whether the story may go on.
-
-    A step's role is read from the canonical case (DEMOCI-11-047), so a
-    decision cannot be checked when the act that granted the role failed: an
-    invitee holds the role of an Invite that was never sent no more than it
-    holds any other.  A mark is therefore a dependent step like any other, and
-    on a run that has already recorded a failure it is reported the way a
-    dependent step is — inside a ``demo_gate``, recorded and never raised, and
-    the story stops there so the first failure stays the headline
-    (DEMOCI-01-003, EDF-06-005).
-
-    On a run with nothing recorded, the mark raises: then the step really is
-    mis-declared, and a declaration defect must not be reported as a soft
-    failure the next regeneration could bless.
-
-    Args:
-        harness: The run's harness, which checks and records the mark.
-        state: The story's state, which names the deciding actor.
-        item: The choice being passed.
-
-    Returns:
-        Whether the mark was made, and so whether the story continues.
-    """
-    step = f"{item.branch_point}:{item.choice}"
-    if not demo_failures():
-        harness.reach_step(
-            item.branch_point, item.choice, by=state.actor_id(item.by)
-        )
-        return True
-    marked = False
-    with demo_gate(
-        f"{harness.demo_name} reaches {step} after an earlier failure"
-    ):
-        harness.reach_step(
-            item.branch_point, item.choice, by=state.actor_id(item.by)
-        )
-        marked = True
-    if not marked:
-        logger.error(
-            "%s cannot reach %s after an earlier failure; stopping the story "
-            "so the first failure stays the headline",
-            harness.demo_name,
-            step,
-        )
-    return marked
-
-
-__all__ = [
-    "Choose",
-    "Fragment",
-    "Story",
-    "StoryProp",
-    "StoryState",
-    "UnseatedContainer",
-    "choose",
-    "run_story",
-    "story",
-]
+__all__ = ["Fragment", "StoryProp", "StoryState", "UnseatedContainer"]

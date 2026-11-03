@@ -78,7 +78,6 @@ from vultron.demo.helpers import (
     closure,
     coordinated_story,
     seeding,
-    story as story_module,
     story_cast,
     vendor_story,
 )
@@ -101,6 +100,7 @@ from vultron.demo.helpers.story import (
     UnseatedContainer,
     choose,
     run_story,
+    runner as story_runner,
     story,
 )
 from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME
@@ -1184,7 +1184,7 @@ class TestARosterThatNeverFillsStopsTheStory:
         def stub(_demo_name: str):
             yield harness
 
-        monkeypatch.setattr(story_module, "scenario_harness", stub)
+        monkeypatch.setattr(story_runner, "scenario_harness", stub)
         yield harness
         reset_demo_failures()
 

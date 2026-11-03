@@ -42,10 +42,20 @@ from unittest.mock import patch
 import pytest
 
 from test.demo._helpers import modules_resolving_names
-from vultron.demo.helpers import coordinated_story, vendor_story
+from vultron.demo.helpers import (
+    coordinated_story,
+    owner_decision_story,
+    story,
+    vendor_story,
+)
 
 #: The packages a module split produced, by dotted name.
-_PACKAGES: tuple[ModuleType, ...] = (coordinated_story, vendor_story)
+_PACKAGES: tuple[ModuleType, ...] = (
+    coordinated_story,
+    owner_decision_story,
+    story,
+    vendor_story,
+)
 
 #: Calls whose first two arguments are a module and a name to replace, by the
 #: last two parts of the called name, so ``patch.object``,
@@ -252,6 +262,10 @@ def test_the_package_holds_only_its_submodules_and_its_public_names(
         (coordinated_story, "run_case_invite_chain"),
         (vendor_story, "seed_containers"),
         (vendor_story, "verify_publicly_disclosed"),
+        (owner_decision_story, "run_case_invite_chain"),
+        (owner_decision_story, "wait_for_case_attributed_to"),
+        (story, "scenario_harness"),
+        (story, "demo_failures"),
     ],
     ids=lambda v: getattr(v, "__name__", v),
 )

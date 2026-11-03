@@ -38,7 +38,7 @@ What the shared opening does is not re-tested here:
 continuations both scenarios tell, ``test/demo/coordinated_story/`` owns the
 container plumbing and the join chain, ``test_invite_chain`` owns what a
 failed invite trigger or an undelivered Invite skips, and
-``test_owner_decision_story`` owns the ``owner-keep-case`` continuations.
+``owner_decision_story/`` owns the ``owner-keep-case`` continuations.
 ``TestSeedContainersRvcv`` and ``TestFindCaseInviteForActor`` stay because
 they are about shared helpers — the four-container seeding and the Invite
 lookup — rather than this scenario's own steps, and each imports the helper
@@ -81,7 +81,6 @@ from vultron.demo.helpers import (
     coordinated_story,
     owner_decision_story,
     seeding,
-    story as story_module,
     story_cast,
     vendor_coordinator_story,
     vendor_story,
@@ -94,7 +93,11 @@ from vultron.demo.helpers.coordinated_story import (
     continuations as coordinated_continuations,
     joining as coordinated_joining,
 )
-from vultron.demo.helpers.owner_decision_story import Part
+from vultron.demo.helpers.owner_decision_story import (
+    Part,
+    keep as owner_keep,
+    parts as owner_parts,
+)
 from vultron.demo.helpers.polling import find_case_invite_for_actor
 from vultron.demo.helpers.seeding import reset as seeding_reset
 from vultron.demo.helpers.story import (
@@ -103,6 +106,7 @@ from vultron.demo.helpers.story import (
     UnseatedContainer,
     choose,
     run_story,
+    runner as story_runner,
     story,
 )
 from vultron.demo.helpers.vendor_coordinator_story import (
@@ -523,22 +527,22 @@ class TestTheCoordinatorSuggestsTheSecondVendor:
                 side_effect=lambda *a, **kw: order.append("approve"),
             ) as approve,
             patch.object(
-                owner_decision_story,
+                owner_keep,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ) as cp_offer,
             patch.object(
-                owner_decision_story,
+                owner_parts,
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
             patch.object(
-                owner_decision_story,
+                owner_keep,
                 "run_case_invite_chain",
                 side_effect=lambda **kw: order.append("invite-chain"),
             ) as chain,
             patch.object(
-                owner_decision_story,
+                owner_keep,
                 "invitee_triages_after_joining",
                 side_effect=lambda *a, **kw: order.append("triage"),
             ) as triage,
@@ -604,16 +608,16 @@ class TestTheCoordinatorSuggestsTheSecondVendor:
             patch.object(ActorSession, "suggest_actor_to_case"),
             patch.object(ActorSession, "accept_actor_recommendation"),
             patch.object(
-                owner_decision_story,
+                owner_keep,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
             patch.object(
-                owner_decision_story,
+                owner_parts,
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
-            patch.object(owner_decision_story, "run_case_invite_chain"),
+            patch.object(owner_keep, "run_case_invite_chain"),
             patch.object(
                 coordinated_joining,
                 "run_invite_path_rm_triage",
@@ -661,16 +665,14 @@ class TestTheCoordinatorSuggestsTheSecondVendor:
                 ActorSession, "accept_actor_recommendation"
             ) as approve,
             patch.object(
-                owner_decision_story,
+                owner_keep,
                 "find_cp_offer_for_case",
                 side_effect=AssertionError(
                     "timed out polling for Offer(CaseParticipant)"
                 ),
             ),
-            patch.object(owner_decision_story, "run_case_invite_chain"),
-            patch.object(
-                owner_decision_story, "invitee_triages_after_joining"
-            ),
+            patch.object(owner_keep, "run_case_invite_chain"),
+            patch.object(owner_keep, "invitee_triages_after_joining"),
             patch_chain_shared(
                 coordinated_joining, "wait_for_case_on_container"
             ),
@@ -1374,7 +1376,7 @@ class TestARosterThatNeverFillsSkipsTheSuggestion:
         def stub(_demo_name: str):
             yield harness
 
-        monkeypatch.setattr(story_module, "scenario_harness", stub)
+        monkeypatch.setattr(story_runner, "scenario_harness", stub)
         yield harness
         reset_demo_failures()
 
@@ -1403,14 +1405,12 @@ class TestARosterThatNeverFillsSkipsTheSuggestion:
                 else AssertionError("roster never filled"),
             ),
             patch.object(
-                owner_decision_story,
+                owner_keep,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
-            patch.object(owner_decision_story, "run_case_invite_chain"),
-            patch.object(
-                owner_decision_story, "invitee_triages_after_joining"
-            ),
+            patch.object(owner_keep, "run_case_invite_chain"),
+            patch.object(owner_keep, "invitee_triages_after_joining"),
             patch.object(
                 ActorSession, "suggest_actor_to_case", autospec=True
             ) as suggest,

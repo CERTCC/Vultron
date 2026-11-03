@@ -180,7 +180,8 @@ def test_every_handoff_is_a_shared_story_fragment() -> None:
     assert not [name for name in modules if name.endswith("_demo.py")], (
         "a scenario module offers the ownership transfer itself; the handoff"
         " is one shared continuation both handoff scenarios reach through"
-        " (vultron/demo/helpers/owner_decision_story.py, DEMOMA-17-001)."
+        " (vultron/demo/helpers/owner_decision_story/handover.py,"
+        " DEMOMA-17-001)."
         " Found: " + repr(sorted(modules))
     )
 

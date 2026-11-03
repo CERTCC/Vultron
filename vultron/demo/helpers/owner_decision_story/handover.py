@@ -10,41 +10,21 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The two continuations of the ``owner-keep-case`` decision.
+"""``owner-keep-case:offer-ownership``: the owner hands the case over.
 
-A Case Owner that has just taken a second participant on decides whether to
-keep the case: keep it and approve the newcomer the joiner suggests
-(``owner-keep-case:keep``, ADR-0026), or hand the case over and let the new
-owner invite the newcomer itself (``owner-keep-case:offer-ownership``,
-TRIG-11-001/002).  The decision appears in **both** halves of the tree — the
-two-coordinator pair decides it with a Coordinator as owner and a second
-Coordinator as the joiner, the vendor-first pair with a Vendor as owner and a
-Coordinator as the joiner (``notes/demo-scenario-tree.md``
-§ "Composition") — so each continuation is written here once and reads its
-cast off the running story rather than naming either pair's actors
-(DEMOMA-17-001).
-
-A continuation therefore takes :class:`Part`\\ s, not clients: a part is the
-name the story seats a cast member under plus what the scenario calls it in
-its step and gate labels.  Everything else — the sessions, the case, the
-case-actor client — comes from the :class:`~vultron.demo.helpers.story\
-.StoryState`.
-
-The handover's two halves are separated by a prop
-(:data:`HANDED_OVER_CASE`): only the Case Owner may invite, so a transfer the
-CASE_MANAGER never committed must stop the story rather than let the
-would-be owner invite into a case it does not own (DEMOCI-01-011).
+The handover's two halves — the transfer and the new owner's invite — are
+separated by :data:`HANDED_OVER_CASE`: only the Case Owner may invite, so a
+transfer the CASE_MANAGER never committed stops the story rather than let the
+would-be owner invite into a case it does not own (DEMOCI-01-011,
+:mod:`vultron.demo.helpers.owner_decision_story`).
 """
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
 
 from vultron.demo.helpers.coordinated_story import (
-    REPORTER,
-    REPORTER_LABEL,
     await_reporter_case_replica,
     invitee_triages_after_joining,
 )
@@ -53,23 +33,21 @@ from vultron.demo.helpers.invite_chain import (
     EmittedBy,
     run_case_invite_chain,
 )
+from vultron.demo.helpers.owner_decision_story.parts import (
+    OWNER_DECISION_TIMEOUT,
+    REPORTER_PART,
+    Part,
+    case_actor_participant,
+)
 from vultron.demo.helpers.polling import (
-    LATE_JOINER_TIMEOUT,
     SharedBudget,
-    find_case_actor_participant_id,
-    find_cp_offer_for_case,
     find_ownership_transfer_offer_for_actor,
     wait_for_case_actor_ledger_event,
     wait_for_case_attributed_to,
     wait_for_semantic_type_in_ledger,
 )
 from vultron.demo.helpers.story import StoryProp, StoryState
-from vultron.demo.utils import (
-    DataLayerClient,
-    demo_check,
-    demo_gate,
-    demo_step,
-)
+from vultron.demo.utils import demo_check, demo_gate, demo_step
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -77,15 +55,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 logger = logging.getLogger(__name__)
-
-#: Seconds a wait of either continuation may take.  Both reach their actors
-#: through the CaseActor — a suggestion forwarded to the owner and approved,
-#: or a transfer offered, accepted and fanned out — so every wait queues
-#: behind the same outbox and takes the late-joiner budget, the widest either
-#: scenario carried before the step was shared.  A budget only bounds how long
-#: a wait may take, so taking the wider one refuses nothing the narrower one
-#: admitted and moves no byte of a recording (DEMOCI-11-018).
-OWNER_DECISION_TIMEOUT = LATE_JOINER_TIMEOUT
 
 #: The case whose ownership the owner handed over, as its id.  Read by
 #: :func:`the_new_owner_invites`, which is the causal dependent: only the Case
@@ -96,195 +65,6 @@ OWNER_DECISION_TIMEOUT = LATE_JOINER_TIMEOUT
 HANDED_OVER_CASE: StoryProp[str] = StoryProp(
     "case whose ownership the owner handed over", str
 )
-
-
-@dataclass(frozen=True, slots=True)
-class Part:
-    """One cast member a shared continuation acts on.
-
-    The ``(state, name, label)`` pair every shared fragment of a family takes,
-    bundled because these continuations act on three members at once and three
-    loose pairs of strings beside each other are trivially swappable.
-
-    Attributes:
-        name: The name the story seats the member under, the key
-            :meth:`~vultron.demo.helpers.story.StoryState.actor` reads.
-        label: What this scenario calls it in step and gate labels — ``"C1"``
-            in the two-coordinator pair, ``"Vendor1"`` in the vendor-first
-            one.
-    """
-
-    name: str
-    label: str
-
-
-#: The Reporter's part, which every scenario of the tree so far seats under
-#: that name: the default witness of a handover, being neither the old nor the
-#: new owner (:func:`the_owner_hands_the_case_over`).
-REPORTER_PART = Part(REPORTER, REPORTER_LABEL)
-
-
-def case_actor_participant(client: DataLayerClient, case_id: str) -> str:
-    """The CaseActor's actor URI, read off *client*'s replica of *case_id*.
-
-    Both continuations need it: the approval routes the owner's
-    ``Accept(Offer(CaseParticipant))`` back to the CaseActor (CM-16-006), and
-    the handover's invite checks that the Invite the newcomer received was
-    emitted *as* the CaseActor (PCR-08-008).  Read from a replica rather than
-    assumed, so the check names the actor that actually holds CASE_MANAGER on
-    this case.
-
-    Takes the client rather than the story's state, so it is a polling-style
-    helper like the one it wraps and not a story fragment: a fragment owns its
-    own demo context (DEMOCI-01-011), and this one raises into the caller's
-    gate exactly as ``find_case_actor_participant_id`` does.
-
-    Raises:
-        AssertionError: When the replica's participant index names no
-            CaseActor, so neither the Accept nor the sender check has an
-            address.  Both callers read it inside a ``demo_gate``, which
-            records the failure and skips the dependents.
-    """
-    case_actor_id = find_case_actor_participant_id(client, case_id)
-    if case_actor_id is None:
-        raise AssertionError(
-            "the case replica read names no CaseActor participant, so there"
-            " is no CASE_MANAGER address to route the Accept to"
-        )
-    logger.info("CaseActor participant ID: %s", case_actor_id)
-    return case_actor_id
-
-
-# ---------------------------------------------------------------------------
-# owner-keep-case:keep — the owner keeps the case and approves a suggestion
-# ---------------------------------------------------------------------------
-
-
-def the_owner_approves_a_suggested_actor(
-    state: StoryState,
-    *,
-    joined: StoryProp[str],
-    owner: Part,
-    suggester: Part,
-    newcomer: Part,
-    roles: Sequence[CVDRole],
-    seated: Sequence[str],
-    timeout_seconds: float = OWNER_DECISION_TIMEOUT,
-    join_timeout: float = OWNER_DECISION_TIMEOUT,
-) -> None:
-    """*suggester* proposes *newcomer*; *owner* approves and *newcomer* joins.
-
-    The ADR-0026 suggest-actor flow end to end: *suggester* posts
-    ``suggest-actor-to-case``, the CaseActor forwards an
-    ``Offer(CaseParticipant)`` to the owner, the owner posts
-    ``accept-actor-recommendation``, the CaseActor sends the Invite, and
-    *newcomer* accepts and runs its RM triage (CM-11-002).  The invite chain
-    polls *newcomer*'s DataLayer for the Invite and puppeteers the accept —
-    polling only, no post to its inbox (DEMOMA-00-002) — nesting the accept
-    and the replica wait inside the Invite's gate (EDF-06-005, #3038).
-
-    The owner keeping the case is what makes this the ``keep`` continuation:
-    it is the owner, not the joiner, that converts the suggestion into an
-    invitation, so ownership never moves (DEMOMA-13-014).
-
-    Reads *joined* first: the suggestion comes from a participant, so a join
-    whose roster never filled stops the story here rather than suggesting
-    into a case the suggester is not in (DEMOCI-01-011, DEMOMA-13-003).
-
-    Args:
-        state: The running story's state.
-        joined: The prop the joiner's roster gate kept, read before anything
-            else runs.  A flat story cannot nest this continuation inside that
-            gate, so the gate keeps it and this reads it
-            (:func:`~vultron.demo.helpers.coordinated_story\
-            .invitee_joins_the_case`).
-        owner: The Case Owner, which approves the recommendation.
-        suggester: The participant that suggests *newcomer*.
-        newcomer: The actor being suggested; it must be seated already,
-            because the suggestion names it by actor id before it has joined
-            anything.
-        roles: The roles the suggestion asks for.  Explicit, so
-            ``EvaluateDefaultRolesNode`` does not fall back to its hardcoded
-            ``[VENDOR]`` default (#1969).
-        seated: Every cast name the owner's roster must hold once *newcomer*
-            has joined, *newcomer* included.
-        timeout_seconds: Seconds each cross-container wait may take.
-        join_timeout: Seconds to wait for the roster.
-    """
-    state.kept(joined)
-    newcomer_actor = state.actor(newcomer.name).actor
-
-    with demo_step(
-        f"{suggester.label} suggests {newcomer.label} to CaseActor"
-    ):
-        state.actor(suggester.name).with_case(
-            state.case
-        ).quiet().suggest_actor_to_case(
-            suggested_actor_id=newcomer_actor.id_,
-            roles=list(roles),
-        )
-    logger.info(
-        "%s sent suggest-actor-to-case for %s (%s)",
-        suggester.label,
-        newcomer.label,
-        newcomer_actor.id_,
-    )
-
-    # Every dependent step nests inside the gate, so a recommendation that
-    # never arrives skips the lookup and the approval (ADR-0058).
-    with demo_gate(
-        f"Offer(CaseParticipant) for {newcomer.label} arrived in"
-        f" {owner.label}'s DataLayer"
-    ):
-        cp_offer_id = find_cp_offer_for_case(
-            client=state.client(owner.name),
-            case_id=state.case.id_,
-            timeout_seconds=timeout_seconds,
-        )
-        logger.info("Offer(CaseParticipant) ID: %s", cp_offer_id)
-
-        case_actor_id = case_actor_participant(
-            state.client(owner.name), state.case.id_
-        )
-
-        with demo_step(f"{owner.label} approves actor recommendation"):
-            state.actor(owner.name).quiet().accept_actor_recommendation(
-                cp_offer_id=cp_offer_id,
-                case_actor_id=case_actor_id,
-            )
-    logger.info(
-        "%s sent Accept(Offer(CaseParticipant)) to CaseActor", owner.label
-    )
-
-    # inviter=None: the CaseActor already invited, on the owner's approval.
-    run_case_invite_chain(
-        case=state.case,
-        invitee_name=newcomer.label,
-        invitee_client=state.client(newcomer.name),
-        invitee=newcomer_actor,
-        invitee_in_own_container=newcomer_actor,
-        invite_timeout=timeout_seconds,
-        replica_timeout=timeout_seconds,
-        ledger_client=state.case_actor_client,
-        reply_timeout=timeout_seconds,
-    )
-
-    await_reporter_case_replica(state, timeout_seconds)
-    invitee_triages_after_joining(
-        state,
-        newcomer.name,
-        newcomer.label,
-        seated=seated,
-        owner=owner.name,
-        owner_label=owner.label,
-        join_timeout=join_timeout,
-        triage_timeout=timeout_seconds,
-    )
-
-
-# ---------------------------------------------------------------------------
-# owner-keep-case:offer-ownership — the owner hands the case over
-# ---------------------------------------------------------------------------
 
 
 def the_owner_hands_the_case_over(
@@ -560,11 +340,6 @@ def the_new_owner_invites(
 
 __all__ = [
     "HANDED_OVER_CASE",
-    "OWNER_DECISION_TIMEOUT",
-    "REPORTER_PART",
-    "Part",
-    "case_actor_participant",
     "the_new_owner_invites",
-    "the_owner_approves_a_suggested_actor",
     "the_owner_hands_the_case_over",
 ]

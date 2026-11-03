@@ -2270,7 +2270,7 @@ groups:
       (DEMOCI-11-018). Naming it here keeps this group a whole story: a reader
       sees where RCV's own telling begins without reading the sibling's group.
     verification: >-
-      `test/demo_unit/test_story.py::test_both_scenarios_share_one_opening`
+      `test/demo_unit/story/test_assembly.py::test_both_scenarios_share_one_opening`
       asserts that `rcv`'s story begins with the items of
       `COORDINATOR_INVITES_VENDOR`, and `TestSharedPrefixes` in
       `test/demo_unit/test_recordings.py` compares the `rcv` and `rcv-reject`
@@ -2761,8 +2761,8 @@ groups:
       same module asserts that the story reaches back to the items of
       `REPORTER_TELLS_THE_COORDINATOR`;
       `test_a_named_prefix_nests_the_shorter_one_it_carries` in
-      `test/demo_unit/test_story.py` asserts that `C1_INVITES_C2` begins with
-      those items rather than restating them; `TestSharedPrefixes` in
+      `test/demo_unit/story/test_assembly.py` asserts that `C1_INVITES_C2`
+      begins with those items rather than restating them; `TestSharedPrefixes` in
       `test/demo_unit/test_recordings.py` compares every pair of registered
       scenarios byte for byte up to the branch point where each pair's paths
       part.
@@ -7171,7 +7171,7 @@ groups:
       (DEMOCI-11-018). Naming it here keeps this group a whole story: a reader
       sees where the rejection path begins without reading RCV's group.
     verification: >-
-      `test/demo_unit/test_story.py::test_both_scenarios_share_one_opening`
+      `test/demo_unit/story/test_assembly.py::test_both_scenarios_share_one_opening`
       asserts that `rcv-reject`'s story begins with the items of
       `COORDINATOR_INVITES_VENDOR`, and `TestSharedPrefixes` in
       `test/demo_unit/test_recordings.py` compares the `rcv` and `rcv-reject`

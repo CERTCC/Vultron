@@ -39,6 +39,7 @@ from test.demo._helpers import (
     functions_referencing,
     mock_actor,
     mock_case,
+    modules_resolving_names,
     no_demo_banners,
     patch_chain_shared,
     story_state,
@@ -92,7 +93,7 @@ def _no_banners():
 
     ``owner_decision_story`` is not among them: this pair's module takes
     only ``Part`` and a timeout from it, so no fragment under test opens a
-    banner there (``test_owner_decision_story.py`` owns those).
+    banner there (``owner_decision_story/`` owns those).
     """
     with no_demo_banners(pair, coordinated_story):
         yield
@@ -793,11 +794,18 @@ def _pair_cast_references() -> frozenset[str]:
 _PAIR_CAST_REFERENCES = _pair_cast_references()
 
 
-def _continuations_source() -> str:
-    """The source of the shared continuations, read as written."""
-    source = owner_decision_story.__file__
-    assert source is not None
-    return pathlib.Path(source).read_text(encoding="utf-8")
+def _continuations_sources() -> list[str]:
+    """The source of each module of the shared continuations, as written.
+
+    Every submodule of the package, not its ``__init__``: that only
+    re-exports, so reading it alone would check none of the continuations'
+    bodies (#5592).
+    """
+    sources = []
+    for module in modules_resolving_names(owner_decision_story):
+        assert module.__file__ is not None
+        sources.append(pathlib.Path(module.__file__).read_text("utf-8"))
+    return sources
 
 
 def _cast_references(source: str) -> tuple[set[str], set[str]]:
@@ -870,12 +878,22 @@ class TestTheOwnerDecisionParts:
         ``C1_PART`` could not serve the vendor-first pair, whose owner is a
         Vendor (#5535 AC-2).
         """
-        imported, referenced = _cast_references(_continuations_source())
+        imported: set[str] = set()
+        referenced: set[str] = set()
+        for source in _continuations_sources():
+            module_imports, module_names = _cast_references(source)
+            imported |= module_imports
+            referenced |= module_names
         # An absence proves nothing unless the walk found something: an empty
         # set satisfies every assertion below, so pin both non-empty first
-        # (notes/architecture-ratchet-corpus.md, #5595).
+        # (notes/architecture-ratchet-corpus.md, #5595).  The invite chain is
+        # called only inside the continuations' bodies, so finding it proves
+        # the walk read them and not just the package's re-exports.
         assert imported, "the import walk found nothing — the check is vacuous"
         assert referenced, "the name walk found nothing — the check is vacuous"
+        assert "run_case_invite_chain" in referenced, (
+            "the walk read no continuation body — the check is vacuous"
+        )
         assert pair.__name__ not in imported, (
             f"{pair.__name__} imported by owner_decision_story would"
             " hard-wire the two-coordinator cast into a continuation the"
