@@ -66,8 +66,6 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER_TELLS_THE_COORDINATOR,
     VENDOR,
     VENDOR_LABEL,
-    CastContainer,
-    dump_coordinated_ledgers,
     invitee_joins_the_case,
     reports_published,
     seat_character_actors,
@@ -98,6 +96,7 @@ from vultron.demo.helpers.story import (
     choose,
     story,
 )
+from vultron.demo.helpers.story_cast import CastContainer, dump_story_ledgers
 from vultron.demo.helpers.sync import run_sync_verification_phase
 from vultron.demo.utils import DataLayerClient, demo_check, demo_step
 from vultron.enums.roles import CVDRole
@@ -206,7 +205,7 @@ def dump_two_coordinator_ledgers(state: StoryState) -> None:
     or not an earlier step failed.  C2 before it is seated has no replica to
     read, so it is left out rather than 404ing the dump.
     """
-    dump_coordinated_ledgers(
+    dump_story_ledgers(
         state,
         replicas=[
             entry for entry in DEVLOG_REPLICAS if entry[1] in state.cast

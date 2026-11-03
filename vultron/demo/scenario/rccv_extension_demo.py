@@ -51,13 +51,11 @@ from vultron.demo.helpers.actor_roles import (
     role_map,
 )
 from vultron.demo.helpers.coordinated_story import (
-    CASE_ACTOR_NAME,
     REPORTER,
     REPORTER_LABEL,
     VENDOR,
     VENDOR_LABEL,
     close_the_case,
-    coordinated_clients,
     coordinated_open_cast,
     vendor_reports_the_fix_ready,
 )
@@ -66,6 +64,7 @@ from vultron.demo.helpers.owner_decision_story import (
     the_owner_approves_a_suggested_actor,
 )
 from vultron.demo.helpers.story import StoryState, choose, run_story, story
+from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME, story_clients
 from vultron.demo.helpers.sync import wait_for_replica_ledger_coverage
 from vultron.demo.helpers.two_coordinator_story import (
     C1,
@@ -98,7 +97,7 @@ DEMO_NAME = "rccv-extension"
 # the fixed cast (DEMOCI-11-020).  The demo CLI derives this scenario's
 # sub-command options from this list (DEMOCI-11-011).
 ROLES = two_coordinator_roles(case_actor=case_actor_role())
-#: Indexed for the CLI factory and for ``coordinated_clients()``, which reads
+#: Indexed for the CLI factory and for ``story_clients()``, which reads
 #: each actor's container address off its cast slot — so this module declares
 #: no ``*_BASE_URL`` constant of its own (DEMOCI-11-020).
 _ROLES = role_map(ROLES)
@@ -323,7 +322,7 @@ def main(
         c2_id: Optional deterministic URI for the C2 actor.
         vendor_id: Optional deterministic URI for the Vendor actor.
     """
-    clients = coordinated_clients(
+    clients = story_clients(
         _ROLES,
         two_coordinator_cast_members(
             reporter_url=reporter_url,

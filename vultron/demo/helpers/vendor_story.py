@@ -46,13 +46,6 @@ pair — are reset with the rest and seeded by the fragment that brings each
 into the case, never by the shared opening: what the opening writes before the
 case exists is part of the bytes its siblings must match (DEMOCI-11-018,
 #5532).
-
-The container plumbing (:class:`~vultron.demo.helpers.coordinated_story\
-.CastContainer`, ``coordinated_clients``) and the ledger dump
-(``dump_coordinated_ledgers``) are scenario-agnostic and live in
-:mod:`vultron.demo.helpers.coordinated_story`, where the first composed family
-put them; this module reads them from there rather than keeping a second copy,
-and #5603 moves them to a name that names no family.
 """
 
 from __future__ import annotations
@@ -65,7 +58,6 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER,
     REPORTER_LABEL,
     await_reporter_case_replica,
-    dump_coordinated_ledgers,
     vendor_notifies_fix_ready,
 )
 from vultron.demo.helpers.harness import ScenarioHarness
@@ -99,6 +91,7 @@ from vultron.demo.helpers.story import (
 )
 from vultron.demo.helpers.story_cast import (
     CastSeat,
+    dump_story_ledgers,
     open_story_cast,
 )
 from vultron.demo.helpers.workflow import (
@@ -326,7 +319,7 @@ def dump_vendor_ledgers(state: StoryState, replicas: Sequence[str]) -> None:
         state: The running story's state.
         replicas: Whose replicas to dump, in dump order.
     """
-    dump_coordinated_ledgers(
+    dump_story_ledgers(
         state, replicas=[name for name in replicas if name in state.cast]
     )
 

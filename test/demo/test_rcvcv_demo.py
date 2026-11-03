@@ -1453,7 +1453,7 @@ class TestRcvcvLedgerDump:
         state.case_actor_client.actor_id = (
             "https://example.org/actors/case-actor"
         )
-        with patch.object(coordinated_story, "dump_case_ledgers") as dump:
+        with patch.object(story_cast, "dump_case_ledgers") as dump:
             demo._dump_ledgers(state)
         return dump.call_args.kwargs["targets"]
 
@@ -1535,9 +1535,7 @@ class TestRcvcvCliCommand:
         }
 
         with (
-            patch.object(
-                demo, "coordinated_clients", return_value=clients
-            ) as built,
+            patch.object(demo, "story_clients", return_value=clients) as built,
             patch.object(demo, "run_rcvcv_demo") as run,
         ):
             demo.main(

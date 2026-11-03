@@ -46,7 +46,11 @@ from test.demo._helpers import (
 )
 from vultron.core.states.cs import CS_vf
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import coordinated_story, owner_decision_story
+from vultron.demo.helpers import (
+    coordinated_story,
+    owner_decision_story,
+    story_cast,
+)
 from vultron.demo.helpers.actor_roles import case_actor_role, role_kwarg_names
 from vultron.demo.helpers.cast import (
     CAST,
@@ -534,7 +538,7 @@ test_rccv_extension_invariants.py``).
         state.case_actor_client.actor_id = (
             "https://example.org/actors/case-actor"
         )
-        with patch.object(coordinated_story, "dump_case_ledgers") as dump:
+        with patch.object(story_cast, "dump_case_ledgers") as dump:
             pair.dump_two_coordinator_ledgers(state)
         return dump.call_args.kwargs["targets"]
 

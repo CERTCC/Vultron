@@ -55,7 +55,6 @@ from vultron.demo.helpers.coordinated_story import (
     COORDINATOR_LABEL,
     REPORTER,
     REPORTER_LABEL,
-    CastContainer,
     invitee_joins_the_case,
     seat_character_actors,
 )
@@ -68,6 +67,7 @@ from vultron.demo.helpers.story import (
     choose,
     story,
 )
+from vultron.demo.helpers.story_cast import CastContainer
 from vultron.demo.helpers.sync import run_sync_verification_phase
 from vultron.demo.helpers.vendor_story import (
     JOIN_TIMEOUT,
