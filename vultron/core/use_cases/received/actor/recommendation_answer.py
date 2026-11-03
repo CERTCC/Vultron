@@ -64,9 +64,10 @@ type RecommendationAnswerEvent = (
 class _RecommendationAnswerReceivedUseCase:
     """Archive the CASE_MANAGER's answer to this actor's recommendation.
 
-    The answer is addressed to the recommender, a participant, so the rule
-    states only the participant side: the CASE_MANAGER never receives its
-    own answer, and one addressed to it is refused.
+    The answer is addressed to the recommender, a participant, so the tree
+    declares the participant-replica path alone and the rule states only the
+    participant side: the CASE_MANAGER never receives its own answer, and one
+    addressed to it is refused at the path stage (HP-01-038, HP-01-039).
     """
 
     sender_entitlement: ClassVar[SenderRule] = SenderRule(

@@ -117,11 +117,11 @@ module. An `EmitCapable` node in `replica_effects` outside a `CaseManagerGate`
 raises `VultronWiringError` unless `replica_emit_exemption` names a registered
 `ReplicaEmitExemption` (`replica_emit_exemptions.py`) whose `covers` lists it.
 A new emit node class reaching the outbox mixes in `EmitCapable` (or inherits
-it from its base). The pre-BT-17-008 `effect_nodes` parameter was retired
-(#4307) once the close-case tree, its last caller, moved its decline emit onto
-`manager_effects` (#3825). Full write-up:
+it from its base). The pre-BT-17-008 `effect_nodes` parameter is retired
+(#4307); do not reintroduce it. A tree declaring `paths=` gets the path stage
+instead, which asks the receiver's role once (HP-01-035..041). Write-ups:
 `notes/bt-pitfalls.md` § "A Received Tree Gets Its CASE_MANAGER Gate From the
-Factory".
+Factory" and `notes/bt-integration.md` § "The Received-Side Stages".
 
 ---
 
