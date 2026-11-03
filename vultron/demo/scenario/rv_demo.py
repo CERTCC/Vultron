@@ -51,7 +51,6 @@ from vultron.demo.helpers.actor_roles import (
 )
 from vultron.demo.helpers.cast import REPORTER_SLOT, VENDOR_SLOT
 from vultron.demo.helpers.coordinated_story import (
-    CASE_ACTOR_NAME,
     REPORTER,
     REPORTER_LABEL,
     close_the_case,
@@ -61,6 +60,7 @@ from vultron.demo.helpers.coordinated_story import (
 from vultron.demo.helpers.polling import wait_for_participant_vf_state
 from vultron.demo.helpers.story import StoryState, choose, run_story, story
 from vultron.demo.helpers.story_cast import (
+    CASE_ACTOR_NAME,
     CastContainer,
     story_clients,
 )

@@ -46,7 +46,6 @@ pair — are reset with the rest and seeded by the fragment that brings each
 into the case, never by the shared opening: what the opening writes before the
 case exists is part of the bytes its siblings must match (DEMOCI-11-018,
 #5532).
-
 """
 
 from __future__ import annotations

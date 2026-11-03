@@ -48,7 +48,6 @@ from vultron.demo.helpers.actor_roles import (
     role_map,
 )
 from vultron.demo.helpers.coordinated_story import (
-    CASE_ACTOR_NAME,
     REPORTER,
     VENDOR,
     VENDOR_LABEL,
@@ -62,7 +61,7 @@ from vultron.demo.helpers.owner_decision_story import (
     the_owner_hands_the_case_over,
 )
 from vultron.demo.helpers.story import StoryState, choose, run_story, story
-from vultron.demo.helpers.story_cast import story_clients
+from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME, story_clients
 from vultron.demo.helpers.two_coordinator_story import (
     C1,
     C1_INVITES_C2,

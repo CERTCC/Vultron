@@ -101,7 +101,6 @@ from vultron.demo.helpers.story import (
     story,
 )
 from vultron.demo.helpers.story_cast import (
-    CASE_ACTOR_NAME,
     CastContainer,
     CastSeat,
     open_story_cast,
@@ -1236,7 +1235,6 @@ def reporter_then_coordinator_close(state: StoryState) -> None:
 
 
 __all__ = [
-    "CASE_ACTOR_NAME",
     "ENGAGED_CASE",
     "COORDINATOR",
     "COORDINATOR_INVITES_VENDOR",

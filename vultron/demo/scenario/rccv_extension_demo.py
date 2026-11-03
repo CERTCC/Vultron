@@ -51,7 +51,6 @@ from vultron.demo.helpers.actor_roles import (
     role_map,
 )
 from vultron.demo.helpers.coordinated_story import (
-    CASE_ACTOR_NAME,
     REPORTER,
     REPORTER_LABEL,
     VENDOR,
@@ -65,7 +64,7 @@ from vultron.demo.helpers.owner_decision_story import (
     the_owner_approves_a_suggested_actor,
 )
 from vultron.demo.helpers.story import StoryState, choose, run_story, story
-from vultron.demo.helpers.story_cast import story_clients
+from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME, story_clients
 from vultron.demo.helpers.sync import wait_for_replica_ledger_coverage
 from vultron.demo.helpers.two_coordinator_story import (
     C1,

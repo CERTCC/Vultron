@@ -139,19 +139,18 @@ class TestRcvRejectDumpTargetsTheCaseActorContainer:
         Actor's ``reject_invite_actor_to_case`` entry resolves through this
         entry to the Vendor that rejected.
         """
-        from test.demo._helpers import story_state
-        from test.demo.test_coordinated_story import _bind_container_actors
+        from test.demo._helpers import bind_container_actors, story_state
         from vultron.demo.helpers import story_cast
         from vultron.demo.helpers.coordinated_story import (
-            CASE_ACTOR_NAME,
             COORDINATOR,
             REPORTER,
             VENDOR,
         )
+        from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME
 
         cast = (REPORTER, COORDINATOR, VENDOR)
         state = story_state(*cast, case=MagicMock(id_="urn:c"))
-        _bind_container_actors(state, *cast)
+        bind_container_actors(state, *cast)
 
         with patch.object(story_cast, "dump_case_ledgers") as dump:
             demo._dump_ledgers(state)

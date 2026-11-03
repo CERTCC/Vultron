@@ -55,7 +55,6 @@ from vultron.demo.helpers.cast import (
     VENDOR_SLOT,
 )
 from vultron.demo.helpers.coordinated_story import (
-    CASE_ACTOR_NAME,
     COORDINATOR,
     COORDINATOR_LABEL,
     REPORTER,
@@ -69,7 +68,7 @@ from vultron.demo.helpers.owner_decision_story import (
     the_owner_hands_the_case_over,
 )
 from vultron.demo.helpers.story import StoryState, choose, run_story, story
-from vultron.demo.helpers.story_cast import story_clients
+from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME, story_clients
 from vultron.demo.helpers.vendor_coordinator_story import (
     COORDINATOR_JOINED,
     COORDINATOR_PART,

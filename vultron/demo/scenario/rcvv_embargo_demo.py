@@ -78,7 +78,6 @@ from vultron.demo.helpers.coordinated_embargo_story import (
     replicas_see_the_embargo_ended,
 )
 from vultron.demo.helpers.coordinated_story import (
-    CASE_ACTOR_NAME,
     COORDINATOR,
     COORDINATOR_LABEL,
     REPORTER,
@@ -106,6 +105,7 @@ from vultron.demo.helpers.story import (
     story,
 )
 from vultron.demo.helpers.story_cast import (
+    CASE_ACTOR_NAME,
     CastContainer,
     dump_story_ledgers,
     story_clients,

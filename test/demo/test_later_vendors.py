@@ -34,11 +34,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from test.demo._helpers import mock_case, story_state, stub_closure_gate
-from test.demo.test_coordinated_story import _bind_container_actors
+from test.demo._helpers import (
+    bind_container_actors,
+    mock_case,
+    story_state,
+    stub_closure_gate,
+)
 from vultron.demo.helpers import closure, coordinated_story, story_cast
 from vultron.demo.helpers.coordinated_story import (
-    CASE_ACTOR_NAME,
     COORDINATOR,
     REPORTER,
     VENDOR,
@@ -46,7 +49,7 @@ from vultron.demo.helpers.coordinated_story import (
     invitee_joins_the_case,
 )
 from vultron.demo.helpers.story import StoryState
-from vultron.demo.helpers.story_cast import dump_story_ledgers
+from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME, dump_story_ledgers
 from vultron.demo.utils import demo_failures, reset_demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
@@ -211,7 +214,7 @@ class TestALaterVendorsLedgerIsDumped:
         ``MagicMock`` attribute that happens to differ per client.
         """
         state = story_state(*_FOUR, case=mock_case())
-        _bind_container_actors(state, *_FOUR)
+        bind_container_actors(state, *_FOUR)
 
         with patch.object(story_cast, "dump_case_ledgers") as dump:
             dump_story_ledgers(state, replicas=list(_FOUR))
