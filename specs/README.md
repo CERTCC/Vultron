@@ -171,8 +171,8 @@ related requirements across files.
 
 - **`activity-factories.yaml`** - Factory function pattern for constructing outbound
   Vultron protocol activities; module structure under `vultron/wire/as2/factories/`,
-  import boundary enforcement, error handling, TypeAlias cleanup, and migration
-  requirements (AF-01 through AF-08)
+  import boundary enforcement, error handling, TypeAlias naming, and the activity
+  translator port (AF-01 through AF-09)
 
 **Semantic–Wire Mapping**:
 

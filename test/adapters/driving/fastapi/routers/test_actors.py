@@ -25,6 +25,9 @@ from vultron.adapters.driven.datalayer_sqlite import (
     get_all_actor_datalayers,
     get_datalayer,
 )
+from vultron.adapters.driving.fastapi.routers.actors import (
+    _routes as actor_routes,
+)
 from vultron.adapters.driving.fastapi.routers.actors._lookup import (
     _ACTOR_RECORD_TYPES,
     _find_actor_record_by_id,
@@ -188,6 +191,103 @@ def test_post_untimed_case_status_to_actor_inbox_returns_422(
 
 def _inbox_path(actor_id: str) -> str:
     return f"/actors/{_route_key(actor_id)}/inbox/"
+
+
+def _record_scheduled_pipelines(monkeypatch) -> list[str | None]:
+    """Replace the inbox background task with a recorder of the ids it is given.
+
+    The endpoint schedules ``run_inbox_pipeline`` only once an activity has
+    passed ingress, so a call recorded here means the activity was put on the
+    processing path.
+    """
+    scheduled: list[str | None] = []
+
+    def _record(activity, *_args, **_kwargs) -> None:
+        scheduled.append(activity.id_)
+
+    monkeypatch.setattr(actor_routes, "run_inbox_pipeline", _record)
+    return scheduled
+
+
+def _published_now() -> str:
+    return "2026-01-02T03:04:05+00:00"
+
+
+@pytest.mark.spec("IE-04-001")
+@pytest.mark.parametrize(
+    ("body", "reason"),
+    [
+        pytest.param(
+            {
+                "type": "Question",
+                "id": "https://example.org/activities/two-answer-forms",
+                "published": _published_now(),
+                "anyOf": [{"type": "Note", "name": "yes"}],
+                "oneOf": [{"type": "Note", "name": "no"}],
+            },
+            "mutually exclusive",
+            id="question-with-both-answer-forms",
+        ),
+        pytest.param(
+            {
+                "type": "Reject",
+                "id": "https://example.org/activities/objectless-reject",
+                "published": _published_now(),
+            },
+            "SYNC-16-028",
+            id="reject-with-no-object",
+        ),
+    ],
+)
+def test_an_activity_not_in_its_types_form_is_refused_before_processing(
+    client_actors, created_actors, monkeypatch, body, reason
+):
+    """The endpoint checks each body against the form its type requires.
+
+    Both bodies name a known activity type and are valid JSON, but break a rule
+    of that type's form: a ``Question`` offers ``anyOf`` or ``oneOf``, never
+    both (AS2 §4.1), and only a genesis-replay ``Reject`` may name no object
+    (SYNC-16-028). Each is refused with 422 and never scheduled for processing.
+    """
+    scheduled = _record_scheduled_pipelines(monkeypatch)
+    actor = created_actors[0]
+    resp = client_actors.post(
+        _inbox_path(actor.id_), json={**body, "actor": actor.id_}
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, resp.text
+    assert reason in resp.text
+    assert scheduled == []
+
+
+@pytest.mark.spec("IE-04-001")
+def test_an_activity_in_its_types_form_is_scheduled_for_processing(
+    client_actors, created_actors, monkeypatch
+):
+    """The contrast case: a well-formed activity reaches the processing path."""
+    scheduled = _record_scheduled_pipelines(monkeypatch)
+    actor = created_actors[0]
+    activity = as_Create(object_=as_Note(content="hello"), actor=actor.id_)
+    resp = client_actors.post(
+        _inbox_path(actor.id_),
+        json=jsonable_encoder(activity, exclude_none=True),
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert scheduled == [activity.id_]
+
+
+@pytest.mark.spec("IE-08-001")
+def test_an_accepted_delivery_is_answered_with_an_empty_202(
+    client_actors, created_actors
+):
+    """A 202 carries no body: not even JSON ``null`` (IE-08-001)."""
+    actor = created_actors[0]
+    activity = as_Create(object_=as_Note(content="hello"), actor=actor.id_)
+    resp = client_actors.post(
+        _inbox_path(actor.id_),
+        json=jsonable_encoder(activity, exclude_none=True),
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert resp.content == b""
 
 
 def _create_note_body(actor_id: str) -> str:

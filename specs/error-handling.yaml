@@ -27,24 +27,29 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: Custom exceptions MUST inherit from a base VultronError exception
+    statement: >-
+      Each custom exception outside `vultron/metadata/` and `vultron/bt/` MUST inherit
+      from the base `VultronError` exception.
     rationale: >-
       One base class lets a caller, such as the HTTP error handler, catch every
-      application failure with one `except` clause. Exceptions from outside the
-      hierarchy still show as bugs. This hierarchy belongs to the protocol domain. It
-      does not cover the metadata tooling under `vultron/metadata/`, whose loaders raise
-      `ValueError` by contract so that their callers can guard one exception pair
-      (MS-17-004).
+      application failure with one `except` clause, and other exceptions still show as
+      bugs. The metadata loaders raise `ValueError` by contract, so that callers guard
+      one exception pair (MS-17-004). The legacy simulator under `vultron/bt/` is
+      reference code that is not changed (ADR-0008), and its errors never reach the
+      HTTP error handler.
   - id: EH-01-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: Custom exceptions MUST be centralized in `vultron/errors.py`
+    statement: >-
+      This codebase MUST define each error category that more than one layer raises or
+      catches in `vultron/errors.py`.
     rationale: >-
       Errors that several layers raise or catch need one home. `vultron/errors.py`
       imports only the standard library, so core, wire and adapter code can all import
       from it without an import from another layer. One module also shows the shared
-      hierarchy in one place.
+      hierarchy in one place. An error that only one subsystem raises goes in that
+      subsystem's own `errors.py` instead (EH-02-001), as in `vultron/wire/errors.py`.
 - id: EH-02
   title: Submodule Errors
   specs:
@@ -74,16 +79,57 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      This codebase MUST define at least four error categories in `vultron/errors.py`.
-      The first is `ValidationError`, for malformed or schema-invalid input. The second
-      is `NotFoundError`, for a referenced domain object that does not exist. The third
-      is `ProtocolError`, for an invalid state-machine transition or message semantics.
-      The fourth is `SecurityError`, for an authentication or authorization failure.
+      This codebase MUST define `VultronValidationError` in `vultron/errors.py`, the
+      error category for malformed or schema-invalid input.
     rationale: >-
       A caller decides what to do from the kind of failure, not from the message text.
       Bad input, a missing object, a protocol violation and a security failure each need
       a different response, for example a different HTTP status. Fixed categories give
       each of these responses one exception type to catch.
+  - id: EH-03-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      This codebase MUST define `VultronNotFoundError` in `vultron/errors.py`, the
+      error category for a referenced domain object that does not exist.
+    rationale: >-
+      A caller that holds a reference needs to tell a missing object apart from a bad
+      request. The HTTP error handler answers a missing object with 404 and bad input
+      with 422 (HTTP-03), and it can only do so when each has its own exception type.
+    relationships:
+    - rel_type: extends
+      spec_id: EH-03-001
+  - id: EH-03-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      This codebase MUST define `VultronInvalidStateTransitionError` and
+      `VultronProtocolViolationError` in `vultron/errors.py`, the error categories for
+      an invalid state-machine transition and for invalid message semantics.
+    rationale: >-
+      A protocol violation needs its own response: the HTTP error handler answers an
+      invalid state-machine transition with 409, and the inbox background task drops
+      a replayed item that raised `VultronProtocolViolationError` without a retry
+      (IE-06-010). A caller can make neither choice from message text.
+    relationships:
+    - rel_type: extends
+      spec_id: EH-03-001
+  - id: EH-03-005
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      This codebase MUST define, in `vultron/errors.py`, an error category for an
+      authentication or authorization failure.
+    rationale: >-
+      An authentication or authorization failure needs a response of its own, such as
+      a 401 or 403, and it must not read as bad input or a missing object. A category
+      for it lets the HTTP error handler and the logs tell it apart.
+    relationships:
+    - rel_type: extends
+      spec_id: EH-03-001
   - id: EH-03-002
     priority: MAY
     kind: project
@@ -91,9 +137,9 @@ groups:
       This codebase MAY define more error categories in `vultron/errors.py` as it needs
       them.
     rationale: >-
-      The four categories of EH-03-001 are a floor. A failure that needs its own
-      response can get its own exception type, and no caller has to tell it apart by
-      message text.
+      The categories of EH-03-001 and the requirements that extend it are a floor. A
+      failure that needs its own response can get its own exception type, and no caller
+      has to tell it apart by message text.
 - id: EH-04
   title: Error Context
   specs:

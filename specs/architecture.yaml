@@ -37,8 +37,9 @@ groups:
     priority: MUST_NOT
     kind: architecture
     verification_debt: '#2569'
-    statement: The `wire/` layer (AS2 parser, semantic extractor) MUST NOT contain handler logic, case management, or journal
-      management
+    statement: >-
+      The `wire/` layer (AS2 parser, semantic extractor) MUST NOT contain handler logic,
+      case management, or case ledger management.
     rationale: >-
       The wire layer encodes and decodes messages. Handler logic, case management and
       the case ledger are domain behavior, and they belong in core. If the wire layer
@@ -280,8 +281,9 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: Connector plugins MUST translate only — no case handling logic, authorization, or journal management belongs
-      in a connector
+    statement: >-
+      Connector plugins MUST translate only — no case handling logic, authorization, or
+      case ledger management belongs in a connector.
     rationale: >-
       A connector is an adapter: it translates between a tracker's format and Vultron
       domain types. Case logic, authorization and the case ledger belong in core, where
@@ -906,50 +908,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: ARCH-16-001
-- id: ARCH-17
-  title: ASGIEmitter Base URL
-  description: >-
-    SUPERSEDED by ADR-0042 / outbox.yaml OX-12. The ASGIEmitter in-process delivery
-    shortcut has been retired in favour of uniform HTTP delivery for all inter-actor
-    communication. These requirements are retained for historical traceability only and
-    no longer describe the delivery architecture; do not implement against them.
-  specs:
-  - id: ARCH-17-001
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: >-
-      The `ASGIEmitter` base URL MUST hold only the scheme and netloc components (e.g.
-      `https://example.org`), with no path prefix, trailing slash or mount-point segment.
-    rationale: >-
-      The emitter strips the mount prefix from request paths before it builds outbound
-      URLs, so a prefix in the base URL is applied twice.
-      A base URL with a path prefix, such as `https://example.org/api`, joined with a
-      request path such as `/api/actors/…`, gives
-      `https://example.org/api/api/actors/…`, which is an address that does not exist.
-      The `ASGIEmitter` is removed (ADR-0042), so no code now depends on this
-      requirement (see the group description).
-  - id: ARCH-17-002
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: >-
-      `ASGIEmitter` MUST detect re-entrant emission with a `contextvars.ContextVar[int]`
-      guard, not a `threading.Lock` or a boolean flag. A re-entrant emission is an
-      emitter call from a handler that an earlier emission invoked.
-    rationale: A `threading.Lock` guard would deadlock when the re-entrant call happens on the same thread (common in async/ASGI
-      contexts). A `ContextVar` is task-local and correctly tracks reentrancy per async task without thread-lock semantics.
-  - id: ARCH-17-003
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: '`ASGIEmitter` MUST raise `EmitterReentrancyError` on a re-entrant emission.'
-    rationale: >-
-      A re-entrant emission can loop with no end. A named error stops it and shows
-      where it started.
-    relationships:
-    - rel_type: extends
-      spec_id: ARCH-17-002
 - id: ARCH-18
   title: Architecture Ratchet Discipline
   specs:

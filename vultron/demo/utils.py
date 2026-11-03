@@ -347,12 +347,15 @@ class DataLayerClient(BaseModel):
         logger.debug("Response status: %s", response.status_code)
 
         data: Any = {}
-        try:
-            data = response.json()
-            logger.debug("Response JSON: %s", json.dumps(data, indent=2))
-        except ValueError as e:
-            logger.error("Exception: %s", e)  # noqa: TRY400  # ruff-baseline #3353
-            logger.error("Response text: %s", response.text)  # noqa: TRY400  # ruff-baseline #3353
+        # An empty body is a valid answer, not a parse failure: the inbox's
+        # 202 carries none (IE-08-001).
+        if response.content:
+            try:
+                data = response.json()
+                logger.debug("Response JSON: %s", json.dumps(data, indent=2))
+            except ValueError as e:
+                logger.error("Exception: %s", e)  # noqa: TRY400  # ruff-baseline #3353
+                logger.error("Response text: %s", response.text)  # noqa: TRY400  # ruff-baseline #3353
 
         if response.status_code == 404:
             logger.error(
