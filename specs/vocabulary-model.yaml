@@ -273,8 +273,9 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      A class declared as an alias MUST NOT hold a `WIRE_TYPE_MAP` key. It stays
-      reachable by class name through `VOCABULARY` (VM-01-004).
+      A class declared as an alias MUST NOT hold a `WIRE_TYPE_MAP` key. It is still
+      listed in `VOCABULARY` under its class name (VM-01-004), but no wire `type`
+      value resolves to it (VM-01-016).
     rationale: >-
       An alias is not what its `type` value deserializes to, so a key of its own would
       give the inbound lookup a second answer for that value.
@@ -392,13 +393,14 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      A semantic alias that must not be reachable under its own class name MUST NOT
-      declare its own `type_` annotation.
+      A semantic alias that must not be listed in `VOCABULARY` under its own class
+      name MUST NOT declare its own `type_` annotation.
     rationale: >-
-      Any own `type_` declaration registers the class under its class name. The
-      prohibition covers only aliases that must not be reachable by class name. A class
-      that shares another class's `type` but must stay reachable by class name declares
-      `_wire_type_alias` instead (VM-01-014).
+      Any own `type_` declaration lists the class in `VOCABULARY` under its class
+      name. The prohibition covers only aliases that must not be listed there. A class
+      that shares another class's `type` but must stay listed declares
+      `_wire_type_alias` instead (VM-01-014). A listing is not a lookup: no wire
+      `type` value resolves through `VOCABULARY` (VM-01-016).
     note: >-
       Such an alias is the `_XxxActivity` pattern, which presents an ancestor's `type`.
     verification: >-

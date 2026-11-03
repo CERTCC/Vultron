@@ -87,8 +87,9 @@ class as_Base(BaseModel):
     #: and is therefore not what that value should deserialize to. No
     #: production class declares it today; the case stub, its last user, became
     #: its own ``VulnerabilityCaseStub`` type in #4045 (CM-11-013). Such a
-    #: class stays reachable by class name through ``VOCABULARY`` but claims no
-    #: ``WIRE_TYPE_MAP`` key of its own (VM-01-015).
+    #: class is still listed in ``VOCABULARY`` under its class name, but it
+    #: claims no ``WIRE_TYPE_MAP`` key, so no wire ``type`` value resolves to it
+    #: (VM-01-015, VM-01-016).
     _wire_type_alias: ClassVar[bool] = False
 
     def __init_subclass__(cls, **kwargs: object) -> None:

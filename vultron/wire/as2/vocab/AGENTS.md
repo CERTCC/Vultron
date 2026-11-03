@@ -33,10 +33,11 @@
    `type_` of its own (so auto-registration skips it) yet is stored concretely
    as `type_="Actor"`. If a new class shares an existing class's `type` value,
    declare `_wire_type_alias: ClassVar[bool] = True` on it rather than letting
-   import order decide who owns the key; it stays reachable through
-   `VOCABULARY`. The only unflagged sharers are the five `as_Vultron*` actor
-   shadows, enumerated in the ratchet `test/architecture/test_vocab_registry_keys.py`,
-   which fails on any other collision.
+   import order decide who owns the key; it is still listed in `VOCABULARY`
+   under its class name, but no wire `type` value resolves to it. The only
+   unflagged sharers are the five `as_Vultron*` actor shadows, enumerated in the
+   ratchet `test/architecture/test_vocab_registry_keys.py`, which fails on any
+   other collision.
 
 ## The Wire Branch Inherits Nothing From Core
 
