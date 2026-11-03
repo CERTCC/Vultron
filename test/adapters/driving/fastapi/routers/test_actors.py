@@ -195,6 +195,136 @@ def _inbox_path(actor_id: str) -> str:
     return f"/actors/{_route_key(actor_id)}/inbox/"
 
 
+def _record_scheduled_pipelines(monkeypatch) -> list[str | None]:
+    """Replace the inbox background task with a recorder of the ids it is given.
+
+    The endpoint schedules ``run_inbox_pipeline`` only once an activity has
+    passed ingress, so a call recorded here means the activity was put on the
+    processing path.
+    """
+    scheduled: list[str | None] = []
+
+    def _record(activity, *_args, **_kwargs) -> None:
+        scheduled.append(activity.id_)
+
+    monkeypatch.setattr(actor_routes, "run_inbox_pipeline", _record)
+    return scheduled
+
+
+_PUBLISHED = "2026-01-02T03:04:05+00:00"
+
+
+@pytest.mark.spec("IE-04-001")
+@pytest.mark.parametrize(
+    ("body", "reason"),
+    [
+        pytest.param(
+            {
+                "type": "Question",
+                "id": "https://example.org/activities/two-answer-forms",
+                "published": _PUBLISHED,
+                "anyOf": [{"type": "Note", "name": "yes"}],
+                "oneOf": [{"type": "Note", "name": "no"}],
+            },
+            "mutually exclusive",
+            id="question-with-both-answer-forms",
+        ),
+        pytest.param(
+            {
+                "type": "Reject",
+                "id": "https://example.org/activities/objectless-reject",
+                "published": _PUBLISHED,
+            },
+            "SYNC-16-028",
+            id="reject-with-no-object",
+        ),
+    ],
+)
+def test_an_activity_not_in_its_types_form_is_refused_before_processing(
+    client_actors, created_actors, monkeypatch, body, reason
+):
+    """The endpoint checks each body against the form its type requires.
+
+    Both bodies name a known activity type and are valid JSON, but break a rule
+    of that type's form: a ``Question`` offers ``anyOf`` or ``oneOf``, never
+    both (AS2 §4.1), and only a genesis-replay ``Reject`` may name no object
+    (SYNC-16-028). Each is refused with 422 and never scheduled for processing.
+    """
+    scheduled = _record_scheduled_pipelines(monkeypatch)
+    actor = created_actors[0]
+    resp = client_actors.post(
+        _inbox_path(actor.id_), json={**body, "actor": actor.id_}
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, resp.text
+    assert reason in resp.text
+    assert scheduled == []
+
+
+@pytest.mark.spec("IE-04-001")
+def test_an_activity_in_its_types_form_is_scheduled_for_processing(
+    client_actors, created_actors, monkeypatch
+):
+    """The contrast case: a well-formed activity reaches the processing path."""
+    scheduled = _record_scheduled_pipelines(monkeypatch)
+    actor = created_actors[0]
+    activity = as_Create(object_=as_Note(content="hello"), actor=actor.id_)
+    resp = client_actors.post(
+        _inbox_path(actor.id_),
+        json=jsonable_encoder(activity, exclude_none=True),
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert scheduled == [activity.id_]
+
+
+@pytest.mark.spec("IE-08-001")
+@pytest.mark.parametrize("path_suffix", ["/inbox", "/inbox/"])
+def test_an_accepted_delivery_is_answered_with_an_empty_202(
+    client_actors, created_actors, path_suffix
+):
+    """A 202 carries no body: not even JSON ``null`` (IE-08-001).
+
+    Both registrations are pinned: ``/inbox`` is the address a hosted actor's
+    profile names (OX-12-009), ``/inbox/`` the documented one.
+    """
+    actor = created_actors[0]
+    activity = as_Create(object_=as_Note(content="hello"), actor=actor.id_)
+    resp = client_actors.post(
+        f"/actors/{_route_key(actor.id_)}{path_suffix}",
+        json=jsonable_encoder(activity, exclude_none=True),
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert resp.content == b""
+
+
+@pytest.mark.spec("IE-08-002")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "IE-08-002: an inbox refusal answers FastAPI's {'detail': ...} body,"
+        " not the EH-05-001 error body. Tracked by #5756."
+    ),
+)
+def test_a_refused_delivery_carries_the_error_body(
+    client_actors, created_actors
+):
+    """A refusal carries top-level ``error``, ``message`` and ``status``."""
+    actor = created_actors[0]
+    resp = client_actors.post(
+        _inbox_path(actor.id_),
+        json={
+            "type": "Bogus",
+            "id": "https://example.org/activities/bogus",
+            "actor": actor.id_,
+            "published": _PUBLISHED,
+        },
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    body = resp.json()
+    assert isinstance(body.get("error"), str)
+    assert isinstance(body.get("message"), str)
+    assert body.get("status") == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
 def _create_note_body(actor_id: str) -> str:
     activity = as_Create(object_=as_Note(content="hello"), actor=actor_id)
     return json.dumps(jsonable_encoder(activity, exclude_none=True))

@@ -20,7 +20,7 @@ Spec coverage:
 - AF-01-003: Explicit, domain-typed parameters for protocol-significant fields.
 - AF-04-001: Factory functions wrap ValidationError in
   VultronActivityConstructionError.
-- AF-04-002: All factory functions re-exported from factories/__init__.py.
+- AF-02-003: All factory functions re-exported from factories/__init__.py.
 """
 
 import json
@@ -590,11 +590,11 @@ def test_remove_embargo_from_case_invalid_raises():
 
 
 # ---------------------------------------------------------------------------
-# __init__.py re-exports (AF-04-002)
+# __init__.py re-exports (AF-02-003)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("AF-04-002")
+@pytest.mark.spec("AF-02-003")
 def test_all_embargo_factories_importable_from_package():
     from vultron.wire.as2.factories import (  # noqa: F401
         activate_embargo_activity,

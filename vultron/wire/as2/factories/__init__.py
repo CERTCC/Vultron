@@ -20,7 +20,7 @@ outbound Vultron activities.  Internal activity subclasses in
 ``vultron/wire/as2/vocab/activities/`` are implementation details used
 only inside factory functions — callers MUST NOT import them directly.
 See ``specs/activity-factories.yaml`` AF-01-001, AF-02-001 through
-AF-02-004.
+AF-02-003 and AF-04-002.
 """
 
 from vultron.wire.as2.factories._held import embedded_as_received
