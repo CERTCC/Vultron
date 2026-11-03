@@ -1155,6 +1155,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-03-008
       note: 'CK shorthand wire-type mapping'
+    stories:
+    - story_2026_006
 
 - id: CSB-09
   title: Enter CS Vendor Aware (V)
@@ -1927,6 +1929,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-06-001
       note: Once Attacks observed, new embargoes SHALL NOT be sought
+    stories:
+    - story_2026_030
 
   - id: CSB-14-004
     priority: SHOULD
@@ -1956,6 +1960,8 @@ groups:
       note: >-
         Once attacks have been observed, fix development SHOULD accelerate and
         embargo teardown process SHOULD begin
+    stories:
+    - story_2022_019
 
 - id: CSB-15
   title: Trigger-Side VFD Role Preconditions
@@ -2269,8 +2275,8 @@ groups:
     tags:
     - state-machine
     - protocol
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_022
 - id: CSB-16
   title: CS Write-Boundary Transition Validation
   description: >-
@@ -2669,9 +2675,9 @@ groups:
         therefore permits a history prefix to end in one.
     adr:
     - ADR-0060
+    stories:
+    - story_2026_022
 
-    lint_suppress:
-    - missing_story_reference
   - id: CSB-17-004
     priority: SHOULD
     kind: protocol
@@ -2712,6 +2718,8 @@ groups:
     - description: A complete valid history terminates in VFDPXA
     adr:
     - ADR-0060
+    stories:
+    - story_2026_022
 
   - id: CSB-17-005
     priority: MUST
@@ -2823,9 +2831,9 @@ groups:
       A unit test confirms that from a vP state only the V event is accepted as the
       next CS transition and all five other CS events are rejected.
     testable: true
+    stories:
+    - story_2026_022
 
-    lint_suppress:
-    - missing_story_reference
   - id: CSB-17-012
     priority: MUST
     kind: protocol
@@ -2840,9 +2848,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CSB-17-003
+    stories:
+    - story_2026_022
 
-    lint_suppress:
-    - missing_story_reference
   - id: CSB-17-013
     priority: MUST
     kind: protocol
@@ -2860,9 +2868,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CSB-17-003
+    stories:
+    - story_2026_022
 
-    lint_suppress:
-    - missing_story_reference
   - id: CSB-17-010
     priority: MUST_NOT
     kind: protocol
@@ -2963,6 +2971,8 @@ groups:
     relationships:
     - rel_type: constrains
       spec_id: CSB-16-001
+    stories:
+    - story_2026_022
   - id: CSB-18-002
     priority: MUST_NOT
     kind: protocol
@@ -2989,6 +2999,8 @@ groups:
       None is returned for all valid combined states.
     adr:
     - ADR-0166
+    stories:
+    - story_2026_030
   - id: CSB-18-003
     priority: MUST_NOT
     kind: protocol
@@ -3015,6 +3027,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CSB-18-002
+    stories:
+    - story_2026_030
   - id: CSB-18-004
     priority: MUST_NOT
     kind: protocol
@@ -3040,6 +3054,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CSB-18-002
+    stories:
+    - story_2026_030
 - id: CSB-19
   title: CS Ordering Invariants Under Out-of-Order Ledger Delivery
   description: Normative requirements for how CS ordering invariants interact
@@ -3070,8 +3086,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CSB-12-004
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_005
   - id: CSB-19-002
     priority: MUST_NOT
     kind: protocol
@@ -3088,8 +3104,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CSB-19-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_005
   - id: CSB-19-003
     priority: MUST
     kind: protocol
@@ -3115,5 +3131,5 @@ groups:
       spec_id: CSB-12-004
     - rel_type: depends_on
       spec_id: CLP-14-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_005

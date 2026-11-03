@@ -352,8 +352,8 @@ groups:
     - ADR-0121
     tags:
     - protocol
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_062
   - id: PRM-06-002
     priority: MUST_NOT
     kind: protocol
@@ -383,6 +383,8 @@ groups:
     - ADR-0114
     tags:
     - protocol
+    stories:
+    - story_2022_062
   - id: PRM-06-003
     priority: MAY
     kind: protocol
@@ -528,3 +530,5 @@ groups:
     - ADR-0121
     tags:
     - protocol
+    stories:
+    - story_2022_107

@@ -208,6 +208,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
+    stories:
+    - story_2022_014
 
   - id: EMB-01-005
     priority: SHOULD_NOT
@@ -235,6 +237,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
+    stories:
+    - story_2022_014
 
   - id: EMB-01-006
     priority: MUST
@@ -383,6 +387,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
+    stories:
+    - story_2026_030
 
   - id: EMB-02-003
     priority: SHOULD_NOT
@@ -411,6 +417,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
+    stories:
+    - story_2022_014
 
   - id: EMB-02-004
     priority: MUST
@@ -1264,6 +1272,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-008
       note: 'EE shorthand wire-type mapping'
+    stories:
+    - story_2022_039
 
 - id: EMB-09
   title: Receive EK (Embargo Acknowledgment)
@@ -1298,6 +1308,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-009
       note: 'EK shorthand wire-type mapping'
+    stories:
+    - story_2026_006
 
 - id: EMB-10
   title: Enter EM Proposed
@@ -1337,6 +1349,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-06-010
       note: Participants MAY accept or reject any proposed embargo as they see fit
+    stories:
+    - story_2022_014
 
   - id: EMB-10-002
     priority: SHOULD_NOT
@@ -1365,6 +1379,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-13-003
       note: SHOULD NOT begin EM with a proposal from a Participant in RM Invalid
+    stories:
+    - story_2022_014
 
 - id: EMB-11
   title: Enter EM Active
@@ -1396,6 +1412,8 @@ groups:
       note: >-
         SHOULD NOT share vulnerability report with newly invited Participant
         unless they accepted the embargo
+    stories:
+    - story_2022_023
 
   - id: EMB-11-002
     priority: SHOULD
@@ -1425,6 +1443,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-05-014
       note: SHOULD NOT publish information when there is an active embargo
+    stories:
+    - story_2022_023
 
   - id: EMB-11-003
     priority: MUST_NOT
@@ -1455,6 +1475,8 @@ groups:
       note: >-
         A Participant's closure or deferral SHALL NOT automatically terminate
         the embargo
+    stories:
+    - story_2022_066
 
   - id: EMB-11-004
     priority: SHOULD
@@ -1482,6 +1504,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-13-006
       note: SHOULD be held in Deferred or Invalid until embargo exits
+    stories:
+    - story_2022_066
 
   - id: EMB-11-005
     priority: SHOULD
@@ -1504,6 +1528,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-13-008
       note: Changes to adherence intention SHOULD be communicated clearly
+    stories:
+    - story_2022_015
 
 - id: EMB-12
   title: Enter EM Revise
@@ -1535,6 +1561,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-04-005
       note: Once accepted, revisions MAY be proposed, which MAY be accepted or rejected
+    stories:
+    - story_2022_014
 
   - id: EMB-12-002
     priority: MUST_NOT
@@ -1564,6 +1592,8 @@ groups:
       note: >-
         A Participant's closure or deferral SHALL NOT automatically terminate
         the embargo
+    stories:
+    - story_2022_066
 
   - id: EMB-12-003
     priority: SHOULD
@@ -1586,6 +1616,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-13-008
       note: Changes to adherence intention SHOULD be communicated clearly
+    stories:
+    - story_2022_015
 
 - id: EMB-13
   title: Enter EM Exited
@@ -1626,6 +1658,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-04-001
       note: Accepted embargoes MUST eventually terminate
+    stories:
+    - story_2026_001
 
   - id: EMB-13-003
     priority: MUST
@@ -2115,6 +2149,8 @@ groups:
       note: >-
         No new embargo once public awareness, exploit publication or attacks
         have occurred
+    stories:
+    - story_2026_030
 
 - id: EMB-14
   title: Actor-Voluntary Embargo Termination (Trigger Side)
@@ -3263,6 +3299,8 @@ groups:
       spec_id: EMB-17-003
     adr:
     - ADR-0065
+    stories:
+    - story_2026_001
   - id: EMB-17-006
     priority: MUST_NOT
     kind: protocol
@@ -3278,6 +3316,8 @@ groups:
       spec_id: EMB-17-003
     adr:
     - ADR-0065
+    stories:
+    - story_2026_001
   - id: EMB-17-004
     priority: MUST
     kind: protocol
@@ -3427,6 +3467,8 @@ groups:
       spec_id: EMB-17-004
     adr:
     - ADR-0065
+    stories:
+    - story_2026_001
   - id: EMB-17-008
     priority: MUST_NOT
     kind: protocol
@@ -3443,6 +3485,8 @@ groups:
       spec_id: EMB-17-004
     adr:
     - ADR-0065
+    stories:
+    - story_2026_001
   - id: EMB-17-009
     priority: MUST
     kind: protocol

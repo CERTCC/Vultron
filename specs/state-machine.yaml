@@ -362,6 +362,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SM-09-001
+    stories:
+    - story_2026_022
   - id: SM-09-004
     priority: MUST
     kind: protocol
@@ -452,6 +454,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-04-006
+    stories:
+    - story_2026_028
 - id: SM-11
   title: Generated Statecharts
   specs:
