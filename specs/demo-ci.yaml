@@ -80,8 +80,7 @@ groups:
           other project errors (EH-01-001).
         relationships:
           - rel_type: refines
-            spec_id: EH-01-001
-            note: error-handling.yaml
+            spec_id: EH-01-002
 
       - id: DEMOCI-01-012
         priority: MUST
@@ -109,10 +108,8 @@ groups:
           the accumulator starts. A scenario that does not reset it first can inherit
           the failure state of an earlier run.
         relationships:
-          - rel_type: refines
+          - rel_type: implements
             spec_id: DEMOCI-01-003
-          - rel_type: refines
-            spec_id: DEMOCI-01-004
 
       - id: DEMOCI-01-013
         priority: MUST
@@ -127,8 +124,8 @@ groups:
           failure accumulator. A scenario that skips the call exits without reporting
           the failures it recorded.
         relationships:
-          - rel_type: extends
-            spec_id: DEMOCI-01-006
+          - rel_type: implements
+            spec_id: DEMOCI-01-003
 
       - id: DEMOCI-01-007
         priority: MUST
@@ -146,11 +143,6 @@ groups:
         adr:
           - ADR-0058
         relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-01-003
-            note: >-
-              Constrains control flow only; the accumulation and
-              exit-code contract of DEMOCI-01-001 and DEMOCI-01-003 is unchanged.
           - rel_type: implements
             spec_id: EDF-06-005
 
@@ -217,11 +209,11 @@ groups:
           assertion is what says it must not be. So a migration that moved the
           last one would not leave it passing over an empty set.
         relationships:
-          - rel_type: refines
+          - rel_type: implements
             spec_id: DEMOCI-01-003
             note: >-
-              Constrains where raising waits may run; the accumulation and
-              exit-code contract of DEMOCI-01-001 and DEMOCI-01-003 is unchanged.
+              Running a raising wait inside a demo context is how its timeout
+              is accumulated instead of halting the scenario.
 
       - id: DEMOCI-01-014
         priority: MUST
@@ -270,7 +262,7 @@ groups:
           linting and unit-test pipeline, and lets the two workflows run at the same
           time on a PR.
         relationships:
-          - rel_type: extends
+          - rel_type: derives_from
             spec_id: DEMOCI-02-001
 
       - id: DEMOCI-02-002
@@ -507,7 +499,7 @@ groups:
           for each container puts a bound on the teardown time. It also gives a
           container that operates correctly time to write its state before SIGKILL.
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DEMOCI-02-010
 
       - id: DEMOCI-02-016
@@ -525,9 +517,6 @@ groups:
         verification: >-
           `test/ci/test_python_app_path_filter.py` asserts `uv.lock` is in both
           path filters.
-        relationships:
-          - rel_type: derives_from
-            spec_id: DEMOCI-02-004
 
       - id: DEMOCI-02-017
         priority: MUST
@@ -545,7 +534,7 @@ groups:
         verification: >-
           `test/ci/test_demo_integration_flake_guards.py::test_demo_step_has_a_bound_shorter_than_the_job_cap`.
         relationships:
-          - rel_type: refines
+          - rel_type: uses_definition
             spec_id: DEMOCI-02-009
 
       - id: DEMOCI-02-018
@@ -563,7 +552,7 @@ groups:
           `test/ci/test_demo_integration_flake_guards.py` asserts the BuildKit
           registry mirror and builder image, and that the build action has no login.
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DEMOCI-02-005
 
   - id: DEMOCI-03
@@ -595,6 +584,9 @@ groups:
           person runs the demo. The CI matrix is generated from the registry, so
           registration in the same pull request as the scenario gives the scenario a
           matrix entry when it merges.
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DEMOCI-11-001
 
       - id: DEMOCI-03-003
         priority: SHOULD
@@ -625,8 +617,6 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-03-003
-          - rel_type: refines
-            spec_id: DEMOCI-03-002
         adr:
           - ADR-0098
 
@@ -636,9 +626,9 @@ groups:
         verification_debt: '#2573'
         statement: >-
           The `demo` job of `demo-integration.yml` MUST run each matrix entry with
-          `--abort-on-container-exit --exit-code-from demo-runner`, `timeout-minutes:
-          15`, and the teardown and log-upload steps of DEMOCI-02-006, DEMOCI-02-009 and
-          DEMOCI-02-010.
+          `--abort-on-container-exit --exit-code-from demo-runner` (DEMOCI-02-006),
+          `timeout-minutes: 15` (DEMOCI-02-009), and the log-upload and teardown steps
+          of DEMOCI-02-008 and DEMOCI-02-010.
         rationale: >-
           One job definition serves every matrix entry, so each scenario gets the same
           failure signal, time limit and cleanup as `rv`. A scenario whose job differed
@@ -649,6 +639,14 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DEMOCI-03-004
+          - rel_type: refines
+            spec_id: DEMOCI-02-006
+          - rel_type: refines
+            spec_id: DEMOCI-02-008
+          - rel_type: refines
+            spec_id: DEMOCI-02-009
+          - rel_type: refines
+            spec_id: DEMOCI-02-010
 
       - id: DEMOCI-03-005
         priority: MUST
@@ -664,7 +662,7 @@ groups:
           (DEMOCI-11-004), whose `test_file` is derived from the registered scenario
           name (DEMOCI-11-003).
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DEMOCI-03-004
 
       - id: DEMOCI-03-007
@@ -701,9 +699,6 @@ groups:
           same output is easy to miss. A missing protocol phase can then stay hidden
           through many fix cycles. A separate job gives the invariant checks their own
           status, which a reviewer sees when the demo job also fails.
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-03-003
 
       - id: DEMOCI-04-002
         priority: MUST
@@ -717,7 +712,7 @@ groups:
           `needs:` on the demo job makes it start only after the demo uploads its
           artifacts.
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DEMOCI-04-001
 
       - id: DEMOCI-04-010
@@ -765,7 +760,7 @@ groups:
           the job uses the artifact from the same workflow run, the checks examine the
           demo output of that run, not an older or a local output.
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DEMOCI-04-001
 
       - id: DEMOCI-04-004
@@ -785,9 +780,6 @@ groups:
           phase (e.g. notes-exchange) regressing silently. Each scenario's
           expected-semantic-types list must reflect what that scenario is designed
           to prove end-to-end.
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-03-005
 
       - id: DEMOCI-04-005
         priority: MUST
@@ -807,9 +799,9 @@ groups:
           sufficient, because it runs the job when an upstream job was skipped
           (DEMOCI-04-006).
         relationships:
-          - rel_type: refines
+          - rel_type: constrains
             spec_id: DEMOCI-04-010
-          - rel_type: refines
+          - rel_type: uses_definition
             spec_id: DEMOCI-02-004
 
       - id: DEMOCI-04-006
@@ -855,10 +847,8 @@ groups:
           `test/ci/test_workflow_failure_notification.py` asserts the
           invariant-harness `if:` contains `needs.demo.result != 'cancelled'`.
         relationships:
-          - rel_type: refines
+          - rel_type: implements
             spec_id: DEMOCI-04-011
-          - rel_type: refines
-            spec_id: DEMOCI-02-013
           - rel_type: refines
             spec_id: CISEC-05-016
 
@@ -875,7 +865,7 @@ groups:
         verification: >-
           `test/ci/test_demo_integration_flake_guards.py::test_each_demo_attempt_uploads_its_own_case_log_artifact`.
         relationships:
-          - rel_type: refines
+          - rel_type: implements
             spec_id: DEMOCI-04-003
 
       - id: DEMOCI-04-009
@@ -892,7 +882,7 @@ groups:
           `test/ci/test_demo_integration_flake_guards.py::test_harness_picks_the_latest_demo_attempt_at_or_before_its_own`
           runs the harness step against a fake `gh`.
         relationships:
-          - rel_type: refines
+          - rel_type: depends_on
             spec_id: DEMOCI-04-008
 
   - id: DEMOCI-05
@@ -917,6 +907,8 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-02-002
+          - rel_type: uses_definition
+            spec_id: DEMOCI-02-003
 
       - id: DEMOCI-05-002
         priority: MUST
@@ -938,10 +930,10 @@ groups:
         adr:
           - ADR-0052
         relationships:
-          - rel_type: refines
+          - rel_type: supersedes
             spec_id: DEMOCI-05-001
-          - rel_type: refines
-            spec_id: DEMOCI-02-011
+          - rel_type: uses_definition
+            spec_id: DEMOCI-02-014
 
       - id: DEMOCI-05-004
         priority: MUST
@@ -955,7 +947,7 @@ groups:
           need not be repeated on the push path. The trigger still must not run a
           Dependabot change that the PR path would refuse.
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DEMOCI-05-001
 
       - id: DEMOCI-05-005
@@ -971,7 +963,7 @@ groups:
           `github.head_ref` can skip the on-main run with no error. Then main has no
           demo result at all.
         relationships:
-          - rel_type: extends
+          - rel_type: constrains
             spec_id: DEMOCI-05-004
 
   - id: DEMOCI-06
@@ -992,11 +984,6 @@ groups:
           were often copied from simpler scenarios and may under-report what a
           scenario actually exercises. A complete per-scenario coverage matrix
           is prerequisite to designing a minimum PR validation set.
-        relationships:
-          - rel_type: implements
-            spec_id: DEMOCI-03-001
-          - rel_type: refines
-            spec_id: DEMOCI-04-004
 
       - id: DEMOCI-06-005
         priority: MUST
@@ -1066,8 +1053,10 @@ groups:
         adr:
           - ADR-0052
         relationships:
-          - rel_type: refines
+          - rel_type: derives_from
             spec_id: DEMOCI-06-001
+          - rel_type: uses_definition
+            spec_id: DEMOMA-16-001
 
       - id: DEMOCI-06-003
         priority: MUST
@@ -1084,8 +1073,6 @@ groups:
           scenarios, so every scenario variant keeps giving a case-log invariant signal
           on the default branch, after its phases leave the PR validation set.
         relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-06-002
           - rel_type: refines
             spec_id: DEMOCI-05-001
 
@@ -1112,9 +1099,9 @@ groups:
           different. `actionlint` finds the illegal context reference in CI and in
           pre-commit (DEMOCI-08-001).
         relationships:
-          - rel_type: refines
+          - rel_type: implements
             spec_id: DEMOCI-06-002
-          - rel_type: refines
+          - rel_type: implements
             spec_id: DEMOCI-06-003
 
       - id: DEMOCI-06-007
@@ -1193,9 +1180,11 @@ groups:
           generated copy.
         relationships:
           - rel_type: refines
-            spec_id: DEMOCI-04-001
-          - rel_type: refines
             spec_id: DEMOMA-20-005
+          - rel_type: uses_definition
+            spec_id: DEMOCI-11-001
+          - rel_type: uses_definition
+            spec_id: DEMOCI-11-021
 
       - id: DEMOCI-07-004
         priority: MUST
@@ -1250,9 +1239,11 @@ groups:
           archaeology easier.
         relationships:
           - rel_type: refines
-            spec_id: DEMOCI-04-001
-          - rel_type: refines
             spec_id: DEMOMA-21-006
+          - rel_type: uses_definition
+            spec_id: DEMOCI-11-001
+          - rel_type: uses_definition
+            spec_id: DEMOCI-11-021
 
       - id: DEMOCI-07-006
         priority: MUST
@@ -1305,12 +1296,10 @@ groups:
           `notes/demo-ci-scenario-coverage.md` is where that membership is
           checked against the harness semantic-type constants.
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DEMOCI-06-001
-          - rel_type: refines
+          - rel_type: uses_definition
             spec_id: DEMOCI-06-002
-          - rel_type: refines
-            spec_id: DEMOCI-06-003
 
       - id: DEMOCI-07-008
         priority: SHOULD
@@ -1341,6 +1330,9 @@ groups:
           No scenario other than `rcv-embargo` and `rcvv-embargo` commits an
           embargo semantic type, so a minimum PR set without them leaves the
           embargo lifecycle unexercised on PRs.
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DEMOCI-06-002
 
       - id: DEMOCI-07-010
         priority: SHOULD
@@ -1380,9 +1372,6 @@ groups:
           Pinning by version and checksum keeps CI reproducible and prevents a
           retagged or compromised upstream release from silently altering what
           executes in the pipeline.
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-06-004
 
       - id: DEMOCI-08-003
         priority: MUST
@@ -1455,10 +1444,8 @@ groups:
           that caused it. This check finds an empty array in the change that caused it,
           before any demo runs.
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DEMOCI-08-001
-          - rel_type: refines
-            spec_id: DEMOCI-06-004
 
       - id: DEMOCI-08-007
         priority: MUST
@@ -1538,9 +1525,6 @@ groups:
           `fix/demo-ci`), the full demo suite must run against that branch without a
           dummy PR to `main`. A `workflow_dispatch` `ref` input starts that run with one
           click in the GitHub UI.
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-05-001
 
       - id: DEMOCI-09-003
         priority: MUST
@@ -1571,9 +1555,6 @@ groups:
           Stale branch entries in trigger arrays are dead configuration: the branch no
           longer exists, so the entries neither fire nor document anything. They can
           confuse a future maintainer about which branches are real targets.
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-09-001
 
       - id: DEMOCI-09-004
         priority: MUST
@@ -1607,9 +1588,6 @@ groups:
           exception that leaves a scenario is a serious failure, and those runs need the
           ledgers most. A dump placed only after the last phase is skipped by such an
           exception, and the run uploads no ledger when it is most necessary.
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-04-001
 
       - id: DEMOCI-10-002
         priority: MUST
@@ -1625,7 +1603,7 @@ groups:
           which actors were missing and why. The invariant harness can then report a
           real result instead of a download error.
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DEMOCI-10-001
 
       - id: DEMOCI-10-015
@@ -1675,9 +1653,7 @@ groups:
           manifest shows which of the two cases applies. Without this rule, the harness
           can pass for a scenario that wrote no ledger.
         relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-04-001
-          - rel_type: implements
+          - rel_type: uses_definition
             spec_id: DEMOCI-10-002
 
       - id: DEMOCI-10-008
@@ -1725,7 +1701,7 @@ groups:
           run keeps its artifacts but loses the cause of the failure. The cause is the
           information that the dump on the failure path is there to keep.
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DEMOCI-10-001
 
       - id: DEMOCI-10-010
@@ -1768,9 +1744,6 @@ groups:
           `pytest.skip()` in a fixture, and every test in the file skips. By default,
           pytest then exits with zero, and CI shows the invariant job as passed although
           it checked no invariant.
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-10-003
 
       - id: DEMOCI-10-017
         priority: MUST
@@ -1811,10 +1784,8 @@ groups:
           image build covers a failed build too, so every attempt uploads its own
           artifact (DEMOCI-04-008).
         relationships:
-          - rel_type: refines
+          - rel_type: uses_definition
             spec_id: DEMOCI-10-002
-          - rel_type: refines
-            spec_id: DEMOCI-10-003
 
       - id: DEMOCI-10-012
         priority: MUST
@@ -1832,6 +1803,11 @@ groups:
           The sentinel must be schema-conformant so the invariant-harness job
           can parse and interpret it via the manifest-without-ledgers path
           (DEMOCI-10-003).
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DEMOCI-10-015
+          - rel_type: uses_definition
+            spec_id: DEMOCI-10-016
 
       - id: DEMOCI-10-013
         priority: MUST
@@ -1863,7 +1839,7 @@ groups:
           mismatches that are not real. DEMOCI-10-015 makes the manifest record
           `caseId`, so `load_devlogs()` can keep only the entries of this run.
         relationships:
-          - rel_type: depends_on
+          - rel_type: uses_definition
             spec_id: DEMOCI-10-015
 
       - id: DEMOCI-10-014
@@ -1889,7 +1865,7 @@ groups:
           and `test_missing_ledgers_for_an_existing_case_stay_a_real_invariant_failure`
           each assert the layer that the message names.
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DEMOCI-10-003
 
       - id: DEMOCI-10-018
@@ -1948,7 +1924,7 @@ groups:
         verification: >-
           `test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling::test_missing_ledgers_for_an_existing_case_stay_a_real_invariant_failure`.
         relationships:
-          - rel_type: refines
+          - rel_type: constrains
             spec_id: DEMOCI-10-014
 
   - id: DEMOCI-11
@@ -2020,6 +1996,8 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DEMOCI-11-001
+          - rel_type: derives_from
+            spec_id: DEMOCI-11-010
 
       - id: DEMOCI-11-002
         priority: MUST
@@ -2038,7 +2016,7 @@ groups:
         adr:
           - ADR-0098
         relationships:
-          - rel_type: refines
+          - rel_type: depends_on
             spec_id: DEMOCI-11-001
 
       - id: DEMOCI-11-038
@@ -2081,9 +2059,6 @@ groups:
           on disk.
         adr:
           - ADR-0098
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-11-001
 
       - id: DEMOCI-11-004
         priority: MUST
@@ -2101,10 +2076,8 @@ groups:
         adr:
           - ADR-0098
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DEMOCI-06-007
-          - rel_type: refines
-            spec_id: DEMOCI-06-004
 
       - id: DEMOCI-11-039
         priority: MUST
@@ -2176,7 +2149,7 @@ groups:
         adr:
           - ADR-0098
         relationships:
-          - rel_type: refines
+          - rel_type: constrains
             spec_id: DEMOCI-11-004
 
       - id: DEMOCI-11-006
@@ -2219,6 +2192,8 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DEMOCI-11-006
+          - rel_type: uses_definition
+            spec_id: DEMOCI-11-007
 
       - id: DEMOCI-11-007
         priority: MUST
@@ -2250,9 +2225,6 @@ groups:
           scenario narrative page.
         adr:
           - ADR-0098
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-11-001
 
       - id: DEMOCI-11-008
         priority: MUST_NOT
@@ -2269,9 +2241,6 @@ groups:
           scenario count in prose.
         adr:
           - ADR-0098
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-11-007
 
       - id: DEMOCI-11-009
         priority: MUST
@@ -2301,9 +2270,6 @@ groups:
           and the `use_directory_urls` setting it depends on.
         adr:
           - ADR-0098
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-11-001
 
       - id: DEMOCI-11-010
         priority: MUST
@@ -2327,11 +2293,6 @@ groups:
           (`test/metadata/test_demo_scenario_consistency.py::test_partition_holds_on_the_committed_tree`).
         adr:
           - ADR-0098
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-11-001
-          - rel_type: refines
-            spec_id: DEMOCI-11-007
 
       - id: DEMOCI-11-043
         priority: MUST
@@ -2371,9 +2332,7 @@ groups:
         adr:
           - ADR-0098
         relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-11-001
-          - rel_type: refines
+          - rel_type: implements
             spec_id: DC-01-002
 
       - id: DEMOCI-11-044
@@ -2440,8 +2399,6 @@ groups:
           - ADR-0098
           - ADR-0106
         relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-11-007
           - rel_type: derives_from
             spec_id: MS-16-002
 
@@ -2492,9 +2449,6 @@ groups:
         adr:
           - ADR-0098
           - ADR-0104
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-11-001
 
       - id: DEMOCI-11-047
         priority: MUST
@@ -2577,7 +2531,7 @@ groups:
           - ADR-0098
           - ADR-0104
         relationships:
-          - rel_type: extends
+          - rel_type: derives_from
             spec_id: DEMOCI-11-013
 
       - id: DEMOCI-11-014
@@ -2602,9 +2556,7 @@ groups:
         adr:
           - ADR-0098
         relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-11-001
-          - rel_type: depends_on
+          - rel_type: uses_definition
             spec_id: DEMOCI-11-013
 
       - id: DEMOCI-11-022
@@ -2619,9 +2571,6 @@ groups:
           validated).
         adr:
           - ADR-0098
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-11-014
 
       - id: DEMOCI-11-023
         priority: MUST
@@ -2643,9 +2592,9 @@ groups:
         adr:
           - ADR-0098
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DEMOCI-11-014
-          - rel_type: depends_on
+          - rel_type: uses_definition
             spec_id: DEMOCI-11-013
 
       - id: DEMOCI-11-015
@@ -2667,9 +2616,6 @@ groups:
         adr:
           - ADR-0098
           - ADR-0078
-        relationships:
-          - rel_type: depends_on
-            spec_id: DEMOCI-11-014
 
       - id: DEMOCI-11-051
         priority: SHOULD_NOT
@@ -2809,6 +2755,10 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-017
+          - rel_type: depends_on
+            spec_id: DEMOCI-11-020
+          - rel_type: depends_on
+            spec_id: DEMOCI-11-025
 
       - id: DEMOCI-11-034
         priority: MUST
@@ -2875,7 +2825,7 @@ groups:
         adr:
           - ADR-0098
         relationships:
-          - rel_type: refines
+          - rel_type: implements
             spec_id: DEMOCI-11-014
 
       - id: DEMOCI-11-024
@@ -2898,7 +2848,7 @@ groups:
         adr:
           - ADR-0098
         relationships:
-          - rel_type: refines
+          - rel_type: derives_from
             spec_id: DEMOCI-11-019
 
       - id: DEMOCI-11-020
@@ -2917,9 +2867,6 @@ groups:
           member to the same container slot, port and actor id.
         adr:
           - ADR-0098
-        relationships:
-          - rel_type: depends_on
-            spec_id: DEMOCI-11-018
 
       - id: DEMOCI-11-025
         priority: MUST
@@ -2936,9 +2883,6 @@ groups:
           seed.
         adr:
           - ADR-0098
-        relationships:
-          - rel_type: depends_on
-            spec_id: DEMOCI-11-018
 
       - id: DEMOCI-11-026
         priority: MUST_NOT
@@ -2961,7 +2905,7 @@ groups:
         adr:
           - ADR-0098
         relationships:
-          - rel_type: refines
+          - rel_type: uses_definition
             spec_id: DEMOCI-11-021
 
       - id: DEMOCI-11-027
@@ -2980,7 +2924,7 @@ groups:
         adr:
           - ADR-0098
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DEMOCI-11-020
 
       - id: DEMOCI-11-028
@@ -3000,7 +2944,7 @@ groups:
         adr:
           - ADR-0098
         relationships:
-          - rel_type: refines
+          - rel_type: uses_definition
             spec_id: DEMOCI-11-020
 
       - id: DEMOCI-11-029
@@ -3019,7 +2963,7 @@ groups:
         adr:
           - ADR-0098
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DEMOCI-11-028
 
       - id: DEMOCI-11-030
@@ -3037,7 +2981,7 @@ groups:
         adr:
           - ADR-0098
         relationships:
-          - rel_type: refines
+          - rel_type: uses_definition
             spec_id: DEMOCI-11-020
 
       - id: DEMOCI-11-031
@@ -3056,7 +3000,7 @@ groups:
         adr:
           - ADR-0098
         relationships:
-          - rel_type: refines
+          - rel_type: uses_definition
             spec_id: DEMOCI-11-020
 
       - id: DEMOCI-11-032
@@ -3078,7 +3022,7 @@ groups:
         adr:
           - ADR-0098
         relationships:
-          - rel_type: refines
+          - rel_type: uses_definition
             spec_id: DEMOCI-11-021
 
       - id: DEMOCI-11-033
@@ -3100,9 +3044,6 @@ groups:
           container.
         adr:
           - ADR-0098
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-11-021
 
       - id: DEMOCI-11-021
         priority: MUST
@@ -3126,5 +3067,5 @@ groups:
         adr:
           - ADR-0098
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DEMOCI-11-020
