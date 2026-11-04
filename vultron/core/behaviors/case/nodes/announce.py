@@ -171,7 +171,7 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
                 self.case_id,
                 self._request.actor_id,
             )
-            self._replace(existing)
+            self._replace()
             return Status.SUCCESS
 
         try:
@@ -215,7 +215,7 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
             )
             return Status.FAILURE
 
-    def _replace(self, held: object) -> None:
+    def _replace(self) -> None:
         """Replace the held case with the copy, as one transaction.
 
         The participants, reports and the case at the copy's ledger position
@@ -234,15 +234,22 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
         entries keep their place over the copy's (EP-09-007), and only the
         proposals the copy's register leaves undecided stay (EP-08-003), so
         the index ends the same whether the copy or a relayed Invite came
-        first (SYNC-19-001).
+        first (SYNC-19-001).  The held case is read inside the transaction,
+        so the entries kept are the ones it is replacing.
+
+        Raises:
+            VultronValidationError: the record held under the case id is not
+                a ``VulnerabilityCase``, so there is no held index to keep.
         """
         assert self.datalayer is not None
         with self.datalayer.transaction():
-            held_index = (
-                held.pending_embargo_proposal_index
-                if isinstance(held, VulnerabilityCase)
-                else {}
-            )
+            held = self.datalayer.read(self.case_id)
+            if not isinstance(held, VulnerabilityCase):
+                raise VultronValidationError(
+                    f"'{self.case_id}' holds a {type(held).__name__}, not a"
+                    " VulnerabilityCase this copy can replace"
+                )
+            held_index = held.pending_embargo_proposal_index
             _store_embedded_reports(self.case_obj, self.datalayer)
             store_embedded_participants(
                 self.case_obj,

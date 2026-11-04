@@ -34,25 +34,39 @@ from test.support.embargo_register import activate, propose
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import case_file_differences
 from test.support.relayed_invite import (
+    COORD,
     INVITEE,
     answers_in_outbox,
     deliver_relayed_invite,
     seed_invitee_case,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
     read_sealed_body_dict,
 )
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.services.held_ledger_announces import held_ledger_announces
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
+from vultron.core.use_cases.received.embargo import (
+    InviteToEmbargoOnCaseReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     announce_embargo_activity,
+    em_propose_embargo_activity,
     remove_embargo_from_case_activity,
     rm_close_case_activity,
 )
@@ -301,6 +315,97 @@ def test_late_relayed_invite_leaves_the_same_proposal_index(
     # A decided proposal is not pending (EP-08-003), in either order.
     assert indexes[True] == {}
     assert indexes[True] == indexes[False]
+
+
+def _deliver(
+    dl: SqliteDataLayer, invite: Any, make_payload: Any
+) -> HandlerResult:
+    """Deliver one relayed *invite* to ``INVITEE``, as often as called."""
+    return InviteToEmbargoOnCaseReceivedUseCase(
+        dl,
+        make_payload(invite, receiving_actor_id=INVITEE),
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute()
+
+
+@pytest.mark.spec("ID-04-004")
+@pytest.mark.spec("SYNC-19-001")
+@pytest.mark.parametrize("invite_first", [True, False])
+def test_a_redelivered_relayed_invite_is_answered_once(
+    make_payload, invite_first: bool
+) -> None:
+    """One Invite, delivered twice around its decision, gets one Accept.
+
+    In one order the ACTIVATE step takes the Invite out of the proposal
+    index after it was answered; in the other the Invite arrives after the
+    decision and is never indexed.  Either way the index cannot latch the
+    redelivery, so the answer itself does (ID-04-004).
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=INVITEE)
+    case, embargo = seed_invitee_case(
+        dl,
+        f"https://example.org/cases/redelivered-{invite_first}",
+        em_state=EM.NONE,
+        roles=[CVDRole.VENDOR],
+        proposal_days=10,
+        policy_days=30,
+    )
+    invite = em_propose_embargo_activity(
+        embargo=embargo, context=case.id_, actor=COORD, to=[INVITEE]
+    )
+    if invite_first:
+        first = _deliver(dl, invite, make_payload)
+        _apply_decision(dl, case.id_, embargo.id_)
+    else:
+        _apply_decision(dl, case.id_, embargo.id_)
+        first = _deliver(dl, invite, make_payload)
+    stored = dl.read_case(case.id_)
+    assert stored is not None
+    assert stored.pending_embargo_proposal_index == {}
+
+    again = _deliver(dl, invite, make_payload)
+
+    assert first.disposition is HandlerDisposition.APPLIED
+    assert again.disposition is HandlerDisposition.SKIPPED
+    assert answers_in_outbox(dl, INVITEE) == ["Accept"]
+    dl.close()
+
+
+@pytest.mark.spec("ID-04-004")
+@pytest.mark.spec("CM-18-003")
+def test_an_invite_redelivered_after_a_changed_answer_sends_no_accept(
+    make_payload,
+) -> None:
+    """Accept, then the invitee's own Reject, then the Invite again: no Accept.
+
+    The redelivery is a repeat of an Invite already answered, so it neither
+    restores the first answer nor queues another.
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=INVITEE)
+    case, embargo = seed_invitee_case(
+        dl,
+        "https://example.org/cases/redelivered-after-reject",
+        em_state=EM.NONE,
+        roles=[CVDRole.VENDOR],
+        proposal_days=10,
+        policy_days=30,
+    )
+    invite = em_propose_embargo_activity(
+        embargo=embargo, context=case.id_, actor=COORD, to=[INVITEE]
+    )
+    _deliver(dl, invite, make_payload)
+    reject_id, _ = TriggerActivityAdapter(dl).reject_embargo(
+        proposal_id=invite.id_, case_id=case.id_, actor=INVITEE, to=[COORD]
+    )
+    dl.outbox_append(reject_id)
+
+    again = _deliver(dl, invite, make_payload)
+
+    assert again.disposition is HandlerDisposition.SKIPPED
+    assert answers_in_outbox(dl, INVITEE) == ["Accept", "Reject"]
+    dl.close()
 
 
 @pytest.mark.xfail(

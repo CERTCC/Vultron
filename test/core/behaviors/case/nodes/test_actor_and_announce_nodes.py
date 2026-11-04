@@ -848,21 +848,30 @@ class TestSeedAnnouncedCaseNode:
         }
 
     @pytest.mark.spec("EP-08-003")
-    def test_a_copy_drops_an_index_entry_its_register_decided(
+    @pytest.mark.spec("EP-09-007")
+    def test_a_copy_keeps_the_union_of_both_indexes_less_the_decided(
         self, bridge, dl, case
     ) -> None:
-        """An entry the copy's register has decided does not survive it."""
-        embargo = EmbargoEvent(
+        """The held and copied entries merge; a decided proposal leaves.
+
+        The copy brings an open entry the replica lacks, the replica holds
+        one for an embargo the copy's register does not record yet, and one
+        for a proposal the copy's register has activated.
+        """
+        decided = EmbargoEvent(
             id_=f"{CASE_ID2}/embargo_events/decided",
             context=CASE_ID2,
             end_time=days_from_now_utc(45),
         )
+        copied = f"{CASE_ID2}/embargo_events/copied"
+        unrecorded = f"{CASE_ID2}/embargo_events/unrecorded"
         dl.create(
             _owned(case).model_copy(
                 update={
-                    "embargo_register": register(proposed=[embargo]),
+                    "embargo_register": register(proposed=[decided]),
                     "pending_embargo_proposal_index": {
-                        embargo.id_: "urn:relayed-invite"
+                        decided.id_: "urn:relayed-decided",
+                        unrecorded: "urn:relayed-unrecorded",
                     },
                 }
             )
@@ -871,13 +880,77 @@ class TestSeedAnnouncedCaseNode:
         self._replace_with(
             bridge,
             _owned(case).model_copy(
-                update={"embargo_register": register(active=embargo)}
+                update={
+                    "embargo_register": register(
+                        active=decided, proposed=[copied]
+                    ),
+                    "pending_embargo_proposal_index": {
+                        copied: "urn:manager-copied"
+                    },
+                }
+            ),
+        )
+
+        stored = dl.read_case(CASE_ID2)
+        assert stored is not None
+        assert stored.pending_embargo_proposal_index == {
+            copied: "urn:manager-copied",
+            unrecorded: "urn:relayed-unrecorded",
+        }
+
+    @pytest.mark.spec("EP-08-003")
+    @pytest.mark.spec("EP-08-004")
+    def test_a_copy_whose_embargo_terminated_drops_every_index_entry(
+        self, bridge, dl, case
+    ) -> None:
+        """Nothing is proposed once an embargo terminated, recorded or not."""
+        ended = EmbargoEvent(
+            id_=f"{CASE_ID2}/embargo_events/ended",
+            context=CASE_ID2,
+            end_time=days_from_now_utc(45),
+        )
+        dl.create(
+            _owned(case).model_copy(
+                update={
+                    "pending_embargo_proposal_index": {
+                        f"{CASE_ID2}/embargo_events/unrecorded": "urn:relayed"
+                    },
+                }
+            )
+        )
+
+        self._replace_with(
+            bridge,
+            _owned(case).model_copy(
+                update={"embargo_register": register(terminated=ended)}
             ),
         )
 
         stored = dl.read_case(CASE_ID2)
         assert stored is not None
         assert stored.pending_embargo_proposal_index == {}
+
+    def test_a_record_under_the_case_id_that_is_no_case_is_not_replaced(
+        self, bridge, dl, case
+    ) -> None:
+        """The replacement raises rather than keep an empty index."""
+        copy = _owned(case)
+        dl.create(
+            CaseParticipant(
+                id_=CASE_ID2, attributed_to=ACTOR_ID, context=CASE_ID2
+            )
+        )
+        event = _announce_event_for(copy)
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2, case_obj=copy, request=event
+        )
+
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
+
+        assert result.status == Status.FAILURE
+        assert not isinstance(dl.read(CASE_ID2), as_VulnerabilityCase)
 
     @pytest.mark.spec("EMB-18-003")
     def test_stores_the_inline_embargo_the_case_names(

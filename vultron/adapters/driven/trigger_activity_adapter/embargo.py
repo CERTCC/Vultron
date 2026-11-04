@@ -19,7 +19,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, cast
 
-from vultron.adapters.outbox_sealed_body import requeue_if_sealed
+from vultron.adapters.outbox_sealed_body import is_sealed, requeue_if_sealed
 from vultron.adapters.received_archive import read_held_as_received
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.embargo_termination import TerminationCause
@@ -53,6 +53,11 @@ def _attribution(attributed_to: str | None) -> dict[str, str]:
     the CASE_MANAGER decides on its own names nobody else.
     """
     return {} if attributed_to is None else {"attributed_to": attributed_to}
+
+
+def _accept_id(actor: str, proposal_id: str) -> str:
+    """The id of *actor*'s automatic ``Accept`` of the Invite *proposal_id*."""
+    return derived_activity_id("embargo-accept", actor, proposal_id)
 
 
 def _reject_id(actor: str, proposal_id: str) -> str:
@@ -115,6 +120,8 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        derived_id: bool = False,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(Invite)`` embargo-accept activity.
 
@@ -122,6 +129,16 @@ class _EmbargoMixin:
         (:func:`read_held_as_received`): parsed from the body intake archived
         when it was received, never re-read under the id its sender chose
         (DL-06-006), and embedded verbatim (DL-06-004).
+
+        With *derived_id* the id is derived from *actor* and the Invite, as
+        a ``Reject``'s is, so the automatic answer to one received Invite is
+        one activity (ID-04-004) and :meth:`answered_embargo_invite` can tell
+        it was sent.  A second build under that id returns the first one's
+        sealed body (:func:`_create_and_seal`).  Without it the factory mints
+        an id: a deliberate answer is a new activity, so an ``Accept`` after
+        the actor's own ``Reject`` reaches the CASE_MANAGER as a changed
+        answer rather than as a redelivery of an earlier ``Accept``
+        (CM-18-003, IE-10-001).
         """
         proposal = cast(
             Any,
@@ -129,8 +146,11 @@ class _EmbargoMixin:
                 self._dl, proposal_id, "Invite(EmbargoEvent)"
             ),
         )
+        optional = (
+            {"id_": _accept_id(actor, proposal_id)} if derived_id else {}
+        )
         activity = em_accept_embargo_activity(
-            proposal=proposal, context=case_id, actor=actor, to=to
+            proposal=proposal, context=case_id, actor=actor, to=to, **optional
         )
         return _create_and_seal(self._dl, activity, "accept_embargo")
 
@@ -268,6 +288,18 @@ class _EmbargoMixin:
         refusal (ID-04-005).  A ``Reject`` still pending is left alone.
         """
         return requeue_if_sealed(self._dl, _reject_id(actor, proposal_id))
+
+    def answered_embargo_invite(self, actor: str, proposal_id: str) -> bool:
+        """Whether *actor* already answered the Invite *proposal_id*.
+
+        Read-only: true when this store holds the sealed body of *actor*'s
+        derived ``Accept`` or ``Reject`` of the Invite.  The received tree
+        seals and queues its answer in one act (ADR-0146), so a sealed answer
+        there is a queued one; nothing is requeued here.
+        """
+        return is_sealed(self._dl, _accept_id(actor, proposal_id)) or (
+            is_sealed(self._dl, _reject_id(actor, proposal_id))
+        )
 
     def announce_embargo(
         self,
