@@ -840,47 +840,47 @@ class TestResolveIssueNumber:
     """Unit tests for _resolve_issue_number (HM-08-001, HM-08-003)."""
 
     def test_issue_prefix_resolves(self) -> None:
-        from vultron.metadata.history.cli import _resolve_issue_number
+        from vultron.metadata.history.cli.github import _resolve_issue_number
 
         assert _resolve_issue_number("ISSUE-2159") == 2159
 
     def test_issue_prefix_case_insensitive(self) -> None:
-        from vultron.metadata.history.cli import _resolve_issue_number
+        from vultron.metadata.history.cli.github import _resolve_issue_number
 
         assert _resolve_issue_number("issue-42") == 42
 
     def test_bare_integer_resolves(self) -> None:
-        from vultron.metadata.history.cli import _resolve_issue_number
+        from vultron.metadata.history.cli.github import _resolve_issue_number
 
         assert _resolve_issue_number("123") == 123
 
     def test_idea_source_returns_none(self) -> None:
-        from vultron.metadata.history.cli import _resolve_issue_number
+        from vultron.metadata.history.cli.github import _resolve_issue_number
 
         assert _resolve_issue_number("IDEA-26042702") is None
 
     def test_task_source_returns_none(self) -> None:
-        from vultron.metadata.history.cli import _resolve_issue_number
+        from vultron.metadata.history.cli.github import _resolve_issue_number
 
         assert _resolve_issue_number("TASK-BTND5") is None
 
     def test_zero_returns_none(self) -> None:
-        from vultron.metadata.history.cli import _resolve_issue_number
+        from vultron.metadata.history.cli.github import _resolve_issue_number
 
         assert _resolve_issue_number("0") is None
 
     def test_negative_returns_none(self) -> None:
-        from vultron.metadata.history.cli import _resolve_issue_number
+        from vultron.metadata.history.cli.github import _resolve_issue_number
 
         assert _resolve_issue_number("-1") is None
 
     def test_empty_string_returns_none(self) -> None:
-        from vultron.metadata.history.cli import _resolve_issue_number
+        from vultron.metadata.history.cli.github import _resolve_issue_number
 
         assert _resolve_issue_number("") is None
 
     def test_alphanumeric_source_returns_none(self) -> None:
-        from vultron.metadata.history.cli import _resolve_issue_number
+        from vultron.metadata.history.cli.github import _resolve_issue_number
 
         assert _resolve_issue_number("CONCERN-507") is None
 
@@ -907,7 +907,7 @@ class TestGitHubCommentMode:
         mock_result.stderr = gh_stderr
 
         with patch(
-            "vultron.metadata.history.cli.subprocess.run",
+            "vultron.metadata.history.cli.github.subprocess.run",
             return_value=mock_result,
         ):
             return _run_append(
@@ -989,7 +989,7 @@ class TestGitHubCommentMode:
         mock_result.stderr = ""
 
         with patch(
-            "vultron.metadata.history.cli.subprocess.run",
+            "vultron.metadata.history.cli.github.subprocess.run",
             return_value=mock_result,
         ) as mock_run:
             _run_append(

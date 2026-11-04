@@ -942,8 +942,8 @@ groups:
       because contributors still need them and other pages link to them.
     verification: >-
       `uv run docs-frontmatter` fails when a page matched by `WORKING_RECORD_PATTERNS`
-      (`vultron/metadata/docs/page_schema.py`) is listed in the `mkdocs.yml` nav or matched
-      by no `not_in_nav` pattern, and
+      (`vultron/metadata/docs/page_schema/working_record.py`) is listed in the
+      `mkdocs.yml` nav or matched by no `not_in_nav` pattern, and
       `test/metadata/docs/test_working_record_routing.py` fails when a working-record page
       is not reached by following links from `docs/about/project_record.md`.
   - id: DF-11-012
@@ -2141,7 +2141,7 @@ groups:
       the catalog page that holds a requirement.
     verification: >-
       Inspection confirms that `CATALOG_PAGES` in
-      `vultron/metadata/docs/requirement_catalog.py` is the only declaration of where
+      `vultron/metadata/docs/requirement_catalog/pages.py` is the only declaration of where
       each requirement file renders, and that no requirement file carries a placement
       field.
     tracking_issue: '#4895'
