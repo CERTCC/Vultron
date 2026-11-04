@@ -82,7 +82,7 @@ groups:
     adr:
     - ADR-0082
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: VM-01-004
   - id: VM-01-009
     priority: MUST
@@ -153,9 +153,6 @@ groups:
     relationships:
     - rel_type: verifies
       spec_id: VM-01-001
-    - rel_type: depends_on
-      spec_id: VM-03-002
-      note: The `Literal` annotation is what makes "distinct wire type" declarable rather than inferred.
   - id: VM-01-010
     priority: MUST
     kind: project
@@ -207,12 +204,9 @@ groups:
       them, since registration is an import side effect (VM-01-005) and the assertions would
       otherwise pass vacuously.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: VM-03-001
       note: The class-name fallback must match the value `set_type_from_class_name` assigns.
-    - rel_type: depends_on
-      spec_id: VM-01-005
-      note: Import-time registration is why the verification must force population first.
   - id: VM-01-012
     priority: MUST_NOT
     kind: project
@@ -325,7 +319,7 @@ groups:
       confirms that `@context` is accepted via the explicit alias, and inspection of `vultron/wire/as2/vocab/base/base.py`
       confirms the `validation_alias` and `serialization_alias` declarations.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: VM-02-001
   - id: VM-02-003
     priority: MUST
@@ -385,10 +379,12 @@ groups:
       declares that value as a `Literal` — the per-class form of the hierarchy-wide
       invariant VM-01-007 verifies.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: VM-03-001
-    - rel_type: refines
+    - rel_type: implements
       spec_id: VM-01-001
+    - rel_type: uses_definition
+      spec_id: VM-01-011
   - id: VM-03-004
     priority: MUST_NOT
     kind: project
@@ -497,6 +493,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: VM-05-001
+    - rel_type: refines
+      spec_id: ARCH-25-003
     adr:
     - ADR-0099
   - id: VM-05-005
@@ -550,7 +548,7 @@ groups:
     verification: Integration tests in `test/adapters/driven/test_sqlite_rehydration.py` confirm that `rehydrate()` is
       called before semantic extraction, expanding nested URI strings into fully typed objects retrieved from the DataLayer.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: SE-01-002
       note: semantic-extraction.md
   - id: VM-06-002
@@ -607,9 +605,6 @@ groups:
       `test/wire/as2/test_rehydration_materialisation.py` confirms that `rehydrate()`
       keeps an unresolved nested `object` URI, names it in a DEBUG record, logs no
       WARNING, and raises nothing.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-25-029
   - id: VM-06-005
     priority: MUST
     kind: project
@@ -754,7 +749,7 @@ groups:
       class for an
       inbound object whose `type` is registered only there.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: MV-04-004
     adr:
     - ADR-0090
@@ -773,7 +768,7 @@ groups:
       that the default lookup refuses every core-only name, and that a lookup with
       `include_core=True` still finds them.
     relationships:
-    - rel_type: constrains
+    - rel_type: uses_definition
       spec_id: ARCH-12-010
       note: ARCH-12-010's registration duty stands; what changes is which callers reach the map it fills.
     adr:
@@ -795,7 +790,7 @@ groups:
       `vultron/adapters/driven/datalayer_sqlite/hydration/coercion.py` pass
       `include_core=True`.
     relationships:
-    - rel_type: implements
+    - rel_type: extends
       spec_id: VM-06-013
     adr:
     - ADR-0090
@@ -832,7 +827,7 @@ groups:
       `name`, `summary`, `content` or `mediaType` is refused, and no serialized
       example activity holds an empty string.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: VM-07-001
   - id: VM-07-002
     priority: MUST
@@ -881,9 +876,6 @@ groups:
       `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py` confirms that subtype-specific fields are
       preserved in serialized wire output when `serialize_as_any=True` is set at both the persistence and delivery
       serialization boundaries.
-    relationships:
-    - rel_type: refines
-      spec_id: VM-07-001
 - id: VM-08
   title: Static Object Integrity
   specs:
@@ -917,9 +909,6 @@ groups:
     - ADR-0074
     - ADR-0099
     - ADR-0107
-    relationships:
-    - rel_type: refines
-      spec_id: VM-08-001
   - id: VM-08-005
     priority: MUST_NOT
     kind: project
@@ -983,7 +972,7 @@ groups:
       A replay of a deferred activity, or a load of an archived one, MUST be parsed again
       from the received body held for it. It carries that body as its evidence.
     rationale: >-
-      The deferred record and intake's archive keep the sealed body (IO-03-004,
+      The deferred record and intake's archive keep the sealed body (IO-03-009,
       CLP-10-017), so a replay carries the first delivery's evidence and a load sees the
       body that arrived (ADR-0149).
     verification: >-
@@ -1058,9 +1047,6 @@ groups:
       committed entry's `payloadSnapshot` equals that sealed body.
     adr:
     - ADR-0074
-    relationships:
-    - rel_type: refines
-      spec_id: VM-08-001
     stories:
     - story_2026_015
   - id: VM-08-004
@@ -1160,9 +1146,6 @@ groups:
       field value, ensuring all outbound Vultron objects carry the correct `@context` declaration.
     adr:
     - ADR-0069
-    relationships:
-    - rel_type: refines
-      spec_id: VM-02-002
     stories:
     - story_2022_039
   - id: VM-10-002
