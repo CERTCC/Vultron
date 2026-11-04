@@ -2196,6 +2196,11 @@ groups:
     - ADR-0122
     stories:
     - story_2026_087
+    relationships:
+    - rel_type: uses_definition
+      spec_id: MSM-07-008
+    - rel_type: uses_definition
+      spec_id: MSM-07-009
   - id: EP-09-006
     priority: SHOULD
     kind: protocol

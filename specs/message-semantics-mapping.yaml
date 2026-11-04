@@ -38,7 +38,7 @@ groups:
       is paired with an `ActivityPattern` matching `Offer(VulnerabilityReport)` in
       `SEMANTIC_REGISTRY`.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-02-002
     stories:
     - story_2022_012
@@ -63,8 +63,10 @@ groups:
       is paired with an `ActivityPattern` matching
       `TentativeReject(Offer(VulnerabilityReport))` in `SEMANTIC_REGISTRY`.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-02-005
+    - rel_type: uses_definition
+      spec_id: VAM-04-013
     adr:
     - ADR-0121
     stories:
@@ -90,8 +92,10 @@ groups:
       is paired with an `ActivityPattern` matching `Accept(Offer(VulnerabilityReport))`
       in `SEMANTIC_REGISTRY`.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-02-004
+    - rel_type: uses_definition
+      spec_id: VAM-04-012
     adr:
     - ADR-0121
     stories:
@@ -111,7 +115,7 @@ groups:
       paired with an `ActivityPattern` matching `Ignore(VulnerabilityCase)` in
       `SEMANTIC_REGISTRY`.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-03-004
     stories:
     - story_2022_006
@@ -129,7 +133,7 @@ groups:
       paired with an `ActivityPattern` matching `Join(VulnerabilityCase)` in
       `SEMANTIC_REGISTRY`.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-03-003
     stories:
     - story_2022_006
@@ -154,8 +158,10 @@ groups:
       is paired with an `ActivityPattern` matching `Reject(Offer(VulnerabilityReport))`
       in `SEMANTIC_REGISTRY`.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-02-006
+    - rel_type: uses_definition
+      spec_id: VAM-04-014
     adr:
     - ADR-0121
     stories:
@@ -197,7 +203,7 @@ groups:
       paired with an `ActivityPattern` matching `Read(Offer(VulnerabilityReport))` in
       `SEMANTIC_REGISTRY`.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-02-003
     stories:
     - story_2022_016
@@ -230,7 +236,7 @@ groups:
       matching `Invite(EmbargoEvent)[context=VulnerabilityCase]` in
       `SEMANTIC_REGISTRY`.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-05-005
     stories:
     - story_2026_085
@@ -256,8 +262,10 @@ groups:
       `test/test_semantic_activity_patterns.py` asserts that it is told apart from the
       Accept of the Invite.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-05-008
+    - rel_type: uses_definition
+      spec_id: MSM-07-008
     stories:
     - story_2026_087
     - story_2022_023
@@ -273,7 +281,7 @@ groups:
       between initial proposal and revision proposal is not encoded in the AS2 activity structure; implementations MUST infer
       it from local EM state.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-05-005
   - id: MSM-02-004
     priority: MUST
@@ -297,8 +305,10 @@ groups:
       `SEMANTIC_REGISTRY`, and `test/test_semantic_activity_patterns.py` asserts that it
       is told apart from the Reject of the Invite.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-05-009
+    - rel_type: uses_definition
+      spec_id: MSM-07-009
     stories:
     - story_2026_087
     - story_2022_007
@@ -323,8 +333,10 @@ groups:
       `test/test_semantic_activity_patterns.py` asserts that it is told apart from the
       Accept of the Invite.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-05-008
+    - rel_type: uses_definition
+      spec_id: MSM-07-008
     stories:
     - story_2026_087
     - story_2022_023
@@ -357,10 +369,14 @@ groups:
       `test/core/behaviors/embargo/nodes/test_abandon.py` asserts the CASE_MANAGER's
       abandonment.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-05-009
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-05-007
+    - rel_type: uses_definition
+      spec_id: EMB-16-001
+    - rel_type: uses_definition
+      spec_id: MSM-07-009
     stories:
     - story_2026_087
     - story_2022_007
@@ -379,7 +395,7 @@ groups:
       `MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE` is paired with an
       `ActivityPattern` matching `Remove(EmbargoEvent)` in `SEMANTIC_REGISTRY`.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-05-003
     stories:
     - story_2026_095
@@ -453,13 +469,23 @@ groups:
       Participant's Accept or Reject of an embargo Invite, the Case Owner's included,
       changes only the sender's consent row and moves no register entry, both for a
       first proposal (EM PROPOSED) and for a proposed revision (EM REVISE).
-    relationships:
-    - rel_type: refines
-      spec_id: MSM-07-001
     adr:
     - ADR-0122
     stories:
     - story_2026_087
+    relationships:
+    - rel_type: derives_from
+      spec_id: MSM-07-003
+    - rel_type: derives_from
+      spec_id: MSM-07-004
+    - rel_type: uses_definition
+      spec_id: MSM-02-002
+    - rel_type: uses_definition
+      spec_id: MSM-02-004
+    - rel_type: uses_definition
+      spec_id: MSM-02-005
+    - rel_type: uses_definition
+      spec_id: MSM-02-006
 - id: MSM-03
   title: CS Protocol Message Shorthands
   description: 'Normative shorthand-to-semantic mappings for CVD Case State (CS) protocol messages, covering CV, CF, CD, CP,
@@ -487,7 +513,7 @@ groups:
       that `as_ParticipantStatus` declares `vf` (`vfState`) while `as_CaseStatus` does
       not.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-08-004
     adr:
     - ADR-0083
@@ -514,7 +540,7 @@ groups:
       carried by `as_ParticipantStatus.vf` rather than by any `as_CaseStatus`
       field.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-08-004
     adr:
     - ADR-0083
@@ -540,7 +566,7 @@ groups:
       carried by `as_ParticipantStatus.d` rather than by any `as_CaseStatus`
       field.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-08-004
     adr:
     - ADR-0083
@@ -578,9 +604,9 @@ groups:
       that each occasion carrying `CP` dispatches only to its own entry and
       that its example carries its `pxaState` value.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-08-002
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: RSH-04-001
     stories:
     - story_2022_069
@@ -614,9 +640,9 @@ groups:
       that each occasion carrying `CX` dispatches only to its own entry and
       that its example carries its `pxaState` value.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-08-002
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: RSH-04-001
     stories:
     - story_2022_018
@@ -650,9 +676,9 @@ groups:
       that each occasion carrying `CA` dispatches only to its own entry and
       that its example carries its `pxaState` value.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-08-002
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: RSH-04-001
     stories:
     - story_2022_019
@@ -727,11 +753,9 @@ groups:
       note-scoped entries are registered, and that no single `MessageSemantics`
       value is named for `GI`.
     relationships:
-    - rel_type: derives_from
-      spec_id: VAM-01-019
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-07-002
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: VAM-07-003
   - id: MSM-04-002
     priority: MUST
@@ -748,14 +772,8 @@ groups:
       actor-suggestion entries are registered, and `docs/reference/formal_protocol/messages.md`
       lists participant suggestion as a `GI` example.
     relationships:
-    - rel_type: derives_from
-      spec_id: VAM-04-001
-    - rel_type: derives_from
-      spec_id: VAM-04-010
-    - rel_type: derives_from
-      spec_id: VAM-04-002
-    - rel_type: derives_from
-      spec_id: VAM-04-003
+    - rel_type: extends
+      spec_id: MSM-04-001
   - id: MSM-04-003
     priority: MUST
     kind: project
@@ -812,9 +830,6 @@ groups:
     verification: >-
       Inspection of the registry confirms it contains no per-message `EK`, `CK`, or
       `GK` entry.
-    relationships:
-    - rel_type: refines
-      spec_id: SYNC-15-003
     stories:
     - story_2026_011
   - id: MSM-05-007
@@ -1097,7 +1112,7 @@ groups:
       `docs/reference/quick_reference.md` includes `lookup.md` and `shorthands.md`
       from the fragment directory.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: MSM-06-001
     adr:
     - ADR-0128
@@ -1185,7 +1200,7 @@ groups:
       and no registry entry is named for a PEC transition, other than the two
       consent-row records, which it confirms carry no use case.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: CM-18-003
     stories:
     - story_2026_011
@@ -1212,9 +1227,9 @@ groups:
       INVITE_TO_EMBARGO_ON_CASE applies PEC_Trigger.INVITE to the named invitee's row for the
       Invite's embargo via record_embargo_invite().
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: CM-18-003
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: MSM-02-001
     stories:
     - story_2026_001
@@ -1253,7 +1268,7 @@ groups:
       its AGREED row for the active embargo, and that a DECLINED participant's Accept
       moves its row directly to AGREED.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: CM-18-003
     adr:
     - ADR-0093
@@ -1286,7 +1301,7 @@ groups:
       `test/core/services/embargo_lifecycle/test_consent.py` and `test_answers.py` assert
       the DECLINED row.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: CM-18-003
     adr:
     - ADR-0093
@@ -1320,10 +1335,10 @@ groups:
       in test/core/services/embargo_lifecycle/ (test_activation.py,
       test_activation_decision.py) assert both arms and the derived lapse.
     relationships:
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: CM-18-003
-    - rel_type: refines
-      spec_id: MSM-02-003
+    - rel_type: uses_definition
+      spec_id: MSM-07-008
     adr:
     - ADR-0093
     - ADR-0122
@@ -1358,6 +1373,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: MSM-07-005
+    - rel_type: uses_definition
+      spec_id: CM-18-003
     adr:
     - ADR-0093
     - ADR-0122
@@ -1384,6 +1401,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: MSM-07-005
+    - rel_type: uses_definition
+      spec_id: CM-18-001
     adr:
     - ADR-0093
     - ADR-0122
@@ -1472,6 +1491,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: MSM-07-023
+    - rel_type: refines
+      spec_id: CM-23-016
     adr:
     - ADR-0124
     stories:
@@ -1494,9 +1515,7 @@ groups:
       (`test_the_remove_is_committed_before_the_case_changes`) confirms the
       termination leaves the case with no active embargo.
     relationships:
-    - rel_type: derives_from
-      spec_id: CM-18-003
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: MSM-02-007
     adr:
     - ADR-0118
@@ -1551,7 +1570,7 @@ groups:
       applies PEC_Trigger.TIME_OUT without emitting an outbound wire activity, and that
       it applies it only to the named invitation's row, and only from INVITED.
     relationships:
-    - rel_type: derives_from
+    - rel_type: implements
       spec_id: CM-18-002
     adr:
     - ADR-0093
@@ -1583,7 +1602,7 @@ groups:
       an active Case Owner without the CASE_MANAGER role is among its recipients, and
       that the commit emits no activity other than the Announce fan-out.
     relationships:
-    - rel_type: derives_from
+    - rel_type: refines
       spec_id: CM-28-005
     adr:
     - ADR-0093
@@ -1613,16 +1632,8 @@ groups:
       carries signatories over to a shorter revision, and that a replica replaying the
       committed entry converges.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: VAM-05-008
-    - rel_type: derives_from
-      spec_id: EP-09-005
-    - rel_type: depends_on
-      spec_id: MSM-07-005
-    - rel_type: refines
-      spec_id: MSM-02-002
-    - rel_type: refines
-      spec_id: MSM-02-005
     adr:
     - ADR-0122
     stories:
@@ -1643,6 +1654,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: MSM-07-008
+    - rel_type: refines
+      spec_id: HP-01-006
     adr:
     - ADR-0122
     stories:
@@ -1666,6 +1679,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: MSM-07-008
+    - rel_type: uses_definition
+      spec_id: CM-18-003
     adr:
     - ADR-0122
     stories:
@@ -1689,6 +1704,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: MSM-07-008
+    - rel_type: refines
+      spec_id: EMB-02-002
     adr:
     - ADR-0122
     stories:
@@ -1715,14 +1732,8 @@ groups:
       the proposal and
       leaves another open proposal open.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: VAM-05-009
-    - rel_type: derives_from
-      spec_id: EP-09-005
-    - rel_type: refines
-      spec_id: MSM-02-004
-    - rel_type: refines
-      spec_id: MSM-02-006
     adr:
     - ADR-0122
     stories:
@@ -1743,6 +1754,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: MSM-07-009
+    - rel_type: refines
+      spec_id: HP-01-006
     adr:
     - ADR-0122
     stories:
@@ -1794,7 +1807,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: MSM-07-009
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: EMB-04-002
     adr:
     - ADR-0122
@@ -1839,11 +1852,11 @@ groups:
       declines the sender's AGREED row for the active embargo and changes no register
       entry.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: VAM-05-011
-    - rel_type: derives_from
+    - rel_type: uses_definition
       spec_id: CM-18-003
-    - rel_type: refines
+    - rel_type: implements
       spec_id: VP-13-017
     adr:
     - ADR-0093
@@ -1959,7 +1972,7 @@ groups:
     - rel_type: supersedes
       spec_id: MSM-07-003
       note: In the case it names, the refusal replaces the AGREE
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CLP-05-001
     adr:
     - ADR-0122
@@ -2067,10 +2080,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: MSM-07-004
-    - rel_type: depends_on
-      spec_id: MSM-07-017
-    - rel_type: refines
-      spec_id: MSM-02-006
+    - rel_type: uses_definition
+      spec_id: EMB-16-001
     adr:
     - ADR-0152
     stories:
@@ -2144,6 +2155,9 @@ groups:
     - phantom_path_ref
     adr:
     - ADR-0128
+    relationships:
+    - rel_type: uses_definition
+      spec_id: MSM-06-002
   - id: MSM-08-015
     priority: MUST
     kind: process
@@ -2198,9 +2212,6 @@ groups:
       A unit test asserts that an occasion's distinguisher is one of the three kinds.
     lint_suppress:
     - phantom_path_ref
-    relationships:
-    - rel_type: depends_on
-      spec_id: MSM-08-010
     adr:
     - ADR-0128
   - id: MSM-08-017
@@ -2366,10 +2377,14 @@ groups:
     lint_suppress:
     - phantom_path_ref
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: HP-01-007
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: HP-01-008
+    - rel_type: uses_definition
+      spec_id: MSM-08-009
+    - rel_type: uses_definition
+      spec_id: MSM-08-010
     adr:
     - ADR-0115
     - ADR-0128
@@ -2411,6 +2426,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: MSM-08-005
+    - rel_type: uses_definition
+      spec_id: SE-05-002
     lint_suppress:
     - phantom_path_ref
     adr:
@@ -2459,7 +2476,7 @@ groups:
     lint_suppress:
     - phantom_path_ref
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: MSM-06-003
     adr:
     - ADR-0128
@@ -2495,6 +2512,9 @@ groups:
     - phantom_path_ref
     adr:
     - ADR-0128
+    relationships:
+    - rel_type: supersedes
+      spec_id: MSM-08-027
   - id: MSM-08-007
     priority: MUST
     kind: process
@@ -2527,8 +2547,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DF-09-001
-    - rel_type: depends_on
-      spec_id: DF-09-012
+    - rel_type: extends
+      spec_id: DF-09-002
     adr:
     - ADR-0128
   - id: MSM-08-008
@@ -2551,7 +2571,7 @@ groups:
     lint_suppress:
     - phantom_path_ref
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: DF-09-010
     adr:
     - ADR-0128
@@ -2576,7 +2596,7 @@ groups:
     lint_suppress:
     - phantom_path_ref
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: HP-01-024
     adr:
     - ADR-0129
@@ -2630,7 +2650,7 @@ groups:
     lint_suppress:
     - phantom_path_ref
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: HP-01-009
     adr:
     - ADR-0129
@@ -2687,9 +2707,9 @@ groups:
     lint_suppress:
     - phantom_path_ref
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: MSM-08-002
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: MSM-08-009
     adr:
     - ADR-0128
@@ -2748,6 +2768,10 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: MSM-08-011
+    - rel_type: implements
+      spec_id: MSM-08-034
+    - rel_type: implements
+      spec_id: MSM-08-035
     lint_suppress:
     - phantom_path_ref
     adr:
@@ -2770,9 +2794,6 @@ groups:
       trigger enum and appears in that machine's statechart (SM-11-001), and that an
       occasion with an RM, EM or CS shorthand other than an acknowledgment or an error
       declares a transition.
-    relationships:
-    - rel_type: depends_on
-      spec_id: SM-11-001
     adr:
     - ADR-0162
   - id: MSM-08-013
@@ -2792,12 +2813,8 @@ groups:
       PEC (a PEC row belongs to one participant), and none declares a participant's
       state for EM or PXA. SM-10-003 scopes RM and VFD; SM-10-004 scopes EM and PXA.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: MSM-08-012
-    - rel_type: depends_on
-      spec_id: SM-10-003
-    - rel_type: depends_on
-      spec_id: SM-10-004
     adr:
     - ADR-0162
   - id: MSM-08-014
@@ -2816,7 +2833,7 @@ groups:
       effect sentence, matched as a verb such as "moves" or "sets" followed within the
       sentence by an RM, EM or CS state name.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: MSM-08-013
     adr:
     - ADR-0162
