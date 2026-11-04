@@ -1236,6 +1236,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | EMB — Embargo Management Behavioral Requirements | [EMB-13-001](../vultron-spec/requirements/state-behavior.md#emb-13-001), [EMB-17-005](../vultron-spec/requirements/state-behavior.md#emb-17-005), [EMB-17-006](../vultron-spec/requirements/state-behavior.md#emb-17-006), [EMB-17-007](../vultron-spec/requirements/state-behavior.md#emb-17-007), [EMB-17-008](../vultron-spec/requirements/state-behavior.md#emb-17-008) |
 | EP — Embargo Policy | [EP-06-001](../vultron-spec/requirements/state-behavior.md#ep-06-001), [EP-09-004](../vultron-spec/requirements/state-behavior.md#ep-09-004) |
 | MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-002](../vultron-spec/requirements/messages.md#msm-07-002), [MSM-07-003](../vultron-spec/requirements/messages.md#msm-07-003), [MSM-07-004](../vultron-spec/requirements/messages.md#msm-07-004), [MSM-07-005](../vultron-spec/requirements/messages.md#msm-07-005), [MSM-07-007](../vultron-spec/requirements/messages.md#msm-07-007), [MSM-07-017](../vultron-spec/requirements/messages.md#msm-07-017), [MSM-07-018](../vultron-spec/requirements/messages.md#msm-07-018) |
+| VAM — Vultron Semantic–AS2 Mapping | [VAM-05-014](../vultron-spec/requirements/messages.md#vam-05-014), [VAM-05-015](../vultron-spec/requirements/messages.md#vam-05-015) |
 
 ## [story_2026_002](story_2026_002.md)
 
@@ -1325,10 +1326,10 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | CLP — Case Ledger Processing | [CLP-01-002](../vultron-spec/requirements/ledger-replication.md#clp-01-002), [CLP-02-014](../vultron-spec/requirements/ledger-replication.md#clp-02-014) |
 | CM — Case Management | [CM-03-007](../vultron-spec/requirements/case-management.md#cm-03-007) |
 | EP — Embargo Policy | [EP-09-009](../vultron-spec/requirements/state-behavior.md#ep-09-009) |
-| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-02-001](../vultron-spec/requirements/messages.md#msm-02-001), [MSM-02-002](../vultron-spec/requirements/messages.md#msm-02-002), [MSM-02-004](../vultron-spec/requirements/messages.md#msm-02-004), [MSM-02-005](../vultron-spec/requirements/messages.md#msm-02-005), [MSM-02-006](../vultron-spec/requirements/messages.md#msm-02-006), [MSM-02-007](../vultron-spec/requirements/messages.md#msm-02-007), [MSM-03-001](../vultron-spec/requirements/messages.md#msm-03-001), [MSM-05-001](../vultron-spec/requirements/messages.md#msm-05-001), [MSM-05-002](../vultron-spec/requirements/messages.md#msm-05-002), [MSM-05-003](../vultron-spec/requirements/messages.md#msm-05-003), [MSM-05-006](../vultron-spec/requirements/messages.md#msm-05-006), [MSM-07-001](../vultron-spec/requirements/messages.md#msm-07-001) |
+| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-03-001](../vultron-spec/requirements/messages.md#msm-03-001), [MSM-05-001](../vultron-spec/requirements/messages.md#msm-05-001), [MSM-05-002](../vultron-spec/requirements/messages.md#msm-05-002), [MSM-05-003](../vultron-spec/requirements/messages.md#msm-05-003), [MSM-05-006](../vultron-spec/requirements/messages.md#msm-05-006), [MSM-07-001](../vultron-spec/requirements/messages.md#msm-07-001) |
 | RF — Response Format | [RF-05-001](../vultron-spec/requirements/message-processing.md#rf-05-001) |
 | SM — State Machine | [SM-08-001](../vultron-spec/requirements/state-behavior.md#sm-08-001) |
-| VAM — Vultron Semantic–AS2 Mapping | [VAM-01-008](../vultron-spec/requirements/messages.md#vam-01-008), [VAM-05-003](../vultron-spec/requirements/messages.md#vam-05-003), [VAM-05-005](../vultron-spec/requirements/messages.md#vam-05-005), [VAM-05-006](../vultron-spec/requirements/messages.md#vam-05-006), [VAM-05-007](../vultron-spec/requirements/messages.md#vam-05-007), [VAM-05-008](../vultron-spec/requirements/messages.md#vam-05-008), [VAM-05-009](../vultron-spec/requirements/messages.md#vam-05-009), [VAM-05-011](../vultron-spec/requirements/messages.md#vam-05-011), [VAM-05-013](../vultron-spec/requirements/messages.md#vam-05-013), [VAM-05-014](../vultron-spec/requirements/messages.md#vam-05-014), [VAM-05-015](../vultron-spec/requirements/messages.md#vam-05-015), [VAM-05-016](../vultron-spec/requirements/messages.md#vam-05-016), [VAM-08-002](../vultron-spec/requirements/messages.md#vam-08-002), [VAM-08-004](../vultron-spec/requirements/messages.md#vam-08-004) |
+| VAM — Vultron Semantic–AS2 Mapping | [VAM-01-008](../vultron-spec/requirements/messages.md#vam-01-008), [VAM-08-002](../vultron-spec/requirements/messages.md#vam-08-002), [VAM-08-004](../vultron-spec/requirements/messages.md#vam-08-004) |
 | VP — Vultron Protocol | [VP-03-010](../vultron-spec/requirements/vultron-protocol.md#vp-03-010), [VP-11-004](../vultron-spec/requirements/vultron-protocol.md#vp-11-004) |
 
 ## [story_2026_012](story_2026_012.md)
@@ -1532,6 +1533,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | EMB — Embargo Management Behavioral Requirements | [EMB-01-002](../vultron-spec/requirements/state-behavior.md#emb-01-002), [EMB-02-002](../vultron-spec/requirements/state-behavior.md#emb-02-002), [EMB-02-004](../vultron-spec/requirements/state-behavior.md#emb-02-004), [EMB-13-002](../vultron-spec/requirements/state-behavior.md#emb-13-002), [EMB-15-010](../vultron-spec/requirements/state-behavior.md#emb-15-010) |
 | EP — Embargo Policy | [EP-09-021](../vultron-spec/requirements/state-behavior.md#ep-09-021) |
 | MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-032](../vultron-spec/requirements/messages.md#msm-07-032) |
+| VAM — Vultron Semantic–AS2 Mapping | [VAM-05-013](../vultron-spec/requirements/messages.md#vam-05-013) |
 
 ## [story_2026_034](story_2026_034.md)
 
@@ -1977,6 +1979,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | CP — CaseProposal Protocol | [CP-09-003](../vultron-spec/requirements/case-management.md#cp-09-003) |
 | DUR — Duration | [DUR-07-003](../vultron-spec/requirements/state-behavior.md#dur-07-003), [DUR-07-004](../vultron-spec/requirements/state-behavior.md#dur-07-004) |
 | EP — Embargo Policy | [EP-04-001](../vultron-spec/requirements/state-behavior.md#ep-04-001), [EP-04-005](../vultron-spec/requirements/state-behavior.md#ep-04-005), [EP-04-006](../vultron-spec/requirements/state-behavior.md#ep-04-006), [EP-04-008](../vultron-spec/requirements/state-behavior.md#ep-04-008), [EP-04-018](../vultron-spec/requirements/state-behavior.md#ep-04-018), [EP-04-019](../vultron-spec/requirements/state-behavior.md#ep-04-019), [EP-04-020](../vultron-spec/requirements/state-behavior.md#ep-04-020) |
+| VAM — Vultron Semantic–AS2 Mapping | [VAM-05-016](../vultron-spec/requirements/messages.md#vam-05-016) |
 
 ## [story_2026_081](story_2026_081.md)
 
@@ -2022,6 +2025,8 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | EP — Embargo Policy | [EP-09-001](../vultron-spec/requirements/state-behavior.md#ep-09-001), [EP-09-002](../vultron-spec/requirements/state-behavior.md#ep-09-002), [EP-09-010](../vultron-spec/requirements/state-behavior.md#ep-09-010), [EP-09-011](../vultron-spec/requirements/state-behavior.md#ep-09-011), [EP-09-020](../vultron-spec/requirements/state-behavior.md#ep-09-020), [EP-09-022](../vultron-spec/requirements/state-behavior.md#ep-09-022), [EP-09-025](../vultron-spec/requirements/state-behavior.md#ep-09-025), [EP-09-026](../vultron-spec/requirements/state-behavior.md#ep-09-026), [EP-09-027](../vultron-spec/requirements/state-behavior.md#ep-09-027), [EP-09-032](../vultron-spec/requirements/state-behavior.md#ep-09-032) |
+| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-02-001](../vultron-spec/requirements/messages.md#msm-02-001) |
+| VAM — Vultron Semantic–AS2 Mapping | [VAM-05-005](../vultron-spec/requirements/messages.md#vam-05-005) |
 
 ## [story_2026_086](story_2026_086.md)
 
@@ -2040,7 +2045,8 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | CM — Case Management | [CM-04-003](../vultron-spec/requirements/case-management.md#cm-04-003) |
 | EMB — Embargo Management Behavioral Requirements | [EMB-15-004](../vultron-spec/requirements/state-behavior.md#emb-15-004), [EMB-15-009](../vultron-spec/requirements/state-behavior.md#emb-15-009) |
 | EP — Embargo Policy | [EP-09-005](../vultron-spec/requirements/state-behavior.md#ep-09-005) |
-| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-02-010](../vultron-spec/requirements/messages.md#msm-02-010), [MSM-07-008](../vultron-spec/requirements/messages.md#msm-07-008), [MSM-07-009](../vultron-spec/requirements/messages.md#msm-07-009), [MSM-07-011](../vultron-spec/requirements/messages.md#msm-07-011), [MSM-07-013](../vultron-spec/requirements/messages.md#msm-07-013), [MSM-07-027](../vultron-spec/requirements/messages.md#msm-07-027), [MSM-07-028](../vultron-spec/requirements/messages.md#msm-07-028), [MSM-07-029](../vultron-spec/requirements/messages.md#msm-07-029), [MSM-07-030](../vultron-spec/requirements/messages.md#msm-07-030), [MSM-07-031](../vultron-spec/requirements/messages.md#msm-07-031), [MSM-07-033](../vultron-spec/requirements/messages.md#msm-07-033) |
+| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-02-002](../vultron-spec/requirements/messages.md#msm-02-002), [MSM-02-004](../vultron-spec/requirements/messages.md#msm-02-004), [MSM-02-005](../vultron-spec/requirements/messages.md#msm-02-005), [MSM-02-006](../vultron-spec/requirements/messages.md#msm-02-006), [MSM-02-010](../vultron-spec/requirements/messages.md#msm-02-010), [MSM-07-008](../vultron-spec/requirements/messages.md#msm-07-008), [MSM-07-009](../vultron-spec/requirements/messages.md#msm-07-009), [MSM-07-011](../vultron-spec/requirements/messages.md#msm-07-011), [MSM-07-013](../vultron-spec/requirements/messages.md#msm-07-013), [MSM-07-027](../vultron-spec/requirements/messages.md#msm-07-027), [MSM-07-028](../vultron-spec/requirements/messages.md#msm-07-028), [MSM-07-029](../vultron-spec/requirements/messages.md#msm-07-029), [MSM-07-030](../vultron-spec/requirements/messages.md#msm-07-030), [MSM-07-031](../vultron-spec/requirements/messages.md#msm-07-031), [MSM-07-033](../vultron-spec/requirements/messages.md#msm-07-033) |
+| VAM — Vultron Semantic–AS2 Mapping | [VAM-05-006](../vultron-spec/requirements/messages.md#vam-05-006), [VAM-05-007](../vultron-spec/requirements/messages.md#vam-05-007), [VAM-05-008](../vultron-spec/requirements/messages.md#vam-05-008), [VAM-05-009](../vultron-spec/requirements/messages.md#vam-05-009) |
 | VP — Vultron Protocol | [VP-04-002](../vultron-spec/requirements/vultron-protocol.md#vp-04-002), [VP-04-006](../vultron-spec/requirements/vultron-protocol.md#vp-04-006), [VP-05-003](../vultron-spec/requirements/vultron-protocol.md#vp-05-003) |
 
 ## [story_2026_088](story_2026_088.md)
@@ -2068,6 +2074,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 |---|---|
 | EP — Embargo Policy | [EP-09-013](../vultron-spec/requirements/state-behavior.md#ep-09-013), [EP-09-028](../vultron-spec/requirements/state-behavior.md#ep-09-028) |
 | MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-010](../vultron-spec/requirements/messages.md#msm-07-010), [MSM-07-014](../vultron-spec/requirements/messages.md#msm-07-014), [MSM-07-015](../vultron-spec/requirements/messages.md#msm-07-015), [MSM-07-034](../vultron-spec/requirements/messages.md#msm-07-034), [MSM-07-035](../vultron-spec/requirements/messages.md#msm-07-035), [MSM-07-036](../vultron-spec/requirements/messages.md#msm-07-036) |
+| VAM — Vultron Semantic–AS2 Mapping | [VAM-05-011](../vultron-spec/requirements/messages.md#vam-05-011) |
 
 ## [story_2026_091](story_2026_091.md)
 
@@ -2112,7 +2119,8 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 |---|---|
 | EMB — Embargo Management Behavioral Requirements | [EMB-14-001](../vultron-spec/requirements/state-behavior.md#emb-14-001), [EMB-14-005](../vultron-spec/requirements/state-behavior.md#emb-14-005), [EMB-14-006](../vultron-spec/requirements/state-behavior.md#emb-14-006) |
 | EP — Embargo Policy | [EP-08-004](../vultron-spec/requirements/state-behavior.md#ep-08-004) |
-| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-006](../vultron-spec/requirements/messages.md#msm-07-006), [MSM-07-025](../vultron-spec/requirements/messages.md#msm-07-025) |
+| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-02-007](../vultron-spec/requirements/messages.md#msm-02-007), [MSM-07-006](../vultron-spec/requirements/messages.md#msm-07-006), [MSM-07-025](../vultron-spec/requirements/messages.md#msm-07-025) |
+| VAM — Vultron Semantic–AS2 Mapping | [VAM-05-003](../vultron-spec/requirements/messages.md#vam-05-003) |
 
 ## [story_2026_096](story_2026_096.md)
 

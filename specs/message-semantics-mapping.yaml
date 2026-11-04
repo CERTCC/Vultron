@@ -233,7 +233,7 @@ groups:
     - rel_type: derives_from
       spec_id: VAM-05-005
     stories:
-    - story_2026_011
+    - story_2026_085
     - story_2022_010
   - id: MSM-02-002
     priority: MUST
@@ -259,7 +259,7 @@ groups:
     - rel_type: derives_from
       spec_id: VAM-05-008
     stories:
-    - story_2026_011
+    - story_2026_087
     - story_2022_023
   - id: MSM-02-003
     priority: MUST
@@ -300,7 +300,7 @@ groups:
     - rel_type: derives_from
       spec_id: VAM-05-009
     stories:
-    - story_2026_011
+    - story_2026_087
     - story_2022_007
   - id: MSM-02-005
     priority: MUST
@@ -326,7 +326,7 @@ groups:
     - rel_type: derives_from
       spec_id: VAM-05-008
     stories:
-    - story_2026_011
+    - story_2026_087
     - story_2022_023
   - id: MSM-02-006
     priority: MUST
@@ -362,7 +362,7 @@ groups:
     - rel_type: derives_from
       spec_id: VAM-05-007
     stories:
-    - story_2026_011
+    - story_2026_087
     - story_2022_007
   - id: MSM-02-007
     priority: MUST
@@ -382,7 +382,7 @@ groups:
     - rel_type: derives_from
       spec_id: VAM-05-003
     stories:
-    - story_2026_011
+    - story_2026_095
     - story_2022_015
   - id: MSM-02-008
     priority: MUST
