@@ -546,6 +546,8 @@ groups:
       a named CI failure on the change that caused it.
     relationships:
     - rel_type: verifies
+      spec_id: SE-03-002
+    - rel_type: uses_definition
       spec_id: SE-06-001
 - id: SE-07
   title: Display Metadata

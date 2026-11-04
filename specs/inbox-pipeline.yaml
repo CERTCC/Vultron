@@ -148,9 +148,6 @@ groups:
     rationale: >-
       Per-domain coverage catches `SEMANTIC_REGISTRY` use-case registration gaps immediately
       without requiring exhaustive per-enum-value tests.
-    relationships:
-    - rel_type: verifies
-      spec_id: DR-02-002
   - id: IBP-04-002
     priority: MUST
     kind: project

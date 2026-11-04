@@ -70,8 +70,6 @@ groups:
       spec_id: HTTP-03-006
     - rel_type: satisfies
       spec_id: IE-02-005
-    - rel_type: satisfies
-      spec_id: IE-02-004
     stories:
     - story_2022_002
     - story_2022_038
