@@ -310,18 +310,23 @@ class TestStoryProps:
         skipped a flat helper would miss rcvcv's own fragments (#5846).  Pin
         one declaration from each shape.
         """
-        sites = {
-            site
-            for where in _story_prop_declarations().values()
-            for site in where.values()
-        }
+        from vultron.demo.helpers import rcvcv_story
+        from vultron.demo.helpers.coordinated_story import opening
+        from vultron.demo.helpers.owner_decision_story import handover
 
-        assert {
-            "vultron.demo.helpers.coordinated_story.opening.TIMELINE_ANSWER",
-            "vultron.demo.helpers.owner_decision_story.handover"
-            ".HANDED_OVER_CASE",
-            "vultron.demo.helpers.rcvcv_story.C2_JOINED",
-        } <= sites, sorted(sites)
+        declarations = _story_prop_declarations()
+        # Keyed on the prop object itself, not on the module the walk first
+        # saw it in, so an import added elsewhere cannot break the pin.
+        missed = [
+            prop.name
+            for prop in (
+                opening.TIMELINE_ANSWER,
+                handover.HANDED_OVER_CASE,
+                rcvcv_story.C2_JOINED,
+            )
+            if id(prop) not in declarations.get(prop.name, {})
+        ]
+        assert not missed, f"the walk did not collect {missed}"
 
 
 @pytest.mark.spec("DEMOCI-11-018")

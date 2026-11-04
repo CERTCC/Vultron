@@ -880,11 +880,11 @@ class TestTheOwnerDecisionParts:
         # (notes/architecture-ratchet-corpus.md, #5595).
         assert imported, "the import walk found nothing — the check is vacuous"
         assert referenced, "the name walk found nothing — the check is vacuous"
-        # Non-empty is not enough either: the package's ``__init__`` alone
-        # yields names. The invite chain is called only inside the
-        # continuations' bodies (an import is no ``ast.Name``), so finding it
-        # proves the walk read a continuation and not just the re-exports
-        # (#5846).
+        # Non-empty is not enough either: a walk that reached only ``parts``
+        # (the ``Part`` type and timeouts) yields names too. The invite chain
+        # is called only inside the continuations' bodies in ``keep`` and
+        # ``handover`` (an import is no ``ast.Name``), so finding it proves
+        # the walk read a continuation body (#5846).
         assert "run_case_invite_chain" in referenced, (
             "the walk read no continuation body — the check is vacuous"
         )

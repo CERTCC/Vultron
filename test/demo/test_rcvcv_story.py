@@ -137,7 +137,7 @@ class TestC1InvitesTheSecondCoordinator:
 
         C2's join is the suggestion's causal precondition, and a flat story
         cannot nest the suggestion inside the roster's gate, so the gate keeps
-        :data:`~vultron.demo.scenario.rcvcv_demo.C2_JOINED` and the shared
+        :data:`~vultron.demo.helpers.rcvcv_story.C2_JOINED` and the shared
         continuation reads it.  Without it the story stops rather than posting
         a suggestion from an actor that is not in the case.
         """

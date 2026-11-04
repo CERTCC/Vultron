@@ -612,9 +612,9 @@ def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
     # (#5846).
     fragment_sources = sorted(helpers_dir.rglob("*.py"))
     # Each half asserted on its own: the scenario glob alone makes `sources`
-    # non-empty, so a fragment glob that matched nothing — a renamed or moved
-    # ``coordinated_*.py`` — would leave the composed half unguarded and the
-    # test still green (#5533).
+    # non-empty, so a fragment glob that matched nothing — a moved
+    # ``helpers/`` directory — would leave the composed half unguarded and
+    # the test still green (#5533).
     assert scenario_sources, "no scenario module starts an invite chain"
     assert fragment_sources, (
         "no story-fragment module found beside the invite chain; a composed "
@@ -623,6 +623,7 @@ def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
     sources = scenario_sources + fragment_sources
     offenders = []
     seen_starters: set[str] = set()
+    with_an_inviter: set[Path] = set()
     for path in sources:
         # Sorted by line, not taken in ``ast.walk`` order: walk is breadth
         # first, so "the first chain" read off it is whichever starter sits
@@ -650,6 +651,8 @@ def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
             ),
             None,
         )
+        if first_invite is not None:
+            with_an_inviter.add(path)
         if first_invite is not None and "case_manager_client" not in {
             k.arg for k in first_invite.keywords
         }:
@@ -660,10 +663,10 @@ def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
     # The scan found a call to each starter it looks for, so renaming one of
     # them fails here rather than silently emptying the check.
     assert seen_starters == starters, sorted(starters - seen_starters)
-    # Modules a family-name glob passed over are read (#5846): the handover
-    # starts an inviter chain from inside a split package, and rcvcv's own
-    # fragments sit in a flat helper module no family glob names.
-    assert {
-        helpers_dir / "owner_decision_story" / "handover.py",
-        helpers_dir / "rcvcv_story.py",
-    } <= set(sources), sorted(str(p) for p in sources)
+    # Modules a family-name glob passed over are read (#5846). rcvcv's own
+    # fragments sit in a flat helper module no family glob names, and the
+    # handover starts an inviter chain from inside a split package: the scan
+    # must not only list it but find that chain, so the check reaches it.
+    assert helpers_dir / "rcvcv_story.py" in sources, sorted(map(str, sources))
+    handover = helpers_dir / "owner_decision_story" / "handover.py"
+    assert handover in with_an_inviter, sorted(map(str, with_an_inviter))
