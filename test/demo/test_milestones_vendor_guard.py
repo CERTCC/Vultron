@@ -66,7 +66,7 @@ class TestVerifyFixReadyVendorGuard:
         participant = _make_participant_mock([CVDRole.COORDINATOR])
 
         with patch(
-            "vultron.demo.helpers.milestones._fetch_participant",
+            "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
             return_value=participant,
         ):
             with pytest.raises(AssertionError) as exc_info:
@@ -88,7 +88,7 @@ class TestVerifyFixReadyVendorGuard:
         )
 
         with patch(
-            "vultron.demo.helpers.milestones._fetch_participant",
+            "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
             return_value=participant,
         ):
             with pytest.raises(AssertionError) as exc_info:
@@ -108,14 +108,14 @@ class TestVerifyFixReadyVendorGuard:
 
         with (
             patch(
-                "vultron.demo.helpers.milestones._fetch_participant",
+                "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
                 return_value=participant,
             ),
             patch(
-                "vultron.demo.helpers.milestones._check_participant_vf_state_in"
+                "vultron.demo.helpers.milestones.lifecycle._check_participant_vf_state_in"
             ),
             patch(
-                "vultron.demo.helpers.milestones._check_participant_rm_state_in"
+                "vultron.demo.helpers.milestones.lifecycle._check_participant_rm_state_in"
             ),
         ):
             # Should not raise
@@ -129,7 +129,7 @@ class TestVerifyFixReadyVendorGuard:
     def test_missing_participant_raises(self):
         """If the actor is not found in the case, AssertionError is raised."""
         with patch(
-            "vultron.demo.helpers.milestones._fetch_participant",
+            "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
             return_value=None,
         ):
             with pytest.raises(AssertionError) as exc_info:
@@ -147,7 +147,7 @@ class TestVerifyFixReadyVendorGuard:
         participant = _make_participant_mock([CVDRole.CASE_OWNER])
 
         with patch(
-            "vultron.demo.helpers.milestones._fetch_participant",
+            "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
             return_value=participant,
         ):
             with pytest.raises(AssertionError) as exc_info:
@@ -170,14 +170,14 @@ class TestVerifyFixReadyVendorGuard:
 
         with (
             patch(
-                "vultron.demo.helpers.milestones._fetch_participant",
+                "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
                 return_value=participant,
             ),
             patch(
-                "vultron.demo.helpers.milestones._check_participant_vf_state_in"
+                "vultron.demo.helpers.milestones.lifecycle._check_participant_vf_state_in"
             ),
             patch(
-                "vultron.demo.helpers.milestones._check_participant_rm_state_in"
+                "vultron.demo.helpers.milestones.lifecycle._check_participant_rm_state_in"
             ),
         ):
             verify_fix_ready(
@@ -206,7 +206,7 @@ class TestVerifyFixDeployedDeployerGuard:
         participant = _make_participant_mock([CVDRole.COORDINATOR])
 
         with patch(
-            "vultron.demo.helpers.milestones._fetch_participant",
+            "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
             return_value=participant,
         ):
             with pytest.raises(AssertionError) as exc_info:
@@ -226,7 +226,7 @@ class TestVerifyFixDeployedDeployerGuard:
         participant = _make_participant_mock([CVDRole.REPORTER])
 
         with patch(
-            "vultron.demo.helpers.milestones._fetch_participant",
+            "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
             return_value=participant,
         ):
             with pytest.raises(AssertionError) as exc_info:
@@ -245,7 +245,7 @@ class TestVerifyFixDeployedDeployerGuard:
         participant = _make_participant_mock([CVDRole.VENDOR])
 
         with patch(
-            "vultron.demo.helpers.milestones._fetch_participant",
+            "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
             return_value=participant,
         ):
             with pytest.raises(AssertionError) as exc_info:
@@ -265,7 +265,7 @@ class TestVerifyFixDeployedDeployerGuard:
         participant = _make_participant_mock([CVDRole.CASE_OWNER])
 
         with patch(
-            "vultron.demo.helpers.milestones._fetch_participant",
+            "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
             return_value=participant,
         ):
             with pytest.raises(AssertionError) as exc_info:
@@ -283,7 +283,7 @@ class TestVerifyFixDeployedDeployerGuard:
     def test_missing_participant_raises(self):
         """If the actor is not found in the case, AssertionError is raised."""
         with patch(
-            "vultron.demo.helpers.milestones._fetch_participant",
+            "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
             return_value=None,
         ):
             with pytest.raises(AssertionError) as exc_info:
@@ -302,11 +302,11 @@ class TestVerifyFixDeployedDeployerGuard:
 
         with (
             patch(
-                "vultron.demo.helpers.milestones._fetch_participant",
+                "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
                 return_value=participant,
             ),
             patch(
-                "vultron.demo.helpers.milestones._check_participant_d_state_in"
+                "vultron.demo.helpers.milestones.lifecycle._check_participant_d_state_in"
             ),
         ):
             verify_fix_deployed(
@@ -324,11 +324,11 @@ class TestVerifyFixDeployedDeployerGuard:
 
         with (
             patch(
-                "vultron.demo.helpers.milestones._fetch_participant",
+                "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
                 return_value=participant,
             ),
             patch(
-                "vultron.demo.helpers.milestones._check_participant_d_state_in"
+                "vultron.demo.helpers.milestones.lifecycle._check_participant_d_state_in"
             ),
         ):
             verify_fix_deployed(
@@ -351,7 +351,7 @@ class TestVerifyFixReadyDeployerGuard:
         participant = _make_participant_mock([CVDRole.DEPLOYER])
 
         with patch(
-            "vultron.demo.helpers.milestones._fetch_participant",
+            "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
             return_value=participant,
         ):
             with pytest.raises(AssertionError) as exc_info:

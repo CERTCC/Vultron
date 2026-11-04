@@ -53,7 +53,8 @@ where they now live and the Reporter's own poll stays on the scenario module,
 which is where its gate is.
 """
 
-import vultron.demo.helpers.sync as sync_module
+import vultron.demo.helpers.sync.ledger as sync_ledger
+import vultron.demo.helpers.sync.phase as sync_phase
 import vultron.demo.scenario.rv_demo as rv_demo_module
 from test.demo._helpers import mock_case, story_state
 from vultron.demo.actor_session import ActorSession
@@ -266,12 +267,12 @@ def test_rcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
     reporter_client = state.client(REPORTER)
 
     monkeypatch.setattr(
-        sync_module,
+        sync_phase,
         "wait_for_case_on_container",
         lambda *a, **kw: None,
     )
     monkeypatch.setattr(
-        sync_module,
+        sync_ledger,
         "_get_log_entries_for_case",
         lambda *a, **kw: [{"log_index": 5, "entry_hash": "abc123deadbeef0a"}],
     )
@@ -285,17 +286,17 @@ def test_rcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
             )
 
     monkeypatch.setattr(
-        sync_module,
+        sync_ledger,
         "wait_for_contiguous_ledger_coverage",
         _ledger_coverage,
     )
     monkeypatch.setattr(
-        sync_module,
+        sync_phase,
         "wait_for_participants_on_replicas",
         lambda *a, **kw: None,
     )
     monkeypatch.setattr(
-        sync_module, "verify_replica_state", lambda *a, **kw: None
+        sync_phase, "verify_replica_state", lambda *a, **kw: None
     )
 
     every_replica_converges(state)
@@ -337,12 +338,12 @@ def test_rcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
     v2_client = state.client(V2)
 
     monkeypatch.setattr(
-        sync_module,
+        sync_phase,
         "wait_for_case_on_container",
         lambda *a, **kw: None,
     )
     monkeypatch.setattr(
-        sync_module,
+        sync_ledger,
         "_get_log_entries_for_case",
         lambda *a, **kw: [{"log_index": 5, "entry_hash": "abc123deadbeef0a"}],
     )
@@ -355,17 +356,17 @@ def test_rcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
         timeouts_by_client_id[id(client)] = timeout_seconds
 
     monkeypatch.setattr(
-        sync_module,
+        sync_ledger,
         "wait_for_contiguous_ledger_coverage",
         _ledger_coverage,
     )
     monkeypatch.setattr(
-        sync_module,
+        sync_phase,
         "wait_for_participants_on_replicas",
         lambda *a, **kw: None,
     )
     monkeypatch.setattr(
-        sync_module, "verify_replica_state", lambda *a, **kw: None
+        sync_phase, "verify_replica_state", lambda *a, **kw: None
     )
 
     every_replica_converges(state)

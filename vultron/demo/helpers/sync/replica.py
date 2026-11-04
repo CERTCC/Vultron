@@ -1,0 +1,210 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Verify a replica's case state matches the authoritative actor's."""
+
+import logging
+
+import httpx2 as httpx
+
+from vultron.demo.helpers.polling import (
+    CROSS_CONTAINER_TIMEOUT,
+)
+from vultron.demo.helpers.polling._poll import _poll_until
+from vultron.demo.helpers.sync.ledger import (
+    _extract_ref_id,
+    _get_log_entries_for_case,
+)
+from vultron.demo.utils import DataLayerClient
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Public LedgerFanout helpers
+# ---------------------------------------------------------------------------
+
+
+def _case_or_none(client: DataLayerClient, case_id: str) -> dict | None:
+    """Read a case from *client*'s own store, or ``None`` if it holds no copy.
+
+    A store that has no copy of the case answers 404, and both the real client and
+    the TestClient double raise ``HTTPStatusError`` for that. Callers here want to
+    *assert* on absence in their own words, so the 404 is converted rather than
+    propagated; anything else is a real transport fault and re-raises.
+
+    This used to rely on ``client.get`` returning a falsy value for a missing
+    case, which made the ``assert ... not found`` lines below unreachable against
+    a client that raises — that is, against the real one. The demo double had been
+    hiding it by raising ``AssertionError`` instead, which those asserts' callers
+    happened to expect.
+    """
+    try:
+        return client.get(client.dl_path(case_id))
+    except httpx.HTTPStatusError as exc:
+        if exc.response is not None and exc.response.status_code == 404:
+            return None
+        raise
+
+
+def verify_replica_state(
+    auth_client: DataLayerClient,
+    replica_client: DataLayerClient,
+    case_id: str,
+    vendor_actor_id: str,
+    reporter_actor_id: str,
+    auth_coverage_timeout_seconds: float = CROSS_CONTAINER_TIMEOUT,
+    poll_interval_seconds: float = 0.5,
+) -> None:
+    """Verify that a replica actor's case state matches the authoritative state.
+
+    Checks four properties:
+
+    1. The same ``case_id`` exists in the replica's DataLayer.
+    2. ``actor_participant_index`` keys are identical (same participant set).
+    3. ``active_embargo`` references the same ID on both sides.
+    4. Log-state hash consistency: both sides share the same tail entry hash.
+
+    Args:
+        auth_client: DataLayerClient connected to the authoritative container
+            (the actor that owns/created the case).
+        replica_client: DataLayerClient connected to the replica container
+            (the actor that received a replicated copy).
+        case_id: Full URI of the ``as_VulnerabilityCase`` being verified.
+        vendor_actor_id: Full URI of the Vendor actor (retained for symmetry).
+        reporter_actor_id: Full URI of the Reporter actor (retained for
+            future participant-status checks).
+        auth_coverage_timeout_seconds: How long to wait for the authoritative
+            ledger to catch up to the replica's tail index before declaring
+            divergence. Defaults to the cross-container delivery budget.
+        poll_interval_seconds: Seconds between authoritative-ledger reads while
+            waiting for it to cover the replica's tail index.
+
+    Raises:
+        AssertionError: If any replica invariant is violated, *including* a case
+            that is absent from either store. An absent case reads as a 404, so
+            it is converted here rather than allowed to surface as a transport
+            error — which is the whole point of this function: it reports
+            replica divergence in the demo's own terms.
+
+    Spec: SYNC-02-002, D5-7-DEMOREPLCHECK-1.
+    """
+    auth_case_data = _case_or_none(auth_client, case_id)
+    assert auth_case_data, f"Authoritative case {case_id!r} not found"
+    auth_case = as_VulnerabilityCase.model_validate(auth_case_data)
+
+    replica_case_data = _case_or_none(replica_client, case_id)
+    assert replica_case_data, (
+        f"Replica does not have a copy of case {case_id!r} — "
+        "outbox delivery or inbox processing may have failed"
+    )
+    replica_case = as_VulnerabilityCase.model_validate(replica_case_data)
+
+    # 1. Same case ID
+    assert replica_case.id_ == case_id, (
+        f"Replica case ID mismatch: {replica_case.id_!r} != {case_id!r}"
+    )
+    logger.info("✓ Replica case ID matches: %s", case_id)
+
+    # 2. actor_participant_index keys match
+    auth_index = auth_case.actor_participant_index or {}
+    replica_index = replica_case.actor_participant_index or {}
+    assert set(auth_index.keys()) == set(replica_index.keys()), (
+        "Replica actor_participant_index key set differs from authoritative: "
+        f"replica={set(replica_index.keys())} "
+        f"auth={set(auth_index.keys())}"
+    )
+    logger.info(
+        "✓ Replica actor_participant_index matches (%d participants)",
+        len(replica_index),
+    )
+
+    # 3. active_embargo ID matches (if present on auth side)
+    auth_embargo_id = _extract_ref_id(auth_case.active_embargo)
+    replica_embargo_id = _extract_ref_id(replica_case.active_embargo)
+    if auth_embargo_id is not None:
+        assert auth_embargo_id == replica_embargo_id, (
+            f"Replica active_embargo {replica_embargo_id!r} != "
+            f"authoritative active_embargo {auth_embargo_id!r}"
+        )
+        logger.info("✓ Replica active_embargo matches: %s", auth_embargo_id)
+
+    # 4. Log-state hash consistency
+    #
+    # Read the replica ledger first to fix the tail index we compare at, then
+    # wait for the authoritative ledger to catch up to that index. The two
+    # ledgers grow independently and new entries propagate between participants
+    # with a delay (SYNC fanout), so at any single instant the authoritative
+    # copy may not yet hold an entry the replica has already received. Asserting
+    # a strict point-in-time superset therefore fires spuriously while an entry
+    # is still in flight (issue #2768) — the read order does not matter, because
+    # the entry is genuinely still arriving, not merely read in the wrong order.
+    # Instead we poll the authoritative ledger until it covers the replica's
+    # tail index, and only report divergence if it never does. The bounded wait
+    # distinguishes "entry still arriving" from "entry the authoritative
+    # single-writer never committed".
+    replica_entries = _get_log_entries_for_case(replica_client, case_id)
+    assert len(replica_entries) > 0, (
+        "Replica has no CaseLedgerEntry records for the case — "
+        "LedgerFanout replication did not complete"
+    )
+    replica_tail = max(replica_entries, key=lambda e: e["log_index"])
+    compare_index = replica_tail["log_index"]
+
+    # Filled in by the poll below; the final successful read is what we compare
+    # against. An empty authoritative ledger simply never covers compare_index,
+    # so it surfaces as the same divergence timeout rather than a separate case.
+    auth_entries: list[dict] = []
+    auth_entry_by_index: dict[int, dict] = {}
+
+    def _auth_covers_replica_tail() -> bool:
+        nonlocal auth_entries, auth_entry_by_index
+        auth_entries = _get_log_entries_for_case(auth_client, case_id)
+        auth_entry_by_index = {e["log_index"]: e for e in auth_entries}
+        return compare_index in auth_entry_by_index
+
+    _poll_until(
+        _auth_covers_replica_tail,
+        timeout_seconds=auth_coverage_timeout_seconds,
+        poll_interval=poll_interval_seconds,
+        error_msg=(
+            f"Auth ledger never caught up to replica tail index "
+            f"{compare_index} within {auth_coverage_timeout_seconds:g}s — the "
+            "replica holds an index the authoritative single-writer never "
+            "committed (hash-chain divergence)"
+        ),
+    )
+
+    auth_at_compare = auth_entry_by_index[compare_index]
+    auth_tail = max(auth_entries, key=lambda e: e["log_index"])
+    if auth_tail["log_index"] > compare_index:
+        logger.debug(
+            "Auth has grown to index %d past the replica's tail index %d; "
+            "comparing at the replica's tail",
+            auth_tail["log_index"],
+            compare_index,
+        )
+    assert auth_at_compare["entry_hash"] == replica_tail["entry_hash"], (
+        f"Replica log tail hash {replica_tail['entry_hash']!r} != "
+        f"authoritative log tail hash at index {compare_index} "
+        f"{auth_at_compare['entry_hash']!r} — "
+        "hash-chain replication integrity failure"
+    )
+    logger.info(
+        "✓ Replica log tail hash matches auth: %s… (index=%d)",
+        replica_tail["entry_hash"][:16],
+        replica_tail["log_index"],
+    )

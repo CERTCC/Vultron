@@ -222,7 +222,8 @@ def test_every_public_trigger_tree_factory_is_classified() -> None:
     public = {
         name
         for name, obj in inspect.getmembers(trigger_tree, inspect.isfunction)
-        if obj.__module__ == trigger_tree.__name__ and not name.startswith("_")
+        if obj.__module__.startswith(f"{trigger_tree.__name__}.")
+        and not name.startswith("_")
     }
     covered = {name.split(" ", 1)[0] for name in _FACTORIES}
 

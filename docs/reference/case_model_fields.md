@@ -19,7 +19,7 @@ For how the same objects appear on the wire, see [Vultron AS Objects](activitypu
 
 ## `VulnerabilityCase`
 
-Defined in `vultron/core/models/case.py`.
+Defined in `vultron/core/models/case/vulnerability_case.py`.
 
 | Field | Description |
 |---|---|

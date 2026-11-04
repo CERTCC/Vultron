@@ -397,7 +397,7 @@ class TestReplicasDrainBeforeTheSecondVendor:
     """The drain goes through the one shared coverage helper.
 
     DEMOMA-23-005: the read-authority-tail-then-poll-each-replica loop lives
-    in ``vultron/demo/helpers/sync.py`` and nowhere else (#3906).
+    in ``vultron/demo/helpers/sync/`` and nowhere else (#3906).
     ``rvcv-handoff`` never drains here, so the fragment itself belongs to
     this scenario alone.
     """
@@ -440,17 +440,17 @@ class TestReplicasDrainBeforeTheSecondVendor:
         ``demo_gate`` run; only the authority-tail read and the per-replica
         primitive are stubbed, so the recorded message is the helper's own.
         """
-        import vultron.demo.helpers.sync as sync_module
+        import vultron.demo.helpers.sync.ledger as sync_ledger
 
         state = _four_party_state()
         state.client(VENDOR).base_url = "http://vendor.test/api/v2"
 
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=[]
+                sync_ledger, "_get_log_entries_for_case", return_value=[]
             ),
             patch.object(
-                sync_module, "wait_for_contiguous_ledger_coverage"
+                sync_ledger, "wait_for_contiguous_ledger_coverage"
             ) as per_replica,
         ):
             demo.replicas_drain_before_the_second_vendor(state)
