@@ -908,7 +908,7 @@ class TestReplicasDrainBeforeTheSecondCoordinator:
 
     It was the last private copy of the
     read-authority-tail-then-poll-each-replica loop outside
-    ``vultron/demo/helpers/sync.py`` (#3906), and it inherits the helper's
+    ``vultron/demo/helpers/sync/`` (#3906), and it inherits the helper's
     behaviour when the authority holds no entries: one recorded gate failure
     naming the authority (EDF-06-005), where the private drain returned
     silently.
@@ -946,17 +946,17 @@ class TestReplicasDrainBeforeTheSecondCoordinator:
         ``demo_gate`` run; only the authority-tail read and the per-replica
         primitive are stubbed, so the recorded message is the helper's own.
         """
-        import vultron.demo.helpers.sync as sync_module
+        import vultron.demo.helpers.sync.ledger as sync_ledger
 
         state = _five_party_state()
         state.client(demo.C1).base_url = "http://c1.test/api/v2"
 
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=[]
+                sync_ledger, "_get_log_entries_for_case", return_value=[]
             ),
             patch.object(
-                sync_module, "wait_for_contiguous_ledger_coverage"
+                sync_ledger, "wait_for_contiguous_ledger_coverage"
             ) as per_replica,
         ):
             demo.replicas_drain_before_the_second_coordinator(state)

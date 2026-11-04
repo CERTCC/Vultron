@@ -138,7 +138,8 @@ _COLLECTION_MUTATION_BACKLOG: frozenset[str] = frozenset()
 # themselves have to write the field; that is their job.
 _CANONICAL_MUTATOR_MODULES: frozenset[str] = frozenset(
     {
-        "vultron/core/models/case.py",
+        "vultron/core/models/case/_statuses.py",
+        "vultron/core/models/case/vulnerability_case.py",
         "vultron/core/models/case_participant.py",
     }
 )

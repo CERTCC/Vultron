@@ -267,7 +267,7 @@ violated, or even evaluated.** Open the log and find the failing step first
 expected list. It is emitted from the shared helpers, so grepping one scenario
 file finds nothing:
 
-- `run_direct_path_rm_triage()` (`vultron/demo/helpers/workflow.py`) calls
+- `run_direct_path_rm_triage()` (`vultron/demo/helpers/workflow/triage.py`) calls
   `receiver_engages_case()` for the direct receiver in every multi-actor
   scenario;
 - `run_invite_path_rm_triage()` calls it for an invitee whose invite is accepted

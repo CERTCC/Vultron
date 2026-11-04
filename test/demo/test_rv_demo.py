@@ -123,7 +123,7 @@ from vultron.demo.helpers.vendor_story import (
     continuations as vendor_continuations,
     opening as vendor_opening,
 )
-from vultron.demo.helpers.verification import (
+from vultron.demo.helpers.verification.states import (
     _all_fetchable_participants_rm_closed,
 )
 from vultron.demo.helpers.workflow import (
@@ -538,7 +538,7 @@ class TestTheReporterReplicaConverges:
 
     DEMOMA-23-005 and DEMOMA-23-006: the
     read-authority-tail-then-poll-each-replica loop lives in
-    ``vultron/demo/helpers/sync.py`` and nowhere else (#3906).  ``rv`` is the
+    ``vultron/demo/helpers/sync/`` and nowhere else (#3906).  ``rv`` is the
     only scenario of its family that tells this step, and it tells it between
     the shared opening and the shared note thread: it reads replicas and
     writes nothing, so it moves no byte of the recording its siblings must

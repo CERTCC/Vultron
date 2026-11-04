@@ -18,7 +18,8 @@
 Its stored fields carry camelCase aliases; under ``extra="forbid"`` on
 ``CoreRecord`` (#4186) a key that is neither spelling is refused, so each
 alias is pinned: alias key in, field value out, and the same for the name.
-The retired join-backfill fields are refused by name (#5074).
+A former join-backfill field is refused as an unknown key, like any other
+(``test_former_field_names.py``, ADR-0175).
 """
 
 from datetime import UTC, datetime
