@@ -1339,6 +1339,8 @@ groups:
       spec_id: CM-18-003
     - rel_type: uses_definition
       spec_id: MSM-07-008
+    - rel_type: uses_definition
+      spec_id: EMB-18-005
     adr:
     - ADR-0093
     - ADR-0122
@@ -1720,7 +1722,7 @@ groups:
       the Case Owner's decision for the case. It MUST reject the named proposal's
       embargo register entry. Once no other proposal is open, the derived EM becomes
       NONE (ER) or stays ACTIVE with the prior terms in force (EJ). It stays PROPOSED or
-      REVISE while another proposal is open (EP-08-001).
+      REVISE while another proposal is open (EMB-18-005).
     rationale: >-
       The owner's rejection decides the proposal for the case; whether the owner, as a
       participant, also refuses those terms is a separate Reject of the Invite (MSM-07-004).
@@ -1734,6 +1736,8 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: VAM-05-009
+    - rel_type: uses_definition
+      spec_id: EMB-18-005
     adr:
     - ADR-0122
     stories:
