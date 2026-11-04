@@ -611,15 +611,11 @@ def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
     # #5592), and a family-name glob passes over any family it does not name
     # (#5846).
     fragment_sources = sorted(helpers_dir.rglob("*.py"))
-    # Each half asserted on its own: the scenario glob alone makes `sources`
-    # non-empty, so a fragment glob that matched nothing — a moved
-    # ``helpers/`` directory — would leave the composed half unguarded and
-    # the test still green (#5533).
+    # ``fragment_sources`` cannot come back empty: ``helpers_dir`` is found
+    # from ``invite_chain``, which lives under it. What keeps the fragment
+    # half honest is the pins at the end, which name the modules a narrower
+    # read would skip (#5533, #5846).
     assert scenario_sources, "no scenario module starts an invite chain"
-    assert fragment_sources, (
-        "no story-fragment module found beside the invite chain; a composed "
-        "family's invite lives in one, and this scan would pass over it"
-    )
     sources = scenario_sources + fragment_sources
     offenders = []
     seen_starters: set[str] = set()
@@ -663,7 +659,8 @@ def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
     # The scan found a call to each starter it looks for, so renaming one of
     # them fails here rather than silently emptying the check.
     assert seen_starters == starters, sorted(starters - seen_starters)
-    # Modules a family-name glob passed over are read (#5846). rcvcv's own
+    # The fragment half's guard: modules a family-name glob passed over are
+    # read (#5846). rcvcv's own
     # fragments sit in a flat helper module no family glob names, and the
     # handover starts an inviter chain from inside a split package: the scan
     # must not only list it but find that chain, so the check reaches it.

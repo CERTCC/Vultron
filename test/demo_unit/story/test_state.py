@@ -316,11 +316,15 @@ class TestStoryProps:
 
         declarations = _story_prop_declarations()
         # Keyed on the prop object itself, not on the module the walk first
-        # saw it in, so an import added elsewhere cannot break the pin.
+        # saw it in, so an import added elsewhere cannot break the pin. Each
+        # pinned prop is held by no other module the walk reads (a package
+        # ``__init__`` is skipped), so a walk that missed its declaring
+        # module misses the prop: ``TIMELINE_ANSWER`` would not do, since
+        # ``rcvcv_story`` imports it.
         missed = [
             prop.name
             for prop in (
-                opening.TIMELINE_ANSWER,
+                opening.ENGAGED_CASE,
                 handover.HANDED_OVER_CASE,
                 rcvcv_story.C2_JOINED,
             )

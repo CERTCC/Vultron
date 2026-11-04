@@ -152,9 +152,19 @@ def sessions_of(mock_method: MagicMock) -> list[str]:
     return [call.args[0].actor.id_ for call in mock_method.call_args_list]
 
 
+def _failures_marked(marker: str) -> list[str]:
+    """Every recorded failure carrying *marker*, in order."""
+    return [f for f in _demo_failures if marker in f]
+
+
 def gate_failures() -> list[str]:
     """Every recorded gate failure, in order."""
-    return [f for f in _demo_failures if "GATE FAILED" in f]
+    return _failures_marked("GATE FAILED")
+
+
+def step_failures() -> list[str]:
+    """Every recorded step failure, in order."""
+    return _failures_marked("STEP FAILED")
 
 
 def bind_container_actors(state: StoryState, *names: str) -> None:
