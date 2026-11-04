@@ -188,10 +188,13 @@ def create_close_case_received_tree(
             is refused before the CASE_MANAGER writes, declines or replies
             to anything (HP-01-006).  Required with ``sender_actor_id``.
         receiving_actor_id: Actor URI of the receiving actor.  Used as the
-            ``case_actor_id`` argument of :class:`AdvanceCaseActorToRMClosedNode`
-            and the closing actor of its :class:`CommitRMClosureEntriesNode`, so that on owner Leave
-            the CaseActor's own RM state is advanced *and* that transition is
-            recorded as a canonical ledger entry (CM-23-033).  When ``None``,
+            ``case_actor_id`` argument of
+            :class:`~vultron.core.behaviors.case.nodes.leave.advance.AdvanceCaseActorToRMClosedNode`
+            and the closing actor of its
+            :class:`~vultron.core.behaviors.case.nodes.leave.record.CommitRMClosureEntriesNode`,
+            so that on owner Leave the CaseActor's own RM state is advanced
+            *and* that transition is recorded as a canonical ledger entry
+            (CM-23-033).  When ``None``,
             both are omitted and the CaseActor's closure is neither applied nor
             recorded.
 

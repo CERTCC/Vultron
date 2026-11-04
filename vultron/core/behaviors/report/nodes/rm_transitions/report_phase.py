@@ -35,7 +35,8 @@ def _read_report_case_link(
 ) -> VultronReportCaseLink | None:
     """Read the ReportCaseLink for *report_id*, or None if absent or mistyped.
 
-    Shared by the report-phase transition nodes and :class:`TransitionRMtoValid`
+    Shared by the report-phase transition nodes and
+    :class:`~vultron.core.behaviors.report.nodes.rm_transitions.valid.TransitionRMtoValid`
     so the id derivation and type guard live in one place (CS-22-001).
     """
     link = datalayer.read(VultronReportCaseLink.build_id(report_id))

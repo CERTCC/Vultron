@@ -97,7 +97,7 @@ def create_accept_actor_recommendation_received_tree(
     This is the Case Owner's decision (``ACCEPT_OFFER_CASE_PARTICIPANT``).
     The recommender's receipt of the CASE_MANAGER's answer
     (``ACCEPT_ACTOR_RECOMMENDATION``) is
-    :func:`create_recommendation_answer_received_tree`.
+    :func:`~vultron.core.behaviors.case.suggest_actor_tree.answer.create_recommendation_answer_received_tree`.
 
     Commits a canonical ``CaseLedgerEntry`` (CM-16-006 step 1), then fans
     out: sends ``AcceptActorRecommendation`` to the original recommender
@@ -200,7 +200,7 @@ def create_reject_actor_recommendation_received_tree(
     This is the Case Owner's decision (``REJECT_OFFER_CASE_PARTICIPANT``).
     The recommender's receipt of the CASE_MANAGER's answer
     (``REJECT_ACTOR_RECOMMENDATION``) is
-    :func:`create_recommendation_answer_received_tree`.
+    :func:`~vultron.core.behaviors.case.suggest_actor_tree.answer.create_recommendation_answer_received_tree`.
 
     Commits a canonical ``CaseLedgerEntry`` (CM-16-007 step 1), then sends
     ``RejectActorRecommendation`` to the original recommender

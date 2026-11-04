@@ -185,11 +185,11 @@ NO_COMMIT_TREES: dict[_Site, str] = {
     (
         f"{_R}/received_report_trees/receipt.py",
         "create_ack_report_received_tree",
-    ): ("RK goes to the reporter, never to the CASE_MANAGER (RMB-08-005)"),
+    ): "RK goes to the reporter, never to the CASE_MANAGER (RMB-08-005)",
     (
         f"{_R}/received_report_trees/receipt.py",
         "create_report_received_tree",
-    ): (_BEFORE_ANY_CASE),
+    ): _BEFORE_ANY_CASE,
     (
         "vultron/core/behaviors/sync/announce_tree/factory.py",
         "create_announce_log_entry_tree",

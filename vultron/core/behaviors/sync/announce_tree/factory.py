@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Behavior tree factory for inbound Announce(CaseLedgerEntry) handling."""
+"""The Announce(CaseLedgerEntry) received-tree factory."""
 
 import py_trees
 

@@ -16,8 +16,8 @@
 
 """RM transition nodes for the report behavior tree.
 
-Two shapes of RM transition live here, and the difference between them is the
-whole point of the module layout:
+Two shapes of RM transition live in this package, and the difference between
+them is the whole point of its layout:
 
 **Report-phase transitions** (:class:`TransitionRMtoValid`,
 :class:`TransitionRMtoInvalid`, :class:`TransitionRMtoClosed`) record the
@@ -42,8 +42,10 @@ rather than looking the case up itself; the single lookup site is
 :class:`~vultron.core.behaviors.case.nodes.case_lookup.RequireCaseForReport`
 (ARCH-15-004).
 
-Split by shape (CS-18-005): ``report_phase`` holds the report-phase
-transitions and their base class, and ``valid`` the RM.VALID transition.
+Split by shape (CS-18-005): ``report_phase`` holds the report-phase-only
+transitions (``RM.INVALID`` and ``RM.CLOSED``), their base class and the
+shared ReportCaseLink read; ``valid`` holds the ``RM.VALID`` transition, which
+is both case-scoped and report-phase.
 """
 
 from vultron.core.behaviors.report.nodes.rm_transitions.report_phase import (
