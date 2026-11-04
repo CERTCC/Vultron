@@ -850,9 +850,10 @@ def wait_for_case_for_offer(
     replica's arrival is a real asynchronous event driven by another actor's
     outbox: exactly the kind of causal arrow ADR-0058 wants gated.
 
-    Lives next to :func:`find_case_for_offer` rather than in ``polling.py``
-    because it is that lookup's polling wrapper; putting it here keeps the
-    offer→report→case resolution chain in one module (ARCH-15-004).
+    Lives next to :func:`find_case_for_offer` rather than in the ``polling``
+    package because it is that lookup's polling wrapper; putting it here
+    keeps the offer→report→case resolution chain in one module
+    (ARCH-15-004).
 
     Args:
         client: DataLayerClient connected to the receiving actor's container.

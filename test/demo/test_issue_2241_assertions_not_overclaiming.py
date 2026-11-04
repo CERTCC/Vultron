@@ -28,14 +28,14 @@ Defects covered:
    participant fetch returns 404, builds an empty list and calls
    ``all_participants_rm_closed([])`` → ``True`` (vacuous convergence).
 
-3. ``polling.py:wait_for_case_participants`` — previously compared
+3. ``polling/case.py:wait_for_case_participants`` — previously compared
    ``len(case.case_participants) >= expected_count``; ``case_participants``
    is ``list[as_CaseParticipantRef]`` which can hold bare string IDs, so
    the count was satisfied even when no real ``CaseParticipant`` objects
    existed.  Fixed by switching to identity-based subset check on
    ``actor_participant_index``.
 
-4. ``polling.py:_wait_for_participant_status_field`` — timeout
+4. ``polling/participant.py:_wait_for_participant_status_field`` — timeout
    ``AssertionError`` message includes only the actor URI; the container
    that was polled (``client.base_url``) is absent, making it impossible
    to tell which container was checked.
