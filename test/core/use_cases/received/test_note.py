@@ -66,13 +66,18 @@ class TestNoteUseCases:
             as_CaseParticipant,
         )
 
-        case_actor = VultronService(
-            id_=case_actor_id,
-            name="CaseActor",
-            attributed_to="https://example.org/users/vendor",
-            context=case_id,
-        )
-        dl.create(case_actor)
+        if dl.read(case_actor_id) is None:
+            # One CaseActor manages several cases, so a test seeding a second
+            # case reuses the Service rather than re-creating it
+            # (PCR-04-003: one actor, one inbox, routing on ``context``).
+            dl.create(
+                VultronService(
+                    id_=case_actor_id,
+                    name="CaseActor",
+                    attributed_to="https://example.org/users/vendor",
+                    context=case_id,
+                )
+            )
 
         # attributed_to anchors the per-case ledger genesis, without which
         # the CaseActor's receipt commit fails (CLP-08-005).
@@ -132,6 +137,65 @@ class TestNoteUseCases:
         refreshed = cast(as_VulnerabilityCase, refreshed)
         assert note.id_ in refreshed.notes
         assert result.disposition == HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("PCR-04-001")
+    @pytest.mark.spec("PCR-07-004")
+    def test_the_context_decides_which_replica_the_note_lands_on(
+        self, make_payload
+    ):
+        """PCR-07-004: ``context`` alone picks the case the activity acts on.
+
+        One actor holds one inbox and several replicas (PCR-04-003), so the
+        only thing that distinguishes two otherwise identical ``Add(Note)``
+        activities is the case their ``context`` names.  Holding *two* cases is
+        what makes the assertion mean something: against a store holding one
+        case, "the note landed on the case" is true however the handler chose
+        it.
+        """
+        case_actor_id = "https://example.org/cases/case_n1r/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        addressed = self._setup_case_with_case_manager(
+            dl, "https://example.org/cases/case_n1r", case_actor_id
+        )
+        bystander = self._setup_case_with_case_manager(
+            dl, "https://example.org/cases/case_n1r_other", case_actor_id
+        )
+        note = as_Note(
+            id_="https://example.org/notes/note-routed",
+            content="For the addressed case only",
+            context=addressed.id_,
+        )
+
+        event = make_payload(
+            add_note_to_case_activity(
+                note,
+                target=addressed,
+                actor="https://example.org/users/finder",
+                to=[dl.actor_id],
+            ),
+            receiving_actor_id=case_actor_id,
+            at=dl,
+        )
+        assert _as_id(event.context) == addressed.id_, (
+            "the activity must route on context, so the extracted event must"
+            " carry it (PCR-04-002)"
+        )
+
+        result = AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.APPLIED
+        assert (
+            note.id_
+            in cast(as_VulnerabilityCase, dl.read(addressed.id_)).notes
+        )
+        assert (
+            cast(as_VulnerabilityCase, dl.read(bystander.id_)).notes == []
+        ), "the case the context did not name must be untouched"
 
     @pytest.mark.spec("HP-08-006")
     @pytest.mark.spec("VAM-01-015")

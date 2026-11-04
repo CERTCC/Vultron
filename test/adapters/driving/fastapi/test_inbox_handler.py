@@ -311,6 +311,7 @@ def _add_note_activity(activity_id: str, case_id: str, to: str) -> as_Activity:
 
 
 @pytest.mark.spec("CBT-03-006")
+@pytest.mark.spec("PCR-07-005")
 def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
     """AC-6: Expired pre-bootstrap queue is dropped with a WARNING.
 
@@ -891,7 +892,7 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     )
 
 
-@pytest.mark.spec("CBT-03-003", "CBT-05-003")
+@pytest.mark.spec("CBT-03-003", "CBT-05-003", "PCR-07-005")
 def test_pending_case_queue_expiry_sends_nothing():
     """An expired queue is dropped without asking anyone for the case.
 

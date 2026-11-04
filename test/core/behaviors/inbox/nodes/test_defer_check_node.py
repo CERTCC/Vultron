@@ -193,6 +193,7 @@ class TestDeferCheckNodeBootstrapNeverDeferred:
         """
         assert MessageSemantics.CREATE_CASE in CASE_BOOTSTRAP_SEMANTICS
 
+    @pytest.mark.spec("PCR-06-002", "PCR-07-005")
     def test_non_bootstrap_case_semantic_is_still_deferred(self):
         """Semantics that presuppose the case are still deferred."""
         queue = _StubQueuePort(case_known=False)
@@ -204,6 +205,7 @@ class TestDeferCheckNodeBootstrapNeverDeferred:
 
         assert status == Status.FAILURE
         assert len(queue.queued) == 1
+        assert queue.queued[0][1] == "https://example.org/cases/not-yet-known"
 
 
 class TestDeferCheckNodeStubInviteProcessedOnArrival:
@@ -227,7 +229,7 @@ class TestDeferCheckNodeStubInviteProcessedOnArrival:
         assert status == Status.SUCCESS
         assert queue.queued == [], "the stub Invite must not be deferred"
 
-    @pytest.mark.spec("PCR-06-002", "PCR-06-005")
+    @pytest.mark.spec("PCR-06-002", "PCR-06-005", "PCR-07-005")
     @pytest.mark.parametrize(
         "semantic_type",
         [

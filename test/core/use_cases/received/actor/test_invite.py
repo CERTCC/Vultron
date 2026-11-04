@@ -22,6 +22,8 @@ from test.core.use_cases.received._archived_redelivery import (
     archived_redelivery,
 )
 from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+    seed_case_owner_participant,
     seed_inert_invitee,
     seed_store_owner_as_case_manager,
 )
@@ -35,7 +37,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models._helpers import _as_id, days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.invite import (
@@ -1089,11 +1091,117 @@ class TestInviteActorUseCases:
         latest_status = participant_obj.participant_statuses[-1]
         assert latest_status.rm.state == RM.RECEIVED
 
+    @pytest.mark.spec("PCR-07-008")
+    @pytest.mark.spec("CM-02-010")
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.parametrize(
+        ("receiver_holds_case_manager", "expected", "reason"),
+        [
+            pytest.param(
+                True, HandlerDisposition.APPLIED, None, id="case-manager"
+            ),
+            pytest.param(
+                False,
+                HandlerDisposition.REFUSED,
+                "neither the sender nor a recipient",
+                id="case-owner",
+            ),
+        ],
+    )
+    def test_the_invite_names_the_case_manager_and_its_accept_lands_there(
+        self, make_payload, receiver_holds_case_manager, expected, reason
+    ):
+        """PCR-07-008: the Invite's ``actor`` is the CASE_MANAGER, and the
+        Accept goes back to that actor, so only it processes the reply.
+
+        The Case Owner is a *different* actor here, which is what lets the test
+        tell the two apart: with owner and manager collapsed onto one actor,
+        "the CASE_MANAGER processed it" is true however the handler chose
+        (ISSUE-2789).  The same Accept is delivered to a store whose owner
+        holds CASE_MANAGER and to one whose owner is only the Case Owner, so
+        "not the Case Owner" is asserted rather than assumed (CM-02-010).
+
+        The refusal is pinned to its reason, not just to ``REFUSED``: the Case
+        Owner's copy is refused because the Accept is addressed to the
+        CASE_MANAGER the Invite named, which is the mechanism PCR-07-008 is
+        about (HP-01-005).  A bare disposition check would pass for any cause.
+        """
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+
+        receiver_id = "https://test.example/api/v2/actors/test-actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver_id)
+        invitee_id = "https://example.org/users/coordinator_pcr708"
+        invitee = as_Organization(id_=invitee_id)
+        owner_id = "https://example.org/users/owner"
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/casePCR708",
+            name="TEST-PCR-07-008",
+            attributed_to=owner_id,
+        )
+        if receiver_holds_case_manager:
+            manager_id = receiver_id
+            seed_store_owner_as_case_manager(dl, case)
+            seed_case_owner_participant(dl, case, owner_id)
+        else:
+            # The receiver is the Case Owner and holds no CASE_MANAGER role;
+            # the role sits with a third actor it must route through.
+            manager_id = "https://example.org/actors/case-actor"
+            seed_case_manager_participant(dl, case, manager_id)
+            seed_case_owner_participant(dl, case, receiver_id)
+        assert manager_id != owner_id, (
+            "owner and manager must be distinct actors or the test cannot"
+            " tell which one processed the Accept"
+        )
+        seed_inert_invitee(dl, case, invitee_id)
+
+        invite = rm_invite_to_case_activity(
+            invitee,
+            to=[invitee.id_],
+            target=case.id_,
+            actor=manager_id,
+            roles=[CVDRole.VENDOR],
+            id_="https://example.org/cases/casePCR708/invitations/1",
+        )
+        dl.create(invitee)
+        dl.create(case)
+        dl.create(invite)
+
+        # PCR-07-008, first half: the Invite names the CASE_MANAGER, not the
+        # Case Owner.
+        assert _as_id(invite.actor) == manager_id
+        assert _as_id(invite.actor) != owner_id
+
+        # PCR-07-008, second half: the Accept is addressed to the
+        # CASE_MANAGER the Invite named, so that is the actor that processes it.
+        accept = _accept_invite(invite, actor=invitee_id)
+        assert [_as_id(r) for r in accept.to] == [manager_id]
+
+        event = make_payload(accept, at=dl)
+        result = AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is expected, result.reason
+        if reason is not None:
+            assert reason in (result.reason or "")
+
+    @pytest.mark.spec("PCR-07-009")
+    @pytest.mark.spec("PCR-08-010")
     def test_accept_invite_no_identity_spoofing(self, make_payload):
-        """PCR-07-008: AcceptInviteActorToCaseReceivedUseCase MUST NOT emit
+        """PCR-07-009: AcceptInviteActorToCaseReceivedUseCase MUST NOT emit
         RmEngageCaseActivity (Join) with actor=invitee_id from the Case Actor
         context.  The BT records RM.RECEIVED for the invitee without spoofing
         the invitee's identity (CM-11-001, PCR-08-010).
+
+        The requirement cited here used to read PCR-07-008; that one is about
+        which actor the Invite and its Accept name, and is covered by
+        ``test_the_invite_names_the_case_manager_and_its_accept_lands_there``
+        below.  "No actor-spoofed RM state-change activity" is PCR-07-009.
         """
         from typing import Any, cast
 
@@ -1161,17 +1269,28 @@ class TestInviteActorUseCases:
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
-        # PCR-07-008: no RmEngageCaseActivity (Join) with actor=invitee_id
-        # should be queued — the BT records RM.RECEIVED for the invitee
-        # without spoofing the invitee's identity.
-        outbox_items = dl.clone_for_actor(invitee_id).outbox_list()
-        for item_id in outbox_items:
-            candidate = cast(Any, dl.read(item_id))
-            if candidate is not None and str(candidate.type_) == "Join":
-                raise AssertionError(
-                    f"PCR-07-008 violation: RmEngageCaseActivity (Join) with "
-                    f"actor={invitee_id!r} found in outbox — identity spoofing"
-                )
+        # PCR-07-009: no RM state-change activity may be emitted with
+        # actor=invitee_id from the receiving CASE_MANAGER's context.  The
+        # emitted set is read from the *CASE_MANAGER's* outbox, which is the
+        # one the run writes to: the invitee's own outbox is empty here, so a
+        # scan of it would pass whatever the run emitted (CONCERN-3019).
+        emitted = [cast(Any, dl.read(item_id)) for item_id in dl.outbox_list()]
+        assert emitted, (
+            "the Accept must emit the join cascade (CM-11-008, CM-11-010);"
+            " with nothing emitted there is no actor to check"
+        )
+        spoofed = [
+            str(a.type_)
+            for a in emitted
+            if a is not None and _as_id(a.actor) == invitee_id
+        ]
+        assert spoofed == [], (
+            f"PCR-07-009 violation: {spoofed} emitted with"
+            f" actor={invitee_id!r} — identity spoofing"
+        )
+        assert "Join" not in [
+            str(a.type_) for a in emitted if a is not None
+        ], "the invitee's own Join is the invitee's to send (PCR-08-010)"
 
         # The participant should be at RM.RECEIVED only (CM-11-001).
         updated_case = cast(Any, dl.read(case.id_))

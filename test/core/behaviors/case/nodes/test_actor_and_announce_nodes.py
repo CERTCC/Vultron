@@ -699,6 +699,7 @@ class TestSeedAnnouncedCaseNode:
         assert dl.read(CASE_ID2) is not None
 
     @pytest.mark.spec("PCR-02-004")
+    @pytest.mark.spec("PCR-07-002")
     def test_replaces_a_case_already_present(
         self, bridge, dl, case, announce_event
     ) -> None:
