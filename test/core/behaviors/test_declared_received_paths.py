@@ -309,12 +309,12 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     # (ADR-0113): the CASE_MANAGER adjudicates and relays, the addressee's
     # replica answers.
     (
-        f"{_E}/announce_teardown_tree.py",
+        f"{_E}/announce_teardown_tree/invite.py",
         "invite_to_embargo_on_case_tree",
         0,
     ): frozenset({CM, PR}),
     (
-        f"{_E}/announce_teardown_tree.py",
+        f"{_E}/announce_teardown_tree/teardown.py",
         "remove_embargo_from_case_tree",
         0,
     ): frozenset({CM, PR}),

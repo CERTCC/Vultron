@@ -175,7 +175,7 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
             f"{_C}/nodes/suggest_actor/conditions.py",
             "case_manager_requires_recorded_rejection_guard",
         ),
-        (f"{_E}/trigger_tree.py", "_by_role"),
+        (f"{_E}/trigger_tree/_arms.py", "_by_role"),
     }
 )
 
@@ -292,7 +292,7 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
         # keeps descending and the decision stays recorded (BT-17-008).
         (
             "EMBARGO_INVITE_ANSWER",
-            f"{_E}/announce_teardown_tree.py",
+            f"{_E}/announce_teardown_tree/invite.py",
             "invite_to_embargo_on_case_tree",
         ),
         (

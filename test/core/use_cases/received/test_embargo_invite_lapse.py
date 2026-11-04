@@ -1006,7 +1006,7 @@ class TestInviteeIsTheAddressee:
         ``rejecting_actor_id`` that reached only a ``logger.info`` call, which
         is indistinguishable from never supplying one.
         """
-        from vultron.core.behaviors.embargo.announce_teardown_tree import (
+        from vultron.core.behaviors.embargo.answer_trees import (
             reject_invite_to_embargo_tree,
         )
         from vultron.core.behaviors.embargo.nodes.proposal import (

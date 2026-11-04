@@ -246,7 +246,7 @@ def demo_manage_participants_accept(
         post_to_inbox_and_wait(client, vendor.id_, remove_participant)
 
     # Single-use removal checks, inline for now; extract them into
-    # helpers/verification.py when a second scenario removes a participant
+    # helpers/verification/ when a second scenario removes a participant
     # (DEMOMA-17-001).
     with demo_step("Step 6: Verify coordinator record is kept and inert"):
         with demo_check("Coordinator still on the case roster (CM-31-015)"):
@@ -315,7 +315,7 @@ def demo_manage_participants_accept(
         post_to_inbox_and_wait(client, vendor.id_, reinstate_participant)
 
     # Single-use reinstatement checks, inline for now; extract them into
-    # helpers/verification.py when a second scenario reinstates a
+    # helpers/verification/ when a second scenario reinstates a
     # participant (DEMOMA-17-001).
     with demo_step("Step 8: Verify coordinator is active again"):
         with demo_check("Coordinator record no longer carries a removal"):

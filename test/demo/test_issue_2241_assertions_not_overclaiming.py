@@ -24,7 +24,7 @@ Defects covered:
    ``demo_step``, dereferenced outside → ``UnboundLocalError`` when the
    trigger is swallowed.
 
-2. ``verification.py:_all_fetchable_participants_rm_closed`` — when every
+2. ``verification/states.py:_all_fetchable_participants_rm_closed`` — when every
    participant fetch returns 404, builds an empty list and calls
    ``all_participants_rm_closed([])`` → ``True`` (vacuous convergence).
 
@@ -40,7 +40,7 @@ Defects covered:
    that was polled (``client.base_url``) is absent, making it impossible
    to tell which container was checked.
 
-5. ``milestones.py:verify_fix_ready`` — checks only ``vfd_state``; does
+5. ``milestones/lifecycle.py:verify_fix_ready`` — checks only ``vfd_state``; does
    not verify the required cross-state invariant that CS.F entails RM in
    {ACCEPTED, DEFERRED, CLOSED}.
 """
@@ -59,7 +59,7 @@ from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import wait_for_case_participants
-from vultron.demo.helpers.verification import (
+from vultron.demo.helpers.verification.states import (
     _all_fetchable_participants_rm_closed,
 )
 from vultron.demo.utils import DataLayerClient, reset_demo_failures
@@ -299,17 +299,17 @@ def test_verify_fix_ready_fails_if_rm_not_engaged(monkeypatch):
     required RM invariant, so a participant at RM.RECEIVED with VF=VF CS state
     would pass the milestone check without having engaged with the report.
     """
-    import vultron.demo.helpers.milestones as milestones_module
-    import vultron.demo.helpers.verification as verification_module
+    import vultron.demo.helpers.milestones.lifecycle as milestones_module
+    import vultron.demo.helpers.verification.states as verification_module
     from vultron.demo.helpers.milestones import verify_fix_ready
 
     # Participant has fix-ready CS state (VF=VF) but has not yet engaged (RECEIVED)
     participant = _make_participant(vf=CS_vf.VF, rm=RM.RECEIVED)
 
     # _check_participant_vf_state_in and _check_participant_rm_state_in live
-    # in verification.py and call _fetch_participant from that module's namespace.
-    # _assert_vendor_role lives in milestones.py and calls it from milestones'
-    # namespace.  Both must be patched so all callers return our participant.
+    # in verification/states.py and call _fetch_participant from that module's
+    # namespace.  _assert_vendor_role lives in milestones/lifecycle.py and calls
+    # it from that module's namespace.  Both must be patched so all callers return our participant.
     monkeypatch.setattr(
         verification_module,
         "_fetch_participant",
@@ -349,7 +349,7 @@ def test_run_invite_path_rm_triage_polls_invited_client_for_rm_state(
     additional ``wait_for_participant_rm_state`` calls explicitly use
     ``invited_client``: once for RM.VALID and once for RM.ACCEPTED.
     """
-    import vultron.demo.helpers.workflow as workflow_module
+    import vultron.demo.helpers.workflow.triage as workflow_module
     from vultron.demo.helpers.workflow import run_invite_path_rm_triage
 
     auth_client_ids = []

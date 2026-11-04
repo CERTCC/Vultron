@@ -27,7 +27,7 @@ import pytest
 from test.demo import _helpers
 from test.demo._helpers import expect_trusted_introductions
 from vultron.demo import utils
-from vultron.demo.helpers import workflow
+from vultron.demo.helpers.workflow import report as workflow_report
 from vultron.demo.utils import DataLayerClient
 from vultron.demo.utils.failures import _demo_failures
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -59,7 +59,7 @@ def _clean_failures():
 
 
 def _check() -> str | None:
-    return workflow.verify_reporter_trusts_introduction(
+    return workflow_report.verify_reporter_trusts_introduction(
         _client(), _REPORTER, _RECEIVER, _REPORT, case_id=_CASE
     )
 
@@ -77,7 +77,9 @@ class TestVerifyReporterTrustsIntroduction:
             seen.update(kwargs)
             return _CASE
 
-        monkeypatch.setattr(workflow, "wait_for_reporter_introduction", _wait)
+        monkeypatch.setattr(
+            workflow_report, "wait_for_reporter_introduction", _wait
+        )
 
         assert _check() == _CASE
         assert seen == {
@@ -92,7 +94,9 @@ class TestVerifyReporterTrustsIntroduction:
         def _wait(*args, **kwargs):
             raise AssertionError("introduction refused (CBT-01-011)")
 
-        monkeypatch.setattr(workflow, "wait_for_reporter_introduction", _wait)
+        monkeypatch.setattr(
+            workflow_report, "wait_for_reporter_introduction", _wait
+        )
 
         assert _check() is None
         assert len(_demo_failures) == 1
@@ -108,7 +112,9 @@ class TestExpectTrustedIntroductions:
                 raise AssertionError("timed out")
             return case_id
 
-        monkeypatch.setattr(workflow, "wait_for_reporter_introduction", _wait)
+        monkeypatch.setattr(
+            workflow_report, "wait_for_reporter_introduction", _wait
+        )
         monkeypatch.setattr(
             _helpers, "_reporter_links", lambda *_args: list(links)
         )
@@ -171,7 +177,9 @@ class TestExpectTrustedIntroductions:
                 raise AssertionError("timed out")
             return case_id
 
-        monkeypatch.setattr(workflow, "wait_for_reporter_introduction", _wait)
+        monkeypatch.setattr(
+            workflow_report, "wait_for_reporter_introduction", _wait
+        )
         monkeypatch.setattr(
             _helpers, "_reporter_links", lambda *_a: [(_RECEIVER.id_, _CASE)]
         )

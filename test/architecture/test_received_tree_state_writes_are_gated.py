@@ -162,7 +162,7 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
     # signatory, gated by AwaitsEmbargoEndingNoticeNode (#3814): the direct
     # Remove(EmbargoEvent) is that signatory's only channel (CM-31-010).
     (
-        f"{_E}/announce_teardown_tree.py",
+        f"{_E}/announce_teardown_tree/teardown.py",
         "remove_embargo_from_case_tree",
         "ClearActiveEmbargoNode",
     ): _ENDING_NOTICE,

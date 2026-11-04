@@ -526,7 +526,8 @@ STANDING_READS: dict[Site, Listed] = {
     # The embargo Invite tree's two invitee-is-owner reads went with #5042:
     # a role an activity's subject holds is now asked through
     # ActorHoldsRoleInCaseNode, which is no sender node (ADR-0153,
-    # ARCH-24-001).
+    # ARCH-24-001).  #5766's split moved the entry to
+    # announce_teardown_tree/invite.py; it is removed rather than repointed.
 }
 
 
