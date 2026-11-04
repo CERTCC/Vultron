@@ -47,11 +47,11 @@ Received activity (inbox):
 
 ```text
 HTTP POST /actors/{actor_id}/inbox  (wire: AS2 JSON)
-  -> inbox route                   `vultron/adapters/driving/fastapi/routers/actors/_routes.py`
+  -> inbox route                   `vultron/adapters/driving/fastapi/routers/actors/_routes/mailbox.py`
   -> parse_activity (structural)   `vultron/wire/as2/parser.py`
      + unknown-key disposition     `vultron/wire/as2/unknown_keys.py`
   -> HTTP 202 Accepted; work continues in a BackgroundTasks task
-  -> inbox orchestration           `vultron/adapters/driving/fastapi/inbox_orchestration.py`
+  -> inbox orchestration           `vultron/adapters/driving/fastapi/inbox_orchestration/pipeline.py`
      (BT work runs in a worker thread via asyncio.to_thread, IE-06-007)
   -> rehydrate() via staging       `vultron/adapters/inbox_staging.py`, `vultron/wire/as2/rehydration.py`
      (activity and inline objects staged in a throwaway store; ingress writes nothing, DL-06-006, IO-03-004;
@@ -139,8 +139,8 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 - `vultron/core/AGENTS.md`
 - `specs/architecture.yaml` (ARCH spec group)
 - `vultron/adapters/driving/fastapi/main.py`
-- `vultron/adapters/driving/fastapi/routers/actors/_routes.py`
-- `vultron/adapters/driving/fastapi/inbox_orchestration.py`
+- `vultron/adapters/driving/fastapi/routers/actors/_routes/`
+- `vultron/adapters/driving/fastapi/inbox_orchestration/`
 - `vultron/adapters/driving/fastapi/trigger_runner.py`
 - `vultron/core/dispatcher.py`
 - `vultron/core/trigger_dispatcher.py`

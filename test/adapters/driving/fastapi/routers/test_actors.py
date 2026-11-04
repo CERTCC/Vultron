@@ -26,12 +26,13 @@ from vultron.adapters.driven.datalayer_sqlite import (
     get_all_actor_datalayers,
     get_datalayer,
 )
-from vultron.adapters.driving.fastapi.routers.actors import (
-    _routes as actor_routes,
-)
 from vultron.adapters.driving.fastapi.routers.actors._lookup import (
     _ACTOR_RECORD_TYPES,
     _find_actor_record_by_id,
+)
+from vultron.adapters.driving.fastapi.routers.actors._routes import (
+    mailbox as mailbox_routes,
+    registry as registry_routes,
 )
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.models._helpers import URN_UUID_PREFIX
@@ -207,7 +208,7 @@ def _record_scheduled_pipelines(monkeypatch) -> list[str | None]:
     def _record(activity, *_args, **_kwargs) -> None:
         scheduled.append(activity.id_)
 
-    monkeypatch.setattr(actor_routes, "run_inbox_pipeline", _record)
+    monkeypatch.setattr(mailbox_routes, "run_inbox_pipeline", _record)
     return scheduled
 
 
@@ -744,7 +745,9 @@ class TestCreateActor:
     ):
         minted = uuid.uuid4()
         monkeypatch.setattr(
-            actor_routes, "new_object_id", lambda: f"{URN_UUID_PREFIX}{minted}"
+            registry_routes,
+            "new_object_id",
+            lambda: f"{URN_UUID_PREFIX}{minted}",
         )
         resp = client_actors.post("/actors/", json={"name": "NoIdActor"})
         assert resp.status_code == status.HTTP_201_CREATED
