@@ -440,6 +440,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: UCORG-05-011
+    - rel_type: uses_definition
+      spec_id: SE-05-002
     adr:
     - ADR-0095
   - id: UCORG-05-013

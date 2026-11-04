@@ -1709,6 +1709,9 @@ groups:
     stories:
     - story_2026_023
     - story_2022_046
+    relationships:
+    - rel_type: refines
+      spec_id: BT-10-004
   - id: CLP-09-002
     priority: MUST_NOT
     kind: project
