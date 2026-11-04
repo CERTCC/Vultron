@@ -59,7 +59,7 @@ check the trigger endpoint exists. If it does not, build the full stack
 (endpoint → service → BT) first, then the step.
 
 **Report submissions too, in every demo.** Submit a report only through
-`reporter_submits_report` (`helpers/workflow.py`), exchange demos included, and
+`reporter_submits_report` (`helpers/workflow/report.py`), exchange demos included, and
 never build a `Create(VulnerabilityCase)` for the receiver.
 
 - **Why:** the reporter's `submit-report` trigger writes the pending
@@ -94,7 +94,7 @@ It also double-delivers when the real delivery succeeds too (#3980).
    the effect, read from its own container — and gate on it with `demo_gate`
    (see [event-driven-control-flow.md](event-driven-control-flow.md)
    § "Temporal Sequence vs. Causal Sequence"). The polling helpers are in
-   `vultron/demo/helpers/polling/`, `invite_chain/` and `milestones.py`.
+   `vultron/demo/helpers/polling/`, `invite_chain/` and `milestones/`.
 2. A wait that times out reliably in CI points at the delivery path (retries,
    health checks, startup order), not at the demo script.
 3. There is no self-delivery exception: an actor's own replica updates from the
@@ -217,7 +217,7 @@ first failure and hides every co-occurring one.
 1. Use `demo_gate` when dependent steps follow in the block, `demo_check` for an
    independent check.
 2. Prefer putting the wrap inside a shared scenario-facing helper so every caller
-   inherits it, as `wait_for_replica_ledger_coverage` (`helpers/sync.py`) and
+   inherits it, as `wait_for_replica_ledger_coverage` (`helpers/sync/ledger.py`) and
    `wait_for_participants_on_replicas` (`helpers/polling/case.py`) do.
 3. Keep the low-level primitives raising; their unit tests depend on it.
 
@@ -235,7 +235,7 @@ Every multi-actor scenario guards its notes phase on the Reporter holding the ca
 replica and every replica holding contiguous ledger coverage. That logic exists
 once.
 
-- `wait_for_replica_ledger_coverage` (`helpers/sync.py`) is the only
+- `wait_for_replica_ledger_coverage` (`helpers/sync/ledger.py`) is the only
   read-authority-tail-then-poll-replicas loop, the `demo_gate` before the notes
   phase and the Phase 1 drain. It returns the replicas whose wait passed, so
   later steps can gate per replica. It is never used after closure: a closed
@@ -250,7 +250,7 @@ once.
   whose coverage gate failed is not state-checked, and an authority with no
   entries is one failure naming the authority — the comparison would only
   cascade or misattribute the fault (EDF-06-005).
-- No module under `vultron/demo/` except `helpers/sync.py` calls
+- No module under `vultron/demo/` except the `helpers/sync/` package calls
   `wait_for_contiguous_ledger_coverage` or `_get_log_entries_for_case`
   (DEMOMA-23-006, enforced by
   `test/architecture/test_demo_scenario_coverage_via_shared_helper.py`).
@@ -280,9 +280,9 @@ replica reads the CASE_MANAGER's EM state: `leave-case` refuses the owner while
 its replica records an active embargo (TRIG-13-003). The helper then runs the whole
 closure milestone, each part in its own `demo_check` and read where the
 CASE_MANAGER lives: `verify_case_closure_recorded` and `verify_case_closed`
-(`helpers/milestones.py`), and, for each leaver, that its own replica ends at the
-last entry recording its own closure (`wait_for_replica_ledger_ending_at`). Pass
-the scenario's milestone label; the scenario adds no closure checks of its own.
+(`helpers/milestones/closure.py`), and, for each leaver, that its own replica ends
+at the last entry recording its own closure (`wait_for_replica_ledger_ending_at`).
+Pass the scenario's milestone label; the scenario adds no closure checks of its own.
 
 - Do not write the `leave_case()` steps inline.
 - Do not add an "every participant `RM.CLOSED` on every replica" check or a

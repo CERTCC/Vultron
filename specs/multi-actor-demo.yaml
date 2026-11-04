@@ -3199,9 +3199,10 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      `verify_fix_ready` in `vultron/demo/helpers/milestones.py` MUST accept only
-      actor IDs holding `CVDRole.VENDOR` in the case's participant index; the f→F
-      (fix-ready) transition is gated on VENDOR by `CheckVendorRoleNode`.
+      `verify_fix_ready` in `vultron/demo/helpers/milestones/lifecycle.py` MUST
+      accept only actor IDs holding `CVDRole.VENDOR` in the case's participant
+      index; the f→F (fix-ready) transition is gated on VENDOR by
+      `CheckVendorRoleNode`.
     rationale: >-
       The f→F (fix-ready) transition requires CVDRole.VENDOR, and a Coordinator has no
       vendor fix path. If `verify_fix_ready` accepted any actor, a call with a
@@ -5722,7 +5723,7 @@ groups:
     statement: >-
       This codebase MUST perform every wait for replicas to reach contiguous ledger
       coverage of an authority's tail through a shared helper in
-      `vultron/demo/helpers/sync.py`. The helper reads the authority tail and polls
+      `vultron/demo/helpers/sync/`. The helper reads the authority tail and polls
       each replica. It applies the named ledger-coverage timeout constants
       from `vultron/demo/helpers/polling/`: a default budget and a wider late-joiner
       budget. Neither budget is below one that a scenario carried before the loop was
@@ -5758,7 +5759,7 @@ groups:
     statement: >-
       This codebase MUST perform the closure-phase wait for a departed participant's
       replica to end at its own closure through a helper in
-      `vultron/demo/helpers/sync.py`.
+      `vultron/demo/helpers/sync/`.
     rationale: >-
       After case closure no replica covers the authority's tail, because a closed
       participant is sent nothing after the entries that record its own closure
@@ -5778,8 +5779,8 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      A module under `vultron/demo/` other than `vultron/demo/helpers/sync.py`
-      MUST NOT call or import `wait_for_contiguous_ledger_coverage` or
+      A module under `vultron/demo/` other than the `vultron/demo/helpers/sync/`
+      package MUST NOT call or import `wait_for_contiguous_ledger_coverage` or
       `_get_log_entries_for_case` directly. Defining the primitive and
       re-exporting either name from a package `__init__` are exempt.
     rationale: >-
@@ -5790,7 +5791,7 @@ groups:
       check of scenario modules only cannot see it.
     verification: >-
       An architecture test under `test/architecture/` parses every module under
-      `vultron/demo/` except `vultron/demo/helpers/sync.py` and fails if one
+      `vultron/demo/` except the `vultron/demo/helpers/sync/` package and fails if one
       calls or imports `wait_for_contiguous_ledger_coverage` or
       `_get_log_entries_for_case`, excluding the primitive's own definition and
       package `__init__` re-exports.
@@ -5813,7 +5814,7 @@ groups:
     kind: project
     statement: >-
       A scenario's replica sync-verification step MUST be a thin call to a
-      shared helper in `vultron/demo/helpers/sync.py`. It declares only the
+      shared helper in `vultron/demo/helpers/sync/`. It declares only the
       scenario's authority, replicas, late joiners, expected participant set
       and the replica pairs to state-check.
     rationale: >-

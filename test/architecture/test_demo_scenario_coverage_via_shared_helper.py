@@ -14,13 +14,13 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """Architecture invariant (DEMOMA-23-006): no module under ``vultron/demo/``
-other than ``helpers/sync.py`` reads the authority's ledger tail or polls a
+other than the ``helpers/sync/`` package reads the authority's ledger tail or polls a
 replica for contiguous coverage itself.
 
 Every wait for a set of replicas to cover an authority's tail — the Phase 1
 drain, the causal gate before the notes phase and the temporal check after
 case closure — goes through ``wait_for_replica_ledger_coverage`` in
-``vultron/demo/helpers/sync.py`` (DEMOMA-23-005), and the sync-verification
+``vultron/demo/helpers/sync/`` (DEMOMA-23-005), and the sync-verification
 phase itself through ``run_sync_verification_phase`` (DEMOMA-23-007).  Before
 #3846 every scenario module carried two copies of that loop, which is why one
 race-window fix had to touch most of them and why their timeouts drifted
@@ -51,7 +51,8 @@ _DEMO_DIR = _corpus.REPO_ROOT / "vultron" / "demo"
 _SCENARIO_DIR = _DEMO_DIR / "scenario"
 #: The module that defines the coverage primitive.
 _POLLING = _DEMO_DIR / "helpers" / "polling" / "ledger.py"
-_SYNC = _DEMO_DIR / "helpers" / "sync.py"
+#: The package that defines the shared helpers, exempt from the scan.
+_SYNC_DIR = _DEMO_DIR / "helpers" / "sync"
 
 #: The loop primitives DEMOMA-23-006 forbids a scenario module to call.
 _FORBIDDEN = frozenset(
@@ -157,7 +158,7 @@ def _violations(path: Path, tree: ast.AST) -> list[tuple[int, str, str]]:
 _DEMO_TREES = {
     path: tree
     for path, tree in _corpus.all_trees(under=_DEMO_DIR)
-    if path != _SYNC
+    if path.parent != _SYNC_DIR
 }
 
 
@@ -166,16 +167,16 @@ def _module_id(path: Path) -> str:
 
 
 def test_demo_corpus_covers_scenarios_and_helpers():
-    """Guard: the corpus is every module under ``vultron/demo/`` but ``sync.py``.
+    """Guard: the corpus is every module under ``vultron/demo/`` but ``sync/``.
 
     A corpus that silently shrank back to the scenario directory is exactly
     how the third copy of the loop went unseen (#3906), so both the scenario
     modules and the helper that defines the primitive must be present, and
-    the one exempt module must be absent.
+    the exempt package must be absent.
     """
     assert len(_DEMO_TREES) >= 40, sorted(_DEMO_TREES)
     assert _POLLING in _DEMO_TREES
-    assert _SYNC not in _DEMO_TREES
+    assert not any(p.parent == _SYNC_DIR for p in _DEMO_TREES)
     scenario_modules = [
         p
         for p in _DEMO_TREES
@@ -199,7 +200,7 @@ def test_demo_module_routes_coverage_waits_through_shared_helper(module: Path):
     assert not hits, (
         f"{module.relative_to(_corpus.REPO_ROOT)} references the ledger "
         f"coverage primitives directly: {hits}. A module under vultron/demo/ "
-        "other than helpers/sync.py MUST NOT call or import "
+        "other than helpers/sync/ MUST NOT call or import "
         "wait_for_contiguous_ledger_coverage or _get_log_entries_for_case "
         "(DEMOMA-23-006); use wait_for_replica_ledger_coverage / "
         "run_sync_verification_phase from vultron.demo.helpers.sync."
@@ -211,14 +212,15 @@ def test_shared_helpers_exist_in_sync_module():
     defined = {
         node.name
         for path, tree in _corpus.files_mentioning(
-            "def wait_for_replica_ledger_coverage", under=_SYNC.parent
+            "def wait_for_replica_ledger_coverage",
+            "def run_sync_verification_phase",
+            under=_SYNC_DIR,
         )
-        if path == _SYNC
         for node in ast.walk(tree)
         if isinstance(node, ast.FunctionDef)
     }
     assert defined >= _SHARED_HELPERS, (
-        f"{_SYNC} must define {sorted(_SHARED_HELPERS)} (DEMOMA-23-005, "
+        f"{_SYNC_DIR} must define {sorted(_SHARED_HELPERS)} (DEMOMA-23-005, "
         f"DEMOMA-23-007); found {sorted(defined & _SHARED_HELPERS)}"
     )
 

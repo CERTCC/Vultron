@@ -59,7 +59,9 @@ from vultron.demo.helpers.polling import (
     wait_for_participant_rm_state,
 )
 from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.verification import _check_participant_rm_state_in
+from vultron.demo.helpers.verification.states import (
+    _check_participant_rm_state_in,
+)
 from vultron.demo.helpers.workflow import (
     case_manager_invites_actor,
     find_case_manager_actor_id,
