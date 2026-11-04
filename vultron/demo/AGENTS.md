@@ -28,21 +28,19 @@ endpoint you need does not exist, build the full stack (endpoint → service →
 
 ### Never Carry One Actor's Mail to Another Actor's Inbox
 
-A scenario demo MUST NOT POST an activity into *another* actor's inbox —
-including via `post_to_inbox_and_wait`. Delivery is the transport's job; carrying
-the mail means the outbox→delivery→inbox path is never exercised and demo CI
-proves nothing end-to-end. Poll the effect instead
-(`wait_for_case_on_container`, `find_case_invite_for_actor`; a received activity
-via `wait_for_received_activity`, DL-06-006). A reliably-timing-out poll is a
-delivery bug to investigate, not a workaround to write. Scope: `vultron/demo/scenario/`
-plus the `vultron/demo/helpers/` code it calls (#3980); `vultron/demo/exchange/` demos
-drive one backend directly and use `post_to_inbox_and_wait` as their normal mechanism.
-There is **no self-delivery exception**: an actor does not POST to its own inbox to
-update its own replica either — activities route through the CaseActor, whose
-`Announce` every replica consumes, so a replica that is not updating means the routing
-is wrong. See [`notes/ownership-transfer.md`](../../notes/ownership-transfer.md)
-§ "The Accepting Actor's Replica Updates via the CASE_MANAGER's Announce".
-(CONCERN-1635, ISSUE-2719)
+A scenario demo MUST NOT POST an activity into *another* actor's inbox, including
+via `post_to_inbox_and_wait`: delivery is the transport's job, and carrying the mail
+leaves the outbox→delivery→inbox path unexercised, so demo CI proves nothing
+end-to-end. Poll the effect instead (`wait_for_case_on_container`,
+`find_case_invite_for_actor`, `wait_for_received_activity`, DL-06-006); a
+reliably-timing-out poll is a delivery bug, not a workaround to write. Scope:
+`vultron/demo/scenario/` plus the `vultron/demo/helpers/` code it calls (#3980);
+`vultron/demo/exchange/` demos drive one backend directly and use
+`post_to_inbox_and_wait` normally. **No self-delivery exception** either: activities
+route through the CaseActor, whose `Announce` every replica consumes, so a replica
+that is not updating means the routing is wrong, not that the actor should POST to
+itself. [ownership-transfer](../../notes/ownership-transfer.md) § "The Accepting
+Actor's Replica Updates via the CASE_MANAGER's Announce". (CONCERN-1635, ISSUE-2719)
 
 ### A Scenario Declares Itself Once; Every Consumer Is Generated
 
@@ -115,13 +113,11 @@ sub-issues were this one defect in different scenarios.
    `demo_check`/`demo_gate` out with `contextlib.nullcontext` makes the assertion
    propagate and the test pass while proving nothing — exactly how the missing
    gate before `engage-case` escaped notice.
-9. **Nest the step that reads a value inside the block that produces it**, and
-   give each nested statement its own `demo_check`/`demo_step`. A name
-   pre-initialised to `None` or `""` before the block is allowed only when every
-   later read is guarded: the sentinel keeps `UnboundLocalError` away but hands
-   the next step a placeholder, which then fails for the wrong reason
-   (EDF-06-005, DEMOCI-01-009, #3038). Both halves are enforced over all of
-   `vultron/demo/` by `test/architecture/test_demo_step_no_unbound_ratchet.py`.
+9. **Nest the step that reads a value inside the block that produces it**, each
+   nested statement in its own `demo_check`/`demo_step`. A `None`/`""` pre-init
+   before the block is allowed only when every later read is guarded: it trades
+   `UnboundLocalError` for a placeholder the next step posts, failing for the
+   wrong reason (#3038, `test_demo_step_no_unbound_ratchet.py`).
 
 Full reasoning: EDF-06, DEMOMA-22, ADR-0058, and
 [`event-driven-control-flow`](../../notes/event-driven-control-flow.md) § "Temporal
@@ -137,17 +133,16 @@ earlier `demo_check` failures are lost and downstream steps get no structured sk
 Bare calls look like gates and are not. **How to decide:** would the next step
 operate on wrong or incomplete state if this wait timed out? **Yes** →
 `demo_gate`. **No** → `demo_check`, labelled as temporal per EDF-06-006.
-Anti-pattern examples and the full diagnostic workflow:
-[`notes/demo-ci-diagnostics.md`](../../notes/demo-ci-diagnostics.md) § "Async Race
-Window Patterns". Normative: EDF-06-005, EDF-06-006. (CONCERN-2325)
+Anti-patterns and the diagnostic workflow:
+[demo-ci-diagnostics](../../notes/demo-ci-diagnostics.md) § "Async Race Window
+Patterns". Normative: EDF-06-005, EDF-06-006. (CONCERN-2325)
 
 ### Event-Phrase Lookups MUST Use `lookup_entry()`, Not a Local Phrase Dict
 
 Display-layer code maps `MessageSemantics` → phrase via `lookup_entry(semantics)
-.phrase` from `vultron.semantic_registry`, never a local `dict[str, str]`: a parallel
-table drifts as the enum grows. Only `{actor}`, `{object}` and `{target}` are filled.
-[activitystreams-semantics](../../notes/activitystreams-semantics.md) § "Event Phrases
-Come From `lookup_entry()`, Never a Local Dict". (CONCERN-1675)
+.phrase` from `vultron.semantic_registry`, never a local `dict[str, str]` that
+drifts as the enum grows; only `{actor}`, `{object}` and `{target}` are filled
+(CONCERN-1675, [activitystreams-semantics](../../notes/activitystreams-semantics.md)).
 
 ### Every Scenario Runs on the Fixed Cast
 
@@ -158,7 +153,7 @@ from the act that seats them (DEMOCI-11-021). Only slots 1 and 2 declare
 `VULTRON_ACTOR__DEFAULT_CASE_ROLES`, because only they own a case and a case is owned
 as a role (CP-01-013, DEMOCI-11-032). Seat a new part in a free slot; a wider scenario
 grows `CAST_SIZE`. [demo-scenario-authoring](../../notes/demo-scenario-authoring.md)
-§ "Every Scenario Runs on the Fixed Cast". (#5532)
+§ "Every Scenario Runs on the Fixed Cast" (#5532).
 
 ### Exchange Demos: Discover the Canonical Case from the DataLayer
 
@@ -166,7 +161,7 @@ After `validate-report` the BT proposes the report and the CaseActor creates the
 **canonical** `VulnerabilityCase` (ADR-0041). Do NOT call `create_case_activity` in
 exchange demo setup: that makes a second, vendor-local case with no `ReportCaseLink`.
 Find the canonical one with `wait_for_initialized_case(client, report_id)`, keyed on
-the report. [`notes/case-proposal.md`](../../notes/case-proposal.md) § "Exchange Demo:
+the report. [case-proposal](../../notes/case-proposal.md) § "Exchange Demo:
 Discovering the Canonical Case". (ISSUE-1994)
 
 ### The Ledger Dump Belongs in the Failure Path, Not After the Last Phase
@@ -181,21 +176,19 @@ dead on artifact download).
   also follows the canonical ledger — both exactly once.
 - Do not re-add `try/finally: assert_demo_success()` in `main()` — a second owner
   of the accumulator asserts before the dump runs.
-- Keep the dump step thin and delegate to
-  `helpers.ledger_dump.dump_case_ledgers()`. The manifest is not optional, and
-  a dump failure must never replace the scenario's exception. The step and the
-  per-family wrapper are in the note below.
+- Keep the dump step thin, delegating to `helpers.ledger_dump.dump_case_ledgers()`.
+  The manifest is not optional, and a dump failure must never replace the
+  scenario's exception; the step and per-family wrapper are in the note below.
 
-DEMOCI-10, DEMOMA-23, and
-[`notes/demo-ci-invariants.md`](../../notes/demo-ci-invariants.md). (ISSUE-2239)
+DEMOCI-10, DEMOMA-23, [demo-ci-invariants](../../notes/demo-ci-invariants.md).
+(ISSUE-2239)
 
 ### Demo Devlog Race: Wait for Replica Before Dumping
 
 After any phase that commits a new canonical ledger entry, poll until the replica
-acknowledges the sender's tail hash before writing the devlog — otherwise the dump
-misses entries still in `Announce(CaseLedgerEntry)` fan-out. Pattern in
-[demo-ci-diagnostics](../../notes/demo-ci-diagnostics.md) § "Demo Devlog Race".
-(DEMO-DEVLOG-RACE)
+acknowledges the sender's tail hash before writing the devlog, or the dump misses
+entries still in `Announce(CaseLedgerEntry)` fan-out (DEMO-DEVLOG-RACE,
+[demo-ci-diagnostics](../../notes/demo-ci-diagnostics.md) § "Demo Devlog Race").
 
 ### BT Demo `main()` Must Be Callable With No Arguments
 
@@ -204,4 +197,4 @@ misses entries still in `Announce(CaseLedgerEntry)` fan-out. Pattern in
 the console script and `cli.py`'s click sub-group work. Test the real console script
 with `PYTHONPATH= uv run <script>`.
 [demo-scenario-authoring](../../notes/demo-scenario-authoring.md) § "BT Demo
-`main()`". (ISSUE-1568)
+`main()`" (ISSUE-1568).
