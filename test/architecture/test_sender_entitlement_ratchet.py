@@ -352,8 +352,8 @@ def _composer_builders() -> frozenset[str]:
     """The composer's private builders, which no other module may call."""
     return frozenset(
         node.name
-        for path in sorted((_corpus.REPO_ROOT / _COMPOSER).rglob("*.py"))
-        for node in ast.iter_child_nodes(_corpus.tree_of(path))
+        for _path, tree in _corpus.all_trees(_corpus.REPO_ROOT / _COMPOSER)
+        for node in ast.iter_child_nodes(tree)
         if isinstance(node, ast.FunctionDef) and node.name.startswith("_")
     )
 
