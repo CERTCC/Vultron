@@ -402,6 +402,59 @@ _NEGATIVE_FIXTURES: dict[str, str] = {
         "    def execute(self):\n"
         "        _run(self._dl, request, request.actor_id)\n"
     ),
+    # Detector branches: every other way a name can be bound or fed.
+    "global_binding": (
+        "def execute(self):\n"
+        "    global receiving_actor_id\n"
+        f"    receiving_actor_id = {_RESOLVED}\n"
+        "    b.execute_with_setup(tree=t, actor_id=receiving_actor_id)\n"
+    ),
+    "except_as_binding": (
+        "def execute(self):\n"
+        f"    receiving_actor_id = {_RESOLVED}\n"
+        "    try:\n"
+        "        pass\n"
+        "    except Exception as receiving_actor_id:\n"
+        "        pass\n"
+        "    b.execute_with_setup(tree=t, actor_id=receiving_actor_id)\n"
+    ),
+    "import_alias_binding": (
+        "def execute(self):\n"
+        "    from m import sender as receiving_actor_id\n"
+        "    b.execute_with_setup(tree=t, actor_id=receiving_actor_id)\n"
+    ),
+    "match_capture_binding": (
+        "def execute(self):\n"
+        "    match request.actor_id:\n"
+        "        case receiving_actor_id:\n"
+        "            b.execute_with_setup(tree=t, actor_id=receiving_actor_id)\n"
+    ),
+    "helper_parameter_without_callers": (
+        "def _run(dl, request, receiving_actor_id):\n"
+        "    b.execute_with_setup(tree=t, actor_id=receiving_actor_id)\n"
+    ),
+    "method_parameter": (
+        "class UseCase:\n"
+        "    def _run(self, receiving_actor_id):\n"
+        "        b.execute_with_setup(tree=t, actor_id=receiving_actor_id)\n"
+    ),
+    "helper_called_with_star_args": (
+        "def _run(dl, request, receiving_actor_id):\n"
+        "    b.execute_with_setup(tree=t, actor_id=receiving_actor_id)\n"
+        "\n"
+        "def execute(self):\n"
+        "    _run(*args)\n"
+    ),
+    "helper_parameter_two_hops": (
+        "def _inner(receiving_actor_id):\n"
+        "    b.execute_with_setup(tree=t, actor_id=receiving_actor_id)\n"
+        "\n"
+        "def _outer(receiving_actor_id):\n"
+        "    _inner(receiving_actor_id)\n"
+        "\n"
+        "def execute(self):\n"
+        f"    _outer({_RESOLVED})\n"
+    ),
 }
 
 #: Each source passes the resolved receiving actor in an accepted form.
@@ -423,6 +476,18 @@ _POSITIVE_FIXTURES: dict[str, str] = {
         "    def execute(self):\n"
         f"        receiving_actor_id = {_RESOLVED}\n"
         "        _run(self._dl, request, receiving_actor_id)\n"
+    ),
+    "annotated_local_bound_to_resolver": (
+        "def execute(self):\n"
+        f"    receiving_actor_id: str = {_RESOLVED}\n"
+        "    b.execute_with_setup(tree=t, actor_id=receiving_actor_id)\n"
+    ),
+    "helper_keyword_parameter_fed_the_resolver": (
+        "def _run(dl, *, receiving_actor_id):\n"
+        "    b.execute_with_setup(t, receiving_actor_id)\n"
+        "\n"
+        "def execute(self):\n"
+        f"    _run(self._dl, receiving_actor_id={_RESOLVED})\n"
     ),
 }
 
