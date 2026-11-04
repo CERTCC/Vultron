@@ -345,7 +345,7 @@ groups:
       CASE_MANAGER ledger entry carries as its payload snapshot records a change; it
       is not a received message.
     stories:
-    - story_2022_088
+    - story_2026_059
     - story_2022_045
     - story_2022_014
     verification: >-
@@ -385,7 +385,7 @@ groups:
       separate `Create` would add a "created but not attached" state needing its own
       ledger entry and replica step (CLP-07-013, RSH-08-004) for no gain (ADR-0137).
     stories:
-    - story_2022_088
+    - story_2026_059
     - story_2022_045
     verification: >-
       The parametrized test
@@ -412,7 +412,7 @@ groups:
       records each act that changes the case. A participant made any other way would
       be a case-file change outside the ledger (CLP-07-013, ADR-0137).
     stories:
-    - story_2022_088
+    - story_2026_059
     verification: >-
       `test_a_received_case_manager_act_is_recognized_and_unhandled` in
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that a
@@ -1497,7 +1497,7 @@ groups:
     stories:
     - story_2022_062
     - story_2022_081
-    - story_2022_088
+    - story_2026_011
   - id: VAM-08-004
     priority: MUST
     kind: protocol
@@ -1514,7 +1514,7 @@ groups:
     stories:
     - story_2022_062
     - story_2022_075
-    - story_2022_088
+    - story_2026_011
 - id: VAM-09
   title: Unrecognized Activities
   specs:

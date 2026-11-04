@@ -34,7 +34,7 @@ groups:
     - story_2022_074
     - story_2022_075
     - story_2022_087
-    - story_2022_088
+    - story_2026_036
     - story_2022_092
     - story_2022_093
   - id: VP-01-002
@@ -49,7 +49,7 @@ groups:
     - story_2022_061
     - story_2022_074
     - story_2022_075
-    - story_2022_088
+    - story_2026_036
   - id: VP-01-003
     priority: MUST_NOT
     kind: protocol

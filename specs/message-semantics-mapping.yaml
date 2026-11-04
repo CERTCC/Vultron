@@ -495,7 +495,7 @@ groups:
     stories:
     - story_2022_062
     - story_2022_081
-    - story_2022_088
+    - story_2026_011
   - id: MSM-03-002
     priority: MUST
     kind: protocol
@@ -834,7 +834,7 @@ groups:
     - rel_type: refines
       spec_id: MSM-05-002
     stories:
-    - story_2022_088
+    - story_2026_045
   - id: MSM-05-008
     priority: MUST
     kind: protocol
@@ -855,7 +855,7 @@ groups:
     - rel_type: extends
       spec_id: MSM-05-002
     stories:
-    - story_2022_088
+    - story_2026_045
   - id: MSM-05-005
     priority: MUST
     kind: protocol

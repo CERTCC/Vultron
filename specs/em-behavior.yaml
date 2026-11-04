@@ -1233,7 +1233,7 @@ groups:
       note: 'ET shorthand wire-type mapping'
 
     stories:
-    - story_2022_088
+    - story_2026_014
 - id: EMB-08
   title: Receive EE (Embargo Error)
   description: Behaviors triggered when a participant receives an EE (Embargo Management Error) signal, which has no dedicated semantic dispatch value and is handled outside the standard AS2 pattern-matching pipeline.
@@ -3378,7 +3378,7 @@ groups:
     - ADR-0152
     stories:
     - story_2022_013
-    - story_2022_088
+    - story_2026_064
   - id: EMB-17-015
     priority: MUST_NOT
     kind: protocol
@@ -3401,7 +3401,7 @@ groups:
     - ADR-0152
     stories:
     - story_2022_013
-    - story_2022_088
+    - story_2026_064
   - id: EMB-17-016
     priority: MUST_NOT
     kind: protocol
@@ -3424,7 +3424,7 @@ groups:
     - ADR-0152
     stories:
     - story_2022_013
-    - story_2022_088
+    - story_2026_064
   - id: EMB-17-017
     priority: MUST
     kind: protocol
@@ -3450,7 +3450,7 @@ groups:
     - ADR-0152
     stories:
     - story_2022_013
-    - story_2022_088
+    - story_2026_064
   - id: EMB-17-007
     priority: MUST_NOT
     kind: protocol

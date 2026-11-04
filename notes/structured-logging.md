@@ -7,7 +7,8 @@ description: >
   Log-call shape (SL-01-005: literal template plus lazy positional args, never an
   f-string), how correlation fields reach a record (SL-02-003: boundary filter,
   not per-call `extra=`), narrative log template (SL-04-006), infrastructure
-  demotion list (SL-04-007), and where new narrative lines go so INFO logs read
+  demotion list (SL-04-007), why a Selector arm a sibling can overrule logs at
+  DEBUG (SL-03-002), and where new narrative lines go so INFO logs read
   as a CVD protocol story.
 related_specs:
   - specs/structured-logging.yaml
@@ -206,6 +207,46 @@ the same module.
 
 ## Designed Self-Healing Recovery Paths MUST NOT Log at ERROR
 
-A node whose failure a wired fallback handles (a Selector sibling, a reject-and-replay
-loop) logs a self-healing event: use WARNING or INFO and name the recovery in the
-message. ERROR is for conditions with no recovery path (ISSUE-2169).
+ERROR is for conditions with no recovery path (ISSUE-2169). A node whose failure a
+wired fallback repairs — a reject-and-replay loop, a retry — logs a self-healing
+event instead: name the recovery in the message, and use WARNING or INFO, because
+something did go wrong and something fixed it. A Selector sibling is not that case:
+there the failure repaired nothing, because nothing broke. It logs at DEBUG — the
+next section.
+
+## A Selector Arm a Sibling Can Overrule Logs at DEBUG, Not WARNING
+
+An arm that fails so the next arm can succeed has decided nothing, so its line is
+DEBUG (SL-03-002): WARNING is for a recoverable anomaly (SL-03-001), and a reader
+who sees one takes it as the outcome. A sender guard's any-of side is the case — it
+composes its kinds into a Selector, so the CASE_MANAGER check failing is how a Case
+Owner's activity reaches the CASE_OWNER check that admits it. At WARNING that read
+as a refusal in every demo log of three passing runs (#5460).
+
+Decide the level from the node's own placement at tick time, not from a flag the
+composer sets: `failure_is_the_refusal(node)` in
+`vultron/core/behaviors/sender_entitlement.py` walks the parents and answers `False`
+at the first Selector with a later sibling, or at any decorator. A flag can disagree
+with the tree that is running; the walk cannot. The invariant the walk reads is
+pinned by `test/architecture/test_sender_guard_failure_is_the_tree_refusal.py`: no
+received tree may place a sender door where anything above it can overrule the
+door's FAILURE. Nothing else catches that direction — the demo matcher below sees
+only a WARNING that should not be there, never a refusal gone quiet.
+
+**Name a level-aware refusal helper for the placement it reads, not `_refuse`.**
+`SenderEntitlementConditionNode._refuse_by_placement` is the walk's only caller, and
+so far only `SenderIsCaseManagerNode` takes the rule. The module's other checks log
+WARNING from their own `update()`, and three of them already define a private
+`_refuse` that *appends* the `REFUSED` group instead of receiving it. A base method
+called `_refuse` would be overridden on those three in silence: mypy does not check
+override parameter names, and pyright at `typeCheckingMode: basic` reports nothing
+either, so routing them through the rule would look done and do nothing. #5786
+brings the family onto one rule.
+
+**Keep the refusal wording to the refusal (SL-03-003).** `— REFUSED (IDs)` is the
+token the demo tests' `expect_no_sender_refusals` matches, so the DEBUG line states
+the same facts with that group stripped, the resolved CASE_MANAGER among them. The
+WARNING line logs `feedback_message` itself
+(`logger.warning("%s: %s", self.name, msg)`), so the text a reader greps and the
+reason `BTBridge.get_failure_reason` reports are one string — a bespoke second
+template is how this WARNING escaped that matcher while the three runs passed.
