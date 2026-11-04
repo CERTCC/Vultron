@@ -945,7 +945,7 @@ class TestSubmitReportDisposition:
         from vultron.core.behaviors.case.nodes.post_close import (
             CaseOpenToExternalWritesNode,
         )
-        from vultron.core.use_cases.received.report import (
+        from vultron.core.use_cases.received.report.submission import (
             _submit_report_verdict,
         )
 
@@ -1091,10 +1091,18 @@ class TestSubmitReportKeepsWhatArrived:
 
     def test_execute_writes_nothing_itself(self):
         """The ratchet charges nothing to the handler (CLP-10-005)."""
+        import importlib
         import inspect
+        import pkgutil
 
         from vultron.core.use_cases.received import report
 
-        source = inspect.getsource(report)
-        assert "_store_submit_report_dependencies" not in source
-        assert "_store_dependency_idempotently" not in source
+        modules = [report] + [
+            importlib.import_module(f"{report.__name__}.{info.name}")
+            for info in pkgutil.iter_modules(report.__path__)
+        ]
+        assert len(modules) > 1, "the report package lists no submodules"
+        for module in modules:
+            source = inspect.getsource(module)
+            assert "_store_submit_report_dependencies" not in source
+            assert "_store_dependency_idempotently" not in source

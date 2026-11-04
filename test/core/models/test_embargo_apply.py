@@ -23,9 +23,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-import vultron.core.models._helpers as model_helpers
 from test.support.case_owner import CASE_OWNER_ID
-from vultron.core.models import embargo_register
+from vultron.core.models._helpers import ids as helpers_ids
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_apply import (
@@ -42,6 +41,7 @@ from vultron.core.models.embargo_apply import (
 )
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_register import step as embargo_register_step
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
@@ -259,7 +259,7 @@ class TestRegisterSteps:
         case_file = _apply_all(_case_file(), _proposed(E1))
         before = _dump(case_file)
         monkeypatch.setattr(
-            embargo_register, "is_em_transition", lambda *_: False
+            embargo_register_step, "is_em_transition", lambda *_: False
         )
         with pytest.raises(VultronEntryRefusedError, match="EM transition"):
             apply_embargo_change(case_file, _step(_K.ACTIVATE, E1))
@@ -593,6 +593,6 @@ def test_the_apply_function_reads_no_clock_mints_no_id_and_reads_no_store(
     def _no_mint() -> str:
         raise AssertionError("the apply function minted an id")
 
-    monkeypatch.setattr(model_helpers.uuid, "uuid4", _no_mint)
+    monkeypatch.setattr(helpers_ids.uuid, "uuid4", _no_mint)
     after = _apply_all(case_file, _LEDGER)
     assert after.case.em_state == EM.EXITED

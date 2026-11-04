@@ -1345,7 +1345,7 @@ groups:
       agreement to every shorter period, so no explicit `Accept` is necessary for it. A
       second record of consent next to the rows can disagree with them. A reader then
       cannot know which record is correct.
-    verification: Inspection of `vultron/core/models/case_participant.py` confirms that
+    verification: Inspection of `vultron/core/models/case_participant/` confirms that
       `CaseParticipant` carries `embargo_consents` rows and declares no scalar consent field and no
       `accepted_embargo_ids` or `invite_rsvp_deadline`.
     relationships:
@@ -1499,7 +1499,7 @@ groups:
     rationale: >-
       Almost every send of case content selects its recipients from the roster. If each
       send site has its own check, the next send site that someone writes can omit it.
-      One shared selection (`vultron/core/participants/recipients.py`) prevents this.
+      One shared selection (`vultron/core/participants/recipients/`) prevents this.
       The embargo-ending notices are an exception. They must reach participants that
       are not active, including the due notices of a removed participant (ADR-0116).
     verification: >-
@@ -4634,7 +4634,7 @@ groups:
       Inspection of `vultron/core/` confirms that all consent-write sites call
       `CaseParticipant.apply_pec_transition()` or `apply_pec_transition_if_legal()`,
       copy a carried row through `apply_embargo_change()` in
-      `vultron/core/models/embargo_apply.py`, or write the start rows through
+      `vultron/core/models/embargo_apply/apply.py`, or write the start rows through
       `CaseParticipant.write_uninvited_rows()`.
     relationships:
     - rel_type: refines
@@ -6057,7 +6057,7 @@ groups:
       active by CM-10-004, but it receives no further case content (CM-23-004) and may
       not act on the case (CM-23-018), so it cannot take the case on. The test is the
       one every sender guard and case-content selection uses, `may_act_on_case` in
-      `vultron/core/participants/recipients.py`.
+      `vultron/core/participants/recipients/sender_standing.py`.
     verification: >-
       Tests marked `CM-21-021` deliver to the CASE_MANAGER a proposal naming an actor
       off the roster, an invitee that has not accepted, a removed participant, a

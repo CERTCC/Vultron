@@ -20,7 +20,7 @@ from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, terminate
-from vultron.core.models import _helpers
+from vultron.core.models._helpers import clock as helpers_clock
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
@@ -559,7 +559,7 @@ class TestVulnerabilityCaseAppendCaseStatusClock:
     @pytest.fixture
     def frozen_clock(self, monkeypatch: pytest.MonkeyPatch) -> datetime:
         monkeypatch.setattr(
-            _helpers,
+            helpers_clock,
             "datetime",
             SteppingClock(self._PINNED, step=timedelta(0)),
         )

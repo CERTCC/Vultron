@@ -403,7 +403,7 @@ class TestEmitCaseStatusUpdateNode:
         stepped back: only ``now_utc_after`` keeps each snapshot after the
         status it follows, and the last appended stays current.
         """
-        from vultron.core.models import _helpers
+        from vultron.core.models._helpers import clock as helpers_clock
         from vultron.core.models.embargo_register import RegisterChange
         from vultron.core.states.embargo_register import RegisterTrigger
         from vultron.demo.determinism import SteppingClock
@@ -413,7 +413,7 @@ class TestEmitCaseStatusUpdateNode:
         seeded = case.current_status
         pinned = seeded.published - timedelta(seconds=1)
         monkeypatch.setattr(
-            _helpers, "datetime", SteppingClock(pinned, step=timedelta(0))
+            helpers_clock, "datetime", SteppingClock(pinned, step=timedelta(0))
         )
 
         first = populated_bridge.execute_with_setup(

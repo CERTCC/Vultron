@@ -15,12 +15,13 @@ import unittest
 from itertools import product
 
 import vultron.core.states.cs as states
+from vultron.core.states.cs import parsing
 
 
 class MyTestCase(unittest.TestCase):
     def test_last3(self):
-        self.assertEqual("abc", states._last3("wxyabc"))
-        self.assertEqual("abc", states._last3("abc"))
+        self.assertEqual("abc", parsing._last3("wxyabc"))
+        self.assertEqual("abc", parsing._last3("abc"))
 
     def test_pxa(self):
         for pfx in ("vfd", "Vfd", "VFd", "VFD"):

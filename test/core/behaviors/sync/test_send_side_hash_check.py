@@ -31,10 +31,10 @@ from vultron.core.behaviors.sync.nodes.verified_send import (
     send_verified_log_entry,
 )
 from vultron.core.models.case_ledger import (
-    CaseLedgerEntry,
     HashChainLedgerRecord,
     compute_genesis_hash,
 )
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.errors import VultronUnverifiedLedgerEntryError
 

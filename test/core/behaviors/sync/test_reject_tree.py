@@ -23,7 +23,7 @@ from vultron.core.behaviors.sync.nodes.replay_guard import (
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
 )
-from vultron.core.models import _helpers
+from vultron.core.models._helpers import clock as helpers_clock
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -678,7 +678,7 @@ _REPLAY_START = datetime(2026, 1, 1, tzinfo=UTC)
 def _set_clock(monkeypatch: pytest.MonkeyPatch, seconds: float) -> None:
     """Freeze ``now_utc()`` *seconds* after :data:`_REPLAY_START`."""
     monkeypatch.setattr(
-        _helpers,
+        helpers_clock,
         "datetime",
         SteppingClock(
             _REPLAY_START + timedelta(seconds=seconds), step=timedelta(0)

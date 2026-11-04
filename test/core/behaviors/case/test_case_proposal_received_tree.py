@@ -2320,12 +2320,12 @@ class TestADR0041Idempotency:
         """
         from datetime import datetime, timedelta, timezone
 
-        from vultron.core.models import _helpers
+        from vultron.core.models._helpers import clock as helpers_clock
 
         class _AdvancingClock:
             """A ``datetime`` stand-in whose ``now()`` steps forward a second.
 
-            Patched into ``_helpers`` rather than onto the models: the
+            Patched into ``_helpers.clock`` rather than onto the models: the
             ``published``/``updated`` defaults capture ``now_utc`` itself at
             class-definition time, so patching that name has no effect once the
             fields are built.  ``now_utc`` looks ``datetime`` up in its own
@@ -2340,7 +2340,7 @@ class TestADR0041Idempotency:
                 return self._t
 
         monkeypatch.setattr(
-            _helpers,
+            helpers_clock,
             "datetime",
             _AdvancingClock(datetime.now(UTC)),
         )

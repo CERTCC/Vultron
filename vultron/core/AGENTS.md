@@ -169,11 +169,11 @@ Canonical Nodes". *Source: ISSUE-1474; retired ISSUE-2712*
 
 ---
 
-### Layer-Neutral Helpers Belong in `core/models/_helpers.py`, Not Use-Cases
+### Layer-Neutral Helpers Belong in `core/models/_helpers/`, Not Use-Cases
 
 When a utility function has **no dependencies above `models/`** (no ports, no
 state machines, no use-case logic — only primitive types like `str`, `Any`,
-`uuid`), its correct home is `vultron/core/models/_helpers.py`. That module
+`uuid`), its correct home is `vultron/core/models/_helpers/`. That package
 sits at the bottom of the hexagonal stack and is safely importable by **all**
 layers (`behaviors/`, `use_cases/`, `services/`, `adapters/`).
 
@@ -183,7 +183,7 @@ move the helper down the stack, not to create a sidecar module at the same level
 
 **How to apply:** Before placing a new utility in `use_cases/_helpers.py`, ask:
 does this function depend on anything above `models/`? If not, put it in
-`core/models/_helpers.py`.
+`core/models/_helpers/`.
 
 <!-- Source: ISSUE-1428 -->
 

@@ -31,13 +31,15 @@ from vultron.core.models.ledger_position import (
     accepted_entry_hash,
 )
 from vultron.core.sync_helpers import (
-    _find_equivalent_recorded_entry,
-    _find_prev_actor_published,
     first_case_with_ledger,
     holds_ledger_position,
     is_ledger_fresh_for_case,
     ledger_tail_position,
     reconstruct_tail_hash,
+)
+from vultron.core.sync_helpers.recorded_entries import (
+    _find_equivalent_recorded_entry,
+    _find_prev_actor_published,
 )
 from vultron.errors import VultronValidationError
 

@@ -58,7 +58,7 @@ Blackboard contract (BTND-03-003):
 The node exposes what it did through :attr:`stored_ids` and
 :attr:`found_ids`, so a handler whose only work is intake can report
 ``APPLIED`` or ``SKIPPED`` (HP-01-003) without inspecting the DataLayer — see
-``intake_verdict`` in ``vultron/core/use_cases/received/_bt_verdict.py``.
+``intake_verdict`` in ``vultron/core/use_cases/received/_bt_verdict/``.
 """
 
 import logging

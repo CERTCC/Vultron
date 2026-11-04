@@ -56,7 +56,7 @@ groups:
         kind: project
         verification_debt: '#2574'
         statement: >-
-          This codebase MUST replace the procedural sync logic in `received/sync.py` and
+          This codebase MUST replace the procedural sync logic in `received/sync/` and
           `triggers/sync.py` with BT invocations through BTBridge.
         rationale: >-
           These two modules hold the sync use cases. A use case that runs its tree
