@@ -52,6 +52,10 @@ HANDOFF_DIRS = (
     _corpus.REPO_ROOT / "vultron/demo/helpers",
 )
 
+#: Repo-relative prefixes of the two directories, which classify a handoff.
+_SCENARIO_PREFIX = "vultron/demo/scenario/"
+_HELPERS_PREFIX = "vultron/demo/helpers/"
+
 #: The trigger that offers the transfer (TRIG-11-001).  The function that calls
 #: it is the handoff, whatever it is named.
 OFFER_TRIGGER = "offer_case_ownership_transfer"
@@ -110,7 +114,13 @@ def _handoff_functions() -> list[tuple[str, ast.FunctionDef]]:
                     for call in ast.walk(node)
                     if isinstance(call, ast.Call)
                 ):
-                    found.append((f"{path.name}::{node.name}", node))
+                    found.append(
+                        (
+                            f"{path.relative_to(_corpus.REPO_ROOT).as_posix()}"
+                            f"::{node.name}",
+                            node,
+                        )
+                    )
     assert found, (
         f"no demo function calls {OFFER_TRIGGER} — the ratchet would pass"
         " vacuously. If the trigger was renamed, update OFFER_TRIGGER."
@@ -173,11 +183,18 @@ def test_every_handoff_is_a_shared_story_fragment() -> None:
     on the Name of What Performs It").
     """
     modules = {name.split("::", 1)[0] for name, _ in _HANDOFF_FUNCTIONS}
-    assert any(not name.endswith("_demo.py") for name in modules), (
+    # Classified by directory, not by the ``_demo.py`` suffix: a scenario's
+    # own fragments may sit in a sibling module of ``vultron/demo/scenario``
+    # that is not a scenario (``rcvcv_fragments.py``, #5592), and a handoff
+    # written there is still a scenario writing its own.
+    in_scenarios = [
+        name for name in modules if name.startswith(_SCENARIO_PREFIX)
+    ]
+    assert any(name.startswith(_HELPERS_PREFIX) for name in modules), (
         "no shared helper performs a handoff, so the ratchet checks nothing."
         " Found: " + repr(sorted(modules))
     )
-    assert not [name for name in modules if name.endswith("_demo.py")], (
+    assert not in_scenarios, (
         "a scenario module offers the ownership transfer itself; the handoff"
         " is one shared continuation both handoff scenarios reach through"
         " (vultron/demo/helpers/owner_decision_story/handover.py,"

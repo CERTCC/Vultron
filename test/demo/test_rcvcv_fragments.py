@@ -30,13 +30,13 @@ import vultron.demo.scenario.rcvcv_demo as demo
 from test.demo._helpers import (
     devlogs_name_of,
     patch_chain_shared,
+    sessions_of,
     stub_closure_gate,
 )
 from test.demo._rcvcv_support import (
     CAST,
     five_party_state,
     no_banners,
-    sessions_of,
 )
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM

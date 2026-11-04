@@ -47,7 +47,7 @@ def recording_fragment(
     (DEMOCI-01-003).
     """
 
-    def run(stand_in_state: StoryState) -> None:
+    def run(_state: StoryState) -> None:
         log.append(name)
         if fails:
             with demo_step(f"{name} fails"):
@@ -72,7 +72,7 @@ def stand_in_state(
         cast=cast,
         case_actor_client=MagicMock(),
         harness=MagicMock(),
-        dump=lambda stand_in_state: None,
+        dump=lambda _state: None,
         unseated=unseated or {},
     )
 

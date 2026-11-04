@@ -56,6 +56,7 @@ from vultron.demo.helpers.story import StoryState, UnseatedContainer
 from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME
 from vultron.demo.in_process import response_value
 from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils.failures import _demo_failures
 from vultron.errors import VultronError
 
 # Names the invite chain (``vultron.demo.helpers.invite_chain``) calls itself.
@@ -143,6 +144,16 @@ def story_state(
     if case is not None:
         state.open_case(case=case, report=MagicMock(), offer=MagicMock())
     return state
+
+
+def sessions_of(mock_method: MagicMock) -> list[str]:
+    """The actor id of each session an ``autospec``-ed verb was called on."""
+    return [call.args[0].actor.id_ for call in mock_method.call_args_list]
+
+
+def gate_failures() -> list[str]:
+    """Every recorded gate failure, in order."""
+    return [f for f in _demo_failures if "GATE FAILED" in f]
 
 
 def bind_container_actors(state: StoryState, *names: str) -> None:

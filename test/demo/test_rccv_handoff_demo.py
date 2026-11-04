@@ -140,11 +140,6 @@ def _four_party_state():
     return story_state(*_CAST, case=mock_case())
 
 
-def _sessions_of(mock_method) -> list[str]:
-    """The actor id of each session an ``autospec``-ed verb was called on."""
-    return [call.args[0].actor.id_ for call in mock_method.call_args_list]
-
-
 # ---------------------------------------------------------------------------
 # The story's shape (DEMOCI-11-019, DEMOCI-11-024, DEMOMA-14-017)
 # ---------------------------------------------------------------------------

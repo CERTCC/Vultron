@@ -20,6 +20,7 @@ from unittest.mock import patch
 import pytest
 
 from test.demo._helpers import (
+    gate_failures,
     patch_chain_shared,
 )
 from test.demo.owner_decision_story._support import (
@@ -29,7 +30,6 @@ from test.demo.owner_decision_story._support import (
     OWNER,
     SEATED,
     continuation_state,
-    gate_failures,
     no_banners,
 )
 from vultron.demo.actor_session import ActorSession

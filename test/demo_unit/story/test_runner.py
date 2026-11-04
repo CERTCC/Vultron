@@ -220,7 +220,7 @@ class TestRunStory:
         """
         log = fake_harness.log
 
-        def proposes(stand_in_state: StoryState) -> None:
+        def proposes(_state: StoryState) -> None:
             log.append("propose")
             with demo_step("the proposal fails"):
                 raise AssertionError("no revision took effect")
@@ -383,7 +383,7 @@ class TestRunStoryOnTheRealHarness:
                 },
                 case_actor_client=MagicMock(),
                 harness=harness,
-                dump=lambda stand_in_state: None,
+                dump=lambda _state: None,
             )
 
         return open_cast

@@ -605,11 +605,11 @@ def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
     # scenarios: a scenario's own fragments may sit in a sibling module
     # (``rcvcv_fragments.py``, #5592).
     scenario_sources = sorted(scenario_dir.glob("*.py"))
-    # The coordinator-first family is a package (#5592), so its submodules
-    # are read as well as the flat sub-family modules beside it.
-    fragment_sources = sorted(helpers_dir.glob("coordinated_*.py")) + sorted(
-        helpers_dir.glob("coordinated_story/*.py")
-    )
+    # Every helper module, recursively: shared fragments live in flat
+    # modules and in split packages alike (``coordinated_story/``,
+    # ``vendor_story/``, ``owner_decision_story/``; #5592), and a family-name
+    # glob passes over any family it does not name.
+    fragment_sources = sorted(helpers_dir.rglob("*.py"))
     # Each half asserted on its own: the scenario glob alone makes `sources`
     # non-empty, so a fragment glob that matched nothing — a renamed or moved
     # ``coordinated_*.py`` — would leave the composed half unguarded and the
@@ -652,8 +652,13 @@ def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
         if first_invite is not None and "case_manager_client" not in {
             k.arg for k in first_invite.keywords
         }:
-            offenders.append(f"{path.name}:{first_invite.lineno}")
+            offenders.append(
+                f"{path.relative_to(helpers_dir.parent)}:{first_invite.lineno}"
+            )
     assert not offenders, offenders
     # The scan found a call to each starter it looks for, so renaming one of
     # them fails here rather than silently emptying the check.
     assert seen_starters == starters, sorted(starters - seen_starters)
+    # The handover's invite is one the scan must read (#5592): it passes
+    # ``inviter=`` from inside a split package.
+    assert helpers_dir / "owner_decision_story" / "handover.py" in sources

@@ -23,7 +23,6 @@ from vultron.demo.helpers import (
 from vultron.demo.helpers.coordinated_story import REPORTER
 from vultron.demo.helpers.owner_decision_story import Part
 from vultron.demo.helpers.story import StoryProp
-from vultron.demo.utils.failures import _demo_failures
 
 #: A neutral cast, named for the part each plays rather than for either pair's
 #: actors: the two-coordinator pair runs these continuations with C1, C2 and a
@@ -61,8 +60,3 @@ def continuation_state(joined: bool = True):
     if joined:
         state.keep(JOINED, str(state.case.id_))
     return state
-
-
-def gate_failures() -> list[str]:
-    """Every recorded gate failure, in order."""
-    return [f for f in _demo_failures if "GATE FAILED" in f]

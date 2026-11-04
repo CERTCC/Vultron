@@ -44,8 +44,3 @@ def five_party_state(joined: bool = True):
     if joined:
         state.keep(rcvcv_fragments.C2_JOINED, str(state.case.id_))
     return state
-
-
-def sessions_of(mock_method) -> list[str]:
-    """The actor id of each session an ``autospec``-ed verb was called on."""
-    return [call.args[0].actor.id_ for call in mock_method.call_args_list]
