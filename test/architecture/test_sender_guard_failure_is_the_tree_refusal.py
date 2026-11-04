@@ -15,7 +15,8 @@
 
 """A sender door's FAILURE is the received tree's refusal, not a branch.
 
-``SenderEntitlementConditionNode._refuse_by_placement`` decides WARNING
+``refuse_by_placement``, the one helper every sender check records its
+refusal through, decides WARNING
 against DEBUG by asking ``failure_is_the_refusal(node)``, which walks the
 node's parents and answers ``False`` at the first Selector with a later
 sibling (SL-03-002, #5460).  Inside the guard that is the point: an any-of

@@ -25,7 +25,7 @@ import logging
 import pkgutil
 from collections.abc import Callable
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, get_args
 
 import py_trees
 import pytest
@@ -76,6 +76,7 @@ from vultron.core.behaviors.sender_guard import (
     AddresseeRequest,
     AuthoredCaseProposal,
     AuthoredNote,
+    AuthoredObject,
     AuthoredParticipantRecord,
     CaseProposalRequest,
     LedgerActivityContext,
@@ -1581,9 +1582,11 @@ def _multi_kind_sides() -> list[tuple[str, str, SenderRule]]:
     return [(name, side, found[name, side]) for name, side in sorted(found)]
 
 
-#: Both objects an ``AUTHOR`` kind can be asked about: the factory picks a
-#: different check for each (``_author_node``), so a side naming ``AUTHOR``
-#: is ticked once per shape rather than once for a guessed one.
+#: The authored objects an ``AUTHOR`` side is ticked with: the factory picks a
+#: different check for each (``_author_node``), so a side naming ``AUTHOR`` is
+#: ticked once per shape rather than once for a guessed one.  ``AuthoredObject``
+#: has a third member, ``AuthoredCaseProposal``, left out for the reason
+#: ``test_every_authored_shape_is_ticked_or_excused`` states and pins.
 _AUTHORED_SHAPES: dict[str, AuthoredNote | AuthoredParticipantRecord] = {
     "note": AuthoredNote(note_id=NOTE_ID),
     "participant-record": AuthoredParticipantRecord(
@@ -1592,9 +1595,14 @@ _AUTHORED_SHAPES: dict[str, AuthoredNote | AuthoredParticipantRecord] = {
 }
 
 
-def _any_of_side_rows() -> list[tuple[str, SenderRule, str, Any]]:
+#: The authored object a side's ``AUTHOR`` kind is asked about, or ``None`` on
+#: a side that names no ``AUTHOR`` kind.
+_AuthoredShape = AuthoredNote | AuthoredParticipantRecord | None
+
+
+def _any_of_side_rows() -> list[tuple[str, SenderRule, str, _AuthoredShape]]:
     """Every any-of side to tick, with the authored object its kinds need."""
-    rows: list[tuple[str, SenderRule, str, Any]] = []
+    rows: list[tuple[str, SenderRule, str, _AuthoredShape]] = []
     for name, side, rule in _multi_kind_sides():
         if Kind.AUTHOR in getattr(rule, side):
             rows.extend(
@@ -1609,6 +1617,30 @@ def _any_of_side_rows() -> list[tuple[str, SenderRule, str, Any]]:
 def _receiver_for(side: str) -> str:
     """The actor whose store judges *side*'s arm of a two-sided rule."""
     return VENDOR if side == "at_participant" else MANAGER
+
+
+@pytest.mark.spec("HP-01-009", "SL-03-002")
+def test_every_authored_shape_is_ticked_or_excused() -> None:
+    """``_AUTHORED_SHAPES`` covers every authored object but the excused one.
+
+    ``_author_node`` dispatches on the authored object's type, so a member of
+    ``AuthoredObject`` that ``_AUTHORED_SHAPES`` does not carry is an
+    ``AUTHOR`` arm whose log level the test below never asserts — and it would
+    go unverified in silence rather than failing (#5535).  Asked of the union
+    itself, so a fourth member fails here and has to be decided.
+
+    ``AuthoredCaseProposal`` is the one excused, because ticking it would
+    assert the wrong thing: ``SenderIsProposalAuthorNode`` returns SUCCESS for
+    a sender the store records no proposer for, so the side would admit the
+    stranger and the refusal this test is about would never happen.  The only
+    side naming that shape is a lone ``AUTHOR`` side, whose arm is the guard's
+    whole answer, so its level is WARNING either way.
+    """
+    excused = {AuthoredCaseProposal}
+    assert (
+        set(get_args(AuthoredObject))
+        == {type(shape) for shape in _AUTHORED_SHAPES.values()} | excused
+    )
 
 
 @pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002", "SL-03-003")
@@ -1677,6 +1709,15 @@ def test_every_any_of_side_logs_one_refusal_for_a_sender_it_refuses(
         for label, lines in warnings.items()
         if "none of the standings" not in lines[0]
     } == {}, "the one WARNING is not the arm naming every standing"
+    # Before judging the overruled arms' levels, require that some arm was
+    # overruled at all: `any()` over an empty list is False, so a DEBUG branch
+    # that went silent would pass the next assertion while proving nothing of
+    # SL-03-003 (the demoted arm must still record its reason, minus REFUSED).
+    assert {
+        label: seen for label, seen in overruled.items() if not seen
+    } == {}, (
+        "a side logged nothing from an overruled arm, so SL-03-003 is unpinned"
+    )
     assert {
         label: seen
         for label, seen in overruled.items()

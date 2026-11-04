@@ -234,8 +234,8 @@ received tree may place a sender door where anything above it can overrule the
 door's FAILURE. Nothing else catches that direction — the demo matcher below sees
 only a WARNING that should not be there, never a refusal gone quiet.
 
-**Every sender check takes the rule, through one helper.** A check records its
-refusal with `refuse_by_placement(node, reason)` in
+**Every sender check that logs a refusal reason takes the rule, through one
+helper.** A check records its refusal with `refuse_by_placement(node, reason)` in
 `vultron/core/behaviors/sender_entitlement/base.py`, reached by the base method
 `SenderEntitlementConditionNode._refuse_by_placement` or, for a check that is not a
 subclass of it, called directly. One helper is also what lets a test find a refusal
@@ -247,13 +247,15 @@ and pyright at `typeCheckingMode: basic` reports nothing either, so routing such
 check through the rule would look done and do nothing (#5786).
 
 **A line that is not a refusal reason stays off the rule, and says so where it is
-logged.** The placement rule picks the level of a *refusal reason*. Two kinds of
-line are not one. `SenderClosureNotRecordedNode` reports a recorded state whose
+logged.** The placement rule picks the level of a *refusal reason*.
+`SenderClosureNotRecordedNode` reports a recorded state whose
 verdict the handler decides — a repeat of a closing act is `SKIPPED`, not `REFUSED`
 (CM-23-018, ID-05-003) — so it keeps INFO in every placement, and it carries no
 `REFUSED` wording for a reader to misread. A malformed activity (no `actor_id`, an
-unreadable ledger entry) is a recoverable anomaly under SL-03-001, so it logs
-WARNING and records no refusal reason at all. Demoting the closure line to DEBUG
+unreadable ledger entry) is an anomaly, so it takes its level from SL-03-001 and
+records no refusal reason at all — WARNING at every such site but one, where
+`SenderIsCaseManagerNode` logs ERROR for a ledger entry it cannot read (#5862).
+Demoting the closure line to DEBUG
 would cost something concrete: at the closed-sender door that lets a closing Case
 Owner through it is the Selector's first arm, and the arm after it,
 `SenderIsCaseOwnerNode`, records its reason without logging it (#5845), so that

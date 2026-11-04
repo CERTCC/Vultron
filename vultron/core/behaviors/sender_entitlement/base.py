@@ -13,7 +13,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The base class every sender check derives from, and its refusal rule.
+"""The sender checks' shared refusal rule, and the base class most derive from.
+
+:func:`refuse_by_placement` is a free function so that a check which is not a
+:class:`SenderEntitlementConditionNode` subclass can take the same rule.
 
 A check's FAILURE refuses the sender only where nothing above it may
 still admit the sender (:func:`failure_is_the_refusal`, SL-03-002).

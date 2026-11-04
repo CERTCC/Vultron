@@ -106,7 +106,7 @@ class SenderIsParticipantNode(FindParticipantByActorIdNode):
             return refuse_by_placement(
                 self,
                 f"No case in this store to check sender"
-                f" '{self.sender_actor_id}' against"
+                f" '{self.sender_actor_id}' against — REFUSED"
                 " (HP-01-006, DEMOMA-07-003 step 1)",
             )
 

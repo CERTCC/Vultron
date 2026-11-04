@@ -48,6 +48,11 @@ _LOGGER = logging.getLogger("vultron.test.refusal_matchers")
         " (CM-30-001, CM-23-018, HP-01-006)",
         "Sender 'a' is not a participant of case 'c' — REFUSED (HP-01-006,"
         " DEMOMA-07-003 step 1)",
+        # The same node's no-case refusal. It carried HP-01-006 but no
+        # `REFUSED` group until #5786's review, so the matcher could not see
+        # it even at WARNING; its sibling check always worded it this way.
+        "No case in this store to check sender 'a' against — REFUSED"
+        " (HP-01-006, DEMOMA-07-003 step 1)",
     ],
 )
 def test_sender_matcher_catches_any_group_citing_hp_01_006(caplog, message):
@@ -63,10 +68,11 @@ def test_sender_matcher_catches_any_group_citing_hp_01_006(caplog, message):
     [
         "Invite 'i' was never recorded here — REFUSED (EP-09-010)",
         "Sender 'a' has no standing — REFUSED (HP-01-0061)",
-        # The same two reasons as an overruled arm words them: the trailing
+        # The same three reasons as an overruled arm words them: the trailing
         # group is gone, so the line claims no refusal (SL-03-003, #5786).
         "Sender 'a' is not an active participant of case 'c', or has left it",
         "Sender 'a' is not a participant of case 'c'",
+        "No case in this store to check sender 'a' against",
     ],
 )
 def test_sender_matcher_ignores_groups_without_hp_01_006(caplog, message):
