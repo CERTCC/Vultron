@@ -13,7 +13,7 @@
 
 """Actor look-ups and the shared actor-seeding steps.
 
-Provides :func:`_dl_key` for safe DataLayer path encoding,
+Provides :func:`dl_key` for safe DataLayer path encoding,
 :func:`get_actor_by_id` for actor look-ups, and :func:`_seed_mesh`, the
 two-phase sequence every ``seed_containers*`` helper runs: create each
 container's own actor, then register every actor as a peer on every other
@@ -37,7 +37,7 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 logger = logging.getLogger(__name__)
 
 
-def _dl_key(key: str) -> str:
+def dl_key(key: str) -> str:
     """URL-encode a DataLayer key for safe embedding in an API path segment.
 
     Encodes characters that are illegal in URL path segments (e.g., colons in

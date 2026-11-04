@@ -19,6 +19,8 @@ Also the CaseActor's initialized case and the pending-case inbox drain.
 import logging
 from collections.abc import Sequence
 
+import httpx2 as httpx
+
 from vultron.core.models.pending_case_inbox import (
     VultronPendingCaseInbox,
 )
@@ -30,6 +32,7 @@ from vultron.demo.helpers.polling._poll import (
     _client_in,
     _poll_until,
 )
+from vultron.demo.helpers.seeding.actors import dl_key
 from vultron.demo.utils import (
     DataLayerClient,
     case_actor_id_for_report,
@@ -432,13 +435,16 @@ def wait_for_pending_inbox_quiescent(
 
     def _check() -> bool:
         try:
-            data = client.get(client.dl_path(pending_id))
+            data = client.get(client.dl_path(dl_key(pending_id)))
             if not data:
                 return True
             activity_ids = data.get("activity_ids", [])
             return len(activity_ids) == 0
-        except Exception:  # noqa: BLE001  # ruff-baseline #3326
-            return True
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                # Row absent means the pending inbox has already been drained.
+                return True
+            raise
 
     _poll_until(
         _check,

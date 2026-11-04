@@ -15,7 +15,7 @@
 
 import httpx2 as httpx
 
-from vultron.demo.helpers.seeding.actors import _dl_key
+from vultron.demo.helpers.seeding.actors import dl_key
 from vultron.demo.utils import (
     DataLayerClient,
     ref_id,
@@ -61,7 +61,7 @@ def _fetch_participant(
         if participant_id is None:
             return None
         p_data = client.get(
-            client.dl_path(_dl_key(participant_id), actor_id=dl_actor_id)
+            client.dl_path(dl_key(participant_id), actor_id=dl_actor_id)
         )
         return as_CaseParticipant(**p_data)
     except (httpx.HTTPStatusError, AssertionError):
@@ -74,7 +74,7 @@ def _fetch_participant_data(client: DataLayerClient, p_id: str) -> dict | None:
     Re-raises for any non-404 error so failures are not silently swallowed.
     """
     try:
-        return client.get(client.dl_path(_dl_key(p_id)))
+        return client.get(client.dl_path(dl_key(p_id)))
     except httpx.HTTPStatusError as e:
         if e.response is not None and e.response.status_code == 404:
             return None

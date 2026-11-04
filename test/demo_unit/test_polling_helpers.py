@@ -19,17 +19,33 @@ and negative cases (timeout → AssertionError).
 
 import inspect
 import json
+import threading
+import time
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from unittest.mock import MagicMock, patch
 
+import httpx2 as httpx
 import pytest
+import uvicorn
+from fastapi import FastAPI, Path as FastAPIPath
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.received import archive_received
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+from vultron.adapters.driven.datalayer_sqlite import (
+    SqliteDataLayer,
+    reset_datalayer,
+)
+from vultron.adapters.driving.fastapi.deps import get_actor_dl
+from vultron.adapters.driving.fastapi.routers import (
+    datalayer as datalayer_router,
+)
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.helpers.polling import (
@@ -58,7 +74,11 @@ from vultron.demo.helpers.polling.participant import (
     _wait_for_participant_status_field,
 )
 from vultron.demo.helpers.polling.received import _received_activity_id
-from vultron.demo.utils import received_activity_in
+from vultron.demo.utils import (
+    DataLayerClient,
+    client as demo_client_module,
+    received_activity_in,
+)
 from vultron.wire.as2.factories.actor import offer_case_participant_activity
 from vultron.wire.as2.factories.case import (
     rm_invite_to_case_activity,
@@ -397,16 +417,185 @@ def test_wait_for_pending_inbox_quiescent_empty_list():
     )
 
 
-def test_wait_for_pending_inbox_quiescent_exception_treated_as_quiescent():
-    """Exceptions from client.get → treat as quiescent (inbox does not exist)."""
-    client = MagicMock()
-    client.base_url = "http://vendor:7999"
-    client.get.side_effect = Exception("404 not found")
-    wait_for_pending_inbox_quiescent(
-        client=client,
-        case_id=CASE_ID,
-        timeout_seconds=1.0,
+#: The actor whose store the router-backed pending-inbox tests read.
+_PENDING_INBOX_SEGMENT = "pending-inbox-gate"
+_PENDING_INBOX_ACTOR = canonical_actor_uri(_PENDING_INBOX_SEGMENT)
+
+#: Both case-id shapes the gate meets.  ``build_id`` percent-quotes the case
+#: id, so the stored key holds ``%3A`` for a URN and ``%3A`` plus ``%2F`` for
+#: a URL.  Each must survive the server's one path decode (#5722).
+_PENDING_INBOX_CASE_IDS = [
+    pytest.param("urn:uuid:8e1f1c9a-5d1b-4f3e-9c2a-6b7d0e4f5a21", id="urn"),
+    pytest.param("http://example.com/cases/case-123", id="url"),
+]
+
+
+@pytest.fixture
+def _pending_inbox_server() -> Iterator[tuple[str, SqliteDataLayer]]:
+    """Serve the real datalayer router with uvicorn on a worker thread.
+
+    A ``TestClient`` will not do here: it decodes the request path twice
+    (once in ``httpx``, once more in Starlette's test transport), while a
+    real server decodes it once.  The bug under test (#5722) is a key not
+    quoted for that one decode, so only a real server can show it.
+
+    The app mounts the datalayer router under the deployed ``/api/v2`` prefix
+    and serves one store as the addressed actor's.  Yields the server's base
+    URL and that store.
+    """
+    reset_datalayer(_PENDING_INBOX_ACTOR)
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_PENDING_INBOX_ACTOR)
+    app = FastAPI()
+    app.include_router(datalayer_router.router, prefix="/api/v2")
+
+    def _store(actor_id: str = FastAPIPath(...)) -> SqliteDataLayer:
+        assert actor_id == _PENDING_INBOX_SEGMENT
+        return dl
+
+    app.dependency_overrides[get_actor_dl] = _store
+    server = uvicorn.Server(
+        uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning")
     )
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 10
+    while not server.started:
+        assert time.monotonic() < deadline, "uvicorn did not start"
+        time.sleep(0.01)
+    port = server.servers[0].sockets[0].getsockname()[1]
+    yield f"http://127.0.0.1:{port}", dl
+    server.should_exit = True
+    thread.join(timeout=15)
+    dl.close()
+    reset_datalayer(_PENDING_INBOX_ACTOR)
+    assert not thread.is_alive(), "uvicorn did not shut down"
+
+
+@pytest.fixture
+def pending_inbox_store(
+    _pending_inbox_server: tuple[str, SqliteDataLayer],
+) -> SqliteDataLayer:
+    """The served actor's store, empty apart from the actor record."""
+    _, dl = _pending_inbox_server
+    dl.clear_all()
+    dl.create(as_Service(id_=_PENDING_INBOX_ACTOR, name="Pending Inbox Gate"))
+    return dl
+
+
+@pytest.fixture
+def router_client(
+    _pending_inbox_server: tuple[str, SqliteDataLayer],
+    pending_inbox_store: SqliteDataLayer,
+) -> DataLayerClient:
+    """A real ``DataLayerClient`` reading the served store over HTTP."""
+    base_url, _ = _pending_inbox_server
+    return DataLayerClient(
+        base_url=f"{base_url}/api/v2", actor_id=_PENDING_INBOX_ACTOR
+    )
+
+
+@pytest.mark.spec("EDF-06-001")
+@pytest.mark.parametrize("case_id", _PENDING_INBOX_CASE_IDS)
+def test_wait_for_pending_inbox_quiescent_non_empty_times_out_through_router(
+    pending_inbox_store: SqliteDataLayer,
+    router_client: DataLayerClient,
+    case_id: str,
+):
+    """A pending inbox holding activity ids times out through the router.
+
+    AC-1 of #5722: the gate must read the stored row and raise, not pass.
+    Without the key quoted for the server's one decode, the request names no
+    stored row, the router answers 404 and the gate passes.
+    """
+    pending_inbox_store.save(
+        VultronPendingCaseInbox(
+            case_id=case_id,
+            activity_ids=["http://example.com/activities/act-1"],
+        )
+    )
+    with pytest.raises(AssertionError, match="PendingCaseInbox"):
+        wait_for_pending_inbox_quiescent(
+            client=router_client,
+            case_id=case_id,
+            timeout_seconds=0,
+            poll_interval=0.01,
+        )
+
+
+@pytest.mark.spec("EDF-06-001")
+@pytest.mark.parametrize("case_id", _PENDING_INBOX_CASE_IDS)
+def test_wait_for_pending_inbox_quiescent_empty_returns_through_router(
+    pending_inbox_store: SqliteDataLayer,
+    router_client: DataLayerClient,
+    case_id: str,
+):
+    """A stored pending inbox with no activity ids returns (AC-2, #5722)."""
+    pending_inbox_store.save(
+        VultronPendingCaseInbox(case_id=case_id, activity_ids=[])
+    )
+    wait_for_pending_inbox_quiescent(
+        client=router_client, case_id=case_id, timeout_seconds=1.0
+    )
+
+
+@pytest.mark.spec("EDF-06-001")
+@pytest.mark.parametrize("case_id", _PENDING_INBOX_CASE_IDS)
+def test_wait_for_pending_inbox_quiescent_absent_returns_through_router(
+    router_client: DataLayerClient, case_id: str
+):
+    """No pending inbox row: the router's 404 reads as drained (AC-2, #5722)."""
+    wait_for_pending_inbox_quiescent(
+        client=router_client, case_id=case_id, timeout_seconds=1.0
+    )
+
+
+def _answering(status_code: int) -> Callable[..., httpx.Response]:
+    """An ``httpx.request`` stand-in that answers every call *status_code*."""
+
+    def _request(method: str, url: str, **_kwargs: Any) -> httpx.Response:
+        return httpx.Response(
+            status_code, content=b"", request=httpx.Request(method, url)
+        )
+
+    return _request
+
+
+@pytest.mark.spec("EDF-06-001")
+@pytest.mark.parametrize("status_code", [400, 403, 500, 503])
+def test_wait_for_pending_inbox_quiescent_non_404_status_propagates(
+    monkeypatch: pytest.MonkeyPatch, status_code: int
+):
+    """A non-404 status from the read is raised, not read as drained (AC-3)."""
+    monkeypatch.setattr(
+        demo_client_module.httpx, "request", _answering(status_code)
+    )
+    client = DataLayerClient(
+        base_url="http://node.example/api/v2", actor_id=_PENDING_INBOX_ACTOR
+    )
+    with pytest.raises(httpx.HTTPStatusError) as excinfo:
+        wait_for_pending_inbox_quiescent(
+            client=client, case_id=CASE_ID, timeout_seconds=1.0
+        )
+    assert excinfo.value.response.status_code == status_code
+
+
+@pytest.mark.spec("EDF-06-001")
+def test_wait_for_pending_inbox_quiescent_connection_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A failed connection is raised, not read as drained (AC-3, #5722)."""
+
+    def _refuse(method: str, url: str, **_kwargs: Any) -> httpx.Response:
+        raise httpx.ConnectError("refused", request=httpx.Request(method, url))
+
+    monkeypatch.setattr(demo_client_module.httpx, "request", _refuse)
+    client = DataLayerClient(
+        base_url="http://node.example/api/v2", actor_id=_PENDING_INBOX_ACTOR
+    )
+    with pytest.raises(httpx.ConnectError):
+        wait_for_pending_inbox_quiescent(
+            client=client, case_id=CASE_ID, timeout_seconds=1.0
+        )
 
 
 def test_wait_for_pending_inbox_quiescent_raises_when_not_empty():
