@@ -132,7 +132,7 @@ def client_demo(dl):
     )
     mock_emitter = AsyncMock()
     with patch(
-        "vultron.adapters.driving.fastapi.outbox_handler.get_default_emitter",
+        "vultron.adapters.driving.fastapi.outbox_handler.drain.get_default_emitter",
         return_value=mock_emitter,
     ):
         yield TestClient(app)

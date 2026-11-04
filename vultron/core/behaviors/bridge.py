@@ -768,7 +768,7 @@ class BTBridge:
                 # reached from `case/nodes/leave/advance.py` twice) usually pass
                 # the value already on the blackboard.  Where a nested call runs
                 # as another actor, `OwnerLeaveSeq`
-                # (`case/receive_close_case_tree.py`) ticks the ledger-committing
+                # (`case/receive_close_case_tree/closure_effects.py`) ticks the ledger-committing
                 # sibling downstream of `AdvanceParticipantToRMClosedNode`, and a
                 # leaked actor would reach `payloadSnapshot.actor`: a CLP-07-003
                 # identity fault in a canonical entry.

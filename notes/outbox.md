@@ -35,8 +35,9 @@ sender (OX-08-004, ADR-0109).
 
 ## `handle_outbox_item` Orchestrates Named Helpers
 
-`handle_outbox_item()` (`vultron/adapters/driving/fastapi/outbox_handler.py`) only
-sequences named helpers (`_load_sealed_body`, `_validate_to_field`,
+`handle_outbox_item()`
+(`vultron/adapters/driving/fastapi/outbox_handler/drain.py`) only sequences
+named helpers (`_load_sealed_body`, `_validate_to_field`,
 `_warn_secondary_addressing`, `_validate_inline_object` in `outbox_delivery.py`;
 `_extract_recipients` in `outbox_addressing.py`). A new `OX-*` or `MV-*` outbox
 requirement is a new `_<action>_<subject>` helper called from it, never inline logic, so

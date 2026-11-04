@@ -1927,7 +1927,7 @@ class TestNestedExecutionKeyIsolation:
         not RUNNING.  So asserting on the raw blackboard is not enough: this
         asserts what a *sibling node* resolves, which is what
         ``OwnerLeaveSeq``'s ledger-committing node does downstream of a nested
-        call (``case/receive_close_case_tree.py``).
+        call (``case/receive_close_case_tree/closure_effects.py``).
         """
         inner_actor = "https://test.example/actors/case-actor"
         outer_seen: list[str | None] = []

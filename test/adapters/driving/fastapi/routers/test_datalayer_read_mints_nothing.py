@@ -38,7 +38,9 @@ from vultron.adapters.driven.datalayer_sqlite import (
 )
 from vultron.adapters.driving.fastapi.main import app
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
-from vultron.adapters.driving.fastapi.routers.datalayer import _serve_stored
+from vultron.adapters.driving.fastapi.routers.datalayer.stored import (
+    _serve_stored,
+)
 from vultron.core.models import _helpers
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_participant import CaseParticipant

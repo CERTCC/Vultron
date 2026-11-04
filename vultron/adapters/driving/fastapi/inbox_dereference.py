@@ -389,7 +389,7 @@ def _drop_waiters(
 
 
 #: Runs one unit of synchronous work under the actor's inbox lock, off the
-#: event loop (``inbox_orchestration._run_serialised``).
+#: event loop (``inbox_orchestration.pipeline._run_serialised``).
 LockedRunner = Callable[[Callable[[], None]], Awaitable[None]]
 
 #: Rounds of fetching one run makes: a replay a fetch released may itself

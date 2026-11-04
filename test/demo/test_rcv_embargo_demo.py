@@ -62,7 +62,7 @@ from vultron.demo.helpers.coordinated_story import (
 )
 from vultron.demo.helpers.story import Choose, Fragment, StoryState
 from vultron.demo.scenario.registry import discover_scenarios
-from vultron.demo.utils import _demo_failures
+from vultron.demo.utils.failures import _demo_failures
 from vultron.errors import DemoStoryError
 
 #: Clear the process-global failure accumulator around every test.

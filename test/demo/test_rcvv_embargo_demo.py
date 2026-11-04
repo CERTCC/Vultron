@@ -82,7 +82,7 @@ from vultron.demo.scenario.rcvv_embargo_demo import (
     vendor2_joins_under_the_revision,
 )
 from vultron.demo.scenario.registry import discover_scenarios
-from vultron.demo.utils import _demo_failures
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 

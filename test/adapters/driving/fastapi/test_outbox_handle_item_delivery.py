@@ -20,7 +20,7 @@ The handler delivers the *sealed body* of an outbox row exactly as sealed
 (VM-08-003).  These tests hand it a ``DataLayer`` double whose ``read``
 answers the sealed-body id, and assert on what reaches the emitter.
 
-Module under test: ``vultron/adapters/driving/fastapi/outbox_handler.py``
+Module under test: ``vultron/adapters/driving/fastapi/outbox_handler/drain.py``
 
 Spec coverage:
 - OX-03-001: Activities in the outbox are delivered to recipient inboxes.

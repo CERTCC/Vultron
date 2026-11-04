@@ -239,11 +239,11 @@ def test_the_walk_finds_later_nodes_inside_an_act() -> None:
             "create_add_case_participant_received_tree",
         ),
         (
-            f"{_B}/case/receive_close_case_tree.py",
+            f"{_B}/case/receive_close_case_tree/factory.py",
             "create_close_case_received_tree",
         ),
         (
-            f"{_B}/case/ownership_transfer_tree.py",
+            f"{_B}/case/ownership_transfer_tree/proposal.py",
             "create_propose_ownership_transfer_tree",
         ),
         (

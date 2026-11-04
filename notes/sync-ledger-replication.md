@@ -480,7 +480,7 @@ case seed first (CP-09-009, CM-17-009), so this is recovery, not the steady stat
 
 - `ReconstructChainTailNode` writes sentinels (`tail_hash=""`, `tail_index=-1`)
   before FAILURE, and the `ReconstructOrRejectOnMissingCase` Selector in
-  `announce_tree.py` falls back to `SendGenesisRejectOnMissingCaseNode`, so a
+  `announce_tree/factory.py` falls back to `SendGenesisRejectOnMissingCaseNode`, so a
   Reject with `last_accepted_hash=""` ("replay from genesis") goes out
   (SYNC-15-001/002).
   Without it the CASE_MANAGER never learns of the failure.

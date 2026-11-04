@@ -20,7 +20,7 @@ stakeholder_type: [project-contributor]
 | `vultron/config/` | Layer-neutral configuration models and loading logic | `vultron/config/app.py`, `vultron/config/actor.py`, `vultron/config/ledger.py` |
 | `vultron/enums/` | Shared CVD-domain enums (roles, object types) imported by config and core | `vultron/enums/roles.py`, `vultron/enums/object_types.py` |
 | `vultron/errors.py`, `vultron/primitives.py`, `vultron/logging_setup.py`, `vultron/subclasses.py` | Shared exception hierarchy, shared type aliases (`NonEmptyString`), logging configuration, the one subclass-tree walk (`all_subclasses`) | `vultron/errors.py`, `vultron/primitives.py` |
-| `vultron/demo/` | Demo CLI, scenario registry, multi-actor scenarios (`scenario/`), single-exchange demos (`exchange/`), shared helpers (`helpers/`), stochastic fuzzers (`fuzzer/`), and the in-process recorder of each scenario's canonical case ledger for the UI's Log Replay (`recordings/`, `in_process.py`) | `vultron/demo/AGENTS.md`, `vultron/demo/cli.py`, `vultron/demo/recordings/__init__.py` |
+| `vultron/demo/` | Demo CLI, scenario registry, multi-actor scenarios (`scenario/`), single-exchange demos (`exchange/`), shared helpers (`helpers/`), stochastic fuzzers (`fuzzer/`), and the in-process recorder of each scenario's canonical case ledger for the UI's Log Replay (`recordings/`, `in_process.py`) | `vultron/demo/AGENTS.md`, `vultron/demo/cli/`, `vultron/demo/recordings/__init__.py` |
 | `vultron/metadata/` | Project tooling: spec registry, history CLI, notes and ADR metadata, docs-site validators, demo-scenario sync, JSON-LD context generation (`wire_context/`), planning helpers (`planning/`), message-semantics mapping renderer; `file_loading.py` attributes every loader failure to its file (MS-17) | `vultron/metadata/AGENTS.md`, `vultron/metadata/file_loading.py` |
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
 | `test/architecture/` | Architecture-boundary and ratchet tests | `test/architecture/test_core_no_adapter_imports.py` |
@@ -132,13 +132,13 @@ stakeholder_type: [project-contributor]
 | `vultron/adapters/` | HTTP handlers, SQLite data layer, outbound delivery, CLI, connectors | Core domain logic (no business rules) |
 | `vultron/config/` | Configuration models and loading only | Imports from `vultron.adapters` or `vultron.core` |
 | `vultron/enums/` | Shared CVD enums usable by `config/` and `core/` | Adapter or wire-specific types |
-| `vultron/demo/` | Demo scenarios driven through HTTP triggers | `vultron/bt/` imports (sole permitted exception: `vultron/demo/cli.py`, DC-01-001) |
+| `vultron/demo/` | Demo scenarios driven through HTTP triggers | `vultron/bt/` imports (sole permitted exception: `vultron/demo/cli/vultrabot_commands.py`, DC-01-001) |
 
 Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architecture/test_core_no_wire_imports.py`, `test/architecture/test_core_no_demo_imports.py`, `test/architecture/test_wire_core_import_allowlist.py`, `test/architecture/test_behaviors_no_use_case_imports.py`, `test/architecture/test_enums_import_graph.py`, `test/architecture/test_demo_no_bt_imports.py`, `test/architecture/test_trigger_registry_ratchets.py`
 
 ### 4) Naming and Organization Rules
 
-- **File naming**: `snake_case.py` for modules (e.g., `bt_node.py`, `receive_activity_tree.py`); leading `_` marks package-private modules (e.g., `_routes.py`, `_entry.py`)
+- **File naming**: `snake_case.py` for modules (e.g., `bt_node.py`, `receive_activity_tree.py`); leading `_` marks package-private modules (e.g., `_inbox.py`, `_entry.py`)
 - **Class naming**: `PascalCase`.
   The `as_` prefix marks a wire class only for unpaired AS2 vocabulary (e.g., `as_Activity`, `as_Link`); for the paired domain types, `as_VulnerabilityCase` and `VulnerabilityCase` are the same class (ADR-0099, ARCH-14-001).
 - **Domain abbreviation**: `vul` (not `vuln`) for vulnerability; `em` for embargo management; `rm` for report management; `cs` for case state
