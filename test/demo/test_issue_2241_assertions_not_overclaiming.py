@@ -50,7 +50,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import vultron.demo.utils as demo_utils
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.dimensions import (
     RmDimension,
@@ -64,6 +63,7 @@ from vultron.demo.helpers.verification import (
     _all_fetchable_participants_rm_closed,
 )
 from vultron.demo.utils import DataLayerClient, reset_demo_failures
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
@@ -102,7 +102,9 @@ def test_participant_adds_note_no_unbound_on_trigger_failure(monkeypatch):
     def _boom(*args, **kwargs):
         raise RuntimeError("simulated add-note-to-case trigger HTTP 500")
 
-    monkeypatch.setattr("vultron.demo.actor_session.post_to_trigger", _boom)
+    monkeypatch.setattr(
+        "vultron.demo.actor_session.binding.post_to_trigger", _boom
+    )
 
     poster = MagicMock()
     poster.id_ = _REPORTER_ID
@@ -131,7 +133,7 @@ def test_participant_adds_note_no_unbound_on_trigger_failure(monkeypatch):
         "dereferenced an unbound result variable (UnboundLocalError), "
         "masking the real failure (#2241)"
     )
-    assert demo_utils._demo_failures, (
+    assert _demo_failures, (
         "demo_step should have recorded the swallowed trigger failure on "
         "_demo_failures"
     )

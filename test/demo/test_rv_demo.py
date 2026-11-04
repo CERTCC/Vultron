@@ -61,7 +61,6 @@ from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.rv_demo as demo
-import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
     make_client,
     make_testclient_call,
@@ -143,6 +142,7 @@ from vultron.demo.utils import (
     verify_object_stored,
     verify_received_activity_stored,
 )
+from vultron.demo.utils.failures import _demo_failures
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -774,11 +774,11 @@ class TestTheVendorReportsTheFixReady:
             demo.the_vendor_reports_the_fix_ready(state)
 
         later.assert_not_called()
-        assert len(demo_utils._demo_failures) == 1, (
+        assert len(_demo_failures) == 1, (
             "a single replication timeout records one GATE FAILED; more than"
             " one is the cascade #2361 removed"
         )
-        assert "GATE FAILED" in demo_utils._demo_failures[0]
+        assert "GATE FAILED" in _demo_failures[0]
 
 
 # ---------------------------------------------------------------------------
@@ -1008,7 +1008,7 @@ class TestARosterThatNeverFillsStopsTheStory:
             DemoStoryError, match="case whose roster the Vendor confirmed"
         ):
             state.kept(THE_VENDORS_CASE)
-        assert len(demo_utils._demo_failures) == 2, (
+        assert len(_demo_failures) == 2, (
             "the roster gate records one failure and the stopped fragment"
             " records the stop; a third is a cascade (DEMOCI-01-011)"
         )
@@ -2034,7 +2034,7 @@ class TestActorSessionFixAndPublicationVerbs:
 
         assert any(
             "does-not-exist" in f or "404" in f or "STEP FAILED" in f
-            for f in demo_utils._demo_failures
+            for f in _demo_failures
         )
 
     @pytest.mark.spec("CSB-15-002")

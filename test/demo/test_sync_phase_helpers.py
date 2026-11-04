@@ -32,7 +32,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import vultron.demo.helpers.sync as sync_module
-import vultron.demo.utils as demo_utils
 from vultron.demo.helpers.polling import (
     CROSS_CONTAINER_TIMEOUT,
     LATE_JOINER_COVERAGE_TIMEOUT,
@@ -43,6 +42,7 @@ from vultron.demo.helpers.sync import (
     run_sync_verification_phase,
     wait_for_replica_ledger_coverage,
 )
+from vultron.demo.utils.failures import _demo_failures
 
 #: Clear the process-global failure accumulator around every test.
 pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
@@ -97,7 +97,7 @@ class TestWaitForReplicaLedgerCoverage:
                 case_id=_CASE_ID,
             )
         coverage.assert_not_called()
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
         assert auth.base_url in failure
         assert "holds no CaseLedgerEntry" in failure
@@ -209,7 +209,7 @@ class TestWaitForReplicaLedgerCoverage:
                 case_id=_CASE_ID,
             )
         assert polled == [id(first), id(second)]
-        failures = demo_utils._demo_failures
+        failures = _demo_failures
         assert len(failures) == 1
         assert "First ledger coverage" in failures[0]
 
@@ -266,7 +266,7 @@ class TestWaitForReplicaLedgerCoverage:
                 replicas=[(_client("r"), "Reporter")],
                 case_id=_CASE_ID,
             )
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
         assert "Reporter ledger coverage (sync-verification phase)" in failure
 
@@ -333,7 +333,7 @@ class TestRunSyncVerificationPhase:
             ),
         )
         mocks["wait_for_contiguous_ledger_coverage"].assert_not_called()
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
         assert "SYNC-15" in failure
 
@@ -399,7 +399,7 @@ class TestRunSyncVerificationPhase:
             and c.kwargs["reporter_actor_id"] == "urn:test:reporter"
             for c in state_calls
         )
-        assert demo_utils._demo_failures == []
+        assert _demo_failures == []
 
     def test_declares_no_participant_wait_when_no_participants_expected(self):
         """rcv-reject declares no participant set: no participant poll runs."""
@@ -467,7 +467,7 @@ class TestRunSyncVerificationPhase:
             for c in mocks["verify_replica_state"].call_args_list
         ]
         assert compared == [other]
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
         assert "Reporter ledger coverage" in failure
 
@@ -488,7 +488,7 @@ class TestRunSyncVerificationPhase:
             ),
         )
         mocks["verify_replica_state"].assert_not_called()
-        assert len(demo_utils._demo_failures) == 1
+        assert len(_demo_failures) == 1
 
     def test_state_checks_are_skipped_when_the_authority_tail_is_empty(self):
         """An empty authority ledger is one GATE FAILED naming the authority.
@@ -512,7 +512,7 @@ class TestRunSyncVerificationPhase:
         )
         mocks["wait_for_contiguous_ledger_coverage"].assert_not_called()
         mocks["verify_replica_state"].assert_not_called()
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
         assert auth.base_url in failure
 
@@ -533,7 +533,7 @@ class TestRunSyncVerificationPhase:
                 state_checks=[(reporter, "Reporter")],
             ),
         )
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("CHECK FAILED")
         assert (
             "Reporter replica matches authoritative Vendor1 state" in failure

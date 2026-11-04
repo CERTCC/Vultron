@@ -34,7 +34,7 @@ related_notes:
 # Demo Scenario Registry — Self-Registration, Derived Paths, and the Generate-vs-Check Split
 
 Each demo module declares itself with `@scenario`
-(`vultron/demo/scenario/registry.py`), and every scenario table, the CI matrix
+(`vultron/demo/scenario/registry/`), and every scenario table, the CI matrix
 and the CLI derive from that one source (ADR-0098, DEMOCI-11). The renderers,
 checks and the `--check`/`--write` dumper live in
 `vultron/metadata/demo_scenarios/` (`uv run demo-scenarios`); the
@@ -50,7 +50,7 @@ The decorator carries only facts the demo module is the authority for: `name`,
 
 **Do not add path fields.** The demo module, the invariant harness and the
 narrative page all derive from `name` (hyphens become underscores in file names;
-see `registry.py`). A stored path can be wrong about itself; a derived path
+see `registry/spec.py`). A stored path can be wrong about itself; a derived path
 either resolves or fails a check (DEMOCI-11-003). If a scenario cannot satisfy a
 convention, change the convention or rename the file: an override field re-opens
 the drift channel for every scenario.
@@ -185,7 +185,7 @@ Route each consumer by what it is:
 | `.github/demo-scenarios.json` | generate + `--check` | CI needs it before Python exists |
 | `test/ci/README-case-log-ratchet.md`, `vultron/demo/scenario/README.md` | generate + `--check` | Outside the mkdocs tree, read raw, so an include directive would render literally |
 | `notes/` scenario tables | check in place (DEMOCI-11-042/007) | Rows interleave hand-written columns; a generator would have to write cells nobody wrote |
-| `vultron/demo/cli.py` sub-commands | built at import time (DEMOCI-11-011) | No committed copy at all |
+| `vultron/demo/cli/` sub-commands | built at import time (DEMOCI-11-011) | No committed copy at all |
 | `ui/src/data/scenario_tree.json` | generate (`uv run export-demo-tree`) + `--check` (`demo-tree-sync`) | The UI reads the tree, not a copy; its case keys come from the committed recordings, so it follows them |
 | `ui/src/recordings/` (`case-actor.jsonl` and `steps.json` per scenario) | generate (`uv run export-demo-recordings`); `--check` hook on the recorded set and its two files; content checked daily on `main`, which files a refresh Task; every pair checked byte for byte by the shared-prefix test | A run of every scenario takes minutes, and a stale recording is work to schedule, not a reason to block a PR: a few days of lag is accepted, so no PR has to regenerate |
 | `specs/` DEMOCI-06-002/003 and per-scenario DEMOMA-16 | check only | A requirement keeps its prose so it stays citable |
@@ -233,7 +233,7 @@ not a page, so the check skips it (DEMOCI-11-046, DF-09-011).
 
 ## The CLI is a registry consumer, and `ActorRole` is what lets it be one
 
-`vultron/demo/cli.py` builds one sub-command per discovered scenario
+`vultron/demo/cli/` builds one sub-command per discovered scenario
 (DEMOCI-11-011). The options are not derivable from the scenario name: each
 actor's flag stem is the part it plays while its container is a cast slot (see
 [demo-scenario-authoring.md](demo-scenario-authoring.md) § "Every Scenario Runs

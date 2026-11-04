@@ -34,7 +34,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import vultron.demo.helpers.two_coordinator_story as pair
-import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
     devlogs_name_of,
     functions_referencing,
@@ -73,6 +72,7 @@ from vultron.demo.helpers.notes import (
 )
 from vultron.demo.helpers.owner_decision_story import Part
 from vultron.demo.helpers.story import Choose, UnseatedContainer
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 
@@ -406,8 +406,8 @@ class TestC1InvitesC2:
             DemoStoryError, match="case the second Coordinator joined"
         ):
             state.kept(pair.SECOND_COORDINATOR_JOINED)
-        assert [f for f in demo_utils._demo_failures if "GATE FAILED" in f], (
-            demo_utils._demo_failures
+        assert [f for f in _demo_failures if "GATE FAILED" in f], (
+            _demo_failures
         )
 
     @pytest.mark.spec("CLP-08-005")

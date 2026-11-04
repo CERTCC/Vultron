@@ -22,6 +22,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import vultron.demo.utils as demo_utils
+import vultron.demo.utils.inbox as demo_inbox
 from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
     make_testclient_call,
 )
@@ -45,7 +46,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 # Eliminate wait delays in all demo tests. The FastAPI TestClient processes
 # background tasks synchronously, so no sleep is needed between inbox posts
 # and state checks.
-demo_utils.DEFAULT_WAIT_SECONDS = 0.0
+demo_inbox.DEFAULT_WAIT_SECONDS = 0.0
 
 logger = logging.getLogger(__name__)
 
@@ -518,7 +519,7 @@ def stub_full_case_reply():
 def fresh_demo_failures() -> Iterator[None]:
     """Clear the process-global failure accumulator around one test.
 
-    ``vultron.demo.utils._demo_failures`` is process-global, and a fragment
+    ``vultron.demo._demo_failures`` is process-global, and a fragment
     that records a failure leaves it there for the next test — where it
     changes what ``demo_gate`` does (a gate skips its body once anything is
     recorded).  Opt-in, by ``pytestmark =

@@ -62,7 +62,6 @@ from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.rvcv_extension_demo as demo
-import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
     make_client,
     make_testclient_call,
@@ -125,6 +124,7 @@ from vultron.demo.helpers.vendor_story import (
 )
 from vultron.demo.scenario.registry import registered_scenarios
 from vultron.demo.utils import reset_demo_failures
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -456,7 +456,7 @@ class TestReplicasDrainBeforeTheSecondVendor:
             demo.replicas_drain_before_the_second_vendor(state)
 
         per_replica.assert_not_called()
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
         assert "http://vendor.test/api/v2" in failure
         assert "opening drain before Vendor2 joins" in failure
@@ -679,7 +679,7 @@ class TestTheCoordinatorSuggestsTheSecondVendor:
 
         suggest.assert_called_once()
         approve.assert_not_called()
-        assert demo_utils._demo_failures, (
+        assert _demo_failures, (
             "a skipped approval must leave a recorded failure, or the run"
             " would pass with Vendor2 never invited (DEMOCI-01-003)"
         )

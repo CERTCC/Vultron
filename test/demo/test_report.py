@@ -26,14 +26,11 @@ from pathlib import Path
 
 import pytest
 
-from vultron.demo import report
 from vultron.demo.report import (
     CaseTimelineEvent,
     ReportError,
-    _case_time_range,
-    _format_delta,
-    _parse_timestamp,
     build_timeline,
+    cli as report_cli,
     collect_actor_names,
     discover_replicas,
     event_phrase,
@@ -44,6 +41,11 @@ from vultron.demo.report import (
     main,
     render_html,
     render_markdown,
+)
+from vultron.demo.report.render import (
+    _case_time_range,
+    _format_delta,
+    _parse_timestamp,
 )
 
 # ---------------------------------------------------------------------------
@@ -1318,7 +1320,7 @@ class TestCli:
     def test_no_open_suppresses_browser(self, tmp_path, monkeypatch):
         _write_replicas(tmp_path, {"vendor": [_camel_entry()]})
         calls: list[str] = []
-        monkeypatch.setattr(report.webbrowser, "open", calls.append)
+        monkeypatch.setattr(report_cli.webbrowser, "open", calls.append)
         out_file = tmp_path / "report.html"
         rc = main(
             [
@@ -1337,7 +1339,7 @@ class TestCli:
     def test_html_opens_browser_without_no_open(self, tmp_path, monkeypatch):
         _write_replicas(tmp_path, {"vendor": [_camel_entry()]})
         calls: list[str] = []
-        monkeypatch.setattr(report.webbrowser, "open", calls.append)
+        monkeypatch.setattr(report_cli.webbrowser, "open", calls.append)
         out_file = tmp_path / "report.html"
         rc = main(
             [str(tmp_path), "--format", "html", "--output", str(out_file)]

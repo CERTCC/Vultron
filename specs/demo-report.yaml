@@ -19,7 +19,7 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The report tool MUST be a standalone module at `vultron/demo/report.py`,
+      The report tool MUST be a standalone package at `vultron/demo/report/`,
       importable as `vultron.demo.report`.
     rationale: >-
       A standalone module keeps the read-only reporting utility decoupled from

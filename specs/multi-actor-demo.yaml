@@ -3011,7 +3011,7 @@ groups:
     statement: >-
       The RCCV-handoff scenario MUST get its `vultron-demo rccv-handoff` sub-command
       from its `@scenario` registration, not from a command declared in
-      `vultron/demo/cli.py` (DEMOCI-11-011).
+      `vultron/demo/cli/` (DEMOCI-11-011).
     rationale: >-
       The Docker entrypoint forwards the `DEMO=rccv-handoff` value to
       `vultron-demo rccv-handoff` (`demo-entrypoint.sh`). The CLI generates that
@@ -5358,7 +5358,7 @@ groups:
     rationale: >-
       This applies DEMOMA-17-001 (extract before reuse) to gate predicates. The rule
       does not move the `demo_gate` context manager: DEMOCI-01-007 places it in
-      `vultron/demo/utils.py` with `demo_step` and `demo_check`. Only the functions
+      `vultron/demo/utils/failures.py` with `demo_step` and `demo_check`. Only the functions
       that read actor state live in the helpers.
     adr:
     - ADR-0058
@@ -6621,7 +6621,8 @@ groups:
       (TRIG-03-002), producing an undetectable no-op. `ActorSession` makes
       both mistakes unrepresentable at the call site. `post_to_trigger` remains
       as the private implementation of `ActorSession._post` and MUST NOT be
-      imported outside `vultron/demo/utils.py` and `vultron/demo/actor_session.py`.
+      imported outside `vultron/demo/utils/inbox.py` and
+      `vultron/demo/actor_session/binding.py`.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
