@@ -246,7 +246,7 @@ groups:
       it queues it (ID-04-005).
     rationale: >-
       A redelivery reads the sealed record as "already answered", so the refusal is sent
-      once however often the Invite arrives (HP-01-003).
+      once however often the Invite arrives (HP-01-014).
     verification: >-
       `test/core/use_cases/received/test_embargo_relay_replay.py`
       (`test_a_refusal_whose_queue_write_failed_is_queued_on_redelivery`) fails the
