@@ -330,17 +330,16 @@ answer, clock decisions, guards, commit, effects.
    answer to a request the CASE_MANAGER alone made, which reaches that
    CASE_MANAGER and nobody else.
 
-   A tree that is no message type's declares no paths at all, and is pinned
-   with its reason rather than left to a migration: the dead-letter tree runs
-   for any activity whose `object_` URI did not resolve, so there is no type
-   whose paths it could name, and what it stores is the receiver's own
-   diagnostic, scoped to no case and identical on every path, so no branch
-   would use a role the stage read (HP-01-037, HP-01-038). The intake-only
-   trees and the malformed-Invite fault are the same shape. The reasons live
-   in `UNDECLARED_PATH_EXEMPTIONS`
-   (`test/core/behaviors/test_declared_received_paths.py`), never in
-   `KNOWN_UNDECLARED_PATH_SITES`, which is the ratchet of declarations a wave
-   still owes.
+   A tree whose work is scoped to no case and identical on every path
+   declares no paths at all, because no branch of it would use the answer a
+   stage resolved (HP-01-038). Pin it in `UNDECLARED_PATH_EXEMPTIONS`
+   (`test/core/behaviors/test_declared_received_paths.py`) with its own
+   reason, never in `KNOWN_UNDECLARED_PATH_SITES`, which is the ratchet of
+   declarations a wave still owes: the intake-only trees archive and refuse,
+   the malformed-Invite fault answers its sender wherever it landed, and the
+   dead-letter tree stores the receiver's own diagnostic for any activity
+   whose `object_` URI did not resolve — so it is no message type's tree, and
+   there is no type whose paths it could name.
 
    Widen with the no-case path where the type precedes or establishes its
    case (HP-01-041), and with the manager path where a redelivery can reach

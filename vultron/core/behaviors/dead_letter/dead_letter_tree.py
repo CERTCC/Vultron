@@ -55,8 +55,9 @@ def create_store_dead_letter_tree(
     # is no type whose paths it could declare.  What it does is the receiver's
     # own diagnostic — a ``DeadLetterRecord`` that names no case — and it is
     # the same on every path, scoped to none, so a path stage would read the
-    # receiver's role in a case the activity only happens to mention and no
-    # branch would use the answer (HP-01-037).  The reason is pinned beside
+    # receiver's role (HP-01-037) in a case the activity only happens to
+    # mention, and no branch would use the answer (HP-01-038).  The reason is
+    # pinned beside
     # the intake-only trees' in ``UNDECLARED_PATH_EXEMPTIONS``
     # (``test/core/behaviors/test_declared_received_paths.py``).
     root = create_receive_activity_tree(

@@ -17,7 +17,8 @@
 
 The canonical notification mechanism for note additions is
 ``Announce(CaseLedgerEntry)`` fan-out from the guarded-commit step
-(SYNC-02-002), **not** a direct ``AddNoteToCase`` broadcast to participants.
+(SYNC-02-001, SYNC-02-003), **not** a direct ``AddNoteToCase`` broadcast to
+participants.
 Only the CaseActor may update the canonical case replica; non-CaseActor
 participants must not modify their local replica directly from
 ``Add(Note)[target=VulnerabilityCase]`` messages.
@@ -66,13 +67,14 @@ def create_add_note_to_case_received_tree(
     ``sync_port``) notifies all participants.  Non-CaseActors MUST NOT update
     their case replica directly from ``Add(Note)[target=VulnerabilityCase]`` messages — they
     receive the note attachment notification exclusively via
-    ``Announce(CaseLedgerEntry)`` fan-out (SYNC-02-002).
+    ``Announce(CaseLedgerEntry)`` fan-out (SYNC-02-001, SYNC-02-003).
 
     Structure (the four CLP-10-010 stages)::
 
         GuardedAttachAndCommitBT (Sequence)
         ├── IntakeReceivedActivityNode                 # intake
         ├── CaseOpenToExternalWrites                   # post-close boundary
+        ├── ActivityAddressedToReceiverNode            # addressee door
         ├── ReceivedPathNode                           # manager or replica
         ├── SenderRuleGuard (Sequence)                 # sender guard
         ├── CaseManagerGate[ClockDecisionStage]        # embargo end-time check
@@ -134,12 +136,13 @@ def create_add_note_to_case_received_tree(
         # a replica takes the attachment from the CASE_MANAGER alone
         # (PCR-03-001, PCR-08-001): the two non-empty sides of the sender
         # rule, so the two declared paths (HP-01-038).  The replica path
-        # carries no effect of its own — the note reaches a replica as the
-        # entry's Announce fan-out and a direct Add(Note) there is refused
-        # (SYNC-02-002, HP-01-005) — and is declared all the same, because
-        # the act is the CASE_MANAGER's to relay and a declaration narrower
-        # than the sender rule would refuse at the door a delivery the guard
-        # admits (RSH-08-003).
+        # carries no effect of its own — RSH-08-003 keeps every write at the
+        # CASE_MANAGER, so the note reaches a replica as the entry's Announce
+        # fan-out (SYNC-02-001, SYNC-02-003) and a direct Add(Note) there is
+        # refused (HP-01-005).  It is declared all the same: the act is the
+        # CASE_MANAGER's to relay (PCR-03-001), and naming fewer paths than
+        # the type works on would refuse at the door a delivery the sender
+        # guard admits (HP-01-038).
         paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         case_id=case_id,
         sender_rule=sender_rule,

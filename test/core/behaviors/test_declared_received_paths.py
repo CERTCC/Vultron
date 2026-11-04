@@ -15,9 +15,10 @@
 
 """What paths the migrated received trees declare, area by area.
 
-Every received tree in those areas declares the paths it handles once, to the
-factory (HP-01-038), and a receiver on a path the declaration omits is
-refused at the path stage with the composed reason (HP-01-039).  Two things
+The areas are the ones :data:`_ROOTS` names, and a wave adds its own as it
+migrates it.  Every received tree in these areas declares the paths it handles
+once, to the factory (HP-01-038), and a receiver on a path the declaration
+omits is refused at the path stage with the composed reason (HP-01-039).  Two things
 follow that a reader needs pinned, and this module pins both:
 
 1. **The declaration itself**, in :data:`DECLARED_PATHS`, keyed on the tree
@@ -350,11 +351,13 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     # selection sends either.  Neither is narrowed below its sender rule —
     # each declares exactly the two non-empty sides of ``to_case_manager`` —
     # so neither declaration refuses a delivery the guard would admit.  The
-    # replica path carries no effect: a note reaches a replica as the entry's
-    # Announce fan-out, and a direct Add(Note) there is refused (SYNC-02-002,
-    # HP-01-005).  It is declared because the act is the CASE_MANAGER's to
-    # relay, the same reading the Add(VulnerabilityReport) twin above takes
-    # from the same rule shape (CM-30-003, CM-30-005, RSH-08-003).
+    # replica path carries no effect: RSH-08-003 keeps every write at the
+    # CASE_MANAGER, so a note reaches a replica as the entry's Announce
+    # fan-out (SYNC-02-001, SYNC-02-003) and a direct Add(Note) there is
+    # refused (HP-01-005).  It is declared because the act is the
+    # CASE_MANAGER's to relay (PCR-03-001), the same reading the
+    # Add(VulnerabilityReport) twin above takes from the same rule shape
+    # (CM-30-003, CM-30-005).
     (
         f"{_N}/add_note_received_tree.py",
         "create_add_note_to_case_received_tree",
@@ -411,11 +414,12 @@ KNOWN_UNDECLARED_PATH_SITES: dict[Site, str] = {
     ): "#5044",
 }
 
-#: Sites that declare no paths by decision, each with the reason.  A received
-#: *delivery* always runs a tree that declares its paths; none of these is
-#: that, so none of them is waiting for a migration.
-# permanent: HP-01-038 (these call sites build no tree a delivery's path
-# stage would answer for)
+#: Sites that declare no paths by decision, each with the reason.  The
+#: discriminator is not whether a delivery runs the tree — several of these run
+#: on real deliveries — but whether any branch of it would use the answer a
+#: path stage resolved.  None of these has one, so none is waiting for a
+#: migration.
+# permanent: HP-01-038 (no branch of these trees would use a resolved path)
 UNDECLARED_PATH_EXEMPTIONS: dict[Site, str] = {
     # The intake-only tree archives an activity it cannot act on and refuses
     # it for its own stated reason (CLP-10-018).  It names no case and does
@@ -466,8 +470,8 @@ UNDECLARED_PATH_EXEMPTIONS: dict[Site, str] = {
     # whose object_ URI did not resolve, so no type's paths are its to
     # declare (HP-01-038).  What it does is the receiver's own diagnostic —
     # a DeadLetterRecord naming no case — identical on every path, so a
-    # stage would read a role in a case the activity only happens to mention
-    # and no branch would use the answer (HP-01-037).
+    # stage would read a role (HP-01-037) in a case the activity only happens
+    # to mention, and no branch would use the answer (HP-01-038).
     (
         f"{_D}/dead_letter_tree.py",
         "create_store_dead_letter_tree",
