@@ -84,7 +84,6 @@ from vultron.core.behaviors.sync.nodes.conditions import (
     CheckLedgerEntryAlreadyStoredNode,
     CheckLedgerFreshnessNode,
     EntryReflectedByCaseCopyNode,
-    _require_log_entry,
 )
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
@@ -291,6 +290,4 @@ __all__ = [
     "FanOutLogEntryNode",
     # embargo_backfill
     "BackfillAdmittedParticipantsNode",
-    # re-exported helper function (backward compat)
-    "_require_log_entry",
 ]

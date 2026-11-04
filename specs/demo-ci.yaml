@@ -60,7 +60,7 @@ groups:
         statement: >-
           Error detection and accumulation MUST be implemented by the
           demo_step, demo_check, and demo_gate context managers in
-          vultron/demo/utils.py.
+          vultron/demo/utils/failures.py.
         rationale: >-
           All demo steps and checks already run inside these context managers. When the
           error accumulation is in the same place, every step and every check records
@@ -307,7 +307,7 @@ groups:
           same, so that main checks every change that the pull request checked.
           `vultron/metadata/**` contains only tooling, which the actor services and the
           demo runner never import. `vultron/bt/**` is the legacy simulator. Only the
-          `vultrabot` group in `vultron/demo/cli.py` imports it
+          `vultrabot` group in `vultron/demo/cli/vultrabot_commands.py` imports it
           (`test/architecture/test_demo_no_bt_imports.py`), and no CI scenario runs that
           group. The workflow file, the shared build action and the retry helper that
           the invariant job sources are in the filter, so a change to any of them runs
@@ -2356,7 +2356,7 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The demo CLI, `vultron/demo/cli.py`, MUST generate its per-scenario
+          The demo CLI, `vultron/demo/cli/`, MUST generate its per-scenario
           sub-commands from the scenario registry.
         rationale: >-
           The registry is the one place that declares the scenarios. The container URL

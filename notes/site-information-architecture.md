@@ -102,11 +102,11 @@ three of them.
 | Where | What it is |
 |---|---|
 | **DF-11-001** | The normative enumeration. Every other form derives from it. |
-| `vultron/metadata/docs/page_schema.py` | Implements DF-11-001 (`StakeholderType`, `LEVELS`, `AUDIENCE_DESCRIPTIONS`); `docs-frontmatter` validates every page against it |
+| `vultron/metadata/docs/page_schema/frontmatter.py` | Implements DF-11-001 (`StakeholderType`, `LEVELS`, `AUDIENCE_DESCRIPTIONS`); `docs-frontmatter` validates every page against it |
 | `docs/includes/stakeholder_types.md` | Generated from that schema by `uv run docs-site --write` and gated by the `docs-site-sync` hook (DF-11-011); the only form any `docs/` page includes |
 | ADR-0102 | A dated literal copy, on purpose |
 
-So a change to the members is made in DF-11-001 and in `page_schema.py`; the
+So a change to the members is made in DF-11-001 and in `page_schema/`; the
 fragment follows. ADR-0102 states the members literally and deliberately does
 not include the fragment: a decision record that live-included a later member
 would claim to have decided something it did not (DF-10-002's
@@ -377,7 +377,7 @@ check once it is an entry.
 Every reader-facing page declares one `page_type`: `tutorial`, `how-to`,
 `explanation`, `reference` or `routing` (DF-11-018). The key is required, so a
 missing key is a fault (the same reasoning `contents:` uses in
-`landing_pages.py`). `routing` is validated but not rendered; the other four
+`landing_pages/`). `routing` is validated but not rendered; the other four
 render as a badge from frontmatter (DF-11-019,
 `overrides/partials/page_type.html`).
 `page_type` is independent of `contents:`: an index that mostly explains is
@@ -402,7 +402,7 @@ retested, and `main` keeps its current nav meanwhile.
 **Files stay where they are**, so no URL breaks, and a page's directory is not
 evidence of its floor. Moving them is reconsidered only if contributors
 repeatedly misplace pages or the routing check's directory assumption causes
-real friction (#4686). That assumption is a known coupling: `landing_pages.py`
+real friction (#4686). That assumption is a known coupling: `landing_pages/`
 requires a routing page to link the reader pages in its own directory. The old
 section indexes (`tutorials/`, `topics/`, `reference/`, `howto/`,
 `start/index.md`) keep their URLs and are retargeted as routing pages or
@@ -424,7 +424,7 @@ addressed to `platform-developer` at 400.
 
 A hand-written landing page duplicates the nav and drifts from it; the defect
 class is the duplication (DF-11-005). `uv run docs-site --write`
-(`vultron/metadata/docs/landing_pages.py`) generates each section landing
+(`vultron/metadata/docs/landing_pages/`) generates each section landing
 page's contents listing, and the `docs-site-sync` hook gates it. The nav
 supplies membership, labels, and fallback order; each listed page's
 `description:` supplies the text beside its link, and a declared `level`

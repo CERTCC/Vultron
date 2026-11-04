@@ -31,8 +31,8 @@ one package, but a blackboard key is process-global:
 
 - A node in a *different* behaviors package that declares the same key shares
   the contract but is invisible to this roster. Flat root-level keys such as
-  ``/log_entry`` are the exposed case — ``embargo/nodes/teardown.py`` already
-  reaches into ``sync.nodes`` for ``_require_log_entry``. Scan every package
+  ``/log_entry`` are the exposed case — the SYNC nodes and the sender checks
+  all read it through ``behaviors.log_entry.require_log_entry``. Scan every package
   that can touch a key, or assert the key is declared nowhere else.
 - Legacy ``DataLayerCondition`` / ``DataLayerAction`` nodes that use
   ``register_key()`` instead of typed Ports are not discoverable at all, since

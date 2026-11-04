@@ -29,10 +29,8 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.log_entry import require_log_entry
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.behaviors.sync.nodes.conditions import (
-    _require_log_entry,
-)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.held_ledger_announces import hold_ledger_announce
 from vultron.errors import VultronWiringError
@@ -55,7 +53,7 @@ def hold_received_announce(
     Raises:
         VultronWiringError: When the event names no activity to hold.
     """
-    entry = _require_log_entry(activity, node_name)
+    entry = require_log_entry(activity, node_name)
     activity_id = getattr(activity, "activity_id", None)
     if not isinstance(activity_id, str) or not activity_id:
         raise VultronWiringError(
@@ -107,7 +105,7 @@ class _LedgerEffectNode(DataLayerActionWithPorts, StateWriteCapable):
 
     def _get_entry(self):  # type: ignore[return]
         """Return the HashChainLedgerRecord from the blackboard activity."""
-        return _require_log_entry(self.activity, self.name)
+        return require_log_entry(self.activity, self.name)
 
     def update(self) -> Status:  # pragma: no cover
         raise NotImplementedError

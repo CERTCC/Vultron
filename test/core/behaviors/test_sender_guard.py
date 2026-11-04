@@ -19,8 +19,10 @@ An any-of rule admits a sender holding any one of its kinds, and a two-sided
 rule admits, on each side, exactly the kinds that side names.
 """
 
+import importlib
 import inspect
 import logging
+import pkgutil
 from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any
@@ -892,13 +894,26 @@ def test_no_position_kind_is_a_cvd_role() -> None:
     assert not {kind.name for kind in positions} & roles
 
 
+def _reraise_import_error(name: str) -> None:
+    """``walk_packages`` error hook: a failed import must not shrink the scan."""
+    raise  # noqa: PLE0704
+
+
 def _module_guards() -> list[Any]:
+    """Every leaf guard class defined anywhere in the sender-entitlement package."""
+    modules = [sender_entitlement] + [
+        importlib.import_module(info.name)
+        for info in pkgutil.walk_packages(
+            sender_entitlement.__path__,
+            f"{sender_entitlement.__name__}.",
+            onerror=_reraise_import_error,
+        )
+    ]
     return [
         obj
-        for _name, obj in inspect.getmembers(
-            sender_entitlement, inspect.isclass
-        )
-        if obj.__module__ == sender_entitlement.__name__
+        for module in modules
+        for _name, obj in inspect.getmembers(module, inspect.isclass)
+        if obj.__module__ == module.__name__
         and hasattr(obj, "guards_kind")
         and obj is not SenderEntitlementConditionNode
         and not obj.__subclasses__()

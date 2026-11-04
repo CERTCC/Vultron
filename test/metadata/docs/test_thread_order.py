@@ -423,7 +423,7 @@ def test_the_committed_threads_pass_the_order_check():
         "vultron/metadata/docs/thread_order.py",
         "vultron/metadata/docs/thread_order_baseline.txt",
         "vultron/metadata/docs/level_order.py",
-        "vultron/metadata/docs/threads.py",
+        "vultron/metadata/docs/threads/check.py",
         "vultron/metadata/docs/baseline_file.py",
         "vultron/metadata/file_loading.py",
     ],

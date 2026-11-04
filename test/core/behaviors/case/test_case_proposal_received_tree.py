@@ -683,7 +683,7 @@ class TestCreateCaseProposalReceivedBTCreateWiring:
         async def no_sleep(_seconds: float) -> None:
             return None
 
-        monkeypatch.setattr(oh.asyncio, "sleep", no_sleep)
+        monkeypatch.setattr(asyncio, "sleep", no_sleep)
         emitter = _FailFirstCreateEmitter()
 
         asyncio.run(oh.outbox_handler(_CASE_ACTOR_URI, dl, emitter=emitter))

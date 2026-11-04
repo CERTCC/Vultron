@@ -429,7 +429,6 @@ groups:
     - rel_type: refines
       spec_id: CM-04-004
     stories:
-    - story_2022_014
     - story_2022_081
     - story_2026_031
   - id: SM-10-003

@@ -56,7 +56,6 @@ which is where its gate is.
 import vultron.demo.helpers.sync.ledger as sync_ledger
 import vultron.demo.helpers.sync.phase as sync_phase
 import vultron.demo.scenario.rv_demo as rv_demo_module
-import vultron.demo.utils as demo_utils
 from test.demo._helpers import mock_case, story_state
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.coordinated_story import (
@@ -80,6 +79,7 @@ from vultron.demo.scenario.rcvcv_demo import (
 )
 from vultron.demo.scenario.rv_demo import the_vendor_reports_the_fix_ready
 from vultron.demo.utils import reset_demo_failures
+from vultron.demo.utils.failures import _demo_failures
 
 _CASE_ID = "urn:uuid:test-case-2361-0001"
 
@@ -175,7 +175,7 @@ def test_rv_reporter_timeout_records_single_gate_failure_not_two_check_failures(
 
     the_vendor_reports_the_fix_ready(state)
 
-    failures = demo_utils._demo_failures
+    failures = _demo_failures
 
     assert len(failures) == 1, (
         f"Expected exactly 1 failure when reporter replication times out, "
@@ -301,7 +301,7 @@ def test_rcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
 
     every_replica_converges(state)
 
-    failures = demo_utils._demo_failures
+    failures = _demo_failures
     check_failures = [
         f for f in failures if "CHECK FAILED" in f and "ledger coverage" in f
     ]

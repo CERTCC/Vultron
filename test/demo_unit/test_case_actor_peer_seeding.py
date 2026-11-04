@@ -98,12 +98,14 @@ def _seed_calls(path: Path) -> list[ast.Call]:
 
 def test_the_ratchet_sees_scenario_seed_calls():
     """A zero-target ratchet passes vacuously, so the scan must find calls."""
-    assert sum(len(_seed_calls(p)) for p in _SCENARIOS.glob("*.py")) > 0
+    assert sum(len(_seed_calls(p)) for p in _SCENARIOS.rglob("*.py")) > 0
 
 
 @pytest.mark.spec("AKM-05-005")
 @pytest.mark.parametrize(
-    "path", sorted(_SCENARIOS.glob("*.py")), ids=lambda p: p.stem
+    "path",
+    sorted(_SCENARIOS.rglob("*.py")),
+    ids=lambda p: p.relative_to(_SCENARIOS).with_suffix("").as_posix(),
 )
 def test_every_scenario_seeds_the_case_actor_address_book(path: Path):
     """Each ``seed_containers*`` call hands over the case-actor client."""

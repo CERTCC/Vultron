@@ -26,7 +26,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import vultron.demo.utils as demo_utils
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, terminate
 from vultron.core.states.em import EM
@@ -41,6 +40,7 @@ from vultron.demo.helpers.milestones import (
 )
 from vultron.demo.helpers.sync import wait_for_replica_ledger_ending_at
 from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils.failures import _demo_failures
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -139,7 +139,7 @@ class TestCloseCaseOwnerLast:
         )
         assert sent == [_REPORTER, _VENDOR, "em-gate", _OWNER]
         assert departed == [_REPORTER, _VENDOR, _OWNER]
-        assert not demo_utils._demo_failures
+        assert not _demo_failures
 
     @pytest.mark.spec("CM-23-015")
     def test_owner_leave_gated_on_each_departure_in_manager_store(self):
@@ -171,7 +171,7 @@ class TestCloseCaseOwnerLast:
         self.recorded.assert_not_called()
         self.closed.assert_not_called()
         self.own_closure.assert_not_called()
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
         assert "CM-23-015" in failure
 
@@ -216,7 +216,7 @@ class TestCloseCaseOwnerLast:
             own_side_effect=[AssertionError("reporter lags"), None],
         )
         assert self.own_closure.call_count == 2
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert not failure.startswith("GATE FAILED")
         assert "replica holds its own closure" in failure
         assert "reporter lags" in failure
@@ -229,7 +229,7 @@ class TestCloseCaseOwnerLast:
             ledger_side_effect=AssertionError("reporter left after closure"),
         )
         assert sent == [_REPORTER, "em-gate", _OWNER]
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert not failure.startswith("GATE FAILED")
         assert (
             "M7: every departure recorded before the CASE_MANAGER's own"
@@ -254,7 +254,7 @@ class TestCloseCaseOwnerLast:
         )
         assert sent == [_REPORTER]
         assert departed == [_REPORTER]
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
 
     def test_owner_listed_among_others_is_refused(self):

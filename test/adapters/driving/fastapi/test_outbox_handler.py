@@ -19,7 +19,7 @@ Unit tests for the outbox_handler FIFO processing loop.
 Tests ``outbox_handler`` — the loop that drains an actor's outbox and
 dispatches each item via ``handle_outbox_item``.
 
-Module under test: ``vultron/adapters/driving/fastapi/outbox_handler.py``
+Module under test: ``vultron/adapters/driving/fastapi/outbox_handler/``
 
 Spec coverage:
 - OX-01-001: Actor MUST have an outbox collection.
@@ -36,7 +36,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from vultron.adapters.driving.fastapi import outbox_handler as oh
+from vultron.adapters.driving.fastapi.outbox_handler import (
+    bookkeeping,
+    drain as oh,
+)
 from vultron.adapters.outbox_sealed_body import (
     SealedOutboundBody,
     sealed_body_id,
@@ -296,8 +299,8 @@ def test_capped_activity_is_not_attempted_again_in_same_pass(monkeypatch):
     # bad_id should have been attempted exactly MAX_PER_PASS_ATTEMPTS + 1
     # times and then stalled — not attempted again when re-popped.
     bad_calls = delivery_calls.count(bad_id)
-    assert bad_calls == oh.MAX_PER_PASS_ATTEMPTS + 1, (
-        f"Expected {oh.MAX_PER_PASS_ATTEMPTS + 1} delivery attempts for bad_id,"
+    assert bad_calls == bookkeeping.MAX_PER_PASS_ATTEMPTS + 1, (
+        f"Expected {bookkeeping.MAX_PER_PASS_ATTEMPTS + 1} delivery attempts for bad_id,"
         f" got {bad_calls}"
     )
     # good_id must be delivered
@@ -373,7 +376,7 @@ def test_second_bad_activity_does_not_cause_extra_attempts_for_first(
 
     # bad-1's stored attempt count must increase by exactly MAX_PER_PASS_ATTEMPTS+1
     # (every in-pass attempt increments the persistent counter, then the row stalls).
-    expected = oh.MAX_PER_PASS_ATTEMPTS + 1
+    expected = bookkeeping.MAX_PER_PASS_ATTEMPTS + 1
     actual_bad1 = len(stored_counts[bad1_id])
     assert actual_bad1 == expected, (
         f"bad-1 should have {expected} stored-count increments, got {actual_bad1}"
@@ -394,7 +397,9 @@ def test_exhausted_activity_is_dead_lettered_not_requeued(monkeypatch):
     activity_id = "urn:test:exhausted-item"
     queue = _make_queue(activity_id)
     mock_dl = _mock_dl_with_queue(queue)
-    mock_dl.get_outbox_attempt_count.return_value = oh.MAX_TOTAL_ATTEMPTS - 1
+    mock_dl.get_outbox_attempt_count.return_value = (
+        bookkeeping.MAX_TOTAL_ATTEMPTS - 1
+    )
 
     async def always_raise(actor_id, activity_id, dl, emitter):
         raise RuntimeError("permanent failure")
@@ -424,7 +429,9 @@ def test_exhausted_activity_error_log_includes_id_and_count(
     activity_id = "urn:test:exhausted-log-item"
     queue = _make_queue(activity_id)
     mock_dl = _mock_dl_with_queue(queue)
-    mock_dl.get_outbox_attempt_count.return_value = oh.MAX_TOTAL_ATTEMPTS - 1
+    mock_dl.get_outbox_attempt_count.return_value = (
+        bookkeeping.MAX_TOTAL_ATTEMPTS - 1
+    )
 
     async def always_raise(actor_id, activity_id, dl, emitter):
         raise RuntimeError("permanent failure")
@@ -444,7 +451,7 @@ def test_exhausted_activity_error_log_includes_id_and_count(
     ]
     combined = " ".join(error_messages)
     assert activity_id in combined
-    assert str(oh.MAX_TOTAL_ATTEMPTS) in combined
+    assert str(bookkeeping.MAX_TOTAL_ATTEMPTS) in combined
 
 
 def test_non_exhausted_error_increments_persistent_counter(monkeypatch):
@@ -482,7 +489,9 @@ def test_dead_letter_clears_attempt_counter(monkeypatch):
     activity_id = "urn:test:clear-on-exhaust"
     queue = _make_queue(activity_id)
     mock_dl = _mock_dl_with_queue(queue)
-    mock_dl.get_outbox_attempt_count.return_value = oh.MAX_TOTAL_ATTEMPTS - 1
+    mock_dl.get_outbox_attempt_count.return_value = (
+        bookkeeping.MAX_TOTAL_ATTEMPTS - 1
+    )
 
     async def always_raise(actor_id, activity_id, dl, emitter):
         raise RuntimeError("permanent failure")
@@ -598,7 +607,9 @@ def _mock_dl_for_ox14(
     mock_dl.outbox_list.side_effect = lambda: list(queue)
     mock_dl.outbox_pop.side_effect = lambda: queue.pop(0) if queue else None
     mock_dl.outbox_append.side_effect = queue.append
-    mock_dl.get_outbox_attempt_count.return_value = oh.MAX_TOTAL_ATTEMPTS - 1
+    mock_dl.get_outbox_attempt_count.return_value = (
+        bookkeeping.MAX_TOTAL_ATTEMPTS - 1
+    )
     return mock_dl
 
 
@@ -720,7 +731,7 @@ def test_resolve_ledger_entry_id_full_path(monkeypatch):
     mock_dl = MagicMock()
     mock_dl.read.return_value = sealed
 
-    result = oh._resolve_ledger_entry_id(activity_id, mock_dl)
+    result = bookkeeping._resolve_ledger_entry_id(activity_id, mock_dl)
 
     assert result == ledger_entry_id
     mock_dl.read.assert_called_once_with(sealed_body_id(activity_id))
@@ -731,7 +742,9 @@ def test_resolve_ledger_entry_id_returns_none_for_missing_activity():
     mock_dl = MagicMock()
     mock_dl.read.return_value = None
 
-    assert oh._resolve_ledger_entry_id("urn:uuid:gone", mock_dl) is None
+    assert (
+        bookkeeping._resolve_ledger_entry_id("urn:uuid:gone", mock_dl) is None
+    )
 
 
 def test_resolve_ledger_entry_id_returns_none_on_read_error():
@@ -739,7 +752,9 @@ def test_resolve_ledger_entry_id_returns_none_on_read_error():
     mock_dl = MagicMock()
     mock_dl.read.side_effect = RuntimeError("db error")
 
-    assert oh._resolve_ledger_entry_id("urn:uuid:bad", mock_dl) is None
+    assert (
+        bookkeeping._resolve_ledger_entry_id("urn:uuid:bad", mock_dl) is None
+    )
 
 
 # ---------------------------------------------------------------------------

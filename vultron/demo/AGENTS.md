@@ -49,7 +49,7 @@ is wrong. See [`notes/ownership-transfer.md`](../../notes/ownership-transfer.md)
 A scenario module declares itself, and nothing else anywhere does:
 
 - `@scenario(name, label, participants, feature, in_pr_set, story)` on `main()`,
-  from `scenario/registry.py`. `story` is **required** and is the only thing that
+  from `scenario/registry/`. `story` is **required** and is the only thing that
   places the scenario on the tree: its path is read off the story's `choose(...)`
   items, which name `scenario/branch_points.py` entries, and there is no path
   parameter to state it a second time (DEMOCI-11-019, DEMOCI-11-024). Every table

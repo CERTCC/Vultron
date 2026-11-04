@@ -18,7 +18,7 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The unified demo MUST be implemented as a `click`-based CLI script at `vultron/demo/cli.py`
+      The unified demo MUST be implemented as a `click`-based CLI package at `vultron/demo/cli/`
     rationale: >-
       One entry point in one known file gives every user and every CI job the same way
       to start a demo. `click` gives sub-commands, options and help text without custom
@@ -69,7 +69,7 @@ groups:
     verification_debt: '#2573'
     statement: >-
       Shared demo utilities (`demo_step`, `demo_check` context managers and HTTP client helpers)
-      MUST be extracted to `vultron/demo/utils.py`
+      MUST be extracted to `vultron/demo/utils/`
     rationale: >-
       All demos use the same step, check and HTTP helpers. One shared module keeps
       their behavior and their log output the same in every demo, and a fix to a helper

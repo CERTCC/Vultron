@@ -3299,8 +3299,8 @@ groups:
       the emitters (MS-16-002). When the protocol requirement makes the choice once, a
       receiver has one form to accept.
     verification: >-
-      Inspection: `Occasion` in `vultron/semantic_registry/_occasion.py` has no field
-      recording whether this codebase sends the occasion.
+      Inspection: `Occasion` in `vultron/semantic_registry/_occasion/occasion.py` has
+      no field recording whether this codebase sends the occasion.
     relationships:
     - rel_type: refines
       spec_id: MS-18-001

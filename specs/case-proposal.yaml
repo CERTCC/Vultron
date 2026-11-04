@@ -238,7 +238,7 @@ groups:
     adr:
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: CP-01-010
     priority: MUST
     kind: project
@@ -1678,7 +1678,7 @@ groups:
     adr:
     - ADR-0041
     stories:
-    - story_2022_014
+    - story_2026_080
     - story_2022_023
   - id: CP-09-004
     priority: MUST

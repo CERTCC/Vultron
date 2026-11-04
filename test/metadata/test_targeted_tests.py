@@ -461,7 +461,7 @@ FULL_PATHS = [
 
 #: One path under each layer PAD-18-003 escalated on before ADR-0143.
 INTEGRATION_BEARING_PATHS = [
-    "vultron/demo/cli.py",
+    "vultron/demo/cli/__init__.py",
     "integration_tests/demo/run.sh",
     "vultron/adapters/driving/fastapi/main.py",
     "vultron/core/behaviors/bridge.py",

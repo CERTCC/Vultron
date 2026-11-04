@@ -63,7 +63,7 @@ from test.architecture import _corpus
 #                violate; outside the scope of transition validation
 #   PREDICATE  — read-only dimension instantiation (guard / is_*() checks),
 #                no DataLayer write
-#   RM-TRACKED — RM transition nodes documented in rm_transitions.py;
+#   RM-TRACKED — RM transition nodes documented in rm_transitions/;
 #                tracked separately per BTND-10-001 / issue #2081
 # ---------------------------------------------------------------------------
 # permanent: BTND-10-001 (the list is the write-site audit)

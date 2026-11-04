@@ -278,7 +278,7 @@ def test_resolve_ledger_entry_id_reads_inline_object_from_sqlite(alice_dl):
     (OX-14-002) means the entry is always resolvable when
     _resolve_ledger_entry_id runs.
     """
-    from vultron.adapters.driving.fastapi.outbox_handler import (
+    from vultron.adapters.driving.fastapi.outbox_handler.bookkeeping import (
         _resolve_ledger_entry_id,
     )
     from vultron.adapters.outbox_sealed_body import seal_outbound_body

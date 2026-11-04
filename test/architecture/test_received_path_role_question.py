@@ -29,7 +29,7 @@ sites:
    and actor-offer trees and the role-gate registries, #5046 for the
    `Offer(VulnerabilityReport)` trees.  The last two entries go with the
    waves rather than with a wave of their own: ``role_gates.py`` goes when
-   the last tree stops building a gate for itself, and ``sender_guard.py``'s
+   the last tree stops building a gate for itself, and ``sender_guard``'s
    fallback read is taken only when a tree passes no path stage, so it goes
    when the last tree declares.  #5044's AC-3 is what holds the set at empty
    afterwards.
@@ -129,7 +129,7 @@ KNOWN_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
         # The sender guard's own role read, for a tree that has not declared
         # its paths: with a declaration the arms read the path stage's
         # answer instead (HP-01-036).
-        (f"{_B}/sender_guard.py", CONDITION),
+        (f"{_B}/sender_guard/compose.py", CONDITION),
         # Gate-wrapped precondition guards a received tree passes.
         (f"{_C}/nodes/suggest_actor/conditions.py", GATE),
         (f"{_E}/nodes/answer_record.py", GATE),
@@ -138,7 +138,7 @@ KNOWN_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
         # Received trees that gate work themselves instead of declaring the
         # path it belongs to.
         (f"{_E}/announce_teardown_tree.py", GATE),
-        (f"{_B}/sync/announce_tree.py", CONDITION),
+        (f"{_B}/sync/announce_tree/factory.py", CONDITION),
     }
 )
 

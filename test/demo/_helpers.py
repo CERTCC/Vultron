@@ -30,7 +30,7 @@ from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
 import vultron.core.behaviors.sync.nodes.chain as chain_nodes
-import vultron.demo.utils as demo_utils
+import vultron.demo.utils.environment as utils_environment
 from test.support.ledger import (
     case_position_mismatch,
     checking_each_commit,
@@ -537,7 +537,7 @@ def route_exchange_demo_at_testclient(
             demo.DataLayerClient, "call", make_testclient_call(client, base)
         )
         mp.setattr(runner, "DataLayerClient", lambda: make_client(base))
-        reset = demo_utils.reset_datalayer
+        reset = utils_environment.reset_datalayer
 
         def _check_then_reset(client: DataLayerClient) -> dict:
             try:
@@ -549,7 +549,7 @@ def route_exchange_demo_at_testclient(
         # Every exchange demo sets up and tears down through
         # ``demo_environment``, which clears the node with this function:
         # check the cases first.
-        mp.setattr(demo_utils, "reset_datalayer", _check_then_reset)
+        mp.setattr(utils_environment, "reset_datalayer", _check_then_reset)
         # Each CASE_MANAGER commit finds its case at the chain tail the last
         # one left (SYNC-16-005); a miss fails the test like a rebuild does.
         mp.setattr(

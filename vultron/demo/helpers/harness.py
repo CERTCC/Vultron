@@ -92,11 +92,11 @@ from vultron.demo.scenario.registry import registered_scenarios
 from vultron.demo.scenario.tree import PathStep
 from vultron.demo.utils import (
     DataLayerClient,
-    _note_accumulated_failures,
     assert_demo_success,
     demo_step,
     reset_demo_failures,
 )
+from vultron.demo.utils.failures import _note_accumulated_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoScenarioStepError
 

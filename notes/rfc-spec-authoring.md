@@ -96,7 +96,7 @@ the catalog is a nav group that opens on its own routing landing page,
 `requirements/index.md` (`contents: routing`, DF-11-005); `docs-site --check`
 holds it to linking each themed page, and `index.md` links them too. The pages
 are the placement table's: `CATALOG_PAGES` in
-`vultron/metadata/docs/requirement_catalog.py` gives each page's key, title,
+`vultron/metadata/docs/requirement_catalog/pages.py` gives each page's key, title,
 tier and requirement files, and its path is `requirements/<key>.md`. A new
 catalog page needs a table entry, a `_catalog/_<key>.md` fragment calling
 `render_catalog_page("<key>")`, the page shell, a nav entry, and an include in
@@ -361,7 +361,7 @@ Rules for the narrative around them:
   catalog renderers emit in-page links themselves when rendering for `full.md`
   (DF-12-011).
 - **Placement is one table on the docs side** (DF-12-005): `CATALOG_PAGES` in
-  `vultron/metadata/docs/requirement_catalog.py`. A new requirement file
+  `vultron/metadata/docs/requirement_catalog/pages.py`. A new requirement file
   holding either tier fails `test_real_placement_table_is_sound` until it is
   placed on a catalog page; the requirement files carry no placement field.
   `render_catalog_page` in `docs_render/pages.py` renders a page by its key.

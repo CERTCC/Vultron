@@ -131,7 +131,7 @@ and call it from both places (DEMOMA-17-001, the MUST-level form of CS-22-001).
 ## Call Triggers Through `ActorSession`
 
 Scenario and exchange demos make every trigger call through `ActorSession`
-(`vultron/demo/actor_session.py`) typed methods, never `post_to_trigger`
+(`vultron/demo/actor_session/`) typed methods, never `post_to_trigger`
 (DEMOMA-26-001, DEMOMA-26-007).
 
 **Why:** `post_to_trigger` takes a bare behavior string and an untyped body. A
@@ -145,7 +145,7 @@ undetectable no-op.
 
 `[project.scripts]` entry points call `main()` with no arguments, so a BT demo's
 `main` takes `args=None` and falls back to `_parse_args()`. That keeps both the
-console script and `vultron/demo/cli.py`'s click group (which passes a
+console script and `vultron/demo/cli/`'s click group (which passes a
 `SimpleNamespace` from `_bt_args()`) working.
 
 **Why:** `def main(args):` fails with `TypeError` under `uv run <script>` while
@@ -184,7 +184,7 @@ address and one actor id per slot in every scenario (DEMOCI-11-020).
 
 ## A Helper That Extracts a Result Inside `demo_step` Must Return `Optional[T]`
 
-`demo_step` (`vultron/demo/utils.py`) suppresses exceptions so a failed step
+`demo_step` (`vultron/demo/utils/failures.py`) suppresses exceptions so a failed step
 records itself without ending the run. A helper that wraps a trigger call in
 `demo_step` and extracts a result from it cannot promise a value, so it is typed
 `-> T | None` (e.g. `participant_adds_note_to_case` in `helpers/notes.py`).
