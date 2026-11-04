@@ -13,55 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Received-side BT factory for the close-case workflow (ADR-0022).
-
-Implements receiver-side role semantics for Leave(VulnerabilityCase):
-
-- **Owner Leave** (sender holds ``CVDRole.CASE_OWNER``): expires every
-  embargo Invite still awaiting a reply (CM-23-014), advances the leaving
-  participant to ``RM.CLOSED``, then advances the CaseActor to ``RM.CLOSED``, committing
-  one status entry per RM transition for each and fanning each out to the
-  participants not at ``RM.CLOSED`` (CM-23-022, CM-23-002, CM-23-004,
-  CM-23-033).  The CaseActor's own ``RM.CLOSED`` status entry is the last
-  entry of the closure and the owner-close write boundary (ADR-0085); no
-  entry marks the closure itself (ADR-0152) — **unless** an embargo is still
-  live, in which case the close is declined with an ``as:Reject`` and none of
-  the closure effects run (CM-23-011).
-- **Non-owner Leave**: advances only the leaving participant to ``RM.CLOSED``,
-  committing one status entry per RM transition; the case remains open for
-  remaining participants (CM-23-003, CM-23-030).
-
-Every RM closure step the CASE_MANAGER writes is its own ledger entry, after
-the ``close_case`` entry that records the Leave.  A replica applies those
-status entries and never works out a closure path itself; applying
-``close_case`` changes no RM state (CM-23-023, CM-23-024).
-- **Any Leave after the case is fully closed**: the factory's post-close guard
-  refuses it ahead of both arms, so no ``close_case`` entry is committed or
-  fanned out and no one advances (CM-23-013).  Under
-  ``PostCloseReply.REJECT`` the sender gets ``Reject(Leave(VulnerabilityCase))``;
-  under the default ``DROP`` it gets nothing (ADR-0131).
-- **A Leave from a sender with no standing**: the sender guard the factory
-  composes from the use case's declared rule refuses it before the
-  close/decline decision, so nothing is committed, declined or sent
-  (HP-01-006, HP-01-008).  A Leave from a sender whose closure the case
-  already records never reaches this tree: the use case reports it
-  ``SKIPPED`` first (CM-23-049, ID-05-003).
-
-The role check is performed by :class:`~vultron.core.behaviors.case.nodes
-.vfd_role_guards.SenderIsCaseOwnerNode` as a tree-level condition node, per
-BTND-08-001/BTND-08-002 (role checks MUST be in the tree, not in action node
-``update()`` logic).
-
-Per ADR-0050: ``Leave(VulnerabilityCase)`` is the only canonical RM closure
-path.  The CaseActor's closure entries are written here on the Case Actor
-receive path; every replica whose closure the ledger does not already record
-learns of them via Announce(CaseLedgerEntry) fan-out.  A participant at RM
-``CLOSED`` — every earlier leaver, and the Case Owner once its own status
-entries are committed — is not sent them (CM-23-004): it receives the entries
-that record its own closure and nothing after them.
-"""
-
-import logging
+"""The close-case received-tree factory (ADR-0022, CM-23)."""
 
 import py_trees
 
@@ -71,12 +23,8 @@ from vultron.core.behaviors.case.nodes.addressee import (
 )
 from vultron.core.behaviors.case.nodes.leave import (
     LATE_LEAVE_DECLINE,
-    AdvanceCaseActorToRMClosedNode,
-    AdvanceParticipantToRMClosedNode,
     CaseManagerLeavesOnlyAsCaseOwnerNode,
-    CommitRMClosureEntriesNode,
     EmitRejectCloseCaseNode,
-    ExpirePendingInvitesOnCloseNode,
 )
 from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
 from vultron.core.behaviors.case.nodes.received_path import (
@@ -91,8 +39,10 @@ from vultron.core.behaviors.case.owner_close_embargo_guards import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case.receive_close_case_tree.closure_effects import (
+    owner_or_non_owner_effects as build_owner_or_non_owner_effects,
+)
 from vultron.core.behaviors.sender_entitlement import (
-    SenderIsCaseOwnerNode,
     SenderRule,
 )
 from vultron.core.behaviors.sender_guard import (
@@ -100,51 +50,6 @@ from vultron.core.behaviors.sender_guard import (
     SenderCheckContext,
 )
 from vultron.errors import VultronWiringError
-
-logger = logging.getLogger(__name__)
-
-
-def _close_and_record(
-    case_id: str,
-    closing_actor_id: str,
-    label: str,
-    *,
-    case_manager: bool = False,
-) -> list[py_trees.behaviour.Behaviour]:
-    """The advance for *closing_actor_id* and the record of its steps.
-
-    The two nodes share one ``closure_steps`` list: the advance fills it
-    with the id of each status it writes, and the record commits one
-    ``add_participant_status_to_participant`` entry per id, in order
-    (CM-23-022, CM-23-033).
-    """
-    closure_steps: list[str] = []
-    advance: py_trees.behaviour.Behaviour = (
-        AdvanceCaseActorToRMClosedNode(
-            case_actor_id=closing_actor_id,
-            case_id=case_id,
-            closure_steps=closure_steps,
-            name=f"Advance{label}ToRMClosed",
-        )
-        if case_manager
-        else AdvanceParticipantToRMClosedNode(
-            leaving_actor_id=closing_actor_id,
-            case_id=case_id,
-            closure_steps=closure_steps,
-            name=f"Advance{label}ToRMClosed",
-        )
-    )
-
-    # A refused step fails the act, which keeps none of it (CLP-07-015).
-    return [
-        advance,
-        CommitRMClosureEntriesNode(
-            closing_actor_id=closing_actor_id,
-            case_id=case_id,
-            closure_steps=closure_steps,
-            name=f"Commit{label}RMClosureEntries",
-        ),
-    ]
 
 
 def create_close_case_received_tree(
@@ -305,94 +210,8 @@ def create_close_case_received_tree(
             " use case's sender_rule (HP-01-007, HP-01-008)"
         )
 
-    # CM-23-014: after close a pending Invite can only expire, so expire each
-    # one first, before any closure entry, rather than leave the CASE_MANAGER
-    # waiting on its RSVP deadline.  It runs ahead of the Case Owner's own
-    # closure because a Case Owner may also hold CASE_MANAGER, and then its
-    # RM.CLOSED entry is already the write boundary (CM-23-013).  Best-effort:
-    # a refused expiry commit writes nothing (the commit precedes the consent
-    # write), so it does not stop the closure.
-    owner_leave_children: list[py_trees.behaviour.Behaviour] = (
-        [
-            ExpirePendingInvitesOnCloseNode(
-                case_id=case_id, name="ExpirePendingInvitesOnClose"
-            )
-        ]
-        if receiving_actor_id is not None
-        else []
-    )
-    # CM-23-002 step 1: the Case Owner's closure, each step on the ledger.
-    owner_leave_children.extend(
-        _close_and_record(case_id, sender_actor_id, "Owner")
-    )
-    if receiving_actor_id is not None:
-        # CM-23-002 step 2: the CASE_MANAGER's own closure.  The advance is
-        # store-local; without its entries the CASE_MANAGER stays RM.ACCEPTED
-        # on every replica forever (ISSUE-2505): no effect node derives its
-        # closure, because ``close_case`` names the departing actor.  Its
-        # status entry reaching RM.CLOSED is the owner-close write boundary
-        # (CM-23-013, ADR-0085), so it is the closure's last entry; no entry
-        # marks the closure itself (ADR-0152).  A Case Owner that also holds
-        # CASE_MANAGER is closed by step 1, and this step writes nothing.
-        #
-        # Every record node fails closed: a step whose entry does not commit
-        # is withdrawn and the node fails (CLP-07-013).
-        owner_leave_children.extend(
-            _close_and_record(
-                case_id, receiving_actor_id, "CaseActor", case_manager=True
-            )
-        )
-
-    # One arm per role, each a Selector "not my role, or run my closure",
-    # run in sequence.  Exactly one arm runs its closure, and a closure that
-    # fails fails the whole Sequence with *its* reason as the last failed
-    # child (BTBridge.get_failure_reason): a Case Owner whose closure failed
-    # part-way is neither closed as an ordinary leaver nor reported with the
-    # role check's feedback (CLP-07-013, #4442).
-    owner_or_non_owner_effects = py_trees.composites.Sequence(
-        name="OwnerOrNonOwnerEffects",
-        memory=False,
-        children=[
-            py_trees.composites.Selector(
-                name="OwnerLeaveArm",
-                memory=False,
-                children=[
-                    py_trees.decorators.Inverter(
-                        name="SenderIsNotCaseOwner",
-                        child=SenderIsCaseOwnerNode(
-                            sender_actor_id=sender_actor_id,
-                            case_id=case_id,
-                            name="CheckIsCaseOwnerForLeave",
-                        ),
-                    ),
-                    py_trees.composites.Sequence(
-                        name="OwnerLeaveSeq",
-                        memory=False,
-                        children=owner_leave_children,
-                    ),
-                ],
-            ),
-            py_trees.composites.Selector(
-                name="NonOwnerLeaveArm",
-                memory=False,
-                children=[
-                    SenderIsCaseOwnerNode(
-                        sender_actor_id=sender_actor_id,
-                        case_id=case_id,
-                        name="CheckIsCaseOwnerForNonOwnerLeave",
-                    ),
-                    py_trees.composites.Sequence(
-                        name="NonOwnerLeaveSeq",
-                        memory=False,
-                        # CM-23-003: only the leaver closes, each step on
-                        # the ledger.
-                        children=_close_and_record(
-                            case_id, sender_actor_id, "LeavingParticipant"
-                        ),
-                    ),
-                ],
-            ),
-        ],
+    owner_or_non_owner_effects = build_owner_or_non_owner_effects(
+        case_id, sender_actor_id, receiving_actor_id
     )
 
     # CM-23-011 decline decision (read-only): SUCCESS iff the sender is the Case

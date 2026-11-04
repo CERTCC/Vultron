@@ -486,7 +486,7 @@ GUARDS_NOT_YET_MIGRATED: dict[Site, Listed] = {}
 #: one, so they are not sender guards and need no migration; each says why.
 STANDING_READS: dict[Site, Listed] = {
     Site(
-        "vultron/core/behaviors/case/suggest_actor_tree.py",
+        "vultron/core/behaviors/case/suggest_actor_tree/recommend.py",
         "create_recommend_actor_to_case_received_tree",
         "SenderIsCaseOwnerNode",
     ): Listed(
@@ -496,8 +496,8 @@ STANDING_READS: dict[Site, Listed] = {
         " owner (CM-16)",
     ),
     Site(
-        "vultron/core/behaviors/case/receive_close_case_tree.py",
-        "create_close_case_received_tree",
+        "vultron/core/behaviors/case/receive_close_case_tree/closure_effects.py",
+        "owner_or_non_owner_effects",
         "SenderIsCaseOwnerNode",
     ): Listed(2, "picks the owner's or a participant's Leave arm (CM-23-003)"),
     Site(

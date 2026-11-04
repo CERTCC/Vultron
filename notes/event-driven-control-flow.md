@@ -125,7 +125,7 @@ primitive: emit the ask, return `SUCCESS` meaning *I asked* (ASK-01-006); see
 
 A terminal status with no request emitted is the silent failure EDF-04-005
 forbids. The reference shape is `create_recommend_actor_to_case_received_tree`
-(`vultron/core/behaviors/case/suggest_actor_tree.py`): its Selector routes on
+(`vultron/core/behaviors/case/suggest_actor_tree/recommend.py`): its Selector routes on
 where the exchange stands and the fresh branch emits `Offer(CaseParticipant)` to
 the owner.
 

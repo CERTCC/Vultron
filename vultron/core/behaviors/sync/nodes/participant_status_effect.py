@@ -23,7 +23,7 @@ describes an impossible composite state (RSH-09-006).
 Provides :class:`EmitImpossibleStateFaultNode`, which emits
 ``Create(ProcessingFault)`` with failure class
 ``StatusAssertionRefused/ImpossibleState`` to the CASE_MANAGER when the Apply
-node returns FAILURE.  The two nodes are wired in a Selector in ``announce_tree.py``
+node returns FAILURE.  The two nodes are wired in a Selector in ``announce_tree/``
 to guarantee that either the status is applied successfully or a fault is emitted.
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
