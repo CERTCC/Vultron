@@ -35,7 +35,6 @@ from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
     STORED_CONTEXT_KEY,
     _as_id,
-    most_recent_status,
     new_object_id,
     now_utc,
     now_utc_after,
@@ -378,7 +377,7 @@ class VulnerabilityCase(CoreObject):
         Seeding is for a case this process authors.  A received case with no
         status is refused instead (CM-29-004): the seed would carry the
         receiver's clock as the case's first status, a time no sender claimed
-        (CLP-15-007), and it could outrank a status the sender timed earlier.
+        (CLP-15-007).
 
         Raises:
             ValueError: On the inbound path, when the case carries no status.
@@ -617,9 +616,11 @@ class VulnerabilityCase(CoreObject):
         ``pxa=CS_pxa.Pxa`` (or a ``PxaDimension``) keeps every other
         dimension.  Each assignment is validated (ARCH-21-001).  The new
         entry gets a fresh ``id_`` and a ``name`` derived from its own states
-        unless one is passed.  Timestamps come from ``now_utc_after``, so the
-        new entry sorts strictly after the old one, as ``current_status``
-        (CS-13-002).  EM is
+        unless one is passed.  Its ``published`` comes from ``now_utc_after``,
+        so it is strictly later than the current status's (CM-29-005,
+        CS-13-002), and it carries no ``updated``: a status is never changed
+        after it is appended, so ``published`` is its one time (CM-29-006).
+        EM is
         not a status field to set: it is derived from the embargo register
         (ADR-0122), so ``em`` is refused.
 
@@ -640,8 +641,7 @@ class VulnerabilityCase(CoreObject):
                 " CaseStatus field"
             )
         current = self.current_status
-        latest = current.updated or current.published
-        now = now_utc_after(latest)
+        now = now_utc_after(current.published)
 
         # The new entry is its own status: a fresh ``id_``, and a ``name``
         # left unset so ``CaseStatus._set_name`` re-derives the label from
@@ -649,7 +649,8 @@ class VulnerabilityCase(CoreObject):
         # in *updates* still wins).  ``model_copy`` does not validate its
         # update, so the overrides are assigned one by one under
         # ``validate_assignment`` instead, and the case context and bumped
-        # timestamps are assigned last so that they always win.
+        # timestamp are assigned last so that they always win.  The copied
+        # ``updated`` is cleared, not carried: it is the old status's.
         status = current.model_copy(
             update={"id_": new_object_id(), "name": None}
         )
@@ -657,7 +658,7 @@ class VulnerabilityCase(CoreObject):
             **updates,
             "context": self.id_,
             "published": now,
-            "updated": now,
+            "updated": None,
         }.items():
             setattr(status, name, value)
         self.add_case_status(status)
@@ -737,12 +738,9 @@ class VulnerabilityCase(CoreObject):
         agrees.  The status is replaced by a copy, never mutated, so a status
         object a caller handed in is left as it was.
         """
-        materialized = [
-            s for s in self.case_statuses if isinstance(s, CaseStatus)
-        ]
-        if not materialized:
+        current = self._last_materialized_status()
+        if current is None:
             return None
-        current = most_recent_status(materialized)
         em = self.em_state
         if current.em.state == em:
             return None
@@ -856,29 +854,42 @@ class VulnerabilityCase(CoreObject):
 
     @property
     def current_status(self) -> CaseStatus:
-        """Return the most recent materialized :class:`CaseStatus`.
+        """Return the last materialized :class:`CaseStatus` appended.
 
-        Recency is ``updated`` if present, else ``published``, via
-        :func:`most_recent_status` (CM-29-001); every status carries a
-        ``published``.  Among equal times the last appended wins (CM-29-003).
-        ``id_`` MUST NOT be used as a tiebreaker because its scheme is an
-        implementation artefact, not a time proxy (CM-29-002).
+        Append order, never a timestamp, decides the current status
+        (CM-29-001), as it does a participant's (SM-05-002): every status is
+        the CASE_MANAGER's, each built as a valid next step from the one
+        before it, and a replica appends them in ledger order.  A clock that
+        steps back, or a CASE_MANAGER on another clock, therefore cannot
+        make an older status current.
 
         Raises:
             ValueError: When no materialized :class:`CaseStatus` exists.
         """
-        materialized = [
-            s for s in self.case_statuses if isinstance(s, CaseStatus)
-        ]
-        if not materialized:
+        current = self._last_materialized_status()
+        if current is None:
             raise ValueError(
                 "VulnerabilityCase has no materialized CaseStatus"
             )
-        return most_recent_status(materialized)
+        return current
+
+    def _last_materialized_status(self) -> CaseStatus | None:
+        """The last :class:`CaseStatus` object in ``case_statuses``, if any.
+
+        A bare id is a reference, not a status, so it is skipped.
+        """
+        return next(
+            (
+                s
+                for s in reversed(self.case_statuses)
+                if isinstance(s, CaseStatus)
+            ),
+            None,
+        )
 
     @property
     def case_status(self) -> CaseStatus:
-        """Return the most recent :class:`CaseStatus` (alias for ``current_status``)."""
+        """Return the current :class:`CaseStatus` (alias for ``current_status``)."""
         return self.current_status
 
     # ------------------------------------------------------------------

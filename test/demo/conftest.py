@@ -29,6 +29,10 @@ from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
 from vultron.adapters.driving.fastapi import outbox_handler
 from vultron.adapters.driving.fastapi.main import app as api_app
 from vultron.adapters.driving.fastapi.outbox_handler import get_default_emitter
+from vultron.demo.helpers.invite_chain import (
+    chain as invite_runs,
+    links as invite_links,
+)
 from vultron.demo.in_process import InProcessRouter
 from vultron.wire.as2.factories import parse_submit_report_offer
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -474,15 +478,13 @@ def stub_summary_seed():
     a real client (in-process app) still seeds, since its Invite needs it
     (#4285).  ``test_invite_chain`` overrides this fixture to test the seed.
     """
-    from vultron.demo.helpers import invite_chain
-
-    real = invite_chain._seed_stub_summary
+    real = invite_links._seed_stub_summary
 
     def seed(client, case):
         if not isinstance(client, Mock):
             real(client, case)
 
-    with patch.object(invite_chain, "_seed_stub_summary", seed):
+    with patch.object(invite_runs, "_seed_stub_summary", seed):
         yield
 
 
@@ -497,15 +499,13 @@ def stub_full_case_reply():
     fails the run instead of passing silently (#4970, #5444).
     ``test_invite_chain`` overrides this fixture to test the step with mocks.
     """
-    from vultron.demo.helpers import invite_chain
-
-    real = invite_chain.reply_to_full_case_invite
+    real = invite_links.reply_to_full_case_invite
 
     def reply(**kwargs):
         if not isinstance(kwargs["invitee_client"], Mock):
             real(**kwargs)
 
-    with patch.object(invite_chain, "reply_to_full_case_invite", reply):
+    with patch.object(invite_links, "reply_to_full_case_invite", reply):
         yield
 
 

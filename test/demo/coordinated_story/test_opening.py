@@ -34,7 +34,6 @@ from test.demo._helpers import (
 )
 from test.demo.coordinated_story._support import CAST
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import invite_chain
 from vultron.demo.helpers.coordinated_story import (
     ENGAGED_CASE,
     OWNER_TRIAGE_TIMEOUT,
@@ -45,6 +44,10 @@ from vultron.demo.helpers.coordinated_story import (
     reporter_tells_coordinator,
     vendor_accepts_and_joins,
     vendor_rejects_invite,
+)
+from vultron.demo.helpers.invite_chain import (
+    chain as invite_runs,
+    links as invite_links,
 )
 from vultron.errors import DemoStoryError
 
@@ -154,11 +157,11 @@ class TestInviteChainSkipsDependents:
                 ActorSession, "invite_actor_to_case", **invite_trigger
             ),
             # Nothing stubs the stub-summary seed here: this directory's
-            # conftest no-ops ``invite_chain._seed_stub_summary`` whenever the
-            # case-manager client is a mock, and ``story_state`` builds mocks
-            # (#5444).
+            # conftest no-ops ``invite_chain.chain._seed_stub_summary``
+            # whenever the case-manager client is a mock, and
+            # ``story_state`` builds mocks (#5444).
             patch.object(
-                invite_chain, "find_case_invite_for_actor", **invite_lookup
+                invite_links, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
         ):
             coordinator_invites_vendor(state)
@@ -199,7 +202,7 @@ class TestInviteChainSkipsDependents:
 
         with (
             patch.object(ActorSession, "invite_actor_to_case") as invite,
-            patch.object(invite_chain, "find_case_invite_for_actor") as find,
+            patch.object(invite_links, "find_case_invite_for_actor") as find,
             pytest.raises(DemoStoryError, match="roster"),
         ):
             coordinator_invites_vendor(state)
@@ -240,7 +243,7 @@ class TestInviteChainSkipsDependents:
         state = story_state(*CAST, case=mock_case())
         state.keep(ENGAGED_CASE, str(state.case.id_))
         with (
-            patch.object(invite_chain, "_seed_stub_summary") as seed,
+            patch.object(invite_runs, "_seed_stub_summary") as seed,
             patch.object(
                 ActorSession,
                 "invite_actor_to_case",
@@ -249,7 +252,7 @@ class TestInviteChainSkipsDependents:
                 ),
             ),
             patch.object(
-                invite_chain,
+                invite_links,
                 "find_case_invite_for_actor",
                 return_value="urn:test:invite",
             ),

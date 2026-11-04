@@ -438,11 +438,21 @@ class TestRemoveEmbargoFromCaseActivity:
         )
 
     @pytest.mark.parametrize(
-        "content", [None, "", "early", "THREAT_SIGNAL", "Ended early."]
+        ("content", "match"),
+        [
+            (None, "END_TIME_REACHED"),
+            ("early", "END_TIME_REACHED"),
+            ("THREAT_SIGNAL", "END_TIME_REACHED"),
+            ("Ended early.", "END_TIME_REACHED"),
+            # A blank is refused as blank before the reason check (CS-08-001).
+            ("", "non-empty string"),
+        ],
     )
-    def test_refuses_content_that_is_not_a_termination_reason(self, content):
+    def test_refuses_content_that_is_not_a_termination_reason(
+        self, content, match
+    ):
         """AC-1 (#4293): ``content`` is exactly END_TIME_REACHED or EARLY."""
-        with pytest.raises(ValidationError, match="END_TIME_REACHED"):
+        with pytest.raises(ValidationError, match=match):
             _make_activity(
                 self.cls,
                 as_EmbargoEvent(

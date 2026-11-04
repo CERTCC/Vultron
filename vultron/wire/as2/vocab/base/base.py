@@ -34,6 +34,7 @@ from vultron.core.models.base import (
     VULTRON_PROPERTY_EXTRA,
     VULTRON_PROPERTY_KEY,
 )
+from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
@@ -86,8 +87,9 @@ class as_Base(BaseModel):
     #: and is therefore not what that value should deserialize to. No
     #: production class declares it today; the case stub, its last user, became
     #: its own ``VulnerabilityCaseStub`` type in #4045 (CM-11-013). Such a
-    #: class stays reachable by class name through ``VOCABULARY`` but claims no
-    #: ``WIRE_TYPE_MAP`` key of its own (VM-01-015).
+    #: class is still listed in ``VOCABULARY`` under its class name, but it
+    #: claims no ``WIRE_TYPE_MAP`` key, so no wire ``type`` value resolves to it
+    #: (VM-01-015, VM-01-016).
     _wire_type_alias: ClassVar[bool] = False
 
     def __init_subclass__(cls, **kwargs: object) -> None:
@@ -103,7 +105,7 @@ class as_Base(BaseModel):
         if not is_wire_type_alias(cls):
             WIRE_TYPE_MAP[wire_type_value(cls)] = cls
 
-    context_: str = Field(
+    context_: NonEmptyString = Field(
         default=ACTIVITY_STREAMS_NS,
         validation_alias="@context",
         serialization_alias="@context",
@@ -113,14 +115,17 @@ class as_Base(BaseModel):
         validation_alias="type",
         serialization_alias="type",
     )
-    id_: str = Field(
+    id_: NonEmptyString = Field(
         default_factory=generate_new_id,
         validation_alias="id",
         serialization_alias="id",
     )
-    name: str | None = None
-    preview: str | None = None
-    media_type: str | None = None
+    # "If present, then non-empty" (CS-08-001, CS-08-002): a blank value is
+    # refused when the object is built, so no serialized object carries one
+    # (VM-07-005).
+    name: NonEmptyString | None = None
+    preview: NonEmptyString | None = None
+    media_type: NonEmptyString | None = None
 
     #: Validation-context key that marks a ``model_validate`` call as reading
     #: *inbound* data.  ``parse_activity`` sets it; nothing else should.

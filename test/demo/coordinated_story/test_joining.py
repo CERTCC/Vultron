@@ -35,7 +35,7 @@ from test.demo._helpers import (
 )
 from test.demo.coordinated_story._support import CAST, JOINED, JOINER
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import coordinated_story, invite_chain
+from vultron.demo.helpers import coordinated_story
 from vultron.demo.helpers.coordinated_story import (
     COORDINATOR,
     COORDINATOR_LABEL,
@@ -46,6 +46,7 @@ from vultron.demo.helpers.coordinated_story import (
     joining as coordinated_joining,
     vendor_accepts_and_joins,
 )
+from vultron.demo.helpers.invite_chain import links as invite_links
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 
@@ -490,7 +491,7 @@ class TestReporterCaseReplicaWaitBeforeVendorTriage:
                 side_effect=lambda **_kw: call_order.append("triage"),
             ),
             patch.object(ActorSession, "accept_case_invite"),
-            patch.object(invite_chain, "reply_to_full_case_invite"),
+            patch.object(invite_links, "reply_to_full_case_invite"),
             patch.object(coordinated_joining, "wait_for_case_participants"),
             no_demo_banners(coordinated_story),
         ):
@@ -542,7 +543,7 @@ class TestVendorAcceptsAndJoins:
             ),
             patch.object(coordinated_joining, "run_invite_path_rm_triage"),
             patch.object(ActorSession, "accept_case_invite"),
-            patch.object(invite_chain, "reply_to_full_case_invite") as reply,
+            patch.object(invite_links, "reply_to_full_case_invite") as reply,
             patch.object(coordinated_joining, "wait_for_case_participants"),
             no_demo_banners(coordinated_story),
         ):

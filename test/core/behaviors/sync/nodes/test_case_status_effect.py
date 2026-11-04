@@ -20,6 +20,7 @@ replica does not judge it again.  EM is derived from the replica's embargo
 register, so a status never moves it (ADR-0122).
 """
 
+import logging
 from datetime import timedelta
 from typing import Any
 
@@ -89,9 +90,9 @@ def _replay_teardown(datalayer) -> None:
 
 def _later(current: CaseStatus, em: EM, pxa: CS_pxa) -> CaseStatus:
     """A status committed after *current*, so it becomes the current one."""
-    assert current.updated is not None
-    stamp = current.updated + timedelta(seconds=1)
-    return _case_status(em, pxa, published=stamp, updated=stamp)
+    return _case_status(
+        em, pxa, published=current.published + timedelta(seconds=1)
+    )
 
 
 def _apply(bridge, status_object: Any):
@@ -206,6 +207,55 @@ def test_an_invalid_em_move_keeps_the_replicas_em(bridge, datalayer):
     assert case.current_status.id_ == committed.id_
     assert case.current_status.em.state == EM.EXITED
     assert case.current_status.pxa.state == CS_pxa.Pxa
+
+
+@pytest.mark.spec("CM-29-007")
+@pytest.mark.spec("CM-29-008")
+@pytest.mark.parametrize(
+    "offset",
+    [timedelta(seconds=-1), timedelta(0)],
+    ids=["earlier", "same-time"],
+)
+def test_out_of_order_case_status_is_applied_and_warned(
+    bridge, datalayer, caplog, offset: timedelta
+):
+    """A status timed no later than the replica's current one still lands.
+
+    It is appended and becomes current, since append order picks the current
+    status (CM-29-001), and a WARNING names both statuses and the case.
+    """
+    current = _seed(datalayer, EM.ACTIVE, CS_pxa.pxa)
+    committed = _case_status(
+        EM.ACTIVE, CS_pxa.Pxa, published=current.published + offset
+    )
+
+    with caplog.at_level(logging.WARNING):
+        assert _apply(bridge, _wire(committed)).status == Status.SUCCESS
+
+    case = _case(datalayer)
+    assert [_as_id(s) for s in case.case_statuses] == [
+        current.id_,
+        committed.id_,
+    ]
+    assert case.current_status.id_ == committed.id_
+    warnings = [
+        r.getMessage() for r in caplog.records if r.levelno == logging.WARNING
+    ]
+    assert len(warnings) == 1
+    assert committed.id_ in warnings[0]
+    assert current.id_ in warnings[0]
+    assert CASE_ID in warnings[0]
+
+
+@pytest.mark.spec("CM-29-008")
+def test_an_in_order_case_status_is_not_warned(bridge, datalayer, caplog):
+    current = _seed(datalayer, EM.ACTIVE, CS_pxa.pxa)
+    committed = _later(current, EM.ACTIVE, CS_pxa.Pxa)
+
+    with caplog.at_level(logging.WARNING):
+        assert _apply(bridge, _wire(committed)).status == Status.SUCCESS
+
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
 
 @pytest.mark.spec("SYNC-12-003")

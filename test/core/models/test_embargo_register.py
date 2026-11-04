@@ -527,7 +527,11 @@ def test_append_case_status_sets_the_pxa_dimension(
 
 
 def test_append_case_status_bump_wins_over_a_passed_timestamp() -> None:
-    """The case context and bumped timestamps are assigned last."""
+    """The case context and bumped timestamp are assigned last (CM-29-005).
+
+    A passed ``updated`` is dropped too: the appended status carries no
+    ``updated`` (CM-29-006).
+    """
     case = _case()
     before = case.current_status
     stale = now_utc() - timedelta(days=1)
@@ -535,8 +539,8 @@ def test_append_case_status_bump_wins_over_a_passed_timestamp() -> None:
     after = case.current_status
     assert after is not before
     assert after.context == case.id_
-    assert after.published is not None and after.published > stale
-    assert after.updated == after.published
+    assert after.published > before.published > stale
+    assert after.updated is None
 
 
 def test_append_case_status_mints_a_fresh_id() -> None:

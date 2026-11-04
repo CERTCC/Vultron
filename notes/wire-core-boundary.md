@@ -19,7 +19,7 @@ related_specs:
   - specs/status-dimension-objects.yaml (SDO-03-003)
   - specs/message-validation.yaml (MV-01-001, MV-02-002, MV-04-003, MV-11-001
     through MV-11-005, MV-11-012)
-  - specs/vocabulary-model.yaml (VM-06-008)
+  - specs/vocabulary-model.yaml (VM-06-008, VM-07-005)
 related_notes:
   - notes/vocabulary-registry.md
   - notes/core-wire-rendering-port.md
@@ -121,6 +121,11 @@ The rule reaches only slots whose annotation spells a string branch. The
 `Any | None` AS2 properties on `as_Object` (`to`, `cc`, `attributedTo`,
 `inReplyTo`, `context`, `url`, …) still admit a blank inbound, and neither ratchet
 sees a string leaf in `Any` (#3894).
+
+Text fields are held to the same rule: every string field a wire class declares
+(`name`, `summary`, `content`, `mediaType`, …) is `NonEmptyString`, so a blank is
+refused when the object is built and at the parse edge, never stripped on output
+(VM-07-005, CS-08-001). Ratchet: `test/wire/as2/test_wire_text_fields_reject_blank.py`.
 
 ## `extra="forbid"` Is the Boundary Contract
 
