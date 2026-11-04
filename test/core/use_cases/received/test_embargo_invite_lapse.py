@@ -2981,9 +2981,10 @@ class TestOwnerAnswerToRelayedInvite:
 
     The protocol never requires an automatic answer.  The prototype keeps one
     bounded auto-accept: the owner accepts on its own only at ``EM.NONE``, the
-    Invite's own register entry set aside (SYNC-19-001), and only for terms no longer than its own policy duration; in every other
-    case — above all a revision Invite while an embargo is active — it holds
-    the answer.  A non-owner participant's default accept is unchanged.
+    Invite's own register entry set aside (SYNC-19-001), and only for terms
+    no longer than its own policy duration; in every other case — above all
+    a revision Invite while an embargo is active — it holds the answer.  A
+    non-owner participant's default accept is unchanged.
     """
 
     @pytest.mark.parametrize(
