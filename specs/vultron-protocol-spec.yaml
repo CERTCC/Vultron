@@ -1939,7 +1939,7 @@ groups:
     stories:
     - story_2022_104
     - story_2022_046
-    - story_2022_045
+    - story_2026_002
   - id: VP-10-003
     priority: MUST
     kind: protocol
@@ -2723,7 +2723,6 @@ groups:
       without sharing any details.
     stories:
     - story_2022_030
-    - story_2022_045
   - id: VP-16-003
     priority: SHOULD_NOT
     kind: protocol
@@ -2763,7 +2762,7 @@ groups:
     - rel_type: refines
       spec_id: VP-02-001
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_046
   - id: VP-17-002
     priority: MUST_NOT
@@ -2803,7 +2802,7 @@ groups:
     - rel_type: satisfies
       spec_id: VP-17-002
     stories:
-    - story_2022_045
+    - story_2026_057
 - id: VP-18
   title: Routing Topology
   specs:
@@ -2818,16 +2817,18 @@ groups:
       activity. Direct peer-to-peer delivery bypasses the ledger and the broadcast
       idempotency controls.
     verification: >-
-      Integration tests in `test/demo/test_sync_ledger_replication.py` confirm
-      that every accepted participant message produces a CaseLedgerEntry and an
-      `Announce(CaseLedgerEntry)` broadcast before delivery to other
-      participants.
+      `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_commits_log_entry_when_sync_port_provided`
+      confirms the path from the CASE_MANAGER on: a note a participant sends to
+      the CASE_MANAGER is committed as a CaseLedgerEntry and broadcast to the
+      participants in an `Announce` of that entry. The first step, a participant
+      addressing the CASE_MANAGER alone, is the PCR-08-001 rule this one refines,
+      and its own tests check it.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
       note: participant-case-relationships.yaml — PCR-08 covers ledger-based broadcast
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_041
   - id: VP-18-002
     priority: MUST_NOT
@@ -2853,12 +2854,14 @@ groups:
       Mediation through the CASE_MANAGER ensures all case activity is ledger-ordered
       and consistently broadcast to all participants.
     verification: >-
-      Integration tests in `test/demo/test_sync_ledger_replication.py` confirm
-      that no participant receives a case-state update before the CASE_MANAGER has
-      committed the corresponding CaseLedgerEntry.
+      `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_commits_log_entry_when_sync_port_provided`
+      confirms that a participant's note is committed as a CaseLedgerEntry, that
+      the entry is already in the ledger store when each `Announce` of it is
+      queued, and that the `Announce` fanned out to the participants carries that
+      committed entry.
     relationships:
     - rel_type: refines
       spec_id: VP-18-001
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_106

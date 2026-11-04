@@ -778,6 +778,22 @@ class BTBridge:
                 # puts back exactly the value that same call snapshotted.  It
                 # cannot overwrite a live execution.
                 "actor_id",
+                # The case a delivery is about.  A use case that knows its
+                # case passes it as ``context_data``, which the line below
+                # scopes; but six nodes publish ``/case_id`` as an *output
+                # port* instead (``CaseLookupNode``,
+                # ``ResolveProposalCaseNode``, the replay and case-creation
+                # nodes), and an output port is not ``context_data``, so
+                # without this entry their value outlives the execution that
+                # wrote it.  A later delivery whose own tree names no case —
+                # ``create_ack_report_received_tree`` is one — then resolves
+                # that stale id: ``ReceivedPathNode`` and
+                # ``CheckIsCaseManagerNode`` both read ``/case_id`` after
+                # their constructor argument (``activity_case_id``), so the
+                # path stage refused an RK as a replica of a case the RK
+                # never named.  In a single-process run the writer can even
+                # be a different actor's execution (BT-09).
+                "case_id",
             ]
             # setup_tree() also writes /activity (when one is supplied) and one
             # key per **context_data entry, so those are execution-scoped for

@@ -169,22 +169,6 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
             "case_manager_decision_guard",
         ),
         (
-            f"{_C}/nodes/case_participant_received.py",
-            "case_manager_admits_removal_guard",
-        ),
-        (
-            f"{_C}/nodes/ownership_offer_guard.py",
-            "case_manager_admits_ownership_proposal_guard",
-        ),
-        (
-            f"{_C}/nodes/ownership_reply_guard.py",
-            "case_manager_ownership_offer_open_guard",
-        ),
-        (
-            f"{_C}/nodes/participant_reinstatement.py",
-            "case_manager_admits_reinstatement_guard",
-        ),
-        (
             f"{_C}/nodes/suggest_actor/conditions.py",
             "case_manager_admits_accepted_invitee_guard",
         ),

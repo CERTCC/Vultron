@@ -175,7 +175,7 @@ adding new ones; the prefixes are the expected citers, not a commitment.
 | 017, 018, 019 | Node Operator: HTTP error statuses, log identifiers, timeouts | IE, ENC, SL, CLP-06, SYNC-05 |
 | 020, 021 | Tool Author: semantic registry, OpenAPI schema | SE, VAM-01, AR |
 | 022 | Protocol Author: case state invariants | CSB-17–19, SM |
-| 023 | Auditor: append-only single-writer ledger (candidate split of 045) | CLP, SYNC, VP-17, CM-02 |
+| 023 | Auditor: append-only single-writer ledger (took part of 045) | CLP, SYNC, VP-17, CM-02 |
 | 024 | Participant: timezone-aware embargo deadlines | DUR-06, CM-28 |
 | 025, 026, 027 | Contributor / Maintainer: requirement rationale, ratchet gates, generated traceability | SR-11, MS-10, MS-12-007, MS-12-008, TRACE |
 
@@ -188,9 +188,11 @@ requirements, not the other way round.
   needed two axes the candidate list lacked: every copy matching the
   CASE_MANAGER's, and deployment needs told by an Implementer. Read the axes
   below as a start, not a closed set.
-- **045** "produce a shared verified public record of case activity" (135):
-  a record every participant shares; a record whose integrity can be verified;
-  a record that becomes public on disclosure.
+- **045** is split into `story_2026_069`–`079` (#4516, part 2), with many
+  citers re-pointed onto existing 2026 stories and those already on one keeping
+  it. Its citers were about what the ledger holds, who writes it, its integrity
+  and how it is shared; none was about the record becoming public, so the
+  disclosure axis got no story.
 - **014** "negotiate embargo/disclosure schedules…" (128): proposing an
   embargo; revising one; accepting or rejecting a proposal; ending one.
 

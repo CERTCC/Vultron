@@ -346,7 +346,6 @@ groups:
       is not a received message.
     stories:
     - story_2026_059
-    - story_2022_045
     - story_2022_014
     verification: >-
       The parametrized test
@@ -386,7 +385,6 @@ groups:
       ledger entry and replica step (CLP-07-013, RSH-08-004) for no gain (ADR-0137).
     stories:
     - story_2026_059
-    - story_2022_045
     verification: >-
       The parametrized test
       `test_received_create_of_a_case_record_is_refused_case_unchanged` in

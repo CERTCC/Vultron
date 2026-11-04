@@ -1708,7 +1708,7 @@ groups:
       spec_id: CP-09-002
     stories:
     - story_2022_013
-    - story_2022_045
+    - story_2026_055
     adr:
     - ADR-0041
     - ADR-0170

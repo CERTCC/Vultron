@@ -74,7 +74,6 @@ groups:
     - ADR-0046
     - ADR-0108
     stories:
-    - story_2022_045
     - story_2026_041
   - id: RSH-01-005
     priority: MUST
@@ -99,7 +98,6 @@ groups:
     - ADR-0046
     - ADR-0108
     stories:
-    - story_2022_045
     - story_2026_041
   - id: RSH-01-004
     priority: MUST
@@ -290,7 +288,7 @@ groups:
       `test/core/use_cases/received/test_remaining_sender_rules.py` asserts that a
       participant's bare `Add(CaseStatus)` is refused at a peer's replica.
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_046
   - id: RSH-04-007
     priority: MUST
@@ -314,7 +312,7 @@ groups:
     - ADR-0046
     - ADR-0108
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_046
   - id: RSH-04-002
     priority: MUST
@@ -340,7 +338,7 @@ groups:
     - ADR-0046
     stories:
     - story_2022_014
-    - story_2022_045
+    - story_2026_041
   - id: RSH-04-003
     priority: MUST
     kind: protocol
@@ -361,7 +359,7 @@ groups:
     adr:
     - ADR-0046
     stories:
-    - story_2022_045
+    - story_2026_041
     - story_2022_081
   - id: RSH-04-004
     priority: MUST
@@ -382,7 +380,6 @@ groups:
       `test/core/behaviors/status/nodes/test_case_status.py` shows an EM change after a
       commit is committed.
     stories:
-    - story_2022_045
     - story_2026_041
   - id: RSH-04-008
     priority: MUST_NOT
@@ -406,7 +403,6 @@ groups:
     - ADR-0046
     - ADR-0108
     stories:
-    - story_2022_045
     - story_2026_059
   - id: RSH-04-009
     priority: MUST_NOT
@@ -432,7 +428,6 @@ groups:
     - ADR-0108
     - ADR-0152
     stories:
-    - story_2022_045
     - story_2026_041
   - id: RSH-04-006
     priority: MUST
@@ -524,7 +519,7 @@ groups:
     - ADR-0108
     - ADR-0115
     stories:
-    - story_2022_045
+    - story_2026_030
     - story_2022_046
   - id: RSH-04-012
     priority: MUST
@@ -549,7 +544,7 @@ groups:
     - ADR-0108
     - ADR-0115
     stories:
-    - story_2022_045
+    - story_2026_030
     - story_2022_046
 
 - id: RSH-06
@@ -1286,7 +1281,6 @@ groups:
       confirm an accepted status is appended as received and that a refused one
       appends nothing and commits nothing.
     stories:
-    - story_2022_045
     - story_2026_040
     adr:
     - ADR-0107
@@ -1312,7 +1306,6 @@ groups:
       ledger entry records an object identical to the status sent, and that an omitted
       dimension is recorded as omitted.
     stories:
-    - story_2022_045
     - story_2026_040
     adr:
     - ADR-0075
@@ -1334,7 +1327,6 @@ groups:
     - rel_type: refines
       spec_id: RSH-09-001
     stories:
-    - story_2022_045
     - story_2026_040
   - id: RSH-09-011
     priority: MUST
@@ -1355,7 +1347,6 @@ groups:
       `test/core/use_cases/received/test_refusal_notice.py` confirm that the refusal
       notice names every refused dimension with its reason.
     stories:
-    - story_2022_045
     - story_2026_040
   - id: RSH-09-003
     priority: MUST
@@ -1433,7 +1424,6 @@ groups:
     - rel_type: refines
       spec_id: RSH-09-001
     stories:
-    - story_2022_045
     - story_2026_039
   - id: RSH-09-012
     priority: MUST
@@ -1455,7 +1445,6 @@ groups:
       (`participant_status_refusals()`) both ask `composite_state_violations()` about
       the same state, and both refuse it.
     stories:
-    - story_2022_045
     - story_2026_039
   - id: RSH-09-005
     priority: MUST
@@ -1494,7 +1483,6 @@ groups:
       RSH-01-003, setting every latch the report sets and clearing none, not
       by this predicate.
     stories:
-    - story_2022_045
     - story_2026_039
     adr:
     - ADR-0107
@@ -1532,7 +1520,7 @@ groups:
       (SYNC-12-004 is preserved). The check reads the entry's status as
       carried; a replica carries none of its own values over it (CM-23-016).
     stories:
-    - story_2022_045
+    - story_2026_039
     - story_2022_106
   - id: RSH-09-013
     priority: MUST
@@ -1554,7 +1542,7 @@ groups:
       confirms an entailment violation emits `Create(ProcessingFault)` to the
       CASE_MANAGER.
     stories:
-    - story_2022_045
+    - story_2026_039
     - story_2022_106
   - id: RSH-09-007
     priority: MUST

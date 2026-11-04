@@ -505,7 +505,6 @@ groups:
       spec_id: PCR-03-001
     stories:
     - story_2026_055
-    - story_2022_045
   - id: CBT-02-002
     priority: MUST_NOT
     kind: protocol

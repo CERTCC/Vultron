@@ -24,7 +24,15 @@ sites:
 
 1. **Ratchet** :data:`KNOWN_ROLE_QUESTION_SITES`: every received-side site
    that asks the question another way.  Terminal value: empty, driven there
-   by the Epic's migration waves (#5042, #5043).
+   by the Epic's migration waves: #5042 for the embargo trees, #5043 for the
+   case, participant, report and status trees, #5044 for the sync, ledger
+   and actor-offer trees and the role-gate registries, #5046 for the
+   `Offer(VulnerabilityReport)` trees.  The last two entries go with the
+   waves rather than with a wave of their own: ``role_gates.py`` goes when
+   the last tree stops building a gate for itself, and ``sender_guard``'s
+   fallback read is taken only when a tree passes no path stage, so it goes
+   when the last tree declares.  #5044's AC-3 is what holds the set at empty
+   afterwards.
 2. **Pinned exemption set** :data:`SANCTIONED_ROLE_QUESTION_SITES`: the
    factory's own stage builders, whose CASE_MANAGER gate ADR-0153 keeps
    (BT-17-001 still holds for the manager path), and the trigger-side trees
@@ -123,31 +131,14 @@ KNOWN_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
         # answer instead (HP-01-036).
         (f"{_B}/sender_guard/compose.py", CONDITION),
         # Gate-wrapped precondition guards a received tree passes.
-        (f"{_C}/nodes/case_participant_received.py", GATE),
-        (f"{_C}/nodes/ownership_offer_guard.py", GATE),
-        (f"{_C}/nodes/ownership_reply_guard.py", GATE),
-        (f"{_C}/nodes/participant_reinstatement.py", GATE),
         (f"{_C}/nodes/suggest_actor/conditions.py", GATE),
         (f"{_E}/nodes/answer_record.py", GATE),
         (f"{_E}/nodes/answer_repeat.py", GATE),
         (f"{_E}/nodes/relay_guards.py", GATE),
         # Received trees that gate work themselves instead of declaring the
-        # path it belongs to.  The stub-Invite tree declares its paths
-        # already, but its invitee-only effects still sit behind the
-        # participant-replica gate rather than in a declared branch.
-        (f"{_C}/invite_actor_to_case_received_tree.py", GATE),
-        (f"{_C}/full_case_invite_trees.py", GATE),
-        (f"{_C}/offer_case_participant_role_received_tree.py", GATE),
+        # path it belongs to.
         (f"{_E}/announce_teardown_tree.py", GATE),
         (f"{_B}/sync/announce_tree.py", CONDITION),
-        (f"{_B}/status/nodes/status_subject.py", CONDITION),
-        # Inline "the resolved manager is me" comparisons (HP-01-037):
-        # each is replaced by the predicate or by the path.
-        (f"{_C}/nodes/conditions.py", INLINE),
-        (f"{_C}/nodes/embargo.py", INLINE),
-        (f"{_C}/nodes/full_case_invite.py", INLINE),
-        (f"{_C}/nodes/post_close.py", INLINE),
-        (f"{_C}/nodes/reporter_introduction.py", INLINE),
     }
 )
 

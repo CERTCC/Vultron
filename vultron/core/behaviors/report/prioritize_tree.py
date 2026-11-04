@@ -80,6 +80,9 @@ from vultron.core.behaviors.case.engage_defer_trigger_tree import (
     defer_case_trigger_bt,
     engage_case_trigger_bt,
 )
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.nodes.update import (
     BroadcastCaseUpdateNode,
     CaptureCaseUpdateBroadcastExclusionsNode,
@@ -205,6 +208,11 @@ def create_engage_case_tree(
     root = create_receive_activity_tree(
         name="EngageCaseBT",
         case_id=case_id,
+        # The participant declares its RM move to the CASE_MANAGER, which
+        # adjudicates and commits it; a participant replica archives its copy
+        # and takes the sender's RM state from the ledger entry that follows
+        # (RSH-06-006, RSH-08-003, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         # The sender is checked against the participant records this store
         # already holds: an Engage goes to the CASE_MANAGER, which created
         # the sender's record when it added the sender, and a stranger's
@@ -260,6 +268,11 @@ def create_defer_case_tree(
     root = create_receive_activity_tree(
         name="DeferCaseBT",
         case_id=case_id,
+        # The participant declares its RM move to the CASE_MANAGER, which
+        # adjudicates and commits it; a participant replica archives its copy
+        # and takes the sender's RM state from the ledger entry that follows
+        # (RSH-06-006, RSH-08-003, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(sender_id=actor_id, case_id=case_id),
         precondition_guards=[

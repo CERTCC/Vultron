@@ -586,7 +586,6 @@ groups:
     stories:
     - story_2026_054
     - story_2022_023
-    - story_2022_045
   - id: MV-10-006
     priority: MUST
     kind: protocol

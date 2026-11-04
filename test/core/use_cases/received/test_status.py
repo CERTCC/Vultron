@@ -15,6 +15,7 @@
 import json
 from typing import cast
 
+import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -769,7 +770,11 @@ class TestStatusUseCases:
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason is not None and "holds no case" in result.reason
+        assert result.reason is not None
+        # The type declares the manager and participant-replica paths, so a
+        # store that holds no replica of the case is refused at the path
+        # stage, with the reason the composer gives that path (HP-01-039).
+        assert "holds no replica of" in result.reason
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
         assert dl.read(unheld.id_) is None
 
@@ -819,7 +824,11 @@ class TestStatusUseCases:
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason is not None and "holds no case" in result.reason
+        assert result.reason is not None
+        # The type declares the manager and participant-replica paths, so a
+        # store that holds no replica of the case is refused at the path
+        # stage, with the reason the composer gives that path (HP-01-039).
+        assert "holds no replica of" in result.reason
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
         stored = cast(as_CaseParticipant, dl.read(target.id_))
         assert status_id not in [
@@ -1913,16 +1922,25 @@ class TestParticipantStatusSubjectIsTheSender:
             vf=VfDimension(state=CS_vf.Vf),
         )
         dl.create(stored)
-        guard = on_behalf_status_guard(
-            case_id=_SUBJ_CASE_ID,
-            participant_id=ids[_SUBJ_VENDOR],
-            target_actor_id=_SUBJ_VENDOR,
-            status_id=stored.id_,
-            status_obj=None,
+        # The guard is a declaration the received-tree factory builds into a
+        # branch on the manager path (HP-01-038); its assertion is what this
+        # test is about, so it runs the declaration's children directly.
+        assertion = py_trees.composites.Sequence(
+            name="OnBehalfAssertion",
+            memory=False,
+            children=list(
+                on_behalf_status_guard(
+                    case_id=_SUBJ_CASE_ID,
+                    participant_id=ids[_SUBJ_VENDOR],
+                    target_actor_id=_SUBJ_VENDOR,
+                    status_id=stored.id_,
+                    status_obj=None,
+                ).children
+            ),
         )
         result = BTTestScenario(actor_id=cast(str, dl.actor_id), dl=dl).run(
-            guard
+            assertion
         )
 
         assert result.status == Status.FAILURE
-        assert "not carried inline" in BTBridge.get_failure_reason(guard)
+        assert "not carried inline" in BTBridge.get_failure_reason(assertion)

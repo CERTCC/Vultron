@@ -546,24 +546,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 {% include-markdown "./story_2022_045.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
 
-| Spec file | Citing requirements |
-|---|---|
-| ASK — Protocol Asks and Outstanding-Ask Registers | [ASK-02-005](../vultron-spec/requirements/case-management.md#ask-02-005), [ASK-02-006](../vultron-spec/requirements/case-management.md#ask-02-006), [ASK-06-001](../vultron-spec/requirements/case-management.md#ask-06-001), [ASK-06-003](../vultron-spec/requirements/case-management.md#ask-06-003), [ASK-07-008](../vultron-spec/requirements/case-management.md#ask-07-008) |
-| CBT — Case Bootstrap Trust | [CBT-02-001](../vultron-spec/requirements/ledger-replication.md#cbt-02-001) |
-| CLP — Case Ledger Processing | [CLP-01-001](../vultron-spec/requirements/ledger-replication.md#clp-01-001), [CLP-01-003](../vultron-spec/requirements/ledger-replication.md#clp-01-003), [CLP-02-001](../vultron-spec/requirements/ledger-replication.md#clp-02-001), [CLP-02-002](../vultron-spec/requirements/ledger-replication.md#clp-02-002), [CLP-02-003](../vultron-spec/requirements/ledger-replication.md#clp-02-003), [CLP-02-004](../vultron-spec/requirements/ledger-replication.md#clp-02-004), [CLP-02-005](../vultron-spec/requirements/ledger-replication.md#clp-02-005), [CLP-02-008](../vultron-spec/requirements/ledger-replication.md#clp-02-008), [CLP-02-011](../specs/project.md#clp-02-011), [CLP-02-012](../vultron-spec/requirements/ledger-replication.md#clp-02-012), [CLP-02-013](../vultron-spec/requirements/ledger-replication.md#clp-02-013), [CLP-02-014](../vultron-spec/requirements/ledger-replication.md#clp-02-014), [CLP-02-016](../vultron-spec/requirements/ledger-replication.md#clp-02-016), [CLP-02-017](../vultron-spec/requirements/ledger-replication.md#clp-02-017), [CLP-02-018](../vultron-spec/requirements/ledger-replication.md#clp-02-018), [CLP-03-001](../vultron-spec/requirements/ledger-replication.md#clp-03-001), [CLP-03-002](../vultron-spec/requirements/ledger-replication.md#clp-03-002), [CLP-04-001](../vultron-spec/requirements/ledger-replication.md#clp-04-001), [CLP-04-002](../vultron-spec/requirements/ledger-replication.md#clp-04-002), [CLP-04-003](../vultron-spec/requirements/ledger-replication.md#clp-04-003), [CLP-04-004](../vultron-spec/requirements/ledger-replication.md#clp-04-004), [CLP-04-007](../vultron-spec/requirements/ledger-replication.md#clp-04-007), [CLP-05-001](../vultron-spec/requirements/ledger-replication.md#clp-05-001), [CLP-05-004](../vultron-spec/requirements/ledger-replication.md#clp-05-004), [CLP-05-005](../vultron-spec/requirements/ledger-replication.md#clp-05-005), [CLP-05-006](../vultron-spec/requirements/ledger-replication.md#clp-05-006), [CLP-05-007](../vultron-spec/requirements/ledger-replication.md#clp-05-007), [CLP-05-008](../vultron-spec/requirements/ledger-replication.md#clp-05-008), [CLP-05-009](../vultron-spec/requirements/ledger-replication.md#clp-05-009), [CLP-07-001](../vultron-spec/requirements/ledger-replication.md#clp-07-001), [CLP-07-002](../vultron-spec/requirements/ledger-replication.md#clp-07-002), [CLP-07-003](../vultron-spec/requirements/ledger-replication.md#clp-07-003), [CLP-07-006](../vultron-spec/requirements/ledger-replication.md#clp-07-006), [CLP-07-007](../vultron-spec/requirements/ledger-replication.md#clp-07-007), [CLP-07-011](../vultron-spec/requirements/ledger-replication.md#clp-07-011), [CLP-07-013](../vultron-spec/requirements/ledger-replication.md#clp-07-013), [CLP-07-014](../vultron-spec/requirements/ledger-replication.md#clp-07-014), [CLP-07-015](../vultron-spec/requirements/ledger-replication.md#clp-07-015), [CLP-07-017](../vultron-spec/requirements/ledger-replication.md#clp-07-017), [CLP-07-018](../vultron-spec/requirements/ledger-replication.md#clp-07-018), [CLP-07-021](../vultron-spec/requirements/ledger-replication.md#clp-07-021), [CLP-07-022](../vultron-spec/requirements/ledger-replication.md#clp-07-022), [CLP-07-023](../vultron-spec/requirements/ledger-replication.md#clp-07-023), [CLP-08-001](../vultron-spec/requirements/ledger-replication.md#clp-08-001), [CLP-08-002](../vultron-spec/requirements/ledger-replication.md#clp-08-002), [CLP-08-003](../vultron-spec/requirements/ledger-replication.md#clp-08-003), [CLP-08-004](../vultron-spec/requirements/ledger-replication.md#clp-08-004), [CLP-08-005](../vultron-spec/requirements/ledger-replication.md#clp-08-005), [CLP-08-006](../vultron-spec/requirements/ledger-replication.md#clp-08-006), [CLP-08-008](../vultron-spec/requirements/ledger-replication.md#clp-08-008), [CLP-09-001](../specs/project.md#clp-09-001), [CLP-09-003](../specs/project.md#clp-09-003), [CLP-09-004](../specs/project.md#clp-09-004), [CLP-09-005](../specs/project.md#clp-09-005), [CLP-09-006](../specs/project.md#clp-09-006), [CLP-10-001](../vultron-spec/requirements/ledger-replication.md#clp-10-001), [CLP-10-031](../vultron-spec/requirements/ledger-replication.md#clp-10-031), [CLP-10-032](../vultron-spec/requirements/ledger-replication.md#clp-10-032), [CLP-11-001](../vultron-spec/requirements/ledger-replication.md#clp-11-001) |
-| CM — Case Management | [CM-02-002](../vultron-spec/requirements/case-management.md#cm-02-002), [CM-02-009](../vultron-spec/requirements/case-management.md#cm-02-009), [CM-11-008](../vultron-spec/requirements/case-management.md#cm-11-008), [CM-11-012](../vultron-spec/requirements/case-management.md#cm-11-012), [CM-11-035](../vultron-spec/requirements/case-management.md#cm-11-035), [CM-11-036](../vultron-spec/requirements/case-management.md#cm-11-036), [CM-14-013](../vultron-spec/requirements/case-management.md#cm-14-013), [CM-16-002](../vultron-spec/requirements/case-management.md#cm-16-002), [CM-16-008](../vultron-spec/requirements/case-management.md#cm-16-008), [CM-16-010](../vultron-spec/requirements/case-management.md#cm-16-010), [CM-21-007](../vultron-spec/requirements/case-management.md#cm-21-007), [CM-21-030](../vultron-spec/requirements/case-management.md#cm-21-030), [CM-22-003](../vultron-spec/requirements/case-management.md#cm-22-003), [CM-23-007](../vultron-spec/requirements/case-management.md#cm-23-007), [CM-28-005](../vultron-spec/requirements/case-management.md#cm-28-005), [CM-28-009](../vultron-spec/requirements/case-management.md#cm-28-009), [CM-28-022](../vultron-spec/requirements/case-management.md#cm-28-022) |
-| CP — CaseProposal Protocol | [CP-09-004](../vultron-spec/requirements/case-management.md#cp-09-004) |
-| CS — Code Style Specifications | [CS-13-007](../vultron-spec/requirements/messages.md#cs-13-007) |
-| CSB — CVD Case State Behavioral Requirements | [CSB-05-010](../vultron-spec/requirements/state-behavior.md#csb-05-010), [CSB-06-010](../vultron-spec/requirements/state-behavior.md#csb-06-010), [CSB-17-001](../vultron-spec/requirements/state-behavior.md#csb-17-001), [CSB-17-002](../vultron-spec/requirements/state-behavior.md#csb-17-002), [CSB-17-005](../vultron-spec/requirements/state-behavior.md#csb-17-005), [CSB-17-006](../vultron-spec/requirements/state-behavior.md#csb-17-006), [CSB-17-007](../vultron-spec/requirements/state-behavior.md#csb-17-007), [CSB-17-008](../vultron-spec/requirements/state-behavior.md#csb-17-008), [CSB-17-010](../vultron-spec/requirements/state-behavior.md#csb-17-010), [CSB-17-011](../vultron-spec/requirements/state-behavior.md#csb-17-011), [CSB-17-014](../vultron-spec/requirements/state-behavior.md#csb-17-014), [CSB-17-015](../vultron-spec/requirements/state-behavior.md#csb-17-015) |
-| EMB — Embargo Management Behavioral Requirements | [EMB-19-001](../vultron-spec/requirements/state-behavior.md#emb-19-001), [EMB-19-002](../vultron-spec/requirements/state-behavior.md#emb-19-002), [EMB-19-003](../vultron-spec/requirements/state-behavior.md#emb-19-003), [EMB-19-004](../vultron-spec/requirements/state-behavior.md#emb-19-004) |
-| LST — Lifecycle-Staged Domain Types | [LST-05-002b](../specs/project.md#lst-05-002b), [LST-05-003](../specs/project.md#lst-05-003) |
-| MV — Message Validation | [MV-10-005](../vultron-spec/requirements/messages.md#mv-10-005) |
-| OID — Object ID | [OID-01-001](../vultron-spec/requirements/foundation.md#oid-01-001) |
-| PCR — Participant Case Replica | [PCR-02-001](../vultron-spec/requirements/ledger-replication.md#pcr-02-001), [PCR-02-003](../vultron-spec/requirements/ledger-replication.md#pcr-02-003), [PCR-02-004](../vultron-spec/requirements/ledger-replication.md#pcr-02-004), [PCR-02-005](../vultron-spec/requirements/ledger-replication.md#pcr-02-005), [PCR-03-005](../vultron-spec/requirements/ledger-replication.md#pcr-03-005), [PCR-03-006](../vultron-spec/requirements/ledger-replication.md#pcr-03-006), [PCR-08-001](../vultron-spec/requirements/ledger-replication.md#pcr-08-001), [PCR-08-003](../vultron-spec/requirements/ledger-replication.md#pcr-08-003), [PCR-08-013](../vultron-spec/requirements/ledger-replication.md#pcr-08-013) |
-| RSH — Received-Side Status Authorization | [RSH-01-003](../vultron-spec/requirements/message-processing.md#rsh-01-003), [RSH-01-005](../vultron-spec/requirements/message-processing.md#rsh-01-005), [RSH-04-001](../vultron-spec/requirements/message-processing.md#rsh-04-001), [RSH-04-002](../vultron-spec/requirements/message-processing.md#rsh-04-002), [RSH-04-003](../vultron-spec/requirements/message-processing.md#rsh-04-003), [RSH-04-004](../vultron-spec/requirements/message-processing.md#rsh-04-004), [RSH-04-005](../vultron-spec/requirements/message-processing.md#rsh-04-005), [RSH-04-007](../vultron-spec/requirements/message-processing.md#rsh-04-007), [RSH-04-008](../vultron-spec/requirements/message-processing.md#rsh-04-008), [RSH-04-009](../vultron-spec/requirements/message-processing.md#rsh-04-009), [RSH-04-012](../vultron-spec/requirements/message-processing.md#rsh-04-012), [RSH-09-001](../vultron-spec/requirements/message-processing.md#rsh-09-001), [RSH-09-002](../vultron-spec/requirements/message-processing.md#rsh-09-002), [RSH-09-004](../vultron-spec/requirements/message-processing.md#rsh-09-004), [RSH-09-005](../vultron-spec/requirements/message-processing.md#rsh-09-005), [RSH-09-006](../vultron-spec/requirements/message-processing.md#rsh-09-006), [RSH-09-010](../vultron-spec/requirements/message-processing.md#rsh-09-010), [RSH-09-011](../vultron-spec/requirements/message-processing.md#rsh-09-011), [RSH-09-012](../vultron-spec/requirements/message-processing.md#rsh-09-012), [RSH-09-013](../vultron-spec/requirements/message-processing.md#rsh-09-013) |
-| SYNC — Case Event Log Synchronization | [SYNC-01-003](../vultron-spec/requirements/ledger-replication.md#sync-01-003), [SYNC-01-004](../vultron-spec/requirements/ledger-replication.md#sync-01-004), [SYNC-01-007](../vultron-spec/requirements/ledger-replication.md#sync-01-007), [SYNC-02-001](../vultron-spec/requirements/ledger-replication.md#sync-02-001), [SYNC-02-002](../vultron-spec/requirements/ledger-replication.md#sync-02-002), [SYNC-02-003](../vultron-spec/requirements/ledger-replication.md#sync-02-003), [SYNC-02-004](../vultron-spec/requirements/ledger-replication.md#sync-02-004), [SYNC-03-001](../vultron-spec/requirements/ledger-replication.md#sync-03-001), [SYNC-03-002](../vultron-spec/requirements/ledger-replication.md#sync-03-002), [SYNC-03-003](../vultron-spec/requirements/ledger-replication.md#sync-03-003), [SYNC-03-005](../vultron-spec/requirements/ledger-replication.md#sync-03-005), [SYNC-03-006](../vultron-spec/requirements/ledger-replication.md#sync-03-006), [SYNC-03-007](../vultron-spec/requirements/ledger-replication.md#sync-03-007), [SYNC-03-008](../vultron-spec/requirements/ledger-replication.md#sync-03-008), [SYNC-03-009](../vultron-spec/requirements/ledger-replication.md#sync-03-009), [SYNC-03-011](../vultron-spec/requirements/ledger-replication.md#sync-03-011), [SYNC-03-012](../vultron-spec/requirements/ledger-replication.md#sync-03-012), [SYNC-03-013](../vultron-spec/requirements/ledger-replication.md#sync-03-013), [SYNC-03-014](../vultron-spec/requirements/ledger-replication.md#sync-03-014), [SYNC-03-017](../vultron-spec/requirements/ledger-replication.md#sync-03-017), [SYNC-03-018](../vultron-spec/requirements/ledger-replication.md#sync-03-018), [SYNC-03-019](../vultron-spec/requirements/ledger-replication.md#sync-03-019), [SYNC-04-001](../vultron-spec/requirements/ledger-replication.md#sync-04-001), [SYNC-04-002](../specs/project.md#sync-04-002), [SYNC-08-001](../vultron-spec/requirements/ledger-replication.md#sync-08-001), [SYNC-08-002](../vultron-spec/requirements/ledger-replication.md#sync-08-002), [SYNC-08-004](../vultron-spec/requirements/ledger-replication.md#sync-08-004), [SYNC-08-005](../vultron-spec/requirements/ledger-replication.md#sync-08-005), [SYNC-08-006](../vultron-spec/requirements/ledger-replication.md#sync-08-006), [SYNC-08-007](../vultron-spec/requirements/ledger-replication.md#sync-08-007), [SYNC-09-001](../vultron-spec/requirements/ledger-replication.md#sync-09-001), [SYNC-09-002](../vultron-spec/requirements/ledger-replication.md#sync-09-002), [SYNC-09-005](../vultron-spec/requirements/ledger-replication.md#sync-09-005), [SYNC-10-001](../vultron-spec/requirements/ledger-replication.md#sync-10-001), [SYNC-10-004](../vultron-spec/requirements/ledger-replication.md#sync-10-004), [SYNC-12-001](../vultron-spec/requirements/ledger-replication.md#sync-12-001), [SYNC-12-002](../vultron-spec/requirements/ledger-replication.md#sync-12-002), [SYNC-12-003](../vultron-spec/requirements/ledger-replication.md#sync-12-003), [SYNC-12-004](../vultron-spec/requirements/ledger-replication.md#sync-12-004), [SYNC-13-001](../specs/project.md#sync-13-001), [SYNC-13-004](../vultron-spec/requirements/ledger-replication.md#sync-13-004), [SYNC-13-005](../vultron-spec/requirements/ledger-replication.md#sync-13-005), [SYNC-13-006](../vultron-spec/requirements/ledger-replication.md#sync-13-006), [SYNC-13-009](../vultron-spec/requirements/ledger-replication.md#sync-13-009), [SYNC-14-001](../vultron-spec/requirements/ledger-replication.md#sync-14-001), [SYNC-14-002](../vultron-spec/requirements/ledger-replication.md#sync-14-002), [SYNC-14-003](../vultron-spec/requirements/ledger-replication.md#sync-14-003), [SYNC-14-004](../vultron-spec/requirements/ledger-replication.md#sync-14-004), [SYNC-14-008](../vultron-spec/requirements/ledger-replication.md#sync-14-008), [SYNC-14-010](../vultron-spec/requirements/ledger-replication.md#sync-14-010), [SYNC-15-001](../vultron-spec/requirements/ledger-replication.md#sync-15-001), [SYNC-15-003](../vultron-spec/requirements/ledger-replication.md#sync-15-003), [SYNC-15-004](../vultron-spec/requirements/ledger-replication.md#sync-15-004), [SYNC-15-005](../vultron-spec/requirements/ledger-replication.md#sync-15-005), [SYNC-15-008](../specs/project.md#sync-15-008), [SYNC-15-010](../specs/project.md#sync-15-010), [SYNC-15-012](../specs/project.md#sync-15-012), [SYNC-15-013](../specs/project.md#sync-15-013), [SYNC-15-014](../specs/project.md#sync-15-014), [SYNC-15-015](../vultron-spec/requirements/ledger-replication.md#sync-15-015), [SYNC-15-016](../vultron-spec/requirements/ledger-replication.md#sync-15-016), [SYNC-15-017](../vultron-spec/requirements/ledger-replication.md#sync-15-017), [SYNC-15-018](../vultron-spec/requirements/ledger-replication.md#sync-15-018), [SYNC-15-019](../vultron-spec/requirements/ledger-replication.md#sync-15-019), [SYNC-15-026](../specs/project.md#sync-15-026), [SYNC-16-001](../vultron-spec/requirements/ledger-replication.md#sync-16-001), [SYNC-16-002](../vultron-spec/requirements/ledger-replication.md#sync-16-002), [SYNC-16-003](../vultron-spec/requirements/ledger-replication.md#sync-16-003), [SYNC-16-004](../vultron-spec/requirements/ledger-replication.md#sync-16-004), [SYNC-16-007](../vultron-spec/requirements/ledger-replication.md#sync-16-007), [SYNC-16-008](../specs/project.md#sync-16-008), [SYNC-16-009](../vultron-spec/requirements/ledger-replication.md#sync-16-009), [SYNC-16-010](../vultron-spec/requirements/ledger-replication.md#sync-16-010), [SYNC-16-011](../vultron-spec/requirements/ledger-replication.md#sync-16-011), [SYNC-16-012](../vultron-spec/requirements/ledger-replication.md#sync-16-012), [SYNC-16-023](../vultron-spec/requirements/ledger-replication.md#sync-16-023), [SYNC-16-024](../vultron-spec/requirements/ledger-replication.md#sync-16-024), [SYNC-16-025](../vultron-spec/requirements/ledger-replication.md#sync-16-025), [SYNC-16-026](../vultron-spec/requirements/ledger-replication.md#sync-16-026), [SYNC-16-027](../vultron-spec/requirements/ledger-replication.md#sync-16-027), [SYNC-16-028](../vultron-spec/requirements/ledger-replication.md#sync-16-028), [SYNC-16-029](../vultron-spec/requirements/ledger-replication.md#sync-16-029), [SYNC-17-001](../vultron-spec/requirements/ledger-replication.md#sync-17-001), [SYNC-17-002](../vultron-spec/requirements/ledger-replication.md#sync-17-002), [SYNC-17-003](../vultron-spec/requirements/ledger-replication.md#sync-17-003), [SYNC-17-004](../vultron-spec/requirements/ledger-replication.md#sync-17-004), [SYNC-17-005](../vultron-spec/requirements/ledger-replication.md#sync-17-005), [SYNC-17-006](../vultron-spec/requirements/ledger-replication.md#sync-17-006), [SYNC-17-009](../vultron-spec/requirements/ledger-replication.md#sync-17-009), [SYNC-17-010](../vultron-spec/requirements/ledger-replication.md#sync-17-010), [SYNC-18-001](../vultron-spec/requirements/ledger-replication.md#sync-18-001), [SYNC-18-002](../vultron-spec/requirements/ledger-replication.md#sync-18-002), [SYNC-18-003](../vultron-spec/requirements/ledger-replication.md#sync-18-003), [SYNC-18-004](../vultron-spec/requirements/ledger-replication.md#sync-18-004), [SYNC-18-005](../vultron-spec/requirements/ledger-replication.md#sync-18-005), [SYNC-18-006](../vultron-spec/requirements/ledger-replication.md#sync-18-006), [SYNC-18-007](../vultron-spec/requirements/ledger-replication.md#sync-18-007), [SYNC-18-008](../vultron-spec/requirements/ledger-replication.md#sync-18-008), [SYNC-18-009](../vultron-spec/requirements/ledger-replication.md#sync-18-009), [SYNC-18-010](../vultron-spec/requirements/ledger-replication.md#sync-18-010), [SYNC-18-011](../vultron-spec/requirements/ledger-replication.md#sync-18-011), [SYNC-18-012](../vultron-spec/requirements/ledger-replication.md#sync-18-012), [SYNC-18-013](../vultron-spec/requirements/ledger-replication.md#sync-18-013), [SYNC-18-014](../vultron-spec/requirements/ledger-replication.md#sync-18-014), [SYNC-18-015](../vultron-spec/requirements/ledger-replication.md#sync-18-015), [SYNC-18-016](../vultron-spec/requirements/ledger-replication.md#sync-18-016), [SYNC-18-017](../vultron-spec/requirements/ledger-replication.md#sync-18-017), [SYNC-19-001](../vultron-spec/requirements/ledger-replication.md#sync-19-001), [SYNC-19-002](../vultron-spec/requirements/ledger-replication.md#sync-19-002), [SYNC-19-003](../vultron-spec/requirements/ledger-replication.md#sync-19-003), [SYNC-19-004](../vultron-spec/requirements/ledger-replication.md#sync-19-004), [SYNC-19-005](../vultron-spec/requirements/ledger-replication.md#sync-19-005), [SYNC-19-006](../vultron-spec/requirements/ledger-replication.md#sync-19-006), [SYNC-19-007](../vultron-spec/requirements/ledger-replication.md#sync-19-007), [SYNC-20-001](../vultron-spec/requirements/ledger-replication.md#sync-20-001), [SYNC-20-002](../vultron-spec/requirements/ledger-replication.md#sync-20-002), [SYNC-20-003](../vultron-spec/requirements/ledger-replication.md#sync-20-003), [SYNC-20-004](../vultron-spec/requirements/ledger-replication.md#sync-20-004), [SYNC-20-005](../vultron-spec/requirements/ledger-replication.md#sync-20-005), [SYNC-20-007](../vultron-spec/requirements/ledger-replication.md#sync-20-007), [SYNC-20-008](../vultron-spec/requirements/ledger-replication.md#sync-20-008) |
-| VAM — Vultron Semantic–AS2 Mapping | [VAM-01-011](../vultron-spec/requirements/messages.md#vam-01-011), [VAM-01-019](../vultron-spec/requirements/messages.md#vam-01-019) |
-| VP — Vultron Protocol | [VP-10-002](../vultron-spec/requirements/vultron-protocol.md#vp-10-002), [VP-16-002](../vultron-spec/requirements/vultron-protocol.md#vp-16-002), [VP-17-001](../vultron-spec/requirements/vultron-protocol.md#vp-17-001), [VP-17-003](../vultron-spec/requirements/vultron-protocol.md#vp-17-003), [VP-18-001](../vultron-spec/requirements/vultron-protocol.md#vp-18-001), [VP-18-003](../vultron-spec/requirements/vultron-protocol.md#vp-18-003) |
+*No mapped requirements* (TRACE-01-002).
 
 ## [story_2022_046](story_2022_046.md)
 
@@ -1280,7 +1263,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | AKM — Actor Knowledge Model | [AKM-01-002](../vultron-spec/requirements/messages.md#akm-01-002) |
 | CLP — Case Ledger Processing | [CLP-01-004](../vultron-spec/requirements/ledger-replication.md#clp-01-004), [CLP-05-002](../vultron-spec/requirements/ledger-replication.md#clp-05-002), [CLP-05-003](../vultron-spec/requirements/ledger-replication.md#clp-05-003), [CLP-07-004](../vultron-spec/requirements/ledger-replication.md#clp-07-004), [CLP-10-004](../vultron-spec/requirements/ledger-replication.md#clp-10-004) |
 | PCR — Participant Case Replica | [PCR-03-002](../vultron-spec/requirements/ledger-replication.md#pcr-03-002), [PCR-08-002](../vultron-spec/requirements/ledger-replication.md#pcr-08-002) |
-| VP — Vultron Protocol | [VP-18-002](../vultron-spec/requirements/vultron-protocol.md#vp-18-002) |
+| VP — Vultron Protocol | [VP-10-002](../vultron-spec/requirements/vultron-protocol.md#vp-10-002), [VP-18-002](../vultron-spec/requirements/vultron-protocol.md#vp-18-002) |
 
 ## [story_2026_003](story_2026_003.md)
 
@@ -1352,7 +1335,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | CBT — Case Bootstrap Trust | [CBT-01-009](../vultron-spec/requirements/ledger-replication.md#cbt-01-009) |
-| CLP — Case Ledger Processing | [CLP-01-002](../vultron-spec/requirements/ledger-replication.md#clp-01-002) |
+| CLP — Case Ledger Processing | [CLP-01-002](../vultron-spec/requirements/ledger-replication.md#clp-01-002), [CLP-02-014](../vultron-spec/requirements/ledger-replication.md#clp-02-014) |
 | CM — Case Management | [CM-03-007](../vultron-spec/requirements/case-management.md#cm-03-007) |
 | MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-03-001](../vultron-spec/requirements/messages.md#msm-03-001), [MSM-05-001](../vultron-spec/requirements/messages.md#msm-05-001), [MSM-05-002](../vultron-spec/requirements/messages.md#msm-05-002), [MSM-05-003](../vultron-spec/requirements/messages.md#msm-05-003), [MSM-05-006](../vultron-spec/requirements/messages.md#msm-05-006), [MSM-07-001](../vultron-spec/requirements/messages.md#msm-07-001) |
 | RF — Response Format | [RF-05-001](../vultron-spec/requirements/message-processing.md#rf-05-001) |
@@ -1366,7 +1349,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CS — Code Style Specifications | [CS-13-005](../vultron-spec/requirements/messages.md#cs-13-005) |
+| CS — Code Style Specifications | [CS-13-005](../vultron-spec/requirements/messages.md#cs-13-005), [CS-13-007](../vultron-spec/requirements/messages.md#cs-13-007) |
 | DUR — Duration | [DUR-02-001](../vultron-spec/requirements/state-behavior.md#dur-02-001), [DUR-02-002](../vultron-spec/requirements/state-behavior.md#dur-02-002), [DUR-03-001](../vultron-spec/requirements/state-behavior.md#dur-03-001), [DUR-03-003](../vultron-spec/requirements/state-behavior.md#dur-03-003), [DUR-04-001](../vultron-spec/requirements/state-behavior.md#dur-04-001), [DUR-04-002](../vultron-spec/requirements/state-behavior.md#dur-04-002), [DUR-04-003](../vultron-spec/requirements/state-behavior.md#dur-04-003), [DUR-04-004](../vultron-spec/requirements/state-behavior.md#dur-04-004) |
 
 ## [story_2026_013](story_2026_013.md)
@@ -1386,7 +1369,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | ASK — Protocol Asks and Outstanding-Ask Registers | [ASK-08-002](../vultron-spec/requirements/case-management.md#ask-08-002) |
-| CLP — Case Ledger Processing | [CLP-06-001](../vultron-spec/requirements/ledger-replication.md#clp-06-001) |
+| CLP — Case Ledger Processing | [CLP-05-004](../vultron-spec/requirements/ledger-replication.md#clp-05-004), [CLP-06-001](../vultron-spec/requirements/ledger-replication.md#clp-06-001) |
 | CM — Case Management | [CM-13-005](../vultron-spec/requirements/case-management.md#cm-13-005), [CM-16-017](../vultron-spec/requirements/case-management.md#cm-16-017), [CM-33-018](../vultron-spec/requirements/case-management.md#cm-33-018) |
 | CP — CaseProposal Protocol | [CP-05-006](../vultron-spec/requirements/case-management.md#cp-05-006), [CP-05-013](../vultron-spec/requirements/case-management.md#cp-05-013), [CP-05-015](../vultron-spec/requirements/case-management.md#cp-05-015) |
 | CSB — CVD Case State Behavioral Requirements | [CSB-04-004](../vultron-spec/requirements/state-behavior.md#csb-04-004), [CSB-05-005](../vultron-spec/requirements/state-behavior.md#csb-05-005), [CSB-06-005](../vultron-spec/requirements/state-behavior.md#csb-06-005) |
@@ -1395,7 +1378,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | RF — Response Format | [RF-09-001](../vultron-spec/requirements/message-processing.md#rf-09-001) |
 | RMB — Report Management Behavioral Requirements | [RMB-01-004](../vultron-spec/requirements/state-behavior.md#rmb-01-004) |
 | RSH — Received-Side Status Authorization | [RSH-08-002](../vultron-spec/requirements/message-processing.md#rsh-08-002) |
-| SYNC — Case Event Log Synchronization | [SYNC-03-003](../vultron-spec/requirements/ledger-replication.md#sync-03-003), [SYNC-08-003](../vultron-spec/requirements/ledger-replication.md#sync-08-003), [SYNC-12-003](../vultron-spec/requirements/ledger-replication.md#sync-12-003), [SYNC-14-007](../vultron-spec/requirements/ledger-replication.md#sync-14-007) |
+| SYNC — Case Event Log Synchronization | [SYNC-03-003](../vultron-spec/requirements/ledger-replication.md#sync-03-003), [SYNC-08-003](../vultron-spec/requirements/ledger-replication.md#sync-08-003), [SYNC-12-003](../vultron-spec/requirements/ledger-replication.md#sync-12-003), [SYNC-13-004](../vultron-spec/requirements/ledger-replication.md#sync-13-004), [SYNC-13-009](../vultron-spec/requirements/ledger-replication.md#sync-13-009), [SYNC-14-007](../vultron-spec/requirements/ledger-replication.md#sync-14-007) |
 
 ## [story_2026_015](story_2026_015.md)
 
@@ -1405,6 +1388,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 |---|---|
 | MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-05-005](../vultron-spec/requirements/messages.md#msm-05-005) |
 | OX — Outbox | [OX-14-002](../vultron-spec/requirements/transport-security.md#ox-14-002) |
+| SYNC — Case Event Log Synchronization | [SYNC-09-002](../vultron-spec/requirements/ledger-replication.md#sync-09-002) |
 | VM — Vocabulary Model | [VM-08-003](../vultron-spec/requirements/messages.md#vm-08-003) |
 
 ## [story_2026_016](story_2026_016.md)
@@ -1415,6 +1399,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 |---|---|
 | AKM — Actor Knowledge Model | [AKM-02-002](../vultron-spec/requirements/messages.md#akm-02-002) |
 | CM — Case Management | [CM-11-003](../vultron-spec/requirements/case-management.md#cm-11-003) |
+| OID — Object ID | [OID-01-001](../vultron-spec/requirements/foundation.md#oid-01-001) |
 
 ## [story_2026_017](story_2026_017.md)
 
@@ -1460,7 +1445,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CSB — CVD Case State Behavioral Requirements | [CSB-15-004](../vultron-spec/requirements/state-behavior.md#csb-15-004), [CSB-17-003](../vultron-spec/requirements/state-behavior.md#csb-17-003), [CSB-17-004](../vultron-spec/requirements/state-behavior.md#csb-17-004), [CSB-17-009](../vultron-spec/requirements/state-behavior.md#csb-17-009), [CSB-17-012](../vultron-spec/requirements/state-behavior.md#csb-17-012), [CSB-17-013](../vultron-spec/requirements/state-behavior.md#csb-17-013), [CSB-18-001](../vultron-spec/requirements/state-behavior.md#csb-18-001) |
+| CSB — CVD Case State Behavioral Requirements | [CSB-15-004](../vultron-spec/requirements/state-behavior.md#csb-15-004), [CSB-17-001](../vultron-spec/requirements/state-behavior.md#csb-17-001), [CSB-17-002](../vultron-spec/requirements/state-behavior.md#csb-17-002), [CSB-17-003](../vultron-spec/requirements/state-behavior.md#csb-17-003), [CSB-17-004](../vultron-spec/requirements/state-behavior.md#csb-17-004), [CSB-17-005](../vultron-spec/requirements/state-behavior.md#csb-17-005), [CSB-17-006](../vultron-spec/requirements/state-behavior.md#csb-17-006), [CSB-17-007](../vultron-spec/requirements/state-behavior.md#csb-17-007), [CSB-17-008](../vultron-spec/requirements/state-behavior.md#csb-17-008), [CSB-17-009](../vultron-spec/requirements/state-behavior.md#csb-17-009), [CSB-17-010](../vultron-spec/requirements/state-behavior.md#csb-17-010), [CSB-17-011](../vultron-spec/requirements/state-behavior.md#csb-17-011), [CSB-17-012](../vultron-spec/requirements/state-behavior.md#csb-17-012), [CSB-17-013](../vultron-spec/requirements/state-behavior.md#csb-17-013), [CSB-17-014](../vultron-spec/requirements/state-behavior.md#csb-17-014), [CSB-17-015](../vultron-spec/requirements/state-behavior.md#csb-17-015), [CSB-18-001](../vultron-spec/requirements/state-behavior.md#csb-18-001) |
 | SM — State Machine | [SM-09-002](../vultron-spec/requirements/state-behavior.md#sm-09-002) |
 
 ## [story_2026_023](story_2026_023.md)
@@ -1470,10 +1455,10 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | ASK — Protocol Asks and Outstanding-Ask Registers | [ASK-07-009](../vultron-spec/requirements/case-management.md#ask-07-009) |
-| CLP — Case Ledger Processing | [CLP-02-009](../vultron-spec/requirements/ledger-replication.md#clp-02-009), [CLP-04-001](../vultron-spec/requirements/ledger-replication.md#clp-04-001), [CLP-04-007](../vultron-spec/requirements/ledger-replication.md#clp-04-007), [CLP-08-007](../vultron-spec/requirements/ledger-replication.md#clp-08-007), [CLP-14-004](../vultron-spec/requirements/ledger-replication.md#clp-14-004), [CLP-14-007](../vultron-spec/requirements/ledger-replication.md#clp-14-007), [CLP-14-008](../vultron-spec/requirements/ledger-replication.md#clp-14-008), [CLP-14-014](../vultron-spec/requirements/ledger-replication.md#clp-14-014), [CLP-14-015](../vultron-spec/requirements/ledger-replication.md#clp-14-015) |
-| CM — Case Management | [CM-20-004](../vultron-spec/requirements/case-management.md#cm-20-004), [CM-20-005](../vultron-spec/requirements/case-management.md#cm-20-005) |
+| CLP — Case Ledger Processing | [CLP-01-003](../vultron-spec/requirements/ledger-replication.md#clp-01-003), [CLP-02-009](../vultron-spec/requirements/ledger-replication.md#clp-02-009), [CLP-02-018](../vultron-spec/requirements/ledger-replication.md#clp-02-018), [CLP-04-001](../vultron-spec/requirements/ledger-replication.md#clp-04-001), [CLP-04-003](../vultron-spec/requirements/ledger-replication.md#clp-04-003), [CLP-04-007](../vultron-spec/requirements/ledger-replication.md#clp-04-007), [CLP-08-007](../vultron-spec/requirements/ledger-replication.md#clp-08-007), [CLP-09-001](../specs/project.md#clp-09-001), [CLP-09-004](../specs/project.md#clp-09-004), [CLP-14-004](../vultron-spec/requirements/ledger-replication.md#clp-14-004), [CLP-14-007](../vultron-spec/requirements/ledger-replication.md#clp-14-007), [CLP-14-008](../vultron-spec/requirements/ledger-replication.md#clp-14-008), [CLP-14-014](../vultron-spec/requirements/ledger-replication.md#clp-14-014), [CLP-14-015](../vultron-spec/requirements/ledger-replication.md#clp-14-015) |
+| CM — Case Management | [CM-20-004](../vultron-spec/requirements/case-management.md#cm-20-004), [CM-20-005](../vultron-spec/requirements/case-management.md#cm-20-005), [CM-22-003](../vultron-spec/requirements/case-management.md#cm-22-003) |
 | RSH — Received-Side Status Authorization | [RSH-08-006](../vultron-spec/requirements/message-processing.md#rsh-08-006) |
-| SYNC — Case Event Log Synchronization | [SYNC-01-005](../vultron-spec/requirements/ledger-replication.md#sync-01-005) |
+| SYNC — Case Event Log Synchronization | [SYNC-01-003](../vultron-spec/requirements/ledger-replication.md#sync-01-003), [SYNC-01-004](../vultron-spec/requirements/ledger-replication.md#sync-01-004), [SYNC-01-005](../vultron-spec/requirements/ledger-replication.md#sync-01-005), [SYNC-01-007](../vultron-spec/requirements/ledger-replication.md#sync-01-007), [SYNC-08-001](../vultron-spec/requirements/ledger-replication.md#sync-08-001), [SYNC-08-006](../vultron-spec/requirements/ledger-replication.md#sync-08-006), [SYNC-13-005](../vultron-spec/requirements/ledger-replication.md#sync-13-005) |
 
 ## [story_2026_024](story_2026_024.md)
 
@@ -1507,7 +1492,8 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CLP — Case Ledger Processing | [CLP-14-001](../vultron-spec/requirements/ledger-replication.md#clp-14-001), [CLP-14-002](../vultron-spec/requirements/ledger-replication.md#clp-14-002), [CLP-14-003](../vultron-spec/requirements/ledger-replication.md#clp-14-003), [CLP-14-005](../vultron-spec/requirements/ledger-replication.md#clp-14-005), [CLP-14-006](../vultron-spec/requirements/ledger-replication.md#clp-14-006), [CLP-14-010](../vultron-spec/requirements/ledger-replication.md#clp-14-010), [CLP-15-005](../vultron-spec/requirements/ledger-replication.md#clp-15-005) |
+| CLP — Case Ledger Processing | [CLP-02-008](../vultron-spec/requirements/ledger-replication.md#clp-02-008), [CLP-02-011](../specs/project.md#clp-02-011), [CLP-14-001](../vultron-spec/requirements/ledger-replication.md#clp-14-001), [CLP-14-002](../vultron-spec/requirements/ledger-replication.md#clp-14-002), [CLP-14-003](../vultron-spec/requirements/ledger-replication.md#clp-14-003), [CLP-14-005](../vultron-spec/requirements/ledger-replication.md#clp-14-005), [CLP-14-006](../vultron-spec/requirements/ledger-replication.md#clp-14-006), [CLP-14-010](../vultron-spec/requirements/ledger-replication.md#clp-14-010), [CLP-15-005](../vultron-spec/requirements/ledger-replication.md#clp-15-005) |
+| CM — Case Management | [CM-02-009](../vultron-spec/requirements/case-management.md#cm-02-009) |
 
 ## [story_2026_029](story_2026_029.md)
 
@@ -1527,6 +1513,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | CBT — Case Bootstrap Trust | [CBT-01-006](../vultron-spec/requirements/ledger-replication.md#cbt-01-006), [CBT-01-010](../vultron-spec/requirements/ledger-replication.md#cbt-01-010), [CBT-02-002](../vultron-spec/requirements/ledger-replication.md#cbt-02-002), [CBT-03-002](../vultron-spec/requirements/ledger-replication.md#cbt-03-002), [CBT-05-001](../specs/project.md#cbt-05-001), [CBT-05-003](../specs/project.md#cbt-05-003) |
 | CM — Case Management | [CM-06-002](../vultron-spec/requirements/case-management.md#cm-06-002), [CM-30-003](../vultron-spec/requirements/case-management.md#cm-30-003), [CM-30-005](../vultron-spec/requirements/case-management.md#cm-30-005), [CM-33-004](../vultron-spec/requirements/case-management.md#cm-33-004) |
 | PCR — Participant Case Replica | [PCR-03-001](../vultron-spec/requirements/ledger-replication.md#pcr-03-001), [PCR-03-004](../vultron-spec/requirements/ledger-replication.md#pcr-03-004), [PCR-03-007](../vultron-spec/requirements/ledger-replication.md#pcr-03-007), [PCR-03-008](../vultron-spec/requirements/ledger-replication.md#pcr-03-008), [PCR-03-009](../vultron-spec/requirements/ledger-replication.md#pcr-03-009), [PCR-03-010](../vultron-spec/requirements/ledger-replication.md#pcr-03-010), [PCR-06-003](../vultron-spec/requirements/ledger-replication.md#pcr-06-003), [PCR-06-006](../vultron-spec/requirements/ledger-replication.md#pcr-06-006) |
+| RSH — Received-Side Status Authorization | [RSH-04-005](../vultron-spec/requirements/message-processing.md#rsh-04-005), [RSH-04-012](../vultron-spec/requirements/message-processing.md#rsh-04-012) |
 
 ## [story_2026_031](story_2026_031.md)
 
@@ -1603,6 +1590,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
+| ASK — Protocol Asks and Outstanding-Ask Registers | [ASK-02-005](../vultron-spec/requirements/case-management.md#ask-02-005), [ASK-02-006](../vultron-spec/requirements/case-management.md#ask-02-006) |
 | BTND — Behavior Tree Node Design | [BTND-10-001](../specs/project.md#btnd-10-001) |
 | CSB — CVD Case State Behavioral Requirements | [CSB-16-001](../vultron-spec/requirements/state-behavior.md#csb-16-001), [CSB-16-002](../vultron-spec/requirements/state-behavior.md#csb-16-002), [CSB-16-005](../vultron-spec/requirements/state-behavior.md#csb-16-005), [CSB-16-007](../vultron-spec/requirements/state-behavior.md#csb-16-007) |
 | RSH — Received-Side Status Authorization | [RSH-08-012](../vultron-spec/requirements/message-processing.md#rsh-08-012), [RSH-08-013](../vultron-spec/requirements/message-processing.md#rsh-08-013) |
@@ -1614,7 +1602,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| RSH — Received-Side Status Authorization | [RSH-06-001](../vultron-spec/requirements/message-processing.md#rsh-06-001), [RSH-06-002](../vultron-spec/requirements/message-processing.md#rsh-06-002), [RSH-06-006](../vultron-spec/requirements/message-processing.md#rsh-06-006), [RSH-08-009](../vultron-spec/requirements/message-processing.md#rsh-08-009), [RSH-09-003](../vultron-spec/requirements/message-processing.md#rsh-09-003), [RSH-09-004](../vultron-spec/requirements/message-processing.md#rsh-09-004), [RSH-09-005](../vultron-spec/requirements/message-processing.md#rsh-09-005), [RSH-09-012](../vultron-spec/requirements/message-processing.md#rsh-09-012) |
+| RSH — Received-Side Status Authorization | [RSH-06-001](../vultron-spec/requirements/message-processing.md#rsh-06-001), [RSH-06-002](../vultron-spec/requirements/message-processing.md#rsh-06-002), [RSH-06-006](../vultron-spec/requirements/message-processing.md#rsh-06-006), [RSH-08-009](../vultron-spec/requirements/message-processing.md#rsh-08-009), [RSH-09-003](../vultron-spec/requirements/message-processing.md#rsh-09-003), [RSH-09-004](../vultron-spec/requirements/message-processing.md#rsh-09-004), [RSH-09-005](../vultron-spec/requirements/message-processing.md#rsh-09-005), [RSH-09-006](../vultron-spec/requirements/message-processing.md#rsh-09-006), [RSH-09-012](../vultron-spec/requirements/message-processing.md#rsh-09-012), [RSH-09-013](../vultron-spec/requirements/message-processing.md#rsh-09-013) |
 | SM — State Machine | [SM-09-004](../vultron-spec/requirements/state-behavior.md#sm-09-004) |
 
 ## [story_2026_040](story_2026_040.md)
@@ -1623,7 +1611,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CLP — Case Ledger Processing | [CLP-01-001](../vultron-spec/requirements/ledger-replication.md#clp-01-001), [CLP-02-005](../vultron-spec/requirements/ledger-replication.md#clp-02-005), [CLP-05-001](../vultron-spec/requirements/ledger-replication.md#clp-05-001), [CLP-05-005](../vultron-spec/requirements/ledger-replication.md#clp-05-005) |
+| CLP — Case Ledger Processing | [CLP-01-001](../vultron-spec/requirements/ledger-replication.md#clp-01-001), [CLP-02-005](../vultron-spec/requirements/ledger-replication.md#clp-02-005), [CLP-05-001](../vultron-spec/requirements/ledger-replication.md#clp-05-001), [CLP-05-005](../vultron-spec/requirements/ledger-replication.md#clp-05-005), [CLP-05-006](../vultron-spec/requirements/ledger-replication.md#clp-05-006), [CLP-05-007](../vultron-spec/requirements/ledger-replication.md#clp-05-007), [CLP-05-008](../vultron-spec/requirements/ledger-replication.md#clp-05-008), [CLP-05-009](../vultron-spec/requirements/ledger-replication.md#clp-05-009) |
 | CSB — CVD Case State Behavioral Requirements | [CSB-07-001](../vultron-spec/requirements/state-behavior.md#csb-07-001) |
 | RSH — Received-Side Status Authorization | [RSH-09-001](../vultron-spec/requirements/message-processing.md#rsh-09-001), [RSH-09-002](../vultron-spec/requirements/message-processing.md#rsh-09-002), [RSH-09-010](../vultron-spec/requirements/message-processing.md#rsh-09-010), [RSH-09-011](../vultron-spec/requirements/message-processing.md#rsh-09-011) |
 
@@ -1633,7 +1621,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| RSH — Received-Side Status Authorization | [RSH-01-001](../specs/project.md#rsh-01-001), [RSH-01-002](../specs/project.md#rsh-01-002), [RSH-01-003](../vultron-spec/requirements/message-processing.md#rsh-01-003), [RSH-01-005](../vultron-spec/requirements/message-processing.md#rsh-01-005), [RSH-04-004](../vultron-spec/requirements/message-processing.md#rsh-04-004), [RSH-04-009](../vultron-spec/requirements/message-processing.md#rsh-04-009) |
+| RSH — Received-Side Status Authorization | [RSH-01-001](../specs/project.md#rsh-01-001), [RSH-01-002](../specs/project.md#rsh-01-002), [RSH-01-003](../vultron-spec/requirements/message-processing.md#rsh-01-003), [RSH-01-005](../vultron-spec/requirements/message-processing.md#rsh-01-005), [RSH-04-002](../vultron-spec/requirements/message-processing.md#rsh-04-002), [RSH-04-003](../vultron-spec/requirements/message-processing.md#rsh-04-003), [RSH-04-004](../vultron-spec/requirements/message-processing.md#rsh-04-004), [RSH-04-009](../vultron-spec/requirements/message-processing.md#rsh-04-009) |
 
 ## [story_2026_042](story_2026_042.md)
 
@@ -1641,7 +1629,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CM — Case Management | [CM-23-005](../vultron-spec/requirements/case-management.md#cm-23-005), [CM-23-006](../vultron-spec/requirements/case-management.md#cm-23-006), [CM-23-008](../vultron-spec/requirements/case-management.md#cm-23-008), [CM-23-009](../vultron-spec/requirements/case-management.md#cm-23-009), [CM-23-010](../vultron-spec/requirements/case-management.md#cm-23-010), [CM-23-033](../vultron-spec/requirements/case-management.md#cm-23-033) |
+| CM — Case Management | [CM-23-005](../vultron-spec/requirements/case-management.md#cm-23-005), [CM-23-006](../vultron-spec/requirements/case-management.md#cm-23-006), [CM-23-007](../vultron-spec/requirements/case-management.md#cm-23-007), [CM-23-008](../vultron-spec/requirements/case-management.md#cm-23-008), [CM-23-009](../vultron-spec/requirements/case-management.md#cm-23-009), [CM-23-010](../vultron-spec/requirements/case-management.md#cm-23-010), [CM-23-033](../vultron-spec/requirements/case-management.md#cm-23-033) |
 
 ## [story_2026_043](story_2026_043.md)
 
@@ -1668,7 +1656,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-05-007](../vultron-spec/requirements/messages.md#msm-05-007), [MSM-05-008](../vultron-spec/requirements/messages.md#msm-05-008) |
-| SYNC — Case Event Log Synchronization | [SYNC-03-001](../vultron-spec/requirements/ledger-replication.md#sync-03-001), [SYNC-08-004](../vultron-spec/requirements/ledger-replication.md#sync-08-004), [SYNC-08-005](../vultron-spec/requirements/ledger-replication.md#sync-08-005), [SYNC-08-007](../vultron-spec/requirements/ledger-replication.md#sync-08-007), [SYNC-14-002](../vultron-spec/requirements/ledger-replication.md#sync-14-002), [SYNC-15-001](../vultron-spec/requirements/ledger-replication.md#sync-15-001), [SYNC-16-001](../vultron-spec/requirements/ledger-replication.md#sync-16-001), [SYNC-16-007](../vultron-spec/requirements/ledger-replication.md#sync-16-007), [SYNC-16-027](../vultron-spec/requirements/ledger-replication.md#sync-16-027), [SYNC-16-028](../vultron-spec/requirements/ledger-replication.md#sync-16-028) |
+| SYNC — Case Event Log Synchronization | [SYNC-02-002](../vultron-spec/requirements/ledger-replication.md#sync-02-002), [SYNC-02-004](../vultron-spec/requirements/ledger-replication.md#sync-02-004), [SYNC-03-001](../vultron-spec/requirements/ledger-replication.md#sync-03-001), [SYNC-08-004](../vultron-spec/requirements/ledger-replication.md#sync-08-004), [SYNC-08-005](../vultron-spec/requirements/ledger-replication.md#sync-08-005), [SYNC-08-007](../vultron-spec/requirements/ledger-replication.md#sync-08-007), [SYNC-14-002](../vultron-spec/requirements/ledger-replication.md#sync-14-002), [SYNC-15-001](../vultron-spec/requirements/ledger-replication.md#sync-15-001), [SYNC-16-001](../vultron-spec/requirements/ledger-replication.md#sync-16-001), [SYNC-16-007](../vultron-spec/requirements/ledger-replication.md#sync-16-007), [SYNC-16-027](../vultron-spec/requirements/ledger-replication.md#sync-16-027), [SYNC-16-028](../vultron-spec/requirements/ledger-replication.md#sync-16-028) |
 
 ## [story_2026_046](story_2026_046.md)
 
@@ -1676,7 +1664,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| SYNC — Case Event Log Synchronization | [SYNC-03-006](../vultron-spec/requirements/ledger-replication.md#sync-03-006), [SYNC-03-007](../vultron-spec/requirements/ledger-replication.md#sync-03-007), [SYNC-03-012](../vultron-spec/requirements/ledger-replication.md#sync-03-012), [SYNC-03-013](../vultron-spec/requirements/ledger-replication.md#sync-03-013) |
+| SYNC — Case Event Log Synchronization | [SYNC-03-006](../vultron-spec/requirements/ledger-replication.md#sync-03-006), [SYNC-03-007](../vultron-spec/requirements/ledger-replication.md#sync-03-007), [SYNC-03-008](../vultron-spec/requirements/ledger-replication.md#sync-03-008), [SYNC-03-012](../vultron-spec/requirements/ledger-replication.md#sync-03-012), [SYNC-03-013](../vultron-spec/requirements/ledger-replication.md#sync-03-013) |
 
 ## [story_2026_047](story_2026_047.md)
 
@@ -1685,7 +1673,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | CLP — Case Ledger Processing | [CLP-08-005](../vultron-spec/requirements/ledger-replication.md#clp-08-005), [CLP-08-008](../vultron-spec/requirements/ledger-replication.md#clp-08-008) |
-| SYNC — Case Event Log Synchronization | [SYNC-03-002](../vultron-spec/requirements/ledger-replication.md#sync-03-002), [SYNC-04-001](../vultron-spec/requirements/ledger-replication.md#sync-04-001), [SYNC-15-010](../specs/project.md#sync-15-010), [SYNC-16-003](../vultron-spec/requirements/ledger-replication.md#sync-16-003), [SYNC-16-029](../vultron-spec/requirements/ledger-replication.md#sync-16-029), [SYNC-17-001](../vultron-spec/requirements/ledger-replication.md#sync-17-001), [SYNC-17-004](../vultron-spec/requirements/ledger-replication.md#sync-17-004), [SYNC-18-012](../vultron-spec/requirements/ledger-replication.md#sync-18-012) |
+| SYNC — Case Event Log Synchronization | [SYNC-03-002](../vultron-spec/requirements/ledger-replication.md#sync-03-002), [SYNC-04-001](../vultron-spec/requirements/ledger-replication.md#sync-04-001), [SYNC-15-010](../specs/project.md#sync-15-010), [SYNC-16-003](../vultron-spec/requirements/ledger-replication.md#sync-16-003), [SYNC-16-029](../vultron-spec/requirements/ledger-replication.md#sync-16-029), [SYNC-17-001](../vultron-spec/requirements/ledger-replication.md#sync-17-001), [SYNC-17-003](../vultron-spec/requirements/ledger-replication.md#sync-17-003), [SYNC-17-004](../vultron-spec/requirements/ledger-replication.md#sync-17-004), [SYNC-17-010](../vultron-spec/requirements/ledger-replication.md#sync-17-010), [SYNC-18-007](../vultron-spec/requirements/ledger-replication.md#sync-18-007), [SYNC-18-012](../vultron-spec/requirements/ledger-replication.md#sync-18-012) |
 
 ## [story_2026_048](story_2026_048.md)
 
@@ -1693,7 +1681,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| SYNC — Case Event Log Synchronization | [SYNC-14-001](../vultron-spec/requirements/ledger-replication.md#sync-14-001), [SYNC-14-003](../vultron-spec/requirements/ledger-replication.md#sync-14-003), [SYNC-14-010](../vultron-spec/requirements/ledger-replication.md#sync-14-010), [SYNC-15-004](../vultron-spec/requirements/ledger-replication.md#sync-15-004), [SYNC-15-005](../vultron-spec/requirements/ledger-replication.md#sync-15-005), [SYNC-16-009](../vultron-spec/requirements/ledger-replication.md#sync-16-009) |
+| SYNC — Case Event Log Synchronization | [SYNC-14-001](../vultron-spec/requirements/ledger-replication.md#sync-14-001), [SYNC-14-003](../vultron-spec/requirements/ledger-replication.md#sync-14-003), [SYNC-14-008](../vultron-spec/requirements/ledger-replication.md#sync-14-008), [SYNC-14-010](../vultron-spec/requirements/ledger-replication.md#sync-14-010), [SYNC-15-004](../vultron-spec/requirements/ledger-replication.md#sync-15-004), [SYNC-15-005](../vultron-spec/requirements/ledger-replication.md#sync-15-005), [SYNC-16-009](../vultron-spec/requirements/ledger-replication.md#sync-16-009) |
 
 ## [story_2026_049](story_2026_049.md)
 
@@ -1701,7 +1689,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| SYNC — Case Event Log Synchronization | [SYNC-16-005](../vultron-spec/requirements/ledger-replication.md#sync-16-005), [SYNC-16-015](../vultron-spec/requirements/ledger-replication.md#sync-16-015), [SYNC-16-016](../vultron-spec/requirements/ledger-replication.md#sync-16-016), [SYNC-16-017](../vultron-spec/requirements/ledger-replication.md#sync-16-017), [SYNC-16-018](../vultron-spec/requirements/ledger-replication.md#sync-16-018), [SYNC-16-019](../vultron-spec/requirements/ledger-replication.md#sync-16-019), [SYNC-18-001](../vultron-spec/requirements/ledger-replication.md#sync-18-001), [SYNC-18-005](../vultron-spec/requirements/ledger-replication.md#sync-18-005), [SYNC-18-017](../vultron-spec/requirements/ledger-replication.md#sync-18-017) |
+| SYNC — Case Event Log Synchronization | [SYNC-16-005](../vultron-spec/requirements/ledger-replication.md#sync-16-005), [SYNC-16-015](../vultron-spec/requirements/ledger-replication.md#sync-16-015), [SYNC-16-016](../vultron-spec/requirements/ledger-replication.md#sync-16-016), [SYNC-16-017](../vultron-spec/requirements/ledger-replication.md#sync-16-017), [SYNC-16-018](../vultron-spec/requirements/ledger-replication.md#sync-16-018), [SYNC-16-019](../vultron-spec/requirements/ledger-replication.md#sync-16-019), [SYNC-17-005](../vultron-spec/requirements/ledger-replication.md#sync-17-005), [SYNC-18-001](../vultron-spec/requirements/ledger-replication.md#sync-18-001), [SYNC-18-002](../vultron-spec/requirements/ledger-replication.md#sync-18-002), [SYNC-18-003](../vultron-spec/requirements/ledger-replication.md#sync-18-003), [SYNC-18-004](../vultron-spec/requirements/ledger-replication.md#sync-18-004), [SYNC-18-005](../vultron-spec/requirements/ledger-replication.md#sync-18-005), [SYNC-18-008](../vultron-spec/requirements/ledger-replication.md#sync-18-008), [SYNC-18-009](../vultron-spec/requirements/ledger-replication.md#sync-18-009), [SYNC-18-010](../vultron-spec/requirements/ledger-replication.md#sync-18-010), [SYNC-18-015](../vultron-spec/requirements/ledger-replication.md#sync-18-015), [SYNC-18-016](../vultron-spec/requirements/ledger-replication.md#sync-18-016), [SYNC-18-017](../vultron-spec/requirements/ledger-replication.md#sync-18-017) |
 
 ## [story_2026_050](story_2026_050.md)
 
@@ -1717,7 +1705,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| SYNC — Case Event Log Synchronization | [SYNC-15-003](../vultron-spec/requirements/ledger-replication.md#sync-15-003), [SYNC-15-008](../specs/project.md#sync-15-008), [SYNC-15-012](../specs/project.md#sync-15-012), [SYNC-15-013](../specs/project.md#sync-15-013), [SYNC-15-014](../specs/project.md#sync-15-014), [SYNC-15-016](../vultron-spec/requirements/ledger-replication.md#sync-15-016), [SYNC-15-017](../vultron-spec/requirements/ledger-replication.md#sync-15-017), [SYNC-15-018](../vultron-spec/requirements/ledger-replication.md#sync-15-018), [SYNC-15-019](../vultron-spec/requirements/ledger-replication.md#sync-15-019), [SYNC-15-026](../specs/project.md#sync-15-026) |
+| SYNC — Case Event Log Synchronization | [SYNC-15-003](../vultron-spec/requirements/ledger-replication.md#sync-15-003), [SYNC-15-008](../specs/project.md#sync-15-008), [SYNC-15-012](../specs/project.md#sync-15-012), [SYNC-15-013](../specs/project.md#sync-15-013), [SYNC-15-014](../specs/project.md#sync-15-014), [SYNC-15-016](../vultron-spec/requirements/ledger-replication.md#sync-15-016), [SYNC-15-017](../vultron-spec/requirements/ledger-replication.md#sync-15-017), [SYNC-15-018](../vultron-spec/requirements/ledger-replication.md#sync-15-018), [SYNC-15-019](../vultron-spec/requirements/ledger-replication.md#sync-15-019), [SYNC-15-026](../specs/project.md#sync-15-026), [SYNC-16-004](../vultron-spec/requirements/ledger-replication.md#sync-16-004), [SYNC-16-012](../vultron-spec/requirements/ledger-replication.md#sync-16-012) |
 
 ## [story_2026_052](story_2026_052.md)
 
@@ -1725,7 +1713,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| SYNC — Case Event Log Synchronization | [SYNC-16-026](../vultron-spec/requirements/ledger-replication.md#sync-16-026), [SYNC-18-011](../vultron-spec/requirements/ledger-replication.md#sync-18-011) |
+| SYNC — Case Event Log Synchronization | [SYNC-16-008](../specs/project.md#sync-16-008), [SYNC-16-026](../vultron-spec/requirements/ledger-replication.md#sync-16-026), [SYNC-18-011](../vultron-spec/requirements/ledger-replication.md#sync-18-011) |
 
 ## [story_2026_053](story_2026_053.md)
 
@@ -1733,6 +1721,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
+| CM — Case Management | [CM-11-012](../vultron-spec/requirements/case-management.md#cm-11-012), [CM-11-035](../vultron-spec/requirements/case-management.md#cm-11-035) |
 | SYNC — Case Event Log Synchronization | [SYNC-10-001](../vultron-spec/requirements/ledger-replication.md#sync-10-001), [SYNC-10-002](../vultron-spec/requirements/ledger-replication.md#sync-10-002), [SYNC-10-004](../vultron-spec/requirements/ledger-replication.md#sync-10-004) |
 
 ## [story_2026_054](story_2026_054.md)
@@ -1741,9 +1730,10 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
+| CM — Case Management | [CM-11-036](../vultron-spec/requirements/case-management.md#cm-11-036) |
 | MV — Message Validation | [MV-10-005](../vultron-spec/requirements/messages.md#mv-10-005) |
 | PCR — Participant Case Replica | [PCR-06-005](../vultron-spec/requirements/ledger-replication.md#pcr-06-005) |
-| SYNC — Case Event Log Synchronization | [SYNC-16-010](../vultron-spec/requirements/ledger-replication.md#sync-16-010), [SYNC-16-011](../vultron-spec/requirements/ledger-replication.md#sync-16-011), [SYNC-18-013](../vultron-spec/requirements/ledger-replication.md#sync-18-013) |
+| SYNC — Case Event Log Synchronization | [SYNC-03-005](../vultron-spec/requirements/ledger-replication.md#sync-03-005), [SYNC-03-011](../vultron-spec/requirements/ledger-replication.md#sync-03-011), [SYNC-03-014](../vultron-spec/requirements/ledger-replication.md#sync-03-014), [SYNC-16-010](../vultron-spec/requirements/ledger-replication.md#sync-16-010), [SYNC-16-011](../vultron-spec/requirements/ledger-replication.md#sync-16-011), [SYNC-17-002](../vultron-spec/requirements/ledger-replication.md#sync-17-002), [SYNC-17-009](../vultron-spec/requirements/ledger-replication.md#sync-17-009), [SYNC-18-013](../vultron-spec/requirements/ledger-replication.md#sync-18-013), [SYNC-18-014](../vultron-spec/requirements/ledger-replication.md#sync-18-014) |
 
 ## [story_2026_055](story_2026_055.md)
 
@@ -1752,7 +1742,8 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | CBT — Case Bootstrap Trust | [CBT-01-002](../vultron-spec/requirements/ledger-replication.md#cbt-01-002), [CBT-01-007](../vultron-spec/requirements/ledger-replication.md#cbt-01-007), [CBT-02-001](../vultron-spec/requirements/ledger-replication.md#cbt-02-001), [CBT-04-003](../vultron-spec/requirements/ledger-replication.md#cbt-04-003), [CBT-05-007](../specs/project.md#cbt-05-007) |
-| CP — CaseProposal Protocol | [CP-09-006](../specs/project.md#cp-09-006) |
+| CM — Case Management | [CM-11-008](../vultron-spec/requirements/case-management.md#cm-11-008) |
+| CP — CaseProposal Protocol | [CP-09-004](../vultron-spec/requirements/case-management.md#cp-09-004), [CP-09-006](../specs/project.md#cp-09-006) |
 | PCR — Participant Case Replica | [PCR-01-007](../vultron-spec/requirements/ledger-replication.md#pcr-01-007), [PCR-02-001](../vultron-spec/requirements/ledger-replication.md#pcr-02-001), [PCR-02-003](../vultron-spec/requirements/ledger-replication.md#pcr-02-003), [PCR-02-004](../vultron-spec/requirements/ledger-replication.md#pcr-02-004), [PCR-02-005](../vultron-spec/requirements/ledger-replication.md#pcr-02-005), [PCR-05-002](../vultron-spec/requirements/ledger-replication.md#pcr-05-002) |
 
 ## [story_2026_056](story_2026_056.md)
@@ -1771,8 +1762,9 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CLP — Case Ledger Processing | [CLP-02-003](../vultron-spec/requirements/ledger-replication.md#clp-02-003), [CLP-04-002](../vultron-spec/requirements/ledger-replication.md#clp-04-002), [CLP-04-006](../vultron-spec/requirements/ledger-replication.md#clp-04-006) |
-| SYNC — Case Event Log Synchronization | [SYNC-02-001](../vultron-spec/requirements/ledger-replication.md#sync-02-001), [SYNC-08-002](../vultron-spec/requirements/ledger-replication.md#sync-08-002), [SYNC-13-006](../vultron-spec/requirements/ledger-replication.md#sync-13-006), [SYNC-19-002](../vultron-spec/requirements/ledger-replication.md#sync-19-002), [SYNC-19-004](../vultron-spec/requirements/ledger-replication.md#sync-19-004) |
+| CLP — Case Ledger Processing | [CLP-02-003](../vultron-spec/requirements/ledger-replication.md#clp-02-003), [CLP-04-002](../vultron-spec/requirements/ledger-replication.md#clp-04-002), [CLP-04-006](../vultron-spec/requirements/ledger-replication.md#clp-04-006), [CLP-07-022](../vultron-spec/requirements/ledger-replication.md#clp-07-022) |
+| SYNC — Case Event Log Synchronization | [SYNC-02-001](../vultron-spec/requirements/ledger-replication.md#sync-02-001), [SYNC-08-002](../vultron-spec/requirements/ledger-replication.md#sync-08-002), [SYNC-13-006](../vultron-spec/requirements/ledger-replication.md#sync-13-006), [SYNC-19-002](../vultron-spec/requirements/ledger-replication.md#sync-19-002), [SYNC-19-003](../vultron-spec/requirements/ledger-replication.md#sync-19-003), [SYNC-19-004](../vultron-spec/requirements/ledger-replication.md#sync-19-004), [SYNC-19-005](../vultron-spec/requirements/ledger-replication.md#sync-19-005), [SYNC-19-006](../vultron-spec/requirements/ledger-replication.md#sync-19-006), [SYNC-19-007](../vultron-spec/requirements/ledger-replication.md#sync-19-007) |
+| VP — Vultron Protocol | [VP-17-003](../vultron-spec/requirements/vultron-protocol.md#vp-17-003) |
 
 ## [story_2026_058](story_2026_058.md)
 
@@ -1781,7 +1773,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | BT — Behavior Tree Integration | [BT-19-003](../specs/project.md#bt-19-003), [BT-19-005](../specs/project.md#bt-19-005) |
-| SYNC — Case Event Log Synchronization | [SYNC-12-001](../vultron-spec/requirements/ledger-replication.md#sync-12-001), [SYNC-12-002](../vultron-spec/requirements/ledger-replication.md#sync-12-002), [SYNC-12-004](../vultron-spec/requirements/ledger-replication.md#sync-12-004), [SYNC-14-004](../vultron-spec/requirements/ledger-replication.md#sync-14-004) |
+| SYNC — Case Event Log Synchronization | [SYNC-12-001](../vultron-spec/requirements/ledger-replication.md#sync-12-001), [SYNC-12-002](../vultron-spec/requirements/ledger-replication.md#sync-12-002), [SYNC-12-004](../vultron-spec/requirements/ledger-replication.md#sync-12-004), [SYNC-13-001](../specs/project.md#sync-13-001), [SYNC-14-004](../vultron-spec/requirements/ledger-replication.md#sync-14-004) |
 
 ## [story_2026_059](story_2026_059.md)
 
@@ -1790,11 +1782,13 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | BT — Behavior Tree Integration | [BT-10-003](../vultron-spec/requirements/message-processing.md#bt-10-003) |
+| CLP — Case Ledger Processing | [CLP-10-001](../vultron-spec/requirements/ledger-replication.md#clp-10-001) |
 | CM — Case Management | [CM-02-002](../vultron-spec/requirements/case-management.md#cm-02-002) |
-| PCR — Participant Case Replica | [PCR-03-006](../vultron-spec/requirements/ledger-replication.md#pcr-03-006), [PCR-08-001](../vultron-spec/requirements/ledger-replication.md#pcr-08-001) |
-| RSH — Received-Side Status Authorization | [RSH-04-008](../vultron-spec/requirements/message-processing.md#rsh-04-008) |
+| PCR — Participant Case Replica | [PCR-03-005](../vultron-spec/requirements/ledger-replication.md#pcr-03-005), [PCR-03-006](../vultron-spec/requirements/ledger-replication.md#pcr-03-006), [PCR-08-001](../vultron-spec/requirements/ledger-replication.md#pcr-08-001) |
+| RSH — Received-Side Status Authorization | [RSH-04-001](../vultron-spec/requirements/message-processing.md#rsh-04-001), [RSH-04-007](../vultron-spec/requirements/message-processing.md#rsh-04-007), [RSH-04-008](../vultron-spec/requirements/message-processing.md#rsh-04-008) |
 | SYNC — Case Event Log Synchronization | [SYNC-02-003](../vultron-spec/requirements/ledger-replication.md#sync-02-003), [SYNC-19-001](../vultron-spec/requirements/ledger-replication.md#sync-19-001) |
 | VAM — Vultron Semantic–AS2 Mapping | [VAM-01-011](../vultron-spec/requirements/messages.md#vam-01-011), [VAM-01-019](../vultron-spec/requirements/messages.md#vam-01-019), [VAM-01-020](../vultron-spec/requirements/messages.md#vam-01-020) |
+| VP — Vultron Protocol | [VP-17-001](../vultron-spec/requirements/vultron-protocol.md#vp-17-001), [VP-18-001](../vultron-spec/requirements/vultron-protocol.md#vp-18-001), [VP-18-003](../vultron-spec/requirements/vultron-protocol.md#vp-18-003) |
 
 ## [story_2026_060](story_2026_060.md)
 
@@ -1822,6 +1816,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
+| CLP — Case Ledger Processing | [CLP-07-007](../vultron-spec/requirements/ledger-replication.md#clp-07-007) |
 | PCR — Participant Case Replica | [PCR-04-001](../vultron-spec/requirements/ledger-replication.md#pcr-04-001), [PCR-04-003](../vultron-spec/requirements/ledger-replication.md#pcr-04-003) |
 
 ## [story_2026_063](story_2026_063.md)
@@ -1874,3 +1869,102 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | LST — Lifecycle-Staged Domain Types | [LST-05-002b](../specs/project.md#lst-05-002b) |
+
+## [story_2026_069](story_2026_069.md)
+
+{% include-markdown "./story_2026_069.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| ASK — Protocol Asks and Outstanding-Ask Registers | [ASK-06-001](../vultron-spec/requirements/case-management.md#ask-06-001), [ASK-07-008](../vultron-spec/requirements/case-management.md#ask-07-008) |
+| CLP — Case Ledger Processing | [CLP-02-001](../vultron-spec/requirements/ledger-replication.md#clp-02-001), [CLP-02-013](../vultron-spec/requirements/ledger-replication.md#clp-02-013), [CLP-02-016](../vultron-spec/requirements/ledger-replication.md#clp-02-016), [CLP-02-017](../vultron-spec/requirements/ledger-replication.md#clp-02-017), [CLP-09-003](../specs/project.md#clp-09-003), [CLP-09-005](../specs/project.md#clp-09-005), [CLP-09-006](../specs/project.md#clp-09-006), [CLP-10-031](../vultron-spec/requirements/ledger-replication.md#clp-10-031) |
+| CM — Case Management | [CM-16-008](../vultron-spec/requirements/case-management.md#cm-16-008), [CM-21-007](../vultron-spec/requirements/case-management.md#cm-21-007), [CM-28-005](../vultron-spec/requirements/case-management.md#cm-28-005), [CM-28-009](../vultron-spec/requirements/case-management.md#cm-28-009) |
+
+## [story_2026_070](story_2026_070.md)
+
+{% include-markdown "./story_2026_070.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CLP — Case Ledger Processing | [CLP-07-001](../vultron-spec/requirements/ledger-replication.md#clp-07-001), [CLP-07-002](../vultron-spec/requirements/ledger-replication.md#clp-07-002), [CLP-07-013](../vultron-spec/requirements/ledger-replication.md#clp-07-013), [CLP-07-021](../vultron-spec/requirements/ledger-replication.md#clp-07-021) |
+
+## [story_2026_071](story_2026_071.md)
+
+{% include-markdown "./story_2026_071.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CLP — Case Ledger Processing | [CLP-02-004](../vultron-spec/requirements/ledger-replication.md#clp-02-004), [CLP-02-012](../vultron-spec/requirements/ledger-replication.md#clp-02-012), [CLP-03-001](../vultron-spec/requirements/ledger-replication.md#clp-03-001), [CLP-03-002](../vultron-spec/requirements/ledger-replication.md#clp-03-002), [CLP-04-001](../vultron-spec/requirements/ledger-replication.md#clp-04-001), [CLP-04-007](../vultron-spec/requirements/ledger-replication.md#clp-04-007), [CLP-07-014](../vultron-spec/requirements/ledger-replication.md#clp-07-014) |
+| SYNC — Case Event Log Synchronization | [SYNC-16-002](../vultron-spec/requirements/ledger-replication.md#sync-16-002), [SYNC-17-006](../vultron-spec/requirements/ledger-replication.md#sync-17-006) |
+
+## [story_2026_072](story_2026_072.md)
+
+{% include-markdown "./story_2026_072.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CLP — Case Ledger Processing | [CLP-02-002](../vultron-spec/requirements/ledger-replication.md#clp-02-002), [CLP-07-003](../vultron-spec/requirements/ledger-replication.md#clp-07-003), [CLP-07-006](../vultron-spec/requirements/ledger-replication.md#clp-07-006), [CLP-07-011](../vultron-spec/requirements/ledger-replication.md#clp-07-011), [CLP-07-017](../vultron-spec/requirements/ledger-replication.md#clp-07-017), [CLP-07-018](../vultron-spec/requirements/ledger-replication.md#clp-07-018) |
+| CM — Case Management | [CM-28-022](../vultron-spec/requirements/case-management.md#cm-28-022) |
+| SYNC — Case Event Log Synchronization | [SYNC-18-006](../vultron-spec/requirements/ledger-replication.md#sync-18-006) |
+
+## [story_2026_073](story_2026_073.md)
+
+{% include-markdown "./story_2026_073.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CLP — Case Ledger Processing | [CLP-08-001](../vultron-spec/requirements/ledger-replication.md#clp-08-001), [CLP-08-002](../vultron-spec/requirements/ledger-replication.md#clp-08-002), [CLP-08-003](../vultron-spec/requirements/ledger-replication.md#clp-08-003), [CLP-08-004](../vultron-spec/requirements/ledger-replication.md#clp-08-004), [CLP-08-006](../vultron-spec/requirements/ledger-replication.md#clp-08-006) |
+
+## [story_2026_074](story_2026_074.md)
+
+{% include-markdown "./story_2026_074.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| SYNC — Case Event Log Synchronization | [SYNC-03-009](../vultron-spec/requirements/ledger-replication.md#sync-03-009), [SYNC-03-017](../vultron-spec/requirements/ledger-replication.md#sync-03-017), [SYNC-03-018](../vultron-spec/requirements/ledger-replication.md#sync-03-018), [SYNC-03-019](../vultron-spec/requirements/ledger-replication.md#sync-03-019) |
+
+## [story_2026_075](story_2026_075.md)
+
+{% include-markdown "./story_2026_075.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| ASK — Protocol Asks and Outstanding-Ask Registers | [ASK-06-003](../vultron-spec/requirements/case-management.md#ask-06-003) |
+| CLP — Case Ledger Processing | [CLP-04-004](../vultron-spec/requirements/ledger-replication.md#clp-04-004), [CLP-10-032](../vultron-spec/requirements/ledger-replication.md#clp-10-032) |
+| CM — Case Management | [CM-14-013](../vultron-spec/requirements/case-management.md#cm-14-013), [CM-16-002](../vultron-spec/requirements/case-management.md#cm-16-002), [CM-21-030](../vultron-spec/requirements/case-management.md#cm-21-030) |
+| EMB — Embargo Management Behavioral Requirements | [EMB-19-001](../vultron-spec/requirements/state-behavior.md#emb-19-001), [EMB-19-002](../vultron-spec/requirements/state-behavior.md#emb-19-002), [EMB-19-003](../vultron-spec/requirements/state-behavior.md#emb-19-003), [EMB-19-004](../vultron-spec/requirements/state-behavior.md#emb-19-004) |
+| PCR — Participant Case Replica | [PCR-08-003](../vultron-spec/requirements/ledger-replication.md#pcr-08-003) |
+| SYNC — Case Event Log Synchronization | [SYNC-02-001](../vultron-spec/requirements/ledger-replication.md#sync-02-001), [SYNC-02-003](../vultron-spec/requirements/ledger-replication.md#sync-02-003) |
+
+## [story_2026_076](story_2026_076.md)
+
+{% include-markdown "./story_2026_076.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CM — Case Management | [CM-16-010](../vultron-spec/requirements/case-management.md#cm-16-010) |
+| SYNC — Case Event Log Synchronization | [SYNC-09-002](../vultron-spec/requirements/ledger-replication.md#sync-09-002) |
+
+## [story_2026_077](story_2026_077.md)
+
+{% include-markdown "./story_2026_077.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CSB — CVD Case State Behavioral Requirements | [CSB-05-010](../vultron-spec/requirements/state-behavior.md#csb-05-010), [CSB-06-010](../vultron-spec/requirements/state-behavior.md#csb-06-010) |
+
+## [story_2026_078](story_2026_078.md)
+
+{% include-markdown "./story_2026_078.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CLP — Case Ledger Processing | [CLP-07-015](../vultron-spec/requirements/ledger-replication.md#clp-07-015), [CLP-07-023](../vultron-spec/requirements/ledger-replication.md#clp-07-023) |
+
+## [story_2026_079](story_2026_079.md)
+
+{% include-markdown "./story_2026_079.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| SYNC — Case Event Log Synchronization | [SYNC-20-001](../vultron-spec/requirements/ledger-replication.md#sync-20-001), [SYNC-20-002](../vultron-spec/requirements/ledger-replication.md#sync-20-002), [SYNC-20-003](../vultron-spec/requirements/ledger-replication.md#sync-20-003), [SYNC-20-004](../vultron-spec/requirements/ledger-replication.md#sync-20-004), [SYNC-20-005](../vultron-spec/requirements/ledger-replication.md#sync-20-005), [SYNC-20-007](../vultron-spec/requirements/ledger-replication.md#sync-20-007), [SYNC-20-008](../vultron-spec/requirements/ledger-replication.md#sync-20-008) |

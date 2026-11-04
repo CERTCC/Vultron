@@ -49,6 +49,9 @@ import py_trees
 from vultron.core.behaviors.case.nodes.carried_object_case import (
     CarriedObjectInTargetCaseNode,
 )
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -114,6 +117,12 @@ def add_case_status_tree(
     root = create_receive_activity_tree(
         name="AddCaseStatusToCaseBT",
         case_id=case_id or None,
+        # The CASE_MANAGER alone sends this Add, and only to a participant,
+        # so the participant-replica path is the only one the type handles:
+        # the declaration is what refuses the case's own CASE_MANAGER, which
+        # adopted the status and never receives it (RSH-04-005, HP-01-038,
+        # HP-01-039).
+        paths={ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         # A replica admits it from the CASE_MANAGER alone, so with no
         # CASE_MANAGER to check against it refuses (RSH-04-005, PCR-03-001).

@@ -140,8 +140,8 @@ def compose_sender_guard(
             composition time, and a tree whose context names a case the
             receiver does not hold has always been judged by the
             ``at_participant`` side.  Moving it is a behaviour change beyond
-            what HP-01-036 asks for, so it stays with the migration (#5042,
-            #5043).
+            what HP-01-036 asks for, so it is #5744's, not the migration
+            waves'.
 
     Returns:
         The guard, or ``None`` when the receiver's side admits any actor.

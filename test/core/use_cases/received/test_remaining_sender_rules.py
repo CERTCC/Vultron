@@ -368,7 +368,10 @@ def test_case_status_from_a_stranger_is_refused_and_changes_nothing() -> None:
     result = world.case_status_from(world.stranger.id_)
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert "No sender is entitled" in (result.reason or "")
+    # Add(CaseStatus) declares the participant-replica path alone, so the
+    # CASE_MANAGER is turned away at the path stage, ahead of the clock
+    # decisions (RSH-04-005, HP-01-039).
+    assert "does not address" in (result.reason or "")
     assert list(world.case().case_statuses) == statuses
     assert world.case().em_state is EM.ACTIVE
     assert world.ledger_size() == before
