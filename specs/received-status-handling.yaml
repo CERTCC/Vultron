@@ -1042,7 +1042,8 @@ groups:
       the replay and bootstrap writes, the paused signatory's own embargo
       teardown, and the write a diversion makes in a tree whose path declaration
       names the CASE_MANAGER path alone, where the declaration is the gate
-      (HP-01-042). All other received-side
+      (HP-01-038, CLP-10-066) and the walk, which reads a branch's own paths
+      rather than the tree's declaration, records it instead. All other received-side
       state writes are now CASE_MANAGER-gated (the `KNOWN_UNGATED_STATE_WRITES`
       ratchet drove to empty and was deleted in #3814).
       The same module checks that every behaviors class reaching a state-write seam

@@ -169,17 +169,17 @@ committed before its effects, so its tree runs the same decision among its
 guards (`EmbargoAnswerAppliesNode`, `nodes/answer_record.py`) and refuses an
 answer that would record nothing the case can take. A received withdrawal
 does the same (`EmbargoWithdrawalAppliesNode`); both guards subclass
-`EmbargoDecisionAppliesNode` and run bare (manager-only path declaration,
-HP-01-038); both effects subclass `_RecordReceivedConsentNode` (`nodes/proposal.py`),
+`EmbargoDecisionAppliesNode` and carry no gate: a caller runs them bare only where
+its tree declares the CASE_MANAGER path alone, else wraps them in `OnPaths`
+(HP-01-038); both effects subclass `_RecordReceivedConsentNode` (`nodes/proposal.py`),
 which commits each further row with the received act as its cause. A new
 received consent act reuses those two frames. An act whose entry carries no
 change of its own (the `Leave`) has a replica slot that stores the embargo
 and writes nothing, as the Invite and re-invite slots do; its rows are
-copied by the consent slot. The decision check raises
-`VultronBTInternalError` when the operation wrote anything its entries do not
-carry. A consent-row `Update`'s id derives from its cause and the row, so the
-cause must be the act itself (the relayed Invite, the re-issued stub), never
-an id two acts share.
+copied by the consent slot. The decision check raises `VultronBTInternalError`
+when the operation wrote anything its entries do not carry. A consent-row
+`Update`'s id derives from its cause and the row, so the cause must be the act
+itself (the relayed Invite, the re-issued stub), never an id two acts share.
 
 A CASE_MANAGER decision about one row (an RSVP time-out, its own consent,
 never a `Reject` since from it that is the abandonment, MSM-07-017) is one

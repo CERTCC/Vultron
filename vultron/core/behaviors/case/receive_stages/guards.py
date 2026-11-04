@@ -167,6 +167,15 @@ def diversion_stage(
     registered exemption and it may write no case state (BT-17-008,
     RSH-08-003).
 
+    The two bounds are therefore checked in different places, because they see
+    different things.  This factory holds the declaration, so for a
+    manager-only diversion it skips the ungated-emit check outright — and
+    refuses a now-stale exemption.  The state-write ratchet instead walks
+    built trees with ``ungated_nodes``, which reads a ``PathBranch``'s own
+    paths and never the tree's declaration, so a manager-only diversion's
+    write is recorded in that ratchet's pinned set with its reason rather
+    than skipped there (CLP-10-066, RSH-08-003).
+
     Raises:
         VultronWiringError: the tree declared no paths, so nothing says where
             the diversion runs; a manager-only tree names no case, so a

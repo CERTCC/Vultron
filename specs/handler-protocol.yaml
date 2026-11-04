@@ -951,9 +951,10 @@ groups:
       other
       (`::test_a_state_write_is_bounded_only_by_a_manager_only_branch`).
       `test/architecture/test_received_tree_state_writes_are_gated.py::test_received_tree_state_writes_are_gated_or_known`
-      keeps every state write outside a `CaseManagerGate` pinned with its reason,
-      including the one a diversion makes in a tree declaring the manager path
-      alone.
+      keeps every state write outside a `CaseManagerGate` pinned with its reason.
+      A write in a *tree* declaring the manager path alone but in no branch is
+      not this requirement's subject — the walk reads a branch's own paths — so
+      the diversion case is recorded there and governed by CLP-10-066.
     relationships:
     - rel_type: depends_on
       spec_id: HP-01-038

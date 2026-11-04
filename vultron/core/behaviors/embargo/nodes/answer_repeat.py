@@ -142,12 +142,25 @@ def case_manager_admits_embargo_answer_guard(
 ) -> EmbargoAnswerNotRecordedNode:
     """Precondition guard: at the CASE_MANAGER, the answer is not a repeat.
 
-    The guard runs bare, with no role gate of its own: the answer trees
-    declare the CASE_MANAGER path alone (HP-01-038), so the path stage has
-    already refused every other receiver, and a replica is reported as a
-    refusal (HP-01-005) rather than as a repeat.  Only the CASE_MANAGER
-    records an answer (BT-17-001), and this keeps a repeat from being
-    committed or announced.
+    The guard carries no role gate of its own, so the *caller* bounds it to
+    the manager, and which way depends on what the caller declares
+    (HP-01-038):
+
+    - :func:`~vultron.core.behaviors.embargo.answer_trees.accept_invite_to_embargo_tree`
+      declares the CASE_MANAGER path alone, so the path stage has already
+      refused every other receiver and the guard is passed bare.
+    - :func:`~vultron.core.behaviors.embargo.answer_trees.reject_invite_to_embargo_tree`
+      also declares the participant-replica path, because the CASE_MANAGER's
+      own ``Reject`` must reach the participant it refuses (EP-09-017,
+      EP-09-019), so it wraps the guard in ``OnPaths.at_case_manager(...)``.
+
+    Nothing in the factory enforces that choice: run at a replica the guard
+    reads that replica's own consent rows, and would refuse a delivery
+    EP-09-019 requires be admitted.  A new caller that declares any path
+    besides the CASE_MANAGER's MUST wrap it.  Only the CASE_MANAGER records
+    an answer (BT-17-001), and this keeps a repeat from being committed or
+    announced; a replica is reported as a refusal (HP-01-005) rather than as
+    a repeat.
     """
     return EmbargoAnswerNotRecordedNode(
         name="EmbargoAnswerNotRecorded",

@@ -490,32 +490,6 @@ def test_a_manager_only_diversion_needs_the_trees_case() -> None:
         )
 
 
-@pytest.mark.spec("HP-01-038")
-@pytest.mark.spec("CLP-10-026")
-def test_a_diversion_in_a_tree_that_declared_no_paths_is_a_wiring_error() -> (
-    None
-):
-    """The declaration is the only statement of where a diversion runs.
-
-    ADR-0153 retires the ``gate=`` choice beside it, so a tree with no
-    declaration says nothing about whether its diversion may commit or must
-    stay the receiver's own answer, and the factory refuses to guess.
-    """
-    with pytest.raises(VultronWiringError, match="paths the tree declares"):
-        create_receive_activity_tree(
-            name="UndeclaredDiversionBT",
-            case_id=CASE_ID,
-            precondition_guards=[
-                Diversion(
-                    name="D",
-                    condition=py_trees.behaviours.Success(name="C"),
-                )
-            ],
-            sender_rule=_RULE,
-            sender_context=_CONTEXT,
-        )
-
-
 @pytest.mark.spec("HP-01-007")
 @pytest.mark.spec("HP-01-038")
 def test_a_declaration_naming_no_path_is_a_wiring_error() -> None:

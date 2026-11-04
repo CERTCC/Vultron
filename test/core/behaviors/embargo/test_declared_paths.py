@@ -17,9 +17,11 @@
 
 *Which* paths each tree declares is pinned once for the whole migrated
 corpus, in ``test/core/behaviors/test_declared_received_paths.py``
-(CS-22-001); this module asserts what that declaration *does*, from the tree
-the production factory actually builds rather than from a stage stood up on
-its own:
+(CS-22-001); this module asserts what that declaration *does*.  The stage
+comes out of the tree the production factory builds, so its declaration, its
+build-time case and its place among the door guards are production's rather
+than a fixture's, and it is then ticked on its own, because a factory-built
+tree cannot be ticked whole without a received activity for its intake node:
 
 - the stage is one of the tree's door guards, so its refusal ends the
   delivery before any commit (CLP-10-010);
@@ -366,8 +368,9 @@ def test_a_receiver_off_the_declared_path_is_refused(
     # other arm — the one that tells the case's own CASE_MANAGER that it *is*
     # the CASE_MANAGER — is pinned where it lives, in
     # `test/core/behaviors/case/test_received_path_stage.py`, rather than
-    # asserted here against a configuration no row has (#5041).
-    assert ReceivedPath.CASE_MANAGER in declared
+    # asserted here against a configuration no row has (#5041).  The tripwire
+    # for that changing is the `_REFUSED[declared]` lookup above, which raises
+    # KeyError for a declaration shape this module has no row for.
 
 
 @pytest.mark.spec("HP-01-037")

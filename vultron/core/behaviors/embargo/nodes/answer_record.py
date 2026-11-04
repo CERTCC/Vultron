@@ -163,11 +163,22 @@ def case_manager_admits_answer_change_guard(
 ) -> EmbargoAnswerAppliesNode:
     """Precondition guard: at the CASE_MANAGER, the answer records a change.
 
-    The guard runs bare, with no role gate of its own: a tree that carries a
-    received consent act declares the CASE_MANAGER path alone (HP-01-038),
-    so the path stage has already refused every other receiver and the
-    replica's refusal is reported there (HP-01-005).  Only the CASE_MANAGER
-    records the act (BT-17-001).
+    The guard carries no role gate of its own, so the *caller* bounds it to
+    the manager, and which way depends on what the caller declares
+    (HP-01-038): a tree declaring the CASE_MANAGER path alone passes it bare,
+    because the path stage has already refused every other receiver and the
+    replica's refusal is reported there (HP-01-005); a tree that declares any
+    other path beside it wraps the guard in ``OnPaths.at_case_manager(...)``.
+    Its two callers take one route each —
+    :func:`~vultron.core.behaviors.embargo.answer_trees.accept_invite_to_embargo_tree`
+    bare, and
+    :func:`~vultron.core.behaviors.embargo.answer_trees.reject_invite_to_embargo_tree`
+    wrapped, since the CASE_MANAGER's own ``Reject`` must reach the
+    participant it refuses (EP-09-017, EP-09-019).
+
+    Nothing in the factory enforces that choice: run at a replica the guard
+    reads that replica's own consent rows.  Only the CASE_MANAGER records the
+    act (BT-17-001).
     """
     return EmbargoAnswerAppliesNode(
         name="EmbargoAnswerApplies",

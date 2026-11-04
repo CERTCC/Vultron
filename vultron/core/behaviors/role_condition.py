@@ -119,13 +119,32 @@ class ActorHoldsRoleInCaseNode(DataLayerConditionWithPorts):
                 f"{self.name}: no case to read '{self._actor_id}'s"
                 f" {self._role.name} role in"
             )
-            self.logger.warning("%s", self.feedback_message)
+            self.logger.warning(
+                "%s: executing at '%s', no case to read '%s's %s role in",
+                self.name,
+                self.actor_id,
+                self._actor_id,
+                self._role.name,
+            )
             return Status.FAILURE
         if has_role(self._actor_id, case_id, self._role, self.datalayer):
+            self.logger.debug(
+                "%s: executing at '%s', '%s' holds %s in case '%s'",
+                self.name,
+                self.actor_id,
+                self._actor_id,
+                self._role.name,
+                case_id,
+            )
             return Status.SUCCESS
         self.feedback_message = (
             f"'{self._actor_id}' does not hold {self._role.name} in case"
             f" '{case_id}'"
         )
-        self.logger.debug("%s: %s", self.name, self.feedback_message)
+        self.logger.debug(
+            "%s: executing at '%s', %s",
+            self.name,
+            self.actor_id,
+            self.feedback_message,
+        )
         return Status.FAILURE

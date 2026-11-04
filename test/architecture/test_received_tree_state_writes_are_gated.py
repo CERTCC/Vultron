@@ -137,8 +137,9 @@ _ENDING_NOTICE = (
 _MANAGER_ONLY_DECLARATION = (
     "the write runs in a diversion of a tree that declares the CASE_MANAGER"
     " path alone, so the path stage refused every other receiver before any"
-    " guard ran and the declaration is the gate (HP-01-038, HP-01-042,"
-    " ADR-0153)"
+    " guard ran and the declaration is the gate (HP-01-038, CLP-10-066,"
+    " ADR-0153).  The walk reads a PathBranch's own paths, not the tree's"
+    " declaration, so this write is recorded here rather than skipped"
 )
 # permanent: RSH-08-003 (replay and bootstrap writes; see each reason)
 REPLICA_STATE_WRITES: dict[_Write, str] = {

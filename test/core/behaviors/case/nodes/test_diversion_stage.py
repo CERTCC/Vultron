@@ -24,6 +24,7 @@ may not, or emit uncovered.
 """
 
 from collections.abc import Collection
+from dataclasses import dataclass
 
 import py_trees
 import pytest
@@ -55,12 +56,16 @@ from vultron.core.behaviors.case.nodes.refusal_stage import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case.receive_stages.tree import (
+    ReceivedActivityTree,
+)
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.replica_emit_exemptions import (
     EMBARGO_INVITE_REFUSAL,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes.chain import CreateLogEntryNode
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronWiringError
 
 _CASE = "https://example.org/cases/diversion"
@@ -81,6 +86,18 @@ class _Counted(py_trees.behaviour.Behaviour):
 
 class _Emitter(_Counted, EmitCapable):
     pass
+
+
+@dataclass(frozen=True)
+class _Probe:
+    """One factory-built probe tree and the parts a test reads off it."""
+
+    tree: ReceivedActivityTree
+    stage: DiversionStage
+    path_stage: ReceivedPathNode
+    condition: _Counted
+    effect: _Counted
+    datalayer: CasePersistence
 
 
 class _SendEmbargoProposalRefusalNode(_Counted, EmitCapable):
@@ -262,7 +279,13 @@ class TestFactoryChecks:
     @pytest.mark.spec("HP-01-038")
     @pytest.mark.spec("CLP-10-026")
     def test_a_diversion_needs_the_trees_path_declaration(self) -> None:
-        """Nothing else says where a diversion may run (ADR-0153)."""
+        """The declaration is the only statement of where a diversion runs.
+
+        ADR-0153 retires the ``gate=`` choice beside it, so a tree with no
+        declaration says nothing about whether its diversion may commit or
+        must stay the receiver's own answer, and the factory refuses to
+        guess.
+        """
         with pytest.raises(VultronWiringError, match="paths the tree"):
             _tree(
                 Diversion(name="D", condition=_Counted("C")),
@@ -299,13 +322,21 @@ class TestManagerOnlyDeclarationReachesItsDiversion:
 
     The diversion carries no gate of its own any more (HP-01-038): the path
     stage the factory placed refuses every other receiver before the guards
-    run, so the condition is never evaluated there.  These run the whole
-    tree, because the stage is the protection and a stage lifted out of its
-    tree protects nothing.
+    run, so the condition is never evaluated there.
+
+    The claim has two halves and they are checked separately, because a
+    factory-built tree cannot be ticked whole without a received activity
+    for its intake node:
+
+    - that the path stage really runs *first* is asserted off the built tree
+      in :meth:`test_the_path_stage_is_a_door_ahead_of_the_diversion`, rather
+      than supplied by the order :meth:`_run` ticks things in (#5533);
+    - that the stage's verdict is what reaches, or does not reach, the
+      diversion is what :meth:`_run` exercises.
     """
 
     @staticmethod
-    def _run(store_actor: str) -> tuple[DiversionStage, _Counted, _Counted]:
+    def _build(store_actor: str) -> _Probe:
         case, _, dl = make_case_with_manager(
             f"diversion-{store_actor.rsplit('/', 1)[-1]}",
             store_actor_id=store_actor,
@@ -323,14 +354,35 @@ class TestManagerOnlyDeclarationReachesItsDiversion:
         (path_stage,) = [
             n for n in tree.iterate() if isinstance(n, ReceivedPathNode)
         ]
-        BTBridge(datalayer=dl).execute_with_setup(
-            tree=path_stage, actor_id=store_actor
+        return _Probe(tree, stage, path_stage, condition, effect, dl)
+
+    @pytest.mark.spec("HP-01-038")
+    def test_the_path_stage_is_a_door_ahead_of_the_diversion(self) -> None:
+        """The order comes from the tree, not from the test.
+
+        Without this, :meth:`_run` would only show that *a* refusing stage
+        stops the diversion, and would take on faith that the factory put it
+        in front (#5533, #5534).
+        """
+        probe = self._build(CASE_MANAGER_ACTOR)
+        order = [id(node) for node in probe.tree.iterate()]
+
+        assert probe.path_stage in probe.tree.door_guards
+        assert order.index(id(probe.path_stage)) < order.index(id(probe.stage))
+
+    @staticmethod
+    def _run(store_actor: str) -> tuple[DiversionStage, _Counted, _Counted]:
+        probe = TestManagerOnlyDeclarationReachesItsDiversion._build(
+            store_actor
         )
-        if path_stage.status is Status.SUCCESS:
-            BTBridge(datalayer=dl).execute_with_setup(
-                tree=stage, actor_id=store_actor
+        BTBridge(datalayer=probe.datalayer).execute_with_setup(
+            tree=probe.path_stage, actor_id=store_actor
+        )
+        if probe.path_stage.status is Status.SUCCESS:
+            BTBridge(datalayer=probe.datalayer).execute_with_setup(
+                tree=probe.stage, actor_id=store_actor
             )
-        return stage, condition, effect
+        return probe.stage, probe.condition, probe.effect
 
     @pytest.mark.spec("BT-17-001")
     @pytest.mark.spec("CLP-10-026")
