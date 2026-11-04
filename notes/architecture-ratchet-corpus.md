@@ -78,7 +78,11 @@ rather than from a file scan. Two rules keep them inside TB-13:
 - **Pause the collector around an AST-heavy derivation.** Each allocation
   threshold during a large parse triggers a collection that walks the whole
   pytest heap. `@_corpus.gc_paused()` on the derivation, plus a per-process
-  `functools.cache`, keeps each test under the TB-13-004 budget.
+  `functools.cache`, leaves every test after the first at nil cost. It does
+  not bring the first one under the TB-13-004 budget: a derivation that parses
+  a few hundred modules costs seconds, and the heaviest ratchets run 1–11 s
+  against the 0.5 s SHOULD. State the measured figure in the module docstring
+  rather than implying the budget is met (`_guard_reachability.py`, ~2.9 s).
 
 To find the names that *may* reach a target without parsing, use
 `_corpus.names_reaching(seeds, under=...)`: a text-only fixed point that follows
@@ -105,6 +109,20 @@ refusal, so a `raise` fragment in the span is the wrong test — it skipped the
 only function the ratchet exists to catch. A `None` default read off the
 signature costs no walk and is the necessary condition there
 (`_guard_reachability.py`, #3156).
+
+## A Coverage-Shape Arm Keyed on Spec Markers Has No Subjects Here
+
+Do not re-propose this one without re-measuring. The guard-reachability
+ratchet was asked for a second shape: for a guard raising a spec-cited error,
+require one test reaching it *through* its production entry point rather than
+by direct call. Keyed on `@pytest.mark.spec` — a requirement whose markers all
+sit on test functions that name the private guard — it finds **zero** subjects
+in this repo and costs ~20 s, so it can only ever pass. Keyed on
+`names_reaching` instead, a class span carries every method, so the reacher set
+grows until every guard reads as covered. The rule is real and is recorded as a
+test-authoring rule in [testing-pitfalls](testing-pitfalls.md) § "Drive a Guard
+Through Its Production Entry Point"; what has no structural form is the check
+(#3156).
 
 ## Key a Ratchet on the Act, Not on the Name of What Performs It
 

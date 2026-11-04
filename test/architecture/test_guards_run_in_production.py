@@ -60,19 +60,25 @@ cannot tell a guard that fires in production from one whose *tests* all reach
 it by direct call.  That half is a test-authoring rule, not a structural one:
 ``test/core/behaviors/sync/nodes/test_chain_timestamp_guard.py`` is the shape
 such a test takes, driving the guard through ``CreateLogEntryNode`` rather
-than calling the private validator.  A check for it was measured and
-dropped: no spec-marked test in the repo calls any of these guards directly
-today, so the arm had no subjects and could only ever pass.
+than calling the private validator.  A check for it was built, measured at
+zero subjects and about 20 s, and dropped; the measurement is recorded in
+``notes/architecture-ratchet-corpus.md`` § "A Coverage-Shape Arm Keyed on Spec
+Markers Has No Subjects Here", so nobody has to rebuild it to find out.
 
-Resolution lives in ``_guard_reachability.py``; that module's docstring lists
-the four over-approximations it makes, each of which can only let a
-violation through, never invent one.  Its judgements are driven over inline
-source by the detector tests below, so a detector change cannot pass its own
-tests while reading the package differently.
+Resolution lives in ``_guard_reachability.py``; that module's docstring says
+where the derivation reads loosely in each direction — the readings that let a
+violation through, and the two that could invent one and are narrowed because
+of it.  Its judgements are driven over inline source by the detector tests
+below, so a detector change cannot pass its own tests while reading the
+package differently.
 
-Corpus: TB-13-001, TB-13-002, TB-13-003 (``specs/testability.yaml``).
-Ratchet discipline: ARCH-18-001, ARCH-18-002 (``specs/architecture.yaml``),
-TB-10-002, TB-10-003.
+The first arm to run pays the derivation, about 2.9 s with a warm corpus,
+over TB-13-004's 0.5 s SHOULD and inside the 1–11 s band of the heaviest
+existing ratchets; the rest read the cache.
+
+Corpus: TB-13-001, TB-13-002, TB-13-003, TB-13-004
+(``specs/testability.yaml``).  Ratchet discipline: ARCH-18-001, ARCH-18-002
+(``specs/architecture.yaml``), TB-10-002, TB-10-003.
 """
 
 from test.architecture import _guard_reachability as _reach
@@ -495,14 +501,22 @@ def check_nonempty_list(value):
 
 
 def test_detector_does_not_treat_a_bare_reraise_as_a_refusal() -> None:
-    """``raise`` with no exception re-raises; it refuses nothing of its own."""
-    source = """
+    """``raise`` with no exception re-raises; it refuses nothing of its own.
+
+    The docstring carries the words ``raise `` so the span prefilter admits
+    the definition and the bare-``raise`` judgement is the branch under test.
+    Without it the prefilter short-circuits and the test passes for the
+    wrong reason: deleting the judgement leaves it green.
+    """
+    source = '''
 def _retry(operation):
+    """Lets the caller raise on; it adds no refusal of its own."""
     try:
         return operation()
     except OSError:
         raise
-"""
+'''
+    assert "raise " in source
     assert _reach.findings_in_source(source).guards == ()
 
 
@@ -544,3 +558,282 @@ class Node:
         ("_refuse_unless_manager", True)
     ]
     assert findings.unreached == frozenset()
+
+
+def test_detector_keeps_a_staticmethod_guard_in_arm_a() -> None:
+    """``@staticmethod`` is transparent: the guard is still called by name.
+
+    Excluding every decorated definition dropped three such guards from the
+    subject set, which is exactly the code arm A exists to police.
+    """
+    source = """
+class Node:
+    @staticmethod
+    def _refuse_unless_open(state):
+        if state == "CLOSED":
+            raise ValueError("closed")
+"""
+    assert [
+        guard.name for guard in _reach.findings_in_source(source).guards
+    ] == ["_refuse_unless_open"]
+    assert _reach.findings_in_source(source).unreached == {
+        "inline.py:4 _refuse_unless_open()"
+    }
+
+
+# ---------------------------------------------------------------------------
+# Synthetic detector tests — reading a call site as the caller writes it
+# ---------------------------------------------------------------------------
+#: One method gate, with the call written two ways: supplying the gated
+#: parameter positionally, and stopping before it.
+_METHOD_GATE = """
+class Node:
+    def _check(self, value, limit=None):
+        if limit is not None:
+            raise ValueError("over")
+
+    def update(self):
+        self._check(1{argument})
+"""
+
+
+def test_detector_reads_a_method_gate_at_the_callers_index() -> None:
+    """A bound call omits the receiver, so the index must shift with it.
+
+    Indexing ``limit`` at its declared position counted ``self``, so
+    ``self._check(1, 2)`` read as one argument short and the ratchet invented
+    a violation for correct code.
+    """
+    supplied = _reach.findings_in_source(_METHOD_GATE.format(argument=", 2"))
+    assert supplied.unsupplied == frozenset()
+    assert [gate.in_class for gate in supplied.gates] == [True]
+
+
+def test_detector_still_reports_a_method_gate_no_caller_opens() -> None:
+    """The receiver shift must not swallow a genuinely unsupplied gate."""
+    omitted = _reach.findings_in_source(_METHOD_GATE.format(argument=""))
+    assert omitted.unsupplied == {"inline.py:3 _check() [limit]"}
+
+
+def test_detector_reads_a_staticmethod_gate_without_a_receiver() -> None:
+    """A ``@staticmethod`` declares no receiver, so nothing shifts."""
+    source = """
+class Node:
+    @staticmethod
+    def _check(value, limit=None):
+        if limit is not None:
+            raise ValueError("over")
+
+    def update(self):
+        Node._check(1, 2)
+"""
+    assert _reach.findings_in_source(source).unsupplied == frozenset()
+
+
+def test_detector_counts_a_star_args_splat_as_supplying_the_gate() -> None:
+    """A positional splat is as unreadable as ``**kwargs``, so it counts.
+
+    Counting ``ast.Starred`` as one argument contradicted the derivation's
+    own stated benefit-of-the-doubt rule and invented a violation.
+    """
+    source = """
+def _check(value, limit=None):
+    if limit is not None:
+        raise ValueError("over")
+
+
+def run(items):
+    _check(*items)
+"""
+    assert _reach.findings_in_source(source).unsupplied == frozenset()
+
+
+# ---------------------------------------------------------------------------
+# Synthetic detector tests — the gate conditions that are read, and are not
+# ---------------------------------------------------------------------------
+def test_detector_reads_a_presence_test_in_an_and_chain() -> None:
+    """``p is not None and …`` still gates on ``p``'s presence.
+
+    This is the witness's own inner shape: CLP-14-013 sits behind
+    ``case_published is not None and entry_published < …``.
+    """
+    source = """
+def _check(*, limit=None, value=0):
+    if limit is not None and value > limit:
+        raise ValueError("over")
+
+
+def run():
+    _check(value=1)
+"""
+    assert _reach.findings_in_source(source).unsupplied == {
+        "inline.py:2 _check() [limit]"
+    }
+
+
+def test_detector_reads_a_presence_test_through_a_negation() -> None:
+    """``if not (p is None):`` is the same gate written inside out."""
+    source = """
+def _check(*, limit=None):
+    if not limit is None:
+        raise ValueError("over")
+
+
+def run():
+    _check()
+"""
+    assert _reach.findings_in_source(source).unsupplied == {
+        "inline.py:2 _check() [limit]"
+    }
+
+
+def test_detector_reads_a_presence_test_in_an_or_chain_on_the_else_arm() -> (
+    None
+):
+    """``p is None or …`` leaves the refusal on the branch ``p`` opens."""
+    source = """
+def _check(*, limit=None, value=0):
+    if limit is None or value < limit:
+        return None
+    else:
+        raise ValueError("over")
+
+
+def run():
+    _check(value=1)
+"""
+    assert _reach.findings_in_source(source).unsupplied == {
+        "inline.py:2 _check() [limit]"
+    }
+
+
+def test_detector_reads_a_bare_truthiness_gate() -> None:
+    """``if p:`` opens the refusal only when the caller supplies ``p``."""
+    source = """
+def _check(*, label=None):
+    if label:
+        raise ValueError("labelled")
+
+
+def run():
+    _check()
+"""
+    assert _reach.findings_in_source(source).unsupplied == {
+        "inline.py:2 _check() [label]"
+    }
+
+
+def test_detector_does_not_treat_a_rebound_parameter_as_a_gate() -> None:
+    """A body that reassigns the parameter is not gating on the caller.
+
+    ``limit = limit or compute()`` makes the test always true, so the check
+    runs whatever the caller passes; requiring a caller to pass it would
+    invent a violation.
+    """
+    source = """
+def compute():
+    return 1
+
+
+def _check(*, limit=None):
+    limit = limit or compute()
+    if limit is not None:
+        raise ValueError("over")
+
+
+def run():
+    _check()
+"""
+    assert _reach.findings_in_source(source).gates == ()
+
+
+def test_detector_does_not_attribute_a_nested_raise_to_a_gated_branch() -> (
+    None
+):
+    """A branch that only *defines* a raising function refuses nothing.
+
+    Arm B scopes a branch the way arm A scopes a definition; walking into
+    the nested scope made registering a callable look like refusing.
+    """
+    source = """
+def _register(*, handler=None):
+    if handler is not None:
+        def _inner():
+            raise ValueError("inner")
+
+        return _inner
+    return None
+
+
+def run():
+    _register()
+"""
+    assert _reach.findings_in_source(source).gates == ()
+
+
+def test_detector_reads_a_delegation_to_a_public_spec_citing_guard() -> None:
+    """A gated call to a public refusal counts, because it refuses.
+
+    ``_refusing_names`` admits a public function whose raise names a spec
+    requirement; that is the act, so a gate on a call to one is a gate.
+    """
+    source = """
+def validate_window(window):
+    if window < 0:
+        raise ValueError("EP-07-002 - a window must not be negative")
+
+
+def build(*, window=None):
+    if window is not None:
+        validate_window(window)
+    return window
+
+
+def run():
+    build()
+"""
+    assert _reach.findings_in_source(source).unsupplied == {
+        "inline.py:7 build() [window]"
+    }
+
+
+def test_detector_ignores_a_delegation_to_a_public_function_that_cites_none() -> (
+    None
+):
+    """A public callee whose raise names no requirement is not a refusal.
+
+    The counter-case to the test above: without it, that one would pass even
+    if every public call counted, which would make arm B report any
+    optional-parameter branch that calls anything.
+    """
+    source = """
+def log_window(window):
+    if window < 0:
+        raise ValueError("a window must not be negative")
+
+
+def build(*, window=None):
+    if window is not None:
+        log_window(window)
+    return window
+
+
+def run():
+    build()
+"""
+    assert _reach.findings_in_source(source).gates == ()
+
+
+def test_detector_skips_a_framework_decorated_gate() -> None:
+    """A registered command's optional parameter has no readable call site.
+
+    Reporting it would be unfixable: the framework invokes the function, so
+    no call site can be added to supply the argument.
+    """
+    source = """
+@main.command()
+def run(scenario=None):
+    if scenario is not None:
+        raise ValueError("unsupported")
+"""
+    assert _reach.findings_in_source(source).gates == ()

@@ -81,8 +81,14 @@ class TestNotesFrontmatterSchema:
             )
 
     def test_empty_list_fields_rejected(self):
+        """Each rejection names its own field, not "list field".
+
+        Asserted on the message pydantic built rather than on the whole
+        ``ValidationError`` string, which already carries the field's
+        location on its own line and so would match either wording.
+        """
         for field in ("related_specs", "related_notes", "relevant_packages"):
-            with pytest.raises(ValidationError, match="non-empty"):
+            with pytest.raises(ValidationError) as raised:
                 NotesFrontmatter.model_validate(
                     {
                         "title": "A Note",
@@ -91,6 +97,9 @@ class TestNotesFrontmatterSchema:
                         field: [],
                     }
                 )
+            assert [error["msg"] for error in raised.value.errors()] == [
+                f"Value error, {field} must be non-empty if present"
+            ]
 
     @pytest.mark.spec("NF-01-012")
     def test_empty_superseded_by_rejected(self):
