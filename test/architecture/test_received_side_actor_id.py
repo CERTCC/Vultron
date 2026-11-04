@@ -24,11 +24,18 @@ The check is an allow-list, not a deny-list (#5847).  Every
 ``execute_with_setup`` call under ``vultron/core/use_cases/received/`` must pass,
 as ``actor_id`` (keyword or second positional argument), one of:
 
-(a) a call ``resolve_receiving_actor_id(<dl>, <x>.receiving_actor_id)``;
+(a) a call ``resolve_receiving_actor_id(<dl>, <x>.receiving_actor_id)``, where
+    the bare name is imported unaliased from ``vultron.core.use_cases._helpers``
+    and bound nowhere else in the module;
 (b) a local name whose every binding in its function is a plain assignment of
-    (a);
+    (a), with no nested function declaring it ``nonlocal``;
 (c) a parameter of a module-level function, never rebound inside it, where
-    every call to that function in the same module passes (a) or (b) for it.
+    every call to that function in the same module passes (a) or (b) for it,
+    and the function is used only by direct calls in its own module.
+
+Every ``execute_with_setup`` call must also sit in a function body, and the
+name may appear only as a direct call's callee: a call in a lambda or class
+body, an alias or a ``getattr`` string would escape the check, so each fails.
 
 Anything else fails: the sender under any binding, a literal, another request
 attribute, a bare ``request.receiving_actor_id`` (it may be ``None`` and skips
@@ -41,7 +48,8 @@ Issues: #2338, #5847.
 """
 
 import ast
-from collections.abc import Iterator
+import re
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -50,9 +58,12 @@ from test.architecture import _corpus
 _RECEIVED_ROOT = (
     _corpus.REPO_ROOT / "vultron" / "core" / "use_cases" / "received"
 )
+_VULTRON_ROOT = _corpus.REPO_ROOT / "vultron"
 
 _RESOLVER = "resolve_receiving_actor_id"
-_CALL_FRAGMENT = "execute_with_setup("
+_RESOLVER_MODULE = "vultron.core.use_cases._helpers"
+_CALLEE = "execute_with_setup"
+_CALL_FRAGMENT = f"{_CALLEE}("
 
 _Scope = ast.Module | ast.FunctionDef | ast.AsyncFunctionDef
 _NESTED_SCOPES = (
@@ -61,6 +72,9 @@ _NESTED_SCOPES = (
     ast.ClassDef,
     ast.Lambda,
 )
+
+#: Whether a module-level helper's name appears in another ``vultron`` module.
+_MentionedElsewhere = Callable[[str], bool]
 
 
 def _own_scope(scope: _Scope) -> Iterator[ast.AST]:
@@ -84,15 +98,59 @@ def _scopes(module: ast.Module) -> Iterator[_Scope]:
 def _is_execute_with_setup_call(node: ast.AST) -> bool:
     return (
         isinstance(node, ast.Call)
-        and _corpus.callee_name(node.func) == "execute_with_setup"
+        and _corpus.callee_name(node.func) == _CALLEE
     )
 
 
-def _is_resolver_call(node: ast.expr) -> bool:
-    """``resolve_receiving_actor_id(<dl>, <x>.receiving_actor_id)``."""
+def _resolver_is_trusted(tree: ast.Module) -> bool:
+    """Whether the bare name ``resolve_receiving_actor_id`` is the real resolver.
+
+    It is when the module imports it, unaliased, from its home module and
+    binds the name nowhere else: no ``def``, class, assignment, parameter or
+    second import can shadow it.
+    """
+    imported = False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if (alias.asname or alias.name) != _RESOLVER:
+                    continue
+                if node.module != _RESOLVER_MODULE or alias.asname or imported:
+                    return False
+                imported = True
+        elif isinstance(node, ast.alias):
+            continue
+        elif _binds(node, _RESOLVER):
+            return False
+    return imported
+
+
+def _binds(node: ast.AST, name: str) -> bool:
+    """Whether *node* binds *name* (imports excepted)."""
+    if isinstance(node, ast.Name):
+        return node.id == name and not isinstance(node.ctx, ast.Load)
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return node.name == name
+    if isinstance(node, ast.arg):
+        return node.arg == name
+    if isinstance(node, ast.Import):
+        return any(
+            (a.asname or a.name.split(".")[0]) == name for a in node.names
+        )
+    return _non_name_binding(node, name)
+
+
+def _is_resolver_call(node: ast.expr, trusted: bool) -> bool:
+    """``resolve_receiving_actor_id(<dl>, <x>.receiving_actor_id)``.
+
+    The callee must be the bare, trusted name: an attribute call such as
+    ``self.resolve_receiving_actor_id(...)`` could be any method.
+    """
     return (
-        isinstance(node, ast.Call)
-        and _corpus.callee_name(node.func) == _RESOLVER
+        trusted
+        and isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == _RESOLVER
         and len(node.args) == 2
         and not node.keywords
         and isinstance(node.args[1], ast.Attribute)
@@ -115,7 +173,9 @@ def _all_params(func: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
     return names
 
 
-def _resolver_assign_target(node: ast.AST, name: str) -> ast.Name | None:
+def _resolver_assign_target(
+    node: ast.AST, name: str, trusted: bool
+) -> ast.Name | None:
     """The target of ``name = resolve_receiving_actor_id(...)``, else ``None``."""
     if isinstance(node, ast.Assign) and len(node.targets) == 1:
         target: ast.expr = node.targets[0]
@@ -128,7 +188,7 @@ def _resolver_assign_target(node: ast.AST, name: str) -> ast.Name | None:
         isinstance(target, ast.Name)
         and target.id == name
         and value is not None
-        and _is_resolver_call(value)
+        and _is_resolver_call(value, trusted)
     ):
         return target
     return None
@@ -147,18 +207,20 @@ def _non_name_binding(node: ast.AST, name: str) -> bool:
     return False
 
 
-def _bindings(scope: _Scope, name: str) -> tuple[int, bool]:
+def _bindings(scope: _Scope, name: str, trusted: bool) -> tuple[int, bool]:
     """Count *name*'s bindings in *scope*; report whether all are resolver assigns.
 
     Returns ``(count, all_resolver_assigns)``.  Parameters are not counted
     here.  A binding is any store, delete, ``global``/``nonlocal``,
-    ``except ... as``, import alias or ``match`` capture of *name*.
+    ``except ... as``, import alias or ``match`` capture of *name*, and any
+    ``nonlocal`` declaration of *name* in a nested function, which lets that
+    function rebind it out of sight.
     """
     nodes = list(_own_scope(scope))
     accepted = {
         id(target)
         for node in nodes
-        if (target := _resolver_assign_target(node, name)) is not None
+        if (target := _resolver_assign_target(node, name, trusted)) is not None
     }
     count = 0
     ok = True
@@ -171,6 +233,15 @@ def _bindings(scope: _Scope, name: str) -> tuple[int, bool]:
         elif _non_name_binding(node, name):
             count += 1
             ok = False
+    own = {id(node) for node in nodes}
+    for node in ast.walk(scope):
+        if (
+            isinstance(node, ast.Nonlocal)
+            and name in node.names
+            and id(node) not in own
+        ):
+            count += 1
+            ok = False
     return count, ok
 
 
@@ -179,12 +250,15 @@ class _Module:
     """One parsed module and the lookups the allow-list needs."""
 
     tree: ast.Module
+    mentioned_elsewhere: _MentionedElsewhere
     functions: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = field(
         default_factory=dict
     )
     calls: list[tuple[_Scope, ast.Call]] = field(default_factory=list)
+    trusted: bool = False
 
     def __post_init__(self) -> None:
+        self.trusted = _resolver_is_trusted(self.tree)
         for stmt in self.tree.body:
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 self.functions[stmt.name] = stmt
@@ -214,6 +288,22 @@ class _Module:
                 return call.args[index]
         return None
 
+    def _only_called_directly(self, func_name: str) -> bool:
+        """Whether every use of *func_name* is a direct call in this module.
+
+        A helper passed as a value (``submit(_run, ...)``, ``f = _run``) or
+        named in another module has callers this scan cannot see.
+        """
+        direct = {id(call.func) for _, call in self.calls}
+        for node in ast.walk(self.tree):
+            if (
+                isinstance(node, ast.Name)
+                and node.id == func_name
+                and id(node) not in direct
+            ):
+                return False
+        return not self.mentioned_elsewhere(func_name)
+
     def _is_fed_parameter(self, scope: _Scope, name: str) -> bool:
         """Rule (c): a module-level function's parameter fed only by (a)/(b)."""
         if not isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -224,7 +314,9 @@ class _Module:
             a.arg for a in scope.args.kwonlyargs
         ]:
             return False
-        if _bindings(scope, name)[0]:
+        if _bindings(scope, name, self.trusted)[0]:
+            return False
+        if not self._only_called_directly(scope.name):
             return False
         callers = [
             (caller_scope, call)
@@ -244,7 +336,7 @@ class _Module:
     def is_receiving_actor(
         self, scope: _Scope, expr: ast.expr, *, follow_params: bool = True
     ) -> bool:
-        if _is_resolver_call(expr):
+        if _is_resolver_call(expr, self.trusted):
             return True
         if not isinstance(expr, ast.Name):
             return False
@@ -253,7 +345,7 @@ class _Module:
             name in _all_params(scope)
         ):
             return follow_params and self._is_fed_parameter(scope, name)
-        count, all_resolver = _bindings(scope, name)
+        count, all_resolver = _bindings(scope, name, self.trusted)
         return count > 0 and all_resolver
 
 
@@ -268,12 +360,51 @@ def _actor_argument(call: ast.Call) -> ast.expr | None:
     return None
 
 
-def _scan(tree: ast.AST, label: str) -> tuple[int, list[str]]:
+def _unchecked_references(module: _Module, label: str) -> list[str]:
+    """Uses of ``execute_with_setup`` the call check cannot see.
+
+    A call outside any function body (in a lambda or a class body) is never
+    paired with a scope, and a reference that is not a call's callee (an
+    alias, a ``getattr`` string) hides the call that follows.  Both fail.
+    """
+    scanned = {id(call) for _, call in module.calls}
+    callees = {
+        id(node.func)
+        for node in ast.walk(module.tree)
+        if isinstance(node, ast.Call)
+    }
+    found: list[str] = []
+    for node in ast.walk(module.tree):
+        if _is_execute_with_setup_call(node) and id(node) not in scanned:
+            found.append(
+                f"{label}:{_corpus.node_line(node)}: {_CALLEE} call outside"
+                " a function body is not checked"
+            )
+        named = (isinstance(node, ast.Attribute) and node.attr == _CALLEE) or (
+            isinstance(node, ast.Name) and node.id == _CALLEE
+        )
+        if named and id(node) not in callees:
+            found.append(
+                f"{label}:{_corpus.node_line(node)}: {_CALLEE} referenced"
+                " other than as a direct call"
+            )
+        if isinstance(node, ast.Constant) and node.value == _CALLEE:
+            found.append(
+                f"{label}:{_corpus.node_line(node)}: {_CALLEE} named in a string"
+            )
+    return found
+
+
+def _scan(
+    tree: ast.AST,
+    label: str,
+    mentioned_elsewhere: _MentionedElsewhere = lambda _name: False,
+) -> tuple[int, list[str]]:
     """Return ``(calls_seen, violations)`` for one module."""
     assert isinstance(tree, ast.Module)
-    module = _Module(tree)
+    module = _Module(tree, mentioned_elsewhere)
     seen = 0
-    violations: list[str] = []
+    violations = _unchecked_references(module, label)
     for scope, call in module.calls:
         if not _is_execute_with_setup_call(call):
             continue
@@ -292,6 +423,21 @@ def _label(source_path: Path) -> str:
     return source_path.relative_to(_corpus.REPO_ROOT).as_posix()
 
 
+def _mentioned_outside(path: Path) -> _MentionedElsewhere:
+    """Whether a name appears as a word in a ``vultron`` module other than *path*."""
+
+    def mentioned(name: str) -> bool:
+        word = re.compile(rf"\b{re.escape(name)}\b")
+        return any(
+            other != path and word.search(source)
+            for other, source in _corpus.sources_mentioning(
+                name, under=_VULTRON_ROOT
+            )
+        )
+
+    return mentioned
+
+
 def test_received_side_execute_with_setup_runs_as_receiving_actor() -> None:
     """Every received-side execute_with_setup runs as the resolved receiver.
 
@@ -300,9 +446,9 @@ def test_received_side_execute_with_setup_runs_as_receiving_actor() -> None:
     violations: list[str] = []
     files_with_calls: set[Path] = set()
     for py_file, tree in _corpus.files_mentioning(
-        _CALL_FRAGMENT, under=_RECEIVED_ROOT
+        _CALLEE, under=_RECEIVED_ROOT
     ):
-        seen, found = _scan(tree, _label(py_file))
+        seen, found = _scan(tree, _label(py_file), _mentioned_outside(py_file))
         if seen:
             files_with_calls.add(py_file)
         violations.extend(found)
@@ -328,8 +474,20 @@ def test_received_side_execute_with_setup_runs_as_receiving_actor() -> None:
     )
 
 
-def _fixture_violations(source: str) -> list[str]:
-    seen, violations = _scan(_corpus.parse_inline(source), "fixture")
+_IMPORT = f"from {_RESOLVER_MODULE} import {_RESOLVER}\n"
+
+
+def _fixture_violations(
+    source: str,
+    *,
+    import_resolver: bool = True,
+    mentioned_elsewhere: _MentionedElsewhere = lambda _name: False,
+) -> list[str]:
+    """Scan an inline fixture, by default under the canonical resolver import."""
+    text = (_IMPORT + source) if import_resolver else source
+    seen, violations = _scan(
+        _corpus.parse_inline(text), "fixture", mentioned_elsewhere
+    )
     assert seen, "fixture contains no execute_with_setup call"
     return violations
 
@@ -455,6 +613,79 @@ _NEGATIVE_FIXTURES: dict[str, str] = {
         "def execute(self):\n"
         f"    _outer({_RESOLVED})\n"
     ),
+    # Escapes: a sender value reaching the call by a path the scan must see.
+    "nonlocal_rebind_from_nested_function": (
+        "def execute(self):\n"
+        f"    receiving_actor_id = {_RESOLVED}\n"
+        "    def rebind():\n"
+        "        nonlocal receiving_actor_id\n"
+        "        receiving_actor_id = request.actor_id\n"
+        "    rebind()\n"
+        "    b.execute_with_setup(tree=t, actor_id=receiving_actor_id)\n"
+    ),
+    "helper_parameter_nonlocal_rebind": (
+        "def _run(dl, receiving_actor_id):\n"
+        "    def rebind():\n"
+        "        nonlocal receiving_actor_id\n"
+        "        receiving_actor_id = request.actor_id\n"
+        "    rebind()\n"
+        "    b.execute_with_setup(tree=t, actor_id=receiving_actor_id)\n"
+        "\n"
+        "def execute(self):\n"
+        f"    _run(self._dl, {_RESOLVED})\n"
+    ),
+    "call_in_lambda": (
+        "def execute(self):\n"
+        f"    b.execute_with_setup(tree=t, actor_id={_RESOLVED})\n"
+        "    run = lambda: b.execute_with_setup(tree=t, actor_id=request.actor_id)\n"
+    ),
+    "call_in_class_body": (
+        "def execute(self):\n"
+        f"    b.execute_with_setup(tree=t, actor_id={_RESOLVED})\n"
+        "\n"
+        "class Holder:\n"
+        "    result = b.execute_with_setup(tree=t, actor_id=request.actor_id)\n"
+    ),
+    "aliased_callee": (
+        "def execute(self):\n"
+        f"    b.execute_with_setup(tree=t, actor_id={_RESOLVED})\n"
+        "    run = b.execute_with_setup\n"
+        "    run(t, request.actor_id)\n"
+    ),
+    "getattr_callee": (
+        "def execute(self):\n"
+        f"    b.execute_with_setup(tree=t, actor_id={_RESOLVED})\n"
+        "    getattr(b, 'execute_with_setup')(t, request.actor_id)\n"
+    ),
+    "helper_also_passed_as_value": (
+        "def _run(dl, receiving_actor_id):\n"
+        "    b.execute_with_setup(tree=t, actor_id=receiving_actor_id)\n"
+        "\n"
+        "def execute(self):\n"
+        f"    _run(self._dl, {_RESOLVED})\n"
+        "    pool.submit(_run, self._dl, request.actor_id)\n"
+    ),
+    "resolver_shadowed_by_def": (
+        "def resolve_receiving_actor_id(dl, actor_id):\n"
+        "    return request.actor_id\n"
+        "\n"
+        "def execute(self):\n"
+        f"    b.execute_with_setup(tree=t, actor_id={_RESOLVED})\n"
+    ),
+    "resolver_reimported_from_elsewhere": (
+        "from m import resolve_receiving_actor_id\n"
+        "def execute(self):\n"
+        f"    b.execute_with_setup(tree=t, actor_id={_RESOLVED})\n"
+    ),
+    "resolver_called_as_attribute": (
+        "def execute(self):\n"
+        "    b.execute_with_setup(\n"
+        "        tree=t,\n"
+        "        actor_id=self.resolve_receiving_actor_id(\n"
+        "            self._dl, request.receiving_actor_id\n"
+        "        ),\n"
+        "    )\n"
+    ),
 }
 
 #: Each source passes the resolved receiving actor in an accepted form.
@@ -510,3 +741,22 @@ def test_detector_accepts_the_resolved_receiving_actor() -> None:
         if (found := _fixture_violations(source))
     }
     assert not flagged, f"detector rejected the receiving actor: {flagged}"
+
+
+def test_detector_refuses_an_unimported_resolver() -> None:
+    """A resolver name with no canonical import is not trusted."""
+    source = (
+        "def execute(self):\n"
+        f"    b.execute_with_setup(tree=t, actor_id={_RESOLVED})\n"
+    )
+    assert _fixture_violations(source, import_resolver=False)
+    assert not _fixture_violations(source)
+
+
+def test_detector_refuses_a_helper_named_in_another_module() -> None:
+    """Rule (c) cannot vouch for a helper another module may call."""
+    source = _POSITIVE_FIXTURES["helper_parameter_fed_the_resolver"]
+    assert _fixture_violations(
+        source, mentioned_elsewhere=lambda n: n == "_run"
+    )
+    assert not _fixture_violations(source)
