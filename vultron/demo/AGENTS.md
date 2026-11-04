@@ -115,6 +115,13 @@ sub-issues were this one defect in different scenarios.
    `demo_check`/`demo_gate` out with `contextlib.nullcontext` makes the assertion
    propagate and the test pass while proving nothing — exactly how the missing
    gate before `engage-case` escaped notice.
+9. **Nest the step that reads a value inside the block that produces it**, and
+   give each nested statement its own `demo_check`/`demo_step`. A name
+   pre-initialised to `None` or `""` before the block is allowed only when every
+   later read is guarded: the sentinel keeps `UnboundLocalError` away but hands
+   the next step a placeholder, which then fails for the wrong reason
+   (EDF-06-005, DEMOCI-01-009, #3038). Both halves are enforced over all of
+   `vultron/demo/` by `test/architecture/test_demo_step_no_unbound_ratchet.py`.
 
 Full reasoning: EDF-06, DEMOMA-22, ADR-0058, and
 [`event-driven-control-flow`](../../notes/event-driven-control-flow.md) § "Temporal

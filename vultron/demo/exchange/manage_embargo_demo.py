@@ -102,8 +102,10 @@ def demo_activate_then_terminate(
 
     case = setup_two_participant_case(client, reporter, vendor, coordinator)
 
-    # Steps 3 to 7 act on the EmbargoEvent step 2 made, so they nest inside
-    # it rather than reading a None sentinel after it (ADR-0058, #3038).
+    # Steps 3, 4 and 6 act on the EmbargoEvent step 2 made, so they nest
+    # inside it rather than reading a None sentinel after it (ADR-0058,
+    # #3038).  Steps 5 and 7 verify their effects and must stay in sequence
+    # between and after them, so they nest with them.
     with demo_step("Step 2: Coordinator proposes embargo"):
         embargo = make_embargo_event(case, days=90, seq=1)
         proposal = em_propose_embargo_activity(
@@ -215,9 +217,10 @@ def demo_reject_then_repropose(
 
     case = setup_two_participant_case(client, reporter, vendor, coordinator)
 
-    # Each decision and its verification act on the EmbargoEvent the proposal
-    # step made, so they nest inside it rather than reading a None sentinel
-    # after it (ADR-0058, #3038).
+    # Each decision acts on the EmbargoEvent its proposal step made, so it
+    # nests inside that step rather than reading a None sentinel after it
+    # (ADR-0058, #3038); the verification that follows each decision must stay
+    # in sequence after it, so it nests with it.
     with demo_step("Step 2: Coordinator proposes first embargo (45-day)"):
         embargo_v1 = make_embargo_event(case, days=45, seq=1)
         proposal_v1 = em_propose_embargo_activity(

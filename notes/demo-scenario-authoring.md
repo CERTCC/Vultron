@@ -27,6 +27,7 @@ related_notes:
   - notes/ownership-transfer.md
   - notes/devcontainer-tooling.md
   - notes/activitystreams-semantics.md
+  - notes/architecture-ratchet-corpus.md
 relevant_packages:
   - vultron/demo
 ---
@@ -195,18 +196,27 @@ records itself without ending the run. A helper that wraps a trigger call in
   the `demo_step` / `demo_gate` body that produces it (ADR-0058), so a failed
   block skips its dependents. Do not pre-set the name to `None` and read it after
   the block: that satisfies the unbound-variable ratchet but hands `None` to the
-  next step, which then fails for the wrong reason (#3887).
+  next step, which then fails for the wrong reason (#3887). A step that reads
+  nothing but must run *between* two that do nests with them: nesting changes
+  execution order, so leaving it outside would move it after the whole group.
+- **Wrap each nested statement in its own `demo_check` or `demo_step`.** A bare
+  call inside the producing block records its failure under the producer's name,
+  which is the mis-blame the rule above exists to remove.
 - Where the reader cannot be nested (the value crosses a story fragment
   boundary), treat `None` as "already recorded as failed": do not raise,
   guard each attribute access, and skip the dependent steps.
 
-`test/architecture/test_demo_step_no_unbound_ratchet.py` enforces both bullets.
-Its unbound check reports a name assigned only inside a demo block and read
-after it (#2308); its sentinel check reports a name pre-initialised to `None`,
-assigned inside a demo block, then passed to a call or attribute-accessed after
-it with no `is None` comparison, truthiness test or rebinding in between
-(#3038). The sentinel is therefore admitted exactly when the guard the second
-bullet asks for is present, and dropping the guard means nesting the reader.
+`test/architecture/test_demo_step_no_unbound_ratchet.py` enforces both bullets
+over **all** of `vultron/demo/`, `exchange/` included — the scope line above
+bounds this note's other rules, not this ratchet. Its unbound check reports a
+name assigned only inside a demo block and read after it (#2308); its sentinel
+check reports a name pre-initialised to `None` or `""`, assigned inside a demo
+block, then passed to a call or attribute-accessed after it with no guard
+before that first read (#3038). A guard is an `is None` / `is not None`
+comparison, an `== ""`, a truthiness test, or a rebinding; the first one in
+evaluation order defends every read after it, so the `if x is None: raise`
+shape this section asks for satisfies the check without enclosing the reads.
+Dropping the guard means nesting the reader.
 
 ---
 

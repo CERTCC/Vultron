@@ -251,7 +251,13 @@ def demo_invalidate_report(
         # The vendor created the case on receipt (auto_create_case), so its
         # introduction reaches the reporter whatever the RM outcome
         # (CBT-01-001).
-        verify_reporter_trusts_introduction(client, reporter, vendor, report)
+        with demo_check(
+            "The reporter accepted the case introduction on the"
+            " trusted route (CBT-01-001)"
+        ):
+            verify_reporter_trusts_introduction(
+                client, reporter, vendor, report
+            )
 
     logger.info(
         "✅ DEMO 2 COMPLETE: Report invalidated and the reporter's replica records it."
@@ -313,7 +319,13 @@ def demo_invalidate_and_close_report(
         # The vendor created the case on receipt (auto_create_case), so its
         # introduction reaches the reporter whatever the RM outcome
         # (CBT-01-001).
-        verify_reporter_trusts_introduction(client, reporter, vendor, report)
+        with demo_check(
+            "The reporter accepted the case introduction on the"
+            " trusted route (CBT-01-001)"
+        ):
+            verify_reporter_trusts_introduction(
+                client, reporter, vendor, report
+            )
 
     logger.info(
         "✅ DEMO 3 COMPLETE: Report invalidated, case left, and the reporter's replica records it."

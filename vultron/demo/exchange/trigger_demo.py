@@ -93,6 +93,8 @@ def demo_validate_and_engage(
     logger.info("TRIGGER DEMO 1: Validate Report → Engage Case")
     logger.info("=" * 80)
 
+    vendor_session = ActorSession(client=client, actor=vendor).quiet()
+
     # Everything after step 1 acts on the report and Offer it produced, so it
     # nests inside that step rather than reading a None sentinel after it
     # (ADR-0058, #3038).
@@ -109,7 +111,6 @@ def demo_validate_and_engage(
             ),
         )
 
-        vendor_session = ActorSession(client=client, actor=vendor).quiet()
         # validate-report addresses the CASE_MANAGER of the case opened on
         # receipt, which the vendor knows only once the CaseActor's replica of
         # the case reaches its own store; on a live server that lands after
@@ -172,7 +173,13 @@ def demo_validate_and_engage(
                             activity.get("type"),
                         )
 
-        verify_reporter_trusts_introduction(client, reporter, vendor, report)
+        with demo_check(
+            "The reporter accepted the case introduction on the"
+            " trusted route (CBT-01-001)"
+        ):
+            verify_reporter_trusts_introduction(
+                client, reporter, vendor, report
+            )
 
     logger.info(
         "✅ TRIGGER DEMO 1 COMPLETE: Report validated and case engaged "
@@ -206,6 +213,8 @@ def demo_invalidate_and_close(
     logger.info("TRIGGER DEMO 2: Invalidate Report → Close Case")
     logger.info("=" * 80)
 
+    vendor_session = ActorSession(client=client, actor=vendor).quiet()
+
     # Everything after step 1 acts on the report and Offer it produced, so it
     # nests inside that step rather than reading a None sentinel after it
     # (ADR-0058, #3038).
@@ -222,7 +231,6 @@ def demo_invalidate_and_close(
             ),
         )
 
-        vendor_session = ActorSession(client=client, actor=vendor).quiet()
         # invalidate-report addresses the CASE_MANAGER of the case opened on
         # receipt; before the vendor holds its replica of that case the
         # trigger addresses the reporter, whose inbox refuses it (#5464).  The
@@ -290,7 +298,13 @@ def demo_invalidate_and_close(
 
         # The case was created on receipt, so the vendor still introduces it
         # to the reporter (CBT-01-001).
-        verify_reporter_trusts_introduction(client, reporter, vendor, report)
+        with demo_check(
+            "The reporter accepted the case introduction on the"
+            " trusted route (CBT-01-001)"
+        ):
+            verify_reporter_trusts_introduction(
+                client, reporter, vendor, report
+            )
 
     logger.info(
         "✅ TRIGGER DEMO 2 COMPLETE: Report invalidated and its case "

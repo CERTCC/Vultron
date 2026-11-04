@@ -120,9 +120,10 @@ def demo_invite_actor_accept(
             f"No CASE_MANAGER participant found for case '{case.id_}' (CM-02-014, CM-02-015)"
         )
 
-    # Every later step answers the Invite this step sends, so they all nest
-    # inside it rather than reading an empty-string sentinel after it
-    # (ADR-0058, #3038).
+    # Step 3 answers the Invite this step sends, so it nests inside it rather
+    # than reading an empty-string sentinel after it (ADR-0058, #3038).
+    # Steps 4 and 5 follow that answer and must stay in sequence after it, so
+    # they nest with it.
     with demo_step("Step 2: Vendor invites coordinator to case"):
         invite_id = case_manager_invites_actor(
             client, case, vendor, coordinator, invite_actor_id
@@ -228,9 +229,10 @@ def demo_invite_actor_reject(
             f"No CASE_MANAGER participant found for case '{case.id_}' (CM-02-014, CM-02-015)"
         )
 
-    # Steps 3 and 4 answer and verify the Invite this step sends, so they nest
-    # inside it rather than reading an empty-string sentinel after it
-    # (ADR-0058, #3038).
+    # Step 3 rejects the Invite this step sends, so it nests inside it rather
+    # than reading an empty-string sentinel after it (ADR-0058, #3038).
+    # Step 4 verifies that rejection and must stay in sequence after it, so it
+    # nests too.
     with demo_step(
         "Step 2: Vendor fires invite-actor-to-case trigger and delivers invite"
     ):

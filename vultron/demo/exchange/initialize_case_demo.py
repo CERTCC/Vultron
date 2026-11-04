@@ -228,7 +228,13 @@ def demo_initialize_case(
         # The vendor created a case for the report on receipt, and introduces
         # it to the reporter with its own Create(VulnerabilityCase)
         # (CBT-01-001).
-        verify_reporter_trusts_introduction(client, reporter, vendor, report)
+        with demo_check(
+            "The reporter accepted the case introduction on the"
+            " trusted route (CBT-01-001)"
+        ):
+            verify_reporter_trusts_introduction(
+                client, reporter, vendor, report
+            )
 
     logger.info(
         "✅ DEMO COMPLETE: Case initialized with vendor and reporter participants."

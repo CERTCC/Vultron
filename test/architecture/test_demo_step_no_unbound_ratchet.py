@@ -46,22 +46,31 @@ step.  It fails if any name is:
 1. Pre-initialised to a placeholder literal — ``None`` or ``""`` — at the
    statement level of a block, AND
 2. Assigned anywhere inside a later ``demo_step``, ``demo_check`` or
-   ``demo_gate`` body in that same block — nested assignments included, since
-   a block that raises early never reaches them either, AND
-3. Read after that block closes — passed as a call argument, or
-   attribute-accessed — before any guard on it.
+   ``demo_gate`` body — nested assignments included, since a block that
+   raises early never reaches them either, and a producing block one level
+   in, inside an ``if``, ``for``, ``try`` or ``match``, counts too, AND
+3. Read after that block closes, before any guard on it.
 
-A guard is a comparison of the name against a placeholder (``is None``,
+A **read** is the name passed to a call — directly, or inside a ``dict``,
+``list``, ``tuple``, ``set``, star-unpack or f-string argument, because
+#3038's own line is ``post_to_trigger(..., body={"invite_id": invite_id})`` —
+or an attribute or subscript of it.  A bare ``return name`` is not a read:
+that is the ``Optional[T]`` contract, and the caller carries the guard.
+
+A **guard** is a comparison of the name against a placeholder (``is None``,
 ``is not None``, ``== ""``), a truthiness test (``if x:``, ``assert x``,
 ``if not x:``), or a rebinding of the name to something that is not a
-placeholder; the first of those in source order makes every read after it
-safe.  Nested function and class bodies are a separate scope and are not
+placeholder.  The first guard, rebinding or read in evaluation order decides,
+so a guard beside the later reads defends them as an enclosing one would —
+deliberate, because ``if x is None: raise`` is the shape the authoring note
+asks for.  Nested function and class bodies are a separate scope and are not
 followed.
 
 Both checks key on the act — the pre-initialisation, the guarded ``with``, the
 read — and not on the name of the function that performs it, so neither loses
 subjects to a rename (#5535).  Neither carries a baseline: the terminal value
-of both is the empty set, and it is reached (ARCH-18-005).
+of both is the empty set, and it is reached (ARCH-18-005), which is what makes
+the closing paragraph below stale; retiring it is #3934's item 3.
 
 Once all 93 sites documented in issue #2308 are fixed this test becomes a
 permanent ratchet — adding a new undefended site will cause the CI job to
@@ -235,7 +244,9 @@ def _violations_in_file(path: pathlib.Path) -> list:
 class SentinelSite(NamedTuple):
     """One placeholder pre-initialisation that a guarded block then assigns.
 
-    *read* is the line of the first read of *name* after the block that no
+    *block* is the line of the guarded ``with``, so two blocks writing the
+    same sentinel are told apart rather than producing identical records.
+    *read* is the line of the first read of *name* after that block which no
     guard defends, or ``None`` when every later read is defended.  A site with
     no unguarded read is the legitimate ``Optional[T]`` shape
     (``notes/demo-scenario-authoring.md``); a site with one is a #3038 defect.
@@ -243,6 +254,7 @@ class SentinelSite(NamedTuple):
 
     preinit: int
     name: str
+    block: int
     read: int | None
 
 
@@ -296,14 +308,14 @@ def _rebound_names(node: ast.AST) -> set[str]:
     return set()
 
 
-def _assigned_within(stmts: list) -> set:
+def _assigned_within(stmts: list[ast.stmt]) -> set[str]:
     """Names assigned anywhere in *stmts*, not crossing a nested scope.
 
     Wider than :func:`_assigned_shallow`, which the unbound check needs: a
     sentinel written inside a nested ``demo_check`` is just as unwritten when
     the enclosing block raises before reaching it.
     """
-    names: set = set()
+    names: set[str] = set()
 
     def _collect(node: ast.AST) -> None:
         if isinstance(node, _SCOPE_TYPES):
@@ -355,30 +367,56 @@ def _guards_name(node: ast.AST, name: str) -> bool:
     return False
 
 
-def _call_argument_names(call: ast.Call) -> set[str]:
-    """Names passed directly as a positional, starred or keyword argument."""
+#: Expressions that carry a name into a call argument without being one.
+#: #3038's own code is ``post_to_trigger(..., body={"invite_id": invite_id})``,
+#: so a dict, a list, a tuple, a set, a star-unpack or an f-string argument is
+#: descended into rather than skipped.
+_ARGUMENT_CONTAINERS = (
+    ast.Dict,
+    ast.List,
+    ast.Tuple,
+    ast.Set,
+    ast.Starred,
+    ast.JoinedStr,
+    ast.FormattedValue,
+)
+
+
+def _passed_names(argument: ast.expr) -> set[str]:
+    """Names *argument* carries into the call, inside a container or not.
+
+    A nested call is not descended into: the walk visits it on its own, and
+    its arguments are read as that call's, not this one's.
+    """
+    if isinstance(argument, ast.Name):
+        return {argument.id}
+    if not isinstance(argument, _ARGUMENT_CONTAINERS):
+        return set()
     names: set[str] = set()
-    passed: list[ast.expr] = [
-        *call.args,
-        *(keyword.value for keyword in call.keywords),
-    ]
-    for argument in passed:
-        value = (
-            argument.value if isinstance(argument, ast.Starred) else argument
-        )
-        if isinstance(value, ast.Name):
-            names.add(value.id)
+    for child in ast.iter_child_nodes(argument):
+        if isinstance(child, ast.expr):
+            names |= _passed_names(child)
+    return names
+
+
+def _call_argument_names(call: ast.Call) -> set[str]:
+    """Names *call* receives as a positional, starred or keyword argument."""
+    names: set[str] = set()
+    for argument in (*call.args, *(kw.value for kw in call.keywords)):
+        names |= _passed_names(argument)
     return names
 
 
 def _reads_name(node: ast.AST, name: str) -> bool:
-    """True when *node* passes *name* to a call or reads an attribute of it.
+    """True when *node* passes *name* to a call, or indexes into it.
 
-    These are the two shapes that turn a placeholder into a failure blamed on
-    the wrong step: the step posts the placeholder as a trigger body, or it
-    raises ``AttributeError`` on ``None``.
+    These are the shapes that turn a placeholder into a failure blamed on the
+    wrong step: the step posts the placeholder as a trigger body, or it raises
+    ``AttributeError`` / ``TypeError`` on ``None``.  A bare ``return name``
+    is not one of them — that is the documented ``Optional[T]`` contract, and
+    the caller carries the guard.
     """
-    if isinstance(node, ast.Attribute):
+    if isinstance(node, (ast.Attribute, ast.Subscript)):
         return isinstance(node.value, ast.Name) and node.value.id == name
     if isinstance(node, ast.Call):
         return name in _call_argument_names(node)
@@ -401,13 +439,36 @@ def _evaluated_before_binding(node: ast.AST) -> list[ast.AST]:
     return []
 
 
+#: Comprehension nodes, whose ``for``/``if`` clauses run before the element
+#: expression although the element comes first in field order.
+_COMPREHENSIONS = (
+    ast.ListComp,
+    ast.SetComp,
+    ast.GeneratorExp,
+    ast.DictComp,
+)
+
+
+def _in_evaluation_order(node: ast.AST) -> list[ast.AST]:
+    """*node*'s children in evaluation order.
+
+    Field order is evaluation order for every statement and expression the
+    demo tree writes, except a comprehension: its generators and their ``if``
+    clauses run before the element it yields.
+    """
+    children = list(ast.iter_child_nodes(node))
+    if not isinstance(node, _COMPREHENSIONS):
+        return children
+    clauses = [c for c in children if isinstance(c, ast.comprehension)]
+    return [*clauses, *[c for c in children if c not in clauses]]
+
+
 def _first_event(node: ast.AST, name: str) -> tuple[str, int] | None:
     """The first guard, rebinding or unguarded read of *name* in *node*.
 
-    A depth-first walk in field order, which is source order for every
-    statement the demo tree writes.  ``("safe", line)`` for a guard or a
-    rebinding, ``("read", line)`` for an unguarded read, ``None`` when *node*
-    neither guards nor reads *name*.
+    A depth-first walk in evaluation order.  ``("safe", line)`` for a guard or
+    a rebinding, ``("read", line)`` for an unguarded read, ``None`` when
+    *node* neither guards nor reads *name*.
     """
     if isinstance(node, _SCOPE_TYPES):
         return None
@@ -423,15 +484,22 @@ def _first_event(node: ast.AST, name: str) -> tuple[str, int] | None:
         return "safe", _corpus.node_line(node)
     if _reads_name(node, name):
         return "read", _corpus.node_line(node)
-    for child in ast.iter_child_nodes(node):
+    for child in _in_evaluation_order(node):
         event = _first_event(child, name)
         if event is not None:
             return event
     return None
 
 
-def _first_unguarded_read(stmts: list, name: str) -> int | None:
-    """Line of the first unguarded read of *name* in *stmts*, else ``None``."""
+def _first_unguarded_read(stmts: list[ast.stmt], name: str) -> int | None:
+    """Line of the first unguarded read of *name* in *stmts*, else ``None``.
+
+    The first guard, rebinding or read in source order decides: a guard that
+    does not itself enclose a later read still defends it.  That leniency is
+    deliberate — it keeps the check free of false positives on the
+    early-return shape ``if x is None: return`` — and
+    :func:`test_a_guard_defends_reads_it_does_not_enclose` pins it.
+    """
     for stmt in stmts:
         event = _first_event(stmt, name)
         if event is None:
@@ -441,61 +509,82 @@ def _first_unguarded_read(stmts: list, name: str) -> int | None:
     return None
 
 
-def _sentinel_sites_in_stmts(stmts: list) -> list[SentinelSite]:
+def _nested_blocks(stmt: ast.stmt) -> Iterator[list[ast.stmt]]:
+    """Statement lists nested directly in *stmt*, within the same scope."""
+    if isinstance(stmt, _SCOPE_TYPES):
+        return
+    if isinstance(stmt, (ast.If, ast.While, ast.For, ast.AsyncFor)):
+        yield stmt.body
+        yield stmt.orelse
+    elif isinstance(stmt, (ast.With, ast.AsyncWith)):
+        yield stmt.body
+    elif isinstance(stmt, (ast.Try, ast.TryStar)):
+        yield stmt.body
+        yield stmt.orelse
+        yield stmt.finalbody
+        for handler in stmt.handlers:
+            yield handler.body
+    elif isinstance(stmt, ast.Match):
+        for case in stmt.cases:
+            yield case.body
+
+
+def _sites_for_block(
+    block: ast.With, sentinels: dict[str, int], following: list[ast.stmt]
+) -> list[SentinelSite]:
+    """A site per tracked sentinel the guarded *block* assigns."""
+    written = _assigned_within(block.body) & set(sentinels)
+    return [
+        SentinelSite(
+            sentinels[name],
+            name,
+            block.lineno,
+            _first_unguarded_read(following, name),
+        )
+        for name in sorted(written)
+    ]
+
+
+def _sentinel_sites_in_stmts(
+    stmts: list[ast.stmt],
+    inherited: dict[str, int] | None = None,
+    trailing: tuple[ast.stmt, ...] = (),
+) -> list[SentinelSite]:
     """Every placeholder sentinel a guarded block in *stmts* assigns.
 
     Walks the statement list left to right, tracking which names currently
     hold a placeholder pre-initialisation, and records a site for each one a
-    guarded block then assigns.
+    guarded block then assigns.  *inherited* carries the names an enclosing
+    block pre-initialised and *trailing* the statements that follow it, so a
+    producing block nested in an ``if``, ``for`` or ``try`` is seen, and a
+    read after the enclosing statement counts (#3038).
     """
     sites: list[SentinelSite] = []
-    sentinels: dict[str, int] = {}
+    sentinels: dict[str, int] = dict(inherited or {})
 
     for index, stmt in enumerate(stmts):
+        following = [*stmts[index + 1 :], *trailing]
+        onward = tuple(following)
+
         preinit = _placeholder_preinit_names(stmt)
         if preinit:
-            for name in preinit:
-                sentinels[name] = stmt.lineno
+            sentinels.update(dict.fromkeys(preinit, stmt.lineno))
             continue
 
         if isinstance(stmt, ast.With) and _cm_name(stmt) in _GUARDED_CMS:
-            written = _assigned_within(stmt.body) & set(sentinels)
-            for name in sorted(written):
-                sites.append(
-                    SentinelSite(
-                        sentinels[name],
-                        name,
-                        _first_unguarded_read(stmts[index + 1 :], name),
-                    )
-                )
+            sites += _sites_for_block(stmt, sentinels, following)
+            # A sentinel declared inside the block is its own subject; the
+            # outer ones are already recorded above, so they do not descend.
+            sites += _sentinel_sites_in_stmts(stmt.body, None, onward)
             continue
+
+        for block in _nested_blocks(stmt):
+            sites += _sentinel_sites_in_stmts(block, sentinels, onward)
 
         for name in _rebound_names(stmt):
             sentinels.pop(name, None)
 
     return sites
-
-
-def _statement_blocks(stmts: list) -> Iterator[list]:
-    """*stmts* and every statement list nested in it within the same scope."""
-    yield stmts
-    for stmt in stmts:
-        if isinstance(stmt, _SCOPE_TYPES):
-            continue
-        if isinstance(stmt, (ast.If, ast.While, ast.For, ast.AsyncFor)):
-            yield from _statement_blocks(stmt.body)
-            yield from _statement_blocks(stmt.orelse)
-        elif isinstance(stmt, (ast.With, ast.AsyncWith)):
-            yield from _statement_blocks(stmt.body)
-        elif isinstance(stmt, (ast.Try, ast.TryStar)):
-            yield from _statement_blocks(stmt.body)
-            yield from _statement_blocks(stmt.orelse)
-            yield from _statement_blocks(stmt.finalbody)
-            for handler in stmt.handlers:
-                yield from _statement_blocks(handler.body)
-        elif isinstance(stmt, ast.Match):
-            for case in stmt.cases:
-                yield from _statement_blocks(case.body)
 
 
 def _sentinel_sites_in_tree(
@@ -505,11 +594,10 @@ def _sentinel_sites_in_tree(
     found: list[tuple[pathlib.Path, SentinelSite]] = []
 
     class _V(ast.NodeVisitor):
-        def _scan(self, body: list) -> None:
-            for block in _statement_blocks(body):
-                found.extend(
-                    (path, site) for site in _sentinel_sites_in_stmts(block)
-                )
+        def _scan(self, body: list[ast.stmt]) -> None:
+            found.extend(
+                (path, site) for site in _sentinel_sites_in_stmts(body)
+            )
 
         def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
             self._scan(node.body)
@@ -1012,7 +1100,289 @@ def example():
     if offer is not None:
         acknowledge(offer)
 """
-    assert _sentinel_sites(src) == [SentinelSite(2, "offer", None)]
+    assert _sentinel_sites(src) == [SentinelSite(2, "offer", 3, None)]
+
+
+def test_sentinel_in_a_trigger_body_dict_is_a_leak():
+    """#3038's own shape: the placeholder inside the posted body.
+
+    ``post_to_trigger(..., body={"invite_id": invite_id})`` is the line the
+    issue quotes, so a container argument is descended into.
+    """
+    src = """\
+def example():
+    invite_id = None
+    with demo_gate("the invite arrived"):
+        invite_id = find_invite()
+
+    post_to_trigger(session, body={"invite_id": invite_id})
+"""
+    assert _sentinel_leaks(src) == [("invite_id", 6)]
+
+
+def test_sentinel_in_an_fstring_argument_is_a_leak():
+    src = """\
+def example():
+    case_id = None
+    with demo_step("Step 1: create the case"):
+        case_id = create_case()
+
+    get(f"/api/v2/cases/{case_id}")
+"""
+    assert _sentinel_leaks(src) == [("case_id", 6)]
+
+
+def test_sentinel_in_a_list_argument_is_a_leak():
+    src = """\
+def example():
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    announce(to=[offer])
+"""
+    assert _sentinel_leaks(src) == [("offer", 6)]
+
+
+def test_sentinel_subscripted_after_the_block_is_a_leak():
+    """``offer["id"]`` raises ``TypeError`` on ``None`` just as an attribute
+    read does."""
+    src = """\
+def example():
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    log(offer["id"])
+"""
+    assert _sentinel_leaks(src) == [("offer", 6)]
+
+
+def test_bare_return_of_the_sentinel_is_not_a_leak():
+    """Returning the sentinel is the ``Optional[T]`` contract, not a read.
+
+    The caller carries the guard, as ``invite_and_await_delivery`` in
+    ``vultron/demo/helpers/invite_chain/chain.py`` does.
+    """
+    src = """\
+def example():
+    delivered = None
+    with demo_gate("the invite was delivered"):
+        delivered = find_invite()
+
+    return delivered
+"""
+    assert _sentinel_leaks(src) == []
+
+
+def test_name_inside_a_nested_call_counts_for_that_call():
+    """A name in an inner call is that call's argument, and still a read."""
+    src = """\
+def example():
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    logger.info("offer: %s", logfmt(offer))
+"""
+    assert _sentinel_leaks(src) == [("offer", 6)]
+
+
+def test_producer_nested_in_an_if_with_an_outer_read_is_a_leak():
+    """A producing block one level in still feeds the read after it.
+
+    The pre-initialisation is tracked into the nested block and the
+    statements after the enclosing ``if`` count as following it.
+    """
+    src = """\
+def example(flag):
+    offer = None
+    if flag:
+        with demo_step("Step 1: produce"):
+            offer = submit_report()
+
+    acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == [("offer", 7)]
+
+
+def test_producer_nested_in_try_except_else_finally_is_found():
+    src = """\
+def example():
+    offer = None
+    try:
+        with demo_step("Step 1: produce"):
+            offer = submit_report()
+    except ValueError:
+        pass
+    else:
+        pass
+    finally:
+        pass
+
+    acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == [("offer", 13)]
+
+
+def test_producer_nested_in_a_match_case_is_found():
+    src = """\
+def example(kind):
+    offer = None
+    match kind:
+        case "report":
+            with demo_step("Step 1: produce"):
+                offer = submit_report()
+
+    acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == [("offer", 8)]
+
+
+def test_producer_nested_in_a_while_orelse_arm_is_found():
+    src = """\
+def example(pending):
+    offer = None
+    while pending:
+        pass
+    else:
+        with demo_step("Step 1: produce"):
+            offer = submit_report()
+
+    acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == [("offer", 9)]
+
+
+def test_sentinel_declared_inside_a_guarded_block_is_its_own_subject():
+    src = """\
+def example():
+    with demo_step("Step 1: open"):
+        offer = None
+        with demo_check("the offer landed"):
+            offer = find_offer()
+
+        acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == [("offer", 7)]
+
+
+def test_while_guard_defends_the_read():
+    src = """\
+def example():
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    while offer:
+        acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == []
+
+
+def test_conditional_expression_guard_defends_the_read():
+    src = """\
+def example():
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    acknowledge(offer.id_ if offer else None)
+"""
+    assert _sentinel_leaks(src) == []
+
+
+def test_comprehension_guard_defends_the_read():
+    src = """\
+def example(cases):
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    announce([link(case, offer) for case in cases if offer])
+"""
+    assert _sentinel_leaks(src) == []
+
+
+def test_boolean_operator_truthiness_guard_defends_the_read():
+    src = """\
+def example(flag):
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    if flag and offer:
+        acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == []
+
+
+def test_augmented_assignment_ends_the_sentinel():
+    src = """\
+def example(extra):
+    note = ""
+    with demo_step("Step 1: produce"):
+        note = compose_note()
+
+    note += extra
+    publish(note)
+"""
+    assert _sentinel_leaks(src) == []
+
+
+def test_with_as_binding_after_the_block_ends_the_sentinel():
+    src = """\
+def example():
+    handle = None
+    with demo_step("Step 1: produce"):
+        handle = open_handle()
+
+    with open("x") as handle:
+        read(handle)
+"""
+    assert _sentinel_leaks(src) == []
+
+
+def test_a_guard_defends_reads_it_does_not_enclose():
+    """The first guard in source order defends every read after it.
+
+    Deliberate leniency: the ``if x is None: raise`` early-exit shape puts the
+    guard beside the reads rather than around them, and treating only
+    enclosed reads as defended would report that shape as a defect.
+    """
+    src = """\
+def example():
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    if offer:
+        log("the offer landed")
+    acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == []
+
+
+def test_two_blocks_writing_one_sentinel_are_told_apart():
+    """Each guarded block gets its own record, keyed on its own line.
+
+    ``vultron/demo/helpers/seeding/reset.py`` pre-initialises two loop
+    variables that two sibling blocks then write; without the block line the
+    two records would be identical.
+    """
+    src = """\
+def example():
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    with demo_step("Step 2: re-produce"):
+        offer = submit_report()
+"""
+    assert _sentinel_sites(src) == [
+        SentinelSite(2, "offer", 3, None),
+        SentinelSite(2, "offer", 6, None),
+    ]
 
 
 @pytest.mark.spec("EDF-06-005")
@@ -1025,8 +1395,9 @@ def test_no_placeholder_sentinel_read_after_demo_block():
     """
     leaks = [
         f"{path.relative_to(_corpus.REPO_ROOT)}:{site.preinit}:"
-        f" '{site.name}' holds its placeholder until the guarded block"
-        f" assigns it, then is read unguarded at line {site.read}"
+        f" '{site.name}' holds its placeholder until the block on line"
+        f" {site.block} assigns it, then is read unguarded at line"
+        f" {site.read}"
         for path, site in _demo_sentinel_sites()
         if site.read is not None
     ]
