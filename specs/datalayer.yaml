@@ -576,7 +576,7 @@ groups:
     statement: >-
       The persistence write path MUST normalise wire to core through a
       `CORE_VOCABULARY` lookup (DL-05-006, ARCH-23-002), not through a hand-kept
-      list of wire classes in `vultron/adapters/driven/db_record.py`.
+      list of wire classes in `vultron/adapters/driven/db_record/`.
     rationale: >-
       A wire-shaped row in a core-typed table breaks every later read of that row. A
       hand-kept list of wire classes to normalise must change each time a type changes,
@@ -660,7 +660,7 @@ groups:
     statement: >-
       The persistence write path MUST NOT keep a deferral list of types not yet
       normalised, such as `_NOT_YET_NORMALIZED` in
-      `vultron/adapters/driven/db_record.py`.
+      `vultron/adapters/driven/db_record/`.
     rationale: >-
       With disjoint registry keys (ARCH-23-002), no wire type shadows a core type, so no
       type is left to defer. `extra="forbid"` (ARCH-12-003) makes a wrongly shaped row
@@ -1747,8 +1747,8 @@ groups:
       declaration, outbox delivery refuses the stored activity for AKM-03-003, and the
       invitee is never told about its invitation. Read-back must also re-type the inline
       object, or semantic matching classifies the activity as UNKNOWN. For this reason
-      the re-typing set (`_inline_typed_fields` in `db_record.py`) is wider than the
-      dehydration set and includes `context`.
+      the re-typing set (`_inline_typed_fields` in `db_record/ref_fields.py`) is wider
+      than the dehydration set and includes `context`.
     relationships:
     - rel_type: refines
       spec_id: DL-08-001

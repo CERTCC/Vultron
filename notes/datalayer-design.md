@@ -184,7 +184,7 @@ message-subject-identity rule in
 ## Received Activity Artifacts: Inline Sub-Field Snapshots Are Intentional
 
 A received Activity is an **artifact**: `_dehydrate_data` in
-`vultron/adapters/driven/db_record.py` deliberately does NOT recursively
+`vultron/adapters/driven/db_record/codec.py` deliberately does NOT recursively
 dehydrate the sub-fields of an inline Activity object. When `Accept` stores an
 inline `Offer`, the `Offer`'s own `object_`, `target`, etc. stay a snapshot of
 what they contained at receipt time. Do not change this, for two reasons:

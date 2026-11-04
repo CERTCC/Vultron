@@ -31,12 +31,12 @@ from vultron.adapters.driven.datalayer_sqlite.hydration.fields import (
     field_admits_object,
 )
 from vultron.adapters.driven.db_record import (
-    _AS_LIST_REF_FIELDS,
     STORED_ROW_CONTEXT,
     Record,
     object_ref_fields,
     record_to_object,
 )
+from vultron.adapters.driven.db_record.ref_fields import _AS_LIST_REF_FIELDS
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.protocols import PersistableModel
 from vultron.errors import VultronValidationError
