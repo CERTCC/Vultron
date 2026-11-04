@@ -173,7 +173,7 @@ actor container (actor0 … actor4, case-actor; may host several actors)
   dedicated `case-actor` container; each participant container holds its
   replica. Live mode picks its streams the way the report tool picks its
   ledgers — the `LedgerDumpTarget` list each scenario module builds
-  (`vultron/demo/helpers/ledger_dump.py`) — so it never misses the case
+  (`vultron/demo/helpers/ledger_dump/`) — so it never misses the case
   manager's authoritative ledger.
 - **Per-replica view.** Because the dashboard reads every actor, it can
   show replica convergence side by side — the same per-actor presence view

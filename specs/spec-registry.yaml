@@ -1950,6 +1950,38 @@ groups:
     tags:
     - documentation
     - tooling
+  - id: SR-11-009
+    priority: SHOULD
+    kind: process
+    statement: >-
+      The spec linter SHOULD print one advisory line per spec file that counts
+      the file's `kind: project` and `kind: process` requirements with no
+      `stories:` field. The count leaves out `kind: protocol` and `kind:
+      architecture` requirements. The advisory does not change the exit code.
+      The IDs are listed only when the `--list-no-story-ids` flag is set.
+    rationale: >-
+      Project and process requirements may cite contributor and maintainer
+      stories, but the written rationale stays their required reason, so the
+      link is encouraged and not gated. A count per file shows the backlog
+      without a hard error. One line per file keeps the default output short,
+      and the opt-in ID list gives a worklist when one is wanted. Protocol
+      requirements are left out because SR-11-003 and SR-11-004 cover them.
+    verification: >-
+      In `test/metadata/specs/lint/test_advisories.py`,
+      `test_project_no_story_advisory_per_file` covers the per-file count,
+      `test_project_no_story_advisory_list_ids_opt_in` covers the opt-in
+      listing, `test_protocol_architecture_excluded_from_project_story_advisory`
+      covers the exclusion, and
+      `test_project_process_story_advisory_exit_code_unaffected` covers the
+      zero exit code.
+    adr:
+    - ADR-0072
+    relationships:
+    - rel_type: refines
+      spec_id: SR-11-001
+    tags:
+    - documentation
+    - tooling
 - id: SR-12
   title: Spec Selection Backstop
   specs:

@@ -43,7 +43,6 @@ from test.demo._helpers import (
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import (
     coordinated_story,
-    invite_chain,
     owner_decision_story as ods,
 )
 from vultron.demo.helpers.coordinated_story import (
@@ -51,6 +50,7 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER_LABEL,
     joining as coordinated_joining,
 )
+from vultron.demo.helpers.invite_chain import links as invite_links
 from vultron.demo.helpers.owner_decision_story import (
     HANDED_OVER_CASE,
     Part,
@@ -425,7 +425,7 @@ class TestTheOwnerApprovesASuggestedActor:
                 return_value="urn:test:case-actor-participant",
             ),
             patch.object(
-                invite_chain, "find_case_invite_for_actor", **invite_lookup
+                invite_links, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
             patch.object(ods, "invitee_triages_after_joining"),
             patch_chain_shared(

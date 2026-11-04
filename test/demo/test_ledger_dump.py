@@ -26,11 +26,11 @@ from _pytest.outcomes import Failed
 
 from test.ci.invariants import common
 from vultron.demo.helpers.ledger_dump import (
-    _PRERUN_SENTINEL_REASON,
     DUMP_MANIFEST_FILENAME,
     case_ledger_length,
     write_prerun_sentinel,
 )
+from vultron.demo.helpers.ledger_dump.manifest import _PRERUN_SENTINEL_REASON
 
 
 def _read_sentinel(manifest_path: Path) -> Any:
