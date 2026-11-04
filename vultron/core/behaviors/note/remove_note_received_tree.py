@@ -77,13 +77,15 @@ def create_remove_note_from_case_received_tree(
     """
     return create_receive_activity_tree(
         name="GuardedDetachAndCommitBT",
-        # The note's author or the Case Owner asks the CASE_MANAGER, and a
-        # replica applies a removal only when the CASE_MANAGER sent it
-        # (CM-30-001, CM-30-003): the two non-empty sides of the sender rule,
-        # so the two declared paths (HP-01-038).  As with the Add, the
-        # replica path carries no effect of its own — RSH-08-003 keeps every
-        # write at the CASE_MANAGER — and is declared because the act is the
-        # CASE_MANAGER's to relay (PCR-03-001).
+        # The note's author or the Case Owner asks the CASE_MANAGER, and at a
+        # replica only the CASE_MANAGER is an entitled sender (CM-30-001,
+        # CM-30-003): the two non-empty sides of the sender rule, so the two
+        # declared paths (HP-01-038).  As with the Add, the replica path
+        # carries no effect of its own — RSH-08-003 keeps every write at the
+        # CASE_MANAGER, so a replica detaches the note from the entry's
+        # Announce fan-out (SYNC-02-001, SYNC-02-003) and a direct
+        # Remove(Note) there is refused (HP-01-005).  It is declared all the
+        # same because the act is the CASE_MANAGER's to relay (PCR-03-001).
         paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         case_id=case_id,
         sender_rule=sender_rule,

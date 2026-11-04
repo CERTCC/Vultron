@@ -469,9 +469,9 @@ UNDECLARED_PATH_EXEMPTIONS: dict[Site, str] = {
     # The dead-letter tree is not a message type's: it runs for any activity
     # whose object_ URI did not resolve, so no type's paths are its to
     # declare (HP-01-038).  What it does is the receiver's own diagnostic —
-    # a DeadLetterRecord naming no case — identical on every path, so a
-    # stage would read a role (HP-01-037) in a case the activity only happens
-    # to mention, and no branch would use the answer (HP-01-038).
+    # a DeadLetterRecord naming no case — with no branch of it keyed on the
+    # path, so a stage would read a role (HP-01-037) in a case the activity
+    # only happens to mention, and nothing would use the answer (HP-01-038).
     (
         f"{_D}/dead_letter_tree.py",
         "create_store_dead_letter_tree",
