@@ -1669,11 +1669,12 @@ groups:
     - rel_type: derives_from
       spec_id: DEMOMA-22-001
       note: >-
-        This requirement is the RVCV-handoff instance of the general rule
-        DEMOMA-22-001, which applies the same constraint to every scenario and
-        additionally constrains *what* the wait may observe (EDF-06-001 through
-        EDF-06-003). "A polling wait exists here" is necessary but not
-        sufficient. This requirement remains active; it is not superseded.
+        A polling wait at each RVCV-handoff boundary follows from DEMOMA-22-001,
+        which gates every async boundary of every scenario and also constrains
+        *what* the wait may observe (EDF-06-001 through EDF-06-003). Meeting this
+        requirement does not meet DEMOMA-22-001: "a polling wait exists here" is
+        necessary but not sufficient. This requirement remains active; it is not
+        superseded.
   - id: DEMOMA-11-010
     priority: MUST
     kind: project
