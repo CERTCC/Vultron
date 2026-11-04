@@ -18,6 +18,7 @@ from vultron.wire.as2.case_proposal_envelope import (
 )
 from vultron.wire.as2.case_reference_placement import (
     refuse_misplaced_case_reference,
+    refuse_misplaced_case_stub,
 )
 from vultron.wire.as2.errors import (
     VultronParseError,
@@ -223,7 +224,8 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
             if a ``Create(CaseProposal)`` does not carry its proposer's inline
             actor profile (CP-01-010), if a case reference sits anywhere but
             the object of a ``Join``, ``Ignore``, ``Leave`` or ``Offer``
-            (AKM-03-004),
+            (AKM-03-004), if a case stub sits anywhere but the target of an
+            Invite that invites an actor to the case (MV-10-002),
             or if the body cannot be re-serialized as strict JSON to seal it
             as received evidence (VM-08-002).
     """
@@ -335,6 +337,8 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     refuse_malformed_case_proposal_envelope(activity)
     # A case reference names the case only where an act may (AKM-03-004).
     refuse_misplaced_case_reference(activity)
+    # A case stub stands for the case only in a case invitation (MV-10-002).
+    refuse_misplaced_case_stub(activity)
 
     activity.seal_received_evidence(evidence_json)
     return activity

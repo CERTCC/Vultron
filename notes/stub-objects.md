@@ -55,6 +55,11 @@ parser, which is why the refusal exists.
 
 ## Receiving a Stub
 
+A stub is accepted only as the `target` of an `Invite` whose `object` is an actor,
+including that `Invite` inline in its `Accept` or `Reject`. The parser refuses it
+anywhere else, an embargo invitation included, because only the case invitation asks
+the question the stub answers (MV-10-002, `refuse_misplaced_case_stub`).
+
 Look the full object up in the local DataLayer by `id`; if absent, the stub is a
 placeholder until the full case is shared. A stub never overwrites a full object
 already held (MV-10-003) and never creates a new domain record (MV-10-004).

@@ -489,8 +489,9 @@ groups:
       `test_parse_activity_refuses_malformed_nested_object_of_known_type` in
       `test/wire/as2/test_parser.py` confirms that an inline object of another
       recognised wire type that fails its class is refused under MV-04-003 rather than
-      degraded. Bare URI references and `Link` objects remain accepted in all four
-      positions named by MV-10-002.
+      degraded. `test_a_case_uri_or_link_is_accepted_where_a_stub_is_refused` in
+      `test/wire/as2/test_case_stub_placement.py` confirms that a bare URI or a `Link`
+      naming the case is accepted in `target`, `context`, `origin` and `object`.
     relationships:
     - rel_type: derives_from
       spec_id: MV-10-008
@@ -526,17 +527,30 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A `VulnerabilityCaseStub` object is ONLY permitted in the following field
-      positions of an ActivityStreams activity: `actor`, `object`, `target`, and
-      `origin`.
+      A `VulnerabilityCaseStub` object is ONLY permitted as the `target` of an `Invite`
+      whose `object` is the actor invited to the case, including that `Invite` carried
+      inline in its `Accept` or `Reject`. A receiver MUST refuse an activity that carries
+      a stub in any other position, naming each position.
     rationale: >-
-      Scopes the position rule to the one permitted stub type (MV-10-001). A reference in
-      any of these positions may also be a bare URI or a `Link`; those forms are always
-      acceptable and are unaffected by MV-04-003's refusal of malformed inline objects.
+      The stub exists so that an invitee can decide whether to join a case before it is
+      entitled to the case (MV-10-001, ADR-0114). The case invitation is the one message
+      that asks that question, so it is the stub's one position. Anywhere else the
+      sender names the case by its URI or a `Link`, or carries it whole. A stub there
+      would stand in for a case the activity needs whole, or show case context to a
+      party that was not asked to join. An embargo invitation names its case by URI as
+      well.
     verification: >-
-      Inspection of the inbound message validator confirms that stub detection runs only
-      on `actor`, `object`, `target`, and `origin` fields; stubs in other field positions
-      are treated as full-object validation failures.
+      `test/wire/as2/test_case_stub_placement.py`:
+      `test_a_stub_as_the_target_of_a_case_invitation_is_accepted` parses the case
+      invitation and its `Accept` and `Reject`, and
+      `test_a_case_invitation_naming_its_invitee_by_reference_keeps_its_stub` one that
+      names its invitee by URI or `Link`;
+      `test_a_stub_outside_a_case_invitation_target_is_refused`,
+      `test_a_stub_as_the_target_of_another_activity_is_refused`,
+      `test_a_stub_in_an_embargo_invitation_is_refused` and
+      `test_a_stub_nested_outside_the_invite_target_is_refused` assert that a stub in
+      every other position is refused with the position named; and
+      `test_every_misplaced_stub_is_named` asserts that each misplaced stub is reported.
     stories:
     - story_2026_013
     adr:

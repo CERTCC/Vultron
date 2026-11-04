@@ -567,7 +567,7 @@ def test_a_stub_that_claims_another_type_is_refused():
 
 @pytest.mark.spec("VM-07-001")
 def test_vulnerability_case_stub_with_summary():
-    """as_VulnerabilityCaseStub may expose a summary field (MV-10-002)."""
+    """as_VulnerabilityCaseStub may expose a summary field (MV-10-001)."""
     stub = as_VulnerabilityCaseStub(
         case_id="https://example.org/cases/case-stub-002",
         summary="Heap overflow in libfoo",
