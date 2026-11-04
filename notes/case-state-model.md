@@ -116,7 +116,7 @@ The vendor may self-report `v→V`, and the party that delivered the report to
 the vendor (or invited it) may assert `v→V` on its behalf, because awareness
 means having received the information. `f→F` and `d→D` are self-reports only.
 The on-behalf path is the add-on-behalf-status trigger, which permits only
-`v→V` for a vendor (`vultron/core/use_cases/triggers/request_bodies.py`). The
+`v→V` for a vendor (`vultron/core/use_cases/triggers/request_bodies/case.py`). The
 dispute edge cases are an open question in protocol spec §13.4.1
 (`docs/reference/vultron-spec/_oq-v-to-V.md`).
 
