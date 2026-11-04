@@ -248,7 +248,9 @@ class TestDumpRunsAfterMidStoryFailure:
             patch.object(
                 story_cast, "reset_datalayer", return_value={"status": "ok"}
             ),
-            patch("vultron.demo.helpers.seeding.seed_case_actor_identity"),
+            patch(
+                "vultron.demo.helpers.seeding.reset.seed_case_actor_identity"
+            ),
             patch.object(
                 vendor_cast, "seed_containers", return_value=tuple(actors)
             ),

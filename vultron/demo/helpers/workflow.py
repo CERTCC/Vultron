@@ -34,7 +34,6 @@ from vultron.demo.helpers.invite_chain import (
     run_case_invite_chain,
 )
 from vultron.demo.helpers.polling import (
-    _poll_until,
     case_actor_participant_id_in,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
@@ -45,6 +44,7 @@ from vultron.demo.helpers.polling import (
     wait_for_report_submission_stored,
     wait_for_reporter_introduction,
 )
+from vultron.demo.helpers.polling._poll import _poll_until
 from vultron.demo.helpers.seeding import get_actor_by_id
 from vultron.demo.helpers.verification import _fetch_participant
 from vultron.demo.utils import (

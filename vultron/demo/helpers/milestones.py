@@ -31,13 +31,13 @@ from vultron.core.states.em import is_em_embargo_active
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.polling import (
     PARTICIPANT_JOIN_TIMEOUT,
-    _poll_until,
     find_case_actor_participant_id,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_participant_pxa_state,
 )
+from vultron.demo.helpers.polling._poll import _poll_until
 from vultron.demo.helpers.sync import _extract_ref_id
 from vultron.demo.helpers.verification import (
     _assert_participant_pxa_only,

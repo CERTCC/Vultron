@@ -133,7 +133,7 @@ def _opening(
     with (
         patch.object(story_cast, "reset_datalayer", recorder.reset_datalayer),
         patch(
-            "vultron.demo.helpers.seeding.seed_case_actor_identity",
+            "vultron.demo.helpers.seeding.reset.seed_case_actor_identity",
             recorder.seed_case_actor_identity,
         ),
         patch.object(

@@ -56,7 +56,7 @@ from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
-import vultron.demo.helpers.polling as polling_module
+import vultron.demo.helpers.polling.case as polling_case_module
 import vultron.demo.helpers.sync as sync_module
 import vultron.demo.scenario.rvv_demo as demo
 import vultron.demo.utils as demo_utils
@@ -95,6 +95,7 @@ from vultron.demo.helpers.polling import (
     wait_for_contiguous_ledger_coverage,
     wait_for_semantic_type_in_ledger,
 )
+from vultron.demo.helpers.seeding import reset as seeding_reset
 from vultron.demo.helpers.story import (
     Choose,
     StoryState,
@@ -347,7 +348,7 @@ class TestRvvCast:
             patch.object(
                 story_cast, "reset_datalayer", return_value={"status": "ok"}
             ) as reset,
-            patch.object(seeding, "seed_case_actor_identity") as reseed,
+            patch.object(seeding_reset, "seed_case_actor_identity") as reseed,
             patch.object(
                 vendor_cast, "seed_containers", return_value=tuple(seeded)
             ) as seed_two,
@@ -847,7 +848,9 @@ class TestEveryReplicaConverges:
             # Patched on the polling module, which is the global the real
             # wait_for_participants_on_replicas calls.
             patch.object(
-                polling_module, "wait_for_case_participants", participant_wait
+                polling_case_module,
+                "wait_for_case_participants",
+                participant_wait,
             ),
             patch.object(
                 sync_module, "verify_replica_state"

@@ -231,8 +231,10 @@ def test_wait_participant_status_timeout_includes_base_url(monkeypatch):
     fired.  The error must include ``client.base_url`` so the container is
     identifiable from the message alone.
     """
-    import vultron.demo.helpers.polling as polling_module
-    from vultron.demo.helpers.polling import _wait_for_participant_status_field
+    import vultron.demo.helpers.polling.participant as polling_module
+    from vultron.demo.helpers.polling.participant import (
+        _wait_for_participant_status_field,
+    )
 
     ps = as_ParticipantStatus(
         context=_CASE_ID, rm=RmDimension(state=RM.RECEIVED)

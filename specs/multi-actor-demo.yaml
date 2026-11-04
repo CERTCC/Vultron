@@ -3945,7 +3945,7 @@ groups:
     verification_debt: '#2573'
     statement: >-
       A `seed_containers_rcvcv` function MUST be added to
-      `vultron/demo/helpers/seeding.py` accepting five `DataLayerClient`
+      `vultron/demo/helpers/seeding/` accepting five `DataLayerClient`
       arguments (reporter_client, c1_client, v1_client, c2_client, v2_client)
       and five optional deterministic actor ID arguments.
     rationale: >-
@@ -5724,7 +5724,7 @@ groups:
       coverage of an authority's tail through a shared helper in
       `vultron/demo/helpers/sync.py`. The helper reads the authority tail and polls
       each replica. It applies the named ledger-coverage timeout constants
-      from `vultron/demo/helpers/polling.py`: a default budget and a wider late-joiner
+      from `vultron/demo/helpers/polling/`: a default budget and a wider late-joiner
       budget. Neither budget is below one that a scenario carried before the loop was
       shared. The helper wraps each per-replica wait in a demo context.
     rationale: >-
