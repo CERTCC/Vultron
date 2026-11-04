@@ -917,6 +917,71 @@ groups:
       spec_id: HP-01-038
     adr:
     - ADR-0153
+  - id: HP-01-042
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The receive-tree factory MUST build every HP-01-038 branch itself, from the
+      path the HP-01-035 stage resolved. A branch naming the manager path alone
+      bounds both BT-17-008 and RSH-08-003: neither an emit nor a state write
+      there needs a further record. A branch naming any other path bounds
+      neither. An emit inside it still needs a named replica-emit exemption, and
+      a state write inside it stays pinned with its reason.
+    rationale: >-
+      A branch a tree builds itself is a role check the tree asks, which HP-01-036
+      removes: it can disagree with the stage, or omit the path check entirely, and
+      the factory's walks cannot tell it from the one they trust. The asymmetry
+      between the two branch kinds is what the walks need: the manager path is the
+      CASE_MANAGER, so BT-17-001's gate and the branch that names that path say the
+      same thing. Any other path says only that the receiver is *not* the
+      CASE_MANAGER, which is not yet a statement that the emit is that receiver's
+      own to send or that the write is one RSH-08-003 admits.
+    verification: >-
+      `test/architecture/test_received_tree_case_manager_gate.py::test_only_the_factory_builds_a_path_branch`
+      holds the set of modules that construct a branch to the branch module and the
+      factory with its stage builders, so a tree that built one of its own fails it.
+      `test/core/behaviors/case/test_received_path_branch.py` asserts that the branch
+      reads the stage's answer and asks nothing itself
+      (`::test_the_branch_reads_the_stages_answer_and_asks_nothing_itself`), that an
+      emit on the manager path alone needs no exemption
+      (`::test_an_emit_on_the_manager_path_alone_needs_no_replica_exemption`), that
+      one off it is still ungated
+      (`::test_an_emit_off_the_manager_path_is_still_ungated`), and that the
+      state-write walk stops at a manager-only branch while descending into any
+      other
+      (`::test_a_state_write_is_bounded_only_by_a_manager_only_branch`).
+      `test/architecture/test_received_tree_state_writes_are_gated.py::test_received_tree_state_writes_are_gated_or_known`
+      keeps every state write outside a `CaseManagerGate` pinned with its reason.
+      A write in a *tree* declaring the manager path alone but in no branch is
+      not this requirement's subject — the walk reads a branch's own paths — so
+      the diversion case is recorded there and governed by CLP-10-066.
+    relationships:
+    - rel_type: depends_on
+      spec_id: HP-01-038
+    - rel_type: depends_on
+      spec_id: HP-01-036
+    adr:
+    - ADR-0153
+  - id: HP-01-043
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      A received tree MUST NOT build an HP-01-038 branch of its own.
+    rationale: >-
+      A branch a tree builds for itself is a role check the tree asks, which
+      HP-01-036 removes: it can read a stage of its own, or omit the path check
+      entirely, and the factory's walks cannot tell it from the one they trust.
+      HP-01-042 gives the factory that job for the same reason HP-01-007 gives it
+      the sender guard.
+    verification: >-
+      `test/architecture/test_received_tree_case_manager_gate.py::test_only_the_factory_builds_a_path_branch`
+      holds the set of modules that construct one to the branch module itself and
+      the factory with its stage builders.
+    relationships:
+    - rel_type: depends_on
+      spec_id: HP-01-042
+    adr:
+    - ADR-0153
   - id: HP-01-032
     priority: MUST
     kind: architecture

@@ -33,12 +33,23 @@ event (CLP-13-001)::
        ├─ EmbargoInviteNotYetRefusedNode  # the Reject is its own record (HP-01-003)
        └─ SendEmbargoProposalRefusalNode / SendEmbargoInviteAnswerNode
 
-It is the receiver's own answer, so it is a ``RECEIVER`` diversion: a
+It is the receiver's own answer, and where that receiver may be is the host
+tree's path declaration, never a second declaration here (HP-01-038): a
 participant answers an Invite addressed to it with a ``Reject`` of it to the
 CASE_MANAGER, and
 the CASE_MANAGER answers the actor that sent it the Invite or the Accept
-(EP-09-003, EP-09-010, PCR-08-001).  The emit is covered by
-:data:`~vultron.core.behaviors.replica_emit_exemptions.EMBARGO_INVITE_REFUSAL`.
+(EP-09-003, EP-09-010, PCR-08-001).
+
+The Invite tree declares both the manager and the participant-replica path,
+so its refusal may run at either, and the ``Reject`` it sends is the
+receiver's own act on whichever one: the structural check is
+:class:`~vultron.core.behaviors.embargo.nodes.pxa_refusal.ReceiverIsInviteeNode`,
+and the decision behind it is recorded as
+:data:`~vultron.core.behaviors.replica_emit_exemptions.EMBARGO_INVITE_REFUSAL`
+(BT-17-008).  The Accept tree declares the CASE_MANAGER path alone, so its
+refusal reaches no other receiver and the declaration is the guard: that one
+carries no exemption.
+
 The ``Reject`` is queued by a node of the tree, never by the use case's ``execute()``
 (CLP-10-020).
 """
@@ -47,7 +58,6 @@ import py_trees
 
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     Diversion,
-    DiversionGate,
 )
 from vultron.core.behaviors.embargo.nodes.cascade import (
     PersistEmbargoEventNode,
@@ -83,20 +93,15 @@ def _answer(
     ]
 
 
-def _pxa_refusal(
-    name: str,
-    case_id: str,
-    reason: str,
-    effects: list[py_trees.behaviour.Behaviour],
-) -> Diversion:
-    """The receiver's diversion: P/X/A set, so *effects* answer with a ``Reject``."""
-    return Diversion(
-        name=name,
-        condition=PxaBarsEmbargoNode(case_id=case_id, reason=reason),
-        effects=tuple(effects),
-        gate=DiversionGate.RECEIVER,
-        emit_exemption=EMBARGO_INVITE_REFUSAL,
-    )
+def _pxa_condition(case_id: str, reason: str) -> PxaBarsEmbargoNode:
+    """The diversion's condition: P, X or A is set on the case.
+
+    Each refusal builds its own :class:`Diversion` around this, because the
+    emit exemption a refusal needs depends on the paths its host tree
+    declares and the pinned exemption set reads that constant at the
+    ``Diversion`` itself (BT-17-008, ARCH-18-005).
+    """
+    return PxaBarsEmbargoNode(case_id=case_id, reason=reason)
 
 
 def pxa_invite_refusal(
@@ -115,6 +120,10 @@ def pxa_invite_refusal(
     URI only is answered all the same: the ``Reject`` names the Invite by id
     (ADR-0123).  Only the invitee answers (EP-09-010); any other store keeps
     the Invite's archive and sends nothing.
+
+    Its host tree declares the manager and the participant-replica path, so
+    the refusal may run at either and its emit carries the
+    ``EMBARGO_INVITE_REFUSAL`` decision (BT-17-008).
 
     Args:
         case_id: The case the embargo was proposed for.
@@ -141,12 +150,15 @@ def pxa_invite_refusal(
             ),
         )
     )
-    return _pxa_refusal(
-        PXA_INVITE_REFUSAL,
-        case_id,
-        f"EMB-01-002: P/X/A set on case '{case_id}'; embargo proposal"
-        " rejected",
-        effects,
+    return Diversion(
+        name=PXA_INVITE_REFUSAL,
+        condition=_pxa_condition(
+            case_id,
+            f"EMB-01-002: P/X/A set on case '{case_id}'; embargo proposal"
+            " rejected",
+        ),
+        effects=tuple(effects),
+        emit_exemption=EMBARGO_INVITE_REFUSAL,
     )
 
 
@@ -159,26 +171,34 @@ def pxa_accept_refusal(
     accepting actor with a ``Reject`` of the Invite, built from the Invite
     the receiver sent and holds.
 
+    Its host tree, the Accept tree, declares the CASE_MANAGER path alone, so
+    this refusal runs only there and needs no emit exemption: the
+    declaration is the guard (HP-01-038, BT-17-008).
+
     Args:
         case_id: The case the Invite was for.
         invite_id: The accepted Invite.
         accepting_actor_id: The Accept's sender, to whom the Reject goes.
     """
-    return _pxa_refusal(
-        PXA_ACCEPT_REFUSAL,
-        case_id,
-        f"EMB-02-004: P/X/A set on case '{case_id}'; embargo acceptance"
-        " rejected",
-        _answer(
+    return Diversion(
+        name=PXA_ACCEPT_REFUSAL,
+        condition=_pxa_condition(
             case_id,
-            invite_id,
-            SendEmbargoInviteAnswerNode(
-                case_id=case_id,
-                invite_id=invite_id,
-                accept=False,
-                recipient_id=accepting_actor_id,
-                name="SendEmbargoRefusal",
-            ),
+            f"EMB-02-004: P/X/A set on case '{case_id}'; embargo acceptance"
+            " rejected",
+        ),
+        effects=tuple(
+            _answer(
+                case_id,
+                invite_id,
+                SendEmbargoInviteAnswerNode(
+                    case_id=case_id,
+                    invite_id=invite_id,
+                    accept=False,
+                    recipient_id=accepting_actor_id,
+                    name="SendEmbargoRefusal",
+                ),
+            )
         ),
     )
 

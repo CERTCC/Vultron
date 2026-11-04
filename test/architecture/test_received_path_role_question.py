@@ -130,15 +130,18 @@ KNOWN_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
         # its paths: with a declaration the arms read the path stage's
         # answer instead (HP-01-036).
         (f"{_B}/sender_guard/compose.py", CONDITION),
-        # Gate-wrapped precondition guards a received tree passes.
+        # Gate-wrapped precondition guards a received tree passes.  The
+        # embargo guards (``answer_record``, ``answer_repeat``,
+        # ``relay_guards``) went with #5042: a manager-only declaration runs
+        # its guards bare, and a guard that belongs to one path of a
+        # two-path declaration is an ``OnPaths`` branch the factory builds
+        # (HP-01-038).
         (f"{_C}/nodes/suggest_actor/conditions.py", GATE),
-        (f"{_E}/nodes/answer_record.py", GATE),
-        (f"{_E}/nodes/answer_repeat.py", GATE),
-        (f"{_E}/nodes/relay_guards.py", GATE),
         # Received trees that gate work themselves instead of declaring the
-        # path it belongs to.
-        (f"{_E}/announce_teardown_tree/invite.py", GATE),
-        (f"{_E}/announce_teardown_tree/teardown.py", GATE),
+        # path it belongs to.  The embargo Invite and Remove trees moved
+        # theirs into ``OnPaths`` branches in #5042, so the two entries
+        # #5766's split renamed to ``announce_teardown_tree/invite.py`` and
+        # ``.../teardown.py`` are gone rather than repointed.
         (f"{_B}/sync/announce_tree/factory.py", CONDITION),
     }
 )
@@ -154,7 +157,6 @@ SANCTIONED_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
     {
         (f"{_C}/receive_stages/effects.py", GATE),
         (f"{_C}/receive_stages/guards.py", GATE),
-        (f"{_C}/receive_stages/guards.py", CONDITION),
         (f"{_C}/receive_stages/tree.py", GATE),
         (f"{_C}/nodes/clock_decision_stage.py", GATE),
         (f"{_B}/sync/ledger_position_stage.py", GATE),

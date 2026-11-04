@@ -348,6 +348,24 @@ answer, clock decisions, guards, commit, effects.
    second role read (HP-01-036). Never build the branch in a tree module: the
    factory owns it, as it owns the CASE_MANAGER gate.
 
+   A tree that declares one path runs its guards **bare**. A gate wrapped round
+   a guard in a manager-only tree is dead code whose skip arm is unreachable,
+   and it reads as a second asker of the role question
+   (`test/architecture/test_received_path_role_question.py`); drop it in the
+   same commit as the declaration, and let the guard keep the gate body's name
+   so the built tree still reads the same.
+
+   The declaration also says where a diversion may run, and nothing beside it
+   does: a tree declaring the manager path alone has already refused every
+   other receiver, so its diversion needs no gate of its own and may commit its
+   own entry, while a tree that also declares a non-manager path has a
+   diversion that is the receiver's own answer — no case-state write, no entry,
+   and every emit covered by a registered `ReplicaEmitExemption` (CLP-10-026,
+   BT-17-008, RSH-08-003). An emit in an `OnPaths` branch off the manager path
+   still needs that exemption: the path says the receiver is not the
+   CASE_MANAGER, which is not the same as saying the emit is that receiver's
+   own to send, so `ungated_nodes()` keeps walking into the branch.
+
    The reason an undeclared path is refused with is composed from the resolved
    path and the declaration, in `undeclared_path_reason()`, and nowhere else
    (HP-01-039). One fixed string will not do: "not the CASE_MANAGER of case X"
