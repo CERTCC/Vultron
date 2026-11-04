@@ -59,7 +59,6 @@ from fastapi.testclient import TestClient
 import vultron.demo.helpers.polling.case as polling_case_module
 import vultron.demo.helpers.sync as sync_module
 import vultron.demo.scenario.rvv_demo as demo
-import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
     devlogs_name_of,
     functions_referencing,
@@ -126,6 +125,7 @@ from vultron.demo.scenario import (
 )
 from vultron.demo.scenario.registry import registered_scenarios
 from vultron.demo.utils import DataLayerClient, reset_demo_failures
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -578,7 +578,7 @@ class TestTheSecondVendorIsSeeded:
 
         assert VENDOR2 not in state.cast
         assert sorted(state.unseated) == [VENDOR2]
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("STEP FAILED")
 
     def test_a_container_that_was_never_declared_stops_the_story(self):
@@ -903,7 +903,7 @@ class TestEveryReplicaConverges:
         with self._sync_primitives(_timeout) as verify_replica:
             demo.every_replica_converges(state)
 
-        failures = demo_utils._demo_failures
+        failures = _demo_failures
         assert len(failures) == 2, failures
         assert all(
             "reflects all case participants" in failure for failure in failures
@@ -1148,7 +1148,7 @@ class TestEveryoneCloses:
         ):
             demo.everyone_closes(state)
 
-        failures = demo_utils._demo_failures
+        failures = _demo_failures
         assert len(failures) == 3, failures
         assert all("coverage timeout" in failure for failure in failures), (
             failures

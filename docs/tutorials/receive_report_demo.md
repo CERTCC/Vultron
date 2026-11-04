@@ -252,7 +252,7 @@ We have:
   for a detailed walkthrough of the activities we observed.
 - **Explore the demo scripts** — the source for this demo is in
   `vultron/demo/exchange/receive_report_demo.py`; the shared utilities are in
-  `vultron/demo/utils.py`.
+  `vultron/demo/utils/`.
 - **See the formal names** — [Report Management (RM) Messages](../reference/messages/rm.md)
   maps each RM message to its ActivityStreams wire form.
 - **Run all demos at once** — inside the demo container, run
