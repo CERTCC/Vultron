@@ -38,9 +38,6 @@ groups:
       Wrapping the full rehydrate-to-dispatch path (not the simpler
       `handle_inbox_item`) ensures that deferral and error-requeue behaviours
       are exercisable in unit tests.
-    relationships:
-    - rel_type: depends_on
-      spec_id: DR-01-001
   - id: IBP-01-003
     priority: MUST
     kind: project
@@ -101,9 +98,6 @@ groups:
       Using production wiring guarantees that routing-safety-net tests fail
       immediately when a `SEMANTIC_REGISTRY` use-case registration is missing or a
       use-case constructor signature drifts.
-    relationships:
-    - rel_type: depends_on
-      spec_id: DR-02-001
   - id: IBP-02-003
     priority: SHOULD
     kind: project
@@ -155,10 +149,8 @@ groups:
       Per-domain coverage catches `SEMANTIC_REGISTRY` use-case registration gaps immediately
       without requiring exhaustive per-enum-value tests.
     relationships:
-    - rel_type: depends_on
+    - rel_type: verifies
       spec_id: DR-02-002
-    - rel_type: depends_on
-      spec_id: TB-02-002
   - id: IBP-04-002
     priority: MUST
     kind: project
@@ -213,6 +205,3 @@ groups:
       Keeping these tests in the unit suite ensures they run on every local
       `pytest` invocation, providing fast feedback without needing the full
       integration environment.
-    relationships:
-    - rel_type: depends_on
-      spec_id: TB-04-001
