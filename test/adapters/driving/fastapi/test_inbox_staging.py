@@ -45,11 +45,9 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
 from vultron.adapters.driving.fastapi.inbox_queue_drain import (
     StoredActivityIngressAdapter,
 )
-from vultron.adapters.inbox_staging import (
-    InlineObjectStaging,
-    _stage_inline_object,
-    _StagingStore,
-)
+from vultron.adapters.inbox_staging import InlineObjectStaging
+from vultron.adapters.inbox_staging.staging import _stage_inline_object
+from vultron.adapters.inbox_staging.store import _StagingStore
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
@@ -288,16 +286,16 @@ def _announce_body(inline: dict[str, Any]) -> dict[str, Any]:
 @pytest.fixture
 def persisted(monkeypatch) -> list[object]:
     """Capture every object ``_stage_inline_object`` hands to storage."""
-    from vultron.adapters import inbox_staging
+    from vultron.adapters.inbox_staging import staging as staging_module
 
     captured: list[object] = []
-    real_object_to_record = inbox_staging.object_to_record
+    real_object_to_record = staging_module.object_to_record
 
     def _spy(obj):
         captured.append(obj)
         return real_object_to_record(obj)
 
-    monkeypatch.setattr(inbox_staging, "object_to_record", _spy)
+    monkeypatch.setattr(staging_module, "object_to_record", _spy)
     return captured
 
 

@@ -523,7 +523,12 @@ class TestOwnershipTransferUseCases:
 
             assert result.disposition is HandlerDisposition.REFUSED
             assert result.reason is not None
-            assert "No sender is entitled" in result.reason
+            # The Offer is the CASE_MANAGER's to send to the transferee, so
+            # its type declares the replica path alone and the stage tells
+            # the case's own CASE_MANAGER that it is one and that the type
+            # does not address it (HP-01-039).
+            assert "the CASE_MANAGER of case" in result.reason
+            assert "does not address" in result.reason
         assert _semantic_types(dl) == []
         trigger_activity.offer_case_ownership_transfer.assert_not_called()
         assert _owner(dl, case_id) == _VENDOR_ID
@@ -754,7 +759,7 @@ class TestOwnershipProposalOwnCopy:
     @pytest.mark.spec("HP-01-005")
     @pytest.mark.spec("CM-21-019")
     @pytest.mark.spec("CM-21-045")
-    def test_own_copy_is_refused_by_the_sender_guard(self, make_payload):
+    def test_own_copy_is_refused_at_the_path_stage(self, make_payload):
         case_id = "https://example.org/cases/case_ot_own_copy"
         dl, _ = _vendor_replica(case_id)
         proposal = _proposal(
@@ -772,7 +777,9 @@ class TestOwnershipProposalOwnCopy:
         )
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert "No sender is entitled" in (result.reason or "")
+        # The proposal's type declares the manager path alone (CM-21-026), so
+        # a replica holding a copy is refused at the path stage (HP-01-039).
+        assert "not the CASE_MANAGER of case" in (result.reason or "")
         assert dl.get(proposal.type_.value, proposal.id_) is None
         assert dl.list_objects("CaseLedgerEntry") == []
         assert dl.outbox_list() == []

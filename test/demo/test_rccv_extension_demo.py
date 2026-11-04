@@ -49,7 +49,6 @@ import pytest
 from click.testing import CliRunner
 
 import vultron.demo.scenario.rccv_extension_demo as demo
-import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
     mock_actor,
     mock_case,
@@ -95,6 +94,7 @@ from vultron.demo.helpers.two_coordinator_story import (
 )
 from vultron.demo.scenario.registry import registered_scenarios
 from vultron.demo.utils import reset_demo_failures
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 
@@ -581,7 +581,7 @@ class TestRccvExtensionDedicatedCaseActor:
                 return_value={"status": "ok"},
             ) as reset,
             patch(
-                "vultron.demo.helpers.seeding.seed_case_actor_identity"
+                "vultron.demo.helpers.seeding.reset.seed_case_actor_identity"
             ) as reseed,
             patch.object(
                 coordinated_cast,
@@ -914,7 +914,7 @@ class TestReplicasDrainBeforeTheVendor:
             demo.replicas_drain_before_the_vendor(state)
 
         per_replica.assert_not_called()
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
         assert "http://c1.test/api/v2" in failure
         assert "opening drain before the Vendor joins" in failure

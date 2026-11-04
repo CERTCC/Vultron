@@ -93,7 +93,10 @@ OTHER_TO_COMPARISONS: frozenset[_Site] = frozenset(
     {
         # Whether the *sender* is an addressee of the request it answers
         # (HP-01-008 positions such as invitee or transferee).
-        ("vultron/core/behaviors/sender_entitlement.py", "_confirm_addressee"),
+        (
+            "vultron/core/behaviors/sender_entitlement/addressee.py",
+            "_confirm_addressee",
+        ),
     }
 )
 
@@ -117,7 +120,7 @@ ADDRESSEE_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
         # The close arm is a subtree of CloseCaseBT, which runs the guard.
         (
             "ENCLOSING_TREE_ADDRESSEE_CHECK",
-            f"{_C}/receive_close_case_tree.py",
+            f"{_C}/receive_close_case_tree/factory.py",
             "create_close_case_received_tree",
         ),
         # A misrouted Invite names no single addressee (EP-09-026).

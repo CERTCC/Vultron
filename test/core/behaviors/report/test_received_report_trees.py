@@ -785,9 +785,10 @@ class TestInvalidateReportReceivedUseCase:
 
 def test_report_verdict_tree_runs_case_clock_decisions_after_sender_guard():
     """A TentativeReject(Offer(VulnerabilityReport)) tree checks the addressee
-    (HP-01-005), resolves the case, checks the sender, then runs the
-    CASE_MANAGER's clock decisions, the embargo end-time check among them,
-    before its guards (HP-01-008, CLP-10-025, EMB-13-003).
+    (HP-01-005), picks the receiver's path (HP-01-035), resolves the case,
+    checks the sender, then runs the CASE_MANAGER's clock decisions, the
+    embargo end-time check among them, before its guards (HP-01-008,
+    CLP-10-025, EMB-13-003).
 
     A ``Reject(Offer(VulnerabilityReport))`` tree has no guards to run them
     before: it refuses every sender on a case (CM-23-019).
@@ -797,10 +798,11 @@ def test_report_verdict_tree_runs_case_clock_decisions_after_sender_guard():
         case_id=CASE_ID,
         sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
     )
-    assert [c.name for c in tree.children[:8]] == [
+    assert [c.name for c in tree.children[:9]] == [
         "IntakeReceivedActivityNode",
         "CaseOpenToExternalWrites",
         "ActivityAddressedToReceiverNode",
+        "ReceivedPathNode",
         "RequireCaseForReport",
         "SenderIsParticipantNode",
         "LedgerPositionIfCaseManager",

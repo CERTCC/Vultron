@@ -45,7 +45,7 @@ relevant_packages:
   - vultron/core/behaviors/sync/nodes/participant_removal_effect.py
   - vultron/core/behaviors/case/nodes/participant_reinstatement.py
   - vultron/core/behaviors/embargo/nodes/reinvite.py
-  - vultron/core/behaviors/sender_entitlement.py
+  - vultron/core/behaviors/sender_entitlement/
   - vultron/core/states/rm.py
   - vultron/wire/as2/factories/case.py
 ---

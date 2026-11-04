@@ -34,6 +34,11 @@ from vultron.core.behaviors.case.nodes.intake import (
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
+from vultron.core.behaviors.case.nodes.path_branch import (
+    OnPaths,
+    resolve_path_branches,
+)
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPathNode
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
     RefusalEffectsBestEffort,
@@ -225,17 +230,24 @@ def diversion_stage(
 
 def precondition_guard_nodes(
     name: str,
-    guards: Sequence[py_trees.behaviour.Behaviour | Diversion],
+    guards: Sequence[py_trees.behaviour.Behaviour | Diversion | OnPaths],
     case_id: str | None,
+    path_stage: ReceivedPathNode | None,
 ) -> list[py_trees.behaviour.Behaviour]:
-    """The tree's precondition guards, each :class:`Diversion` built in place.
+    """The tree's guards, each :class:`Diversion` and :class:`OnPaths` in place.
 
     A diverted delivery is answered by its diversion, so the refusal stage
-    that wraps these guards runs no refusal effect for it (CLP-10-070).
+    that wraps these guards runs no refusal effect for it (CLP-10-070).  A
+    guard declared on some of the tree's paths becomes a path branch reading
+    the stage's answer, in the order the tree listed it (HP-01-038).
     """
-    return [
-        diversion_stage(name, guard, case_id)
-        if isinstance(guard, Diversion)
-        else guard
-        for guard in guards
-    ]
+    return resolve_path_branches(
+        f"create_receive_activity_tree({name})",
+        [
+            diversion_stage(name, guard, case_id)
+            if isinstance(guard, Diversion)
+            else guard
+            for guard in guards
+        ],
+        path_stage,
+    )

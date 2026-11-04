@@ -16,8 +16,8 @@ import pytest
 import yaml
 
 from vultron.metadata.base import repo_root
-from vultron.metadata.docs import page_frontmatter
 from vultron.metadata.docs.page_frontmatter import (
+    check as page_frontmatter_check,
     check_docs_frontmatter,
     classify_docs_tree,
     main,
@@ -815,7 +815,9 @@ def test_cli_reports_failures_without_a_traceback(
     tmp_path, monkeypatch, capsys
 ):
     root = _repo(tmp_path, {"index.md": "---\ntitle: a: b\n---\n"})
-    monkeypatch.setattr(page_frontmatter, "_find_repo_root", lambda: root)
+    monkeypatch.setattr(
+        page_frontmatter_check, "_find_repo_root", lambda: root
+    )
 
     with pytest.raises(SystemExit) as info:
         main([])
@@ -832,7 +834,9 @@ def test_cli_summarizes_a_passing_tree(tmp_path, monkeypatch, capsys):
         {"index.md": _READER, "adr/0001-x.md": _RECORD},
         nav=["index.md"],
     )
-    monkeypatch.setattr(page_frontmatter, "_find_repo_root", lambda: root)
+    monkeypatch.setattr(
+        page_frontmatter_check, "_find_repo_root", lambda: root
+    )
 
     main([])
 
@@ -852,7 +856,7 @@ def test_committed_tree_passes():
     [
         "docs/tutorials/deep/page.md",
         "mkdocs.yml",
-        "vultron/metadata/docs/page_schema.py",
+        "vultron/metadata/docs/page_schema/frontmatter.py",
         "vultron/metadata/base.py",
         "vultron/metadata/file_loading.py",
     ],

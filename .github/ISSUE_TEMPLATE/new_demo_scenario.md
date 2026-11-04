@@ -30,7 +30,7 @@ checked against the registry, so update it by hand (DEMOCI-11-007). See
   - Module docstring describes actors, protocol flow, and CVD phases covered.
   - `@scenario(...)` on `main()`, plus `ROLES` and `CLI_HELP`. These generate
     the `vultron-demo <scenario-name>` sub-command and its options. Do not add
-    a `@main.command` block to `vultron/demo/cli.py` (DEMOCI-11-045).
+    a `@main.command` block to `vultron/demo/cli/` (DEMOCI-11-045).
 - [ ] **Generated artifacts** — run `uv run demo-scenarios --write` and commit
   the result (`.github/demo-scenarios.json` and the generated scenario tables).
   Never hand-edit a generated file. `uv run demo-scenarios --check` reports any

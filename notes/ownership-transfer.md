@@ -279,8 +279,10 @@ CASE_MANAGER inbox receives Reject
   while an Offer is open; once closed, the owner may propose again to anyone, the
   decliner included. The check is `NoOpenOwnershipOfferNode`
   (`core/behaviors/case/nodes/ownership_offer_guard.py`, reading
-  `open_ownership_offer()`) behind the CASE_MANAGER gate
-  `case_manager_admits_ownership_proposal_guard`. A proposal whose derived Offer the
+  `open_ownership_offer()`) in `case_manager_admits_ownership_proposal_guard`,
+  which needs no gate: the proposal's tree declares the manager path alone, so
+  the path stage refuses every other receiver (HP-01-038). A proposal whose
+  derived Offer the
   ledger already records is a redelivery: the guard sets `is_redelivery` and
   `ownership_offer_verdict` reports `SKIPPED` (HP-01-003).
 - **Withdrawal is an `Undo` of the proposal (CM-21-036, CM-21-037).** The

@@ -38,8 +38,10 @@ from vultron.adapters.driven.http_delivery import (
     HttpDeliveryAdapter,
     inbox_url_for,
 )
-from vultron.adapters.driving.fastapi import outbox_handler
 from vultron.adapters.driving.fastapi.outbox_addressing import held_inboxes
+from vultron.adapters.driving.fastapi.outbox_handler import (
+    drain as outbox_drain,
+)
 from vultron.adapters.driving.fastapi.routers import actors as actors_router
 from vultron.core.models.actor import (
     CoreActor,
@@ -105,7 +107,7 @@ def inbox_client(
     Emitter Paths").
     """
     monkeypatch.setattr(
-        outbox_handler._DEFAULT_EMITTER_SLOT, "value", recording_emitter
+        outbox_drain._DEFAULT_EMITTER_SLOT, "value", recording_emitter
     )
     app = FastAPI()
     app.include_router(actors_router.router)

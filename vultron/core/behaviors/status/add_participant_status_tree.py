@@ -91,6 +91,9 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
 from vultron.core.behaviors.case.nodes.carried_object_case import (
     CarriedObjectInTargetCaseNode,
 )
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -299,6 +302,12 @@ def add_participant_status_tree(
     root = create_receive_activity_tree(
         name="AddParticipantStatusBT",
         case_id=tree_case_id,
+        # The participant declares its status to the CASE_MANAGER, which
+        # adjudicates and commits it, and the CASE_MANAGER relays the
+        # adopted status to a participant replica, which archives it and
+        # takes the state from the ledger (RSH-08-003, PCR-03-001,
+        # HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         # A replica takes the update from the CASE_MANAGER alone, so with no
         # CASE_MANAGER to check against it refuses (PCR-03-001, #4646).

@@ -38,12 +38,14 @@ from vultron.adapters.driving.fastapi.routers.datalayer import (
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.demo.helpers import polling
 from vultron.demo.helpers.invite_chain import FULL_CASE_REPLY_TIMEOUT
 from vultron.demo.helpers.polling import (
     BACKFILL_PROGRESS_CEILING,
     ProgressDeadline,
+    _poll,
     find_full_case_invite_for_actor,
+    finders,
+    received,
     wait_for_contiguous_ledger_coverage,
 )
 from vultron.wire.as2.factories import rm_invite_to_full_case_activity
@@ -63,8 +65,8 @@ def clock(monkeypatch) -> list[float]:
     def _sleep(seconds: float) -> None:
         now[0] += seconds
 
-    monkeypatch.setattr(polling.time, "monotonic", lambda: now[0])
-    monkeypatch.setattr(polling.time, "sleep", _sleep)
+    monkeypatch.setattr(_poll.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(_poll.time, "sleep", _sleep)
     return now
 
 
@@ -110,7 +112,7 @@ class _Store:
     def invite_dump(self) -> dict[str, dict]:
         """The dump the full-case Invite poll reads: archive records only."""
         return get_datalayer_contents(
-            datalayer=self.dl, types=list(polling._RECEIVED_ACTIVITY_TYPES)
+            datalayer=self.dl, types=list(received._RECEIVED_ACTIVITY_TYPES)
         )
 
     def invite_poll(self) -> "_PollReads":
@@ -288,7 +290,7 @@ class TestPollUntilKeepsItsFixedDeadline:
     def test_a_zero_budget_still_tries_the_condition_once(self, clock):
         calls: list[float] = []
 
-        polling._poll_until(lambda: calls.append(clock[0]) or True, 0.0)
+        _poll._poll_until(lambda: calls.append(clock[0]) or True, 0.0)
 
         assert len(calls) == 1
 
@@ -296,7 +298,7 @@ class TestPollUntilKeepsItsFixedDeadline:
         start = clock[0]
 
         with pytest.raises(AssertionError, match=r"^never$"):
-            polling._poll_until(lambda: False, 5.0, error_msg="never")
+            _poll._poll_until(lambda: False, 5.0, error_msg="never")
 
         assert 5.0 <= clock[0] - start < 5.5
 
@@ -382,7 +384,7 @@ class TestFullCaseInviteWaitFollowsTheBackfill:
         def _broken(_client: object, _case_id: str) -> int:
             raise RuntimeError("progress reading failed")
 
-        monkeypatch.setattr(polling, "_count_case_ledger_entries", _broken)
+        monkeypatch.setattr(finders, "_count_case_ledger_entries", _broken)
         client = _invite_poll_client(
             [_Store().add_entries(0, 3).add_invite().invite_poll()]
         )

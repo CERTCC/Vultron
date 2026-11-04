@@ -284,25 +284,29 @@ KNOWN_SECOND_AUTHORITY_ASKERS: frozenset[
             "vultron/core/behaviors/case/nodes/received_path.py",
             "ReceivedPathNode",
         ),
-        # Nodes that compare the resolved manager with the executing actor
-        # inline instead of asking a condition node.  Each is replaced by
-        # the shared predicate or by a declared path branch; the ADR-0153
-        # ratchet lists their modules under the INLINE shape.
+        # Two nodes that ask the question where no declared path can answer
+        # it, and so ask it through the shared predicate (ARCH-24-007)
+        # rather than comparing the resolver's answer inline.  Neither is a
+        # condition node, so ARCH-24-003's "exactly one authority condition
+        # node" is arguably already met; whether this inventory should count
+        # an action node that asks the sanctioned predicate, or the rule
+        # should move into tree composition, is #5784.
+        #
+        # The creation-time embargo is the case owner's to set, or the
+        # CASE_MANAGER's on the owner's behalf (CP-09-003), and the case the
+        # rule is about does not exist when the path stage asks, so no
+        # declared path distinguishes the two.
         (
             "vultron/core/behaviors/case/nodes/embargo.py",
             "InitializeCreationEmbargoNode",
         ),
-        (
-            "vultron/core/behaviors/case/nodes/full_case_invite.py",
-            "CheckFullCaseReplyNode",
-        ),
+        # The post-close write boundary binds the CASE_MANAGER (CM-23-013)
+        # and is the first door guard of every received tree, ahead of the
+        # path stage in the CLP-10-010 order, so there is no resolved path
+        # for it to read.
         (
             "vultron/core/behaviors/case/nodes/post_close.py",
             "CaseOpenToExternalWritesNode",
-        ),
-        (
-            "vultron/core/behaviors/case/nodes/reporter_introduction.py",
-            "IntroduceCaseManagerToReporterNode",
         ),
     }
 )
@@ -315,8 +319,8 @@ def _authority_askers() -> frozenset[_authority_question.AuthorityAsker]:
 def test_the_authority_question_is_asked_by_one_node():
     """ARCH-24-003: one sanctioned asker, plus a recorded migration backlog.
 
-    The scan is held to equality, so adding a sixth asker fails here even
-    though five are already recorded. That is the whole point of carrying the
+    The scan is held to equality, so adding another asker fails here even
+    though some are already recorded. That is the whole point of carrying the
     transitional violation instead of relaxing ARCH-24-003: the rule still
     says "exactly one", and this inventory says which nodes have yet to
     reach it and who owns getting them there.

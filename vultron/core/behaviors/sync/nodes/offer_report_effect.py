@@ -34,11 +34,9 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from pydantic import ValidationError
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.log_entry import require_log_entry
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
-from vultron.core.behaviors.sync.nodes.conditions import (
-    _require_log_entry,
-)
 from vultron.core.models._helpers import (
     _as_id,
     project_wire_snapshot_to_core,
@@ -88,7 +86,7 @@ class ApplyOfferReportFromLedgerNode(
             return f
         assert self.datalayer is not None
 
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
 
         # Only handle add_report_to_case entries.
         if entry.semantic_type != MessageSemantics.ADD_REPORT_TO_CASE.value:

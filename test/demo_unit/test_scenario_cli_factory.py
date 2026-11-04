@@ -53,6 +53,7 @@ import pytest
 from click.testing import CliRunner
 
 from vultron.demo import cli
+from vultron.demo.cli import scenario_commands
 from vultron.demo.helpers.actor_roles import ActorRole
 from vultron.demo.helpers.cast import (
     CASE_ACTOR,
@@ -62,7 +63,20 @@ from vultron.demo.helpers.cast import (
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 from vultron.errors import DemoActorRoleError, DemoScenarioRegistryError
 
-_CLI_SOURCE = Path(inspect.getfile(cli))
+#: Every module of the ``vultron.demo.cli`` package: a sub-command or import
+#: can sit in any of them, so the source checks below scan them all.
+_CLI_SOURCES = tuple(sorted(Path(inspect.getfile(cli)).parent.glob("*.py")))
+
+
+def _cli_trees() -> list[tuple[Path, ast.Module]]:
+    """Parse every CLI module; fail rather than scan nothing."""
+    assert any(p.name == "scenario_commands.py" for p in _CLI_SOURCES), (
+        f"the CLI source scan found no scenario factory in {_CLI_SOURCES}"
+    )
+    return [
+        (p, ast.parse(p.read_text(encoding="utf-8"))) for p in _CLI_SOURCES
+    ]
+
 
 #: One generated click option, compared positionally: first flag, parameter
 #: name, envvar, default, help, ``is_flag``, ``show_default``.
@@ -150,7 +164,7 @@ def _command_decorator_names(tree: ast.Module) -> set[str]:
 
 
 def test_no_scenario_subcommand_is_hand_declared() -> None:
-    """No ``@main.command`` in ``cli.py`` names a registered scenario.
+    """No ``@main.command`` in the ``cli`` package names a registered scenario.
 
     This is the half of DEMOCI-11-045 that click cannot answer: a hand-declared
     block alongside the factory would give a scenario *two* declarations, the
@@ -158,16 +172,17 @@ def test_no_scenario_subcommand_is_hand_declared() -> None:
     other check here would still pass.
 
     Asserted over the AST rather than by substring so that naming a scenario in
-    a docstring or comment — as ``cli.py``'s own module docstring does — neither
+    a docstring or comment — as the ``cli`` package docstring does — neither
     satisfies nor trips the check.
     """
-    tree = ast.parse(_CLI_SOURCE.read_text(encoding="utf-8"))
-    declared = _command_decorator_names(tree)
+    declared: set[str] = set()
+    for _, tree in _cli_trees():
+        declared |= set(_command_decorator_names(tree))
     registered = {spec.name for spec in discover_scenarios()}
 
     offenders = sorted(declared & registered)
     assert not offenders, (
-        f"{_CLI_SOURCE.name} hand-declares sub-command(s) for registered "
+        f"vultron.demo.cli hand-declares sub-command(s) for registered "
         f"scenario(s) {offenders}. Scenario sub-commands are generated from the "
         "registry by _make_scenario_command (DEMOCI-11-045); delete the block "
         "and declare what it carried on the scenario module (ROLES, CLI_HELP)."
@@ -229,7 +244,7 @@ def test_scenario_subcommands_are_exactly_the_registered_set() -> None:
     unregistered = sorted(exposed - registered)
     unexposed = sorted(registered - exposed)
     assert not unregistered and not unexposed, (
-        "vultron/demo/cli.py's scenario sub-commands disagree with the "
+        "vultron/demo/cli/'s scenario sub-commands disagree with the "
         "registry:\n"
         f"  exposed but not registered: {unregistered}\n"
         f"  registered but not exposed: {unexposed}\n"
@@ -241,16 +256,14 @@ def test_scenario_subcommands_are_exactly_the_registered_set() -> None:
 
 
 def test_registry_is_the_only_source_of_scenario_subcommands() -> None:
-    """``cli.py`` imports no scenario demo module by name.
+    """The ``cli`` package imports no scenario demo module by name.
 
     A named import list would let the CLI's scenario set drift from the
     registry's — the silent-omission hazard DEMOCI-11-038 removes from
     discovery, reintroduced one layer up.
     """
-    tree = ast.parse(_CLI_SOURCE.read_text(encoding="utf-8"))
-
     imported: list[str] = []
-    for node in ast.walk(tree):
+    for node in (n for _, tree in _cli_trees() for n in ast.walk(tree)):
         if isinstance(node, ast.Import):
             imported.extend(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module:
@@ -262,7 +275,7 @@ def test_registry_is_the_only_source_of_scenario_subcommands() -> None:
         if name.startswith("vultron.demo.scenario.") and name.endswith("_demo")
     )
     assert not offenders, (
-        f"{_CLI_SOURCE.name} imports scenario demo module(s) by name: "
+        f"vultron.demo.cli imports scenario demo module(s) by name: "
         f"{offenders}. The scenario set comes from discover_scenarios(); a "
         "named import here can omit a scenario without failing anything "
         "(DEMOCI-11-044)."
@@ -442,7 +455,7 @@ class TestFactoryRejectsABadModule:
         """Run the factory against *module* standing in for the real one."""
         spec = self._spec()
         with patch.object(importlib, "import_module", lambda _: module):
-            cli._make_scenario_command(spec)
+            scenario_commands._make_scenario_command(spec)
 
     def test_rejects_an_empty_roles_list(self) -> None:
         """``ROLES = []`` is absent, not declared.

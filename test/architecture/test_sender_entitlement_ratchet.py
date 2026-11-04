@@ -37,6 +37,7 @@ fix.  ``OPEN_EXEMPTION_ISSUES`` is the ratchet.
 import ast
 import importlib
 import inspect
+import pkgutil
 import re
 import sys
 from collections import Counter
@@ -133,19 +134,23 @@ def _import_vultron_behaviors() -> None:
 
 
 def test_no_sender_condition_node_outside_sender_entitlement_module():
-    """No SenderEntitlementConditionNode subclass may live outside sender_entitlement.py."""
+    """No SenderEntitlementConditionNode subclass may live outside its package."""
     _import_vultron_behaviors()
 
     MODULE = "vultron.core.behaviors.sender_entitlement"
+
+    def in_home(name: str) -> bool:
+        return name == MODULE or name.startswith(f"{MODULE}.")
+
     violations = []
     for mod in _all_loaded_modules():
-        if mod.__name__ == MODULE:
-            continue  # the canonical home — all good
+        if in_home(mod.__name__):
+            continue  # the canonical home package — all good
         for _name, obj in inspect.getmembers(mod, inspect.isclass):
             if (
                 issubclass(obj, SenderEntitlementConditionNode)
                 and obj is not SenderEntitlementConditionNode
-                and obj.__module__ != MODULE
+                and not in_home(obj.__module__)
             ):
                 violations.append(f"{obj.__module__}.{obj.__name__}")
     assert not violations, (
@@ -236,8 +241,16 @@ def test_any_actor_is_declared_only_by_new_report_use_cases():
 # HP-01-007 / HP-01-025: sender nodes are composed only by the factory
 # ---------------------------------------------------------------------------
 
-_HOME = "vultron/core/behaviors/sender_entitlement.py"
-_COMPOSER = "vultron/core/behaviors/sender_guard.py"
+#: The sender-entitlement package and the composer package, each split by
+#: concern into submodules (CS-18-005); a path under either is a home.
+_HOME = "vultron/core/behaviors/sender_entitlement/"
+_COMPOSER = "vultron/core/behaviors/sender_guard/"
+
+
+def _in_home(rel: str, *homes: str) -> bool:
+    """*rel* is a file under one of the package directories *homes*."""
+    return rel.startswith(homes)
+
 
 #: The only modules that may call the composer's public builders
 #: (:data:`_COMPOSE`): the receive-tree factory, and its door-guard stage
@@ -274,13 +287,25 @@ class Listed(NamedTuple):
     why: str
 
 
+def _reraise_import_error(name: str) -> None:
+    """``walk_packages`` error hook: a failed import must not shrink the scan."""
+    raise  # noqa: PLE0704
+
+
 def _sender_node_names() -> frozenset[str]:
-    """Every behaviour class defined in the sender-entitlement module."""
+    """Every behaviour class defined in the sender-entitlement package."""
     home = importlib.import_module("vultron.core.behaviors.sender_entitlement")
+    modules = [home] + [
+        importlib.import_module(info.name)
+        for info in pkgutil.walk_packages(
+            home.__path__, f"{home.__name__}.", onerror=_reraise_import_error
+        )
+    ]
     return frozenset(
         name
-        for name, obj in inspect.getmembers(home, inspect.isclass)
-        if obj.__module__ == home.__name__
+        for module in modules
+        for name, obj in inspect.getmembers(module, inspect.isclass)
+        if obj.__module__ == module.__name__
         and issubclass(obj, py_trees.behaviour.Behaviour)
     )
 
@@ -325,9 +350,9 @@ _COMPOSE = frozenset(
 
 def _composer_builders() -> frozenset[str]:
     """The composer's private builders, which no other module may call."""
-    tree = _corpus.tree_of(_corpus.REPO_ROOT / _COMPOSER)
     return frozenset(
         node.name
+        for _path, tree in _corpus.all_trees(_corpus.REPO_ROOT / _COMPOSER)
         for node in ast.iter_child_nodes(tree)
         if isinstance(node, ast.FunctionDef) and node.name.startswith("_")
     )
@@ -337,7 +362,8 @@ COMPOSER_BUILDERS = _composer_builders()
 
 
 def _from_composer(module: str | None) -> bool:
-    return (module or "").rpartition(".")[2] == "sender_guard"
+    """*module* is the composer package or one of its submodules."""
+    return "sender_guard" in (module or "").split(".")
 
 
 def _tracked(name: str, from_composer: bool) -> bool:
@@ -443,7 +469,7 @@ def _live_sites() -> Counter[Site]:
         under=_corpus.REPO_ROOT / "vultron",
     ):
         rel = path.relative_to(_corpus.REPO_ROOT).as_posix()
-        if rel not in {_HOME, _COMPOSER}:
+        if not _in_home(rel, _HOME, _COMPOSER):
             found += _sender_references(tree, rel)
     return found
 
@@ -460,7 +486,7 @@ GUARDS_NOT_YET_MIGRATED: dict[Site, Listed] = {}
 #: one, so they are not sender guards and need no migration; each says why.
 STANDING_READS: dict[Site, Listed] = {
     Site(
-        "vultron/core/behaviors/case/suggest_actor_tree.py",
+        "vultron/core/behaviors/case/suggest_actor_tree/recommend.py",
         "create_recommend_actor_to_case_received_tree",
         "SenderIsCaseOwnerNode",
     ): Listed(
@@ -470,8 +496,8 @@ STANDING_READS: dict[Site, Listed] = {
         " owner (CM-16)",
     ),
     Site(
-        "vultron/core/behaviors/case/receive_close_case_tree.py",
-        "create_close_case_received_tree",
+        "vultron/core/behaviors/case/receive_close_case_tree/closure_effects.py",
+        "owner_or_non_owner_effects",
         "SenderIsCaseOwnerNode",
     ): Listed(2, "picks the owner's or a participant's Leave arm (CM-23-003)"),
     Site(
@@ -589,9 +615,9 @@ def test_no_sender_check_is_defined_outside_its_module() -> None:
         and "Sender" in node.name
         and node.name.endswith("Node")
     }
-    found = {site for site in found if site[0] not in {_HOME, _COMPOSER}}
+    found = {site for site in found if not _in_home(site[0], _HOME, _COMPOSER)}
     assert found == set(SENDER_CHECKS_DEFINED_ELSEWHERE), (
-        "Sender checks outside vultron/core/behaviors/sender_entitlement.py"
+        "Sender checks outside vultron/core/behaviors/sender_entitlement/"
         f" differ from the allow-list: new {sorted(found - set(SENDER_CHECKS_DEFINED_ELSEWHERE))},"
         f" stale {sorted(set(SENDER_CHECKS_DEFINED_ELSEWHERE) - found)}"
     )
@@ -818,7 +844,9 @@ def test_a_sender_rule_is_built_only_as_a_declaration() -> None:
         for path, tree in _corpus.files_mentioning(
             "SenderRule", under=_corpus.REPO_ROOT / "vultron"
         )
-        if (rel := path.relative_to(_corpus.REPO_ROOT).as_posix()) != _HOME
+        if not _in_home(
+            rel := path.relative_to(_corpus.REPO_ROOT).as_posix(), _HOME
+        )
         for site in _rules_built_outside_a_declaration(tree, rel)
     ]
     assert not found, (

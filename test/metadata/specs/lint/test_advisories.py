@@ -9,7 +9,8 @@ from test.metadata.specs.lint._helpers import (
     _minimal_spec,
     _minimal_spec_no_stories,
 )
-from vultron.metadata.specs.lint import lint
+from vultron.metadata.specs.lint import lint, sr_11_003_gate_applies
+from vultron.metadata.specs.schema import RFC2119Priority, SpecKind
 
 # ---------------------------------------------------------------------------
 # Advisory warnings (non-blocking — return 0)
@@ -98,6 +99,7 @@ def test_protocol_must_no_stories_is_hard_error(tmp_path, capsys):
     captured = capsys.readouterr()
     assert result == 1
     assert "SR-11-003" in captured.err
+    assert "priority=MUST but" in captured.err
     assert "missing_story_reference" in captured.err
 
 
@@ -112,10 +114,13 @@ def test_protocol_must_with_stories_passes(tmp_path, capsys):
     assert "SR-11-003" not in captured.err
 
 
+@pytest.mark.parametrize("priority", ["MUST", "MUST_NOT"])
 @pytest.mark.spec("SR-11-007")
-def test_protocol_must_suppress_missing_story_reference(tmp_path, capsys):
+def test_protocol_must_suppress_missing_story_reference(
+    tmp_path, capsys, priority
+):
     """lint_suppress: [missing_story_reference] silences the SR-11-003 hard error."""
-    data = _minimal_spec_no_stories(priority="MUST")
+    data = _minimal_spec_no_stories(priority=priority)
     data["groups"][0]["specs"][0]["lint_suppress"] = [
         "missing_story_reference"
     ]
@@ -185,16 +190,50 @@ def _without_suppression_totals(out: str) -> str:
 
 
 @pytest.mark.spec("SR-11-003")
-def test_protocol_must_not_no_stories_is_not_a_hard_error(tmp_path, capsys):
-    """SR-11-003 is MUST-only for now — the recorded MS-02-003 exception —
-    so a story-less protocol MUST_NOT neither hard-errors nor warns."""
+def test_protocol_must_not_no_stories_is_hard_error(tmp_path, capsys):
+    """SR-11-003 covers the whole MUST tier (MS-02-003), so a story-less
+    protocol MUST_NOT is a hard error too."""
     write_yaml(tmp_path, _minimal_spec_no_stories(priority="MUST_NOT"))
     result = lint(tmp_path)
     captured = capsys.readouterr()
+    assert result == 1
+    assert "SR-11-003" in captured.err
+    assert "priority=MUST_NOT" in captured.err
+    assert "missing_story_reference" in captured.err
+
+
+@pytest.mark.spec("SR-11-003")
+def test_protocol_must_not_with_stories_passes(tmp_path, capsys):
+    """A protocol MUST_NOT with a stories: entry does not hard-error."""
+    data = _minimal_spec_no_stories(priority="MUST_NOT")
+    data["groups"][0]["specs"][0]["stories"] = ["story_2022_001"]
+    write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
     assert result == 0
-    assert "missing_story_reference" not in captured.err
-    assert "missing_story_reference" not in _without_suppression_totals(
-        captured.out
+    assert "SR-11-003" not in captured.err
+
+
+@pytest.mark.parametrize(
+    ("kind", "priority", "expected"),
+    [
+        ("protocol", "MUST", True),
+        ("protocol", "MUST_NOT", True),
+        ("protocol", "SHOULD", False),
+        ("protocol", "SHOULD_NOT", False),
+        ("protocol", "MAY", False),
+        ("architecture", "MUST", False),
+        ("architecture", "MUST_NOT", False),
+    ],
+)
+@pytest.mark.spec("SR-11-003")
+def test_sr_11_003_gate_applies_selects_protocol_must_tier(
+    kind, priority, expected
+):
+    """The gate's scope is the protocol MUST tier, MUST and MUST_NOT alike."""
+    assert (
+        sr_11_003_gate_applies(SpecKind(kind), RFC2119Priority(priority))
+        is expected
     )
 
 

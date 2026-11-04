@@ -37,8 +37,6 @@ from vultron.demo.helpers.polling import (
     LATE_JOINER_REPLICA_TIMEOUT,
     LATE_JOINER_TIMEOUT,
     PARTICIPANT_JOIN_TIMEOUT,
-    _received_activity_id,
-    _wait_for_participant_status_field,
     assert_received_from,
     case_manager_store,
     find_case_invite_for_actor,
@@ -56,6 +54,10 @@ from vultron.demo.helpers.polling import (
     wait_for_participant_embargo_consent,
     wait_for_pending_inbox_quiescent,
 )
+from vultron.demo.helpers.polling.participant import (
+    _wait_for_participant_status_field,
+)
+from vultron.demo.helpers.polling.received import _received_activity_id
 from vultron.demo.utils import received_activity_in
 from vultron.wire.as2.factories.actor import offer_case_participant_activity
 from vultron.wire.as2.factories.case import (
@@ -451,7 +453,7 @@ class TestCaseManagerStore:
     def test_a_dedicated_case_manager_client_is_read_unscoped(self):
         participant, manager = MagicMock(), MagicMock()
         with patch(
-            "vultron.demo.helpers.polling.resolve_case_actor_store_id"
+            "vultron.demo.helpers.polling.case_actor.resolve_case_actor_store_id"
         ) as resolve:
             client, dl_actor_id = case_manager_store(
                 participant, "urn:uuid:case", manager
@@ -463,7 +465,7 @@ class TestCaseManagerStore:
     def test_without_one_the_participant_client_is_scoped(self):
         participant = MagicMock()
         with patch(
-            "vultron.demo.helpers.polling.resolve_case_actor_store_id",
+            "vultron.demo.helpers.polling.case_actor.resolve_case_actor_store_id",
             return_value="http://vendor.test/api/v2/actors/case-actor",
         ) as resolve:
             client, dl_actor_id = case_manager_store(
@@ -559,7 +561,7 @@ def test_wait_for_case_actor_ledger_event_reads_the_case_actor_store(
     monkeypatch,
 ):
     """The gate scopes the ledger read to the CaseActor's own store."""
-    from vultron.demo.helpers import polling
+    from vultron.demo.helpers.polling import ledger as polling
 
     client = MagicMock()
     seen: dict = {}
@@ -591,7 +593,7 @@ def test_wait_for_case_actor_ledger_event_reads_the_case_actor_store(
 def test_shared_budget_hands_out_what_is_left_and_never_goes_negative(
     monkeypatch,
 ):
-    from vultron.demo.helpers import polling
+    from vultron.demo.helpers.polling import _poll as polling
 
     now = [1000.0]
     monkeypatch.setattr(polling.time, "monotonic", lambda: now[0])
@@ -1069,7 +1071,7 @@ class TestWaitForParticipantEmbargoConsent:
         participant = MagicMock()
         participant.consent_for.return_value = consent
         with patch(
-            "vultron.demo.helpers.polling._fetch_participant",
+            "vultron.demo.helpers.polling.embargo._fetch_participant",
             return_value=participant,
         ):
             wait_for_participant_embargo_consent(
@@ -1091,7 +1093,7 @@ class TestWaitForParticipantEmbargoConsent:
 
     def test_times_out_without_a_participant_record(self):
         with patch(
-            "vultron.demo.helpers.polling._fetch_participant",
+            "vultron.demo.helpers.polling.embargo._fetch_participant",
             return_value=None,
         ):
             with pytest.raises(AssertionError, match="no participant record"):
@@ -1107,7 +1109,7 @@ class TestWaitForParticipantEmbargoConsent:
 
     def test_timeout_names_the_read_error_when_no_poll_completed(self):
         with patch(
-            "vultron.demo.helpers.polling._fetch_participant",
+            "vultron.demo.helpers.polling.embargo._fetch_participant",
             side_effect=ConnectionError("refused"),
         ):
             with pytest.raises(
@@ -1134,7 +1136,7 @@ class TestWaitForParticipantEmbargoAccepted:
             else EmbargoConsentState.INVITED
         )
         with patch(
-            "vultron.demo.helpers.polling._fetch_participant",
+            "vultron.demo.helpers.polling.embargo._fetch_participant",
             return_value=participant,
         ):
             wait_for_participant_embargo_accepted(
@@ -1337,7 +1339,9 @@ def test_wait_for_reporter_introduction_matches_the_expected_case():
 def test_participant_status_poll_refuses_unknown_dimension(dimension):
     """A misspelled dimension raises at once rather than polling to timeout."""
     client = MagicMock()
-    with patch("vultron.demo.helpers.polling._fetch_participant") as fetch:
+    with patch(
+        "vultron.demo.helpers.polling.participant._fetch_participant"
+    ) as fetch:
         with pytest.raises(ValueError, match="Unknown participant status"):
             _wait_for_participant_status_field(
                 client,

@@ -30,12 +30,12 @@ from typing import Any
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.log_entry import require_log_entry
 from vultron.core.behaviors.sync.nodes._event_condition_base import (
     _ActivityEventNode,
     _SingleSemanticTypeNode,
 )
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
-from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.wire_keys import wire_key
@@ -141,7 +141,7 @@ class _EmbargoInviteEventNode(_ActivityEventNode):
     _match_relay: bool
 
     def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
         if entry.semantic_type != _EMBARGO_INVITE_EVENT:
             return Status.FAILURE
         if self.datalayer is None:
@@ -214,7 +214,7 @@ class _RejectEmbargoInviteEventNode(_ActivityEventNode):
     _match_case_manager: bool
 
     def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
         if entry.semantic_type != _REJECT_EMBARGO_INVITE_EVENT:
             return Status.FAILURE
         if self.datalayer is None:

@@ -25,7 +25,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that each actor maintains its own
       isolated RM/EM/CS state domain without cross-actor interference.
     stories:
-    - story_2022_088
+    - story_2026_061
   - id: CM-01-002
     priority: MUST
     kind: protocol
@@ -39,7 +39,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that each actor's RM state for a
       case is tracked independently in its own `ParticipantStatus` records.
     stories:
-    - story_2022_088
+    - story_2026_031
 - id: CM-02
   title: CASE_MANAGER Lifecycle
   specs:
@@ -69,8 +69,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that participants fetch canonical
       state from the CASE_MANAGER rather than from each other.
     stories:
-    - story_2022_088
-    - story_2022_045
+    - story_2026_059
   - id: CM-02-003
     priority: MUST
     kind: protocol
@@ -237,7 +236,7 @@ groups:
     - ADR-0103
     stories:
     - story_2022_074
-    - story_2022_045
+    - story_2026_028
   - id: CM-02-018
     priority: MUST
     kind: protocol
@@ -518,7 +517,7 @@ groups:
     - rel_type: implements
       spec_id: VP-03-001
     stories:
-    - story_2022_088
+    - story_2026_031
     - story_2022_075
   - id: CM-03-003
     priority: MUST
@@ -541,7 +540,7 @@ groups:
     - rel_type: implements
       spec_id: VP-09-001
     stories:
-    - story_2022_014
+    - story_2026_031
     - story_2022_023
   - id: CM-03-008
     priority: MUST
@@ -573,7 +572,7 @@ groups:
     verification: Inspection of `vultron/core/models/case/` confirms that
       `CaseStatus.pxa.state` is a case-level field shared across all participants.
     stories:
-    - story_2022_088
+    - story_2026_031
     - story_2022_107
   - id: CM-03-005
     priority: MUST
@@ -588,7 +587,7 @@ groups:
       per-participant `ParticipantStatus.vf` or `ParticipantStatus.d` field (ADR-0075).
     stories:
     - story_2022_107
-    - story_2022_088
+    - story_2026_031
   - id: CM-03-006
     priority: MUST
     kind: project
@@ -691,7 +690,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-03-008
     stories:
-    - story_2022_014
+    - story_2026_087
     - story_2022_023
   - id: CM-04-004
     priority: MUST
@@ -1107,7 +1106,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-02-002
     stories:
-    - story_2022_088
+    - story_2026_030
     - story_2022_089
   - id: CM-06-003
     priority: MUST
@@ -1123,7 +1122,7 @@ groups:
     scope:
     - production
     stories:
-    - story_2022_088
+    - story_2026_036
     - story_2022_028
   - id: CM-06-004
     priority: MUST
@@ -1186,7 +1185,7 @@ groups:
       spec_id: AR-07-002
     stories:
     - story_2022_031
-    - story_2022_088
+    - story_2026_044
   - id: CM-07-002
     priority: MUST
     kind: project
@@ -1199,7 +1198,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that the action rules endpoint
       returns the participant's role and current RM, EM, CS, and VFD states.
     stories:
-    - story_2022_088
+    - story_2026_044
     - story_2022_061
   - id: CM-07-003
     priority: MUST
@@ -1214,7 +1213,7 @@ groups:
       valid next actions as structured objects containing at minimum the action name.
     stories:
     - story_2022_086
-    - story_2022_088
+    - story_2026_044
 - id: CM-08
   title: Domain Model Architecture
   specs:
@@ -1356,7 +1355,7 @@ groups:
     - ADR-0093
     - ADR-0122
     stories:
-    - story_2022_014
+    - story_2026_001
     - story_2022_023
   - id: CM-10-002
     priority: MUST
@@ -1567,7 +1566,7 @@ groups:
     - ADR-0114
     stories:
     - story_2022_054
-    - story_2022_088
+    - story_2026_043
   - id: CM-11-002
     priority: SHOULD
     kind: protocol
@@ -1628,7 +1627,7 @@ groups:
       spec_id: CM-11-001
     stories:
     - story_2022_054
-    - story_2022_088
+    - story_2026_043
   - id: CM-11-003
     priority: MUST
     kind: protocol
@@ -1860,7 +1859,7 @@ groups:
     - ADR-0114
     stories:
     - story_2022_023
-    - story_2022_045
+    - story_2026_055
   - id: CM-11-009
     priority: MUST
     kind: protocol
@@ -2072,7 +2071,7 @@ groups:
     adr:
     - ADR-0121
     stories:
-    - story_2022_045
+    - story_2026_053
   - id: CM-11-035
     priority: MUST
     kind: protocol
@@ -2096,7 +2095,7 @@ groups:
     adr:
     - ADR-0121
     stories:
-    - story_2022_045
+    - story_2026_053
   - id: CM-11-036
     priority: MUST
     kind: protocol
@@ -2116,7 +2115,7 @@ groups:
     adr:
     - ADR-0121
     stories:
-    - story_2022_045
+    - story_2026_054
   - id: CM-11-013
     priority: MUST
     kind: protocol
@@ -2365,7 +2364,7 @@ groups:
     adr:
     - ADR-0114
     stories:
-    - story_2022_014
+    - story_2026_097
     - story_2022_023
   - id: CM-11-044
     priority: MUST
@@ -2388,7 +2387,7 @@ groups:
     adr:
     - ADR-0114
     stories:
-    - story_2022_014
+    - story_2026_097
   - id: CM-11-045
     priority: MUST
     kind: protocol
@@ -2408,7 +2407,7 @@ groups:
     adr:
     - ADR-0114
     stories:
-    - story_2022_014
+    - story_2026_097
   - id: CM-11-046
     priority: MUST
     kind: protocol
@@ -2427,7 +2426,7 @@ groups:
     adr:
     - ADR-0114
     stories:
-    - story_2022_014
+    - story_2026_097
   - id: CM-11-017
     priority: MUST
     kind: protocol
@@ -2790,7 +2789,7 @@ groups:
     adr:
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_080
     - story_2022_023
   - id: CM-12-005
     priority: MUST
@@ -2966,7 +2965,7 @@ groups:
       spec_id: CM-14-001
     stories:
     - story_2022_046
-    - story_2022_014
+    - story_2026_080
   - id: CM-14-003
     priority: MUST
     kind: protocol
@@ -2986,7 +2985,7 @@ groups:
       spec_id: CM-13-006
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_080
   - id: CM-14-004
     priority: MUST
     kind: protocol
@@ -3081,7 +3080,7 @@ groups:
       spec_id: CM-14-001
     stories:
     - story_2022_052
-    - story_2022_014
+    - story_2026_080
   - id: CM-14-014
     priority: MUST_NOT
     kind: protocol
@@ -3102,7 +3101,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-14-001
     stories:
-    - story_2022_014
+    - story_2026_080
   - id: CM-14-008
     priority: MUST
     kind: protocol
@@ -3152,7 +3151,7 @@ groups:
     adr:
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_080
     - story_2022_023
   - id: CM-14-011
     priority: MUST
@@ -3197,7 +3196,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that step 6 commits a case ledger
       entry that triggers `Announce(CaseLedgerEntry)` fan-out to all participants.
     stories:
-    - story_2022_045
+    - story_2026_075
     - story_2022_041
 - id: CM-15
   title: Case Creation Policy
@@ -3362,7 +3361,7 @@ groups:
     adr:
     - ADR-0114
     stories:
-    - story_2022_045
+    - story_2026_075
     - story_2022_053
   - id: CM-16-003
     priority: MUST
@@ -3558,7 +3557,7 @@ groups:
       decision is pending is recorded in the case ledger.
     stories:
     - story_2022_053
-    - story_2022_045
+    - story_2026_069
   - id: CM-16-009
     priority: MUST
     kind: protocol
@@ -3621,7 +3620,7 @@ groups:
     - ADR-0119
     stories:
     - story_2022_053
-    - story_2022_045
+    - story_2026_076
   - id: CM-16-014
     priority: MUST
     kind: project
@@ -3811,7 +3810,7 @@ groups:
       spec_id: MV-10-006
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_097
   - id: CM-17-013
     priority: MUST
     kind: protocol
@@ -3852,7 +3851,7 @@ groups:
     - rel_type: extends
       spec_id: CM-17-002
     stories:
-    - story_2022_014
+    - story_2026_097
   - id: CM-17-003
     priority: MUST
     kind: project
@@ -3909,7 +3908,7 @@ groups:
     stories:
     - story_2022_054
     - story_2022_052
-    - story_2022_088
+    - story_2026_056
   - id: CM-17-005
     priority: MUST_NOT
     kind: protocol
@@ -4127,7 +4126,7 @@ groups:
     - ADR-0114
     stories:
     - story_2022_052
-    - story_2022_088
+    - story_2026_056
   - id: CM-17-010
     priority: MUST
     kind: protocol
@@ -4158,7 +4157,7 @@ groups:
       spec_id: CM-17-002
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_097
     adr:
     - ADR-0114
   - id: CM-17-020
@@ -4368,7 +4367,7 @@ groups:
     - ADR-0122
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_001
   - id: CM-18-019
     priority: MUST
     kind: protocol
@@ -4390,7 +4389,7 @@ groups:
     - ADR-0122
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_001
   - id: CM-18-020
     priority: MUST
     kind: protocol
@@ -4413,7 +4412,7 @@ groups:
     - ADR-0122
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_001
   - id: CM-18-021
     priority: MUST_NOT
     kind: protocol
@@ -4436,7 +4435,7 @@ groups:
     - ADR-0122
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_001
   - id: CM-18-017
     priority: MUST
     kind: project
@@ -4487,7 +4486,7 @@ groups:
     - ADR-0065
     stories:
     - story_2022_027
-    - story_2022_014
+    - story_2026_092
   - id: CM-18-022
     priority: MAY
     kind: protocol
@@ -4588,7 +4587,7 @@ groups:
     - ADR-0118
     - ADR-0122
     stories:
-    - story_2022_014
+    - story_2026_001
   - id: CM-18-004
     priority: MUST_NOT
     kind: protocol
@@ -5371,7 +5370,7 @@ groups:
     stories:
     - story_2022_050
     - story_2022_049
-    - story_2022_045
+    - story_2026_069
   - id: CM-21-030
     priority: MUST
     kind: protocol
@@ -5398,7 +5397,7 @@ groups:
     stories:
     - story_2022_050
     - story_2022_049
-    - story_2022_045
+    - story_2026_075
   - id: CM-21-008
     priority: MUST
     kind: protocol
@@ -6000,9 +5999,11 @@ groups:
       A proposal is sent to the CASE_MANAGER alone (CM-21-005). A replica that admitted
       one would act for the CASE_MANAGER, which only the CASE_MANAGER may do.
     verification: >-
-      `test_own_copy_is_refused_by_the_sender_guard` in
+      `test_own_copy_is_refused_at_the_path_stage` in
       `test/core/use_cases/received/actor/test_ownership.py` asserts that a replica
-      refuses the owner's own copy of its proposal and writes nothing.
+      refuses the owner's own copy of its proposal and writes nothing. The
+      proposal's type declares the manager path alone, so the path stage refuses
+      the replica ahead of the sender guard (HP-01-038, HP-01-039).
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
@@ -6247,7 +6248,7 @@ groups:
     - rel_type: refines
       spec_id: CM-22-001
     stories:
-    - story_2022_045
+    - story_2026_023
   - id: CM-22-004
     priority: MUST
     kind: protocol
@@ -6272,7 +6273,7 @@ groups:
     - ADR-0041
 
     stories:
-    - story_2022_014
+    - story_2026_080
     - story_2022_023
 - id: CM-23
   title: RM Case Closure via Leave(VulnerabilityCase)
@@ -6747,7 +6748,7 @@ groups:
     adr:
     - ADR-0051
     stories:
-    - story_2022_088
+    - story_2026_042
     - story_2022_074
   - id: CM-23-033
     priority: MUST
@@ -6771,7 +6772,7 @@ groups:
     adr:
     - ADR-0051
     stories:
-    - story_2022_088
+    - story_2026_042
     - story_2022_074
   - id: CM-23-006
     priority: MUST
@@ -6791,7 +6792,7 @@ groups:
     adr:
     - ADR-0051
     stories:
-    - story_2022_088
+    - story_2026_042
   - id: CM-23-007
     priority: MUST
     kind: protocol
@@ -6819,7 +6820,7 @@ groups:
     adr:
     - ADR-0051
     stories:
-    - story_2022_045
+    - story_2026_042
     - story_2022_074
   - id: CM-23-008
     priority: MUST
@@ -6841,7 +6842,7 @@ groups:
     adr:
     - ADR-0051
     stories:
-    - story_2022_088
+    - story_2026_042
   - id: CM-23-009
     priority: MUST
     kind: protocol
@@ -6861,7 +6862,7 @@ groups:
     adr:
     - ADR-0051
     stories:
-    - story_2022_088
+    - story_2026_042
   - id: CM-23-010
     priority: MUST
     kind: protocol
@@ -6884,7 +6885,7 @@ groups:
     - ADR-0051
 
     stories:
-    - story_2022_088
+    - story_2026_042
     - story_2022_066
   - id: CM-23-011
     priority: MUST
@@ -8467,7 +8468,7 @@ groups:
     adr:
     - ADR-0065
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-017
     priority: MAY
@@ -8490,7 +8491,7 @@ groups:
     adr:
     - ADR-0065
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-018
     priority: MUST_NOT
@@ -8513,7 +8514,7 @@ groups:
     adr:
     - ADR-0065
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-002
     priority: MUST
@@ -8548,7 +8549,7 @@ groups:
     - ADR-0065
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-019
     priority: MUST
@@ -8574,7 +8575,7 @@ groups:
     - ADR-0065
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-003
     priority: MUST
@@ -8597,7 +8598,7 @@ groups:
     - ADR-0065
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_092
   - id: CM-28-004
     priority: MUST
     kind: protocol
@@ -8630,7 +8631,7 @@ groups:
     - ADR-0118
     stories:
     - story_2022_027
-    - story_2022_014
+    - story_2026_092
   - id: CM-28-020
     priority: MUST
     kind: protocol
@@ -8652,7 +8653,7 @@ groups:
     - ADR-0118
     stories:
     - story_2022_027
-    - story_2022_014
+    - story_2026_092
   - id: CM-28-005
     priority: MUST
     kind: protocol
@@ -8672,7 +8673,7 @@ groups:
     - ADR-0065
     - ADR-0118
     stories:
-    - story_2022_045
+    - story_2026_069
     - story_2022_074
   - id: CM-28-006
     priority: MUST
@@ -8793,7 +8794,7 @@ groups:
     - ADR-0118
     - ADR-0124
     stories:
-    - story_2022_045
+    - story_2026_069
     - story_2022_074
   - id: CM-28-022
     priority: MUST_NOT
@@ -8818,7 +8819,7 @@ groups:
     - ADR-0065
     - ADR-0118
     stories:
-    - story_2022_045
+    - story_2026_072
     - story_2022_074
   - id: CM-28-010
     priority: MUST_NOT
@@ -8861,7 +8862,7 @@ groups:
     adr:
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-012
     priority: MUST
@@ -8897,7 +8898,7 @@ groups:
     - ADR-0113
     - ADR-0065
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-013
     priority: MUST
@@ -8929,7 +8930,7 @@ groups:
     - ADR-0065
     - ADR-0124
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-023
     priority: MUST
@@ -8955,7 +8956,7 @@ groups:
     - ADR-0113
     - ADR-0124
     stories:
-    - story_2022_014
+    - story_2026_057
     - story_2022_027
   - id: CM-28-024
     priority: MUST_NOT
@@ -8983,7 +8984,7 @@ groups:
     - ADR-0113
     - ADR-0124
     stories:
-    - story_2022_014
+    - story_2026_057
     - story_2022_027
   - id: CM-28-014
     priority: MUST
@@ -9022,7 +9023,7 @@ groups:
     - ADR-0065
     - ADR-0124
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-016
     priority: MUST
@@ -9099,7 +9100,7 @@ groups:
     - ADR-0118
     - ADR-0135
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-025
     priority: MUST_NOT
@@ -9121,7 +9122,7 @@ groups:
     adr:
     - ADR-0118
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-026
     priority: MUST
@@ -9146,7 +9147,7 @@ groups:
     adr:
     - ADR-0135
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-027
     priority: MUST
@@ -9172,7 +9173,7 @@ groups:
     adr:
     - ADR-0135
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-028
     priority: MUST
@@ -9199,7 +9200,7 @@ groups:
     - ADR-0118
     - ADR-0135
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-029
     priority: MUST
@@ -9226,7 +9227,7 @@ groups:
     adr:
     - ADR-0135
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
 
 - id: CM-27
@@ -9466,7 +9467,7 @@ groups:
       author has left.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_066
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
@@ -9488,7 +9489,7 @@ groups:
       Remove from a sender that is not the CASE_MANAGER.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_030
     relationships:
     - rel_type: extends
       spec_id: CM-30-001
@@ -9510,7 +9511,7 @@ groups:
       with the note still in the case.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_066
     relationships:
     - rel_type: extends
       spec_id: CM-30-001
@@ -9534,7 +9535,7 @@ groups:
       CASE_MANAGER acts on the Add only from the Case Owner.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_066
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
@@ -9557,7 +9558,7 @@ groups:
       refuses the Add from a sender that is not the CASE_MANAGER.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_030
     relationships:
     - rel_type: extends
       spec_id: CM-30-002
@@ -9579,7 +9580,7 @@ groups:
       non-owner and asserts `REFUSED` with the report not attached.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_066
     relationships:
     - rel_type: extends
       spec_id: CM-30-002
@@ -10099,7 +10100,7 @@ groups:
     adr:
     - ADR-0116
     stories:
-    - story_2022_014
+    - story_2026_096
     - story_2022_023
   - id: CM-31-009
     priority: MUST
@@ -10128,7 +10129,7 @@ groups:
     - ADR-0116
     - ADR-0093
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-030
     priority: MUST
     kind: protocol
@@ -10156,7 +10157,7 @@ groups:
     - ADR-0116
     - ADR-0093
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-031
     priority: MUST_NOT
     kind: protocol
@@ -10177,7 +10178,7 @@ groups:
     adr:
     - ADR-0116
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-010
     priority: MUST
     kind: protocol
@@ -10199,7 +10200,7 @@ groups:
     adr:
     - ADR-0116
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-032
     priority: MUST
     kind: protocol
@@ -10220,7 +10221,7 @@ groups:
     adr:
     - ADR-0116
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-033
     priority: MUST
     kind: protocol
@@ -10241,7 +10242,7 @@ groups:
     adr:
     - ADR-0116
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-011
     priority: MUST
     kind: protocol
@@ -11461,7 +11462,7 @@ groups:
       queued addressed to the CASE_MANAGER only.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: implements
       spec_id: PCR-08-001
@@ -11481,7 +11482,7 @@ groups:
       and asserts an entry for the Offer.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-001
@@ -11505,7 +11506,7 @@ groups:
       CASE_MANAGER as `actor` and the Case Owner as `attributed_to`.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-001
@@ -11527,7 +11528,7 @@ groups:
       and asserts the target's roles are unchanged.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-001
@@ -11547,7 +11548,7 @@ groups:
       Owner and asserts `REFUSED` with no entry committed and nothing queued.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
@@ -11568,7 +11569,7 @@ groups:
       is then the CASE_MANAGER's own, so it has no Case Owner's Offer to forward.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-002
@@ -11586,7 +11587,7 @@ groups:
       it.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-010
@@ -11614,7 +11615,7 @@ groups:
       and asserts `REFUSED`.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: constrains
       spec_id: CM-02-016
@@ -11636,7 +11637,7 @@ groups:
       no entry committed.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-003
@@ -11655,7 +11656,7 @@ groups:
       no Offer forward is queued.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-003
@@ -11676,7 +11677,7 @@ groups:
       Offer with no role to the CASE_MANAGER and asserts `REFUSED`.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-003
@@ -11698,7 +11699,7 @@ groups:
       CASE_MANAGER's forward to the target and asserts one answer queued.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_030
     relationships:
     - rel_type: refines
       spec_id: PCR-03-001
@@ -11720,7 +11721,7 @@ groups:
       asserts one answer queued, addressed to the CASE_MANAGER only.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: implements
       spec_id: PCR-08-001
@@ -11747,7 +11748,7 @@ groups:
       `REFUSED` with no change.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_034
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
@@ -11771,7 +11772,7 @@ groups:
       committed and no role change each time.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_034
     relationships:
     - rel_type: extends
       spec_id: CM-33-005
@@ -11792,7 +11793,7 @@ groups:
       forward and asserts the Offer is closed and the role granted.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_034
     relationships:
     - rel_type: extends
       spec_id: CM-33-005
@@ -11812,7 +11813,7 @@ groups:
       and asserts `SKIPPED` with no new entry each time.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_014
     relationships:
     - rel_type: extends
       spec_id: CM-33-005
@@ -11834,7 +11835,7 @@ groups:
       with the `reject_case_participant_role` entry.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: implements
       spec_id: CLP-02-012
@@ -11859,7 +11860,7 @@ groups:
       and separately its Reject, and asserts a queued `Announce` each time.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-006
@@ -11879,7 +11880,7 @@ groups:
       and asserts the role on the target's participant record.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-006
@@ -11898,7 +11899,7 @@ groups:
       and asserts the target's roles are unchanged.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-006

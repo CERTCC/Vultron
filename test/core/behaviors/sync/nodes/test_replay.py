@@ -166,18 +166,39 @@ class TestFindCaseActorNode:
         _seed_case_with_manager(datalayer, MANAGER_ACTOR_ID)
         event = _make_reject_event(tail_hash="")
 
+        # Read the outputs from a *sibling*, which is where the real
+        # downstream reader sits, rather than off the blackboard after the
+        # run: ``case_id`` is execution-scoped, so the bridge restores it at
+        # the boundary and a post-run read sees nothing.  Asserting from
+        # inside the execution is also the stronger claim — it is the moment
+        # the announce node actually reads.
+        seen: dict[str, object] = {}
+        storage = py_trees.blackboard.Blackboard.storage
+
+        class _ReadSiblingOutputs(py_trees.behaviour.Behaviour):
+            def update(self) -> Status:
+                seen["case_actor_id"] = storage.get("/case_actor_id")
+                seen["case_id"] = storage.get("/case_id")
+                return Status.SUCCESS
+
         result = bridge.execute_with_setup(
-            tree=FindCaseActorNode(name="FindCaseActor"),
+            tree=py_trees.composites.Sequence(
+                name="FindThenRead",
+                memory=False,
+                children=[
+                    FindCaseActorNode(name="FindCaseActor"),
+                    _ReadSiblingOutputs(name="ReadSiblingOutputs"),
+                ],
+            ),
             actor_id=OWNER_ACTOR_ID,
             activity=event,
         )
 
         assert result.status == Status.SUCCESS
-        storage = py_trees.blackboard.Blackboard.storage
-        assert storage.get("/case_actor_id") == MANAGER_ACTOR_ID
+        assert seen["case_actor_id"] == MANAGER_ACTOR_ID
         # The role gate downstream reads this; without it the guard's selector
         # silently took its skip branch and the announce never fired.
-        assert storage.get("/case_id") == CASE_ID
+        assert seen["case_id"] == CASE_ID
 
     @pytest.mark.spec("CM-02-012")
     def test_resolves_without_any_service_object_carrying_context(

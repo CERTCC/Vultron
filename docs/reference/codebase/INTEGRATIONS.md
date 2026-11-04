@@ -12,7 +12,7 @@ stakeholder_type: [project-contributor]
 |--------|------|---------|------------|-------------|----------|
 | SQLite (via SQLModel/SQLAlchemy) | Database | Persistent storage for domain objects, received-activity archive, inbox/outbox queues, and inbox/outbox dead-letter stores | None (local file or `:memory:`) | High | `vultron/adapters/driven/datalayer_sqlite/` |
 | Peer Vultron actors (HTTP/AS2) | Outbound HTTP API | ActivityStreams 2.0 message delivery to other actors' inboxes | None implemented. ADR-0164 (`accepted-provisional`) puts an object-level proof (FEP-8b32, `eddsa-jcs-2022`, seeded Ed25519 keys) inside every sent activity and defers HTTP Signatures to productionization (#1184); the `prod_http_delivery.py` stub docstring still describes HTTP Signatures (OX-10-004) | High | `vultron/adapters/driven/prod_http_delivery.py`, `vultron/adapters/driven/demo_http_delivery.py` |
-| ActivityPub / AS2 (inbound) | Inbound HTTP | Receive CVD coordination activities at `POST /actors/{actor_id}/inbox` | None implemented; the inbox accepts any well-formed body. ADR-0164 calls for strict proof verification with no switch, pinned by strict-`xfail` tests until it lands; the shared-inbox stub (OX-11-001 to OX-11-004) still plans signature validation | High | `vultron/adapters/driving/fastapi/routers/actors/_routes.py`, `vultron/adapters/driving/shared_inbox.py`, `test/adapters/driving/fastapi/test_signed_delivery_refusal.py` |
+| ActivityPub / AS2 (inbound) | Inbound HTTP | Receive CVD coordination activities at `POST /actors/{actor_id}/inbox` | None implemented; the inbox accepts any well-formed body. ADR-0164 calls for strict proof verification with no switch, pinned by strict-`xfail` tests until it lands; the shared-inbox stub (OX-11-001 to OX-11-004) still plans signature validation | High | `vultron/adapters/driving/fastapi/routers/actors/_routes/mailbox.py`, `vultron/adapters/driving/shared_inbox.py`, `test/adapters/driving/fastapi/test_signed_delivery_refusal.py` |
 | Dedicated CaseActor service | Outbound HTTP API | A case proposal goes to the CaseActor at `{case_actor_service_url}/actors/case-actor`, one per container (CP-04-005, CP-08-001) | None (as for peer actors) | High | `vultron/config/actor.py`, `docker/docker-compose-multi-actor.yml` |
 | Third-party trackers (Jira, VINCE) | Connector adapter | Translate external tracker events to/from Vultron domain; plugins are meant to be discovered via the `vultron.connectors` entry-point group | examples only; the plugin loader is a stub, to be built in #5610 | Low | `vultron/adapters/connectors/example/`, `vultron/adapters/connectors/loader.py` |
 | Docker Compose (multi-actor demo) | Orchestration | Stands up multiple actor containers sharing an AS2 network for the end-to-end demo | None (local demo) | Low | `docker/docker-compose-multi-actor.yml`, `docker/demo-entrypoint.sh` |
@@ -42,8 +42,8 @@ stakeholder_type: [project-contributor]
   A participant also sends one when a case copy first seeds its replica, naming the copy's position, so the CASE_MANAGER can resend an Invite the participant dropped before the copy arrived (SYNC-17-008; `StateSeededLedgerPositionNode` in `case_copy.py`).
 - **Unanswered-Invite resend (CASE_MANAGER)**: when a participant states a position its ledger holds, the CASE_MANAGER requeues the sealed body of each Invite that participant still owes an answer to, through `SyncActivityPort.resend_sealed_activity` (SYNC-20; `ResendOwedInvitesNode` in `sync/nodes/invite_resend.py`).
   The cooldown per Invite and participant starts at `LedgerConfig.invite_resend_cooldown_seconds` (30 s) and doubles per resend up to `LedgerConfig.invite_resend_max_cooldown_seconds` (600 s).
-- **Total-attempt bound (outbox)**: `outbox_handler.py` counts cumulative attempts per activity across drain passes and moves an activity to the outbox dead-letter store at `MAX_TOTAL_ATTEMPTS` (ADR-0066, OX-13-002; `vultron/adapters/outbox_dead_letter.py`).
-- **Total-attempt bound (inbox)**: `run_inbox_pipeline` (`inbox_orchestration.py`) counts cumulative processing attempts per activity it replays from the inbox queue using the same `QueueAttemptEntry` table and moves an exhausted item to the inbox dead-letter store after `AppConfig.max_inbox_retry_attempts` attempts (IE-06-004; `InboxDeadLetterEntry` in `vultron/adapters/outbox_dead_letter.py`).
+- **Total-attempt bound (outbox)**: `outbox_handler/bookkeeping.py` counts cumulative attempts per activity across drain passes and moves an activity to the outbox dead-letter store at `MAX_TOTAL_ATTEMPTS` (ADR-0066, OX-13-002; `vultron/adapters/outbox_dead_letter.py`).
+- **Total-attempt bound (inbox)**: `run_inbox_pipeline` (`inbox_orchestration/pipeline.py`) counts cumulative processing attempts per activity it replays from the inbox queue using the same `QueueAttemptEntry` table and moves an exhausted item to the inbox dead-letter store after `AppConfig.max_inbox_retry_attempts` attempts (IE-06-004; `InboxDeadLetterEntry` in `vultron/adapters/outbox_dead_letter.py`).
   Each attempt commits as one DataLayer transaction (IE-06-005), and the app lifespan replays every hosted actor's queue once at startup (IE-06-006; `inbox_startup_replay.py`).
 - **Ordering**: delivery is per recipient in enqueue order, with one drain per actor (ADR-0112, `outbox_lanes.py`); the outbound body is the sealed JSON stored at emission (`vultron/adapters/outbox_sealed_body.py`).
 - **Timeout policy**: outbound HTTP requests use `DEFAULT_DELIVERY_TIMEOUT` (30 s) unless the adapter is constructed with another value
@@ -61,12 +61,12 @@ stakeholder_type: [project-contributor]
 - `vultron/adapters/driven/http_delivery.py`
 - `vultron/adapters/driven/prod_http_delivery.py` (stub — not yet implemented)
 - `vultron/adapters/driven/demo_http_delivery.py`
-- `vultron/adapters/driving/fastapi/outbox_handler.py`
+- `vultron/adapters/driving/fastapi/outbox_handler/`
 - `vultron/adapters/driving/fastapi/outbox_lanes.py`
 - `vultron/adapters/outbox_dead_letter.py`
 - `vultron/adapters/outbox_sealed_body.py`
 - `vultron/adapters/driving/shared_inbox.py` (stub — not yet implemented)
-- `vultron/adapters/driving/fastapi/routers/actors/_routes.py`
+- `vultron/adapters/driving/fastapi/routers/actors/_routes/`
 - `vultron/adapters/connectors/example/`
 - `vultron/adapters/connectors/loader.py`
 - `.github/workflows/deploy_site.yml`

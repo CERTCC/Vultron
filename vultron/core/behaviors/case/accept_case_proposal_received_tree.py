@@ -26,6 +26,9 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -136,6 +139,10 @@ def create_accept_case_proposal_received_tree(
     """
     return create_receive_activity_tree(
         name="AcceptCaseProposalReceivedBT",
+        # The Accept answers a proposal made before any case exists, so the
+        # receiver holds none and the rule admits a sender on that side alone
+        # (HP-01-038, HP-01-041, CP-06-003).
+        paths={ReceivedPath.NO_CASE},
         case_id=None,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(

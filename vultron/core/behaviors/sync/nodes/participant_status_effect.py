@@ -23,7 +23,7 @@ describes an impossible composite state (RSH-09-006).
 Provides :class:`EmitImpossibleStateFaultNode`, which emits
 ``Create(ProcessingFault)`` with failure class
 ``StatusAssertionRefused/ImpossibleState`` to the CASE_MANAGER when the Apply
-node returns FAILURE.  The two nodes are wired in a Selector in ``announce_tree.py``
+node returns FAILURE.  The two nodes are wired in a Selector in ``announce_tree/``
 to guarantee that either the status is applied successfully or a fault is emitted.
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
@@ -41,10 +41,8 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.log_entry import require_log_entry
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.behaviors.sync.nodes.conditions import (
-    _require_log_entry,
-)
 from vultron.core.behaviors.sync.nodes.effects import _extract_id_from_field
 from vultron.core.behaviors.sync.nodes.ledger_entry_fault import (
     EmitLedgerEntryFaultNode,
@@ -118,7 +116,7 @@ class ApplyParticipantStatusFromLedgerNode(
             return f
         assert self.datalayer is not None
 
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
         snapshot = entry.payload_snapshot
 
         status_data = snapshot.get("object")

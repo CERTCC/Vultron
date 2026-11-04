@@ -39,7 +39,7 @@ from vultron.core.states.cs import (
 )
 from vultron.core.states.em import is_em_embargo_active
 from vultron.core.states.rm import RM
-from vultron.demo.helpers.seeding import _dl_key
+from vultron.demo.helpers.seeding.actors import _dl_key
 from vultron.demo.utils import (
     DataLayerClient,
     read_received_activity,

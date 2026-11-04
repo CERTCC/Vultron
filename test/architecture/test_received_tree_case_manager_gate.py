@@ -169,22 +169,6 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
             "case_manager_decision_guard",
         ),
         (
-            f"{_C}/nodes/case_participant_received.py",
-            "case_manager_admits_removal_guard",
-        ),
-        (
-            f"{_C}/nodes/ownership_offer_guard.py",
-            "case_manager_admits_ownership_proposal_guard",
-        ),
-        (
-            f"{_C}/nodes/ownership_reply_guard.py",
-            "case_manager_ownership_offer_open_guard",
-        ),
-        (
-            f"{_C}/nodes/participant_reinstatement.py",
-            "case_manager_admits_reinstatement_guard",
-        ),
-        (
             f"{_C}/nodes/suggest_actor/conditions.py",
             "case_manager_admits_accepted_invitee_guard",
         ),
@@ -278,7 +262,7 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
             "EmitLedgerEntryFaultNode",
         ),
         (
-            "vultron.core.behaviors.sync.nodes.replay",
+            "vultron.core.behaviors.sync.nodes.replay.send",
             "SendMissingEntriesNode",
         ),
     }
@@ -294,7 +278,7 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
         (
             "CASE_PROPOSAL",
-            f"{_C}/case_proposal_received_tree.py",
+            f"{_C}/case_proposal_received_tree/factory.py",
             "create_case_proposal_received_tree",
         ),
         # The RM-declaration gap-note exemptions (engage, defer, the three

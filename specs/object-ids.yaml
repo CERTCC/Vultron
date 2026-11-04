@@ -32,7 +32,7 @@ groups:
     - story_2022_029
     - story_2022_030
     - story_2022_034
-    - story_2022_045
+    - story_2026_016
     adr:
     - ADR-0010
     tags:

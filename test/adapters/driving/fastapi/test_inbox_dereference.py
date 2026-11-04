@@ -36,13 +36,15 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.http_object_fetch import ObjectFetchResult
 from vultron.adapters.driving.fastapi import (
     inbox_dereference as deref,
-    inbox_orchestration as io,
 )
 from vultron.adapters.driving.fastapi.inbox_dereference import (
     FastAPIDereferencePort,
     open_fetches,
     parse_fetched_object,
     settle_fetch,
+)
+from vultron.adapters.driving.fastapi.inbox_orchestration import (
+    pipeline as io,
 )
 from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.core.models._helpers import now_utc

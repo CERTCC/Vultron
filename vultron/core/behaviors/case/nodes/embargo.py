@@ -49,7 +49,7 @@ from vultron.core.models._helpers import from_now_utc
 from vultron.core.models.activity_ids import derived_object_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.role_predicate import has_role
 from vultron.core.services.embargo_duration import (
     EmbargoDurationSource,
     InitialEmbargoDuration,
@@ -58,6 +58,7 @@ from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.services.embargo_lifecycle.creation import (
     CreationRevision,
 )
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
@@ -276,9 +277,14 @@ class InitializeCreationEmbargoNode(
         # creates the case itself, or the CASE_MANAGER creates it on the
         # owner's behalf from a proposal (CP-09-001, CP-09-003) — the case is
         # then attributed to the owner while the CASE_MANAGER runs this tree.
+        # Which of the two this actor is cannot come from the tree's declared
+        # path: the case the rule is about does not exist when the path stage
+        # asks, so the role is asked here, through the shared predicate, which
+        # takes the authority role from the single resolver (ARCH-24-007,
+        # ADR-0153).
         owner_actor_id = stored_case.attributed_to
-        if self.actor_id != owner_actor_id and self.actor_id != (
-            resolve_case_manager_id(stored_case, self.datalayer)
+        if self.actor_id != owner_actor_id and not has_role(
+            self.actor_id, case_id, CVDRole.CASE_MANAGER, self.datalayer
         ):
             self.feedback_message = (
                 f"actor '{self.actor_id}' is neither case owner"
