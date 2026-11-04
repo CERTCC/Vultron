@@ -23,13 +23,13 @@ from py_trees.ports import PortInformation
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
+from vultron.core.behaviors.log_entry import require_log_entry
 from vultron.core.behaviors.sender_entitlement.base import (
     SenderEntitlementConditionNode,
 )
 from vultron.core.behaviors.sender_entitlement.declarations import (
     SenderEntitlementKind,
 )
-from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.participants.authority import (
@@ -187,7 +187,7 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
             case_id = self._case_id
         else:
             try:
-                entry = _require_log_entry(self.activity, self.name)
+                entry = require_log_entry(self.activity, self.name)
             except VultronError as exc:
                 self.logger.error(  # noqa: TRY400
                     "%s: %s", self.name, exc

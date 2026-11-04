@@ -287,12 +287,19 @@ class Listed(NamedTuple):
     why: str
 
 
+def _reraise_import_error(name: str) -> None:
+    """``walk_packages`` error hook: a failed import must not shrink the scan."""
+    raise  # noqa: PLE0704
+
+
 def _sender_node_names() -> frozenset[str]:
     """Every behaviour class defined in the sender-entitlement package."""
     home = importlib.import_module("vultron.core.behaviors.sender_entitlement")
-    modules = [
+    modules = [home] + [
         importlib.import_module(info.name)
-        for info in pkgutil.iter_modules(home.__path__, f"{home.__name__}.")
+        for info in pkgutil.walk_packages(
+            home.__path__, f"{home.__name__}.", onerror=_reraise_import_error
+        )
     ]
     return frozenset(
         name
@@ -345,7 +352,7 @@ def _composer_builders() -> frozenset[str]:
     """The composer's private builders, which no other module may call."""
     return frozenset(
         node.name
-        for path in sorted((_corpus.REPO_ROOT / _COMPOSER).glob("*.py"))
+        for path in sorted((_corpus.REPO_ROOT / _COMPOSER).rglob("*.py"))
         for node in ast.iter_child_nodes(_corpus.tree_of(path))
         if isinstance(node, ast.FunctionDef) and node.name.startswith("_")
     )
