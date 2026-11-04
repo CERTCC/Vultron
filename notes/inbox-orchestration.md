@@ -110,7 +110,7 @@ the last one writes what it carries:
 2. **Routing reads through a staging store.** The routed activity is rebuilt by the
    store's read pipeline, which is what turns the parsed graph into the shape the
    patterns match, so the activity's row and its inline objects are staged in
-   `InlineObjectStaging` (`vultron/adapters/inbox_staging.py`): an
+   `InlineObjectStaging` (`vultron/adapters/inbox_staging/staging.py`): an
    in-memory store read after the receiver's own store for every other id, and
    emptied around each use. Without the staged object the activity's `object_`
    stays a bare id, which no pattern's object type accepts (SE-01-006), so an

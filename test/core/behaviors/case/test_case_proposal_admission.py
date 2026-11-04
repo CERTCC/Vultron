@@ -59,13 +59,11 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
     CASE_PROPOSAL_DETERMINISTIC,
     CaseProposalCallOutBundle,
 )
-from vultron.core.behaviors.case import (
-    case_proposal_received_tree,
-    report_author,
-)
+from vultron.core.behaviors.case import report_author
 from vultron.core.behaviors.case.case_proposal_received_tree import (
     CLOSED_CASE_DECLINE_REASON,
     create_case_proposal_received_tree,
+    factory as case_proposal_factory,
 )
 from vultron.core.behaviors.case.nodes import proposal_case_lookup
 from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
@@ -1889,7 +1887,7 @@ def test_a_store_written_before_normalisation_is_answered_on_redelivery(
     """
     with monkeypatch.context() as legacy:
         legacy.setattr(
-            case_proposal_received_tree, "normalise_actor_id", lambda a: a
+            case_proposal_factory, "normalise_actor_id", lambda a: a
         )
         legacy.setattr(report_author, "normalise_actor_id", lambda a: a)
         assert (

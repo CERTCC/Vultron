@@ -26,14 +26,11 @@ from pathlib import Path
 
 import pytest
 
-from vultron.demo import report
 from vultron.demo.report import (
     CaseTimelineEvent,
     ReportError,
-    _case_time_range,
-    _format_delta,
-    _parse_timestamp,
     build_timeline,
+    cli as report_cli,
     collect_actor_names,
     discover_replicas,
     event_phrase,
@@ -44,6 +41,11 @@ from vultron.demo.report import (
     main,
     render_html,
     render_markdown,
+)
+from vultron.demo.report.render import (
+    _case_time_range,
+    _format_delta,
+    _parse_timestamp,
 )
 
 # ---------------------------------------------------------------------------
@@ -1318,7 +1320,7 @@ class TestCli:
     def test_no_open_suppresses_browser(self, tmp_path, monkeypatch):
         _write_replicas(tmp_path, {"vendor": [_camel_entry()]})
         calls: list[str] = []
-        monkeypatch.setattr(report.webbrowser, "open", calls.append)
+        monkeypatch.setattr(report_cli.webbrowser, "open", calls.append)
         out_file = tmp_path / "report.html"
         rc = main(
             [
@@ -1337,7 +1339,7 @@ class TestCli:
     def test_html_opens_browser_without_no_open(self, tmp_path, monkeypatch):
         _write_replicas(tmp_path, {"vendor": [_camel_entry()]})
         calls: list[str] = []
-        monkeypatch.setattr(report.webbrowser, "open", calls.append)
+        monkeypatch.setattr(report_cli.webbrowser, "open", calls.append)
         out_file = tmp_path / "report.html"
         rc = main(
             [str(tmp_path), "--format", "html", "--output", str(out_file)]
@@ -1743,3 +1745,35 @@ class TestConsoleScript:
         rc = main()
         assert rc == 0
         assert (tmp_path / "case-timeline-report.md").exists()
+
+    def test_python_dash_m_help_names_the_tool(self):
+        """``python -m vultron.demo.report --help`` keeps its usage line.
+
+        Under ``-m``, ``sys.argv[0]`` is the package's ``__main__.py``, which
+        argparse would print as the program name; the package names itself
+        instead, as the flat ``report.py`` module did.
+        """
+        import subprocess
+        import sys
+
+        done = subprocess.run(
+            [sys.executable, "-m", "vultron.demo.report", "--help"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+        assert done.returncode == 0, done.stderr
+        assert done.stdout.startswith("usage: report.py ")
+
+    def test_console_script_help_names_the_script(self, capsys, monkeypatch):
+        """The console script still takes its name from ``sys.argv[0]``."""
+        monkeypatch.setattr(
+            "sys.argv", ["/venv/bin/vultron-demo-report", "--help"]
+        )
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 0
+        assert capsys.readouterr().out.startswith(
+            "usage: vultron-demo-report "
+        )

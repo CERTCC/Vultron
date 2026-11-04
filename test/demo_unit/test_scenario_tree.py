@@ -39,7 +39,6 @@ from test.adapters.driving.fastapi.test_openapi_trigger_snapshot import (
     TRIGGER_PATH_FRAGMENT,
     build_prototype_app,
 )
-from vultron.demo.scenario import registry
 from vultron.demo.scenario.branch_points import (
     BRANCH_POINTS,
     BranchPoint,
@@ -50,6 +49,7 @@ from vultron.demo.scenario.branch_points import (
 from vultron.demo.scenario.registry import (
     ScenarioSpec,
     discover_scenarios,
+    discovery as registry_discovery,
     scenario,
     scenario_tree,
 )
@@ -283,7 +283,7 @@ def test_two_scenarios_with_the_same_path_fail_discovery(
 ) -> None:
     specs = _specs_by_name()
     monkeypatch.setitem(
-        registry._REGISTRY,
+        registry_discovery._REGISTRY,
         "rvv",
         replace(specs["rvv"], path=specs["rv"].path),
     )
@@ -303,7 +303,7 @@ def test_a_path_that_is_a_strict_prefix_of_another_fails_discovery(
     """
     specs = _specs_by_name()
     monkeypatch.setitem(
-        registry._REGISTRY,
+        registry_discovery._REGISTRY,
         shorter,
         replace(specs[shorter], path=specs[shorter].path[:-1]),
     )
@@ -318,7 +318,7 @@ def test_two_decisions_at_one_node_fail_discovery(
     """Paths sharing a prefix must decide the same branch point next."""
     specs = _specs_by_name()
     monkeypatch.setitem(
-        registry._REGISTRY,
+        registry_discovery._REGISTRY,
         "rvv",
         replace(
             specs["rvv"],

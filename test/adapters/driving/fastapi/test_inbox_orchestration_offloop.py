@@ -32,18 +32,18 @@ _ACTOR_ID = "https://example.org/actors/offloop"
 
 @pytest.fixture(autouse=True)
 def clear_actor_locks():
-    from vultron.adapters.driving.fastapi import inbox_orchestration
+    from vultron.adapters.driving.fastapi.inbox_orchestration import pipeline
 
-    inbox_orchestration._actor_inbox_locks.clear()
+    pipeline._actor_inbox_locks.clear()
     yield
-    inbox_orchestration._actor_inbox_locks.clear()
+    pipeline._actor_inbox_locks.clear()
 
 
 @pytest.fixture
 def quiet_pipeline(monkeypatch):
     """Stub the pipeline's collaborators so only threading is under test."""
     monkeypatch.setattr(
-        "vultron.adapters.driving.fastapi.inbox_orchestration.outbox_handler",
+        "vultron.adapters.driving.fastapi.inbox_orchestration.pipeline.outbox_handler",
         AsyncMock(),
     )
     monkeypatch.setattr(
@@ -59,7 +59,7 @@ def quiet_pipeline(monkeypatch):
 def _install_process_payload(monkeypatch, fn) -> None:
     # run_inbox_pipeline calls the name its module imported at load time.
     monkeypatch.setattr(
-        "vultron.adapters.driving.fastapi.inbox_orchestration.process_payload",
+        "vultron.adapters.driving.fastapi.inbox_orchestration.pipeline.process_payload",
         fn,
     )
 

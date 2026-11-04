@@ -209,6 +209,7 @@ def test_a_gated_thread_waits_on_the_named_replica_first():
 @pytest.mark.spec("DEMOMA-22-001")
 def test_a_failed_gate_posts_nothing_and_records_the_failure():
     from vultron.demo import utils
+    from vultron.demo.utils.failures import _demo_failures
 
     utils.reset_demo_failures()
     try:
@@ -227,7 +228,7 @@ def test_a_failed_gate_posts_nothing_and_records_the_failure():
                 case=MagicMock(),
                 posts=_posts("a", "b"),
             )
-        failures = list(utils._demo_failures)
+        failures = list(_demo_failures)
     finally:
         utils.reset_demo_failures()
 
@@ -247,6 +248,7 @@ def test_a_failed_gate_returns_an_empty_list_from_the_posting_form():
     with the gate's own failure as the cause (``StoryState.keep``).
     """
     from vultron.demo import utils
+    from vultron.demo.utils.failures import _demo_failures
 
     utils.reset_demo_failures()
     try:
@@ -272,7 +274,7 @@ def test_a_failed_gate_returns_an_empty_list_from_the_posting_form():
                 case=MagicMock(),
                 posts=_posts("a", "b"),
             )
-        failures = list(utils._demo_failures)
+        failures = list(_demo_failures)
     finally:
         utils.reset_demo_failures()
 
@@ -363,6 +365,7 @@ def test_reporter_asks_returns_nothing_when_its_replica_gate_fails():
     posted.
     """
     from vultron.demo import utils
+    from vultron.demo.utils.failures import _demo_failures
 
     utils.reset_demo_failures()
     try:
@@ -381,7 +384,7 @@ def test_reporter_asks_returns_nothing_when_its_replica_gate_fails():
                 "Any workaround?",
                 _posts("vendor"),
             )
-        failures = list(utils._demo_failures)
+        failures = list(_demo_failures)
     finally:
         utils.reset_demo_failures()
 

@@ -57,12 +57,12 @@ fuzzer node in `vultron/demo/fuzzer/`. Browse by domain:
 |---|---|
 | Report validation | `vultron/demo/fuzzer/report_management/validate.py` |
 | Report prioritization | `vultron/demo/fuzzer/report_management/prioritize.py` |
-| Embargo management | `vultron/demo/fuzzer/embargo.py` |
-| CVE / Vulnerability ID assignment | `vultron/demo/fuzzer/report_management/assign_vul_id.py` |
+| Embargo management | `vultron/demo/fuzzer/embargo/` |
+| CVE / Vulnerability ID assignment | `vultron/demo/fuzzer/report_management/assign_vul_id/` |
 | Fix development | `vultron/demo/fuzzer/report_management/develop_fix.py` |
 | Fix deployment | `vultron/demo/fuzzer/report_management/deploy_fix.py` |
 | Exploit acquisition | `vultron/demo/fuzzer/report_management/acquire_exploit.py` |
-| Publication | `vultron/demo/fuzzer/report_management/publication.py` |
+| Publication | `vultron/demo/fuzzer/report_management/publication/` |
 
 The [Capability Model](../topics/capability_model/index.md) page lists every
 known integration point by domain and shape.

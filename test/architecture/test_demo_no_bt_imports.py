@@ -22,7 +22,8 @@ imports.
 Spec: ARCH-01-006 (refines ARCH-01-001)
 
 The sole permitted exception is the unified demo CLI aggregator
-(``vultron/demo/cli.py``, mandated by DC-01-001), which surfaces the standalone
+(``vultron/demo/cli/vultrabot_commands.py``, mandated by DC-01-001), which
+surfaces the standalone
 ``vultron/bt/``-based behaviour-tree demos (pacman, robot, cvd) as a
 ``vultrabot`` sub-group.
 
@@ -91,7 +92,9 @@ def _collect_violations() -> frozenset[str]:
 # the single documented bridge to the legacy simulator (ARCH-01-006, DC-01-001).
 # ---------------------------------------------------------------------------
 # permanent: ARCH-01-006 (its one sanctioned exception, mandated by DC-01-001)
-KNOWN_VIOLATIONS: frozenset[str] = frozenset({"vultron/demo/cli.py"})
+KNOWN_VIOLATIONS: frozenset[str] = frozenset(
+    {"vultron/demo/cli/vultrabot_commands.py"}
+)
 
 
 def test_demo_does_not_import_bt():

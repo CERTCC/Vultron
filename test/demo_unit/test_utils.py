@@ -28,7 +28,8 @@ Kept out of ``test/demo/`` deliberately — see this package's docstring.
 
 import pytest
 
-from vultron.demo.utils import DataLayerClient, _is_same_node
+from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils.case_actor import _is_same_node
 
 _NODE = "http://vendor:7999"
 _VENDOR = "http://vendor:7999/api/v2/actors/vendorco"
@@ -151,7 +152,7 @@ class TestExchangeActorRoster:
         /actors/`` now rejects (ADR-0081) — so the roster must stay as bare slugs
         for the node to expand into its own namespace.
         """
-        from vultron.demo.utils import _EXCHANGE_ACTORS
+        from vultron.demo.utils.environment import _EXCHANGE_ACTORS
 
         for slug, name, actor_type in _EXCHANGE_ACTORS:
             assert "/" not in slug and ":" not in slug, (
@@ -162,7 +163,7 @@ class TestExchangeActorRoster:
     def test_the_roster_covers_the_three_exchange_roles(self):
         """``discover_actors`` matches on these names, so a node seeded this way
         stays introspectable by role."""
-        from vultron.demo.utils import _EXCHANGE_ACTORS
+        from vultron.demo.utils.environment import _EXCHANGE_ACTORS
 
         assert len(_EXCHANGE_ACTORS) == 3
         assert [t for _, _, t in _EXCHANGE_ACTORS] == [

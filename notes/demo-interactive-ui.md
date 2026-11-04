@@ -177,13 +177,14 @@ actor container (actor0 … actor4, case-actor; may host several actors)
   manager's authoritative ledger.
 - **Per-replica view.** Because the dashboard reads every actor, it can
   show replica convergence side by side — the same per-actor presence view
-  `vultron/demo/report.py` builds after the fact (DRPT-02-005).
+  `vultron/demo/report/` builds after the fact (DRPT-02-005).
 
 ### Live case log stream
 
 The stream is built (#3641): `GET
 /api/v2/actors/{actor_id}/demo/cases/{case_id}/log/stream`, prototype-only
-(TRIG-09), in `vultron/adapters/driving/fastapi/routers/demo_triggers.py` and
+(TRIG-09), in
+`vultron/adapters/driving/fastapi/routers/demo_triggers/ledger.py` and
 `vultron/adapters/driving/fastapi/ledger_stream.py`. Each event's `id:` is the
 entry's `log_index`, `?since=` or `Last-Event-ID` resumes, and the stream is
 demo tooling, not a replication channel (SYNC-02-001).

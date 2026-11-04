@@ -185,7 +185,7 @@ def test_demo_cli_wires_up_suppression(monkeypatch):
     """AC-6 wire-up: the demo CLI calls the suppression helper."""
     import click
 
-    import vultron.demo.cli as cli_module
+    import vultron.demo.cli.group as cli_module
 
     calls: list[int] = []
     monkeypatch.setattr(

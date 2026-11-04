@@ -52,7 +52,9 @@ def participant_dl() -> SqliteDataLayer:
 @pytest.fixture
 def hosted(monkeypatch: pytest.MonkeyPatch, participant_dl) -> list[str]:
     """Host SIGNATORY_ID only, and record each outbox drain requested."""
-    from vultron.adapters.driving.fastapi import inbox_orchestration as io
+    from vultron.adapters.driving.fastapi.inbox_orchestration import (
+        pipeline as io,
+    )
 
     drains: list[str] = []
 

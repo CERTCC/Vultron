@@ -20,7 +20,7 @@ and lock out reintroduction of the retired restatement (AC-4).
 import importlib
 import pkgutil
 
-from vultron.adapters.driven.db_record import (
+from vultron.adapters.driven.db_record.ref_fields import (
     _activity_object_ref_properties,
     object_ref_fields,
 )

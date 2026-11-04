@@ -488,7 +488,7 @@ The demo is a live protocol run, not a simulation.
 | `vultron/demo/scenario/rv_demo.py` | Demo orchestration script |
 | `vultron/demo/helpers/` | Shared helper modules for scenario scripts: actor roles, seeding, causal polling and gating, verification, and workflow emission |
 | `vultron/adapters/driving/fastapi/routers/trigger_report.py`, `trigger_case.py` | Protocol trigger endpoints (`submit-report`, `validate-report`, `engage-case`, `leave-case`) |
-| `vultron/adapters/driving/fastapi/routers/demo_triggers.py` | Demo-only trigger endpoints (`add-note-to-case`, `notify-*`) |
+| `vultron/adapters/driving/fastapi/routers/demo_triggers/actions.py` | Demo-only trigger endpoints (`add-note-to-case`, `notify-*`) |
 | `vultron/adapters/driving/fastapi/routers/actors/` | Inbox endpoint |
 | `vultron/wire/as2/extractor/` | Activity pattern matching (AS2 → `MessageSemantics`) |
 | `vultron/core/dispatcher.py` | Message routing (`MessageSemantics` → use case) |

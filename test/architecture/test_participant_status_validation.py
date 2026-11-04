@@ -501,8 +501,11 @@ def test_report_phase_rm_transition_has_no_blackboard_actor_fallback() -> None:
     executing actor when no sender was supplied.  That was bug #2300; the
     post-ADR-0089 shape is a plain ``return self.sender_actor_id``.
     """
-    source = _module_source(
-        "vultron/core/behaviors/report/nodes/rm_transitions.py"
+    source = "".join(
+        _module_source(
+            f"vultron/core/behaviors/report/nodes/rm_transitions/{m}"
+        )
+        for m in ("report_phase.py", "valid.py")
     )
     assert "sender_actor_id or self.actor_id" not in source, (
         "_acting_actor_id() must not fall back to self.actor_id when"

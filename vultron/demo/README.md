@@ -142,7 +142,7 @@ uv run python -m vultron.demo.scenario.rv_demo
 
 ## Unified CLI (`vultron-demo`)
 
-`vultron/demo/cli.py` implements the unified CLI using
+`vultron/demo/cli/` implements the unified CLI using
 [click](https://click.palletsprojects.com/). The entry point is registered in
 `pyproject.toml`:
 
@@ -157,7 +157,7 @@ Key sub-commands:
   pass/fail summary
 - **`vultrabot`** — standalone BT sub-group (no API required)
 
-## Shared utilities (`vultron/demo/utils.py`)
+## Shared utilities (`vultron/demo/utils/`)
 
 All demo scripts import shared helpers from `vultron.demo.utils`:
 

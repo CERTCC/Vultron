@@ -92,7 +92,7 @@ REFUSAL_NOTICE_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
         (
             "OWNER_CLOSE_DECLINE",
-            f"{_C}/receive_close_case_tree.py",
+            f"{_C}/receive_close_case_tree/factory.py",
             "create_close_case_received_tree",
         ),
     }
@@ -132,7 +132,7 @@ NO_COMMIT_TREES: dict[_Site, str] = {
         "create_announce_vulnerability_case_received_tree",
     ): _PARTICIPANT_SIDE,
     (
-        f"{_C}/case_proposal_received_tree.py",
+        f"{_C}/case_proposal_received_tree/factory.py",
         "create_case_proposal_received_tree",
     ): (
         "a case proposal comes before its case exists; the CASE_MANAGER"
@@ -168,7 +168,7 @@ NO_COMMIT_TREES: dict[_Site, str] = {
         "create_reject_case_proposal_received_tree",
     ): _PARTICIPANT_SIDE,
     (
-        f"{_C}/suggest_actor_tree.py",
+        f"{_C}/suggest_actor_tree/answer.py",
         "create_recommendation_answer_received_tree",
     ): _PARTICIPANT_SIDE,
     (
@@ -182,14 +182,16 @@ NO_COMMIT_TREES: dict[_Site, str] = {
     (f"{_E}/invite_received_tree.py", "embargo_invite_fault_tree"): (
         _NOT_UNDERSTOOD
     ),
-    (f"{_R}/received_report_trees.py", "create_ack_report_received_tree"): (
-        "RK goes to the reporter, never to the CASE_MANAGER (RMB-08-005)"
-    ),
-    (f"{_R}/received_report_trees.py", "create_report_received_tree"): (
-        _BEFORE_ANY_CASE
-    ),
     (
-        "vultron/core/behaviors/sync/announce_tree.py",
+        f"{_R}/received_report_trees/receipt.py",
+        "create_ack_report_received_tree",
+    ): "RK goes to the reporter, never to the CASE_MANAGER (RMB-08-005)",
+    (
+        f"{_R}/received_report_trees/receipt.py",
+        "create_report_received_tree",
+    ): _BEFORE_ANY_CASE,
+    (
+        "vultron/core/behaviors/sync/announce_tree/factory.py",
         "create_announce_log_entry_tree",
     ): _PARTICIPANT_SIDE,
     (

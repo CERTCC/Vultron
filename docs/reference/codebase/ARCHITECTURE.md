@@ -47,13 +47,13 @@ Received activity (inbox):
 
 ```text
 HTTP POST /actors/{actor_id}/inbox  (wire: AS2 JSON)
-  -> inbox route                   `vultron/adapters/driving/fastapi/routers/actors/_routes.py`
+  -> inbox route                   `vultron/adapters/driving/fastapi/routers/actors/_routes/mailbox.py`
   -> parse_activity (structural)   `vultron/wire/as2/parser.py`
      + unknown-key disposition     `vultron/wire/as2/unknown_keys.py`
   -> HTTP 202 Accepted; work continues in a BackgroundTasks task
-  -> inbox orchestration           `vultron/adapters/driving/fastapi/inbox_orchestration.py`
+  -> inbox orchestration           `vultron/adapters/driving/fastapi/inbox_orchestration/pipeline.py`
      (BT work runs in a worker thread via asyncio.to_thread, IE-06-007)
-  -> rehydrate() via staging       `vultron/adapters/inbox_staging.py`, `vultron/wire/as2/rehydration/`
+  -> rehydrate() via staging       `vultron/adapters/inbox_staging/staging.py`, `vultron/wire/as2/rehydration/`
      (activity and inline objects staged in a throwaway store; ingress writes nothing, DL-06-006, IO-03-004;
       a deferred activity is held whole in a `DeferredInboxActivity` for its replay)
   -> semantic extraction           `vultron/wire/as2/extractor/`
@@ -64,7 +64,7 @@ HTTP POST /actors/{actor_id}/inbox  (wire: AS2 JSON)
   -> BTBridge runs the received tree  `vultron/core/behaviors/bridge.py`
      intake -> door guards -> [ledger-position answer] -> [clock decisions] -> precondition guards -> commit -> effects; nodes write through DataLayer
   -> DataLayer                     `vultron/adapters/driven/datalayer_sqlite/` (one store per actor, ADR-0073)
-  -> outbox handler + lanes        `vultron/adapters/driving/fastapi/outbox_handler.py`, `outbox_lanes.py`
+  -> outbox handler + lanes        `vultron/adapters/driving/fastapi/outbox_handler/drain.py`, `outbox_lanes.py`
      (sealed body relayed as stored; per-recipient order, ADR-0112)
   -> outbound delivery             `vultron/adapters/driven/http_delivery.py`
      (`prod_http_delivery.py` is a NotImplementedError stub; demo uses `demo_http_delivery.py`)
@@ -139,8 +139,8 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 - `vultron/core/AGENTS.md`
 - `specs/architecture.yaml` (ARCH spec group)
 - `vultron/adapters/driving/fastapi/main.py`
-- `vultron/adapters/driving/fastapi/routers/actors/_routes.py`
-- `vultron/adapters/driving/fastapi/inbox_orchestration.py`
+- `vultron/adapters/driving/fastapi/routers/actors/_routes/`
+- `vultron/adapters/driving/fastapi/inbox_orchestration/`
 - `vultron/adapters/driving/fastapi/trigger_runner.py`
 - `vultron/core/dispatcher.py`
 - `vultron/core/trigger_dispatcher.py`

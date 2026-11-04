@@ -791,8 +791,9 @@ groups:
     verification: >-
       A test asserts that every call site other than the wire-only ones names its need
       for the core fallback explicitly. Inspection confirms the persistence read paths
-      in `vultron/adapters/driven/db_record.py` and
-      `vultron/adapters/driven/datalayer_sqlite/hydration.py` pass `include_core=True`.
+      in `vultron/adapters/driven/db_record/` and
+      `vultron/adapters/driven/datalayer_sqlite/hydration/coercion.py` pass
+      `include_core=True`.
     relationships:
     - rel_type: implements
       spec_id: VM-06-013

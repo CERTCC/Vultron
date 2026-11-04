@@ -24,7 +24,7 @@ import pytest
 from fastapi import FastAPI, Path as FastAPIPath, status
 from fastapi.testclient import TestClient
 
-import vultron.adapters.driving.fastapi.outbox_handler as _outbox_handler
+import vultron.adapters.driving.fastapi.outbox_handler.drain as _outbox_drain
 from test.conftest import seed_case_actor_replica
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import archive_received, case_stub
@@ -73,7 +73,7 @@ def _store_for(actor_id: str) -> SqliteDataLayer:
 @pytest.fixture
 def client_triggers(dl, monkeypatch):
     monkeypatch.setattr(
-        _outbox_handler._DEFAULT_EMITTER_SLOT, "value", _NoopEmitter()
+        _outbox_drain._DEFAULT_EMITTER_SLOT, "value", _NoopEmitter()
     )
     app = FastAPI()
     app.include_router(trigger_actor_router.router)
@@ -622,7 +622,7 @@ def client_triggers_invite(dl):
     app.dependency_overrides[get_trigger_dl] = lambda: dl
     mock_emitter = AsyncMock()
     with patch(
-        "vultron.adapters.driving.fastapi.outbox_handler.get_default_emitter",
+        "vultron.adapters.driving.fastapi.outbox_handler.drain.get_default_emitter",
         return_value=mock_emitter,
     ):
         yield TestClient(app)

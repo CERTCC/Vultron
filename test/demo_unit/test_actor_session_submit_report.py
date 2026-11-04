@@ -23,8 +23,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from vultron.demo import actor_session as session_module
-from vultron.demo.actor_session import ActorSession
+from vultron.demo.actor_session import ActorSession, binding as session_module
 from vultron.demo.utils import DataLayerClient
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 

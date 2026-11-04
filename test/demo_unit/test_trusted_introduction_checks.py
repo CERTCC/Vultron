@@ -29,6 +29,7 @@ from test.demo._helpers import expect_trusted_introductions
 from vultron.demo import utils
 from vultron.demo.helpers import workflow
 from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils.failures import _demo_failures
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -85,7 +86,7 @@ class TestVerifyReporterTrustsIntroduction:
             "report": _REPORT.id_,
             "case_id": _CASE,
         }
-        assert utils._demo_failures == []
+        assert _demo_failures == []
 
     def test_a_failed_wait_is_recorded_and_returns_none(self, monkeypatch):
         def _wait(*args, **kwargs):
@@ -94,8 +95,8 @@ class TestVerifyReporterTrustsIntroduction:
         monkeypatch.setattr(workflow, "wait_for_reporter_introduction", _wait)
 
         assert _check() is None
-        assert len(utils._demo_failures) == 1
-        assert "CBT-01-011" in utils._demo_failures[0]
+        assert len(_demo_failures) == 1
+        assert "CBT-01-011" in _demo_failures[0]
 
 
 class TestExpectTrustedIntroductions:
