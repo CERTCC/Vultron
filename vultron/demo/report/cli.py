@@ -72,12 +72,18 @@ def default_output_path(input_dir: Path, fmt: str) -> Path:
     return input_dir / f"case-timeline-report{_EXTENSIONS[fmt]}"
 
 
-def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse command-line arguments for the report tool."""
+def _parse_args(
+    argv: list[str] | None = None, *, prog: str | None = None
+) -> argparse.Namespace:
+    """Parse command-line arguments for the report tool.
+
+    *prog* names the program in ``--help``; ``None`` takes it from
+    ``sys.argv[0]``, which is right for the ``vultron-demo-report`` console
+    script.  ``python -m vultron.demo.report`` passes its own name (see
+    :mod:`vultron.demo.report.__main__`).
+    """
     parser = argparse.ArgumentParser(
-        # prog defaults to sys.argv[0], so --help shows the correct name for
-        # both `python -m vultron.demo.report` and the `vultron-demo-report`
-        # console-script entry point.
+        prog=prog,
         description=(
             "Render a readable report from demo scenario case-ledger JSONL "
             "replica files."
@@ -112,16 +118,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
     """CLI entry point. Returns a process exit code (DRPT-01-004).
 
     Callable with no arguments (defaults to ``sys.argv[1:]``) so it also works
-    as a console-script target.
+    as a console-script target.  *prog* is passed to the argument parser (see
+    :func:`_parse_args`).
     """
     if not logging.getLogger().handlers:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    args = _parse_args(argv)
+    args = _parse_args(argv, prog=prog)
     input_dir = Path(args.input_dir) if args.input_dir else default_input_dir()
     output_path = (
         Path(args.output)

@@ -6621,7 +6621,7 @@ groups:
       (TRIG-03-002), producing an undetectable no-op. `ActorSession` makes
       both mistakes unrepresentable at the call site. `post_to_trigger` remains
       as the private implementation of `ActorSession._post` and MUST NOT be
-      imported outside `vultron/demo/utils/inbox.py` and
+      imported outside the `vultron/demo/utils/` package and
       `vultron/demo/actor_session/binding.py`.
     relationships:
     - rel_type: refines

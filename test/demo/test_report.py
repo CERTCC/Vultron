@@ -1745,3 +1745,35 @@ class TestConsoleScript:
         rc = main()
         assert rc == 0
         assert (tmp_path / "case-timeline-report.md").exists()
+
+    def test_python_dash_m_help_names_the_tool(self):
+        """``python -m vultron.demo.report --help`` keeps its usage line.
+
+        Under ``-m``, ``sys.argv[0]`` is the package's ``__main__.py``, which
+        argparse would print as the program name; the package names itself
+        instead, as the flat ``report.py`` module did.
+        """
+        import subprocess
+        import sys
+
+        done = subprocess.run(
+            [sys.executable, "-m", "vultron.demo.report", "--help"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+        assert done.returncode == 0, done.stderr
+        assert done.stdout.startswith("usage: report.py ")
+
+    def test_console_script_help_names_the_script(self, capsys, monkeypatch):
+        """The console script still takes its name from ``sys.argv[0]``."""
+        monkeypatch.setattr(
+            "sys.argv", ["/venv/bin/vultron-demo-report", "--help"]
+        )
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 0
+        assert capsys.readouterr().out.startswith(
+            "usage: vultron-demo-report "
+        )

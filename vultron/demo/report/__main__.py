@@ -17,5 +17,10 @@ import sys
 
 from vultron.demo.report.cli import main
 
+#: The program name ``--help`` shows under ``python -m vultron.demo.report``.
+#: ``sys.argv[0]`` is this file's path here, so argparse would print
+#: ``__main__.py``; the name is the one the flat ``report.py`` module printed.
+_PROG = "report.py"
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(prog=_PROG))
