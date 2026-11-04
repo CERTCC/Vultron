@@ -35,7 +35,7 @@ to the Coordinator (DEMOMA-11-015).  The checks that used to sit on its
 What the shared opening does is not re-tested here: it is one copy of the code,
 and ``test/demo/coordinated_story/`` and the vendor family's own test
 modules own it.  The two ``owner-keep-case`` continuations are shared with the
-coordinator-first half, so ``test/demo/test_owner_decision_story.py`` owns
+coordinator-first half, so ``test/demo/owner_decision_story/`` owns
 their mechanics and this module asserts only which parts ``rvcv-handoff``
 casts in them — and, where the casting is only observable by its effect, what
 that casting makes the shared continuation do.
@@ -80,7 +80,6 @@ from vultron.demo.cli import main as cli_main
 from vultron.demo.helpers import (
     coordinated_story,
     owner_decision_story,
-    story as story_module,
     story_cast,
     vendor_coordinator_story,
     vendor_story,
@@ -92,13 +91,18 @@ from vultron.demo.helpers.coordinated_story import (
     continuations as coordinated_continuations,
     joining as coordinated_joining,
 )
-from vultron.demo.helpers.owner_decision_story import REPORTER_PART
+from vultron.demo.helpers.owner_decision_story import (
+    REPORTER_PART,
+    handover as owner_decision_handover,
+    parts as owner_decision_parts,
+)
 from vultron.demo.helpers.story import (
     Choose,
     StoryState,
     UnseatedContainer,
     choose,
     run_story,
+    runner as story_runner,
     story,
 )
 from vultron.demo.helpers.vendor_coordinator_story import (
@@ -502,29 +506,29 @@ class TestVendor1HandsTheCaseToTheCoordinator:
         with (
             _no_banners(),
             patch.object(
-                owner_decision_story,
+                owner_decision_handover,
                 "find_ownership_transfer_offer_for_actor",
                 return_value="urn:test:ownership-offer",
             ),
             patch.object(
-                owner_decision_story,
+                owner_decision_handover,
                 "wait_for_case_actor_ledger_event",
                 side_effect=lambda **kw: order.append(
                     f"commit:{kw['semantic_type']}"
                 ),
             ) as commit,
             patch.object(
-                owner_decision_story,
+                owner_decision_handover,
                 "wait_for_case_attributed_to",
                 side_effect=lambda **kw: order.append("attributed_to"),
             ),
             patch.object(
-                owner_decision_story,
+                owner_decision_handover,
                 "wait_for_semantic_type_in_ledger",
                 side_effect=lambda **kw: order.append("witness"),
             ) as witness,
             patch.object(
-                owner_decision_story, "as_VulnerabilityCase"
+                owner_decision_handover, "as_VulnerabilityCase"
             ) as wire_case,
             patch.object(ActorSession, "offer_case_ownership_transfer"),
             patch.object(ActorSession, "accept_case_ownership_transfer"),
@@ -586,18 +590,18 @@ class TestTheCoordinatorInvitesTheSecondVendor:
         with (
             _no_banners(),
             patch.object(
-                owner_decision_story,
+                owner_decision_parts,
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
             patch.object(
-                owner_decision_story, "invitee_triages_after_joining"
+                owner_decision_handover, "invitee_triages_after_joining"
             ),
             patch_chain_shared(
                 coordinated_joining, "wait_for_case_on_container"
             ),
             patch.object(
-                owner_decision_story, "run_case_invite_chain"
+                owner_decision_handover, "run_case_invite_chain"
             ) as chain,
         ):
             demo.the_coordinator_invites_the_second_vendor(state)
@@ -628,10 +632,10 @@ class TestTheCoordinatorInvitesTheSecondVendor:
 
         with (
             patch.object(
-                owner_decision_story, "run_case_invite_chain"
+                owner_decision_handover, "run_case_invite_chain"
             ) as chain,
             patch.object(
-                owner_decision_story, "find_case_actor_participant_id"
+                owner_decision_parts, "find_case_actor_participant_id"
             ),
             pytest.raises(DemoStoryError, match="handed over"),
         ):
@@ -1228,7 +1232,7 @@ class TestARosterThatNeverFillsSkipsTheTransfer:
         def stub(_demo_name: str):
             yield harness
 
-        monkeypatch.setattr(story_module, "scenario_harness", stub)
+        monkeypatch.setattr(story_runner, "scenario_harness", stub)
         yield harness
         reset_demo_failures()
 
@@ -1259,16 +1263,18 @@ class TestARosterThatNeverFillsSkipsTheTransfer:
                 else AssertionError("roster never filled"),
             ),
             patch.object(
-                owner_decision_story,
+                owner_decision_handover,
                 "find_ownership_transfer_offer_for_actor",
                 return_value="urn:test:offer",
             ),
             patch.object(
-                owner_decision_story, "wait_for_case_actor_ledger_event"
+                owner_decision_handover, "wait_for_case_actor_ledger_event"
             ),
-            patch.object(owner_decision_story, "wait_for_case_attributed_to"),
             patch.object(
-                owner_decision_story, "wait_for_semantic_type_in_ledger"
+                owner_decision_handover, "wait_for_case_attributed_to"
+            ),
+            patch.object(
+                owner_decision_handover, "wait_for_semantic_type_in_ledger"
             ),
             patch.object(
                 ActorSession, "offer_case_ownership_transfer", autospec=True

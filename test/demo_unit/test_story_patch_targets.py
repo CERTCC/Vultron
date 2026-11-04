@@ -13,8 +13,9 @@
 
 """A patch on a split story package must name the submodule (#5592 AC-3).
 
-``coordinated_story`` and ``vendor_story`` are packages whose ``__init__``
-only re-exports names (CS-18-003).  A fragment looks each collaborator up in
+``coordinated_story``, ``vendor_story``, ``story`` and
+``owner_decision_story`` are packages whose ``__init__`` only re-exports
+names (CS-18-003).  A fragment looks each collaborator up in
 the globals of the submodule that defines it, so a ``patch.object`` against
 the package replaces a name no fragment reads: the test runs the real
 collaborator, against a ``MagicMock`` client, and may still pass.  This area
@@ -30,6 +31,12 @@ Two guards close it:
   name up inside one of its functions.  That catches the case the first guard
   cannot — a patch on a re-exported public name, such as
   ``open_coordinated_cast``, which the package does hold.
+
+``rcvcv_demo`` stays a module, because scenario discovery reads only
+``*_demo.py`` files, but the fragments only it tells moved to
+``helpers/rcvcv_story.py``.  A patch on either flat module is held to the
+second rule too, so one left on ``rcvcv_demo`` for a name only
+``rcvcv_story`` now looks up is reported.
 """
 
 import ast
@@ -42,10 +49,26 @@ from unittest.mock import patch
 import pytest
 
 from test.demo._helpers import modules_resolving_names
-from vultron.demo.helpers import coordinated_story, vendor_story
+from vultron.demo.helpers import (
+    coordinated_story,
+    owner_decision_story,
+    rcvcv_story,
+    story,
+    vendor_story,
+)
+from vultron.demo.scenario import rcvcv_demo
 
 #: The packages a module split produced, by dotted name.
-_PACKAGES: tuple[ModuleType, ...] = (coordinated_story, vendor_story)
+_PACKAGES: tuple[ModuleType, ...] = (
+    coordinated_story,
+    vendor_story,
+    story,
+    owner_decision_story,
+)
+
+#: The flat modules a split left in place, or moved fragments into: a patch
+#: on one must name a name it looks up.
+_FLAT_MODULES: tuple[ModuleType, ...] = (rcvcv_demo, rcvcv_story)
 
 #: Calls whose first two arguments are a module and a name to replace, by the
 #: last two parts of the called name, so ``patch.object``,
@@ -208,6 +231,14 @@ def _misdirected(source: str, where: str) -> list[str]:
     """
     problems: list[str] = []
     for line, module, name in _patch_targets(source):
+        for flat in _FLAT_MODULES:
+            if module == flat.__name__ and not _looked_up_in_a_function(
+                flat, name
+            ):
+                problems.append(
+                    f"{where}:{line}: patches {name!r} on {module}, which "
+                    "never looks it up, so the patch intercepts nothing"
+                )
         for package in _PACKAGES:
             if module == package.__name__:
                 problems.append(
@@ -337,7 +368,9 @@ def test_every_patch_on_a_split_package_names_the_resolving_submodule() -> (
     """
     # A file that never names a package cannot import or patch it, so only
     # the files that do are parsed.
-    package_names = tuple(p.__name__.rpartition(".")[2] for p in _PACKAGES)
+    package_names = tuple(
+        p.__name__.rpartition(".")[2] for p in _PACKAGES + _FLAT_MODULES
+    )
     texts = {
         str(path.relative_to(_TEST_ROOT.parent)): path.read_text()
         for path in sorted(_TEST_ROOT.rglob("*.py"))
@@ -379,3 +412,32 @@ def test_a_nested_subpackage_is_read_too(
     names = sorted(m.__name__ for m in modules_resolving_names(package))
 
     assert names == ["story_pkg_5592.flat", "story_pkg_5592.inner.deep"]
+
+
+@pytest.mark.parametrize(
+    ("line", "flagged"),
+    [
+        ("patch.object(demo, 'wait_for_participant_vf_state')", True),
+        (
+            "patch('vultron.demo.scenario.rcvcv_demo."
+            "wait_for_participant_vf_state')",
+            True,
+        ),
+        ("patch.object(rcvcv_story, 'wait_for_participant_vf_state')", False),
+        ("patch.object(demo, 'dump_story_ledgers')", False),
+    ],
+)
+def test_a_patch_on_a_flat_module_must_name_a_name_it_looks_up(
+    line: str, flagged: bool
+) -> None:
+    """A fragment that moved to ``rcvcv_story`` is no longer patched through
+    ``rcvcv_demo``, and a name ``rcvcv_demo`` still reads is let through."""
+    source = (
+        "import vultron.demo.scenario.rcvcv_demo as demo\n"
+        "from vultron.demo.helpers import rcvcv_story\n"
+        f"{line}\n"
+    )
+
+    problems = _misdirected(source, "example.py")
+
+    assert bool(problems) is flagged, problems

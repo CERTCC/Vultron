@@ -655,8 +655,10 @@ groups:
       The Case Actor Service must answer each proposal it admits (CP-05-002). The
       dispatcher sends each `Create(CaseProposal)` to this use case, so without it a
       proposal reaches no code that can answer it.
-    verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms `CreateCaseProposalReceivedUseCase`
-      is implemented and tested in `test/core/behaviors/case/test_case_proposal_received_tree.py`.
+    verification: Inspection of
+      `vultron/core/use_cases/received/case_proposal/create.py` confirms
+      `CreateCaseProposalReceivedUseCase` is implemented and tested in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py`.
     stories:
     - story_2022_012
     - story_2022_046
@@ -1208,8 +1210,10 @@ groups:
       so that it can match the `Create(VulnerabilityCase)` that follows to its own
       request and check its sender. The dispatcher sends each `Accept(CaseProposal)`
       to this use case.
-    verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms
-      `AcceptCaseProposalReceivedUseCase` is implemented with an `execute()` method.
+    verification: Inspection of
+      `vultron/core/use_cases/received/case_proposal/answer.py` confirms
+      `AcceptCaseProposalReceivedUseCase` is implemented with an `execute()`
+      method.
     stories:
     - story_2022_012
     - story_2026_036
@@ -1225,8 +1229,10 @@ groups:
       The report receiver must know when the Case Actor Service declines its proposal,
       so that it stops waiting for a case. The dispatcher sends each
       `Reject(CaseProposal)` to this use case.
-    verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms
-      `RejectCaseProposalReceivedUseCase` is implemented with an `execute()` method.
+    verification: Inspection of
+      `vultron/core/use_cases/received/case_proposal/answer.py` confirms
+      `RejectCaseProposalReceivedUseCase` is implemented with an `execute()`
+      method.
     stories:
     - story_2022_006
     - story_2026_036

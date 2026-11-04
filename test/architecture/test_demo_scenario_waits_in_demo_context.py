@@ -33,11 +33,11 @@ written again is scanned rather than silently exempt:
   there are none of;
 * a **story fragment** — a module-level function taking a
   :class:`~vultron.demo.helpers.story.StoryState`, which is one step of a
-  story (``vultron/demo/helpers/story.py``).  A fragment is scenario-level
+  story (``vultron/demo/helpers/story/``).  A fragment is scenario-level
   wherever it is written: a composed scenario keeps the fragments only it
-  tells in its own module, and the shared ones live in the ``*_story.py``
-  modules under ``helpers/`` — one per family, plus one per decision more
-  than one family makes.  The check scans every module under
+  tells in its own module, and the shared ones live in the ``*_story``
+  modules and packages under ``helpers/`` — one per family, plus one per
+  decision more than one family makes.  The check scans every module under
   ``vultron/demo/`` rather than a list of them, so a new one is covered
   without an edit here.
 
@@ -355,7 +355,7 @@ def _classify_polling_helpers(
 _RAISING_WAITS, _WRAPPING_WAITS = _classify_polling_helpers()
 
 #: The annotation that marks a story fragment's state parameter: one step of a
-#: story is ``Callable[[StoryState], None]`` (``helpers/story.py``).
+#: story is ``Callable[[StoryState], None]`` (``helpers/story/``).
 _STORY_STATE = "StoryState"
 
 #: The name prefix of a hand-written scenario phase function.

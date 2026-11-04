@@ -33,8 +33,8 @@ therefore sit here on three things:
 What the shared opening does is not re-tested here:
 ``test/demo/coordinated_story/`` owns the rcv family's stretch,
 ``test_two_coordinator_story`` owns the pair's prefix and the continuations
-both scenarios tell, and ``test_owner_decision_story`` owns the
-``owner-keep-case`` continuations.
+both scenarios tell, and ``test/demo/owner_decision_story/`` owns
+the ``owner-keep-case`` continuations.
 Every test patches the collaborators out, so no HTTP happens; ``demo_gate`` /
 ``demo_check`` / ``demo_step`` stay real wherever the test is about control
 flow and are stubbed to ``nullcontext`` only where it is about call shape
@@ -63,7 +63,6 @@ from vultron.demo.cli import main as cli_main
 from vultron.demo.helpers import (
     coordinated_story,
     owner_decision_story,
-    story as story_module,
     story_cast,
     two_coordinator_story,
 )
@@ -80,12 +79,16 @@ from vultron.demo.helpers.notes import (
     WORKAROUND_ANSWER,
     WORKAROUND_QUESTION,
 )
-from vultron.demo.helpers.owner_decision_story import Part
+from vultron.demo.helpers.owner_decision_story import (
+    Part,
+    keep as owner_decision_keep,
+)
 from vultron.demo.helpers.story import (
     Choose,
     UnseatedContainer,
     choose,
     run_story,
+    runner as story_runner,
     story,
 )
 from vultron.demo.helpers.two_coordinator_story import (
@@ -289,23 +292,19 @@ class TestC2SuggestsTheVendor:
                 side_effect=lambda *a, **kw: order.append("approve"),
             ) as approve,
             patch(
-                "vultron.demo.helpers.owner_decision_story"
-                ".find_cp_offer_for_case",
+                "vultron.demo.helpers.owner_decision_story.keep.find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ) as cp_offer,
             patch(
-                "vultron.demo.helpers.owner_decision_story"
-                ".find_case_actor_participant_id",
+                "vultron.demo.helpers.owner_decision_story.parts.find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
             patch(
-                "vultron.demo.helpers.owner_decision_story"
-                ".run_case_invite_chain",
+                "vultron.demo.helpers.owner_decision_story.keep.run_case_invite_chain",
                 side_effect=lambda **kw: order.append("invite-chain"),
             ) as chain,
             patch(
-                "vultron.demo.helpers.owner_decision_story"
-                ".invitee_triages_after_joining",
+                "vultron.demo.helpers.owner_decision_story.keep.invitee_triages_after_joining",
                 side_effect=lambda *a, **kw: order.append("triage"),
             ) as triage,
             patch_chain_shared(
@@ -368,18 +367,15 @@ class TestC2SuggestsTheVendor:
             patch.object(ActorSession, "suggest_actor_to_case"),
             patch.object(ActorSession, "accept_actor_recommendation"),
             patch(
-                "vultron.demo.helpers.owner_decision_story"
-                ".find_cp_offer_for_case",
+                "vultron.demo.helpers.owner_decision_story.keep.find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
             patch(
-                "vultron.demo.helpers.owner_decision_story"
-                ".find_case_actor_participant_id",
+                "vultron.demo.helpers.owner_decision_story.parts.find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
             patch(
-                "vultron.demo.helpers.owner_decision_story"
-                ".run_case_invite_chain"
+                "vultron.demo.helpers.owner_decision_story.keep.run_case_invite_chain"
             ),
             patch.object(
                 coordinated_joining,
@@ -947,7 +943,7 @@ class TestARosterThatNeverFillsSkipsTheSuggestion:
         def stub(_demo_name: str):
             yield harness
 
-        monkeypatch.setattr(story_module, "scenario_harness", stub)
+        monkeypatch.setattr(story_runner, "scenario_harness", stub)
         yield harness
         reset_demo_failures()
 
@@ -976,14 +972,12 @@ class TestARosterThatNeverFillsSkipsTheSuggestion:
                 else AssertionError("roster never filled"),
             ),
             patch.object(
-                owner_decision_story,
+                owner_decision_keep,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
-            patch.object(owner_decision_story, "run_case_invite_chain"),
-            patch.object(
-                owner_decision_story, "invitee_triages_after_joining"
-            ),
+            patch.object(owner_decision_keep, "run_case_invite_chain"),
+            patch.object(owner_decision_keep, "invitee_triages_after_joining"),
             patch.object(
                 ActorSession, "suggest_actor_to_case", autospec=True
             ) as suggest,
