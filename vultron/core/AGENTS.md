@@ -154,11 +154,10 @@ from core, never the reverse — which is why `VultronActivity.object_` is typed
 sub-module entry lists in the correct order and appends the `UNKNOWN`
 fallback entries last. When adding a new message type, add the `SemanticEntry`
 to the **domain sub-module** (`report.py`, `case.py`, `actor/`, `embargo/`,
-`note.py`, `status.py`, or `sync.py`; in a package, the submodule for the
-entry's concern), not to `__init__.py` directly. Editing `__init__.py` for
-individual entry additions defeats the purpose of the split (reducing merge
-conflicts) and risks silently corrupting the ordering invariant that keeps the
-`UNKNOWN` fallback last.
+`note.py`, `status.py`, `sync.py`; in a package, its concern's submodule), not
+to `__init__.py`. Editing `__init__.py` for individual entry additions
+defeats the purpose of the split (reducing merge conflicts) and risks silently
+corrupting the ordering invariant that keeps the `UNKNOWN` fallback last.
 
 ### EM State Writes Are Owned by `EmbargoLifecycle` (EMB-18-001)
 
