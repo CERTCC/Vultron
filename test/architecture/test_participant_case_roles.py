@@ -42,7 +42,9 @@ def _case_roles_mutations() -> list[str]:
 
 @pytest.mark.spec("PRM-05-004")
 def test_no_direct_case_roles_mutation_in_core():
-    """No core file outside case_participant/participant.py may mutate case_roles directly (PRM-05-004).
+    """No core file outside case_participant/participant.py mutates case_roles.
+
+    Direct mutation is reserved for the participant mutators (PRM-05-004).
 
     Constructor keyword-argument form (`case_roles=...`) is permitted and is
     NOT flagged by this test because it lacks the leading dot.
@@ -68,7 +70,9 @@ def test_case_roles_mutation_scan_completes_within_one_second():
 
 
 def test_no_getattr_case_roles_read_in_core():
-    """No core file outside case_participant/participant.py may read case_roles via getattr() (PRM-01-003).
+    """No core file outside case_participant/participant.py reads case_roles.
+
+    A ``getattr()`` read is reserved for the participant module (PRM-01-003).
 
     Use ``participant.roles`` (property) or ``participant.has_role(role)`` instead.
     Constructor keyword-argument form (``case_roles=...``) is permitted and is
