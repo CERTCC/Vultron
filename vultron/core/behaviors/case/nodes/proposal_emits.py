@@ -33,8 +33,8 @@ from vultron.core.behaviors.case.nodes.proposal_announcement import (
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_register import carry_embargo_inline

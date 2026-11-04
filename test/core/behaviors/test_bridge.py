@@ -24,6 +24,8 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.bridge.tree_execution import _BridgeExecution
+from vultron.core.behaviors.bridge.tree_setup import _BridgeSetup
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
@@ -48,6 +50,18 @@ def enable_blackboard_activity_stream():
     clears that storage around every test (TB-06-005).
     """
     py_trees.blackboard.Blackboard.enable_activity_stream()
+
+
+def test_btbridge_composes_setup_and_execution_mixins():
+    """``BTBridge`` is ``_BridgeSetup`` then ``_BridgeExecution`` (CS-18-002).
+
+    The bridge's setup and tick loop live in two mixin modules.  Importing them
+    here also makes this file a direct importer of both, so ``targeted-tests``
+    selects it when either module changes (PAD-18-002).
+    """
+    assert BTBridge.__mro__[1:3] == (_BridgeSetup, _BridgeExecution)
+    assert BTBridge.setup_tree is _BridgeSetup.setup_tree
+    assert BTBridge.execute_tree is _BridgeExecution.execute_tree
 
 
 # Test behavior nodes for verifying bridge functionality

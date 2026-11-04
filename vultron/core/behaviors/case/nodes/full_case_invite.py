@@ -30,8 +30,8 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerCondition,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity_ids import derived_activity_id
