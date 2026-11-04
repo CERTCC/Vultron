@@ -38,6 +38,7 @@ from pathlib import Path
 
 import pytest
 
+from test.demo_unit._scenario_imports import imported_names, names_a_scenario
 from vultron.demo import cli
 from vultron.demo.scenario import rv_demo
 from vultron.demo.scenario.registry import (
@@ -157,24 +158,10 @@ def test_no_hand_maintained_import_list() -> None:
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
     ]
 
-    imported: list[str] = []
-    for node in nodes:
-        if isinstance(node, ast.Import):
-            imported.extend(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            imported.append(node.module)
-            imported.extend(
-                f"{node.module}.{alias.name}" for alias in node.names
-            )
-
-    # A package scenario's submodules count too: importing
-    # `<pkg>.rcvcv_demo.cli` names the scenario as surely as `rcvcv_demo`.
-    def names_a_scenario(name: str) -> bool:
-        return any(part.endswith(MODULE_SUFFIX) for part in name.split("."))
-
-    assert names_a_scenario(f"{SCENARIO_PACKAGE}.rv_demo")
-    assert names_a_scenario(f"{SCENARIO_PACKAGE}.rv_demo.cli")
-    assert not names_a_scenario(f"{SCENARIO_PACKAGE}.registry.spec")
+    imported = imported_names(nodes)
+    assert imported, (
+        f"the registry sources import nothing: {_REGISTRY_SOURCES}"
+    )
 
     offenders = sorted(name for name in imported if names_a_scenario(name))
     assert not offenders, (
@@ -194,6 +181,27 @@ def test_no_hand_maintained_import_list() -> None:
         "package traversal is what makes discovery independent of anyone "
         "remembering to register a module (DEMOCI-11-002)."
     )
+
+
+def test_an_import_of_a_scenario_submodule_names_the_scenario() -> None:
+    """The shared predicate both import-list ratchets compose is not blind.
+
+    A package scenario's submodules count: importing ``<pkg>.rcvcv_demo.cli``
+    names the scenario as surely as ``rcvcv_demo`` does (DEMOCI-11-003).
+    """
+    assert names_a_scenario(f"{SCENARIO_PACKAGE}.rv_demo")
+    assert names_a_scenario(f"{SCENARIO_PACKAGE}.rv_demo.cli")
+    assert not names_a_scenario(f"{SCENARIO_PACKAGE}.registry.spec")
+    assert not names_a_scenario("vultron.demo.exchange.receive_report_demo")
+    tree = ast.parse(
+        f"from {SCENARIO_PACKAGE} import rv_demo\n"
+        f"import {SCENARIO_PACKAGE}.rcvcv_demo.cli\n"
+    )
+    assert [
+        name
+        for name in imported_names(ast.walk(tree))
+        if names_a_scenario(name)
+    ] == [f"{SCENARIO_PACKAGE}.rv_demo", f"{SCENARIO_PACKAGE}.rcvcv_demo.cli"]
 
 
 @pytest.mark.parametrize(

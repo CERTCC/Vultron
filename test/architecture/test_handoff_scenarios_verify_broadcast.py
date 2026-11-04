@@ -182,18 +182,26 @@ def test_every_handoff_is_a_shared_story_fragment() -> None:
     modules = {name.split("::", 1)[0] for name, _ in _HANDOFF_FUNCTIONS}
     # Every file of every scenario, a package scenario's submodules included,
     # so a handoff written in `<name_>_demo/story.py` is a scenario's own.
-    specs = discover_scenarios()
-    scenario_files = {
-        path.relative_to(_corpus.REPO_ROOT).as_posix()
-        for spec in specs
-        for path in _corpus.in_repo(spec.source_files)
+    files_of = {
+        spec.demo_path: [
+            path.relative_to(_corpus.REPO_ROOT).as_posix()
+            for path in _corpus.in_repo(spec.source_files)
+        ]
+        for spec in discover_scenarios()
     }
+    scenario_files = {path for paths in files_of.values() for path in paths}
     # Spelled the way `modules` is, or the membership test below compares two
-    # notations and passes over every scenario file.
-    module_paths = {spec.demo_path for spec in specs if not spec.is_package}
-    assert module_paths and module_paths <= scenario_files, (
+    # notations and passes over every scenario file: each scenario's files are
+    # its repo-relative demo path, or lie under it for a package.
+    misspelled = {
+        demo_path: paths
+        for demo_path, paths in files_of.items()
+        if not paths
+        or not all(path.startswith(demo_path.rstrip("/")) for path in paths)
+    }
+    assert files_of and not misspelled, (
         "the scenario files are not spelled as repo-relative paths, so no "
-        f"handoff could match one: {sorted(scenario_files)[:3]}"
+        f"handoff could match one: {misspelled or 'no scenarios'}"
     )
     assert any(name not in scenario_files for name in modules), (
         "no shared helper performs a handoff, so the ratchet checks nothing."

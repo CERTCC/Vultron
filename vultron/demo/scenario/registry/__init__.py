@@ -27,8 +27,8 @@ Two design rules are load-bearing and easy to undo by accident:
   ``<name_>_demo.py`` module or a ``<name_>_demo/`` package; the demo path
   follows whichever form the import system resolves the derived name to. A
   stored path is a path that can be wrong about itself; a derived path either
-  resolves or fails a check. Adding an override field re-opens the drift channel for every
-  scenario, not just the one that needed it.
+  resolves or fails a check. Adding an override field re-opens the drift
+  channel for every scenario, not just the one that needed it.
 - **Discovery walks the package.** Import-time registration only sees modules
   that were imported, so a hand-maintained import list here would recreate
   exactly the silent omission the registry exists to remove (DEMOCI-11-038).

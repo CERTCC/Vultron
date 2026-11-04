@@ -26,9 +26,9 @@ illustrate individual message semantics in isolation.
 Each scenario declares itself by decorating its `main()` with `@scenario(...)`
 from [`registry/`](registry/__init__.py); the table below is generated from those
 declarations (ADR-0098, DEMOCI-11). To add a scenario, write the module (or a
-`<name_>_demo/` package whose `__init__` re-exports `main`, `ROLES` and
-`CLI_HELP`, with a `__main__.py` that calls `main()`) and decorate it, passing
-the `story` it assembles from shared fragments and `choose(...)` items naming
+`<name_>_demo/` package whose `__init__` re-exports `main`, `ROLES`,
+`CLI_HELP` and `STORY`, with a `__main__.py` that calls `main()`) and decorate
+it, passing the `story` it assembles from shared fragments and `choose(...)` items naming
 the branch-point table in [`branch_points.py`](branch_points.py). Its path on
 the scenario tree is read off those choices, so there is nothing else to
 declare. Then run `uv run demo-scenarios --write`.

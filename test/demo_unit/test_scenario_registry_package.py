@@ -62,8 +62,9 @@ _MODULE = f"{SCENARIO_PACKAGE}.{_STEM}"
 _PACKAGE_FILES = {
     "__init__.py": f"""
         from {_MODULE}.cli import CLI_HELP, ROLES, main
+        from {_MODULE}.story import STORY
 
-        __all__ = ["CLI_HELP", "ROLES", "main"]
+        __all__ = ["CLI_HELP", "ROLES", "STORY", "main"]
     """,
     "story.py": """
         class _Story:
@@ -272,7 +273,7 @@ def test_both_forms_of_one_name_are_refused(
     _write(tmp_path, {"twin_demo.py": "", "twin_demo/__init__.py": ""})
     monkeypatch.setattr(scenario_package, "__path__", [str(tmp_path)])
     importlib.invalidate_caches()
-    with pytest.raises(DemoScenarioRegistryError, match="twin_demo"):
+    with pytest.raises(DemoScenarioRegistryError, match="both a module"):
         scenario_module_stems()
 
 
@@ -348,14 +349,54 @@ def test_a_scenario_directory_without_init_is_refused(
         scenario_module_stems()
 
 
+@pytest.mark.parametrize(
+    ("files", "stems"),
+    [
+        ({"gone_demo/__pycache__/cli.cpython-313.pyc": ""}, ()),
+        # A package with a subpackage leaves a nested `__pycache__` too.
+        (
+            {
+                "gone_demo/__pycache__/cli.cpython-313.pyc": "",
+                "gone_demo/phases/__pycache__/deep.cpython-313.pyc": "",
+            },
+            (),
+        ),
+        # The scenario became a module again; the leftover is not a package.
+        (
+            {
+                "gone_demo.py": "",
+                "gone_demo/phases/__pycache__/deep.cpython-313.pyc": "",
+            },
+            ("gone_demo",),
+        ),
+    ],
+)
 def test_a_directory_holding_only_bytecode_is_ignored(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    files: dict[str, str],
+    stems: tuple[str, ...],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A ``__pycache__`` left behind by a branch switch is no scenario."""
-    _write(tmp_path, {"gone_demo/__pycache__/cli.cpython-313.pyc": ""})
+    _write(tmp_path, files)
     monkeypatch.setattr(scenario_package, "__path__", [str(tmp_path)])
     importlib.invalidate_caches()
-    assert scenario_module_stems() == ()
+    assert scenario_module_stems() == stems
+
+
+def test_a_source_directory_beside_a_module_is_both_forms(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Source files in a ``*_demo`` directory beside the module are refused.
+
+    Reported as both forms, not as a missing ``__init__.py``: adding one, as
+    that message would advise, only makes the conflict a package.
+    """
+    _write(tmp_path, {"twin_demo.py": "", "twin_demo/cli.py": ""})
+    monkeypatch.setattr(scenario_package, "__path__", [str(tmp_path)])
+    importlib.invalidate_caches()
+    with pytest.raises(DemoScenarioRegistryError, match="both a module"):
+        scenario_module_stems()
 
 
 def test_a_namespace_directory_reads_as_no_package(

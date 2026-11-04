@@ -195,47 +195,63 @@ def scenario_module_stems() -> tuple[str, ...]:
             every table with no error.
     """
     package = importlib.import_module(SCENARIO_PACKAGE)
-    _refuse_directories_without_init(package.__path__)
-    found = [
-        info
-        for info in pkgutil.iter_modules(package.__path__)
-        if info.name.endswith(MODULE_SUFFIX) and not info.name.startswith("_")
+    _refuse_misshapen_directories(package.__path__)
+    return tuple(
+        sorted(
+            info.name
+            for info in pkgutil.iter_modules(package.__path__)
+            if info.name.endswith(MODULE_SUFFIX)
+            and not info.name.startswith("_")
+        )
+    )
+
+
+def _holds_source(directory: Path) -> bool:
+    """Whether *directory* holds any file outside a ``__pycache__``, at any depth.
+
+    Switching to a branch where a package scenario is a module again leaves
+    its ``__pycache__`` directories behind, nested ones included, untracked;
+    a directory holding nothing else is no scenario.
+    """
+    return any(
+        path.is_file()
+        and "__pycache__" not in path.relative_to(directory).parts
+        for path in directory.rglob("*")
+    )
+
+
+def _refuse_misshapen_directories(locations: Iterable[str]) -> None:
+    """Raise when a ``*_demo`` directory in *locations* is not one scenario.
+
+    A directory beside a ``.py`` module of the same name is both forms, and
+    a directory with no ``__init__.py`` is not a package. Leftover bytecode
+    is ignored (:func:`_holds_source`).
+    """
+    directories = [
+        path
+        for location in locations
+        for path in Path(location).glob(f"*{MODULE_SUFFIX}")
+        if path.is_dir()
+        and not path.name.startswith("_")
+        and _holds_source(path)
     ]
     both = sorted(
-        info.name
-        for info in found
-        if info.ispkg
-        and any(
-            (Path(location) / f"{info.name}.py").is_file()
-            for location in package.__path__
-        )
+        path.name
+        for path in directories
+        if path.with_name(f"{path.name}.py").is_file()
     )
     if both:
         raise DemoScenarioRegistryError(
             "scenario name(s) present as both a module and a package: "
             + ", ".join(both)
             + ". A scenario is one form or the other (DEMOCI-11-003); the "
-            "import system would load the package and silently ignore the "
-            "module. Delete one."
+            "import system would load one and silently ignore the other. "
+            "Delete one."
         )
-    return tuple(sorted(info.name for info in found))
-
-
-def _refuse_directories_without_init(locations: Iterable[str]) -> None:
-    """Raise when a ``*_demo`` directory in *locations* is not a package.
-
-    A directory that holds nothing but ``__pycache__`` is ignored: switching
-    to a branch where a package scenario is a module again leaves exactly that
-    behind, untracked, and it is no scenario.
-    """
     stray = sorted(
         path.name
-        for location in locations
-        for path in Path(location).glob(f"*{MODULE_SUFFIX}")
-        if path.is_dir()
-        and not path.name.startswith("_")
-        and not (path / "__init__.py").is_file()
-        and any(child.name != "__pycache__" for child in path.iterdir())
+        for path in directories
+        if not (path / "__init__.py").is_file()
     )
     if stray:
         raise DemoScenarioRegistryError(
@@ -243,8 +259,8 @@ def _refuse_directories_without_init(locations: Iterable[str]) -> None:
             + ", ".join(stray)
             + ". pkgutil does not list a directory without one, so the "
             "scenario would be missing from the CLI and every generated "
-            "table. Add an __init__.py that re-exports main, ROLES and "
-            "CLI_HELP, or remove the directory (DEMOCI-11-002)."
+            "table. Add an __init__.py that re-exports main, ROLES, "
+            "CLI_HELP and STORY, or remove the directory (DEMOCI-11-002)."
         )
 
 
