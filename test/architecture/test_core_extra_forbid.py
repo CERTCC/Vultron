@@ -341,31 +341,6 @@ def test_json_mode_dump_round_trips_for_non_bool_computed_field(
     ] == [("when",)]
 
 
-def test_retired_embargo_adherence_refused_at_parse() -> None:
-    """An inbound ParticipantStatus carrying the retired embargoAdherence key
-    is refused at parse (ADR-0122), not accepted with the value set aside.
-    """
-    import pytest
-
-    from vultron.wire.as2.parser import (
-        VultronParseValidationError,
-        parse_activity,
-    )
-
-    body = {
-        "type": "Announce",
-        "actor": "https://example.org/actors/alice",
-        "object": {
-            "type": "ParticipantStatus",
-            "context": "urn:uuid:case-received-path",
-            "embargoAdherence": True,
-        },
-        "published": "2026-01-01T00:00:00+00:00",
-    }
-    with pytest.raises(VultronParseValidationError, match="ADR-0122"):
-        parse_activity(body)
-
-
 def test_retired_wire_normalisation_mechanisms_are_not_reintroduced() -> None:
     """AC-7: the mechanisms ``extra="forbid"`` subsumes stay deleted.
 

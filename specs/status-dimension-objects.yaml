@@ -235,9 +235,11 @@ groups:
       as aliases or shim properties after the migration is complete.
     verification: '`TestCaseStatusCarriesNoFlatShim` in `test/core/models/test_dimensions.py` asserts that `CaseStatus`
       defines no `em_state` or `pxa_state` property or field and refuses either key on input through `extra="forbid"`;
-      `test_flat_case_status_spelling_is_a_near_miss_of_its_wire_spelling` and `test_retired_name_on_inline_object_is_refused`
-      in `test/wire/as2/test_unknown_key_disposition.py` pin the parse-edge refusal of the flat CaseStatus spellings and
-      of `vfd_state`. `TestParticipantStatusCarriesNoFlatShim` in
+      `test_flat_case_status_spelling_is_a_near_miss_of_its_wire_spelling` in
+      `test/wire/as2/test_unknown_key_disposition.py` pins the parse-edge refusal of
+      the flat CaseStatus spellings, and
+      `test_a_former_field_name_is_set_aside_and_reported` pins that `vfd_state` is
+      set aside as an unknown key (ADR-0175). `TestParticipantStatusCarriesNoFlatShim` in
       `test/core/models/test_participant_status_shape.py`
       and `test_flat_participant_status_spelling_is_a_near_miss_of_its_wire_spelling`
       pin the same for the
@@ -285,8 +287,10 @@ groups:
     kind: project
     statement: >-
       When this codebase removes a flat-field migration shim from `CaseStatus` or
-      `ParticipantStatus`, it MUST NOT leave a retired flat key silently discardable.
-      The retired flat keys are `rm_state`, `vf_state`, `d_state`,
+      `ParticipantStatus`, it MUST NOT leave a retired flat key silently discardable
+      on in-process or stored data. An inbound key follows the parse-edge rule
+      instead: a near miss is refused (MV-11-002), any other key is set aside and
+      reported (MV-11-003). The retired flat keys are `rm_state`, `vf_state`, `d_state`,
       `vfd_state`/`vfdState`, `em_consent_state`/`emConsentState`, `em_state` and
       `pxa_state`.
     rationale: >-
@@ -317,6 +321,7 @@ groups:
     - ADR-0063
     - ADR-0082
     - ADR-0099
+    - ADR-0175
   - id: SDO-03-008
     priority: MUST
     kind: project

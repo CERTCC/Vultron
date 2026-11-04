@@ -44,24 +44,20 @@ not read from a stored summary of it.
 from __future__ import annotations
 
 import urllib.parse
-from collections.abc import Mapping
-from typing import Any, ClassVar, Literal
+from typing import Any, Literal
 
 from pydantic import Field, field_validator, model_validator
 
 from vultron.core.models.base import (
+    CoreRecord,
     NonEmptyString,
     UriString,
     with_record_id,
 )
 from vultron.core.models.received_body import require_json_object_text
-from vultron.core.models.retired_stored_fields import (
-    RetiredFieldsRecord,
-    RetiredStoredField,
-)
 
 
-class DeferredInboxActivity(RetiredFieldsRecord):
+class DeferredInboxActivity(CoreRecord):
     """One deferred inbox activity, held under the receiver's key."""
 
     type_: Literal["DeferredInboxActivity"] = Field(  # type: ignore[assignment]
@@ -69,14 +65,9 @@ class DeferredInboxActivity(RetiredFieldsRecord):
         validation_alias="type",
         serialization_alias="type",
     )
-    # The event's core summary of the activity, retired for the body itself
-    # (ADR-0149): nothing derived from what arrived is stored beside it.  The
-    # row form of an activity with no sealed body is retired too: every
-    # delivery is sealed, so only the body is ever held (#5019).
-    retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
-        "activity": RetiredStoredField(None, "#4943"),
-        "activity_row_json": RetiredStoredField(None, "#5019"),
-    }
+    # Only the sealed body is held, never a core summary of the activity
+    # (ADR-0149): nothing derived from what arrived is stored beside it, and
+    # every delivery is sealed (#5019).
     activity_id: UriString = Field(
         ..., description="The sender's id for the deferred activity"
     )

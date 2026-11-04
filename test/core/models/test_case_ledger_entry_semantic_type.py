@@ -12,8 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """A ledger entry carries its semantic type as ``semanticType`` (CLP-02-014).
 
-The Python field name and the refusal of the retired key are this
-codebase's own (CLP-02-015).
+The Python field name is this codebase's own (CLP-02-015).
 
 Spec: CLP-02-014, CLP-02-015
 """
@@ -41,38 +40,6 @@ def test_entry_serializes_semantic_type_under_semantic_type_key() -> None:
 
     assert dumped["semanticType"] == SEMANTIC_TYPE
     assert "eventType" not in dumped
-
-
-@pytest.mark.spec("CLP-02-019")
-def test_entry_carrying_retired_event_type_key_is_refused() -> None:
-    # semanticType is present, so only the retired key can cause the refusal,
-    # and the match requires the message to name the rename, not merely
-    # reject an unknown or missing field.
-    with pytest.raises(ValueError, match=r"'eventType'.*renamed"):
-        CaseLedgerEntry.model_validate(
-            {
-                "caseId": CASE_ID,
-                "logIndex": 0,
-                "logObjectId": OBJECT_ID,
-                "semanticType": SEMANTIC_TYPE,
-                "eventType": SEMANTIC_TYPE,
-            }
-        )
-
-
-@pytest.mark.spec("CLP-02-019")
-def test_stored_row_carrying_retired_event_type_field_is_refused() -> None:
-    # A row dumped by field name, not alias, spells the old key event_type.
-    with pytest.raises(ValueError, match=r"'event_type'.*renamed"):
-        CaseLedgerEntry.model_validate(
-            {
-                "case_id": CASE_ID,
-                "log_index": 0,
-                "log_object_id": OBJECT_ID,
-                "semantic_type": SEMANTIC_TYPE,
-                "event_type": SEMANTIC_TYPE,
-            }
-        )
 
 
 @pytest.mark.spec("CLP-02-015")
