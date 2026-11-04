@@ -191,7 +191,9 @@ short ID, and should assert both the outbox mutation and the absence of a warnin
 `dl.read()` keys only on full ids and resolves no bare UUID (OID-02-004), so a route
 that names an object by its UUID maps the segment with
 `vultron/adapters/utils.py:full_object_id` before the read. A store-level fallback
-gives one object two keys (#5737).
+gives one object two keys (#5737). A case or actor key may instead resolve through
+`find_case_by_short_id` / `find_actor_by_short_id`, the named surrogate-key query
+(AKM-05-006), which reports an ambiguous key as not found.
 
 ---
 
