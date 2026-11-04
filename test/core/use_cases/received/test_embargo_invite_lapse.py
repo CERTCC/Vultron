@@ -2981,7 +2981,7 @@ class TestOwnerAnswerToRelayedInvite:
 
     The protocol never requires an automatic answer.  The prototype keeps one
     bounded auto-accept: the owner accepts on its own only at ``EM.NONE``, the
-    Invite's own register entry set aside (SYNC-19-001), and only for terms
+    Invite's own open register entry set aside (SYNC-19-001), and only for terms
     no longer than its own policy duration; in every other case — above all
     a revision Invite while an embargo is active — it holds the answer.  A
     non-owner participant's default accept is unchanged.
@@ -3056,6 +3056,44 @@ class TestOwnerAnswerToRelayedInvite:
         )
         dl.create(other)
         propose(case, other.id_, embargo.id_)
+        dl.save(case)
+
+        result = deliver_relayed_invite(dl, case, embargo, make_payload)
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert answers_in_outbox(dl, _INVITEE) == []
+
+    @pytest.mark.parametrize(
+        ("em_state", "decide"),
+        [
+            (EM.NONE, activate),
+            (EM.NONE, reject),
+            # A revision activated over the prior embargo: its entry is
+            # ACTIVE beside a SUPERSEDED one.
+            (EM.ACTIVE, activate),
+        ],
+        ids=["first-activated", "first-rejected", "revision-activated"],
+    )
+    @pytest.mark.spec("EP-09-005", "SYNC-19-001")
+    def test_owner_holds_a_late_invite_for_a_decided_proposal(
+        self, make_payload, em_state, decide
+    ):
+        """A proposal the register already decided is not answered again.
+
+        Only the proposal's own *open* entry is set aside; a late relayed
+        Invite for a decided proposal neither raises nor sends an Activate.
+        """
+        dl = _make_dl(actor_id=_INVITEE)
+        case, embargo = seed_invitee_case(
+            dl,
+            f"https://example.org/cases/owner-late-{decide.__name__}",
+            em_state=em_state,
+            roles=[CVDRole.CASE_OWNER],
+            proposal_days=10,
+            policy_days=30,
+        )
+        propose(case, embargo.id_)
+        decide(case, embargo.id_)
         dl.save(case)
 
         result = deliver_relayed_invite(dl, case, embargo, make_payload)

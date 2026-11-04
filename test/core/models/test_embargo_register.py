@@ -322,17 +322,36 @@ def test_case_views_read_the_register() -> None:
 
 
 @pytest.mark.spec("SYNC-19-001")
-def test_em_state_without_sets_aside_one_embargo_entry() -> None:
-    """A proposal's own entry is not another embargo (#5199)."""
+def test_em_state_without_proposal_sets_aside_one_open_entry() -> None:
+    """A proposal's own open entry is not another embargo (#5199)."""
     case = _case()
-    assert case.em_state_without(A) is EM.NONE
+    assert case.em_state_without_proposal(A) is EM.NONE
     propose(case, A)
-    assert case.em_state_without(A) is EM.NONE
+    assert case.em_state_without_proposal(A) is EM.NONE
     propose(case, B)
-    assert case.em_state_without(A) is EM.PROPOSED
+    assert case.em_state_without_proposal(A) is EM.PROPOSED
     activate(case, B)
-    assert case.em_state_without(A) is EM.ACTIVE
-    assert case.em_state_without(B) is EM.PROPOSED
+    assert case.em_state_without_proposal(A) is EM.ACTIVE
+
+
+@pytest.mark.spec("SYNC-19-001")
+def test_em_state_without_proposal_counts_a_decided_entry() -> None:
+    """A decided entry is never set aside, so the register stays legal.
+
+    Dropping the ``ACTIVE`` entry beside a ``SUPERSEDED`` one would break
+    register invariant 3 and make the derivation raise.
+    """
+    case = _case()
+    activate(case, A)
+    activate(case, B)
+    assert _statuses(case.embargo_register) == {
+        A: S.SUPERSEDED,
+        B: S.ACTIVE,
+    }
+    assert case.em_state_without_proposal(B) is EM.ACTIVE
+    assert case.em_state_without_proposal(A) is EM.ACTIVE
+    terminate(case)
+    assert case.em_state_without_proposal(B) is EM.EXITED
 
 
 @pytest.mark.parametrize("in_force", [False, True])
