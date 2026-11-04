@@ -186,7 +186,7 @@ def test_every_handoff_is_a_shared_story_fragment() -> None:
     scenario_files = {
         path.relative_to(_corpus.REPO_ROOT).as_posix()
         for spec in specs
-        for path in spec.source_files
+        for path in _corpus.in_repo(spec.source_files)
     }
     # Spelled the way `modules` is, or the membership test below compares two
     # notations and passes over every scenario file.

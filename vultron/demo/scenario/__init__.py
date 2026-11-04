@@ -14,7 +14,8 @@
 """
 End-to-end multi-actor scenario demos for the Vultron CVD workflow.
 
-Each scenario module or package in this package orchestrates a complete multi-actor CVD workflow
-across separate API server containers, using trigger-based puppeteering so
-that each actor's own BT and outbox logic is exercised rather than bypassed.
+Each scenario module or package in this package orchestrates a complete
+multi-actor CVD workflow across separate API server containers, using
+trigger-based puppeteering so that each actor's own BT and outbox logic is
+exercised rather than bypassed.
 """

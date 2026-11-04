@@ -106,6 +106,13 @@ _PACKAGE_FILES = {
     """,
     "phases/__init__.py": "",
     "phases/deep.py": "DEPTH = 2\n",
+    # Keeps `python -m <package>` working, as a module scenario's
+    # `if __name__ == "__main__"` guard does.
+    "__main__.py": f"""
+        from {_MODULE} import main
+
+        main()
+    """,
 }
 
 
@@ -131,6 +138,7 @@ def _assert_no_leak() -> None:
     assert _STEM not in scenario_module_stems()
     assert _NAME not in cli.main.commands
     assert not _fixture_modules()
+    assert not hasattr(scenario_package, _STEM)
     leaked = [
         path
         for path, text in desired_contents().items()
@@ -165,6 +173,9 @@ def package_tree(
     finally:
         for name in _fixture_modules():
             del sys.modules[name]
+        # Importing a submodule binds it on its parent package too.
+        if hasattr(scenario_package, _STEM):
+            delattr(scenario_package, _STEM)
         monkeypatch.undo()
         importlib.invalidate_caches()
         _assert_no_leak()
@@ -292,3 +303,87 @@ def test_a_module_scenarios_source_is_its_one_file() -> None:
     assert spec.source_files == (
         Path(scenario_package.__file__).parent / "rv_demo.py",
     )
+
+
+def test_a_package_whose_init_does_not_import_main_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Importing the package must register it, so ``__init__`` re-exports.
+
+    A package whose ``main()`` sits in a submodule that ``__init__`` never
+    imports registers nothing on discovery, and is refused rather than
+    silently left out of every table.
+    """
+    files = dict(_PACKAGE_FILES)
+    files["__init__.py"] = ""
+    _write(tmp_path / _STEM, files)
+    monkeypatch.setattr(scenario_package, "__path__", [str(tmp_path)])
+    monkeypatch.setattr(discovery, "_REGISTRY", dict(discovery._REGISTRY))
+    importlib.invalidate_caches()
+    try:
+        with pytest.raises(
+            DemoScenarioRegistryError, match="imported but not registered"
+        ):
+            discover_scenarios()
+    finally:
+        for name in _fixture_modules():
+            del sys.modules[name]
+        if hasattr(scenario_package, _STEM):
+            delattr(scenario_package, _STEM)
+
+
+def test_a_scenario_directory_without_init_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``pkgutil`` lists no directory without ``__init__.py``, so say so.
+
+    Otherwise the scenario would be missing from the CLI and every table, and
+    the set-equality check, which reads packages by their ``__init__.py``,
+    would agree with the omission.
+    """
+    _write(tmp_path, {"lost_demo/cli.py": ""})
+    monkeypatch.setattr(scenario_package, "__path__", [str(tmp_path)])
+    importlib.invalidate_caches()
+    with pytest.raises(DemoScenarioRegistryError, match="lost_demo"):
+        scenario_module_stems()
+
+
+def test_a_directory_holding_only_bytecode_is_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A ``__pycache__`` left behind by a branch switch is no scenario."""
+    _write(tmp_path, {"gone_demo/__pycache__/cli.cpython-313.pyc": ""})
+    monkeypatch.setattr(scenario_package, "__path__", [str(tmp_path)])
+    importlib.invalidate_caches()
+    assert scenario_module_stems() == ()
+
+
+def test_a_namespace_directory_reads_as_no_package(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A directory with no ``__init__.py`` is not the package form.
+
+    The import system resolves it as a namespace package with no origin, so
+    the demo path stays the ``.py`` file that the derived-path checks report
+    missing, and ``source_files`` raises.
+    """
+    _write(tmp_path, {"zz_ns_demo/cli.py": ""})
+    monkeypatch.setattr(scenario_package, "__path__", [str(tmp_path)])
+    importlib.invalidate_caches()
+    spec = ScenarioSpec(
+        name="zz-ns",
+        label="ZZ",
+        participants="Reporter + Vendor",
+        feature="Something",
+        in_pr_set=False,
+        path=(("reporter-whom-to-tell", "vendor"),),
+    )
+    try:
+        assert spec.is_package is False
+        assert spec.demo_path == f"{SCENARIO_DIR}/zz_ns_demo.py"
+        with pytest.raises(
+            DemoScenarioRegistryError, match="does not resolve"
+        ):
+            _ = spec.source_files
+    finally:
+        sys.modules.pop(f"{SCENARIO_PACKAGE}.zz_ns_demo", None)

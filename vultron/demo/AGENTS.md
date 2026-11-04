@@ -57,8 +57,9 @@ A scenario module declares itself, and nothing else anywhere does:
   gated by `demo-scenarios-sync`): never hand-edit one, change the decorator. Script,
   harness and narrative paths are **derived** from `name` (`<name_>_demo.py` or a
   `<name_>_demo/` package whose `__init__` re-exports `main`, `ROLES` and
-  `CLI_HELP`; `test_<name_>_invariants.py`, `<name>.md`; `<name_>` swaps hyphens
-  for underscores) — rename the file to match, never add an override
+  `CLI_HELP`, with a `__main__.py` calling `main()` so `python -m` still runs
+  it; `test_<name_>_invariants.py`, `<name>.md`; `<name_>` swaps hyphens for
+  underscores) — rename the file to match, never add an override
   (DEMOCI-11-003).
 - `ROLES: list[ActorRole]` (`helpers/actor_roles.py`), one frozen role per actor
   **in `main()` parameter order**, and `CLI_HELP: str`. These generate the

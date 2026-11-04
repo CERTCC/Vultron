@@ -69,7 +69,9 @@ def _scenario_trees(spec: ScenarioSpec) -> list[ast.AST]:
     """The parse of every source file of *spec*: one module, or a package's
     every submodule, so a mark placed in a package scenario's ``cli.py`` or
     ``story.py`` is read as well as its ``__init__``."""
-    trees = [_corpus.tree_of(path) for path in spec.source_files]
+    trees = [
+        _corpus.tree_of(path) for path in _corpus.in_repo(spec.source_files)
+    ]
     assert trees, f"{spec.demo_path} has no source file to scan"
     return trees
 

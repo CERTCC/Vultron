@@ -247,7 +247,7 @@ class ScenarioSpec:
 
     @property
     def demo_path(self) -> str:
-        """Repo-relative path of the scenario's demo script or package (DEMOCI-11-003)."""
+        """Repo-relative path of the demo script or package (DEMOCI-11-003)."""
         return f"{SCENARIO_DIR}/{self.demo_filename}"
 
     @property

@@ -60,7 +60,9 @@ the drift channel for every scenario.
 **A scenario is a module or a package of one name.** A scenario over the
 module-size threshold (CS-18-001) becomes a `<name_>_demo/` package: its
 `__init__` re-exports `main`, `ROLES` and `CLI_HELP` (CS-18-003), so importing
-the package registers it. `ScenarioSpec.demo_path` follows whichever form the
+the package registers it, and a `__main__.py` calls `main()`, so `python -m`
+still runs it. A `*_demo` directory with no `__init__.py` is refused, because
+`pkgutil` would not list it. `ScenarioSpec.demo_path` follows whichever form the
 name resolves to. A ratchet that reads a scenario's own code scans
 `ScenarioSpec.source_files`, never `module_name` spelled as one `.py` file, or
 it skips every submodule. Both forms of one name are refused.

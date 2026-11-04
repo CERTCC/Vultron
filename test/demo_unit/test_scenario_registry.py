@@ -129,7 +129,7 @@ def test_registry_matches_modules_on_disk() -> None:
 
 
 def test_discovery_walks_the_package() -> None:
-    """``scenario_module_stems()`` sees every scenario module and package, and nothing else.
+    """``scenario_module_stems()`` sees every scenario module and package, only.
 
     Discovery is checked against the filesystem separately from the registry so
     that a discovery regression and a missing decorator fail as different tests

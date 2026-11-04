@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from vultron.demo.scenario.registry.spec import (
@@ -189,9 +189,13 @@ def scenario_module_stems() -> tuple[str, ...]:
     Raises:
         DemoScenarioRegistryError: When one name is both a module and a package.
             The import system loads the package and never reads the module,
-            so the module's code would sit in the tree and never run.
+            so the module's code would sit in the tree and never run. Also
+            when a ``*_demo`` directory has no ``__init__.py``: ``pkgutil``
+            does not list it, so the scenario would vanish from the CLI and
+            every table with no error.
     """
     package = importlib.import_module(SCENARIO_PACKAGE)
+    _refuse_directories_without_init(package.__path__)
     found = [
         info
         for info in pkgutil.iter_modules(package.__path__)
@@ -215,6 +219,33 @@ def scenario_module_stems() -> tuple[str, ...]:
             "module. Delete one."
         )
     return tuple(sorted(info.name for info in found))
+
+
+def _refuse_directories_without_init(locations: Iterable[str]) -> None:
+    """Raise when a ``*_demo`` directory in *locations* is not a package.
+
+    A directory that holds nothing but ``__pycache__`` is ignored: switching
+    to a branch where a package scenario is a module again leaves exactly that
+    behind, untracked, and it is no scenario.
+    """
+    stray = sorted(
+        path.name
+        for location in locations
+        for path in Path(location).glob(f"*{MODULE_SUFFIX}")
+        if path.is_dir()
+        and not path.name.startswith("_")
+        and not (path / "__init__.py").is_file()
+        and any(child.name != "__pycache__" for child in path.iterdir())
+    )
+    if stray:
+        raise DemoScenarioRegistryError(
+            "scenario director(ies) with no __init__.py: "
+            + ", ".join(stray)
+            + ". pkgutil does not list a directory without one, so the "
+            "scenario would be missing from the CLI and every generated "
+            "table. Add an __init__.py that re-exports main, ROLES and "
+            "CLI_HELP, or remove the directory (DEMOCI-11-002)."
+        )
 
 
 def discover_scenarios() -> tuple[ScenarioSpec, ...]:
