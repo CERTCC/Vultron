@@ -38,6 +38,9 @@ yet. This note holds the order of the work and the rules each slice keeps.
 - **A stopwatch is not the clock.** Elapsed-time limits read a separate
   monotonic port at named sites; a stopwatch reading never reaches a decision
   about the case or a record, so the architecture test allows it.
+- **Bookkeeping has its own clock.** Adapter bookkeeping times (queued,
+  dead-lettered) read a separate bookkeeping port, never the act clock, so the
+  recording clock steps once per act and a bookkeeping read moves no recording.
 - **No fallback to the clock.** A parameter that carries the act's instant is
   required, never `datetime | None` with an `or now_utc()` default, because that
   fallback is the defect being removed (ARCH-10-001).
@@ -61,9 +64,9 @@ yet. This note holds the order of the work and the rules each slice keeps.
 
 ## Slices, in order
 
-1. **Foundation** (#5757). The clock port, the act entry points, the tree-run
-   instant, and the architecture test with today's clock reads recorded item by
-   item as the list to burn down.
+1. **Foundation** (#5757). The clock and bookkeeping-clock ports, the act entry
+   points, the tree-run instant, and the architecture test with today's clock
+   reads recorded item by item as the list to burn down.
 2. **Tree builders and guard nodes** (#5649). Mostly deletions of time parameters
    and their fallbacks.
 3. **Sync checks** (#5651). Cooldown and resend predicates take the instant; the

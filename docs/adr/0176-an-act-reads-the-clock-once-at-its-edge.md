@@ -85,8 +85,9 @@ The decision has seven parts.
   Clean-up of expired entries is an act of its own, not a step of receiving (#2887).
   A held activity whose queue interval has expired is still dropped when its replay is attempted, judged against the replay act's instant, so a release that comes before the clean-up never applies an expired activity (CBT-03-003).
 - **The clock is injected.** The clock is a port with one operation, the current time, that the composition root supplies: the system clock in production and a recording clock in a recorded run.
-  Only act entry points and adapter bookkeeping will hold it.
-  Adapter bookkeeping times, such as when a delivery was dead-lettered, are infrastructure times read through the same port; they do not enter the case ledger and are not an act's instant.
+  Only act entry points will hold it.
+  Adapter bookkeeping times, such as when a delivery was queued or dead-lettered, are infrastructure times read through a separate bookkeeping clock port; they do not enter the case ledger and are not an act's instant.
+  The composition root supplies that port too: the system clock in production and, in a recorded run, a clock the recording clock does not see, so a bookkeeping read never moves a recording.
 - **Elapsed time is a stopwatch, not the clock.** A limit on how long work may take, such as a call-out's time budget (#3423), measures elapsed time on a separate monotonic port.
   A stopwatch reading feeds a limit and nothing else: it never enters a decision about the case or anything the act records, and the recording clock does not see it.
   The architecture test forbids clock reads below the act's edge and allows stopwatch reads only at named sites.
@@ -102,18 +103,20 @@ Generated ids have the same shape, a global that the recording harness replaces,
 
 - Good: one act's decisions and records agree on when it happened.
 - Good: a clock read inside an act no longer moves a recording; what a recording holds depends only on how many acts run, which the demos fix by ordering their steps on their causes (EDF-06).
+- Good: the recording clock steps once per act, so one tick means one act; bookkeeping reads go to their own port and do not step it.
 - Good: the per-site fallbacks and their time parameters are deleted rather than threaded, so most of the tree-node change is a removal.
 - Good: a missing instant fails at the point it is needed rather than being replaced by a clock read.
 - Neutral: an act's instant can be older than the wall clock by the time the act commits; the assumption above bounds the gap until the drift limit lands.
 - Neutral: two acts that race on two threads can still reach a recording in either order; that is real nondeterminism, and the demos still order their steps on their causes (EDF-06).
 - Bad: every test that builds a core model without a time will need one, so the model change is wide and is done as its own step.
 - Bad: stamps written by one act share its instant, so the smallest-step bump past the previous stamp becomes the routine way they are ordered, where ADR-0167 expected a same-instant tie to be rare.
+- Bad: adapters hold a second clock port beside the act clock, and the composition root wires both.
 - Bad: one more value lives in a tree run's shared state, which is global to the process; it takes the same lock and inheritance rule as the leadership check.
 - Bad: every committed recording changes once, when the recording clock moves to the port.
 
 ## Validation
 
-- An architecture test will fail on a clock read in any module outside an explicit, per-item allow-list of act entry points and adapter bookkeeping.
+- An architecture test will fail on a clock read in any module outside an explicit, per-item allow-list of act entry points, and on a bookkeeping clock read outside named adapter sites.
 - A model test will fail on a core model field whose default reads the clock.
 - Under a counting clock, each act in a recorded run will read the clock exactly once.
 - A node ticked without an instant in its tree run will fail rather than read the clock.
