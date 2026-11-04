@@ -25,7 +25,9 @@
   and the revision (CS-22-001); the revision copy had no test before #3831.
 """
 
+import importlib
 import inspect
+import pkgutil
 from datetime import UTC, datetime, timedelta
 from typing import assert_type
 
@@ -214,17 +216,30 @@ def test_result_type_var_is_covariant_and_bound() -> None:
 
 def _is_body_module(module: str) -> bool:
     """Whether *module* is the request-body package or one of its submodules."""
-    return module.startswith(f"{request_bodies.__name__}.")
+    name = request_bodies.__name__
+    return module == name or module.startswith(f"{name}.")
 
 
 def _body_models() -> list[type[BaseModel]]:
-    return [
-        obj
-        for _, obj in inspect.getmembers(request_bodies, inspect.isclass)
-        if issubclass(obj, BaseModel)
-        and obj is not BaseModel
-        and _is_body_module(obj.__module__)
+    """Every body model defined in the package, private bases included.
+
+    The package re-exports only the public models, so each submodule is
+    walked to reach the shared private bases as well.
+    """
+    modules = [request_bodies] + [
+        importlib.import_module(f"{request_bodies.__name__}.{info.name}")
+        for info in pkgutil.iter_modules(request_bodies.__path__)
     ]
+    found: dict[str, type[BaseModel]] = {}
+    for module in modules:
+        for _, obj in inspect.getmembers(module, inspect.isclass):
+            if (
+                issubclass(obj, BaseModel)
+                and obj is not BaseModel
+                and _is_body_module(obj.__module__)
+            ):
+                found[f"{obj.__module__}.{obj.__qualname__}"] = obj
+    return [found[key] for key in sorted(found)]
 
 
 def test_case_trigger_request_is_defined_once() -> None:

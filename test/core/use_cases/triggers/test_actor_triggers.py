@@ -1857,9 +1857,18 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         tree from the owner's proposal; the trigger module does not even
         import the helper.
         """
-        import vultron.core.use_cases.triggers.actor.ownership as actor_triggers
+        import importlib
+        import pkgutil
 
-        assert not hasattr(actor_triggers, "delegated_authorship")
+        import vultron.core.use_cases.triggers.actor as actor_package
+
+        modules = [actor_package] + [
+            importlib.import_module(f"{actor_package.__name__}.{info.name}")
+            for info in pkgutil.iter_modules(actor_package.__path__)
+        ]
+        assert len(modules) > 1
+        for module in modules:
+            assert not hasattr(module, "delegated_authorship"), module.__name__
 
     @pytest.mark.spec("CM-21-005")
     @pytest.mark.spec("CM-24-004")

@@ -390,7 +390,7 @@ class TestAcceptCaseInvite:
         its ``type`` alone (CM-11-013).  A stub that fails its own validation
         never gets this far: the parse of the archived body refuses it."""
         from vultron.adapters.driven.trigger_activity_adapter.actors import (
-            _helpers as actors,
+            _helpers,
         )
 
         held = as_Invite(
@@ -399,7 +399,7 @@ class TestAcceptCaseInvite:
             target=held_target,
         )
         monkeypatch.setattr(
-            actors, "read_received_as_received", lambda *_args: held
+            _helpers, "read_received_as_received", lambda *_args: held
         )
 
         with pytest.raises(
