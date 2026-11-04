@@ -561,8 +561,6 @@ class TestNoteIsExported:
         # Deliberately not exported, each for a stated reason.
         dropped = {
             # Authoring-time bookkeeping, not requirement content.
-            "deprecated",
-            "superseded_by",
             "tracking_issue",
             "verification_debt",
             "lint_suppress",

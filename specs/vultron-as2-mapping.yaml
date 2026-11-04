@@ -53,7 +53,7 @@ groups:
       `test/architecture/test_activity_patterns_defined_in_instances.py` confirms that no
       module under `vultron/` other than `_instances.py` constructs an `ActivityPattern`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: VAM-01-002
   - id: VAM-01-003
     priority: MUST
@@ -94,7 +94,7 @@ groups:
       Rehydration gives each field its full object, so the type that the pattern reads
       is the type of the object.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: VAM-01-004
   - id: VAM-01-005
     priority: MUST
@@ -141,6 +141,11 @@ groups:
       `Undo(Offer(Offer))` and an `Undo(Accept(Invite))` whose innermost
       `object_` is one; `test_a_bare_object_two_activities_deep_is_the_one_fetched`
       confirms the fetch names that innermost id.
+    relationships:
+    - rel_type: supersedes
+      spec_id: VAM-01-007
+    - rel_type: supersedes
+      spec_id: SE-02-003
   - id: VAM-01-012
     priority: MUST_NOT
     kind: project
@@ -226,9 +231,9 @@ groups:
     - rel_type: refines
       spec_id: VAM-01-011
       note: this codebase's inline sending of the status records
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: VAM-08-002
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: VAM-08-004
     adr:
     - ADR-0137
@@ -257,8 +262,10 @@ groups:
       the same for each CASE_MANAGER note, whose `Add(Note)` the CASE_MANAGER commits
       as its own entry rather than sends (#4829).
     relationships:
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: VAM-07-002
+    - rel_type: refines
+      spec_id: VAM-01-011
     adr:
     - ADR-0137
   - id: VAM-01-016
@@ -276,8 +283,10 @@ groups:
       `test/wire/as2/factories/test_embargo_factories.py` confirms that the proposal
       factory refuses terms given by URI.
     relationships:
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: VAM-05-005
+    - rel_type: refines
+      spec_id: VAM-01-011
     adr:
     - ADR-0137
   - id: VAM-01-017
@@ -324,6 +333,9 @@ groups:
     adr:
     - ADR-0137
     - ADR-0140
+    relationships:
+    - rel_type: uses_definition
+      spec_id: SE-05-002
   - id: VAM-01-011
     priority: MUST
     kind: protocol
@@ -620,13 +632,13 @@ groups:
       `test_case_manager_acts_map_to_their_semantics` in
       `test/test_semantic_activity_patterns.py` confirms that the `update_case`
       example maps to `UPDATE_CASE_OWNER`.
-    relationships:
-    - rel_type: satisfies
-      spec_id: CM-21-002
     adr:
     - ADR-0140
     stories:
     - story_2022_050
+    relationships:
+    - rel_type: uses_definition
+      spec_id: SE-05-002
 - id: VAM-04
   title: Actor Suggestion and Invitation Messages
   specs:
@@ -722,6 +734,9 @@ groups:
     stories:
     - story_2022_013
     - story_2022_052
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-11-013
   - id: VAM-04-005
     priority: MUST
     kind: protocol
@@ -786,6 +801,9 @@ groups:
     stories:
     - story_2022_050
     - story_2022_047
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-21-005
   - id: VAM-04-008
     priority: MUST
     kind: protocol
@@ -878,6 +896,15 @@ groups:
     - story_2022_054
     lint_suppress:
     - compound_statement  # one wire shape and its refusal
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-11-010
+    - rel_type: refines
+      spec_id: AKM-02-003
+    - rel_type: refines
+      spec_id: SYNC-18-001
+    - rel_type: refines
+      spec_id: SYNC-18-015
   - id: VAM-04-012
     priority: MUST
     kind: protocol
@@ -901,6 +928,11 @@ groups:
     stories:
     - story_2022_012
     - story_2022_054
+    relationships:
+    - rel_type: uses_definition
+      spec_id: VAM-04-011
+    - rel_type: refines
+      spec_id: SYNC-18-001
   - id: VAM-04-013
     priority: MUST
     kind: protocol
@@ -925,6 +957,11 @@ groups:
     stories:
     - story_2022_101
     - story_2022_006
+    relationships:
+    - rel_type: uses_definition
+      spec_id: VAM-04-011
+    - rel_type: refines
+      spec_id: SYNC-18-001
   - id: VAM-04-014
     priority: MUST
     kind: protocol
@@ -947,6 +984,11 @@ groups:
     stories:
     - story_2022_066
     - story_2022_006
+    relationships:
+    - rel_type: uses_definition
+      spec_id: VAM-04-011
+    - rel_type: refines
+      spec_id: SYNC-18-001
   - id: VAM-04-015
     priority: MUST
     kind: protocol
@@ -965,9 +1007,6 @@ groups:
       `UndoCaseOwnershipTransferActivityPattern`, which wraps
       `ProposeCaseOwnershipTransferActivityPattern` inside an `Undo` outer
       pattern, and resolves to `UNDO_CASE_OWNERSHIP_TRANSFER`.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-21-015
     stories:
     - story_2022_050
   - id: VAM-04-016
@@ -986,11 +1025,11 @@ groups:
       A unit test confirms that the answer the CASE_MANAGER's adapter builds matches
       `AcceptSuggestActorToCasePattern`, resolves to `ACCEPT_ACTOR_RECOMMENDATION` and
       carries `inReplyTo`.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-16-006
     stories:
     - story_2022_054
+    relationships:
+    - rel_type: uses_definition
+      spec_id: VAM-04-001
   - id: VAM-04-017
     priority: MUST
     kind: protocol
@@ -1006,9 +1045,6 @@ groups:
       A unit test confirms that the answer the CASE_MANAGER's adapter builds matches
       `RejectSuggestActorToCasePattern`, resolves to `REJECT_ACTOR_RECOMMENDATION` and
       carries `inReplyTo`.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-16-007
     stories:
     - story_2022_054
   - id: VAM-04-018
@@ -1032,7 +1068,7 @@ groups:
       Offer alone resolves to `OFFER_CASE_OWNERSHIP_TRANSFER` and neither matches
       the other's pattern.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: CM-21-005
     adr:
     - ADR-0148
@@ -1258,9 +1294,6 @@ groups:
       `UNDO_INVITE_TO_EMBARGO_ON_CASE`, and inspection of `_instances.py`
       confirms `UndoInviteToEmbargoOnCasePattern` uses `TAtype.UNDO` with
       `InviteToEmbargoOnCasePattern` as its object.
-    relationships:
-    - rel_type: satisfies
-      spec_id: EMB-16-001
     adr:
     - ADR-0152
     stories:
@@ -1284,6 +1317,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: MSM-07-001
+    - rel_type: uses_definition
+      spec_id: SE-05-002
     adr:
     - ADR-0140
     stories:
@@ -1305,14 +1340,14 @@ groups:
       `test_case_manager_acts_map_to_their_semantics` in
       `test/test_semantic_activity_patterns.py` confirms that the
       `update_embargo_consent` example maps to `UPDATE_EMBARGO_CONSENT`.
-    relationships:
-    - rel_type: refines
-      spec_id: MSM-07-017
     adr:
     - ADR-0140
     stories:
     - story_2026_001
     - story_2022_080
+    relationships:
+    - rel_type: uses_definition
+      spec_id: SE-05-002
   - id: VAM-05-016
     priority: MUST
     kind: protocol
@@ -1342,6 +1377,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-07-013
+    - rel_type: uses_definition
+      spec_id: SE-05-002
     adr:
     - ADR-0140
     stories:
@@ -1410,13 +1447,13 @@ groups:
       `test_case_manager_acts_map_to_their_semantics` in
       `test/test_semantic_activity_patterns.py` confirms that the
       `create_participant` example maps to `CREATE_CASE_PARTICIPANT`.
-    relationships:
-    - rel_type: refines
-      spec_id: VAM-01-011
     adr:
     - ADR-0140
     stories:
     - story_2022_013
+    relationships:
+    - rel_type: uses_definition
+      spec_id: SE-05-002
   - id: VAM-06-005
     priority: MUST
     kind: protocol
@@ -1433,13 +1470,13 @@ groups:
       `test_case_manager_acts_map_to_their_semantics` in
       `test/test_semantic_activity_patterns.py` confirms that the
       `update_participant` example maps to `UPDATE_CASE_PARTICIPANT`.
-    relationships:
-    - rel_type: satisfies
-      spec_id: CM-21-002
     adr:
     - ADR-0140
     stories:
     - story_2022_050
+    relationships:
+    - rel_type: uses_definition
+      spec_id: SE-05-002
 - id: VAM-07
   title: Note Management Messages
   specs:

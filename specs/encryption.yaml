@@ -26,9 +26,6 @@ groups:
     scope:
     - production
     tracking_issue: '#1184'
-    relationships:
-    - rel_type: implements
-      spec_id: VP-15-004
     stories:
     - story_2022_035
     - story_2022_036
@@ -94,7 +91,7 @@ groups:
     - production
     tracking_issue: '#1184'
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: ENC-01-001
     stories:
     - story_2022_091
@@ -111,7 +108,7 @@ groups:
     - production
     tracking_issue: '#1184'
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: ENC-01-001
     stories:
     - story_2022_090
@@ -132,7 +129,7 @@ groups:
     scope:
     - production
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: VP-15-004
     stories:
     - story_2022_091
@@ -151,7 +148,7 @@ groups:
     scope:
     - production
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: VP-15-004
     stories:
     - story_2022_091
@@ -172,13 +169,6 @@ groups:
       semantic extraction or the dispatch pipeline.
     scope:
     - production
-    relationships:
-    - rel_type: depends_on
-      spec_id: IE-04-001
-    - rel_type: depends_on
-      spec_id: SE-01-001
-    - rel_type: implements
-      spec_id: VP-15-004
   - id: ENC-03-002
     priority: MUST
     kind: project
@@ -195,10 +185,8 @@ groups:
     scope:
     - production
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: EH-05-001
-    - rel_type: depends_on
-      spec_id: HTTP-03-001
   - id: ENC-03-003
     priority: MUST_NOT
     kind: project

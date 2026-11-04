@@ -57,9 +57,9 @@ groups:
     tags:
     - messaging
     relationships:
-    - rel_type: depends_on
-      spec_id: UCORG-05-011
     - rel_type: refines
+      spec_id: UCORG-05-011
+    - rel_type: uses_definition
       spec_id: IO-01-002
   - id: IO-01-003
     priority: MUST
@@ -121,7 +121,7 @@ groups:
       `test/core/behaviors/inbox/test_process_payload.py` confirms that the field
       defaults to false and is true only for a rejection.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: SE-05-002
     tags:
     - messaging
@@ -143,7 +143,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: UCORG-05-013
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: IO-01-005
     tags:
     - messaging
@@ -178,7 +178,7 @@ groups:
       adapter (ARCH-01-001).
     relationships:
     - rel_type: refines
-      spec_id: IO-02-001
+      spec_id: ARCH-01-001
     tags:
     - code-style
     adr:
@@ -263,7 +263,7 @@ groups:
     tags:
     - tooling
     relationships:
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: UCORG-05-010
     - rel_type: extends
       spec_id: IO-03-001
@@ -317,7 +317,7 @@ groups:
       the orchestration untestable without a running FastAPI app.
     relationships:
     - rel_type: refines
-      spec_id: IO-03-003
+      spec_id: IO-03-006
     tags:
     - tooling
     adr:
@@ -332,9 +332,6 @@ groups:
     rationale: >-
       One home for inbox policy lets a test drive all of it without a web framework,
       and keeps the core free of framework code (ARCH-01-001, ADR-0009).
-    relationships:
-    - rel_type: extends
-      spec_id: IO-03-003b
     tags:
     - tooling
     adr:
@@ -349,6 +346,9 @@ groups:
     rationale: >-
       Such a guard must act before the background task is scheduled, so it must sit
       at the route. ADR-0068 documents this tradeoff.
+    relationships:
+    - rel_type: supersedes
+      spec_id: IO-03-006
     tags:
     - tooling
     adr:
@@ -373,9 +373,6 @@ groups:
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` drives an untrusted
       `Announce(VulnerabilityCase)` and retired `Create`s through the real inbox and
       asserts nothing from the inline object is stored.
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-10-017
     tags:
     - tooling
     adr:
@@ -397,7 +394,7 @@ groups:
       `test/adapters/driving/fastapi/test_inbox_staging.py` asserts that the
       receiver's own copy wins over the staged one.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: IO-03-004
     tags:
     - tooling
@@ -421,8 +418,14 @@ groups:
       activity is held whole, its body and rows, for its replay and deleted by the
       replay or by expiry.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: IO-03-004
+    - rel_type: uses_definition
+      spec_id: VM-08-002
+    - rel_type: uses_definition
+      spec_id: SYNC-14-001
+    - rel_type: uses_definition
+      spec_id: SYNC-14-006
     tags:
     - tooling
     adr:
@@ -470,7 +473,7 @@ groups:
       An outcome value gives every caller the same result for every payload, so no
       caller has to read logs or catch a raise to learn what failed.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: IO-04-001b
     tags:
     - protocol
@@ -498,7 +501,7 @@ groups:
       of the pipeline. It passes when the pipeline is wrong and fails when a correct
       change moves the helper. The outcome fields (IO-04-002) are what callers rely on.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: IO-04-002
     tags:
     - testing

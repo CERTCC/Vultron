@@ -517,7 +517,7 @@ The owner's decision and each participant's consent are different messages
   id) changes nothing. It logs no invalid-transition warning, and the
   CASE_MANAGER commits no ledger entry and sends nothing:
   `EmbargoAnswerNotRecordedNode` reads `consent_for(embargo_id)` ahead of the
-  commit and the handler reports `SKIPPED` (CM-13-005, HP-01-003, #4597). A
+  commit and the handler reports `SKIPPED` (CM-13-005, HP-01-014, #4597). A
   change of answer is normal, not a repeat, and is recorded with one ledger
   entry: withdrawal (a Reject until #4388 adds `Leave`), or an Accept after a
   Reject, which moves the row straight to `AGREED`.
