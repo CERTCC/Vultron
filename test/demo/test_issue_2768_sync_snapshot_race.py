@@ -41,7 +41,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import vultron.demo.helpers.sync as sync_module
+import vultron.demo.helpers.sync.replica as sync_replica
 
 _CASE_ID = "urn:uuid:test-case-2768-0001"
 
@@ -58,14 +58,14 @@ def _stub_case_reads(monkeypatch):
     """Make the case-existence and participant/embargo checks (steps 1-3) pass
     so control reliably reaches the log-consistency section under test."""
     monkeypatch.setattr(
-        sync_module, "_case_or_none", lambda client, cid: {"id_": cid}
+        sync_replica, "_case_or_none", lambda client, cid: {"id_": cid}
     )
     fake_case_cls = SimpleNamespace(
         model_validate=lambda data: SimpleNamespace(
             id_=_CASE_ID, actor_participant_index={}, active_embargo=None
         )
     )
-    monkeypatch.setattr(sync_module, "as_VulnerabilityCase", fake_case_cls)
+    monkeypatch.setattr(sync_replica, "as_VulnerabilityCase", fake_case_cls)
 
 
 def test_verify_replica_state_waits_for_lagging_auth_ledger(monkeypatch):
@@ -87,10 +87,10 @@ def test_verify_replica_state_waits_for_lagging_auth_ledger(monkeypatch):
         auth_reads["n"] += 1
         return _entries_up_to(7 if auth_reads["n"] == 1 else 8)
 
-    monkeypatch.setattr(sync_module, "_get_log_entries_for_case", _entries)
+    monkeypatch.setattr(sync_replica, "_get_log_entries_for_case", _entries)
 
     # Must not raise: the authoritative ledger covers index 8 by the second read.
-    sync_module.verify_replica_state(
+    sync_replica.verify_replica_state(
         auth_client=auth_client,
         replica_client=replica_client,
         case_id=_CASE_ID,
@@ -117,10 +117,10 @@ def test_verify_replica_state_reports_unrecoverable_divergence(monkeypatch):
             return _entries_up_to(8)
         return _entries_up_to(7)  # authoritative ledger never gains index 8
 
-    monkeypatch.setattr(sync_module, "_get_log_entries_for_case", _entries)
+    monkeypatch.setattr(sync_replica, "_get_log_entries_for_case", _entries)
 
     with pytest.raises(AssertionError, match="hash-chain divergence"):
-        sync_module.verify_replica_state(
+        sync_replica.verify_replica_state(
             auth_client=auth_client,
             replica_client=replica_client,
             case_id=_CASE_ID,

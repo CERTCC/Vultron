@@ -167,7 +167,7 @@ class TestVerifyCaseActivePollsForReporterReplica:
         reporter = _LateReporterClient(delay=10**6)
 
         with patch(
-            "vultron.demo.helpers.milestones.wait_for_case_on_container",
+            "vultron.demo.helpers.milestones.lifecycle.wait_for_case_on_container",
             side_effect=AssertionError("Timed out waiting for case"),
         ):
             with pytest.raises(AssertionError, match="Timed out waiting"):
@@ -562,10 +562,10 @@ class TestVerifyPubliclyDisclosedPollsEveryReplica:
 
         with (
             patch(
-                "vultron.demo.helpers.milestones.wait_for_participant_pxa_state"
+                "vultron.demo.helpers.milestones.lifecycle.wait_for_participant_pxa_state"
             ) as mock_poll,
             patch(
-                "vultron.demo.helpers.milestones._fetch_participant",
+                "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
                 return_value=participant,
             ),
         ):
@@ -592,13 +592,13 @@ class TestVerifyPubliclyDisclosedPollsEveryReplica:
 
         with (
             patch(
-                "vultron.demo.helpers.milestones.wait_for_case_em_terminated"
+                "vultron.demo.helpers.milestones.lifecycle.wait_for_case_em_terminated"
             ) as mock_em_poll,
             patch(
-                "vultron.demo.helpers.milestones.wait_for_participant_pxa_state"
+                "vultron.demo.helpers.milestones.lifecycle.wait_for_participant_pxa_state"
             ),
             patch(
-                "vultron.demo.helpers.milestones._fetch_participant",
+                "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
                 return_value=participant,
             ),
         ):
@@ -635,10 +635,10 @@ class TestVerifyPubliclyDisclosedPollsEveryReplica:
 
         with (
             patch(
-                "vultron.demo.helpers.milestones.wait_for_participant_pxa_state"
+                "vultron.demo.helpers.milestones.lifecycle.wait_for_participant_pxa_state"
             ),
             patch(
-                "vultron.demo.helpers.milestones._fetch_participant",
+                "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
                 return_value=participant,
             ),
             patch("vultron.demo.helpers.polling.participant.time.sleep"),
@@ -676,7 +676,7 @@ class TestVerifyPubliclyDisclosedPollsEveryReplica:
                 side_effect=_fetch,
             ),
             patch(
-                "vultron.demo.helpers.milestones._fetch_participant",
+                "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
                 side_effect=_fetch,
             ),
             patch("vultron.demo.helpers.polling.participant.time.sleep"),

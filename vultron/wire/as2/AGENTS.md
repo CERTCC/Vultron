@@ -99,7 +99,7 @@ suspenders for edge cases the runtime guard might miss).
 |---|---|
 | `vultron/wire/as2/extractor/_pattern.py` | `ActivityPattern` class + `_match_activity_field` |
 | `vultron/wire/as2/extractor/_instances.py` | All `*Pattern` instances |
-| `vultron/wire/as2/extractor/_builders.py` | Field-extraction helpers + domain-object builders |
+| `vultron/wire/as2/extractor/_builders/` | Field-extraction helpers + domain-object builders, by concern |
 | `vultron/wire/as2/extractor/_extract.py` | `extract_intent` function |
 | `vultron/wire/as2/extractor/__init__.py` | Public re-exports (backward-compat) |
 | `vultron/semantic_registry/` | `SEMANTIC_REGISTRY`, `find_matching_semantics()`, `_validate_registry_order()` |

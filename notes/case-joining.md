@@ -36,7 +36,7 @@ related_notes:
 relevant_packages:
   - vultron/core/participants/recipients.py
   - vultron/core/participants/stub_reply.py
-  - vultron/core/models/case.py
+  - vultron/core/models/case/
   - vultron/core/models/case_participant.py
   - vultron/core/models/actor_recommendation_record.py
   - vultron/core/behaviors/case/nodes/invite_participant.py

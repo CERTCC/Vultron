@@ -80,7 +80,7 @@ cascade call sites use the shared factory directly (BT-19-002, PR #1263).
 
 (EP-09-008, #3962, #4085, #4112)
 
-Every embargo trigger tree in `trigger_tree.py` ends in `_by_role()`'s two
+Every embargo trigger tree in `trigger_tree/` ends in `_by_role()`'s two
 mutually exclusive arms. Add a new embargo write to the **CASE_MANAGER arm**
 only, and build it on the copy model (§ "Converting an Arm to the Copy
 Model" below): decide, commit, then apply, then `EmitCaseStatusUpdateNode`.
