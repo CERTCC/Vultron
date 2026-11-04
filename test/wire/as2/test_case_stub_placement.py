@@ -47,7 +47,7 @@ def _stub() -> dict[str, Any]:
 
 
 def _example(name: str) -> dict[str, Any]:
-    body = json.loads((_EXAMPLES / f"{name}.json").read_text())
+    body: dict[str, Any] = json.loads((_EXAMPLES / f"{name}.json").read_text())
     body.setdefault("published", _PUBLISHED)
     return body
 
