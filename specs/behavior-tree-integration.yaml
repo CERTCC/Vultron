@@ -228,9 +228,9 @@ groups:
       participant whose container does not host the CASE_MANAGER sends a message to it
       (CM-24-004, ADR-0109).
     relationships:
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: DL-07-001
-    - rel_type: refines
+    - rel_type: extends
       spec_id: BT-05-002
     verification: >-
       `test_setup_tree_blackboard_datalayer_is_the_executing_actors_store` in
@@ -293,7 +293,7 @@ groups:
       architecture ratchet was considered and rejected: role holding is data-dependent, so a check
       could only approximate it and would be noisy.
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: CLP-09-001
     exceptions:
     - >-
@@ -449,9 +449,7 @@ groups:
       Integration tests in `test/demo/` confirm that every RM, EM, and CS state
       transition produces a structured log entry at the level specified by SL-04-001.
     relationships:
-    - rel_type: depends_on
-      spec_id: SL-03-001
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: SL-04-001
     stories:
     - story_2022_074
@@ -539,9 +537,6 @@ groups:
       When case creation records the role on a participant, any actor can take the role,
       and every participant finds the CASE_MANAGER in the participant records of the
       case.
-    relationships:
-    - rel_type: refines
-      spec_id: CP-04-002
     verification: >-
       `test_create_case_trigger_registers_owner_and_manager` in
       `test/core/use_cases/triggers/case/test_create.py` asserts that a created case
@@ -611,7 +606,7 @@ groups:
       separate case actor, implementations create one for each case, which BT-10-002
       forbids.
     relationships:
-    - rel_type: refines
+    - rel_type: depends_on
       spec_id: BT-10-002
     verification: >-
       `test/core/behaviors/case/nodes/test_role_gates.py::TestCaseManagerGate` asserts
@@ -633,13 +628,6 @@ groups:
       is the actor that admits or refuses them.
     scope:
     - production
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-09-001
-    - rel_type: refines
-      spec_id: CLP-09-003
-    - rel_type: refines
-      spec_id: CLP-09-004
     verification: >-
       `test/core/behaviors/case/nodes/test_role_gates.py::TestCaseManagerGate` asserts
       the gate admits only the `CVDRole.CASE_MANAGER` holder and that a failure by that
@@ -682,7 +670,7 @@ groups:
       made no triage decision. RM.RECEIVED records that the report reached the invitee,
       and nothing more.
     relationships:
-    - rel_type: implements
+    - rel_type: extends
       spec_id: CM-11-006
     adr:
     - ADR-0114
@@ -711,7 +699,7 @@ groups:
       `test/core/use_cases/received/actor/test_invite.py` asserts that an accepted
       Invite records the participant at RM.RECEIVED only.
     relationships:
-    - rel_type: implements
+    - rel_type: part_of
       spec_id: CM-11-001
     - rel_type: extends
       spec_id: BT-10-005
@@ -851,7 +839,7 @@ groups:
       `threading.RLock`; a unit test confirms that a re-entrant call from a setup hook
       does not deadlock.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: BT-11-001
 - id: BT-13
   title: BT Failure Diagnosis
@@ -924,13 +912,6 @@ groups:
       preparation or outbox enqueueing fails. A guaranteed SUCCESS fallback that masks delivery failure MUST_NOT be used.
     rationale: Silent success on failed fan-out causes undetected peer state divergence and hides correctness faults from
       parent tree control flow.
-    relationships:
-    - rel_type: refines
-      spec_id: BT-06-001
-      note: Broadcast fan-out is protocol-significant behavior
-    - rel_type: refines
-      spec_id: BT-04-004
-      note: Delivery failures must propagate to handler error paths
   - id: BT-14-002
     priority: SHOULD
     kind: project
@@ -963,9 +944,9 @@ groups:
       `test_join_backfill_stops_at_a_broken_entry_and_fails` assert the other sites
       still fail.
     relationships:
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: BT-14-001
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: SYNC-03-009
 - id: BT-15
   title: Trigger-Side Use-Case Contract
@@ -1038,10 +1019,14 @@ groups:
       commits nothing for it, and that a trigger still runs when the ledger
       refuses the termination.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: BT-15-001
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CLP-10-025
+    - rel_type: uses_definition
+      spec_id: EMB-13-003
+    - rel_type: uses_definition
+      spec_id: CM-28-015
     adr:
     - ADR-0135
 - id: BT-17
@@ -1080,7 +1065,7 @@ groups:
     verification: Inspect every module-level `set` used for BT idempotency; confirm the node that writes to it is also guarded
       by `CheckIsCaseManagerNode` or equivalent role-check at tree-composition time.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: BT-17-001
   - id: BT-17-003
     priority: MUST
@@ -1098,10 +1083,6 @@ groups:
       and no error shows it.
     verification: Add a regression test that runs two `execute_with_setup` calls back-to-back without clearing the blackboard
       between them; assert the second run does not observe output values from the first when the node takes a no-op path.
-    relationships:
-    - rel_type: refines
-      spec_id: BT-06-004
-      note: Blackboard cleanup is part of the blackboard management contract
   - id: BT-17-004
     priority: MUST
     kind: project
@@ -1113,7 +1094,7 @@ groups:
     verification: Unit tests for consumer nodes MUST include a case where the blackboard key is `None` and assert the consumer
       skips the dependent action.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: BT-17-003
   - id: BT-17-005
     priority: MUST
@@ -1130,7 +1111,7 @@ groups:
     verification: In any test fixture for a received-side use case with a guarded-commit BT, assert that `receiving_actor_id`
       matches the actor whose ID is stored as `CVDRole.CASE_MANAGER` in the test case's `actor_participant_index`.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: BT-17-001
       note: The role guard identity check is what makes this fixture requirement necessary
   - id: BT-17-006
@@ -1154,10 +1135,6 @@ groups:
       `test/core/use_cases/received/case/test_engage_defer.py` runs a guarded-commit
       use case with no `receiving_actor_id`, so the store owner is the receiver, and
       asserts that the guarded commit records its entries.
-    relationships:
-    - rel_type: refines
-      spec_id: BT-17-005
-      note: BT-17-005 covers tests; this entry covers production call sites
     adr:
     - ADR-0073
   - id: BT-17-009
@@ -1236,10 +1213,6 @@ groups:
       that a nested `execute_with_setup` passing a key leaves the outer execution's
       value in place, that a key absent before the call is absent after it, and that the
       keys are restored when the inner tree fails or its setup raises.
-    relationships:
-    - rel_type: refines
-      spec_id: BT-17-003
-      note: BT-17-003 covers node-owned output keys; this entry covers bridge-managed execution-scoped keys
     adr:
     - ADR-0087
   - id: BT-17-012
@@ -1323,7 +1296,7 @@ groups:
       `test/core/behaviors/case/test_receive_activity_tree.py` checks that the factory
       gates `manager_effects`.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: BT-17-001
       note: >-
         BT-17-001 requires the gate for CASE_MANAGER-only subtrees; this entry says
@@ -1409,8 +1382,10 @@ groups:
       `test_no_received_tree_passes_legacy_effect_nodes` in
       `test/architecture/test_received_tree_case_manager_gate.py`.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: BT-17-008
+    - rel_type: uses_definition
+      spec_id: CLP-10-022
     adr:
     - ADR-0109
   - id: BT-17-019
@@ -1457,7 +1432,7 @@ groups:
       protocol logic. A fuzzer node in `vultron/bt/` changes the frozen legacy simulator
       (BT-02-002). Either breaks the boundary between simulation and production.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: BT-16-001
   - id: BT-16-002
     priority: MUST
@@ -1468,10 +1443,6 @@ groups:
     rationale: All py_trees-based BT execution uses the standard py_trees library (ADR-0008). Centralizing probabilistic base
       types in one module provides a single implementation point for all weighted-probability simulation nodes and avoids
       duplication across domain modules.
-    relationships:
-    - rel_type: implements
-      spec_id: BT-02-001
-      note: py_trees.behaviour.Behaviour is the required base for all prototype BT nodes
     adr:
     - ADR-0008
   - id: BT-16-003
@@ -1540,13 +1511,6 @@ groups:
       downstream node expects, causing silent failures. The docstring earns its place alongside the typed-port declaration
       because a reader deciding whether a capability fits their system should not have to reconstruct intent from port
       metadata; the declaration is what a test enforces, and the prose is what makes the seam legible.
-    relationships:
-    - rel_type: implements
-      spec_id: BT-16-007
-      note: >-
-        Call-out points are the named integration seam that BT-16-007 requires to be
-        documented; the blackboard contract is the required documentation format for
-        data-producing nodes.
     adr:
     - ADR-0025
     - ADR-0097
@@ -1564,6 +1528,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: BT-18-001
+    - rel_type: uses_definition
+      spec_id: BT-18-012
     adr:
     - ADR-0097
   - id: BT-18-002
@@ -1579,6 +1545,13 @@ groups:
       real backends must be contract-conformant to make backend swaps transparent.'
     adr:
     - ADR-0025
+    relationships:
+    - rel_type: uses_definition
+      spec_id: BT-18-012
+      note: >-
+        BT-18-002's "declared output keys" are the output ports that BT-18-012 makes the
+        authoritative declaration, which is what makes the requirement checkable rather
+        than reviewable.
   - id: BT-18-003
     priority: MUST
     kind: project
@@ -1635,11 +1608,6 @@ groups:
       build the incorrect call-out point, and you must then do the work on it again.
       BT-18-013 lists the canonical shapes, and BT-18-028 defines each one by what it
       produces.
-    relationships:
-    - rel_type: implements
-      spec_id: BT-16-005
-      note: BT-16-005 defines automation potential categories; BT-18-005 clarifies that those categories govern the automation-potential
-        field only and have no bearing on call-out point shape assignment.
   - id: BT-18-017
     priority: MUST_NOT
     kind: project
@@ -1655,7 +1623,7 @@ groups:
       no human action. If automation potential sets the shape, the node is built as
       ProtocolInternal, and its seam is lost.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: BT-18-005
   - id: BT-18-006
     priority: MUST
@@ -1680,6 +1648,11 @@ groups:
       spec_id: BT-18-005
       note: BT-18-005 establishes that shape is determined by the seam-structure decision tree; BT-18-006 resolves the specific
         Sentinel vs. Retriever ambiguity for binary-result external queries.
+    - rel_type: uses_definition
+      spec_id: BT-18-013
+      note: >-
+        BT-18-013 is why Retriever is the only available answer, since Sentinel is not a
+        call-out shape.
     adr:
     - ADR-0097
   - id: BT-18-010
@@ -1718,11 +1691,6 @@ groups:
       Evaluator is thus a sign of a bad design. The exception is a flag that is the only
       input to a later ProtocolInternal gate node.
     tracking_issue: '#1783'
-    relationships:
-    - rel_type: refines
-      spec_id: BT-18-002
-      note: BT-18-002 states that SUCCESS MUST accompany all declared output writes; BT-18-007 is the complementary
-        rule — FAILURE is the correct signal when the Evaluator's decision is to block, regardless of output field values.
     adr:
     - ADR-0030
   - id: BT-18-011
@@ -1744,11 +1712,6 @@ groups:
       `test/core/behaviors/call_out/test_guard.py` assert that each core bundle
       factory's backend runs behind the guard and that a backend returning RUNNING does
       not complete as a protocol outcome.
-    relationships:
-    - rel_type: refines
-      spec_id: BT-18-002
-      note: BT-18-002 requires SUCCESS to accompany all declared output writes and BT-18-007 requires FAILURE to block;
-        BT-18-011 closes the trichotomy by forbidding the third py_trees status, RUNNING, at the call-out seam.
   - id: BT-18-018
     priority: MUST
     kind: project
@@ -1784,7 +1747,7 @@ groups:
     verification: >-
       `test_no_node_returns_running` in `test/architecture/test_no_running_status.py`.
     relationships:
-    - rel_type: extends
+    - rel_type: verifies
       spec_id: BT-18-011
     adr:
     - ADR-0080
@@ -1809,17 +1772,12 @@ groups:
       A test reads a capability's declared output ports (not its docstring) and asserts
       each declared port is written when the backend returns SUCCESS.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: BT-18-001
       note: >
         BT-18-001 governs the human-readable description of the contract;
         BT-18-012 governs the authoritative machine-readable declaration. The two
         describe one contract in two registers and must agree.
-    - rel_type: implements
-      spec_id: BT-18-002
-      note: >
-        BT-18-002's "declared output keys" are the declared output ports, which
-        is what makes the requirement checkable rather than reviewable.
   - id: BT-18-020
     priority: MUST_NOT
     kind: project
@@ -1892,13 +1850,6 @@ groups:
       No class in the call-out taxonomy is named as a Sentinel shape base or
       subclass; no domain bundle exposes a Sentinel factory field; no blackboard
       key is documented as written by a Sentinel.
-    relationships:
-    - rel_type: refines
-      spec_id: BT-18-006
-      note: >
-        BT-18-006 classifies a synchronous on-demand external query as a
-        Retriever; BT-18-013 is why Retriever is the only available answer, since
-        Sentinel is not a call-out shape.
   - id: BT-18-022
     priority: MAY
     kind: project
@@ -1911,7 +1862,7 @@ groups:
       protocol never asks it for an answer. A definition by information source would
       give it the incorrect classification.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: BT-18-013
     adr:
     - ADR-0097
@@ -1937,11 +1888,6 @@ groups:
       participant; gates that do are implemented as conversation-state routing
       subtrees per ADR-0080.
     relationships:
-    - rel_type: refines
-      spec_id: RSH-07-004
-      note: >
-        RSH-07-004 replaced the status adoption gate's call-out mechanism with
-        a routing subtree; BT-18-014 generalises the criterion that forced it.
     - rel_type: constrains
       spec_id: BT-18-005
       note: >
@@ -2005,16 +1951,11 @@ groups:
       A test configures a short budget, injects a backend that exceeds it, and asserts
       that the overrun is detected and reported.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: BT-18-011
       note: >
         BT-18-011 forbids suspending; BT-18-015 closes the remaining way a
         call-out can stall a worker — answering synchronously but too slowly.
-    - rel_type: refines
-      spec_id: BT-18-014
-      note: >
-        Work that cannot meet the budget is not a call-out point; BT-18-014 says
-        what it is instead.
   - id: BT-18-025
     priority: MUST_NOT
     kind: project
@@ -2100,7 +2041,7 @@ groups:
     adr:
     - ADR-0024
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: BT-18-013
       note: BT-18-013 names the four shapes; this entry defines each by its output.
     - rel_type: refines
@@ -2121,15 +2062,6 @@ groups:
       was never sent. Moving the routing guard before the mutation eliminates the most common divergence cause without requiring
       full transactional rollback. The outbox is the reliability boundary: once the message is written to the outbox, delivery
       and retry are the outbox''s responsibility.'
-    relationships:
-    - rel_type: refines
-      spec_id: BT-14-001
-      note: 'Routing-gated mutation is the pre-condition counterpart to BT-14-001''s fail-fast-on-broadcast-failure rule:
-        guard before mutation addresses the common prerequisite-missing case; BT-14-001 addresses the post-mutation delivery
-        failure case.'
-    - rel_type: refines
-      spec_id: BT-06-001
-      note: State-mutation ordering relative to routing checks is part of the tree's auditable behavioral contract.
   - id: BT-19-004
     priority: MUST
     kind: project
@@ -2159,10 +2091,6 @@ groups:
       spec_id: BT-19-001
       note: Specifies the CVD-protocol-specific routing prerequisites that BT-19-001 requires to be resolved in the guard
         node.
-    - rel_type: refines
-      spec_id: BT-06-001
-      note: Protocol state transitions are protocol-significant behavior; their ordering relative to routing checks is part
-        of the tree's auditable contract.
     verification: >-
       `test_a_missing_factory_fails_before_any_state_moves` in
       `test/core/behaviors/embargo/nodes/test_relay.py` asserts the routing guard fails
@@ -2206,15 +2134,6 @@ groups:
       routing before it changes state, while a different copy changes state first. Then
       the defect that BT-19-001 prevents occurs again on one path. A single shared
       factory gives every call site the same semantics and the same guard order.
-    relationships:
-    - rel_type: refines
-      spec_id: BT-14-002
-      note: BT-14-002 requires shared helpers for broadcast fan-out; BT-19-002 extends this to the full lifecycle-plus-routing
-        sequence.
-    - rel_type: implements
-      spec_id: BT-19-001
-      note: Shared factory composition is the mechanism that enforces consistent BT-19-001 guard ordering across all call
-        sites.
     verification: >-
       For each protocol lifecycle operation with more than one call site (trigger path
       and automatic-cascade path), confirm that all call sites use the same BT factory
@@ -2339,6 +2258,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: BT-20-002
+    - rel_type: uses_definition
+      spec_id: BT-20-004
     adr:
     - ADR-0028
   - id: BT-20-003
@@ -2361,6 +2282,9 @@ groups:
     - ADR-0029
     - ADR-0047
     - ADR-0097
+    relationships:
+    - rel_type: uses_definition
+      spec_id: BT-18-013
   - id: BT-20-013
     priority: SHOULD
     kind: project
@@ -2373,9 +2297,6 @@ groups:
       A single-pass, trigger-driven run can need the work inline. A Retriever for the
       candidates and an Actuator for each send keep the two external seams separate, and
       the explicit role tells the CASE_MANAGER what to offer.
-    relationships:
-    - rel_type: extends
-      spec_id: BT-20-003
     adr:
     - ADR-0029
     - ADR-0097
@@ -2429,12 +2350,6 @@ groups:
       system for the current state. Thus they are call-out Retrievers, not
       DataLayerCondition nodes.
     tracking_issue: '#1826 (planning Idea — peer to #1248)'
-    relationships:
-    - rel_type: extends
-      spec_id: BT-23-003
-      note: >
-        DeployMitigationCallOutBundle and DeploymentMonitoringBundle follow the
-        domain bundle pattern from BT-23-003.
   - id: BT-20-006
     priority: MUST_NOT
     kind: project
@@ -2476,9 +2391,6 @@ groups:
       The replacement design is a BT-20 entry or equivalent.
     rationale: Without a tracking issue per fuzzer node, the replacement backlog is invisible in the project board. The BT-20
       entries document the design; this entry mandates the process artefact (issue) that makes the work schedulable.
-    relationships:
-    - rel_type: refines
-      spec_id: BT-20-001
   - id: BT-21-003
     priority: MUST
     kind: process
@@ -2524,9 +2436,6 @@ groups:
       BT→UseCase→BT→UseCase call chain that cannot be audited or preempted. The BT tree
       structure is the source of truth for protocol behavior, so any logic that executes
       outside it is invisible to analysis and audit.
-    relationships:
-    - rel_type: refines
-      spec_id: BT-06-001
   - id: BT-22-006
     priority: MUST
     kind: architecture
@@ -2549,9 +2458,6 @@ groups:
     rationale: Importing a use-case helper into a BT node inverts the hexagonal layer boundary and creates circular
       dependency risk. The import direction is the enforcement mechanism for the layer rule. Identified as BT-IDM-02
       in notes/bt-canonical-reference.md.
-    relationships:
-    - rel_type: refines
-      spec_id: BT-06-001
   - id: BT-22-004
     priority: MUST
     kind: architecture
@@ -2582,9 +2488,6 @@ groups:
       whose complexity is visible in tree structure rather than in individual nodes. Decomposing a god node into a named
       subtree factory makes the workflow readable by inspection. Identified as BT-IDM-03 in notes/bt-canonical-reference.md;
       see also `specs/behavior-tree-node-design.yaml` BTND-02-001.
-    relationships:
-    - rel_type: refines
-      spec_id: BTND-02-001
 - id: BT-23
   title: Call-Out Point Backend Selection
   description: >
@@ -2624,8 +2527,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: BT-23-001
-    - rel_type: extends
-      spec_id: BT-18-004
     adr:
     - ADR-0025
   - id: BT-23-002
@@ -2670,8 +2571,6 @@ groups:
       signature clean while enforcing completeness (all fields must be supplied).
       The frozen constraint prevents accidental mutation after construction.
     relationships:
-    - rel_type: refines
-      spec_id: BT-23-001
     - rel_type: extends
       spec_id: BT-18-004
       note: Replaces the individual factory-kwarg API with the bundle API.
@@ -2732,8 +2631,6 @@ groups:
       central registry (name-key typos are silent runtime failures rather than
       static errors).
     relationships:
-    - rel_type: refines
-      spec_id: BT-23-003
     - rel_type: extends
       spec_id: BT-18-004
     adr:
@@ -2765,7 +2662,7 @@ groups:
       implementation. BT-23-008 and BT-23-009 say in which layer each part of a bundle
       lives.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: BT-23-003
     adr:
     - ADR-0025
@@ -2778,9 +2675,6 @@ groups:
     rationale: >-
       When each singleton name carries its domain and its mode, a reader sees which
       backend a tree builder gets without reading the bundle.
-    relationships:
-    - rel_type: extends
-      spec_id: BT-23-005
     adr:
     - ADR-0025
   - id: BT-23-017
@@ -2792,9 +2686,6 @@ groups:
     rationale: >-
       Code that imports a bundle from its earlier simulation-layer path keeps working,
       while the definitions stay in core (BT-23-008).
-    relationships:
-    - rel_type: extends
-      spec_id: BT-23-005
     adr:
     - ADR-0025
   - id: BT-23-012
@@ -2829,15 +2720,15 @@ groups:
       note: >
         Carves out security-significant gates from the p>0.5 → AlwaysSucceed
         rule; the same carve-out applies to BT-23-006 and BT-23-007.
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: RSH-07-001
-      note: Generalizes the status adoption gate's conservative-default requirement.
-    - rel_type: refines
-      spec_id: RSH-07-004
-      note: >
-        Posture (conservative default) is orthogonal to composition; RSH-07-004
-        replaces the unconditional-FAILURE mechanism with a routing subtree
-        without changing the default posture BT-23-012 mandates.
+      note: >-
+        The conservative default follows from RSH-07-001's rule that adopting a
+        non-owner's report needs the Case Owner's authorization by default.
+    - rel_type: supersedes
+      spec_id: BT-23-006
+    - rel_type: supersedes
+      spec_id: BT-23-007
     adr:
     - ADR-0076
     - ADR-0080
@@ -2875,23 +2766,10 @@ groups:
         BT-23-002 names AlwaysSucceed by class; for a data-producing capability
         BT-23-013 substitutes a contract-honouring backend in the same
         SUCCESS direction. The same constraint applies to BT-23-007.
-    - rel_type: constrains
-      spec_id: BT-23-012
-      note: >
-        BT-23-012 and BT-23-013 are the two constraints on the ceiling/floor
-        rule, and they do not overlap: BT-23-012 overrides the status direction
-        for a security-significant gate, BT-23-013 overrides the backend class
-        for a data-producing capability while leaving the direction intact. A
-        gate covered by BT-23-012 declares no output ports, so BT-23-013 does
-        not reach it.
-    - rel_type: implements
+    - rel_type: refines
       spec_id: BT-18-002
       note: >
         BT-23-013 applies BT-18-002 to the specific backend that BT-23-001 makes
         the default everywhere.
-    - rel_type: refines
-      spec_id: BT-18-003
-      note: >
-        BT-18-003 requires type-conformant synthetic writes from a fuzzer
-        backend; BT-23-013 extends the same obligation to the DETERMINISTIC
-        default and to generic stochastic backends with no named fuzzer node.
+    - rel_type: supersedes
+      spec_id: BT-23-007
