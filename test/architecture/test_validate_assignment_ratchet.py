@@ -134,13 +134,13 @@ _VALIDATE_ASSIGNMENT_TARGETS: frozenset[str] = frozenset(
 _COLLECTION_MUTATION_BACKLOG: frozenset[str] = frozenset()
 
 # Canonical mutator homes — permanently permitted, exactly as PRM-03-001 permits
-# ``vultron/core/models/case_participant.py`` to mutate ``case_roles``.  The mutators
+# ``vultron/core/models/case_participant/`` to mutate ``case_roles``.  The mutators
 # themselves have to write the field; that is their job.
 _CANONICAL_MUTATOR_MODULES: frozenset[str] = frozenset(
     {
         "vultron/core/models/case/_statuses.py",
         "vultron/core/models/case/vulnerability_case.py",
-        "vultron/core/models/case_participant.py",
+        "vultron/core/models/case_participant/participant.py",
     }
 )
 

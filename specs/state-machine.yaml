@@ -325,7 +325,8 @@ groups:
     rationale: 'These transitions are protocol-correctness invariants, not optional normalizations. A CS state of `pXa` (exploit
       public, public unaware) is semantically impossible — the exploit being public implies the vulnerability is public.
       Implementors MUST use `is_ephemeral_cs_state()` and `required_next_cs_events()` from
-      `vultron/core/states/cs_invariants.py` to enforce this rule at the persistence boundary. This requirement governs
+      `vultron/core/states/cs_invariants/` to enforce this rule at the persistence
+      boundary. This requirement governs
       the *persistence* boundary only; CSB-17-003 and CSB-17-005 cover trajectory validation, where an ephemeral state is a
       legal prefix terminus.'
     lint_suppress:

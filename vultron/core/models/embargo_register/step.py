@@ -11,45 +11,31 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The embargo register: one entry for every embargo proposed on a case.
 
-``VulnerabilityCase.embargo_register`` is append-only (ADR-0122): an entry is
-added by ``PROPOSE`` and changes status by the other triggers of
-:mod:`vultron.core.states.embargo_register`, and is never removed.  Every
-change is a **step** — the whole change one protocol event causes — and
-:func:`apply_register_step` checks the step's triggers together against the
-register invariants, so ``TERMINATE`` and the ``CANCEL`` of every open
-proposal, or ``ACTIVATE`` and the ``SUPERSEDE`` it implies, are one change.
-Each step names one EM trigger (:func:`register_step_em_trigger`), and the EM
-derived before and after it must be one of that trigger's moves in
-:data:`vultron.core.states.em.EM_TRANSITIONS` (ADR-0130).
+"""Check and apply one register step against the register invariants.
 
-The ``*_changes`` builders name the step each protocol event causes, so the
-callers say *what happened* and the register decides which entries move.
+Each step names one EM trigger, and the EM derived before and after it must
+be one of that trigger's moves (ADR-0122, ADR-0130).
 """
 
 from collections.abc import Mapping, Sequence
 from types import MappingProxyType
 
-from pydantic import BaseModel, ConfigDict, model_validator
-from pydantic.alias_generators import to_camel
-
-from vultron.core.models._helpers import _as_id
-from vultron.core.models.base import NonEmptyString, ValidatedAssignmentMixin
-from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.embargo_termination import EmbargoTermination
+from vultron.core.models.embargo_register.entry import (
+    _S,
+    _T,
+    EmbargoRegisterEntry,
+    RegisterChange,
+    repeated_ids,
+)
 from vultron.core.states.em import EM_Trigger, is_em_transition
 from vultron.core.states.embargo_register import (
-    EmbargoRegisterStatus,
     RegisterTrigger,
     derive_em,
     register_invariant_violations,
     register_status_after,
 )
 from vultron.errors import VultronInvalidStateTransitionError
-
-_S = EmbargoRegisterStatus
-_T = RegisterTrigger
 
 #: The EM trigger each register trigger belongs to (ADR-0130).  ``CANCEL`` is
 #: absent: it is part of ``terminate`` beside a ``TERMINATE``, and ``reject``
@@ -63,137 +49,6 @@ _EM_TRIGGER_OF: Mapping[RegisterTrigger, EM_Trigger] = MappingProxyType(
         _T.TERMINATE: EM_Trigger.TERMINATE,
     }
 )
-
-#: Statuses an entry reaches only by having been ``ACTIVE``.
-_WAS_ACTIVE = frozenset({_S.ACTIVE, _S.SUPERSEDED, _S.TERMINATED})
-
-
-class EmbargoRegisterEntry(ValidatedAssignmentMixin, BaseModel):
-    """One embargo in a case's register: ``(embargo, status, replaces)``.
-
-    ``embargo`` is the ``EmbargoEvent`` or its id.  The object form is kept
-    when a sender carried it, so a recipient can read the terms of the
-    embargo in force without a dereference (AKM-02-004, DL-08-001).
-    ``replaces`` names the embargo an activated revision replaced.
-    ``termination`` is how a ``TERMINATED`` entry ended — the what and, when
-    recorded, the why (ADR-0122) — and is set on that status only.  Entries
-    are frozen: they change only by :func:`apply_register_step`.
-    """
-
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-        extra="forbid",
-        frozen=True,
-    )
-
-    embargo: NonEmptyString | EmbargoEvent
-    status: EmbargoRegisterStatus
-    replaces: NonEmptyString | None = None
-    termination: EmbargoTermination | None = None
-
-    @model_validator(mode="after")
-    def _status_fields_agree(self) -> "EmbargoRegisterEntry":
-        """Refuse a ``replaces`` or ``termination`` the status cannot carry."""
-        problems: list[str] = []
-        if (self.termination is None) == (self.status == _S.TERMINATED):
-            problems.append(
-                "a termination is required on a TERMINATED entry and refused"
-                " otherwise"
-            )
-        if self.replaces is not None and self.status not in _WAS_ACTIVE:
-            problems.append(
-                f"replaces is set on a {self.status} entry, which was never"
-                " activated"
-            )
-        if self.replaces is not None and self.replaces == self.embargo_id:
-            problems.append("an entry cannot replace itself")
-        if problems:
-            raise ValueError(
-                f"Embargo register entry '{self.embargo_id}': "
-                + "; ".join(problems)
-            )
-        return self
-
-    @property
-    def embargo_id(self) -> str:
-        """The id of the embargo this entry is for."""
-        embargo_id = _as_id(self.embargo)
-        assert embargo_id is not None  # NonEmptyString or an object with id_
-        return embargo_id
-
-
-class RegisterChange(ValidatedAssignmentMixin, BaseModel):
-    """One entry's trigger within a register step."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    embargo_id: NonEmptyString
-    trigger: RegisterTrigger
-    #: ``PROPOSE`` only: the embargo object, kept inline on the new entry.
-    embargo: EmbargoEvent | None = None
-    #: ``TERMINATE`` only, and required there: how the embargo ended, stored
-    #: on the ``TERMINATED`` entry.  A replica that learned the termination
-    #: from a ``Remove`` knows only its what (ADR-0122, #4294).
-    termination: EmbargoTermination | None = None
-
-    @model_validator(mode="after")
-    def _trigger_fields_agree(self) -> "RegisterChange":
-        """Refuse a termination or embargo object the trigger cannot carry (EH-07-001)."""
-        problems: list[str] = []
-        if (self.termination is None) == (self.trigger == _T.TERMINATE):
-            problems.append(
-                "a termination is required on TERMINATE and refused otherwise"
-            )
-        if self.embargo is not None and (
-            self.trigger != _T.PROPOSE or self.embargo.id_ != self.embargo_id
-        ):
-            problems.append(
-                "only PROPOSE carries the embargo object, under its own id"
-            )
-        if problems:
-            raise ValueError(
-                f"Register change '{self.trigger}' on '{self.embargo_id}': "
-                + "; ".join(problems)
-            )
-        return self
-
-
-def repeated_ids(ids: Sequence[str]) -> list[str]:
-    """The ids that occur more than once in *ids*, sorted."""
-    return sorted({i for i in ids if ids.count(i) > 1})
-
-
-def replaces_violations(entries: Sequence[EmbargoRegisterEntry]) -> list[str]:
-    """Every ``replaces`` link in *entries* that names no entry or loops.
-
-    Reading lapsed (ADR-0122) follows ``replaces`` back from the ``ACTIVE``
-    entry, so each link must name an entry the register holds, and the
-    chain from any entry must end rather than come back on itself.
-    """
-    by_id = {entry.embargo_id: entry for entry in entries}
-    violations: list[str] = []
-    for entry in entries:
-        if entry.replaces is not None and entry.replaces not in by_id:
-            violations.append(
-                f"'{entry.embargo_id}' replaces '{entry.replaces}', which the"
-                " register holds no entry for"
-            )
-    looped: set[str] = set()
-    for entry in entries:
-        seen = {entry.embargo_id}
-        replaced_id = entry.replaces
-        while replaced_id is not None and replaced_id in by_id:
-            if replaced_id in seen:
-                looped.add(entry.embargo_id)
-                break
-            seen.add(replaced_id)
-            replaced_id = by_id[replaced_id].replaces
-    if looped:
-        violations.append(
-            f"the replaces chain from {sorted(looped)} comes back on itself"
-        )
-    return violations
 
 
 def _em_triggers_of(changes: Sequence[RegisterChange]) -> set[EM_Trigger]:
@@ -405,94 +260,3 @@ def register_step_is_legal(
     except VultronInvalidStateTransitionError:
         return False
     return True
-
-
-def _ids_with(
-    entries: Sequence[EmbargoRegisterEntry], status: EmbargoRegisterStatus
-) -> list[str]:
-    return [entry.embargo_id for entry in entries if entry.status == status]
-
-
-def proposal_changes(embargo: str | EmbargoEvent) -> list[RegisterChange]:
-    """The step that proposes *embargo*: one new ``PROPOSED`` entry."""
-    embargo_id = _as_id(embargo)
-    assert embargo_id is not None
-    return [
-        RegisterChange(
-            embargo_id=embargo_id,
-            trigger=_T.PROPOSE,
-            embargo=embargo if isinstance(embargo, EmbargoEvent) else None,
-        )
-    ]
-
-
-def activation_changes(
-    entries: Sequence[EmbargoRegisterEntry], embargo_id: str
-) -> list[RegisterChange]:
-    """The step that activates *embargo_id*, superseding any ``ACTIVE`` entry."""
-    return [
-        RegisterChange(embargo_id=embargo_id, trigger=_T.ACTIVATE),
-        *(
-            RegisterChange(embargo_id=active_id, trigger=_T.SUPERSEDE)
-            for active_id in _ids_with(entries, _S.ACTIVE)
-        ),
-    ]
-
-
-def rejection_changes(embargo_id: str) -> list[RegisterChange]:
-    """The step that rejects the proposal *embargo_id*."""
-    return [RegisterChange(embargo_id=embargo_id, trigger=_T.REJECT)]
-
-
-def termination_changes(
-    entries: Sequence[EmbargoRegisterEntry], termination: EmbargoTermination
-) -> list[RegisterChange]:
-    """End the embargo in force with *termination*; cancel proposals (EP-08-004)."""
-    return [
-        *(
-            RegisterChange(
-                embargo_id=active_id,
-                trigger=_T.TERMINATE,
-                termination=termination,
-            )
-            for active_id in _ids_with(entries, _S.ACTIVE)
-        ),
-        *(
-            RegisterChange(embargo_id=proposed_id, trigger=_T.CANCEL)
-            for proposed_id in _ids_with(entries, _S.PROPOSED)
-        ),
-    ]
-
-
-def carry_embargo_inline(
-    entries: Sequence[EmbargoRegisterEntry], embargo: EmbargoEvent
-) -> list[EmbargoRegisterEntry]:
-    """*entries* with *embargo*'s entry holding the object, not its id.
-
-    For a copy of a case about to be sent: a recipient cannot dereference an
-    embargo it does not hold (AKM-02-004, EMB-18-003).  The status is
-    unchanged, so this is not a register step.
-    """
-    return [
-        (
-            entry.model_copy(update={"embargo": embargo})
-            if entry.embargo_id == embargo.id_
-            else entry
-        )
-        for entry in entries
-    ]
-
-
-__all__ = [
-    "EmbargoRegisterEntry",
-    "carry_embargo_inline",
-    "RegisterChange",
-    "activation_changes",
-    "apply_register_step",
-    "em_move_violations",
-    "proposal_changes",
-    "register_step_em_trigger",
-    "rejection_changes",
-    "repeated_ids",
-    "termination_changes",
-]

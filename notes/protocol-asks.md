@@ -214,7 +214,7 @@ not hold the CASE_MANAGER role emit their proposal, answer or termination to the
 manager, write no EM state (EP-09-017), and record it in the pending-assertion
 store (EP-09-018). Every asker records through `record_pending_assertion()` and checks
 repeats through `suppressed_repeat_reason()`
-(`vultron/core/models/pending_assertion.py`, ASK-04-008), including the P/X/A
+(`vultron/core/models/pending_assertion/`, ASK-04-008), including the P/X/A
 cascade's teardown ask. An embargo repeat carries a fresh activity id, so its
 entry carries a `subject_id` (the offered terms, the answered proposal, or the
 ended embargo) and a repeat inside the window queues nothing. The store stays a

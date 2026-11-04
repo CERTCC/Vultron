@@ -187,14 +187,16 @@ def test_render_same_object_twice_across_clock_tick_is_equal(
     """
     from datetime import datetime
 
-    from vultron.core.models import _helpers
+    from vultron.core.models._helpers import clock as helpers_clock
     from vultron.demo.determinism import SteppingClock
 
     obj = VulnerabilityCase(
         attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/c1"
     )
     obj.case_statuses = [CaseStatus(context=obj.id_)]
-    monkeypatch.setattr(_helpers, "datetime", SteppingClock(datetime.now(UTC)))
+    monkeypatch.setattr(
+        helpers_clock, "datetime", SteppingClock(datetime.now(UTC))
+    )
 
     assert adapter.render(obj) == adapter.render(obj)
 

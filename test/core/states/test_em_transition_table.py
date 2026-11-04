@@ -9,11 +9,9 @@ from collections.abc import Iterator, Sequence
 
 import pytest
 
-from vultron.core.models import embargo_register as embargo_register_module
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_register import (
-    _EM_TRIGGER_OF,
     EmbargoRegisterEntry,
     RegisterChange,
     activation_changes,
@@ -22,8 +20,10 @@ from vultron.core.models.embargo_register import (
     proposal_changes,
     register_step_em_trigger,
     rejection_changes,
+    step as embargo_register_module,
     termination_changes,
 )
+from vultron.core.models.embargo_register.step import _EM_TRIGGER_OF
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.states import em as em_module
 from vultron.core.states.em import (

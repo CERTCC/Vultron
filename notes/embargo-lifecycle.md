@@ -47,12 +47,12 @@ related_notes:
 relevant_packages:
   - vultron/core/states/em.py
   - vultron/core/states/embargo_register.py
-  - vultron/core/models/embargo_register.py
+  - vultron/core/models/embargo_register/
   - vultron/core/models/embargo_termination.py
   - vultron/core/services/embargo_lifecycle/
   - vultron/core/services/carried_embargo.py
   - vultron/core/behaviors/embargo/
-  - vultron/core/models/pending_assertion.py
+  - vultron/core/models/pending_assertion/
   - vultron/core/use_cases/triggers/embargo/
   - vultron/core/use_cases/received/embargo/
 ---
@@ -349,7 +349,7 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
 ## Guidance for Agents
 
 1. **Decide through `EmbargoLifecycle`, write by copying**
-   (`vultron/core/services/embargo_lifecycle/`, `embargo_apply.py`). A
+   (`vultron/core/services/embargo_lifecycle/`, `embargo_apply/`). A
    committed step is written through `apply_embargo_change()`; BT nodes MUST
    NOT otherwise apply a register step, assign `case.current_status.em`, and
    `dl.save(case)` themselves (EMB-18-001, EMB-18-008). A refused step raises or

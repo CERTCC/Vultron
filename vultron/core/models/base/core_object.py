@@ -13,22 +13,20 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Base class for Vultron Protocol core domain object models."""
+"""The one AS2 object root of the core domain model, :class:`CoreObject`.
+
+ARCH-25-004 (ADR-0099): the core classes *are* the AS2 objects.
+"""
 
 import inspect
-import types as _types
-import typing as _typing
 from datetime import datetime, timedelta
-from functools import cache
 from typing import Any, ClassVar
 
 from pydantic import (
-    BaseModel,
     ConfigDict,
     Field,
     SerializationInfo,
     SerializerFunctionWrapHandler,
-    TypeAdapter,
     ValidationInfo,
     field_serializer,
     field_validator,
@@ -36,7 +34,6 @@ from pydantic import (
     model_validator,
 )
 from pydantic.alias_generators import to_camel
-from pydantic.config import JsonDict
 from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from vultron.core.models._helpers import (
@@ -45,156 +42,21 @@ from vultron.core.models._helpers import (
     as_utc,
     blank_times_as_none,
     format_timestamp,
-    new_object_id,
     now_utc,
     refuse_absent_published,
 )
+from vultron.core.models.base._computed import (
+    check_computed_field_inputs,
+    computed_field_spellings,
+    refuse_computed_field_serializers,
+)
+from vultron.core.models.base.context import VULTRON_CONTEXT_URI
+from vultron.core.models.base.record import (
+    CoreRecord,
+    concrete_type_annotation,
+)
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
-from vultron.errors import Violation, VultronProtocolViolationError
-from vultron.primitives import NonEmptyString, UriString  # noqa: F401
-
-#: The Vultron JSON-LD ``@context``.  VM-10-001 (MUST) requires it on every
-#: Vultron-specific object on the wire; the ActivityStreams namespace alone "is
-#: not sufficient" for types AS2 does not define.
-#:
-#: It lives in core rather than beside ``ACTIVITY_STREAMS_NS`` in the wire layer
-#: because under ADR-0099 the core classes *are* the objects that carry it, and
-#: core MUST NOT import wire (ARCH-01-001 — the one boundary rule ADR-0099 leaves
-#: fully in force).  Wire imports it from here, which ARCH-25-006 permits.
-VULTRON_CONTEXT_URI = "https://certcc.github.io/Vultron/ns/context.jsonld"
-
-#: Key of the ``json_schema_extra`` marker that declares a wire field a
-#: Vultron-namespace property, such as a termination ``Remove``'s
-#: ``terminationCause`` (EMB-13-005) or a case's ``ledgerPosition``
-#: (SYNC-16-005).  The context generator maps each marked field's wire name to
-#: ``vultron:<name>``, so a receiver can resolve it.  In core for the reason
-#: :data:`VULTRON_CONTEXT_URI` is: core classes carry it (ADR-0099).
-VULTRON_PROPERTY_KEY = "vultron_property"
-
-#: The marker itself: pass it as a field's ``json_schema_extra``.
-VULTRON_PROPERTY_EXTRA: JsonDict = {VULTRON_PROPERTY_KEY: True}
-
-
-class ValidatedAssignmentMixin(BaseModel):
-    """Mixin that enables Pydantic post-construction field validation on core models.
-
-    Applied by :class:`CoreRecord`, so every core root and everything below it
-    validates assignment to the same standard as construction (ARCH-21-001).
-    Also composed directly onto the core ``BaseModel`` subclasses that are not
-    records — dimensions, the hash-chain ledger record, dispatch events.
-    Pydantic v2 merges ``model_config`` across the MRO, so the flag composes
-    with each class's own configuration.
-    """
-
-    model_config = ConfigDict(validate_assignment=True)
-
-
-@cache
-def _type_adapter(return_type: Any) -> TypeAdapter[Any]:
-    """One ``TypeAdapter`` per computed-field return type, built once."""
-    return TypeAdapter(return_type)
-
-
-def _json_form(return_type: Any, value: Any) -> Any:
-    """Return *value*'s ``mode="json"`` form under its declared *return_type*.
-
-    Exact only while the computed field declares no ``@field_serializer``,
-    which :meth:`CoreObject.__pydantic_init_subclass__` enforces.
-    """
-    return _type_adapter(return_type).dump_python(value, mode="json")
-
-
-class CoreRecord(ValidatedAssignmentMixin):
-    """Minimal core root: a stored record that is not an AS2 object.
-
-    ARCH-25-004 (ADR-0099) gives core two roots.  This one carries only the
-    identity every stored record needs — ``id_``, ``type_``, ``name`` — for
-    records that never go on the wire in their own right: dead letters,
-    offer bookkeeping, replication state.  It has no ``@context``, no alias
-    generator and no AS2 object fields, so it has no AS2 spelling, which is
-    why the rendering port refuses it (ARCH-20-003).
-
-    The AS2-shaped root is :class:`CoreObject`, which extends this one.
-
-    Every concrete subclass that declares a ``Literal`` ``type_`` registers in
-    :data:`CORE_TYPE_MAP` so a stored row can be reconstructed by its type
-    string (ARCH-12-010).  Wire classes do not inherit this root, so nothing
-    here has to guard against them (#2416).
-    """
-
-    # A stored record refuses any key it does not declare: a row written before
-    # a field rename fails loudly at read time instead of silently losing the
-    # renamed field (#4186, ARCH-12-003).  ``id`` and ``type`` are the stored
-    # spelling (``_rekey_wire_identity``); ``id_`` and ``type_`` the Python one.
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-    id_: NonEmptyString = Field(
-        default_factory=new_object_id,
-        validation_alias="id",
-        serialization_alias="id",
-    )
-    type_: NonEmptyString | None = Field(
-        default=None,
-        validation_alias="type",
-        serialization_alias="type",
-    )
-    name: NonEmptyString | None = None
-
-    def __init_subclass__(cls, **kwargs: object) -> None:
-        super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
-        # Register every concrete core subclass in CORE_TYPE_MAP so that
-        # find_in_vocabulary(..., include_core=True) can locate it without
-        # placing it in the wire VOCABULARY dict. Only subclasses that declare
-        # their own concrete type_ annotation are registered; abstract bases that inherit or omit
-        # type_ are skipped (same guard as CoreObject).
-        own_annotations = inspect.get_annotations(cls)
-        if "type_" not in own_annotations:
-            return
-        try:
-            hints = _typing.get_type_hints(cls)
-        except (NameError, TypeError):
-            # Forward references cannot be resolved yet (NameError) or an
-            # annotation is not a valid type (TypeError) — do not register.
-            # A half-constructed entry is worse than a missing one, which
-            # surfaces immediately at lookup time (CS-23-001).
-            return
-        annotation = hints.get("type_")
-        if isinstance(annotation, _types.UnionType):
-            return
-        if _typing.get_origin(annotation) is _typing.Union:
-            return
-        # Register by class name (covers classes where _set_type_from_class_name
-        # sets type_ = cls.__name__, e.g. CoreActor stored as "CoreActor").
-        CORE_TYPE_MAP[cls.__name__] = cls
-        # Also register by the Literal value itself when it differs from the
-        # class name (e.g. VultronOfferRecord → "OfferRecord"). Extract from
-        # the annotation directly; model_fields is not yet populated at
-        # __init_subclass__ time.
-        literal_args = _typing.get_args(annotation)
-        if (
-            literal_args
-            and len(literal_args) == 1
-            and isinstance(literal_args[0], str)
-        ):
-            CORE_TYPE_MAP[literal_args[0]] = cls
-
-
-def with_record_id(data: dict[str, Any], record_id: str) -> dict[str, Any]:
-    """Return a copy of *data* whose record id is *record_id*.
-
-    For a record that derives its id from its other fields.  The id is stated
-    under the one spelling *data* already uses: ``id_`` for a dump or an
-    assignment check (which validates by field name), ``id`` otherwise.  Stating
-    the other spelling beside it would leave one of the two an unrecognised key,
-    which ``extra="forbid"`` refuses.
-    """
-    out = dict(data)
-    if "id_" in out and "id" not in out:
-        out["id_"] = record_id
-    else:
-        out.pop("id_", None)
-        out["id"] = record_id
-    return out
+from vultron.primitives import NonEmptyString
 
 
 class CoreObject(CoreRecord):
@@ -323,56 +185,7 @@ class CoreObject(CoreRecord):
         computed field of any type.  See ``notes/wire-core-boundary.md``
         § "``extra="forbid"`` Is the Boundary Contract".
         """
-        computed = cls.model_computed_fields
-        if not isinstance(data, dict) or not computed:
-            return handler(data)
-
-        spellings = cls._computed_field_spellings()
-
-        # Record every supplied computed-field value under the spelling it
-        # arrived with, so that disagreeing duplicate spellings are each seen.
-        supplied: list[tuple[str, str, Any]] = [
-            (spelling, field_name, data[spelling])
-            for spelling, field_name in spellings.items()
-            if spelling in data
-        ]
-        if not supplied:
-            return handler(data)
-
-        # Strip every spelling before passing to the wrapped handler so that
-        # extra="forbid" does not reject them.
-        obj = handler({k: v for k, v in data.items() if k not in spellings})
-
-        # Each derived value's JSON form comes from its declared return type:
-        # the persistence dump omits computed fields (CM-31-014), and core
-        # does not render the AS2 dump itself (ARCH-20-001).  A computed field
-        # may not declare a field serializer, so the two forms agree
-        # (:meth:`__pydantic_init_subclass__`).
-        derived_json = {
-            field_name: _json_form(
-                computed[field_name].return_type, getattr(obj, field_name)
-            )
-            for field_name in {name for _spelling, name, _value in supplied}
-        }
-        violations = [
-            Violation(
-                message=(
-                    f"{field_name!r} (as {spelling!r}): supplied"
-                    f" {supplied_val!r}, derived {getattr(obj, field_name)!r}"
-                ),
-                dimensions=(field_name,),
-            )
-            for spelling, field_name, supplied_val in supplied
-            if supplied_val != getattr(obj, field_name)
-            and supplied_val != derived_json[field_name]
-        ]
-        if violations:
-            raise VultronProtocolViolationError(
-                "Supplied computed-field value(s) contradict derived state"
-                " (ARCH-23-005)",
-                violations=violations,
-            )
-        return obj
+        return check_computed_field_inputs(cls, data, handler)
 
     @classmethod
     def _computed_field_wire_key(cls, name: str) -> str:
@@ -383,16 +196,7 @@ class CoreObject(CoreRecord):
     @classmethod
     def _computed_field_spellings(cls) -> dict[str, str]:
         """Map every key spelling a computed field can arrive under to its name."""
-        spellings: dict[str, str] = {}
-        for name, info in cls.model_computed_fields.items():
-            spellings[name] = name
-            # CoreObject carries alias_generator=to_camel (ARCH-25-002, ADR-0099), so
-            # dump(by_alias=True) emits `embargoAdherence`.
-            spellings[to_camel(name)] = name
-            alias = getattr(info, "alias", None)
-            if isinstance(alias, str):
-                spellings[alias] = name
-        return spellings
+        return computed_field_spellings(cls)
 
     @model_validator(mode="before")
     @classmethod
@@ -601,18 +405,7 @@ class CoreObject(CoreRecord):
         dump (ARCH-23-005), so it is refused when the class is defined.
         """
         super().__pydantic_init_subclass__(**kwargs)
-        computed = set(cls.model_computed_fields)
-        serialized = {
-            field
-            for decorator in cls.__pydantic_decorators__.field_serializers.values()
-            for field in decorator.info.fields
-        }
-        if clash := sorted(computed & serialized):
-            raise TypeError(
-                f"{cls.__name__}: computed field(s) {clash} declare a field"
-                " serializer; derive the published value in the property"
-                " instead (ARCH-23-005)"
-            )
+        refuse_computed_field_serializers(cls)
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
@@ -637,24 +430,12 @@ class CoreObject(CoreRecord):
             # subclasses, so every registered name is a valid stored type_.
             CORE_TYPE_MAP[cls.__name__] = cls
             return  # Skip CORE_VOCABULARY — not a concrete vocab entry
-        try:
-            hints = _typing.get_type_hints(cls)
-        except (NameError, TypeError):
-            # Forward references cannot be resolved yet (NameError) or an
-            # annotation is not a valid type (TypeError) — do not register.
-            # Silent registration of a half-constructed class is worse than a
-            # missing entry, which surfaces immediately at lookup time.  Kept
-            # symmetric with CoreRecord.__init_subclass__, which runs the
-            # same get_type_hints(cls) call for every CoreObject subclass; a
-            # divergent catch here would let one handler swallow what the other
-            # crashes on (CS-23-001).
-            return
-        annotation = hints.get("type_")
-        # Skip union annotations (e.g. ``str | None``) — these mark
-        # intermediate abstract bases, not concrete vocabulary entries.
-        if isinstance(annotation, _types.UnionType):
-            return
-        if _typing.get_origin(annotation) is _typing.Union:
+        # Kept symmetric with CoreRecord.__init_subclass__, which resolves the
+        # same annotation through the same helper, so one hook cannot swallow
+        # what the other crashes on (CS-23-001).  A union annotation (e.g.
+        # ``str | None``) marks an intermediate abstract base, not a concrete
+        # vocabulary entry.
+        if concrete_type_annotation(cls) is None:
             return
         CORE_VOCABULARY[cls.__name__] = cls
 
