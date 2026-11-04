@@ -21,8 +21,7 @@ def sr_11_003_gate_applies(kind: SpecKind, priority: RFC2119Priority) -> bool:
     The gate covers ``kind: protocol`` requirements of the MUST tier, ``MUST``
     and ``MUST_NOT`` alike (MS-02-003), selected through the shared tier
     definition (MS-02-004). This is the one place the gate's scope is written
-    down, so the lint check and any tool that reports story gaps cannot drift
-    apart.
+    down, so callers ask it rather than restate the scope.
     """
     return kind == SpecKind.PROTOCOL and priority.is_must_tier
 

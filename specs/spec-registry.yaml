@@ -1865,8 +1865,9 @@ groups:
       for both priorities; `::test_sr_11_003_gate_applies_selects_protocol_must_tier`
       covers the gate's scope.
     rationale: >-
-      Protocol-level MUST requirements are the strongest obligations of an implementer.
-      A hard-error gate makes each of them traceable to at least one stakeholder need.
+      Protocol-level MUST-tier requirements are the strongest obligations of an
+      implementer. A hard-error gate makes each of them traceable to at least one
+      stakeholder need.
       The gate covers only `protocol`, because no user stories exist yet
       for behavior that Vultron inherits from ActivityStreams, ActivityPub and HTTP
       (`kind: foundation`). The gate covers the kinds that the story catalog can support
@@ -1890,8 +1891,9 @@ groups:
       The spec linter MUST let a spec suppress that hard error with
       `lint_suppress: [missing_story_reference]`.
     rationale: >-
-      Some implementation-detail MUSTs have no direct story. The suppression gives them
-      an exception and records on the spec that the exception is deliberate.
+      Some implementation-detail MUST-tier requirements have no direct story. The
+      suppression gives them an exception and records on the spec that the exception
+      is deliberate.
     verification: >-
       `test/metadata/specs/lint/test_advisories.py::test_protocol_must_suppress_missing_story_reference`
       covers the suppression.

@@ -113,10 +113,13 @@ def test_protocol_must_with_stories_passes(tmp_path, capsys):
     assert "SR-11-003" not in captured.err
 
 
+@pytest.mark.parametrize("priority", ["MUST", "MUST_NOT"])
 @pytest.mark.spec("SR-11-007")
-def test_protocol_must_suppress_missing_story_reference(tmp_path, capsys):
+def test_protocol_must_suppress_missing_story_reference(
+    tmp_path, capsys, priority
+):
     """lint_suppress: [missing_story_reference] silences the SR-11-003 hard error."""
-    data = _minimal_spec_no_stories(priority="MUST")
+    data = _minimal_spec_no_stories(priority=priority)
     data["groups"][0]["specs"][0]["lint_suppress"] = [
         "missing_story_reference"
     ]

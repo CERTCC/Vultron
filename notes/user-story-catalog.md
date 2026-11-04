@@ -221,7 +221,7 @@ ones it reads from.
   requirement they touch, they may cite it; the rationale is still the reason.
 - **#4482** (rationale rule) and **#4315** (PR-only growth
   guards replacing the count ceilings) build the helper the project/process
-  story advisory and the closing step should reuse, so a guard is written once.
+  story advisory reuses, so a guard is written once.
 - **#3601** (adjudicating suppressed protocol specs) was to hand the five Ideas
   their worklists by hand. With the Ideas closed by this plan and the gap report
   in place, its hand-off acceptance criteria point at the area Tasks instead;
