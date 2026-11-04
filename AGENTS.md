@@ -357,7 +357,7 @@ SHOULD be discussed via Issue or PR. Include rationale in the commit message.
 ## Miscellaneous tips
 
 - Use `markdownlint-cli2` for markdown; `ruff format` skips it. Default config
-  ignores only `wip_notes/**`; all other dirs are linted.
+  ignores vendor trees, `wip_notes/**` and `plan/history/**` (HM-01-005, #2952).
 - **Docs links must be relative** and MUST NOT go above `docs/`. Run
   `uv run mkdocs build --strict` before committing docs. `docs/developer/` pages
   are draft docs — visible in `mkdocs serve`, excluded from production builds.

@@ -2196,6 +2196,11 @@ groups:
     - ADR-0122
     stories:
     - story_2026_087
+    relationships:
+    - rel_type: uses_definition
+      spec_id: MSM-07-008
+    - rel_type: uses_definition
+      spec_id: MSM-07-009
   - id: EP-09-006
     priority: SHOULD
     kind: protocol
@@ -2759,13 +2764,17 @@ groups:
       by accepting it. During a revision, the in-force end time is a
       counter-proposal to keep the current terms (EP-09-020).
     verification: >-
-      `test/core/use_cases/received/test_embargo_revision_relay.py` holds two strict
-      xfails until the duplicate check lands. Each delivers a proposal under new ids
-      and different content, and expects no new register entry and no outbox write.
+      In `test/core/use_cases/received/test_embargo_revision_relay.py`, two tests
+      each deliver a proposal under new ids and different content, and expect no new
+      register entry and no outbox write.
       `test_a_proposal_repeating_pending_terms_registers_nothing` repeats a pending
       revision's end time, and
       `test_a_revision_repeating_the_embargo_in_force_registers_nothing` repeats the
       active embargo's end time with no revision pending.
+      `test/core/use_cases/received/test_embargo_proposal_repeat.py` confirms the
+      same for a repeated first proposal and for a repeat from another participant,
+      that different terms are still relayed, and that the in-force end time during a
+      revision is still committed as a counter-proposal (EP-09-020).
     relationships:
     - rel_type: refines
       spec_id: ID-04-004

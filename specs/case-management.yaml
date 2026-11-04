@@ -718,6 +718,8 @@ groups:
       spec_id: VP-06-001
     - rel_type: implements
       spec_id: VP-14-004
+    - rel_type: refines
+      spec_id: SM-10-002
     stories:
     - story_2022_018
     - story_2022_019
@@ -9331,6 +9333,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-27-001
+    - rel_type: refines
+      spec_id: SM-05-002
   - id: CM-29-004
     priority: MUST
     kind: protocol

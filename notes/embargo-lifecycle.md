@@ -188,6 +188,11 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   (`EmbargoAnswerNotRecordedNode`, CM-13-005); a `DECLINED` actor's Reject of
   an unknown embargo stays `REFUSED` (HP-01-003). An Accept after a Reject is
   a change of answer and moves the row straight to `AGREED` (CM-18-003).
+- A proposal of terms the case already holds is `SKIPPED` before the commit
+  (`EmbargoTermsNotHeldNode`, EP-09-032): its end time equals a pending
+  proposal's, or, with no revision pending, the embargo in force's. Keep the
+  in-force end time during a revision admissible, because it is the
+  counter-proposal to keep the current terms (EP-09-020).
 
 ## TransitionMode and the P/X/A Guards
 
@@ -497,7 +502,9 @@ arms built by `_by_role()` (`trigger_tree/_arms.py`, BT-17-001). Ratchet:
   inside the window is suppressed. The announced commit clears it (SYNC-11-003);
   a refused proposal, or an `Accept` refused with a `Reject` of the Invite
   (EMB-02-004), is closed by the manager's `Reject` (EP-09-019,
-  `close_refused_embargo_ask`); a participant takes a
+  `close_refused_embargo_ask`); a duplicate proposal (EP-09-032) is neither
+  committed nor refused, so its entry closes only on the timeout
+  (SYNC-11-005); a participant takes a
   `Reject(Invite(EmbargoEvent))` from the CASE_MANAGER alone.
 
 The receive-side cascade (`ThreatTerminationBranchNode`) reaches the same

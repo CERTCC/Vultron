@@ -48,36 +48,24 @@ def _check_spec_id_prefix_consistency(registry: SpecRegistry) -> list[str]:
     return errors
 
 
-_LIFECYCLE_KEYS = ("deprecated", "superseded_by")
-
-
 def _check_retirement_rules(
     registry: SpecRegistry, repo_root: Path
 ) -> list[str]:
-    """Enforce the retirement rules (MS-09-001, MS-09-004).
+    """Refuse a re-declared retired requirement ID (MS-09-004).
 
-    A requirement that is no longer current is removed and archived in
-    ``plan/retired-specs/``, never marked ``deprecated:`` or
-    ``superseded_by:`` in place, and an ID in the archive is never declared
-    again.
+    An ID in ``plan/retired-specs/`` is never declared again. The other
+    retirement rule, no ``deprecated:`` or ``superseded_by:`` key in place
+    (MS-09-001), is enforced at load time by the ``SpecGroup.specs``
+    validator, so a registry that reaches this check cannot carry either key.
     """
-    errors: list[str] = []
     retired = retired_spec_ids(repo_root)
-    for spec_id, spec in registry.all_specs.items():
-        for key in _LIFECYCLE_KEYS:
-            if key in spec.model_fields_set:
-                errors.append(
-                    f"Spec '{spec_id}' carries '{key}:'; remove the "
-                    f"requirement and archive it with `uv run spec-retire "
-                    f"{spec_id}` instead (MS-09-001)"
-                )
-        if spec_id in retired:
-            errors.append(
-                f"Spec '{spec_id}' is declared in specs/ but is in the "
-                f"retired archive plan/retired-specs/; a requirement ID is "
-                f"never reused, so give the new rule a new ID (MS-09-004)"
-            )
-    return errors
+    return [
+        f"Spec '{spec_id}' is declared in specs/ but is in the "
+        f"retired archive plan/retired-specs/; a requirement ID is "
+        f"never reused, so give the new rule a new ID (MS-09-004)"
+        for spec_id in registry.all_specs
+        if spec_id in retired
+    ]
 
 
 def _check_missing_kind(registry: SpecRegistry) -> list[str]:

@@ -265,9 +265,6 @@ groups:
       to another level could hide the logs an operator needs, or fill the logs with
       detail. Case-insensitive input accepts the forms that operators type, and
       upper-case storage matches the names that the `logging` module uses.
-    relationships:
-    - rel_type: extends
-      spec_id: CFG-04-004
   - id: CFG-04-005
     priority: MUST
     kind: project
@@ -303,8 +300,8 @@ groups:
       to refuse a malformed value. A node then never starts with a value that it cannot
       use.
     relationships:
-    - rel_type: extends
-      spec_id: CFG-04-006
+    - rel_type: constrains
+      spec_id: CFG-04-008
   - id: CFG-04-007
     priority: MUST_NOT
     kind: project
@@ -435,7 +432,7 @@ groups:
       restores the environment and the cache then too, so a failed test does not
       change the next test.
     relationships:
-    - rel_type: extends
+    - rel_type: refines
       spec_id: CFG-06-006
   - id: CFG-06-007
     priority: SHOULD
@@ -458,10 +455,6 @@ groups:
       fixtures that use `monkeypatch` directly. Those fixtures must undo the
       environment changes before they reload, or the cache keeps the test's values
       (CFG-06-003).
-    relationships:
-    - rel_type: refines
-      spec_id: CFG-06-003
-      note: the case where `config_override()` cannot be used
 - id: CFG-07
   title: Actor Configuration
   specs:

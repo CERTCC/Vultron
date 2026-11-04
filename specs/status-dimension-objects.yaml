@@ -72,7 +72,7 @@ groups:
       `ParticipantStatus` serializes to the same AS2 payload as `as_ParticipantStatus`.
       Covered by `test/core/models/test_dimension_bare_serialization.py`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SDO-01-001
     - rel_type: refines
       spec_id: ARCH-25-005
@@ -123,9 +123,6 @@ groups:
     rationale: Fail-fast at the boundary; never return None or silently no-op on an invalid transition. See ADR-0032 and ARCH-15-001.
     verification: Unit tests confirm that `transition(invalid_trigger)` raises `VultronInvalidStateTransitionError` for
       each dimension object when the trigger is not valid for the current state.
-    relationships:
-    - rel_type: depends_on
-      spec_id: ARCH-15-001
     adr:
     - ADR-0032
     stories:
@@ -172,11 +169,13 @@ groups:
     verification: Unit tests confirm that constructing a dimension object with an invalid target state raises
       `VultronInvalidStateTransitionError`, while a same-state write succeeds without error.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SDO-02-002
       note: Extends the transition() contract to direct-construction call sites
-    - rel_type: refines
-      spec_id: BTND-10-001
+    - rel_type: implements
+      spec_id: CSB-16-001
+    - rel_type: implements
+      spec_id: CSB-16-002
     stories:
     - story_2026_038
   - id: SDO-02-005
@@ -259,9 +258,6 @@ groups:
       DataLayer round-trip compatibility is a binding design constraint per LST-05-003
       and ADR-0033. A dimension field serializes as its bare state value and rehydrates
       via Pydantic model_validate (SDO-01-004, ADR-0099). See ADR-0036.
-    relationships:
-    - rel_type: depends_on
-      spec_id: LST-05-003
     adr:
     - ADR-0033
     - ADR-0036
@@ -311,11 +307,9 @@ groups:
       `test/core/models/test_dimensions.py` pins the same for `em_state` and
       `pxa_state`.
     relationships:
-    - rel_type: depends_on
+    - rel_type: constrains
       spec_id: SDO-03-003
       note: SDO-03-003 requires the shims to go; this requirement constrains how they are removed safely.
-    - rel_type: refines
-      spec_id: ARCH-15-002
     adr:
     - ADR-0062
     - ADR-0063
@@ -344,7 +338,7 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: SDO-03-005
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: ARCH-12-003
       note: ARCH-12-003 supplies the `extra="forbid"` configuration that replaces the per-class reject-guard.
     adr:
@@ -390,11 +384,8 @@ groups:
       `ValidationError`, that `CaseStatus` defines no `em_state` attribute so `status.em_state = EM.X` raises pydantic `ValidationError`,
       and that a case whose register changes still stamps the derived EM onto its current status.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: EMB-18-001
-      note: EMB-18-001 forbids assigning `case.current_status.em`; this requirement makes the assignment impossible.
-    - rel_type: depends_on
-      spec_id: SDO-03-001
     adr:
     - ADR-0122
   - id: SDO-03-010

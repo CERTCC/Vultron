@@ -137,7 +137,10 @@ def invite_to_embargo_on_case_tree(
     **Either arm is preceded by an idempotency guard**: the same Invite
     delivered again (``pending_embargo_proposal_index`` already maps the
     embargo to this Invite's id) commits nothing and the handler reports it
-    as a repeat (CLP-13-001, HP-01-003).  Each arm ends by writing that
+    as a repeat (CLP-13-001, HP-01-003).  At the CASE_MANAGER a proposal of
+    terms the case already holds — the end time of a pending proposal, or,
+    with no revision pending, of the embargo in force — is a repeat too,
+    whatever its ids and sender (EP-09-032).  Each arm ends by writing that
     index (DL-06), so it is written only once the Invite has been applied in
     whichever arm ran.  The participant-replica arm is the ``PathBranch`` the
     factory builds from an ``OnPaths.off_case_manager`` declaration among
@@ -252,7 +255,12 @@ def invite_to_embargo_on_case_tree(
                 sender_id=sender_actor_id,
                 embargo=embargo,
             ),
-            case_manager_admits_proposal_guard(case_id=case_id),
+            # EM admits the proposal, and its terms are new: a proposal of
+            # terms the case already holds, under whatever ids and from
+            # whichever sender, is a repeat (EP-09-032).
+            case_manager_admits_proposal_guard(
+                case_id=case_id, embargo_id=embargo_id, embargo=embargo
+            ),
         ],
         replica_effects=[
             *intake,
