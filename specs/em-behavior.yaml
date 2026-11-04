@@ -2924,7 +2924,7 @@ groups:
       queued or committed and EM is unchanged, and that after the
       CASE_MANAGER's abandonment no Participant's consent moved.
     relationships:
-    - rel_type: constrains
+    - rel_type: extends
       spec_id: EMB-16-001
     - rel_type: refines
       spec_id: EP-09-008

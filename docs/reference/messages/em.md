@@ -197,7 +197,7 @@ If the CASE_MANAGER refuses the termination, it commits neither entry.
   A receiver refuses a `Remove` whose `content` is anything else.
   `summary` is a human-readable account that the protocol does not read.
 - **Why it ended:** `terminationCause` gives the cause, when the sender names one.
-  The CASE_MANAGER's embargo register records the cause beside the reason (EMB-13-004, EMB-13-005).
+  The CASE_MANAGER's embargo register records the cause beside the reason (EMB-13-010, EMB-13-005).
   Its `kind` is `THREAT_SIGNAL` (with the `signals` `P`, `X` or `A`), `FIX_READY` (with the `vendors` whose readiness made the quorum), `FIX_DEPLOYED`, or `OTHER` (whose account is the `summary`).
   Every cause goes with `EARLY`.
   A `Remove` that carries `END_TIME_REACHED` names no cause.

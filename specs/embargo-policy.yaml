@@ -806,7 +806,7 @@ groups:
       A unit test asserts that a 30-day actor default with no sender proposal yields a 30-day
       active embargo, not the protocol default.
     relationships:
-    - rel_type: constrains
+    - rel_type: derives_from
       spec_id: EP-04-003
     adr:
     - ADR-0096
@@ -1527,7 +1527,7 @@ groups:
       configuration; the clamp guarantees safety, not identical arithmetic.
 
       The clamp is bidirectional in effect but not in mechanism: this requirement
-      raises a sub-minimum deadline, and EP-07-006 lowers one that overshoots the
+      raises a sub-minimum deadline, and EP-07-011 lowers one that overshoots the
       embargo. Where both would apply — a remaining embargo shorter than the
       configured window — EP-07-002 has already reduced the minimum to the
       remaining embargo, so the two agree rather than fight.
@@ -1640,7 +1640,7 @@ groups:
     statement: >-
       A receiving actor MUST log every deadline clamp it applies to an
       `Invite(EmbargoEvent)` deadline — both the EP-07-003 clamp up to the
-      applicable minimum window and the EP-07-006 clamp down to the embargo's
+      applicable minimum window and the EP-07-011 clamp down to the embargo's
       `end_time`.
     rationale: >-
       Logging the clamp makes the adjustment observable for auditing and
