@@ -42,6 +42,7 @@ import ast
 import pytest
 
 from test.architecture import _corpus
+from vultron.demo.scenario.registry import discover_scenarios
 
 #: Where a handoff may be written: in a scenario module, or as a story
 #: fragment the scenarios of a family share.  Both are scanned, although every
@@ -110,7 +111,13 @@ def _handoff_functions() -> list[tuple[str, ast.FunctionDef]]:
                     for call in ast.walk(node)
                     if isinstance(call, ast.Call)
                 ):
-                    found.append((f"{path.name}::{node.name}", node))
+                    found.append(
+                        (
+                            f"{path.relative_to(_corpus.REPO_ROOT).as_posix()}"
+                            f"::{node.name}",
+                            node,
+                        )
+                    )
     assert found, (
         f"no demo function calls {OFFER_TRIGGER} — the ratchet would pass"
         " vacuously. If the trigger was renamed, update OFFER_TRIGGER."
@@ -173,11 +180,34 @@ def test_every_handoff_is_a_shared_story_fragment() -> None:
     on the Name of What Performs It").
     """
     modules = {name.split("::", 1)[0] for name, _ in _HANDOFF_FUNCTIONS}
-    assert any(not name.endswith("_demo.py") for name in modules), (
+    # Every file of every scenario, a package scenario's submodules included,
+    # so a handoff written in `<name_>_demo/story.py` is a scenario's own.
+    files_of = {
+        spec.demo_path: [
+            path.relative_to(_corpus.REPO_ROOT).as_posix()
+            for path in _corpus.in_repo(spec.source_files)
+        ]
+        for spec in discover_scenarios()
+    }
+    scenario_files = {path for paths in files_of.values() for path in paths}
+    # Spelled the way `modules` is, or the membership test below compares two
+    # notations and passes over every scenario file: each scenario's files are
+    # its repo-relative demo path, or lie under it for a package.
+    misspelled = {
+        demo_path: paths
+        for demo_path, paths in files_of.items()
+        if not paths
+        or not all(path.startswith(demo_path.rstrip("/")) for path in paths)
+    }
+    assert files_of and not misspelled, (
+        "the scenario files are not spelled as repo-relative paths, so no "
+        f"handoff could match one: {misspelled or 'no scenarios'}"
+    )
+    assert any(name not in scenario_files for name in modules), (
         "no shared helper performs a handoff, so the ratchet checks nothing."
         " Found: " + repr(sorted(modules))
     )
-    assert not [name for name in modules if name.endswith("_demo.py")], (
+    assert not [name for name in modules if name in scenario_files], (
         "a scenario module offers the ownership transfer itself; the handoff"
         " is one shared continuation both handoff scenarios reach through"
         " (vultron/demo/helpers/owner_decision_story/, DEMOMA-17-001)."

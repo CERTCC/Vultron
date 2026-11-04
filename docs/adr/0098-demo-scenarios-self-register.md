@@ -4,7 +4,7 @@ date: 2026-09-22
 created: 2026-09-22
 updated: 2026-09-22
 revision: 1
-amended: "2026-10-15"
+amended: "2026-11-04"
 deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
@@ -284,6 +284,30 @@ The demo UI's offline mode replays the tree ([ADR-0104](0104-interactive-demo-ui
 
 - Source: the 2026-10-15 demo UI planning session; #4726, #4727, #4733, #4736
 - Source: the 2026-10-30 planning of #4733
+
+## Amendment — 2026-11-04
+
+A scenario may be a package as well as a module.
+Self-registration, discovery by package walk, and paths derived from the name are unchanged.
+The Decision Outcome's derived-path table said:
+
+> | Demo script | `vultron/demo/scenario/<name_>_demo.py` |
+
+The demo script is now `vultron/demo/scenario/<name_>_demo.py` or the package `vultron/demo/scenario/<name_>_demo/`, whichever exists.
+The path is still derived from the name and never stored.
+
+- Discovery returns `*_demo` packages as well as `*_demo` modules.
+  One name present in both forms is refused, because the import system loads the package and never runs the module.
+- A package scenario declares `main()` in a submodule, and its `__init__` only re-exports names (CS-18-003).
+  Registration accepts a declaration in the derived module or in any submodule of it, and refuses any other module of the scenario package.
+- The demo path, and every check that reads a scenario's own source, follow whichever form the derived name resolves to.
+- The Validation section's "every `*_demo.py` module" reads as every `*_demo` module or package.
+
+Why: a scenario that grows past the module-size threshold (CS-18-001) must split into a package of submodules, as the shared story helpers did.
+A registry that accepted only one file per scenario would block that split, or force the scenario's own code out into helper modules that no other scenario uses.
+
+- Source: #5825, approved by the maintainer in the Epic #4747 run of 2026-11-04
+- See DEMOCI-11-001, DEMOCI-11-002, DEMOCI-11-003 and DEMOMA-19-003.
 
 ## More Information
 

@@ -86,7 +86,10 @@ def _registered_stories() -> dict[str, Story]:
 
     Read from the registry rather than from a list of module names, so a new
     scenario composed onto one of these prefixes counts towards it the moment
-    it is registered (DEMOCI-11-002).
+    it is registered (DEMOCI-11-002).  A scenario with no ``STORY`` fails
+    rather than drop out of every check that reads this, which is how a
+    ``<name_>_demo/`` package whose ``__init__`` forgot to re-export it would
+    otherwise slip past them (DEMOCI-11-003).
     """
     import importlib
 
@@ -95,8 +98,11 @@ def _registered_stories() -> dict[str, Story]:
         plot = getattr(
             importlib.import_module(spec.module_name), "STORY", None
         )
-        if isinstance(plot, Story):
-            stories[spec.name] = plot
+        assert isinstance(plot, Story), (
+            f"{spec.module_name} exposes no STORY; a package scenario's "
+            "__init__ re-exports it beside main, ROLES and CLI_HELP"
+        )
+        stories[spec.name] = plot
     return stories
 
 

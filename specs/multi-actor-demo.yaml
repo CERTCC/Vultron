@@ -3782,13 +3782,15 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The RCVCV scenario file MUST be implemented at
-      `vultron/demo/scenario/rcvcv_demo.py`.
+      The RCVCV scenario MUST be implemented at its derived demo path
+      (DEMOCI-11-003): `vultron/demo/scenario/rcvcv_demo.py`, or an `rcvcv_demo`
+      package in the same directory.
     rationale: >-
       The scenario registry derives the script path, the test harness path and the
       narrative path from the scenario name (ADR-0098, DEMOCI-11-003). A script at any
       other path is not found by these tools. The fixed path keeps the registered
-      `rcvcv` scenario and its files together.
+      `rcvcv` scenario and its files together. Either form keeps that path, so the
+      scenario can become a package when it outgrows one module (CS-18-001).
     adr:
     - ADR-0098
 
