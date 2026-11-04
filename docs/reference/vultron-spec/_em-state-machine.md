@@ -116,6 +116,8 @@ Every register step names its EM trigger, and a step whose EM move is not in the
 Register steps map to EM triggers as follows:
 
 - A proposal is propose.
+  A proposal of terms the case already holds is not propose, and changes nothing (EP-09-032).
+  Its end time repeats that of a pending proposal, or, with no revision pending, that of the embargo in force.
 - An activation is accept.
 - A rejection is reject.
   The cancellation of open proposals with no embargo in force is also reject.

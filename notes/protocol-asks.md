@@ -7,7 +7,6 @@ tracks:
   - "#3188"
   - "#3471"
   - "#4981"
-  - "#5720"
 description: >
   Design guidance for the protocol-ask primitive: asking and terminating rather
   than suspending, conversation-state routing, the outstanding-ask register, ask
@@ -222,7 +221,9 @@ duplicate suppressor that never holds case state (CLP-06-002). An announced comm
 clears the entry (SYNC-11-003); a refused proposal is never committed, so only
 the CASE_MANAGER's received `Reject` of it closes the entry, as its `Reject` of
 the Invite does a refused `Accept` (EP-09-019, `close_refused_embargo_ask`,
-`received/_pending_refusal.py`).
+`received/_pending_refusal.py`). A duplicate proposal (EP-09-032) is neither
+committed nor refused, so nothing answers it and its entry closes only on the
+timeout (SYNC-11-005).
 
 **Asks are visible to the whole case.** An ask is an ordinary recorded entry and
 replicates normally (ASK-06-003), so a stalled decision is visible to participants.
