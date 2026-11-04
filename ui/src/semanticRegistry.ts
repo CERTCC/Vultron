@@ -7,7 +7,7 @@
  * `SEMANTIC_REGISTRY`). A case-ledger entry's `semanticType` is the registry's
  * label for its payload, so the artifact is the authority on which semantic
  * types exist and how each is phrased. The demo report tool
- * (`vultron/demo/report.py`) renders the same phrase templates, so the two never
+ * (`vultron/demo/report/`) renders the same phrase templates, so the two never
  * keep parallel phrase tables (DRPT-03-005, ADR-0128).
  *
  * Phrase templates use named slots (`{actor}`, `{object}`, `{target}`, …;

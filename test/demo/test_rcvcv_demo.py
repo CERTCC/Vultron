@@ -43,7 +43,6 @@ import pytest
 from click.testing import CliRunner
 
 import vultron.demo.scenario.rcvcv_demo as demo
-import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
     devlogs_name_of,
     functions_referencing,
@@ -79,6 +78,7 @@ from vultron.demo.helpers.polling import LATE_JOINER_TIMEOUT
 from vultron.demo.helpers.story import Choose, UnseatedContainer, choose
 from vultron.demo.scenario import rcv_demo
 from vultron.demo.scenario.registry import registered_scenarios
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -678,9 +678,8 @@ class TestC2SuggestsTheVendorDeployer:
         # reaches them; what the gate owns is the approval.
         assert chain.called
         assert triage.called
-        assert [f for f in demo_utils._demo_failures if "GATE FAILED" in f], (
-            f"the closed gate must record one failure: "
-            f"{demo_utils._demo_failures!r}"
+        assert [f for f in _demo_failures if "GATE FAILED" in f], (
+            f"the closed gate must record one failure: {_demo_failures!r}"
         )
 
     def test_a_missing_case_actor_participant_is_reported_not_raised(self):
@@ -715,8 +714,8 @@ class TestC2SuggestsTheVendorDeployer:
         approve.assert_not_called()
         assert any(
             "GATE FAILED" in f and "route the Accept to" in f
-            for f in demo_utils._demo_failures
-        ), demo_utils._demo_failures
+            for f in _demo_failures
+        ), _demo_failures
 
     def test_v2_accepts_the_invite_the_case_actor_delivered(self):
         """The last hop: V2 answers the Invite found in its own container.
@@ -963,7 +962,7 @@ class TestReplicasDrainBeforeTheSecondCoordinator:
             demo.replicas_drain_before_the_second_coordinator(state)
 
         per_replica.assert_not_called()
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
         assert "http://c1.test/api/v2" in failure
         assert "opening drain before C2 joins" in failure

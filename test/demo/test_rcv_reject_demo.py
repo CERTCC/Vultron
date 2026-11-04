@@ -54,7 +54,7 @@ class TestParticipantAddsNoteNoNoteId:
         """Trigger returns {} — no note ID — function must return None, not raise."""
         mock_client, mock_actor, mock_case = _make_note_fixtures()
         with patch(
-            "vultron.demo.actor_session.post_to_trigger",
+            "vultron.demo.actor_session.binding.post_to_trigger",
             return_value={},
         ):
             result = participant_adds_note_to_case(
@@ -78,7 +78,7 @@ class TestParticipantAddsNoteNoNoteId:
             response=mock_response,
         )
         with patch(
-            "vultron.demo.actor_session.post_to_trigger",
+            "vultron.demo.actor_session.binding.post_to_trigger",
             side_effect=http_error,
         ):
             result = participant_adds_note_to_case(
@@ -96,7 +96,7 @@ class TestParticipantAddsNoteNoNoteId:
         mock_client, mock_actor, mock_case = _make_note_fixtures()
         with (
             patch(
-                "vultron.demo.actor_session.post_to_trigger",
+                "vultron.demo.actor_session.binding.post_to_trigger",
                 return_value={
                     "note": {"id": "http://example.test/notes/note-1"}
                 },

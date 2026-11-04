@@ -177,7 +177,7 @@ actor container (actor0 … actor4, case-actor; may host several actors)
   manager's authoritative ledger.
 - **Per-replica view.** Because the dashboard reads every actor, it can
   show replica convergence side by side — the same per-actor presence view
-  `vultron/demo/report.py` builds after the fact (DRPT-02-005).
+  `vultron/demo/report/` builds after the fact (DRPT-02-005).
 
 ### Live case log stream
 

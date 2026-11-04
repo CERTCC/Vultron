@@ -113,7 +113,7 @@ groups:
     statement: >-
       Demo-layer modules (`vultron/demo/**`) MUST NOT import from the legacy simulator
       package (`vultron/bt/**`). The one exception is the unified demo CLI aggregator,
-      `vultron/demo/cli.py` (DC-01-001).
+      `vultron/demo/cli/vultrabot_commands.py` (DC-01-001).
     rationale: >-
       `vultron/demo/` demonstrates the production protocol, and `vultron/bt/` is the
       frozen legacy simulator that is to be retired (see `notes/codebase-structure.md`

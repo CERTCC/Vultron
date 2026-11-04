@@ -66,7 +66,7 @@ Committed layers to read a failed run.
 ### A gate must actually gate
 
 `demo_check` records a failure and returns, so the dependent step runs anyway and
-its secondary failures bury the real one. Use `demo_gate` (`vultron/demo/utils.py`)
+its secondary failures bury the real one. Use `demo_gate` (`vultron/demo/utils/failures.py`)
 for a causal precondition and `demo_check` for a verification assertion; both
 accumulate failures (DEMOCI-01-003, DEMOCI-01-007, EDF-06-005). Test a gate with
 the real context manager — patching it with `contextlib.nullcontext` proves

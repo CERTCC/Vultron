@@ -159,7 +159,7 @@ six-step checklist (enum → pattern → use-case → map → tests).
 - **Inbox**: `vultron/adapters/driving/fastapi/routers/actors/` (package; `_routes/`
   defines endpoints)
 - **Errors**: `vultron/errors.py`
-- **Demo**: `vultron/demo/cli.py` (entry point)
+- **Demo**: `vultron/demo/cli/` (entry point)
 - **Case States**: `vultron/core/states/cs/` (CS/VFD/PXA enums, authoritative) and
   `cs_invariants/` (CSB-17) → legacy oracle (ADR-0060): [notes/case-state-model.md](notes/case-state-model.md)
 

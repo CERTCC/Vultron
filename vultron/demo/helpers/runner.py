@@ -24,12 +24,12 @@ from collections.abc import Callable, Sequence
 
 from vultron.demo.utils import (
     DataLayerClient,
-    _note_accumulated_failures,
     assert_demo_success,
     check_server_availability,
     demo_environment,
     reset_demo_failures,
 )
+from vultron.demo.utils.failures import _note_accumulated_failures
 from vultron.errors import DemoFailureError
 
 logger = logging.getLogger(__name__)

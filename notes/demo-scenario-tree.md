@@ -59,7 +59,7 @@ Parent Epic: #4747.
 The branch-point table (`vultron/demo/scenario/branch_points.py`) and the
 choices of each scenario's story (§ "Composition") are the tree;
 `scenario_tree()` in
-`registry.py` merges the paths and discovery fails unless every scenario is one
+`registry/discovery.py` merges the paths and discovery fails unless every scenario is one
 ending (DEMOCI-11-013, DEMOCI-11-014). The declaration rules are in
 [demo-scenario-registry.md](demo-scenario-registry.md) § "The path and the
 branch-point table". Read the tree there, not from a copy here.

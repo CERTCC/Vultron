@@ -23,7 +23,7 @@ illustrate individual message semantics in isolation.
 ## Available scenario demos
 
 Each scenario declares itself by decorating its `main()` with `@scenario(...)`
-from [`registry.py`](registry.py); the table below is generated from those
+from [`registry/`](registry/__init__.py); the table below is generated from those
 declarations (ADR-0098, DEMOCI-11). To add a scenario, write the module and
 decorate it, passing the `story` it assembles from shared fragments and
 `choose(...)` items naming the branch-point table in
