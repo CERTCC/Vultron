@@ -149,7 +149,7 @@ the promotion steps.
   invited actor (CM-11-010, CM-11-011). A failure means an invitee joined
   without judging the case: start at Layer 2 for the missing Invite or reply.
 - **Invariant 18** runs `case_closure_violations` from
-  `vultron/demo/helpers/milestones.py` over the `case-actor` log (CM-23-013). A
+  `vultron/demo/helpers/milestones/closure.py` over the `case-actor` log (CM-23-013). A
   failure names a participant act committed after the CASE_MANAGER's own
   `RM.CLOSED` status entry (`closure_boundary_indices`). Check the
   post-close guard `CaseOpenToExternalWritesNode` and the scenario's
@@ -193,7 +193,7 @@ the promotion steps.
 ## Trace Shared Helper Layers Before Declaring an Event Unemitted
 
 Demo protocol activity is emitted from shared helpers in
-`vultron/demo/helpers/workflow.py` (`receiver_engages_case()`,
+`vultron/demo/helpers/workflow/triage.py` (`receiver_engages_case()`,
 `run_direct_path_rm_triage()`, …), not from scenario files. Grepping
 `vultron/demo/scenario/` finds nothing and suggests no code emits the event.
 Search the helper and semantic-registry layers before asserting absence

@@ -50,10 +50,11 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import runner, workflow
+from vultron.demo.helpers import runner
 from vultron.demo.helpers.invite_chain import links as invite_links
 from vultron.demo.helpers.story import StoryState, UnseatedContainer
 from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME
+from vultron.demo.helpers.workflow import report as workflow_report
 from vultron.demo.in_process import response_value
 from vultron.demo.utils import DataLayerClient
 from vultron.errors import VultronError
@@ -786,7 +787,7 @@ def expect_trusted_introductions(
     )
     checked: list[tuple[str, str | None, list[tuple[str | None, str | None]]]]
     checked = []
-    real_wait = workflow.wait_for_reporter_introduction
+    real_wait = workflow_report.wait_for_reporter_introduction
 
     def _recording_wait(
         client: DataLayerClient,
@@ -810,7 +811,9 @@ def expect_trusted_introductions(
         return case_id
 
     with patch.object(
-        workflow, "wait_for_reporter_introduction", side_effect=_recording_wait
+        workflow_report,
+        "wait_for_reporter_introduction",
+        side_effect=_recording_wait,
     ):
         yield
 

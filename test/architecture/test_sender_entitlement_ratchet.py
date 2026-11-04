@@ -524,7 +524,7 @@ STANDING_READS: dict[Site, Listed] = {
         "SenderIsCaseOwnerNode",
     ): Listed(1, "reads the local deciding actor, not a sender (EMB-15-002)"),
     Site(
-        "vultron/core/behaviors/embargo/announce_teardown_tree.py",
+        "vultron/core/behaviors/embargo/announce_teardown_tree/invite.py",
         "invite_to_embargo_on_case_tree",
         "SenderIsCaseOwnerNode",
     ): Listed(

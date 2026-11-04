@@ -267,10 +267,8 @@ def test_embargo_handle_result_records_the_ask_and_skips_the_lifecycle():
     The non-manager arm writes no EM state, so ``lifecycle_result`` is absent
     and is not demanded.
     """
-    from vultron.core.behaviors.embargo.trigger_tree import (
-        ASSERTED_ACTIVITY_KEY,
-    )
     from vultron.core.models.pending_assertion import (
+        ASSERTED_ACTIVITY_KEY,
         get_pending_assertion_store,
     )
 
