@@ -225,9 +225,9 @@ as a refusal in every demo log of three passing runs (#5460).
 
 Decide the level from the node's own placement at tick time, not from a flag the
 composer sets: `failure_is_the_refusal(node)` in
-`vultron/core/behaviors/sender_entitlement.py` walks the parents and answers `False`
-at the first Selector with a later sibling, or at any decorator. A flag can disagree
-with the tree that is running; the walk cannot. The invariant the walk reads is
+`vultron/core/behaviors/sender_entitlement/base.py` walks the parents and answers
+`False` at the first Selector with a later sibling, or at any decorator. A flag can
+disagree with the tree that is running; the walk cannot. The invariant the walk reads is
 pinned by `test/architecture/test_sender_guard_failure_is_the_tree_refusal.py`: no
 received tree may place a sender door where anything above it can overrule the
 door's FAILURE. Nothing else catches that direction — the demo matcher below sees

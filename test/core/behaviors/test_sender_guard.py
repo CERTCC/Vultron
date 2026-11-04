@@ -898,7 +898,7 @@ def _module_guards() -> list[Any]:
         for _name, obj in inspect.getmembers(
             sender_entitlement, inspect.isclass
         )
-        if obj.__module__ == sender_entitlement.__name__
+        if obj.__module__.startswith(f"{sender_entitlement.__name__}.")
         and hasattr(obj, "guards_kind")
         and obj is not SenderEntitlementConditionNode
         and not obj.__subclasses__()

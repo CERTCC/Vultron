@@ -72,8 +72,8 @@ lookup table is mostly links.
   declaration says which one its handler checks.
 - The wording is declared on each kind, not kept here: see
   `SenderEntitlementKind.sent_by` and `.term`, and `AddresseeSide.send_to`, in
-  `vultron/core/behaviors/sender_entitlement.py` (MSM-08-010). A test holds every
-  term to a glossary row. A position's wording names its object with an
+  `vultron/core/behaviors/sender_entitlement/declarations.py` (MSM-08-010). A test
+  holds every term to a glossary row. A position's wording names its object with an
   `{object}` placeholder ("the addressee of the case proposal", "the note's
   author"), and a nested request by its object and verb ("the addressee of the
   vulnerability case offer"); an exemption reads "not yet checked", and an

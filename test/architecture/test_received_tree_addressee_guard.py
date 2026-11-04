@@ -93,7 +93,10 @@ OTHER_TO_COMPARISONS: frozenset[_Site] = frozenset(
     {
         # Whether the *sender* is an addressee of the request it answers
         # (HP-01-008 positions such as invitee or transferee).
-        ("vultron/core/behaviors/sender_entitlement.py", "_confirm_addressee"),
+        (
+            "vultron/core/behaviors/sender_entitlement/addressee.py",
+            "_confirm_addressee",
+        ),
     }
 )
 

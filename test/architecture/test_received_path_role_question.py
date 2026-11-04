@@ -121,7 +121,7 @@ KNOWN_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
         # The sender guard's own role read, for a tree that has not declared
         # its paths: with a declaration the arms read the path stage's
         # answer instead (HP-01-036).
-        (f"{_B}/sender_guard.py", CONDITION),
+        (f"{_B}/sender_guard/compose.py", CONDITION),
         # Gate-wrapped precondition guards a received tree passes.
         (f"{_C}/nodes/case_participant_received.py", GATE),
         (f"{_C}/nodes/ownership_offer_guard.py", GATE),

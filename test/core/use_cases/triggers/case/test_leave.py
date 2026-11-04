@@ -461,7 +461,7 @@ class TestLeaveCaseTrigger:
 
         with (
             patch(
-                "vultron.core.behaviors.sender_entitlement"
+                "vultron.core.behaviors.sender_entitlement.case_owner"
                 "._holds_case_owner_role",
                 side_effect=RuntimeError("store unavailable"),
             ),
