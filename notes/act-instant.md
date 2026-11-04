@@ -11,6 +11,7 @@ tracks:
   - "#5652"   # slice 5: the parse edge reads no clock
   - "#5760"   # slice 6: recordings through the port
   - "#5761"   # follow-on: generated ids through an id source
+  - "#5848"   # follow-on: drift limit, after the call-out budget (#3423)
 description: >
   The unbuilt migration to ADR-0174: each act reads the clock once at its edge,
   tree nodes read that instant from the tree run, and core code takes time as an
@@ -29,6 +30,12 @@ yet. This note holds the order of the work and the rules each slice keeps.
 
 ## Rules every slice keeps
 
+- **Lock, then read.** An act takes the tree lock before it reads its instant
+  and holds the lock until it commits, so queueing for the lock is not decision
+  time. A trigger's checks before its tree run inside that lock.
+- **A stopwatch is not the clock.** Elapsed-time limits read a separate
+  monotonic port at named sites; a stopwatch reading never reaches a decision
+  about the case or a record, so the architecture test allows it.
 - **No fallback to the clock.** A parameter that carries the act's instant is
   required, never `datetime | None` with an `or now_utc()` default, because that
   fallback is the defect being removed (ARCH-10-001).

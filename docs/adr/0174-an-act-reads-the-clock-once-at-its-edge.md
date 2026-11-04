@@ -2,11 +2,12 @@
 status: proposed
 date: 2026-11-03
 created: 2026-11-03
-updated: 2026-11-03
-revision: 1
+updated: 2026-11-04
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
-  Claude Opus 5.5; issues #5676, #5591, #5649, #5650, #5651, #5652, #2887;
+  Claude Opus 5.5; issues #5676, #5591, #5649, #5650, #5651, #5652, #2887,
+  #3423;
   ADR-0032, ADR-0103, ADR-0167; specs/code-style.yaml CS-13;
   specs/case-ledger-processing.yaml CLP-15
 informed: []
@@ -37,6 +38,7 @@ Where does time enter the application, and how does code below that point learn 
 - A missing time must fail fast, never be filled in silently (ARCH-10-001), because a silent fallback is how the current defects arose.
 - Several stamps written by one act must still sort in the order they were written (ADR-0167).
 - A time a peer sent is carried, never minted (ADR-0103, CLP-15-007, CLP-15-008).
+- An act's instant must be the time it decides, not the time it queued for the tree lock.
 - The rule must be enforced by a test, not by audits.
 
 ## Considered Options
@@ -44,17 +46,22 @@ Where does time enter the application, and how does code below that point learn 
 1. **Fix each read where it is found.** Give each site its own injected time, issue by issue.
 2. **One instant per act, passed as an argument everywhere.** Every builder, node, helper and model that needs time takes a required argument.
 3. **One instant per act, read at the act's edge; a tree's nodes read it from the tree run's shared state; everything else takes it as an argument.**
+4. **Re-read the clock where a decision needs it.** A tree with a time constraint reads the clock again at each decision, so a slow act decides against the current time.
 
 ## Decision Outcome
 
 Chosen option: "One instant per act, read at the act's edge", because it removes the cause rather than the symptoms and needs no signature change through every received handler and trigger.
 Option 1 has already produced four issues, and nothing stops a fifth.
 Option 2 meets every driver but threads a time through every tree builder and every nested tree run by hand, which is the change #5649 judged too wide to make.
+Option 4 answers a slow act's staleness by bringing back the first problem: the guard decides at one instant and the commit is stamped at another.
+Staleness is a separate problem, handled below by a stated assumption and a later drift limit, not by a second read of the clock.
 
-The decision has six parts.
+The decision has seven parts.
 
 - **An act and its instant.** An act is one trigger invocation, the processing of one inbound delivery, or one scheduled sweep.
-  Each act reads the clock exactly once, at its entry point, and that reading is the act's instant.
+  Each act takes the tree lock first, then reads the clock exactly once, and holds the lock until it commits; that reading is the act's instant.
+  For a trigger the lock covers the whole invocation, including the checks it makes before running its tree, so no check of an act runs outside the lock or against an instant read before it.
+  The lock is re-entrant, so the bridge taking it again inside the act is safe.
   Every decision the act takes compares against it, and every time the act records is derived from it.
 - **A received activity is judged when it is processed.** The instant of a received activity's act is the time it is applied, not the time it arrived.
   A held activity replayed later gets the instant of its replay, so an expiry is judged at the moment its effect lands.
@@ -75,6 +82,13 @@ The decision has six parts.
 - **The clock is injected.** The clock is a port with one operation, the current time, that the composition root supplies: the system clock in production and a recording clock in a recorded run.
   Only act entry points and adapter bookkeeping will hold it.
   Adapter bookkeeping times, such as when a delivery was dead-lettered, are infrastructure times read through the same port; they do not enter the case ledger and are not an act's instant.
+- **Elapsed time is a stopwatch, not the clock.** A limit on how long work may take, such as a call-out's time budget (#3423), measures elapsed time on a separate monotonic port.
+  A stopwatch reading feeds a limit and nothing else: it never enters a decision about the case or anything the act records, and the recording clock does not see it.
+  The architecture test forbids clock reads below the act's edge and allows stopwatch reads only at named sites.
+
+An act's instant is frozen on the assumption that an act runs for a short time compared with every window it decides on: trees run to completion without waiting (BT-01-002), make no network calls, and decide on windows of seconds to weeks.
+A call-out that blocks on an external service can break that assumption.
+When it can, a drift limit will close the gap without a second clock read: an act whose stopwatch time since its instant exceeds a budget aborts before committing and reruns with a fresh instant (#5848, after #3423).
 
 This decision covers time only.
 Generated ids have the same shape, a global that the recording harness replaces, and are left to a follow-on decision.
@@ -85,6 +99,7 @@ Generated ids have the same shape, a global that the recording harness replaces,
 - Good: a read that commits nothing no longer moves a recording, and the recording clock steps once per act, so one tick means one act.
 - Good: the per-site fallbacks and their time parameters are deleted rather than threaded, so most of the tree-node change is a removal.
 - Good: a missing instant fails at the point it is needed rather than being replaced by a clock read.
+- Neutral: an act's instant can be older than the wall clock by the time the act commits; the assumption above bounds the gap until the drift limit lands.
 - Neutral: two acts that race on two threads can still reach a recording in either order; that is real nondeterminism, and the demos still order their steps on their causes (EDF-06).
 - Bad: every test that builds a core model without a time will need one, so the model change is wide and is done as its own step.
 - Bad: one more value lives in a tree run's shared state, which is global to the process; it takes the same lock and inheritance rule as the leadership check.
@@ -96,6 +111,7 @@ Generated ids have the same shape, a global that the recording harness replaces,
 - A model test will fail on a core model field whose default reads the clock.
 - Under a counting clock, each act in a recorded run will read the clock exactly once.
 - A node ticked without an instant in its tree run will fail rather than read the clock.
+- An act's instant will be read after the act takes the tree lock, and a trigger's checks before its tree will run inside that lock.
 - Each migrated decision will give the same verdict for the same instant as before.
 
 ## More Information
