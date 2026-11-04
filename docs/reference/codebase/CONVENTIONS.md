@@ -15,7 +15,7 @@ stakeholder_type: [project-contributor]
 | Wire-layer AS2 vocab classes | `as_` prefix + `PascalCase` for unpaired AS2 vocabulary; for paired domain types the `as_` name is an alias of the core class (ADR-0099, ARCH-14-001) | `as_Activity`, `as_Link`; `as_VulnerabilityCase is VulnerabilityCase` | `vultron/wire/as2/vocab/objects/`, `vultron/wire/as2/AGENTS.md` |
 | Trigger use-case classes | `Svc` + verb + noun + `UseCase` | `SvcLeaveCaseUseCase`, `SvcEngageCaseUseCase` | `vultron/core/use_cases/triggers/` |
 | Received use-case classes | verb/noun + `ReceivedUseCase` suffix | `CreateReportReceivedUseCase` | `vultron/core/use_cases/received/`, `vultron/core/AGENTS.md` |
-| Trigger request models | noun + `TriggerRequest` suffix; HTTP body models without `actor_id` in `request_bodies.py` | `AcceptCaseInviteTriggerRequest` | `vultron/core/use_cases/triggers/requests.py`, `vultron/core/use_cases/triggers/request_bodies.py` |
+| Trigger request models | noun + `TriggerRequest` suffix; HTTP body models without `actor_id` in `request_bodies/` | `AcceptCaseInviteTriggerRequest` | `vultron/core/use_cases/triggers/requests/`, `vultron/core/use_cases/triggers/request_bodies/` |
 | Trigger functions (non-class) | `_trigger` suffix, never an `svc_` prefix | `state_ledger_positions_trigger()` | `vultron/core/use_cases/triggers/sync.py`, `vultron/core/AGENTS.md` |
 | Functions / methods | `snake_case` | `get_config()`, `load_actor_config()` | `vultron/config/app.py` |
 | Constants / env vars | `UPPER_SNAKE_CASE` | `VULTRON_CONFIG`, `DEFAULT_MAX_RETRIES` | `vultron/config/app.py`, `vultron/adapters/driven/http_delivery.py` |

@@ -257,8 +257,7 @@ def test_every_core_request_adds_actor_id_to_a_body_model(
     bodies = [
         base
         for base in request_cls.__mro__
-        if issubclass(base, BaseModel)
-        and _is_body_module(base.__module__)
+        if issubclass(base, BaseModel) and _is_body_module(base.__module__)
     ]
     assert bodies, f"{request_cls.__name__} derives from no body model"
     assert "actor_id" in request_cls.model_fields

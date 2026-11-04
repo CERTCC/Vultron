@@ -126,7 +126,7 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 - **State machine coupling via the transitions library**: `vultron/core/states/` and `vultron/core/services/embargo_lifecycle/base.py` import `transitions` directly, so a third-party state machine library sits in core.
 - **Process-global py_trees blackboard**: BT executions share `py_trees.blackboard.Blackboard.storage`.
   `BTBridge` serializes executions with a module-level `RLock`, and `blackboard_scope.py` snapshots and restores execution-scoped keys, but any key outside those managed sets can leak between trees.
-- **Core modules over the CS-18 size cap**: several core files exceed the 500-line threshold of CS-18-001, the largest being `vultron/core/behaviors/helpers.py` and `vultron/core/ports/trigger_activity.py` (see `CONCERNS.md`).
+- **Core modules over the CS-18 size cap**: several core files exceed the 500-line threshold of CS-18-001, the largest being `vultron/core/behaviors/helpers.py` (see `CONCERNS.md`).
 - **Content signing decided but not built**: ADR-0164 (`accepted-provisional`) chooses object-level proofs inside each activity (FEP-8b32, `eddsa-jcs-2022`) from seeded keys, with strict verification and no switch.
   Nothing signs or verifies yet; the inbox accepts any well-formed body, and the expected behavior is pinned by strict-`xfail` tests (`test/adapters/driving/fastapi/test_signed_delivery_refusal.py`, `test/core/use_cases/received/test_signed_ledger_entries.py`).
 - **Demo layer mixed into `vultron/demo/`**: demo code imports from adapters, which is appropriate, but the boundary between "demo" and "production use case" is not always clear.

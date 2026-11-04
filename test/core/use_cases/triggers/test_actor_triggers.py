@@ -2162,10 +2162,8 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             ReceivedActivityView,
         )
         from vultron.core.use_cases.triggers.actor import (
-            ownership as actor_triggers,
-        )
-        from vultron.core.use_cases.triggers.actor import (
             SvcAcceptCaseOwnershipTransferUseCase,
+            ownership as actor_triggers,
         )
         from vultron.core.use_cases.triggers.requests import (
             AcceptCaseOwnershipTransferTriggerRequest,
