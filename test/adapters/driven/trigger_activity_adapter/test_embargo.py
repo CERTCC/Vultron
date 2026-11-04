@@ -274,6 +274,68 @@ class TestAnswerReceivedEmbargoInvite:
             )
 
 
+class TestAutomaticAnswerId:
+    """The automatic answer to one Invite is one activity (ID-04-004)."""
+
+    @pytest.mark.spec("ID-04-004")
+    def test_a_derived_accept_built_twice_is_one_activity(self, adapter, dl):
+        """A second build returns the first one's id and sealed body."""
+        proposal_id, _ = _received_proposal(dl)
+        assert not adapter.answered_embargo_invite(_PEER, proposal_id)
+
+        first = adapter.accept_embargo(
+            proposal_id=proposal_id,
+            case_id=_CASE_ID,
+            actor=_PEER,
+            derived_id=True,
+        )
+        second = adapter.accept_embargo(
+            proposal_id=proposal_id,
+            case_id=_CASE_ID,
+            actor=_PEER,
+            derived_id=True,
+        )
+
+        assert second == first
+        assert adapter.answered_embargo_invite(_PEER, proposal_id)
+        assert not adapter.answered_embargo_invite(_ACTOR, proposal_id)
+
+    @pytest.mark.spec("CM-18-003")
+    def test_a_deliberate_accept_is_a_new_activity(self, adapter, dl):
+        """Without ``derived_id`` each Accept is its own activity.
+
+        So an Accept after the actor's own Reject reaches the CASE_MANAGER
+        as a changed answer, not as a redelivery of an earlier Accept.
+        """
+        proposal_id, _ = _received_proposal(dl)
+        derived, _ = adapter.accept_embargo(
+            proposal_id=proposal_id,
+            case_id=_CASE_ID,
+            actor=_PEER,
+            derived_id=True,
+        )
+
+        ids = {
+            adapter.accept_embargo(
+                proposal_id=proposal_id, case_id=_CASE_ID, actor=_PEER
+            )[0]
+            for _ in range(2)
+        }
+
+        assert len(ids) == 2
+        assert derived not in ids
+
+    @pytest.mark.spec("ID-04-004")
+    def test_a_reject_counts_as_an_answer(self, adapter, dl):
+        proposal_id, _ = _received_proposal(dl)
+
+        adapter.reject_embargo(
+            proposal_id=proposal_id, case_id=_CASE_ID, actor=_PEER
+        )
+
+        assert adapter.answered_embargo_invite(_PEER, proposal_id)
+
+
 class TestRejectEmbargo:
     def test_returns_id_and_dict(self, adapter, dl):
         proposal_id, _ = _make_proposal(adapter, dl)

@@ -61,7 +61,10 @@ class IndexReceivedEmbargoProposalNode(DataLayerActionWithPorts):
     runs last among the effects, so the correlation is written only after
     every other half of the receipt has succeeded (ID-04-005).  A partial
     replica that holds no copy of the case keeps the Invite and indexes
-    nothing (Regime 2, ADR-0087), so it still returns ``SUCCESS``.
+    nothing (Regime 2, ADR-0087), so it still returns ``SUCCESS``.  An
+    Invite whose proposal the case has already decided is stored but not
+    indexed (EP-08-003): the index ends the same whichever arrived first
+    (SYNC-19-001).
     """
 
     def __init__(
@@ -81,7 +84,7 @@ class IndexReceivedEmbargoProposalNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         try:
-            record_embargo_proposal_index(
+            indexed = record_embargo_proposal_index(
                 self.datalayer,
                 self._case_id,
                 self._embargo_id,
@@ -97,6 +100,10 @@ class IndexReceivedEmbargoProposalNode(DataLayerActionWithPorts):
         self.feedback_message = (
             f"Indexed proposal '{self._invite_id}' for embargo"
             f" '{self._embargo_id}' on case '{self._case_id}'"
+            if indexed
+            else f"Proposal '{self._invite_id}' for embargo"
+            f" '{self._embargo_id}' on case '{self._case_id}' not indexed:"
+            " already recorded, or the proposal is decided (EP-08-003)"
         )
         self.logger.debug("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS

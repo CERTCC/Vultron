@@ -100,6 +100,7 @@ _NOT_AN_ACTIVITY = frozenset(
     {
         "create_note",
         "requeue_embargo_refusal",
+        "answered_embargo_invite",
         "add_object_to_case_semantics",
         # The ReceivedActivityLoader half of the port loads; it builds no
         # activity (ADR-0149).

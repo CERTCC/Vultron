@@ -68,10 +68,17 @@ class TriggerEmbargoPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        derived_id: bool = False,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(Invite)`` embargo-accept activity.
 
-        Returns ``(activity_id, activity_dict)``.
+        With *derived_id* the id is derived from *actor* and the Invite: the
+        automatic answer to a received Invite is one activity however often
+        the Invite is delivered (ID-04-004), and a second build returns the
+        first one's id and body.  Without it the id is fresh, so a deliberate
+        ``Accept`` after the actor's own ``Reject`` is a new activity, a
+        changed answer (CM-18-003).  Returns ``(activity_id, activity_dict)``.
         """
         ...
 
@@ -158,6 +165,16 @@ class TriggerEmbargoPort(Protocol):
         A ``Reject`` that was sealed but is no longer pending is queued again
         under the same id, so a refusal whose queue write failed is not lost
         (ID-04-005).
+        """
+        ...
+
+    def answered_embargo_invite(self, actor: str, proposal_id: str) -> bool:
+        """Whether *actor* already sent its automatic answer to *proposal_id*.
+
+        Read-only.  True when *actor* built a derived ``Accept``
+        (:meth:`accept_embargo` with ``derived_id``) or a ``Reject``
+        (:meth:`reject_embargo`) of the Invite: the latch that keeps a
+        re-delivered Invite from being answered twice (ID-04-004).
         """
         ...
 
