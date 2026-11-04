@@ -7,6 +7,7 @@ revision: 1
 deciders: Allen D. Householder
 consulted: CERT/CC Vultron protocol team
 informed: CERT/CC Vultron protocol team
+partially_superseded_by: 0176-an-act-reads-the-clock-once-at-its-edge.md
 stakeholder_type: [project-contributor]
 ---
 
