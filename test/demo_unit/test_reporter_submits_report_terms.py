@@ -136,14 +136,15 @@ class TestTriggerArmDeliversOnlyThroughTheOutbox:
                 return type("R", (), {"offer": offer})()
 
         monkeypatch.setattr(workflow_report, "ActorSession", _FakeSession)
-        # ``report`` imports no inbox-post helper; a stub left in its namespace
-        # records the post if one is ever imported there.
-        monkeypatch.setattr(
-            workflow_report,
-            "post_to_inbox_and_wait",
-            lambda *a, **k: calls.append("post"),
-            raising=False,
-        )
+        # Any hand delivery leaves the demo as an inbox POST on some client, so
+        # record it at the transport, wherever the posting helper is imported.
+
+        def _record_call(_self, method, path: str, **_kwargs) -> dict:
+            if str(method).upper().endswith("POST") and "/inbox" in path:
+                calls.append("post")
+            return {}
+
+        monkeypatch.setattr(DataLayerClient, "call", _record_call)
         monkeypatch.setattr(
             workflow_report,
             "_provision_case_actor",
