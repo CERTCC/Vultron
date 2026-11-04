@@ -88,7 +88,7 @@ leaving `status.rm.state` at its default.
   write-side normalisation gate back.
 - **Reads project.** `ValidationError` is the shape-mismatch signal that drives
   the read-side fallback in
-  `vultron/adapters/driven/datalayer_sqlite/hydration.py`
+  `vultron/adapters/driven/datalayer_sqlite/hydration/row_types.py`
   (`project_wire_row_to_core`), so a wire-shaped row still reads back as core.
   When that projection also fails, `dl.read()` logs a WARNING and returns the
   **wire** object (see "A DataLayer Fallback Is a Smell" below).
