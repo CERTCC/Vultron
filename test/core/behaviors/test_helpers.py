@@ -32,8 +32,8 @@ from vultron.core.behaviors.helpers import (
     FindParticipantByActorIdNode,
     ReadObject,
     UpdateObject,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_report import (

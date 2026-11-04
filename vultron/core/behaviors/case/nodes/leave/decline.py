@@ -17,7 +17,7 @@
 
 import logging
 
-from vultron.core.behaviors.helpers import _EmitSingleActivityBase
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 
 logger = logging.getLogger(__name__)
 

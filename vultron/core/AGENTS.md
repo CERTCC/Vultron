@@ -82,8 +82,8 @@ class CreateReportReceivedUseCase:
   (`RegistryTriggerDispatcher`, port `ports/trigger_dispatcher.py`:
   `trigger(request, dl) -> ResultT_co`, UCORG-05-006)
 - **Data Layer port**: `vultron/core/ports/datalayer.py` — `DataLayer` Protocol
-- **BT Bridge**: `vultron/core/behaviors/bridge.py`
-- **BT nodes/trees**: `vultron/core/behaviors/report/`, `case/`, `helpers.py`
+- **BT Bridge**: `vultron/core/behaviors/bridge/`
+- **BT nodes/trees**: `vultron/core/behaviors/report/`, `case/`, `helpers/`
 - **Predicate layer** (`vultron/core/predicates/`): Pure rule layer (ISSUE-3058) — MAY import
   `states/`/`enums/`; MUST NOT import `behaviors/`/`services/`. See [notes/predicates-rule-layer.md](../../notes/predicates-rule-layer.md).
 - **Canonical Case History**: `CaseEvent` and `record_event()` removed in #792;

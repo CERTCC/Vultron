@@ -32,8 +32,8 @@ from py_trees.ports import NoDataAvailable
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.behaviors.status.nodes.threat_termination import (  # noqa: F401
     ThreatTerminationBranchNode,
     _ThreatTerminationSkipConditionNode,

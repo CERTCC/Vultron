@@ -28,7 +28,7 @@ documented node contract (BT-HELPER-01).  This test enforces the rule for
 whose nearest enclosing function is not named ``update``.
 
 Genuine framework/execution boundaries (the ``BTBridge`` execution boundary in
-``bridge.py``; the inbox orchestrator's raw py_trees tick loop; boot-recovery
+``bridge/``; the inbox orchestrator's raw py_trees tick loop; boot-recovery
 persistence; the SYNC-12-001 write-fails-the-effect boundary) are enumerated in
 ``_DECLARED_EXCLUSIONS`` with one reason per entry and an exact broad-catch count.
 That list is a pinned exemption set, not a ratchet (ARCH-18-005): each boundary
@@ -129,18 +129,21 @@ def _collect_violations() -> dict[str, int]:
 # ---------------------------------------------------------------------------
 # permanent: CS-23-001 (framework/execution boundary exception)
 _DECLARED_EXCLUSIONS: dict[str, tuple[int, str]] = {
-    "vultron/core/behaviors/bridge.py": (
-        4,
+    "vultron/core/behaviors/bridge/tree_execution.py": (
+        2,
         "BTBridge execution boundary (CONCERN-3019): a half-ticked tree must"
-        " not escape into a FastAPI background task, so any node error is"
-        " classified as internal_error and bt.shutdown() in finally must not"
-        " replace the classified result.  Three of the four classify, and all"
-        " three delegate to BTBridge._exception_result rather than building a"
-        " result inline (#3084); the fourth is the bt.shutdown() guard, which"
-        " builds no result at all.  The count grew from 3 to 4 when"
-        " execute_with_setup's combined try was split, so that setup and"
-        " execution each carry their own pair and an execution error is never"
-        " labelled 'BT setup failed' (#3085).",
+        " not escape into a FastAPI background task, so any node error in"
+        " execute_tree's ticks is classified as internal_error through"
+        " BTBridge._exception_result (#3084); the second is the bt.shutdown()"
+        " guard in finally, which builds no result at all and must not replace"
+        " the classified one.",
+    ),
+    "vultron/core/behaviors/bridge/bt_bridge.py": (
+        2,
+        "BTBridge execution boundary (CONCERN-3019): execute_with_setup"
+        " classifies a setup_tree error and an escaped execute_tree error in"
+        " two separate handlers, both through BTBridge._exception_result, so"
+        " an execution error is never labelled 'BT setup failed' (#3085).",
     ),
     "vultron/core/behaviors/inbox/_process_payload.py": (
         1,

@@ -61,7 +61,7 @@ HTTP POST /actors/{actor_id}/inbox  (wire: AS2 JSON)
   -> dispatcher                    `vultron/core/dispatcher.py` (port: `vultron/core/ports/dispatcher.py`)
   -> use_case_map() lookup         `vultron/semantic_registry/`
   -> *ReceivedUseCase.execute()    `vultron/core/use_cases/received/`
-  -> BTBridge runs the received tree  `vultron/core/behaviors/bridge.py`
+  -> BTBridge runs the received tree  `vultron/core/behaviors/bridge/`
      intake -> door guards -> [ledger-position answer] -> [clock decisions] -> precondition guards -> commit -> effects; nodes write through DataLayer
   -> DataLayer                     `vultron/adapters/driven/datalayer_sqlite/` (one store per actor, ADR-0073)
   -> outbox handler + lanes        `vultron/adapters/driving/fastapi/outbox_handler/drain.py`, `outbox_lanes.py`
@@ -89,7 +89,7 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 | Layer or module | Owns | Must not own | Evidence |
 |-----------------|------|--------------|----------|
 | `vultron/core/` | Domain models, ports (Protocols), use cases, state enums, behavior trees, services, scoring, both dispatchers | FastAPI, SQLModel, AS2 wire classes | `notes/architecture-hexagonal.md`, `test/architecture/` |
-| `vultron/core/behaviors/` | py_trees trees and nodes; `BTBridge` execution under a module-level `RLock`; blackboard snapshot/restore (`blackboard_scope.py`) | `use_cases/` imports | `vultron/core/behaviors/bridge.py`, `test/architecture/test_behaviors_no_use_case_imports.py` |
+| `vultron/core/behaviors/` | py_trees trees and nodes; `BTBridge` execution under a module-level `RLock`; blackboard snapshot/restore (`blackboard_scope.py`) | `use_cases/` imports | `vultron/core/behaviors/bridge/`, `test/architecture/test_behaviors_no_use_case_imports.py` |
 | `vultron/core/predicates/` | Pure predicate functions (role checks, embargo eligibility, role-gated state invariants) — no I/O, no DataLayer | `behaviors/`, `services/`, `ports/` imports (cycle risk) | `notes/predicates-rule-layer.md` |
 | `vultron/core/ports/` | Protocol contracts: `DataLayer`, `ActivityDispatcher`, `TriggerDispatcher`, `WireRenderPort`, `TriggerActivityPort`, `SyncActivityPort`, emitter and persistence ports | `BaseModel` types in port signatures | `vultron/core/ports/AGENTS.md` |
 | `vultron/wire/as2/` | AS2 vocabulary (Pydantic), parser, unknown-key disposition, rehydration, semantic extractor, activity factories | Core logic beyond `core/models/` and `core/states/` imports; FastAPI | `vultron/wire/as2/AGENTS.md` |
@@ -126,7 +126,7 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 - **State machine coupling via the transitions library**: `vultron/core/states/` and `vultron/core/services/embargo_lifecycle/base.py` import `transitions` directly, so a third-party state machine library sits in core.
 - **Process-global py_trees blackboard**: BT executions share `py_trees.blackboard.Blackboard.storage`.
   `BTBridge` serializes executions with a module-level `RLock`, and `blackboard_scope.py` snapshots and restores execution-scoped keys, but any key outside those managed sets can leak between trees.
-- **Core modules over the CS-18 size cap**: several core files exceed the 500-line threshold of CS-18-001, the largest being `vultron/core/behaviors/helpers.py` and `vultron/core/ports/trigger_activity.py` (see `CONCERNS.md`).
+- **Core modules over the CS-18 size cap**: several core files exceed the 500-line threshold of CS-18-001, the largest being `vultron/core/ports/trigger_activity.py` (see `CONCERNS.md`).
 - **Content signing decided but not built**: ADR-0164 (`accepted-provisional`) chooses object-level proofs inside each activity (FEP-8b32, `eddsa-jcs-2022`) from seeded keys, with strict verification and no switch.
   Nothing signs or verifies yet; the inbox accepts any well-formed body, and the expected behavior is pinned by strict-`xfail` tests (`test/adapters/driving/fastapi/test_signed_delivery_refusal.py`, `test/core/use_cases/received/test_signed_ledger_entries.py`).
 - **Demo layer mixed into `vultron/demo/`**: demo code imports from adapters, which is appropriate, but the boundary between "demo" and "production use case" is not always clear.
@@ -147,7 +147,7 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 - `vultron/core/ports/datalayer.py`
 - `vultron/core/ports/use_case.py`
 - `vultron/core/ports/wire_render.py`
-- `vultron/core/behaviors/bridge.py`
+- `vultron/core/behaviors/bridge/`
 - `vultron/core/behaviors/blackboard_scope.py`
 - `vultron/core/behaviors/case/receive_activity_tree.py`
 - `vultron/core/behaviors/case/receive_stages/`

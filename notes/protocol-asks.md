@@ -307,9 +307,10 @@ fault is protocol history; the *diagnosis* is not.
 ## Pitfalls
 
 **Every BT node outbox write goes through one seam:**
-`_EmitSingleActivityBase._emit_through_seam()` (`vultron/core/behaviors/helpers.py`);
-subclasses override `_call_factory()` / `_on_success()`. The ASK-04-008
-correlation hook and the OX-14-001 dead-letter link belong there.
+`_EmitSingleActivityBase._emit_through_seam()`
+(`vultron/core/behaviors/helpers/emit.py`); subclasses override `_call_factory()` /
+`_on_success()`. The ASK-04-008 correlation hook and the OX-14-001 dead-letter link
+belong there.
 `test/architecture/test_no_direct_outbox_append_in_bt_node_update.py` forbids a
 direct `outbox_append` in a node's `update()`. The `Create(ProcessingFault)` NACK
 (`_FaultMixin.emit_processing_fault()`) uses a separate outbox path.

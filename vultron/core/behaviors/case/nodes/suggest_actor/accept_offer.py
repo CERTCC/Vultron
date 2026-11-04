@@ -21,7 +21,7 @@ owner-side Accept (CM-16-006) and Reject (CM-16-007) nodes; ``emit`` retains
 the CaseActor-side forwarding and notification nodes.
 """
 
-from vultron.core.behaviors.helpers import _EmitSingleActivityBase
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 
 
 class _EmitCaseParticipantOfferAnswerNode(_EmitSingleActivityBase):
