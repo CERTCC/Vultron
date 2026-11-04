@@ -159,9 +159,7 @@ Measured 2026-10-12; the gap report is authoritative at execution time.
 
 The core protocol area also holds 90 advisory-tier `VP` requirements with no
 story: the protocol specification itself. Most should map to existing stories
-and are worth the pass even though the tier does not require it. The two `BW`
-requirements are adjudication candidates and fold into the closing step rather
-than a Task of their own.
+and are worth the pass even though the tier does not require it.
 
 ## Seed stories
 
@@ -229,8 +227,5 @@ ones it reads from.
   in place, its hand-off acceptance criteria point at the area Tasks instead;
   its per-spec verdicts remain its own and are recorded in the Tasks' PRs when
   an area reaches them first.
-- **Closing step** (SR-11-003 covers `MUST_NOT`, the MS-02-003 exception is
-  removed, no `missing_story_reference` suppression remains): a Task of its own,
-  blocked by the area Tasks, as the Epic's done-when already states.
 - **#4481** (link-type meaning and direction) does not touch `stories:`, which
   is a field of its own (ADR-0072), not a `rel_type`.

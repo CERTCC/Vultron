@@ -24,14 +24,13 @@ Display maps that label each member (``{RFC2119Priority.MUST: "..."}``) are
 ``Dict`` nodes, not comparisons, and are out of scope by construction.
 
 Known gaps, on purpose: a *string-valued* comparison is judged by value, so
-``x == "MAY"`` on a non-priority is flagged too (allowlist it if one ever
-appears — none does today), and a method call such as
+``x == "MAY"`` on a non-priority is flagged too (none appears today; one
+that does needs a reviewed allowlist, not a weaker gate), and a method call such as
 ``priority.value.startswith("MUST")`` or ``_TIER.__contains__(priority)`` is
 not a comparison node and is not seen.
 
-The one allowlisted comparison is SR-11-003's selector, the recorded MS-02-003
-exception. The allowlist is two-sided: an entry that no longer matches fails
-too, so retiring the exception removes it here in the same change.
+No comparison is allowlisted: MS-02-003 records no exception, so every hit
+fails.
 
 Requirements: specs/meta-specifications.yaml MS-02-004.
 """
@@ -54,17 +53,6 @@ _SCAN_ROOTS = (
 
 _PRIORITY_STRINGS = frozenset(p.value for p in RFC2119Priority)
 _CONTAINER_BUILTINS = frozenset({"frozenset", "set", "tuple", "list"})
-
-#: ``(repo-relative path, source text of the comparison)``. Exactly these hits
-#: are permitted, and each MUST still be present (see the module docstring).
-_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
-    {
-        (
-            "vultron/metadata/specs/lint/advisories.py",
-            "priority == RFC2119Priority.MUST",
-        ),
-    }
-)
 
 
 @dataclass
@@ -187,7 +175,7 @@ def find_priority_comparisons(
 
 
 def _scan() -> dict[tuple[str, str], list[int]]:
-    """Every hit in the scanned trees, keyed like the allowlist."""
+    """Every hit in the scanned trees, keyed by ``(path, comparison text)``."""
     found: dict[tuple[str, str], list[int]] = {}
     for root in _SCAN_ROOTS:
         for py_file in sorted(root.rglob("*.py")):
@@ -207,10 +195,7 @@ def _scan() -> dict[tuple[str, str], list[int]]:
 
 @pytest.mark.spec("MS-02-004")
 def test_no_priority_selection_compares_against_individual_members():
-    found = _scan()
-    offending = {
-        key: lines for key, lines in found.items() if key not in _ALLOWLIST
-    }
+    offending = _scan()
     assert not offending, (
         "Select by tier — `priority.is_must_tier` or `.tier` — not by "
         "comparing against RFC2119Priority members or "
@@ -221,19 +206,6 @@ def test_no_priority_selection_compares_against_individual_members():
             for line in lines
         )
     )
-
-
-@pytest.mark.spec("MS-02-004")
-def test_allowlisted_exception_is_still_present_exactly_once():
-    """Retiring the SR-11-003 exception must also delete its allowlist entry."""
-    found = _scan()
-    for key in _ALLOWLIST:
-        assert key in found, (
-            f"allowlist entry no longer matches anything: {key}"
-        )
-        assert len(found[key]) == 1, (
-            f"allowlist entry matched more than once: {key} at {found[key]}"
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +245,7 @@ def test_allowlisted_exception_is_still_present_exactly_once():
         "        ok = True",
         "match spec.priority.value:\n    case 'MUST_NOT':\n        ok = True",
         # a same-valued non-priority string is flagged by value (known gap,
-        # see the module docstring): allowlist it rather than weaken the gate
+        # see the module docstring), never silently dropped
         'ok = x == "MAY"',
     ],
 )
