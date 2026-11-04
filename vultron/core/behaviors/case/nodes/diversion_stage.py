@@ -38,11 +38,13 @@ the handler reads :attr:`DiversionStage.taken` to report the delivery.  The
 stage fails whatever the effects return, and an exception the effects raise
 ends the tree as an internal error (ADR-0095).
 
-A :data:`DiversionGate.CASE_MANAGER` diversion runs only at the case's
-CASE_MANAGER and may commit its own CASE_MANAGER-authored entry (the late
-Accept's honour, re-invite or acknowledgement).  A
-:data:`DiversionGate.RECEIVER` diversion is the receiver's own answer,
-wherever the door guards admitted the copy; it writes no case state and every
+Where a diversion may run is read from the tree's path declaration, never
+declared a second time beside it (HP-01-038, ADR-0153).  A tree that declares
+the manager path alone runs its diversion only at the case's CASE_MANAGER, so
+the diversion may commit its own CASE_MANAGER-authored entry (the late
+Accept's honour, re-invite or acknowledgement).  A tree that also declares a
+non-manager path runs the diversion wherever the door guards admitted the
+copy, so it is the receiver's own answer: it writes no case state and every
 emit in it must be covered by a registered
 :class:`~vultron.core.behaviors.replica_emit_exemptions.ReplicaEmitExemption`
 (BT-17-008).
@@ -50,7 +52,6 @@ emit in it must be covered by a registered
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from enum import StrEnum
 
 import py_trees
 from py_trees.common import Status
@@ -59,20 +60,7 @@ from vultron.core.behaviors.replica_emit_exemptions import (
     ReplicaEmitExemption,
 )
 
-__all__ = ["Diversion", "DiversionGate", "DiversionStage"]
-
-
-class DiversionGate(StrEnum):
-    """Where a :class:`Diversion` may run.
-
-    - ``CASE_MANAGER`` — only at the case's CASE_MANAGER (BT-17-001); the
-      factory checks the role before the condition and gates the effects.
-    - ``RECEIVER`` — at any receiver the door guards admitted; the effects
-      are the receiver's own answer and write no case state (RSH-08-003).
-    """
-
-    CASE_MANAGER = "case-manager"
-    RECEIVER = "receiver"
+__all__ = ["Diversion", "DiversionStage"]
 
 
 @dataclass(frozen=True)
@@ -83,9 +71,8 @@ class Diversion:
         name: Names the stage, and the delivery's outcome in a reason.
         condition: Read-only check; SUCCESS diverts the delivery.
         effects: The receiver's answer, run in order once diverted.
-        gate: Where the diversion may run.
         emit_exemption: The registered decision covering the emits of a
-            ``RECEIVER`` diversion (BT-17-008).
+            diversion that a non-manager receiver may reach (BT-17-008).
     """
 
     name: str
@@ -93,7 +80,6 @@ class Diversion:
     effects: tuple[py_trees.behaviour.Behaviour, ...] = field(
         default_factory=tuple
     )
-    gate: DiversionGate = DiversionGate.CASE_MANAGER
     emit_exemption: ReplicaEmitExemption | None = None
 
 

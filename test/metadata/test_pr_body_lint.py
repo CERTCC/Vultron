@@ -15,7 +15,7 @@
 One class per rule, a check that ``pr-body-guide.md`` lists exactly the tool's
 rules, the CLI's fact gathering, and the skills that run it.
 
-Specs: PAD-20-001 through PAD-20-005, PD-03-013.
+Specs: PAD-20-001 through PAD-20-005, PD-03-013, PD-03-014.
 """
 
 from __future__ import annotations
@@ -32,12 +32,18 @@ from test.metadata._git_repo import commit_all, commit_base, git, head_sha
 from vultron.metadata.planning.pr_body_lint import (
     BODY_LIMIT,
     DOCS_PLACEHOLDER,
+    MAINTAINER_DOC_FILES,
+    MAINTAINER_DOC_PREFIXES,
     RULES,
+    TOOLING_FILES,
+    TOOLING_PREFIXES,
     BodyFacts,
     PrType,
     Stage,
+    is_maintainer_doc,
     lint_body,
     main,
+    undocumented_tooling,
 )
 
 REPO_ROOT = Path(__file__).parents[2]
@@ -49,13 +55,15 @@ Loaded (cross-cutting): ARCH, CS
 Loaded (selected): SR-12 — the backstop
 Considered, skipped: PAD-15 — bundle selection untouched"""
 
+QUESTIONS = "Questions: asked 0, filed 0"
+
 ATTRIBUTION = "🤖 Generated with [Claude Code](https://claude.com/claude-code)"
 
 
 def _body(
     *,
     top: str = "- Closes #1\n- Closes #2",
-    summary: str = "Adds a thing.\n\nIssues: closed 2, opened 0",
+    summary: str = "Adds a thing.\n\nIssues: closed 2, opened 0\n" + QUESTIONS,
     specs: str | None = MANIFEST,
     amended: str | None = None,
     docs: str | None = "Docs: no docs impact — internal tooling only",
@@ -113,12 +121,29 @@ class TestGuideListsTheRules:
         ids = [r.rule_id for r in RULES]
         assert ids == sorted(set(ids))
 
+    @pytest.mark.parametrize(
+        "path",
+        sorted(
+            {
+                *TOOLING_PREFIXES,
+                *TOOLING_FILES,
+                *MAINTAINER_DOC_PREFIXES,
+                *MAINTAINER_DOC_FILES,
+            }
+        ),
+    )
+    def test_every_prb_12_path_is_in_the_guide(self, path):
+        """The guide's PRB-12 path lists name every path the tool uses."""
+        guide = (SKILLS / "shared" / "pr-body-guide.md").read_text()
+        assert f"`{path}`" in guide
+
 
 @pytest.mark.spec("PAD-20-001")
 class TestClosesFirst:
     def test_a_closing_reference_after_the_opening_block_is_found(self):
         body = _body(
-            summary="Adds a thing; fixes #9.\n\nIssues: closed 2, opened 0"
+            summary="Adds a thing; fixes #9.\n\nIssues: closed 2, opened 0\n"
+            + QUESTIONS
         )
         assert _ids(body) == ["PRB-01"]
 
@@ -132,13 +157,15 @@ class TestClosesFirst:
     )
     def test_every_form_github_closes_on_is_found(self, ref):
         body = _body(
-            summary=f"Adds a thing; {ref}.\n\nIssues: closed 2, opened 0"
+            summary=f"Adds a thing; {ref}.\n\nIssues: closed 2, opened 0\n"
+            + QUESTIONS
         )
         assert _ids(body) == ["PRB-01"]
 
     def test_a_reference_in_inline_code_is_not_a_closing_reference(self):
         body = _body(
-            summary="Writes `Fixes #9` for you.\n\nIssues: closed 2, opened 0"
+            summary="Writes `Fixes #9` for you.\n\nIssues: closed 2, opened 0\n"
+            + QUESTIONS
         )
         assert _ids(body) == []
 
@@ -186,14 +213,44 @@ class TestRequiredSections:
 @pytest.mark.spec("PAD-20-001")
 class TestIssuesLine:
     def test_an_implementation_summary_without_it_is_found(self):
-        assert _ids(_body(summary="Adds a thing.")) == ["PRB-04"]
+        summary = "Adds a thing.\n\n" + QUESTIONS
+        assert _ids(_body(summary=summary)) == ["PRB-04"]
 
-    def test_it_must_be_the_last_line_of_the_summary(self):
-        summary = "Issues: closed 1, opened 0\n\nAdds a thing."
+    def test_it_must_end_the_summary_but_for_the_questions_line(self):
+        summary = "Issues: closed 1, opened 0\n\nAdds a thing.\n" + QUESTIONS
         assert _ids(_body(summary=summary)) == ["PRB-04"]
 
     def test_a_listed_opened_issue_passes(self):
-        summary = "Adds a thing.\n\nIssues: closed 2, opened 1 (#4402 debt)"
+        summary = (
+            "Adds a thing.\n\nIssues: closed 2, opened 1 (#4402 debt)\n"
+            + QUESTIONS
+        )
+        assert _ids(_body(summary=summary)) == []
+
+    def test_a_docs_pr_needs_none(self):
+        assert _ids(_body(summary="Edits a note.", specs=None), DOCS) == []
+
+
+@pytest.mark.spec("PAD-20-001")
+class TestQuestionsLine:
+    def test_an_implementation_summary_without_it_is_found(self):
+        summary = "Adds a thing.\n\nIssues: closed 2, opened 0"
+        assert _ids(_body(summary=summary)) == ["PRB-13"]
+
+    def test_it_must_come_after_the_issues_line(self):
+        summary = (
+            "Adds a thing.\n\n" + QUESTIONS + "\nIssues: closed 2, opened 0"
+        )
+        assert _ids(_body(summary=summary)) == ["PRB-13"]
+
+    def test_a_summary_of_only_the_line_lacks_the_issues_line(self):
+        assert _ids(_body(summary=QUESTIONS)) == ["PRB-04"]
+
+    def test_counts_with_a_note_pass(self):
+        summary = (
+            "Adds a thing.\n\nIssues: closed 2, opened 0\n"
+            "Questions: asked 2, filed 1 (#4402 out of scope)"
+        )
         assert _ids(_body(summary=summary)) == []
 
     def test_a_docs_pr_needs_none(self):
@@ -278,12 +335,184 @@ class TestDocsLine:
     def test_other_forms_fail_at_the_final_stage(self, line):
         assert _ids(_body(docs=line), FINAL) == ["PRB-08"]
 
+    def test_the_maintainer_only_form_fails_with_no_tooling_gap(self):
+        """It says nothing about ``docs/`` pages, so it is final only on a
+        PR with a maintainer-docs gap (PRB-12)."""
+        body = _body(docs="Docs: no maintainer docs impact — flags unchanged")
+        found = lint_body(body, FINAL)
+        assert [f.rule_id for f in found] == ["PRB-08"]
+        assert (
+            "no maintainer docs impact"
+            not in found[0].message.split("form:")[1]
+        )
+
     def test_a_docs_pr_closing_a_work_item_needs_the_line(self):
         facts = BodyFacts(
             pr_type=PrType.DOCS, py_changed=False, closes_work_item=True
         )
         body = _body(summary="x", specs=None, docs=None, verification=None)
         assert _ids(body, facts) == ["PRB-08"]
+
+
+@pytest.mark.spec("PD-03-014")
+class TestMaintainerDocs:
+    """PRB-12: a tooling diff without a maintainer doc names its follow-up."""
+
+    TOOLING = (".agents/skills/x/run.sh",)
+
+    def _facts(
+        self,
+        stage: Stage = Stage.FINAL,
+        pr_type: PrType = PrType.DOCS,
+        tooling: tuple[str, ...] = TOOLING,
+    ) -> BodyFacts:
+        return BodyFacts(
+            pr_type=pr_type,
+            py_changed=pr_type is PrType.IMPLEMENTATION,
+            stage=stage,
+            undocumented_tooling=tooling,
+        )
+
+    def _docs_body(self, docs: str | None) -> str:
+        return _body(summary="x", specs=None, docs=docs, verification=None)
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "Docs: deferred to #12",
+            "Docs: updated docs/a.md; deferred to #12",
+            "Docs: no maintainer docs impact — the script's flags are "
+            "unchanged",
+            "Docs: no docs impact — internal; no maintainer docs impact — "
+            "the flags are unchanged",
+        ],
+    )
+    @pytest.mark.parametrize("pr_type", list(PrType))
+    def test_a_named_follow_up_or_reason_passes(self, line, pr_type):
+        body = _body(docs=line)
+        assert _ids(body, self._facts(pr_type=pr_type)) == []
+
+    @pytest.mark.parametrize("pr_type", list(PrType))
+    def test_the_reader_facing_verdict_alone_is_found(self, pr_type):
+        """``no docs impact`` judges ``docs/`` pages, not maintainer docs."""
+        body = _body(docs="Docs: no docs impact — internal refactor")
+        assert _ids(body, self._facts(pr_type=pr_type)) == ["PRB-12"]
+
+    def test_an_updated_line_with_no_follow_up_is_found(self):
+        body = self._docs_body("Docs: updated docs/reference/a.md")
+        found = lint_body(body, self._facts())
+        assert [f.rule_id for f in found] == ["PRB-12"]
+        assert ".agents/skills/x/run.sh" in found[0].message
+
+    def test_a_missing_line_on_a_docs_pr_is_found_before_the_push(self):
+        facts = self._facts(stage=Stage.PRE_PUSH)
+        assert _ids(self._docs_body(None), facts) == ["PRB-12"]
+
+    def test_a_missing_line_is_left_to_prb_08_when_that_rule_applies(self):
+        facts = self._facts(pr_type=PrType.IMPLEMENTATION)
+        assert _ids(_body(docs=None), facts) == ["PRB-08"]
+
+    def test_the_placeholder_is_left_to_prb_08(self):
+        facts = self._facts(pr_type=PrType.IMPLEMENTATION)
+        assert _ids(_body(docs=DOCS_PLACEHOLDER), facts) == ["PRB-08"]
+
+    def test_the_placeholder_on_a_docs_pr_is_found_at_the_final_stage(self):
+        """PRB-08 does not cover this PR, so PRB-12 reports it itself."""
+        body = self._docs_body(DOCS_PLACEHOLDER)
+        assert _ids(body, self._facts()) == ["PRB-12"]
+
+    @pytest.mark.parametrize("pr_type", list(PrType))
+    def test_a_reason_that_mentions_a_deferral_is_found(self, pr_type):
+        """A clause counts only at the line start or after ``; ``."""
+        body = _body(
+            docs="Docs: no docs impact — work was deferred to #3 earlier"
+        )
+        assert _ids(body, self._facts(pr_type=pr_type)) == ["PRB-12"]
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "Docs: lol deferred to #3",
+            "Docs: pending check-docs-sync; deferred to #3",
+        ],
+    )
+    def test_a_docs_pr_line_in_no_final_form_is_found_once(self, line):
+        """PRB-08 does not judge a docs PR's line, so PRB-12 checks its form."""
+        found = lint_body(self._docs_body(line), self._facts())
+        assert [f.rule_id for f in found] == ["PRB-12"]
+        assert "is not a final `Docs:` form" in found[0].message
+
+    def test_the_line_is_not_judged_before_the_push(self):
+        facts = self._facts(stage=Stage.PRE_PUSH)
+        body = self._docs_body("Docs: updated docs/reference/a.md")
+        assert _ids(body, facts) == []
+
+    def test_no_tooling_gap_needs_no_line(self):
+        facts = self._facts(tooling=())
+        assert _ids(self._docs_body(None), facts) == []
+
+    def test_a_long_file_list_is_shortened(self):
+        tooling = tuple(f"scripts/s{i}.py" for i in range(5))
+        body = self._docs_body("Docs: updated docs/reference/a.md")
+        (found,) = lint_body(body, self._facts(tooling=tooling))
+        assert "and 2 more" in found.message
+
+
+@pytest.mark.spec("PD-03-014")
+class TestUndocumentedTooling:
+    @pytest.mark.parametrize(
+        "path",
+        [
+            ".github/workflows/ci.yml",
+            ".github/scripts/x.sh",
+            ".github/actions/a/action.yml",
+            ".agents/skills/build/script.sh",
+            "vultron/metadata/planning/tool.py",
+            "scripts/velocity.py",
+            ".devcontainer/devcontainer.json",
+            "docker/Dockerfile",
+            ".pre-commit-config.yaml",
+            "mdlint.sh",
+            "Makefile",
+            "start-dev.sh",
+            ".githooks/pre-commit",
+        ],
+    )
+    def test_a_tooling_file_alone_is_a_gap(self, path):
+        assert undocumented_tooling([path, "vultron/core/x.py"]) == (path,)
+
+    @pytest.mark.parametrize(
+        "doc",
+        [
+            "docs/developer/how-to/x.md",
+            "docs/agents/issue-tracker.md",
+            "notes/spec-authoring-rules.md",
+            "vultron/metadata/AGENTS.md",
+            "AGENTS.md",
+            ".agents/skills/build/SKILL.md",
+            "CONTRIBUTING.md",
+            "README-DEV.md",
+            ".devcontainer/README.md",
+            ".github/copilot-instructions.md",
+            ".github/instructions/python.instructions.md",
+        ],
+    )
+    def test_a_maintainer_doc_in_the_diff_closes_the_gap(self, doc):
+        assert is_maintainer_doc(doc)
+        assert undocumented_tooling(["scripts/velocity.py", doc]) == ()
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "docs/reference/a.md",
+            "README.md",
+            "vultron/core/x.py",
+            "x/Makefile",
+        ],
+    )
+    def test_other_files_are_neither(self, path):
+        assert not is_maintainer_doc(path)
+        assert undocumented_tooling([path]) == ()
 
 
 @pytest.mark.spec("PAD-20-001")
@@ -531,6 +760,18 @@ class TestCli:
         (repo / "view.json").write_text(payload)
         assert main(["--pr-json", "view.json"], run=_FakeRunner()) == 2
 
+    @pytest.mark.spec("PD-03-014")
+    def test_a_tooling_file_without_a_maintainer_doc_is_found(
+        self, docs_repo, capsys
+    ):
+        (docs_repo / "scripts").mkdir()
+        (docs_repo / "scripts" / "run.sh").write_text("true\n")
+        commit_all(docs_repo)
+        _view(docs_repo, _body(specs=None, docs=None, verification=None))
+        argv = ["--pr-json", "view.json", "--stage", "final"]
+        assert main(argv, run=_FakeRunner()) == 1
+        assert "PRB-12" in capsys.readouterr().out
+
     def test_list_rules_prints_every_rule(self, capsys):
         assert main(["--list-rules"]) == 0
         out = capsys.readouterr().out.splitlines()
@@ -604,6 +845,8 @@ class TestSkillsRunTheGates:
             .replace("#N", "#1")
             .replace("<N>", "1")
             .replace("<M>", "0")
+            .replace("<A>", "0")
+            .replace("<F>", "0")
             .replace("<Spec manifest from deepen-context, verbatim>", MANIFEST)
         )
         assert lint_body(filled, facts) == []

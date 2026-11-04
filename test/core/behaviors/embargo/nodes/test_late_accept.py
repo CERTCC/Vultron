@@ -83,6 +83,45 @@ def _run(
     return node.status
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="EMB-17-002, EMB-17-012: a late Accept naming one of the case's open"
+    " proposals takes the honour arm, but late_accept_route still reads only"
+    " active_embargo_id, so a case under proposal falls to REINVITE."
+    " Tracked by #5732.",
+)
+@pytest.mark.spec("EMB-17-002")
+@pytest.mark.spec("EMB-17-012")
+def test_an_accepted_open_proposal_is_honoured() -> None:
+    case, _, dl = make_case_with_manager("late-honour-proposal", EM.PROPOSED)
+    (proposal_id,) = case.proposed_embargo_ids
+    node = LateAcceptRouteIsNode(
+        case_id=case.id_,
+        embargo_id=proposal_id,
+        accepting_actor_id=OTHER_PARTICIPANT_ACTOR,
+        route=LateAcceptRoute.HONOUR,
+    )
+
+    assert _run(dl, node) is Status.SUCCESS
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="EMB-17-003: with no Active Embargo the re-invite carries the"
+    " earliest-expiring open proposal, but ReinviteLateAccepterNode reads"
+    " active_embargo_id and sends nothing. Tracked by #5732.",
+)
+@pytest.mark.spec("EMB-17-003")
+def test_a_case_under_proposal_reinvites_to_its_open_proposal() -> None:
+    case, _, dl = make_case_with_manager("late-reinvite-proposal", EM.PROPOSED)
+    node = ReinviteLateAccepterNode(
+        case_id=case.id_, invitee_id=OTHER_PARTICIPANT_ACTOR
+    )
+
+    assert _run(dl, node, with_factory=True) is Status.SUCCESS
+    assert dl.outbox_list() != []
+
+
 @pytest.mark.spec("EMB-17-002")
 @pytest.mark.spec("EMB-17-003")
 @pytest.mark.parametrize("route", list(LateAcceptRoute))
@@ -106,10 +145,17 @@ def test_the_condition_holds_only_for_the_cases_route(route) -> None:
 
 
 class TestReinviteLateAccepterNode:
-    @pytest.mark.spec("EMB-17-003")
     @pytest.mark.spec("EMB-17-007")
     def test_no_embargo_in_force_sends_nothing(self, caplog) -> None:
-        case, _, dl = make_case_with_manager("late-reinvite-none", EM.PROPOSED)
+        """EM ``EXITED``: no invitation is issued (EMB-17-007).
+
+        This case previously used EM ``PROPOSED`` and cited EMB-17-003, which
+        is now wrong on both counts: a case under proposal holds terms to
+        invite to, and EMB-17-003 requires the Invite rather than forbidding
+        it.  EMB-17-007's own condition is EM ``EXITED`` or ``NONE``, which is
+        what this asserts.  #5732 replaces the node's silent-SUCCESS arm.
+        """
+        case, _, dl = make_case_with_manager("late-reinvite-none", EM.EXITED)
         node = ReinviteLateAccepterNode(
             case_id=case.id_, invitee_id=OTHER_PARTICIPANT_ACTOR
         )

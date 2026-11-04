@@ -11,6 +11,7 @@ from datetime import timedelta
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from test.support.embargo_register import (
     activate,
@@ -321,6 +322,39 @@ def test_case_views_read_the_register() -> None:
     }
 
 
+@pytest.mark.spec("SYNC-19-001")
+def test_em_state_without_proposal_sets_aside_one_open_entry() -> None:
+    """A proposal's own open entry is not another embargo (#5199)."""
+    case = _case()
+    assert case.em_state_without_proposal(A) is EM.NONE
+    propose(case, A)
+    assert case.em_state_without_proposal(A) is EM.NONE
+    propose(case, B)
+    assert case.em_state_without_proposal(A) is EM.PROPOSED
+    activate(case, B)
+    assert case.em_state_without_proposal(A) is EM.ACTIVE
+
+
+@pytest.mark.spec("SYNC-19-001")
+def test_em_state_without_proposal_counts_a_decided_entry() -> None:
+    """A decided entry is never set aside, so the register stays legal.
+
+    Dropping the ``ACTIVE`` entry beside a ``SUPERSEDED`` one would break
+    register invariant 3 and make the derivation raise.
+    """
+    case = _case()
+    activate(case, A)
+    activate(case, B)
+    assert _statuses(case.embargo_register) == {
+        A: S.SUPERSEDED,
+        B: S.ACTIVE,
+    }
+    assert case.em_state_without_proposal(B) is EM.ACTIVE
+    assert case.em_state_without_proposal(A) is EM.ACTIVE
+    terminate(case)
+    assert case.em_state_without_proposal(B) is EM.EXITED
+
+
 @pytest.mark.parametrize("in_force", [False, True])
 def test_rejecting_one_of_two_proposals_keeps_em_negotiating(
     in_force: bool,
@@ -526,7 +560,11 @@ def test_append_case_status_sets_the_pxa_dimension(
 
 
 def test_append_case_status_bump_wins_over_a_passed_timestamp() -> None:
-    """The case context and bumped timestamps are assigned last."""
+    """The case context and bumped timestamp are assigned last (CM-29-005).
+
+    A passed ``updated`` is dropped too: the appended status carries no
+    ``updated`` (CM-29-006).
+    """
     case = _case()
     before = case.current_status
     stale = now_utc() - timedelta(days=1)
@@ -534,8 +572,8 @@ def test_append_case_status_bump_wins_over_a_passed_timestamp() -> None:
     after = case.current_status
     assert after is not before
     assert after.context == case.id_
-    assert after.published is not None and after.published > stale
-    assert after.updated == after.published
+    assert after.published > before.published > stale
+    assert after.updated is None
 
 
 def test_append_case_status_mints_a_fresh_id() -> None:
@@ -611,11 +649,15 @@ def test_construction_refuses_an_impossible_register(
         _case(embargo_register=entries)
 
 
-def test_a_retired_stored_field_is_refused() -> None:
-    with pytest.raises(ValueError):
+def test_a_former_stored_field_is_refused_as_an_unknown_key() -> None:
+    """``activeEmbargo`` is no longer a field: ``forbid`` refuses it (ADR-0175)."""
+    with pytest.raises(ValidationError) as exc_info:
         VulnerabilityCase.model_validate(
             {"id": CASE_ID, "attributedTo": OWNER, "activeEmbargo": A}
         )
+    assert [(e["type"], e["loc"]) for e in exc_info.value.errors()] == [
+        ("extra_forbidden", ("activeEmbargo",))
+    ]
 
 
 def test_the_active_view_returns_an_inline_embargo_object() -> None:

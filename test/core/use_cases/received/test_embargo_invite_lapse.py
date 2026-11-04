@@ -1006,7 +1006,7 @@ class TestInviteeIsTheAddressee:
         ``rejecting_actor_id`` that reached only a ``logger.info`` call, which
         is indistinguishable from never supplying one.
         """
-        from vultron.core.behaviors.embargo.announce_teardown_tree import (
+        from vultron.core.behaviors.embargo.answer_trees import (
             reject_invite_to_embargo_tree,
         )
         from vultron.core.behaviors.embargo.nodes.proposal import (
@@ -2980,10 +2980,11 @@ class TestOwnerAnswerToRelayedInvite:
     """The case owner's answer to a relayed embargo Invite is its own (EP-09-005/006).
 
     The protocol never requires an automatic answer.  The prototype keeps one
-    bounded auto-accept: the owner accepts on its own only at ``EM.NONE`` and
-    only for terms no longer than its own policy duration; in every other
-    case — above all a revision Invite while an embargo is active — it holds
-    the answer.  A non-owner participant's default accept is unchanged.
+    bounded auto-accept: the owner accepts on its own only at ``EM.NONE``, the
+    Invite's own open register entry set aside (SYNC-19-001), and only for terms
+    no longer than its own policy duration; in every other case — above all
+    a revision Invite while an embargo is active — it holds the answer.  A
+    non-owner participant's default accept is unchanged.
     """
 
     @pytest.mark.parametrize(
@@ -3035,6 +3036,70 @@ class TestOwnerAnswerToRelayedInvite:
 
         assert result.disposition is HandlerDisposition.APPLIED
         assert answers_in_outbox(dl, _INVITEE) == answers
+
+    @pytest.mark.spec("EP-09-005", "SYNC-19-001")
+    def test_owner_holds_while_another_proposal_is_open(self, make_payload):
+        """Only the Invite's own entry is set aside, never another's (#5199)."""
+        dl = _make_dl(actor_id=_INVITEE)
+        case, embargo = seed_invitee_case(
+            dl,
+            "https://example.org/cases/owner-other-open",
+            em_state=EM.NONE,
+            roles=[CVDRole.CASE_OWNER],
+            proposal_days=10,
+            policy_days=30,
+        )
+        other = as_EmbargoEvent(
+            id_=f"{case.id_}/embargos/e-other",
+            context=case.id_,
+            end_time=days_from_now_utc(20),
+        )
+        dl.create(other)
+        propose(case, other.id_, embargo.id_)
+        dl.save(case)
+
+        result = deliver_relayed_invite(dl, case, embargo, make_payload)
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert answers_in_outbox(dl, _INVITEE) == []
+
+    @pytest.mark.parametrize(
+        ("em_state", "decide"),
+        [
+            (EM.NONE, activate),
+            (EM.NONE, reject),
+            # A revision activated over the prior embargo: its entry is
+            # ACTIVE beside a SUPERSEDED one.
+            (EM.ACTIVE, activate),
+        ],
+        ids=["first-activated", "first-rejected", "revision-activated"],
+    )
+    @pytest.mark.spec("EP-09-005", "SYNC-19-001")
+    def test_owner_holds_a_late_invite_for_a_decided_proposal(
+        self, make_payload, em_state, decide
+    ):
+        """A proposal the register already decided is not answered again.
+
+        Only the proposal's own *open* entry is set aside; a late relayed
+        Invite for a decided proposal neither raises nor sends an Activate.
+        """
+        dl = _make_dl(actor_id=_INVITEE)
+        case, embargo = seed_invitee_case(
+            dl,
+            f"https://example.org/cases/owner-late-{decide.__name__}",
+            em_state=em_state,
+            roles=[CVDRole.CASE_OWNER],
+            proposal_days=10,
+            policy_days=30,
+        )
+        propose(case, embargo.id_)
+        decide(case, embargo.id_)
+        dl.save(case)
+
+        result = deliver_relayed_invite(dl, case, embargo, make_payload)
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert answers_in_outbox(dl, _INVITEE) == []
 
     @pytest.mark.parametrize(
         ("roles", "object_type", "has_target"),

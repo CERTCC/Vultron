@@ -19,8 +19,9 @@ The invitee holds only the Invite's case stub until the CASE_MANAGER announces
 the case (MV-10-003, MV-10-004), so it records two things and creates no case:
 the narrative milestone (SL-04-006) and the trust anchor that lets it admit the
 inviting CASE_MANAGER's later ``Announce`` before its replica exists
-(PCR-03-004).  Composed by ``create_invite_actor_to_case_received_tree``
-behind ``create_participant_replica_gated_tree`` (BTND-07-003).
+(PCR-03-004).  Composed by ``create_invite_actor_to_case_received_tree`` in an
+``OnPaths.off_case_manager`` branch, so the factory runs them on every declared
+path but the manager's (BTND-07-003, HP-01-038).
 
 :class:`FixInviteTrustAnchorNode` closes the anchor's life cycle from the
 invitee's own Accept: ``accept_case_invite_trigger_bt`` runs it once the

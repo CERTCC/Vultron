@@ -561,8 +561,6 @@ class TestNoteIsExported:
         # Deliberately not exported, each for a stated reason.
         dropped = {
             # Authoring-time bookkeeping, not requirement content.
-            "deprecated",
-            "superseded_by",
             "tracking_issue",
             "verification_debt",
             "lint_suppress",
@@ -595,6 +593,6 @@ class TestNoteIsExported:
         assert not unaccounted, (
             "StatementSpec fields neither exported nor listed as deliberately "
             f"dropped: {sorted(unaccounted)}. Add to the export in "
-            "vultron/metadata/specs/llm_export.py, or to `dropped` here with a "
+            "vultron/metadata/specs/llm_export/records.py, or to `dropped` here with a "
             "reason."
         )

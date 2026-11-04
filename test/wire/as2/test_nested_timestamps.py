@@ -204,8 +204,8 @@ def _parsed(obj: dict[str, Any], extra: dict[str, Any]) -> Any:
 CORE_KINDS = [k for k in KINDS if k != "Note"]
 
 #: The nested kinds whose ``published`` the sender may omit.  A ``CaseStatus``
-#: is not one: recency reads its time (CM-29-001), so a received status without
-#: one is refused (CLP-15-010) — pinned separately below.
+#: is not one: every status carries its author's time (SM-05-003), so a received
+#: status without one is refused (CLP-15-010) — pinned separately below.
 TIME_OPTIONAL_KINDS = [k for k in KINDS if k != "CaseStatus"]
 
 
@@ -310,8 +310,8 @@ def test_nested_updated_is_not_filled_when_only_published_is_sent(
 ):
     """An omitted ``updated`` stays absent even when ``published`` is present.
 
-    Filled with the receiver's clock, it outranked ``published`` in
-    ``status_recency_key`` and ordered received statuses by *arrival*.
+    Filled with the receiver's clock, it would claim a change at a time the
+    sender never sent, and differ from the status's ``published`` (CM-29-006).
     """
     obj, extra = KINDS["CaseStatus"]
     # Vary ``updated`` by reusing the ``published`` spellings on a scratch dict.
@@ -621,7 +621,9 @@ def test_extractor_refuses_a_case_status_that_bypassed_the_parser():
     letting the core default stamp the receiver's clock.
     """
     from vultron.core.models.case_status import CaseStatus
-    from vultron.wire.as2.extractor._builders import _build_case_status_object
+    from vultron.wire.as2.extractor._builders.statuses import (
+        _build_case_status_object,
+    )
 
     untimed = CaseStatus.model_construct(
         id_="https://example.org/case-statuses/1",

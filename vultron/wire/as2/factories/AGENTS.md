@@ -3,7 +3,7 @@
 > Design rules and rationale:
 > [`notes/activity-factories.md`](../../../../notes/activity-factories.md)
 >
-> Spec: `specs/activity-factories.yaml` (AF-01 through AF-08)
+> Spec: `specs/activity-factories.yaml` (AF-01 through AF-09)
 
 ## Core Rule (MUST)
 

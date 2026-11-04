@@ -88,6 +88,8 @@ groups:
       is optional because the proposal is complete without it.
     adr:
     - ADR-0023
+    stories:
+    - story_2022_101
   - id: CP-01-007
     lint_suppress:
     - rationale_too_long
@@ -107,11 +109,6 @@ groups:
       the same rule as the report itself (CP-01-004). A participant that joined through
       an Invite does not use it to answer the Offer, which was never sent to it
       (CM-11-018).
-    relationships:
-    - rel_type: refines
-      spec_id: CP-01-004
-    - rel_type: implements
-      spec_id: PCR-01-003
     verification: >-
       `test/core/behaviors/case/test_offer_provenance_on_proposal.py`
     adr:
@@ -130,7 +127,7 @@ groups:
       provenance the proposal carries, the canonical entry could not name the Offer
       that brought the report into the case (SYNC-02-002).
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CP-01-007
     verification: >-
       `TestCaseActorCommitsTheProvenance` in
@@ -155,10 +152,8 @@ groups:
       candidate. `inReplyTo` is AS2's own name for the relationship: the proposal answers the report
       submission.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-01-007
-    - rel_type: implements
-      spec_id: EP-04-004
     verification: >-
       `test/wire/as2/test_report_offer_proposed_embargo.py` (parse round trip of an Offer
       nested in a CaseProposal) and
@@ -180,6 +175,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CP-01-008
+    - rel_type: uses_definition
+      spec_id: CP-01-007
     verification: >-
       `test_case_proposal_refuses_provenance_that_names_a_different_offer` in
       `test/wire/as2/test_report_offer_proposed_embargo.py` confirms a proposal whose
@@ -200,9 +197,9 @@ groups:
       the receiver's paraphrase, and a fetch would need an object the case-actor
       has never seen.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CP-01-008
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: EP-04-004
     verification: >-
       `test_the_offer_and_its_proposed_terms_are_carried_inline` in
@@ -227,16 +224,12 @@ groups:
       travels inline or is fetched is an implementation choice. This codebase sends the
       inline form and accepts either (CP-01-010).
     relationships:
-    - rel_type: depends_on
-      spec_id: EP-04-003
-    - rel_type: depends_on
-      spec_id: EP-01-001
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: AKM-05-003
     adr:
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: CP-01-010
     priority: MUST
     kind: project
@@ -277,7 +270,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-01-009
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: AKM-05-007
     adr:
     - ADR-0107
@@ -295,7 +288,7 @@ groups:
       `test/wire/as2/test_case_proposal_envelope.py` confirms that a `Link` `actor` and
       an `actor` whose `id` differs from `attributed_to` are refused at parse.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-01-014
     adr:
     - ADR-0107
@@ -314,7 +307,7 @@ groups:
       the inline `actor` profile's embargo policy and that a profile without one yields
       no actor default.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-01-014
     adr:
     - ADR-0096
@@ -334,7 +327,7 @@ groups:
       `test/adapters/driving/fastapi/test_inbox_dereference.py` checks a fetched
       profile is not stored.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-01-016
     adr:
     - ADR-0107
@@ -351,8 +344,10 @@ groups:
       Tests of the case-proposal receive path confirm that a proposal naming its
       proposer by id is refused when the profile was not fetched.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-01-014
+    - rel_type: refines
+      spec_id: AKM-05-015
     adr:
     - ADR-0107
   - id: CP-01-011
@@ -372,7 +367,7 @@ groups:
       absent one states no role beyond `CASE_OWNER`, and that the roles a proposal states
       reach the CASE_MANAGER's received event.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-01-001
     adr:
     - ADR-0133
@@ -391,7 +386,7 @@ groups:
       Tests confirm that parsing an `as_CaseProposal` whose `proposerCaseRoles` includes
       `CASE_MANAGER` raises a validation error naming CP-01-012.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CP-01-011
     adr:
     - ADR-0133
@@ -416,9 +411,7 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CP-01-011
-    - rel_type: implements
-      spec_id: CP-09-007
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CFG-07-002
 - id: CP-02
   title: MessageSemantics Values
@@ -520,7 +513,7 @@ groups:
     verification: A unit test in `test/test_semantic_activity_patterns.py::test_non_overlapping_activity_patterns` confirms
       all three CaseProposal patterns appear before generic Accept/Reject catch-all entries in `SEMANTIC_REGISTRY`.
     relationships:
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: SE-03-002
     adr:
     - ADR-0023
@@ -539,9 +532,6 @@ groups:
       is not the authoritative creator of the case.
     verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm a report receiver sends
       `Create(CaseProposal)` to the case-actor inbox with its own URI set as `actor`.
-    relationships:
-    - rel_type: implements
-      spec_id: CP-01-001
     stories:
     - story_2022_012
     - story_2022_046
@@ -590,7 +580,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-04-001
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: BT-10-008
     verification: >-
       `test/core/behaviors/case/test_case_actor_identity.py`;
@@ -634,9 +624,7 @@ groups:
       knows of a peer. If only the sender's record exists, the inbox answers `404 Actor
       not found` and the proposal is not delivered.
     relationships:
-    - rel_type: refines
-      spec_id: CP-04-003
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: DL-07-001
     adr:
     - ADR-0073
@@ -653,8 +641,10 @@ groups:
       The Case Actor Service must answer each proposal it admits (CP-05-002). The
       dispatcher sends each `Create(CaseProposal)` to this use case, so without it a
       proposal reaches no code that can answer it.
-    verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms `CreateCaseProposalReceivedUseCase`
-      is implemented and tested in `test/core/behaviors/case/test_case_proposal_received_tree.py`.
+    verification: Inspection of
+      `vultron/core/use_cases/received/case_proposal/create.py` confirms
+      `CreateCaseProposalReceivedUseCase` is implemented and tested in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py`.
     stories:
     - story_2022_012
     - story_2022_046
@@ -875,10 +865,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ASK-08-001
-    - rel_type: depends_on
-      spec_id: CM-23-013
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_014
   - id: CP-05-013
     priority: MUST_NOT
     kind: protocol
@@ -898,6 +886,8 @@ groups:
       after acceptance produces no second `VulnerabilityCase`.
     adr:
     - ADR-0080
+    stories:
+    - story_2026_014
   - id: CP-05-014
     priority: MUST
     kind: protocol
@@ -910,9 +900,9 @@ groups:
       fully closed case accepts no writes (CM-23-013). The `Reject` declines only the
       re-delivery: it does not revoke the stored `Accept` (CP-05-005).
     relationships:
-    - rel_type: extends
+    - rel_type: supersedes
       spec_id: CP-05-006
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-23-013
     verification: >-
       `TestARedeliveryAfterCloseIsDeclined` in
@@ -935,7 +925,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CP-05-014
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: CM-23-013
     verification: >-
       `TestARedeliveryAfterCloseIsDeclined::test_nothing_is_written_for_the_case` in
@@ -943,6 +933,8 @@ groups:
       `CaseLedgerEntry` for the case and no change to case or participant state.
     adr:
     - ADR-0080
+    stories:
+    - story_2026_014
   - id: CP-05-007
     priority: MUST
     kind: protocol
@@ -963,10 +955,10 @@ groups:
     adr:
     - ADR-0080
     relationships:
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: ASK-05-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_006
   - id: CP-05-008
     priority: MUST
     kind: protocol
@@ -1002,8 +994,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-05-002
-    - rel_type: depends_on
-      spec_id: CM-23-013
     stories:
     - story_2022_006
     - story_2022_012
@@ -1070,8 +1060,10 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CP-05-008
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-23-013
+    - rel_type: supersedes
+      spec_id: CP-05-017
     verification: >-
       `TestTheOwnersNewProposalForAClosedCaseIsDeclined` in
       `test/core/behaviors/case/test_case_proposal_admission.py` confirms a new
@@ -1095,7 +1087,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CP-05-018
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: CM-23-013
     verification: >-
       `TestTheOwnersNewProposalForAClosedCaseIsDeclined::test_nothing_is_written_for_the_case`
@@ -1162,8 +1154,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
-    - rel_type: refines
-      spec_id: CP-05-006
     adr:
     - ADR-0115
   - id: CP-05-022
@@ -1202,11 +1192,13 @@ groups:
       so that it can match the `Create(VulnerabilityCase)` that follows to its own
       request and check its sender. The dispatcher sends each `Accept(CaseProposal)`
       to this use case.
-    verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms
-      `AcceptCaseProposalReceivedUseCase` is implemented with an `execute()` method.
+    verification: Inspection of
+      `vultron/core/use_cases/received/case_proposal/answer.py` confirms
+      `AcceptCaseProposalReceivedUseCase` is implemented with an `execute()`
+      method.
     stories:
     - story_2022_012
-    - story_2022_088
+    - story_2026_036
     adr:
     - ADR-0023
   - id: CP-06-002
@@ -1219,11 +1211,13 @@ groups:
       The report receiver must know when the Case Actor Service declines its proposal,
       so that it stops waiting for a case. The dispatcher sends each
       `Reject(CaseProposal)` to this use case.
-    verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms
-      `RejectCaseProposalReceivedUseCase` is implemented with an `execute()` method.
+    verification: Inspection of
+      `vultron/core/use_cases/received/case_proposal/answer.py` confirms
+      `RejectCaseProposalReceivedUseCase` is implemented with an `execute()`
+      method.
     stories:
     - story_2022_006
-    - story_2022_088
+    - story_2026_036
     adr:
     - ADR-0023
   - id: CP-06-003
@@ -1240,7 +1234,7 @@ groups:
       `AcceptCaseProposalReceivedUseCase` updates the receiver's local state to record the case-actor acceptance.
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_036
     adr:
     - ADR-0023
   - id: CP-06-004
@@ -1257,7 +1251,7 @@ groups:
       `RejectCaseProposalReceivedUseCase` updates the receiver's local state to reflect the rejection.
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_036
     adr:
     - ADR-0023
   - id: CP-06-005
@@ -1281,6 +1275,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
+    - rel_type: depends_on
+      spec_id: CP-06-006
     adr:
     - ADR-0115
   - id: CP-06-006
@@ -1291,9 +1287,6 @@ groups:
     rationale: >-
       The sender check of CP-06-005 compares each reply's sender with this record. A
       receiver that kept no record could only trust what the reply claims about itself.
-    relationships:
-    - rel_type: extends
-      spec_id: CP-06-005
     verification: >-
       `test_case_creator_id_is_the_case_actor_container` in
       `test/core/behaviors/case/test_receive_report_case_tree.py` confirms the pending
@@ -1413,8 +1406,8 @@ groups:
       which Case Actor Service to use, so explicit configuration is the only correct
       source.
     relationships:
-    - rel_type: implements
-      spec_id: CP-01-005
+    - rel_type: uses_definition
+      spec_id: CP-04-001
   - id: CP-08-004
     priority: MUST
     kind: project
@@ -1424,7 +1417,7 @@ groups:
       A non-URL value cannot be used to construct a valid inbox endpoint address, so
       validation at configuration load time is required to surface errors early.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-08-001
   - id: CP-08-005
     priority: MUST
@@ -1438,7 +1431,7 @@ groups:
       Silent mis-routing sends the proposal to the wrong endpoint without any
       observable error signal, making the failure hard to diagnose.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-08-001
   - id: CP-08-002
     priority: MUST
@@ -1453,7 +1446,7 @@ groups:
       Service URL. Every BT node that addresses the Case Actor then uses the same value,
       and no BT node builds it from the container's own address (CP-08-006).
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CP-08-001
   - id: CP-08-006
     priority: MUST_NOT
@@ -1466,7 +1459,7 @@ groups:
       Using `server_base_url` hard-wires a co-location assumption; in a multi-container
       topology the CaseActor has its own container and URL.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-08-002
   - id: CP-08-003
     priority: MUST
@@ -1484,6 +1477,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-08-001
+    - rel_type: uses_definition
+      spec_id: CP-04-001
   - id: CP-08-008
     priority: MUST
     kind: project
@@ -1495,7 +1490,7 @@ groups:
       A partial URL or path-only value cannot be used to construct a valid inbox
       endpoint; the full base URL is required to route proposals correctly.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-08-003
   - id: CP-08-009
     priority: MUST_NOT
@@ -1510,7 +1505,7 @@ groups:
       naming `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` when no CaseActor URL is
       configured, rather than derive the identity from `server.base_url`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-08-003
 - id: CP-09
   title: CASE_MANAGER-Authoritative Initialization on Accept(CaseProposal)
@@ -1537,7 +1532,7 @@ groups:
     verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm the created
       `VulnerabilityCase` has `attributed_to` set to the proposing actor's URI.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-05-003
     - rel_type: refines
       spec_id: CM-02-008
@@ -1588,7 +1583,7 @@ groups:
     verification: Unit tests `test_owner_participant_created` and `test_reporter_participant_created` in
       `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm both participants are seeded with correct RM states and roles.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-09-001
     stories:
     - story_2022_012
@@ -1609,11 +1604,11 @@ groups:
     verification: Unit tests `test_owner_participant_created` and `test_reporter_participant_created` in
       `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm participants exist before `Create(VulnerabilityCase)` is emitted.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-09-002
     stories:
     - story_2022_013
-    - story_2022_088
+    - story_2026_055
     adr:
     - ADR-0041
   - id: CP-09-007
@@ -1632,9 +1627,9 @@ groups:
       and `test_case_actor_config_does_not_supply_owner_roles` in
       `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm the roles come from the proposal.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-09-002
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CP-01-011
     adr:
     - ADR-0133
@@ -1649,9 +1644,11 @@ groups:
     rationale: >-
       Inferring roles (e.g. hard-coding `CVDRole.VENDOR`) mislabels coordinators
       and causes VFD fix-lifecycle checks to demand a fix they never produce.
+    stories:
+    - story_2022_063
     relationships:
-    - rel_type: refines
-      spec_id: CP-09-002
+    - rel_type: extends
+      spec_id: CP-09-007
   - id: CP-09-003
     priority: MUST
     kind: protocol
@@ -1664,13 +1661,10 @@ groups:
       embargo-gated operations are undefined (ADR-0041).
     verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py::TestADR0041EmbargoInit::test_active_embargo_set`
       confirm the default embargo is initialized before `Create(VulnerabilityCase)` is emitted.
-    relationships:
-    - rel_type: refines
-      spec_id: CP-09-001
     adr:
     - ADR-0041
     stories:
-    - story_2022_014
+    - story_2026_080
     - story_2022_023
   - id: CP-09-004
     priority: MUST
@@ -1696,11 +1690,11 @@ groups:
       confirms a case naming a participant the CASE_MANAGER cannot read is not sent
       with a bare id.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-09-002
     stories:
     - story_2022_013
-    - story_2022_045
+    - story_2026_055
     adr:
     - ADR-0041
     - ADR-0170
@@ -1720,9 +1714,6 @@ groups:
       then need extra work to reconcile them, such as a node that writes the missing
       ledger entries afterwards. The CASE_MANAGER creates the one authoritative case
       (ADR-0041), so the receiver waits for it.
-    relationships:
-    - rel_type: refines
-      spec_id: CP-09-001
     adr:
     - ADR-0041
   - id: CP-09-012
@@ -1737,7 +1728,7 @@ groups:
       for the CASE_MANAGER's case. The link records whom the proposal went to
       (CP-06-006), so the answer and the case can be matched to the request.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: CP-09-005
     verification: >-
       Inspection of `receive_report_case_tree` confirms it stores the inbound report,
@@ -1782,15 +1773,11 @@ groups:
       and `TestADR0041GenesisCommitFailure::test_each_creation_entry_that_fails_leaves_nothing_of_the_case`
       fails each creation entry in turn and asserts nothing of the case is kept.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CP-05-003
-    - rel_type: depends_on
-      spec_id: CM-14-011
-    - rel_type: depends_on
-      spec_id: OX-01-002
     adr:
     - ADR-0041
     - ADR-0119
     stories:
     - story_2022_013
-    - story_2022_088
+    - story_2026_056

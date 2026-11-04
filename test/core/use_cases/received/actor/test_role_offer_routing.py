@@ -1041,7 +1041,9 @@ def test_a_participant_refuses_an_answer_sent_to_it(make_payload, accept):
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert "No sender is entitled" in (result.reason or "")
+    # The answer's type declares the manager path alone, so the path stage
+    # refuses this replica before the sender guard runs (HP-01-038).
+    assert "not the CASE_MANAGER of case" in (result.reason or "")
     assert _semantic_types(dl) == []
     assert not _target_holds(dl, CVDRole.VENDOR)
 
@@ -1264,9 +1266,10 @@ def _deliver_altered_answer(
     ("update", "reason"),
     [
         (
-            # This store is no CASE_MANAGER of a case it does not hold.
+            # This store is no CASE_MANAGER of a case it does not hold, so
+            # the path stage refuses it on the no-case path (HP-01-039).
             {"context": "https://example.org/cases/not-held"},
-            "No sender is entitled",
+            "holds no replica of case",
         ),
         ({"object_": None}, "names no role Offer"),
     ],

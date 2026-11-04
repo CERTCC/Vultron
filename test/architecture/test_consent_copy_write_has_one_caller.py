@@ -29,9 +29,9 @@ from test.architecture import _corpus
 _PACKAGE = _corpus.REPO_ROOT / "vultron"
 _ALLOWED = {
     # The one apply function (ADR-0124).
-    "vultron/core/models/embargo_apply.py",
+    "vultron/core/models/embargo_apply/apply.py",
     # The definition itself.
-    "vultron/core/models/case_participant.py",
+    "vultron/core/models/case_participant/_consent.py",
 }
 
 
@@ -61,4 +61,4 @@ def test_only_the_apply_function_calls_the_copy_write() -> None:
 
 def test_the_scan_finds_the_apply_function() -> None:
     """Guards against a vacuous pass if the call moves or is renamed."""
-    assert "vultron/core/models/embargo_apply.py" in _callers()
+    assert "vultron/core/models/embargo_apply/apply.py" in _callers()

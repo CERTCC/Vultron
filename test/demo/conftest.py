@@ -14,6 +14,7 @@
 """Shared fixtures and helpers for demo tests."""
 
 import logging
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -21,13 +22,20 @@ import pytest
 from fastapi.testclient import TestClient
 
 import vultron.demo.utils as demo_utils
+import vultron.demo.utils.inbox as demo_inbox
 from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
     make_testclient_call,
 )
 from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
 from vultron.adapters.driving.fastapi import outbox_handler
 from vultron.adapters.driving.fastapi.main import app as api_app
-from vultron.adapters.driving.fastapi.outbox_handler import get_default_emitter
+from vultron.adapters.driving.fastapi.outbox_handler import (
+    get_default_emitter,
+)
+from vultron.demo.helpers.invite_chain import (
+    chain as invite_runs,
+    links as invite_links,
+)
 from vultron.demo.in_process import InProcessRouter
 from vultron.wire.as2.factories import parse_submit_report_offer
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -38,7 +46,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 # Eliminate wait delays in all demo tests. The FastAPI TestClient processes
 # background tasks synchronously, so no sleep is needed between inbox posts
 # and state checks.
-demo_utils.DEFAULT_WAIT_SECONDS = 0.0
+demo_inbox.DEFAULT_WAIT_SECONDS = 0.0
 
 logger = logging.getLogger(__name__)
 
@@ -278,12 +286,15 @@ def _no_outbox_row_is_dead_lettered(caplog):
     ``setup_initialized_case``, until this guard.
     """
     yield
-    # Keyed on the outbox handler's logger: the inbox dead-letters with the
+    # Keyed on the outbox package's loggers: the inbox dead-letters with the
     # same wording (IE-06-004), and this guard must not blame the outbox for it.
+    # A prefix, not one module's name, so moving the dead-letter call to another
+    # submodule cannot silence the guard.
+    outbox_logger = outbox_handler.__name__
     dead = [
         r.getMessage()
         for r in caplog.get_records("call")
-        if r.name == outbox_handler.__name__
+        if (r.name == outbox_logger or r.name.startswith(outbox_logger + "."))
         and r.levelno >= logging.ERROR
         and "moved to dead letter" in r.getMessage().lower()
     ]
@@ -473,15 +484,13 @@ def stub_summary_seed():
     a real client (in-process app) still seeds, since its Invite needs it
     (#4285).  ``test_invite_chain`` overrides this fixture to test the seed.
     """
-    from vultron.demo.helpers import invite_chain
-
-    real = invite_chain._seed_stub_summary
+    real = invite_links._seed_stub_summary
 
     def seed(client, case):
         if not isinstance(client, Mock):
             real(client, case)
 
-    with patch.object(invite_chain, "_seed_stub_summary", seed):
+    with patch.object(invite_runs, "_seed_stub_summary", seed):
         yield
 
 
@@ -496,13 +505,28 @@ def stub_full_case_reply():
     fails the run instead of passing silently (#4970, #5444).
     ``test_invite_chain`` overrides this fixture to test the step with mocks.
     """
-    from vultron.demo.helpers import invite_chain
-
-    real = invite_chain.reply_to_full_case_invite
+    real = invite_links.reply_to_full_case_invite
 
     def reply(**kwargs):
         if not isinstance(kwargs["invitee_client"], Mock):
             real(**kwargs)
 
-    with patch.object(invite_chain, "reply_to_full_case_invite", reply):
+    with patch.object(invite_links, "reply_to_full_case_invite", reply):
         yield
+
+
+@pytest.fixture
+def fresh_demo_failures() -> Iterator[None]:
+    """Clear the process-global failure accumulator around one test.
+
+    ``vultron.demo._demo_failures`` is process-global, and a fragment
+    that records a failure leaves it there for the next test — where it
+    changes what ``demo_gate`` does (a gate skips its body once anything is
+    recorded).  Opt-in, by ``pytestmark =
+    pytest.mark.usefixtures("fresh_demo_failures")``, rather than autouse for
+    the directory: a test that asserts on failures a module-scoped run
+    recorded must not have them wiped at its own setup.
+    """
+    demo_utils.reset_demo_failures()
+    yield
+    demo_utils.reset_demo_failures()

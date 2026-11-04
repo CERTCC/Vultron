@@ -52,7 +52,7 @@ Scenarios are named by the sequence of actor roles involved:
 
 This is the **second of the two registers** DEMOCI-11-010 defines. A demo
 scenario that has a spec group sits in exactly one of them: the scenario
-registry (`vultron/demo/scenario/registry.py`) if it is built, this table if it
+registry (`vultron/demo/scenario/registry/`) if it is built, this table if it
 is specified but not yet built. The partition is checked in both directions —
 see [demo-scenario-registry.md](demo-scenario-registry.md).
 

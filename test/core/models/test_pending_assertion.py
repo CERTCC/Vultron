@@ -290,7 +290,7 @@ class TestTimeout:
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
 
         future = now_utc() + timedelta(seconds=61)
-        with patch("vultron.core.models._helpers.datetime") as mock_dt:
+        with patch("vultron.core.models._helpers.clock.datetime") as mock_dt:
             mock_dt.now.return_value = future
             store_short.add(CASE_ID, "engage_case", OTHER_OBJECT_ID)
 
@@ -446,7 +446,7 @@ class TestExpireTimedOut:
             "https://example.org/activities/act-002",
         )
         future = datetime.now(UTC) + timedelta(seconds=61)
-        with patch("vultron.core.models._helpers.datetime") as mock_dt:
+        with patch("vultron.core.models._helpers.clock.datetime") as mock_dt:
             mock_dt.now.return_value = future
             count = store_short.expire_timed_out()
         assert count == 2
@@ -455,7 +455,7 @@ class TestExpireTimedOut:
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
         store_short.clear(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
         future = datetime.now(UTC) + timedelta(seconds=61)
-        with patch("vultron.core.models._helpers.datetime") as mock_dt:
+        with patch("vultron.core.models._helpers.clock.datetime") as mock_dt:
             mock_dt.now.return_value = future
             count = store_short.expire_timed_out()
         assert count == 0
@@ -545,7 +545,7 @@ class TestPendingForSubject:
             CASE_ID, SEMANTIC_TYPE, OBJECT_ID, subject_id=SUBJECT_ID
         )
         future = datetime.now(UTC) + timedelta(seconds=61)
-        with patch("vultron.core.models._helpers.datetime") as mock_dt:
+        with patch("vultron.core.models._helpers.clock.datetime") as mock_dt:
             mock_dt.now.return_value = future
             store_short.expire_timed_out()
 
@@ -644,7 +644,7 @@ class TestClearActivity:
         store.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
         later = datetime.now(UTC) + timedelta(seconds=11)
 
-        with patch("vultron.core.models._helpers.datetime") as mock_dt:
+        with patch("vultron.core.models._helpers.clock.datetime") as mock_dt:
             mock_dt.now.return_value = later
             store.expire_timed_out()
         cleared = store.clear_activity(CASE_ID, OBJECT_ID, at=now_utc())

@@ -29,7 +29,7 @@ Composite subtrees assembling these nodes are defined in
 import logging
 from typing import cast
 
-from vultron.core.behaviors.helpers import _EmitSingleActivityBase
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.models.ledger_position import LedgerPosition
 
 logger = logging.getLogger(__name__)

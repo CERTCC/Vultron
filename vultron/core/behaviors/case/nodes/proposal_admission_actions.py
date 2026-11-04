@@ -39,8 +39,8 @@ from py_trees.ports import PortInformation
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.models.case_proposal_admission import (
     CaseProposalAdmissionRecord,
 )

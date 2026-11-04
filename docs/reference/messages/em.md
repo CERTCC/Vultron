@@ -197,7 +197,7 @@ If the CASE_MANAGER refuses the termination, it commits neither entry.
   A receiver refuses a `Remove` whose `content` is anything else.
   `summary` is a human-readable account that the protocol does not read.
 - **Why it ended:** `terminationCause` gives the cause, when the sender names one.
-  The CASE_MANAGER's embargo register records the cause beside the reason (EMB-13-004, EMB-13-005).
+  The CASE_MANAGER's embargo register records the cause beside the reason (EMB-13-010, EMB-13-005).
   Its `kind` is `THREAT_SIGNAL` (with the `signals` `P`, `X` or `A`), `FIX_READY` (with the `vendors` whose readiness made the quorum), `FIX_DEPLOYED`, or `OTHER` (whose account is the `summary`).
   Every cause goes with `EARLY`.
   A `Remove` that carries `END_TIME_REACHED` names no cause.
@@ -262,11 +262,15 @@ Some deliveries get no notice:
 
 - A message that the sender has no standing to send is refused with no answer (HP-01-006).
 - A repeat of an answer already recorded, under a new id or the same one, is skipped and gets no notice (CM-13-005).
+- A repeated proposal of terms the case already holds is skipped and gets no notice (EP-09-032).
+  Its end time equals that of a pending proposal, or, with no revision pending, that of the embargo in force.
+  The CASE_MANAGER registers nothing, commits nothing and relays no `Invite`, whoever sent it and whatever its ids.
+  The proposer's pending ask for it closes when its timeout window ends (SYNC-11-005).
 - An `Invite` or `Accept` that arrives once the case is public, an exploit is public, or attacks are observed is answered with a `Reject` of the Invite instead (EMB-01-002, EMB-02-004).
   The CASE_MANAGER's `Reject` of an `Accept` reaches the participant.
   The participant then closes its pending `Accept`.
-- A late `Accept` of the embargo in force is recorded in the same way as an on-time `Accept`.
-  A late `Accept` of replaced terms is answered with a relayed invitation to the current terms (EMB-17).
+- A late `Accept` of the embargo in force, or of an open proposal, is recorded in the same way as an on-time `Accept` (EMB-17-002).
+  A late `Accept` of replaced terms is answered with a relayed invitation to the case's current terms — the embargo in force, or the earliest-expiring open proposal when none is in force (EMB-17-003, EP-08-002).
   A late `Accept` of an embargo the case no longer has changes nothing, so the CASE_MANAGER records and sends nothing for it (EMB-17-004).
 - A failure inside the CASE_MANAGER is not a refusal, and is never answered with a notice.
 

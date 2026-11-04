@@ -8,6 +8,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from vultron.demo.helpers import notes
+from vultron.demo.helpers.coordinated_story import (
+    continuations as coordinated_continuations,
+    opening as coordinated_opening,
+)
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
@@ -205,6 +209,7 @@ def test_a_gated_thread_waits_on_the_named_replica_first():
 @pytest.mark.spec("DEMOMA-22-001")
 def test_a_failed_gate_posts_nothing_and_records_the_failure():
     from vultron.demo import utils
+    from vultron.demo.utils.failures import _demo_failures
 
     utils.reset_demo_failures()
     try:
@@ -223,7 +228,7 @@ def test_a_failed_gate_posts_nothing_and_records_the_failure():
                 case=MagicMock(),
                 posts=_posts("a", "b"),
             )
-        failures = list(utils._demo_failures)
+        failures = list(_demo_failures)
     finally:
         utils.reset_demo_failures()
 
@@ -243,6 +248,7 @@ def test_a_failed_gate_returns_an_empty_list_from_the_posting_form():
     with the gate's own failure as the cause (``StoryState.keep``).
     """
     from vultron.demo import utils
+    from vultron.demo.utils.failures import _demo_failures
 
     utils.reset_demo_failures()
     try:
@@ -268,7 +274,7 @@ def test_a_failed_gate_returns_an_empty_list_from_the_posting_form():
                 case=MagicMock(),
                 posts=_posts("a", "b"),
             )
-        failures = list(utils._demo_failures)
+        failures = list(_demo_failures)
     finally:
         utils.reset_demo_failures()
 
@@ -359,6 +365,7 @@ def test_reporter_asks_returns_nothing_when_its_replica_gate_fails():
     posted.
     """
     from vultron.demo import utils
+    from vultron.demo.utils.failures import _demo_failures
 
     utils.reset_demo_failures()
     try:
@@ -377,7 +384,7 @@ def test_reporter_asks_returns_nothing_when_its_replica_gate_fails():
                 "Any workaround?",
                 _posts("vendor"),
             )
-        failures = list(utils._demo_failures)
+        failures = list(_demo_failures)
     finally:
         utils.reset_demo_failures()
 
@@ -411,7 +418,7 @@ def test_the_rejection_fragment_posts_one_thread() -> None:
 
     state = story_state("reporter", "coordinator", "vendor", case=mock_case())
 
-    with patch.object(coordinated_story, "add_note_thread") as thread:
+    with patch.object(coordinated_continuations, "add_note_thread") as thread:
         coordinated_story.reporter_asks_about_the_rejection(state)
 
     watching, case, posts = thread.call_args.args
@@ -443,7 +450,7 @@ def test_the_timeline_fragment_gates_its_thread_on_the_vendors_replica() -> (
     answer = as_Note(name="Coordinator Summary", content="x")
 
     with patch.object(
-        coordinated_story, "gated_note_thread", return_value=answer
+        coordinated_opening, "gated_note_thread", return_value=answer
     ) as thread:
         coordinated_story.reporter_asks_about_the_timeline(state)
 
@@ -467,7 +474,7 @@ def test_the_timeline_fragment_keeps_nothing_when_its_thread_fails() -> None:
     state = story_state("reporter", "coordinator", "vendor", case=mock_case())
 
     with patch.object(
-        coordinated_story, "gated_note_thread", return_value=None
+        coordinated_opening, "gated_note_thread", return_value=None
     ):
         coordinated_story.reporter_asks_about_the_timeline(state)
 

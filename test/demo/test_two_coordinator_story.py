@@ -20,7 +20,7 @@ rcv family's ``REPORTER_TELLS_THE_COORDINATOR``, plus every continuation both
 scenarios tell afterwards (DEMOMA-13-012, DEMOMA-14-017, DEMOMA-17-001).
 
 The tests here own what the pair shares; each scenario's own module owns its
-own fragments, and ``test_coordinated_story.py`` owns the rcv family's
+own fragments, and ``test/demo/coordinated_story/`` owns the rcv family's
 opening, which this prefix only names.  Every test patches the collaborators
 out, so no HTTP happens; ``demo_gate`` / ``demo_check`` / ``demo_step`` stay
 real wherever the test is about control flow and are stubbed to
@@ -34,12 +34,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import vultron.demo.helpers.two_coordinator_story as pair
-import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
     devlogs_name_of,
     functions_referencing,
+    gate_failures,
     mock_actor,
     mock_case,
+    modules_resolving_names,
     no_demo_banners,
     patch_chain_shared,
     story_state,
@@ -63,6 +64,8 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER,
     REPORTER_TELLS_THE_COORDINATOR,
     VENDOR,
+    cast as coordinated_cast,
+    joining as coordinated_joining,
 )
 from vultron.demo.helpers.notes import (
     WORKAROUND_ANSWER,
@@ -71,9 +74,12 @@ from vultron.demo.helpers.notes import (
 )
 from vultron.demo.helpers.owner_decision_story import Part
 from vultron.demo.helpers.story import Choose, UnseatedContainer
-from vultron.demo.utils import reset_demo_failures
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: The pair's four cast names, in ``ROLES`` order.
 _CAST = (REPORTER, pair.C1, pair.C2, VENDOR)
@@ -82,26 +88,14 @@ _CAST = (REPORTER, pair.C1, pair.C2, VENDOR)
 _RCV_PREFIX_LEN = len(REPORTER_TELLS_THE_COORDINATOR.items)
 
 
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, so a fragment
-    that records a failure would otherwise leave it for the next test to read
-    as its own (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
-
-
 @contextlib.contextmanager
 def _no_banners():
     """Every module a fragment of this pair reaches, patched once.
 
     ``owner_decision_story`` is not among them: this pair's module takes
     only ``Part`` and a timeout from it, so no fragment under test opens a
-    banner there (``test_owner_decision_story.py`` owns those).
+    banner there (the tests under ``test/demo/owner_decision_story/`` own
+    those).
     """
     with no_demo_banners(pair, coordinated_story):
         yield
@@ -110,11 +104,6 @@ def _no_banners():
 def _four_party_state():
     """A story state seating all four, on an open case."""
     return story_state(*_CAST, case=mock_case())
-
-
-def _sessions_of(mock_method) -> list[str]:
-    """The actor id of each session an ``autospec``-ed verb was called on."""
-    return [call.args[0].actor.id_ for call in mock_method.call_args_list]
 
 
 # ---------------------------------------------------------------------------
@@ -261,7 +250,7 @@ class TestC2IsSeededAfterTheBranchPoint:
                 pair, "seed_containers_rccv", return_value=seeded
             ) as seed,
             patch.object(
-                coordinated_story,
+                coordinated_cast,
                 "get_actor_by_id",
                 side_effect=[seeded[2]],
             ) as lookup,
@@ -292,7 +281,7 @@ class TestC2IsSeededAfterTheBranchPoint:
 
         with (
             patch.object(pair, "seed_containers_rccv"),
-            patch.object(coordinated_story, "get_actor_by_id"),
+            patch.object(coordinated_cast, "get_actor_by_id"),
             _no_banners(),
             pytest.raises(DemoStoryError, match="no container waiting"),
         ):
@@ -316,26 +305,23 @@ class TestC1InvitesC2:
         a failing roster records its failure and keeps no prop.
         """
         with (
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
             patch.object(
-                coordinated_story, "run_invite_path_rm_triage"
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch.object(
+                coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "wait_for_case_participants",
                 side_effect=roster,
             ) as roster_wait,
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "demo_check",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-            patch.object(
-                coordinated_story,
-                "demo_step",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
@@ -418,9 +404,7 @@ class TestC1InvitesC2:
             DemoStoryError, match="case the second Coordinator joined"
         ):
             state.kept(pair.SECOND_COORDINATOR_JOINED)
-        assert [f for f in demo_utils._demo_failures if "GATE FAILED" in f], (
-            demo_utils._demo_failures
-        )
+        assert gate_failures(), _demo_failures
 
     @pytest.mark.spec("CLP-08-005")
     def test_the_reporter_holds_the_case_before_c2_answers(self):
@@ -448,7 +432,7 @@ class TestTheSharedCliSurfaces:
 
     def test_the_roles_seat_four_containers_plus_the_case_actor(self):
         """One list for both scenarios, in ``main()`` parameter order."""
-        roles = pair.two_coordinator_roles(case_actor=case_actor_role())
+        roles = pair.two_coordinator_roles()
 
         assert [role.name for role in roles] == [
             REPORTER,
@@ -467,15 +451,16 @@ class TestTheSharedCliSurfaces:
         # seats it rather than from its container (DEMOCI-11-021).
         assert roles[2].slot is CAST[3]
 
-    def test_the_case_actor_role_is_the_callers(self):
-        """Only ``rccv-handoff`` exposes ``--case-actor-id`` (DEMOMA-14-023)."""
-        without = pair.two_coordinator_roles(case_actor=case_actor_role())
-        with_id = pair.two_coordinator_roles(
-            case_actor=case_actor_role(has_id=True)
-        )
+    def test_the_case_actor_role_takes_no_id_option(self):
+        """The CaseActor role offers no ``--case-actor-id`` (#5550).
 
-        assert "case_actor_id" not in role_kwarg_names(without)
-        assert "case_actor_id" in role_kwarg_names(with_id)
+        The case-actor container seeds the cast's one fixed CaseActor id
+        (DEMOCI-11-020), so an override would have nothing to select.
+        """
+        roles = pair.two_coordinator_roles()
+
+        assert roles[-1] == case_actor_role()
+        assert "case_actor_id" not in role_kwarg_names(roles)
 
     def test_the_cast_members_carry_the_pairs_labels_and_url_overrides(self):
         """Each URL falls back to the cast slot's own address."""
@@ -805,10 +790,18 @@ _PAIR_CAST_REFERENCES = _pair_cast_references()
 
 
 def _continuations_source() -> str:
-    """The source of the shared continuations, read as written."""
-    source = owner_decision_story.__file__
-    assert source is not None
-    return pathlib.Path(source).read_text(encoding="utf-8")
+    """The source of the shared continuations, read as written.
+
+    ``owner_decision_story`` is a package (#5592), so every submodule is read
+    and joined: its ``__init__`` only re-exports, and reading that alone
+    would leave every continuation unchecked.
+    """
+    modules = modules_resolving_names(owner_decision_story)
+    assert len(modules) > 1, modules
+    return "\n".join(
+        pathlib.Path(module.__file__ or "").read_text(encoding="utf-8")
+        for module in modules
+    )
 
 
 def _cast_references(source: str) -> tuple[set[str], set[str]]:
@@ -887,6 +880,14 @@ class TestTheOwnerDecisionParts:
         # (notes/architecture-ratchet-corpus.md, #5595).
         assert imported, "the import walk found nothing — the check is vacuous"
         assert referenced, "the name walk found nothing — the check is vacuous"
+        # Non-empty is not enough either: a walk that reached only ``parts``
+        # (the ``Part`` type and timeouts) yields names too. The invite chain
+        # is called only inside the continuations' bodies in ``keep`` and
+        # ``handover`` (an import is no ``ast.Name``), so finding it proves
+        # the walk read a continuation body (#5846).
+        assert "run_case_invite_chain" in referenced, (
+            "the walk read no continuation body — the check is vacuous"
+        )
         assert pair.__name__ not in imported, (
             f"{pair.__name__} imported by owner_decision_story would"
             " hard-wire the two-coordinator cast into a continuation the"

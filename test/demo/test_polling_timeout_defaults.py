@@ -21,10 +21,10 @@ default must be at least 15.0 s.
 import inspect
 from unittest.mock import MagicMock, patch
 
-from vultron.demo.helpers import polling
 from vultron.demo.helpers.polling import (
     LATE_JOINER_REPLICA_TIMEOUT,
     REPLICA_PARTICIPANT_TIMEOUT,
+    case as polling_case,
     wait_for_case_participants,
     wait_for_participants_on_replicas,
 )
@@ -69,7 +69,7 @@ def test_replica_loop_gives_late_joiner_extended_timeout():
     late = MagicMock()
     timeouts, fake_wait = _capture_participant_timeouts()
 
-    with patch.object(polling, "wait_for_case_participants", fake_wait):
+    with patch.object(polling_case, "wait_for_case_participants", fake_wait):
         wait_for_participants_on_replicas(
             replica_clients=(reporter, late),
             case_id="urn:test:case",
@@ -90,7 +90,7 @@ def test_replica_loop_polls_every_replica_once():
     def _fake_wait(vendor_client, case_id, expected_actor_ids, **_kw):
         polled.append(id(vendor_client))
 
-    with patch.object(polling, "wait_for_case_participants", _fake_wait):
+    with patch.object(polling_case, "wait_for_case_participants", _fake_wait):
         wait_for_participants_on_replicas(
             replica_clients=tuple(clients),
             case_id="urn:test:case",
@@ -105,7 +105,7 @@ def test_replica_loop_uses_default_when_no_late_joiners():
     clients = [MagicMock() for _ in range(2)]
     timeouts, fake_wait = _capture_participant_timeouts()
 
-    with patch.object(polling, "wait_for_case_participants", fake_wait):
+    with patch.object(polling_case, "wait_for_case_participants", fake_wait):
         wait_for_participants_on_replicas(
             replica_clients=tuple(clients),
             case_id="urn:test:case",

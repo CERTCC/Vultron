@@ -28,8 +28,8 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.log_entry import require_log_entry
 from vultron.core.behaviors.sync.nodes._helpers import hold_received_announce
-from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.case_ledger import ledger_entry_hash_intact
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -58,7 +58,7 @@ class LogDeliveryConfirmationNode(DataLayerActionWithPorts):
         self.activity = self.get_input("activity")
 
     def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
         self.logger.debug(
             "%s: received round-trip delivery confirmation for log entry '%s'",
             self.name,
@@ -85,7 +85,7 @@ class PersistReceivedLogEntryNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
         try:
             store_ledger_entry(entry, self.datalayer)
         except VultronNotFoundError as exc:
@@ -134,7 +134,7 @@ class CheckEntryHashIntactNode(DataLayerConditionWithPorts):
         self.activity = self.get_input("activity")
 
     def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
         if ledger_entry_hash_intact(entry):
             return Status.SUCCESS
         self.logger.error(
@@ -169,7 +169,7 @@ class CheckHashMatchesNode(DataLayerConditionWithPorts):
         self.tail_hash: str = self.get_input("tail_hash")
 
     def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
         if entry.prev_log_hash == self.tail_hash:
             return Status.SUCCESS
         return Status.FAILURE
@@ -226,7 +226,7 @@ class BufferOutOfOrderEntryNode(DataLayerActionWithPorts):
         if self.tail_index is None:
             return Status.FAILURE
 
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
 
         # Only hold genuine *forward* gaps.  An entry at or behind the tail
         # index is stale, a duplicate, or a fork — not a reorder we can heal by
@@ -308,7 +308,7 @@ class BufferPreGenesisEntryNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
         if hold_received_announce(
             self.name, self.datalayer, self.activity, self.actor_id
         ):
@@ -363,7 +363,7 @@ class SendRejectLogEntryNode(DataLayerActionWithPorts):
             self.logger.error("%s: actor_id not available", self.name)
             return Status.FAILURE
 
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
 
         sender_id = getattr(self.activity, "actor_id", None)
         if self._sync_port is None:

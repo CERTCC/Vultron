@@ -34,7 +34,7 @@ names.  The leaf nodes are assembled into trigger trees in
 
 from typing import ClassVar
 
-from vultron.core.behaviors.helpers import _EmitSingleActivityBase
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.errors import VultronNotFoundError
 

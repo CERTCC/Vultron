@@ -43,11 +43,13 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.sync_helpers import (
-    _find_equivalent_recorded_entry,
-    _find_prev_actor_published,
     reconstruct_tail_hash,
     recorded_entries_for_case,
     store_ledger_entry,
+)
+from vultron.core.sync_helpers.recorded_entries import (
+    _find_equivalent_recorded_entry,
+    _find_prev_actor_published,
 )
 from vultron.errors import (
     VultronError,

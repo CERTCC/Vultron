@@ -139,7 +139,7 @@ def post_note_thread(
     Returns every note rather than the last, for a caller that must name more
     than one of them afterwards: the ``rv`` story's final case check asserts
     both the Reporter's question and the Vendor's answer are on the case, so
-    its story keeps both as props (``vultron/demo/helpers/vendor_story.py``).
+    its story keeps both as props (``vultron/demo/helpers/vendor_story/``).
     :func:`add_note_thread` is the one-note form.
 
     Args:
@@ -330,7 +330,7 @@ def reporter_asks(
     Returns every note of the thread, not only the last: the vendor-first
     family's story keeps the question and the answer as separate props,
     because ``rv``'s final case check names both and its siblings reply to
-    the answer (``vultron/demo/helpers/vendor_story.py``, DEMOCI-11-017).
+    the answer (``vultron/demo/helpers/vendor_story/``, DEMOCI-11-017).
 
     Args:
         reporter: Session in the Reporter's container; posts the question.

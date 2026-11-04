@@ -74,8 +74,9 @@ layer's design.
 
 `vultron/demo/` demonstrates the production protocol, so demo logic modules
 (`scenario/`, `exchange/`, `helpers/`, `fuzzer/`) MUST NOT import `vultron/bt/`. The
-one exception is the CLI aggregator `vultron/demo/cli.py` (DC-01-001), which surfaces
-the standalone simulator demos in `vultron/bt/base/demo/` as a sub-group.
+one exception is the CLI aggregator's `vultron/demo/cli/vultrabot_commands.py`
+(DC-01-001), which surfaces the standalone simulator demos in `vultron/bt/base/demo/`
+as a sub-group.
 
 **Relocate, don't re-launder.** A demo module that needs simulator symbols moves into
 `vultron/bt/base/demo/`; it never re-exports them through `vultron/core/`, which would
@@ -87,9 +88,9 @@ pull the frozen legacy engine into the production dependency graph. Enforced by
 ## Demo Script Lifecycle Logging: `demo_step` / `demo_check` / `demo_gate`
 
 Wrap every demo workflow step and verification in the context managers from
-`vultron/demo/utils.py`. All three log entry and outcome, accumulate a failure instead
-of re-raising, and need `assert_demo_success()` at the end of the scenario to surface
-failures (DEMOCI-01-003/004):
+`vultron/demo/utils/failures.py`. All three log entry and outcome, accumulate a
+failure instead of re-raising, and need `assert_demo_success()` at the end of the
+scenario to surface failures (DEMOCI-01-003/004):
 
 - `demo_step` — a workflow step; execution continues after the block on failure.
 - `demo_check` — a side-effect verification whose failure must not skip later work.
@@ -240,7 +241,7 @@ never re-serializing what the ledger recorded (VM-08-003).
 
 Rendering a phrase with `format_map(defaultdict(...))` fills every slot, so it passes a
 phrase referencing a slot the real renderer never fills. The real pipeline
-(`CaseTimelineEvent.summary` in `vultron/demo/report.py`) fills only `actor` and,
+(`CaseTimelineEvent.summary` in `vultron/demo/report/timeline.py`) fills only `actor` and,
 when `target_label` resolves, `object`/`target`. A phrase regression test builds a
 representative `CaseTimelineEvent` and asserts its `summary` has no trailing `—`
 and no unsubstituted `{slot}` (SE-07). `event_phrase()` fills every slot with `—`,
@@ -321,6 +322,7 @@ only Protocol-declared members (CS-20-002).
 
 ## `HashChainLedgerRecord` ≠ `CaseLedgerEntry`
 
-`HashChainLedgerRecord` (`core/models/case_ledger.py`) is the in-memory hash-chain
+`HashChainLedgerRecord` (`core/models/case_ledger/record.py`) is the in-memory
+hash-chain
 record, a plain `BaseModel`; `CaseLedgerEntry` (`core/models/case_ledger_entry.py`) is
 the wire-serializable `CoreObject` (ARCH-12-007). Import each by its full module path.

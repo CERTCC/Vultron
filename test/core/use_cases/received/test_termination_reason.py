@@ -9,6 +9,7 @@ CASE_MANAGER before the commit, at a replica on replay.  The why the
 ``test_termination_cause.py`` (EMB-13-005).
 """
 
+import json
 from datetime import timedelta
 from typing import cast
 
@@ -40,6 +41,7 @@ from vultron.core.use_cases.received.embargo import (
 )
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import remove_embargo_from_case_activity
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from .conftest import make_embargo_case_with_actor
@@ -90,7 +92,7 @@ def _ledger(dl, case_id: str) -> list[CaseLedgerEntry]:
 
 
 @pytest.mark.spec("EMB-13-004")
-@pytest.mark.parametrize("content", [None, "", "THREAT_SIGNAL", "early"])
+@pytest.mark.parametrize("content", [None, "THREAT_SIGNAL", "early"])
 @pytest.mark.spec("EMB-13-009")
 def test_parse_edge_refuses_a_remove_without_a_termination_reason(
     make_payload, content
@@ -106,6 +108,30 @@ def test_parse_edge_refuses_a_remove_without_a_termination_reason(
 
     with pytest.raises(VultronParseValidationError, match="END_TIME_REACHED"):
         make_payload(tampered)
+
+
+@pytest.mark.spec("EMB-13-004")
+@pytest.mark.spec("CS-08-001")
+def test_parse_edge_refuses_a_remove_with_a_blank_content() -> None:
+    """A blank ``content`` is refused as blank before the reason check.
+
+    ``model_copy`` cannot model this sender: a blank never reaches the
+    extractor, because ``parse_activity`` refuses it (VM-07-005), so the body
+    is tampered as JSON and parsed.
+    """
+    _dl, case, embargo = _case_with_embargo(
+        "https://example.org/cases/tr-parse-blank", ended=False
+    )
+    activity = remove_embargo_from_case_activity(
+        embargo, origin=case.id_, actor=OWNER, reason=TerminationReason.EARLY
+    )
+    body = json.loads(
+        activity.model_dump_json(by_alias=True, exclude_none=True)
+    )
+    body["content"] = ""
+
+    with pytest.raises(VultronParseValidationError, match="non-empty string"):
+        parse_activity(body)
 
 
 @pytest.mark.spec("EMB-13-004")

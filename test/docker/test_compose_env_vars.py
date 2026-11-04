@@ -24,9 +24,9 @@ correct env var names are:
 
 The old names ``VULTRON_BASE_URL`` and ``VULTRON_DB_URL`` are silently
 ignored by the config system. If docker-compose uses them, each container's
-``make_id()`` falls back to the default ``http://localhost:7999``, causing
-every actor to be seeded with a ``localhost`` ID — breaking cross-container
-routing in the multi-actor integration test.
+base URL falls back to the default ``http://localhost:7999``, causing every
+actor to be seeded with a ``localhost`` ID — breaking cross-container routing
+in the multi-actor integration test.
 
 See GitHub issue #546.
 """

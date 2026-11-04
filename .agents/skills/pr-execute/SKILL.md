@@ -118,9 +118,10 @@ Deferring" and "The Two Gates".
 **`defer-ask`** (Gate 1 — second-order work genuinely too big to finish now):
 
 1. File a GitHub issue via `create-issue` with reason `opened-as deferred`.
-2. Post the deferral-ask (see "No User Prompts (Except Two)" below): describe
-   the remainder in plain language with a **measured remainder** (what you did,
-   what concretely remains, the ratio) — not an attempt count.
+2. Post the deferral-ask (see "User Prompts: The Two Gates and a Decision"
+   below): describe the remainder in plain language with a **measured
+   remainder** (what you did, what concretely remains, the ratio) — not an
+   attempt count.
 3. **On explicit approval**: record `outcome: deferred-ask` with `issue_number`
    and leave the work for the filed issue.
 4. **On silence or no approval**: DEFER is unavailable. Fix it now (fold into
@@ -172,6 +173,9 @@ before the CI loop:
 3. Rewrite the PR body's `Docs:` line so it lists every page the PR now
    updates, in the forms of `.agents/skills/shared/pr-body-guide.md`
    § "Implementation PR rules", then `gh pr edit <number> --body-file <file>`.
+   Keep any `; deferred to #N` or `; no maintainer docs impact — <reason>`
+   clause the line carries: on a tooling PR with no maintainer doc,
+   `pr-body-lint` fails a line that loses it (PRB-12, PD-03-014).
    When the fix commits touch no described behavior, leave the line as written
    unless triage flagged it.
 4. Record the result in the artifact's `docs_refresh` block (see
@@ -571,11 +575,12 @@ Record `final_ci_status: "failing"`. List the unresolved CI failures. Run
 4. Record `execute_comment_url` in the artifact; re-write the file with the URL.
 5. Print artifact path and outcome summary to stdout.
 
-## No User Prompts (Except Two)
+## User Prompts: The Two Gates and a Decision
 
-Execute runs to completion without user prompts, with two exceptions — the two
-gates from `.claude/skills/shared/completeness-doctrine.md`. Note the default is
-always fix-now; a gate is the exception, not the reflex.
+Execute runs to completion without user prompts, with three exceptions: the two
+gates from `.claude/skills/shared/completeness-doctrine.md`, and a decision a
+fix needs. Note the default is always fix-now; a gate is the exception, not the
+reflex.
 
 **Gate 1 — `defer-ask`**: after filing the issue, post the deferral-ask and ask:
 
@@ -598,6 +603,14 @@ inversion-ask:
 
 Wait for a response. **On silence: halt** — record `outcome: halted`, set the PR
 to draft/blocked, and stop. Do not proceed on the new premise unreviewed.
+
+**A decision a fix needs**: when a FAIL or IMPROVE fix turns on a choice you
+cannot make (two plausible behaviors, two conflicting specs), ask it per
+`completeness-doctrine.md` § "Ask, Then Finish" and apply the answer; as a
+sub-agent, return the `Question:` block instead. **On silence: halt** as for
+Gate 2 (`outcome: halted`, PR draft/blocked), with the question stated on the
+PR. Update the PR body's `Questions:`
+line with each question asked, and each one filed in its place.
 
 ## Artifact Location
 

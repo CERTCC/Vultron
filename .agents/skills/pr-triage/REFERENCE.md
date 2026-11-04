@@ -19,10 +19,18 @@ relevant to the changed file paths:
 | `vultron/adapters/` | `outbox.yaml`, `architecture.yaml` (ARCH-14) |
 | `vultron/demo/` | `behavior-tree-integration.yaml` (BT demo patterns) |
 | `docs/`, `notes/`, `specs/` | `project-documentation.yaml` |
-| `plan/history/` | `history-management.yaml` (HM-01–HM-05) |
 
 For each spec ID mentioned in the linked issue or PR body, confirm the
 corresponding requirement is met in the diff.
+
+**Note**: `plan/history/` entries are excluded from triage scope.
+They are written by the `append-history` tool and MUST NOT be modified after
+merging (HM-01-005).
+A finding asking for an edit to an entry cannot be acted on without violating
+that rule, so raise none for those paths (#2952).
+The one exception is the rule itself: a diff that modifies or deletes an entry
+already on the base branch (`git diff --diff-filter=MD origin/<base>...HEAD --
+plan/history/`) is a **FAIL** against HM-01-005.
 
 ---
 
@@ -174,6 +182,8 @@ Runs for every implementation or bug-fix PR (scope defined in
    | `deferred to #N` | `#N` exists (open, or closed as planned), is a `type:Task` or `type:Concern` listing the pages, and the update rewrites several pages (PD-03-007) | none |
    | `deferred to #N` | `#N` does not exist, is neither a Task nor a Concern, does not list the pages, or the update is a single-page edit | **IMPROVE** |
    | `updated <pages>; deferred to #N` | judge each half by the rows above | the worse of the two |
+   | `…; no maintainer docs impact — <reason>`, or that clause alone | the diff changes a tooling file and no maintainer-facing doc (PRB-12), and the reason names why the tool change leaves its maintainer docs true | none; judge any `docs/` half by the rows above |
+   | `…; no maintainer docs impact — <reason>`, or that clause alone | a maintainer doc describes the changed tool and is now wrong | **IMPROVE** — update the doc or defer it to a docs issue (PD-03-006, PD-03-014) |
 
 3. Verify a deferral with
    `gh issue view <N> --json state,stateReason,body` and the issue type query

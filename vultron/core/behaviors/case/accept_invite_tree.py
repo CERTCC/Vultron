@@ -88,6 +88,9 @@ from vultron.core.behaviors.case.nodes.invite_participant_persist import (
 from vultron.core.behaviors.case.nodes.invite_revision_relay import (
     RelayOpenProposalsToJoinerNode,
 )
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
     StubInviteAnswerableNode,
 )
@@ -220,6 +223,11 @@ def create_accept_invite_actor_to_case_tree(
     """
     return create_receive_activity_tree(
         name="AcceptInviteActorToCaseBT",
+        # The invitee accepts to the CASE_MANAGER that invited it, which
+        # alone seats the join (CM-11-001, PCR-08-001): a participant sends
+        # nothing to another participant, so the manager path is the only one
+        # this type handles (HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         case_id=case_id,
         # An invitee the case already records as closed (its stub Reject was
         # applied) may act on nothing further: its Accept would join a

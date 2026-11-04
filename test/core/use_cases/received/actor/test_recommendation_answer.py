@@ -166,9 +166,16 @@ def test_answer_routes_to_its_own_semantics_with_in_reply_to(verb: Verb):
 
 
 @pytest.mark.spec("CLP-02-013")
+@pytest.mark.spec("HP-01-040")
 @pytest.mark.parametrize("verb", ["accept", "reject"])
 def test_recommender_archives_the_answer_and_commits_nothing(verb: Verb):
-    """A participant never commits; the CASE_MANAGER ledgered the answer."""
+    """A participant never commits; the CASE_MANAGER ledgered the answer.
+
+    Also the admitted arm of the tree's path stage: the tree names no commit
+    case, so the stage reads the receiver's role in the case the sender
+    context names and puts the recommender on the declared
+    participant-replica path (HP-01-040).
+    """
     dl = _store()
     event = _event(verb)
 
@@ -231,9 +238,21 @@ def test_answer_naming_no_case_is_archived_and_refused(verb: Verb):
 
 
 @pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("HP-01-038")
+@pytest.mark.spec("HP-01-039")
 @pytest.mark.parametrize("verb", ["accept", "reject"])
 def test_case_manager_refuses_an_answer_addressed_to_itself(verb: Verb):
-    """The rule names no sender at the CASE_MANAGER, so it refuses its own."""
+    """The type declares the replica path alone, so the manager is refused.
+
+    The CASE_MANAGER ledgered the answer when it sent it and never receives
+    it, so this tree declares ``PARTICIPANT_REPLICA`` only (HP-01-038) and
+    its path stage turns the manager away.  The reason it gives is the one
+    composed from the resolved path and the declaration: it names the
+    receiver the case's CASE_MANAGER and says the type has no branch for
+    that path.  The single fixed string this replaced told the case's actual
+    CASE_MANAGER it was "not the CASE_MANAGER", which HP-01-005 forbids
+    (HP-01-039).
+    """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_ACTOR_ID)
     case = as_VulnerabilityCase(
         id_=CASE_ID,
@@ -247,6 +266,34 @@ def test_case_manager_refuses_an_answer_addressed_to_itself(verb: Verb):
     result = _run(dl, verb, _event(verb, to=[CASE_ACTOR_ID]))
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert "No sender is entitled" in (result.reason or "")
+    assert result.reason == (
+        f"the CASE_MANAGER of case '{CASE_ID}',"
+        " which this message type does not address"
+    )
+    assert "not the CASE_MANAGER" not in (result.reason or "")
+    assert dl.list_objects("CaseLedgerEntry") == []
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("HP-01-038")
+@pytest.mark.spec("HP-01-039")
+@pytest.mark.parametrize("verb", ["accept", "reject"])
+def test_a_store_holding_no_replica_is_refused_for_holding_none(verb: Verb):
+    """The third path, with the reason the composer gives it.
+
+    The declaration names neither the manager nor the no-case path, so a
+    store with no replica is refused and told so: what is missing is the
+    replica, not the role (HP-01-039).
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=RECOMMENDER_ID)
+    dl.create(as_Actor(id_=RECOMMENDER_ID))  # type: ignore[arg-type]
+
+    result = _run(dl, verb)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert result.reason == (
+        f"holds no replica of case '{CASE_ID}',"
+        " which this message type does not address"
+    )
     assert dl.list_objects("CaseLedgerEntry") == []
     assert dl.outbox_list() == []

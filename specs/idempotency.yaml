@@ -117,9 +117,6 @@ groups:
       redelivery it detects at INFO, with the activity id and the actor id (IE-10-001).
       A different body under an id that the receiver holds is not a redelivery. Ingress
       refuses it and logs it at WARNING (IE-10-002).
-    relationships:
-    - rel_type: depends_on
-      spec_id: SL-03-001
 - id: ID-04
   title: Handler Idempotency
   specs:
@@ -141,9 +138,6 @@ groups:
       handler reads the current state first, it can see that the work is done and skip
       it. If it does not, it repeats the side effects or attempts a transition that the
       state machine does not allow from the current state.
-    relationships:
-    - rel_type: implements
-      spec_id: VP-03-013
   - id: ID-04-003
     priority: SHOULD
     kind: architecture
@@ -175,10 +169,8 @@ groups:
       reports the failure. If the latch is written last, an incomplete transition stays
       incomplete, and a retry can finish it.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: ID-04-004
-    - rel_type: refines
-      spec_id: ARCH-15-001
     adr:
     - ADR-0073
 - id: ID-05
@@ -195,9 +187,6 @@ groups:
       is the same 202 as the original (ID-03-001). Rejecting the body is therefore not
       what prevents a second side effect; the handler's own idempotency is (ID-02-003
       rationale, ID-04-004, ID-05-003).
-    relationships:
-    - rel_type: depends_on
-      spec_id: IE-10-001
   - id: ID-05-002
     priority: MAY
     kind: architecture

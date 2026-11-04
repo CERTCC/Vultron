@@ -66,3 +66,10 @@ ignores:
   - ".github/**"
   - ".venv/**"
   - ".git/**"
+  # plan/history/ entries are write-once records (HM-01-005). --fix rewrote
+  # entries whose body lines started with an issue reference (#NNN), which
+  # markdownlint reads as an ATX heading. Excluding here stops every
+  # markdownlint run (with or without --fix) from touching those files.
+  # mdlint.sh also adds "#plan/history/**" as a belt-and-suspenders guard.
+  # See #2952.
+  - "plan/history/**"

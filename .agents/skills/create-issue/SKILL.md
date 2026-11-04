@@ -60,6 +60,12 @@ If the finding holds both a ready fix and an open question, split it into two
 issues and run Phases 2 to 8 for each, wiring the blocker if one gates the
 other.
 
+When a calling skill files a `Concern` or a `Decision:` Task from inside its
+own work, the question should first have been asked
+(`completeness-doctrine.md` § "Ask, Then Finish"). If the caller supplied no
+reason it could not be asked, return to the caller with that gap instead of
+filing.
+
 ### Phase 2 — Duplicate Scan
 
 List open `Bug`, `Task`, `Feature`, `Idea`, and `Concern` issues and find

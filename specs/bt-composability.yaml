@@ -22,7 +22,7 @@ groups:
     rationale: The canonical tree is the normative definition of Vultron's domain behavior. Implementing without consulting
       it risks inventing structures that contradict the protocol design.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: BT-06-002
   - id: BTC-01-002
     priority: MUST
@@ -36,7 +36,7 @@ groups:
       each action changes. The simulator class holds that logic. A port that does not
       examine the class can keep the shape of the tree but get its behavior wrong.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: BT-06-002
   - id: BTC-01-003
     priority: MUST
@@ -50,8 +50,8 @@ groups:
     verification: Inspection of BT behavior implementations in `vultron/core/behaviors/` confirms that any node without
       a counterpart in `notes/vultron-bt.txt` includes a comment explaining the divergence.
     relationships:
-    - rel_type: refines
-      spec_id: BT-06-002
+    - rel_type: extends
+      spec_id: BTC-01-002
 - id: BTC-02
   title: BT Structure Pre-Definition
   specs:
@@ -64,7 +64,7 @@ groups:
     rationale: Business logic lives in `core/behaviors/`. If use cases construct trees ad-hoc, the business logic migrates
       into use cases and becomes invisible to analysis of the behavior layer.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: BT-06-001
   - id: BTC-02-002
     priority: MUST_NOT
@@ -90,7 +90,7 @@ groups:
       behavior in the named class. The use case only connects the tree to the blackboard
       and returns its result. Thus no use case gets its own logic to run trees.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: BTC-02-002
 - id: BTC-03
   title: BT Idioms Over Procedural Code
@@ -144,7 +144,7 @@ groups:
       visible. This is the reason that BTC-03-001 uses composites, not `if`/`else`
       chains.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: BT-06-004
 - id: BTC-04
   title: Fractal Composability
@@ -159,9 +159,6 @@ groups:
       Duplicated logic and hidden logic can occur at all levels of a tree, not only at
       the top. If the principle applies only to entry trees, the same logic can still be
       copied between leaves or between mid-level subtrees.
-    relationships:
-    - rel_type: refines
-      spec_id: BTND-02-002
   - id: BTC-04-002
     priority: MUST
     kind: project
@@ -189,7 +186,7 @@ groups:
       part.
     relationships:
     - rel_type: refines
-      spec_id: BT-06-002
+      spec_id: BTND-02-001
   - id: BTC-04-004
     priority: SHOULD
     kind: project

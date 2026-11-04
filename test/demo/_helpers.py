@@ -18,6 +18,7 @@ import contextlib
 import importlib
 import inspect
 import logging
+import pkgutil
 import re
 from collections.abc import Iterator, Sequence
 from types import ModuleType
@@ -29,7 +30,7 @@ from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
 import vultron.core.behaviors.sync.nodes.chain as chain_nodes
-import vultron.demo.utils as demo_utils
+import vultron.demo.utils.environment as utils_environment
 from test.support.ledger import (
     case_position_mismatch,
     checking_each_commit,
@@ -49,11 +50,14 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import invite_chain, runner, workflow
+from vultron.demo.helpers import runner
+from vultron.demo.helpers.invite_chain import links as invite_links
 from vultron.demo.helpers.story import StoryState, UnseatedContainer
 from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME
+from vultron.demo.helpers.workflow import report as workflow_report
 from vultron.demo.in_process import response_value
 from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils.failures import _demo_failures
 from vultron.errors import VultronError
 
 # Names the invite chain (``vultron.demo.helpers.invite_chain``) calls itself.
@@ -72,7 +76,7 @@ def patch_chain_shared(
     the scenario's calls and the chain's alike.
     """
     with patch.object(demo, name, **kwargs) as mock:
-        with patch.object(invite_chain, name, new=mock):
+        with patch.object(invite_links, name, new=mock):
             yield mock
 
 
@@ -141,6 +145,26 @@ def story_state(
     if case is not None:
         state.open_case(case=case, report=MagicMock(), offer=MagicMock())
     return state
+
+
+def sessions_of(mock_method: MagicMock) -> list[str]:
+    """The actor id of each session an ``autospec``-ed verb was called on."""
+    return [call.args[0].actor.id_ for call in mock_method.call_args_list]
+
+
+def _failures_marked(marker: str) -> list[str]:
+    """Every recorded failure carrying *marker*, in order."""
+    return [f for f in _demo_failures if marker in f]
+
+
+def gate_failures() -> list[str]:
+    """Every recorded gate failure, in order."""
+    return _failures_marked("GATE FAILED")
+
+
+def step_failures() -> list[str]:
+    """Every recorded step failure, in order."""
+    return _failures_marked("STEP FAILED")
 
 
 def bind_container_actors(state: StoryState, *names: str) -> None:
@@ -224,12 +248,13 @@ def functions_referencing(module: ModuleType, name: str) -> list[str]:
     by nothing earlier, because every record written before the case exists is
     one more read of the recording clock (DEMOCI-11-018, #5532).  Read from the
     source rather than by patching, so the claim holds for the code as written
-    and not only for the path a test happens to drive.
+    and not only for the path a test happens to drive.  A package is read
+    across every submodule, so a split leaves no fragment unscanned.
     """
-    tree = ast.parse(inspect.getsource(module))
     return [
         node.name
-        for node in ast.walk(tree)
+        for source in modules_resolving_names(module)
+        for node in ast.walk(ast.parse(inspect.getsource(source)))
         if isinstance(node, ast.FunctionDef)
         and any(
             isinstance(child, ast.Name) and child.id == name
@@ -533,7 +558,7 @@ def route_exchange_demo_at_testclient(
             demo.DataLayerClient, "call", make_testclient_call(client, base)
         )
         mp.setattr(runner, "DataLayerClient", lambda: make_client(base))
-        reset = demo_utils.reset_datalayer
+        reset = utils_environment.reset_datalayer
 
         def _check_then_reset(client: DataLayerClient) -> dict:
             try:
@@ -545,7 +570,7 @@ def route_exchange_demo_at_testclient(
         # Every exchange demo sets up and tears down through
         # ``demo_environment``, which clears the node with this function:
         # check the cases first.
-        mp.setattr(demo_utils, "reset_datalayer", _check_then_reset)
+        mp.setattr(utils_environment, "reset_datalayer", _check_then_reset)
         # Each CASE_MANAGER commit finds its case at the chain tail the last
         # one left (SYNC-16-005); a miss fails the test like a rebuild does.
         mp.setattr(
@@ -689,15 +714,43 @@ def null_demo_contexts(stack: contextlib.ExitStack, demo: ModuleType) -> None:
     A module imports only the names it uses, so a name it never opens is
     skipped rather than patched into existence.  :func:`no_demo_banners` is
     this over several modules, as its own context manager.
+
+    A package stands for every submodule in it: a split module's fragments
+    resolve the banners in the submodule that holds them, and its
+    ``__init__`` only re-exports names, so patching the package itself would
+    leave every banner real (CS-18-003, #5592).
     """
-    for name in ("demo_gate", "demo_check", "demo_step"):
-        if not hasattr(demo, name):
-            continue
-        stack.enter_context(
-            patch.object(
-                demo, name, side_effect=lambda _: contextlib.nullcontext()
+    for module in modules_resolving_names(demo):
+        for name in ("demo_gate", "demo_check", "demo_step"):
+            if not hasattr(module, name):
+                continue
+            stack.enter_context(
+                patch.object(
+                    module,
+                    name,
+                    side_effect=lambda _: contextlib.nullcontext(),
+                )
             )
+
+
+def modules_resolving_names(module: ModuleType) -> list[ModuleType]:
+    """*module* itself, or every module below it when it is a package.
+
+    The modules whose globals a fragment of *module* reads a name from: a
+    split package's ``__init__`` only re-exports, so its submodules are where
+    a patch or a source scan has to look (CS-18-003, #5592).  The walk is
+    recursive, so a submodule later split into a package of its own is read
+    too; a package found on the way is itself an ``__init__`` and is left out.
+    """
+    if not hasattr(module, "__path__"):
+        return [module]
+    return [
+        importlib.import_module(info.name)
+        for info in pkgutil.walk_packages(
+            module.__path__, f"{module.__name__}."
         )
+        if not info.ispkg
+    ]
 
 
 def _reporter_links(
@@ -755,7 +808,7 @@ def expect_trusted_introductions(
     )
     checked: list[tuple[str, str | None, list[tuple[str | None, str | None]]]]
     checked = []
-    real_wait = workflow.wait_for_reporter_introduction
+    real_wait = workflow_report.wait_for_reporter_introduction
 
     def _recording_wait(
         client: DataLayerClient,
@@ -779,7 +832,9 @@ def expect_trusted_introductions(
         return case_id
 
     with patch.object(
-        workflow, "wait_for_reporter_introduction", side_effect=_recording_wait
+        workflow_report,
+        "wait_for_reporter_introduction",
+        side_effect=_recording_wait,
     ):
         yield
 

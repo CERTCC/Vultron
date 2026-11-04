@@ -46,7 +46,8 @@ groups:
       (RM state), VfDimension (CS_vf state, the vendor path) and DDimension (CS_d state, the deployer path). Participant
       embargo consent is not a status dimension: it is a per-embargo row set on the participant (CM-18-001, ADR-0122).'
     rationale: The "Dimension" suffix avoids collision with the existing VfState, DState and PxaState NamedTuples in
-      vultron/core/states/cs.py. ADR-0075 split the former vendor-fix-deployed machine into the VF and D machines, so
+      vultron/core/states/cs/states.py. ADR-0075 split the former vendor-fix-deployed
+      machine into the VF and D machines, so
       each has its own dimension object. See ADR-0036.
     adr:
     - ADR-0036
@@ -71,7 +72,7 @@ groups:
       `ParticipantStatus` serializes to the same AS2 payload as `as_ParticipantStatus`.
       Covered by `test/core/models/test_dimension_bare_serialization.py`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SDO-01-001
     - rel_type: refines
       spec_id: ARCH-25-005
@@ -113,7 +114,7 @@ groups:
     adr:
     - ADR-0036
     stories:
-    - story_2022_088
+    - story_2026_038
   - id: SDO-02-002
     priority: MUST
     kind: project
@@ -122,13 +123,10 @@ groups:
     rationale: Fail-fast at the boundary; never return None or silently no-op on an invalid transition. See ADR-0032 and ARCH-15-001.
     verification: Unit tests confirm that `transition(invalid_trigger)` raises `VultronInvalidStateTransitionError` for
       each dimension object when the trigger is not valid for the current state.
-    relationships:
-    - rel_type: depends_on
-      spec_id: ARCH-15-001
     adr:
     - ADR-0032
     stories:
-    - story_2022_088
+    - story_2026_038
   - id: SDO-02-003
     priority: MUST_NOT
     kind: project
@@ -171,13 +169,15 @@ groups:
     verification: Unit tests confirm that constructing a dimension object with an invalid target state raises
       `VultronInvalidStateTransitionError`, while a same-state write succeeds without error.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SDO-02-002
       note: Extends the transition() contract to direct-construction call sites
-    - rel_type: refines
-      spec_id: BTND-10-001
+    - rel_type: implements
+      spec_id: CSB-16-001
+    - rel_type: implements
+      spec_id: CSB-16-002
     stories:
-    - story_2022_088
+    - story_2026_038
   - id: SDO-02-005
     priority: MUST
     kind: project
@@ -208,7 +208,7 @@ groups:
     adr:
     - ADR-0036
     stories:
-    - story_2022_088
+    - story_2026_031
     - story_2022_062
   - id: SDO-03-002
     priority: MUST
@@ -225,7 +225,7 @@ groups:
     - ADR-0036
     - ADR-0075
     stories:
-    - story_2022_088
+    - story_2026_031
     - story_2022_107
   - id: SDO-03-003
     priority: MUST_NOT
@@ -234,9 +234,11 @@ groups:
       as aliases or shim properties after the migration is complete.
     verification: '`TestCaseStatusCarriesNoFlatShim` in `test/core/models/test_dimensions.py` asserts that `CaseStatus`
       defines no `em_state` or `pxa_state` property or field and refuses either key on input through `extra="forbid"`;
-      `test_flat_case_status_spelling_is_a_near_miss_of_its_wire_spelling` and `test_retired_name_on_inline_object_is_refused`
-      in `test/wire/as2/test_unknown_key_disposition.py` pin the parse-edge refusal of the flat CaseStatus spellings and
-      of `vfd_state`. `TestParticipantStatusCarriesNoFlatShim` in
+      `test_flat_case_status_spelling_is_a_near_miss_of_its_wire_spelling` in
+      `test/wire/as2/test_unknown_key_disposition.py` pins the parse-edge refusal of
+      the flat CaseStatus spellings, and
+      `test_a_former_field_name_is_set_aside_and_reported` pins that `vfd_state` is
+      set aside as an unknown key (ADR-0175). `TestParticipantStatusCarriesNoFlatShim` in
       `test/core/models/test_participant_status_shape.py`
       and `test_flat_participant_status_spelling_is_a_near_miss_of_its_wire_spelling`
       pin the same for the
@@ -256,9 +258,6 @@ groups:
       DataLayer round-trip compatibility is a binding design constraint per LST-05-003
       and ADR-0033. A dimension field serializes as its bare state value and rehydrates
       via Pydantic model_validate (SDO-01-004, ADR-0099). See ADR-0036.
-    relationships:
-    - rel_type: depends_on
-      spec_id: LST-05-003
     adr:
     - ADR-0033
     - ADR-0036
@@ -284,8 +283,10 @@ groups:
     kind: project
     statement: >-
       When this codebase removes a flat-field migration shim from `CaseStatus` or
-      `ParticipantStatus`, it MUST NOT leave a retired flat key silently discardable.
-      The retired flat keys are `rm_state`, `vf_state`, `d_state`,
+      `ParticipantStatus`, it MUST NOT leave a retired flat key silently discardable
+      on in-process or stored data. An inbound key follows the parse-edge rule
+      instead: a near miss is refused (MV-11-002), any other key is set aside and
+      reported (MV-11-003). The retired flat keys are `rm_state`, `vf_state`, `d_state`,
       `vfd_state`/`vfdState`, `em_consent_state`/`emConsentState`, `em_state` and
       `pxa_state`.
     rationale: >-
@@ -306,16 +307,15 @@ groups:
       `test/core/models/test_dimensions.py` pins the same for `em_state` and
       `pxa_state`.
     relationships:
-    - rel_type: depends_on
+    - rel_type: constrains
       spec_id: SDO-03-003
       note: SDO-03-003 requires the shims to go; this requirement constrains how they are removed safely.
-    - rel_type: refines
-      spec_id: ARCH-15-002
     adr:
     - ADR-0062
     - ADR-0063
     - ADR-0082
     - ADR-0099
+    - ADR-0175
   - id: SDO-03-008
     priority: MUST
     kind: project
@@ -338,7 +338,7 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: SDO-03-005
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: ARCH-12-003
       note: ARCH-12-003 supplies the `extra="forbid"` configuration that replaces the per-class reject-guard.
     adr:
@@ -384,11 +384,8 @@ groups:
       `ValidationError`, that `CaseStatus` defines no `em_state` attribute so `status.em_state = EM.X` raises pydantic `ValidationError`,
       and that a case whose register changes still stamps the derived EM onto its current status.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: EMB-18-001
-      note: EMB-18-001 forbids assigning `case.current_status.em`; this requirement makes the assignment impossible.
-    - rel_type: depends_on
-      spec_id: SDO-03-001
     adr:
     - ADR-0122
   - id: SDO-03-010

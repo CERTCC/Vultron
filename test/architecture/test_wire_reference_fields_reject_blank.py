@@ -24,9 +24,8 @@ For each such field the check is behavioural, not textual: the field's declared
 type is handed to a ``TypeAdapter`` and asked to validate ``""`` and ``"   "``
 in every shape the field can carry a string (bare, ``[blank]`` for lists).  It
 must refuse both.  That is what closes the gap #3855 found — inbound, a blank
-reference validated; outbound, VM-07-001 dropped it silently — and it holds
-regardless of whether the field spells its IRI branch through the shared alias
-or by hand.
+reference validated and reached the core — and it holds regardless of whether
+the field spells its IRI branch through the shared alias or by hand.
 """
 
 import pytest
@@ -50,7 +49,7 @@ def wire_classes() -> dict[str, type[as_Base]]:
     """Every ``as_Base`` subclass the wire package defines, by qualified name.
 
     Walks the class tree rather than ``VOCABULARY``: the case-scoped activity
-    classes in ``vocab/activities/case.py`` are private (``_RmInviteToCase…``)
+    classes in ``vocab/activities/case/`` are private (``_RmInviteToCase…``)
     and never register, yet they are exactly where the hand-spelled unions
     #3876 AC-2 names live.  Iterating the registry examined none of them.
     """

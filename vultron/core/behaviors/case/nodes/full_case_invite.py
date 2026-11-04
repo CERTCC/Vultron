@@ -30,15 +30,14 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerCondition,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.sync_helpers import (
     ledger_position_refusal,
@@ -115,9 +114,12 @@ class CheckFullCaseReplyNode(DataLayerCondition):
     """Refuse a full-case Invite reply the CASE_MANAGER cannot accept.
 
     Runs before the receipt is committed, so a refused reply writes nothing
-    (CM-11-012).  Only the case's CASE_MANAGER judges a reply: any other
-    receiver passes this guard and the CASE_MANAGER-gated stages skip.  The
-    reply is refused when:
+    (CM-11-012).  Only the case's CASE_MANAGER judges a reply, and the reply
+    tree declares the manager path alone, so the path stage refuses any
+    other receiver before this guard runs and the guard asks no role
+    question of its own (HP-01-038, HP-01-039, ADR-0153).  The case is
+    therefore the manager's own replica; its absence is an ADR-0087 Regime 1
+    anomaly, not a receiver on another path.  The reply is refused when:
 
     - the Invite it answers is not one this CASE_MANAGER issued, or carries
       no ledger position;
@@ -162,11 +164,9 @@ class CheckFullCaseReplyNode(DataLayerCondition):
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
-        case = self._resolve_case_replica(self.case_id)
-        if case is None or resolve_case_manager_id(case, self.datalayer) != (
-            self.actor_id
-        ):
-            return Status.SUCCESS
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
         invite = self.datalayer.read(self.invite_id)
         if invite is None or _as_id(getattr(invite, "actor", None)) != (
             self.actor_id

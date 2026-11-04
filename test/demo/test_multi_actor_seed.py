@@ -217,11 +217,11 @@ class TestSeedCLIWithDeterministicId:
         runner = CliRunner()
         with (
             patch(
-                "vultron.demo.cli.seed_actor",
+                "vultron.demo.cli.seed_command.seed_actor",
                 MagicMock(side_effect=_capturing_seed),
             ),
             patch(
-                "vultron.demo.cli.seed_peer",
+                "vultron.demo.cli.seed_command.seed_peer",
                 MagicMock(side_effect=_capturing_peer),
             ),
         ):
@@ -281,7 +281,9 @@ class TestSeedVendorParticipantRMState:
         """Call _seed_vendor_participant with a minimal mock case and DL."""
         from unittest.mock import MagicMock
 
-        from vultron.demo.helpers.seeding import _seed_vendor_participant
+        from vultron.demo.helpers.seeding.participants import (
+            _seed_vendor_participant,
+        )
 
         case_obj = MagicMock()
         case_obj.id_ = "https://example.org/cases/test-case"

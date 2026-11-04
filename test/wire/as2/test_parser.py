@@ -540,10 +540,10 @@ def test_parse_activity_rejects_blank_reference(field: str, blank: str):
     """A blank reference names no resource, so the activity is refused.
 
     Before #3876 the wire reference aliases carried bare ``str``, so an inbound
-    ``"target": ""`` validated and reached the core, and VM-07-001 then dropped
-    it silently on the way out.  CS-08-001's "if present, then non-empty" is
-    now enforced by the aliases themselves, so the refusal surfaces here as a
-    schema fault on the offending field.
+    ``"target": ""`` validated and reached the core.  Nothing strips a blank
+    value on output, so refusing it here is the only guard.  CS-08-001's "if
+    present, then non-empty" is now enforced by the aliases themselves, so the
+    refusal surfaces here as a schema fault on the offending field.
     """
     body = {
         "type": "Create",
@@ -627,4 +627,45 @@ def test_missing_claimed_time_refusal_ignores_other_faults():
 
     _refuse_missing_claimed_time(
         ValueError("not a validation error"), "object"
+    )
+
+
+@pytest.fixture
+def network_blocked(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail any attempt to resolve a host or open a connection."""
+    import socket
+
+    def _refuse(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("the receiver tried to reach the network")
+
+    monkeypatch.setattr(socket, "getaddrinfo", _refuse)
+    monkeypatch.setattr(socket, "create_connection", _refuse)
+    monkeypatch.setattr(socket.socket, "connect", _refuse)
+    monkeypatch.setattr(socket.socket, "connect_ex", _refuse)
+
+
+@pytest.mark.spec("VM-10-003")
+@pytest.mark.usefixtures("network_blocked")
+def test_parse_activity_processes_the_vultron_context_without_fetching_it():
+    """A receiver processes a message without dereferencing its ``@context``.
+
+    The Vultron context URI (VM-10-001) does not resolve yet, so a receiver
+    that fetched it would fail on every sender's message.  With the network
+    blocked, a body declaring that context on the activity and its nested
+    objects parses and extracts its semantics all the same.
+    """
+    from vultron.wire.as2.vocab.base.base import VULTRON_CONTEXT_URI
+
+    body = _invite_response_body("Accept")
+    body["@context"] = VULTRON_CONTEXT_URI
+    invite = body["object"]
+    assert isinstance(invite, dict)
+    invite["@context"] = VULTRON_CONTEXT_URI
+    invite["target"]["@context"] = VULTRON_CONTEXT_URI
+
+    event = extract_event(parse_activity(body))
+
+    assert event.semantic_type == MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
+    assert (
+        getattr(event, "case_id", None) == "https://example.org/cases/case-1"
     )

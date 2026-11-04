@@ -36,12 +36,13 @@ routing is the violation, so the scanners flag comparisons, shape-test calls and
 that fires it on a known-bad snippet, because a scanner bug would otherwise read
 as a clean repo.
 
-Spec: ARCH-24-001, ARCH-24-002, ARCH-24-003, ARCH-24-004, CM-02-012, CM-02-013.
+Spec: ARCH-24-001, ARCH-24-002, ARCH-24-003, ARCH-24-004, ARCH-24-007,
+CM-02-012, CM-02-013.
 """
 
 import ast
 
-from test.architecture import _corpus
+from test.architecture import _authority_question, _corpus
 
 _RESOLVER_NAME = "resolve_case_manager_id"
 #: Both spellings of the resolver.  The twin actually deleted from
@@ -245,6 +246,179 @@ def test_exactly_one_authority_condition_node():
         f"Expected exactly one definition of '{_AUTHORITY_NODE_NAME}'.\n"
         f"Actual: {sorted(defining)}"
     )
+
+
+# ---------------------------------------------------------------------------
+# ARCH-24-003 — how many node classes answer "am I the authority"
+#
+# The cardinality, as an exact inventory rather than a count: one sanctioned
+# node, and the sites the ADR-0153 migration waves still have to retire, each
+# recorded with the issue that owns it.  Held to equality in both directions
+# (ARCH-18-001, ARCH-18-002), so a *new* asker fails and a retired entry fails
+# until it is removed.  The detector is shared with the ADR-0153 ratchet
+# (``_authority_question``) so both judge the same act, and reads the
+# resolver, predicate and role names off the live objects, so a rename moves
+# it with the code instead of blinding it (#5535).
+# ---------------------------------------------------------------------------
+
+#: The one node ARCH-24-006 sanctions: the authority condition node, which
+#: calls the single resolver.
+SANCTIONED_AUTHORITY_ASKER: _authority_question.AuthorityAsker = (
+    "vultron/core/behaviors/case/nodes/conditions.py",
+    _AUTHORITY_NODE_NAME,
+)
+
+#: Nodes that answer the authority question besides the sanctioned one, so
+#: ARCH-24-003's "exactly one" is violated until each is retired.  Terminal
+#: value: empty.
+#: owner: #5193
+KNOWN_SECOND_AUTHORITY_ASKERS: frozenset[
+    _authority_question.AuthorityAsker
+] = frozenset(
+    {
+        # The received tree's path door stage.  ADR-0153 makes it the one
+        # asker for a received delivery, but every received tree still
+        # carries its own CASE_MANAGER gates until wave 4 removes them, so
+        # for now it is a second node asking.  Cleared by #5044.
+        (
+            "vultron/core/behaviors/case/nodes/received_path.py",
+            "ReceivedPathNode",
+        ),
+        # Two nodes that ask the question where no declared path can answer
+        # it, and so ask it through the shared predicate (ARCH-24-007)
+        # rather than comparing the resolver's answer inline.  Neither is a
+        # condition node, so ARCH-24-003's "exactly one authority condition
+        # node" is arguably already met; whether this inventory should count
+        # an action node that asks the sanctioned predicate, or the rule
+        # should move into tree composition, is #5784.
+        #
+        # The creation-time embargo is the case owner's to set, or the
+        # CASE_MANAGER's on the owner's behalf (CP-09-003), and the case the
+        # rule is about does not exist when the path stage asks, so no
+        # declared path distinguishes the two.
+        (
+            "vultron/core/behaviors/case/nodes/embargo.py",
+            "InitializeCreationEmbargoNode",
+        ),
+        # The post-close write boundary binds the CASE_MANAGER (CM-23-013)
+        # and is the first door guard of every received tree, ahead of the
+        # path stage in the CLP-10-010 order, so there is no resolved path
+        # for it to read.
+        (
+            "vultron/core/behaviors/case/nodes/post_close.py",
+            "CaseOpenToExternalWritesNode",
+        ),
+    }
+)
+
+
+def _authority_askers() -> frozenset[_authority_question.AuthorityAsker]:
+    return _authority_question.node_classes_answering_it(_BEHAVIORS_ROOT)
+
+
+def test_the_authority_question_is_asked_by_one_node():
+    """ARCH-24-003: one sanctioned asker, plus a recorded migration backlog.
+
+    The scan is held to equality, so adding another asker fails here even
+    though some are already recorded. That is the whole point of carrying the
+    transitional violation instead of relaxing ARCH-24-003: the rule still
+    says "exactly one", and this inventory says which nodes have yet to
+    reach it and who owns getting them there.
+
+    Spec: ARCH-24-003
+    """
+    askers = _authority_askers()
+    expected = KNOWN_SECOND_AUTHORITY_ASKERS | {SANCTIONED_AUTHORITY_ASKER}
+    new = askers - expected
+    stale = expected - askers
+    assert askers == expected, "\n".join(
+        [
+            "The set of BT node classes answering 'is the executing actor the"
+            " case authority' changed (ARCH-24-003).",
+            *(
+                [
+                    "NEW asker — take the answer from the path stage or the"
+                    " authority condition node, do not add a sixth:",
+                    *(f"  + {entry}" for entry in sorted(new)),
+                ]
+                if new
+                else []
+            ),
+            *(
+                [
+                    "STALE entry — remove it in the same commit"
+                    " (ARCH-18-002):",
+                    *(f"  - {entry}" for entry in sorted(stale)),
+                ]
+                if stale
+                else []
+            ),
+        ]
+    )
+
+
+def test_the_sanctioned_asker_is_among_them():
+    """The scan sees the authority condition node, so it is not blind.
+
+    The sanctioned asker is permanent, so a scan that misses it means the
+    detector stopped matching the act — a renamed resolver, a moved module, a
+    reshaped corpus — and that is a failure rather than a clean bill of
+    health (#5535).
+
+    Spec: ARCH-24-003
+    """
+    assert SANCTIONED_AUTHORITY_ASKER in _authority_askers(), (
+        f"{_AUTHORITY_NODE_NAME} no longer reads as an authority asker; the"
+        " detector in test/architecture/_authority_question.py has gone"
+        f" blind (it looks for {_authority_question.RESOLVER_NAME} and"
+        f" {_authority_question.PREDICATE_NAME})"
+    )
+
+
+def test_the_backlog_of_second_askers_is_not_yet_empty():
+    """The ratchet is not at its terminal value.
+
+    When the last entry goes, invert this and fold
+    :data:`KNOWN_SECOND_AUTHORITY_ASKERS` away rather than deleting the scan:
+    the detector keeps covering the act, so a second asker written again is
+    reported instead of silently exempt
+    (``notes/architecture-ratchet-corpus.md``).
+
+    Spec: ARCH-24-003
+    """
+    assert KNOWN_SECOND_AUTHORITY_ASKERS, (
+        "every node now takes the authority answer from one asker: replace"
+        " this with an assertion that the scan reports the sanctioned asker"
+        " alone, and keep test_the_sanctioned_asker_is_among_them as the"
+        " positive control"
+    )
+
+
+def test_the_detector_ignores_a_permission_role_question():
+    """``has_role`` about another role is not the authority question.
+
+    A path branch checks the receiver's Vendor or Deployer role with the same
+    predicate (HP-01-037). Those are permission rules inside a path, so a node
+    that asks one must not be reported as a second authority asker.
+
+    Spec: ARCH-24-003
+    """
+    source = (
+        "class Node:\n"
+        "    def update(self):\n"
+        f"        return {_authority_question.PREDICATE_NAME}("
+        "self.actor_id, case_id, CVDRole.VENDOR, self.datalayer)\n"
+    )
+    tree = _corpus.parse_inline(source, filename="<synthetic>")
+    assert not _authority_question.answers_the_authority_question(tree)
+
+    authority = source.replace(
+        "CVDRole.VENDOR",
+        f"CVDRole.{_authority_question.AUTHORITY_ROLE_NAME}",
+    )
+    assert _authority_question.answers_the_authority_question(
+        _corpus.parse_inline(authority, filename="<synthetic>")
+    ), "the same node asking about the authority role must be reported"
 
 
 # ---------------------------------------------------------------------------

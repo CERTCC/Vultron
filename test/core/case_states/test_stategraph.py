@@ -19,6 +19,7 @@ import networkx as nx
 import vultron.core.case_states.hypercube as sg
 import vultron.core.case_states.validations as val
 import vultron.errors as err
+from vultron.core.case_states.hypercube import graph
 
 
 class TestStategraph(unittest.TestCase):
@@ -29,7 +30,7 @@ class TestStategraph(unittest.TestCase):
         pass
 
     def test__create_graph(self):
-        G = sg._create_graph()
+        G = graph._create_graph()
 
         # G should have all the states as nodes
         for n in val.valid_states():
@@ -41,7 +42,7 @@ class TestStategraph(unittest.TestCase):
         # G should have valid edges with labels
         for a, b, t in G.edges(data="label"):
             self.assertIsNone(val.is_valid_transition(a, b))
-            self.assertEqual(sg._diffstate(a, b), t)
+            self.assertEqual(graph._diffstate(a, b), t)
             self.assertTrue(t in "VFDPXA")
 
         self.assertTrue(nx.is_directed_acyclic_graph(G))
@@ -375,7 +376,7 @@ class TestStategraph(unittest.TestCase):
         from itertools import product
 
         for s1, s2 in product(m.states, m.states):
-            t = sg._diffstate(s1, s2)
+            t = graph._diffstate(s1, s2)
             # diffstate returns none on invalid transitions
             if t is not None:
                 self.assertEqual(m.next_state(s1, t), s2, (s1, s2, t))

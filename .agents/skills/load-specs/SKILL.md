@@ -61,7 +61,7 @@ stderr.
 ## Cross-cutting constraints
 
 Always add `--cross-cutting`, whatever the primary topic. The list of topics
-is `CROSS_CUTTING_TOPICS` in `vultron/metadata/specs/llm_export.py`. Refer to
+is `CROSS_CUTTING_TOPICS` in `vultron/metadata/specs/llm_export/records.py`. Refer to
 the flag; do not copy the list into other files.
 
 Use `--text` to scan — the JSON forms print as a single line, so a large

@@ -41,7 +41,7 @@ import ast
 
 from test.architecture import _corpus
 
-_BRIDGE = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "bridge.py"
+_BRIDGE = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "bridge"
 
 
 def _function(tree: ast.Module, name: str) -> ast.FunctionDef:
@@ -100,7 +100,7 @@ def _registered_keys(fn: ast.FunctionDef) -> set[str]:
             continue
         raise AssertionError(
             "register_key() called with a key this ratchet cannot resolve"
-            f" statically (line {call.lineno} of {_BRIDGE.name}:"
+            f" statically (line {call.lineno} of a {_BRIDGE.name}/ submodule:"
             f" {ast.dump(arg) if arg is not None else 'no key argument'}).\n\n"
             "Either pass a string literal, or — if the key is genuinely"
             " dynamic — add it to _SANCTIONED_DYNAMIC_KEYS here and make sure"
@@ -158,11 +158,19 @@ def _managed_keys(fn: ast.FunctionDef) -> set[str]:
 
 
 def _bridge_tree() -> ast.Module:
-    """Return the cached AST for ``bridge.py`` (TB-13-002, TB-13-003)."""
-    for path, tree in _corpus.all_trees(_BRIDGE.parent):
-        if path == _BRIDGE and isinstance(tree, ast.Module):
-            return tree
-    raise AssertionError(f"{_BRIDGE} not in the shared corpus")
+    """Return every ``bridge/`` submodule as one AST (TB-13-002, TB-13-003).
+
+    ``BTBridge`` is split across the package's submodules, so the ratchet reads
+    them all: scanning one file would silently drop the handlers and calls that
+    live in the others.
+    """
+    body: list[ast.stmt] = []
+    for _path, tree in _corpus.all_trees(_BRIDGE):
+        if isinstance(tree, ast.Module):
+            body.extend(tree.body)
+    if not body:
+        raise AssertionError(f"{_BRIDGE} not in the shared corpus")
+    return ast.Module(body=body, type_ignores=[])
 
 
 def test_every_register_key_call_lives_in_setup_tree() -> None:
@@ -175,22 +183,27 @@ def test_every_register_key_call_lives_in_setup_tree() -> None:
     directly instead of relying on it.
     """
     tree = _bridge_tree()
+    # Keyed by node identity, not line number: the submodules share one
+    # combined tree, so line numbers from different files can coincide.
     setup_tree_calls = {
-        call.lineno
-        for call in _register_key_calls(_function(tree, "setup_tree"))
+        id(call) for call in _register_key_calls(_function(tree, "setup_tree"))
     }
     module_calls = {
-        node.lineno
+        id(node): node.lineno
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
         and node.func.attr == "register_key"
     }
 
-    stray = sorted(module_calls - setup_tree_calls)
+    stray = sorted(
+        line
+        for call_id, line in module_calls.items()
+        if call_id not in setup_tree_calls
+    )
     assert not stray, (
         f"register_key() called outside setup_tree() at line(s) {stray} of"
-        f" {_BRIDGE.name}.\n\n"
+        f" a {_BRIDGE.name}/ submodule.\n\n"
         "test_managed_keys_covers_every_key_setup_tree_registers only inspects"
         " setup_tree(), so a registration anywhere else is not checked against"
         " managed_keys.  Either move it back into setup_tree(), or widen"

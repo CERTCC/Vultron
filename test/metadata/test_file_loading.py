@@ -34,7 +34,7 @@ from vultron.metadata.file_loading import (
     validate,
     yaml_node_positions,
 )
-from vultron.metadata.history.cli import _validate_frontmatter
+from vultron.metadata.history.cli.entry import _validate_frontmatter
 from vultron.metadata.history.incoming import validate_incoming_learnings
 from vultron.metadata.history.readme_gen import _parse_entry
 from vultron.metadata.notes.loader import load_notes_registry

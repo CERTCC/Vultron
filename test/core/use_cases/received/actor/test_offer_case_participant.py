@@ -70,6 +70,7 @@ from vultron.core.use_cases.received.actor.offer_case_participant import (
     OfferCaseParticipantReceivedUseCase,
     RejectOfferCaseParticipantReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     accept_case_participant_offer_activity,
@@ -1728,8 +1729,10 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert result.reason is not None
-        assert "CASE_MANAGER" in result.reason
+        assert result.reason == f"not the CASE_MANAGER of case '{CASE_ID}'", (
+            "the path stage composes the reason, and this receiver really is"
+            " not the CASE_MANAGER of the case (HP-01-039)"
+        )
         assert dl.outbox_list() == [], (
             "a receiver that is not the CASE_MANAGER must neither notify the"
             " recommender nor invite the actor"
@@ -1759,12 +1762,146 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert result.reason is not None
-        assert "CASE_MANAGER" in result.reason
+        assert result.reason == f"not the CASE_MANAGER of case '{CASE_ID}'", (
+            "the Reject gets the same reason as the Accept: one cause, one"
+            " verdict, one wording (HP-01-039)"
+        )
         assert dl.outbox_list() == [], (
             "a receiver that is not the CASE_MANAGER must not notify the"
             " recommender of the rejection"
         )
+
+    @pytest.mark.spec("ARCH-24-001")
+    @pytest.mark.spec("HP-01-005")
+    def test_a_second_manager_record_is_refused_not_silently_applied(self):
+        """A roster with two CASE_MANAGER records gives one answer (#5041).
+
+        The path stage admits on the role and the tree's CASE_MANAGER gates
+        skip on it, so the two must never disagree.  A roster that records
+        the role on a second participant — the window a role delegation
+        opens (CM-33) — is where a predicate of its own would: it would call
+        the second holder the manager while
+        ``resolve_case_manager_id`` names the first, the path stage would
+        admit the delivery, every gated effect would skip, and the handler
+        would report ``APPLIED`` having notified nobody and invited nobody
+        (HP-01-005).  Both answers come from the one resolver, so the
+        delivery is ``REFUSED``.
+        """
+        dl, _ = _seed_dl_for_case_actor(manager_id=self.OTHER_MANAGER_ID)
+        case = dl.read_case(CASE_ID)
+        assert case is not None
+        second = CaseParticipant(
+            id_=f"{CASE_ID}/participants/second-manager",
+            attributed_to=CASE_ACTOR_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case.add_participant(second)
+        dl.create(second)
+        dl.save(case)
+
+        accept = accept_case_participant_offer_activity(
+            _build_offer_activity(),
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        event = cast(
+            AcceptOfferCaseParticipantReceivedEvent,
+            received_event(accept, at=dl),
+        )
+
+        result = AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED, (
+            "a receiver the single resolver does not name as the"
+            " CASE_MANAGER must be refused, never reported APPLIED with"
+            " every gated effect skipped"
+        )
+        assert dl.outbox_list() == []
+        assert dl.list_objects("CaseLedgerEntry") == []
+
+
+class TestOfferCaseParticipantAtACaseWithNoManager:
+    """A case whose roster names no CASE_MANAGER refuses the Offer (CM-24-006).
+
+    The path stage puts a receiver that holds the case without the role on
+    the participant-replica path, which the Offer receipt declares, so the
+    handler must still tell a case with no CASE_MANAGER at all from a replica
+    that simply is not it (CM-24-008).
+    """
+
+    def _seed_without_a_manager(self) -> SqliteDataLayer:
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_ACTOR_ID)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="OfferRoundTripTest",
+            attributed_to=CASE_OWNER_ID,
+        )
+        seed_case_owner_participant(dl, case, CASE_OWNER_ID)
+        dl.create(as_Service(id_=CASE_ACTOR_ID))
+        dl.create(case)
+        return dl
+
+    @pytest.mark.spec("CM-24-006")
+    @pytest.mark.spec("HP-01-005")
+    def test_offer_receipt_at_a_case_with_no_manager_is_refused(self):
+        dl = self._seed_without_a_manager()
+        offer = _build_offer_activity()
+        event = cast(
+            OfferCaseParticipantReceivedEvent, received_event(offer, at=dl)
+        )
+
+        result = OfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason == f"case '{CASE_ID}' has no CASE_MANAGER"
+
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.spec("HP-01-039")
+    def test_offer_receipt_at_a_store_without_the_case_is_refused(self):
+        """No replica of the case is the no-case path, which the Offer omits.
+
+        Before the path stage this handler read its own
+        ``unknown case '<id>'`` refusal off a failed CASE_MANAGER gate.  The
+        stage answers it instead, and the reason it composes says the same
+        thing about the receiver — it holds no replica — so the distinction
+        survives the move without the handler inferring anything
+        (HP-01-039).  A store that holds the case but no CASE_MANAGER keeps
+        its own, different reason, pinned by the test above (CM-24-006).
+        """
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_ACTOR_ID)
+        dl.create(as_Service(id_=CASE_ACTOR_ID))
+        offer = _build_offer_activity()
+        event = cast(
+            OfferCaseParticipantReceivedEvent, received_event(offer, at=dl)
+        )
+
+        result = OfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason == f"holds no replica of case '{CASE_ID}'"
+        assert result.reason != f"case '{CASE_ID}' has no CASE_MANAGER"
+        assert dl.list_objects("CaseLedgerEntry") == []
+        assert dl.outbox_list() == []
 
 
 # ---------------------------------------------------------------------------

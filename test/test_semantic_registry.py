@@ -12,13 +12,13 @@ from vultron.core.models.events.base import VultronEvent
 from vultron.errors import RegistryOrderError
 from vultron.semantic_registry import (
     SEMANTIC_REGISTRY,
-    _validate_registry_order,
     lookup_entry,
     semantics_to_activity_class,
     use_case_map,
 )
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import MessagePage, Occasion
+from vultron.semantic_registry._order import _validate_registry_order
 from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.extractor import ActivityPattern
 from vultron.wire.as2.extractor._pattern import InlineActivityObjectPattern

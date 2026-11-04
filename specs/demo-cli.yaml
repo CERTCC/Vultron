@@ -18,7 +18,7 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The unified demo MUST be implemented as a `click`-based CLI script at `vultron/demo/cli.py`
+      The unified demo MUST be implemented as a `click`-based CLI package at `vultron/demo/cli/`
     rationale: >-
       One entry point in one known file gives every user and every CI job the same way
       to start a demo. `click` gives sub-commands, options and help text without custom
@@ -69,7 +69,7 @@ groups:
     verification_debt: '#2573'
     statement: >-
       Shared demo utilities (`demo_step`, `demo_check` context managers and HTTP client helpers)
-      MUST be extracted to `vultron/demo/utils.py`
+      MUST be extracted to `vultron/demo/utils/`
     rationale: >-
       All demos use the same step, check and HTTP helpers. One shared module keeps
       their behavior and their log output the same in every demo, and a fix to a helper
@@ -96,7 +96,7 @@ groups:
       in containers. One sub-package for each kind keeps the two apart, and a fixed
       module path lets the CLI and the tests find each script by its name.
     relationships:
-    - rel_type: extends
+    - rel_type: refines
       spec_id: DC-02-002
   - id: DC-02-003
     priority: MUST_NOT
@@ -111,9 +111,6 @@ groups:
       `demo_check` wraps an observation-only assertion block: it checks state and
       collects assertion failures. A swap hides which steps act and which only verify,
       in scenario tracing, in logs and for readers.
-    relationships:
-    - rel_type: refines
-      spec_id: DC-02-001
   - id: DC-02-005
     priority: MUST_NOT
     kind: project

@@ -111,9 +111,9 @@ def test_a_body_that_is_not_a_json_object_is_refused(body):
         ReceivedActivityRecord(activity_id=ACTIVITY_ID, received_body=body)
 
 
-def test_a_stored_core_summary_is_refused_as_retired():
-    """The retired summary field is refused with the reason (ADR-0149)."""
-    with pytest.raises(ValueError, match="retired"):
+def test_a_stored_core_summary_is_refused_as_an_unknown_key():
+    """The former summary field is an unknown key (ADR-0149, ADR-0175)."""
+    with pytest.raises(ValueError, match="extra_forbidden"):
         ReceivedActivityRecord.model_validate(
             {
                 "activity_id": ACTIVITY_ID,

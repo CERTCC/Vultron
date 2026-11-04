@@ -27,7 +27,7 @@ Invite-response nodes (Accept / Reject) live in the sibling
 compatibility (BTND-07-004: 500-line leaf-module limit).
 
 Composite subtrees assembling these leaf nodes are defined in the sibling
-``actor_trigger_trees.py`` and ``ownership_transfer_tree.py`` modules at
+``actor_trigger_trees.py`` and ``ownership_transfer_tree/`` modules at
 the process-area root per BTND-07-003:
 
 - ``accept_case_invite_trigger_bt``
@@ -60,8 +60,8 @@ def _parse_injected_role(raw: object) -> CVDRole:
 
     Raises:
         TypeError: *raw* is not a string.
-        ValueError: *raw* is not a live role; a retired one carries its
-            reason (ADR-0078).
+        ValueError: *raw* is not a role; a former role value such as
+            ``"finder"`` is not one either (ADR-0175).
     """
     if not isinstance(raw, str):
         raise TypeError(f"{raw!r} is not a role string ({type(raw).__name__})")

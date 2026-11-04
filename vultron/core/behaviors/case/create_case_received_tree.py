@@ -20,6 +20,7 @@ Structure (after intake, which the shared factory supplies first)::
     CreateCaseReceivedBT (Sequence)
     ├─ IntakeReceivedActivityNode
     ├─ CaseOpenToExternalWrites
+    ├─ ReceivedPathNode                     # no case yet, or the replica it seeded
     ├─ SenderIsExpectedCaseCreatorNode      # sender guard (CBT-01-011, HP-01-008)
     ├─ ClassifyBootstrapRouteNode           # trusted | redelivery
     └─ BootstrapRoute (Selector)
@@ -90,6 +91,9 @@ import py_trees
 from vultron.core.behaviors.case.nodes.carried_snapshot import (
     HoldCarriedEmbargoNode,
     StoreEmbeddedParticipantsNode,
+)
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
 )
 from vultron.core.behaviors.case.nodes.replica_bootstrap import (
     BindReportCaseLinkNode,
@@ -195,6 +199,12 @@ def create_create_case_received_tree(
     )
     return create_receive_activity_tree(
         name="CreateCaseReceivedBT",
+        # The bootstrap is how the receiver learns the case exists, so the
+        # first delivery lands on the no-case path (HP-01-041); the
+        # redelivery route runs once the seed is stored, on the replica path
+        # (CBT-01-006, CBT-03). The CASE_MANAGER sends the Create and never
+        # receives one for a case it manages (HP-01-038).
+        paths={ReceivedPath.NO_CASE, ReceivedPath.PARTICIPANT_REPLICA},
         case_id=None,
         precondition_guards=[],
         # The receiver holds no case yet, so the context names none (the

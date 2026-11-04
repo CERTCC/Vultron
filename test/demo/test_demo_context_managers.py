@@ -22,22 +22,17 @@ import logging
 
 import pytest
 
-import vultron.demo.utils as demo_utils
 from vultron.demo.exchange.initialize_case_demo import demo_check, demo_step
 from vultron.demo.utils import (
     assert_demo_success,
     demo_gate,
     reset_demo_failures,
 )
+from vultron.demo.utils.failures import _demo_failures
 from vultron.errors import DemoFailureError
 
-
-@pytest.fixture(autouse=True)
-def clear_failures():
-    """Reset the failure accumulator before and after each test."""
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 
 class TestDemoStep:
@@ -77,9 +72,9 @@ class TestDemoStep:
     def test_step_failure_added_to_accumulator(self):
         with demo_step("Failing step"):
             raise ValueError("oops")
-        assert len(demo_utils._demo_failures) == 1
-        assert "STEP FAILED" in demo_utils._demo_failures[0]
-        assert "Failing step" in demo_utils._demo_failures[0]
+        assert len(_demo_failures) == 1
+        assert "STEP FAILED" in _demo_failures[0]
+        assert "Failing step" in _demo_failures[0]
 
     def test_step_start_is_info_level(self, caplog):
         with caplog.at_level(logging.INFO):
@@ -120,7 +115,7 @@ class TestDemoStep:
     def test_no_failure_added_on_success(self):
         with demo_step("Clean step"):
             pass
-        assert demo_utils._demo_failures == []
+        assert _demo_failures == []
 
 
 class TestDemoCheck:
@@ -160,9 +155,9 @@ class TestDemoCheck:
     def test_check_failure_added_to_accumulator(self):
         with demo_check("Failing check"):
             raise AssertionError("bad state")
-        assert len(demo_utils._demo_failures) == 1
-        assert "CHECK FAILED" in demo_utils._demo_failures[0]
-        assert "Failing check" in demo_utils._demo_failures[0]
+        assert len(_demo_failures) == 1
+        assert "CHECK FAILED" in _demo_failures[0]
+        assert "Failing check" in _demo_failures[0]
 
     def test_check_start_is_info_level(self, caplog):
         with caplog.at_level(logging.INFO):
@@ -203,27 +198,27 @@ class TestDemoCheck:
     def test_no_failure_added_on_success(self):
         with demo_check("Clean check"):
             pass
-        assert demo_utils._demo_failures == []
+        assert _demo_failures == []
 
 
 class TestDemoAccumulator:
     def test_reset_clears_failures(self):
-        demo_utils._demo_failures.append("prior failure")
+        _demo_failures.append("prior failure")
         reset_demo_failures()
-        assert demo_utils._demo_failures == []
+        assert _demo_failures == []
 
     def test_assert_success_raises_when_failures_present(self):
-        demo_utils._demo_failures.append("STEP FAILED: foo — ValueError()")
+        _demo_failures.append("STEP FAILED: foo — ValueError()")
         with pytest.raises(DemoFailureError):
             assert_demo_success()
 
     def test_assert_success_does_not_raise_when_no_failures(self):
-        assert demo_utils._demo_failures == []
+        assert _demo_failures == []
         assert_demo_success()  # should not raise
 
     def test_demo_failure_error_carries_failures_list(self):
         msg = "STEP FAILED: bar — RuntimeError(boom)"
-        demo_utils._demo_failures.append(msg)
+        _demo_failures.append(msg)
         with pytest.raises(DemoFailureError) as exc_info:
             assert_demo_success()
         assert msg in exc_info.value.failures
@@ -235,10 +230,10 @@ class TestDemoAccumulator:
             raise AssertionError("a1")
         with demo_step("Step 2"):
             raise RuntimeError("r1")
-        assert len(demo_utils._demo_failures) == 3
+        assert len(_demo_failures) == 3
 
     def test_assert_success_message_includes_count(self):
-        demo_utils._demo_failures.extend(["f1", "f2"])
+        _demo_failures.extend(["f1", "f2"])
         with pytest.raises(DemoFailureError, match="2 demo failure"):
             assert_demo_success()
 
@@ -305,9 +300,9 @@ class TestDemoGate:
         """A failed gate records 'GATE FAILED' in the accumulator (AC-4)."""
         with demo_gate("failing gate"):
             raise ValueError("precondition not met")
-        assert len(demo_utils._demo_failures) == 1
-        assert "GATE FAILED" in demo_utils._demo_failures[0]
-        assert "failing gate" in demo_utils._demo_failures[0]
+        assert len(_demo_failures) == 1
+        assert "GATE FAILED" in _demo_failures[0]
+        assert "failing gate" in _demo_failures[0]
 
     @pytest.mark.spec("DEMOCI-01-007")
     def test_assert_demo_success_raises_for_gate_only_failure(self):
@@ -379,7 +374,7 @@ class TestDemoGate:
     def test_no_failure_added_on_success(self):
         with demo_gate("clean gate"):
             pass
-        assert demo_utils._demo_failures == []
+        assert _demo_failures == []
 
     def test_no_open_log_on_failure(self, caplog):
         with caplog.at_level(logging.DEBUG):
@@ -411,10 +406,10 @@ class TestUnboundLocalErrorRegression:
         when post_to_trigger raises inside the demo_step block."""
         from unittest.mock import MagicMock
 
-        import vultron.demo.helpers.workflow as workflow_mod
+        import vultron.demo.helpers.workflow.report as workflow_mod
 
         monkeypatch.setattr(
-            "vultron.demo.actor_session.post_to_trigger",
+            "vultron.demo.actor_session.binding.post_to_trigger",
             MagicMock(side_effect=RuntimeError("trigger failed")),
         )
         # The case copy is present, so the answer's gate opens and the
@@ -432,8 +427,8 @@ class TestUnboundLocalErrorRegression:
             offer_id="offer-abc",
         )
         assert result == {}
-        assert len(demo_utils._demo_failures) == 1
-        assert demo_utils._demo_failures[0].startswith("STEP FAILED")
+        assert len(_demo_failures) == 1
+        assert _demo_failures[0].startswith("STEP FAILED")
 
     def test_receiver_engages_case_returns_none_on_trigger_failure(
         self, monkeypatch
@@ -445,7 +440,7 @@ class TestUnboundLocalErrorRegression:
         import vultron.demo.helpers.workflow as workflow_mod
 
         monkeypatch.setattr(
-            "vultron.demo.actor_session.post_to_trigger",
+            "vultron.demo.actor_session.binding.post_to_trigger",
             MagicMock(side_effect=RuntimeError("trigger failed")),
         )
 
@@ -476,7 +471,7 @@ class TestUnboundLocalErrorRegression:
         import vultron.demo.helpers.workflow as workflow_mod
 
         monkeypatch.setattr(
-            "vultron.demo.actor_session.post_to_trigger",
+            "vultron.demo.actor_session.binding.post_to_trigger",
             MagicMock(side_effect=RuntimeError("trigger failed")),
         )
 

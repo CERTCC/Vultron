@@ -142,7 +142,7 @@ that bite most often:
 - **`verification_debt: '#N'`** — the only way a `MUST`/`MUST_NOT` item may
   lack a `verification:` clause (MS-10-006). It names the open issue that owns
   verifying it, which must own the item's kind in `VERIFICATION_DEBT_OWNERS`
-  (`vultron/metadata/specs/verification.py`). Quote it: `#12` unquoted is a
+  (`vultron/metadata/specs/verification/debt.py`). Quote it: `#12` unquoted is a
   YAML comment. Delete the marker when you add `verification:` (both is a hard
   error); a relabel replaces it with `verification:` (MS-10-008). Never add one
   to a new item — write the clause: MS-10-016's PR-only growth guard

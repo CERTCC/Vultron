@@ -56,7 +56,9 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.predicates.addressing import same_actor_id
-from vultron.core.sync_helpers import _find_equivalent_recorded_entry
+from vultron.core.sync_helpers.recorded_entries import (
+    _find_equivalent_recorded_entry,
+)
 
 logger = logging.getLogger(__name__)
 

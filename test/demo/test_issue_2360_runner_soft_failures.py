@@ -26,21 +26,17 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.utils import demo_check, reset_demo_failures
+from vultron.demo.utils import demo_check
 from vultron.errors import DemoFailureError
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 
 @contextmanager
 def _fake_demo_environment(client):
     """Yield stub actors without requiring a live server."""
     yield MagicMock(), MagicMock(), MagicMock()
-
-
-@pytest.fixture(autouse=True)
-def _reset_failures():
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 class TestRunnerSoftFailuresOnException:

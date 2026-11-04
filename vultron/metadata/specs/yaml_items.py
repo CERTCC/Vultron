@@ -75,6 +75,23 @@ def _eol(lines: Sequence[str]) -> str:
 _BlockEntry = tuple[list[str], str, str, int]
 
 
+def _resumes_list(
+    item_lines: Sequence[str], blank_at: int, header_indent: int
+) -> bool:
+    """Whether the list goes on after the blank line at *blank_at*.
+
+    YAML lets a block list continue past a blank line, so a dash line at the
+    header's indent or deeper after it is still one of the list's entries.
+    """
+    for line in item_lines[blank_at + 1 :]:
+        body = line.rstrip("\n\r")
+        if not body.strip() or _COMMENT_RE.match(line):
+            continue
+        indent = len(body) - len(body.lstrip())
+        return body.lstrip().startswith("-") and indent >= header_indent
+    return False
+
+
 def _scan_block(
     header: str, item_lines: Sequence[str], start: int
 ) -> tuple[list[_BlockEntry], list[str], int]:
@@ -103,6 +120,14 @@ def _scan_block(
         im = _LIST_ITEM_RE.match(candidate)
         if im is None:
             body = candidate.rstrip("\n\r")
+            if not body.strip() and _resumes_list(
+                item_lines, j, header_indent
+            ):
+                raise ValueError(
+                    f"blank line inside the lint_suppress list under "
+                    f"{header.strip()!r}: the entries after it would be "
+                    f"edited as if the list ended there"
+                )
             in_list = body.lstrip().startswith("-") or (
                 body and len(body) - len(body.lstrip()) > header_indent
             )

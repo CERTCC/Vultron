@@ -30,10 +30,10 @@ on its ``_phase_*`` functions therefore sit here on three things:
   registry entry and the devlogs names the invariant harness reads.
 
 What the shared opening does is not re-tested here: it is one copy of the code,
-and ``test/demo/test_coordinated_story.py`` and
+and ``test/demo/coordinated_story/`` and
 ``test/demo/test_two_coordinator_story.py`` own it.  The two
 ``owner-keep-case`` continuations are shared with the vendor-first half, so
-``test/demo/test_owner_decision_story.py`` owns their mechanics and this module
+``test/demo/owner_decision_story/`` owns their mechanics and this module
 asserts only which parts ``rccv-handoff`` casts in them.
 
 Every test patches the collaborators out, so no HTTP happens except in
@@ -73,7 +73,6 @@ from vultron.demo.cli import main as cli_main
 from vultron.demo.helpers import (
     coordinated_story,
     owner_decision_story,
-    story as story_module,
     story_cast,
     two_coordinator_story,
 )
@@ -81,6 +80,13 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER,
     VENDOR,
     VENDOR_LABEL,
+    cast as coordinated_cast,
+    continuations as coordinated_continuations,
+    joining as coordinated_joining,
+)
+from vultron.demo.helpers.owner_decision_story import (
+    handover as owner_decision_handover,
+    parts as owner_decision_parts,
 )
 from vultron.demo.helpers.story import (
     Choose,
@@ -88,6 +94,7 @@ from vultron.demo.helpers.story import (
     UnseatedContainer,
     choose,
     run_story,
+    runner as story_runner,
     story,
 )
 from vultron.demo.helpers.two_coordinator_story import (
@@ -109,24 +116,14 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
+
 #: The scenario's four cast names, in the order the story seats them.
 _CAST = (REPORTER, C1, C2, VENDOR)
 
 #: How many items of ``STORY`` are the shared opening.
 _PREFIX_LEN = len(C1_INVITES_C2.items)
-
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, so a fragment
-    that records a failure would otherwise leave it for the next test to read
-    as its own (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 @contextlib.contextmanager
@@ -141,11 +138,6 @@ def _no_banners():
 def _four_party_state():
     """A story state seating all four, on an open case."""
     return story_state(*_CAST, case=mock_case())
-
-
-def _sessions_of(mock_method) -> list[str]:
-    """The actor id of each session an ``autospec``-ed verb was called on."""
-    return [call.args[0].actor.id_ for call in mock_method.call_args_list]
 
 
 # ---------------------------------------------------------------------------
@@ -265,7 +257,7 @@ class TestRccvHandoffStoryShape:
 class TestRccvHandoffCast:
     """Four containers are reset; the opening seeds three of them."""
 
-    def _open(self, *, case_actor_id=None):
+    def _open(self):
         """Run the orchestrator and open its cast, collaborators stubbed."""
         clients = {
             name: mock_client() for name in ("reporter", "c1", "c2", "vendor")
@@ -285,10 +277,10 @@ class TestRccvHandoffCast:
                 return_value={"status": "ok"},
             ) as reset,
             patch(
-                "vultron.demo.helpers.seeding.seed_case_actor_identity"
+                "vultron.demo.helpers.seeding.reset.seed_case_actor_identity"
             ) as reseed,
             patch.object(
-                coordinated_story,
+                coordinated_cast,
                 "seed_containers_rcv",
                 return_value=tuple(seeded),
             ) as seed_three,
@@ -309,7 +301,6 @@ class TestRccvHandoffCast:
                 c1_id="urn:test:c1",
                 c2_id="urn:test:c2",
                 vendor_id="urn:test:vendor",
-                case_actor_id=case_actor_id,
             )
             # run_story() is what plays the story; the cast opening is the
             # callable it is handed, so the test runs that and nothing else.
@@ -377,27 +368,6 @@ class TestRccvHandoffCast:
         assert ran["run_story"].call_args.args[0] == "rccv-handoff"
         assert ran["run_story"].call_args.args[1] is demo.STORY
 
-    @pytest.mark.spec("DEMOMA-14-023")
-    def test_a_case_actor_id_override_is_accepted_and_unused(self):
-        """``--case-actor-id`` has somewhere to go and seeds nothing with it.
-
-        The case-actor container seeds its own identity on reset
-        (DEMOMA-06-004), and the id the Invite check needs is read off the
-        case's participant index so that it names the actor actually holding
-        CASE_MANAGER (PCR-08-008).  The option therefore exists so the CLI
-        contract holds, and a run given it must behave as one that is not —
-        never quietly seed a CaseActor under the given id.
-        """
-        given = self._open(case_actor_id="urn:test:given-case-actor")
-
-        seeding = given["seed_three"].call_args.kwargs
-        assert seeding["case_actor_client"] is given["case_actor_client"]
-        assert "urn:test:given-case-actor" not in seeding.values(), seeding
-        # The three seeded actors are the opening's; it seeds no fourth, and
-        # the canonical store stays the dedicated container's.
-        assert sorted(given["state"].cast) == sorted([REPORTER, C1, VENDOR])
-        assert given["state"].case_actor_client is given["case_actor_client"]
-
 
 # ---------------------------------------------------------------------------
 # The handover and the new owner's invite (DEMOMA-14-004/005/010/011)
@@ -463,10 +433,10 @@ class TestC2InvitesTheVendor:
 
         with (
             patch.object(
-                owner_decision_story, "run_case_invite_chain"
+                owner_decision_handover, "run_case_invite_chain"
             ) as chain,
             patch.object(
-                owner_decision_story, "find_case_actor_participant_id"
+                owner_decision_parts, "find_case_actor_participant_id"
             ),
             pytest.raises(DemoStoryError, match="handed over"),
         ):
@@ -604,7 +574,7 @@ class TestEveryoneCloses:
             patch.object(ActorSession, "leave_case"),
             stub_closure_gate(),
             patch.object(
-                coordinated_story, "close_case_owner_last"
+                coordinated_continuations, "close_case_owner_last"
             ) as closure,
         ):
             demo.everyone_closes(state)
@@ -744,7 +714,7 @@ class TestRccvHandoffLedgerDump:
         with (
             patch.object(demo, "run_story") as run_story,
             patch.object(
-                coordinated_story, "open_coordinated_cast"
+                coordinated_cast, "open_coordinated_cast"
             ) as open_coordinated_cast,
         ):
             demo.run_rccv_handoff_demo(
@@ -794,12 +764,15 @@ class TestRccvHandoffCliCommand:
             "--c1-id",
             "--c2-id",
             "--vendor-id",
-            "--case-actor-id",
         ],
     )
     def test_the_option_is_offered(self, help_text: str, option: str):
         """One URL and one id option per container, plus the health skip."""
         assert option in help_text
+
+    def test_case_actor_id_is_not_offered(self, help_text: str):
+        """The CaseActor id override is gone (AC-1, DEMOMA-14-023 amended)."""
+        assert "--case-actor-id" not in help_text
 
     def test_main_builds_one_client_per_container_and_runs_the_story(self):
         """``main()`` names its containers and passes their clients on."""
@@ -819,7 +792,6 @@ class TestRccvHandoffCliCommand:
                 c1_id="urn:test:c1",
                 c2_id="urn:test:c2",
                 vendor_id="urn:test:vendor",
-                case_actor_id="urn:test:case-actor",
             )
 
         members = built.call_args.args[1]
@@ -844,7 +816,7 @@ class TestRccvHandoffCliCommand:
         assert kwargs["vendor_client"] is clients["vendor"]
         assert kwargs["case_actor_client"] is clients["case-actor"]
         assert kwargs["c2_id"] == "urn:test:c2"
-        assert kwargs["case_actor_id"] == "urn:test:case-actor"
+        assert "case_actor_id" not in kwargs
 
 
 @pytest.fixture
@@ -1004,7 +976,7 @@ class TestARosterThatNeverFillsSkipsTheTransfer:
         def stub(_demo_name: str):
             yield harness
 
-        monkeypatch.setattr(story_module, "scenario_harness", stub)
+        monkeypatch.setattr(story_runner, "scenario_harness", stub)
         yield harness
         reset_demo_failures()
 
@@ -1012,7 +984,7 @@ class TestARosterThatNeverFillsSkipsTheTransfer:
     def _roster(self, *, fills: bool):
         """Run the join with its roster filling or timing out.
 
-        The roster gate in ``coordinated_story`` and the prop read in
+        The roster gate in ``coordinated_story.joining`` and the prop read in
         ``owner_decision_story`` are the subject, so both stay real.  Every
         poll *after* the transfer trigger is stubbed: left real they would
         each spend the whole ``OWNER_DECISION_TIMEOUT`` against a
@@ -1021,35 +993,32 @@ class TestARosterThatNeverFillsSkipsTheTransfer:
         Two-Tier").
         """
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "run_case_invite_chain",
                 side_effect=lambda **kw: kw["then"] and kw["then"](),
             ),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "wait_for_case_participants",
                 side_effect=None
                 if fills
                 else AssertionError("roster never filled"),
             ),
             patch.object(
-                coordinated_story,
-                "demo_step",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-            patch.object(
-                owner_decision_story,
+                owner_decision_handover,
                 "find_ownership_transfer_offer_for_actor",
                 return_value="urn:test:offer",
             ),
             patch.object(
-                owner_decision_story, "wait_for_case_actor_ledger_event"
+                owner_decision_handover, "wait_for_case_actor_ledger_event"
             ),
-            patch.object(owner_decision_story, "wait_for_case_attributed_to"),
             patch.object(
-                owner_decision_story, "wait_for_semantic_type_in_ledger"
+                owner_decision_handover, "wait_for_case_attributed_to"
+            ),
+            patch.object(
+                owner_decision_handover, "wait_for_semantic_type_in_ledger"
             ),
             patch.object(
                 ActorSession, "offer_case_ownership_transfer", autospec=True

@@ -79,6 +79,8 @@ from vultron.core.behaviors.report.nodes.rm_transitions import (
     TransitionRMtoClosed,
     TransitionRMtoInvalid,
     TransitionRMtoValid,
+)
+from vultron.core.behaviors.report.nodes.rm_transitions.report_phase import (
     _ReportPhaseRMTransition,
 )
 from vultron.core.behaviors.report.nodes.storage import StoreReportNode

@@ -63,12 +63,14 @@ from vultron.wire.as2.extractor import (
     ReportSubmissionPattern,
     UpdateCaseOwnerPattern,
 )
-from vultron.wire.as2.vocab.activities.case import (
+from vultron.wire.as2.vocab.activities.case.content import (
     _AddReportToCaseActivity,
     _CreateCaseActivity,
+    _UpdateCaseActivity,
+)
+from vultron.wire.as2.vocab.activities.case.rm import (
     _RmDeferCaseActivity,
     _RmEngageCaseActivity,
-    _UpdateCaseActivity,
 )
 
 ENTRIES: list[SemanticEntry] = [

@@ -27,9 +27,10 @@ loop, and a loop over participant records (``.values()``, ``.items()``,
 record's ``attributed_to``.  A loop that only looks something up (it
 matches one participant ID, or collects something other than actor IDs) is
 not recipient selection and is not flagged.  The shared selection's own
-module is the one exemption; if the implementation moves it, move the
-exemption with it.  The retired roster-wide helper ``case_addressees`` must
-not come back under any import path.  See
+package is the one exemption; if the implementation moves it, move the
+exemption with it (a guard fails while the exemption covers nothing).  The
+retired roster-wide helper ``case_addressees`` must not come back under any
+import path.  See
 ``notes/case-joining.md`` and #4046.
 """
 
@@ -39,8 +40,8 @@ import pytest
 
 from test.architecture import _corpus
 
-#: Where the shared recipient selection lives.
-_SHARED_SELECTION = {"vultron/core/participants/recipients.py"}
+#: Where the shared recipient selection lives: every module of this package.
+_SHARED_SELECTION = "vultron/core/participants/recipients/"
 
 #: The retired roster-wide addressee helper (#4046).
 _RETIRED_HELPER = "case_addressees"
@@ -310,7 +311,7 @@ def _roster_iteration_sites() -> list[str]:
         under=_corpus.REPO_ROOT / "vultron" / "core",
     ):
         rel = path.relative_to(_corpus.REPO_ROOT).as_posix()
-        if rel in _SHARED_SELECTION:
+        if rel.startswith(_SHARED_SELECTION):
             continue
         sites.extend(
             f"{rel}:{_corpus.node_line(node)}" for node in _flagged_nodes(tree)
@@ -363,6 +364,29 @@ def test_retired_roster_wide_addressee_helper_is_not_used() -> None:
         f"{_RETIRED_HELPER} selects the whole roster, inert participants"
         " included; use vultron.core.participants.recipients (CM-10-007): "
         + ", ".join(sites)
+    )
+
+
+@pytest.mark.spec("CM-10-007")
+def test_shared_selection_exemption_covers_the_selection() -> None:
+    """The exempted package is where the roster is walked: no blanket pass.
+
+    If the selection moves, the exemption covers no roster walk and this
+    fails, rather than the ratchet silently exempting an empty path.
+    """
+    exempted = [
+        tree
+        for path, tree in _corpus.files_mentioning(
+            "actor_participant_index",
+            under=_corpus.REPO_ROOT / "vultron" / "core",
+        )
+        if path.relative_to(_corpus.REPO_ROOT)
+        .as_posix()
+        .startswith(_SHARED_SELECTION)
+    ]
+    assert any(_flagged_nodes(tree) for tree in exempted), (
+        f"{_SHARED_SELECTION} walks no roster: move the exemption to"
+        " wherever the shared recipient selection now lists roster IDs"
     )
 
 

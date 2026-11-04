@@ -110,7 +110,7 @@ the last one writes what it carries:
 2. **Routing reads through a staging store.** The routed activity is rebuilt by the
    store's read pipeline, which is what turns the parsed graph into the shape the
    patterns match, so the activity's row and its inline objects are staged in
-   `InlineObjectStaging` (`vultron/adapters/inbox_staging.py`): an
+   `InlineObjectStaging` (`vultron/adapters/inbox_staging/staging.py`): an
    in-memory store read after the receiver's own store for every other id, and
    emptied around each use. Without the staged object the activity's `object_`
    stays a bare id, which no pattern's object type accepts (SE-01-006), so an
@@ -158,9 +158,11 @@ raises `VultronWiringError` (ARCH-15-001) rather than guess a match
 entry, so the idempotency guards do not see it and its redelivery runs as a first
 delivery, committing the archived body; a committed act's redelivery is still
 `SKIPPED`. `CommitCaseLedgerEntryNode` keeps the first entry when the ledger already
-records the activity as the same semantic, which covers a tree with no repeat guard
-of its own (RM engage). Add no repair pass and no "redelivered, so skip" shortcut at
-ingress (ADR-0151, `test_failed_act_redelivery.py`).
+records the activity as the same semantic, which covers a tree whose own repeat
+guard sits after the commit: RM engage guards only its CASE_MANAGER effects, so
+the commit's equivalence check is what keeps that entry single (#5006). Add no
+repair pass and no "redelivered, so skip" shortcut at ingress (ADR-0151,
+`test_failed_act_redelivery.py`).
 
 **A raised dispatch is answered with a fault** (ASK-07-010, ASK-07-011):
 `DispatchNode` logs it once at ERROR with the activity and sender ids and queues

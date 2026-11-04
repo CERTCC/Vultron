@@ -38,6 +38,9 @@ from vultron.core.behaviors.case.nodes.refusal_stage import (
 )
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.case.receive_activity_tree import received_stages
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckParticipantRMState,
+)
 from vultron.core.behaviors.report.prioritize_tree import (
     create_defer_case_tree,
     create_engage_case_tree,
@@ -374,11 +377,11 @@ def test_create_engage_case_tree_returns_sequence(
     assert hasattr(tree, "children")
     # RSH-08-003 (#3814): the RM write, gap note and broadcast now sit inside
     # one CASE_MANAGER gate, so the top level is intake, the post-close guard
-    # (CM-23-013), the addressee door guard (HP-01-005), the sender guard
-    # (HP-01-008, #4696), the answer to the sender's ledger position
-    # (SYNC-18-007), the clock decisions (CLP-10-025), the guard stage, the
-    # guarded commit, and that gate.
-    assert len(received_stages(tree)) == 9
+    # (CM-23-013), the addressee door guard (HP-01-005), the path stage
+    # (HP-01-035), the sender guard (HP-01-008, #4696), the answer to the
+    # sender's ledger position (SYNC-18-007), the clock decisions
+    # (CLP-10-025), the guard stage, the guarded commit, and that gate.
+    assert len(received_stages(tree)) == 10
 
 
 @pytest.mark.spec("BT-06-002")
@@ -394,11 +397,12 @@ def test_create_defer_case_tree_returns_sequence(
     assert tree.name == "DeferCaseBT"
     assert hasattr(tree, "children")
     # RSH-08-003 (#3814): intake, the post-close guard (CM-23-013), the
-    # addressee door guard (HP-01-005), sender guard, the answer to the
-    # sender's ledger position (SYNC-18-007), the clock decisions
-    # (CLP-10-025), the guard stage, the guarded commit, and the CASE_MANAGER
-    # gate holding the RM write + gap note.
-    assert len(received_stages(tree)) == 9
+    # addressee door guard (HP-01-005), the path stage (HP-01-035), the
+    # sender guard, the answer to the sender's ledger position
+    # (SYNC-18-007), the clock decisions (CLP-10-025), the guard stage, the
+    # guarded commit, and the CASE_MANAGER gate holding the RM write + gap
+    # note.
+    assert len(received_stages(tree)) == 10
 
 
 def test_engage_tree_node_names(case_with_participant, actor_id):
@@ -413,31 +417,45 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
     assert stages[1].name == "CaseOpenToExternalWrites"
     # The copy must be addressed to the receiver (HP-01-005) ...
     assert stages[2].name == "ActivityAddressedToReceiverNode"
+    # ... the path stage asks the receiver's role once and admits only a
+    # declared path (HP-01-035, HP-01-038) ...
+    assert stages[3].name == "ReceivedPathNode"
     # The sender must be a participant (HP-01-006), checked by the guard the
     # factory composes from the declared rule (HP-01-025, #4696) ...
-    assert stages[3].name == "SenderIsParticipantNode"
+    assert stages[4].name == "SenderIsParticipantNode"
     # ... the CASE_MANAGER answers its ledger position (SYNC-18-007) ...
-    assert stages[4].name == "LedgerPositionIfCaseManager"
-    assert stages[5].name == "ClockDecisionsIfCaseManager"
+    assert stages[5].name == "LedgerPositionIfCaseManager"
+    assert stages[6].name == "ClockDecisionsIfCaseManager"
     # ... and its declaration is adjudicated before the commit (RSH-06-006),
     # inside the refusal-effects stage (CLP-10-022); a refused regression is
     # still noted.
-    stage = stages[6]
+    stage = stages[7]
     assert isinstance(stage, PreconditionGuardStage)
     assert [g.name for g in stage.guards.children] == [
         "AdjudicateRMDeclarationNode",
     ]
     assert "EmitRMGapNote" in [n.name for n in stage.refusal.iterate()]
     # Commit runs before effects (CLP-10-006)
-    assert stages[7].name == "GuardedCommitCaseLedgerEntryBT"
+    assert stages[8].name == "GuardedCommitCaseLedgerEntryBT"
     # RSH-08-003 (#3814): the RM write, its gap note and the broadcast all run
     # only at the CASE_MANAGER, so they sit inside one gate; a replica takes
     # the move from the ledger fan-out.
-    gate = stages[8]
+    gate = stages[9]
     assert isinstance(gate, CaseManagerGate)
     assert gate.name == "EngageEffectsIfCaseManager"
+    # One idempotency Selector guards the whole effect block: a sender already
+    # recorded at ACCEPTED has no move to record and so no change to announce,
+    # so a restated Join queues no second Announce (ID-05-003, #5006).  The
+    # guard is its first child, so it reads the RM state before the write
+    # below sets it.
     body = gate.gated_branch
-    names = [n.name for n in body.children]
+    assert body.name == "IdempotentEngageEffects"
+    assert [n.name for n in body.children] == [
+        "SenderAlreadyAccepted",
+        "RecordEngageAndAnnounce",
+    ]
+    effects = body.children[1]
+    names = [n.name for n in effects.children]
     # Idempotency Selector: skip write when already ACCEPTED (RSH-08-002)
     # ... then the status it wrote is committed as its own entry
     # (CLP-07-013)
@@ -448,8 +466,19 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
         "CaptureCaseUpdateBroadcastExclusionsNode",
         "BroadcastCaseUpdateNode",
     ]
-    assert body.children[0].children[0].name == "AlreadyRecordedAccepted"
-    assert body.children[0].children[1].name == "TransitionRMtoAccepted"
+    assert effects.children[0].children[0].name == "AlreadyRecordedAccepted"
+    assert effects.children[0].children[1].name == "TransitionRMtoAccepted"
+    # ``rm_declaration_verdict`` reads "already recorded" by node *type*
+    # (``node_succeeded(tree, CheckParticipantRMState)``), so every node of
+    # that type in this tree must ask the same question. Two now do; a third
+    # about another actor or another RM state would make the handler report a
+    # redelivery that was not one (#5006).
+    asked = {
+        (node._actor_id, node._target_rm)
+        for node in tree.iterate()
+        if isinstance(node, CheckParticipantRMState)
+    }
+    assert asked == {(actor_id, RM.ACCEPTED)}
 
 
 def test_defer_tree_node_names(case_with_participant, actor_id):
@@ -465,26 +494,29 @@ def test_defer_tree_node_names(case_with_participant, actor_id):
     assert stages[1].name == "CaseOpenToExternalWrites"
     # The copy must be addressed to the receiver (HP-01-005) ...
     assert stages[2].name == "ActivityAddressedToReceiverNode"
+    # ... the path stage asks the receiver's role once and admits only a
+    # declared path (HP-01-035, HP-01-038) ...
+    assert stages[3].name == "ReceivedPathNode"
     # The sender must be a participant (HP-01-006) ...
-    assert stages[3].name == "SenderIsParticipantNode"
+    assert stages[4].name == "SenderIsParticipantNode"
     # ... the CASE_MANAGER answers its ledger position (SYNC-18-007) ...
-    assert stages[4].name == "LedgerPositionIfCaseManager"
+    assert stages[5].name == "LedgerPositionIfCaseManager"
     # ... then the CASE_MANAGER's clock decisions, the embargo end-time
     # check among them (CLP-10-025, EMB-13-003) ...
-    assert stages[5].name == "ClockDecisionsIfCaseManager"
+    assert stages[6].name == "ClockDecisionsIfCaseManager"
     # ... and its declaration is adjudicated before the commit (RSH-06-006),
     # inside the refusal-effects stage that notes a refused regression
     # (CLP-10-022)
-    stage = stages[6]
+    stage = stages[7]
     assert isinstance(stage, PreconditionGuardStage)
     assert [g.name for g in stage.guards.children] == [
         "AdjudicateRMDeclarationNode"
     ]
     # Commit runs before effects (CLP-10-006)
-    assert stages[7].name == "GuardedCommitCaseLedgerEntryBT"
+    assert stages[8].name == "GuardedCommitCaseLedgerEntryBT"
     # RSH-08-003 (#3814): the RM write and its gap note run only at the
     # CASE_MANAGER, inside one gate; a replica takes the move from the ledger.
-    gate = stages[8]
+    gate = stages[9]
     assert isinstance(gate, CaseManagerGate)
     assert gate.name == "DeferEffectsIfCaseManager"
     body = gate.gated_branch

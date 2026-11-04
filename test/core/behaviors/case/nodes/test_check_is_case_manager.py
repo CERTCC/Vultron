@@ -136,12 +136,16 @@ def test_returns_failure_when_case_has_no_case_manager(
 def test_sets_case_actor_id_output_on_success(
     bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
 ) -> None:
-    bt_scenario.run(
+    """``/case_actor_id`` is published for later nodes of the same execution
+    and does not outlive it (#5803).
+    """
+    _, published = bt_scenario.run_capturing(
         CheckIsCaseManagerNode(case_id=case_with_manager.id_),
+        "case_actor_id",
         actor_id=MANAGER_ACTOR_ID,
     )
-    stored = py_trees.blackboard.Blackboard.storage.get("/case_actor_id")
-    assert stored == MANAGER_ACTOR_ID
+    assert published == MANAGER_ACTOR_ID
+    assert "/case_actor_id" not in py_trees.blackboard.Blackboard.storage
 
 
 @pytest.mark.executes_as(MANAGER_ACTOR_ID)

@@ -29,6 +29,7 @@ Structure::
     Accept/RejectCaseParticipantRoleReceivedBT (Sequence)
     ├── IntakeReceivedActivityNode      # archives the answer (CLP-10-017)
     ├── CaseOpenToExternalWrites
+    ├── ReceivedPathNode                # the CASE_MANAGER alone (HP-01-038)
     ├── SenderRuleGuard                 # the recorded Offer's target, at the
     │                                   # CASE_MANAGER only (CM-33-005)
     ├── RoleOfferOpenNode               # open, not a redelivery (CM-33-005)
@@ -51,6 +52,9 @@ from vultron.core.behaviors.case.intake_only_received_tree import (
 )
 from vultron.core.behaviors.case.nodes.delegation import (
     GrantCaseParticipantRoleNode,
+)
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
 )
 from vultron.core.behaviors.case.nodes.role_offer_guard import (
     RoleOfferOpenNode,
@@ -155,6 +159,11 @@ def create_accept_case_participant_role_tree(
     )
     tree = create_receive_activity_tree(
         name="AcceptCaseParticipantRoleReceivedBT",
+        # The target answers the role Offer to the CASE_MANAGER only, never
+        # to the Case Owner that made it, and the CASE_MANAGER alone records
+        # the roles (CM-33-015, CM-17-016, PCR-08-001), so the manager path
+        # is the only one this type handles (HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=context,
@@ -217,6 +226,11 @@ def create_reject_case_participant_role_tree(
     )
     tree = create_receive_activity_tree(
         name="RejectCaseParticipantRoleReceivedBT",
+        # The target answers the role Offer to the CASE_MANAGER only, never
+        # to the Case Owner that made it, and the CASE_MANAGER alone records
+        # the refusal (CM-33-015, CM-33-016, CM-17-016, PCR-08-001), so the
+        # manager path is the only one this type handles (HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=context,

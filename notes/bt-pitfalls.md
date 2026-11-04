@@ -152,6 +152,31 @@ and that FAILURE must reach the caller, put the gate in front instead:
 `Sequence(gate, existing_selector)`. The gate still short-circuits, and a real
 failure is no longer swallowed.
 
+### A Skip-If-Done Guard Only Skips What It Encloses
+
+Put the guard around **every** effect the move earns, not just the write. A
+guard nested inside the write node's own Selector leaves the siblings after it
+unconditional, so a repeat skips the write and runs the rest: that is how a
+redelivered `Join` queued a second `Announce(VulnerabilityCase)` while its
+ledger entry stayed single (#5006). Build an RM one with
+`unless_rm_already_recorded` (`report/rm_declaration_tree.py`), so the question
+is asked in one place.
+
+Two conditions on that guard:
+
+- It must be the Selector's **first** child, so it reads the state *before* the
+  write sets it. Asked after, it always answers yes and the effects never run —
+  a failure mode no redelivery test sees, only a first-delivery one.
+- Every child under it must settle in one tick. The enclosing `ActTransaction`
+  rolls back and raises on a RUNNING child rather than re-ticking, which is
+  what keeps a `memory=False` Selector from re-reading the guard after the write.
+
+`rm_declaration_verdict` reads the answer by node *type*
+(`node_succeeded(tree, CheckParticipantRMState)`), so a second node of that type
+asking about another actor or another RM state makes a handler call a first
+delivery a repeat. Pin the set of questions a tree asks, not only the node names
+(`test_engage_tree_node_names`).
+
 ---
 
 ## No-Op Path Must Clear Output Blackboard Keys
@@ -217,6 +242,45 @@ is whether any **node** re-reads it, and when. Guards:
 `test_an_inner_actor_id_does_not_clobber_the_outer_one` and
 `test_a_later_sibling_reads_its_own_trees_actor` in `test_bridge.py`.
 
+### A Key Written as an Output Port Is Not `context_data`, So Name It Explicitly
+
+`managed_keys` picks up every `context_data` key automatically, so a key a use
+case *passes in* is scoped for free. A key a **node publishes through an output
+port** is not `context_data` and gets no entry, so its value outlives the
+execution that wrote it. Ask of any shared port key: does a node write it, and
+does another execution read it? If both, it belongs in the fixed `managed_keys`
+list.
+
+`case_id` is the worked example. Six nodes declare it as an output port
+(`CaseLookupNode`, the two `proposal_case_resolution` resolvers, the replay node
+and the case-creation nodes), while `ReceivedPathNode` and
+`CheckIsCaseManagerNode` both fall back to `/case_id` after their constructor
+argument and before the activity (`activity_case_id`). An unscoped `/case_id`
+therefore let one delivery's case decide a *later* delivery's path: a
+`Read(Offer(VulnerabilityReport))`, whose tree names no case and declares the
+no-case path alone, resolved a leaked case the reporter held a replica of and
+was refused at the path stage as a replica of a case it never named
+(RMB-08-003, HP-01-040). In a single-process run — every demo, every in-process
+integration test — the writer can be a *different actor's* execution, so the
+leak crosses the actor isolation BT-09 asks for. `case_manager_id` and
+`case_actor_id` share the shape and are scoped the same way (#5803). Guards:
+`test_execute_with_setup_does_not_leak_a_published_output_port_key` and
+`test_execute_with_setup_restores_a_preexisting_output_port_key` in
+`test_bridge.py`, one case per scoped key.
+
+A multi-writer key may stay unscoped only when, on every path that reaches a
+reader, a writer in the same execution ticks first and writes the key or a
+sentinel. A failed writer does not end every path: a Selector arm after it
+still runs, which is why `ReconstructChainTailNode` writes its `""` / `-1`
+sentinel before failing. Record each such key and its reason beside the fixed
+list in `BTBridge.execute_with_setup`; a new reader that a writer does not
+precede on every path moves the key into the list.
+
+The fix is the key's lifetime, never the reader: widening the declaration of the
+tree that tripped over it would have masked the leak and left
+`AddCaseStatusToCaseBT`, which passes `case_id or None` and declares the replica
+path, able to *admit* a status on a leaked case's replica path.
+
 ### Every Classifying Exception Handler Is One Helper
 
 Every `BTBridge` handler that builds a result — the tick loop in `execute_tree`
@@ -237,8 +301,8 @@ An inter-node handoff key in a tree factory that can run concurrently for severa
 messages of one type MUST carry the execution-scoped correlation id:
 `{noun}_{id_segment}`, where `id_segment` is the last `/`-segment of an HTTP id
 (or last `:`-segment of a URN), matching the `object_{id_segment}` keys in
-`helpers.py`. A flat key is overwritten by the concurrent instance before the
-downstream reader runs (BTND-03-004). When namespacing, audit every `register_key`
+`helpers/object_nodes.py`. A flat key is overwritten by the concurrent instance
+before the downstream reader runs (BTND-03-004). When namespacing, audit every `register_key`
 in the affected subtree, not only the key the issue names.
 
 ---
@@ -288,7 +352,7 @@ SYNC-09-003).
 ## Guard Name Must Match the State-Machine Transition Precondition
 
 Derive a guard's condition (and name) from the precondition of the transition it
-protects, read from the state machine (`vultron/core/states/cs.py`), not from the
+protects, read from the state machine (`vultron/core/states/cs/`), not from the
 issue's "not yet done" wording. "D bit unset" admits `vfd`/`Vfd`, but `vfd→VFD`
 via `TransitionCStoFixDeployed` is valid only from `VFd` — see
 `CheckCSFixNotYetDeployed` (#1825).
@@ -427,7 +491,7 @@ status-transparent, but a test asserting on the backend's concrete type or
 attributes must use `unwrap_call_out(node)`. Code that ticks a factory product
 outside a `BTBridge` tree must use `tick_once()` / `setup_with_descendants()`,
 never bare `update()` / `setup()` (see `_record_named_peer` in
-`use_cases/triggers/actor.py`). Rationale: [protocol-asks.md](protocol-asks.md)
+`use_cases/triggers/actor/_peers.py`). Rationale: [protocol-asks.md](protocol-asks.md)
 § "Why there is nothing to suspend" (ADR-0080); bundle
 configuration: [call-out-configuration.md](call-out-configuration.md).
 
@@ -503,8 +567,9 @@ never calls `create_case_manager_gated_tree` itself.
 - **Emit-capable nodes carry `EmitCapable`** (`vultron/core/behaviors/emit_capable.py`).
   The factory raises `VultronWiringError` when a marked node sits in
   `replica_effects` outside every `CaseManagerGate` without a covering exemption.
-  Only `create_case_manager_gated_tree` builds a `CaseManagerGate`; the
-  participant-replica gate does not count.
+  Only `create_case_manager_gated_tree` builds a `CaseManagerGate`; neither the
+  participant-replica gate nor a `PathBranch` off the manager path counts, since
+  both run at a replica.
 - **Ledger replication carries no marker.** Senders through `SyncActivityPort` or
   `create_commit_log_entry_tree` are gated by ledger authority
   (`DeclineForeignLedgerCommitNode`, ADR-0073) and pinned in

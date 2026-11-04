@@ -29,11 +29,6 @@ groups:
       route. `test_report_receiver_introduces_the_case_manager_to_the_reporter` in
       `test/core/behaviors/case/test_create_case_received_tree.py` confirms the introduction carries the case inline,
       names the CASE_MANAGER and the submitted report.'
-    relationships:
-    - rel_type: refines
-      spec_id: CM-12-001
-    - rel_type: refines
-      spec_id: PCR-02-005
     adr:
     - ADR-0132
     stories:
@@ -62,12 +57,12 @@ groups:
       bootstrap `Create(VulnerabilityCase)` the report receiver sends carries the
       case inline, with its participants as full objects, not a stub.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: AKM-03-001
     adr:
     - ADR-0170
     stories:
-    - story_2022_088
+    - story_2026_055
     - story_2022_090
   - id: CBT-01-003
     priority: MUST
@@ -88,13 +83,6 @@ groups:
       creating actor and the proposing report receiver are distinct participants on
       the bootstrap snapshot, the one carrying `CVDRole.CASE_MANAGER` and the other
       `CVDRole.CASE_OWNER`.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-02-001
-    - rel_type: refines
-      spec_id: CM-02-019
-    - rel_type: refines
-      spec_id: PCR-01-002
     adr:
     - ADR-0041
     - ADR-0073
@@ -113,7 +101,7 @@ groups:
       serves. The report receiver asked for the case, so the snapshot names it as the
       Case Owner for every replica seeded from it.
     relationships:
-    - rel_type: extends
+    - rel_type: part_of
       spec_id: CBT-01-003
     verification: >-
       `TestADR0041OwnerParticipant` in
@@ -135,7 +123,7 @@ groups:
       whose store holds the canonical case (ADR-0073). Every participant finds the
       CASE_MANAGER in the snapshot's participant records.
     relationships:
-    - rel_type: extends
+    - rel_type: part_of
       spec_id: CBT-01-003
     verification: >-
       `TestCaseActorIsOneParticipantDistinctFromTheOwner::test_exactly_one_participant_holds_case_manager`
@@ -227,11 +215,6 @@ groups:
       `test_bootstrap_not_naming_the_submitted_report_is_refused` in
       `test/core/behaviors/case/test_create_case_received_tree.py` confirms that one
       without a matching report reference is refused and binds no link.
-    relationships:
-    - rel_type: refines
-      spec_id: PCR-05-001
-    - rel_type: refines
-      spec_id: AKM-02-001
     adr:
     - ADR-0132
     stories:
@@ -249,7 +232,7 @@ groups:
       CASE_MANAGER there. The record the submitter wrote when it sent the report ties
       the report to the actor it chose, so the sender cannot forge it (PCR-05-001).
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: CBT-01-005
     verification: >-
       `test_bootstrap_from_an_actor_no_anchor_names_is_refused` in
@@ -283,7 +266,7 @@ groups:
     - ADR-0132
     stories:
     - story_2022_096
-    - story_2022_088
+    - story_2026_030
   - id: CBT-01-007
     priority: MUST
     kind: protocol
@@ -319,7 +302,7 @@ groups:
     adr:
     - ADR-0170
     stories:
-    - story_2022_088
+    - story_2026_055
     - story_2022_092
   - id: CBT-01-008
     priority: MUST
@@ -347,8 +330,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CBT-01-004
-    - rel_type: refines
-      spec_id: SM-04-001
     stories:
     - story_2022_013
     - story_2022_038
@@ -391,13 +372,8 @@ groups:
       snapshot is incomplete, every replica is permanently wrong. Sequencing
       the activity after initialization is the structural guarantee that the
       bootstrap snapshot is always accurate.
-    relationships:
-    - rel_type: refines
-      spec_id: CBT-01-002
-    - rel_type: refines
-      spec_id: CBT-01-007
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_011
   - id: CBT-01-019
     priority: MUST
     kind: protocol
@@ -409,8 +385,10 @@ groups:
       different or earlier snapshot would seed the submitter's replica with a state
       the CASE_MANAGER never recorded.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CBT-01-009
+    - rel_type: extends
+      spec_id: CBT-01-001
     verification: >-
       `test_report_receiver_introduces_the_case_manager_to_the_reporter` in
       `test/core/behaviors/case/test_create_case_received_tree.py` confirms the
@@ -443,13 +421,13 @@ groups:
     adr:
     - ADR-0132
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CBT-01-001
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: CBT-01-005
     stories:
     - story_2022_090
-    - story_2022_088
+    - story_2026_030
   - id: CBT-01-011
     priority: MUST
     kind: protocol
@@ -501,11 +479,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-02-001
-    - rel_type: refines
-      spec_id: PCR-03-001
     stories:
-    - story_2022_088
-    - story_2022_045
+    - story_2026_055
   - id: CBT-02-002
     priority: MUST_NOT
     kind: protocol
@@ -517,9 +492,8 @@ groups:
       that the actor may manage the case. Only a Trust Anchor the receiver wrote,
       from a relationship it had before the case arrived, ties the case to a
       CASE_MANAGER (CBT-01-005, CBT-04-001).
-    relationships:
-    - rel_type: refines
-      spec_id: AKM-01-002
+    stories:
+    - story_2026_030
   - id: CBT-02-003
     priority: MUST
     kind: protocol
@@ -536,9 +510,6 @@ groups:
     verification: Inspection of `vultron/wire/as2/` confirms that CASE_MANAGER identity is stored at bootstrap time and is
       not overwritten by ordinary `Announce(VulnerabilityCase)` traffic; only an explicit transfer workflow may replace
       the trusted CASE_MANAGER.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-02-010
     stories:
     - story_2022_050
     - story_2022_035
@@ -562,6 +533,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-06-002
+    stories:
+    - story_2026_005
   - id: CBT-03-002
     priority: MUST_NOT
     kind: protocol
@@ -575,6 +548,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-06-003
+    stories:
+    - story_2026_030
   - id: CBT-03-003
     priority: MUST
     kind: protocol
@@ -593,7 +568,10 @@ groups:
     - ADR-0163
     stories:
     - story_2022_090
-    - story_2022_088
+    - story_2026_019
+    relationships:
+    - rel_type: extends
+      spec_id: CBT-03-001
   - id: CBT-03-005
     priority: MUST
     kind: project
@@ -614,8 +592,6 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CBT-03-001
-    - rel_type: implements
-      spec_id: CBT-03-003
   - id: CBT-03-006
     priority: MUST
     kind: project
@@ -630,7 +606,7 @@ groups:
       `test/adapters/driving/fastapi/test_inbox_handler.py::test_pending_case_queue_expires_drops_and_warns`
       asserts the WARNING record when an expired queue is dropped.
     relationships:
-    - rel_type: implements
+    - rel_type: extends
       spec_id: CBT-03-003
 - id: CBT-04
   title: Late-Joiner Bootstrap
@@ -651,9 +627,6 @@ groups:
       `test/demo/test_pcr_late_joiner.py` confirms that a participant
       added after case creation receives the stub Invite and seeds its replica with
       no `Create(VulnerabilityCase)` received.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-11-001
     stories:
     - story_2022_013
     - story_2022_090
@@ -693,14 +666,11 @@ groups:
       joiner accepts the stub Invite, the CASE_MANAGER's
       `Announce(VulnerabilityCase)` seeds its replica with no
       `Create(VulnerabilityCase)` received.
-    relationships:
-    - rel_type: refines
-      spec_id: PCR-07-007
     adr:
     - ADR-0114
     stories:
     - story_2022_054
-    - story_2022_088
+    - story_2026_055
 - id: CBT-05
   title: Verification
   specs:
@@ -725,7 +695,7 @@ groups:
       bootstrap did not name.
     stories:
     - story_2022_090
-    - story_2022_088
+    - story_2026_030
   - id: CBT-05-002
     priority: MUST
     kind: project
@@ -766,7 +736,12 @@ groups:
       queue is dropped with a warning and that expiry queues nothing to the outbox.
     stories:
     - story_2022_090
-    - story_2022_088
+    - story_2026_030
+    relationships:
+    - rel_type: verifies
+      spec_id: CBT-03-003
+    - rel_type: verifies
+      spec_id: CBT-03-006
   - id: CBT-05-004
     priority: MUST
     kind: project
@@ -829,7 +804,7 @@ groups:
       asserts the reporter's participant record is stored at `RM.ACCEPTED` after
       bootstrap.
     stories:
-    - story_2022_088
+    - story_2026_055
     - story_2022_038
     statement: >-
       Tests MUST verify that the bootstrap stores the reporter's participant record
@@ -839,6 +814,9 @@ groups:
       (CBT-01-008). If the bootstrap stored another state, the reporter's later RM
       transitions would start from the wrong state, and a normal run would show no
       error.
+    relationships:
+    - rel_type: verifies
+      spec_id: CBT-01-008
   - id: CBT-05-008
     priority: MUST
     kind: protocol
@@ -864,12 +842,10 @@ groups:
       step runs before any DataLayer writes so bootstrap is atomic: either the
       full payload is valid and committed, or nothing is written.
     relationships:
-    - rel_type: implements
+    - rel_type: derives_from
       spec_id: CBT-01-007
-    - rel_type: implements
-      spec_id: CBT-01-008
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_013
 - id: CBT-06
   title: One Report Offered to Several Recipients
   specs:
@@ -889,12 +865,9 @@ groups:
       Unit tests confirm that two `Offer(VulnerabilityReport)` activities built
       for the same report and different recipients each carry a single-element
       `to` naming their own recipient and have distinct ids.
-    relationships:
-    - rel_type: refines
-      spec_id: HP-09-001
     stories:
     - story_2022_038
-    - story_2022_088
+    - story_2026_067
   - id: CBT-06-003
     priority: MUST
     kind: protocol
@@ -915,7 +888,7 @@ groups:
       recipients have distinct ids.
     stories:
     - story_2022_038
-    - story_2022_088
+    - story_2026_067
   - id: CBT-06-002
     priority: MUST
     kind: protocol
@@ -938,7 +911,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CBT-01-006
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CBT-01-005
     stories:
     - story_2022_096

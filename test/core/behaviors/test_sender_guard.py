@@ -19,7 +19,10 @@ An any-of rule admits a sender holding any one of its kinds, and a two-sided
 rule admits, on each side, exactly the kinds that side names.
 """
 
+import importlib
 import inspect
+import logging
+import pkgutil
 from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any
@@ -65,6 +68,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsRequestAddresseeNode,
     SenderRule,
     any_of,
+    failure_is_the_refusal,
 )
 from vultron.core.behaviors.sender_guard import (
     AddresseeRequest,
@@ -96,6 +100,7 @@ from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
+from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.examples._base import gen_report
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
@@ -889,13 +894,26 @@ def test_no_position_kind_is_a_cvd_role() -> None:
     assert not {kind.name for kind in positions} & roles
 
 
+def _reraise_import_error(name: str) -> None:
+    """``walk_packages`` error hook: a failed import must not shrink the scan."""
+    raise  # noqa: PLE0704
+
+
 def _module_guards() -> list[Any]:
+    """Every leaf guard class defined anywhere in the sender-entitlement package."""
+    modules = [sender_entitlement] + [
+        importlib.import_module(info.name)
+        for info in pkgutil.walk_packages(
+            sender_entitlement.__path__,
+            f"{sender_entitlement.__name__}.",
+            onerror=_reraise_import_error,
+        )
+    ]
     return [
         obj
-        for _name, obj in inspect.getmembers(
-            sender_entitlement, inspect.isclass
-        )
-        if obj.__module__ == sender_entitlement.__name__
+        for module in modules
+        for _name, obj in inspect.getmembers(module, inspect.isclass)
+        if obj.__module__ == module.__name__
         and hasattr(obj, "guards_kind")
         and obj is not SenderEntitlementConditionNode
         and not obj.__subclasses__()
@@ -1315,3 +1333,254 @@ def test_sender_guard_refused_names_only_the_sender_guards_refusal(
     result = _store(MANAGER).run(tree, activity=event)
     assert result.status == status
     assert sender_guard_refused(tree) is refused
+
+
+# ---------------------------------------------------------------------------
+# A check a later arm can overrule logs no refusal (#5460)
+# ---------------------------------------------------------------------------
+
+
+def _refusal_lines(
+    caplog: pytest.LogCaptureFixture, node_class: type
+) -> list[logging.LogRecord]:
+    """Every line *node_class* logged from the shared refusal helper.
+
+    Keyed on the helper rather than on the logger: ``py_trees`` writes its own
+    ``tick()``/``stop()`` lines to the same per-class logger.
+    """
+    name = f"{node_class.__module__}.{node_class.__name__}"
+    return [
+        record
+        for record in caplog.records
+        if record.name == name and record.funcName == "_refuse_by_placement"
+    ]
+
+
+def _refusals_logged(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """Every captured message a reader would read as a refusal (WARNING+)."""
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno >= logging.WARNING
+    ]
+
+
+def _case_manager_checks(
+    guard: py_trees.behaviour.Behaviour | None,
+) -> list[SenderIsCaseManagerNode]:
+    """Every ``CASE_MANAGER`` check inside the composed *guard*."""
+    assert guard is not None
+    return [
+        node
+        for node in guard.iterate()
+        if isinstance(node, SenderIsCaseManagerNode)
+    ]
+
+
+def _only_case_manager_check(
+    guard: py_trees.behaviour.Behaviour | None,
+) -> SenderIsCaseManagerNode:
+    found = _case_manager_checks(guard)
+    assert len(found) == 1, found
+    return found[0]
+
+
+@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002")
+def test_a_kind_a_later_arm_overrules_logs_no_refusal(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The Case Owner's activity reaches the CASE_MANAGER: the ``CASE_MANAGER``
+    arm fails, the ``CASE_OWNER`` arm admits it, and nothing was refused, so
+    the first arm's line is DEBUG and carries no ``REFUSED`` wording (#5460).
+    """
+    guard = compose_sender_guard(
+        ANY_OF, SenderCheckContext(sender_id=OWNER, case_id=CASE_ID)
+    )
+    assert guard is not None
+    check = _only_case_manager_check(guard)
+    assert failure_is_the_refusal(check) is False
+    with caplog.at_level(logging.DEBUG):
+        result = _store(MANAGER).run(
+            guard, activity=SimpleNamespace(actor_id=OWNER)
+        )
+    assert result.status == Status.SUCCESS
+    lines = _refusal_lines(caplog, SenderIsCaseManagerNode)
+    assert len(lines) == 1, [record.getMessage() for record in lines]
+    assert lines[0].levelno == logging.DEBUG
+    assert "REFUSED" not in lines[0].getMessage()
+    assert "is not the CASE_MANAGER" in lines[0].getMessage()
+    # Stripping the REFUSED group keeps the CASE_MANAGER it resolved, which
+    # is the whole diagnostic the deleted WARNING carried as "expected '<id>'".
+    assert f"which is '{MANAGER}'" in lines[0].getMessage()
+    assert _refusals_logged(caplog) == []
+
+
+@pytest.mark.spec("HP-01-006", "SL-03-002")
+def test_the_lone_kind_of_a_side_still_logs_its_refusal_at_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """``CASE_MANAGER`` alone on the side is the guard's whole answer, so its
+    FAILURE is the tree's refusal and stays at WARNING (#5460)."""
+    guard = compose_sender_guard(
+        SenderRule.in_case(Kind.CASE_MANAGER),
+        SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
+    )
+    assert guard is not None
+    check = _only_case_manager_check(guard)
+    assert failure_is_the_refusal(check) is True
+    with caplog.at_level(logging.DEBUG):
+        result = _store(REPLICA).run(
+            guard, activity=SimpleNamespace(actor_id=VENDOR)
+        )
+    assert result.status == Status.FAILURE
+    lines = _refusal_lines(caplog, SenderIsCaseManagerNode)
+    assert [record.levelno for record in lines] == [logging.WARNING]
+    assert "REFUSED (HP-01-006)" in lines[0].getMessage()
+    assert f"which is '{MANAGER}'" in lines[0].getMessage()
+    assert (
+        BTBridge.get_failure_reason(guard)
+        == lines[0].getMessage().split(": ", 1)[1]
+    )
+
+
+@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002")
+def test_an_any_of_side_still_logs_one_refusal_for_a_sender_it_refuses(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Demoting an overruled arm to DEBUG keeps the refusal signal: the side's
+    last arm names every standing it accepts, at WARNING (BT-13-001)."""
+    guard = compose_sender_guard(
+        ANY_OF, SenderCheckContext(sender_id=STRANGER, case_id=CASE_ID)
+    )
+    assert guard is not None
+    with caplog.at_level(logging.DEBUG):
+        result = _store(MANAGER).run(
+            guard, activity=SimpleNamespace(actor_id=STRANGER)
+        )
+    assert result.status == Status.FAILURE
+    refusals = _refusals_logged(caplog)
+    assert len(refusals) == 1, refusals
+    assert "none of the standings" in refusals[0]
+    assert [
+        record.levelno
+        for record in _refusal_lines(caplog, SenderIsCaseManagerNode)
+    ] == [logging.DEBUG]
+
+
+def _side_guard(
+    guard: py_trees.behaviour.Behaviour | None, rule: SenderRule, side: str
+) -> py_trees.behaviour.Behaviour:
+    """The part of the composed *guard* that judges *rule*'s *side*.
+
+    A two-sided rule dispatches on the receiver's side, so each side's kinds
+    are the last child of their arm; anything else composes one guard.
+    """
+    assert guard is not None
+    if side == "outside_case" or rule.at_case_manager == rule.at_participant:
+        return guard
+    arm_name = (
+        "AtCaseManager" if side == "at_case_manager" else "AtParticipant"
+    )
+    arm = next(child for child in guard.children if child.name == arm_name)
+    return arm.children[-1]
+
+
+def _declared_case_manager_sides() -> list[tuple[str, str, SenderRule]]:
+    """Every (use case, side, rule) whose side names ``CASE_MANAGER``."""
+    sides = ("at_case_manager", "at_participant", "outside_case")
+    found: list[tuple[str, str, SenderRule]] = []
+    for entry in SEMANTIC_REGISTRY:
+        use_case = entry.use_case_class
+        rule = getattr(use_case, "sender_entitlement", None)
+        if use_case is None or not isinstance(rule, SenderRule):
+            continue
+        found.extend(
+            (use_case.__name__, side, rule)
+            for side in sides
+            if Kind.CASE_MANAGER in getattr(rule, side)
+        )
+    return found
+
+
+@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002")
+def test_every_declared_side_places_the_case_manager_check_knowingly() -> None:
+    """Each received rule naming ``CASE_MANAGER`` composes a check that knows
+    whether its own FAILURE refuses the sender: ``False`` where the side names
+    another kind that may still admit it, ``True`` where it is the side's
+    whole answer.  Read from the composed guards, so a rule that gains or
+    loses a kind moves with it, and recorded per side rather than counted, so
+    no subject is lost to a rename (#5460)."""
+    overruled: dict[str, bool] = {}
+    final: dict[str, bool] = {}
+    for name, side, rule in _declared_case_manager_sides():
+        guard = compose_sender_guard(
+            rule,
+            SenderCheckContext(
+                sender_id=VENDOR,
+                case_id=None if side == "outside_case" else CASE_ID,
+                invite_id="https://example.org/activities/invite",
+                request=CaseProposalRequest(report_id=REPORT_ID),
+                authored_object=AuthoredNote(note_id=NOTE_ID),
+            ),
+        )
+        checks = _case_manager_checks(_side_guard(guard, rule, side))
+        assert checks, f"{name}.{side} composed no CASE_MANAGER check"
+        answers = {failure_is_the_refusal(check) for check in checks}
+        if len(getattr(rule, side)) > 1:
+            overruled[f"{name}.{side}"] = answers == {False}
+        else:
+            final[f"{name}.{side}"] = answers == {True}
+    assert overruled, "no declared side names CASE_MANAGER beside another kind"
+    assert final, "no declared side names CASE_MANAGER alone"
+    assert [row for row, ok in overruled.items() if not ok] == []
+    assert [row for row, ok in final.items() if not ok] == []
+
+
+class _Leaf(py_trees.behaviour.Behaviour):
+    """A bare leaf, to place in a shape and ask where its FAILURE lands."""
+
+    def update(self) -> Status:
+        return Status.FAILURE
+
+
+@pytest.mark.spec("SL-03-002")
+@pytest.mark.parametrize(
+    ("shape", "expected"),
+    [
+        ("bare", True),
+        ("selector-first", False),
+        ("selector-last", True),
+        ("sequence", True),
+        ("inverted", False),
+        ("nested-in-a-selector-arm", False),
+    ],
+)
+def test_failure_is_the_refusal_reads_the_shape_above_the_node(
+    shape: str, expected: bool
+) -> None:
+    """A Selector with a later sibling, or any decorator, means something above
+    this node can still turn its FAILURE into an admission; a Sequence and the
+    root pass it on (#5460)."""
+    node = _Leaf(name="Check")
+    if shape == "selector-first":
+        py_trees.composites.Selector(
+            name="S", memory=False, children=[node, _Leaf(name="Next")]
+        )
+    elif shape == "selector-last":
+        py_trees.composites.Selector(
+            name="S", memory=False, children=[_Leaf(name="Prev"), node]
+        )
+    elif shape == "sequence":
+        py_trees.composites.Sequence(
+            name="Q", memory=False, children=[node, _Leaf(name="Next")]
+        )
+    elif shape == "inverted":
+        py_trees.decorators.Inverter(name="Not", child=node)
+    elif shape == "nested-in-a-selector-arm":
+        arm = py_trees.composites.Sequence(
+            name="Arm", memory=False, children=[node]
+        )
+        py_trees.composites.Selector(
+            name="S", memory=False, children=[arm, _Leaf(name="Next")]
+        )
+    assert failure_is_the_refusal(node) is expected

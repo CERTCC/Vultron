@@ -158,12 +158,12 @@ groups:
     verification_debt: '#2575'
     statement: >-
       The product CLI (`vultron/adapters/driving/cli.py`) and the demo CLI
-      (`vultron/demo/cli.py`) MUST be implemented with `click`.
+      (`vultron/demo/cli/`) MUST be implemented with `click`.
     rationale: >-
       One CLI library gives each user-facing command the same option parsing, help
       text and environment-variable options. A user who knows one of the two CLIs
       knows how the other reads its options. The `vultron/metadata` tools and
-      `vultron/demo/report.py` are project tooling, not user-facing CLIs, and keep
+      `vultron/demo/report/` are project tooling, not user-facing CLIs, and keep
       the standard library's `argparse`.
   - id: IMPLTS-03-002
     priority: MUST
@@ -682,6 +682,6 @@ groups:
     kind: project
     statement: The system MAY use numpy and pandas for data manipulation and analysis.
     rationale: >-
-      The CS state model code (`vultron/core/case_states/hypercube.py`) uses pandas and
+      The CS state model code (`vultron/core/case_states/hypercube/`) uses pandas and
       numpy for table work over the case state space. A MAY lets other analysis code use
       them too, but it does not require them where plain Python is enough.

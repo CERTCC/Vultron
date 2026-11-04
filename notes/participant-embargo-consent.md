@@ -36,8 +36,8 @@ relevant_packages:
   - transitions
   - vultron/bt/embargo_management
   - vultron/core/behaviors/embargo
-  - vultron/core/models/case_participant.py
-  - vultron/core/models/embargo_apply.py
+  - vultron/core/models/case_participant/
+  - vultron/core/models/embargo_apply/
   - vultron/core/behaviors/sync/nodes
   - vultron/core/use_cases
 ---
@@ -84,7 +84,8 @@ predates ADR-0122 and is wrong.
   (`TERMINATED`), answers to it can no longer change: `apply_pec_transition()`
   takes the entry status (`entry_status=`) and refuses every trigger. This also
   covers "nothing is recorded after termination". A late Accept of stale terms is
-  answered with an invitation to the Active Embargo (EMB-17-003).
+  answered with an invitation to the case's current terms — the Active Embargo, or
+  its earliest-expiring open proposal when none is in force (EMB-17-003, EP-08-002).
 
 ### Every Row Is Written (CM-18-001)
 
@@ -126,9 +127,9 @@ and exited are reads; code that writes a row to record one re-creates the second
 record ADR-0122 removed.
 
 `ParticipantStatus` carries no consent and `embargo_adherence` is gone
-(ADR-0122 supersedes ADR-0056). The wire keys `emConsentState`,
-`embargoAdherence`, `embargoConsentState` and `acceptedEmbargoIds` are refused
-inbound by name (`RETIRED_NAMES`).
+(ADR-0122 supersedes ADR-0056). The former wire keys `emConsentState`,
+`embargoAdherence`, `embargoConsentState` and `acceptedEmbargoIds` are ordinary
+unknown keys inbound, set aside and reported (MV-11-003, ADR-0175).
 
 ---
 
@@ -248,7 +249,8 @@ calls the service's predicate rather than restating it.
 
 `CaseParticipant.copy_consent_row()` is the third row write, and the only one
 a replica may use: it stores a row exactly as a ledger entry carries it. It is
-called only from `apply_embargo_change()` (`vultron/core/models/embargo_apply.py`),
+called only from `apply_embargo_change()`
+(`vultron/core/models/embargo_apply/apply.py`),
 the one apply function the CASE_MANAGER's trial apply and every replica share.
 That function checks the starting state first (a `Create` row is new; an
 `Update` row is held and one consent transition, or a fresh `INVITED`
@@ -369,8 +371,8 @@ an entry attributed to the invitee (ADR-0140; trees in
 | Situation | Behaviour |
 |---|---|
 | `INVITED` row past its deadline | `Update(EmbargoConsent)` carrying the `TIMED_OUT` row, that row only (CM-28-005, CM-28-009, CM-28-014) |
-| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: commit the Accept itself, as an on-time Accept is, its entry carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED`; no `Update(EmbargoConsent)` follows (EMB-17-002, EMB-17-009, EMB-17-018, ADR-0152) |
-| Accepted embargo is stale | relay a fresh Invite to the Active Embargo, `attributedTo` its proposer (the CASE_MANAGER for terms it made itself), with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003, EMB-17-013) |
+| Accepted embargo is one the case can still answer: its `ACTIVE` entry or an open proposal | honour it: commit the Accept itself, as an on-time Accept is, its entry carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED`; no `Update(EmbargoConsent)` follows (EMB-17-002, EMB-17-009, EMB-17-018, MSM-07-003, ADR-0152) |
+| Accepted embargo is stale, and the case holds terms of its own | relay a fresh Invite to the Active Embargo, or to the earliest-expiring open proposal when none is in force, `attributedTo` its proposer (the CASE_MANAGER for terms it made itself), with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003, EMB-17-013, EP-08-002) |
 | No Active Embargo and no Proposed Embargo (EM `EXITED`/`NONE`) | a no-op: no entry, no reply, rows and case participation unchanged; reported `SKIPPED` (EMB-17-004, EMB-17-015 through EMB-17-017) |
 
 A late Accept is never refused (EMB-17): the accepter has signalled willingness
@@ -442,7 +444,7 @@ redacted per recipient, and a skipped entry would be replayed on the replica's
 gap Reject. So while an embargo is active a non-signatory is sent no ledger
 entries, by fan-out or replay; when the gate admits it, the CASE_MANAGER sends
 the withheld suffix in log order. The predicate is the shared selection in
-`vultron/core/participants/recipients.py` (CM-10-007); the pause mechanics are in
+`vultron/core/participants/recipients/` (CM-10-007); the pause mechanics are in
 [sync-ledger-replication.md](sync-ledger-replication.md) § "Fan-Out Recipients
 and the Embargo Gate". Invites are addressed directly, so the pause cannot lock a
 participant out of accepting.
@@ -515,7 +517,7 @@ The owner's decision and each participant's consent are different messages
   id) changes nothing. It logs no invalid-transition warning, and the
   CASE_MANAGER commits no ledger entry and sends nothing:
   `EmbargoAnswerNotRecordedNode` reads `consent_for(embargo_id)` ahead of the
-  commit and the handler reports `SKIPPED` (CM-13-005, HP-01-003, #4597). A
+  commit and the handler reports `SKIPPED` (CM-13-005, HP-01-014, #4597). A
   change of answer is normal, not a repeat, and is recorded with one ledger
   entry: withdrawal (a Reject until #4388 adds `Leave`), or an Accept after a
   Reject, which moves the row straight to `AGREED`.

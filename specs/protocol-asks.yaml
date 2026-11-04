@@ -205,9 +205,11 @@ groups:
     - ADR-0080
     tags:
     - security
+    stories:
+    - story_2026_034
   - id: ASK-02-005
     stories:
-    - story_2022_045
+    - story_2026_038
     - story_2022_053
     priority: MUST
     kind: protocol
@@ -224,9 +226,12 @@ groups:
     - ADR-0080
     tags:
     - state-machine
+    relationships:
+    - rel_type: uses_definition
+      spec_id: ASK-01-001
   - id: ASK-02-006
     stories:
-    - story_2022_045
+    - story_2026_038
     - story_2022_053
     priority: MUST
     kind: protocol
@@ -303,6 +308,8 @@ groups:
     tags:
     - security
     - configuration
+    stories:
+    - story_2026_034
   - id: ASK-03-009
     priority: MUST_NOT
     kind: protocol
@@ -323,6 +330,8 @@ groups:
     - ADR-0080
     tags:
     - security
+    stories:
+    - story_2026_034
   - id: ASK-03-004
     stories:
     - story_2022_032
@@ -374,6 +383,8 @@ groups:
     - ADR-0026
     tags:
     - security
+    stories:
+    - story_2026_034
   - id: ASK-03-007
     priority: MUST
     kind: protocol
@@ -398,7 +409,12 @@ groups:
     - ADR-0080
     - ADR-0113
     stories:
-    - story_2022_014
+    - story_2026_006
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-28-001
+    - rel_type: uses_definition
+      spec_id: CM-28-004
   - id: ASK-03-008
     priority: MUST
     kind: protocol
@@ -434,6 +450,9 @@ groups:
     stories:
     - story_2022_032
     - story_2022_074
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-11-014
 
 - id: ASK-04
   title: Outstanding-Ask Register
@@ -570,9 +589,6 @@ groups:
       register implementation.
     adr:
     - ADR-0080
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-11-002
   - id: ASK-04-008
     priority: MUST
     kind: architecture
@@ -625,7 +641,10 @@ groups:
     - ADR-0080
     - ADR-0113
     stories:
-    - story_2022_014
+    - story_2026_006
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-24-001
   - id: ASK-04-013
     priority: MUST_NOT
     kind: protocol
@@ -647,7 +666,7 @@ groups:
     - ADR-0080
     - ADR-0113
     stories:
-    - story_2022_014
+    - story_2026_006
 
 - id: ASK-05
   title: Expiry and Reaping
@@ -741,7 +760,7 @@ groups:
   - id: ASK-06-001
     stories:
     - story_2022_041
-    - story_2022_045
+    - story_2026_069
     priority: MUST
     kind: protocol
     statement: >-
@@ -756,7 +775,7 @@ groups:
   - id: ASK-06-003
     stories:
     - story_2022_041
-    - story_2022_045
+    - story_2026_075
     priority: MUST
     kind: protocol
     statement: >-
@@ -787,6 +806,8 @@ groups:
     - ADR-0080
     tags:
     - security
+    stories:
+    - story_2022_044
 - id: ASK-07
   title: Processing Faults
   description: >
@@ -830,6 +851,8 @@ groups:
     - ADR-0080
     tags:
     - security
+    stories:
+    - story_2026_035
   - id: ASK-07-003
     stories:
     - story_2022_039
@@ -944,6 +967,8 @@ groups:
     tags:
     - security
     - logging
+    stories:
+    - story_2026_035
   - id: ASK-07-007
     stories:
     - story_2022_039
@@ -962,7 +987,7 @@ groups:
     - ADR-0080
   - id: ASK-07-008
     stories:
-    - story_2022_045
+    - story_2026_069
     - story_2022_074
     priority: MUST
     kind: protocol
@@ -998,6 +1023,8 @@ groups:
       No ledger entry is committed for an activity that failed processing.
     adr:
     - ADR-0080
+    stories:
+    - story_2026_023
   - id: ASK-07-010
     stories:
     - story_2022_039
@@ -1048,8 +1075,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: ASK-07-010
-    - rel_type: depends_on
-      spec_id: IE-06-004
     adr:
     - ADR-0080
     tags:
@@ -1129,8 +1154,10 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: ASK-07-014
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: IE-06-008
+    - rel_type: uses_definition
+      spec_id: IE-06-004
     tags:
     - error-handling
   - id: ASK-07-018
@@ -1190,3 +1217,5 @@ groups:
     - ADR-0080
     tags:
     - idempotency
+    stories:
+    - story_2026_014

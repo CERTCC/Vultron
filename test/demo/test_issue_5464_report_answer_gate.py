@@ -34,21 +34,20 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from vultron.demo import utils as demo_utils
-from vultron.demo.helpers import workflow
+from vultron.demo.helpers.workflow import (
+    case_lookup,
+    report as workflow_report,
+)
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 _OFFER_ID = "urn:uuid:offer-5464"
 
 _ANSWERS: list[tuple[str, Callable[..., dict]]] = [
-    ("validate_report", workflow.receiver_validates_report),
-    ("invalidate_report", workflow.receiver_invalidates_report),
+    ("validate_report", workflow_report.receiver_validates_report),
+    ("invalidate_report", workflow_report.receiver_invalidates_report),
 ]
-
-
-@pytest.fixture(autouse=True)
-def _clean_failures():
-    demo_utils.reset_demo_failures()
-    yield
-    demo_utils.reset_demo_failures()
 
 
 @pytest.fixture
@@ -93,12 +92,14 @@ def test_answer_posts_trigger_only_after_case_replica_arrives(
 
     with (
         patch.object(
-            workflow,
+            workflow_report,
             "ActorSession",
             _recording_session(call_order, trigger),
         ),
-        patch.object(workflow, "find_case_for_offer", side_effect=_find_case),
-        patch("vultron.demo.helpers.polling.time.sleep"),
+        patch.object(
+            case_lookup, "find_case_for_offer", side_effect=_find_case
+        ),
+        patch("vultron.demo.helpers.polling._poll.time.sleep"),
     ):
         answer(client, receiver, _OFFER_ID)
 
@@ -117,12 +118,12 @@ def test_answer_without_case_replica_records_gate_and_posts_nothing(
 
     with (
         patch.object(
-            workflow,
+            workflow_report,
             "ActorSession",
             _recording_session(call_order, trigger),
         ),
         patch.object(
-            workflow,
+            workflow_report,
             "wait_for_case_for_offer",
             side_effect=AssertionError("no case replica"),
         ),

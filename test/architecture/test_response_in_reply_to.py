@@ -38,7 +38,7 @@ from pydantic import ValidationError
 
 import vultron.wire.as2.vocab.activities as activities_pkg
 from test.architecture._vocab_example_corpus import activity_examples
-from vultron.wire.as2.vocab.activities.case import (
+from vultron.wire.as2.vocab.activities.case.rm import (
     _RmCloseCaseActivity,
     _RmRejectCloseCaseActivity,
 )
@@ -83,10 +83,12 @@ _KNOWN_GAP = frozenset(
 
 def _response_classes() -> dict[str, type[Any]]:
     found: dict[str, type[Any]] = {}
-    for info in pkgutil.iter_modules(activities_pkg.__path__):
-        module = importlib.import_module(
-            f"{activities_pkg.__name__}.{info.name}"
-        )
+    # Recursive: a split module is a subpackage whose classes live in its
+    # submodules, which a flat scan would silently drop.
+    for info in pkgutil.walk_packages(
+        activities_pkg.__path__, f"{activities_pkg.__name__}."
+    ):
+        module = importlib.import_module(info.name)
         for name, value in vars(module).items():
             if (
                 inspect.isclass(value)

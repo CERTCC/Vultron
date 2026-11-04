@@ -46,6 +46,9 @@ from vultron.core.behaviors.case.nodes.participant_reinstatement import (
     ReinstateCaseParticipantReceivedNode,
     case_manager_admits_reinstatement_guard,
 )
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -83,6 +86,7 @@ def create_add_case_participant_received_tree(
 
         AddCaseParticipantReceivedBT (Sequence)
         ├── IntakeReceivedActivityNode                       # intake
+        ├── ReceivedPathNode                                 # manager or replica
         ├── SenderRuleGuard (Sequence)                       # sender guard
         ├── ReinstatementAdmissibleIfCaseManager (Selector)  # guards (manager only)
         │   ├── MoveNamesCaseParticipantNode
@@ -140,6 +144,11 @@ def create_add_case_participant_received_tree(
     root = create_receive_activity_tree(
         name=name,
         case_id=case_id,
+        # The Case Owner asks the CASE_MANAGER, which adjudicates the move,
+        # and the CASE_MANAGER relays the notice to the participant's own
+        # replica, which archives it and takes the move from the ledger
+        # entry (CM-31-007, RSH-08-003, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id
@@ -193,6 +202,7 @@ def create_remove_case_participant_received_tree(
 
         RemoveCaseParticipantReceivedBT (Sequence)
         ├── IntakeReceivedActivityNode                  # intake
+        ├── ReceivedPathNode                            # manager or replica
         ├── SenderRuleGuard (Sequence)                  # sender guard
         ├── RemovalAdmissibleIfCaseManager (Selector)   # guards (manager only)
         │   ├── MoveNamesCaseParticipantNode
@@ -238,6 +248,11 @@ def create_remove_case_participant_received_tree(
     root = create_receive_activity_tree(
         name=name,
         case_id=case_id,
+        # The Case Owner asks the CASE_MANAGER, which adjudicates the move,
+        # and the CASE_MANAGER relays the notice to the participant's own
+        # replica, which archives it and takes the move from the ledger
+        # entry (CM-31-007, RSH-08-003, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id

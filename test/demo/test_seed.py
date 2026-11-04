@@ -143,7 +143,7 @@ class TestSeedCommand:
         monkeypatch.delenv("VULTRON_ACTOR_ID", raising=False)
         mock_fn = _mock_seed_actor("Reporter", "http://reporter/actors/f")
         runner = CliRunner()
-        with patch("vultron.demo.cli.seed_actor", mock_fn):
+        with patch("vultron.demo.cli.seed_command.seed_actor", mock_fn):
             result = runner.invoke(
                 main,
                 [
@@ -167,7 +167,7 @@ class TestSeedCommand:
         monkeypatch.delenv("VULTRON_ACTOR_ID", raising=False)
         mock_fn = _mock_seed_actor("TestActor")
         runner = CliRunner()
-        with patch("vultron.demo.cli.seed_actor", mock_fn):
+        with patch("vultron.demo.cli.seed_command.seed_actor", mock_fn):
             result = runner.invoke(
                 main,
                 [
@@ -222,8 +222,8 @@ class TestSeedCommand:
         )
         runner = CliRunner()
         with (
-            patch("vultron.demo.cli.seed_actor", mock_fn),
-            patch("vultron.demo.cli.seed_peer", mock_seed_peer),
+            patch("vultron.demo.cli.seed_command.seed_actor", mock_fn),
+            patch("vultron.demo.cli.seed_command.seed_peer", mock_seed_peer),
         ):
             result = runner.invoke(
                 main,
@@ -264,7 +264,7 @@ class TestSeedCommand:
 
         mock_fn = MagicMock(side_effect=_capturing_seed)
         runner = CliRunner()
-        with patch("vultron.demo.cli.seed_actor", mock_fn):
+        with patch("vultron.demo.cli.seed_command.seed_actor", mock_fn):
             result = runner.invoke(
                 main,
                 ["seed", "--api-url", "http://localhost:7999/api/v2"],
@@ -301,8 +301,8 @@ class TestSeedCommand:
         )
         runner = CliRunner()
         with (
-            patch("vultron.demo.cli.seed_actor", mock_fn),
-            patch("vultron.demo.cli.seed_peer", mock_seed_peer),
+            patch("vultron.demo.cli.seed_command.seed_actor", mock_fn),
+            patch("vultron.demo.cli.seed_command.seed_peer", mock_seed_peer),
         ):
             result = runner.invoke(
                 main,

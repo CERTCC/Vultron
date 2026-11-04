@@ -21,7 +21,7 @@ Per specs/idempotency.yaml ID-04-004.
 
 Note: ``ValidateCaseObject`` was removed in issue #716 and
 ``CheckCaseAlreadyExists`` was removed in issue #4353.  ``CoreRecord.id_``
-is typed ``NonEmptyString`` with a ``default_factory=_new_urn``, so Pydantic
+is typed ``NonEmptyString`` with a ``default_factory=new_object_id``, so Pydantic
 rejects invalid ``id_`` values at construction time (ARCH-10-001 fail-fast
 domain objects).
 """
@@ -42,7 +42,8 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.role_predicate import has_role
+from vultron.enums.roles import CVDRole
 
 
 class CheckAutoCaseCreationEnabledNode(py_trees.behaviour.Behaviour):
@@ -157,13 +158,35 @@ class CheckCaseExistsForReport(DataLayerConditionWithPorts):
             return Status.FAILURE
 
 
+def activity_case_id(activity: object | None) -> str | None:
+    """The case id the received *activity* names, or ``None``.
+
+    The third step of the case-id resolution order a received-side condition
+    node follows (constructor argument, blackboard ``/case_id``, then the
+    activity): a ledger activity names its case on its ``log_entry``, every
+    other one on its ``object_``.  Shared by
+    :class:`CheckIsCaseManagerNode` and the path stage's
+    :class:`~vultron.core.behaviors.case.nodes.received_path.ReceivedPathNode`
+    so both read the same case (CS-22-001, ADR-0153).
+    """
+    if activity is None:
+        return None
+    entry = getattr(activity, "log_entry", None)
+    if entry is None:
+        entry = getattr(activity, "object_", None)
+    raw = getattr(entry, "case_id", None)
+    return raw if isinstance(raw, str) else None
+
+
 class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
     """Check whether the executing actor is the case's CASE_MANAGER.
 
-    Reads ``case_id`` and ``actor_id`` from the blackboard, resolves the
-    case's CASE_MANAGER participant via ``resolve_case_manager_id``, and
-    returns ``SUCCESS`` only when ``actor_id`` matches that participant's
-    ``attributed_to`` actor ID.
+    Reads ``case_id`` and ``actor_id`` from the blackboard and asks the
+    shared role predicate,
+    :func:`~vultron.core.participants.role_predicate.has_role`, whether that
+    actor holds ``CVDRole.CASE_MANAGER`` in that case; the predicate answers
+    the authority role from the single role-authority resolver
+    (ARCH-24-006, ARCH-24-007, ADR-0153).  ``SUCCESS`` only on ``True``.
 
     On SUCCESS, writes the resolved manager ID to the ``case_actor_id``
     output port for downstream nodes that need the resolved manager id.
@@ -237,12 +260,8 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
         assert self.actor_id is not None
 
         case_id = self._case_id or self._case_id_bb
-        if not case_id and self._activity is not None:
-            entry = getattr(self._activity, "log_entry", None)
-            if entry is None:
-                entry = getattr(self._activity, "object_", None)
-            raw = getattr(entry, "case_id", None)
-            case_id = raw if isinstance(raw, str) else None
+        if not case_id:
+            case_id = activity_case_id(self._activity)
 
         if not case_id:
             self.logger.debug(
@@ -265,19 +284,21 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        case, failure = self._require_case(case_id)
+        # The case is read here to tell an absent replica from an ADR-0087
+        # Regime 1 anomaly, and again inside the predicate, which owns the
+        # read its answer rests on (ARCH-24-007).  Two cheap reads, not one
+        # read and one copy that could have gone stale.
+        _, failure = self._require_case(case_id)
         if failure is not None:
             return failure  # Regime 1: case must exist (ADR-0087)
 
-        manager_id = resolve_case_manager_id(case, self.datalayer)
-        if manager_id is None:
-            self.logger.debug(
-                "%s: no CASE_MANAGER found for case '%s'", self.name, case_id
-            )
-            return Status.FAILURE
-
-        if manager_id == self.actor_id:
-            self._set_output("case_actor_id", manager_id)
+        if has_role(
+            self.actor_id, case_id, CVDRole.CASE_MANAGER, self.datalayer
+        ):
+            # On this answer the manager is the executing actor, so its own
+            # id is the resolved manager id downstream nodes read
+            # (BTND-03-009).
+            self._set_output("case_actor_id", self.actor_id)
             self.logger.debug(
                 "%s: actor '%s' is CASE_MANAGER for case '%s'",
                 self.name,
@@ -287,11 +308,10 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
             return Status.SUCCESS
 
         self.logger.debug(
-            "%s: actor '%s' is not CASE_MANAGER for case '%s' (manager=%s)",
+            "%s: actor '%s' is not CASE_MANAGER for case '%s'",
             self.name,
             self.actor_id,
             case_id,
-            manager_id,
         )
         return Status.FAILURE
 

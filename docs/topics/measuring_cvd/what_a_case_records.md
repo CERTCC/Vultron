@@ -215,6 +215,10 @@ The CASE_MANAGER ledgers the status update with the claimed time of the particip
 The PXA state of the case changes only when the CASE_MANAGER adopts the report.
 To adopt the report, the CASE_MANAGER commits its own `Add(CaseStatus)`.
 Both times on the `Add(CaseStatus)` entry come from the CASE_MANAGER's clock at adoption.
+The case status in the entry usually takes its time from that clock too.
+But the case status is always timed later than the one before it ([CM-29-005](../../reference/vultron-spec/requirements/case-management.md#cm-29-005)).
+So when the clock has not passed the time of the status before it, the new status is timed one microsecond after that status instead.
+This happens when two adoptions fall in one clock tick, or when the clock steps back.
 
 Thus the case-level time of $\evP$, $\evX$, or $\evA$ is the time that the CASE_MANAGER adopted the report.
 The case-level time is not the time that a participant first reported the event.
@@ -312,9 +316,9 @@ For embargo times, the measure connects the embargo register and the consent row
 
 !!! info "In the reference implementation"
 
-    The demo scenarios write each actor's copy of the ledger as JavaScript Object Notation (JSON) Lines files, under `devlogs/<demo>/<actor>/` (`vultron/demo/helpers/ledger_dump.py`).
+    The demo scenarios write each actor's copy of the ledger as JavaScript Object Notation (JSON) Lines files, under `devlogs/<demo>/<actor>/` (`vultron/demo/helpers/ledger_dump/`).
     Each file holds one actor's copy of the ledger for one case.
-    `vultron-demo-report` (`vultron/demo/report.py`) reads these files and merges the replicas into one timeline for each case, in log order (DRPT-02).
+    `vultron-demo-report` (`vultron/demo/report/`) reads these files and merges the replicas into one timeline for each case, in log order (DRPT-02).
     The report also shows which actors' replicas hold each entry.
     Each timeline event shows the actor, the semantic type, the target, the commit stamp, and the state changes that the entry records.
 

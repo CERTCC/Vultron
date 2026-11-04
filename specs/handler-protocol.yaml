@@ -44,7 +44,7 @@ groups:
       RM, EM, or CS state change in the receiver's DataLayer after the handler completes.
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_036
 - id: HP-01
   title: Handler Signature
   specs:
@@ -714,6 +714,274 @@ groups:
       spec_id: HP-01-005
     - rel_type: refines
       spec_id: CLP-10-010
+  - id: HP-01-035
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A received tree whose message type declares the paths it handles carries the
+      path stage. The receive-tree factory MUST place that stage directly after the
+      HP-01-012 addressee check, and before the sender guard.
+    rationale: >-
+      The path stage sits in the factory for the reason HP-01-012 gives for the
+      addressee check: a check each tree has to ask for is a check a tree can forget.
+      It sits after the addressee check because a copy the receiver was never
+      addressed is refused before its role is asked about at all, and before the
+      sender guard because the guard reads the path the stage chose (HP-01-036).
+    verification: >-
+      `test/core/behaviors/case/test_received_path_stage.py::test_the_stage_runs_after_the_addressee_check_and_before_the_guard`
+      asserts the stage's index falls between the addressee check's and the sender
+      guard's, and `::test_the_stage_is_one_of_the_trees_door_guards` asserts the
+      factory records it as a door guard.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-010
+    - rel_type: implements
+      spec_id: HP-01-005
+    adr:
+    - ADR-0153
+  - id: HP-01-036
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The sender guard's at-the-CASE_MANAGER and at-a-participant arms MUST be
+      selected from the path the HP-01-035 stage resolved, never from a second role
+      read.
+    rationale: >-
+      One cause gets one verdict only if the role question is asked once. A second
+      read can disagree with the first, which is how a role refusal fired for the
+      wrong receiver (#4851, #4970), and it reads a roster that another delivery may
+      have changed between the two reads.
+    verification: >-
+      `test/core/behaviors/case/test_received_path_stage.py::test_the_sender_guards_arms_read_the_path_stages_answer`
+      asserts the composed guard holds path checks bound to the tree's stage and no
+      receiver-role condition node, and
+      `::test_the_declared_tree_asks_the_role_question_once` asserts the stage is the
+      only door node that reads the role.
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-008
+    - rel_type: depends_on
+      spec_id: HP-01-035
+    adr:
+    - ADR-0153
+  - id: HP-01-037
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The HP-01-035 stage MUST take the receiver's path from one
+      `CVDRole.CASE_MANAGER` read per message, through the shared role predicate:
+      the *manager* path when the receiver holds that role in the case, the
+      *participant replica* path when it holds a replica of the case without the
+      role, and the *no case yet* path when it holds no replica. No other role is a
+      path.
+    rationale: >-
+      A role belongs to an (actor, case) pair and changes while a case runs, so the
+      answer has to be read from the roster for each message rather than fixed at
+      actor startup (CM-02-011). One read per message is what makes the answer the
+      same everywhere in the tree. Keeping the other roles out of the path set keeps
+      a new role to a permission rule inside a path: Case Owner, Vendor and Deployer
+      each send their changes through the CASE_MANAGER, so none of them handles a
+      message differently from any other replica (PCR-08-001).
+    verification: >-
+      `test/core/behaviors/case/test_received_path_stage.py::test_the_stage_resolves_each_path`
+      runs the stage in a manager's, a replica's and a case-less store and asserts
+      the resolved path for each, and
+      `test/core/participants/test_role_predicate.py` pins the predicate's answers
+      for a holder, a non-holder, an actor outside the roster and a role changed
+      mid-case.
+    relationships:
+    - rel_type: depends_on
+      spec_id: HP-01-035
+    - rel_type: refines
+      spec_id: CM-02-011
+    adr:
+    - ADR-0153
+  - id: HP-01-038
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A message type MUST declare the paths it handles once, as the receive-tree
+      factory's path argument, naming a branch for every path on which it does
+      protocol work.
+    rationale: >-
+      A check each tree has to ask for is a check a tree can forget, which is why
+      HP-01-007 puts a general received-side check in the factory. Declaring the
+      paths in one place also tells a reader which receivers a message type is for,
+      instead of leaving them to infer it from the role gates scattered through its
+      tree. Naming fewer paths than the type works on would refuse a receiver the
+      type does act for.
+    verification: >-
+      `test/core/behaviors/case/test_received_path_stage.py::test_a_declaration_naming_no_path_is_a_wiring_error`
+      asserts the factory refuses an empty declaration, and
+      `::test_the_stage_is_one_of_the_trees_door_guards` asserts a declaring tree
+      gets the stage. The migration of the trees that have not declared yet is
+      ratcheted by
+      `test/architecture/test_received_path_role_question.py::test_received_side_role_question_sites_are_ratcheted`.
+      `test/core/behaviors/test_declared_received_paths.py` holds the declaration of
+      every tree in the migrated areas: `::test_the_declared_paths_are_pinned` pins
+      which paths each names,
+      `::test_every_factory_call_site_in_these_areas_is_accounted_for` fails a tree
+      added without a declaration, and `::test_the_disposition_at_a_non_manager_receiver`
+      asserts what each declaration gives a participant replica. A branch for part
+      of a declaration is an `OnPaths` the factory builds; a branch naming an
+      undeclared path, or every declared path, is a wiring error
+      (`test/core/behaviors/case/test_received_path_branch.py`).
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-007
+    - rel_type: depends_on
+      spec_id: HP-01-035
+    adr:
+    - ADR-0153
+  - id: HP-01-039
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A delivery whose receiver is on a path the HP-01-038 declaration omits MUST be
+      refused at the HP-01-035 stage, with a reason composed in one place from the
+      resolved path and the declaration, so that the reason is true of the receiver
+      it refuses.
+    rationale: >-
+      HP-01-005 asks for a reason that names what is missing, and one fixed string
+      cannot give it. "Not the CASE_MANAGER of case X" is true of a receiver on the
+      participant-replica or no-case path, and false of the receiver a
+      replica-only declaration refuses — the case's actual CASE_MANAGER, for which
+      what is missing is a branch rather than the role. Composing the reason in one
+      place keeps every message type's wording identical in shape, so no handler
+      maps a gate failure to a verdict of its own after the run.
+    verification: >-
+      `test/core/behaviors/case/test_received_path_stage.py::test_an_undeclared_path_is_refused_with_a_reason_true_of_the_receiver`
+      drives each path against a declaration that omits it and asserts the exact
+      reason, `::test_a_manager_inclusive_declaration_states_only_the_path` and
+      `::test_a_declaration_without_the_manager_path_says_what_is_missing` pin the
+      two clauses the composer chooses between, and
+      `test/core/use_cases/received/actor/test_recommendation_answer.py::test_case_manager_refuses_an_answer_addressed_to_itself`
+      pins the replica-only wording through a real tree.
+    relationships:
+    - rel_type: implements
+      spec_id: HP-01-005
+    - rel_type: depends_on
+      spec_id: HP-01-038
+    adr:
+    - ADR-0153
+  - id: HP-01-040
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The HP-01-035 stage MUST read the receiver's role in the tree's commit case,
+      else the case whose CASE_MANAGER gates its effects, else the case its sender
+      context names; with none of the three named at build time the stage resolves
+      the case at run time and reads an unresolvable one as the no-case path.
+    rationale: >-
+      A tree that commits nothing still has a case the activity is about: the one
+      its sender guard judges the sender against (HP-01-025). Without that fallback
+      the stage would read the no-case path for every delivery to such a tree and
+      refuse a declaration that omits it, which is a refusal with nothing wrong
+      with the delivery. The fallback order matches the order the sender guard
+      already resolves its case in, so the two stages judge the same case.
+    verification: >-
+      `test/core/behaviors/case/test_received_path_stage.py::test_the_stage_reads_the_case_the_sender_context_names`
+      asserts the resolution order for a tree with no commit case, and
+      `test/core/use_cases/received/actor/test_recommendation_answer.py::test_recommender_archives_the_answer_and_commits_nothing`
+      exercises it through a real tree whose only case comes from its sender
+      context.
+    relationships:
+    - rel_type: depends_on
+      spec_id: HP-01-035
+    - rel_type: refines
+      spec_id: HP-01-025
+    adr:
+    - ADR-0153
+  - id: HP-01-041
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A tree MUST declare the no-case path only for a message type the inbox
+      delivers without its case being known, so every case-scoped type waits at the
+      inbox's defer check instead of being refused at the HP-01-035 stage.
+    rationale: >-
+      A case-scoped message that arrives before its case is not an error: the inbox
+      holds it until the case is known (IO-02-001). Declaring the no-case branch for
+      such a type would admit a delivery the tree cannot act on, and omitting it
+      from a type the inbox does let through — the stub Invite, whose case arrives
+      only after the invitee answers — would refuse every first Invite.
+    verification: >-
+      `test/core/behaviors/case/test_received_path_stage.py::test_a_case_scoped_type_waits_for_its_case_rather_than_being_refused`
+      asserts the defer check queues a case-scoped type and lets the stub Invite
+      through, and
+      `::test_the_type_that_precedes_its_case_declares_the_no_case_branch` asserts
+      the Invite tree declares the no-case path and resolves it at an invitee with
+      no replica.
+    relationships:
+    - rel_type: depends_on
+      spec_id: HP-01-038
+    adr:
+    - ADR-0153
+  - id: HP-01-042
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The receive-tree factory MUST build every HP-01-038 branch itself, from the
+      path the HP-01-035 stage resolved. A branch naming the manager path alone
+      bounds both BT-17-008 and RSH-08-003: neither an emit nor a state write
+      there needs a further record. A branch naming any other path bounds
+      neither. An emit inside it still needs a named replica-emit exemption, and
+      a state write inside it stays pinned with its reason.
+    rationale: >-
+      A branch a tree builds itself is a role check the tree asks, which HP-01-036
+      removes: it can disagree with the stage, or omit the path check entirely, and
+      the factory's walks cannot tell it from the one they trust. The asymmetry
+      between the two branch kinds is what the walks need: the manager path is the
+      CASE_MANAGER, so BT-17-001's gate and the branch that names that path say the
+      same thing. Any other path says only that the receiver is *not* the
+      CASE_MANAGER, which is not yet a statement that the emit is that receiver's
+      own to send or that the write is one RSH-08-003 admits.
+    verification: >-
+      `test/architecture/test_received_tree_case_manager_gate.py::test_only_the_factory_builds_a_path_branch`
+      holds the set of modules that construct a branch to the branch module and the
+      factory with its stage builders, so a tree that built one of its own fails it.
+      `test/core/behaviors/case/test_received_path_branch.py` asserts that the branch
+      reads the stage's answer and asks nothing itself
+      (`::test_the_branch_reads_the_stages_answer_and_asks_nothing_itself`), that an
+      emit on the manager path alone needs no exemption
+      (`::test_an_emit_on_the_manager_path_alone_needs_no_replica_exemption`), that
+      one off it is still ungated
+      (`::test_an_emit_off_the_manager_path_is_still_ungated`), and that the
+      state-write walk stops at a manager-only branch while descending into any
+      other
+      (`::test_a_state_write_is_bounded_only_by_a_manager_only_branch`).
+      `test/architecture/test_received_tree_state_writes_are_gated.py::test_received_tree_state_writes_are_gated_or_known`
+      keeps every state write outside a `CaseManagerGate` pinned with its reason.
+      A write in a *tree* declaring the manager path alone but in no branch is
+      not this requirement's subject — the walk reads a branch's own paths — so
+      the diversion case is recorded there and governed by CLP-10-066.
+    relationships:
+    - rel_type: depends_on
+      spec_id: HP-01-038
+    - rel_type: depends_on
+      spec_id: HP-01-036
+    adr:
+    - ADR-0153
+  - id: HP-01-043
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      A received tree MUST NOT build an HP-01-038 branch of its own.
+    rationale: >-
+      A branch a tree builds for itself is a role check the tree asks, which
+      HP-01-036 removes: it can read a stage of its own, or omit the path check
+      entirely, and the factory's walks cannot tell it from the one they trust.
+      HP-01-042 gives the factory that job for the same reason HP-01-007 gives it
+      the sender guard.
+    verification: >-
+      `test/architecture/test_received_tree_case_manager_gate.py::test_only_the_factory_builds_a_path_branch`
+      holds the set of modules that construct one to the branch module itself and
+      the factory with its stage builders.
+    relationships:
+    - rel_type: depends_on
+      spec_id: HP-01-042
+    adr:
+    - ADR-0153
   - id: HP-01-032
     priority: MUST
     kind: architecture
@@ -1007,13 +1275,14 @@ groups:
       consistent with the domain model and that `dl.read()` can rehydrate
       (ADR-0034). The record-level method is retained only as a compatibility
       shim for the adapter layer and for the legacy generic `UpdateObject` /
-      `CreateObject` BT nodes in `vultron/core/behaviors/helpers.py`.
+      `CreateObject` BT nodes in `vultron/core/behaviors/helpers/object_nodes.py`.
     verification: >-
       `test/architecture/test_no_record_level_persistence_in_core.py` scans
       `vultron/core/use_cases/` and `vultron/core/behaviors/` for a reference to
       `object_to_record`, a hand-built `StorableRecord(...)`, or a record-level
       `.update(id_, record)` call and pins the one legacy site
-      (`vultron/core/behaviors/helpers.py`) in an exact `KNOWN_VIOLATIONS` set
+      (`vultron/core/behaviors/helpers/object_nodes.py`) in an exact
+      `KNOWN_VIOLATIONS` set
       (ARCH-18-001). A record-level `create(record)` is caught through the
       `StorableRecord(...)` it must first build, since by call shape alone it is
       indistinguishable from the typed `dl.create(obj)`.
@@ -1166,7 +1435,8 @@ groups:
       `vultron/core/use_cases/` and `vultron/core/behaviors/` for a reference to
       `object_to_record`, a hand-built `StorableRecord(...)`, or a record-level
       `.update(id_, record)` call and pins the one legacy site
-      (`vultron/core/behaviors/helpers.py`) in an exact `KNOWN_VIOLATIONS` set
+      (`vultron/core/behaviors/helpers/object_nodes.py`) in an exact
+      `KNOWN_VIOLATIONS` set
       (ARCH-18-001).
     relationships:
     - rel_type: extends

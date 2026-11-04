@@ -48,7 +48,10 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.held_ledger_announces import held_ledger_announces
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
+from vultron.core.states.embargo_register import (
+    EmbargoRegisterStatus,
+    TerminationReason,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
@@ -225,19 +228,16 @@ class TestRevisionInvitePermutations:
 # -- order dependencies the audit found (SYNC-19-001) ------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "SYNC-19-001: the owner's auto-accept of a relayed first-proposal"
-        " Invite reads EM NONE, which the proposal's own PROPOSE entry"
-        " changes. Tracked by #5199."
-    ),
-)
 @pytest.mark.spec("SYNC-19-001")
+@pytest.mark.spec("EP-09-005")
 def test_owner_answer_to_first_proposal_does_not_depend_on_its_entry(
     make_payload,
 ) -> None:
-    """The owner's answer is the same whether the PROPOSE entry came first."""
+    """The owner's answer is the same whether the PROPOSE entry came first.
+
+    The proposal's own register entry is not "an embargo that exists", so
+    the owner auto-accepts a first proposal inside its policy in both orders.
+    """
     answers = {}
     for entry_first in (False, True):
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=INVITEE)
@@ -258,9 +258,8 @@ def test_owner_answer_to_first_proposal_does_not_depend_on_its_entry(
         # One in-memory store per actor id: close it before the next order.
         dl.close()
 
-    # Which answer is right is not decided yet (#5199), so only agreement
-    # is asserted; the fix must also pin the decided answer here.
-    assert answers[False] == answers[True]
+    assert answers[False] == ["Accept"]
+    assert answers[True] == answers[False]
 
 
 def _apply_decision(dl: Any, case_id: str, embargo_id: str) -> None:
@@ -314,17 +313,9 @@ def test_late_relayed_invite_leaves_the_same_proposal_index(
     assert indexes[True] == indexes[False]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "SYNC-19-001: a paused signatory applies the Remove of a revision"
-        " only while that revision is in force, so a Remove that overtakes"
-        " its Announce is skipped and the revision is left ACTIVE. Tracked"
-        " by #5201."
-    ),
-)
 @pytest.mark.spec("SYNC-19-001")
 @pytest.mark.spec("SYNC-19-002")
+@pytest.mark.spec("CM-31-042")
 def test_paused_signatory_ending_notices_converge_in_either_order() -> None:
     """``Announce(R1)`` then ``Remove(R1)`` ends the same in either order."""
     outcomes = {}
@@ -357,11 +348,27 @@ def test_paused_signatory_ending_notices_converge_in_either_order() -> None:
         outcomes[announce_first] = (
             case.current_status.em.state,
             case.active_embargo_id,
+            tuple(
+                (entry.embargo_id, entry.status)
+                for entry in case.embargo_register
+            ),
+            tuple(
+                (row.embargo_id, row.state)
+                for row in replica.record().embargo_consents
+            ),
         )
         replica.dl.close()
 
-    # The Remove ends the revision, in either order.
-    assert outcomes[True] == (EM.EXITED, None)
+    # The Remove ends the revision, in either order: R0 superseded by R1,
+    # and R1 terminated, with the same consent rows.
+    assert outcomes[True][:3] == (
+        EM.EXITED,
+        None,
+        (
+            (notices.EMBARGO_ID, EmbargoRegisterStatus.SUPERSEDED),
+            (notices.REVISION_ID, EmbargoRegisterStatus.TERMINATED),
+        ),
+    )
     assert outcomes[True] == outcomes[False]
 
 

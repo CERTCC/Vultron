@@ -27,7 +27,6 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -45,11 +44,9 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
 from vultron.adapters.driving.fastapi.inbox_queue_drain import (
     StoredActivityIngressAdapter,
 )
-from vultron.adapters.inbox_staging import (
-    InlineObjectStaging,
-    _stage_inline_object,
-    _StagingStore,
-)
+from vultron.adapters.inbox_staging import InlineObjectStaging
+from vultron.adapters.inbox_staging.staging import _stage_inline_object
+from vultron.adapters.inbox_staging.store import _StagingStore
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
@@ -288,16 +285,16 @@ def _announce_body(inline: dict[str, Any]) -> dict[str, Any]:
 @pytest.fixture
 def persisted(monkeypatch) -> list[object]:
     """Capture every object ``_stage_inline_object`` hands to storage."""
-    from vultron.adapters import inbox_staging
+    from vultron.adapters.inbox_staging import staging as staging_module
 
     captured: list[object] = []
-    real_object_to_record = inbox_staging.object_to_record
+    real_object_to_record = staging_module.object_to_record
 
     def _spy(obj):
         captured.append(obj)
         return real_object_to_record(obj)
 
-    monkeypatch.setattr(inbox_staging, "object_to_record", _spy)
+    monkeypatch.setattr(staging_module, "object_to_record", _spy)
     return captured
 
 
@@ -695,20 +692,6 @@ def test_an_activity_with_no_sealed_body_cannot_be_held(dl):
         staging.hold_for_replay(built.id_)
     assert staging.held(built.id_) is None
     assert sum(dl.count_all().values()) == 0, "nothing is written"
-
-
-@pytest.mark.spec("VM-08-002")
-def test_a_stored_row_form_deferred_record_is_refused_naming_the_reset():
-    """The row form of a deferred record is retired, not aliased (#5019)."""
-    with pytest.raises(ValidationError, match="must be reset") as excinfo:
-        DeferredInboxActivity.model_validate(
-            {
-                "activity_id": "urn:uuid:row-held",
-                "activity_row_json": '{"id_": "urn:uuid:row-held"}',
-            }
-        )
-    assert "'activity_row_json'" in str(excinfo.value)
-    assert "#5019" in str(excinfo.value)
 
 
 def test_a_stage_that_stages_no_activity_row_fails_loudly(dl):

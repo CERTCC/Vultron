@@ -37,8 +37,10 @@ The checks:
 2. **Pinned exemption set** :data:`REPLICA_STATE_WRITES` — trees whose
    ungated writes are the design: the ledger replay itself, the bootstrap
    trees that mint a case or seed a replica before any CASE_MANAGER gate could
-   pass, and the paused-signatory embargo
-   teardown the CASE_MANAGER's direct notice carries (CM-31-010).  Every other
+   pass, the paused-signatory embargo
+   teardown the CASE_MANAGER's direct notice carries (CM-31-010), and the
+   write a diversion makes inside a tree that declares the CASE_MANAGER path
+   alone, where the declaration is the gate (HP-01-042).  Every other
    received-side state write is now CASE_MANAGER-gated (#3814): the
    ``KNOWN_UNGATED_STATE_WRITES`` ratchet drove to empty and was deleted with
    its strict-``xfail`` goal test, per #3815's design.
@@ -132,8 +134,25 @@ _ENDING_NOTICE = (
     " direct embargo-ending notice, its only channel; the sender guard admits"
     " only the CASE_MANAGER (CM-31-010, CM-31-032, PCR-03-001)"
 )
+_MANAGER_ONLY_DECLARATION = (
+    "the write runs in a diversion of a tree that declares the CASE_MANAGER"
+    " path alone, so the path stage refused every other receiver before any"
+    " guard ran and the declaration is the gate (HP-01-038, CLP-10-066,"
+    " ADR-0153).  The walk reads a PathBranch's own paths, not the tree's"
+    " declaration, so this write is recorded here rather than skipped"
+)
 # permanent: RSH-08-003 (replay and bootstrap writes; see each reason)
 REPLICA_STATE_WRITES: dict[_Write, str] = {
+    # The late-Accept re-invite (EMB-17-003): its diversion's effects used to
+    # sit in a CASE_MANAGER gate of their own, which ADR-0153 retires in
+    # favour of the tree's path declaration.  Pinned per node rather than by
+    # skipping the tree, so a second ungated writer in the same tree still
+    # fails (#5535).
+    (
+        f"{_E}/answer_trees.py",
+        "accept_invite_to_embargo_tree",
+        "ReinviteLateAccepterNode",
+    ): _MANAGER_ONLY_DECLARATION,
     (
         f"{_E}/announce_received_tree.py",
         "announce_embargo_received_tree",
@@ -143,14 +162,24 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
     # signatory, gated by AwaitsEmbargoEndingNoticeNode (#3814): the direct
     # Remove(EmbargoEvent) is that signatory's only channel (CM-31-010).
     (
-        f"{_E}/announce_teardown_tree.py",
+        f"{_E}/announce_teardown_tree/teardown.py",
         "remove_embargo_from_case_tree",
         "ClearActiveEmbargoNode",
     ): _ENDING_NOTICE,
+    # Behind the same gate, a Remove that overtook its revision's Announce
+    # activates the revision first, so either order ends the same
+    # (CM-31-042, SYNC-19-001, #5201).
+    (
+        f"{_E}/announce_teardown_tree/teardown.py",
+        "remove_embargo_from_case_tree",
+        "AdoptRemovedEmbargoRevisionNode",
+    ): _ENDING_NOTICE,
     **{
-        (f"{_Y}/announce_tree.py", "create_announce_log_entry_tree", cls): (
-            _REPLAY
-        )
+        (
+            f"{_Y}/announce_tree/factory.py",
+            "create_announce_log_entry_tree",
+            cls,
+        ): (_REPLAY)
         for cls in (
             "ApplyCaseParticipantRoleGrantFromLedgerNode",
             "ApplyCaseParticipantUpdateFromLedgerNode",
@@ -198,7 +227,7 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
     },
     **{
         (
-            f"{_C}/case_proposal_received_tree.py",
+            f"{_C}/case_proposal_received_tree/factory.py",
             "create_case_proposal_received_tree",
             cls,
         ): _MINT
@@ -334,7 +363,7 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         f"{_B}.embargo.nodes.proposal",
         "IndexReceivedEmbargoProposalNode",
     ): _PROPOSAL_INDEX,
-    (f"{_B}.helpers", "CreateObject"): _ARCHIVE,
+    (f"{_B}.helpers.object_nodes", "CreateObject"): _ARCHIVE,
     (f"{_B}.note.nodes.storage", "SaveNoteNode"): _ARCHIVE,
     (f"{_B}.report.nodes.case_creation", "CreateCaseActivity"): _ARCHIVE,
     (f"{_B}.report.nodes.storage", "StoreReportNode"): _ARCHIVE,
@@ -356,7 +385,7 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         f"{_B}.sync.nodes.replay_held",
         "ReplayHeldSuccessorNode",
     ): _HELD_ANNOUNCE,
-    (f"{_B}.sync.nodes.replay", "SendMissingEntriesNode"): _REPLICATION,
+    (f"{_B}.sync.nodes.replay.send", "SendMissingEntriesNode"): _REPLICATION,
     (f"{_B}.sync.nodes.reseed", "ReseedPeerNode"): _REPLICATION,
     (
         f"{_B}.sync.nodes.invite_resend",
@@ -380,7 +409,7 @@ def test_every_received_tree_factory_is_built() -> None:
     named = {(rel, factory) for rel, factory, _ in set(REPLICA_STATE_WRITES)}
     assert named <= built, sorted(named - built)
     assert (
-        f"{_Y}/announce_tree.py",
+        f"{_Y}/announce_tree/factory.py",
         "create_announce_log_entry_tree",
     ) in built
 

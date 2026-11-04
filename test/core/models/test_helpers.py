@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Regression tests for core/models/_helpers.py — _as_id must live in the
+"""Regression tests for core/models/_helpers/ — _as_id must live in the
 models layer, not use_cases.
 
 Issue #1428: BT import-direction violation — behaviors/ imported _as_id from
@@ -28,8 +28,8 @@ from pathlib import Path
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from vultron.core.models import _helpers
 from vultron.core.models._helpers import (
+    clock as helpers_clock,
     format_timestamp,
     now_utc,
     now_utc_after,
@@ -100,46 +100,6 @@ def test_as_id_object_without_id_():
             return "fallback"
 
     assert _as_id(Obj()) == "fallback"
-
-
-# --- status_recency_key (CM-29-001) ---------------------------------------
-
-
-def test_status_recency_key_prefers_updated_over_published():
-    from datetime import datetime
-
-    from vultron.core.models._helpers import status_recency_key
-
-    updated = datetime(2026, 6, 1, tzinfo=UTC)
-    published = datetime(2026, 1, 1, tzinfo=UTC)
-    assert status_recency_key(updated, published) == updated
-
-
-def test_status_recency_key_falls_back_to_published():
-    from datetime import datetime
-
-    from vultron.core.models._helpers import status_recency_key
-
-    published = datetime(2026, 1, 1, tzinfo=UTC)
-    assert status_recency_key(None, published) == published
-
-
-def test_status_recency_key_normalises_naive_to_utc():
-    """Naive timestamps (wire ISO strings without offset) are treated as UTC.
-
-    Regression for #2979: a naive key compared against an aware one would
-    otherwise raise ``TypeError`` in ``max()``.
-    """
-    from datetime import datetime
-
-    from vultron.core.models._helpers import status_recency_key
-
-    naive = datetime(2026, 1, 1)  # noqa: DTZ001 — deliberately naive
-    aware = datetime(2025, 1, 1, tzinfo=UTC)
-    assert status_recency_key(naive, aware) == datetime(2026, 1, 1, tzinfo=UTC)
-    assert status_recency_key(None, naive) == datetime(2026, 1, 1, tzinfo=UTC)
-    # Comparable against an aware key without raising.
-    assert status_recency_key(naive, aware) > status_recency_key(None, aware)
 
 
 # --- as_utc ---------------------------------------------------------------
@@ -393,8 +353,23 @@ _TICK = timedelta(microseconds=1)
 @pytest.fixture
 def _frozen_clock(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        _helpers, "datetime", SteppingClock(_PINNED, step=timedelta(0))
+        helpers_clock, "datetime", SteppingClock(_PINNED, step=timedelta(0))
     )
+
+
+@pytest.mark.parametrize("seam", ["datetime", "uuid"])
+def test_helpers_package_exposes_no_stale_seam(seam: str) -> None:
+    """The clock and id seams live in ``clock`` and ``ids``, not the package.
+
+    ``now_utc`` reads ``datetime`` from ``_helpers.clock`` and
+    ``new_object_id`` reads ``uuid`` from ``_helpers.ids``.  Were the package
+    to bind either name, a patch of the pre-split ``_helpers.datetime`` or
+    ``_helpers.uuid`` seam would succeed and silently change nothing; with
+    the name absent, such a patch raises ``AttributeError`` instead.
+    """
+    import vultron.core.models._helpers as helpers_package
+
+    assert not hasattr(helpers_package, seam)
 
 
 @pytest.mark.spec("CS-13-008")
@@ -574,6 +549,6 @@ def test_application_code_reads_the_clock_only_through_now_utc() -> None:
 def test_an_interval_composed_from_now_is_in_utc() -> None:
     """``days_from_now_utc`` adds the interval to a UTC instant, never to a
     local-zone one, so the end it returns carries a zero offset."""
-    end = _helpers.days_from_now_utc(30)
+    end = helpers_clock.days_from_now_utc(30)
     assert end.utcoffset() == timedelta(0)
     assert end.tzinfo is UTC or end.tzinfo == UTC

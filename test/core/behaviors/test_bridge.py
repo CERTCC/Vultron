@@ -22,8 +22,11 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BlackboardKeyProbe
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.bridge.tree_execution import _BridgeExecution
+from vultron.core.behaviors.bridge.tree_setup import _BridgeSetup
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
@@ -48,6 +51,18 @@ def enable_blackboard_activity_stream():
     clears that storage around every test (TB-06-005).
     """
     py_trees.blackboard.Blackboard.enable_activity_stream()
+
+
+def test_btbridge_composes_setup_and_execution_mixins():
+    """``BTBridge`` is ``_BridgeSetup`` then ``_BridgeExecution`` (CS-18-002).
+
+    The bridge's setup and tick loop live in two mixin modules.  Importing them
+    here also makes this file a direct importer of both, so ``targeted-tests``
+    selects it when either module changes (PAD-18-002).
+    """
+    assert BTBridge.__mro__[1:3] == (_BridgeSetup, _BridgeExecution)
+    assert BTBridge.setup_tree is _BridgeSetup.setup_tree
+    assert BTBridge.execute_tree is _BridgeExecution.execute_tree
 
 
 # Test behavior nodes for verifying bridge functionality
@@ -168,6 +183,24 @@ class StageRMAnomalyThenFail(py_trees.behaviour.Behaviour):
         }
         self.feedback_message = "staged anomaly then aborting"
         return Status.FAILURE
+
+
+class PublishOutputPort(py_trees.behaviour.Behaviour):
+    """Publish ``/<key>`` the way an output port does, then SUCCEED.
+
+    A node's output port writes its key outside the ``context_data`` the
+    caller passes, which is the shape whose value used to outlive its
+    execution.  This stands in for the nodes that publish *key*.
+    """
+
+    def __init__(self, key: str, value: str, name: str = "PublishOutputPort"):
+        super().__init__(name=name)
+        self._key = key
+        self._value = value
+
+    def update(self) -> Status:
+        py_trees.blackboard.Blackboard.storage[f"/{self._key}"] = self._value
+        return Status.SUCCESS
 
 
 class WriteRMAnomaly(py_trees.behaviour.Behaviour):
@@ -615,6 +648,80 @@ def test_execute_with_setup_clears_a_stale_rm_anomaly(bridge, test_actor_id):
     )
     assert second.status == Status.SUCCESS
     assert captured["present"] is False
+
+
+#: Output-port keys the bridge scopes to their execution, each with the
+#: nodes that publish it and what a value left by an earlier execution would
+#: do (BTND-03-009, BT-09).
+_SCOPED_OUTPUT_PORT_KEYS = [
+    # CaseLookupNode, LoadExistingCaseNode, the replay and case-creation
+    # nodes publish it; ReceivedPathNode and CheckIsCaseManagerNode fall back
+    # to it, so a stale case refused a Read(Offer(VulnerabilityReport)) as a
+    # replica of a case the acknowledgement never named (HP-01-040,
+    # RMB-08-003).
+    pytest.param("case_id", id="case_id"),
+    # ResolveCaseManagerNode publishes it; a stale one would address a
+    # trigger's activities to another case's CASE_MANAGER (#5803).
+    pytest.param("case_manager_id", id="case_manager_id"),
+    # FindCaseActorNode, ReceivedPathNode and CheckIsCaseManagerNode publish
+    # it; a stale one would address a genesis Announce or a replay to the
+    # wrong actor (#5803).
+    pytest.param("case_actor_id", id="case_actor_id"),
+]
+
+
+@pytest.mark.parametrize("key", _SCOPED_OUTPUT_PORT_KEYS)
+def test_execute_with_setup_does_not_leak_a_published_output_port_key(
+    bridge, test_actor_id, key
+):
+    """A key an output port published dies with its execution.
+
+    A use case's ``context_data`` is scoped already; an output port is not
+    ``context_data``, so without its fixed ``managed_keys`` entry the value
+    strands on the process-global blackboard, and the next execution, even
+    another actor's, reads it as its own.
+    """
+    storage = py_trees.blackboard.Blackboard.storage
+
+    first = bridge.execute_with_setup(
+        tree=PublishOutputPort(key, f"https://example.org/leaked/{key}"),
+        actor_id=test_actor_id,
+    )
+
+    assert first.status == Status.SUCCESS
+    assert f"/{key}" not in storage
+    assert key not in storage
+
+    # The next execution must find no value of its own accord.
+    probe = BlackboardKeyProbe(key)
+    second = bridge.execute_with_setup(tree=probe, actor_id=test_actor_id)
+    assert second.status == Status.SUCCESS
+    assert probe.ran
+    assert probe.value is None
+
+
+@pytest.mark.parametrize("key", _SCOPED_OUTPUT_PORT_KEYS)
+def test_execute_with_setup_restores_a_preexisting_output_port_key(
+    bridge, test_actor_id, key
+):
+    """A caller-set key survives an execution that republishes it.
+
+    The bridge restores the key to its pre-execution state, so scoping it
+    cannot break a nested call that legitimately handed one in (#3161).
+    """
+    storage = py_trees.blackboard.Blackboard.storage
+    outer = f"https://example.org/outer/{key}"
+    storage[f"/{key}"] = outer
+
+    try:
+        result = bridge.execute_with_setup(
+            tree=PublishOutputPort(key, f"https://example.org/inner/{key}"),
+            actor_id=test_actor_id,
+        )
+        assert result.status == Status.SUCCESS
+        assert storage[f"/{key}"] == outer
+    finally:
+        storage.pop(f"/{key}", None)
 
 
 def test_execute_with_setup_restores_a_preexisting_rm_anomaly(
@@ -1847,7 +1954,7 @@ class TestNestedExecutionKeyIsolation:
         not RUNNING.  So asserting on the raw blackboard is not enough: this
         asserts what a *sibling node* resolves, which is what
         ``OwnerLeaveSeq``'s ledger-committing node does downstream of a nested
-        call (``case/receive_close_case_tree.py``).
+        call (``case/receive_close_case_tree/closure_effects.py``).
         """
         inner_actor = "https://test.example/actors/case-actor"
         outer_seen: list[str | None] = []

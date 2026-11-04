@@ -35,6 +35,11 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import activate, propose, terminate
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.case.nodes.path_branch import OnPaths
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
+from vultron.core.behaviors.embargo.nodes.proposal_repeat import (
+    EmbargoTermsNotHeldNode,
+)
 from vultron.core.behaviors.embargo.nodes.relay import (
     EMBARGO_INVITE_SEMANTIC_TYPE,
     CollectEmbargoInviteRecipientsNode,
@@ -239,26 +244,34 @@ class TestEmStateAdmitsProposalNode:
 
 
 class TestCaseManagerAdmitsProposalGuard:
+    """The guard is declared on the manager path alone (HP-01-038).
+
+    It is an ``OnPaths`` declaration, not a behaviour: the received-tree
+    factory builds its branch from the path stage's answer, so the guard
+    itself only names the path it belongs to and the node it runs there.
+    """
+
+    @pytest.mark.spec("HP-01-038")
+    def test_it_declares_the_manager_path_and_the_em_check(self) -> None:
+        declared = case_manager_admits_proposal_guard(CASE_ID, EMBARGO_ID)
+
+        assert isinstance(declared, OnPaths)
+        assert declared.paths == frozenset({ReceivedPath.CASE_MANAGER})
+        em_check, terms_check = declared.children
+        assert isinstance(em_check, EmStateAdmitsProposalNode)
+        # EP-09-032: the terms repeat check runs on the same path.
+        assert isinstance(terms_check, EmbargoTermsNotHeldNode)
+
     @pytest.mark.executes_as(MANAGER)
     def test_the_manager_is_refused_at_exited(
         self, bt_scenario: BTTestScenario
     ) -> None:
         _seed_case(bt_scenario, em_state=EM.EXITED)
-        result = bt_scenario.run(case_manager_admits_proposal_guard(CASE_ID))
+        guard = case_manager_admits_proposal_guard(
+            CASE_ID, EMBARGO_ID
+        ).children[0]
+        result = bt_scenario.run(guard)
         assert result.status == Status.FAILURE
-
-    @pytest.mark.executes_as(OTHER_A)
-    def test_a_participant_replica_is_not_gated(
-        self, bt_scenario: BTTestScenario
-    ) -> None:
-        """The guard is the manager's; a replica records whatever arrives."""
-        _seed_case(
-            bt_scenario,
-            em_state=EM.EXITED,
-            participants={OTHER_A: None},
-        )
-        result = bt_scenario.run(case_manager_admits_proposal_guard(CASE_ID))
-        assert result.status == Status.SUCCESS
 
 
 class TestCollectEmbargoInviteRecipientsNode:

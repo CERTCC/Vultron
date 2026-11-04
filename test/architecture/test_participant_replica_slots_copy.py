@@ -49,6 +49,7 @@ from test.architecture._replica_slots import (
 )
 from vultron.core.behaviors.sync.nodes.case_status_effect import (
     ApplyCaseStatusFromLedgerNode,
+    warn_if_out_of_order,
 )
 from vultron.core.behaviors.sync.nodes.participant_record_effect import (
     ApplyCaseParticipantUpdateFromLedgerNode,
@@ -94,6 +95,16 @@ _FORBIDDEN = frozenset(
         "participant_status",
     }
 )
+
+#: Functions a slot reaches that may read a forbidden name, and which names.
+#: Each reads the replica's own status for a log only, filling no field.
+_DIAGNOSTIC_READS: dict[str, frozenset[str]] = {
+    # CM-29-008: an out-of-order case status is applied and warned, which
+    # compares its time with the replica's current status.
+    f"{warn_if_out_of_order.__module__}.{warn_if_out_of_order.__qualname__}": (
+        frozenset({"current_status"})
+    ),
+}
 
 #: Record classes a slot copies and never builds.
 _RECORD_CLASSES = frozenset(
@@ -169,11 +180,29 @@ def _slot_names(slot: type) -> dict[str, set[str]]:
 @pytest.mark.parametrize("slot", _SLOTS, ids=lambda c: c.__name__)
 def test_a_participant_slot_derives_nothing(slot: type) -> None:
     offenders = {
-        where: sorted(names & _FORBIDDEN)
+        where: sorted(found)
         for where, names in _slot_names(slot).items()
-        if names & _FORBIDDEN
+        if (
+            found := names
+            & (_FORBIDDEN - _DIAGNOSTIC_READS.get(where, frozenset()))
+        )
     }
     assert not offenders, f"{slot.__name__} reaches {offenders}"
+
+
+@pytest.mark.spec("CM-23-044")
+@pytest.mark.spec("CM-29-008")
+def test_every_diagnostic_read_is_reached_and_still_needed() -> None:
+    """Each exemption names a function a slot reaches, using the names it
+    exempts, so a stale entry cannot linger and widen the guard."""
+    reached: dict[str, set[str]] = {}
+    for slot in _SLOTS:
+        reached.update(_slot_names(slot))
+    for where, names in _DIAGNOSTIC_READS.items():
+        assert where in reached, f"{where} is reached by no slot"
+        assert names <= reached[where] & _FORBIDDEN, (
+            f"{where} no longer uses {sorted(names - reached[where])}"
+        )
 
 
 @pytest.mark.spec("CM-23-044")

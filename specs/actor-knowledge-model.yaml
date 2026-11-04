@@ -48,6 +48,8 @@ groups:
       A direct shortcut between co-located actors bypasses the inbox pipeline, so its
       exchanges skip validation, the addressee and entitlement gates, and the case
       ledger, and leave nothing a remote participant would receive.
+    stories:
+    - story_2026_002
   - id: AKM-01-003
     priority: MUST
     kind: protocol
@@ -99,6 +101,11 @@ groups:
       it unable to read what the activity acts on, so it must refuse the activity or
       guess. Carrying such an object inline, or by a reference the recipient can fetch,
       keeps every activity processable by its addressee.
+    stories:
+    - story_2026_016
+    relationships:
+    - rel_type: uses_definition
+      spec_id: AKM-05-003
   - id: AKM-02-004
     priority: MUST
     kind: project
@@ -162,6 +169,9 @@ groups:
     stories:
     - story_2022_053
     - story_2022_024
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-11-013
   - id: AKM-02-008
     priority: MUST_NOT
     kind: protocol
@@ -177,7 +187,7 @@ groups:
       `test/wire/as2/factories/test_case_context.py` checks that the factories send the
       URI of a full case given as `target`.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: AKM-02-003
     adr:
     - ADR-0114
@@ -313,7 +323,7 @@ groups:
     adr:
     - ADR-0165
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: AKM-03-003
   - id: AKM-03-005
     priority: MUST
@@ -340,7 +350,7 @@ groups:
     adr:
     - ADR-0165
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: AKM-03-004
   - id: AKM-03-006
     priority: MUST
@@ -359,7 +369,7 @@ groups:
     adr:
     - ADR-0165
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: AKM-03-004
   - id: AKM-03-002
     priority: MUST
@@ -375,6 +385,9 @@ groups:
       activity at the receiver.
     verification: A unit test confirms that the outbox handler rejects an activity whose `object` field is a bare URI
       reference rather than a fully inline typed domain object.
+    relationships:
+    - rel_type: verifies
+      spec_id: AKM-03-003
 - id: AKM-04
   title: 'Future: Known-Object Tracking'
   specs:
@@ -454,7 +467,7 @@ groups:
     scope:
     - prototype
     stories:
-    - story_2022_014
+    - story_2026_098
     note: >-
       A refusal that stands in for dereference lapses where dereference exists. This
       codebase dereferences through the case host's object read (AKM-05-006) and the
@@ -488,7 +501,7 @@ groups:
     - rel_type: refines
       spec_id: AKM-05-003
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: AKM-05-006
     priority: MUST
     kind: project
@@ -526,8 +539,10 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: AKM-05-003
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-10-004
+    - rel_type: uses_definition
+      spec_id: CM-23-004
     adr:
     - ADR-0107
   - id: AKM-05-009
@@ -547,7 +562,7 @@ groups:
       non-participant, a request naming no requester, an object the case does not name
       and a case the host does not hold are answered 403, 401, 404 and 404.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: AKM-05-006
     adr:
     - ADR-0107
@@ -600,7 +615,7 @@ groups:
     - ADR-0107
     - ADR-0170
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: AKM-05-010
     priority: MUST
     kind: protocol
@@ -618,12 +633,12 @@ groups:
       `test/core/behaviors/inbox/nodes/test_dereference_check_node.py` checks an
       activity waits while its fetch is open.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: AKM-05-007
     adr:
     - ADR-0107
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: AKM-05-011
     priority: MUST
     kind: protocol
@@ -637,12 +652,12 @@ groups:
       `test/core/services/test_dereference.py` checks the CASE_MANAGER fetches nothing
       from itself and a ledger entry is never fetched.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: AKM-05-007
     adr:
     - ADR-0107
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: AKM-05-012
     priority: MUST
     kind: protocol
@@ -658,14 +673,14 @@ groups:
       already holds; `test/core/services/test_dereference.py` checks a held object is
       not fetched again.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: AKM-05-007
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: MV-10-003
     adr:
     - ADR-0107
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: AKM-05-008
     priority: MUST
     kind: project
@@ -679,7 +694,7 @@ groups:
       `test/adapters/driven/test_http_object_fetch.py` checks the retry cap and the
       backoff on a 5xx or network error, and `test/test_config.py` the defaults.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: AKM-05-007
     adr:
     - ADR-0107
@@ -712,7 +727,7 @@ groups:
       logged at WARNING, and that a body that is not the object asked for fails the
       fetch.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: AKM-05-008
     adr:
     - ADR-0107
@@ -733,7 +748,7 @@ groups:
       `test/core/behaviors/inbox/nodes/test_dereference_check_node.py` checks a failed
       fetch lets the activity go on with its reference.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: AKM-05-008
     adr:
     - ADR-0107
@@ -749,9 +764,6 @@ groups:
     verification: >-
       `test/wire/as2/factories/test_actor_references.py::test_a_held_actor_profile_travels_as_held`
       checks a held profile keeps the fields it was given.
-    relationships:
-    - rel_type: refines
-      spec_id: AKM-05-001
     adr:
     - ADR-0159
     stories:
@@ -772,9 +784,9 @@ groups:
       `test/wire/as2/factories/test_actor_references.py::test_an_actor_given_by_uri_travels_as_an_actor_reference`
       checks the actor in each such activity is exactly an `id` and a `type`.
     relationships:
-    - rel_type: extends
+    - rel_type: refines
       spec_id: AKM-05-005
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: MV-10-009
     adr:
     - ADR-0159

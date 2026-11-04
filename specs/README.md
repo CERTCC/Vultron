@@ -92,6 +92,7 @@ Load additional files only when the task touches the relevant area. See the
 | Configuration | `configuration.yaml` |
 | Demo / CLI | `demo-cli.yaml`, `multi-actor-demo.yaml` |
 | Demo scenario report tool | `demo-report.yaml` |
+| Case event history for measurement | `case-event-history.yaml` |
 | Event-driven control flow / cascade model | `event-driven-control-flow.yaml`, `notes/event-driven-control-flow.md` |
 | Observability | `observability.yaml` |
 | Security / CI | `ci-security.yaml`, `signing.yaml`, `encryption.yaml` |
@@ -171,8 +172,8 @@ related requirements across files.
 
 - **`activity-factories.yaml`** - Factory function pattern for constructing outbound
   Vultron protocol activities; module structure under `vultron/wire/as2/factories/`,
-  import boundary enforcement, error handling, TypeAlias cleanup, and migration
-  requirements (AF-01 through AF-08)
+  import boundary enforcement, error handling, TypeAlias naming, and the activity
+  translator port (AF-01 through AF-09)
 
 **Semantic–Wire Mapping**:
 
@@ -317,6 +318,12 @@ related requirements across files.
   `CaseTimelineEvent` model, markdown and self-contained HTML rendering, the
   per-actor replica-presence matrix, friendly (non-URI) naming, and test
   requirements (DRPT-01 through DRPT-05)
+- **`case-event-history.yaml`** - Read-only analysis layer that derives a case's
+  Coordinated Vulnerability Disclosure event history from its ledger: the package
+  and its command, which ledger copy it reads, the fields of one event record, how
+  each event is derived, the per-participant case-state sequences it projects, the
+  data-gap labels it carries, and test requirements (CEH-01 through CEH-06). The
+  measures computed from the history are research material and are not specified.
 
 ### Actor Profiles and Policies
 
@@ -463,6 +470,7 @@ is reserved for `testability.yaml`).
 | `BW` | `build-workflow.yaml` |
 | `CISEC` | `ci-security.yaml` |
 | `DOCBW` | `docs-build-workflow.yaml` |
+| `CEH` | `case-event-history.yaml` |
 | `CLP` | `case-ledger-processing.yaml` |
 | `CM` | `case-management.yaml` |
 | `CP` | `case-proposal.yaml` |

@@ -21,7 +21,7 @@ stakeholder_type: [project-contributor]
   4. Use-case entry points follow `UseCase.__init__(dl, request)` + `execute()`.
      Received use cases return `HandlerResult` (ADR-0095); trigger use cases return their verb's `TriggerResult` subtype (ADR-0110); both live in `vultron/core/models/use_case_result.py`.
      Routing is table-driven on both sides: `use_case_map()` in `vultron/semantic_registry/` for received activities, `TRIGGER_REGISTRY` in `vultron/trigger_registry/` for trigger verbs.
-  5. Every received-side tree is built by `create_receive_activity_tree()` in the order intake → door guards (post-close boundary, addressee check, [closed-sender door], [case resolution], [sender guard]) → [ledger-position answer] → [clock decisions] → precondition guards → commit → `replica_effects` → `manager_effects` (ADR-0111, ADR-0115, ADR-0135, CLP-10-006, CLP-10-010).
+  5. Every received-side tree is built by `create_receive_activity_tree()` in the order intake → door guards (post-close boundary, addressee check, [path stage], [closed-sender door], [case resolution], [sender guard]) → [ledger-position answer] → [clock decisions] → precondition guards → commit → `replica_effects` → `manager_effects` (ADR-0111, ADR-0115, ADR-0135, CLP-10-006, CLP-10-010).
      The ledger-position answer is the CASE_MANAGER's answer to the sender's stamped `ledgerPosition` (SYNC-18-004, SYNC-18-005, SYNC-18-007): it records a held position, replays a lag and re-seeds a split, commits nothing and never decides the act.
      Clock decisions are the CASE_MANAGER's own decisions from its clock, such as an expiry; the factory runs them only at the CASE_MANAGER, and a refused commit there logs a warning and lets the tree continue (CLP-10-025).
      The embargo end-time check is a clock decision of every tree with a case and both door guards, and the first, CASE_MANAGER-gated step of every case-scoped trigger's tree (EMB-13-003, BT-15-003); no dispatcher runs it as a hook.
@@ -30,9 +30,16 @@ stakeholder_type: [project-contributor]
      The factory adds the refusal notice, `refusal_notice(case_id)` in `vultron/core/behaviors/case/nodes/refusal_notice.py`, as the first refusal effect of every tree that commits to a case and has precondition guards, to tell the asserting participant its assertion was refused (CLP-02-005, CLP-05-001).
      A tree goes without it only by naming a registered `RefusalNoticeExemption` (`refusal_notice_exemption`); `test/architecture/test_received_tree_refusal_notice.py` pins each use.
      The factory wraps `manager_effects` in the CASE_MANAGER gate and refuses an emit node in `replica_effects` that no named exemption covers (BT-17-008).
+     The path stage is the one role question a received message asks: `ReceivedPathNode` in `vultron/core/behaviors/case/nodes/received_path.py` reads `has_role(actor_id, case_id, CVDRole.CASE_MANAGER, dl)` once and picks the manager, participant-replica or no-case path (ADR-0153, CM-02-011).
+     Work that belongs to some declared paths and not all of them is an `OnPaths` declaration among the precondition guards or the `replica_effects`, and the factory builds a `PathBranch` at that spot from that one answer, so no tree asks the role a second time (HP-01-042, HP-01-043).
+     A tree gets it by declaring the paths its message type handles, with the factory's `paths=` argument; a delivery on a path the declaration omits is refused there, so no handler reads "not the manager" out of a gate skip (HP-01-005, HP-01-012, HP-01-038).
+     The refusal reason is composed in one place, by `undeclared_path_reason()`, from the resolved path and the declaration, so every message type words it the same way and the reason is true of the receiver it refuses (HP-01-039).
+     The case the stage reads the role in is the tree's commit case, else its `manager_case_id`, else the case its sender context names, which is how a tree that commits nothing still asks about the case the activity is about (HP-01-040).
+     `has_role()` in `vultron/core/participants/role_predicate.py` is the only sanctioned way to ask whether an actor holds a role in a case, and `test/architecture/test_received_path_role_question.py` ratchets every received-side site that still asks it another way.
      The sender-guard stage is the per-use-case sender-entitlement check declared via `sender_entitlement` on the use-case class (HP-01-006, HP-01-007).
-     The factory composes it from the declared `SenderRule` and a `SenderCheckContext` for the receiver's addressee side (`vultron/core/behaviors/sender_guard.py`, HP-01-025); a tree cannot pass a guard of its own, and the ratchet's allow-list of guards not yet migrated is empty.
-     A tree whose sender may already be closed on the case passes `closed_sender=ClosedSenderCheck(...)`, and its handler reads the door's result with `closed_sender_verdict()` in `vultron/core/use_cases/received/_bt_verdict.py`: a repeat of a closing act is `SKIPPED`, and any other act is `REFUSED` (CM-23-018, CM-23-049, ID-05-003).
+     The factory composes it from the declared `SenderRule` and a `SenderCheckContext` for the receiver's addressee side (`vultron/core/behaviors/sender_guard/`, HP-01-025); a tree cannot pass a guard of its own, and the ratchet's allow-list of guards not yet migrated is empty.
+     In a tree that declared its paths, the guard's at-the-CASE_MANAGER and at-a-participant arms are selected from the path stage's answer rather than from a second role read (ADR-0153, HP-01-008).
+     A tree whose sender may already be closed on the case passes `closed_sender=ClosedSenderCheck(...)`, and its handler reads the door's result with `closed_sender_verdict()` in `vultron/core/use_cases/received/_bt_verdict/door.py`: a repeat of a closing act is `SKIPPED`, and any other act is `REFUSED` (CM-23-018, CM-23-049, ID-05-003).
      A tree whose case is resolved at run time passes the read-only `CaseResolving` steps that resolve it as `case_resolution`, which run just before the guard, or, for a ledger activity, a `LedgerActivityContext`, whose nodes read the case from the carried entry.
 
 ### 2) System Flow
@@ -41,13 +48,13 @@ Received activity (inbox):
 
 ```text
 HTTP POST /actors/{actor_id}/inbox  (wire: AS2 JSON)
-  -> inbox route                   `vultron/adapters/driving/fastapi/routers/actors/_routes.py`
+  -> inbox route                   `vultron/adapters/driving/fastapi/routers/actors/_routes/mailbox.py`
   -> parse_activity (structural)   `vultron/wire/as2/parser.py`
      + unknown-key disposition     `vultron/wire/as2/unknown_keys.py`
   -> HTTP 202 Accepted; work continues in a BackgroundTasks task
-  -> inbox orchestration           `vultron/adapters/driving/fastapi/inbox_orchestration.py`
+  -> inbox orchestration           `vultron/adapters/driving/fastapi/inbox_orchestration/pipeline.py`
      (BT work runs in a worker thread via asyncio.to_thread, IE-06-007)
-  -> rehydrate() via staging       `vultron/adapters/inbox_staging.py`, `vultron/wire/as2/rehydration.py`
+  -> rehydrate() via staging       `vultron/adapters/inbox_staging/staging.py`, `vultron/wire/as2/rehydration/`
      (activity and inline objects staged in a throwaway store; ingress writes nothing, DL-06-006, IO-03-004;
       a deferred activity is held whole in a `DeferredInboxActivity` for its replay)
   -> semantic extraction           `vultron/wire/as2/extractor/`
@@ -55,10 +62,10 @@ HTTP POST /actors/{actor_id}/inbox  (wire: AS2 JSON)
   -> dispatcher                    `vultron/core/dispatcher.py` (port: `vultron/core/ports/dispatcher.py`)
   -> use_case_map() lookup         `vultron/semantic_registry/`
   -> *ReceivedUseCase.execute()    `vultron/core/use_cases/received/`
-  -> BTBridge runs the received tree  `vultron/core/behaviors/bridge.py`
+  -> BTBridge runs the received tree  `vultron/core/behaviors/bridge/`
      intake -> door guards -> [ledger-position answer] -> [clock decisions] -> precondition guards -> commit -> effects; nodes write through DataLayer
   -> DataLayer                     `vultron/adapters/driven/datalayer_sqlite/` (one store per actor, ADR-0073)
-  -> outbox handler + lanes        `vultron/adapters/driving/fastapi/outbox_handler.py`, `outbox_lanes.py`
+  -> outbox handler + lanes        `vultron/adapters/driving/fastapi/outbox_handler/drain.py`, `outbox_lanes.py`
      (sealed body relayed as stored; per-recipient order, ADR-0112)
   -> outbound delivery             `vultron/adapters/driven/http_delivery.py`
      (`prod_http_delivery.py` is a NotImplementedError stub; demo uses `demo_http_delivery.py`)
@@ -83,7 +90,7 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 | Layer or module | Owns | Must not own | Evidence |
 |-----------------|------|--------------|----------|
 | `vultron/core/` | Domain models, ports (Protocols), use cases, state enums, behavior trees, services, scoring, both dispatchers | FastAPI, SQLModel, AS2 wire classes | `notes/architecture-hexagonal.md`, `test/architecture/` |
-| `vultron/core/behaviors/` | py_trees trees and nodes; `BTBridge` execution under a module-level `RLock`; blackboard snapshot/restore (`blackboard_scope.py`) | `use_cases/` imports | `vultron/core/behaviors/bridge.py`, `test/architecture/test_behaviors_no_use_case_imports.py` |
+| `vultron/core/behaviors/` | py_trees trees and nodes; `BTBridge` execution under a module-level `RLock`; blackboard snapshot/restore (`blackboard_scope.py`) | `use_cases/` imports | `vultron/core/behaviors/bridge/`, `test/architecture/test_behaviors_no_use_case_imports.py` |
 | `vultron/core/predicates/` | Pure predicate functions (role checks, embargo eligibility, role-gated state invariants) — no I/O, no DataLayer | `behaviors/`, `services/`, `ports/` imports (cycle risk) | `notes/predicates-rule-layer.md` |
 | `vultron/core/ports/` | Protocol contracts: `DataLayer`, `ActivityDispatcher`, `TriggerDispatcher`, `WireRenderPort`, `TriggerActivityPort`, `SyncActivityPort`, emitter and persistence ports | `BaseModel` types in port signatures | `vultron/core/ports/AGENTS.md` |
 | `vultron/wire/as2/` | AS2 vocabulary (Pydantic), parser, unknown-key disposition, rehydration, semantic extractor, activity factories | Core logic beyond `core/models/` and `core/states/` imports; FastAPI | `vultron/wire/as2/AGENTS.md` |
@@ -103,9 +110,9 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 | Use-Case class (`UseCase` Protocol) | `vultron/core/ports/use_case.py`, `vultron/core/use_cases/` | Encapsulate one business operation; consistent `__init__(dl, request) + execute()` contract |
 | Table-driven dispatch | `vultron/semantic_registry/` (`use_case_map()`), `vultron/trigger_registry/` (`TRIGGER_REGISTRY`) | Route inbound events and trigger verbs to use cases without per-handler decorators; the trigger table also feeds route-to-row and exposure ratchets |
 | py_trees behavior trees behind `BTBridge` | `vultron/core/behaviors/` | Encode CVD sub-protocol logic as composable, testable trees; the bridge owns setup, blackboard scope and the global lock |
-| Shared received-tree factory | `vultron/core/behaviors/case/receive_activity_tree.py`, with its stage builders in `case/receive_stages/` | One composition order (intake → door guards → [ledger-position answer] → [clock decisions] → precondition guards → commit → `replica_effects` → `manager_effects`) for every received tree; the factory owns the CASE_MANAGER gate, including the one around `clock_decisions` and the one around `refusal_effects`, which run only when a precondition guard refuses (ADR-0111, ADR-0115, ADR-0135, BT-17-008, CLP-10-022, CLP-10-025) |
-| CASE_MANAGER gate | `create_case_manager_gated_tree` in `vultron/core/behaviors/case/nodes/role_gates.py`, applied to a received tree only by `create_receive_activity_tree` through `manager_effects`; `case_manager_verdict()` in `vultron/core/use_cases/received/_bt_verdict.py` | Effects owned by the CASE_MANAGER run only on that actor; another receiver reports `REFUSED`, never `SKIPPED` (BT-17-001, HP-01-005) |
-| Sender-entitlement module | `vultron/core/behaviors/sender_entitlement.py` | Single home for all sender-entitlement nodes and declarations; each received use case declares its `sender_entitlement` (a `SenderRule` composed of `SenderEntitlementKind` members per addressee side, or a `SenderExemption`); the architecture ratchet in `test/architecture/test_sender_entitlement_ratchet.py` enforces coverage (HP-01-006, HP-01-007, ADR-0115) |
+| Shared received-tree factory | `vultron/core/behaviors/case/receive_activity_tree.py`, with its stage builders in `case/receive_stages/` | One composition order (intake → door guards, the path stage among them → [ledger-position answer] → [clock decisions] → precondition guards → commit → `replica_effects` → `manager_effects`) for every received tree; the factory owns every declared path branch and every CASE_MANAGER gate, including the one around `clock_decisions` and the one around `refusal_effects`, which run only when a precondition guard refuses (ADR-0111, ADR-0115, ADR-0135, BT-17-008, CLP-10-022, CLP-10-025) |
+| CASE_MANAGER gate | `create_case_manager_gated_tree` in `vultron/core/behaviors/case/nodes/role_gates.py`, applied to a received tree only by `create_receive_activity_tree` through `manager_effects`; `case_manager_verdict()` in `vultron/core/use_cases/received/_bt_verdict/case_manager.py` | Effects owned by the CASE_MANAGER run only on that actor; another receiver reports `REFUSED`, never `SKIPPED` (BT-17-001, HP-01-005) |
+| Sender-entitlement package | `vultron/core/behaviors/sender_entitlement/` | Single home for all sender-entitlement nodes and declarations; each received use case declares its `sender_entitlement` (a `SenderRule` composed of `SenderEntitlementKind` members per addressee side, or a `SenderExemption`); the architecture ratchet in `test/architecture/test_sender_entitlement_ratchet.py` enforces coverage (HP-01-006, HP-01-007, ADR-0115) |
 | Factory function per object type | `vultron/wire/as2/factories/` | Construct outbound AS2 activities in one place |
 | `pydantic-settings` layered config | `vultron/config/app.py` | Merge YAML file + env vars + defaults in a single `AppConfig` object |
 | Typed ports on BT DataLayer nodes | `vultron/core/behaviors/` (`INPUT_PORTS`/`OUTPUT_PORTS`) | Declare blackboard key dependencies as typed class attributes instead of calling `register_key()` at runtime; enforced by `test/architecture/test_no_bare_register_key_datalayer_nodes.py` (BTND-03-009) |
@@ -120,7 +127,7 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 - **State machine coupling via the transitions library**: `vultron/core/states/` and `vultron/core/services/embargo_lifecycle/base.py` import `transitions` directly, so a third-party state machine library sits in core.
 - **Process-global py_trees blackboard**: BT executions share `py_trees.blackboard.Blackboard.storage`.
   `BTBridge` serializes executions with a module-level `RLock`, and `blackboard_scope.py` snapshots and restores execution-scoped keys, but any key outside those managed sets can leak between trees.
-- **Core modules over the CS-18 size cap**: several core files exceed the 500-line threshold of CS-18-001, the largest being `vultron/core/behaviors/sender_entitlement.py` (a single home by design, ADR-0115), `vultron/core/behaviors/helpers.py` and `vultron/core/ports/trigger_activity.py` (see `CONCERNS.md`).
+- **Core modules over the CS-18 size cap**: several core files exceed the 500-line threshold of CS-18-001, the largest being `vultron/core/behaviors/case/receive_activity_tree.py` (see `CONCERNS.md`).
 - **Content signing decided but not built**: ADR-0164 (`accepted-provisional`) chooses object-level proofs inside each activity (FEP-8b32, `eddsa-jcs-2022`) from seeded keys, with strict verification and no switch.
   Nothing signs or verifies yet; the inbox accepts any well-formed body, and the expected behavior is pinned by strict-`xfail` tests (`test/adapters/driving/fastapi/test_signed_delivery_refusal.py`, `test/core/use_cases/received/test_signed_ledger_entries.py`).
 - **Demo layer mixed into `vultron/demo/`**: demo code imports from adapters, which is appropriate, but the boundary between "demo" and "production use case" is not always clear.
@@ -133,15 +140,15 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 - `vultron/core/AGENTS.md`
 - `specs/architecture.yaml` (ARCH spec group)
 - `vultron/adapters/driving/fastapi/main.py`
-- `vultron/adapters/driving/fastapi/routers/actors/_routes.py`
-- `vultron/adapters/driving/fastapi/inbox_orchestration.py`
+- `vultron/adapters/driving/fastapi/routers/actors/_routes/`
+- `vultron/adapters/driving/fastapi/inbox_orchestration/`
 - `vultron/adapters/driving/fastapi/trigger_runner.py`
 - `vultron/core/dispatcher.py`
 - `vultron/core/trigger_dispatcher.py`
 - `vultron/core/ports/datalayer.py`
 - `vultron/core/ports/use_case.py`
 - `vultron/core/ports/wire_render.py`
-- `vultron/core/behaviors/bridge.py`
+- `vultron/core/behaviors/bridge/`
 - `vultron/core/behaviors/blackboard_scope.py`
 - `vultron/core/behaviors/case/receive_activity_tree.py`
 - `vultron/core/behaviors/case/receive_stages/`

@@ -219,7 +219,9 @@ _PASS_THROUGH_SEMANTIC_TYPES = frozenset(
 _MODULE_PASS_THROUGH_SEMANTIC_TYPES: dict[str, frozenset[str]] = {
     # ``HashChainLedgerRecord.from_ledger_entry`` rebuilds a record from an
     # entry already committed, to check its hash; it commits nothing.
-    "vultron.core.models.case_ledger": frozenset({"entry.semantic_type"}),
+    "vultron.core.models.case_ledger.record": frozenset(
+        {"entry.semantic_type"}
+    ),
     # ``CommitCaseLedgerEntryNode`` records a received activity under its
     # ``MessageSemantics``; :func:`received_commit_semantics` finds each.
     "vultron.core.behaviors.case.nodes.lifecycle": frozenset(

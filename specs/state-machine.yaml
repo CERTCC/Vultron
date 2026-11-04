@@ -143,7 +143,7 @@ groups:
       application. Otherwise a repeat can add a duplicate status entry or move the state
       one more step.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: HP-07-001
       note: handler-protocol.md
 - id: SM-05
@@ -165,14 +165,15 @@ groups:
     statement: >-
       A participant's current status MUST be the last `ParticipantStatus` appended to
       its history, the baseline its transition guards judge an update against. A case's
-      current status is the one CM-29-001's timestamp rule selects.
+      current status is likewise the last `CaseStatus` appended (CM-29-001).
     rationale: >-
       A history holds more than one entry, and each reader needs the same current value
       from it. A participant's statuses are appended only after the transition guards
       accept them, so append order is the order this actor accepted them in. A
       received status carries the sender's time, which can be earlier than a status
       already held (ADR-0103), so a timestamp rule could make an older status current
-      and judge the next update against the wrong baseline.
+      and judge the next update against the wrong baseline. CM-29-001 gives the
+      case history's reasons.
     verification: >-
       `test_returns_last_appended_even_when_earlier_status_has_newer_timestamp` of
       `TestParticipantStatusProperty` in
@@ -180,13 +181,9 @@ groups:
       current status is the last one appended, even when an earlier one has a newer
       timestamp. `TestVulnerabilityCaseCurrentStatus` in
       `test/core/models/test_case.py` confirms the case rule.
-    relationships:
-    - rel_type: implements
-      spec_id: CM-03-006
-      note: case-management.md
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_036
   - id: SM-05-003
     priority: MUST
     kind: project
@@ -205,6 +202,9 @@ groups:
       (CLP-14-002), so the status needs no second trusted field.
     adr:
     - ADR-0103
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-02-009
 - id: SM-06
   title: In-Memory (Transient) State
   specs:
@@ -230,7 +230,7 @@ groups:
       `dl.save()`; no module-level or request-scoped variable carries RM state across request boundaries.
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_063
     adr:
     - ADR-0013
 - id: SM-07
@@ -279,7 +279,7 @@ groups:
       `test/core/models/test_dimension_bare_serialization.py::test_vendor_and_deployer_states_travel_as_bare_labels`
       confirms the same for VF and D.
     stories:
-    - story_2022_088
+    - story_2026_011
   - id: SM-08-003
     priority: MUST
     kind: project
@@ -296,7 +296,7 @@ groups:
       confirms a stored `ParticipantStatus` carries its RM, VF and D states, and a
       stored `CaseStatus` its EM and PXA states, as plain bare-label strings.
     relationships:
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: SM-08-001
   - id: SM-08-002
     priority: MUST
@@ -324,15 +324,24 @@ groups:
     rationale: 'These transitions are protocol-correctness invariants, not optional normalizations. A CS state of `pXa` (exploit
       public, public unaware) is semantically impossible — the exploit being public implies the vulnerability is public.
       Implementors MUST use `is_ephemeral_cs_state()` and `required_next_cs_events()` from
-      `vultron/core/states/cs_invariants.py` to enforce this rule at the persistence boundary. This requirement governs
+      `vultron/core/states/cs_invariants/` to enforce this rule at the persistence
+      boundary. This requirement governs
       the *persistence* boundary only; CSB-17-003 and CSB-17-005 cover trajectory validation, where an ephemeral state is a
       legal prefix terminus.'
     lint_suppress:
     - rationale_too_long
     relationships:
     - rel_type: implements
-      spec_id: VP-09-001
-      note: exploit/attack public implies embargo termination, not just awareness
+      spec_id: CSB-17-003
+      note: >-
+        SM-09-003 governs the persistence boundary: an incoming status write
+        carrying vP or pX MUST be promoted to the forced form before it is
+        stored. CSB-17-003 governs trajectory validation, where the same two
+        conditions are modelled as ephemeral states with exactly one legal
+        successor. The two are consistent because they apply at different
+        boundaries: no vP or pX state is ever persisted, but such a state is
+        still a legal intermediate point in a replayed history, and CSB-17-004
+        therefore permits a history prefix to end in one.
   - id: SM-09-003
     priority: MUST
     kind: project
@@ -359,9 +368,8 @@ groups:
       CS space to the 32 reachable CS states: 4 valid VFD combinations (vfd, Vfd, VFd, VFD) × 8 PXA combinations. See `docs/reference/formal_protocol/states.md`
       for the formal derivation. Note: the "40-state" figure in the formal protocol paper refers to the global case state
       space (`8 PXA × 5 EM`), not to CS alone.'
-    relationships:
-    - rel_type: refines
-      spec_id: SM-09-001
+    stories:
+    - story_2026_022
   - id: SM-09-004
     priority: MUST
     kind: protocol
@@ -380,7 +388,7 @@ groups:
     - rel_type: implements
       spec_id: SM-09-002
     stories:
-    - story_2022_088
+    - story_2026_039
 - id: SM-10
   title: State Scoping Rules
   specs:
@@ -406,7 +414,7 @@ groups:
       `RM.RECEIVED`.
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_037
     - story_2022_107
   - id: SM-10-002
     priority: MUST
@@ -420,38 +428,57 @@ groups:
       whether an embargo is in force or whether the vul is public.
     verification: Integration tests confirm that processing an EM or PXA message updates `CaseStatus.em.state`
       or `CaseStatus.pxa.state` on the shared `VulnerabilityCase` before the handler exits.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-04-003
-    - rel_type: refines
-      spec_id: CM-04-004
     stories:
-    - story_2022_014
     - story_2022_081
-    - story_2022_088
+    - story_2026_031
   - id: SM-10-003
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
     statement: >-
       A receiver MUST NOT apply a participant-specific axis transition (RM, VFD) to the
-      shared `CaseStatus`. It MUST NOT apply a participant-agnostic axis transition
-      (EM, PXA) to a participant's `ParticipantStatus`.
-    lint_suppress:
-    # compound_statement: neither half has a test, so a split child would be a new
-    # protocol ID that the marker-coverage guard (SR-05-005) fails. The second half
-    # is not settled either: a `ParticipantStatus` can carry a reported
-    # `case_status`. Split it once each half has a test.
-    - compound_statement
+      shared `CaseStatus`.
     rationale: >-
-      Mixing axes is a protocol correctness violation. A transition that writes
-      across the two kinds of state has two bad results. An RM or VFD move of one
-      participant can change the shared embargo or public state of the case. A
-      shared EM or PXA event can overwrite the progress of one participant
-      (CM-04-006).
+      Mixing axes is a protocol correctness violation. An RM or VFD move describes the
+      progress of one participant. Written to the shared record, it could change the
+      embargo or public state that every participant of the case sees (CM-04-006).
+    verification: >-
+      `test/core/behaviors/case/nodes/participant/test_state_axis_scoping.py::TestParticipantAxesNeverWriteCaseStatus`
+      checks that `CaseStatus` holds no RM, VF or D value and that an RM, VF or D
+      transition leaves the case's `CaseStatus` history unchanged.
     relationships:
     - rel_type: refines
       spec_id: CM-04-006
+    stories:
+    - story_2026_031
+  - id: SM-10-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver MUST NOT record a participant-agnostic axis transition (EM, PXA) in a
+      `ParticipantStatus` as that participant's own progress. The transition updates
+      the shared `CaseStatus` (SM-10-002). A participant can still report its own
+      view of the case state in the `case_status` embedded in its `ParticipantStatus`.
+      That report is only a claim, and the case owner or CASE_MANAGER decides whether
+      to promote it to the case's `CaseStatus`.
+    rationale: >-
+      EM and PXA state are facts about the case, not about one participant. A shared
+      EM or PXA event written as one participant's progress could overwrite that
+      participant's own record (CM-04-010). A participant's view of the case state is
+      still useful input, so it travels as a claim the case's authority adopts or not,
+      and never becomes the case's state by being sent.
+    verification: >-
+      `test/core/behaviors/case/nodes/participant/test_state_axis_scoping.py::TestCaseAxesNeverWriteParticipantProgress`
+      checks that `ParticipantStatus` holds no EM or PXA value of its own, that the
+      CASE_MANAGER's case status snapshot adopting a participant's latest status leaves
+      that participant's `ParticipantStatus` history unchanged, and that a participant's
+      reported view leaves the case's `CaseStatus` unchanged.
+    relationships:
+    - rel_type: extends
+      spec_id: SM-10-003
+    - rel_type: refines
+      spec_id: CM-04-010
+    stories:
+    - story_2026_031
 - id: SM-11
   title: Generated Statecharts
   specs:
@@ -488,7 +515,7 @@ groups:
       A unit test asserts that the transitions read back from each generated chart
       equal the (trigger, source, destination) triples of its table.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: SM-11-001
     adr:
     - ADR-0162
@@ -512,7 +539,7 @@ groups:
       destination, that the generated chart carries those names, and that each name is
       defined on the EM documentation page.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: SM-11-002
     adr:
     - ADR-0162
@@ -528,7 +555,7 @@ groups:
     verification: >-
       A unit test loads each committed chart with Sismic's YAML importer.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: SM-11-001
     adr:
     - ADR-0162
@@ -552,7 +579,5 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: SM-11-001
-    - rel_type: depends_on
-      spec_id: MSM-08-012
     adr:
     - ADR-0162

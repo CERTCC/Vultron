@@ -8,7 +8,9 @@ description: >
   decisions that bind new trees, actor and identity isolation, the BT
   concurrency lock, why all protocol-significant behavior lives in the tree,
   why a delivery's trees are composed and never chained, the received-side
-  stages, and how to translate a simulator tree.
+  stages including the path stage that asks the receiver's role once, declares
+  the paths a message type handles and composes the refusal an undeclared path
+  gets, and how to translate a simulator tree.
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/handler-protocol.yaml
@@ -259,8 +261,8 @@ answer, clock decisions, guards, commit, effects.
    object; the record core keeps is written by an effect node after the guards,
    because a stored case row *is* the replica (PCR-03-004, CBT-01-005).
 2. **Door guards** — in order: the post-close write boundary (CM-23-013), the
-   addressee check (HP-01-005), the closed-sender door (CM-23-018) and the
-   sender guard (HP-01-006).
+   addressee check (HP-01-005), the path stage (HP-01-035), the closed-sender
+   door (CM-23-018) and the sender guard (HP-01-006).
 
    Directly after intake the factory places `CaseOpenToExternalWritesNode`
    (`case/nodes/post_close.py`), the CM-23-013 write boundary: at the case's
@@ -268,7 +270,7 @@ answer, clock decisions, guards, commit, effects.
    (`case_is_fully_closed`, `core/predicates/case_closure.py`), it fails the
    tree so no commit, effect, or emit runs; on every other store it passes, so replicas
    keep applying the closure fan-out. The handler verdict comes from
-   `door_refusal` (`use_cases/received/_bt_verdict.py`), asked first by
+   `door_refusal` (`use_cases/received/_bt_verdict/`), asked first by
    `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. Never run a
    door guard as a one-node tree ahead of the received tree: that is the
    chained shape CLP-10-005 forbids (ADR-0135). A tree opts out only with a
@@ -292,12 +294,118 @@ answer, clock decisions, guards, commit, effects.
    The check reads `event.activity`, so a registry entry must set
    `include_activity` or every delivery of that message is refused.
 
+   Ask the receiver's role once, in the path stage, and never again in the
+   same tree. `ReceivedPathNode` (`case/nodes/received_path.py`) reads
+   `has_role(actor_id, case_id, CVDRole.CASE_MANAGER, dl)` and the answer is
+   the *manager*, *participant replica* or *no case yet* path; the sender
+   guard's at-the-CASE_MANAGER and at-a-participant arms read that answer, so
+   one cause gives one verdict (HP-01-012, HP-01-036). A tree gets the stage
+   by declaring the paths its message type handles, once, as the factory's
+   `paths=` argument (HP-01-038). Declare a branch per path the type does real
+   work on, never a narrower set with an ungated effect making up the
+   difference. A handler reads the answer with `received_path(tree)`
+   (`use_cases/received/_bt_verdict/`), never by inferring "not the manager"
+   from a gate skip anywhere in the tree.
+
+   Read the declaration off the use case's sender rule, then narrow it. The
+   non-empty sides of the rule are the baseline, because an empty side already
+   admits no sender (HP-01-008) and HP-01-036 maps the three sides onto the
+   three paths, so a declaration of exactly those sides refuses nothing the
+   sender guard did not already refuse.
+
+   Narrow by what the **receiver** on a path has to do, never by the sender
+   kinds the side lists. A kind set that merely omits the `CASE_MANAGER` kind
+   does not name an empty participant side: the CASE_MANAGER holds a
+   participant record of its own, so `PARTICIPANT` and `ACTIVE_PARTICIPANT`
+   both admit it as a sender at a participant. Reasoning from the kinds
+   narrows the four RM declarations (`Engage`, `Defer`, `Validate`,
+   `Invalidate`) to the manager path, and all four need both: the CASE_MANAGER
+   fans the admitted act out to the roster, and each replica must pass the
+   door to archive its copy and converge from the ledger (PCR-03-001,
+   RSH-08-003). So keep the replica path wherever the act is relayed, even
+   when every effect of the tree sits behind the CASE_MANAGER gate and the
+   replica's own verdict is a refusal.
+
+   Drop a path only where no receiver on it ever holds the message — the
+   answer to a request the CASE_MANAGER alone made, which reaches that
+   CASE_MANAGER and nobody else.
+
+   Widen with the no-case path where the type precedes or establishes its
+   case (HP-01-041), and with the manager path where a redelivery can reach
+   the CASE_MANAGER of a case this actor created only after the first
+   delivery — which is why `Create(CaseProposal)` declares the manager path
+   beside the no-case one its sender rule gives it. Every declaration in the
+   migrated areas, and the disposition each gives a non-manager receiver, is
+   pinned in `test/core/behaviors/test_declared_received_paths.py`.
+
+   Work that belongs to some declared paths and not others is an `OnPaths`
+   declaration in `precondition_guards` or `replica_effects`, which the
+   factory builds into a `PathBranch` (`case/nodes/path_branch.py`):
+   `OnPaths.at_case_manager` for the CASE_MANAGER's own adjudication guards,
+   `OnPaths.off_case_manager` for what no CASE_MANAGER does, narrowed to the
+   paths the tree declared. The branch reads the stage's answer, so it
+   replaces a role gate the tree used to build for itself rather than adding a
+   second role read (HP-01-036). Never build the branch in a tree module: the
+   factory owns it, as it owns the CASE_MANAGER gate.
+
+   A tree that declares one path runs its guards **bare**. A gate wrapped round
+   a guard in a manager-only tree is dead code whose skip arm is unreachable,
+   and it reads as a second asker of the role question
+   (`test/architecture/test_received_path_role_question.py`); drop it in the
+   same commit as the declaration, and let the guard keep the gate body's name
+   so the built tree still reads the same.
+
+   The declaration also says where a diversion may run, and nothing beside it
+   does: a tree declaring the manager path alone has already refused every
+   other receiver, so its diversion needs no gate of its own and may commit its
+   own entry, while a tree that also declares a non-manager path has a
+   diversion that is the receiver's own answer — no case-state write, no entry,
+   and every emit covered by a registered `ReplicaEmitExemption` (CLP-10-026,
+   BT-17-008, RSH-08-003). An emit in an `OnPaths` branch off the manager path
+   still needs that exemption: the path says the receiver is not the
+   CASE_MANAGER, which is not the same as saying the emit is that receiver's
+   own to send, so `ungated_nodes()` keeps walking into the branch.
+
+   The reason an undeclared path is refused with is composed from the resolved
+   path and the declaration, in `undeclared_path_reason()`, and nowhere else
+   (HP-01-039). One fixed string will not do: "not the CASE_MANAGER of case X"
+   is false of the receiver a replica-only declaration refuses, which is the
+   case's actual CASE_MANAGER, and HP-01-005 wants a reason that names what is
+   missing — a branch, not the role. Add a path to `ReceivedPath` and you owe
+   that function a clause true of every receiver on it.
+
+   The stage reads the role in the tree's commit case, else its
+   `manager_case_id`, else the case its `sender_context` names (HP-01-040,
+   `path_stage_case_id()` in `case/receive_stages/doors.py`). The last step is
+   load-bearing: a tree that commits nothing passes `case_id=None`, and
+   without it every such delivery would read the no-case path. A tree whose
+   case only `case_resolution` resolves cannot declare paths at all — the
+   factory raises `VultronWiringError`, because `case_resolution` runs after
+   the path stage, which would then read the no-case path every time.
+
+   `has_role()` (`core/participants/role_predicate.py`) is the only sanctioned
+   way to ask whether an actor holds a role in a case: it reads the roster
+   fresh per message, because a role belongs to an `(actor, case)` pair and
+   changes while the case runs (CM-02-011). It answers `CVDRole.CASE_MANAGER`
+   from `resolve_case_manager_id`, never from its own roster scan, so the
+   stage and every `CheckIsCaseManagerNode` in the tree cannot disagree on a
+   roster that records the role twice (ARCH-24-007). No case yet either waits
+   or proceeds: a case-scoped type is held by the inbox's defer check until
+   its case is known, so only a type that precedes or establishes its case
+   declares the no-case branch (HP-01-041; `CASE_PRECEDING_SEMANTICS`,
+   `CASE_BOOTSTRAP_SEMANTICS` in `core/models/events/case_context.py`).
+   Every received-side site that still asks the role question another way is
+   listed in `test/architecture/test_received_path_role_question.py`, and
+   every node class that still answers the authority question in
+   `test/architecture/test_role_authority_resolver.py`; both sets only shrink
+   (ARCH-18-001, ARCH-24-003).
+
    A tree whose sender may already be closed on the case and whose answer must
    be told apart (a `Leave`, a stub or full-case Invite reply) passes
    `closed_sender=ClosedSenderCheck(...)`: the factory places the door after the
    addressee check, so a sender the case records as closed stops the tree with
    nothing committed or sent. The handler asks `closed_sender_verdict()`
-   (`_bt_verdict.py`) before reading any other refusal: `SKIPPED` for a repeat of
+   (`_bt_verdict/`) before reading any other refusal: `SKIPPED` for a repeat of
    a closing act, `REFUSED` for anything else (CM-23-018, ID-05-003). Declare it
    on the tree; never run the check as a tree of its own or write it per handler.
 

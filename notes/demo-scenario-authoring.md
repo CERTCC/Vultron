@@ -59,7 +59,7 @@ check the trigger endpoint exists. If it does not, build the full stack
 (endpoint → service → BT) first, then the step.
 
 **Report submissions too, in every demo.** Submit a report only through
-`reporter_submits_report` (`helpers/workflow.py`), exchange demos included, and
+`reporter_submits_report` (`helpers/workflow/report.py`), exchange demos included, and
 never build a `Create(VulnerabilityCase)` for the receiver.
 
 - **Why:** the reporter's `submit-report` trigger writes the pending
@@ -94,7 +94,7 @@ It also double-delivers when the real delivery succeeds too (#3980).
    the effect, read from its own container — and gate on it with `demo_gate`
    (see [event-driven-control-flow.md](event-driven-control-flow.md)
    § "Temporal Sequence vs. Causal Sequence"). The polling helpers are in
-   `vultron/demo/helpers/polling.py`, `invite_chain.py` and `milestones.py`.
+   `vultron/demo/helpers/polling/`, `invite_chain/` and `milestones/`.
 2. A wait that times out reliably in CI points at the delivery path (retries,
    health checks, startup order), not at the demo script.
 3. There is no self-delivery exception: an actor's own replica updates from the
@@ -120,7 +120,7 @@ and call it from both places (DEMOMA-17-001, the MUST-level form of CS-22-001).
 1. Grep `vultron/demo/helpers/` for a helper before writing a step.
 2. If the second use differs, parameterize the helper; differing variants are a
    design task, not a reason to skip. `run_case_invite_chain`
-   (`helpers/invite_chain.py`) is the model: the variants are parameters and what
+   (`helpers/invite_chain/`) is the model: the variants are parameters and what
    follows is a `then` callback. It is a callback, not a `with` block, because
    `demo_gate` suppresses an exception before a generator-based context manager
    could yield. `test_demo_scenarios_use_invite_chain_helper.py` enforces it.
@@ -131,7 +131,7 @@ and call it from both places (DEMOMA-17-001, the MUST-level form of CS-22-001).
 ## Call Triggers Through `ActorSession`
 
 Scenario and exchange demos make every trigger call through `ActorSession`
-(`vultron/demo/actor_session.py`) typed methods, never `post_to_trigger`
+(`vultron/demo/actor_session/`) typed methods, never `post_to_trigger`
 (DEMOMA-26-001, DEMOMA-26-007).
 
 **Why:** `post_to_trigger` takes a bare behavior string and an untyped body. A
@@ -145,7 +145,7 @@ undetectable no-op.
 
 `[project.scripts]` entry points call `main()` with no arguments, so a BT demo's
 `main` takes `args=None` and falls back to `_parse_args()`. That keeps both the
-console script and `vultron/demo/cli.py`'s click group (which passes a
+console script and `vultron/demo/cli/`'s click group (which passes a
 `SimpleNamespace` from `_bt_args()`) working.
 
 **Why:** `def main(args):` fails with `TypeError` under `uv run <script>` while
@@ -184,7 +184,7 @@ address and one actor id per slot in every scenario (DEMOCI-11-020).
 
 ## A Helper That Extracts a Result Inside `demo_step` Must Return `Optional[T]`
 
-`demo_step` (`vultron/demo/utils.py`) suppresses exceptions so a failed step
+`demo_step` (`vultron/demo/utils/failures.py`) suppresses exceptions so a failed step
 records itself without ending the run. A helper that wraps a trigger call in
 `demo_step` and extracts a result from it cannot promise a value, so it is typed
 `-> T | None` (e.g. `participant_adds_note_to_case` in `helpers/notes.py`).
@@ -217,8 +217,8 @@ first failure and hides every co-occurring one.
 1. Use `demo_gate` when dependent steps follow in the block, `demo_check` for an
    independent check.
 2. Prefer putting the wrap inside a shared scenario-facing helper so every caller
-   inherits it, as `wait_for_replica_ledger_coverage` (`helpers/sync.py`) and
-   `wait_for_participants_on_replicas` (`helpers/polling.py`) do.
+   inherits it, as `wait_for_replica_ledger_coverage` (`helpers/sync/ledger.py`) and
+   `wait_for_participants_on_replicas` (`helpers/polling/case.py`) do.
 3. Keep the low-level primitives raising; their unit tests depend on it.
 
 `test/architecture/test_demo_scenario_waits_in_demo_context.py` enforces the rule
@@ -235,7 +235,7 @@ Every multi-actor scenario guards its notes phase on the Reporter holding the ca
 replica and every replica holding contiguous ledger coverage. That logic exists
 once.
 
-- `wait_for_replica_ledger_coverage` (`helpers/sync.py`) is the only
+- `wait_for_replica_ledger_coverage` (`helpers/sync/ledger.py`) is the only
   read-authority-tail-then-poll-replicas loop, the `demo_gate` before the notes
   phase and the Phase 1 drain. It returns the replicas whose wait passed, so
   later steps can gate per replica. It is never used after closure: a closed
@@ -250,11 +250,11 @@ once.
   whose coverage gate failed is not state-checked, and an authority with no
   entries is one failure naming the authority — the comparison would only
   cascade or misattribute the fault (EDF-06-005).
-- No module under `vultron/demo/` except `helpers/sync.py` calls
+- No module under `vultron/demo/` except the `helpers/sync/` package calls
   `wait_for_contiguous_ledger_coverage` or `_get_log_entries_for_case`
   (DEMOMA-23-006, enforced by
   `test/architecture/test_demo_scenario_coverage_via_shared_helper.py`).
-- Timeouts are the named constants in `helpers/polling.py`
+- Timeouts are the named constants in `helpers/polling/_poll.py`
   (`LEDGER_COVERAGE_TIMEOUT`, `LATE_JOINER_COVERAGE_TIMEOUT`), passed as
   parameters, never literals in a scenario. Each is a stall budget, not a
   total: every newly arrived entry restarts it, up to
@@ -280,9 +280,9 @@ replica reads the CASE_MANAGER's EM state: `leave-case` refuses the owner while
 its replica records an active embargo (TRIG-13-003). The helper then runs the whole
 closure milestone, each part in its own `demo_check` and read where the
 CASE_MANAGER lives: `verify_case_closure_recorded` and `verify_case_closed`
-(`helpers/milestones.py`), and, for each leaver, that its own replica ends at the
-last entry recording its own closure (`wait_for_replica_ledger_ending_at`). Pass
-the scenario's milestone label; the scenario adds no closure checks of its own.
+(`helpers/milestones/closure.py`), and, for each leaver, that its own replica ends
+at the last entry recording its own closure (`wait_for_replica_ledger_ending_at`).
+Pass the scenario's milestone label; the scenario adds no closure checks of its own.
 
 - Do not write the `leave_case()` steps inline.
 - Do not add an "every participant `RM.CLOSED` on every replica" check or a

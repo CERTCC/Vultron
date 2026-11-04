@@ -61,8 +61,8 @@ CaseActor clustering is unbuilt; its plan is
   process log, never the ledger (CLP-04-007, CLP-05-002), so replication needs no
   disposition filtering.
 - **Leadership guard.** The BT bridge's `is_leader` port (SYNC-09-003,
-  `vultron/core/behaviors/bridge.py`) is always `True` in single-node; it is the
-  seam the cluster plan fills.
+  `vultron/core/behaviors/bridge/leadership.py`) is always `True` in single-node;
+  it is the seam the cluster plan fills.
 - **Leadership is not ownership.** Case Ownership governs lifecycle permissions;
   replication leadership governs who accepts writes. An ownership transfer
   implies a leadership change, not the reverse.
@@ -226,7 +226,7 @@ as `VultronBTInternalError`, so the handler raises instead of reporting `REFUSED
 
 Every sender of ledger entries (the fan-out collectors, `SendMissingEntriesNode`,
 `AnnounceCaseOnGenesisRejectNode`) applies the CM-10-004 content gate through
-`vultron/core/participants/recipients.py` (`case_content_recipients()`,
+`vultron/core/participants/recipients/` (`case_content_recipients()`,
 `is_case_content_recipient()`; CM-10-007). A peer that is not an active
 participant gets no entries, and its `Reject(CaseLedgerEntry)` replays nothing
 and seeds no case.
@@ -371,11 +371,15 @@ outside the ledger".
   outside the ledger stores a record or closes a pending assertion; the replica
   takes its effect from the ledger entry (RSH-08-003). Reason: a message that
   writes case state races the entry that writes it too. The ending notices to a
-  paused signatory are the exception, and diverge when reversed (#5201).
+  paused signatory are the exception: a `Remove` naming a revision the replica
+  has not applied activates it first, so either order ends the same (CM-31-042).
 - **A replica's answer must not turn on its related entry.** A relayed message can
   arrive before or after the entry it relates to, so a guard reading the state that
-  entry changes answers twice differently. The owner's auto-accept reads EM `NONE`,
-  which the proposal's own `PROPOSE` step changes (#5199).
+  entry changes answers twice differently. Read the state with the related entry set
+  aside while it is still open, as the owner's auto-accept reads EM without the
+  proposal's own `PROPOSED` entry (`VulnerabilityCase.em_state_without_proposal`,
+  #5199). Never set aside a decided entry: dropping an `ACTIVE` one beside a
+  `SUPERSEDED` one breaks a register invariant, and the decision is already made.
 - **A replica-local index must end where the ledger puts it.**
   `pending_embargo_proposal_index` is written by relayed Invites, by ledger apply and
   by case copies, so the last writer wins; a late Invite leaves a decided proposal
@@ -480,7 +484,7 @@ case seed first (CP-09-009, CM-17-009), so this is recovery, not the steady stat
 
 - `ReconstructChainTailNode` writes sentinels (`tail_hash=""`, `tail_index=-1`)
   before FAILURE, and the `ReconstructOrRejectOnMissingCase` Selector in
-  `announce_tree.py` falls back to `SendGenesisRejectOnMissingCaseNode`, so a
+  `announce_tree/factory.py` falls back to `SendGenesisRejectOnMissingCaseNode`, so a
   Reject with `last_accepted_hash=""` ("replay from genesis") goes out
   (SYNC-15-001/002).
   Without it the CASE_MANAGER never learns of the failure.

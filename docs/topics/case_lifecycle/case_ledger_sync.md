@@ -183,7 +183,8 @@ A field that is present but empty carries no claimed time either.
 A blank `published` — an empty string, or one holding only whitespace — is refused the same way as an omitted one, and reports the same reason ([MV-03-002](../../reference/vultron-spec/requirements/messages.md#mv-03-002)).
 
 A case status is held to the same rule wherever it sits in a message.
-A case's current status is the one with the latest time, so a status with no time has no place in the case's history.
+Every case status carries the time its author made it.
+The CASE_MANAGER gives each new status a later time than the one before it, so time order and the order of the history agree ([CM-29-005](../../reference/vultron-spec/requirements/case-management.md#cm-29-005)).
 A receiver therefore refuses an activity that carries a case status with no `published` ([CLP-15-010](../../reference/vultron-spec/requirements/ledger-replication.md#clp-15-010)).
 A receiver also refuses a case that arrives with no case statuses at all, because starting one would put the receiver's own clock on the case's first status ([CM-29-004](../../reference/vultron-spec/requirements/case-management.md#cm-29-004)).
 
@@ -393,14 +394,14 @@ Where the implementation still breaks the rule, the table names the open issue.
 
 | Message | Related ledger entries | What makes the order safe |
 |---|---|---|
-| Relayed embargo `Invite(EmbargoEvent)` | The proposal entry, the consent rows, and the entry that records the Invite's emission | The participant stores the Invite and the embargo it carries, and its answer needs only the case and the embargo. Exceptions: the owner's automatic answer to a first proposal ([#5199](https://github.com/CERTCC/Vultron/issues/5199)), and an Invite that arrives after its proposal is decided ([#5200](https://github.com/CERTCC/Vultron/issues/5200)). |
+| Relayed embargo `Invite(EmbargoEvent)` | The proposal entry, the consent rows, and the entry that records the Invite's emission | The participant stores the Invite and the embargo it carries, and its answer needs only the case and the embargo. The owner's automatic answer to a first proposal reads the case without that proposal's own entry while the proposal is still open, so it does not depend on the entry either. Exception: an Invite that arrives after its proposal is decided ([#5200](https://github.com/CERTCC/Vultron/issues/5200)). |
 | Embargo Invite relayed to a joiner, or to a reinstated participant | The joiner's copy of the case and the entries replayed to it | An Invite that arrives before the copy waits for it, for a bounded time. |
 | Copy of the case, `Announce(VulnerabilityCase)` | Every entry at or before the ledger position the copy names | The replica judges the copy by that position, and stores without effect each entry the copy already reflects. |
 | Full-case `Invite(Actor)` | Its own entry | The participant stores it, and its reply waits until its replica reaches the Invite's ledger position. |
 | Stub `Invite(Actor)` | The invitee's participant entry | The CASE_MANAGER refuses an answer to an Invite that a later one replaced. |
 | Refusal notice `Reject(activity)`, embargo refusal, and refusal of a `Leave` | None | It only closes the participant's pending assertion. |
 | Removal and reinstatement notices | The removal or reinstatement entry | The participant stores the notice and applies the entry. |
-| Embargo ending notices to a participant the ledger no longer reaches | The termination or shorter-revision entry | Not yet safe: two notices about one revision diverge when they arrive reversed ([#5201](https://github.com/CERTCC/Vultron/issues/5201)). |
+| Embargo ending notices to a participant the ledger no longer reaches | The termination or shorter-revision entry | A termination notice that names a revision the participant has not applied yet means that revision replaced its embargo: the revision's own notice is still on its way, or none was owed because the revision was longer. The participant applies the revision first and then ends it. A late revision notice then finds no embargo in force and changes nothing. |
 | Forwarded offers: a recommended participant, a role, an ownership transfer | The offer's own entry | The receiver stores the offer and answers it by trigger, and the CASE_MANAGER judges the answer against the ledger. |
 | Answers to a case proposal, and the `Create(VulnerabilityCase)` that starts a case | The case's first entries | Entries that arrive before the case are held until it arrives. |
 

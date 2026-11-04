@@ -30,10 +30,11 @@ therefore sit here on three things:
   the dedicated case-actor container and the devlogs names the invariant
   harness reads.
 
-What the shared opening does is not re-tested here: ``test_coordinated_story``
-owns the rcv family's stretch, ``test_two_coordinator_story`` owns the pair's
-prefix and the continuations both scenarios tell, and
-``test_owner_decision_story`` owns the ``owner-keep-case`` continuations.
+What the shared opening does is not re-tested here:
+``test/demo/coordinated_story/`` owns the rcv family's stretch,
+``test_two_coordinator_story`` owns the pair's prefix and the continuations
+both scenarios tell, and ``test/demo/owner_decision_story/`` owns
+the ``owner-keep-case`` continuations.
 Every test patches the collaborators out, so no HTTP happens; ``demo_gate`` /
 ``demo_check`` / ``demo_step`` stay real wherever the test is about control
 flow and are stubbed to ``nullcontext`` only where it is about call shape
@@ -48,7 +49,6 @@ import pytest
 from click.testing import CliRunner
 
 import vultron.demo.scenario.rccv_extension_demo as demo
-import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
     mock_actor,
     mock_case,
@@ -63,7 +63,6 @@ from vultron.demo.cli import main as cli_main
 from vultron.demo.helpers import (
     coordinated_story,
     owner_decision_story,
-    story as story_module,
     story_cast,
     two_coordinator_story,
 )
@@ -72,17 +71,24 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER,
     REPORTER_TELLS_THE_COORDINATOR,
     VENDOR,
+    cast as coordinated_cast,
+    continuations as coordinated_continuations,
+    joining as coordinated_joining,
 )
 from vultron.demo.helpers.notes import (
     WORKAROUND_ANSWER,
     WORKAROUND_QUESTION,
 )
-from vultron.demo.helpers.owner_decision_story import Part
+from vultron.demo.helpers.owner_decision_story import (
+    Part,
+    keep as owner_decision_keep,
+)
 from vultron.demo.helpers.story import (
     Choose,
     UnseatedContainer,
     choose,
     run_story,
+    runner as story_runner,
     story,
 )
 from vultron.demo.helpers.two_coordinator_story import (
@@ -91,27 +97,18 @@ from vultron.demo.helpers.two_coordinator_story import (
 )
 from vultron.demo.scenario.registry import registered_scenarios
 from vultron.demo.utils import reset_demo_failures
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: The scenario's four cast names, in ``ROLES`` order.
 _CAST = (REPORTER, demo.C1, demo.C2, VENDOR)
 
 #: How many items of ``STORY`` are the shared opening.
 _PREFIX_LEN = len(C1_INVITES_C2.items)
-
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, so a fragment
-    that records a failure would otherwise leave it for the next test to read
-    as its own (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 @contextlib.contextmanager
@@ -295,27 +292,23 @@ class TestC2SuggestsTheVendor:
                 side_effect=lambda *a, **kw: order.append("approve"),
             ) as approve,
             patch(
-                "vultron.demo.helpers.owner_decision_story"
-                ".find_cp_offer_for_case",
+                "vultron.demo.helpers.owner_decision_story.keep.find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ) as cp_offer,
             patch(
-                "vultron.demo.helpers.owner_decision_story"
-                ".find_case_actor_participant_id",
+                "vultron.demo.helpers.owner_decision_story.parts.find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
             patch(
-                "vultron.demo.helpers.owner_decision_story"
-                ".run_case_invite_chain",
+                "vultron.demo.helpers.owner_decision_story.keep.run_case_invite_chain",
                 side_effect=lambda **kw: order.append("invite-chain"),
             ) as chain,
             patch(
-                "vultron.demo.helpers.owner_decision_story"
-                ".invitee_triages_after_joining",
+                "vultron.demo.helpers.owner_decision_story.keep.invitee_triages_after_joining",
                 side_effect=lambda *a, **kw: order.append("triage"),
             ) as triage,
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ),
             _no_banners(),
         ):
@@ -374,27 +367,24 @@ class TestC2SuggestsTheVendor:
             patch.object(ActorSession, "suggest_actor_to_case"),
             patch.object(ActorSession, "accept_actor_recommendation"),
             patch(
-                "vultron.demo.helpers.owner_decision_story"
-                ".find_cp_offer_for_case",
+                "vultron.demo.helpers.owner_decision_story.keep.find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
             patch(
-                "vultron.demo.helpers.owner_decision_story"
-                ".find_case_actor_participant_id",
+                "vultron.demo.helpers.owner_decision_story.parts.find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
             patch(
-                "vultron.demo.helpers.owner_decision_story"
-                ".run_case_invite_chain"
+                "vultron.demo.helpers.owner_decision_story.keep.run_case_invite_chain"
             ),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "run_invite_path_rm_triage",
                 side_effect=lambda **_kw: order.append("triage"),
             ) as triage,
-            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch.object(coordinated_joining, "wait_for_case_participants"),
             patch_chain_shared(
-                coordinated_story,
+                coordinated_joining,
                 "wait_for_case_on_container",
                 side_effect=_wait_for_case,
             ),
@@ -537,7 +527,7 @@ class TestEveryoneCloses:
             patch.object(ActorSession, "leave_case"),
             stub_closure_gate(),
             patch.object(
-                coordinated_story, "close_case_owner_last"
+                coordinated_continuations, "close_case_owner_last"
             ) as closure,
         ):
             demo.everyone_closes(state)
@@ -587,10 +577,10 @@ class TestRccvExtensionDedicatedCaseActor:
                 return_value={"status": "ok"},
             ) as reset,
             patch(
-                "vultron.demo.helpers.seeding.seed_case_actor_identity"
+                "vultron.demo.helpers.seeding.reset.seed_case_actor_identity"
             ) as reseed,
             patch.object(
-                coordinated_story,
+                coordinated_cast,
                 "seed_containers_rcv",
                 return_value=tuple(seeded),
             ) as seed_three,
@@ -681,7 +671,7 @@ class TestRccvExtensionDedicatedCaseActor:
     def test_the_unseated_container_is_declared_through_the_pair_helper(self):
         """The cast opening is told which container to wait on.
 
-        Patched on ``coordinated_story``, where the shared
+        Patched on ``coordinated_story.cast``, where the shared
         ``coordinated_open_cast`` factory looks the opening up: this scenario
         builds its ``open_cast`` callable through that factory rather than
         writing the closure out, so a patch on this module would not reach it.
@@ -689,7 +679,7 @@ class TestRccvExtensionDedicatedCaseActor:
         with (
             patch.object(demo, "run_story") as run_story,
             patch.object(
-                coordinated_story, "open_coordinated_cast"
+                coordinated_cast, "open_coordinated_cast"
             ) as open_coordinated_cast,
         ):
             demo.run_rccv_extension_demo(
@@ -867,7 +857,7 @@ class TestReplicasDrainBeforeTheVendor:
 
     DEMOMA-23-005 and DEMOMA-23-006: the
     read-authority-tail-then-poll-each-replica loop lives in
-    ``vultron/demo/helpers/sync.py`` and nowhere else (#3906).
+    ``vultron/demo/helpers/sync/`` and nowhere else (#3906).
     """
 
     def test_the_drain_names_c1_as_authority_and_the_joined_replicas(self):
@@ -902,7 +892,7 @@ class TestReplicasDrainBeforeTheVendor:
         ``demo_gate`` run; only the authority-tail read and the per-replica
         primitive are stubbed, so the recorded message is the helper's own.
         """
-        import vultron.demo.helpers.sync as sync_module
+        import vultron.demo.helpers.sync.ledger as sync_ledger
 
         state = _four_party_state()
         state.client(
@@ -911,16 +901,16 @@ class TestReplicasDrainBeforeTheVendor:
 
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=[]
+                sync_ledger, "_get_log_entries_for_case", return_value=[]
             ),
             patch.object(
-                sync_module, "wait_for_contiguous_ledger_coverage"
+                sync_ledger, "wait_for_contiguous_ledger_coverage"
             ) as per_replica,
         ):
             demo.replicas_drain_before_the_vendor(state)
 
         per_replica.assert_not_called()
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
         assert "http://c1.test/api/v2" in failure
         assert "opening drain before the Vendor joins" in failure
@@ -953,7 +943,7 @@ class TestARosterThatNeverFillsSkipsTheSuggestion:
         def stub(_demo_name: str):
             yield harness
 
-        monkeypatch.setattr(story_module, "scenario_harness", stub)
+        monkeypatch.setattr(story_runner, "scenario_harness", stub)
         yield harness
         reset_demo_failures()
 
@@ -961,40 +951,33 @@ class TestARosterThatNeverFillsSkipsTheSuggestion:
     def _roster(self, *, fills: bool):
         """Run the join with its roster filling or timing out.
 
-        The roster gate in ``coordinated_story`` and the prop read in
+        The roster gate in ``coordinated_story.joining`` and the prop read in
         ``owner_decision_story`` are the subject, so both stay real.  Every
         poll after the suggestion trigger is stubbed: left real each would
         spend the whole ``OWNER_DECISION_TIMEOUT`` against a ``MagicMock``
         store and buy no assertion.
         """
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "run_case_invite_chain",
                 side_effect=lambda **kw: kw["then"] and kw["then"](),
             ),
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "wait_for_case_participants",
                 side_effect=None
                 if fills
                 else AssertionError("roster never filled"),
             ),
             patch.object(
-                coordinated_story,
-                "demo_step",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-            patch.object(
-                owner_decision_story,
+                owner_decision_keep,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
-            patch.object(owner_decision_story, "run_case_invite_chain"),
-            patch.object(
-                owner_decision_story, "invitee_triages_after_joining"
-            ),
+            patch.object(owner_decision_keep, "run_case_invite_chain"),
+            patch.object(owner_decision_keep, "invitee_triages_after_joining"),
             patch.object(
                 ActorSession, "suggest_actor_to_case", autospec=True
             ) as suggest,

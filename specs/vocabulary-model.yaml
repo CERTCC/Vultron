@@ -48,30 +48,42 @@ groups:
     kind: project
     statement: >-
       The `VOCABULARY` registry MUST map each wire class from a key that is its full
-      wire class name, such as `as_VultronPerson`. This codebase MUST NOT read a
-      `VOCABULARY` key as an AS2 `type` value.
-    lint_suppress:
-    # compound_statement: the MUST NOT has no check, and this item has no
-    # verification_debt marker that a split child could carry (MS-10-016), so
-    # the split PR writes that check for the new ID (#5662). The
-    # inbound lookup (find_in_vocabulary) still consults VOCABULARY keys, but an
-    # inbound `"type": "as_Accept"` is then refused by the class's `type` Literal,
-    # so it never resolves.
-    - compound_statement
+      wire class name, such as `as_VultronPerson`.
     rationale: >-
       The two registries answer different questions, so they carry different key forms:
       `VOCABULARY` answers "which class is named this?", `WIRE_TYPE_MAP` answers "which class
       does this wire `type` value deserialize to?" (VM-01-008). The `as_` prefix is never
       part of an AS2 `type` value, so nothing external depends on this key form
       (ARCH-23-003).
-    note: >-
-      Resolving an inbound `"type": "..."` value is `WIRE_TYPE_MAP`'s job (VM-01-008).
     verification: >-
       `test/architecture/test_vocab_registry_keys.py` asserts every `VOCABULARY` key equals its
       registered class's `__name__`, behind the same population guard the `WIRE_TYPE_MAP` ratchets
       use.
     adr:
     - ADR-0082
+  - id: VM-01-016
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      This codebase MUST NOT read a `VOCABULARY` key as an AS2 `type` value.
+    rationale: >-
+      A `VOCABULARY` key is a Python class name, which no peer emits as a `type`. A
+      lookup that accepts one lets an inbound `"type": "as_Activity"` resolve to a
+      class, so a message no AS2 sender could write is parsed. A class's `type_`
+      annotation does not refuse it for every class: `as_Activity.type_` is a bare
+      `str`.
+    note: >-
+      Resolving an inbound `"type": "..."` value is `WIRE_TYPE_MAP`'s job (VM-01-008),
+      and `find_in_vocabulary` consults no other wire registry.
+    verification: >-
+      `test/wire/as2/test_vocabulary_key_is_not_a_wire_type.py` tries every
+      `VOCABULARY` key as the `type` of an inbound activity and as a type lookup, and
+      asserts each one is refused.
+    adr:
+    - ADR-0082
+    relationships:
+    - rel_type: derives_from
+      spec_id: VM-01-004
   - id: VM-01-009
     priority: MUST
     kind: project
@@ -141,9 +153,6 @@ groups:
     relationships:
     - rel_type: verifies
       spec_id: VM-01-001
-    - rel_type: depends_on
-      spec_id: VM-03-002
-      note: The `Literal` annotation is what makes "distinct wire type" declarable rather than inferred.
   - id: VM-01-010
     priority: MUST
     kind: project
@@ -195,12 +204,9 @@ groups:
       them, since registration is an import side effect (VM-01-005) and the assertions would
       otherwise pass vacuously.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: VM-03-001
       note: The class-name fallback must match the value `set_type_from_class_name` assigns.
-    - rel_type: depends_on
-      spec_id: VM-01-005
-      note: Import-time registration is why the verification must force population first.
   - id: VM-01-012
     priority: MUST_NOT
     kind: project
@@ -261,8 +267,9 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      A class declared as an alias MUST NOT hold a `WIRE_TYPE_MAP` key. It stays
-      reachable by class name through `VOCABULARY` (VM-01-004).
+      A class declared as an alias MUST NOT hold a `WIRE_TYPE_MAP` key. It is still
+      listed in `VOCABULARY` under its class name (VM-01-004), but no wire `type`
+      value resolves to it (VM-01-016).
     rationale: >-
       An alias is not what its `type` value deserializes to, so a key of its own would
       give the inbound lookup a second answer for that value.
@@ -312,7 +319,7 @@ groups:
       confirms that `@context` is accepted via the explicit alias, and inspection of `vultron/wire/as2/vocab/base/base.py`
       confirms the `validation_alias` and `serialization_alias` declarations.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: VM-02-001
   - id: VM-02-003
     priority: MUST
@@ -372,21 +379,24 @@ groups:
       declares that value as a `Literal` — the per-class form of the hierarchy-wide
       invariant VM-01-007 verifies.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: VM-03-001
-    - rel_type: refines
+    - rel_type: implements
       spec_id: VM-01-001
+    - rel_type: uses_definition
+      spec_id: VM-01-011
   - id: VM-03-004
     priority: MUST_NOT
     kind: project
     statement: >-
-      A semantic alias that must not be reachable under its own class name MUST NOT
-      declare its own `type_` annotation.
+      A semantic alias that must not be listed in `VOCABULARY` under its own class
+      name MUST NOT declare its own `type_` annotation.
     rationale: >-
-      Any own `type_` declaration registers the class under its class name. The
-      prohibition covers only aliases that must not be reachable by class name. A class
-      that shares another class's `type` but must stay reachable by class name declares
-      `_wire_type_alias` instead (VM-01-014).
+      Any own `type_` declaration lists the class in `VOCABULARY` under its class
+      name. The prohibition covers only aliases that must not be listed there. A class
+      that shares another class's `type` but must stay listed declares
+      `_wire_type_alias` instead (VM-01-014). A listing is not a lookup: no wire
+      `type` value resolves through `VOCABULARY` (VM-01-016).
     note: >-
       Such an alias is the `_XxxActivity` pattern, which presents an ancestor's `type`.
     verification: >-
@@ -483,6 +493,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: VM-05-001
+    - rel_type: refines
+      spec_id: ARCH-25-003
     adr:
     - ADR-0099
   - id: VM-05-005
@@ -536,7 +548,7 @@ groups:
     verification: Integration tests in `test/adapters/driven/test_sqlite_rehydration.py` confirm that `rehydrate()` is
       called before semantic extraction, expanding nested URI strings into fully typed objects retrieved from the DataLayer.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: SE-01-002
       note: semantic-extraction.md
   - id: VM-06-002
@@ -548,9 +560,11 @@ groups:
       in the store of the actor that received the activity. A `dl` parameter makes the
       caller name that store. A global or default store could resolve the reference
       against the wrong actor's data, or against no data.
-    verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that `rehydrate()` accepts and uses the `dl`
-      parameter to resolve URI strings; tests in `test/adapters/driven/test_sqlite_rehydration.py` verify that resolved
-      objects are fetched from the supplied DataLayer.
+    verification: >-
+      Inspection of `vultron/wire/as2/rehydration/resolve.py` confirms that
+      `rehydrate()` accepts and uses the `dl` parameter to resolve URI strings; tests in
+      `test/adapters/driven/test_sqlite_rehydration.py` verify that resolved objects are
+      fetched from the supplied DataLayer.
   - id: VM-06-003
     priority: MUST
     kind: project
@@ -562,8 +576,10 @@ groups:
       If rehydration expanded only the top level, the inner reference would stay a bare
       URI and the pattern would not match. The depth limit stops unbounded recursion on
       a reference cycle or a very deep structure.
-    verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that the rehydration loop is bounded by
-      `MAX_REHYDRATION_DEPTH` and recurses into newly materialized objects to expand nested URI strings at each level.
+    verification: >-
+      Inspection of `vultron/wire/as2/rehydration/resolve.py` confirms that the
+      rehydration loop is bounded by `MAX_REHYDRATION_DEPTH` and recurses into newly
+      materialized objects to expand nested URI strings at each level.
   - id: VM-06-004
     priority: MUST
     kind: project
@@ -589,9 +605,6 @@ groups:
       `test/wire/as2/test_rehydration_materialisation.py` confirms that `rehydrate()`
       keeps an unresolved nested `object` URI, names it in a DEBUG record, logs no
       WARNING, and raises nothing.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-25-029
   - id: VM-06-005
     priority: MUST
     kind: project
@@ -602,8 +615,10 @@ groups:
       pattern matching and use cases would then act on fields that are missing or wrong.
       Raising stops the activity at rehydration, where the unknown `type` is the
       reported fault, and no later step acts on a guess.
-    verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that a vocabulary lookup failure for an unknown
-      `as_type` propagates as `KeyError` or `ValueError` rather than returning a partially constructed object.
+    verification: >-
+      Inspection of `vultron/wire/as2/rehydration/resolve.py` confirms that a vocabulary
+      lookup failure for an unknown `as_type` propagates as `KeyError` or `ValueError`
+      rather than returning a partially constructed object.
   - id: VM-06-007
     priority: MUST
     kind: project
@@ -613,7 +628,7 @@ groups:
       `list[as_Activity]`. For a bare IRI in such a slot, `rehydrate()` MUST resolve the
       IRI through the supplied `DataLayer`.
     note: >-
-      `rehydrate()` in `vultron/wire/as2/rehydration.py` is the sole owner of
+      `rehydrate()` in `vultron/wire/as2/rehydration/` is the sole owner of
       ID-to-object materialisation. A bare IRI is not a value an object-only slot can
       hold. A core dimension field admits no `str` either, but it serializes to a bare
       state value (SDO-01-004), not to a reference, so it is out of scope. Slots that do
@@ -734,7 +749,7 @@ groups:
       class for an
       inbound object whose `type` is registered only there.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: MV-04-004
     adr:
     - ADR-0090
@@ -753,7 +768,7 @@ groups:
       that the default lookup refuses every core-only name, and that a lookup with
       `include_core=True` still finds them.
     relationships:
-    - rel_type: constrains
+    - rel_type: uses_definition
       spec_id: ARCH-12-010
       note: ARCH-12-010's registration duty stands; what changes is which callers reach the map it fills.
     adr:
@@ -771,10 +786,11 @@ groups:
     verification: >-
       A test asserts that every call site other than the wire-only ones names its need
       for the core fallback explicitly. Inspection confirms the persistence read paths
-      in `vultron/adapters/driven/db_record.py` and
-      `vultron/adapters/driven/datalayer_sqlite/hydration.py` pass `include_core=True`.
+      in `vultron/adapters/driven/db_record/` and
+      `vultron/adapters/driven/datalayer_sqlite/hydration/coercion.py` pass
+      `include_core=True`.
     relationships:
-    - rel_type: implements
+    - rel_type: extends
       spec_id: VM-06-013
     adr:
     - ADR-0090
@@ -784,20 +800,35 @@ groups:
   - id: VM-07-001
     priority: MUST
     kind: project
-    statement: Serialized wire-layer objects MUST exclude `None` fields and MUST exclude empty string fields
-    lint_suppress:
-    # compound_statement: the empty-string half has no check, and this item has no
-    # verification_debt marker that a split child could carry (MS-10-016). The split
-    # PR writes that check for the new ID (#5662).
-    - compound_statement
+    statement: Serialized wire-layer objects MUST exclude `None` fields.
     rationale: >-
-      Under the rule "if present, then non-empty" (CS-08-001), a blank value means the
-      same as no value. A sender that emits `null` or `""` gives receivers two more
-      forms of one absence to handle, and a receiver that reads them as values can act
-      on them. Leaving the field out gives one form.
+      Under the rule "if present, then non-empty" (CS-08-001), a `null` value means
+      the same as no value. A sender that emits `null` gives receivers a second form
+      of one absence to handle, and a receiver that reads it as a value can act on
+      it. Leaving the field out gives one form.
     verification: Unit tests `test_render_excludes_none_fields` in `test/adapters/driven/test_wire_render_adapter.py` and
       `test_exclude_none_true` in `test/adapters/driving/fastapi/test_responses.py` confirm that `None` fields are absent
       from serialized output.
+  - id: VM-07-005
+    priority: MUST
+    kind: project
+    statement: Serialized wire-layer objects MUST exclude empty string fields.
+    rationale: >-
+      Under CS-08-001 a blank string means the same as no value, so a sender that
+      emits `""` gives receivers another form of one absence, and a receiver that
+      reads it as a value can act on it.
+    note: >-
+      This codebase meets it by refusing a blank when an object is built
+      (`NonEmptyString`, CS-08-002), not by stripping blanks at serialization, which
+      would change stored data silently.
+    verification: >-
+      `test/wire/as2/test_wire_text_fields_reject_blank.py` asserts every wire
+      string field refuses a blank, building or parsing an object with a blank
+      `name`, `summary`, `content` or `mediaType` is refused, and no serialized
+      example activity holds an empty string.
+    relationships:
+    - rel_type: extends
+      spec_id: VM-07-001
   - id: VM-07-002
     priority: MUST
     kind: foundation
@@ -845,9 +876,6 @@ groups:
       `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py` confirms that subtype-specific fields are
       preserved in serialized wire output when `serialize_as_any=True` is set at both the persistence and delivery
       serialization boundaries.
-    relationships:
-    - rel_type: refines
-      spec_id: VM-07-001
 - id: VM-08
   title: Static Object Integrity
   specs:
@@ -881,9 +909,6 @@ groups:
     - ADR-0074
     - ADR-0099
     - ADR-0107
-    relationships:
-    - rel_type: refines
-      spec_id: VM-08-001
   - id: VM-08-005
     priority: MUST_NOT
     kind: project
@@ -947,7 +972,7 @@ groups:
       A replay of a deferred activity, or a load of an archived one, MUST be parsed again
       from the received body held for it. It carries that body as its evidence.
     rationale: >-
-      The deferred record and intake's archive keep the sealed body (IO-03-004,
+      The deferred record and intake's archive keep the sealed body (IO-03-009,
       CLP-10-017), so a replay carries the first delivery's evidence and a load sees the
       body that arrived (ADR-0149).
     verification: >-
@@ -1022,11 +1047,8 @@ groups:
       committed entry's `payloadSnapshot` equals that sealed body.
     adr:
     - ADR-0074
-    relationships:
-    - rel_type: refines
-      spec_id: VM-08-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_015
   - id: VM-08-004
     priority: MUST
     kind: project
@@ -1098,6 +1120,8 @@ groups:
       The statement names no store for the kept message. A Case Event records a state
       change, and such a message changes no state. It may also belong to no case. The
       case ledger is not a process log either (CLP-07).
+    stories:
+    - story_2026_013
 - id: VM-10
   title: Vocabulary Namespace and JSON-LD Context
   specs:
@@ -1122,9 +1146,6 @@ groups:
       field value, ensuring all outbound Vultron objects carry the correct `@context` declaration.
     adr:
     - ADR-0069
-    relationships:
-    - rel_type: refines
-      spec_id: VM-02-002
     stories:
     - story_2022_039
   - id: VM-10-002
@@ -1146,6 +1167,32 @@ groups:
     - ADR-0069
     relationships:
     - rel_type: implements
+      spec_id: VM-10-001
+    stories:
+    - story_2022_039
+  - id: VM-10-003
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver MUST NOT require dereferencing the Vultron JSON-LD context URI
+      (VM-10-001) to process a message.
+    rationale: >-
+      A receiver reads Vultron's compact JSON form and needs no JSON-LD expansion, so the
+      context URI is an identifier, not an input. A fetch per message would also make
+      processing depend on the network and on the host serving the context. Today the
+      URI does not resolve at all: the context document is withheld until it is served
+      at the wire-versioned path ADR-0106 defines, so a receiver that fetched it would
+      fail on every sender's message.
+    verification: >-
+      A test marked `VM-10-003` in `test/wire/as2/test_parser.py` blocks network
+      access, then parses an inbound activity whose activity and nested objects declare
+      the Vultron context, and asserts semantic extraction succeeds. Parsing and
+      extraction are the receiver's only steps that read `@context`.
+    adr:
+    - ADR-0069
+    - ADR-0106
+    relationships:
+    - rel_type: uses_definition
       spec_id: VM-10-001
     stories:
     - story_2022_039

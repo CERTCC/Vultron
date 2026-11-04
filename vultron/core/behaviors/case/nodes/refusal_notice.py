@@ -55,6 +55,7 @@ from py_trees.common import Status
 from pydantic import BaseModel, ConfigDict
 
 from vultron.core.behaviors.case.nodes.diversion_stage import Diversion
+from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     enclosing_refusal_reason,
 )
@@ -62,8 +63,8 @@ from vultron.core.behaviors.exemption_registry import require_registered
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.pending_assertion import (
@@ -122,7 +123,7 @@ REFUSAL_NOTICE_EXEMPTIONS: Final[Mapping[str, RefusalNoticeExemption]] = (
 def refusal_effects_with_notice(
     name: str,
     case_id: str | None,
-    guards: Sequence[py_trees.behaviour.Behaviour | Diversion],
+    guards: Sequence[py_trees.behaviour.Behaviour | Diversion | OnPaths],
     refusal_effects: list[py_trees.behaviour.Behaviour],
     exemption: RefusalNoticeExemption | None,
 ) -> list[py_trees.behaviour.Behaviour]:

@@ -34,11 +34,11 @@ Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
    at run time and ``test_receive_activity_tree.py`` that the factory gates
    it (CLP-10-022).
 4. No built received tree commits ahead of its guarded commit except inside
-   the clock-decision stage or a CASE_MANAGER diversion, and there only from
-   a stage's own commit nodes — one per AS2 activity the decision or the
-   diversion needs — never the received activity's, and no other
-   protocol-effect node runs inside the clock-decision stage (CLP-10-025,
-   CLP-10-026).
+   the clock-decision stage or a diversion in a manager-only path
+   declaration, and there only from a stage's own commit nodes — one per AS2
+   activity the decision or the diversion needs — never the received
+   activity's, and no other protocol-effect node runs inside the
+   clock-decision stage (CLP-10-025, CLP-10-026).
 5. Ahead of its guarded commit, a built received tree writes or sends only
    inside a permitted pre-commit stage: the clock decisions, a diversion,
    a refusal or post-close reply, or the ledger-position answer, which itself
@@ -353,16 +353,40 @@ def _decision_commit_types() -> tuple[type, ...]:
     )
 
 
-def _commits_own_entry(node: py_trees.behaviour.Behaviour) -> bool:
+def _manager_only(root: py_trees.behaviour.Behaviour) -> bool:
+    """True when *root*'s path declaration names the CASE_MANAGER path alone.
+
+    That declaration is what keeps a diversion at the CASE_MANAGER now
+    (HP-01-038): the path stage refuses every other receiver before the
+    guards run, so the diversion needs no gate of its own and may commit its
+    own entry.  A tree with no declaration keeps neither.
+
+    Read from the production predicate,
+    :attr:`~vultron.core.behaviors.case.nodes.received_path.ReceivedPathNode.manager_path_only`,
+    so this ratchet and the factory cannot drift apart on what the
+    declaration means (CS-22-001).
+    """
+    from vultron.core.behaviors.case.nodes.received_path import (
+        ReceivedPathNode,
+    )
+
+    stages = [n for n in root.iterate() if isinstance(n, ReceivedPathNode)]
+    return bool(stages) and stages[0].manager_path_only
+
+
+def _commits_own_entry(
+    node: py_trees.behaviour.Behaviour, manager_only: bool = False
+) -> bool:
     """True for a stage that may commit its own entry ahead of the guards.
 
     The clock-decision stage (CLP-10-025), whose commits are the decision's
     own CASE_MANAGER-authored entries, one per AS2 activity it needs
-    (:func:`_decision_commit_types`); and a diversion whose effects sit in a
-    CASE_MANAGER gate (CLP-10-026): it answers its delivery in place of the
-    received activity's commit, which then never runs.  The received
-    activity's commit (``CommitCaseLedgerEntryNode``) inside either would
-    commit the activity's own assertion before the guards judge it.
+    (:func:`_decision_commit_types`); and a diversion in a tree whose
+    declaration names the CASE_MANAGER path alone (CLP-10-026, HP-01-038):
+    it answers its delivery in place of the received activity's commit, which
+    then never runs.  The received activity's commit
+    (``CommitCaseLedgerEntryNode``) inside either would commit the activity's
+    own assertion before the guards judge it.
     """
     from vultron.core.behaviors.case.nodes.clock_decision_stage import (
         ClockDecisionStage,
@@ -370,22 +394,19 @@ def _commits_own_entry(node: py_trees.behaviour.Behaviour) -> bool:
     from vultron.core.behaviors.case.nodes.diversion_stage import (
         DiversionStage,
     )
-    from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 
     if isinstance(node, ClockDecisionStage):
         return True
-    return isinstance(node, DiversionStage) and isinstance(
-        node.effects, CaseManagerGate
-    )
+    return manager_only and isinstance(node, DiversionStage)
 
 
 def _early_commits(root: py_trees.behaviour.Behaviour) -> list[str]:
     """Commits *root* runs before its guarded commit that CLP-10-025 forbids.
 
     A commit ahead of the guarded commit is allowed only inside a
-    :class:`ClockDecisionStage` or a CASE_MANAGER diversion, and there only
-    the stage's own entries (:func:`_decision_commit_types`); the received
-    activity's
+    :class:`ClockDecisionStage` or a diversion in a tree declaring the
+    CASE_MANAGER path alone, and there only from the stage's own entries
+    (:func:`_decision_commit_types`); the received activity's
     commit (``CommitCaseLedgerEntryNode``) inside the stage would commit the
     activity's own assertion before the guards judge it.  A tree with no
     guarded commit has no "ahead of the commit" and reports nothing.
@@ -410,12 +431,13 @@ def _early_commits(root: py_trees.behaviour.Behaviour) -> list[str]:
         return []
     ahead = stages[: names.index(GUARDED_COMMIT_NAME)]
     commits = _commit_node_types()
+    manager_only = _manager_only(root)
     found: list[str] = []
 
     def walk(
         node: py_trees.behaviour.Behaviour, in_stage: bool, in_refusal: bool
     ) -> None:
-        in_stage = in_stage or _commits_own_entry(node)
+        in_stage = in_stage or _commits_own_entry(node, manager_only)
         in_refusal = in_refusal or isinstance(node, RefusalEffectsBestEffort)
         # A refusal effect runs only when the guards refuse, so the guarded
         # commit never follows it; the CASE_MANAGER's own note is the one
@@ -483,7 +505,8 @@ def test_only_the_clock_decision_stage_commits_ahead_of_the_guards() -> None:
         type(n).__name__
         for t in trees.values()
         for stage in t.iterate()
-        if isinstance(stage, DiversionStage) and _commits_own_entry(stage)
+        if isinstance(stage, DiversionStage)
+        and _commits_own_entry(stage, _manager_only(t))
         for n in stage.iterate()
         if isinstance(n, _commit_node_types())
     }
@@ -627,31 +650,16 @@ class TestEarlyCommitDetector:
 
     @pytest.mark.spec("CLP-10-026")
     @pytest.mark.spec("CLP-10-066")
-    def test_a_case_manager_diversions_own_commit_is_allowed(self) -> None:
+    @pytest.mark.spec("HP-01-038")
+    def test_a_manager_only_declarations_diversion_commit_is_allowed(
+        self,
+    ) -> None:
         from vultron.core.behaviors.case.nodes.diversion_stage import (
             DiversionStage,
         )
-        from vultron.core.behaviors.case.nodes.role_gates import (
-            create_case_manager_gated_tree,
-        )
-
-        stage = DiversionStage(
-            "Divert",
-            py_trees.behaviours.Success(name="Condition"),
-            create_case_manager_gated_tree(
-                name="DivertAnswer",
-                case_id="https://example.org/cases/c",
-                children=[self._decision_commit()],
-            ),
-        )
-
-        assert _early_commits(self._tree(stage)) == []
-
-    @pytest.mark.spec("CLP-10-026")
-    @pytest.mark.spec("CLP-10-066")
-    def test_an_ungated_diversions_commit_is_flagged(self) -> None:
-        from vultron.core.behaviors.case.nodes.diversion_stage import (
-            DiversionStage,
+        from vultron.core.behaviors.case.nodes.received_path import (
+            ReceivedPath,
+            ReceivedPathNode,
         )
 
         stage = DiversionStage(
@@ -659,10 +667,46 @@ class TestEarlyCommitDetector:
             py_trees.behaviours.Success(name="Condition"),
             self._decision_commit(),
         )
+        tree = self._tree(
+            ReceivedPathNode(declared=frozenset({ReceivedPath.CASE_MANAGER})),
+            stage,
+        )
 
-        assert _early_commits(self._tree(stage)) == [
-            "CreateLogEntryNode (outside)"
-        ]
+        assert _early_commits(tree) == []
+
+    @pytest.mark.spec("CLP-10-026")
+    @pytest.mark.spec("CLP-10-066")
+    @pytest.mark.spec("HP-01-038")
+    def test_a_two_path_declarations_diversion_commit_is_flagged(
+        self,
+    ) -> None:
+        """A diversion a non-manager receiver may reach commits nothing."""
+        from vultron.core.behaviors.case.nodes.diversion_stage import (
+            DiversionStage,
+        )
+        from vultron.core.behaviors.case.nodes.received_path import (
+            ReceivedPath,
+            ReceivedPathNode,
+        )
+
+        stage = DiversionStage(
+            "Divert",
+            py_trees.behaviours.Success(name="Condition"),
+            self._decision_commit(),
+        )
+        tree = self._tree(
+            ReceivedPathNode(
+                declared=frozenset(
+                    {
+                        ReceivedPath.CASE_MANAGER,
+                        ReceivedPath.PARTICIPANT_REPLICA,
+                    }
+                )
+            ),
+            stage,
+        )
+
+        assert _early_commits(tree) == ["CreateLogEntryNode (outside)"]
 
     def test_a_commit_after_the_guarded_commit_is_not_early(self) -> None:
         tree = self._tree()
@@ -776,7 +820,7 @@ NESTED_COMMIT_TREES: frozenset[str] = frozenset(
         # The close arm is a received tree nested in the close tree; the
         # factory gives the nested arm no stage of its own (one answer per
         # delivery), and its commit is the arm's.
-        "vultron/core/behaviors/case/receive_close_case_tree.py:"
+        "vultron/core/behaviors/case/receive_close_case_tree/factory.py:"
         "create_close_case_received_tree",
     }
 )

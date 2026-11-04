@@ -33,7 +33,9 @@ from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
 from fastapi.testclient import TestClient
 
-from vultron.adapters.driving.fastapi import outbox_handler
+from vultron.adapters.driving.fastapi.outbox_handler import (
+    drain as outbox_drain,
+)
 from vultron.adapters.driving.fastapi.outbox_lanes import (
     RowOutcome,
     StallOrder,
@@ -545,14 +547,14 @@ class TestOneRowAtATime:
 
 class TestScenarioNodes:
     def test_the_default_emitter_is_restored_on_exit(self):
-        slot = outbox_handler._DEFAULT_EMITTER_SLOT
+        slot = outbox_drain._DEFAULT_EMITTER_SLOT
         before = slot.value
         with runner._scenario_nodes([], load_topology()):
             assert isinstance(slot.value, InProcessRouter)
         assert slot.value is before
 
     def test_the_default_emitter_is_restored_when_the_run_raises(self):
-        slot = outbox_handler._DEFAULT_EMITTER_SLOT
+        slot = outbox_drain._DEFAULT_EMITTER_SLOT
         before = slot.value
         with (
             pytest.raises(RuntimeError),

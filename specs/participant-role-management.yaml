@@ -20,7 +20,8 @@ groups:
     rationale: 'A named property decouples callers from the internal storage field, enabling future changes to how roles are
       stored without updating every call site.'
     verification: >-
-      Inspection of `vultron/core/models/case_participant.py` confirms a `roles` property
+      Inspection of `vultron/core/models/case_participant/participant.py` confirms a
+      `roles` property
       returning `list[CVDRole]`; the architecture test in
       `test/architecture/test_participant_case_roles.py` confirms no direct `case_roles`
       reads appear outside the class.
@@ -66,7 +67,8 @@ groups:
     rationale: 'A named method provides a single place to enforce invariants (e.g. deduplication, logging) whenever a role
       is added.'
     verification: >-
-      Inspection of `vultron/core/models/case_participant.py` confirms `add_role()` is defined
+      Inspection of `vultron/core/models/case_participant/participant.py` confirms
+      `add_role()` is defined
       with the correct signature; a unit test confirms the role appears in
       `participant.roles` after the call.
     tags:
@@ -123,7 +125,8 @@ groups:
       that removes a role from the participant''s role set.'
     rationale: 'A named method provides a single place to enforce invariants whenever a role is removed.'
     verification: >-
-      Inspection of `vultron/core/models/case_participant.py` confirms `remove_role()` is
+      Inspection of `vultron/core/models/case_participant/participant.py` confirms
+      `remove_role()` is
       defined with the correct signature; a unit test confirms the role is absent from
       `participant.roles` after the call.
     tags:
@@ -209,7 +212,8 @@ groups:
     verification: >-
       `test/architecture/test_validate_assignment_ratchet.py` scans every core
       module for a direct `participant_statuses` write — attribute assignment or
-      in-place list mutation — outside `vultron/core/models/case_participant.py`
+      in-place list mutation — outside
+      `vultron/core/models/case_participant/participant.py`
       and fails on any hit; `test/core/models/test_case_participant.py` covers
       the canonical mutator accepting a core-shaped status and rejecting a
       wire-shaped one.
@@ -218,7 +222,7 @@ groups:
       CaseParticipant after construction except through the canonical `CaseParticipant`
       mutators. An example of direct mutation is
       `participant.participant_statuses.append(...)`. The mutator methods themselves,
-      in `vultron/core/models/case_participant.py`, are exempt.
+      in `vultron/core/models/case_participant/participant.py`, are exempt.
     rationale: >-
       `ParticipantStatus` has two shapes that are not compatible (SDO-03-002, ADR-0036).
       When a status in the wire shape is added to a list of core-typed statuses, readers
@@ -300,7 +304,8 @@ groups:
   - id: PRM-05-004
     priority: SHOULD
     kind: project
-    statement: 'An architecture test SHOULD enforce that no Python source file under `vultron/core/` (outside `vultron/core/models/case_participant.py`)
+    statement: 'An architecture test SHOULD enforce that no Python source file under
+      `vultron/core/` (outside `vultron/core/models/case_participant/participant.py`)
       contains a direct `case_roles` mutation pattern (i.e. `\.case_roles\s*=` or `\.case_roles\.append`).'
     rationale: >-
       A machine-checkable rule prevents regression. Using a targeted file-content
@@ -309,7 +314,8 @@ groups:
     verification: >-
       `test_no_direct_case_roles_mutation_in_core` in
       `test/architecture/test_participant_case_roles.py` scans `vultron/core/` for the
-      two mutation patterns and fails on any match outside `case_participant.py`.
+      two mutation patterns and fails on any match outside
+      `case_participant/participant.py`.
     tags:
     - testing
     - tooling
@@ -352,8 +358,8 @@ groups:
     - ADR-0121
     tags:
     - protocol
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_062
   - id: PRM-06-002
     priority: MUST_NOT
     kind: protocol
@@ -378,11 +384,16 @@ groups:
       ``test/architecture/test_participant_status_validation.py`` ratchets that.
       The CASE_MANAGER's birth write at the stub Invite is the one write that
       may carry ``vf`` for a vendor.
+      ``test_vendor_cannot_disclaim_awareness`` in
+      ``test/core/states/test_participant_transitions.py`` confirms that a VENDOR
+      reporting ``vf`` is refused with a PRM-06-002 violation.
     adr:
     - ADR-0121
     - ADR-0114
     tags:
     - protocol
+    stories:
+    - story_2022_062
   - id: PRM-06-003
     priority: MAY
     kind: protocol
@@ -528,3 +539,5 @@ groups:
     - ADR-0121
     tags:
     - protocol
+    stories:
+    - story_2022_107

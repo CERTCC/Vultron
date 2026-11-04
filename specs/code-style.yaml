@@ -519,11 +519,11 @@ groups:
     - rel_type: refines
       spec_id: CS-13-006
       note: picks which explicit offset a wire timestamp carries
+    stories:
+    - story_2026_012
     lint_suppress:
-    - missing_story_reference
     # compound_statement: one rule that picks a wire timestamp's offset, stated
-    # for its two origins (minted here, or carried from a peer). A split would add
-    # a protocol child with no story, which the MS-12-007 guard refuses.
+    # for its two origins (minted here, or carried from a peer).
     - compound_statement
   - id: CS-13-006
     priority: MUST
@@ -571,7 +571,7 @@ groups:
     adr:
     - ADR-0167
     stories:
-    - story_2022_045
+    - story_2026_012
     - story_2022_089
     relationships:
     - rel_type: refines

@@ -11,8 +11,8 @@ description: >
   kinds, what a kind change moves, and the scoping of MS-12-006;
   the enum values spec-lint accepts for `kind`, `priority` and `rel_type`, and
   where each relationship is recorded (SR-13); how to pick a `rel_type` by its
-  definition, including `uses_definition` and recording no link when no type
-  fits (SR-13-017, SR-13-018); `adr:`
+  definition, including `uses_definition`, `satisfies` only when A alone meets
+  B, and recording no link when no type fits (SR-13-017, SR-13-018); `adr:`
   versus `references:`; reading the item format off its fields (ADR-0101); the
   PR-only marker-coverage guard and the strict-xfail pattern; priority tiers
   (MS-02-003/004); the `verification_debt` ratchet and its growth guard
@@ -69,7 +69,7 @@ and the error can read like a YAML syntax error.
 
 Who must obey a rule decides its kind; naming code never does (MS-12-002,
 [ADR-0134](../docs/adr/0134-who-must-obey-a-rule-decides-its-spec-kind.md)).
-The tiers are glossed on `SpecKind` in `vultron/metadata/specs/schema.py`:
+The tiers are glossed on `SpecKind` in `vultron/metadata/specs/schema/vocabulary.py`:
 
 - **`protocol`** — the Vultron layer: Vultron's message forms on the wire,
   which messages are sent and when, what a receiver does given its state, and
@@ -238,6 +238,9 @@ requirement (ADR-0160). Pick the type by its definition, not by habit:
   alternative path or a scope boundary is no link.
 - `uses_definition` when A uses a term B defines ("an active participant
   (CM-10-004)"); a "see also" citation is no link.
+- `satisfies` only when meeting A alone meets all of B. A rule that is one case
+  of B is `refines`; one that uses a shorthand or message B defines is
+  `uses_definition` (the EMB transitions on the MSM-02 mappings, #5209).
 - `constrains`, on the general rule, when A must obey a rule it is not a case of.
 - A statement that says "X refines this" or "a test enforces X" already names the
   type; record it on X, the downstream end.
@@ -278,9 +281,10 @@ inventing a sequence.
 gate that selects by priority selects a *tier* (MS-02-003). In code, ask
 `spec.priority.is_must_tier` or `.tier` (MS-02-004), never
 `== RFC2119Priority.MUST`; `test/metadata/specs/test_priority_tier_gate.py`
-fails the literal comparison under `vultron/metadata/specs/` and `scripts/`. Its
-allowlist holds SR-11-003's selector, the recorded exception, written once in
-`sr_11_003_gate_applies()`.
+fails the literal comparison under `vultron/metadata/specs/` and `scripts/`
+with no allowlist. SR-11-003's story gate asks the tier too, in
+`sr_11_003_gate_applies()`, so a protocol `MUST_NOT` needs a story as a `MUST`
+does.
 
 The literal comparison fails silently: the prohibitions just drop out, as when
 a verification backfill reported the protocol tier complete with most
@@ -449,7 +453,7 @@ When a requirement exists to stop an implementation mistake, state the domain
 truth the mistake violates, in the vocabulary of its kind; put the bug in
 `rationale:` and let the regression test verify the positive rule (MS-05-005).
 A bare ban reads as if the mistake were a live design option, and gets only a
-contrived story once the story gate covers `MUST_NOT` (#4517). Keeping only the
+contrived story, since the story gate covers `MUST_NOT` (SR-11-003). Keeping only the
 test is not the fix: agents read specs more often than tests.
 
 Write "a participant's assertion about itself is about itself, not about
@@ -563,7 +567,7 @@ resolves it as live (#3022).
 - Prefer file-scoped exclusions to package-scoped ones: excluding all of
   `vultron/metadata/specs/` hid real definitions such as `SHOULD_NOT`.
 - Keep the two exclusion sets distinct: the phantom-*ID* allowlist excludes only
-  `test/metadata/specs`, while the *symbol* corpus also excludes `lint.py`.
+  `test/metadata/specs`, while the *symbol* corpus also excludes the `lint/` package.
 
 ### A Retired-Symbol Sweep Is Not a Substitution — Check the Shape First
 

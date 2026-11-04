@@ -69,10 +69,6 @@ groups:
     verification: >-
       The factory package's imports from `vultron.core` stay inside the ARCH-22-001
       allow-list (`test/architecture/test_wire_core_import_allowlist.py`).
-    relationships:
-    - rel_type: depends_on
-      spec_id: ARCH-22-001
-      note: The allow-list is what lets a factory accept the core object directly.
     adr:
     - ADR-0099
   - id: AF-01-006
@@ -126,6 +122,9 @@ groups:
       string literal in `vultron/wire/as2/factories/` that is not a docstring.
     adr:
     - ADR-0099
+    relationships:
+    - rel_type: uses_definition
+      spec_id: ARCH-12-013
 - id: AF-02
   title: Module Structure
   specs:
@@ -171,16 +170,6 @@ groups:
     rationale: >-
       One import path keeps call sites short. The package can also move a factory
       between its domain modules without a change to any caller.
-  - id: AF-02-004
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: '`VultronActivityConstructionError` MUST be defined in `vultron/wire/as2/factories/errors.py` and imported
-      into `factories/__init__.py`'
-    rationale: >-
-      A caller that catches a construction failure must find the exception where it
-      finds the factories. The import into `factories/__init__.py` lets it import the
-      error and the factories from one place.
 - id: AF-03
   title: Function Naming
   specs:
@@ -192,8 +181,11 @@ groups:
       A predictable name lets a reader find the factory from the activity class, and the
       class from the factory. It also prevents two different names for the same
       activity.
-    verification: Inspection of `vultron/wire/as2/factories/` confirms each factory function name is the `snake_case`
-      form of its corresponding activity class name (e.g., `em_propose_embargo` for `EmProposeEmbargo`).
+    verification: >-
+      Inspection of `vultron/wire/as2/factories/` confirms each factory function name
+      is the `snake_case` form of its corresponding activity class name without the
+      leading underscore (e.g., `em_propose_embargo_activity` for
+      `_EmProposeEmbargoActivity`).
 - id: AF-04
   title: Error Handling
   specs:
@@ -209,13 +201,19 @@ groups:
   - id: AF-04-002
     priority: MUST
     kind: project
-    verification_debt: '#2575'
-    statement: '`VultronActivityConstructionError` MUST be defined in `vultron/wire/as2/factories/errors.py` and re-exported
-      from `vultron/wire/as2/factories/__init__.py`'
+    statement: >-
+      `vultron/wire/as2/factories/__init__.py` MUST re-export
+      `VultronActivityConstructionError`, which `vultron/errors.py` defines.
     rationale: >-
       Callers import the factories from `vultron.wire.as2.factories`. When the package
       also exports the exception, a caller can catch construction failures without an
-      import from a second module.
+      import from a second module. The class is defined in `vultron/errors.py` with the
+      rest of the shared hierarchy, under `VultronError` (EH-01-002).
+    verification: >-
+      `test_construction_error_reexported_from_package` in
+      `test/wire/as2/factories/test_errors.py` asserts that the class the package
+      exports is the one `vultron.errors` defines, and that the package's `__all__`
+      lists it.
   - id: AF-04-003
     priority: SHOULD
     kind: project
@@ -284,37 +282,17 @@ groups:
       modules with the same file name in other directories do not collide. Architecture
       tests can then share helpers in the package and grow next to each other.
 - id: AF-07
-  title: TypeAlias Cleanup
+  title: TypeAlias Naming
   specs:
   - id: AF-07-003
     priority: SHOULD
     kind: project
-    statement: The `EmProposeEmbargoRef` TypeAlias in `vocab/activities/embargo.py` SHOULD be renamed to `_EmProposeEmbargoRef`
-      (private prefix) since it is used only within `embargo.py` and is not intended as a public export
+    statement: >-
+      A `TypeAlias` that a `vocab/activities/` module defines for its own use only
+      SHOULD carry a leading underscore.
     rationale: >-
       A name used only in one module is private. A leading underscore keeps other
       modules from importing it and shows that it is not part of the public vocabulary.
-- id: AF-08
-  title: Migration
-  specs:
-  - id: AF-08-001
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: All call sites outside `vultron/wire/as2/vocab/activities/` and `vultron/wire/as2/factories/` that directly
-      instantiate a Vultron activity subclass MUST be migrated to use the corresponding factory function
-    rationale: >-
-      A call site that still instantiates an activity subclass directly skips the checks
-      the factories apply. Until every such call site uses a factory, AF-01-001 holds
-      only for new code.
-  - id: AF-08-002
-    priority: SHOULD
-    kind: project
-    statement: 'Set priority to MUST_NOT and rewrite: "Migration of `from_core()` call sites in `vultron/core/use_cases/` to use driven adapter translation is a separate tracked task. This migration task MUST NOT be conflated with the factory-function migration described in AF-08-001."'
-    rationale: >-
-      Two migrations touch the same call sites: the move to factory functions and the
-      removal of `from_core()` calls from core use cases. When the two stay apart, each
-      change is small and can be checked on its own.
 - id: AF-09
   title: Activity Translator Port
   specs:
@@ -327,12 +305,10 @@ groups:
       directly.
     rationale: '`from_core()` is a wire-layer method. Calling it directly from core use-cases inverts the hexagonal architecture
       dependency direction: core→wire. The Activity Translator port pattern maintains the correct direction (core defines
-      the port; wire implements it) while providing the same functional capability. See AF-08-002 for migration scope.'
+      the port; wire implements it) while providing the same functional capability.'
     relationships:
-    - rel_type: implements
-      spec_id: ARCH-04-001
     - rel_type: refines
-      spec_id: AF-08-002
+      spec_id: ARCH-01-001
   - id: AF-09-003
     priority: MUST
     kind: project
@@ -362,5 +338,5 @@ groups:
       AF-09-001 forbids. Injection keeps that import out of core. It also lets a test
       give the use case a stub translator.
     relationships:
-    - rel_type: refines
-      spec_id: AF-09-001
+    - rel_type: extends
+      spec_id: AF-09-003
