@@ -55,9 +55,11 @@ A scenario module declares itself, and nothing else anywhere does:
   parameter to state it a second time (DEMOCI-11-019, DEMOCI-11-024). Every table
   and `.github/demo-scenarios.json` are generated from it (`demo-scenarios --write`,
   gated by `demo-scenarios-sync`): never hand-edit one, change the decorator. Script,
-  harness and narrative paths are **derived** from `name` (`<name_>_demo.py`,
-  `test_<name_>_invariants.py`, `<name>.md`; `<name_>` swaps hyphens for
-  underscores) — rename the file to match, never add an override (DEMOCI-11-003).
+  harness and narrative paths are **derived** from `name` (`<name_>_demo.py` or a
+  `<name_>_demo/` package whose `__init__` re-exports `main`, `ROLES` and
+  `CLI_HELP`; `test_<name_>_invariants.py`, `<name>.md`; `<name_>` swaps hyphens
+  for underscores) — rename the file to match, never add an override
+  (DEMOCI-11-003).
 - `ROLES: list[ActorRole]` (`helpers/actor_roles.py`), one frozen role per actor
   **in `main()` parameter order**, and `CLI_HELP: str`. These generate the
   scenario's `--<role>-url` / `--<role>-id` options and its `--help`; each address

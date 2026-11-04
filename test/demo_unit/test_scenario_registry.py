@@ -64,21 +64,47 @@ _PATH = (
 )
 
 
-def _module_stems_on_disk() -> set[str]:
-    """Scenario demo module stems, read straight off the filesystem.
+def _module_stems_on_disk(directory: Path = _SCENARIO_DIR) -> set[str]:
+    """Scenario demo module and package stems, read straight off the filesystem.
 
-    Deliberately an independent ``glob`` rather than a call into the registry:
-    comparing discovery against itself would pass whatever discovery did.
+    A scenario is a ``<name_>_demo.py`` module or a ``<name_>_demo/`` package
+    with an ``__init__.py`` (DEMOCI-11-003), so both are read.  Deliberately an
+    independent ``glob`` rather than a call into the registry: comparing
+    discovery against itself would pass whatever discovery did.
     """
-    return {
-        path.stem
-        for path in _SCENARIO_DIR.glob(f"*{MODULE_SUFFIX}.py")
-        if not path.name.startswith("_")
+    modules = {path.stem for path in directory.glob(f"*{MODULE_SUFFIX}.py")}
+    packages = {
+        path.parent.name
+        for path in directory.glob(f"*{MODULE_SUFFIX}/__init__.py")
     }
+    return {stem for stem in modules | packages if not stem.startswith("_")}
+
+
+def test_the_on_disk_reader_sees_both_forms(tmp_path: Path) -> None:
+    """The independent reader the two set checks compare against is not blind.
+
+    Every committed scenario is still a module, so without this the package
+    half of :func:`_module_stems_on_disk` would be checked by nothing, and a
+    reader that missed packages would agree with a discovery that missed them
+    too.
+    """
+    for relative in (
+        "aa_demo.py",
+        "bb_demo/__init__.py",
+        "bb_demo/cli.py",
+        "cc_demo/notes.txt",
+        "_private_demo.py",
+        "_private_demo/__init__.py",
+        "helper.py",
+    ):
+        (tmp_path / relative).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / relative).write_text("", encoding="utf-8")
+    assert _module_stems_on_disk(tmp_path) == {"aa_demo", "bb_demo"}
+    assert _module_stems_on_disk(), f"no scenario modules in {_SCENARIO_DIR}"
 
 
 def test_registry_matches_modules_on_disk() -> None:
-    """The registered set equals the ``*_demo.py`` modules present on disk.
+    """The registered set equals the scenario modules and packages on disk.
 
     A module that omits the ``@scenario`` decorator fails here, which is the
     check that makes the registry trustworthy as the sole declaration point
@@ -103,7 +129,7 @@ def test_registry_matches_modules_on_disk() -> None:
 
 
 def test_discovery_walks_the_package() -> None:
-    """``scenario_module_stems()`` sees every ``*_demo.py`` module and nothing else.
+    """``scenario_module_stems()`` sees every scenario module and package, and nothing else.
 
     Discovery is checked against the filesystem separately from the registry so
     that a discovery regression and a missing decorator fail as different tests
@@ -141,9 +167,16 @@ def test_no_hand_maintained_import_list() -> None:
                 f"{node.module}.{alias.name}" for alias in node.names
             )
 
-    offenders = sorted(
-        name for name in imported if name.endswith(MODULE_SUFFIX)
-    )
+    # A package scenario's submodules count too: importing
+    # `<pkg>.rcvcv_demo.cli` names the scenario as surely as `rcvcv_demo`.
+    def names_a_scenario(name: str) -> bool:
+        return any(part.endswith(MODULE_SUFFIX) for part in name.split("."))
+
+    assert names_a_scenario(f"{SCENARIO_PACKAGE}.rv_demo")
+    assert names_a_scenario(f"{SCENARIO_PACKAGE}.rv_demo.cli")
+    assert not names_a_scenario(f"{SCENARIO_PACKAGE}.registry.spec")
+
+    offenders = sorted(name for name in imported if names_a_scenario(name))
     assert not offenders, (
         f"the registry imports scenario demo module(s) by name: "
         f"{offenders}. Discovery must enumerate the package with pkgutil "
@@ -168,6 +201,10 @@ def test_no_hand_maintained_import_list() -> None:
 )
 def test_derived_paths_resolve(spec: ScenarioSpec) -> None:
     """All three of a scenario's convention-derived paths exist on disk.
+
+    The demo path is the ``.py`` file or the package directory, whichever form
+    the scenario takes; the package form is exercised end to end in
+    ``test_scenario_registry_package.py``.
 
     The registry stores no paths, so this is the only thing standing between a
     renamed or missing file and a table that confidently describes it

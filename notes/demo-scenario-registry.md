@@ -4,7 +4,8 @@ status: active
 kind: guidance
 description: >
   Implementation guidance for the self-registering demo scenario registry
-  (ADR-0098): what the decorator carries and what is derived by convention, why
+  (ADR-0098): what the decorator carries and what is derived by convention, that
+  a scenario is a module or a package of one name, why
   planned scenarios stay out of it, how the MS-13-003 marker selects the spec
   groups that specify a scenario, why discovery must walk the package, why
   `.github/demo-scenarios.json` stays committed, which consumers are generated
@@ -19,6 +20,7 @@ related_specs:
   - specs/diataxis-requirements.yaml
   - specs/case-proposal.yaml
   - specs/case-management.yaml
+  - specs/code-style.yaml
 related_notes:
   - notes/demo-interactive-ui.md
   - notes/demo-scenario-tree.md
@@ -54,6 +56,14 @@ see `registry/spec.py`). A stored path can be wrong about itself; a derived path
 either resolves or fails a check (DEMOCI-11-003). If a scenario cannot satisfy a
 convention, change the convention or rename the file: an override field re-opens
 the drift channel for every scenario.
+
+**A scenario is a module or a package of one name.** A scenario over the
+module-size threshold (CS-18-001) becomes a `<name_>_demo/` package: its
+`__init__` re-exports `main`, `ROLES` and `CLI_HELP` (CS-18-003), so importing
+the package registers it. `ScenarioSpec.demo_path` follows whichever form the
+name resolves to. A ratchet that reads a scenario's own code scans
+`ScenarioSpec.source_files`, never `module_name` spelled as one `.py` file, or
+it skips every submodule. Both forms of one name are refused.
 
 ## The path and the branch-point table
 
@@ -155,11 +165,11 @@ author's declaration, so a group without it silently belongs to neither register
 
 Import-time registration sees only imported modules, so a hand-written import
 list recreates the silent omission the registry removes. `discover_scenarios()`
-walks `vultron.demo.scenario` with `pkgutil` and imports every `*_demo` module;
-use it, not `registered_scenarios()`, wherever completeness matters
+walks `vultron.demo.scenario` with `pkgutil` and imports every `*_demo` module
+and package; use it, not `registered_scenarios()`, wherever completeness matters
 (DEMOCI-11-002). A test asserts the registered set equals the `*_demo.py`
-modules on disk, because broken discovery otherwise looks like a removed
-scenario. The same hazard applies to the AS2 vocabulary registry
+modules and `*_demo/` packages on disk, because broken discovery otherwise looks
+like a removed scenario. The same hazard applies to the AS2 vocabulary registry
 ([vocabulary-registry.md](vocabulary-registry.md)).
 
 ## Why `.github/demo-scenarios.json` stays committed
@@ -296,8 +306,8 @@ which assumes `use_directory_urls`; a test pins that assumption.
 - **Discovery fails closed.** `discover_scenarios()` raises when a `*_demo`
   module registers nothing, because a short table looks complete.
 - **A copy-pasted decorator is caught by module name.** The registry refuses a
-  declared `name` that does not match the declaring module's `__module__`
-  (skipped for `__main__`, so script runs still work); the derived paths alone
-  would still resolve to the copied-from module.
+  declared `name` whose derived module is neither the declaring `__module__` nor
+  a package containing it (skipped for `__main__`, so script runs still work);
+  the derived paths alone would still resolve to the copied-from module.
 - **Splicing refuses a file with no markers.** Appending would leave two tables
   on one subject, so `--write` also refuses to create a consumer from nothing.

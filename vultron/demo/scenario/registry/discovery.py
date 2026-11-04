@@ -18,6 +18,7 @@ from __future__ import annotations
 import importlib
 import pkgutil
 from collections.abc import Callable
+from pathlib import Path
 
 from vultron.demo.scenario.registry.spec import (
     MODULE_SUFFIX,
@@ -123,7 +124,8 @@ def _register(spec: ScenarioSpec, origin_module: str) -> None:
 
     Raises:
         DemoScenarioRegistryError: On a name collision with a different spec,
-            or when a scenario package module's name contradicts ``spec.name``.
+            or when a module of the scenario package that is neither
+            ``spec.module_name`` nor one of its submodules declares it.
     """
     existing = _REGISTRY.get(spec.name)
     if existing is not None and existing != spec:
@@ -140,8 +142,14 @@ def _register(spec: ScenarioSpec, origin_module: str) -> None:
     # Skipped when the module is not in the scenario package: running a demo
     # module as a script makes `__module__` `"__main__"`, and a test may
     # register a spec from a fixture module.
-    if origin_module.startswith(f"{SCENARIO_PACKAGE}.") and (
-        origin_module != spec.module_name
+    #
+    # A package scenario declares `main()` in a submodule (its `__init__` only
+    # re-exports, CS-18-003), so a submodule of the derived name is the same
+    # scenario. A plain prefix test would not do: `rv_demo_old` starts with
+    # `rv_demo` and is a different module.
+    if origin_module.startswith(f"{SCENARIO_PACKAGE}.") and not (
+        origin_module == spec.module_name
+        or origin_module.startswith(f"{spec.module_name}.")
     ):
         raise DemoScenarioRegistryError(
             f"scenario {spec.name!r} is declared in {origin_module!r} but its "
@@ -167,30 +175,50 @@ def registered_scenarios() -> tuple[ScenarioSpec, ...]:
 
 
 def scenario_module_stems() -> tuple[str, ...]:
-    """Return the scenario package's ``*_demo`` module names, sorted.
+    """Return the scenario package's ``*_demo`` module and package names, sorted.
 
     Enumerates the package with ``pkgutil`` rather than consulting a list
-    (DEMOCI-11-002).
+    (DEMOCI-11-002). A scenario is a ``<name_>_demo.py`` module or a
+    ``<name_>_demo/`` package (DEMOCI-11-003), so both are returned.
 
-    Private modules and sub-packages are skipped even when the name ends in the
-    suffix. A shared private helper such as ``_shared_demo.py`` is not a
-    scenario, but without this filter :func:`discover_scenarios` would raise
-    telling its author to decorate it as one.
+    Private names are skipped even when they end in the suffix. A shared
+    private helper such as ``_shared_demo.py`` is not a scenario, but without
+    this filter :func:`discover_scenarios` would raise telling its author to
+    decorate it as one.
+
+    Raises:
+        DemoScenarioRegistryError: When one name is both a module and a package.
+            The import system loads the package and never reads the module,
+            so the module's code would sit in the tree and never run.
     """
     package = importlib.import_module(SCENARIO_PACKAGE)
-    return tuple(
-        sorted(
-            info.name
-            for info in pkgutil.iter_modules(package.__path__)
-            if info.name.endswith(MODULE_SUFFIX)
-            and not info.name.startswith("_")
-            and not info.ispkg
+    found = [
+        info
+        for info in pkgutil.iter_modules(package.__path__)
+        if info.name.endswith(MODULE_SUFFIX) and not info.name.startswith("_")
+    ]
+    both = sorted(
+        info.name
+        for info in found
+        if info.ispkg
+        and any(
+            (Path(location) / f"{info.name}.py").is_file()
+            for location in package.__path__
         )
     )
+    if both:
+        raise DemoScenarioRegistryError(
+            "scenario name(s) present as both a module and a package: "
+            + ", ".join(both)
+            + ". A scenario is one form or the other (DEMOCI-11-003); the "
+            "import system would load the package and silently ignore the "
+            "module. Delete one."
+        )
+    return tuple(sorted(info.name for info in found))
 
 
 def discover_scenarios() -> tuple[ScenarioSpec, ...]:
-    """Import every ``*_demo`` module in the package and return the registry.
+    """Import every ``*_demo`` module or package and return the registry.
 
     Returns only the specs whose module is one of the discovered stems. The
     global registry is process-wide, so a spec registered from outside the
@@ -226,7 +254,9 @@ def discover_scenarios() -> tuple[ScenarioSpec, ...]:
             "scenario module(s) imported but not registered: "
             + ", ".join(undeclared)
             + ". Decorate the module's main() with @scenario(...) from "
-            f"{__package__} (DEMOCI-11-001)."
+            f"{__package__} (DEMOCI-11-001); a package scenario's __init__ "
+            "re-exports main from the submodule that declares it, so "
+            "importing the package registers it."
         )
     build_scenario_tree(specs)
     return specs

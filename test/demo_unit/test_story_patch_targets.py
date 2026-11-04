@@ -32,11 +32,10 @@ Two guards close it:
   cannot — a patch on a re-exported public name, such as
   ``open_coordinated_cast``, which the package does hold.
 
-``rcvcv_demo`` stays a module, because scenario discovery reads only
-``*_demo.py`` files, but the fragments only it tells moved to
+``rcvcv_demo`` is a module, and the fragments only it tells live in
 ``helpers/rcvcv_story.py``.  A patch on either flat module is held to the
 second rule too, so one left on ``rcvcv_demo`` for a name only
-``rcvcv_story`` now looks up is reported.
+``rcvcv_story`` looks up is reported.
 """
 
 import ast

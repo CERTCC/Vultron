@@ -15,9 +15,11 @@
 
 from __future__ import annotations
 
+import importlib.util
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol, TypeVar
 
 from vultron.demo.scenario.branch_points import validate_path
@@ -32,7 +34,9 @@ SCENARIO_DIR = "vultron/demo/scenario"
 
 #: Module-name suffix that marks a module in that package as a scenario demo.
 #: Both discovery and the set-equality ratchet key off it, so a scenario module
-#: that does not end this way is invisible to the registry.
+#: that does not end this way is invisible to the registry. A scenario is either
+#: form of that name: a ``<name_>_demo.py`` module or a ``<name_>_demo/``
+#: package (DEMOCI-11-003).
 MODULE_SUFFIX = "_demo"
 
 #: Scenario sub-command spelling: lowercase alphanumerics separated by single
@@ -205,23 +209,76 @@ class ScenarioSpec:
 
     @property
     def module_name(self) -> str:
-        """Dotted module path the decorator must be applied in."""
+        """Dotted name of the scenario's module or package.
+
+        The decorator is applied in this module, or, for a package scenario,
+        in one of its submodules (:func:`~.discovery._register`).
+        """
         return f"{SCENARIO_PACKAGE}.{self.module_stem}{MODULE_SUFFIX}"
 
     @property
-    def demo_filename(self) -> str:
-        """Bare filename of the scenario's demo script.
+    def is_package(self) -> bool:
+        """Whether the scenario is a ``<name_>_demo/`` package.
 
-        The single owner of the ``<stem>_demo.py`` spelling, so a renderer that
-        wants only the filename does not re-derive the convention and drift
-        from :attr:`demo_path` — which is what the derived-path check verifies.
+        Read from the import system by the derived :attr:`module_name`, so the
+        form is a fact about the tree, never a field a spec could get wrong
+        (DEMOCI-11-003). A name nothing resolves to reads as the module form,
+        so :attr:`demo_path` then names the ``.py`` file whose absence the
+        derived-path checks report.
         """
-        return f"{self.module_stem}{MODULE_SUFFIX}.py"
+        found = importlib.util.find_spec(self.module_name)
+        return (
+            found is not None
+            and found.submodule_search_locations is not None
+            and found.origin is not None
+        )
+
+    @property
+    def demo_filename(self) -> str:
+        """Bare name of the scenario's demo script or package directory.
+
+        ``<stem>_demo.py`` for a module and ``<stem>_demo/`` for a package.
+        The single owner of that spelling, so a renderer that wants only the
+        name does not re-derive the convention and drift from
+        :attr:`demo_path`, which is what the derived-path check verifies.
+        """
+        stem = f"{self.module_stem}{MODULE_SUFFIX}"
+        return f"{stem}/" if self.is_package else f"{stem}.py"
 
     @property
     def demo_path(self) -> str:
-        """Repo-relative path of the scenario's demo script (DEMOCI-11-003)."""
+        """Repo-relative path of the scenario's demo script or package (DEMOCI-11-003)."""
         return f"{SCENARIO_DIR}/{self.demo_filename}"
+
+    @property
+    def source_files(self) -> tuple[Path, ...]:
+        """Every Python source file of the scenario, sorted.
+
+        One file for a module scenario; every ``*.py`` file under the package
+        directory, at any depth, for a package scenario. A ratchet that reads
+        a scenario's own code reads this, so a package scenario's submodules
+        are scanned as well as its ``__init__``.
+
+        Raises:
+            DemoScenarioRegistryError: When no module or package resolves from
+                :attr:`module_name`.
+        """
+        found = importlib.util.find_spec(self.module_name)
+        if found is None or found.origin is None:
+            raise DemoScenarioRegistryError(
+                f"scenario {self.name!r} derives the module "
+                f"{self.module_name!r}, which does not resolve; rename the "
+                "module or fix the name (DEMOCI-11-003)."
+            )
+        if found.submodule_search_locations is None:
+            return (Path(found.origin),)
+        return tuple(
+            sorted(
+                path
+                for location in found.submodule_search_locations
+                for path in Path(location).rglob("*.py")
+            )
+        )
 
     @property
     def harness_path(self) -> str:
