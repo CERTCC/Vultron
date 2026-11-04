@@ -69,10 +69,6 @@ groups:
     verification: >-
       The factory package's imports from `vultron.core` stay inside the ARCH-22-001
       allow-list (`test/architecture/test_wire_core_import_allowlist.py`).
-    relationships:
-    - rel_type: depends_on
-      spec_id: ARCH-22-001
-      note: The allow-list is what lets a factory accept the core object directly.
     adr:
     - ADR-0099
   - id: AF-01-006
@@ -126,6 +122,9 @@ groups:
       string literal in `vultron/wire/as2/factories/` that is not a docstring.
     adr:
     - ADR-0099
+    relationships:
+    - rel_type: uses_definition
+      spec_id: ARCH-12-013
 - id: AF-02
   title: Module Structure
   specs:
@@ -308,8 +307,8 @@ groups:
       dependency direction: core→wire. The Activity Translator port pattern maintains the correct direction (core defines
       the port; wire implements it) while providing the same functional capability.'
     relationships:
-    - rel_type: implements
-      spec_id: ARCH-04-001
+    - rel_type: refines
+      spec_id: ARCH-01-001
   - id: AF-09-003
     priority: MUST
     kind: project
@@ -339,5 +338,5 @@ groups:
       AF-09-001 forbids. Injection keeps that import out of core. It also lets a test
       give the use case a stub translator.
     relationships:
-    - rel_type: refines
-      spec_id: AF-09-001
+    - rel_type: extends
+      spec_id: AF-09-003
