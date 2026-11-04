@@ -775,10 +775,11 @@ groups:
       still needs a record. A file under `plan/history/` gives it a record, in the
       archive that the other entry types already use.
     verification: >-
-      `test_source_naming_no_issue_writes_file` in
-      `test/metadata/test_append_history.py` stubs `gh` and checks that a prefixed
-      number with no issue, a date-based ID and a non-numeric source each write a
-      file and post no comment.
+      `test_source_naming_no_issue_writes_file` and
+      `test_pull_request_source_writes_file` in
+      `test/metadata/test_append_history.py` stub `gh` and check that a prefixed
+      number with no issue, a pull request number, a date-based ID and a
+      non-numeric source each write a file and post no comment.
   - id: HM-08-004
     priority: MUST_NOT
     kind: project

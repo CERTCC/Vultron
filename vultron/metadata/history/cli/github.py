@@ -8,7 +8,7 @@ import subprocess
 from vultron.metadata.base import (
     GH_LOOKUP_ERRORS,
     gh_issue_missing,
-    gh_issue_state,
+    gh_issue_view,
     gh_lookup_failure,
 )
 from vultron.metadata.history.types import (
@@ -21,7 +21,7 @@ _REPO = "CERTCC/Vultron"
 #: A source that may name an issue: ``<PREFIX>-N`` (a run of letters, a
 #: hyphen, then digits), such as ``ISSUE-N``, ``TASK-N`` or ``BUG-N``, or a
 #: bare number. ``TASK-BTND5`` and ``ISSUE-4646-detail`` do not match.
-_ISSUE_SOURCE_RE = re.compile(r"^(?:[A-Za-z]+-)?(\d+)$")
+_ISSUE_SOURCE_RE = re.compile(r"^(?:[A-Za-z]+-)?(\d+)$", re.ASCII)
 
 
 _GITHUB_COMMENT_TYPES = frozenset(
@@ -47,9 +47,9 @@ def _resolve_issue_number(source: str) -> int | None:
 
     *source* names issue N when it has the ``<PREFIX>-N`` or bare-number form
     (:func:`_parse_issue_number`) and ``gh issue view N`` finds N in
-    CERTCC/Vultron (HM-08-001). A number GitHub has no issue for, such as the
-    date in ``IDEA-26042702``, returns None, and so does any other form
-    (HM-08-003).
+    CERTCC/Vultron as an issue (HM-08-001). A number GitHub has no issue for,
+    such as the date in ``IDEA-26042702``, returns None, and so does a pull
+    request number and any other form (HM-08-003).
 
     Raises:
         RuntimeError: ``gh`` could not answer (missing, unauthenticated,
@@ -60,7 +60,7 @@ def _resolve_issue_number(source: str) -> int | None:
     if n is None:
         return None
     try:
-        gh_issue_state(f"#{n}", repo=_REPO)
+        url = str(gh_issue_view(f"#{n}", ["url"], repo=_REPO)["url"])
     except GH_LOOKUP_ERRORS as exc:
         if gh_issue_missing(exc):
             return None
@@ -68,7 +68,8 @@ def _resolve_issue_number(source: str) -> int | None:
             f"cannot tell whether --source {source!r} names an issue in "
             f"{_REPO}: {gh_lookup_failure(exc)}"
         ) from exc
-    return n
+    # ``gh issue view`` answers for a pull request too; that is no issue.
+    return None if "/pull/" in url else n
 
 
 def _post_github_comment(

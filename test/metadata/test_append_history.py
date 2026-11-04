@@ -46,14 +46,16 @@ def _no_real_gh(monkeypatch: pytest.MonkeyPatch) -> None:
 
     A source such as ``SRC-1`` has the ``<PREFIX>-N`` form, so an unstubbed
     run would look up, and could comment on, a real issue. Tests that need an
-    answer stub ``gh_issue_state`` themselves.
+    answer stub ``gh_issue_view`` themselves.
     """
 
-    def refuse(ref: str, *, repo: str | None = None) -> str:
+    def refuse(
+        ref: str, fields: list[str], *, repo: str | None = None
+    ) -> dict[str, object]:
         raise AssertionError(f"unstubbed gh lookup of {ref} in {repo}")
 
     monkeypatch.setattr(
-        "vultron.metadata.history.cli.github.gh_issue_state", refuse
+        "vultron.metadata.history.cli.github.gh_issue_view", refuse
     )
 
 
@@ -68,22 +70,45 @@ def _gh_not_found(n: int) -> subprocess.CalledProcessError:
 
 
 def _stub_issues(
-    monkeypatch: pytest.MonkeyPatch, existing: set[int]
+    monkeypatch: pytest.MonkeyPatch,
+    existing: set[int],
+    pulls: frozenset[int] = frozenset(),
 ) -> list[tuple[str, str | None]]:
-    """Answer issue lookups from *existing*; return the lookups made."""
+    """Answer lookups: *existing* are issues, *pulls* are pull requests.
+
+    Returns the ``(ref, repo)`` of each lookup made.
+    """
     lookups: list[tuple[str, str | None]] = []
 
-    def fake_state(ref: str, *, repo: str | None = None) -> str:
+    def fake_view(
+        ref: str, fields: list[str], *, repo: str | None = None
+    ) -> dict[str, object]:
         lookups.append((ref, repo))
         n = int(ref.removeprefix("#"))
+        base = "https://github.com/CERTCC/Vultron"
+        if n in pulls:
+            return {"url": f"{base}/pull/{n}"}
         if n not in existing:
             raise _gh_not_found(n)
-        return "OPEN"
+        return {"url": f"{base}/issues/{n}"}
 
     monkeypatch.setattr(
-        "vultron.metadata.history.cli.github.gh_issue_state", fake_state
+        "vultron.metadata.history.cli.github.gh_issue_view", fake_view
     )
     return lookups
+
+
+def _fail_lookups(monkeypatch: pytest.MonkeyPatch, error: Exception) -> None:
+    """Make every issue lookup raise *error*, as a broken ``gh`` would."""
+
+    def fail(
+        ref: str, fields: list[str], *, repo: str | None = None
+    ) -> dict[str, object]:
+        raise error
+
+    monkeypatch.setattr(
+        "vultron.metadata.history.cli.github.gh_issue_view", fail
+    )
 
 
 @dataclasses.dataclass
@@ -914,6 +939,7 @@ class TestParseIssueNumber:
             "TASK4646",
             "-1",
             "0",
+            "TASK-\u0664\u0662",
             "ISSUE-0",
             "",
             "#12",
@@ -948,6 +974,16 @@ class TestResolveIssueNumber:
         assert _resolve_issue_number("BUG-99999") is None
         assert _resolve_issue_number("IDEA-26042702") is None
 
+    @pytest.mark.spec("HM-08-003")
+    def test_pull_request_number_returns_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``gh issue view`` answers for a PR too; a PR is not an issue."""
+        from vultron.metadata.history.cli.github import _resolve_issue_number
+
+        _stub_issues(monkeypatch, set(), pulls=frozenset({5837}))
+        assert _resolve_issue_number("TASK-5837") is None
+
     def test_unparsed_source_asks_github_nothing(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -964,18 +1000,14 @@ class TestResolveIssueNumber:
             FileNotFoundError("gh"),
         ],
     )
+    @pytest.mark.spec("HM-08-007")
     def test_lookup_that_cannot_answer_raises(
         self, monkeypatch: pytest.MonkeyPatch, error: Exception
     ) -> None:
         """No answer is not "no such issue": the tool stops, never guesses."""
         from vultron.metadata.history.cli.github import _resolve_issue_number
 
-        def fail(ref: str, *, repo: str | None = None) -> str:
-            raise error
-
-        monkeypatch.setattr(
-            "vultron.metadata.history.cli.github.gh_issue_state", fail
-        )
+        _fail_lookups(monkeypatch, error)
         with pytest.raises(RuntimeError, match="TASK-4646"):
             _resolve_issue_number("TASK-4646")
 
@@ -1134,23 +1166,40 @@ class TestGitHubCommentMode:
         assert result.returncode != 0
         assert not self._history_files(fake_repo)
 
+    @pytest.mark.spec("HM-08-007")
     def test_lookup_failure_exits_nonzero_and_writes_nothing(
         self, fake_repo: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """When gh cannot say whether the issue exists, nothing is written."""
-
-        def fail(ref: str, *, repo: str | None = None) -> str:
-            raise subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 401\n")
-
-        monkeypatch.setattr(
-            "vultron.metadata.history.cli.github.gh_issue_state", fail
+        """When gh cannot say whether the issue exists, no file and no
+        comment is written (HM-08-007)."""
+        _fail_lookups(
+            monkeypatch,
+            subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 401\n"),
         )
-        result = _run_append(
-            "implementation", body=_IMPL_BODY, title="T", source="TASK-4646"
-        )
+        with patch(
+            "vultron.metadata.history.cli.github.subprocess.run"
+        ) as mock_run:
+            result = _run_append(
+                "implementation",
+                body=_IMPL_BODY,
+                title="T",
+                source="TASK-4646",
+            )
         assert result.returncode != 0
         assert "HTTP 401" in result.stderr
+        assert not mock_run.called
         assert not self._history_files(fake_repo)
+
+    @pytest.mark.spec("HM-08-003")
+    def test_pull_request_source_writes_file(
+        self, fake_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A source naming a pull request takes file mode, posts nothing."""
+        _stub_issues(monkeypatch, set(), pulls=frozenset({5837}))
+        result, mock_run = self._run_with_mock_gh("implementation", "PR-5837")
+        assert result.returncode == 0, result.stderr
+        assert Path(result.stdout.strip()).exists()
+        assert not mock_run.called
 
     def test_blank_title_is_refused_before_any_comment(
         self, fake_repo: Path, existing: set[int]

@@ -34,7 +34,9 @@ CERTCC/Vultron issue *n*, is posted as a comment on issue *n* instead of written
 to a file, and the tool prints the comment URL; `archive-history` then skips its
 git steps (HM-08-001). The tool asks `gh issue view <n>` first, because a
 date-based ID such as `IDEA-26042702` has the same form and must still write a
-file (HM-08-003); a lookup `gh` cannot answer stops the tool (HM-08-007).
+file (HM-08-003), and a pull request number is no issue. Such an entry thus
+needs an authenticated `gh` even when it ends as a file: a lookup `gh` cannot
+answer stops the tool with nothing written (HM-08-007).
 
 Never write an entry whose record already lives elsewhere: a retired
 requirement's record is `plan/retired-specs/<ID>.md`, so `spec-retire` writes no

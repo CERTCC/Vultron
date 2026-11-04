@@ -197,12 +197,20 @@ def test_archive_is_outside_the_spec_loader_scope() -> None:
 def test_retire_rolls_back_when_archive_write_fails(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A failure after the spec edit leaves spec and archive untouched."""
+    """A write that fails part way leaves spec and archive untouched.
 
-    def boom(*args, **kwargs):
-        raise OSError("disk full")
+    The archive file is written, then the write raises, so the rollback must
+    remove both the file and the archive folder it created (MS-09-012).
+    """
+    real_write_text = Path.write_text
 
-    monkeypatch.setattr(Path, "mkdir", boom)
+    def partial_write(self: Path, data: str, *args, **kwargs) -> int:
+        written = real_write_text(self, data, *args, **kwargs)
+        if self.name == "TST-01-001.md":
+            raise OSError("disk full")
+        return written
+
+    monkeypatch.setattr(Path, "write_text", partial_write)
     before = (repo / "specs/specs.yaml").read_text()
 
     with pytest.raises(OSError):

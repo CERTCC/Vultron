@@ -64,7 +64,9 @@ Capture the output in `HISTORY_OUTPUT`. The tool either:
   `<PREFIX>-N`, such as `ISSUE-N` or `TASK-N`, or a bare `N`, for an existing
   CERTCC/Vultron issue N): posts a comment on the issue and prints the comment
   URL to stdout (starts with `https://`). No file is written. A number that is
-  not an issue, such as the date in `IDEA-26042702`, takes file mode.
+  not an issue, such as the date in `IDEA-26042702`, or a pull request number,
+  takes file mode. The check needs an authenticated `gh`: when `gh` cannot
+  answer, the tool exits 1 and writes nothing.
 
 ### Step 2 — Check output mode
 
