@@ -94,7 +94,7 @@ def base_url(stream_dl: SqliteDataLayer) -> Iterator[str]:
         # The sync-log-entry fan-out runs as a background task; keep it off
         # the network.
         with patch(
-            "vultron.adapters.driving.fastapi.outbox_handler.get_default_emitter",
+            "vultron.adapters.driving.fastapi.outbox_handler.drain.get_default_emitter",
             return_value=AsyncMock(),
         ):
             thread.start()

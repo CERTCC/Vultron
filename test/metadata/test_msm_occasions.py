@@ -46,6 +46,11 @@ from vultron.metadata.msm._mapping import (
     load_occasion_table,
     section_heading,
 )
+from vultron.metadata.msm.occasions import (
+    cli as gen_cli,
+    render as gen_render,
+    table as gen_table,
+)
 from vultron.semantic_registry import SEMANTIC_REGISTRY, lookup_entry
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
@@ -188,7 +193,7 @@ def _scratch_root(tmp_path: Path) -> Path:
 
 def test_write_then_check_round_trips(tmp_path, monkeypatch, capsys):
     root = _scratch_root(tmp_path)
-    monkeypatch.setattr(gen, "repo_root", lambda *_a: root)
+    monkeypatch.setattr(gen_cli, "repo_root", lambda *_a: root)
 
     gen.main(["--write"])
     gen.main(["--check"])
@@ -203,11 +208,11 @@ def test_check_does_not_reload_a_table_equal_to_the_fresh_one(
     """A table equal to the generated text was validated as it was generated;
     loading it again is two more YAML parses for the same verdict."""
     root = _scratch_root(tmp_path)
-    monkeypatch.setattr(gen, "repo_root", lambda *_a: root)
+    monkeypatch.setattr(gen_cli, "repo_root", lambda *_a: root)
     gen.write_artifacts(root)
     loads: list[Path] = []
     monkeypatch.setattr(
-        gen, "load_occasion_table", lambda path, **_kw: loads.append(path)
+        gen_cli, "load_occasion_table", lambda path, **_kw: loads.append(path)
     )
 
     gen.main(["--check"])
@@ -218,7 +223,7 @@ def test_check_does_not_reload_a_table_equal_to_the_fresh_one(
 
 def test_check_fails_on_a_hand_edited_fragment(tmp_path, monkeypatch, capsys):
     root = _scratch_root(tmp_path)
-    monkeypatch.setattr(gen, "repo_root", lambda *_a: root)
+    monkeypatch.setattr(gen_cli, "repo_root", lambda *_a: root)
     gen.write_artifacts(root)
     edited = root / gen.FRAGMENT_DIR / "lookup-cs.md"
     edited.write_text(
@@ -264,7 +269,7 @@ def test_check_reports_a_malformed_yaml_with_its_position(
     tmp_path, monkeypatch, capsys
 ):
     root = _scratch_root(tmp_path)
-    monkeypatch.setattr(gen, "repo_root", lambda *_a: root)
+    monkeypatch.setattr(gen_cli, "repo_root", lambda *_a: root)
     gen.write_artifacts(root)
     (root / gen.YAML_PATH).write_text(
         "format_version: 1\ngroups: [\n", encoding="utf-8"
@@ -407,7 +412,7 @@ def test_rows_follow_registry_order_within_a_group(table):
 
 
 def test_derive_refuses_a_page_in_no_group(monkeypatch):
-    monkeypatch.setattr(gen, "TABLE_GROUPS", gen.TABLE_GROUPS[1:])
+    monkeypatch.setattr(gen_table, "TABLE_GROUPS", gen.TABLE_GROUPS[1:])
     with pytest.raises(ValueError, match="rm"):
         gen.derive_table(SEMANTIC_REGISTRY, _ROOT)
 
@@ -659,9 +664,9 @@ def test_whole_table_is_every_slice_under_its_group_title(table):
 
 
 def test_a_pipe_in_the_send_cell_neither_splits_the_cell_nor_shows():
-    cell = gen._code_cell("Create(Event)[context=A|B]")
+    cell = gen_render._code_cell("Create(Event)[context=A|B]")
     assert cell == "<code>Create(Event)&#91;context=A&#124;B&#93;</code>"
-    assert gen._code_cell("Offer(X)") == "`Offer(X)`"
+    assert gen_render._code_cell("Offer(X)") == "`Offer(X)`"
 
 
 def test_section_is_anchored_by_the_occasion_id(table):
@@ -695,7 +700,7 @@ def test_section_notes_sit_in_the_details_tab(table):
     row = next(r for _, r in _rows(table).values() if r.notes is not None)
     section = gen.render_section(row)
     details, example = section.split("\n\n=== ")[1:]
-    assert gen._indent(row.notes) in details
+    assert gen_render._indent(row.notes) in details
     assert row.notes not in example
 
 
@@ -1306,7 +1311,7 @@ def test_the_sync_hook_watches_every_docs_page_and_the_include_reader():
     for path in (
         "docs/howto/activitypub/activities/status_updates.md",
         "docs/topics/anything/page.md",
-        "vultron/metadata/docs/page_frontmatter.py",
+        "vultron/metadata/docs/page_frontmatter/tree.py",
         "vultron/metadata/base.py",
         "mkdocs.yml",
     ):

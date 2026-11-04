@@ -58,8 +58,9 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
 
     - the executing actor is not the case's owner: it is the reporter, or
       another participant, receiving an introduction, not making one;
-    - the executing actor is itself the CASE_MANAGER: its own ``Create`` is
-      the reporter's only one (CBT-02-001, CM-02-010);
+    - the case's owner is its CASE_MANAGER, so there is nobody to introduce
+      and that owner's own ``Create`` is the reporter's only one
+      (CBT-02-001, CM-02-010);
     - the snapshot names no CASE_MANAGER, so there is nobody to introduce;
     - no active reporter is on the roster (CM-10-004).
 
@@ -97,7 +98,8 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
         """
         assert self.datalayer is not None
         assert self.actor_id is not None
-        if case.attributed_to != self.actor_id:
+        owner_actor_id = case.attributed_to
+        if owner_actor_id != self.actor_id:
             return "this actor is not the case owner"
         manager_id = resolve_case_manager_id(case, self.datalayer)
         if manager_id is None:
@@ -108,8 +110,20 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
                 self.case_id,
             )
             return "the case names no CASE_MANAGER"
-        if manager_id == self.actor_id:
-            return "this actor is the CASE_MANAGER (CBT-02-001)"
+        # A fact about the case, not about this receiver: a case whose owner
+        # manages it has nobody to introduce, and that owner's own Create is
+        # the reporter's only one (CBT-02-001, CM-02-010).  The receiver's
+        # role is not the question here — the bootstrap tree names no case at
+        # build time and the case does not exist yet when the door stage
+        # asks, so the stage reads the no-case path and no declared path
+        # answers this (HP-01-040).  The assertion keeps that reading local:
+        # this skip is equivalent to the old "the manager is me" only while
+        # the owner check above stands, so it re-reads the case rather than
+        # the local the check used, and a reorder that moved it would fail
+        # here rather than silently widen the skip.
+        assert case.attributed_to == self.actor_id
+        if manager_id == owner_actor_id:
+            return "the case owner is the CASE_MANAGER (CBT-02-001)"
         self._sent_id = find_case_create_sent_by(
             self.datalayer, self.actor_id, self.case_id
         )

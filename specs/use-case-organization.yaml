@@ -507,7 +507,7 @@ groups:
       body fails where it arrives.
     verification: >-
       mypy passes with no `# type: ignore` in `ActorSession` method bodies, which read
-      the `WireActivityResult` that `vultron/demo/actor_session.py` validates from the
+      the `WireActivityResult` that `vultron/demo/actor_session/` validates from the
       `post_to_trigger` response.
     relationships:
     - rel_type: extends

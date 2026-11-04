@@ -69,9 +69,6 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
 - **`selective-disclosure.md`** · `plan`
   Referencing objects without inlining them, and explicit redaction of withheld fields.
   **Load when**: scoping privacy, redaction, or by-reference payload features.
-- **`user-story-catalog.md`** · `plan`
-  Personas, story identity, generated coverage, and working the protocol story gap.
-  **Load when**: writing or citing a user story, or mapping a spec's `stories:` field.
 
 ---
 
@@ -349,6 +346,9 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
 - **`specs-vs-adrs.md`** · `guidance`
   Spec, ADR, or both; ADRs as historical records (ADR-0127); ADR status rules.
   **Load when**: deciding where a decision goes, setting ADR status, or editing an ADR.
+- **`user-story-catalog.md`** · `guidance`
+  Story speakers, identity, generated coverage, citing a story, splitting a catch-all.
+  **Load when**: writing or citing a user story, or mapping a spec's `stories:` field.
 - **`behavioral-conformance-specs.md`** · `guidance`
   Authoring items in the behavioral conformance spec layer (RMB, EMB, CSB).
   **Load when**: editing `specs/rm-behavior.yaml`, `em-behavior.yaml`, or

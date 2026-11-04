@@ -16,7 +16,7 @@
 """Architecture invariant: a scenario's ``ROLES`` list cannot drift from its
 ``main()`` signature (DEMOCI-11-011).
 
-``vultron/demo/cli.py`` generates each scenario sub-command's options from that
+``vultron/demo/cli/`` generates each scenario sub-command's options from that
 scenario's ``ROLES`` and then splats the parsed values into ``main(**kwargs)``.
 The two halves are declared in different places, so nothing at import time
 notices when they disagree — and the failure is not a clean ``TypeError`` at the

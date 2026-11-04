@@ -79,7 +79,7 @@ groups:
     adr:
     - ADR-0073
     stories:
-    - story_2022_088
+    - story_2026_061
   - id: PCR-01-004
     priority: MUST
     kind: protocol
@@ -96,7 +96,7 @@ groups:
     adr:
     - ADR-0073
     stories:
-    - story_2022_088
+    - story_2026_061
   - id: PCR-01-005
     priority: MUST_NOT
     kind: protocol
@@ -116,7 +116,7 @@ groups:
     adr:
     - ADR-0073
     stories:
-    - story_2022_088
+    - story_2026_061
   - id: PCR-01-006
     priority: MUST_NOT
     kind: protocol
@@ -136,7 +136,7 @@ groups:
     adr:
     - ADR-0073
     stories:
-    - story_2022_088
+    - story_2026_061
   - id: PCR-01-007
     priority: MUST
     kind: protocol
@@ -162,7 +162,7 @@ groups:
     - ADR-0041
     - ADR-0073
     stories:
-    - story_2022_088
+    - story_2026_055
 - id: PCR-02
   title: Replica Bootstrap
   specs:
@@ -189,8 +189,7 @@ groups:
     - rel_type: implements
       spec_id: SYNC-02-001
     stories:
-    - story_2022_088
-    - story_2022_045
+    - story_2026_055
   - id: PCR-02-002
     priority: MUST
     kind: protocol
@@ -256,8 +255,7 @@ groups:
       prior local replica exists causes the participant actor to create and
       persist a new case replica in its DataLayer.
     stories:
-    - story_2022_088
-    - story_2022_045
+    - story_2026_055
   - id: PCR-02-004
     priority: MUST
     kind: protocol
@@ -275,8 +273,7 @@ groups:
     adr:
     - ADR-0142
     stories:
-    - story_2022_088
-    - story_2022_045
+    - story_2026_055
   - id: PCR-02-005
     priority: MUST
     kind: protocol
@@ -300,8 +297,7 @@ groups:
     adr:
     - ADR-0157
     stories:
-    - story_2022_088
-    - story_2022_045
+    - story_2026_055
 - id: PCR-03
   title: Replica Update Authority
   specs:
@@ -324,7 +320,7 @@ groups:
     - rel_type: implements
       spec_id: CM-06-002
     stories:
-    - story_2022_088
+    - story_2026_030
     - story_2022_089
   - id: PCR-03-002
     priority: MUST_NOT
@@ -411,7 +407,7 @@ groups:
     - rel_type: refines
       spec_id: PCR-03-002
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_106
   - id: PCR-03-006
     priority: MUST
@@ -430,8 +426,7 @@ groups:
     - rel_type: refines
       spec_id: PCR-03-002
     stories:
-    - story_2022_045
-    - story_2022_088
+    - story_2026_059
   - id: PCR-03-007
     priority: MUST
     kind: protocol
@@ -452,7 +447,7 @@ groups:
       writes no record.
     stories:
     - story_2022_089
-    - story_2022_088
+    - story_2026_030
   - id: PCR-03-008
     priority: MUST
     kind: protocol
@@ -472,7 +467,7 @@ groups:
       anchor records the Invite's `actor` id, not the transport sender.
     stories:
     - story_2022_089
-    - story_2022_088
+    - story_2026_030
   - id: PCR-03-009
     priority: MUST
     kind: protocol
@@ -493,7 +488,7 @@ groups:
       replaces the anchor and logs both CASE_MANAGER ids at INFO.
     stories:
     - story_2022_089
-    - story_2022_088
+    - story_2026_030
   - id: PCR-03-010
     priority: MUST
     kind: protocol
@@ -517,7 +512,7 @@ groups:
       leaves the original anchor unchanged.
     stories:
     - story_2022_089
-    - story_2022_088
+    - story_2026_030
 - id: PCR-04
   title: Case Context Routing
   specs:
@@ -541,7 +536,7 @@ groups:
     - rel_type: implements
       spec_id: CM-01-002
     stories:
-    - story_2022_088
+    - story_2026_062
   - id: PCR-04-002
     priority: MUST
     kind: protocol
@@ -573,7 +568,7 @@ groups:
       discover and trust for every case, and a message sent to the wrong address would
       not reach the replica.
     stories:
-    - story_2022_088
+    - story_2026_062
 - id: PCR-05
   title: Reporter Case Discovery
   specs:
@@ -620,7 +615,7 @@ groups:
       report is seeded.
     stories:
     - story_2022_030
-    - story_2022_088
+    - story_2026_055
 - id: PCR-06
   title: Unknown Case Context Handling
   specs:
@@ -705,7 +700,7 @@ groups:
       case and asserts it is processed and that it is answerable with no sender-keyed
       copy present.
     stories:
-    - story_2022_088
+    - story_2026_054
     - story_2022_023
   - id: PCR-06-006
     priority: MUST
@@ -729,7 +724,7 @@ groups:
       CASE_MANAGER's sealed stub Invite to an invitee holding no case and asserts that
       the archive, a `ReceivedActivityRecord`, and the anchor are its only writes.
     stories:
-    - story_2022_088
+    - story_2026_030
     - story_2022_023
   - id: PCR-06-004
     priority: MUST
@@ -781,8 +776,7 @@ groups:
       `PCR-08-001` in `test/core/use_cases/triggers/test_ack_report.py` confirm that
       the RK exception reaches the reporter alone once a case exists.
     stories:
-    - story_2022_045
-    - story_2022_088
+    - story_2026_059
   - id: PCR-08-002
     priority: MUST_NOT
     kind: protocol
@@ -822,8 +816,8 @@ groups:
       `test/core/behaviors/sync/nodes/test_active_participant_fanout.py` asserts that
       the announcement reaches only the active participants (CM-10-004).
     stories:
-    - story_2022_045
-    - story_2022_088
+    - story_2026_075
+    - story_2026_060
   - id: PCR-08-004
     priority: MUST_NOT
     kind: project
@@ -868,8 +862,7 @@ groups:
     adr:
     - ADR-0021
     stories:
-    - story_2022_045
-    - story_2022_088
+    - story_2026_060
   - id: PCR-08-005
     priority: MUST
     kind: protocol
@@ -992,7 +985,7 @@ groups:
     - ADR-0121
     stories:
     - story_2022_054
-    - story_2022_088
+    - story_2026_043
   - id: PCR-08-014
     priority: MUST_NOT
     kind: protocol

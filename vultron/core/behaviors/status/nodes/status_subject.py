@@ -33,18 +33,18 @@ by a precondition guard and answered with the refusal notice (CLP-10-022).
 :func:`on_behalf_status_guard` composes it, and the tree composes it only
 when the target record names an actor other than the sender::
 
-    OnBehalfStatusGuard (Selector)
-    ├─ NotCaseManager (Inverter(CheckIsCaseManagerNode))  # the CASE_MANAGER judges
+    OnBehalfStatusGuard (PathBranch)                      # the manager path
+    ├─ SkipOffOnBehalfStatusGuard                         # any other path
     └─ OnBehalfAssertion (Sequence)                       # PRM-06-003/004
         ├─ CheckOnBehalfStatusShapeNode        # v→V and/or d→D, nothing else
         └─ CheckOnBehalfTargetIsParticipantNode  # target holds the role
 
-Only the CASE_MANAGER judges the assertion.  At any other receiver the guard
-passes, and that is safe: the sender guard admits only the CASE_MANAGER
-there (PCR-03-001), and the CASE_MANAGER gate keeps a replica from appending
-or committing the copy (RSH-08-003, BT-17-001).  The same holds when the
-CASE_MANAGER check fails because this store holds no such case: the sender
-guard has already refused for want of one.
+Only the CASE_MANAGER judges the assertion, so the guard is declared on the
+manager path alone and reads the path the tree's stage resolved rather than
+asking the roster again (HP-01-036, HP-01-038).  On the tree's other
+declared path the branch skips, and that is safe: the sender guard admits
+only the CASE_MANAGER there (PCR-03-001), and the CASE_MANAGER gate keeps a
+replica from appending or committing the copy (RSH-08-003, BT-17-001).
 
 The causal gate the on-behalf trigger adds for d→D (CSB-15-004: some vendor
 is at VF) is a trigger-side precondition, which the receive side does not
@@ -57,7 +57,6 @@ leaves no entry and no append (CLP-10-006).
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.case.nodes.on_behalf_guards import (
     CheckOnBehalfTargetIsParticipantNode,
     on_behalf_required_roles,
@@ -65,6 +64,7 @@ from vultron.core.behaviors.case.nodes.on_behalf_guards import (
 from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
+from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.participant_status import ParticipantStatus
@@ -278,7 +278,7 @@ def on_behalf_status_guard(
     target_actor_id: str,
     status_id: str,
     status_obj: PersistableModel | None,
-) -> py_trees.behaviour.Behaviour:
+) -> OnPaths:
     """The RSH-08-007 guard for a status onto another participant's record.
 
     The tree composes it only when the target record names an actor other
@@ -318,16 +318,8 @@ def on_behalf_status_guard(
                 required_roles=roles,
             )
         )
-    return py_trees.composites.Selector(
-        name="OnBehalfStatusGuard",
-        memory=False,
-        children=[
-            py_trees.decorators.Inverter(
-                name="NotCaseManager",
-                child=CheckIsCaseManagerNode(case_id=case_id),
-            ),
-            py_trees.composites.Sequence(
-                name="OnBehalfAssertion", memory=False, children=assertion
-            ),
-        ],
+    return OnPaths.at_case_manager(
+        "OnBehalfStatusGuard",
+        *assertion,
+        body_name="OnBehalfAssertion",
     )

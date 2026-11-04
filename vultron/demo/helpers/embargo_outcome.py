@@ -29,7 +29,7 @@ import logging
 from datetime import datetime, timedelta
 
 from vultron.core.states.em import EM
-from vultron.demo.helpers.polling import _poll_until
+from vultron.demo.helpers.polling._poll import _poll_until
 from vultron.demo.helpers.workflow import find_case_for_offer
 from vultron.demo.utils import DataLayerClient, demo_check
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor

@@ -34,7 +34,7 @@ groups:
     - story_2022_074
     - story_2022_075
     - story_2022_087
-    - story_2022_088
+    - story_2026_036
     - story_2022_092
     - story_2022_093
   - id: VP-01-002
@@ -49,7 +49,7 @@ groups:
     - story_2022_061
     - story_2022_074
     - story_2022_075
-    - story_2022_088
+    - story_2026_036
   - id: VP-01-003
     priority: MUST_NOT
     kind: protocol
@@ -739,7 +739,7 @@ groups:
     - rel_type: refines
       spec_id: VP-05-001
     stories:
-    - story_2022_014
+    - story_2026_024
   - id: VP-04-002
     priority: MUST
     kind: protocol
@@ -757,7 +757,7 @@ groups:
     adr:
     - ADR-0122
     stories:
-    - story_2022_014
+    - story_2026_087
   - id: VP-04-003
     priority: MAY
     kind: protocol
@@ -768,7 +768,7 @@ groups:
       participants could only disclose with no coordination window.
     stories:
     - story_2022_010
-    - story_2022_014
+    - story_2026_083
   - id: VP-04-004
     priority: MAY
     kind: protocol
@@ -793,7 +793,7 @@ groups:
       (`test_an_accepted_embargo_can_be_revised_and_the_revision_answered`)
       confirms EM moves from ACTIVE to REVISE when a revision is proposed.
     stories:
-    - story_2022_014
+    - story_2026_083
   - id: VP-04-006
     priority: MAY
     kind: protocol
@@ -807,7 +807,7 @@ groups:
       (`test_an_accepted_embargo_can_be_revised_and_the_revision_answered`)
       confirms EM moves from REVISE back to ACTIVE on both accept and reject.
     stories:
-    - story_2022_014
+    - story_2026_087
 - id: VP-05
   title: Embargo Principles
   specs:
@@ -862,7 +862,7 @@ groups:
       and no future start that could be read as permission to disclose now.
     verification_debt: '#3612'
     stories:
-    - story_2022_014
+    - story_2026_087
     - story_2022_074
   - id: VP-05-004
     priority: MUST
@@ -1040,7 +1040,7 @@ groups:
       negotiation guidance, lets participants adjust the embargo when they learn
       something new.
     stories:
-    - story_2022_014
+    - story_2026_083
   - id: VP-05-017
     priority: MAY
     kind: protocol
@@ -1134,7 +1134,7 @@ groups:
     - rel_type: refines
       spec_id: VP-06-011
     stories:
-    - story_2022_014
+    - story_2026_083
   - id: VP-06-004
     priority: SHOULD
     kind: protocol
@@ -1147,7 +1147,7 @@ groups:
       bounded reply time, never more than 14 days, makes the outcome known soon enough
       for participants to plan.
     stories:
-    - story_2022_014
+    - story_2026_094
   - id: VP-06-004b
     priority: SHOULD_NOT
     kind: protocol
@@ -1172,7 +1172,7 @@ groups:
       Retrying after a failed proposal gives coordination another chance before
       participants fall back to no embargo.
     stories:
-    - story_2022_014
+    - story_2026_083
   - id: VP-06-006
     priority: SHOULD
     kind: protocol
@@ -1183,7 +1183,7 @@ groups:
       that cannot adjust either expire before fixes are ready or keep holding after the
       need for them has passed.
     stories:
-    - story_2022_014
+    - story_2026_083
   - id: VP-06-007
     priority: MUST
     kind: protocol
@@ -1196,7 +1196,7 @@ groups:
       being shared with no embargo in force.
     verification_debt: '#3612'
     stories:
-    - story_2022_014
+    - story_2026_081
     - story_2022_002
   - id: VP-06-008
     priority: MAY
@@ -1240,7 +1240,7 @@ groups:
       what gives vendors time to prepare fixes in private. This is the case the EM
       process exists for.
     stories:
-    - story_2022_014
+    - story_2026_083
   - id: VP-06-010
     priority: MAY
     kind: protocol
@@ -1259,7 +1259,7 @@ groups:
       counter-proposal lets it say so while keeping the negotiation going, rather than
       rejecting outright.
     stories:
-    - story_2022_014
+    - story_2026_083
   - id: VP-06-012
     priority: MAY
     kind: protocol
@@ -1269,7 +1269,7 @@ groups:
       Withdrawing it before acceptance stops others from accepting terms the proposer
       has stopped supporting.
     stories:
-    - story_2022_014
+    - story_2026_083
   - id: VP-06-013
     priority: MAY
     kind: protocol
@@ -1281,7 +1281,7 @@ groups:
       move on (VP-06-014) instead of being stuck undecided while the vul stays
       unaddressed.
     stories:
-    - story_2022_014
+    - story_2026_094
   - id: VP-06-014
     priority: MAY
     kind: protocol
@@ -1292,7 +1292,7 @@ groups:
       Without an answer, no embargo binds the receiver, so the sender may act as if none
       exists. That stops an unresponsive party from blocking the sender indefinitely.
     stories:
-    - story_2022_014
+    - story_2026_094
   - id: VP-06-015
     priority: MAY
     kind: protocol
@@ -1329,7 +1329,7 @@ groups:
       report. A short initial embargo protects the report meanwhile and can be revised
       once the needs are known.
     stories:
-    - story_2022_014
+    - story_2026_083
 - id: VP-07
   title: Embargo Default Policies
   specs:
@@ -1400,7 +1400,7 @@ groups:
     stories:
     - story_2022_004
     - story_2022_009
-    - story_2022_014
+    - story_2026_081
   - id: VP-07-003
     priority: MUST
     kind: protocol
@@ -1517,7 +1517,7 @@ groups:
       need different terms once it knows more. A later revision lets it ask without
       leaving the case unprotected.
     stories:
-    - story_2022_014
+    - story_2026_083
   - id: VP-07-012
     priority: MAY
     kind: protocol
@@ -1749,7 +1749,7 @@ groups:
       Accepting first secures the newcomer's protection and the case's information. A
       later revision still lets it ask for terms that fit its needs.
     stories:
-    - story_2022_014
+    - story_2026_083
   - id: VP-08-017
     priority: MAY
     kind: protocol
@@ -1773,7 +1773,7 @@ groups:
       The newcomer may need more time than the existing embargo gives. Proposing a
       revision after accepting lets it ask while the case stays protected.
     stories:
-    - story_2022_014
+    - story_2026_083
   - id: VP-08-019
     priority: MAY
     kind: protocol
@@ -1939,7 +1939,7 @@ groups:
     stories:
     - story_2022_104
     - story_2022_046
-    - story_2022_045
+    - story_2026_002
   - id: VP-10-003
     priority: MUST
     kind: protocol
@@ -2395,7 +2395,7 @@ groups:
       Valid, Accepted and Deferred participants still have a stake in the report.
       Allowing revisions then lets the embargo follow changes in the work.
     stories:
-    - story_2022_014
+    - story_2026_084
   - id: VP-13-014
     priority: MAY
     kind: protocol
@@ -2407,7 +2407,7 @@ groups:
       An Invalid report may become valid with more information (VP-02-033). Keeping the
       negotiation open protects the report until that is known.
     stories:
-    - story_2022_014
+    - story_2026_084
   - id: VP-13-015
     priority: MAY
     kind: protocol
@@ -2418,7 +2418,7 @@ groups:
       In these RM states the participant holds the report and is not done with it, so
       agreeing to an embargo protects real ongoing work.
     stories:
-    - story_2022_014
+    - story_2026_084
   - id: VP-13-016
     priority: MAY
     kind: protocol
@@ -2517,7 +2517,7 @@ groups:
       An undecided proposal leaves the notified vendor unsure whether it may share the
       information. A quick decision gives it clear terms to work under.
     stories:
-    - story_2022_014
+    - story_2026_094
   - id: VP-14-007
     priority: SHOULD_NOT
     kind: protocol
@@ -2723,7 +2723,6 @@ groups:
       without sharing any details.
     stories:
     - story_2022_030
-    - story_2022_045
   - id: VP-16-003
     priority: SHOULD_NOT
     kind: protocol
@@ -2763,7 +2762,7 @@ groups:
     - rel_type: refines
       spec_id: VP-02-001
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_046
   - id: VP-17-002
     priority: MUST_NOT
@@ -2803,7 +2802,7 @@ groups:
     - rel_type: satisfies
       spec_id: VP-17-002
     stories:
-    - story_2022_045
+    - story_2026_057
 - id: VP-18
   title: Routing Topology
   specs:
@@ -2818,16 +2817,18 @@ groups:
       activity. Direct peer-to-peer delivery bypasses the ledger and the broadcast
       idempotency controls.
     verification: >-
-      Integration tests in `test/demo/test_sync_ledger_replication.py` confirm
-      that every accepted participant message produces a CaseLedgerEntry and an
-      `Announce(CaseLedgerEntry)` broadcast before delivery to other
-      participants.
+      `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_commits_log_entry_when_sync_port_provided`
+      confirms the path from the CASE_MANAGER on: a note a participant sends to
+      the CASE_MANAGER is committed as a CaseLedgerEntry and broadcast to the
+      participants in an `Announce` of that entry. The first step, a participant
+      addressing the CASE_MANAGER alone, is the PCR-08-001 rule this one refines,
+      and its own tests check it.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
       note: participant-case-relationships.yaml — PCR-08 covers ledger-based broadcast
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_041
   - id: VP-18-002
     priority: MUST_NOT
@@ -2853,12 +2854,14 @@ groups:
       Mediation through the CASE_MANAGER ensures all case activity is ledger-ordered
       and consistently broadcast to all participants.
     verification: >-
-      Integration tests in `test/demo/test_sync_ledger_replication.py` confirm
-      that no participant receives a case-state update before the CASE_MANAGER has
-      committed the corresponding CaseLedgerEntry.
+      `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_commits_log_entry_when_sync_port_provided`
+      confirms that a participant's note is committed as a CaseLedgerEntry, that
+      the entry is already in the ledger store when each `Announce` of it is
+      queued, and that the `Announce` fanned out to the participants carries that
+      committed entry.
     relationships:
     - rel_type: refines
       spec_id: VP-18-001
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_106

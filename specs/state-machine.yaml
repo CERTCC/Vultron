@@ -187,7 +187,7 @@ groups:
       note: case-management.md
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_036
   - id: SM-05-003
     priority: MUST
     kind: project
@@ -231,7 +231,7 @@ groups:
       `dl.save()`; no module-level or request-scoped variable carries RM state across request boundaries.
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_063
     adr:
     - ADR-0013
 - id: SM-07
@@ -280,7 +280,7 @@ groups:
       `test/core/models/test_dimension_bare_serialization.py::test_vendor_and_deployer_states_travel_as_bare_labels`
       confirms the same for VF and D.
     stories:
-    - story_2022_088
+    - story_2026_011
   - id: SM-08-003
     priority: MUST
     kind: project
@@ -383,7 +383,7 @@ groups:
     - rel_type: implements
       spec_id: SM-09-002
     stories:
-    - story_2022_088
+    - story_2026_039
 - id: SM-10
   title: State Scoping Rules
   specs:
@@ -409,7 +409,7 @@ groups:
       `RM.RECEIVED`.
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_037
     - story_2022_107
   - id: SM-10-002
     priority: MUST
@@ -429,9 +429,8 @@ groups:
     - rel_type: refines
       spec_id: CM-04-004
     stories:
-    - story_2022_014
     - story_2022_081
-    - story_2022_088
+    - story_2026_031
   - id: SM-10-003
     priority: MUST_NOT
     kind: protocol

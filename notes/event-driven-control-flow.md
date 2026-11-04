@@ -66,7 +66,7 @@ Committed layers to read a failed run.
 ### A gate must actually gate
 
 `demo_check` records a failure and returns, so the dependent step runs anyway and
-its secondary failures bury the real one. Use `demo_gate` (`vultron/demo/utils.py`)
+its secondary failures bury the real one. Use `demo_gate` (`vultron/demo/utils/failures.py`)
 for a causal precondition and `demo_check` for a verification assertion; both
 accumulate failures (DEMOCI-01-003, DEMOCI-01-007, EDF-06-005). Test a gate with
 the real context manager — patching it with `contextlib.nullcontext` proves
@@ -87,7 +87,7 @@ When the awaited effect is queued behind a variable amount of work — a late
 joiner's full-case Invite behind the join backfill (CM-11-010) — no fixed
 budget bounds it: the backlog's length times its per-item cost under CI load
 is unknown in advance (#4424). Gate on the backlog draining instead: a
-`ProgressDeadline` (`helpers/polling.py`) restarts its stall budget on each
+`ProgressDeadline` (`helpers/polling/_poll.py`) restarts its stall budget on each
 new high of a progress reading and stops at a ceiling, so the wait fails only
 when the backlog stops advancing. Read the progress from the same poll that
 looks for the effect, and name the last reading in the timeout message.
@@ -125,7 +125,7 @@ primitive: emit the ask, return `SUCCESS` meaning *I asked* (ASK-01-006); see
 
 A terminal status with no request emitted is the silent failure EDF-04-005
 forbids. The reference shape is `create_recommend_actor_to_case_received_tree`
-(`vultron/core/behaviors/case/suggest_actor_tree.py`): its Selector routes on
+(`vultron/core/behaviors/case/suggest_actor_tree/recommend.py`): its Selector routes on
 where the exchange stands and the fresh branch emits `Offer(CaseParticipant)` to
 the owner.
 

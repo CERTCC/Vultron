@@ -101,7 +101,7 @@ question lives in one place.
 ## Prior art: this is built, once, by hand
 
 `create_recommend_actor_to_case_received_tree`
-(`vultron/core/behaviors/case/suggest_actor_tree.py`, ADR-0026 / CM-16) is the
+(`vultron/core/behaviors/case/suggest_actor_tree/`, ADR-0026 / CM-16) is the
 reference implementation:
 
 ```text

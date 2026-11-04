@@ -56,7 +56,7 @@ class CreateReportReceivedUseCase:
 2. Define an `ActivityPattern` named `<TypeName>Pattern` in
    `vultron/wire/as2/extractor.py`
 3. Add a `SemanticEntry` to the **domain sub-module** under
-   `vultron/semantic_registry/` (e.g., `report.py`, `case.py`, `embargo.py`).
+   `vultron/semantic_registry/` (e.g., `report.py`, `case.py`, `embargo/`).
    **Do NOT add it directly to `__init__.py`** — see pitfall below.
    (**Order matters**: specific before general. Needs `page` + `Occasion`, MSM-08-001.)
 4. Implement a use-case class in `vultron/core/use_cases/` following the
@@ -153,11 +153,11 @@ from core, never the reverse — which is why `VultronActivity.object_` is typed
 `vultron/semantic_registry/` is a package whose `__init__.py` assembles
 sub-module entry lists in the correct order and appends the `UNKNOWN`
 fallback entries last. When adding a new message type, add the `SemanticEntry`
-to the **domain sub-module** (`report.py`, `case.py`, `actor.py`,
-`embargo.py`, `note.py`, `status.py`, or `sync.py`), not to `__init__.py`
-directly. Editing `__init__.py` for individual entry additions defeats the
-purpose of the split (reducing merge conflicts) and risks silently corrupting
-the ordering invariant that keeps the `UNKNOWN` fallback last.
+to the **domain sub-module** (`report.py`, `case.py`, `actor/`, `embargo/`,
+`note.py`, `status.py`, `sync.py`; in a package, its concern's submodule), not
+to `__init__.py`. Editing `__init__.py` for individual entry additions
+defeats the purpose of the split (reducing merge conflicts) and risks silently
+corrupting the ordering invariant that keeps the `UNKNOWN` fallback last.
 
 ### EM State Writes Are Owned by `EmbargoLifecycle` (EMB-18-001)
 

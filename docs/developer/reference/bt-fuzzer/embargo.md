@@ -121,7 +121,7 @@ They model the negotiation, evaluation, and lifecycle management of coordinated 
 
 - **Node name**: `EmbargoExitPolicyGuard`
 - **btz type**: `AlwaysSucceed` (p=1.00)
-- **Source file**: `vultron/demo/fuzzer/embargo.py`
+- **Source file**: `vultron/demo/fuzzer/embargo/termination.py`
 - **Parent tree**: `AuthorizeEmbargoExit` (within `create_terminate_active_embargo_tree`)
 - **Semantic function**: Condition — after the tree selects a reason, check whether site policy permits the actor to continue with voluntary embargo termination.
   Example checks are that no revision negotiation is active and that no approvals are pending
@@ -139,7 +139,7 @@ They model the negotiation, evaluation, and lifecycle management of coordinated 
 
 - **Node name**: `EmbargoExitOverride`
 - **btz type**: `AlwaysFail` (p=0.00)
-- **Source file**: `vultron/demo/fuzzer/embargo.py`
+- **Source file**: `vultron/demo/fuzzer/embargo/termination.py`
 - **Parent tree**: `AuthorizeEmbargoExit` (within `create_terminate_active_embargo_tree`)
 - **Semantic function**: Condition — the actor explicitly accepts responsibility to override a policy veto and continue with voluntary embargo termination.
   The node makes a distinct audit-trail entry for the override
@@ -311,7 +311,7 @@ They model the negotiation, evaluation, and lifecycle management of coordinated 
 
 - **Node name**: `CaseOwnerApprovesEmbargoResponse`
 - **btz type**: `AlwaysSucceed` (p=1.00)
-- **Source file**: `vultron/demo/fuzzer/embargo.py`
+- **Source file**: `vultron/demo/fuzzer/embargo/evaluation.py`
 - **Parent tree**: `AuthorizeSelector` (within `create_embargo_response_decision_tree`).
   It is the second child of the `AuthorizeSelector` Selector, and the tree reaches it only when the deciding actor is NOT a `CVDRole.CASE_OWNER`
 - **Semantic function**: Condition — a non-CASE_OWNER actor asks the Case Owner for authorization before it accepts or counters.

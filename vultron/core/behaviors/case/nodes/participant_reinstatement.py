@@ -35,7 +35,6 @@ Composite tree factories assembling these nodes are in
 BTND-07-003.
 """
 
-import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.case_participant_received import (
@@ -45,9 +44,7 @@ from vultron.core.behaviors.case.nodes.case_participant_received import (
     ParticipantMoveEffectNode,
     ParticipantMoveGuardNode,
 )
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
-)
+from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 
@@ -91,37 +88,35 @@ def case_manager_admits_reinstatement_guard(
     participant_id: str,
     case_id: str,
     claimed_actor_id: str | None = None,
-) -> py_trees.composites.Selector:
+) -> OnPaths:
     """Precondition guard: when this actor is the CASE_MANAGER, the reinstatement is admissible.
 
-    The reinstatement twin of :func:`case_manager_admits_removal_guard`: a
-    replica skips it as ``SUCCESS`` (it writes nothing, RSH-08-003), and the
-    CASE_MANAGER runs the three reinstatement guards in order, so an ``Add``
-    it refuses leaves no ledger entry (CM-31-011).  *claimed_actor_id* is the
-    actor the inline participant is attributed to, when it names one.
+    The reinstatement twin of :func:`case_manager_admits_removal_guard`,
+    declared on the manager path alone: a receiver on any other declared
+    path skips it (it writes nothing, RSH-08-003), and the CASE_MANAGER runs
+    the three reinstatement guards in order, so an ``Add`` it refuses leaves
+    no ledger entry (CM-31-011).  *claimed_actor_id* is the actor the inline
+    participant is attributed to, when it names one.
     """
-    return create_case_manager_gated_tree(
-        name="ReinstatementAdmissibleIfCaseManager",
-        case_id=case_id,
+    return OnPaths.at_case_manager(
+        "ReinstatementAdmissibleIfCaseManager",
+        MoveNamesCaseParticipantNode(
+            participant_id=participant_id,
+            case_id=case_id,
+            claimed_actor_id=claimed_actor_id,
+            move="reinstatement",
+        ),
+        ParticipantHasJoinedNode(
+            participant_id=participant_id,
+            case_id=case_id,
+            move="reinstatement",
+        ),
+        ParticipantIsRemovedNode(
+            participant_id=participant_id,
+            case_id=case_id,
+            move="reinstatement",
+        ),
         body_name="ReinstatementAdmissible",
-        children=[
-            MoveNamesCaseParticipantNode(
-                participant_id=participant_id,
-                case_id=case_id,
-                claimed_actor_id=claimed_actor_id,
-                move="reinstatement",
-            ),
-            ParticipantHasJoinedNode(
-                participant_id=participant_id,
-                case_id=case_id,
-                move="reinstatement",
-            ),
-            ParticipantIsRemovedNode(
-                participant_id=participant_id,
-                case_id=case_id,
-                move="reinstatement",
-            ),
-        ],
     )
 
 

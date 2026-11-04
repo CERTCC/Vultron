@@ -76,7 +76,9 @@ It goes to the asserting participant alone, and its `summary` gives the refusing
 Its id is derived from the CASE_MANAGER and the refused activity, so a refused activity is answered once.
 
 The CASE_MANAGER sends it only when a precondition guard refuses the assertion.
-It sends none when the sender guard refuses the sender, when the activity repeats one whose effect is already in place, when the activity is a redelivery, or when the case is fully closed ([CLP-02-005](../vultron-spec/requirements/ledger-replication.md#clp-02-005)).
+It sends none when a door guard refuses the delivery before any precondition is judged, when the sender guard refuses the sender, when the activity repeats one whose effect is already in place, or when the activity is a redelivery ([CLP-02-005](../vultron-spec/requirements/ledger-replication.md#clp-02-005)).
+The door guards are the post-close write boundary, which is how a fully closed case turns a delivery away, the addressee check, the path stage and the closed-sender door.
+A receiver on a path the message type does not address is refused at the path stage, so the refusal is about who received the activity rather than about what it asserts, and the sender is owed no answer about its content.
 It sends none for a delivery that an answer of its own replaces, such as the `Reject` of the Invite that answers an embargo `Invite` or `Accept` once the case is public, an exploit is public, or attacks are observed, because that answer already tells the sender ([CLP-10-070](../specs/project.md#clp-10-070)).
 It sends none for a failure inside the CASE_MANAGER, which is not a refusal: the internal-error fault above answers that.
 A refusal is not a case event, so the notice is not ledgered ([CLP-05-002](../vultron-spec/requirements/ledger-replication.md#clp-05-002)).

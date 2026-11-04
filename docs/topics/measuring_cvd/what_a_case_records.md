@@ -318,7 +318,7 @@ For embargo times, the measure connects the embargo register and the consent row
 
     The demo scenarios write each actor's copy of the ledger as JavaScript Object Notation (JSON) Lines files, under `devlogs/<demo>/<actor>/` (`vultron/demo/helpers/ledger_dump/`).
     Each file holds one actor's copy of the ledger for one case.
-    `vultron-demo-report` (`vultron/demo/report.py`) reads these files and merges the replicas into one timeline for each case, in log order (DRPT-02).
+    `vultron-demo-report` (`vultron/demo/report/`) reads these files and merges the replicas into one timeline for each case, in log order (DRPT-02).
     The report also shows which actors' replicas hold each entry.
     Each timeline event shows the actor, the semantic type, the target, the commit stamp, and the state changes that the entry records.
 

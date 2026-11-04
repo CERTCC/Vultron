@@ -1,5 +1,5 @@
-"""Story traceability gate (SR-11-003) and per-spec advisory warnings
-(SR-04-002).
+"""Story traceability gate (SR-11-003), per-spec advisory warnings
+(SR-04-002) and the per-file project/process story advisory (SR-11-009).
 """
 
 from __future__ import annotations
@@ -18,30 +18,21 @@ _RATIONALE_WARN_CHARS = 500
 def sr_11_003_gate_applies(kind: SpecKind, priority: RFC2119Priority) -> bool:
     """Whether SR-11-003's story gate covers a requirement of this kind and priority.
 
-    SR-11-003 is the one recorded exception to MS-02-003: it is deliberately
-    ``MUST``-only, not MUST-tier, because the protocol ``MUST_NOT``s with no
-    ``stories:`` still await their stories (#3601 adjudicated them; #2717
-    holds the list) and the gate extends to them as #2717's closing step once
-    their stories exist — see the spec's
-    ``note:``. This is the only place that decision is written down, so the
-    exception cannot drift into a second hand-written copy. When it is
-    retired, replace the member comparison with ``priority.is_must_tier`` and
-    drop the matching allowlist entry in
-    ``test/metadata/specs/test_priority_tier_gate.py``.
+    The gate covers ``kind: protocol`` requirements of the MUST tier, ``MUST``
+    and ``MUST_NOT`` alike (MS-02-003), selected through the shared tier
+    definition (MS-02-004). This is the one place the gate's scope is written
+    down, so callers ask it rather than restate the scope.
     """
-    return (
-        kind == SpecKind.PROTOCOL
-        and priority
-        == RFC2119Priority.MUST  # SR-11-003: MUST-only, see docstring
-    )
+    return kind == SpecKind.PROTOCOL and priority.is_must_tier
 
 
 def _check_missing_story_references(registry: SpecRegistry) -> list[str]:
-    """Hard error when a ``kind: protocol`` MUST spec has no ``stories:`` (SR-11-003).
+    """Hard error when a protocol MUST-tier spec has no ``stories:`` (SR-11-003).
 
-    Protocol MUST specs define wire-level compliance invariants.  A MUST with no
-    user-story back-reference breaks the bidirectional traceability graph and is
-    treated as a hard gate (exit 1).  Suppressible via
+    Protocol MUST and MUST_NOT specs define wire-level compliance invariants.
+    A MUST-tier requirement with no user-story back-reference breaks the
+    bidirectional traceability graph and is treated as a hard gate (exit 1).
+    Suppressible via
     ``lint_suppress: [missing_story_reference]`` for specs that are genuinely
     not traceable to any story. The gate's scope is
     :func:`sr_11_003_gate_applies`.
@@ -56,8 +47,8 @@ def _check_missing_story_references(registry: SpecRegistry) -> list[str]:
         if LintWarningCode.MISSING_STORY_REFERENCE in suppressed:
             continue
         errors.append(
-            f"{spec_id}: kind=protocol, priority=MUST but has no stories: "
-            f"field (SR-11-003); add user-story back-references, or suppress "
+            f"{spec_id}: kind=protocol, priority={spec.priority} but has no "
+            f"stories: field (SR-11-003); add user-story back-references, or suppress "
             f"with lint_suppress: [missing_story_reference]"
         )
     return errors
@@ -117,3 +108,41 @@ def _check_per_spec_advisory_warnings(registry: SpecRegistry) -> list[str]:
             )
 
     return warnings
+
+
+_PROJECT_PROCESS_KINDS = frozenset({SpecKind.PROJECT, SpecKind.PROCESS})
+
+
+def _check_project_process_story_advisory(
+    registry: SpecRegistry,
+    *,
+    list_no_story_ids: bool = False,
+) -> list[str]:
+    """One summary ``[INFO]`` line per spec file for project/process
+    requirements with no ``stories:`` field (SR-11-009).
+
+    The count is computed from the loaded registry on every run. ``kind:
+    protocol`` and ``kind: architecture`` requirements are excluded: SR-11-003
+    and SR-11-004 cover protocol, and architecture is not this advisory's
+    business. The advisory never affects the exit code. The IDs appear under
+    each file's summary line only when *list_no_story_ids* is ``True``
+    (``--list-no-story-ids`` on the CLI).
+    """
+    lines: list[str] = []
+    for file in registry.files:
+        no_story_ids = sorted(
+            spec.id
+            for group in file.groups
+            for spec in group.specs
+            if spec.kind in _PROJECT_PROCESS_KINDS and not spec.stories
+        )
+        if not no_story_ids:
+            continue
+        lines.append(
+            f"[INFO] {LintWarningCode.NO_PROJECT_PROCESS_STORY}: {file.id} "
+            f"({file.title}): {len(no_story_ids)} project/process "
+            f"requirement(s) with no stories: field (SR-11-009)"
+        )
+        if list_no_story_ids:
+            lines.extend(f"    {spec_id}" for spec_id in no_story_ids)
+    return lines

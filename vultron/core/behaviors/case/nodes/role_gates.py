@@ -25,14 +25,20 @@ for "only the CASE_MANAGER may do this" (BTND-07-005) — canonical ledger commi
 and the note-attachment path both build on it — and its complement
 :func:`create_participant_replica_gated_tree`, for the work a received tree does
 only when the executing actor is *not* the CASE_MANAGER (RSH-08-003).
+
+A received tree that declares its paths uses neither: the factory builds an
+:class:`~vultron.core.behaviors.case.nodes.path_branch.PathBranch` from the
+path the door stage resolved, so the role is read once per message
+(HP-01-036, HP-01-038, ADR-0153).  Both gates stay for the trees still to
+declare and for the trigger side, which that record does not govern.
 """
 
 import py_trees
 
-from vultron.core.behaviors.act_transaction import ActTransaction
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
+from vultron.core.behaviors.case.nodes.path_branch import wrap_children
 
 __all__ = [
     "CaseManagerGate",
@@ -57,31 +63,6 @@ class CaseManagerGate(py_trees.composites.Selector):
     def gated_branch(self) -> py_trees.behaviour.Behaviour:
         """The child that runs only at the CASE_MANAGER (for inspection)."""
         return self.children[1]
-
-
-def _wrap_children(
-    name: str,
-    children: list[py_trees.behaviour.Behaviour],
-    body_name: str | None,
-    as_one_act: bool = False,
-) -> py_trees.behaviour.Behaviour:
-    """One child runs bare; several become a Sequence so a mid-run FAILURE propagates.
-
-    With *as_one_act* the body is always an :class:`ActTransaction`, so
-    everything the children write commits together or not at all
-    (CLP-07-015).
-    """
-    if as_one_act:
-        return ActTransaction(
-            name=body_name or f"{name}Body", children=children
-        )
-    if len(children) == 1:
-        return children[0]
-    return py_trees.composites.Sequence(
-        name=body_name or f"{name}Body",
-        memory=False,
-        children=children,
-    )
 
 
 def create_case_manager_gated_tree(
@@ -138,7 +119,7 @@ def create_case_manager_gated_tree(
     Returns:
         The gated root :class:`CaseManagerGate` Selector.
     """
-    gated = _wrap_children(name, children, body_name, as_one_act)
+    gated = wrap_children(name, children, body_name, as_one_act)
 
     return CaseManagerGate(
         name=name,
@@ -201,7 +182,7 @@ def create_participant_replica_gated_tree(
     Returns:
         The gated root Selector.
     """
-    gated = _wrap_children(name, children, body_name)
+    gated = wrap_children(name, children, body_name)
 
     return py_trees.composites.Selector(
         name=name,

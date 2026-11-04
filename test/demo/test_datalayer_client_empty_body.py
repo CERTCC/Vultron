@@ -22,8 +22,7 @@ import logging
 import httpx2 as httpx
 import pytest
 
-from vultron.demo import utils
-from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils import DataLayerClient, client as utils
 
 
 def _answer(status_code: int, content: bytes):

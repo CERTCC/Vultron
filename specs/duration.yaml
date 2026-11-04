@@ -30,7 +30,7 @@ groups:
       format.
     stories:
     - story_2022_010
-    - story_2022_014
+    - story_2026_012
   - id: DUR-01-002
     priority: MUST
     kind: protocol
@@ -45,7 +45,7 @@ groups:
       not a numeric type, when serialized via the Pydantic model.
     stories:
     - story_2022_010
-    - story_2022_014
+    - story_2026_012
   - id: DUR-01-003
     priority: MUST
     kind: protocol
@@ -62,7 +62,7 @@ groups:
       DST or calendar adjustment applied during interval arithmetic.
     stories:
     - story_2022_010
-    - story_2022_014
+    - story_2026_012
 - id: DUR-02
   title: Allowed Grammar (Restricted ISO 8601 Subset)
   specs:
@@ -254,7 +254,7 @@ groups:
       end time.
     stories:
     - story_2022_010
-    - story_2022_014
+    - story_2026_024
   - id: DUR-06-002
     priority: MUST
     kind: protocol
@@ -319,7 +319,7 @@ groups:
       as explicit start and end timestamp pairs, not as a duration-only field.
     stories:
     - story_2022_010
-    - story_2022_014
+    - story_2026_024
     - story_2022_074
   - id: DUR-07-002
     priority: SHOULD
@@ -352,7 +352,7 @@ groups:
       embargo leaves the case at `EM.ACTIVE` and never hands `EM.PROPOSED` to the store.
     stories:
     - story_2022_010
-    - story_2022_014
+    - story_2026_080
     - story_2022_074
   - id: DUR-07-005
     priority: MUST
@@ -402,5 +402,5 @@ groups:
     - rel_type: depends_on
       spec_id: DUR-07-002
     stories:
-    - story_2022_014
+    - story_2026_080
     - story_2022_074

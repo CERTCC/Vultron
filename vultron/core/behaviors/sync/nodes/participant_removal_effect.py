@@ -41,11 +41,11 @@ from __future__ import annotations
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.log_entry import require_log_entry
 from vultron.core.behaviors.sync.nodes._helpers import (
     _extract_id_from_field,
     _LedgerEffectNode,
 )
-from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     _ActivityEventNode,
 )
@@ -81,7 +81,7 @@ class IsRemoveCaseParticipantEventNode(_ActivityEventNode):
     """
 
     def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
         if entry.semantic_type == REMOVE_CASE_PARTICIPANT_SEMANTIC_TYPE:
             return Status.SUCCESS
         return Status.FAILURE
@@ -229,7 +229,7 @@ class IsReinstateCaseParticipantEventNode(_ActivityEventNode):
     """
 
     def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
         if entry.semantic_type == REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE:
             return Status.SUCCESS
         return Status.FAILURE

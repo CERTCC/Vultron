@@ -184,6 +184,59 @@ groups:
       means the same thing in every module, a WARNING threshold shows all recoverable
       problems and failures and hides normal operation. The standard Python meanings are
       the ones that every library in the process already uses.
+  - id: SL-03-002
+    priority: MUST
+    kind: project
+    statement: >-
+      A behaviour-tree node whose FAILURE a sibling arm of an enclosing Selector
+      can still turn into an admission MUST log that non-match at DEBUG. Only the
+      node whose FAILURE every composite above it passes on — the branch that is
+      the tree's answer — logs at WARNING.
+    rationale: >-
+      A Selector arm that fails so the next arm can run has decided nothing, so it
+      is not the recoverable anomaly WARNING means in SL-03-001; it is diagnostic
+      detail. A reader, and a log matcher, takes a WARNING as the outcome. The
+      sender guard's any-of side is the live case: a CASE_MANAGER check failing is
+      how a Case Owner's activity reaches the CASE_OWNER check that admits it, and
+      at WARNING that read as a refusal in every demo log of three passing runs.
+      Deciding the level from the node's placement in the running tree, rather than
+      from a flag its composer sets, is what keeps the level and the tree from
+      disagreeing (#5460).
+    verification: >-
+      `test/core/behaviors/test_sender_guard.py` ticks composed guards and asserts
+      the overruled arm logs one DEBUG line while the arm that is the guard's own
+      answer logs WARNING, and walks `SEMANTIC_REGISTRY` asserting every declared
+      side naming `CASE_MANAGER` composes the check where its own placement says
+      it belongs.
+      `test/architecture/test_sender_guard_failure_is_the_tree_refusal.py` asserts
+      the invariant the level is read from — that the factory places the composed
+      sender door where its FAILURE is the whole tree's refusal — across every
+      built received tree. A regression to WARNING on an overruled arm also fails
+      the three demo runs through `expect_no_sender_refusals`.
+    relationships:
+    - rel_type: refines
+      spec_id: SL-03-001
+  - id: SL-03-003
+    priority: MUST
+    kind: project
+    statement: >-
+      A log line for a non-match that a sibling arm can still overrule MUST NOT
+      carry the `REFUSED` wording that a refusal reason ends with.
+    rationale: >-
+      `REFUSED` is the token a reader greps and the demo tests match to assert that
+      no sender was refused. If a line that refused nobody carries it, the token
+      stops meaning a refusal and the assertion stops being worth making. Keeping
+      the wording to the refusal is what lets one string serve both the reader and
+      the matcher, so a second bespoke template cannot drift out of the matcher's
+      sight the way the one this replaced did (#5460).
+    verification: >-
+      `test/core/behaviors/test_sender_guard.py` asserts the overruled arm's DEBUG
+      line carries no `REFUSED` wording while keeping the facts the reason states,
+      including the CASE_MANAGER it resolved, and that the arm that is the guard's
+      answer still logs the full reason with its `REFUSED (IDs)` group.
+    relationships:
+    - rel_type: refines
+      spec_id: SL-03-002
 - id: SL-04
   title: State Transition Logging
   specs:

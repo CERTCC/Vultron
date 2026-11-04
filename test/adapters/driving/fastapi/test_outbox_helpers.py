@@ -20,7 +20,7 @@ Covers: ``_extract_recipients`` and ``_format_object`` over the parsed sealed
 body, and the ARCH-25-008 check that ``VultronActivity`` declares every
 AS2 key a wire activity dumps.
 
-Module under test: ``vultron/adapters/driving/fastapi/outbox_handler.py``
+Module under test: ``vultron/adapters/driving/fastapi/outbox_addressing.py``
 
 Spec coverage:
 - OX-08-001/002/003: ``to:`` field enforcement (recipient extraction path).
@@ -30,7 +30,7 @@ import pytest
 from pydantic import BaseModel
 
 from test.support.model_keys import accepted_keys, dumped_keys
-from vultron.adapters.driving.fastapi import outbox_handler as oh
+from vultron.adapters.driving.fastapi import outbox_addressing as addressing
 
 # ---------------------------------------------------------------------------
 # _extract_recipients
@@ -41,7 +41,7 @@ def test_extract_recipients_deduplicates():
     """_extract_recipients returns each actor ID at most once."""
     alice = "https://example.org/actors/alice"
     body = {"to": [alice, alice]}  # duplicate
-    assert oh._extract_recipients(body) == [alice]
+    assert addressing._extract_recipients(body) == [alice]
 
 
 @pytest.mark.spec("OX-08-001")
@@ -52,39 +52,39 @@ def test_extract_recipients_reads_only_to(addr_field):
     alice = "https://example.org/actors/alice"
     carol = "https://example.org/actors/carol"
     body = {"to": [alice], addr_field: [carol]}
-    assert oh._extract_recipients(body) == [alice]
+    assert addressing._extract_recipients(body) == [alice]
 
 
 def test_extract_recipients_reads_to_field():
     """_extract_recipients reads recipients directly from `to`."""
     alice = "https://example.org/actors/alice"
     bob = "https://example.org/actors/bob"
-    assert oh._extract_recipients({"to": [alice, bob]}) == [alice, bob]
+    assert addressing._extract_recipients({"to": [alice, bob]}) == [alice, bob]
 
 
 def test_extract_recipients_handles_embedded_object():
     """An addressee given as an inline object contributes its ``id``."""
     alice = "https://example.org/actors/alice"
     body = {"to": [{"id": alice, "type": "Person"}]}
-    assert oh._extract_recipients(body) == [alice]
+    assert addressing._extract_recipients(body) == [alice]
 
 
 def test_extract_recipients_accepts_a_single_string():
     """A scalar ``to`` (not a list) is one recipient."""
     alice = "https://example.org/actors/alice"
-    assert oh._extract_recipients({"to": alice}) == [alice]
+    assert addressing._extract_recipients({"to": alice}) == [alice]
 
 
 def test_extract_recipients_returns_empty_for_no_fields():
     """No addressing fields → no recipients."""
-    assert oh._extract_recipients({"type": "Offer"}) == []
+    assert addressing._extract_recipients({"type": "Offer"}) == []
 
 
 def test_extract_recipients_skips_unusable_items():
     """Empty strings and objects without an ``id`` name nobody."""
     bob = "https://example.org/actors/bob"
     body = {"to": ["", {"type": "Person"}, bob]}
-    assert oh._extract_recipients(body) == [bob]
+    assert addressing._extract_recipients(body) == [bob]
 
 
 # ---------------------------------------------------------------------------
@@ -94,19 +94,21 @@ def test_extract_recipients_skips_unusable_items():
 
 def test_format_object_returns_type_and_id_for_inline_object():
     obj = {"type": "VulnerabilityCase", "id": "urn:uuid:case-1"}
-    assert oh._format_object(obj) == "VulnerabilityCase urn:uuid:case-1"
+    assert (
+        addressing._format_object(obj) == "VulnerabilityCase urn:uuid:case-1"
+    )
 
 
 def test_format_object_passes_through_strings():
-    assert oh._format_object("urn:uuid:x") == "urn:uuid:x"
+    assert addressing._format_object("urn:uuid:x") == "urn:uuid:x"
 
 
 def test_format_object_handles_none():
-    assert oh._format_object(None) == "None"
+    assert addressing._format_object(None) == "None"
 
 
 def test_format_object_handles_object_without_id():
-    assert oh._format_object({"type": "Note"}) == "Note"
+    assert addressing._format_object({"type": "Note"}) == "Note"
 
 
 # ---------------------------------------------------------------------------

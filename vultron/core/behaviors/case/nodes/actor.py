@@ -27,7 +27,7 @@ Invite-response nodes (Accept / Reject) live in the sibling
 compatibility (BTND-07-004: 500-line leaf-module limit).
 
 Composite subtrees assembling these leaf nodes are defined in the sibling
-``actor_trigger_trees.py`` and ``ownership_transfer_tree.py`` modules at
+``actor_trigger_trees.py`` and ``ownership_transfer_tree/`` modules at
 the process-area root per BTND-07-003:
 
 - ``accept_case_invite_trigger_bt``

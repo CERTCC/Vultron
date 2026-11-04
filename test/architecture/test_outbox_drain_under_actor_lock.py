@@ -23,11 +23,11 @@ at a time, and ``outbox_handler`` is the only entry that takes the lock.
 
 The ratchet therefore pins two structural facts:
 
-1. Nothing under ``vultron/`` other than ``outbox_handler.py`` calls the
-   unlocked inner drain (``_drain_outbox``) or the per-row delivery
+1. Nothing under ``vultron/`` other than ``outbox_handler/drain.py`` calls
+   the unlocked inner drain (``_drain_outbox``) or the per-row delivery
    (``handle_outbox_item``); a new caller must go through ``outbox_handler``.
-2. Inside ``outbox_handler.py`` the inner drain is called exactly once, from
-   ``outbox_handler``, after ``_drain_slot`` and inside a ``try`` whose
+2. Inside ``outbox_handler/drain.py`` the inner drain is called exactly once,
+   from ``outbox_handler``, after ``_drain_slot`` and inside a ``try`` whose
    ``finally`` clears the slot's ``busy`` flag.
 
 Spec: OX-01-004 (``specs/outbox.yaml``).  ADR-0112.
@@ -40,7 +40,14 @@ import pytest
 from test.architecture import _corpus
 
 _VULTRON = _corpus.REPO_ROOT / "vultron"
-_HANDLER = _VULTRON / "adapters" / "driving" / "fastapi" / "outbox_handler.py"
+_HANDLER = (
+    _VULTRON
+    / "adapters"
+    / "driving"
+    / "fastapi"
+    / "outbox_handler"
+    / "drain.py"
+)
 
 _INNER_NAMES = ("_drain_outbox", "handle_outbox_item")
 _SLOT_FACTORY = "_drain_slot"
@@ -74,7 +81,7 @@ def test_inner_drain_is_called_only_from_outbox_handler_module(
         if _calls_named(tree, inner):
             offenders.append(str(path.relative_to(_corpus.REPO_ROOT)))
     assert not offenders, (
-        f"{inner}() is called outside outbox_handler.py in {offenders};"
+        f"{inner}() is called outside outbox_handler/drain.py in {offenders};"
         " every drain must enter through outbox_handler(), which takes the"
         " per-actor drain lock (OX-01-004, ADR-0112)."
     )
@@ -84,11 +91,13 @@ def _function(tree: ast.AST, name: str) -> ast.AsyncFunctionDef:
     for node in ast.walk(tree):
         if isinstance(node, ast.AsyncFunctionDef) and node.name == name:
             return node
-    raise AssertionError(f"async def {name} not found in outbox_handler.py")
+    raise AssertionError(
+        f"async def {name} not found in outbox_handler/drain.py"
+    )
 
 
 def _handler_tree() -> ast.AST:
-    """The AST of ``outbox_handler.py`` from the shared corpus (TB-13-001)."""
+    """The AST of ``outbox_handler/drain.py`` from the shared corpus (TB-13-001)."""
     for path, tree in _corpus.files_mentioning(
         "def outbox_handler(", under=_VULTRON
     ):
@@ -122,7 +131,7 @@ def test_outbox_handler_drains_inside_the_busy_slot() -> None:
     tree = _handler_tree()
     drains = _calls_named(tree, "_drain_outbox")
     assert len(drains) == 1, (
-        f"expected exactly one _drain_outbox() call in outbox_handler.py,"
+        f"expected exactly one _drain_outbox() call in outbox_handler/drain.py,"
         f" found {len(drains)}"
     )
     handler = _function(tree, "outbox_handler")

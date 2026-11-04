@@ -28,7 +28,7 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
-from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
+from vultron.core.behaviors.log_entry import require_log_entry
 
 
 class _ActivityEventNode(DataLayerConditionWithPorts):
@@ -61,7 +61,7 @@ class _SemanticTypeSetNode(_ActivityEventNode):
     matched_semantic_types: ClassVar[frozenset[str]]
 
     def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
         if entry.semantic_type in self.matched_semantic_types:
             return Status.SUCCESS
         return Status.FAILURE

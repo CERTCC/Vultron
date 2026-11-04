@@ -82,7 +82,7 @@ from vultron.demo.scenario.rcvv_embargo_demo import (
     vendor2_joins_under_the_revision,
 )
 from vultron.demo.scenario.registry import discover_scenarios
-from vultron.demo.utils import _demo_failures
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 
@@ -317,7 +317,9 @@ class TestTheSharedOpeningSeedsOnlyTheThree:
                     "reset_datalayer",
                     return_value={"status": "ok"},
                 ) as reset,
-                patch("vultron.demo.helpers.seeding.seed_case_actor_identity"),
+                patch(
+                    "vultron.demo.helpers.seeding.reset.seed_case_actor_identity"
+                ),
                 patch.object(
                     coordinated_cast,
                     "seed_containers_rcv",

@@ -238,7 +238,7 @@ groups:
     adr:
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: CP-01-010
     priority: MUST
     kind: project
@@ -1212,7 +1212,7 @@ groups:
       `AcceptCaseProposalReceivedUseCase` is implemented with an `execute()` method.
     stories:
     - story_2022_012
-    - story_2022_088
+    - story_2026_036
     adr:
     - ADR-0023
   - id: CP-06-002
@@ -1229,7 +1229,7 @@ groups:
       `RejectCaseProposalReceivedUseCase` is implemented with an `execute()` method.
     stories:
     - story_2022_006
-    - story_2022_088
+    - story_2026_036
     adr:
     - ADR-0023
   - id: CP-06-003
@@ -1246,7 +1246,7 @@ groups:
       `AcceptCaseProposalReceivedUseCase` updates the receiver's local state to record the case-actor acceptance.
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_036
     adr:
     - ADR-0023
   - id: CP-06-004
@@ -1263,7 +1263,7 @@ groups:
       `RejectCaseProposalReceivedUseCase` updates the receiver's local state to reflect the rejection.
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_036
     adr:
     - ADR-0023
   - id: CP-06-005
@@ -1619,7 +1619,7 @@ groups:
       spec_id: CP-09-002
     stories:
     - story_2022_013
-    - story_2022_088
+    - story_2026_055
     adr:
     - ADR-0041
   - id: CP-09-007
@@ -1678,7 +1678,7 @@ groups:
     adr:
     - ADR-0041
     stories:
-    - story_2022_014
+    - story_2026_080
     - story_2022_023
   - id: CP-09-004
     priority: MUST
@@ -1708,7 +1708,7 @@ groups:
       spec_id: CP-09-002
     stories:
     - story_2022_013
-    - story_2022_045
+    - story_2026_055
     adr:
     - ADR-0041
     - ADR-0170
@@ -1801,4 +1801,4 @@ groups:
     - ADR-0119
     stories:
     - story_2022_013
-    - story_2022_088
+    - story_2026_056

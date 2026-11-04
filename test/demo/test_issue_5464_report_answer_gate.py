@@ -94,7 +94,7 @@ def test_answer_posts_trigger_only_after_case_replica_arrives(
             _recording_session(call_order, trigger),
         ),
         patch.object(workflow, "find_case_for_offer", side_effect=_find_case),
-        patch("vultron.demo.helpers.polling.time.sleep"),
+        patch("vultron.demo.helpers.polling._poll.time.sleep"),
     ):
         answer(client, receiver, _OFFER_ID)
 

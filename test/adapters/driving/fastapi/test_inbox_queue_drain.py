@@ -33,8 +33,11 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import hold_activity
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi import (
-    inbox_orchestration as io,
     inbox_queue_drain as drain,
+)
+from vultron.adapters.driving.fastapi.inbox_orchestration import (
+    pipeline as io,
+    ports,
 )
 from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
@@ -429,7 +432,7 @@ def test_a_failure_after_an_applied_dispatch_is_neither_retried_nor_answered(
     def _replay_raises(*_args: Any, **_kwargs: Any) -> None:
         raise RuntimeError("replay storage fault")
 
-    monkeypatch.setattr(io.FastAPIQueuePort, "replay", _replay_raises)
+    monkeypatch.setattr(ports.FastAPIQueuePort, "replay", _replay_raises)
     dispatcher = _dispatcher(Mock(return_value=HandlerResult.applied()))
 
     _run(dl, dispatcher)
@@ -478,7 +481,7 @@ def test_a_dead_letter_fault_that_cannot_be_queued_is_logged(
     def _outbox_fails(*_args: Any, **_kwargs: Any) -> str:
         raise RuntimeError("outbox write failed")
 
-    monkeypatch.setattr(io, "emit_processing_fault", _outbox_fails)
+    monkeypatch.setattr(ports, "emit_processing_fault", _outbox_fails)
 
     with caplog.at_level(logging.ERROR, logger=drain.__name__):
         _run(dl, _dispatcher(_raises))
@@ -521,7 +524,7 @@ def test_the_queue_port_queues_nothing_when_the_hold_fails(
     from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 
     case_id = "https://example.org/cases/case-unheld"
-    queue = io.FastAPIQueuePort(
+    queue = ports.FastAPIQueuePort(
         dl=dl,
         actor_dl=dl,
         staging=InlineObjectStaging(dl),
@@ -659,7 +662,7 @@ def _serve_once(
         startup.actor_hosts, "hosted_actor_ids", lambda: [_RECEIVER]
     )
     monkeypatch.setattr(startup, "get_datalayer", lambda _actor_id: dl)
-    monkeypatch.setattr(io, "dispatch", _dispatch)
+    monkeypatch.setattr(ports, "dispatch", _dispatch)
     # The lifespan also states the hosted actors' ledger positions
     # (SYNC-17-007), which drains their outboxes too; these tests count only
     # the startup replay's drains.

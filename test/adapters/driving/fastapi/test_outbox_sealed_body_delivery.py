@@ -21,7 +21,7 @@ demonstrably the body the outbox handler hands the emitter — with the case
 stub, the ``context``, and every inline object exactly as the factory built
 them.  A ``MagicMock`` store cannot show that; only the round trip can.
 
-Module under test: ``vultron/adapters/driving/fastapi/outbox_handler.py`` and
+Module under test: ``vultron/adapters/driving/fastapi/outbox_handler/drain.py`` and
 ``vultron/adapters/outbox_sealed_body.py``.
 """
 

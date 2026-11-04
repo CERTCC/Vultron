@@ -56,10 +56,9 @@ from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
-import vultron.demo.helpers.polling as polling_module
+import vultron.demo.helpers.polling.case as polling_case_module
 import vultron.demo.helpers.sync as sync_module
 import vultron.demo.scenario.rvv_demo as demo
-import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
     devlogs_name_of,
     functions_referencing,
@@ -95,6 +94,7 @@ from vultron.demo.helpers.polling import (
     wait_for_contiguous_ledger_coverage,
     wait_for_semantic_type_in_ledger,
 )
+from vultron.demo.helpers.seeding import reset as seeding_reset
 from vultron.demo.helpers.story import (
     Choose,
     StoryState,
@@ -125,6 +125,7 @@ from vultron.demo.scenario import (
 )
 from vultron.demo.scenario.registry import registered_scenarios
 from vultron.demo.utils import DataLayerClient, reset_demo_failures
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -347,7 +348,7 @@ class TestRvvCast:
             patch.object(
                 story_cast, "reset_datalayer", return_value={"status": "ok"}
             ) as reset,
-            patch.object(seeding, "seed_case_actor_identity") as reseed,
+            patch.object(seeding_reset, "seed_case_actor_identity") as reseed,
             patch.object(
                 vendor_cast, "seed_containers", return_value=tuple(seeded)
             ) as seed_two,
@@ -577,7 +578,7 @@ class TestTheSecondVendorIsSeeded:
 
         assert VENDOR2 not in state.cast
         assert sorted(state.unseated) == [VENDOR2]
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("STEP FAILED")
 
     def test_a_container_that_was_never_declared_stops_the_story(self):
@@ -847,7 +848,9 @@ class TestEveryReplicaConverges:
             # Patched on the polling module, which is the global the real
             # wait_for_participants_on_replicas calls.
             patch.object(
-                polling_module, "wait_for_case_participants", participant_wait
+                polling_case_module,
+                "wait_for_case_participants",
+                participant_wait,
             ),
             patch.object(
                 sync_module, "verify_replica_state"
@@ -900,7 +903,7 @@ class TestEveryReplicaConverges:
         with self._sync_primitives(_timeout) as verify_replica:
             demo.every_replica_converges(state)
 
-        failures = demo_utils._demo_failures
+        failures = _demo_failures
         assert len(failures) == 2, failures
         assert all(
             "reflects all case participants" in failure for failure in failures
@@ -1145,7 +1148,7 @@ class TestEveryoneCloses:
         ):
             demo.everyone_closes(state)
 
-        failures = demo_utils._demo_failures
+        failures = _demo_failures
         assert len(failures) == 3, failures
         assert all("coverage timeout" in failure for failure in failures), (
             failures

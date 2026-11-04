@@ -345,9 +345,7 @@ groups:
       CASE_MANAGER ledger entry carries as its payload snapshot records a change; it
       is not a received message.
     stories:
-    - story_2022_088
-    - story_2022_045
-    - story_2022_014
+    - story_2026_059
     verification: >-
       The parametrized test
       `test_received_create_of_a_case_record_is_refused_case_unchanged` in
@@ -385,8 +383,7 @@ groups:
       separate `Create` would add a "created but not attached" state needing its own
       ledger entry and replica step (CLP-07-013, RSH-08-004) for no gain (ADR-0137).
     stories:
-    - story_2022_088
-    - story_2022_045
+    - story_2026_059
     verification: >-
       The parametrized test
       `test_received_create_of_a_case_record_is_refused_case_unchanged` in
@@ -412,7 +409,7 @@ groups:
       records each act that changes the case. A participant made any other way would
       be a case-file change outside the ledger (CLP-07-013, ADR-0137).
     stories:
-    - story_2022_088
+    - story_2026_059
     verification: >-
       `test_a_received_case_manager_act_is_recognized_and_unhandled` in
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that a
@@ -644,7 +641,7 @@ groups:
       `SuggestActorToCasePattern` is bound to `OFFER_ACTOR_TO_CASE`, and
       `OfferActorToCasePattern` is bound to `OFFER_CASE_PARTICIPANT` (VAM-04-010).
     verification: >-
-      Inspection of `vultron/semantic_registry/actor.py` confirms that
+      Inspection of `vultron/semantic_registry/actor/recommendation.py` confirms that
       `MessageSemantics.OFFER_ACTOR_TO_CASE` is keyed to `SuggestActorToCasePattern`,
       which uses `TAtype.OFFER`, `AOtype.ACTOR`, and `target_=VULNERABILITY_CASE`;
       integration tests in `test/demo/test_suggest_actor_demo.py` exercise this flow.
@@ -667,7 +664,7 @@ groups:
       from the CASE_MANAGER's answer to the recommender (VAM-04-016). See CM-16-003,
       CM-16-004 and ADR-0026.
     verification: >-
-      Inspection of `vultron/semantic_registry/actor.py` confirms that
+      Inspection of `vultron/semantic_registry/actor/recommendation.py` confirms that
       `MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT` is keyed to
       `AcceptActorRecommendationPattern`, whose nested sub-pattern has
       `object_=CASE_PARTICIPANT` rather than `ACTOR`; integration tests in
@@ -688,7 +685,7 @@ groups:
       `Offer(CaseParticipant)` and not the first `Offer(Actor)`. The inner object type
       tells it apart from the CASE_MANAGER's answer to the recommender (VAM-04-017).
     verification: >-
-      Inspection of `vultron/semantic_registry/actor.py` confirms that
+      Inspection of `vultron/semantic_registry/actor/recommendation.py` confirms that
       `MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT` is keyed to
       `RejectActorRecommendationPattern`, whose nested sub-pattern has
       `object_=CASE_PARTICIPANT`; integration tests in
@@ -831,7 +828,7 @@ groups:
       Case Owner answers this offer (VAM-04-002, VAM-04-003), so the roles that it
       decides on are in the object that it answers. See CM-16-004 and ADR-0026.
     verification: >-
-      Inspection of `vultron/semantic_registry/actor.py` confirms that
+      Inspection of `vultron/semantic_registry/actor/recommendation.py` confirms that
       `MessageSemantics.OFFER_CASE_PARTICIPANT` is keyed to `OfferActorToCasePattern`
       (note the crossed spelling described in VAM-04-001), which uses `TAtype.OFFER`,
       `object_=CASE_PARTICIPANT`, and `target_=VULNERABILITY_CASE`; integration tests in
@@ -1058,7 +1055,7 @@ groups:
       `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
       asserts that the `remove_embargo` vocabulary example extracts as this semantic type.
     stories:
-    - story_2022_014
+    - story_2026_095
     - story_2022_023
   - id: VAM-05-004
     priority: MUST
@@ -1094,7 +1091,7 @@ groups:
       `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
       asserts that the `propose_embargo` vocabulary example extracts as this semantic type.
     stories:
-    - story_2022_014
+    - story_2026_085
     - story_2022_023
   - id: VAM-05-006
     priority: MUST
@@ -1111,7 +1108,7 @@ groups:
       `test/test_semantic_activity_patterns.py::test_owner_embargo_decisions_are_distinct_from_invite_answers`
       asserts that the `accept_embargo` vocabulary example extracts as this semantic type.
     stories:
-    - story_2022_014
+    - story_2026_087
   - id: VAM-05-007
     priority: MUST
     kind: protocol
@@ -1126,7 +1123,7 @@ groups:
       `test/test_semantic_activity_patterns.py::test_owner_embargo_decisions_are_distinct_from_invite_answers`
       asserts that the `reject_embargo` vocabulary example extracts as this semantic type.
     stories:
-    - story_2022_014
+    - story_2026_087
   - id: VAM-05-008
     priority: MUST
     kind: protocol
@@ -1146,7 +1143,7 @@ groups:
     adr:
     - ADR-0122
     stories:
-    - story_2022_014
+    - story_2026_087
   - id: VAM-05-009
     priority: MUST
     kind: protocol
@@ -1165,7 +1162,7 @@ groups:
     adr:
     - ADR-0122
     stories:
-    - story_2022_014
+    - story_2026_087
   - id: VAM-05-010
     priority: MUST
     kind: project
@@ -1215,7 +1212,7 @@ groups:
     adr:
     - ADR-0122
     stories:
-    - story_2022_014
+    - story_2026_090
     - story_2022_080
   - id: VAM-05-012
     priority: MUST
@@ -1267,7 +1264,7 @@ groups:
     adr:
     - ADR-0152
     stories:
-    - story_2022_014
+    - story_2026_033
     - story_2022_080
   - id: VAM-05-014
     priority: MUST
@@ -1290,7 +1287,7 @@ groups:
     adr:
     - ADR-0140
     stories:
-    - story_2022_014
+    - story_2026_001
     - story_2022_080
   - id: VAM-05-015
     priority: MUST
@@ -1314,7 +1311,7 @@ groups:
     adr:
     - ADR-0140
     stories:
-    - story_2022_014
+    - story_2026_001
     - story_2022_080
   - id: VAM-05-016
     priority: MUST
@@ -1348,7 +1345,7 @@ groups:
     adr:
     - ADR-0140
     stories:
-    - story_2022_014
+    - story_2026_080
     - story_2022_080
 - id: VAM-06
   title: Case Participant Management Messages
@@ -1497,7 +1494,7 @@ groups:
     stories:
     - story_2022_062
     - story_2022_081
-    - story_2022_088
+    - story_2026_011
   - id: VAM-08-004
     priority: MUST
     kind: protocol
@@ -1514,7 +1511,7 @@ groups:
     stories:
     - story_2022_062
     - story_2022_075
-    - story_2022_088
+    - story_2026_011
 - id: VAM-09
   title: Unrecognized Activities
   specs:

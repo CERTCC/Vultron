@@ -82,10 +82,6 @@ groups:
       Review: a spec requirement that selects by priority names the tier, or explicitly
       excludes the negative form and says why. Code gates are checked mechanically under
       MS-02-004.
-    exceptions:
-    - SR-11-003 stays MUST-only until every protocol MUST_NOT it would newly flag has
-      been adjudicated (#3601) and given a user story (#2717); flipping it earlier needs
-      new suppressions, which MS-12-007 forbids.
     relationships:
     - rel_type: refines
       spec_id: MS-02-002
@@ -109,8 +105,7 @@ groups:
       of the five priorities to its tier. A static check fails if a priority-selecting
       comparison in `vultron/metadata/specs/` or `scripts/` tests equality or membership
       against individual `RFC2119Priority` members or priority strings instead of the
-      shared definition. The SR-11-003 selector is allowlisted while the MS-02-003
-      exception stands.
+      shared definition, with no allowlisted exception.
     relationships:
     - rel_type: refines
       spec_id: MS-02-003
@@ -3304,8 +3299,8 @@ groups:
       the emitters (MS-16-002). When the protocol requirement makes the choice once, a
       receiver has one form to accept.
     verification: >-
-      Inspection: `Occasion` in `vultron/semantic_registry/_occasion.py` has no field
-      recording whether this codebase sends the occasion.
+      Inspection: `Occasion` in `vultron/semantic_registry/_occasion/occasion.py` has
+      no field recording whether this codebase sends the occasion.
     relationships:
     - rel_type: refines
       spec_id: MS-18-001

@@ -29,8 +29,8 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.exchange import embargo_lifecycle as lifecycle
-from vultron.demo.helpers import polling
-from vultron.demo.utils import _demo_failures
+from vultron.demo.helpers.polling import case_actor as polling_case_actor
+from vultron.demo.utils.failures import _demo_failures
 
 #: Clear the process-global failure accumulator around every test.
 pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
@@ -121,10 +121,10 @@ def polls():
             ),
             # Without a case-manager client the helpers scope the reading
             # participant's container to a CaseActor it co-hosts, which
-            # ``case_manager_store`` resolves in the polling module.
+            # ``case_manager_store`` resolves in ``polling.case_actor``.
             "store": stack.enter_context(
                 patch.object(
-                    polling,
+                    polling_case_actor,
                     "resolve_case_actor_store_id",
                     return_value=MANAGER,
                 )
