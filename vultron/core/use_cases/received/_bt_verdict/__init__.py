@@ -50,14 +50,20 @@ with the reason the stage composed from the resolved path and the declaration
 (HP-01-039), and the handler asks :func:`received_path` which of the three
 paths it is on.
 
-:func:`not_case_manager` and :func:`not_case_manager_refusal` remain for the
-trees still to be migrated, and go with the last of them rather than with a
-migration wave of their own: the predicate reads a failed
-``CheckIsCaseManagerNode`` anywhere in the tree, and the factory's own gate
-round ``manager_effects`` holds one in every tree that has any, so the
-predicate cannot be deleted while a tree that passes no path declaration
-still reaches it.  The note and dead-letter trees (#5785) and the
-``Offer(VulnerabilityReport)`` trees (#5046) are the ones left.
+:func:`not_case_manager` and :func:`not_case_manager_refusal` are not the
+migration's to retire, and a declaring tree reaches them too.  The predicate
+reads a failed ``CheckIsCaseManagerNode`` anywhere in the tree, and ADR-0153
+keeps the gate the *factory* wraps round ``manager_effects`` (BT-17-001), so
+every tree with manager effects holds one however it declares.  A tree that
+declares the manager path alone never fails that gate — the stage refuses the
+other receivers first — but a tree that declares the replica path beside it
+and does its protocol work at the manager does: the stage admits the replica,
+the gate skips, and this predicate is what turns that skip into the refusal
+HP-01-005 owes.  The note trees are the case in point
+(``test_remove_note_at_non_manager_is_refused``).  Deleting the predicate
+therefore needs those trees re-declared manager-only, or given an explicit
+replica refusal, across the ~20 handlers that call
+:func:`case_manager_verdict`.
 """
 
 from vultron.core.use_cases.received._bt_verdict.case_manager import (

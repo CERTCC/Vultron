@@ -29,14 +29,24 @@ sites:
    and actor-offer trees and the role-gate registries, #5785 for the note and
    dead-letter trees, #5046 for the `Offer(VulnerabilityReport)` trees.
 
-   The last entry goes with the waves rather than with a wave of its own:
-   ``sender_guard``'s fallback read is taken only when a tree passes no path
-   stage, so it goes when the *last* tree declares — which is #5785 or
-   #5046, whichever lands second, and not #5044.  ``role_gates.py`` was the
-   other such entry, and #5044 cleared it a different way: that module held
-   two gates, and only the participant-replica one was ADR-0153's to retire.
-   With it gone the module's one remaining role read is the CASE_MANAGER
-   gate the record keeps, so the entry moved into
+   The last entry is not waiting for a wave at all, and #5044 established
+   that: ``sender_guard``'s fallback read is taken only when a tree passes a
+   two-sided sender rule and no path stage, and after #5044 no call site in
+   ``vultron/`` does — 62 sites, of which 52 pass both and 10 pass no sender
+   rule.  The conditional declaration in
+   ``report/received_report_trees/verdicts.py`` passes ``paths=None`` exactly
+   when its ``case_id`` is ``None``, which is exactly when ``_compose``
+   returns before the side split.  Built live, no composed sender guard in
+   any of the 58 received trees holds a ``CheckIsCaseManagerNode``.  What
+   keeps the entry is the 22 guard-composition test functions that compose a
+   guard with no stage and let the fallback derive the receiver's role from
+   their store fixture; retiring it means reworking them, which is #5876.
+
+   ``role_gates.py`` was the other such entry, and #5044 cleared it a
+   different way: that module held two gates, and only the
+   participant-replica one was ADR-0153's to retire.  With it gone the
+   module's one remaining role read is the CASE_MANAGER gate the record
+   keeps, so the entry moved into
    :data:`SANCTIONED_ROLE_QUESTION_SITES` rather than disappearing.
 2. **Pinned exemption set** :data:`SANCTIONED_ROLE_QUESTION_SITES`: the
    factory's own stage builders and the gate they build, whose CASE_MANAGER
@@ -130,15 +140,17 @@ _E = f"{_B}/embargo"
 #    Terminal value: empty.  Each wave of Epic #5193 moves a family of trees
 #    onto the declaration and drops its entries in the same commit.
 # ---------------------------------------------------------------------------
-# owner: #5193
+# owner: #5876
 KNOWN_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
     {
-        # The sender guard's own role read, for a tree that has not declared
-        # its paths: with a declaration the arms read the path stage's
-        # answer instead (HP-01-036).  The fallback is reachable while any
-        # received tree still declares nothing, so this entry belongs to the
-        # last declaring wave — the note and dead-letter trees (#5785) and
-        # the ``Offer(VulnerabilityReport)`` trees (#5046).
+        # The sender guard's own role read, taken when a two-sided rule is
+        # composed with no path stage: with a declaration the arms read the
+        # stage's answer instead (HP-01-036).  No call site in ``vultron/``
+        # reaches it after #5044 — the module docstring has the count — so
+        # the entry is held open by the guard-composition tests that compose
+        # without a stage, not by any unmigrated tree.  Retiring it means
+        # making a two-sided rule without a declaration a wiring error and
+        # reworking those tests: #5876, not a declaring wave.
         (f"{_B}/sender_guard/compose.py", CONDITION),
     }
 )
@@ -157,6 +169,12 @@ SANCTIONED_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
         # round a received tree's effects, so the read inside it is the
         # factory's (BT-17-001).  Its retired sibling, the
         # participant-replica gate, left this module in #5044.
+        #
+        # This classification is at module granularity, so a *second* role
+        # read added to this module would be exempt here.  What still catches
+        # one: ``test_received_tree_case_manager_gate.py`` pins that only
+        # ``create_case_manager_gated_tree`` constructs a ``CaseManagerGate``,
+        # and the GATE shape below reports any new caller module.
         (f"{_C}/nodes/role_gates.py", CONDITION),
         (f"{_C}/receive_stages/effects.py", GATE),
         (f"{_C}/receive_stages/guards.py", GATE),
