@@ -19,10 +19,18 @@ relevant to the changed file paths:
 | `vultron/adapters/` | `outbox.yaml`, `architecture.yaml` (ARCH-14) |
 | `vultron/demo/` | `behavior-tree-integration.yaml` (BT demo patterns) |
 | `docs/`, `notes/`, `specs/` | `project-documentation.yaml` |
-| `plan/history/` | `history-management.yaml` (HM-01–HM-05) |
 
 For each spec ID mentioned in the linked issue or PR body, confirm the
 corresponding requirement is met in the diff.
+
+**Note**: `plan/history/` entries are excluded from triage scope.
+They are written by the `append-history` tool and MUST NOT be modified after
+merging (HM-01-005).
+A finding asking for an edit to an entry cannot be acted on without violating
+that rule, so raise none for those paths (#2952).
+The one exception is the rule itself: a diff that modifies or deletes an entry
+already on the base branch (`git diff --diff-filter=MD origin/<base>...HEAD --
+plan/history/`) is a **FAIL** against HM-01-005.
 
 ---
 
