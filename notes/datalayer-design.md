@@ -13,6 +13,7 @@ related_specs:
   - specs/datalayer.yaml
   - specs/architecture.yaml (ARCH-12-003, ARCH-12-006, ARCH-23-003, ARCH-23-005)
   - specs/embargo-policy.yaml (EP-02-004)
+  - specs/message-validation.yaml (MV-11-004, MV-11-012)
   - specs/case-management.yaml (CM-11-017)
   - specs/outbox.yaml (OX-06-002)
   - specs/inbox-endpoint.yaml (IE-10-001)
@@ -319,36 +320,21 @@ block raises (DL-02-004, ADR-0146, CLP-07-015). The rules that keep it sound:
 
 ## Retiring a Stored Field (Rename, Move, or Delete)
 
-Stored data carries no backwards compatibility.
-A renamed, moved, or deleted persisted field gets no read alias (`AliasChoices`)
-and no conversion: the model declares the old key in `retired_stored_fields` via
-`RetiredFieldsRecord` (`vultron/core/models/retired_stored_fields.py`), and a
-row that still carries it, in either the field-name or camelCase spelling, fails
-to load with a message naming the old shape and saying the store must be reset
-(#4128).
-Every retired key the row carries is reported, not only the first (EH-07-001),
-and a retirement table whose replacement the model does not declare, or whose old
-key it still declares, fails at class definition.
-
-Pass `RetiredStoredField(replacement, retired_by)` for a rename within the same
-model, `RetiredStoredField(replacement, retired_by, moved_to=OtherModel)` when
-the field moved to a different model, and `RetiredStoredField(None, retired_by)`
-when the field was deleted with no replacement.
-The camelCase spelling of the old key is refused in all three cases (#4950).
-
-The declaration is what makes the refusal legible.
-`CoreRecord` refuses unknown keys (`extra="forbid"`), so an undeclared change
-never loses a field silently, but the row fails with a bare "extra inputs are not
-permitted" (and a "field required" for a renamed field) that never says a change
-happened.
+Before 1.0 Vultron supports one storage version (ADR-0175), so a renamed, moved,
+or deleted persisted field gets no read alias (`AliasChoices`), no conversion and
+no list of its former names.
+Drop the field from the model and nothing else: a row that still carries the old
+key is refused by `extra="forbid"` like any other unknown key (MV-11-004,
+ARCH-12-003), with the generic "extra inputs are not permitted" error.
+Never add a guard that refuses the old key by name (MV-11-012): it is upkeep that
+nobody reads once the store is reset.
 The SQLite read path logs the validation reason at WARNING when it reads such a
 row as absent, so `dl.read()` returning `None` always has a logged cause.
 Every PR that retires a stored field carries an operator note saying a file-backed
 store must be reset (`docker compose down -v`); an in-memory store is unaffected.
 
-A deleted stored *type* needs no marker, only that operator note.
-There is no model left to hold a retirement table, and keeping the name alive
-for old rows is the shim PROTO-08-003 forbids.
+A deleted stored *type* needs no marker either, only that operator note.
+Keeping the name alive for old rows is the shim PROTO-08-003 forbids.
 The read is already legible: the vocabulary miss logs a WARNING naming the
 type and the row reads as absent (`test_sqlite_core_roundtrip.py`, #4940).
 
@@ -360,5 +346,5 @@ creates a missing table with its indexes but never alters one that exists, so
 an old store would otherwise open silently and fail later, at the first write
 that relies on the new shape. Check the new shape after `create_all` in
 `SqliteDataLayer.__init__` and raise `VultronStaleStoreError` saying the store
-must be reset, as for a renamed field. The outbox no-duplicate index is the
+must be reset. The outbox no-duplicate index is the
 example: `require_outbox_pending_index` in `datalayer_sqlite/schema.py` (#4629).

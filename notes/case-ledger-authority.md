@@ -19,6 +19,7 @@ related_specs:
   - specs/sync-behavior-trees.yaml
   - specs/embargo-policy.yaml
   - specs/handler-protocol.yaml
+  - specs/message-validation.yaml (MV-11-003, MV-11-004)
 related_notes:
   - notes/bt-integration.md
   - notes/case-joining.md
@@ -121,10 +122,10 @@ completed closure) gets no entry, only the case-file change it causes.
 
 **The field is `semantic_type`, wire key `semanticType` (CLP-02-014).** The
 glossary names "event type" as a term to avoid for it. The hash chain hashes
-the field under its own name, as `object_id` already is. An entry still
-carrying the retired `eventType` key is refused, never aliased (CLP-02-019): a
-stored row means the store must be reset, a received one that its sender is out of date
-(`notes/datalayer-design.md`).
+the field under its own name, as `object_id` already is. The former `eventType`
+key is never aliased: a stored entry carrying it is refused as an unknown key,
+and a received one has it set aside (MV-11-003, MV-11-004, ADR-0175;
+`notes/datalayer-design.md`).
 
 ## Refusals Go to the Process Log
 

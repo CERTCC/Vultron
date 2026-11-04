@@ -381,14 +381,17 @@ _ROLE_LIST_BODIES: list[tuple[type[BaseModel], str]] = [
 
 @pytest.mark.parametrize(("model", "actor_field"), _ROLE_LIST_BODIES)
 @pytest.mark.parametrize("roles", [["finder"], ["vendor", "FINDER"]])
-def test_role_list_bodies_refuse_finder_with_its_reason(
+def test_role_list_bodies_refuse_finder_as_an_invalid_value(
     model: type[BaseModel], actor_field: str, roles: list[str]
 ) -> None:
-    """A trigger body offering the retired 'finder' role names ADR-0078."""
-    with pytest.raises(ValidationError, match="ADR-0078"):
+    """A trigger body offering the former 'finder' role is refused (ADR-0175)."""
+    with pytest.raises(ValidationError) as excinfo:
         model.model_validate(
             {"case_id": _CASE, actor_field: _ACTOR, "roles": roles}
         )
+    assert [e["msg"] for e in excinfo.value.errors()] == [
+        "Value error, 'finder' is not a valid CVDRole"
+    ]
 
 
 @pytest.mark.parametrize(("model", "actor_field"), _ROLE_LIST_BODIES)
@@ -405,12 +408,15 @@ def test_role_list_bodies_parse_roles_like_every_other_path(
 
 
 @pytest.mark.parametrize("role", ["finder", "Finder"])
-def test_offer_role_body_refuses_finder_with_its_reason(role: str) -> None:
-    """The offer-role trigger body refuses 'finder' with its reason."""
-    with pytest.raises(ValidationError, match="ADR-0078"):
+def test_offer_role_body_refuses_finder_as_an_invalid_value(role: str) -> None:
+    """The offer-role trigger body refuses 'finder' like any invalid value."""
+    with pytest.raises(ValidationError) as excinfo:
         OfferCaseParticipantRoleRequest.model_validate(
             {"case_id": _CASE, "target_actor_id": _ACTOR, "role": role}
         )
+    assert [e["msg"] for e in excinfo.value.errors()] == [
+        "Value error, 'finder' is not a valid CVDRole"
+    ]
 
 
 @pytest.mark.spec("CM-33-014")

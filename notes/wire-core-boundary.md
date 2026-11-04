@@ -18,7 +18,7 @@ related_specs:
   - specs/error-handling.yaml (EH-07-001, EH-07-003)
   - specs/status-dimension-objects.yaml (SDO-03-003)
   - specs/message-validation.yaml (MV-01-001, MV-02-002, MV-04-003, MV-11-001
-    through MV-11-005)
+    through MV-11-005, MV-11-012)
   - specs/vocabulary-model.yaml (VM-06-008, VM-07-005)
 related_notes:
   - notes/vocabulary-registry.md
@@ -189,23 +189,22 @@ disposition is stated once there (MV-11, ARCH-25-007/008):
 1. Partition the arriving keys against the resolved class's declared spellings:
    field names, generated camelCase aliases, explicit validation aliases,
    `@context` (MV-11-001).
-2. A **near miss** (same string after lowercasing and removing non-alphanumerics,
-   or a retired name) **refuses** the whole activity, naming both spellings
-   (MV-11-002). Nothing fuzzier: AS2 has too many short names one character apart.
+2. A **near miss** (same string after lowercasing and removing non-alphanumerics)
+   **refuses** the whole activity, naming both spellings (MV-11-002). Nothing
+   fuzzier: AS2 has too many short names one character apart.
    A snake_case field name is a declared spelling, not a near miss (CS-14-001).
 3. Any **other** unknown key is **set aside and reported** at INFO with
    `activity_id`, sender `actor_id`, field path and key; the activity proceeds
    (MV-11-003). Never carry the key on the object: it would leak into the stored
    form, which `forbid` refuses.
-4. **Core `forbid` is unchanged** (MV-11-004). The retired-name list lives on the
-   wire side (`unknown_keys.RETIRED_NAMES`), consulted only at the parse edge; no
-   core guard names a retired received key (MV-11-011, MV-11-012). A *stored* row's retired
-   field is refused by the shared `RetiredFieldsRecord`, a different question.
-   `RETIRED_NAMES` is for keys whose *field* is gone (`vfd_state`,
-   `activeEmbargo`). A retired *spelling* of a live field needs no entry: once
-   the class stops declaring it, it normalises to the live spelling, so rule 2
-   already refuses it and names both (`em_state`/`pxa_state` on `CaseStatus`,
-   #4376).
+4. **Core `forbid` is unchanged** (MV-11-004). **Keep no list of former names**,
+   on the wire or in storage (ADR-0175): before 1.0 there is one protocol
+   version, so a key whose *field* is gone (`vfd_state`, `activeEmbargo`) is an
+   ordinary unknown key, set aside by rule 3, and a stored row holding one is
+   refused by `forbid`. No core guard names a former key (MV-11-012). A former
+   *spelling* of a live field is still refused: once the class stops declaring
+   it, it normalises to the live spelling, so rule 2 refuses it and names both
+   (`em_state`/`pxa_state` on `CaseStatus`, #4376).
 5. **Never re-validate from the raw body after parse** (MV-11-005). Set-aside keys
    would reappear on a core class and the wrong type would be stored. Ingress
    storage persists the parsed object.

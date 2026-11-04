@@ -29,7 +29,6 @@ import vultron.adapters.outbox_dead_letter
 import vultron.adapters.outbox_sealed_body  # noqa: F401
 from test.support.core_vocab import import_all_core_models
 from vultron.core.models.base import CoreObject, CoreRecord, with_record_id
-from vultron.core.models.retired_stored_fields import RetiredFieldsRecord
 from vultron.subclasses import all_subclasses
 
 import_all_core_models()
@@ -40,8 +39,7 @@ _PROPOSAL = {
     "case_actor_id": f"{_URI}/manager",
 }
 
-#: Minimal valid data for each concrete record.  The abstract
-#: ``RetiredFieldsRecord`` base has no fields of its own to build from.
+#: Minimal valid data for each concrete record.
 _SAMPLES: dict[str, dict[str, Any]] = {
     "ActorRecommendationRecord": {
         "case_id": _URI,
@@ -118,7 +116,6 @@ def _record_types() -> list[type[CoreRecord]]:
             for cls in all_subclasses(CoreRecord)
             if not issubclass(cls, CoreObject)
             and not cls.__module__.startswith("test")
-            and cls is not RetiredFieldsRecord
         ),
         key=lambda cls: cls.__name__,
     )

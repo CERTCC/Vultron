@@ -11,6 +11,7 @@ from datetime import timedelta
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from test.support.embargo_register import (
     activate,
@@ -615,11 +616,15 @@ def test_construction_refuses_an_impossible_register(
         _case(embargo_register=entries)
 
 
-def test_a_retired_stored_field_is_refused() -> None:
-    with pytest.raises(ValueError):
+def test_a_former_stored_field_is_refused_as_an_unknown_key() -> None:
+    """``activeEmbargo`` is no longer a field: ``forbid`` refuses it (ADR-0175)."""
+    with pytest.raises(ValidationError) as exc_info:
         VulnerabilityCase.model_validate(
             {"id": CASE_ID, "attributedTo": OWNER, "activeEmbargo": A}
         )
+    assert [(e["type"], e["loc"]) for e in exc_info.value.errors()] == [
+        ("extra_forbidden", ("activeEmbargo",))
+    ]
 
 
 def test_the_active_view_returns_an_inline_embargo_object() -> None:

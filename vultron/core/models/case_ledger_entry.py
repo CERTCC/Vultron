@@ -37,18 +37,13 @@ Spec: SYNC-01-002, SYNC-02-003, SYNC-03-001 through SYNC-03-003.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, ClassVar, Literal, cast
+from typing import Any, Literal, cast
 
 from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import now_utc, timestamp_serializer
 from vultron.core.models.base import CoreObject, NonEmptyString
-from vultron.core.models.retired_stored_fields import (
-    RetiredFieldsRecord,
-    RetiredStoredField,
-)
 from vultron.core.models.wire_keys import wire_key
 
 
@@ -62,7 +57,7 @@ def ledger_entry_id(case_id: str, log_index: int) -> str:
     return f"{case_id}/log/{log_index}"
 
 
-class CaseLedgerEntry(RetiredFieldsRecord, CoreObject):
+class CaseLedgerEntry(CoreObject):
     """Core domain model for a single canonical case ledger entry.
 
     .. note::
@@ -89,12 +84,6 @@ class CaseLedgerEntry(RetiredFieldsRecord, CoreObject):
     Spec: SYNC-01-002, SYNC-02-003, SYNC-03-001 through SYNC-03-003;
     CLP-04-007.
     """
-
-    # A stored or received entry still spelling the field the old way is
-    # refused, never read through an alias (CLP-02-019).
-    retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
-        "event_type": RetiredStoredField("semantic_type", "#4872"),
-    }
 
     type_: Literal["CaseLedgerEntry"] = Field(  # type: ignore[assignment]
         default="CaseLedgerEntry",

@@ -15,9 +15,10 @@
 
 Each row is inserted as a verbatim ``Record`` (no model serialization), so
 this exercises the read path a database written before the rename takes.
-The project carries no backwards compatibility for stored data: the row
-reads back absent, and the logged reason tells an operator the store must
-be reset rather than leaving a bare "not found" (#4128, #4020).
+Before 1.0 Vultron supports one storage version (ADR-0175): the old key is an
+unknown key, so ``extra="forbid"`` refuses the row (MV-11-004, ARCH-12-003),
+the row reads back absent, and the logged reason names the key rather than
+leaving a bare "not found".
 """
 
 from typing import Any
@@ -100,25 +101,25 @@ def _row(
     )
 
 
-@pytest.mark.spec("CP-05-005")
+@pytest.mark.spec("ARCH-12-003", "MV-11-004")
 @pytest.mark.parametrize(
     ("cls", "key", "fields", "old", "new"), _CASES, ids=_IDS
 )
-def test_a_pre_rename_row_reads_absent_naming_the_reset(
+def test_a_pre_rename_row_reads_absent_naming_the_unknown_key(
     dl, caplog, cls, key, fields, old, new
 ) -> None:
+    assert new in cls.model_fields and old not in cls.model_fields
     row = _row(cls, key, fields, old)
     dl.create(row)
 
     with caplog.at_level("WARNING"):
         assert dl.read(row.id_) is None
 
-    assert "must be reset" in caplog.text
-    assert repr(old) in caplog.text
-    assert repr(new) in caplog.text
+    assert old in caplog.text
+    assert "Extra inputs are not permitted" in caplog.text
 
 
-@pytest.mark.spec("CP-05-005")
+@pytest.mark.spec("ARCH-12-003")
 @pytest.mark.parametrize(
     ("cls", "key", "fields", "old", "new"), _CASES, ids=_IDS
 )
@@ -137,15 +138,15 @@ def test_a_row_under_the_new_name_reads_back(
 CASE_ID = "https://example.org/cases/c-legacy"
 
 
-@pytest.mark.spec("CLP-07-014")
+@pytest.mark.spec("CLP-07-014", "MV-11-004")
 def test_a_case_row_carrying_the_moved_recommender_index_reads_absent(
     dl, caplog
 ) -> None:
     """A case stored before #4448 still holds the recommender index.
 
     The index is now the CASE_MANAGER's own ``ActorRecommendationRecord``;
-    the old case row is not converted, and reading it says the store must be
-    reset rather than reporting a bare "not found".
+    the old case row is not converted, and reading it names the unknown key
+    rather than reporting a bare "not found".
     """
     case = VulnerabilityCase(
         id_=CASE_ID, attributed_to=OWNER_ID, name="Legacy case"
@@ -159,9 +160,8 @@ def test_a_case_row_carrying_the_moved_recommender_index_reads_absent(
     with caplog.at_level("WARNING"):
         assert dl.read(CASE_ID) is None
 
-    assert "must be reset" in caplog.text
-    assert "'recommendationRecommenderIndex'" in caplog.text
-    assert "ActorRecommendationRecord.recommender_id" in caplog.text
+    assert "recommendationRecommenderIndex" in caplog.text
+    assert "Extra inputs are not permitted" in caplog.text
 
 
 @pytest.mark.spec("CLP-07-014")

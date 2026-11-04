@@ -57,8 +57,8 @@ from pydantic import BaseModel, ConfigDict
 from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.participants.recipients import (

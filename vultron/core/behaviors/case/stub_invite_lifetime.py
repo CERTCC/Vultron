@@ -107,8 +107,8 @@ def record_of(obj: Any) -> RecordedStubInvite | None:
     invite_id = getattr(obj, "id_", None)
     if not isinstance(case_id, str) or not invitee_id or not invite_id:
         return None
-    # Plain attribute access: the stub's embargo reference shares its name with
-    # a retired wire key, and no core string constant may spell one (MV-11-011).
+    # Plain attribute access, not ``getattr`` with a string: no core string
+    # constant names a retired key (MV-11-012).
     try:
         embargo = target.active_embargo
     except AttributeError:

@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Every classifying handler in ``bridge.py`` builds its result via one helper.
+"""Every classifying handler in ``bridge/`` builds its result via one helper.
 
 CS-22-001.  #3080 was a log-level divergence between two of ``BTBridge``'s
 near-identical exception handlers, invisible to a reader comparing them because
@@ -29,7 +29,7 @@ and is blind to the three ``except VultronError`` handlers.  A new or edited
 its own message format or its own log level — would pass every check in the
 suite, which is precisely how #3080 happened the first time.
 
-This ratchet closes that gap: any handler in ``bridge.py`` that returns a value
+This ratchet closes that gap: any handler in ``bridge/`` that returns a value
 must return ``self._exception_result(...)``.  The one handler that returns
 nothing is the ``bt.shutdown()`` guard in ``execute_tree``'s ``finally``, whose
 job is to preserve the result a classified handler already returned; it is
@@ -45,17 +45,25 @@ import ast
 
 from test.architecture import _corpus
 
-_BRIDGE = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "bridge.py"
+_BRIDGE = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "bridge"
 
 _HELPER = "_exception_result"
 
 
 def _bridge_tree() -> ast.Module:
-    """Return the cached AST for ``bridge.py`` (TB-13-002, TB-13-003)."""
-    for path, tree in _corpus.all_trees(_BRIDGE.parent):
-        if path == _BRIDGE and isinstance(tree, ast.Module):
-            return tree
-    raise AssertionError(f"{_BRIDGE} not in the shared corpus")
+    """Return every ``bridge/`` submodule as one AST (TB-13-002, TB-13-003).
+
+    ``BTBridge`` is split across the package's submodules, so the ratchet reads
+    them all: scanning one file would silently drop the handlers and calls that
+    live in the others.
+    """
+    body: list[ast.stmt] = []
+    for _path, tree in _corpus.all_trees(_BRIDGE):
+        if isinstance(tree, ast.Module):
+            body.extend(tree.body)
+    if not body:
+        raise AssertionError(f"{_BRIDGE} not in the shared corpus")
+    return ast.Module(body=body, type_ignores=[])
 
 
 def _handlers(tree: ast.Module) -> list[ast.ExceptHandler]:
@@ -103,7 +111,7 @@ def test_every_returning_handler_routes_through_the_helper() -> None:
     # Guard against a vacuous pass if the extractor stops matching: the module
     # is known to carry six classifying handlers plus the shutdown guard.
     assert len(handlers) >= 7, (
-        f"expected at least 7 except handlers in {_BRIDGE.name}, found"
+        f"expected at least 7 except handlers in {_BRIDGE.name}/, found"
         f" {len(handlers)} — has the extractor stopped matching?"
     )
 
@@ -121,7 +129,7 @@ def test_every_returning_handler_routes_through_the_helper() -> None:
                 )
 
     assert not offenders, (
-        "exception handler(s) in bridge.py build a result without going through"
+        "exception handler(s) in bridge/ build a result without going through"
         f" BTBridge.{_HELPER}:\n  " + "\n  ".join(offenders) + "\n\n"
         "The message text, the log level and the internal_error flag must all"
         " derive from one input, or they drift apart: #3080 was exactly that"
@@ -150,7 +158,7 @@ def test_the_shutdown_guard_is_the_only_handler_that_returns_nothing() -> None:
     silent = [h for h in _handlers(tree) if not _returned_values(h)]
 
     assert len(silent) == 1, (
-        "expected exactly one non-returning except handler in bridge.py (the"
+        "expected exactly one non-returning except handler in bridge/ (the"
         " bt.shutdown() guard in execute_tree's finally), found"
         f" {len(silent)} at line(s) {sorted(h.lineno for h in silent)}.\n\n"
         "A handler that swallows an exception without returning a classified"

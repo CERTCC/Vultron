@@ -20,7 +20,7 @@ from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import _EmitSingleActivityBase
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.participants.authority import (
     case_manager_address,
