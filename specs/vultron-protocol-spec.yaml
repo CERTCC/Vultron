@@ -619,6 +619,9 @@ groups:
     - story_2022_007
     - story_2022_008
     - story_2022_077
+    relationships:
+    - rel_type: refines
+      spec_id: ASK-07-001
   - id: VP-03-009
     priority: SHOULD
     kind: protocol
@@ -657,6 +660,9 @@ groups:
       process the message falls under ASK-07-001.
     stories:
     - story_2026_011
+    relationships:
+    - rel_type: uses_definition
+      spec_id: ASK-07-001
   - id: VP-03-011
     priority: SHOULD
     kind: protocol
@@ -990,6 +996,9 @@ groups:
     stories:
     - story_2022_066
     - story_2022_068
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-10-004
   - id: VP-05-013
     priority: SHOULD
     kind: protocol
@@ -1157,7 +1166,7 @@ groups:
       disagreeing about whether an embargo binds them. An explicit answer gives them all
       the same record.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: VP-06-004
     stories:
     - story_2022_010
@@ -1225,7 +1234,7 @@ groups:
       At this point only release preparation remains. A long embargo would delay the
       deployment of a fix that already exists.
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: VP-06-008
     stories:
     - story_2022_025
@@ -1353,7 +1362,7 @@ groups:
       embargo-eligibility guard.
     verification_debt: '#3612'
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: EP-04-005
     adr:
     - ADR-0096
@@ -1379,7 +1388,7 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VP-07-001
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: EP-04-008
     adr:
     - ADR-0096
@@ -2043,6 +2052,9 @@ groups:
     stories:
     - story_2022_007
     - story_2022_018
+    relationships:
+    - rel_type: refines
+      spec_id: CM-02-005
   - id: VP-11-003
     priority: MUST
     kind: protocol
@@ -2073,6 +2085,9 @@ groups:
       disagree with the ledger.
     stories:
     - story_2026_011
+    relationships:
+    - rel_type: uses_definition
+      spec_id: EP-09-009
   - id: VP-11-005
     priority: SHOULD
     kind: protocol
@@ -2087,6 +2102,9 @@ groups:
       (EP-09-009).
     stories:
     - story_2022_008
+    relationships:
+    - rel_type: uses_definition
+      spec_id: EP-09-009
   - id: VP-11-006
     priority: MUST
     kind: protocol
@@ -2114,6 +2132,9 @@ groups:
       and that the Case Owner's is applied and exits the embargo.
     stories:
     - story_2022_019
+    relationships:
+    - rel_type: refines
+      spec_id: CM-02-005
   - id: VP-11-007
     priority: SHOULD
     kind: protocol
@@ -2178,6 +2199,11 @@ groups:
       whose replica then exits the embargo.
     stories:
     - story_2022_018
+    relationships:
+    - rel_type: uses_definition
+      spec_id: VP-11-002
+    - rel_type: uses_definition
+      spec_id: VP-11-006
   - id: VP-11-012
     priority: MUST_NOT
     kind: protocol
@@ -2246,7 +2272,7 @@ groups:
       leaves users harmed. Publishing and deploying as soon as practical shortens that
       harm.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: VP-12-002
     stories:
     - story_2022_019
@@ -2468,6 +2494,9 @@ groups:
       is the Case Owner's authority (VP-13-019).
     stories:
     - story_2022_066
+    relationships:
+    - rel_type: refines
+      spec_id: VP-13-017
   - id: VP-13-019
     priority: MAY
     kind: protocol
@@ -2764,9 +2793,6 @@ groups:
       `test/core/behaviors/case/nodes/test_guarded_commit_tree.py` confirm that the
       guarded ledger commit, through which every canonical state change is recorded,
       runs for the CASE_MANAGER and is skipped for any other actor.
-    relationships:
-    - rel_type: refines
-      spec_id: VP-02-001
     stories:
     - story_2026_059
     - story_2022_046
@@ -2784,7 +2810,7 @@ groups:
       This path is distinct from VP-17-001 and is not a bypass of the CASE_MANAGER
       write constraint.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: VP-17-001
     - rel_type: constrains
       spec_id: SM-10-002
