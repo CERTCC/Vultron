@@ -1158,17 +1158,17 @@ def test_post_inbox_does_not_persist_core_class_for_core_only_type(
     stages the inline object for routing (#3763), so the staging is what is
     watched.
     """
-    from vultron.adapters import inbox_staging
+    from vultron.adapters.inbox_staging import staging as staging_module
     from vultron.core.models.base import CoreObject
 
     persisted: list[object] = []
-    real_object_to_record = inbox_staging.object_to_record
+    real_object_to_record = staging_module.object_to_record
 
     def _spy(obj):
         persisted.append(obj)
         return real_object_to_record(obj)
 
-    monkeypatch.setattr(inbox_staging, "object_to_record", _spy)
+    monkeypatch.setattr(staging_module, "object_to_record", _spy)
 
     actor = created_actors[0]
     payload = {

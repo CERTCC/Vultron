@@ -1,31 +1,8 @@
-#!/usr/bin/env python
-"""Staging for an inbound activity and its inline objects (#3763, #4871).
+"""One actor's inbox staging: rebuild, hold for replay, release.
 
-The receiver keeps no copy of a received activity under the id its sender
-chose (DL-06-006), and no record of an object the activity carries inline: a
-case, note or embargo a sender inlines is a claim, and only the handler, after
-its guards, writes the core record it gives rise to (CLP-10-038, CLP-10-039;
-ADR-0111 as amended).  Writing them at receipt let a sender seed a case
-replica ahead of the trust check that should refuse it (PCR-03-004,
-CBT-01-011), and let a received ``Create`` read as one the receiver sent
-(#4866).
-
-Routing still needs the activity rebuilt through the store's read pipeline
-(``_from_row`` → field expansion → semantic coercion), which is what turns
-the parsed wire graph into the shape the patterns match.  So each delivery is
-staged in a :class:`_StagingStore`: an in-memory store, emptied before and
-after each use, that holds the activity's row and its inline objects' rows,
-and answers any other read from the receiver's own store, so an object the
-receiver already holds is always the one routing sees.  The rebuild reads the
-activity from it, and nothing staged reaches the receiver's store.
-
-An activity deferred until its case is known is replayed later, by id, after
-the staging store has been emptied.  It is held for that replay in one
-:class:`~vultron.core.models.deferred_inbox_activity.DeferredInboxActivity`
-record (:meth:`InlineObjectStaging.hold_for_replay`), keyed by the receiver:
-the received body the parser sealed, beside the staged inline rows
-(IO-03-009).  The replay parses that body again, stages it with the held rows
-and deletes the record (:meth:`InlineObjectStaging.rehydrate_deferred`).
+:class:`InlineObjectStaging` stages a delivery's activity and inline objects
+in the scratch store, rebuilds the activity through the store's read pipeline,
+and holds a deferred activity for replay (IO-03-009).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -43,20 +20,18 @@ and deletes the record (:meth:`InlineObjectStaging.rehydrate_deferred`).
 
 import json
 import logging
-import threading
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any, cast
 
 from pydantic import ValidationError
-from sqlmodel import select
 
-from vultron.adapters.driven.datalayer_sqlite import (
-    SqliteDataLayer,
-    VultronObjectRecord,
-)
-from vultron.adapters.driven.datalayer_sqlite.engine import scratch_memory_url
 from vultron.adapters.driven.db_record import object_to_record
+from vultron.adapters.inbox_staging.store import (
+    _STAGING_LOCK,
+    _row_record,
+    _Staged,
+    _StagingStore,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.protocols import PersistableModel
@@ -79,60 +54,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 logger = logging.getLogger(__name__)
-
-#: Every actor's staging store is emptied around each use, so two uses must
-#: never overlap.  The per-actor inbox lock already serialises a production
-#: actor's deliveries; this lock also covers callers that run the pipeline
-#: without it, as the tests do.
-_STAGING_LOCK = threading.Lock()
-
-
-class _StagingStore(SqliteDataLayer):
-    """An in-memory store that reads through to the receiver's own store.
-
-    Reads of anything but the activity being rebuilt go to *held* first, so
-    an object the receiver already holds is always the one routing sees, as it
-    was when ingress wrote inline objects and a duplicate was skipped.  The
-    activity itself is read only from the copy staged here: the receiver holds
-    none under its sender's id (DL-06-006), and the read that rebuilds it
-    resolves its references through the store that returned it.
-    """
-
-    def __init__(self, held: DataLayer, activity_id: str) -> None:
-        # Every SqliteDataLayer names its deployment and its actor; a store
-        # that names neither still gets a staging store of its own.
-        super().__init__(
-            scratch_memory_url(
-                getattr(held, "db_url", "sqlite:///:memory:"), "inbox-staging"
-            ),
-            actor_id=getattr(held, "actor_id", None) or "inbox-staging",
-        )
-        self._held = held
-        self._activity_id = activity_id
-
-    def read(
-        self, object_id: str, raise_on_missing: bool = False
-    ) -> PersistableModel | None:
-        """Read from the receiver's store first, except for the activity."""
-        if object_id != self._activity_id:
-            held = self._held.read(object_id)
-            if held is not None:
-                return held
-        return super().read(object_id, raise_on_missing)
-
-    def staged_rows(
-        self,
-    ) -> tuple[dict[str, object] | None, list[dict[str, object]]]:
-        """Return the activity's staged row and every other row staged here."""
-        with self._session() as session:
-            rows = session.exec(select(VultronObjectRecord)).all()
-            as_dicts: list[dict[str, object]] = [
-                {"id_": row.id_, "type_": row.type_, "data_": row.data}
-                for row in rows
-            ]
-        own = [row for row in as_dicts if row["id_"] == self._activity_id]
-        inline = [row for row in as_dicts if row["id_"] != self._activity_id]
-        return (own[0] if own else None), inline
 
 
 def _stage_inline_object(store: DataLayer, activity: as_Activity) -> None:
@@ -235,21 +156,6 @@ def _stage_inline_object(store: DataLayer, activity: as_Activity) -> None:
             "Inline object %s already staged; skipping.",
             getattr(nested, "id_", "<no id>"),
         )
-
-
-def _row_record(row: dict[str, Any]) -> StorableRecord:
-    """A held storage row, as the record ``create`` accepts."""
-    return StorableRecord(
-        id_=str(row["id_"]), type_=str(row["type_"]), data_=row["data_"]
-    )
-
-
-@dataclass(frozen=True)
-class _Staged:
-    """What one rebuild staged, kept so a deferral can hold it."""
-
-    received_body: str | None
-    inline_rows: list[dict[str, object]]
 
 
 class InlineObjectStaging:
@@ -513,6 +419,3 @@ class InlineObjectStaging:
             finally:
                 store.clear_all()
         return result if isinstance(result, as_Activity) else None
-
-
-__all__ = ["InlineObjectStaging"]
