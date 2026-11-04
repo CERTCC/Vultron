@@ -2947,6 +2947,8 @@ groups:
       spec_id: CM-14-001
     - rel_type: refines
       spec_id: CM-13-006
+    - rel_type: refines
+      spec_id: CM-18-007
     stories:
     - story_2022_023
     - story_2026_080
@@ -4743,9 +4745,6 @@ groups:
     verification: Integration tests in `test/demo/` confirm that the default embargo is
       established before each participant's consent row is written during case initialization, so
       each initial participant record carries the correct rows.
-    relationships:
-    - rel_type: implements
-      spec_id: CM-14-003
     adr:
     - ADR-0048
     - ADR-0122
@@ -5950,7 +5949,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CM-21-005
     adr:
     - ADR-0115
@@ -6503,7 +6502,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-23-001
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-23-005
     - rel_type: uses_definition
       spec_id: CM-10-004
@@ -9358,7 +9357,7 @@ groups:
     stories:
     - story_2022_075
     relationships:
-    - rel_type: extends
+    - rel_type: supersedes
       spec_id: SM-05-003
   - id: CM-29-006
     priority: MUST
