@@ -19,6 +19,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BlackboardKeyProbe
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -108,15 +109,18 @@ class TestResolveCaseManagerNode:
         assert result.status == Status.SUCCESS
 
     def test_writes_case_manager_id_to_blackboard(self, dl, bridge):
+        """``/case_manager_id`` is published for later nodes of the same
+        execution and does not outlive it (#5803).
+        """
         store, actor = dl
         case, _ = _make_case_with_case_manager(store, actor.id_, CASE_ACTOR_ID)
-        node = ResolveCaseManagerNode(case_id=case.id_)
-        bridge.execute_with_setup(tree=node, actor_id=actor.id_)
-        reader = py_trees.blackboard.Client(name="test-reader")
-        reader.register_key(
-            key="case_manager_id", access=py_trees.common.Access.READ
+        tree, probe = BlackboardKeyProbe.after(
+            ResolveCaseManagerNode(case_id=case.id_), "case_manager_id"
         )
-        assert reader.case_manager_id == CASE_ACTOR_ID
+        result = bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+        assert result.status == Status.SUCCESS
+        assert probe.value == CASE_ACTOR_ID
+        assert "/case_manager_id" not in py_trees.blackboard.Blackboard.storage
 
     def test_failure_when_case_not_found(self, dl, bridge):
         _, actor = dl
