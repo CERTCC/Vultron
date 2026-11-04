@@ -7,8 +7,9 @@ pass/fail summary.
 
 The multi-container **scenario** sub-commands are not declared here at all:
 they are generated, one per registered scenario, by
-:func:`~vultron.demo.cli.scenario_commands._make_scenario_command` from the scenario registry (DEMOCI-11-011, ADR-0098).  The registry is the sole
-declaration point for which scenarios exist, so this module cannot be a place a
+:func:`~vultron.demo.cli.scenario_commands._make_scenario_command` from the
+scenario registry (DEMOCI-11-011, ADR-0098).  The registry is the sole declaration
+point for which scenarios exist, so this package cannot be a place a
 scenario is omitted from or added to independently of it — which it was while it
 hand-wired one ``@main.command`` block each.  Each scenario module supplies the
 two things the registry deliberately does not carry: its ``ROLES`` list (the

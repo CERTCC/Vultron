@@ -1505,7 +1505,8 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: 'Simulation fuzzer modules MUST be organized by CVD domain: `vultron/demo/fuzzer/base.py` (probabilistic infrastructure),
-      `vultron/demo/fuzzer/embargo/` (embargo management), `vultron/demo/fuzzer/messaging.py` (inbound message handling),
+      `vultron/demo/fuzzer/embargo/` (embargo management),
+      `vultron/demo/fuzzer/messaging.py` (inbound message handling),
       and `vultron/demo/fuzzer/report_management/` (report lifecycle sub-workflows as parallel submodules).'
     rationale: Domain-aligned module organization mirrors the workflow structure of the existing `vultron/bt/` simulation
       and makes cross-references between simulation stubs and production use cases straightforward for future implementers.
