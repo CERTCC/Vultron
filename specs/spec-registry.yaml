@@ -1855,9 +1855,8 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      The spec linter MUST report as a hard error each `kind: protocol` spec of the
-      MUST tier (`priority: MUST` or `priority: MUST_NOT`) that has no `stories:`
-      entry.
+      The spec linter MUST report as a hard error each `kind: protocol` spec with
+      `priority: MUST` or `priority: MUST_NOT` that has no `stories:` entry.
     verification: >-
       `test/metadata/specs/lint/test_advisories.py::test_protocol_must_no_stories_is_hard_error`,
       `::test_protocol_must_not_no_stories_is_hard_error`,

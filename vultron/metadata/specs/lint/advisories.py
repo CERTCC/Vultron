@@ -31,8 +31,9 @@ def _check_missing_story_references(registry: SpecRegistry) -> list[str]:
     """Hard error when a protocol MUST-tier spec has no ``stories:`` (SR-11-003).
 
     Protocol MUST and MUST_NOT specs define wire-level compliance invariants.
-    A MUST-tier requirement with no user-story back-reference breaks the bidirectional traceability graph and is
-    treated as a hard gate (exit 1).  Suppressible via
+    A MUST-tier requirement with no user-story back-reference breaks the
+    bidirectional traceability graph and is treated as a hard gate (exit 1).
+    Suppressible via
     ``lint_suppress: [missing_story_reference]`` for specs that are genuinely
     not traceable to any story. The gate's scope is
     :func:`sr_11_003_gate_applies`.
