@@ -29,6 +29,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.sender_entitlement.base import (
     SenderEntitlementConditionNode,
+    refuse_by_placement,
 )
 from vultron.core.behaviors.sender_entitlement.declarations import (
     SenderEntitlementKind,
@@ -52,7 +53,9 @@ class SenderIsParticipantNode(FindParticipantByActorIdNode):
 
     Not a :class:`SenderEntitlementConditionNode`: it reuses the participant
     lookup of :class:`FindParticipantByActorIdNode`, so it names its kind
-    itself.
+    itself and takes the family's refusal rule from the free function
+    :func:`~vultron.core.behaviors.sender_entitlement.base.refuse_by_placement`
+    rather than from the base method (SL-03-002, #5786).
 
     Returns ``SUCCESS`` when the case lists a participant record for the
     sender, whether or not that participant is active (CM-10-004): an inert
@@ -100,42 +103,33 @@ class SenderIsParticipantNode(FindParticipantByActorIdNode):
 
         case_id = self._case_id_hint
         if case_id is None:
-            self.feedback_message = (
+            return refuse_by_placement(
+                self,
                 f"No case in this store to check sender"
-                f" '{self.sender_actor_id}' against"
+                f" '{self.sender_actor_id}' against — REFUSED"
+                " (HP-01-006, DEMOMA-07-003 step 1)",
             )
-            self.logger.warning(
-                "%s: %s (HP-01-006, DEMOMA-07-003 step 1)",
-                self.name,
-                self.feedback_message,
-            )
-            return Status.FAILURE
 
         self.case_id = case_id
         result = super().update()
         if result == Status.FAILURE:
-            self.feedback_message = (
+            return refuse_by_placement(
+                self,
                 f"Sender '{self.sender_actor_id}' is not a participant of"
-                f" case '{case_id}' — REFUSED (HP-01-006)"
+                f" case '{case_id}' — REFUSED"
+                " (HP-01-006, DEMOMA-07-003 step 1)",
             )
-            self.logger.warning(
-                "%s: %s (DEMOMA-07-003 step 1)",
-                self.name,
-                self.feedback_message,
-            )
-            return Status.FAILURE
 
         # The record the lookup above found, not a second lookup through the
         # index, so the two can never disagree about which record is closed.
         record = self.found_participant
         if record is not None and record.rm_closed:
-            self.feedback_message = (
+            return refuse_by_placement(
+                self,
                 f"Sender '{self.sender_actor_id}' has left case '{case_id}'"
                 " (RM CLOSED) and may act on nothing further — REFUSED"
-                " (HP-01-006, CM-23-018)"
+                " (HP-01-006, CM-23-018)",
             )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
 
         self.logger.debug(
             "%s: sender '%s' is a participant in case '%s'"
@@ -192,24 +186,20 @@ class SenderIsActiveParticipantNode(SenderEntitlementConditionNode):
         if self.case_id is None:
             # An activity that names no case is a routine refusal, as
             # SenderIsParticipantNode reports it, not a Regime 1 anomaly.
-            self.feedback_message = (
+            return self._refuse_by_placement(
                 f"No case in this store to check sender"
                 f" '{self.sender_actor_id}' against — REFUSED (HP-01-006)"
             )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1: no case, so no standing to check
         if may_act_on_case(case, self.datalayer, self.sender_actor_id):
             return Status.SUCCESS
-        self.feedback_message = (
+        return self._refuse_by_placement(
             f"Sender '{self.sender_actor_id}' is not an active participant"
             f" of case '{self.case_id}', or has left it — REFUSED"
             " (HP-01-006, CM-10-004, CM-23-018)"
         )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
 
 # ---------------------------------------------------------------------------
@@ -280,12 +270,10 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
         if failure is not None:
             return failure
         if not is_case_content_recipient(case, self.datalayer, sender_id):
-            self.feedback_message = (
+            return self._refuse_by_placement(
                 f"Sender '{sender_id}' is not an active participant in case"
                 f" '{case_id}' — REFUSED (SYNC-03-005, CM-10-004)"
             )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
         return Status.SUCCESS
 
 
@@ -319,7 +307,26 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
     Keyed on the sender's recorded RM state, never on the activity id, which
     a repeat sent under a new id does not share.  Read-only.
 
-    Spec: CM-23-018, ID-05-003, HP-01-007.
+    Its line stays at INFO, and does not take the placement rule the kinds'
+    checks take (:func:`refuse_by_placement`, SL-03-002).  Three reasons,
+    and the third is why DEBUG would cost something (#5786):
+
+    - Its FAILURE is not a refusal.  The handler decides the verdict from
+      the act: a repeat of an act that would close the sender again is
+      ``SKIPPED`` (CM-23-049, ID-05-003), and only any other act is
+      ``REFUSED``.  SL-03-002 picks the level of a *refusal reason*; this
+      line reports a recorded state, which is INFO under SL-03-001.
+    - It carries no ``REFUSED`` wording, so no reader and no matcher takes
+      it as the tree's answer (SL-03-003 is met as it stands).
+    - At the closed-sender door that lets a closing Case Owner through
+      (:func:`vultron.core.behaviors.sender_guard.closed_sender_door` with
+      ``case_owner_completes``) this check is the Selector's first arm, so
+      the placement rule would read DEBUG — while the arm after it,
+      :class:`~vultron.core.behaviors.sender_entitlement.case_owner.SenderIsCaseOwnerNode`,
+      records its reason without logging it at all (#5845).  The door's
+      refusal would then have no line above DEBUG anywhere.
+
+    Spec: CM-23-018, ID-05-003, HP-01-007, SL-03-001.
     """
 
     def __init__(

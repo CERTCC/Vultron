@@ -13,7 +13,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The base class every sender check derives from, and its refusal rule.
+"""The sender checks' shared refusal rule, and the base class most derive from.
+
+:func:`refuse_by_placement` is a free function so that a check which is not a
+:class:`SenderEntitlementConditionNode` subclass can take the same rule.
 
 A check's FAILURE refuses the sender only where nothing above it may
 still admit the sender (:func:`failure_is_the_refusal`, SL-03-002).
@@ -28,6 +31,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.behaviors.sender_entitlement.declarations import (
     SenderEntitlementKind,
 )
@@ -86,6 +90,45 @@ def _without_refusal_wording(reason: str) -> str:
     return _REFUSAL_WORDING.sub("", reason)
 
 
+def refuse_by_placement(
+    node: py_trees.behaviour.Behaviour, reason: str
+) -> Status:
+    """Record *reason* as *node*'s failure reason and fail at the right level.
+
+    *reason* becomes ``feedback_message``, which is what
+    ``BTBridge.get_failure_reason`` reports (BT-13-001), so it arrives
+    already carrying its own ``— REFUSED (IDs)`` group.  The log level
+    follows the tree: WARNING when this node's FAILURE is the guard's
+    refusal, DEBUG when a later arm of an any-of side still gets to admit
+    the sender (:func:`failure_is_the_refusal`).  A line a receiver that
+    then admits the activity would emit is branch selection, not a refusal,
+    so it belongs at DEBUG (SL-03-002), and it drops the ``REFUSED``
+    wording with it (SL-03-003).
+
+    A free function, not only a method of
+    :class:`SenderEntitlementConditionNode`, because one check the factory
+    composes into the same any-of sides is not a subclass of it:
+    :class:`~vultron.core.behaviors.sender_entitlement.membership.SenderIsParticipantNode`
+    reuses the participant lookup of ``FindParticipantByActorIdNode``.  One
+    rule for the family beats a second copy of it (#5786).
+
+    Writes through :func:`node_logger`, the per-class stdlib logger a helper
+    logging on a node's behalf uses, so the line lands where the node's own
+    ``self.logger`` lines land (SL-01-005).
+    """
+    logger = node_logger(node)
+    node.feedback_message = reason
+    if failure_is_the_refusal(node):
+        logger.warning("%s: %s", node.name, reason)
+    else:
+        logger.debug(
+            "%s: %s; a later arm of the any-of side may still admit it",
+            node.name,
+            _without_refusal_wording(reason),
+        )
+    return Status.FAILURE
+
+
 # ---------------------------------------------------------------------------
 # Base class: marks nodes as sender-entitlement checks for the ratchet
 # ---------------------------------------------------------------------------
@@ -112,29 +155,15 @@ class SenderEntitlementConditionNode(DataLayerConditionWithPorts):
     def _refuse_by_placement(self, reason: str) -> Status:
         """Record *reason* as this check's failure reason and fail.
 
-        *reason* becomes ``feedback_message``, which is what
-        ``BTBridge.get_failure_reason`` reports (BT-13-001), so it arrives
-        already carrying its own ``— REFUSED (IDs)`` group.  The log level
-        follows the tree: WARNING when this node's FAILURE is the guard's
-        refusal, DEBUG when a later arm of an any-of side still gets to
-        admit the sender (:func:`failure_is_the_refusal`).  A line a
-        receiver that then admits the activity would emit is branch
-        selection, not a refusal, so it belongs at DEBUG (SL-03-002).
+        Every check reaches :func:`refuse_by_placement` through this method,
+        which holds the rule for the family: one reason string, logged at
+        the level the node's place in the running tree makes right.
 
-        Named for the placement it reads, not ``_refuse``, because three
-        subclasses already define a ``_refuse`` of their own with the
-        opposite contract — it *appends* the ``REFUSED`` group and always
-        logs WARNING.  A base ``_refuse`` would be silently overridden on
-        those branches, which neither mypy nor pyright reports, so routing
-        them through this rule would look done and do nothing (#5786).
+        Named for the placement it reads, not ``_refuse``, because a
+        subclass that composes its own citation wants a name of its own
+        (``_refuse_citing``).  A base ``_refuse`` would be silently
+        overridden on those branches, which neither mypy nor pyright
+        reports, so routing them through this rule would look done and do
+        nothing (#5786).
         """
-        self.feedback_message = reason
-        if failure_is_the_refusal(self):
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-        else:
-            self.logger.debug(
-                "%s: %s; a later arm of the any-of side may still admit it",
-                self.name,
-                _without_refusal_wording(reason),
-            )
-        return Status.FAILURE
+        return refuse_by_placement(self, reason)
