@@ -19,7 +19,7 @@ timing metrics — need the same input: the case's event history, each Coordinat
 Vulnerability Disclosure event labelled by participant and cause, with its time.
 The case ledger already records every state change as its own entry, but nothing
 turns those entries into an event history, so the existing scoring code in
-`vultron/core/case_states/hypercube.py` has no source of real histories to score.
+`vultron/core/case_states/hypercube/model.py` has no source of real histories to score.
 
 Deciding how to get from a ledger to an event history settles several things at once:
 what the layer reads, where it sits relative to the protocol, how an event is

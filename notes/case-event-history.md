@@ -162,7 +162,7 @@ Project one case-state sequence per participant **whose events include a
 vendor-awareness event**, combining that participant's own fix-path and deployment
 events with the case's public-state events (CEH-05-001, CEH-05-003). That is the shape
 `replay_cs_history` and `is_valid_cs_history_prefix` read
-(`vultron/core/states/cs_invariants.py`).
+(`vultron/core/states/cs_invariants/history.py`).
 
 Do not collapse several vendors into one sequence (CEH-05-006). Vendor awareness and
 fix readiness occur once per vendor, and no rule yet says which vendor's event stands
@@ -204,7 +204,8 @@ layer builds the compound, so this layer owns the check (CEH-05-004).
 ### The layer stops at the sequence
 
 It computes no score (CEH-05-008). The existing desiderata scorer is
-`CVDmodel.score_hist` in `vultron/core/case_states/hypercube.py` — note the name —
+`CVDmodel.score_hist` in `vultron/core/case_states/hypercube/_scoring.py` — note the
+name —
 and it admits only a *complete* six-event history, raising `ScoringError` on anything
 shorter. Every sequence the committed recordings yield is incomplete, so there is no
 score to compute for a typical case. How an incomplete sequence earns a score is an
