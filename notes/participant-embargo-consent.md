@@ -127,9 +127,9 @@ and exited are reads; code that writes a row to record one re-creates the second
 record ADR-0122 removed.
 
 `ParticipantStatus` carries no consent and `embargo_adherence` is gone
-(ADR-0122 supersedes ADR-0056). The wire keys `emConsentState`,
-`embargoAdherence`, `embargoConsentState` and `acceptedEmbargoIds` are refused
-inbound by name (`RETIRED_NAMES`).
+(ADR-0122 supersedes ADR-0056). The former wire keys `emConsentState`,
+`embargoAdherence`, `embargoConsentState` and `acceptedEmbargoIds` are ordinary
+unknown keys inbound, set aside and reported (MV-11-003, ADR-0175).
 
 ---
 
@@ -517,7 +517,7 @@ The owner's decision and each participant's consent are different messages
   id) changes nothing. It logs no invalid-transition warning, and the
   CASE_MANAGER commits no ledger entry and sends nothing:
   `EmbargoAnswerNotRecordedNode` reads `consent_for(embargo_id)` ahead of the
-  commit and the handler reports `SKIPPED` (CM-13-005, HP-01-003, #4597). A
+  commit and the handler reports `SKIPPED` (CM-13-005, HP-01-014, #4597). A
   change of answer is normal, not a repeat, and is recorded with one ledger
   entry: withdrawal (a Reject until #4388 adds `Leave`), or an Accept after a
   Reject, which moves the row straight to `AGREED`.

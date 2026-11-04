@@ -17,7 +17,8 @@
 
 :func:`received_embargo_invite_tree` is the factory the Invite handler calls.
 A well-formed Invite gets
-:func:`~vultron.core.behaviors.embargo.announce_teardown_tree.invite_to_embargo_on_case_tree`.
+:func:`~vultron.core.behaviors.embargo.announce_teardown_tree.invite_to_embargo_on_case_tree`,
+which declares the manager and participant-replica paths (HP-01-038).
 An Invite that names no embargo, or not exactly one ``to`` recipient, cannot
 be built into that tree at all: there is no embargo to adjudicate, or no
 invitee to answer it (EP-09-010).  It still runs one tree,
@@ -34,6 +35,17 @@ An Invite that names no embargo is first checked at the addressee door guard,
 so a store it was not addressed to answers nothing (HP-01-005); a misrouted
 Invite names no single addressee for that check to admit, so its tree has
 none.  Neither carries the sender guard.  The emit is covered by :data:`~vultron.core.behaviors.replica_emit_exemptions.EMBARGO_INVITE_FAULT`.
+
+The fault tree declares no paths, unlike every other received embargo tree
+(ADR-0153).  It has no path-scoped work to declare a branch for: the fault is
+the receiver's own answer to the sender on every path, so no declaration
+narrows its emit, and a declaration that left the no-case path out would
+refuse the misrouted Invite a store holds no replica for instead of answering
+it (MSM-05-001).  Declaring that path instead is not open either: an
+``Invite(EmbargoEvent)`` is case-scoped, and a case-scoped type waits at the
+inbox's defer check rather than taking a no-case branch (HP-01-041).  The
+``EMBARGO_INVITE_FAULT`` decision stays the record of why the emit runs
+ungated (BT-17-008).
 """
 
 from dataclasses import dataclass

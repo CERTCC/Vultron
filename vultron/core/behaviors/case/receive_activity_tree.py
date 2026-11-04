@@ -278,11 +278,13 @@ def create_receive_activity_tree(
     among ``precondition_guards`` becomes a
     :class:`~vultron.core.behaviors.case.nodes.diversion_stage.DiversionStage`
     at its place: when its read-only condition holds, its effects answer the
-    delivery and the tree stops before the commit (CLP-10-063).  A
-    ``CASE_MANAGER`` diversion runs only at the case's CASE_MANAGER, inside
-    the gate on ``case_id`` (else ``manager_case_id``), and may commit its own
-    entry; a ``RECEIVER`` diversion writes no case state and its emits need a
-    registered exemption.  A diverted delivery has already been answered,
+    delivery and the tree stops before the commit (CLP-10-063).  Where it may
+    run is the tree's path declaration and nothing beside it (HP-01-038): in a
+    tree that declares the manager path alone it runs at the CASE_MANAGER the
+    path stage already established, and may commit its own entry; in a tree
+    that also declares a non-manager path it is the receiver's own answer,
+    writes no case state and its emits need a registered exemption.
+    A diverted delivery has already been answered,
     so the refusal stage runs no refusal effect for it; the refusal notice
     and any ``refusal_effects`` answer only the refusals the guards make.
 

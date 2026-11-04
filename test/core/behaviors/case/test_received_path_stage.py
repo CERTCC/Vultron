@@ -27,7 +27,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
-from test.core.behaviors.bt_harness import BTTestScenario
+from test.core.behaviors.bt_harness import BlackboardKeyProbe, BTTestScenario
 from vultron.core.behaviors.case.invite_actor_to_case_received_tree import (
     create_invite_actor_to_case_received_tree,
 )
@@ -40,6 +40,7 @@ from vultron.core.behaviors.case.nodes.case_lookup import (
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
+from vultron.core.behaviors.case.nodes.diversion_stage import Diversion
 from vultron.core.behaviors.case.nodes.received_path import (
     CheckReceivedPathNode,
     ReceivedPath,
@@ -129,9 +130,14 @@ _ACTOR_ON_PATH: dict[ReceivedPath, str] = {
 
 
 def _run_stage(
-    path: ReceivedPath, declared: Collection[ReceivedPath]
+    path: ReceivedPath,
+    declared: Collection[ReceivedPath],
+    then: py_trees.behaviour.Behaviour | None = None,
 ) -> ReceivedPathNode:
-    """The stage, run in the store of an actor on *path*, declaring *declared*."""
+    """The stage, run in the store of an actor on *path*, declaring *declared*.
+
+    *then*, when given, runs after the stage in the same execution.
+    """
     actor_id = _ACTOR_ON_PATH[path]
     scenario = BTTestScenario(actor_id=actor_id)
     if path is not ReceivedPath.NO_CASE:
@@ -139,7 +145,12 @@ def _run_stage(
     stage = ReceivedPathNode(
         declared=frozenset(declared), case_id=CASE_ID, label="ProofBT"
     )
-    scenario.run(stage, actor_id=actor_id)
+    tree: py_trees.behaviour.Behaviour = stage
+    if then is not None:
+        tree = py_trees.composites.Sequence(
+            name="StageThen", memory=False, children=[stage, then]
+        )
+    scenario.run(tree, actor_id=actor_id)
     return stage
 
 
@@ -424,12 +435,16 @@ def test_the_manager_path_publishes_the_resolved_manager_id() -> None:
     A later node that reads the resolved manager's id must find it whichever
     of the two answered the role question, or swapping a sender-guard arm
     onto the path check would silently drop the key.
+
+    The key is scoped to its execution (#5803), so a probe reads it there.
     """
-    stage = _run_stage(ReceivedPath.CASE_MANAGER, ALL_PATHS)
-    published = py_trees.blackboard.Blackboard.get("/case_actor_id")
+    probe = BlackboardKeyProbe("case_actor_id")
+    stage = _run_stage(ReceivedPath.CASE_MANAGER, ALL_PATHS, then=probe)
 
     assert stage.resolved_path is ReceivedPath.CASE_MANAGER
-    assert published == MANAGER_ID
+    assert probe.ran
+    assert probe.value == MANAGER_ID
+    assert "/case_actor_id" not in py_trees.blackboard.Blackboard.storage
 
 
 @pytest.mark.spec("CLP-10-010")
@@ -461,6 +476,32 @@ def test_the_stage_is_one_of_the_trees_door_guards() -> None:
     assert any(
         isinstance(guard, ReceivedPathNode) for guard in tree.door_guards
     )
+
+
+@pytest.mark.spec("HP-01-040")
+@pytest.mark.spec("BT-17-001")
+@pytest.mark.spec("CLP-10-026")
+def test_a_manager_only_diversion_needs_the_trees_case() -> None:
+    """A diversion that may commit must know the case it commits against.
+
+    A manager-only declaration carries no gate of its own, and a tree that
+    names no case leaves the stage to resolve one at run time from the
+    activity — so the diversion would commit against whatever case arrived.
+    """
+    with pytest.raises(VultronWiringError, match="must name the case"):
+        create_receive_activity_tree(
+            name="CaselessDiversionBT",
+            case_id=None,
+            paths={ReceivedPath.CASE_MANAGER},
+            precondition_guards=[
+                Diversion(
+                    name="D",
+                    condition=py_trees.behaviours.Success(name="C"),
+                )
+            ],
+            sender_rule=_RULE,
+            sender_context=_CONTEXT,
+        )
 
 
 @pytest.mark.spec("HP-01-007")

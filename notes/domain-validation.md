@@ -90,7 +90,7 @@ field must carry the case.
   (`participant_status_rm_state` in `core/models/participant_status.py`): the
   module that defines a type owns its read semantics.
 - BT-level wrappers combining readers (`read_rm_states()`) go in
-  `vultron/core/behaviors/helpers.py`.
+  `vultron/core/behaviors/helpers/rm_states.py`.
 
 Never keep a duplicate copy elsewhere; import from the canonical location.
 

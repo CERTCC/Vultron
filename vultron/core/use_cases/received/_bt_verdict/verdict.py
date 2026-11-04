@@ -84,8 +84,9 @@ def verdict_from_bt(
         # bridge and land in BTExecutionResult.internal_error (handled
         # above). This set-membership check catches the complementary path:
         # a node that sets feedback_message and returns FAILURE instead of
-        # raising. It only covers the three messages exported from helpers.py;
-        # a node with a custom wiring-failure message would slip past it.
+        # raising. It only covers the messages exported from
+        # helpers/messages.py; a node with a custom wiring-failure message
+        # would slip past it.
         raise VultronBTInternalError(f"{label}: {reason}")
     return HandlerResult.refused(f"{label}: {reason}")
 

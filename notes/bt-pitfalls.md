@@ -262,9 +262,19 @@ no-case path alone, resolved a leaked case the reporter held a replica of and
 was refused at the path stage as a replica of a case it never named
 (RMB-08-003, HP-01-040). In a single-process run — every demo, every in-process
 integration test — the writer can be a *different actor's* execution, so the
-leak crosses the actor isolation BT-09 asks for. Guards:
-`test_execute_with_setup_does_not_leak_a_published_case_id` and
-`test_execute_with_setup_restores_a_preexisting_case_id` in `test_bridge.py`.
+leak crosses the actor isolation BT-09 asks for. `case_manager_id` and
+`case_actor_id` share the shape and are scoped the same way (#5803). Guards:
+`test_execute_with_setup_does_not_leak_a_published_output_port_key` and
+`test_execute_with_setup_restores_a_preexisting_output_port_key` in
+`test_bridge.py`, one case per scoped key.
+
+A multi-writer key may stay unscoped only when, on every path that reaches a
+reader, a writer in the same execution ticks first and writes the key or a
+sentinel. A failed writer does not end every path: a Selector arm after it
+still runs, which is why `ReconstructChainTailNode` writes its `""` / `-1`
+sentinel before failing. Record each such key and its reason beside the fixed
+list in `BTBridge.execute_with_setup`; a new reader that a writer does not
+precede on every path moves the key into the list.
 
 The fix is the key's lifetime, never the reader: widening the declaration of the
 tree that tripped over it would have masked the leak and left
@@ -291,8 +301,8 @@ An inter-node handoff key in a tree factory that can run concurrently for severa
 messages of one type MUST carry the execution-scoped correlation id:
 `{noun}_{id_segment}`, where `id_segment` is the last `/`-segment of an HTTP id
 (or last `:`-segment of a URN), matching the `object_{id_segment}` keys in
-`helpers.py`. A flat key is overwritten by the concurrent instance before the
-downstream reader runs (BTND-03-004). When namespacing, audit every `register_key`
+`helpers/object_nodes.py`. A flat key is overwritten by the concurrent instance
+before the downstream reader runs (BTND-03-004). When namespacing, audit every `register_key`
 in the affected subtree, not only the key the issue names.
 
 ---

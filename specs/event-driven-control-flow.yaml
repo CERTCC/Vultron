@@ -87,6 +87,9 @@ groups:
       The inbox pipeline parses each activity, extracts its semantics and checks its
       case context before a handler runs. A caller that invokes a handler directly skips
       those steps. The handler then acts on input that the pipeline did not check.
+    relationships:
+    - rel_type: derives_from
+      spec_id: EDF-02-005
   - id: EDF-02-004
     priority: MUST_NOT
     kind: architecture
@@ -97,6 +100,9 @@ groups:
       The outbox records each outbound activity, keeps the delivery order to each
       recipient and retries failed deliveries. A handler that sends directly to a peer
       skips that record and those retries, so nobody can see or repeat a lost delivery.
+    relationships:
+    - rel_type: derives_from
+      spec_id: EDF-02-006
   - id: EDF-02-005
     priority: MUST
     kind: architecture
@@ -107,9 +113,6 @@ groups:
       One entry point means every inbound activity passes the same parsing,
       extraction and case checks. A second entry point would let some activities
       reach core logic unchecked.
-    relationships:
-    - rel_type: extends
-      spec_id: EDF-02-003
   - id: EDF-02-006
     priority: MUST
     kind: architecture
@@ -120,9 +123,6 @@ groups:
       One exit point means every outbound activity is recorded, ordered and
       retried in the same way. A second exit point would send activities that no
       record shows.
-    relationships:
-    - rel_type: extends
-      spec_id: EDF-02-004
 - id: EDF-03
   title: Cascade Implementation
   specs:
@@ -206,7 +206,7 @@ groups:
       its result. An emission in a leaf node then cannot run when an earlier step of
       the tree failed.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: EDF-03-002
 - id: EDF-04
   title: External Decision Nodes
@@ -287,7 +287,7 @@ groups:
       what shows "asked and waiting" and not "gave up". `RequireCaseOwnerApprovalNode`
       has this defect: it returns `FAILURE` and asks nobody.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: EDF-04-007
   - id: EDF-04-006
     priority: MUST_NOT
@@ -298,8 +298,8 @@ groups:
       An absent node makes the waiting point invisible to the BT structure, preventing
       inspection and making the decision requirement undetectable.
     relationships:
-    - rel_type: refines
-      spec_id: EDF-04-007
+    - rel_type: derives_from
+      spec_id: EDF-04-001
   - id: EDF-04-007
     priority: MUST
     kind: project
@@ -318,7 +318,7 @@ groups:
     adr:
     - ADR-0080
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: EDF-04-002
 - id: EDF-05
   title: Demo Constraints
@@ -351,7 +351,7 @@ groups:
     rationale: '"Settled" is not a matter of elapsed time. EDF-06 defines normatively what counts as evidence that a cascade
       has settled; read this requirement together with EDF-06-001.'
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: EDF-06-001
       note: EDF-06-001 supplies the operational definition of "settled" that this requirement assumes.
   - id: EDF-05-004
@@ -385,8 +385,8 @@ groups:
       follow from the primary event alone. Otherwise the demo cannot reach its final
       state without a manual trigger.
     relationships:
-    - rel_type: extends
-      spec_id: EDF-05-002
+    - rel_type: refines
+      spec_id: EDF-03-004
 - id: EDF-06
   title: Causal Gating in Demo Scenarios
   specs:
@@ -471,7 +471,7 @@ groups:
     adr:
     - ADR-0058
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: DEMOCI-01-003
       note: Accumulation of failures is preserved; only the control flow of dependent steps is constrained.
     tags:
@@ -505,10 +505,6 @@ groups:
       `sleep`.'
     adr:
     - ADR-0058
-    relationships:
-    - rel_type: refines
-      spec_id: EDF-05-005
-      note: Same diagnostic principle applied to harness gating rather than to manual cascade triggering.
     tags:
     - demo
     - testing
@@ -530,7 +526,7 @@ groups:
     adr:
     - ADR-0058
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EDF-06-006
       note: Adds a justification requirement to the identification requirement; both apply to every temporal wait.
     tags:
@@ -550,7 +546,7 @@ groups:
     adr:
     - ADR-0058
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: EDF-06-001
     tags:
     - demo
@@ -569,7 +565,7 @@ groups:
     adr:
     - ADR-0058
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: EDF-06-002
     tags:
     - demo
@@ -605,7 +601,7 @@ groups:
     adr:
     - ADR-0058
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: EDF-06-006
     tags:
     - demo

@@ -44,7 +44,6 @@ Each check calls the shared predicates in
 refusal also calls, so the guard and the write cannot drift.
 """
 
-import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.decided_entries import (
@@ -53,7 +52,6 @@ from vultron.core.behaviors.embargo.decided_entries import (
 )
 from vultron.core.behaviors.embargo.nodes.answer_record import (
     EmbargoDecisionAppliesNode,
-    case_manager_decision_guard,
 )
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     _EmbargoLifecycleNode,
@@ -279,16 +277,18 @@ class EmbargoWithdrawalAppliesNode(EmbargoDecisionAppliesNode):
 
 def case_manager_admits_withdrawal_guard(
     case_id: str, embargo_id: str, withdrawing_actor_id: str
-) -> py_trees.behaviour.Behaviour:
-    """Precondition guard: at the CASE_MANAGER, the withdrawal applies."""
-    return case_manager_decision_guard(
-        "EmbargoWithdrawalApplies",
-        case_id,
-        EmbargoWithdrawalAppliesNode(
-            case_id=case_id,
-            embargo_id=embargo_id,
-            withdrawing_actor_id=withdrawing_actor_id,
-        ),
+) -> EmbargoWithdrawalAppliesNode:
+    """Precondition guard: at the CASE_MANAGER, the withdrawal applies.
+
+    Bare, with no role gate of its own: the withdrawal tree declares the
+    CASE_MANAGER path alone (HP-01-038), so the path stage has already
+    refused every other receiver (HP-01-005).
+    """
+    return EmbargoWithdrawalAppliesNode(
+        name="EmbargoWithdrawalApplies",
+        case_id=case_id,
+        embargo_id=embargo_id,
+        withdrawing_actor_id=withdrawing_actor_id,
     )
 
 

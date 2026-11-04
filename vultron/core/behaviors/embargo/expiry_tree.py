@@ -43,8 +43,9 @@ A replica copies the row from the ``Update`` entry (CM-23-016).
 A late Accept is then answered by its compatibility with the case's embargo
 (EMB-17-001).  One the case's current embargo still binds is honoured: it is
 recorded as an on-time Accept is, its own entry carrying the row it states
-(EMB-17-002, ADR-0152).  The other two are CASE_MANAGER diversions of the
-Accept tree (:func:`late_accept_diversions`, CLP-10-026); the re-invite
+(EMB-17-002, ADR-0152).  The other two are diversions of the Accept tree
+(:func:`late_accept_diversions`, CLP-10-026), which declares the CASE_MANAGER
+path alone, so they run only there (HP-01-038); the re-invite
 changes the case and follows commit → effect, and the other changes
 nothing::
 
@@ -262,8 +263,10 @@ def late_accept_diversions(
 
     The Invite Accept tree passes them among its precondition guards, after
     its repeat guard and P/X/A refusal and before the guard that lets only an
-    honoured late Accept be recorded.  Each is a ``CASE_MANAGER`` diversion
-    (CLP-10-026) whose condition is the Invite expiry's finding
+    honoured late Accept be recorded.  That tree declares the CASE_MANAGER
+    path alone, which is what keeps these diversions there and lets each
+    commit its own entry (CLP-10-026, HP-01-038); the condition of each is
+    the Invite expiry's finding
     (*result_out*, written by :func:`invite_expiry_decision`) and the arm
     :class:`~vultron.core.behaviors.embargo.nodes.late_accept.LateAcceptRouteIsNode`
     reads from the case; the conditions are exclusive, so one answer runs

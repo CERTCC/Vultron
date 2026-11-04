@@ -184,6 +184,22 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
         self.resolved_path: ReceivedPath | None = None
         self.resolved_case_id: str | None = None
 
+    @property
+    def manager_path_only(self) -> bool:
+        """True when the declaration names the CASE_MANAGER path alone.
+
+        Such a declaration gates the whole tree: the stage refuses every
+        other receiver before any guard, commit or effect runs, so nothing
+        after it executes anywhere but at the case's CASE_MANAGER
+        (HP-01-038, HP-01-042).
+        :func:`~vultron.core.behaviors.case.receive_stages.guards.diversion_stage`
+        takes it as the answer to where a diversion may run, instead of a
+        second declaration beside the tree's own, and the commit-ordering
+        ratchet reads it from here rather than re-deriving what the
+        declaration means (CLP-10-026, CS-22-001).
+        """
+        return self.declared == frozenset({ReceivedPath.CASE_MANAGER})
+
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
         "case_id": PortInformation(data_type=str, required=False),

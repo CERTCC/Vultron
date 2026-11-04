@@ -310,7 +310,7 @@ _LOCK_TRIP_TESTS = """
 import threading
 import time
 
-from vultron.core.behaviors.bridge import _BT_GLOBAL_LOCK
+from vultron.core.behaviors.bridge.lock import _BT_GLOBAL_LOCK
 
 
 def _acquire_from_another_thread():

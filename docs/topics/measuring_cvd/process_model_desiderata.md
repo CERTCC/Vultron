@@ -103,7 +103,7 @@ Thus the embargo exit is split into three outcomes by cause.
 
 The protocol records this split.
 A terminated embargo records its end: `END_TIME_REACHED` or `EARLY`.
-When the cause is known, the terminated embargo also records a structured cause: `THREAT_SIGNAL`, `FIX_READY`, `FIX_DEPLOYED`, or `OTHER` (EMB-13-004).
+When the cause is known, the terminated embargo also records a structured cause: `THREAT_SIGNAL`, `FIX_READY`, `FIX_DEPLOYED`, or `OTHER` (EMB-13-010).
 
 `END_TIME_REACHED`, `FIX_READY`, and `FIX_DEPLOYED` are $\evExOwn$.
 `THREAT_SIGNAL` is $\evExThreat$.
@@ -185,7 +185,7 @@ The measure should count each of these failures.
 
 A lesser outcome is also worth observing.
 The Case Owner can end the embargo early because a quorum of vendors has a fix ready.
-The terminated embargo then records the cause `FIX_READY`, with the vendors whose readiness made the quorum (EMB-13-004).
+The terminated embargo then records the cause `FIX_READY`, with the vendors whose readiness made the quorum (EMB-13-010).
 
 But the protocol does not define a quorum.
 The `FIX_READY` cause is a claim of the Case Owner, and the CASE_MANAGER records it as given (EMB-13-005).

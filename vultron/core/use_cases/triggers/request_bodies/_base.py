@@ -30,8 +30,8 @@ def _parse_optional_roles(value: object) -> object:
     """Route a trigger body's ``roles`` through :func:`validate_roles`.
 
     ``None`` stays ``None`` (no roles supplied).  Anything else is parsed as
-    every other role path parses it, so a retired value such as ``"finder"``
-    is refused with its ADR-0078 reason, in any case.
+    every other role path parses it, so a former value such as ``"finder"``
+    is refused as an invalid role, in any case (ADR-0175).
     """
     if value is None:
         return None

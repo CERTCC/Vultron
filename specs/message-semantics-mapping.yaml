@@ -2095,6 +2095,9 @@ groups:
     - ADR-0152
     stories:
     - story_2026_001
+    relationships:
+    - rel_type: uses_definition
+      spec_id: VAM-05-015
   - id: MSM-07-018
     priority: MUST_NOT
     kind: protocol

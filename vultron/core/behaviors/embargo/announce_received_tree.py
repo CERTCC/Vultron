@@ -29,6 +29,7 @@ announcement, and it only archives that too::
     AnnounceEmbargoEventToCaseReceivedBT (Sequence)
     ├─ IntakeReceivedActivityNode
     ├─ CaseOpenToExternalWrites / ActivityAddressedToReceiverNode
+    ├─ ReceivedPathNode                  # a store that holds the case
     ├─ <sender guard: the CASE_MANAGER only>
     └─ ApplyIfEndingNoticeAwaited (Selector)
        ├─ SkipUnlessEndingNoticeAwaited (Inverter)
@@ -40,6 +41,7 @@ No ledger entry is committed: the announcement is a notice, not a record.
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -67,6 +69,19 @@ def announce_embargo_received_tree(
     (HP-01-006, ADR-0115) — an announcement naming no case is refused by
     the rule's empty ``outside_case`` side.  An announcement naming no
     embargo carries nothing to apply, so its tree only archives it.
+
+    The type declares both the manager and the participant-replica path
+    (HP-01-038).  The announcement is the CASE_MANAGER's, and it is addressed
+    to the actors it names, so a receiver that holds no replica of the case is
+    refused at the path stage; a receiver that holds one is admitted whether
+    or not it also holds the role.  The manager is admitted because it can be
+    one of those actors: an owner that is also its own case's CASE_MANAGER is
+    a participant of that case, which is the shape the exchange demos use.
+    The effect is gated on ``AwaitsEmbargoEndingNoticeNode`` either way, so an
+    announcement that reaches an unpaused store is archived and applies
+    nothing (CM-31-010).  The stage reads the role in the case the
+    ``sender_context`` names, because this tree commits nothing and so names
+    no case of its own (HP-01-040).
 
     Args:
         case_id: The case the announcement is for (its ``context``).
@@ -98,6 +113,10 @@ def announce_embargo_received_tree(
     return create_receive_activity_tree(
         name="AnnounceEmbargoEventToCaseReceivedBT",
         case_id=None,
+        paths={
+            ReceivedPath.CASE_MANAGER,
+            ReceivedPath.PARTICIPANT_REPLICA,
+        },
         sender_rule=sender_rule,
         sender_context=embargo_sender_context(sender_id, case_id),
         precondition_guards=[],

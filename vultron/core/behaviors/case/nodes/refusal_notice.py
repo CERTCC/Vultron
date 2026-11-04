@@ -63,8 +63,8 @@ from vultron.core.behaviors.exemption_registry import require_registered
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.pending_assertion import (

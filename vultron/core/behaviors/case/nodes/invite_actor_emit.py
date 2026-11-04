@@ -36,7 +36,7 @@ from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.embargo.rsvp_stamp import (
     stamp_rsvp_deadline,
 )
-from vultron.core.behaviors.helpers import _EmitSingleActivityBase
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.events.base import MessageSemantics

@@ -145,24 +145,29 @@ class TestMalformedEmbargoMessagesAreRefused:
 
 class TestEmbargoMessagesForUnknownCaseAreRefused:
     @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("HP-01-039")
+    @pytest.mark.spec("HP-01-040")
     @pytest.mark.parametrize(
-        "factory, use_case, tree",
+        "factory, use_case",
         [
-            (
-                activate_embargo_activity,
-                ActivateEmbargoOnCaseReceivedUseCase,
-                "ActivateEmbargoOnCaseBT",
-            ),
+            (activate_embargo_activity, ActivateEmbargoOnCaseReceivedUseCase),
             (
                 reject_embargo_proposal_activity,
                 RejectEmbargoProposalOnCaseReceivedUseCase,
-                "RejectEmbargoProposalOnCaseBT",
             ),
         ],
     )
     def test_owner_decision_on_unknown_case(
-        self, make_payload, factory, use_case, tree
+        self, make_payload, factory, use_case
     ):
+        """A case this store does not hold is the no-case path, and refused.
+
+        The owner's decision is the CASE_MANAGER's to record, so its tree
+        declares that path alone; a store holding no replica of the case the
+        decision names resolves the no-case path and the stage refuses the
+        delivery there, naming the case rather than the tree (HP-01-039,
+        HP-01-040).
+        """
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/nope/embargo_events/e1",
             context="https://example.org/cases/nope",
@@ -181,7 +186,9 @@ class TestEmbargoMessagesForUnknownCaseAreRefused:
 
         result = use_case(_make_dl(), event).execute()
 
-        _assert_refused(result, tree)
+        _assert_refused(
+            result, "holds no replica of case 'https://example.org/cases/nope'"
+        )
 
     @pytest.mark.spec("HP-01-003")
     def test_accept_for_unknown_case(self):

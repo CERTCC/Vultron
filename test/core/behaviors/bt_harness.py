@@ -51,6 +51,43 @@ from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 
 
+class BlackboardKeyProbe(py_trees.behaviour.Behaviour):
+    """Record blackboard *key* as the running tree sees it, then SUCCEED.
+
+    The bridge restores every managed key once an execution returns, so a
+    node's output is read by this probe, placed after the node in the same
+    execution.  Both spellings are read, ``/key`` first.  ``value`` stays
+    ``None`` when the key is absent or the probe never ticks; ``ran`` tells
+    the two apart.
+    """
+
+    def __init__(self, key: str, name: str = "Probe") -> None:
+        super().__init__(name=name)
+        bare = key.lstrip("/")
+        self._keys = (f"/{bare}", bare)
+        self.ran = False
+        self.value: Any = None
+
+    def update(self) -> py_trees.common.Status:
+        storage = py_trees.blackboard.Blackboard.storage
+        self.ran = True
+        self.value = storage.get(self._keys[0], storage.get(self._keys[1]))
+        return py_trees.common.Status.SUCCESS
+
+    @classmethod
+    def after(
+        cls, tree: py_trees.behaviour.Behaviour, key: str
+    ) -> tuple[py_trees.composites.Sequence, BlackboardKeyProbe]:
+        """Return ``Sequence[tree, probe]`` and the probe that reads *key*."""
+        probe = cls(key)
+        probed = py_trees.composites.Sequence(
+            name=f"{tree.name}ThenProbe",
+            memory=False,
+            children=[tree, probe],
+        )
+        return probed, probe
+
+
 class BTTestScenario:
     """Deep-module harness for BT test scenarios.
 
@@ -153,23 +190,9 @@ class BTTestScenario:
         is read by a probe that runs after *tree* in the same execution.
         The value is ``None`` when *tree* fails before the probe runs.
         """
-        captured: list[Any] = []
-        storage_key = key if key.startswith("/") else f"/{key}"
-
-        class _Probe(py_trees.behaviour.Behaviour):
-            def update(self) -> py_trees.common.Status:
-                captured.append(
-                    py_trees.blackboard.Blackboard.storage.get(storage_key)
-                )
-                return py_trees.common.Status.SUCCESS
-
-        probed = py_trees.composites.Sequence(
-            name=f"{tree.name}ThenProbe",
-            memory=False,
-            children=[tree, _Probe(name="Probe")],
-        )
+        probed, probe = BlackboardKeyProbe.after(tree, key)
         result = self.run(probed, actor_id=actor_id, **context_data)
-        return result, (captured[0] if captured else None)
+        return result, probe.value
 
     # ------------------------------------------------------------------
     # Status assertions

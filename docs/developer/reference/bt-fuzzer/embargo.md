@@ -28,7 +28,7 @@ They model the negotiation, evaluation, and lifecycle management of coordinated 
   The tree checks it before it delegates to `terminate_embargo_bt`.
   The same bundle slot also feeds the `create_manage_embargo_tree` stub Sequence
 - **Termination cause**: On SUCCESS, the `ChooseTerminationCauseNode` that follows it sets the cause of the termination to `FIX_DEPLOYED`.
-  The `Remove(EmbargoEvent)` and the `TERMINATED` register entry carry this cause (EMB-14-001, EMB-14-004, EMB-13-004)
+  The `Remove(EmbargoEvent)` and the `TERMINATED` register entry carry this cause (EMB-14-001, EMB-14-004, EMB-13-010)
 
 ## `ExitEmbargoWhenFixReady`
 
@@ -50,7 +50,7 @@ They model the negotiation, evaluation, and lifecycle management of coordinated 
   The same bundle slot also feeds the `create_manage_embargo_tree` stub Sequence
 - **Termination cause**: On SUCCESS, the `ChooseTerminationCauseNode` that follows it sets the cause of the termination to `FIX_READY`.
   The cause names the vendors of the case whose fix is ready.
-  The `Remove(EmbargoEvent)` and the `TERMINATED` register entry carry this cause (EMB-14-001, EMB-14-004, EMB-13-004).
+  The `Remove(EmbargoEvent)` and the `TERMINATED` register entry carry this cause (EMB-14-001, EMB-14-004, EMB-13-010).
   When no vendor has a ready fix, that node fails, and the ReasonSelector tries the next reason.
 
 ## `ExitEmbargoForOtherReason`
@@ -71,7 +71,7 @@ They model the negotiation, evaluation, and lifecycle management of coordinated 
 - **Factory-fn placement**: `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree` (`exit_embargo_for_other_reason_factory` param) — rare fallback condition guard in the ReasonSelector for extraordinary circumstances.
   The same bundle slot also feeds the `create_manage_embargo_tree` stub Sequence
 - **Termination cause**: On SUCCESS, the `ChooseTerminationCauseNode` that follows it sets the cause of the termination to `OTHER`.
-  The `Remove(EmbargoEvent)` and the `TERMINATED` register entry carry this cause (EMB-14-001, EMB-14-004, EMB-13-004)
+  The `Remove(EmbargoEvent)` and the `TERMINATED` register entry carry this cause (EMB-14-001, EMB-14-004, EMB-13-010)
 
 ## `EmbargoTimerExpired`
 

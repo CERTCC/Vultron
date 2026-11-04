@@ -40,8 +40,8 @@ class CVDRole(StrEnum):
 
     There is no ``FINDER`` role (ADR-0078): an actor that discovers and
     reports a vulnerability holds ``REPORTER``, and who found it is report or
-    note metadata.  The retired wire value ``"finder"`` is refused, see
-    ``RETIRED_ROLE_VALUES``.
+    note metadata.  A ``"finder"`` value is refused like any other value
+    that names no member, never read as ``REPORTER`` (ADR-0175).
 
     Roles:
         REPORTER: Entity that reports the vulnerability to others.
@@ -78,31 +78,14 @@ class CVDRole(StrEnum):
     CVE_NUMBERING_AUTHORITY = auto()
 
 
-#: Wire values of retired ``CVDRole`` members, mapped to why each is refused.
-#: Stored data or an inbound activity carrying one fails validation with this
-#: reason rather than being read as another role: a retired role is not an
-#: alias, and silently rewriting it would change what a record claims.
-RETIRED_ROLE_VALUES: dict[str, str] = {
-    "finder": (
-        "the 'finder' role was retired (ADR-0078); an actor that discovers and"
-        " reports a vulnerability holds 'reporter', and who found it belongs"
-        " in the report or a case note"
-    ),
-}
-
-
 def parse_role(value: str) -> CVDRole:
     """Parse one role string (any case) into a ``CVDRole``.
 
     Raises:
-        ValueError: *value* is a retired role (:data:`RETIRED_ROLE_VALUES`),
-            with the retirement reason, or is not a role at all.
+        ValueError: *value* is not a role.  A former role value, such as
+            ``"finder"``, is not a role either; it is never read as another.
     """
-    key = value.lower()
-    reason = RETIRED_ROLE_VALUES.get(key)
-    if reason is not None:
-        raise ValueError(f"{value!r} is not a valid CVDRole: {reason}")
-    return CVDRole(key)
+    return CVDRole(value.lower())
 
 
 def serialize_roles(roles: list[CVDRole]) -> list[str]:

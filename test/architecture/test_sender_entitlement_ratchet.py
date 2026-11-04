@@ -523,13 +523,11 @@ STANDING_READS: dict[Site, Listed] = {
         "create_embargo_response_decision_tree",
         "SenderIsCaseOwnerNode",
     ): Listed(1, "reads the local deciding actor, not a sender (EMB-15-002)"),
-    Site(
-        "vultron/core/behaviors/embargo/announce_teardown_tree/invite.py",
-        "invite_to_embargo_on_case_tree",
-        "SenderIsCaseOwnerNode",
-    ): Listed(
-        2, "reads the local invitee answering on its replica (EP-09-005)"
-    ),
+    # The embargo Invite tree's two invitee-is-owner reads went with #5042:
+    # a role an activity's subject holds is now asked through
+    # ActorHoldsRoleInCaseNode, which is no sender node (ADR-0153,
+    # ARCH-24-001).  #5766's split moved the entry to
+    # announce_teardown_tree/invite.py; it is removed rather than repointed.
 }
 
 

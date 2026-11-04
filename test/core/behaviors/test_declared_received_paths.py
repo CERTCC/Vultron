@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""What paths the case, participant, report and status trees declare.
+"""What paths the case, participant, report, status and embargo trees declare.
 
 Every received tree in those areas declares the paths it handles once, to the
 factory (HP-01-038), and a receiver on a path the declaration omits is
@@ -68,11 +68,14 @@ from vultron.enums.roles import CVDRole
 
 _FACTORY = "create_receive_activity_tree"
 
-#: The areas #5043 migrated: the case, participant, report and status trees.
+#: The migrated areas: the case, participant, report and status trees
+#: (#5043) and the embargo trees (#5042).  One inventory for all of them, so
+#: two waves cannot keep two tables of the same fact (CS-22-001).
 _ROOTS = (
     _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "case",
     _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "report",
     _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "status",
+    _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "embargo",
 )
 
 CM = ReceivedPath.CASE_MANAGER
@@ -86,6 +89,7 @@ Site = tuple[str, str, int]
 _C = "vultron/core/behaviors/case"
 _R = "vultron/core/behaviors/report"
 _S = "vultron/core/behaviors/status"
+_E = "vultron/core/behaviors/embargo"
 
 #: Every declaration in these areas.  A conditional declaration records the
 #: paths of its declaring branch; see :data:`CONDITIONAL_DECLARATION_EXEMPTIONS`.
@@ -276,6 +280,65 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         "add_participant_status_tree",
         0,
     ): frozenset({CM, PR}),
+    # --- embargo: the proposal, its answers and the teardown (#5042) -----
+    # Each of these four is a directed type with one production emit site,
+    # addressed to the CASE_MANAGER alone (PCR-08-001), and every step of
+    # its tree is the CASE_MANAGER's: the narrowing is provable from the
+    # emit site rather than from a roster.
+    (
+        f"{_E}/answer_trees.py",
+        "accept_invite_to_embargo_tree",
+        0,
+    ): frozenset({CM}),
+    (
+        f"{_E}/owner_decision_tree.py",
+        "activate_embargo_on_case_tree",
+        0,
+    ): frozenset({CM}),
+    (
+        f"{_E}/owner_decision_tree.py",
+        "reject_embargo_proposal_on_case_tree",
+        0,
+    ): frozenset({CM}),
+    (
+        f"{_E}/withdrawal_tree.py",
+        "withdraw_from_embargo_on_case_tree",
+        0,
+    ): frozenset({CM}),
+    # The same wire message means two things depending on who receives it
+    # (ADR-0113): the CASE_MANAGER adjudicates and relays, the addressee's
+    # replica answers.
+    (
+        f"{_E}/announce_teardown_tree/invite.py",
+        "invite_to_embargo_on_case_tree",
+        0,
+    ): frozenset({CM, PR}),
+    (
+        f"{_E}/announce_teardown_tree/teardown.py",
+        "remove_embargo_from_case_tree",
+        0,
+    ): frozenset({CM, PR}),
+    # A Reject(Invite(EmbargoEvent)) is also what the CASE_MANAGER sends the
+    # participant whose proposal or Accept it refuses (EMB-02-004,
+    # EP-09-017).  That delivery records nothing, but it must pass the door
+    # for the handler to close the participant's pending ask (EP-09-019), so
+    # the guards that are the CASE_MANAGER's are declared on its path alone
+    # rather than run at both.
+    (
+        f"{_E}/answer_trees.py",
+        "reject_invite_to_embargo_tree",
+        0,
+    ): frozenset({CM, PR}),
+    # The ending notice goes to every bound signatory, and an owner that is
+    # its own case's CASE_MANAGER is one of them, so the manager path is
+    # declared beside the replica path.  A replica-only declaration refused
+    # that owner, which the demo suite caught and no unit test could
+    # (CM-31-010).
+    (
+        f"{_E}/announce_received_tree.py",
+        "announce_embargo_received_tree",
+        0,
+    ): frozenset({CM, PR}),
 }
 
 #: Sites whose declaration is conditional on the tree naming a case at build
@@ -362,6 +425,17 @@ UNDECLARED_PATH_EXEMPTIONS: dict[Site, str] = {
         "create_close_case_received_tree",
         1,
     ): "a subtree of CloseCaseBT, inside its manager gate",
+    # The malformed-Invite fault: the Create(ProcessingFault) is the
+    # receiver's own answer wherever the Invite landed (MSM-05-001), and a
+    # misrouted Invite may land on a store holding no replica of the case it
+    # names.  Declaring the no-case path is not open either, because an
+    # Invite(EmbargoEvent) is case-scoped and waits at the inbox's defer
+    # check instead (HP-01-041).
+    (
+        f"{_E}/invite_received_tree.py",
+        "embargo_invite_fault_tree",
+        0,
+    ): "the fault answers its sender on every path, scoped to none",
 }
 
 #: Every site that declares no paths, for whichever reason.
