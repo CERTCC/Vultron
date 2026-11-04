@@ -145,7 +145,7 @@ timed-out invitation, and a Deployer holding no Vendor role.
 
 Design reasoning that is not a decision between options — the four data-gap labels,
 the two clocks, the tolerant-reader-and-strict-wrapper split, and where the code
-goes — is in [notes/case-event-history.md](../../notes/case-event-history.md).
+goes — is in the repository note `notes/case-event-history.md`.
 
 Related records: [ADR-0075](0075-split-vfd-state-machine.md) (the vendor-path and
 deployer-path split this layer must respect),
