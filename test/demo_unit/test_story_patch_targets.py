@@ -412,3 +412,32 @@ def test_a_nested_subpackage_is_read_too(
     names = sorted(m.__name__ for m in modules_resolving_names(package))
 
     assert names == ["story_pkg_5592.flat", "story_pkg_5592.inner.deep"]
+
+
+@pytest.mark.parametrize(
+    ("line", "flagged"),
+    [
+        ("patch.object(demo, 'wait_for_participant_vf_state')", True),
+        (
+            "patch('vultron.demo.scenario.rcvcv_demo."
+            "wait_for_participant_vf_state')",
+            True,
+        ),
+        ("patch.object(rcvcv_story, 'wait_for_participant_vf_state')", False),
+        ("patch.object(demo, 'dump_story_ledgers')", False),
+    ],
+)
+def test_a_patch_on_a_flat_module_must_name_a_name_it_looks_up(
+    line: str, flagged: bool
+) -> None:
+    """A fragment that moved to ``rcvcv_story`` is no longer patched through
+    ``rcvcv_demo``, and a name ``rcvcv_demo`` still reads is let through."""
+    source = (
+        "import vultron.demo.scenario.rcvcv_demo as demo\n"
+        "from vultron.demo.helpers import rcvcv_story\n"
+        f"{line}\n"
+    )
+
+    problems = _misdirected(source, "example.py")
+
+    assert bool(problems) is flagged, problems
