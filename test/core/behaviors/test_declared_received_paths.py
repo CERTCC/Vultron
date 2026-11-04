@@ -346,12 +346,13 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     ): frozenset({CM, PR}),
     # --- note (#5785) ----------------------------------------------------
     # Both are directed types: the trigger side resolves the CASE_MANAGER and
-    # addresses the one activity to it (PCR-08-001), so the narrowing here is
-    # provable from the emit site rather than from a roster.  Each declares
-    # the two non-empty sides of its ``to_case_manager`` rule.  The replica
-    # path carries no effect — a note reaches a replica as the entry's
+    # addresses the one activity to it (PCR-08-001), and no roster-derived
+    # selection sends either.  Neither is narrowed below its sender rule —
+    # each declares exactly the two non-empty sides of ``to_case_manager`` —
+    # so neither declaration refuses a delivery the guard would admit.  The
+    # replica path carries no effect: a note reaches a replica as the entry's
     # Announce fan-out, and a direct Add(Note) there is refused (SYNC-02-002,
-    # HP-01-005) — and is declared because the act is the CASE_MANAGER's to
+    # HP-01-005).  It is declared because the act is the CASE_MANAGER's to
     # relay, the same reading the Add(VulnerabilityReport) twin above takes
     # from the same rule shape (CM-30-003, CM-30-005, RSH-08-003).
     (
