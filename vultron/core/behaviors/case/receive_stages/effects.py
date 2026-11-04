@@ -92,12 +92,14 @@ def check_gate_arguments(
     name: str,
     *,
     gate_arguments_without_effects: bool,
+    branch_arguments_without_effects: bool = False,
 ) -> None:
-    """Refuse gate arguments that would be silently ignored.
+    """Refuse gate or branch arguments that would be silently ignored.
 
     Raises:
         VultronWiringError: a gate argument is passed without
-            ``manager_effects`` (BT-17-008).
+            ``manager_effects`` (BT-17-008), or a branch-naming argument
+            without ``participant_path_effects`` (HP-01-042).
     """
     where = f"create_receive_activity_tree({name})"
     if gate_arguments_without_effects:
@@ -107,6 +109,13 @@ def check_gate_arguments(
             " the gate around manager_effects; pass them only with"
             " manager_effects"
             " (BT-17-008)"
+        )
+    if branch_arguments_without_effects:
+        raise VultronWiringError(
+            f"{where}: participant_path_branch_name and"
+            " participant_path_body_name name the branch around"
+            " participant_path_effects; pass them only with"
+            " participant_path_effects (HP-01-042)"
         )
 
 

@@ -193,6 +193,19 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
         self.resolved_path: ReceivedPath | None = None
         self.resolved_case_id: str | None = None
 
+    @property
+    def manager_path_only(self) -> bool:
+        """True when the declaration names the CASE_MANAGER path alone.
+
+        Such a declaration gates the whole tree: the stage refuses every
+        other receiver before any guard, commit or effect runs, so nothing
+        after it executes anywhere but at the case's CASE_MANAGER
+        (HP-01-038, HP-01-042).  The factory reads it to decide whether a
+        diversion needs a gate of its own, and both authority ratchets read
+        it from here rather than re-deriving it (CS-22-001).
+        """
+        return self.declared == frozenset({ReceivedPath.CASE_MANAGER})
+
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
         "case_id": PortInformation(data_type=str, required=False),
@@ -342,8 +355,11 @@ class ReceivedPathBranch(py_trees.composites.Selector):
     already put this receiver on :attr:`branch_path`, so everything inside
     runs only there.  That is what BT-17-008 asks of an emit — the emit
     speaks for the actor the path names — which is why
-    :func:`~vultron.core.behaviors.case.receive_stages.effects.ungated_nodes`
-    does not walk into one.
+    :func:`~vultron.core.behaviors.case.receive_stages.effects.ungated_emitters`
+    does not walk into one.  The ``StateWriteCapable`` walk still does, and
+    deliberately: only the CASE_MANAGER writes, so a participant-replica
+    branch is exactly where RSH-08-003's one exception lives and has to stay
+    visible to the ratchet that pins it.
 
     Only :func:`received_path_branch` constructs one, and only the
     received-tree factory calls that (HP-01-007).

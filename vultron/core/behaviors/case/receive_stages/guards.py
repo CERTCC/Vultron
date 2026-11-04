@@ -34,7 +34,6 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
 )
 from vultron.core.behaviors.case.nodes.received_path import (
     PathScopedGuard,
-    ReceivedPath,
     ReceivedPathNode,
     received_path_branch,
 )
@@ -150,7 +149,10 @@ def case_manager_commit_types() -> tuple[type, ...]:
 
 
 def diversion_stage(
-    name: str, diversion: Diversion, path_stage: ReceivedPathNode | None
+    name: str,
+    diversion: Diversion,
+    path_stage: ReceivedPathNode | None,
+    case_id: str | None,
 ) -> DiversionStage:
     """Build the stage for one :class:`Diversion` (CLP-10-026).
 
@@ -165,12 +167,14 @@ def diversion_stage(
 
     Raises:
         VultronWiringError: the tree declared no paths, so nothing says where
-            the diversion runs; the condition emits, writes state or commits;
-            an effect holds the received activity's commit, which a diverted
-            delivery never makes; a manager-only tree's diversion carries an
-            emit exemption it no longer needs; or a diversion a non-manager
-            receiver may reach writes case state, commits an entry, or has an
-            uncovered emit.
+            the diversion runs; a manager-only tree names no case, so the
+            stage would resolve one at run time and the diversion could commit
+            against whatever case the activity named; the condition emits,
+            writes state or commits; an effect holds the received activity's
+            commit, which a diverted delivery never makes; a manager-only
+            tree's diversion carries an emit exemption it no longer needs; or a
+            diversion a non-manager receiver may reach writes case state,
+            commits an entry, or has an uncovered emit.
     """
     where = f"create_receive_activity_tree({name}): diversion {diversion.name}"
     if path_stage is None:
@@ -193,9 +197,14 @@ def diversion_stage(
             f"{where}: a diverted delivery is never committed as received;"
             f" found {commits} (CLP-10-026)"
         )
-    manager_only = path_stage.declared == frozenset(
-        {ReceivedPath.CASE_MANAGER}
-    )
+    manager_only = path_stage.manager_path_only
+    if manager_only and case_id is None:
+        raise VultronWiringError(
+            f"{where}: a diversion in a manager-only declaration may commit"
+            " its own entry, so the tree must name the case it commits"
+            " against; pass case_id or manager_case_id (BT-17-001,"
+            " HP-01-040)"
+        )
     if not manager_only:
         if writers := node_types(effects, StateWriteCapable):
             raise VultronWiringError(
@@ -262,6 +271,7 @@ def precondition_guard_nodes(
         py_trees.behaviour.Behaviour | Diversion | PathScopedGuard
     ],
     path_stage: ReceivedPathNode | None,
+    case_id: str | None,
 ) -> list[py_trees.behaviour.Behaviour]:
     """The tree's precondition guards, each declaration built in place.
 
@@ -275,7 +285,7 @@ def precondition_guard_nodes(
     built: list[py_trees.behaviour.Behaviour] = []
     for guard in guards:
         if isinstance(guard, Diversion):
-            built.append(diversion_stage(name, guard, path_stage))
+            built.append(diversion_stage(name, guard, path_stage, case_id))
         elif isinstance(guard, PathScopedGuard):
             built.append(path_scoped_guard_stage(name, guard, path_stage))
         else:

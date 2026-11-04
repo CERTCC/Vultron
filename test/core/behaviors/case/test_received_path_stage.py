@@ -607,6 +607,79 @@ def test_a_branch_for_an_undeclared_path_is_a_wiring_error() -> None:
             sender_context=_CONTEXT,
         )
 
+    with pytest.raises(VultronWiringError, match="does not declare"):
+        create_receive_activity_tree(
+            name="GuardOffTheDeclarationBT",
+            case_id=CASE_ID,
+            paths={ReceivedPath.PARTICIPANT_REPLICA},
+            precondition_guards=[
+                PathScopedGuard(
+                    path=ReceivedPath.CASE_MANAGER,
+                    guard=py_trees.behaviours.Success(name="ManagerGuard"),
+                )
+            ],
+            sender_rule=_RULE,
+            sender_context=_CONTEXT,
+        )
+
+    with pytest.raises(VultronWiringError, match="declare the tree's paths"):
+        create_receive_activity_tree(
+            name="BranchWithoutDeclarationBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            sender_rule=_RULE,
+            sender_context=_CONTEXT,
+            participant_path_effects=[
+                py_trees.behaviours.Success(name="ReplicaEffect")
+            ],
+        )
+
+
+@pytest.mark.spec("HP-01-042")
+def test_naming_a_branch_without_its_effects_is_a_wiring_error() -> None:
+    """A branch name with no branch would be silently ignored.
+
+    Its gate siblings are refused the same way: an argument that configures
+    something the tree did not ask for is a mistake, not a default.
+    """
+    with pytest.raises(VultronWiringError, match="only with"):
+        create_receive_activity_tree(
+            name="NamedNoBranchBT",
+            case_id=CASE_ID,
+            paths={ReceivedPath.PARTICIPANT_REPLICA},
+            precondition_guards=[],
+            sender_rule=_RULE,
+            sender_context=_CONTEXT,
+            participant_path_branch_name="ReplicaArm",
+        )
+
+
+@pytest.mark.spec("HP-01-040")
+@pytest.mark.spec("BT-17-001")
+def test_a_manager_only_diversion_needs_the_trees_case() -> None:
+    """A diversion that may commit must know the case it commits against.
+
+    A manager-only declaration carries no gate of its own, and a tree that
+    names no case leaves the stage to resolve one at run time from the
+    activity — so the diversion would commit against whatever case arrived.
+    """
+    from vultron.core.behaviors.case.nodes.diversion_stage import Diversion
+
+    with pytest.raises(VultronWiringError, match="must name the case"):
+        create_receive_activity_tree(
+            name="CaselessDiversionBT",
+            case_id=None,
+            paths={ReceivedPath.CASE_MANAGER},
+            precondition_guards=[
+                Diversion(
+                    name="D",
+                    condition=py_trees.behaviours.Success(name="C"),
+                )
+            ],
+            sender_rule=_RULE,
+            sender_context=_CONTEXT,
+        )
+
 
 @pytest.mark.spec("HP-01-007")
 @pytest.mark.spec("HP-01-038")

@@ -72,10 +72,10 @@ class TerminationCauseIsAdmissibleNode(DataLayerConditionWithPorts):
             return Status.SUCCESS
         if (f := self._require_datalayer()) is not None:
             return f
-        _, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure
         assert self.datalayer is not None
+        # One read: the predicate reads the case itself, and reads its
+        # absence as "holds no role" (ADR-0153), which is the Regime 1
+        # refusal this guard owes anyway (ADR-0087).
         if has_role(
             self._sender_actor_id,
             self.case_id,

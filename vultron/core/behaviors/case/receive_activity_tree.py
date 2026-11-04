@@ -388,10 +388,11 @@ def create_receive_activity_tree(
     them in :func:`create_case_manager_gated_tree` on ``manager_case_id``, a
     separate argument from ``case_id`` so a tree that omits the commit
     (``case_id=None``) can still gate its emits.
-    A received-tree module calls neither
-    ``create_case_manager_gated_tree`` nor
-    :func:`~vultron.core.behaviors.case.nodes.role_gates.create_participant_replica_gated_tree`
-    itself.
+    A received-tree module does not call ``create_case_manager_gated_tree``
+    itself.  Nor, once it declares its paths, the complementary
+    :func:`~vultron.core.behaviors.case.nodes.role_gates.create_participant_replica_gated_tree`:
+    the trees that still call that one have not declared yet and are listed in
+    ``test/architecture/test_received_path_role_question.py``.
 
     A guard with a question to ask on one declared path only is passed as a
     :class:`~vultron.core.behaviors.case.nodes.received_path.PathScopedGuard`
@@ -551,6 +552,11 @@ def create_receive_activity_tree(
             or manager_body_name is not None
             or manager_case_may_be_absent
         ),
+        branch_arguments_without_effects=not participant
+        and (
+            participant_path_branch_name is not None
+            or participant_path_body_name is not None
+        ),
     )
     check_replica_effects(name, replica, replica_emit_exemption)
 
@@ -629,6 +635,7 @@ def create_receive_activity_tree(
         name,
         precondition_guards,
         path_stage,
+        case_id or manager_case_id,
     )
     if effects:
         children.append(

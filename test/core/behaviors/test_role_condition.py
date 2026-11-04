@@ -30,6 +30,7 @@ from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronWiringError
 
 CASE_ID = "https://example.org/cases/role-condition"
 OWNER_ID = "https://example.org/actors/owner"
@@ -125,3 +126,21 @@ def test_the_case_comes_from_the_blackboard_when_the_node_names_none() -> None:
     )
 
     assert node.status is Status.SUCCESS
+
+
+@pytest.mark.spec("ARCH-24-003")
+@pytest.mark.spec("HP-01-037")
+def test_the_authority_role_is_refused_at_construction() -> None:
+    """Authority has one asker, and it is not this node.
+
+    Asked about the executing actor this node would be a second authority
+    condition node, and a role passed as a parameter is invisible to the
+    detector both authority ratchets share, so the role is refused here
+    rather than left to a reviewer to notice.
+    """
+    with pytest.raises(VultronWiringError, match="CASE_MANAGER"):
+        ActorHoldsRoleInCaseNode(
+            actor_id=OWNER_ID,
+            role=CVDRole.CASE_MANAGER,
+            case_id=CASE_ID,
+        )

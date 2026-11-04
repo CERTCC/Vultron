@@ -1043,10 +1043,13 @@ groups:
       every received-side tree factory and walks it with the factory's own
       `ungated_nodes`: every node carrying the `StateWriteCapable` marker
       (`vultron/core/behaviors/state_write_capable.py`) must sit inside a
-      `CaseManagerGate`. The replay and bootstrap writes are a pinned exemption
-      set (`REPLICA_STATE_WRITES`) with a reason per entry (TB-10-002, ARCH-18-005);
-      all other received-side state writes are now CASE_MANAGER-gated (the
-      `KNOWN_UNGATED_STATE_WRITES` ratchet drove to empty and was deleted in #3814).
+      `CaseManagerGate`. Two pinned exemption sets record what it does not walk,
+      each with a reason per entry (TB-10-002, ARCH-18-005): `REPLICA_STATE_WRITES`
+      for the replay and bootstrap writes, and `MANAGER_ONLY_DECLARATIONS` for a
+      tree whose path declaration names the CASE_MANAGER path alone, which gates it
+      whole (HP-01-042) and is skipped rather than walked. All other received-side
+      state writes are now CASE_MANAGER-gated (the `KNOWN_UNGATED_STATE_WRITES`
+      ratchet drove to empty and was deleted in #3814).
       The same module checks that every behaviors class reaching a state-write seam
       carries the marker or is pinned as writing no case state.
     adr:

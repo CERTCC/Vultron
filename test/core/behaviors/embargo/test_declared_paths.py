@@ -113,6 +113,15 @@ _BOTH = frozenset(
 #: A builder takes the case and its embargo and returns the built tree.
 _Builder = Callable[[str, str], py_trees.behaviour.Behaviour]
 
+#: ``(module path, function)`` of a production factory, as
+#: ``received_tree_factories()`` keys it.
+_Site = tuple[str, str]
+
+
+def _site(factory: Callable[..., object]) -> _Site:
+    """The corpus key of *factory*, read off the function itself."""
+    return (factory.__module__.replace(".", "/") + ".py", factory.__name__)
+
 
 def _accept(case_id: str, embargo_id: str) -> py_trees.behaviour.Behaviour:
     return accept_invite_to_embargo_tree(
@@ -202,18 +211,58 @@ def _remove(case_id: str, embargo_id: str) -> py_trees.behaviour.Behaviour:
 #: ``(label, builder, declaration)`` for every received embargo tree that
 #: declares its paths.  ``embargo_invite_fault_tree`` is deliberately absent;
 #: see :func:`test_the_fault_tree_declares_no_paths`.
-TREES: tuple[tuple[str, _Builder, frozenset[ReceivedPath]], ...] = (
-    ("accept-invite", _accept, _MANAGER_ONLY),
+TREES: tuple[tuple[str, _Builder, frozenset[ReceivedPath], _Site], ...] = (
+    (
+        "accept-invite",
+        _accept,
+        _MANAGER_ONLY,
+        _site(accept_invite_to_embargo_tree),
+    ),
     # The Reject of an Invite is also the CASE_MANAGER's own refusal to the
     # participant it turns away (EMB-02-004, EP-09-017), so its tree admits
     # that replica too even though only the manager records an answer.
-    ("reject-invite", _reject_invite, _BOTH),
-    ("activate", _activate, _MANAGER_ONLY),
-    ("reject-proposal", _reject_proposal, _MANAGER_ONLY),
-    ("withdraw", _withdraw, _MANAGER_ONLY),
-    ("announce-embargo", _announce, _REPLICA_ONLY),
-    ("invite", _invite, _BOTH),
-    ("remove", _remove, _BOTH),
+    (
+        "reject-invite",
+        _reject_invite,
+        _BOTH,
+        _site(reject_invite_to_embargo_tree),
+    ),
+    (
+        "activate",
+        _activate,
+        _MANAGER_ONLY,
+        _site(activate_embargo_on_case_tree),
+    ),
+    (
+        "reject-proposal",
+        _reject_proposal,
+        _MANAGER_ONLY,
+        _site(reject_embargo_proposal_on_case_tree),
+    ),
+    (
+        "withdraw",
+        _withdraw,
+        _MANAGER_ONLY,
+        _site(withdraw_from_embargo_on_case_tree),
+    ),
+    (
+        "announce-embargo",
+        _announce,
+        _REPLICA_ONLY,
+        _site(announce_embargo_received_tree),
+    ),
+    (
+        "invite",
+        _invite,
+        _BOTH,
+        _site(invite_to_embargo_on_case_tree),
+    ),
+    (
+        "remove",
+        _remove,
+        _BOTH,
+        _site(remove_embargo_from_case_tree),
+    ),
 )
 
 #: Who each declaration turns away, and the path the stage resolves there.
@@ -226,11 +275,11 @@ _REFUSED: dict[frozenset[ReceivedPath], tuple[str, ReceivedPath]] = {
     _BOTH: ("stranger", ReceivedPath.NO_CASE),
 }
 
-#: Who each declaration admits.
-_ADMITTED: dict[frozenset[ReceivedPath], str] = {
-    _MANAGER_ONLY: "manager",
-    _REPLICA_ONLY: "replica",
-    _BOTH: "manager",
+#: The store role that puts a receiver on each path.
+_ROLE_FOR_PATH: dict[ReceivedPath, str] = {
+    ReceivedPath.CASE_MANAGER: "manager",
+    ReceivedPath.PARTICIPANT_REPLICA: "replica",
+    ReceivedPath.NO_CASE: "stranger",
 }
 
 
@@ -277,10 +326,47 @@ def _run_stage(
     return stage, case_id
 
 
+#: The one embargo received tree that declares no paths, with its reason in
+#: :func:`test_the_fault_tree_declares_no_paths`.
+_DECLARES_NOTHING = (
+    "vultron/core/behaviors/embargo/invite_received_tree.py",
+    "embargo_invite_fault_tree",
+)
+
+
+@pytest.mark.spec("HP-01-038")
+@pytest.mark.spec("ARCH-18-001")
+def test_every_embargo_received_tree_is_covered() -> None:
+    """:data:`TREES` covers every embargo received-tree factory there is.
+
+    Keyed on the discovered corpus rather than on this hand-written list, so
+    a tenth embargo tree cannot slip past its declaration pin — the
+    hand-maintained-subject-list failure of #5535.  Each factory is either
+    in :data:`TREES` or is the fault tree, which declares nothing.
+    """
+    from test.architecture._received_tree_builds import (
+        received_tree_factories,
+    )
+
+    discovered = {
+        site
+        for site in received_tree_factories()
+        if site[0].startswith("vultron/core/behaviors/embargo/")
+    }
+    covered = {site for _, _, _, site in TREES}
+
+    assert discovered, "no embargo received-tree factory found at all"
+    assert discovered - {_DECLARES_NOTHING} == covered, (
+        "every embargo received tree is pinned here or named as the one that"
+        f" declares nothing: discovered {sorted(discovered)}, covered"
+        f" {sorted(covered)}"
+    )
+
+
 @pytest.mark.spec("HP-01-038")
 @pytest.mark.parametrize(
     ("label", "builder", "declared"),
-    [pytest.param(*row, id=row[0]) for row in TREES],
+    [pytest.param(*row[:3], id=row[0]) for row in TREES],
 )
 def test_each_tree_declares_the_paths_it_handles(
     label: str, builder: _Builder, declared: frozenset[ReceivedPath]
@@ -315,7 +401,7 @@ def test_the_fault_tree_declares_no_paths() -> None:
 @pytest.mark.spec("HP-01-005")
 @pytest.mark.parametrize(
     ("label", "builder", "declared"),
-    [pytest.param(*row, id=row[0]) for row in TREES],
+    [pytest.param(*row[:3], id=row[0]) for row in TREES],
 )
 def test_a_receiver_off_the_declared_path_is_refused(
     label: str, builder: _Builder, declared: frozenset[ReceivedPath]
@@ -347,13 +433,19 @@ def test_a_receiver_off_the_declared_path_is_refused(
 @pytest.mark.spec("HP-01-037")
 @pytest.mark.parametrize(
     ("label", "builder", "declared"),
-    [pytest.param(*row, id=row[0]) for row in TREES],
+    [pytest.param(*row[:3], id=row[0]) for row in TREES],
 )
-def test_a_receiver_on_a_declared_path_is_admitted(
+def test_every_receiver_on_a_declared_path_is_admitted(
     label: str, builder: _Builder, declared: frozenset[ReceivedPath]
 ) -> None:
-    """The complement: the stage admits the receiver the type addresses."""
-    stage, _ = _run_stage(label, builder, _ADMITTED[declared])
+    """The complement, on *each* declared path, not just the first.
 
-    assert stage.status is Status.SUCCESS
-    assert stage.resolved_path in declared
+    A two-path declaration is the whole point of the Invite, Remove and
+    Reject trees, so both of its arms are admitted here; checking one would
+    leave the newly branched path unexercised.
+    """
+    for path in sorted(declared, key=lambda p: p.value):
+        stage, _ = _run_stage(label, builder, _ROLE_FOR_PATH[path])
+
+        assert stage.status is Status.SUCCESS, path
+        assert stage.resolved_path is path

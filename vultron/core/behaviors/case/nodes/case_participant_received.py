@@ -256,7 +256,7 @@ def case_manager_admits_removal_guard(
     """Precondition guard: when this actor is the CASE_MANAGER, the removal is admissible.
 
     A read-only composite for the received tree's ``precondition_guards``
-    (CLP-10-009), in the shape of ``case_manager_admits_proposal_guard``: a
+    (CLP-10-009): a
     replica skips it as ``SUCCESS`` (it writes nothing, RSH-08-003), and the
     CASE_MANAGER runs the three removal guards in order, so a removal it
     refuses or skips leaves no ledger entry (CM-31-004, CM-31-022, CLP-13-001).

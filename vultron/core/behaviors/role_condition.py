@@ -27,6 +27,13 @@ about the activity's sender and is composed once per use case
 (HP-01-006, HP-01-007); the path stage asks about the *receiver's*
 ``CVDRole.CASE_MANAGER`` role, once per message (HP-01-035).  This node asks
 about neither, so it is the right shape only for an actor the message names.
+
+``CVDRole.CASE_MANAGER`` is refused at construction, for that reason: asked
+about the executing actor it would be a second authority condition node, which
+ARCH-24-003 allows exactly one of, and a role passed as a parameter is invisible
+to the detector both authority ratchets share
+(``test/architecture/_authority_question.py``).  Authority is the path stage's
+question (HP-01-037) and the gate's (BT-17-001); nothing else asks it.
 """
 
 from py_trees.common import Status
@@ -35,6 +42,7 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.participants.role_predicate import has_role
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronWiringError
 
 __all__ = ["ActorHoldsRoleInCaseNode"]
 
@@ -54,10 +62,14 @@ class ActorHoldsRoleInCaseNode(DataLayerConditionWithPorts):
     Args:
         actor_id: The actor whose role is in question.  Read from the
             message, never from the receiving store (ADR-0022).
-        role: The role asked about.
+        role: The role asked about.  ``CVDRole.CASE_MANAGER`` is refused:
+            authority has one asker (ARCH-24-003, HP-01-037).
         case_id: The case the role belongs to; ``None`` reads it from the
             blackboard's ``/case_id``.
         name: Node name; defaults to the class name.
+
+    Raises:
+        VultronWiringError: *role* is ``CVDRole.CASE_MANAGER``.
     """
 
     def __init__(
@@ -67,6 +79,13 @@ class ActorHoldsRoleInCaseNode(DataLayerConditionWithPorts):
         case_id: str | None = None,
         name: str | None = None,
     ) -> None:
+        if role is CVDRole.CASE_MANAGER:
+            raise VultronWiringError(
+                f"{type(self).__name__}: CVDRole.CASE_MANAGER is the path"
+                " stage's question and the CASE_MANAGER gate's; exactly one"
+                " node answers it, so this node refuses that role"
+                " (ARCH-24-003, HP-01-037)"
+            )
         super().__init__(name=name or self.__class__.__name__)
         self._actor_id = actor_id
         self._role = role
@@ -97,7 +116,7 @@ class ActorHoldsRoleInCaseNode(DataLayerConditionWithPorts):
         case_id = self._case_id or self._case_id_bb
         if not case_id:
             self.feedback_message = (
-                f"{self.name}: no case to read '{self._actor_id}''s"
+                f"{self.name}: no case to read '{self._actor_id}'s"
                 f" {self._role.name} role in"
             )
             self.logger.warning("%s", self.feedback_message)

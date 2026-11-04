@@ -34,7 +34,8 @@ Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
    at run time and ``test_receive_activity_tree.py`` that the factory gates
    it (CLP-10-022).
 4. No built received tree commits ahead of its guarded commit except inside
-   the clock-decision stage or a CASE_MANAGER diversion, and there only from
+   the clock-decision stage or a diversion in a manager-only path declaration,
+   and there only from
    a stage's own commit nodes — one per AS2 activity the decision or the
    diversion needs — never the received activity's, and no other
    protocol-effect node runs inside the clock-decision stage (CLP-10-025,
@@ -360,16 +361,18 @@ def _manager_only(root: py_trees.behaviour.Behaviour) -> bool:
     (HP-01-038): the path stage refuses every other receiver before the
     guards run, so the diversion needs no gate of its own and may commit its
     own entry.  A tree with no declaration keeps neither.
+
+    Read from the production predicate,
+    :attr:`~vultron.core.behaviors.case.nodes.received_path.ReceivedPathNode.manager_path_only`,
+    so this ratchet and the factory cannot drift apart on what the
+    declaration means (CS-22-001).
     """
     from vultron.core.behaviors.case.nodes.received_path import (
-        ReceivedPath,
         ReceivedPathNode,
     )
 
     stages = [n for n in root.iterate() if isinstance(n, ReceivedPathNode)]
-    return bool(stages) and stages[0].declared == frozenset(
-        {ReceivedPath.CASE_MANAGER}
-    )
+    return bool(stages) and stages[0].manager_path_only
 
 
 def _commits_own_entry(
@@ -402,7 +405,8 @@ def _early_commits(root: py_trees.behaviour.Behaviour) -> list[str]:
     """Commits *root* runs before its guarded commit that CLP-10-025 forbids.
 
     A commit ahead of the guarded commit is allowed only inside a
-    :class:`ClockDecisionStage` or a CASE_MANAGER diversion, and there only
+    :class:`ClockDecisionStage` or a diversion in a tree declaring the
+    CASE_MANAGER path alone, and there only
     the stage's own entries (:func:`_decision_commit_types`); the received
     activity's
     commit (``CommitCaseLedgerEntryNode``) inside the stage would commit the

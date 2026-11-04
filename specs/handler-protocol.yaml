@@ -930,10 +930,14 @@ groups:
       and `::test_a_branch_for_an_undeclared_path_is_a_wiring_error` assert the
       factory owns the branch,
       `test/architecture/test_received_tree_case_manager_gate.py::test_only_the_factory_builds_a_received_path_branch`
-      asserts no tree builds one, and
-      `test/architecture/test_received_tree_state_writes_are_gated.py::test_a_manager_only_declaration_is_what_excuses_a_tree`
-      asserts the state-write walk still descends into a participant-replica
-      branch while excusing a manager-only declaration.
+      asserts no tree builds one. In
+      `test/core/behaviors/case/test_receive_activity_tree.py`,
+      `::test_ungated_emitters_skips_the_manager_gate_and_a_declared_branch`
+      asserts an emit inside a branch needs no exemption and
+      `::test_ungated_nodes_walks_the_replica_gate_but_not_the_manager_gate`
+      that a state write inside one stays visible, while
+      `test/architecture/test_received_tree_state_writes_are_gated.py::test_manager_only_declarations_are_pinned`
+      records every tree the declaration gates whole.
     relationships:
     - rel_type: refines
       spec_id: HP-01-038

@@ -78,7 +78,6 @@ from test.architecture.test_received_tree_case_manager_gate import (
     _top_level_scopes,
 )
 from vultron.core.behaviors.case.nodes.received_path import (
-    ReceivedPath,
     ReceivedPathNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import ungated_nodes
@@ -373,20 +372,62 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# 3. **Pinned exemption set** MANAGER_ONLY_DECLARATIONS — the trees the walk
+#    skips whole, because their declaration names the CASE_MANAGER path alone
+#    and so gates them (HP-01-042).  Kept per item, not as a count: a count
+#    would let one tree's declaration narrow while another's widened, and a
+#    non-empty guard alone passes vacuously (#5535).
+# ---------------------------------------------------------------------------
+# permanent: HP-01-042 (a manager-only declaration gates its tree; each entry
+# is that declaration, read off the built tree)
+MANAGER_ONLY_DECLARATIONS: frozenset[tuple[str, str]] = frozenset(
+    {
+        (f"{_E}/answer_trees.py", "accept_invite_to_embargo_tree"),
+        (f"{_E}/owner_decision_tree.py", "activate_embargo_on_case_tree"),
+        (
+            f"{_E}/owner_decision_tree.py",
+            "reject_embargo_proposal_on_case_tree",
+        ),
+        (f"{_E}/withdrawal_tree.py", "withdraw_from_embargo_on_case_tree"),
+        (
+            f"{_C}/suggest_actor_tree.py",
+            "create_accept_actor_recommendation_received_tree",
+        ),
+        (
+            f"{_C}/suggest_actor_tree.py",
+            "create_reject_actor_recommendation_received_tree",
+        ),
+    }
+)
+
+
 def _declares_manager_path_only(
     tree: py_trees.behaviour.Behaviour,
 ) -> bool:
     """True when *tree*'s path declaration names the CASE_MANAGER path alone.
 
-    Such a tree is gated whole (HP-01-038): the path stage the factory placed
-    among the door guards refuses every other receiver before anything runs,
-    so every node after it executes at the case's CASE_MANAGER and RSH-08-003
-    is satisfied without a gate inside the tree.  The declaration is the gate,
-    which is the point of ADR-0153.
+    Such a tree is gated whole (HP-01-038, HP-01-042): the path stage the
+    factory placed among the door guards refuses every other receiver before
+    anything runs, so every node after it executes at the case's CASE_MANAGER
+    and RSH-08-003 is satisfied without a gate inside the tree.  The
+    declaration is the gate, which is the point of ADR-0153.
+
+    Read from the production predicate,
+    :attr:`~vultron.core.behaviors.case.nodes.received_path.ReceivedPathNode.manager_path_only`,
+    so this ratchet and the factory cannot drift apart on what the
+    declaration means (CS-22-001).
     """
     stages = [n for n in tree.iterate() if isinstance(n, ReceivedPathNode)]
-    return bool(stages) and stages[0].declared == frozenset(
-        {ReceivedPath.CASE_MANAGER}
+    return bool(stages) and stages[0].manager_path_only
+
+
+def _manager_only_trees() -> frozenset[tuple[str, str]]:
+    """``(module, factory)`` for each tree the declaration gates whole."""
+    return frozenset(
+        key
+        for key, tree in built_received_trees().items()
+        if _declares_manager_path_only(tree)
     )
 
 
@@ -395,8 +436,8 @@ def _ungated_state_writes() -> frozenset[_Write]:
 
     A tree that declares the CASE_MANAGER path alone is skipped whole; see
     :func:`_declares_manager_path_only`.
-    :func:`test_a_manager_only_declaration_is_what_excuses_a_tree` keeps that
-    skip from widening unnoticed.
+    :func:`test_manager_only_declarations_are_pinned` records which trees
+    those are, so the skip cannot widen unnoticed.
     """
     return frozenset(
         (rel, factory, type(node).__name__)
@@ -406,27 +447,27 @@ def _ungated_state_writes() -> frozenset[_Write]:
     )
 
 
-@pytest.mark.spec("HP-01-038")
+@pytest.mark.spec("HP-01-042")
 @pytest.mark.spec("RSH-08-003")
-def test_a_manager_only_declaration_is_what_excuses_a_tree() -> None:
-    """The skip above rests on a declaration, and some tree has one.
+@pytest.mark.spec("ARCH-18-005")
+def test_manager_only_declarations_are_pinned() -> None:
+    """Which trees the declaration gates whole, in both directions.
 
-    Without this the skip could quietly cover every tree — a declaration the
-    factory stopped placing, a renamed stage — and the ratchet would pass on
-    an empty walk.
+    The skip rests on a declaration, so the declarations are the record: a
+    tree that gains one leaves the walk and must be listed here, and a tree
+    that loses one re-enters it.  Pinned per item rather than counted,
+    because a count cannot tell one tree narrowing from another widening
+    (#5535).
     """
-    excused = {
-        key
-        for key, tree in built_received_trees().items()
-        if _declares_manager_path_only(tree)
-    }
-    walked = set(built_received_trees()) - excused
-
-    assert excused, (
-        "no received tree declares the CASE_MANAGER path alone; the"
-        f" {ReceivedPathNode.__name__} door stage has gone missing"
+    _assert_pinned(
+        "manager-only path declaration",
+        _manager_only_trees(),
+        MANAGER_ONLY_DECLARATIONS,
+        "a tree gated whole by its declaration is recorded here (HP-01-042)",
     )
-    assert walked, "every received tree was excused; the walk is vacuous"
+    assert set(built_received_trees()) - _manager_only_trees(), (
+        "every received tree was excused; the walk is vacuous"
+    )
 
 
 def test_every_received_tree_factory_is_built() -> None:

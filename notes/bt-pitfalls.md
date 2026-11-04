@@ -8,7 +8,8 @@ description: >
   the BTBridge exception-handler contract, idempotency patterns,
   memory=False partial-write behavior and the ActTransaction remedy, key
   namespacing, refusal-arm
-  fail-closed rules, and the received-tree CASE_MANAGER gate.
+  fail-closed rules, and the received-tree CASE_MANAGER gate and declared
+  path branches.
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/behavior-tree-node-design.yaml
@@ -16,6 +17,7 @@ related_specs:
   - specs/case-management.yaml
   - specs/case-proposal.yaml
   - specs/code-style.yaml
+  - specs/handler-protocol.yaml
   - specs/received-status-handling.yaml
   - specs/participant-case-replica.yaml
 related_notes:
@@ -519,17 +521,22 @@ Rules for the arm:
 gate; hand-wrapping each tree let new trees leave it out. A received-tree module
 never calls `create_case_manager_gated_tree` itself.
 
-- **Two effect kinds.** `replica_effects` run on every replica, ungated;
+- **Three effect kinds.** `replica_effects` run on every replica, ungated;
+  `participant_path_effects` run in the declared participant-replica path branch
+  the factory builds from the path stage's answer (HP-01-038, HP-01-042);
   `manager_effects` are wrapped in a `CaseManagerGate` on `manager_case_id`
   (separate from the commit's `case_id`, which may be `None`). Stage order:
-  intake → guards → commit → `replica_effects` → `manager_effects`.
-  `manager_gate_name`, `manager_body_name` and `manager_case_may_be_absent`
-  configure the gate.
+  intake → guards → commit → `replica_effects` → `participant_path_effects`
+  → `manager_effects`. `manager_gate_name`, `manager_body_name` and
+  `manager_case_may_be_absent` configure the gate;
+  `participant_path_branch_name` and `participant_path_body_name` the branch.
 - **Emit-capable nodes carry `EmitCapable`** (`vultron/core/behaviors/emit_capable.py`).
   The factory raises `VultronWiringError` when a marked node sits in
-  `replica_effects` outside every `CaseManagerGate` without a covering exemption.
-  Only `create_case_manager_gated_tree` builds a `CaseManagerGate`; the
-  participant-replica gate does not count.
+  `replica_effects` outside every `CaseManagerGate` and every
+  `ReceivedPathBranch`, without a covering exemption. Only
+  `create_case_manager_gated_tree` builds a `CaseManagerGate` and only
+  `received_path_branch()` a `ReceivedPathBranch`; the hand-built
+  participant-replica gate counts as neither.
 - **Ledger replication carries no marker.** Senders through `SyncActivityPort` or
   `create_commit_log_entry_tree` are gated by ledger authority
   (`DeclineForeignLedgerCommitNode`, ADR-0073) and pinned in
@@ -539,7 +546,18 @@ never calls `create_case_manager_gated_tree` itself.
   reason and `covers`; the factory refuses an unregistered exemption, an ungated
   emitter outside `covers`, and an exemption covering nothing (stale). A
   migration-only exemption names the issue that deletes it. A sender check is no
-  substitute: it says nothing about whether this replica owns the case.
+  substitute: it says nothing about whether this replica owns the case. An emit
+  inside a declared path branch needs none of this: the path names the actor the
+  emit speaks for, which is BT-17-008's other admitted guard (HP-01-042). An
+  exemption is for an emit a tree makes on *every* path it declares.
+- **The state-write walk is not weakened the same way.** `ungated_nodes` takes
+  the composites to skip: `ungated_emitters` skips a `ReceivedPathBranch`, the
+  `StateWriteCapable` walk does not, because a participant-replica branch is
+  exactly where RSH-08-003's one exception lives. What *does* excuse a write is
+  a declaration naming the CASE_MANAGER path alone — the stage refused every
+  other receiver, so the tree is gated whole, and
+  `test_received_tree_state_writes_are_gated.py` pins which trees that covers
+  rather than skipping them silently.
 - **Refusal effects are gated too**: `refusal_effects` run only when a guard
   refuses, inside `{name}RefusalIfCaseManager` with `case_may_be_absent=True`
   (CLP-10-022); see [bt-integration.md](bt-integration.md) § "The Four
