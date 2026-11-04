@@ -1666,7 +1666,7 @@ groups:
       except `vultron/core/models/` and `vultron/core/states/`. The forbidden set
       includes `behaviors/`, `use_cases/`, `ports/`, `services/`, `predicates/`,
       `scoring/`, `case_states/`, `participants/`, `dispatcher.py` and
-      `sync_helpers.py`. The permitted set is an allow-list, so a package added to
+      `sync_helpers/`. The permitted set is an allow-list, so a package added to
       `vultron/core/` later is forbidden until this requirement admits it. A
       TYPE_CHECKING-guarded import is exempt, because it is erased at runtime and can
       only appear in an annotation.

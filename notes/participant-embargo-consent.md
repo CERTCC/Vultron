@@ -443,7 +443,7 @@ redacted per recipient, and a skipped entry would be replayed on the replica's
 gap Reject. So while an embargo is active a non-signatory is sent no ledger
 entries, by fan-out or replay; when the gate admits it, the CASE_MANAGER sends
 the withheld suffix in log order. The predicate is the shared selection in
-`vultron/core/participants/recipients.py` (CM-10-007); the pause mechanics are in
+`vultron/core/participants/recipients/` (CM-10-007); the pause mechanics are in
 [sync-ledger-replication.md](sync-ledger-replication.md) § "Fan-Out Recipients
 and the Embargo Gate". Invites are addressed directly, so the pause cannot lock a
 participant out of accepting.
