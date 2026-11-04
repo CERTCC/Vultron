@@ -112,7 +112,8 @@ blank IRI is refused inbound.
 
 Inside a union Pydantic keeps the `Annotated` wrapper. Code that classifies a
 branch with `is str` or by set equality MUST call `strip_annotated()`
-(`vultron/core/models/_helpers.py`) first; otherwise it sees no string branch, the
+(`vultron/core/models/_helpers/inbound.py`) first; otherwise it sees no string branch,
+the
 dehydration field set comes out empty, and VM-06-009 refuses a reference it should
 defer. Ratchets: `test/architecture/test_wire_reference_fields_reject_blank.py`,
 `test_core_reference_fields_reject_blank.py`.

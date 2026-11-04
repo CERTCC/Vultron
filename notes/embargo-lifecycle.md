@@ -47,12 +47,12 @@ related_notes:
 relevant_packages:
   - vultron/core/states/em.py
   - vultron/core/states/embargo_register.py
-  - vultron/core/models/embargo_register.py
+  - vultron/core/models/embargo_register/
   - vultron/core/models/embargo_termination.py
   - vultron/core/services/embargo_lifecycle/
   - vultron/core/services/carried_embargo.py
   - vultron/core/behaviors/embargo/
-  - vultron/core/models/pending_assertion.py
+  - vultron/core/models/pending_assertion/
   - vultron/core/use_cases/triggers/embargo/
   - vultron/core/use_cases/received/embargo/
 ---

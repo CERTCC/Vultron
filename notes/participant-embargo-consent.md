@@ -36,8 +36,8 @@ relevant_packages:
   - transitions
   - vultron/bt/embargo_management
   - vultron/core/behaviors/embargo
-  - vultron/core/models/case_participant.py
-  - vultron/core/models/embargo_apply.py
+  - vultron/core/models/case_participant/
+  - vultron/core/models/embargo_apply/
   - vultron/core/behaviors/sync/nodes
   - vultron/core/use_cases
 ---
@@ -249,7 +249,8 @@ calls the service's predicate rather than restating it.
 
 `CaseParticipant.copy_consent_row()` is the third row write, and the only one
 a replica may use: it stores a row exactly as a ledger entry carries it. It is
-called only from `apply_embargo_change()` (`vultron/core/models/embargo_apply.py`),
+called only from `apply_embargo_change()`
+(`vultron/core/models/embargo_apply/apply.py`),
 the one apply function the CASE_MANAGER's trial apply and every replica share.
 That function checks the starting state first (a `Create` row is new; an
 `Update` row is held and one consent transition, or a fresh `INVITED`

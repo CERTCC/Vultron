@@ -915,8 +915,7 @@ def test_a_rebuilt_recommendation_is_the_same_on_every_build(
     """
     from datetime import timedelta
 
-    from vultron.core.models import _helpers
-    from vultron.core.models._helpers import now_utc
+    from vultron.core.models._helpers import clock as helpers_clock, now_utc
     from vultron.demo.determinism import SteppingClock
 
     emit = getattr(world.adapter, method)
@@ -935,7 +934,7 @@ def test_a_rebuilt_recommendation_is_the_same_on_every_build(
 
     first = embedded()
     monkeypatch.setattr(
-        _helpers,
+        helpers_clock,
         "datetime",
         SteppingClock(now_utc() + timedelta(hours=1), step=timedelta(0)),
     )

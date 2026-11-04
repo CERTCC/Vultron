@@ -10,7 +10,9 @@ from test.architecture import _corpus
 # vultron/core/ root
 _CORE_ROOT = _corpus.REPO_ROOT / "vultron" / "core"
 # The module that is permitted to access case_roles directly
-_ALLOWED_MODULES = frozenset([_CORE_ROOT / "models" / "case_participant.py"])
+_ALLOWED_MODULES = frozenset(
+    [_CORE_ROOT / "models" / "case_participant" / "participant.py"]
+)
 
 # Patterns that indicate direct case_roles mutation on an instance:
 #   .case_roles = ...   (attribute assignment)

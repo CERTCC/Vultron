@@ -41,7 +41,7 @@ from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     MAX_REPLAY_COOLDOWN_SECONDS,
 )
-from vultron.core.models import _helpers
+from vultron.core.models._helpers import clock as helpers_clock
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
@@ -2202,7 +2202,7 @@ _GENESIS_WAIT_START = datetime(2026, 1, 1, tzinfo=UTC)
 def _set_clock(monkeypatch: pytest.MonkeyPatch, at: datetime) -> None:
     """Freeze ``now_utc()`` at *at*."""
     monkeypatch.setattr(
-        _helpers, "datetime", SteppingClock(at, step=timedelta(0))
+        helpers_clock, "datetime", SteppingClock(at, step=timedelta(0))
     )
 
 

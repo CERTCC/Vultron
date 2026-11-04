@@ -321,6 +321,7 @@ only Protocol-declared members (CS-20-002).
 
 ## `HashChainLedgerRecord` ≠ `CaseLedgerEntry`
 
-`HashChainLedgerRecord` (`core/models/case_ledger.py`) is the in-memory hash-chain
+`HashChainLedgerRecord` (`core/models/case_ledger/record.py`) is the in-memory
+hash-chain
 record, a plain `BaseModel`; `CaseLedgerEntry` (`core/models/case_ledger_entry.py`) is
 the wire-serializable `CoreObject` (ARCH-12-007). Import each by its full module path.

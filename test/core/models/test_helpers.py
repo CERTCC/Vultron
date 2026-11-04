@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Regression tests for core/models/_helpers.py — _as_id must live in the
+"""Regression tests for core/models/_helpers/ — _as_id must live in the
 models layer, not use_cases.
 
 Issue #1428: BT import-direction violation — behaviors/ imported _as_id from
@@ -28,8 +28,8 @@ from pathlib import Path
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from vultron.core.models import _helpers
 from vultron.core.models._helpers import (
+    clock as helpers_clock,
     format_timestamp,
     now_utc,
     now_utc_after,
@@ -353,7 +353,7 @@ _TICK = timedelta(microseconds=1)
 @pytest.fixture
 def _frozen_clock(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        _helpers, "datetime", SteppingClock(_PINNED, step=timedelta(0))
+        helpers_clock, "datetime", SteppingClock(_PINNED, step=timedelta(0))
     )
 
 
@@ -534,6 +534,6 @@ def test_application_code_reads_the_clock_only_through_now_utc() -> None:
 def test_an_interval_composed_from_now_is_in_utc() -> None:
     """``days_from_now_utc`` adds the interval to a UTC instant, never to a
     local-zone one, so the end it returns carries a zero offset."""
-    end = _helpers.days_from_now_utc(30)
+    end = helpers_clock.days_from_now_utc(30)
     assert end.utcoffset() == timedelta(0)
     assert end.tzinfo is UTC or end.tzinfo == UTC

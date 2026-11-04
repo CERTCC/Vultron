@@ -52,11 +52,11 @@ _NOT_A_SNAPSHOT_EXEMPTIONS: dict[tuple[str, str], str] = {
         "for_actor",
     ): "revalidates this row's own dump with its attribution set",
     (
-        "vultron/core/models/embargo_register.py",
+        "vultron/core/models/embargo_register/step.py",
         "_entry_after",
     ): "revalidates this entry's own dump with the change applied",
     (
-        "vultron/core/models/case_ledger.py",
+        "vultron/core/models/case_ledger/record.py",
         "_compute_entry_hash",
     ): (
         "reads the one `received_at` timestamp the hash input needs, with the"

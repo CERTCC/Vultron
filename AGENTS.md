@@ -160,9 +160,8 @@ six-step checklist (enum → pattern → use-case → map → tests).
   defines endpoints)
 - **Errors**: `vultron/errors.py`
 - **Demo**: `vultron/demo/cli.py` (entry point)
-- **Case States**: `vultron/core/states/cs.py` (CS/VFD/PXA enums, authoritative)
-  and `cs_invariants.py` (CSB-17 invariants) → [notes/case-state-model.md](notes/case-state-model.md)
-  for the legacy-oracle relationship (ADR-0060)
+- **Case States**: `vultron/core/states/cs/` (CS/VFD/PXA enums, authoritative) and
+  `cs_invariants/` (CSB-17) → legacy oracle (ADR-0060): [notes/case-state-model.md](notes/case-state-model.md)
 
 Full core-layer map → [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md).
 Full wire-layer map → [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md).

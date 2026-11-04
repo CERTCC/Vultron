@@ -26,9 +26,9 @@ stakeholder_type: [project-contributor]
 | SQLModel | >=0.0.39 | SQLite-backed data layer (ORM/schema) | `pyproject.toml` |
 | uvicorn | >=0.52.3 | ASGI server for FastAPI | `pyproject.toml`, `docker/Dockerfile` |
 | py-trees | >=2.6.0 | Behavior tree engine for `vultron/core/behaviors/` | `pyproject.toml` |
-| networkx | >=3.5 | Graphs in the legacy BT simulator, the case-state hypercube and the spec registry | `vultron/bt/base/bt_node.py`, `vultron/core/case_states/hypercube.py`, `vultron/metadata/specs/registry.py` |
+| networkx | >=3.5 | Graphs in the legacy BT simulator, the case-state hypercube and the spec registry | `vultron/bt/base/bt_node.py`, `vultron/core/case_states/hypercube/`, `vultron/metadata/specs/registry.py` |
 | transitions | >=0.9.3 | State machine definitions (EM, RM, CS, PEC) | `vultron/core/states/` |
-| pandas | >=3.0.5 | Tabular case-state analysis and the legacy simulator demo | `vultron/core/case_states/hypercube.py`, `vultron/bt/base/demo/cvd.py` |
+| pandas | >=3.0.5 | Tabular case-state analysis and the legacy simulator demo | `vultron/core/case_states/hypercube/`, `vultron/bt/base/demo/cvd.py` |
 | scipy | >=1.18.0 | Declared, but no module in `vultron/` or `test/` imports it (see `CONCERNS.md`) | `pyproject.toml` |
 | PyYAML | >=6.0 | YAML config + spec file parsing | `pyproject.toml` |
 | python-frontmatter | >=1.3.0 | YAML frontmatter in Markdown notes, ADRs and docs pages | `vultron/metadata/` |

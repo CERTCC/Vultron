@@ -40,7 +40,7 @@ Defined in `vultron/core/models/case.py`.
 
 ## `CaseParticipant`
 
-Defined in `vultron/core/models/case_participant.py`.
+Defined in `vultron/core/models/case_participant/participant.py`.
 
 | Field | Description |
 |---|---|

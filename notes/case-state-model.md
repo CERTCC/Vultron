@@ -47,10 +47,10 @@ rules for changing the code that implements it.
 
 ## Where the CS Rules Live (ADR-0060)
 
-- **Enums**: `vultron/core/states/cs.py`. The 32-member `CS` enum makes the
+- **Enums**: `vultron/core/states/cs/`. The 32-member `CS` enum makes the
   impossible combinations (`vF`, `fD`) unrepresentable; the split sub-machine
   enums are `CS_vf`, `CS_d`, `CS_pxa` (ADR-0075).
-- **Invariants**: `vultron/core/states/cs_invariants.py` (CSB-17). New code
+- **Invariants**: `vultron/core/states/cs_invariants/` (CSB-17). New code
   MUST use it and MUST NOT import `vultron/core/case_states/validations.py`.
   `vultron/core/case_states/` is a reference model and the test oracle for the
   invariants, not a protocol path.

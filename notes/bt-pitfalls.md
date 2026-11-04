@@ -342,7 +342,7 @@ SYNC-09-003).
 ## Guard Name Must Match the State-Machine Transition Precondition
 
 Derive a guard's condition (and name) from the precondition of the transition it
-protects, read from the state machine (`vultron/core/states/cs.py`), not from the
+protects, read from the state machine (`vultron/core/states/cs/`), not from the
 issue's "not yet done" wording. "D bit unset" admits `vfd`/`Vfd`, but `vfd→VFD`
 via `TransitionCStoFixDeployed` is valid only from `VFd` — see
 `CheckCSFixNotYetDeployed` (#1825).
