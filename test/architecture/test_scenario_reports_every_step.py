@@ -59,6 +59,20 @@ _HELPER_MODULES = sorted(
     if path.relative_to(_HELPERS_DIR).as_posix() != _RUNNER_MODULE
 )
 
+#: The modules beside the scenarios that are not scenarios themselves: a
+#: scenario's own fragments may sit in a sibling module that discovery does
+#: not read (``rcvcv_fragments.py``, #5592), and the scan of
+#: ``spec.module_name`` alone would pass over a mark placed there.
+_SCENARIO_DIR = _corpus.REPO_ROOT / "vultron" / "demo" / "scenario"
+_SCENARIO_SIDE_MODULES = sorted(
+    path
+    for path in _corpus.paths_under(_SCENARIO_DIR)
+    if not path.name.endswith("_demo.py")
+)
+
+#: Everything scanned besides each scenario's own module.
+_SCANNED_MODULES = _HELPER_MODULES + _SCENARIO_SIDE_MODULES
+
 
 #: The call that reports a step: the harness method, which
 #: :func:`~vultron.demo.helpers.story.run_story` is the only legitimate caller
@@ -200,20 +214,20 @@ def test_at_least_one_scenario_is_registered() -> None:
 
 
 def _helper_steps() -> Counter[tuple[str, str]]:
-    """Every literal step a helper module other than the runner reports."""
+    """Every literal step a non-scenario module other than the runner reports."""
     assert _HELPER_MODULES, "no demo helper module found"
     total: Counter[tuple[str, str]] = Counter()
-    for path in _HELPER_MODULES:
+    for path in _SCANNED_MODULES:
         total += _steps_in(_corpus.tree_of(path))
     return total
 
 
 def _helper_reporter_calls() -> dict[str, int]:
-    """Reporter calls per helper module other than the runner, where nonzero."""
+    """Reporter calls per non-scenario module but the runner, where nonzero."""
     assert _HELPER_MODULES, "no demo helper module found"
     return {
-        path.relative_to(_HELPERS_DIR).as_posix(): count
-        for path in _HELPER_MODULES
+        path.relative_to(_corpus.REPO_ROOT).as_posix(): count
+        for path in _SCANNED_MODULES
         if (count := _reporter_calls(_corpus.tree_of(path)))
     }
 
@@ -253,6 +267,8 @@ def test_the_runner_is_the_one_module_held_out_of_the_scan() -> None:
     assert any(path.parent != _HELPERS_DIR for path in _HELPER_MODULES), (
         "no helper subpackage submodule is scanned"
     )
+    # A scenario's own fragments beside it are scanned as well (#5592).
+    assert _SCENARIO_DIR / "rcvcv_fragments.py" in _SCANNED_MODULES
 
 
 @pytest.mark.parametrize(

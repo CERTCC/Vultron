@@ -13,8 +13,9 @@
 
 """A patch on a split story package must name the submodule (#5592 AC-3).
 
-``coordinated_story`` and ``vendor_story`` are packages whose ``__init__``
-only re-exports names (CS-18-003).  A fragment looks each collaborator up in
+``coordinated_story``, ``vendor_story``, ``story`` and
+``owner_decision_story`` are packages whose ``__init__`` only re-exports
+names (CS-18-003).  A fragment looks each collaborator up in
 the globals of the submodule that defines it, so a ``patch.object`` against
 the package replaces a name no fragment reads: the test runs the real
 collaborator, against a ``MagicMock`` client, and may still pass.  This area
@@ -30,6 +31,12 @@ Two guards close it:
   name up inside one of its functions.  That catches the case the first guard
   cannot — a patch on a re-exported public name, such as
   ``open_coordinated_cast``, which the package does hold.
+
+``rcvcv_demo`` stays one flat scenario module (DEMOCI-11-003), and the
+fragments only it tells moved to ``rcvcv_fragments`` beside it.  The scenario
+module still imports those fragments to assemble its story, so a patch on it
+for a collaborator a fragment looks up would also reach nothing: a patch on
+either module must name the one whose functions look the name up.
 """
 
 import ast
@@ -48,6 +55,7 @@ from vultron.demo.helpers import (
     story,
     vendor_story,
 )
+from vultron.demo.scenario import rcvcv_demo, rcvcv_fragments
 
 #: The packages a module split produced, by dotted name.
 _PACKAGES: tuple[ModuleType, ...] = (
@@ -56,6 +64,10 @@ _PACKAGES: tuple[ModuleType, ...] = (
     story,
     vendor_story,
 )
+
+#: Flat modules a split left side by side: each patch on one must name the
+#: module that looks the patched name up.
+_FLAT_MODULES: tuple[ModuleType, ...] = (rcvcv_demo, rcvcv_fragments)
 
 #: Calls whose first two arguments are a module and a name to replace, by the
 #: last two parts of the called name, so ``patch.object``,
@@ -218,6 +230,14 @@ def _misdirected(source: str, where: str) -> list[str]:
     """
     problems: list[str] = []
     for line, module, name in _patch_targets(source):
+        for flat in _FLAT_MODULES:
+            if module == flat.__name__ and not _looked_up_in_a_function(
+                flat, name
+            ):
+                problems.append(
+                    f"{where}:{line}: patches {name!r} on {module}, which "
+                    "never looks it up, so the patch intercepts nothing"
+                )
         for package in _PACKAGES:
             if module == package.__name__:
                 problems.append(
@@ -331,6 +351,32 @@ def test_the_scan_passes_a_patch_on_the_resolving_submodule(
     assert _misdirected(source, "example.py") == []
 
 
+@pytest.mark.parametrize(
+    ("line", "flagged"),
+    [
+        ("patch.object(rcvcv_demo, 'verify_fix_ready')", True),
+        ("patch('vultron.demo.scenario.rcvcv_demo.add_note_thread')", True),
+        ("patch.object(rcvcv_fragments, 'verify_fix_ready')", False),
+        ("patch.object(rcvcv_demo, 'run_story')", False),
+    ],
+)
+def test_the_scan_checks_the_flat_scenario_and_its_fragments(
+    line: str, flagged: bool
+) -> None:
+    """A fragment's collaborator is patched on ``rcvcv_fragments``.
+
+    The scenario module imports the fragments, not their collaborators, so a
+    patch on it for one of those is flagged, and its own plumbing
+    (``run_story``) is let through.
+    """
+    source = (
+        "from vultron.demo.scenario import rcvcv_demo, rcvcv_fragments\n"
+        f"{line}\n"
+    )
+
+    assert bool(_misdirected(source, "example.py")) is flagged
+
+
 def test_a_default_argument_is_not_a_look_up(tmp_path: pathlib.Path) -> None:
     """A default is read once at import, so a later patch never reaches it."""
     path = tmp_path / "example.py"
@@ -351,7 +397,9 @@ def test_every_patch_on_a_split_package_names_the_resolving_submodule() -> (
     """
     # A file that never names a package cannot import or patch it, so only
     # the files that do are parsed.
-    package_names = tuple(p.__name__.rpartition(".")[2] for p in _PACKAGES)
+    package_names = tuple(
+        p.__name__.rpartition(".")[2] for p in (*_PACKAGES, *_FLAT_MODULES)
+    )
     texts = {
         str(path.relative_to(_TEST_ROOT.parent)): path.read_text()
         for path in sorted(_TEST_ROOT.rglob("*.py"))
@@ -367,6 +415,12 @@ def test_every_patch_on_a_split_package_names_the_resolving_submodule() -> (
         for target in _patch_targets(source)
         if target[1].startswith(tuple(p.__name__ for p in _PACKAGES))
     ]
+    on_a_flat_module = [
+        target
+        for source in sources.values()
+        for target in _patch_targets(source)
+        if target[1] in {m.__name__ for m in _FLAT_MODULES}
+    ]
     problems = [
         problem
         for where, source in sources.items()
@@ -374,6 +428,7 @@ def test_every_patch_on_a_split_package_names_the_resolving_submodule() -> (
     ]
 
     assert len(on_a_package) > 100, len(on_a_package)
+    assert len(on_a_flat_module) > 20, len(on_a_flat_module)
     assert not problems, "\n".join(problems)
 
 

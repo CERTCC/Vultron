@@ -601,7 +601,10 @@ def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
     helpers_dir = Path(invite_chain.__file__).parent.parent
     scenario_dir = helpers_dir.parent / "scenario"
     starters = {"run_case_invite_chain", "invite_and_await_delivery"}
-    scenario_sources = sorted(scenario_dir.glob("*_demo.py"))
+    # Every module of the scenario package, not only the ``*_demo.py``
+    # scenarios: a scenario's own fragments may sit in a sibling module
+    # (``rcvcv_fragments.py``, #5592).
+    scenario_sources = sorted(scenario_dir.glob("*.py"))
     # The coordinator-first family is a package (#5592), so its submodules
     # are read as well as the flat sub-family modules beside it.
     fragment_sources = sorted(helpers_dir.glob("coordinated_*.py")) + sorted(
