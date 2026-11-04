@@ -18,7 +18,11 @@ through :func:`~vultron.demo.helpers.seeding.actors._seed_mesh`; they differ
 only in their cast.
 """
 
-from vultron.demo.helpers.seeding.actors import _MeshMember, _seed_mesh
+from vultron.demo.helpers.seeding.actors import (
+    _MeshLogStyle,
+    _MeshMember,
+    _seed_mesh,
+)
 from vultron.demo.utils import DataLayerClient
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
@@ -59,6 +63,7 @@ def seed_containers(
             ),
         ],
         case_actor_client,
+        _MeshLogStyle.PER_PEER,
     )
     return reporter, vendor
 
@@ -345,6 +350,7 @@ def seed_containers_rcvv(
             ),
         ],
         case_actor_client,
+        _MeshLogStyle.SUMMARY,
     )
     return reporter, coordinator, vendor, vendor2
 

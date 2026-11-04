@@ -47,7 +47,9 @@ logger = logging.getLogger(__name__)
 
 
 def _attach(
-    case_obj: VulnerabilityCase, participant: CaseParticipant, dl
+    case_obj: VulnerabilityCase,
+    participant: CaseParticipant,
+    dl: CasePersistence,
 ) -> None:
     """Attach *participant* to *case_obj* and store it, if not stored yet.
 

@@ -23,6 +23,7 @@ container and on the CaseActor (:func:`seed_case_actor_peers`).
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
+from enum import Enum, auto
 from urllib.parse import quote
 
 from vultron.demo.utils import (
@@ -167,9 +168,32 @@ def _and_list(labels: Sequence[str]) -> str:
     return ", ".join(labels[:-1]) + ", and " + labels[-1]
 
 
+class _MeshLogStyle(Enum):
+    """How :func:`_seed_mesh` words its INFO lines.
+
+    Each ``seed_containers*`` helper keeps the log lines it wrote before the
+    seeding was shared, so the demo output is unchanged.
+
+    Attributes:
+        PER_CONTAINER: ``"<label> actor seeded: <id>"`` per actor, then
+            ``"<peers> registered as peers on <label> container"`` per
+            container.
+        PER_PEER: ``"<label> actor seeded on <label> container: <id>"`` per
+            actor, then ``"<peer> peer registered on <label> container: <id>"``
+            per peer registration.
+        SUMMARY: ``"<label> actor seeded: <id>"`` per actor, then one line once
+            every peer is registered.
+    """
+
+    PER_CONTAINER = auto()
+    PER_PEER = auto()
+    SUMMARY = auto()
+
+
 def _seed_mesh(
     members: Sequence[_MeshMember],
     case_actor_client: DataLayerClient | None,
+    log_style: _MeshLogStyle = _MeshLogStyle.PER_CONTAINER,
 ) -> list[as_Actor]:
     """Seed *members*' containers as a full mesh of mutually known peers.
 
@@ -183,6 +207,12 @@ def _seed_mesh(
 
     Idempotent: re-running it returns existing actors unchanged (both
     ``POST /actors/`` and ``POST /actors/{id}/peers/`` are idempotent).
+
+    Args:
+        members: The mesh's containers and actors, in seeding order.
+        case_actor_client: Client for the dedicated case-actor container, or
+            ``None`` when the topology has none.
+        log_style: How the INFO lines are worded (:class:`_MeshLogStyle`).
 
     Returns:
         The seeded actors, in *members* order.
@@ -199,7 +229,15 @@ def _seed_mesh(
                 actor_id=member.actor_id,
             ),
         )
-        logger.info("%s actor seeded: %s", member.log_label, actor.id_)
+        if log_style is _MeshLogStyle.PER_PEER:
+            logger.info(
+                "%s actor seeded on %s container: %s",
+                member.log_label,
+                member.log_label,
+                actor.id_,
+            )
+        else:
+            logger.info("%s actor seeded: %s", member.log_label, actor.id_)
         actors.append(actor)
 
     logger.info("Phase 2: registering cross-container peers...")
@@ -215,12 +253,22 @@ def _seed_mesh(
                 name=peer_member.name,
                 actor_type=peer_member.actor_type,
             )
+            if log_style is _MeshLogStyle.PER_PEER:
+                logger.info(
+                    "%s peer registered on %s container: %s",
+                    peer_member.log_label,
+                    local_member.log_label,
+                    peer.id_,
+                )
             registered.append(peer_member.log_label)
-        logger.info(
-            "%s registered as peers on %s container",
-            _and_list(registered),
-            local_member.log_label,
-        )
+        if log_style is _MeshLogStyle.PER_CONTAINER:
+            logger.info(
+                "%s registered as peers on %s container",
+                _and_list(registered),
+                local_member.log_label,
+            )
+    if log_style is _MeshLogStyle.SUMMARY:
+        logger.info("Every actor registered as a peer on the other containers")
 
     seed_case_actor_peers(case_actor_client, actors)
     return actors
