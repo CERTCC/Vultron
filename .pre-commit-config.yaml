@@ -258,7 +258,7 @@ repos:
         # in test/metadata/test_msm_occasions.py on one that changes vultron/;
         # the test is also the backstop for a deletion, which no `files:`
         # pattern can match.
-        files: ^(vultron/semantic_registry/.*\.py|vultron/wire/as2/extractor/.*\.py|vultron/core/use_cases/received/.*\.py|vultron/core/behaviors/sender_entitlement\.py|vultron/enums/roles\.py|vultron/core/models/events/base\.py|vultron/core/models/enums\.py|vultron/wire/as2/enums\.py|vultron/core/states/.*\.py|vultron/metadata/(base|markdown_tables|file_loading|generated_files|docs/page_frontmatter)\.py|vultron/wire/as2/vocab/examples/.*\.py|vultron/metadata/msm/.*\.(py|yaml)|docs/.*\.md|mkdocs\.yml)$
+        files: ^(vultron/semantic_registry/.*\.py|vultron/wire/as2/extractor/.*\.py|vultron/core/use_cases/received/.*\.py|vultron/core/behaviors/sender_entitlement/.*\.py|vultron/enums/roles\.py|vultron/core/models/events/base\.py|vultron/core/models/enums\.py|vultron/wire/as2/enums\.py|vultron/core/states/.*\.py|vultron/metadata/(base|markdown_tables|file_loading|generated_files|docs/page_frontmatter)\.py|vultron/wire/as2/vocab/examples/.*\.py|vultron/metadata/msm/.*\.(py|yaml)|docs/.*\.md|mkdocs\.yml)$
         pass_filenames: false
 
       - id: wire-context-sync

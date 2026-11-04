@@ -50,7 +50,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
+from vultron.core.behaviors.log_entry import require_log_entry
 from vultron.core.participants.authority import case_manager_address
 from vultron.errors import (
     VultronBTInternalError,
@@ -87,7 +87,7 @@ def emit_ledger_entry_fault(
             f"{node.name}: the DataLayer, actor id and trigger-activity port"
             " must be injected to report a refused ledger entry"
         )
-    entry = _require_log_entry(activity, node.name)
+    entry = require_log_entry(activity, node.name)
     failed_id = getattr(activity, "activity_id", None)
     if not isinstance(failed_id, str) or not failed_id:
         raise VultronWiringError(

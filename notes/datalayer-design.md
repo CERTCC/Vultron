@@ -160,7 +160,7 @@ delivery happened to store the value: a hidden dependency on delivery order.
 The smell does not apply when the message's copy is not authoritative. A field
 that grants standing is read from the receiver's record of what it sent, never
 from the copy the sender embeds. In `create_accept_invite_actor_to_case_tree`,
-`SenderIsInviteeNode` (`vultron/core/behaviors/sender_entitlement.py`) checks the
+`SenderIsInviteeNode` (`vultron/core/behaviors/sender_entitlement/`) checks the
 sender against the Invite the CASE_MANAGER recorded, and the invitee's roles come
 from the participant record written when that Invite was sent. Taking them from
 the copy inside the invitee's `Accept` lets any sender choose its own

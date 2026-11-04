@@ -22,7 +22,6 @@ both been consolidated into ``SenderIsCaseManagerNode`` in
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
@@ -31,26 +30,14 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.behaviors.log_entry import require_log_entry
 from vultron.core.services.case_copy import (
     entry_conflicts_with_case_position,
     entry_reflected_by_case_copy,
 )
 from vultron.core.sync_helpers import is_ledger_fresh_for_case
-from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
-
-
-def _require_log_entry(activity: Any, node_name: str) -> CaseLedgerEntry:
-    entry = getattr(activity, "log_entry", None)
-    if entry is None:
-        entry = getattr(activity, "object_", None)
-    if isinstance(entry, CaseLedgerEntry):
-        return entry
-    raise VultronError(
-        f"{node_name}: activity did not carry a CaseLedgerEntry"
-    )
 
 
 class CheckLedgerEntryAlreadyStoredNode(DataLayerConditionWithPorts):
@@ -72,7 +59,7 @@ class CheckLedgerEntryAlreadyStoredNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
         if self.datalayer.read(entry.id_) is None:
             return Status.FAILURE
 
@@ -114,7 +101,7 @@ class EntryReflectedByCaseCopyNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
         if not entry_reflected_by_case_copy(entry, self.datalayer):
             return Status.FAILURE
         self.logger.info(
@@ -158,7 +145,7 @@ class CheckEntryAgreesWithCasePositionNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        entry = _require_log_entry(self.activity, self.name)
+        entry = require_log_entry(self.activity, self.name)
         if not entry_conflicts_with_case_position(entry, self.datalayer):
             return Status.SUCCESS
         self.logger.error(
