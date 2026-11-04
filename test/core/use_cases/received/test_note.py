@@ -880,12 +880,27 @@ class TestNoteUseCases:
         event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
 
         sync_port = SyncActivityAdapter(dl)
+        # Record, at each fan-out, whether the announced entry is already
+        # in the ledger store: the entry is recorded before it is fanned
+        # out (VP-18-003).
+        stored_at_fan_out: list[bool] = []
+        send_announce = sync_port.send_announce_log_entry
+
+        def recording_send_announce(
+            entry: CaseLedgerEntry, actor_id: str, to: list[str]
+        ) -> bool:
+            stored_at_fan_out.append(dl.read(entry.id_) is not None)
+            return bool(send_announce(entry, actor_id, to))
+
+        sync_port.send_announce_log_entry = recording_send_announce  # type: ignore[method-assign]
         AddNoteToCaseReceivedUseCase(
             dl,
             event,
             sync_port=sync_port,
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
+
+        assert stored_at_fan_out and all(stored_at_fan_out)
 
         # Exactly one CaseLedgerEntry should be persisted for this case.
         entries = [

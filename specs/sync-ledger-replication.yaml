@@ -952,6 +952,7 @@ groups:
     - ADR-0119
     stories:
     - story_2026_076
+    - story_2026_015
     - story_2022_081
   - id: SYNC-09-003
     priority: MUST

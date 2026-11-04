@@ -1388,6 +1388,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 |---|---|
 | MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-05-005](../vultron-spec/requirements/messages.md#msm-05-005) |
 | OX — Outbox | [OX-14-002](../vultron-spec/requirements/transport-security.md#ox-14-002) |
+| SYNC — Case Event Log Synchronization | [SYNC-09-002](../vultron-spec/requirements/ledger-replication.md#sync-09-002) |
 | VM — Vocabulary Model | [VM-08-003](../vultron-spec/requirements/messages.md#vm-08-003) |
 
 ## [story_2026_016](story_2026_016.md)

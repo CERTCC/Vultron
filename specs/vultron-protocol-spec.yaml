@@ -2818,9 +2818,11 @@ groups:
       idempotency controls.
     verification: >-
       `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_commits_log_entry_when_sync_port_provided`
-      confirms that a note a participant sends to the CASE_MANAGER is committed
-      as a CaseLedgerEntry and broadcast to the participants in an `Announce`
-      of that entry.
+      confirms the path from the CASE_MANAGER on: a note a participant sends to
+      the CASE_MANAGER is committed as a CaseLedgerEntry and broadcast to the
+      participants in an `Announce` of that entry. The first step, a participant
+      addressing the CASE_MANAGER alone, is the PCR-08-001 rule this one refines,
+      and its own tests check it.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
@@ -2853,9 +2855,10 @@ groups:
       and consistently broadcast to all participants.
     verification: >-
       `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_commits_log_entry_when_sync_port_provided`
-      confirms that a participant's note is committed as a CaseLedgerEntry and
-      that the `Announce` fanned out to the participants carries that committed
-      entry.
+      confirms that a participant's note is committed as a CaseLedgerEntry, that
+      the entry is already in the ledger store when each `Announce` of it is
+      queued, and that the `Announce` fanned out to the participants carries that
+      committed entry.
     relationships:
     - rel_type: refines
       spec_id: VP-18-001
