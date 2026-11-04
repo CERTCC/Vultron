@@ -33,6 +33,12 @@ Normal mode (``<type>`` required):
 4. Deletes the source file from ``plan/incoming/``.
 5. Prints the written file path to stdout.
 
+An ``implementation`` or ``idea`` entry whose ``--source`` is ``<PREFIX>-N``
+(``ISSUE-N``, ``TASK-N``, ...) or a bare ``N``, for an existing issue N in
+CERTCC/Vultron, is posted as a comment on that issue instead, and the comment
+URL is printed (HM-08-001, HM-08-002). Any other source writes a file
+(HM-08-003).
+
 ``--from-file`` is mutually exclusive with ``<type>``, ``--title``,
 ``--source``, ``--file``, and ``--timestamp``.
 

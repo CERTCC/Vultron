@@ -42,16 +42,26 @@ def issue_number(ref: str) -> int:
     return int(ref.removeprefix("#"))
 
 
-def gh_issue_state(ref: str) -> str:
+def gh_issue_state(ref: str, *, repo: str | None = None) -> str:
     """The GitHub state (``OPEN``/``CLOSED``) of issue *ref* (``#N``).
 
-    Uses the ``gh`` CLI against the current repository, so it needs ``gh`` on
-    ``PATH`` and a token (``GH_TOKEN`` in CI). Raises one of
-    :data:`GH_LOOKUP_ERRORS` when the lookup cannot be made;
-    :func:`gh_issue_missing` tells a number that names no issue apart.
+    Uses the ``gh`` CLI against *repo* (``OWNER/NAME``), or the current
+    repository when *repo* is ``None``, so it needs ``gh`` on ``PATH`` and a
+    token (``GH_TOKEN`` in CI). Raises one of :data:`GH_LOOKUP_ERRORS` when
+    the lookup cannot be made; :func:`gh_issue_missing` tells a number that
+    names no issue apart.
     """
+    repo_args = ["--repo", repo] if repo is not None else []
     result = subprocess.run(
-        ["gh", "issue", "view", str(issue_number(ref)), "--json", "state"],
+        [
+            "gh",
+            "issue",
+            "view",
+            str(issue_number(ref)),
+            *repo_args,
+            "--json",
+            "state",
+        ],
         capture_output=True,
         text=True,
         check=True,

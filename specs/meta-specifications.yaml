@@ -461,7 +461,7 @@ groups:
       A deprecated requirement that stays in place is noise for agents and can cause
       incorrect behavior. An agent that reads the corpus cannot tell a retired
       obligation from a live one. A spec states the current understanding. Git and the
-      implementation history (MS-09-002) keep the text that it replaced. The
+      archive of retired requirements (MS-09-002, MS-09-005) keep the text that it replaced. The
       `deprecated` and `superseded_by` fields in the spec schema are not a sanctioned
       lifecycle state.
     tags:
@@ -469,9 +469,19 @@ groups:
   - id: MS-09-002
     priority: MUST
     kind: process
-    verification_debt: '#2571'
-    statement: The removal of a requirement MUST be recorded in the implementation history so there is an audit trail.
-    rationale: Audit trail preserves context for future maintainers.
+    statement: >-
+      The removal of a requirement MUST be recorded in its retired-requirement file,
+      `plan/retired-specs/<ID>.md`, so there is an audit trail. That file is the
+      record of the removal; no `plan/history/` entry repeats it.
+    rationale: >-
+      An audit trail preserves context for future maintainers. The retired-requirement
+      file already holds the date, the retiring issue or PR, the reason, any
+      replacement and the final text, so a history entry would only repeat it.
+    verification: >-
+      `test_retire_records_the_removal_only_in_the_archive` in
+      `test/metadata/specs/test_retire.py` retires an item and checks that its
+      archive file carries the date, reason and replacement and that no
+      `plan/history/` entry is written.
     tags:
     - documentation
   - id: MS-09-004
@@ -547,27 +557,6 @@ groups:
     tags:
     - documentation
     - tooling
-  - id: MS-09-010
-    priority: MUST
-    kind: process
-    statement: >-
-      `uv run spec-retire <ID>` MUST record the removal in the implementation history
-      (MS-09-002).
-    rationale: >-
-      A retirement done by hand often skips the history entry, and then no audit
-      trail shows why the ID went away. When the command writes the entry, every
-      retirement leaves one.
-    verification: >-
-      `test_retire_records_history_and_lists_cross_references` in
-      `test/metadata/specs/test_retire.py` checks the history entry, and
-      `test_retire_rolls_back_when_history_write_fails` checks that a failed write
-      leaves the spec file unchanged.
-    relationships:
-    - rel_type: implements
-      spec_id: MS-09-002
-    tags:
-    - documentation
-    - tooling
   - id: MS-09-011
     priority: MUST
     kind: process
@@ -579,7 +568,7 @@ groups:
       go stale. The list gives the author each citation to repoint in the same
       change.
     verification: >-
-      `test_retire_records_history_and_lists_cross_references` in
+      `test_retire_lists_cross_references` in
       `test/metadata/specs/test_retire.py` checks the listed citations.
     relationships:
     - rel_type: extends
@@ -594,7 +583,7 @@ groups:
       `uv run spec-retire <ID>` MUST change nothing when the ID is already archived,
       is not declared, or the spec files would no longer load without it.
     rationale: >-
-      A retirement that stops part way leaves an archive with no history, or a spec
+      A retirement that stops part way leaves a spec with no archive entry, or a spec
       corpus that does not load. Refusing the whole retirement keeps the corpus and
       the archive in step.
     verification: >-

@@ -61,7 +61,10 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="ID",
         help=(
-            "Originating identifier (e.g. IDEA-26043001, TASK-FOO). "
+            "Originating identifier (e.g. ISSUE-4646, TASK-FOO). An "
+            "implementation or idea entry whose ID is <PREFIX>-N for an "
+            "existing CERTCC/Vultron issue N is posted as a comment on that "
+            "issue instead of written to a file. "
             "Required unless --from-file is provided."
         ),
     )
@@ -247,20 +250,8 @@ def _handle_normal_mode(args: argparse.Namespace) -> None:
     timestamp = _parse_timestamp(args.timestamp)
     signal = _parse_signal(args.signal, entry_type)
 
-    # GitHub comment mode: implementation/idea with an ISSUE-N source (HM-08-001).
-    if (
-        entry_type in _GITHUB_COMMENT_TYPES
-        and (issue_number := _resolve_issue_number(args.source)) is not None
-    ):
-        try:
-            url = _post_github_comment(
-                issue_number, entry_type, args.title, body
-            )
-        except RuntimeError as exc:
-            _fail(str(exc))
-        print(url)
-        return
-
+    # Validate the title, source and timestamp before either output mode, so
+    # a comment is never posted for an entry a file would refuse.
     try:
         content = _build_content(
             entry_type, args.title, args.source, body, timestamp, signal
@@ -270,6 +261,24 @@ def _handle_normal_mode(args: argparse.Namespace) -> None:
         # always "now" and cannot be in the future.
         if timestamp is not None:
             _check_timestamp_not_future(timestamp)
+    except ValueError as exc:
+        _fail(str(exc))
+
+    # GitHub comment mode: implementation/idea whose source names an existing
+    # issue, as ISSUE-N, TASK-N or any other <PREFIX>-N (HM-08-001).
+    if entry_type in _GITHUB_COMMENT_TYPES:
+        try:
+            issue_number = _resolve_issue_number(args.source)
+            if issue_number is not None:
+                url = _post_github_comment(
+                    issue_number, entry_type, args.title, body
+                )
+                print(url)
+                return
+        except RuntimeError as exc:
+            _fail(str(exc))
+
+    try:
         target_date = timestamp.date() if timestamp is not None else None
         entry_file = append_history_entry(
             entry_type,

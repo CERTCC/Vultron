@@ -160,6 +160,31 @@ def test_gh_issue_state_asks_gh_for_the_issue_number(monkeypatch) -> None:
     assert calls == [["gh", "issue", "view", "12", "--json", "state"]]
 
 
+def test_gh_issue_state_names_the_repository_when_given(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(
+            argv, 0, stdout=json.dumps({"state": "OPEN"}), stderr=""
+        )
+
+    monkeypatch.setattr(base_module.subprocess, "run", fake_run)
+    assert gh_issue_state("#12", repo="CERTCC/Vultron") == "OPEN"
+    assert calls == [
+        [
+            "gh",
+            "issue",
+            "view",
+            "12",
+            "--repo",
+            "CERTCC/Vultron",
+            "--json",
+            "state",
+        ]
+    ]
+
+
 @pytest.mark.parametrize("stdout", ["[]", "not json", "{}"])
 def test_gh_issue_state_raises_a_lookup_error_on_unexpected_output(
     monkeypatch, stdout: str

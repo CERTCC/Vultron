@@ -60,9 +60,11 @@ Capture the output in `HISTORY_OUTPUT`. The tool either:
 - **File mode**: writes `plan/history/YYMM/<type>/<source>.md`, regenerates
   the local `plan/history/YYMM/README.md` (gitignored), and prints the file
   path to stdout.
-- **GitHub comment mode** (`implementation`/`idea` with `--source ISSUE-N`):
-  posts a comment on the issue and prints the comment URL to stdout
-  (starts with `https://`). No file is written.
+- **GitHub comment mode** (`implementation`/`idea` whose `--source` is
+  `<PREFIX>-N`, such as `ISSUE-N` or `TASK-N`, or a bare `N`, for an existing
+  CERTCC/Vultron issue N): posts a comment on the issue and prints the comment
+  URL to stdout (starts with `https://`). No file is written. A number that is
+  not an issue, such as the date in `IDEA-26042702`, takes file mode.
 
 ### Step 2 — Check output mode
 

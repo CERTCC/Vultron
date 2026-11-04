@@ -28,9 +28,17 @@ Never write a file under `plan/history/` by hand. Run
 stdin or `--file <path>`; the tool builds the frontmatter, stamps the UTC time
 and picks the `YYMM` directory (HM-07-004). Entries are write-once (HM-01-005).
 
-An `implementation` or `idea` entry whose `--source` is `ISSUE-<n>` is posted
-as a comment on issue *n* instead of written to a file, and the tool prints the
-comment URL. `archive-history` then skips its git steps (HM-08).
+An `implementation` or `idea` entry whose `--source` is `<PREFIX>-<n>`
+(`ISSUE-<n>`, `TASK-<n>`, `BUG-<n>`, ...) or a bare `<n>`, for an existing
+CERTCC/Vultron issue *n*, is posted as a comment on issue *n* instead of written
+to a file, and the tool prints the comment URL; `archive-history` then skips its
+git steps (HM-08-001). The tool asks `gh issue view <n>` first, because a
+date-based ID such as `IDEA-26042702` has the same form and must still write a
+file (HM-08-003); a lookup `gh` cannot answer stops the tool (HM-08-007).
+
+Never write an entry whose record already lives elsewhere: a retired
+requirement's record is `plan/retired-specs/<ID>.md`, so `spec-retire` writes no
+history entry (MS-09-002).
 
 The monthly `plan/history/YYMM/README.md` is a gitignored local cache that the
 tool rebuilds on every append, so parallel branches never conflict on it. Do

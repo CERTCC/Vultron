@@ -15,7 +15,7 @@ import io
 import subprocess
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -38,6 +38,52 @@ def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (tmp_path / "plan").mkdir()
     monkeypatch.chdir(tmp_path)
     return tmp_path
+
+
+@pytest.fixture(autouse=True)
+def _no_real_gh(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No test asks the real GitHub whether an issue exists.
+
+    A source such as ``SRC-1`` has the ``<PREFIX>-N`` form, so an unstubbed
+    run would look up, and could comment on, a real issue. Tests that need an
+    answer stub ``gh_issue_state`` themselves.
+    """
+
+    def refuse(ref: str, *, repo: str | None = None) -> str:
+        raise AssertionError(f"unstubbed gh lookup of {ref} in {repo}")
+
+    monkeypatch.setattr(
+        "vultron.metadata.history.cli.github.gh_issue_state", refuse
+    )
+
+
+def _gh_not_found(n: int) -> subprocess.CalledProcessError:
+    """The error ``gh issue view N`` raises when N names no issue."""
+    return subprocess.CalledProcessError(
+        1,
+        ["gh", "issue", "view", str(n)],
+        stderr="GraphQL: Could not resolve to an issue or pull request with"
+        f" the number of {n}. (repository.issue)\n",
+    )
+
+
+def _stub_issues(
+    monkeypatch: pytest.MonkeyPatch, existing: set[int]
+) -> list[tuple[str, str | None]]:
+    """Answer issue lookups from *existing*; return the lookups made."""
+    lookups: list[tuple[str, str | None]] = []
+
+    def fake_state(ref: str, *, repo: str | None = None) -> str:
+        lookups.append((ref, repo))
+        n = int(ref.removeprefix("#"))
+        if n not in existing:
+            raise _gh_not_found(n)
+        return "OPEN"
+
+    monkeypatch.setattr(
+        "vultron.metadata.history.cli.github.gh_issue_state", fake_state
+    )
+    return lookups
 
 
 @dataclasses.dataclass
@@ -836,57 +882,118 @@ class TestSignalFlag:
         assert "signal: spec-gap" in content
 
 
+class TestParseIssueNumber:
+    """The source forms that may name an issue (HM-08-001, HM-08-003)."""
+
+    @pytest.mark.parametrize(
+        ("source", "expected"),
+        [
+            ("ISSUE-2159", 2159),
+            ("issue-42", 42),
+            ("123", 123),
+            ("TASK-4646", 4646),
+            ("BUG-17", 17),
+            ("CONCERN-507", 507),
+            ("IDEA-26042702", 26042702),
+            ("  TASK-9  ", 9),
+        ],
+    )
+    def test_prefix_dash_number_parses(
+        self, source: str, expected: int
+    ) -> None:
+        from vultron.metadata.history.cli.github import _parse_issue_number
+
+        assert _parse_issue_number(source) == expected
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            "TASK-BTND5",
+            "ISSUE-4646-detail",
+            "IDEA-TEST-001",
+            "TASK4646",
+            "-1",
+            "0",
+            "ISSUE-0",
+            "",
+            "#12",
+        ],
+    )
+    def test_other_forms_do_not_parse(self, source: str) -> None:
+        from vultron.metadata.history.cli.github import _parse_issue_number
+
+        assert _parse_issue_number(source) is None
+
+
 class TestResolveIssueNumber:
-    """Unit tests for _resolve_issue_number (HM-08-001, HM-08-003)."""
+    """A parsed number counts only if GitHub has the issue (HM-08-001/003)."""
 
-    def test_issue_prefix_resolves(self) -> None:
+    @pytest.mark.spec("HM-08-001")
+    def test_prefixed_source_naming_an_existing_issue_resolves(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from vultron.metadata.history.cli.github import _resolve_issue_number
 
-        assert _resolve_issue_number("ISSUE-2159") == 2159
+        lookups = _stub_issues(monkeypatch, {4646})
+        assert _resolve_issue_number("TASK-4646") == 4646
+        assert lookups == [("#4646", "CERTCC/Vultron")]
 
-    def test_issue_prefix_case_insensitive(self) -> None:
+    @pytest.mark.spec("HM-08-003")
+    def test_prefixed_source_naming_no_issue_returns_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from vultron.metadata.history.cli.github import _resolve_issue_number
 
-        assert _resolve_issue_number("issue-42") == 42
-
-    def test_bare_integer_resolves(self) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
-
-        assert _resolve_issue_number("123") == 123
-
-    def test_idea_source_returns_none(self) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
-
+        _stub_issues(monkeypatch, {4646})
+        assert _resolve_issue_number("BUG-99999") is None
         assert _resolve_issue_number("IDEA-26042702") is None
 
-    def test_task_source_returns_none(self) -> None:
+    def test_unparsed_source_asks_github_nothing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from vultron.metadata.history.cli.github import _resolve_issue_number
 
+        lookups = _stub_issues(monkeypatch, {5})
         assert _resolve_issue_number("TASK-BTND5") is None
+        assert lookups == []
 
-    def test_zero_returns_none(self) -> None:
+    @pytest.mark.parametrize(
+        "error",
+        [
+            subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 401\n"),
+            FileNotFoundError("gh"),
+        ],
+    )
+    def test_lookup_that_cannot_answer_raises(
+        self, monkeypatch: pytest.MonkeyPatch, error: Exception
+    ) -> None:
+        """No answer is not "no such issue": the tool stops, never guesses."""
         from vultron.metadata.history.cli.github import _resolve_issue_number
 
-        assert _resolve_issue_number("0") is None
+        def fail(ref: str, *, repo: str | None = None) -> str:
+            raise error
 
-    def test_negative_returns_none(self) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
+        monkeypatch.setattr(
+            "vultron.metadata.history.cli.github.gh_issue_state", fail
+        )
+        with pytest.raises(RuntimeError, match="TASK-4646"):
+            _resolve_issue_number("TASK-4646")
 
-        assert _resolve_issue_number("-1") is None
 
-    def test_empty_string_returns_none(self) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
-
-        assert _resolve_issue_number("") is None
-
-    def test_alphanumeric_source_returns_none(self) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
-
-        assert _resolve_issue_number("CONCERN-507") is None
+_COMMENT_URL = (
+    "https://github.com/CERTCC/Vultron/issues/2159#issuecomment-9999"
+)
 
 
 class TestGitHubCommentMode:
     """HM-08-001 through HM-08-005: GitHub comment output mode."""
+
+    @pytest.fixture()
+    def existing(self, monkeypatch: pytest.MonkeyPatch) -> set[int]:
+        """Issues that exist; tests add to the set before running."""
+        issues: set[int] = {42, 2159, 4646}
+        _stub_issues(monkeypatch, issues)
+        return issues
 
     def _run_with_mock_gh(
         self,
@@ -895,12 +1002,10 @@ class TestGitHubCommentMode:
         body: str = "Entry body.\n",
         title: str = "Test Title",
         gh_returncode: int = 0,
-        gh_stdout: str = "https://github.com/CERTCC/Vultron/issues/2159#issuecomment-9999",
+        gh_stdout: str = _COMMENT_URL,
         gh_stderr: str = "",
-    ) -> _RunResult:
-        """Run append-history with a mocked ``gh`` subprocess call."""
-        from unittest.mock import MagicMock
-
+    ) -> tuple[_RunResult, MagicMock]:
+        """Run append-history with ``gh issue comment`` mocked."""
         mock_result = MagicMock()
         mock_result.returncode = gh_returncode
         mock_result.stdout = gh_stdout
@@ -909,124 +1014,153 @@ class TestGitHubCommentMode:
         with patch(
             "vultron.metadata.history.cli.github.subprocess.run",
             return_value=mock_result,
-        ):
-            return _run_append(
+        ) as mock_run:
+            result = _run_append(
                 entry_type, body=body, title=title, source=source
             )
+        return result, mock_run
 
-    def test_implementation_issue_source_posts_comment(
-        self, fake_repo: Path
+    @staticmethod
+    def _history_files(repo: Path) -> list[Path]:
+        history_dir = repo / "plan" / "history"
+        return list(history_dir.rglob("*.md")) if history_dir.exists() else []
+
+    @pytest.mark.parametrize(
+        ("entry_type", "source", "issue"),
+        [
+            ("implementation", "ISSUE-2159", "2159"),
+            ("idea", "ISSUE-42", "42"),
+            ("implementation", "2159", "2159"),
+            ("implementation", "TASK-4646", "4646"),
+            ("idea", "BUG-42", "42"),
+        ],
+    )
+    @pytest.mark.spec("HM-08-001")
+    def test_source_naming_an_existing_issue_posts_comment(
+        self,
+        fake_repo: Path,
+        existing: set[int],
+        entry_type: str,
+        source: str,
+        issue: str,
     ) -> None:
-        """implementation + ISSUE-N source posts a comment (HM-08-001)."""
-        result = self._run_with_mock_gh("implementation", "ISSUE-2159")
-        assert result.returncode == 0
+        """ISSUE-N, bare N and any <PREFIX>-N post on issue N (HM-08-001)."""
+        result, mock_run = self._run_with_mock_gh(entry_type, source)
+        assert result.returncode == 0, result.stderr
+        argv = mock_run.call_args[0][0]
+        assert argv[:4] == ["gh", "issue", "comment", issue]
+        assert argv[argv.index("--repo") + 1] == "CERTCC/Vultron"
+        assert not self._history_files(fake_repo)
 
-    def test_idea_issue_source_posts_comment(self, fake_repo: Path) -> None:
-        """idea + ISSUE-N source posts a comment (HM-08-001)."""
-        result = self._run_with_mock_gh("idea", "ISSUE-42")
-        assert result.returncode == 0
-
-    def test_prints_comment_url_to_stdout(self, fake_repo: Path) -> None:
+    def test_prints_comment_url_to_stdout(
+        self, fake_repo: Path, existing: set[int]
+    ) -> None:
         """Comment URL is printed to stdout (HM-08-002)."""
-        url = "https://github.com/CERTCC/Vultron/issues/2159#issuecomment-9999"
-        result = self._run_with_mock_gh(
-            "implementation", "ISSUE-2159", gh_stdout=url
-        )
+        result, _ = self._run_with_mock_gh("implementation", "ISSUE-2159")
         assert result.returncode == 0
-        assert result.stdout.strip() == url
+        assert result.stdout.strip() == _COMMENT_URL
 
-    def test_bare_integer_source_posts_comment(self, fake_repo: Path) -> None:
-        """Bare integer source is treated as an issue number (HM-08-001)."""
-        result = self._run_with_mock_gh("implementation", "2159")
-        assert result.returncode == 0
-
-    def test_non_issue_source_writes_file(self, fake_repo: Path) -> None:
-        """Non-ISSUE-N source falls back to file mode (HM-08-003)."""
-        result = _run_append(
-            "implementation",
-            body=_IMPL_BODY,
-            title=_IMPL_TITLE,
-            source="TASK-BTND5",
-        )
-        assert result.returncode == 0
+    @pytest.mark.parametrize(
+        ("entry_type", "source"),
+        [
+            ("implementation", "TASK-99999"),
+            ("implementation", "ISSUE-99999"),
+            ("idea", "IDEA-26042702"),
+            ("implementation", "TASK-BTND5"),
+        ],
+    )
+    @pytest.mark.spec("HM-08-003")
+    def test_source_naming_no_issue_writes_file(
+        self,
+        fake_repo: Path,
+        existing: set[int],
+        entry_type: str,
+        source: str,
+    ) -> None:
+        """A prefixed number with no issue, a date ID or another form writes a
+        file and posts nothing (HM-08-003)."""
+        result, mock_run = self._run_with_mock_gh(entry_type, source)
+        assert result.returncode == 0, result.stderr
         written = Path(result.stdout.strip())
         assert written.exists()
         assert written.suffix == ".md"
+        assert f"source: {source}" in written.read_text()
+        assert not mock_run.called
 
-    def test_idea_non_issue_source_writes_file(self, fake_repo: Path) -> None:
-        """idea + non-ISSUE source falls back to file mode (HM-08-003)."""
-        result = _run_append(
-            "idea",
-            body=_IDEA_BODY,
-            title=_DEFAULT_TITLE,
-            source="IDEA-26042702",
-        )
-        assert result.returncode == 0
-        assert Path(result.stdout.strip()).exists()
-
-    def test_learning_issue_source_writes_file(self, fake_repo: Path) -> None:
+    def test_learning_issue_source_writes_file(
+        self, fake_repo: Path, existing: set[int]
+    ) -> None:
         """learning type always writes a file regardless of source (HM-08-001)."""
         result = _run_append(
             "learning",
             body=_IDEA_BODY,
             title="Learning entry",
-            source="ISSUE-123",
+            source="ISSUE-2159",
         )
         assert result.returncode == 0
         written = Path(result.stdout.strip())
         assert written.exists()
         assert written.suffix == ".md"
 
-    def test_comment_body_has_heading(self, fake_repo: Path) -> None:
+    def test_comment_body_has_heading(
+        self, fake_repo: Path, existing: set[int]
+    ) -> None:
         """Comment body is prefixed with **History: <type> — <title>** (HM-08-005)."""
-        from unittest.mock import MagicMock
-
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = (
-            "https://github.com/CERTCC/Vultron/issues/2159#issuecomment-9999"
+        _, mock_run = self._run_with_mock_gh(
+            "implementation",
+            "ISSUE-2159",
+            body="My implementation summary.\n",
+            title="Fix demo config cache leak",
         )
-        mock_result.stderr = ""
-
-        with patch(
-            "vultron.metadata.history.cli.github.subprocess.run",
-            return_value=mock_result,
-        ) as mock_run:
-            _run_append(
-                "implementation",
-                body="My implementation summary.\n",
-                title="Fix demo config cache leak",
-                source="ISSUE-2159",
-            )
 
         assert mock_run.called
-        _, _kwargs = mock_run.call_args
         args_passed = mock_run.call_args[0][0]
-        body_idx = args_passed.index("--body") + 1
-        posted_body = args_passed[body_idx]
+        posted_body = args_passed[args_passed.index("--body") + 1]
         assert posted_body.startswith(
             "**History: implementation — Fix demo config cache leak**"
         )
         assert "My implementation summary." in posted_body
 
-    def test_gh_failure_exits_nonzero(self, fake_repo: Path) -> None:
+    def test_gh_comment_failure_exits_nonzero(
+        self, fake_repo: Path, existing: set[int]
+    ) -> None:
         """A non-zero exit from gh causes append-history to exit non-zero."""
-        result = self._run_with_mock_gh(
+        result, _ = self._run_with_mock_gh(
             "implementation",
             "ISSUE-2159",
             gh_returncode=1,
             gh_stderr="authentication required",
         )
         assert result.returncode != 0
+        assert not self._history_files(fake_repo)
 
-    def test_no_file_written_on_comment_mode(self, fake_repo: Path) -> None:
-        """GitHub comment mode must NOT write a file under plan/history/."""
-        self._run_with_mock_gh("implementation", "ISSUE-2159")
-        history_dir = fake_repo / "plan" / "history"
-        md_files = (
-            list(history_dir.rglob("*.md")) if history_dir.exists() else []
+    def test_lookup_failure_exits_nonzero_and_writes_nothing(
+        self, fake_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When gh cannot say whether the issue exists, nothing is written."""
+
+        def fail(ref: str, *, repo: str | None = None) -> str:
+            raise subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 401\n")
+
+        monkeypatch.setattr(
+            "vultron.metadata.history.cli.github.gh_issue_state", fail
         )
-        assert not md_files, "No files should be written in comment mode"
+        result = _run_append(
+            "implementation", body=_IMPL_BODY, title="T", source="TASK-4646"
+        )
+        assert result.returncode != 0
+        assert "HTTP 401" in result.stderr
+        assert not self._history_files(fake_repo)
+
+    def test_blank_title_is_refused_before_any_comment(
+        self, fake_repo: Path, existing: set[int]
+    ) -> None:
+        """Comment mode validates the entry as file mode does."""
+        result, mock_run = self._run_with_mock_gh(
+            "implementation", "ISSUE-2159", title="   "
+        )
+        assert result.returncode != 0
+        assert not mock_run.called
 
 
 @pytest.mark.spec("HM-01-011")
