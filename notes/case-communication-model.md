@@ -206,10 +206,12 @@ Reject(Invite(Actor)[target=VulnerabilityCaseStub]) instead of Accept → RM.CLO
   embeds the archived body (`read_received_as_received()`; CLP-10-036, ADR-0149,
   [inbox-orchestration](inbox-orchestration.md)).
 - The CASE_MANAGER processes the Accept (PCR-08-009). The same handler runs on any
-  actor holding a copy, so its effects sit behind the role gate, and a receiver on a
-  path the message type does not handle reports `REFUSED` — at the path stage in a tree
-  that declares its paths, through `case_manager_verdict()` in one that does not yet —
-  never `SKIPPED` (HP-01-005, ADR-0153).
+  actor holding a copy, so its effects sit behind the role gate, and a receiver the
+  message type does not address reports `REFUSED`, never `SKIPPED` (HP-01-005). A
+  receiver on a path the declaration omits is refused at the path stage; one on a
+  declared non-manager path is admitted there and then skips the gate, so
+  `case_manager_verdict()` still maps the skip. Only a manager-only declaration makes
+  that mapping unreachable (ADR-0153).
 - The handler runs the tree as the **receiving** actor (`resolve_receiving_actor_id()`),
   never as a CASE_MANAGER address looked up from the store (BT-17-006).
 - Emit no `RmEngageCaseActivity` for the invitee. Accepting the stub is joining (RM
@@ -392,8 +394,11 @@ canonical ledger never gets the entry (ADR-0021). Run the tree as the receiving 
 `create_receive_activity_tree(..., manager_effects=[...])`; the factory wraps them in
 the gate, and a received tree never calls the gate itself (BT-17-008). Then declare
 the paths the message type handles, as the factory's `paths=`, so the path stage
-refuses a receiver on a path it does not handle (ADR-0153); a tree not yet declared
-maps a skipped gate to `REFUSED` with `case_manager_verdict()` (HP-01-005). See
+refuses a receiver on a path it does not handle (ADR-0153). Declaring them does not
+retire `case_manager_verdict()`: a tree that declares a non-manager path admits that
+receiver at the door and then skips the gate, so the handler still maps the skip to
+`REFUSED` rather than reporting `APPLIED` having written nothing (HP-01-005). Only a
+manager-only declaration makes the mapping unreachable. See
 `vultron/core/behaviors/note/add_note_received_tree.py` for the shape.
 
 The gate is what makes identity correct: role holder, receiving actor and store owner

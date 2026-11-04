@@ -112,21 +112,17 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
             case, self.datalayer, self._sender_actor_id
         ):
             return Status.SUCCESS
-        self.feedback_message = (
+        return self._refuse_by_placement(
             f"Invitee '{self._sender_actor_id}' has left case"
             f" '{self._closure_case_id}' (RM CLOSED) and may answer nothing"
             " further — REFUSED (CM-23-018, HP-01-006)"
         )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
     def _refuse_case_join(self, why: str) -> Status:
-        self.feedback_message = (
+        return self._refuse_by_placement(
             f"Invite '{self._invite_id}' {why} — REFUSED (CM-11-017,"
             " HP-01-006)"
         )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -169,12 +165,10 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
                 f"Invite '{self._invite_id}' was addressed to"
                 f" '{recipients[0]}'"
             )
-        self.feedback_message = (
+        return self._refuse_by_placement(
             f"Sender '{sender}' is not the invitee: {why}"
             " — REFUSED (EP-09-010, HP-01-006)"
         )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
 
 class SenderIsRoleOfferTargetNode(SenderIsRequestAddresseeNode):

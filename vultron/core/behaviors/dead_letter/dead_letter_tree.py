@@ -49,6 +49,19 @@ def create_store_dead_letter_tree(
         ``BTBridge.execute_with_setup()``.
     """
     # No commit stage: a dead letter is bookkeeping, not a case assertion.
+    #
+    # And no path declaration (HP-01-038).  The tree is not a message type's:
+    # it runs for any activity whose ``object_`` URI did not resolve, so there
+    # is no type whose paths it could declare.  What it does is the receiver's
+    # own diagnostic — a ``DeadLetterRecord`` that names no case — and no
+    # branch of this tree is keyed on the path, so a path stage would read
+    # the receiver's role (HP-01-037) in a case the activity only happens to
+    # mention and nothing would use the answer (HP-01-038).  The factory's
+    # shared post-close door does still ask that role for itself, ahead of
+    # the stage and for its own reason (CM-23-013); it is not a branch of
+    # this tree.  The reason is pinned beside the intake-only trees' in
+    # ``UNDECLARED_PATH_EXEMPTIONS``
+    # (``test/core/behaviors/test_declared_received_paths.py``).
     root = create_receive_activity_tree(
         name="StoreDeadLetterBT",
         case_id=None,

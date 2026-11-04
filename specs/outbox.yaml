@@ -106,6 +106,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: OX-01-002
+    - rel_type: implements
+      spec_id: SYNC-19-007
     adr:
     - ADR-0112
   - id: OX-01-006

@@ -166,6 +166,14 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
         "remove_embargo_from_case_tree",
         "ClearActiveEmbargoNode",
     ): _ENDING_NOTICE,
+    # Behind the same gate, a Remove that overtook its revision's Announce
+    # activates the revision first, so either order ends the same
+    # (CM-31-042, SYNC-19-001, #5201).
+    (
+        f"{_E}/announce_teardown_tree/teardown.py",
+        "remove_embargo_from_case_tree",
+        "AdoptRemovedEmbargoRevisionNode",
+    ): _ENDING_NOTICE,
     **{
         (
             f"{_Y}/announce_tree/factory.py",

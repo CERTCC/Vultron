@@ -88,9 +88,13 @@ from vultron.core.participants.recipients import (
     embargo_ending_notice_recipients,
     ledger_stream_paused,
 )
+from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
+from vultron.core.states.embargo_register import (
+    EmbargoRegisterStatus,
+    TerminationReason,
+)
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -933,6 +937,115 @@ def test_paused_replica_applies_the_managers_shorter_revision() -> None:
     assert case.current_status.em.state == EM.ACTIVE
     # Carried over by containment, as at the CASE_MANAGER (EP-05-001).
     assert replica.record().is_signatory(REVISION_ID)
+
+
+@pytest.mark.spec("CM-31-010")
+@pytest.mark.spec("SYNC-19-001")
+@pytest.mark.spec("CM-31-042")
+def test_paused_replica_ignores_a_remove_of_the_superseded_embargo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stale ``Remove`` naming the replaced embargo changes nothing.
+
+    Only a named revision the replica has not activated is adopted ahead of
+    the teardown; one the register already holds as ``SUPERSEDED`` is not
+    in force and is never re-activated, not even attempted (ADR-0122).
+    """
+    replica = _Replica(REMOVED)
+    _shorter_revision_announced_by(MANAGER, replica)
+    before = replica.embargo_state()
+    activations: list[str] = []
+    activate = EmbargoLifecycle.activate_embargo
+
+    def _spy(self: EmbargoLifecycle, **kwargs: Any) -> Any:
+        activations.append(kwargs["embargo_id"])
+        return activate(self, **kwargs)
+
+    monkeypatch.setattr(EmbargoLifecycle, "activate_embargo", _spy)
+
+    replica.receive(_termination_from(MANAGER, replica.dl, REMOVED))
+
+    assert activations == []
+    assert replica.embargo_state() == before
+    assert replica.case().active_embargo_id == REVISION_ID
+
+
+def _remove_of(embargo: Any, *, to: str) -> Any:
+    return remove_embargo_from_case_activity(
+        embargo,
+        origin=CASE_ID,
+        context=CASE_ID,
+        actor=MANAGER,
+        to=[to],
+        reason=TerminationReason.EARLY,
+    )
+
+
+@pytest.mark.spec("CM-31-042")
+@pytest.mark.spec("CM-31-030")
+@pytest.mark.spec("SYNC-19-001")
+def test_paused_replica_ends_a_longer_revision_it_was_not_told_of() -> None:
+    """A ``Remove`` of a longer revision ends it, though no Announce was owed.
+
+    CM-31-030 owes a paused signatory no notice of a longer revision, so its
+    ``Remove`` is the first the replica hears of it; the replica adopts and
+    terminates it, and a late ``Announce`` of it changes nothing.
+    """
+    replica = _Replica(REMOVED)
+    longer = as_EmbargoEvent(
+        id_=REVISION_ID,
+        context=CASE_ID,
+        end_time=days_from_now_utc(90),
+    )
+
+    result = replica.receive(_remove_of(longer, to=REMOVED))
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    case = replica.case()
+    assert case.active_embargo_id is None
+    assert case.current_status.em.state == EM.EXITED
+    assert [(e.embargo_id, e.status) for e in case.embargo_register] == [
+        (EMBARGO_ID, EmbargoRegisterStatus.SUPERSEDED),
+        (REVISION_ID, EmbargoRegisterStatus.TERMINATED),
+    ]
+    after = replica.embargo_state()
+
+    _shorter_revision_announced_by(MANAGER, replica, end_in_days=90)
+
+    assert replica.embargo_state() == after
+
+
+@pytest.mark.spec("CM-31-042")
+@pytest.mark.spec("EMB-18-004")
+def test_paused_replica_refuses_a_removed_revision_of_another_case() -> None:
+    """A ``Remove`` whose inline revision is another case's adopts nothing."""
+    replica = _Replica(REMOVED)
+    before = replica.embargo_state()
+    foreign = as_EmbargoEvent(
+        id_=REVISION_ID,
+        context="https://example.org/cases/another-case",
+        end_time=days_from_now_utc(30),
+    )
+
+    result = replica.receive(_remove_of(foreign, to=REMOVED))
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert replica.dl.read(REVISION_ID) is None
+    assert replica.embargo_state() == before
+
+
+@pytest.mark.spec("CM-31-042")
+@pytest.mark.spec("CM-31-033")
+def test_redelivered_remove_after_the_embargo_ended_changes_nothing() -> None:
+    """With no embargo in force, a repeated ``Remove`` adopts nothing."""
+    replica = _Replica(REMOVED)
+    replica.receive(_termination_from(MANAGER, replica.dl, REMOVED))
+    before = replica.embargo_state()
+    assert before[0] == EM.EXITED
+
+    replica.receive(_termination_from(MANAGER, replica.dl, REMOVED))
+
+    assert replica.embargo_state() == before
 
 
 @pytest.mark.spec("CM-31-032")

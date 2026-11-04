@@ -1378,13 +1378,6 @@ def test_a_slash_spelled_relay_attribution_names_the_stored_proposer(
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "EP-09-032: a proposal repeating pending terms is a duplicate."
-        " Tracked by #5720."
-    ),
-)
 @pytest.mark.spec("EP-09-032")
 def test_a_proposal_repeating_pending_terms_registers_nothing(make_payload):
     """A second proposal of the same end time, under new ids, is a duplicate.
@@ -1424,21 +1417,16 @@ def test_a_proposal_repeating_pending_terms_registers_nothing(make_payload):
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/repeat",
     )
-    _deliver(dl, repeat, make_payload, receiving_actor_id=MANAGER)
+    verdict = _deliver(dl, repeat, make_payload, receiving_actor_id=MANAGER)
 
+    assert verdict.disposition is HandlerDisposition.SKIPPED
+    assert "EP-09-032" in (verdict.reason or "")
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.proposed_embargo_ids == [revision.id_]
     assert len(case.embargo_register) == register_before
     assert set(dl.outbox_list()) == outbox_before
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "EP-09-032: a revision repeating the embargo in force is a duplicate."
-        " Tracked by #5720."
-    ),
-)
 @pytest.mark.spec("EP-09-032")
 def test_a_revision_repeating_the_embargo_in_force_registers_nothing(
     make_payload,
@@ -1472,8 +1460,10 @@ def test_a_revision_repeating_the_embargo_in_force_registers_nothing(
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/repeat",
     )
-    _deliver(dl, repeat, make_payload, receiving_actor_id=MANAGER)
+    verdict = _deliver(dl, repeat, make_payload, receiving_actor_id=MANAGER)
 
+    assert verdict.disposition is HandlerDisposition.SKIPPED
+    assert "EP-09-032" in (verdict.reason or "")
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == EM.ACTIVE
     assert case.proposed_embargo_ids == []

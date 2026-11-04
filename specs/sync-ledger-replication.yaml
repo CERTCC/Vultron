@@ -52,6 +52,9 @@ groups:
       cannot disagree about which entry is canonical. Only an active participant gets
       the entries, because an inert or closed participant is held back from new case
       content (CM-10-004, SYNC-02-003).
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-10-004
   - id: SYNC-00-009
     priority: MUST
     kind: architecture
@@ -62,9 +65,6 @@ groups:
     rationale: >-
       The tail hash covers the whole chain, so equal tail hashes prove equal ledgers.
       A count or an index alone cannot prove this.
-    relationships:
-    - rel_type: extends
-      spec_id: SYNC-00-002
   - id: SYNC-00-003
     priority: MUST
     kind: architecture
@@ -264,6 +264,9 @@ groups:
     - story_2026_075
     - story_2022_046
     - story_2026_059
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-10-004
   - id: SYNC-02-004
     priority: MUST
     kind: protocol
@@ -300,7 +303,7 @@ groups:
       `test/core/use_cases/received/test_sync.py::TestAnnounceLedgerEntryReceivedUseCase::test_inline_case_ledger_entry_round_trip`
       confirms parsing keeps the inline entry's fields.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: SYNC-02-004
 - id: SYNC-03
   title: Conflict Handling
@@ -350,10 +353,6 @@ groups:
       Integration tests in `test/demo/` confirm that delivering the same log entry
       multiple times produces exactly one entry in the receiver's log with no
       duplicates.
-    relationships:
-    - rel_type: implements
-      spec_id: ID-02-001
-      note: idempotency.md
     stories:
     - story_2026_014
   - id: SYNC-03-005
@@ -376,8 +375,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: SYNC-03-002
+    - rel_type: uses_definition
+      spec_id: CM-10-004
     adr:
     - ADR-0115
   - id: SYNC-03-011
@@ -423,10 +424,8 @@ groups:
     stories:
     - story_2026_046
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: SYNC-01-003
-    - rel_type: refines
-      spec_id: SYNC-08-001
   - id: SYNC-03-012
     priority: MUST
     kind: protocol
@@ -467,7 +466,7 @@ groups:
       cannot store the entry, so it takes this fault and not SYNC-16-001's. Like that
       fault, it is replication signalling and is never ledgered (SYNC-16-002).
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SYNC-03-012
     - rel_type: refines
       spec_id: ASK-07-001
@@ -509,10 +508,10 @@ groups:
       repair it; only a code fix or an operator can. The reject-and-replay loop it
       leaves is already bounded by the replay cooldown (SYNC-15-003, SYNC-15-013).
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: SYNC-03-007
-    - rel_type: refines
-      spec_id: SYNC-16-002
+    - rel_type: uses_definition
+      spec_id: CM-10-004
     verification: >-
       `test/core/behaviors/sync/test_hash_mismatch_fault.py::test_hash_mismatch_fault_from_an_active_participant_changes_nothing`
       asserts `SKIPPED`, an empty outbox, unchanged replication state and no new ledger
@@ -529,15 +528,17 @@ groups:
       Only a participant the CASE_MANAGER replicates to can have been sent the refused
       entry. A fault from any other sender reports nothing the CASE_MANAGER sent, and
       refusing it gives such a sender no effect on the case.
-    relationships:
-    - rel_type: extends
-      spec_id: SYNC-03-008
     verification: >-
       `test/core/behaviors/sync/test_hash_mismatch_fault.py::test_hash_mismatch_fault_from_a_non_participant_is_refused`
       asserts `REFUSED`, an empty outbox, unchanged replication state and no new ledger
       entry for a fault from a sender that is not a participant of the case.
     stories:
     - story_2026_054
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-10-004
+    - rel_type: uses_definition
+      spec_id: SYNC-03-007
   - id: SYNC-03-010
     priority: MUST
     kind: project
@@ -551,8 +552,10 @@ groups:
       asserts one ERROR record naming the case, the `Announce`, the entry and the sender
       for a fault from an active participant of a seeded case.
     relationships:
-    - rel_type: implements
-      spec_id: SYNC-03-008
+    - rel_type: uses_definition
+      spec_id: CM-10-004
+    - rel_type: uses_definition
+      spec_id: SYNC-03-007
   - id: SYNC-03-015
     priority: MUST
     kind: project
@@ -570,6 +573,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: SYNC-03-010
+    - rel_type: uses_definition
+      spec_id: SYNC-03-006
   - id: SYNC-03-016
     priority: MUST
     kind: project
@@ -587,6 +592,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: SYNC-03-010
+    - rel_type: depends_on
+      spec_id: SYNC-03-015
   - id: SYNC-03-009
     priority: MUST
     kind: protocol
@@ -600,10 +607,8 @@ groups:
       check stays, because a fault in rendering or parsing the wire form still shows up
       first at the receiver.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: SYNC-03-006
-    - rel_type: refines
-      spec_id: SYNC-08-001
     verification: >-
       `test/core/behaviors/sync/nodes/test_send_side_hash_check_sites.py` runs a broken
       entry through each send path and asserts that the sending node returns `FAILURE`,
@@ -631,11 +636,11 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: SYNC-03-009
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: SYNC-03-002
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: SYNC-17-004
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: CM-10-006
     verification: >-
       `test_replay_stops_at_an_entry_that_does_not_verify` and
@@ -678,11 +683,11 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: SYNC-03-017
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: SYNC-03-002
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: SYNC-17-004
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: CM-10-006
     verification: >-
       `test_replay_stops_at_an_entry_that_does_not_verify` in
@@ -772,9 +777,6 @@ groups:
     verification: >-
       Inspection of the delivery adapter confirms that the per-recipient HTTP POST
       timeout is exposed as a configurable parameter with a documented default value.
-    relationships:
-    - rel_type: refines
-      spec_id: SYNC-05-002
     adr:
     - ADR-0066
     stories:
@@ -882,7 +884,7 @@ groups:
       cluster and participant LedgerFanout replication are described as two
       distinct tiers that must not be conflated.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: SYNC-06-004
 - id: SYNC-09
   title: Commit Discipline
@@ -919,7 +921,7 @@ groups:
       `test/architecture/test_receive_side_bt_commit_ordering.py` assert no received
       tree applies a protocol effect to the case ahead of its ledger commit.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: SYNC-09-001
     stories:
     - story_2026_063
@@ -1091,9 +1093,6 @@ groups:
       `test_different_entries_have_different_hashes` and `test_all_entry_hashes_unique`
       in `test/core/models/test_case_ledger.py` assert that different entries get
       different hashes.
-    relationships:
-    - rel_type: extends
-      spec_id: SYNC-08-001
     stories:
     - story_2026_023
     - story_2022_089
@@ -1474,12 +1473,13 @@ groups:
       Integration tests in `test/demo/` confirm that no code path other than the
       CASE_MANAGER's authoritative append or the participant's PersistReceivedLogEntry step
       writes a CaseLedgerEntry to the DataLayer.
-    relationships:
-    - rel_type: depends_on
-      spec_id: SYNC-12-002
-      note: SYNC-12-002 relies on this write-ownership guarantee to hold
     stories:
     - story_2026_058
+    relationships:
+    - rel_type: uses_definition
+      spec_id: SYNC-01-004
+    - rel_type: uses_definition
+      spec_id: SYNC-12-001
   - id: SYNC-13-002
     priority: MUST_NOT
     kind: project
@@ -1555,7 +1555,7 @@ groups:
       confirms routing resolves an inbound `Announce(CaseLedgerEntry)` from the
       in-memory entry.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: SYNC-13-003
   - id: SYNC-13-004
     priority: MUST
@@ -1588,6 +1588,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: SYNC-13-004
+    - rel_type: uses_definition
+      spec_id: SYNC-12-003
     stories:
     - story_2026_014
   - id: SYNC-13-007
@@ -1650,6 +1652,9 @@ groups:
       retained rather than permanently discarded.
     stories:
     - story_2026_048
+    relationships:
+    - rel_type: uses_definition
+      spec_id: VM-08-002
   - id: SYNC-14-010
     priority: MUST_NOT
     kind: protocol
@@ -1693,6 +1698,9 @@ groups:
       CASE_MANAGER.
     stories:
     - story_2026_045
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-08-007
   - id: SYNC-14-003
     priority: MUST
     kind: protocol
@@ -1730,7 +1738,7 @@ groups:
       Integration tests in `test/demo/` confirm that the drain path applies domain effects
       before persisting each drained entry, satisfying the effects-before-persist invariant.
     relationships:
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: SYNC-12-001
       note: The drain MUST preserve the effects-before-persist invariant per applied entry
     stories:
@@ -1747,6 +1755,9 @@ groups:
       skipped, not applied again.
     stories:
     - story_2026_014
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-12-003
   - id: SYNC-14-008
     priority: MUST
     kind: protocol
@@ -1789,14 +1800,14 @@ groups:
       `test/adapters/driving/fastapi/test_ledger_replay_pipeline.py` asserts an
       out-of-order pair and a pre-genesis pair converge through the replay.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: SYNC-14-008
-    - rel_type: refines
-      spec_id: SYNC-15-005
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: CLP-10-005
-    - rel_type: refines
-      spec_id: SYNC-14-001
+    - rel_type: implements
+      spec_id: SYNC-14-003
+    - rel_type: uses_definition
+      spec_id: IO-02-003
     adr:
     - ADR-0135
   - id: SYNC-14-015
@@ -1817,6 +1828,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: SYNC-14-009
+    - rel_type: refines
+      spec_id: VM-08-008
     adr:
     - ADR-0135
   - id: SYNC-14-016
@@ -1887,7 +1900,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: SYNC-14-005
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: SYNC-13-001
       note: >-
         Holding an entry as a CaseLedgerEntry would break the presence-means-committed
@@ -1996,10 +2009,10 @@ groups:
       `test_early_entry_after_the_interval_sends_a_new_genesis_reject`) confirm the
       withheld Reject and the request after the interval.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CLP-08-002
       note: The missing-case failure originates from the genesis-hash derivation in CLP-08-002
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: SYNC-08-005
       note: Reject-on-divergence applies equally to the genesis-unavailable case
     stories:
@@ -2014,10 +2027,6 @@ groups:
       case's chain. A stored entry also means that its effects were applied
       (SYNC-13-001). Storing an unchecked entry would put an entry in the ledger that
       may not be canonical, and its effects would never apply.
-    relationships:
-    - rel_type: depends_on
-      spec_id: SYNC-12-001
-      note: "Effects-before-persist invariant applies; an entry whose genesis is unknown cannot be safely committed"
     stories:
     - story_2026_005
   - id: SYNC-15-006
@@ -2068,11 +2077,6 @@ groups:
       Genesis cannot be exempted outright, however, because a peer that cannot anchor
       its chain reports genesis on every Reject.
     relationships:
-    - rel_type: constrains
-      spec_id: SYNC-08-007
-      note: >-
-        Bounds the replay that the SYNC-08-007 resynchronization triggers; the
-        reject-on-divergence contract itself is unchanged
     - rel_type: constrains
       spec_id: SYNC-03-002
       note: The replay-from-hash path whose rate this rule limits
@@ -2167,19 +2171,18 @@ groups:
       VulnerabilityCase is seeded is held in the non-ledger holding area and
       drained once the case seed anchors the genesis hash.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: SYNC-14-001
       note: >-
         Reuses the same non-ledger holding area and prev_log_hash keying as the
         forward-gap hold
-    - rel_type: depends_on
-      spec_id: SYNC-14-012
-      note: A pre-genesis entry MUST NOT be persisted as a CaseLedgerEntry while held
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SYNC-15-001
       note: >-
         The Reject is retained as the loss backstop; holding is the primary
         convergence path
+    - rel_type: uses_definition
+      spec_id: CLP-08-002
     stories:
     - story_2026_048
   - id: SYNC-15-005
@@ -2206,15 +2209,16 @@ groups:
       triggers a cascading drain of pre-genesis held entries in hash-chain order via the
       apply-then-persist path.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: SYNC-14-003
       note: Reuses the cascading drain defined for forward gaps
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: SYNC-14-004
-      note: The drained entry MUST apply effects before persisting, on the same path as in-order delivery
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: SYNC-15-004
       note: Drains exactly the entries that SYNC-15-004 held during the pre-genesis window
+    - rel_type: uses_definition
+      spec_id: SYNC-14-009
     stories:
     - story_2022_012
     - story_2026_048
@@ -2232,7 +2236,7 @@ groups:
       in front of the next entry's fan-out to every other peer. This rule stops only a
       second copy of the same row, and the replay itself still occurs (ADR-0112).
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SYNC-15-003
     adr:
     - ADR-0112
@@ -2259,7 +2263,7 @@ groups:
       makes sure that a stuck peer still gets a replay at a fixed interval, so the
       cooldown is a rate limit and not a stop (SYNC-15-003 note).
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: SYNC-15-003
     - rel_type: depends_on
       spec_id: SYNC-15-008
@@ -2302,8 +2306,10 @@ groups:
       pre-seed for each Reject would keep one message moving for each Reject in the
       loop that SYNC-15-003 limits.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SYNC-15-003
+    - rel_type: uses_definition
+      spec_id: SYNC-15-015
     verification: >-
       `test/core/behaviors/sync/test_reject_tree.py`
       (`test_genesis_announce_skipped_when_replay_rate_limited`) confirms five genesis
@@ -2354,7 +2360,7 @@ groups:
       `test_an_unheld_early_entry_inside_the_interval_names_the_withheld_reject`
       confirms that an entry the holding area drops inside the interval draws none.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: SYNC-15-001
     adr:
     - ADR-0168
@@ -2378,7 +2384,7 @@ groups:
       that an entry redelivered after the interval draws a second genesis Reject
       whose id differs from the first.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SYNC-15-016
     adr:
     - ADR-0168
@@ -2403,7 +2409,7 @@ groups:
       (`test_early_entry_after_the_interval_sends_a_new_genesis_reject`) confirms
       the participant asks again after its interval.
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: SYNC-15-003
     adr:
     - ADR-0168
@@ -2424,7 +2430,7 @@ groups:
       (SYNC-15-016), because other implementations share the wire, so it may limit
       them itself.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: SYNC-15-003
     adr:
     - ADR-0168
@@ -2451,7 +2457,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-016
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: SYNC-15-013
     adr:
     - ADR-0168
@@ -2470,7 +2476,7 @@ groups:
       (`test_early_entries_within_the_interval_send_one_genesis_reject`) confirms
       that the limit holds across fresh trees on one store.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: SYNC-15-016
     adr:
     - ADR-0168
@@ -2492,9 +2498,9 @@ groups:
       it did not; `test/core/behaviors/sync/nodes/test_replay_guard.py`
       (`TestGenesisReplayCoverage`) confirms the recorded index.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: SYNC-15-019
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: SYNC-15-008
     adr:
     - ADR-0168
@@ -2517,7 +2523,7 @@ groups:
       `test_a_failed_record_delete_leaves_the_case_unseeded`) confirms that the
       Create seed deletes the record with the case write.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SYNC-15-021
     adr:
     - ADR-0168
@@ -2546,8 +2552,12 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-019
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: SYNC-15-022
+    - rel_type: uses_definition
+      spec_id: SYNC-15-008
+    - rel_type: uses_definition
+      spec_id: SYNC-15-013
     adr:
     - ADR-0168
   - id: SYNC-15-025
@@ -2565,7 +2575,7 @@ groups:
       (`test_declined_genesis_reject_leaves_the_replication_record_unchanged`)
       confirms that the per-peer record is unchanged.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SYNC-15-024
     adr:
     - ADR-0168
@@ -2625,6 +2635,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: SYNC-16-001
+    - rel_type: uses_definition
+      spec_id: SYNC-14-001
     adr:
     - ADR-0142
     verification: >-
@@ -2648,8 +2660,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-04-007
-    - rel_type: constrains
-      spec_id: RSH-09-006
     - rel_type: supersedes
       spec_id: ASK-07-008
     adr:
@@ -2671,9 +2681,6 @@ groups:
       The CASE_MANAGER's case is authoritative (PCR-03-001), and a copy carrying its
       ledger position (SYNC-16-005) lets the replica replace its case file and backfill
       (SYNC-16-022, SYNC-16-007).
-    relationships:
-    - rel_type: depends_on
-      spec_id: SYNC-16-005
     adr:
     - ADR-0142
     verification: >-
@@ -2683,6 +2690,11 @@ groups:
       across two isolated actor apps.
     stories:
     - story_2026_047
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-10-004
+    - rel_type: uses_definition
+      spec_id: SYNC-16-001
   - id: SYNC-16-010
     priority: MUST
     kind: protocol
@@ -2694,9 +2706,6 @@ groups:
       gap Reject's (SYNC-03-005): that one admits a closed participant, but a copy of
       the current case would cross the closure cutoff such a participant is held to
       (CM-23-004), so its diverged replica is not repaired this way.
-    relationships:
-    - rel_type: extends
-      spec_id: SYNC-16-003
     adr:
     - ADR-0142
     verification: >-
@@ -2705,6 +2714,11 @@ groups:
       a stranger and from a participant that is not active is refused.
     stories:
     - story_2026_054
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-10-004
+    - rel_type: uses_definition
+      spec_id: SYNC-16-001
   - id: SYNC-16-011
     priority: MUST_NOT
     kind: protocol
@@ -2717,6 +2731,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: SYNC-16-010
+    - rel_type: uses_definition
+      spec_id: SYNC-16-001
     adr:
     - ADR-0142
     verification: >-
@@ -2737,7 +2753,7 @@ groups:
       re-seed storm without stranding a peer whose re-seed was lost, which a permanent
       suppression would (SYNC-15-003 makes the same choice for replay).
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: SYNC-16-003
     adr:
     - ADR-0142
@@ -2757,8 +2773,10 @@ groups:
       cooldown. The tail it sent lets a later fault be judged against the copy the peer
       was given (SYNC-16-008).
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: SYNC-16-004
+    - rel_type: uses_definition
+      spec_id: SYNC-16-003
     adr:
     - ADR-0142
     verification: >-
@@ -2781,9 +2799,6 @@ groups:
       (ADR-0124); the position names that entry, so a receiver can tell a current copy
       from a stale one. Stored on the case, it is right on a replica too, whose case can
       be ahead of its own chain after it replaces its case with a copy.
-    relationships:
-    - rel_type: refines
-      spec_id: PCR-02-001
     adr:
     - ADR-0142
     verification: >-
@@ -2831,7 +2846,7 @@ groups:
       the copy's position while the chain catches up (SYNC-16-007). A different entry at
       the position's index is a conflict, not one the position already reflects.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: SYNC-16-015
     adr:
     - ADR-0142
@@ -2851,7 +2866,7 @@ groups:
       A snapshot taken before the entry keeps any entry's hash from depending on
       itself.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: SYNC-16-005
     adr:
     - ADR-0142
@@ -2920,8 +2935,8 @@ groups:
       replacement the case can be ahead of the chain, and a copy older than the
       replacing one must not move it back.
     relationships:
-    - rel_type: refines
-      spec_id: PCR-02-004
+    - rel_type: uses_definition
+      spec_id: SYNC-16-005
     adr:
     - ADR-0142
     verification: >-
@@ -3008,10 +3023,8 @@ groups:
       The Reject asks the CASE_MANAGER to replay them, so the replica ends where
       seed-plus-replay leaves it (ADR-0114).
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: SYNC-16-006
-    - rel_type: refines
-      spec_id: SYNC-03-002
     adr:
     - ADR-0142
     - ADR-0156
@@ -3039,9 +3052,6 @@ groups:
       chain to the copy's position, after which the entries that follow apply normally.
       A first seed is the same case: the copy already reflects the entries the joining
       replica's backfill brings.
-    relationships:
-    - rel_type: extends
-      spec_id: SYNC-16-007
     adr:
     - ADR-0142
     verification: >-
@@ -3050,6 +3060,11 @@ groups:
       of the chain stores the backfilled entries as no-ops at the copy's position.
     stories:
     - story_2026_050
+    relationships:
+    - rel_type: uses_definition
+      spec_id: PCR-02-003
+    - rel_type: uses_definition
+      spec_id: SYNC-14-003
   - id: SYNC-16-024
     priority: MUST_NOT
     kind: protocol
@@ -3062,6 +3077,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SYNC-16-016
+    - rel_type: uses_definition
+      spec_id: SYNC-16-005
+    - rel_type: uses_definition
+      spec_id: SYNC-16-023
     adr:
     - ADR-0142
     verification: >-
@@ -3084,7 +3103,7 @@ groups:
       diverged among them shows only at the position's index. Refusing the entry there
       keeps the chain from naming one entry and the case another.
     relationships:
-    - rel_type: extends
+    - rel_type: supersedes
       spec_id: SYNC-16-023
     adr:
     - ADR-0142
@@ -3128,8 +3147,10 @@ groups:
       fan-out would stall it on a quiet case, so it names the case instead and asks for
       everything.
     relationships:
-    - rel_type: extends
+    - rel_type: refines
       spec_id: SYNC-16-007
+    - rel_type: uses_definition
+      spec_id: SYNC-18-001
     adr:
     - ADR-0142
     - ADR-0156
@@ -3174,6 +3195,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: SYNC-16-027
+    - rel_type: uses_definition
+      spec_id: SYNC-15-015
     adr:
     - ADR-0156
     verification: >-
@@ -3212,9 +3235,6 @@ groups:
       reads as recovery once, and the defect shows at ERROR on the next repeat. A
       missing time on either side shows no order and keeps the ERROR. Logging recovery
       at ERROR would mark a self-healing path as a failure.
-    relationships:
-    - rel_type: refines
-      spec_id: SYNC-16-004
     adr:
     - ADR-0142
     verification: >-
@@ -3227,6 +3247,9 @@ groups:
       claimed time is kept, the earliest for a restated position.
     stories:
     - story_2026_052
+    relationships:
+    - rel_type: uses_definition
+      spec_id: SYNC-16-001
 - id: SYNC-17
   title: Participant Position Statements
   description: >-
@@ -3276,10 +3299,12 @@ groups:
       Invites it was already sent, which carry no withheld content, and its statement
       is otherwise refused.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-10-004
     - rel_type: refines
       spec_id: HP-01-006
+    - rel_type: uses_definition
+      spec_id: SYNC-17-001
     adr:
     - ADR-0114
     - ADR-0155
@@ -3322,7 +3347,7 @@ groups:
       so recording it gives the replay a correct start and the cooldown a correct
       position.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SYNC-04-001
     adr:
     - ADR-0155
@@ -3347,12 +3372,14 @@ groups:
       can be transient; the replay rate bound, not the outbox de-duplication, is what
       limits the replays such a race causes.
     relationships:
-    - rel_type: refines
-      spec_id: SYNC-00-007
-    - rel_type: refines
+    - rel_type: implements
       spec_id: SYNC-00-008
-    - rel_type: refines
-      spec_id: SYNC-03-002
+    - rel_type: uses_definition
+      spec_id: SYNC-15-003
+    - rel_type: uses_definition
+      spec_id: SYNC-15-012
+    - rel_type: uses_definition
+      spec_id: SYNC-15-013
     adr:
     - ADR-0155
     verification: >-
@@ -3372,9 +3399,6 @@ groups:
     rationale: >-
       A participant at the tail is missing nothing, so any entry sent would be a
       duplicate.
-    relationships:
-    - rel_type: extends
-      spec_id: SYNC-17-004
     verification: >-
       `test_position_at_the_tail_is_recorded_and_sends_nothing` in
       `test/core/behaviors/sync/test_position_statements.py` asserts that a position at
@@ -3476,6 +3500,13 @@ groups:
       already holds the case and assert none is queued.
     stories:
     - story_2026_005
+    relationships:
+    - rel_type: uses_definition
+      spec_id: PCR-02-003
+    - rel_type: uses_definition
+      spec_id: SYNC-16-005
+    - rel_type: refines
+      spec_id: SYNC-17-001
 - id: SYNC-18
   title: Sender Ledger Position on Case Activities
   description: >-
@@ -3503,9 +3534,6 @@ groups:
       `Join`, `Ignore`, `Leave` and `Offer` of a case name the case and act on it, so
       they carry the sender's position. The property is the `ledgerPosition` term that
       a case copy already carries (SYNC-16-005), so one fact keeps one wire form.
-    relationships:
-    - rel_type: refines
-      spec_id: SYNC-16-005
     adr:
     - ADR-0156
     verification: >-
@@ -3514,6 +3542,9 @@ groups:
       trigger adapter, carry `ledgerPosition`.
     stories:
     - story_2026_049
+    relationships:
+    - rel_type: uses_definition
+      spec_id: SYNC-17-001
   - id: SYNC-18-017
     priority: MUST_NOT
     kind: protocol
@@ -3531,7 +3562,7 @@ groups:
       receiver sends one, even for an activity it could not parse (ASK-07-001), and it
       names no case (ASK-07-004).
     relationships:
-    - rel_type: extends
+    - rel_type: supersedes
       spec_id: SYNC-18-001
     adr:
     - ADR-0156
@@ -3616,7 +3647,7 @@ groups:
       Core code then receives a non-optional position (ADR-0032), and every ledgered
       act carries one.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: SYNC-18-001
     adr:
     - ADR-0156
@@ -3638,6 +3669,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: SYNC-18-003
+    - rel_type: uses_definition
+      spec_id: SYNC-18-001
     adr:
     - ADR-0156
     verification: >-
@@ -3660,7 +3693,7 @@ groups:
       from the Reject alone whether its sender holds the case, and the peer that does
       not is the one the replay from genesis exists to repair.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: SYNC-18-015
     adr:
     - ADR-0156
@@ -3684,9 +3717,6 @@ groups:
       embargo is already refused, because its consent row accepts no trigger
       (CM-18-003), so refusing on the position alone would refuse ordinary acts and
       catch nothing new.
-    relationships:
-    - rel_type: refines
-      spec_id: SYNC-10-005
     adr:
     - ADR-0156
     verification: >-
@@ -3725,9 +3755,6 @@ groups:
       The CASE_MANAGER is the single writer, so no participant can hold an entry it
       did not commit; such a position means the sender's chain has split. Whether the
       act itself should be refused is open (`notes/sync-ledger-replication.md`).
-    relationships:
-    - rel_type: refines
-      spec_id: SYNC-16-003
     adr:
     - ADR-0156
     verification: >-
@@ -3771,6 +3798,10 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: SYNC-18-005
+    - rel_type: uses_definition
+      spec_id: CM-10-004
+    - rel_type: uses_definition
+      spec_id: SYNC-16-004
     adr:
     - ADR-0156
     verification: >-
@@ -3790,9 +3821,6 @@ groups:
     rationale: >-
       A copy of the current case is withheld content for a sender that is not active
       (CM-10-004), so a split position must not become a way to get it.
-    relationships:
-    - rel_type: extends
-      spec_id: SYNC-18-012
     adr:
     - ADR-0156
     verification: >-
@@ -3803,6 +3831,9 @@ groups:
       participant that withdrew its consent.
     stories:
     - story_2026_054
+    relationships:
+    - rel_type: uses_definition
+      spec_id: SYNC-18-005
   - id: SYNC-18-006
     priority: MUST
     kind: protocol
@@ -3842,6 +3873,8 @@ groups:
       spec_id: SYNC-17-003
     - rel_type: extends
       spec_id: SYNC-17-004
+    - rel_type: uses_definition
+      spec_id: CM-10-004
     adr:
     - ADR-0156
     verification: >-
@@ -3860,9 +3893,6 @@ groups:
     rationale: >-
       A removed, unconsented or closed participant lags on purpose, so answering it
       would send withheld case content (SYNC-17-002).
-    relationships:
-    - rel_type: extends
-      spec_id: SYNC-18-007
     adr:
     - ADR-0156
     verification: >-
@@ -3873,6 +3903,9 @@ groups:
       participant that withdrew its consent.
     stories:
     - story_2026_054
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-10-004
 - id: SYNC-19
   title: Arrival-Order Independence and Eventual Consistency
   description: >-
@@ -3909,7 +3942,7 @@ groups:
       two answers sent back to back are recorded in arrival order until the CASE_MANAGER
       can tell which was sent last (#5202).
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CLP-14-001
     adr:
     - ADR-0161
@@ -3935,7 +3968,7 @@ groups:
       Replicas see the case at different times, so a stronger guarantee would need a
       delivery order the transport does not give.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: SYNC-08-002
     adr:
     - ADR-0161
@@ -3976,9 +4009,6 @@ groups:
       ordered outbox loses that order when an `Announce` is lost and replayed later, so
       a rule that holds only under ordered delivery fails in exactly the cases recovery
       exists for.
-    relationships:
-    - rel_type: constrains
-      spec_id: OX-01-005
     adr:
     - ADR-0161
     - ADR-0112
@@ -4000,9 +4030,6 @@ groups:
     verification: >-
       The OX-01-005 tests in `test/adapters/driving/fastapi/test_outbox_handler_lanes.py`
       assert the outbox delivers each recipient's messages in the order it queued them.
-    relationships:
-    - rel_type: extends
-      spec_id: SYNC-19-003
     adr:
     - ADR-0161
     - ADR-0112
@@ -4018,7 +4045,7 @@ groups:
       Delivery order is no guarantee (SYNC-19-003), so a receiver that relied on it
       would apply the wrong outcome whenever messages arrive in another order.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: SYNC-19-003
     adr:
     - ADR-0161
@@ -4038,7 +4065,7 @@ groups:
       later, so a sender whose messages are correct only in its own order fails during
       recovery.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: SYNC-19-003
     adr:
     - ADR-0161
@@ -4078,13 +4105,6 @@ groups:
       its Invite to the embargo in force has not consented, so it is inert, and is the
       one to ask again. A resent Invite was already sent and is not case content
       (CM-10-007), so nothing withheld leaks.
-    relationships:
-    - rel_type: refines
-      spec_id: SYNC-17-002
-    - rel_type: refines
-      spec_id: SYNC-18-007
-    - rel_type: depends_on
-      spec_id: CM-10-007
     adr:
     - ADR-0163
     verification: >-
@@ -4096,6 +4116,17 @@ groups:
       drives the inert joiner's recovery through both actors' inbox pipelines.
     stories:
     - story_2026_079
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-10-004
+    - rel_type: uses_definition
+      spec_id: CM-31-001
+    - rel_type: uses_definition
+      spec_id: SYNC-17-001
+    - rel_type: uses_definition
+      spec_id: SYNC-18-001
+    - rel_type: uses_definition
+      spec_id: SYNC-20-002
   - id: SYNC-20-002
     priority: MUST
     kind: protocol
@@ -4115,9 +4146,6 @@ groups:
       (CM-31-040), or a joiner whose proposal was activated first, is asked to sign it.
       The stating activity may be the answer itself, committed after its position is
       read, so its Invite is excluded by name.
-    relationships:
-    - rel_type: refines
-      spec_id: SYNC-20-001
     adr:
     - ADR-0163
     verification: >-
@@ -4127,6 +4155,13 @@ groups:
       stamped `Accept` answers is not resent with it.
     stories:
     - story_2026_079
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-11-010
+    - rel_type: uses_definition
+      spec_id: CM-18-001
+    - rel_type: uses_definition
+      spec_id: CM-28-001
   - id: SYNC-20-003
     priority: MUST
     kind: protocol
@@ -4141,10 +4176,10 @@ groups:
       deadline, so silence before the deadline is still a pocket veto, and the
       full-case Invite's ledger floor (CM-11-012) is unchanged.
     relationships:
-    - rel_type: refines
-      spec_id: SYNC-18-002
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: OX-07-001
+    - rel_type: refines
+      spec_id: SYNC-18-009
     adr:
     - ADR-0163
     verification: >-
@@ -4169,6 +4204,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: OX-06-002
+    - rel_type: uses_definition
+      spec_id: SYNC-20-005
     adr:
     - ADR-0163
     verification: >-
@@ -4188,9 +4225,6 @@ groups:
       again and again. A doubling cooldown soon makes the resends rare, and the ceiling
       still resends at a fixed interval until the deadline passes, as the replay bound
       does (SYNC-15-013).
-    relationships:
-    - rel_type: refines
-      spec_id: SYNC-15-013
     adr:
     - ADR-0163
     verification: >-
@@ -4209,9 +4243,6 @@ groups:
     rationale: >-
       How often to ask again is a deployment trade-off between recovery time and
       traffic, and an operator must know the defaults to change them.
-    relationships:
-    - rel_type: refines
-      spec_id: SYNC-05-003
     adr:
     - ADR-0163
     verification: >-
@@ -4219,6 +4250,9 @@ groups:
       they equal the replay cooldown's base and ceiling, and that a ceiling below its
       base is refused. The documented defaults are a review check of
       `docs/reference/draft-vultron-replication-spec.md` §10.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: SYNC-20-005
   - id: SYNC-20-007
     priority: MUST_NOT
     kind: protocol
@@ -4255,9 +4289,9 @@ groups:
       to answer.
     relationships:
     - rel_type: refines
-      spec_id: SYNC-20-001
-    - rel_type: depends_on
       spec_id: CM-31-013
+    - rel_type: uses_definition
+      spec_id: CM-31-001
     adr:
     - ADR-0163
     verification: >-

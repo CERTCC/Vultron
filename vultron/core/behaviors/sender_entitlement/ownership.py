@@ -325,13 +325,19 @@ class SenderIsOfferingCaseOwnerNode(SenderEntitlementConditionNode):
                 sender,
             )
             return Status.SUCCESS
-        return self._refuse(
+        return self._refuse_citing(
             f"Sender '{sender}' is not the Case Owner of case"
             f" '{self._case_id}', so it may not propose to offer its"
             " ownership"
         )
 
-    def _refuse(self, reason: str) -> Status:
-        self.feedback_message = f"{reason} — REFUSED (CM-21-019, HP-01-006)"
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
+    def _refuse_citing(self, reason: str) -> Status:
+        """Append this check's citation to *reason*, then refuse by placement.
+
+        One ``_refuse_citing`` per citation across the family, never a
+        ``_refuse``: see
+        :meth:`SenderEntitlementConditionNode._refuse_by_placement`.
+        """
+        return self._refuse_by_placement(
+            f"{reason} — REFUSED (CM-21-019, HP-01-006)"
+        )

@@ -137,10 +137,16 @@ class SenderIsRequestAddresseeNode(SenderEntitlementConditionNode):
             NoStandingError: The sender lacks that standing.
         """
 
-    def _refuse(self, reason: str) -> Status:
-        self.feedback_message = f"{reason} — REFUSED ({self._spec}, HP-01-006)"
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
+    def _refuse_citing(self, reason: str) -> Status:
+        """Append the subclass's citation to *reason*, then refuse by placement.
+
+        One ``_refuse_citing`` per citation across the family, never a
+        ``_refuse``: see
+        :meth:`SenderEntitlementConditionNode._refuse_by_placement`.
+        """
+        return self._refuse_by_placement(
+            f"{reason} — REFUSED ({self._spec}, HP-01-006)"
+        )
 
     def _confirm_addressee(self, request: RecordedRequest) -> None:
         """The one comparison every addressee check makes.
@@ -170,7 +176,7 @@ class SenderIsRequestAddresseeNode(SenderEntitlementConditionNode):
             self._confirm_addressee(request)
             self._confirm_standing(request)
         except NoStandingError as exc:
-            return self._refuse(str(exc))
+            return self._refuse_citing(str(exc))
         return Status.SUCCESS
 
 

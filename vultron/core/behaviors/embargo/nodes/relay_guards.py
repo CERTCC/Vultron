@@ -25,8 +25,12 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
+from vultron.core.behaviors.embargo.nodes.proposal_repeat import (
+    EmbargoTermsNotHeldNode,
+)
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.states.em import is_em_exited
 from vultron.errors import BtNodePreconditionError
 
@@ -118,21 +122,37 @@ class EmStateAdmitsProposalNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-def case_manager_admits_proposal_guard(case_id: str) -> OnPaths:
-    """Precondition guard: on the manager path, EM admits a proposal.
+def case_manager_admits_proposal_guard(
+    case_id: str,
+    embargo_id: str,
+    embargo: EmbargoEvent | None = None,
+) -> OnPaths:
+    """Precondition guard: on the manager path, the canonical case takes the proposal.
 
     A read-only declaration for a received tree's ``precondition_guards``
     (CLP-10-009), on the CASE_MANAGER path the Invite tree declares
-    (HP-01-038): the factory builds the branch from the path stage's answer,
-    so a proposal the canonical case cannot take is refused before the
-    guarded commit writes an entry for it, and the invitee's replica — which
-    asks nothing of the canonical EM state (EP-09-003) — skips it.  No
-    second role read: the branch reads the one answer the path stage already
-    gave (HP-01-037).
+    (HP-01-038): the factory builds the branch from the path stage's answer.
+    It runs :class:`EmStateAdmitsProposalNode`, then
+    :class:`~vultron.core.behaviors.embargo.nodes.proposal_repeat.EmbargoTermsNotHeldNode`,
+    so a proposal the canonical case cannot take is refused, and one of terms
+    the case already holds is a repeat (EP-09-032), before the guarded commit
+    writes an entry for it.  The invitee's replica — which asks nothing of
+    the canonical EM state or register (EP-09-003) — skips both.  No second
+    role read: the branch reads the one answer the path stage already gave
+    (HP-01-037).
+
+    Args:
+        case_id: The case the proposal is for.
+        embargo_id: The proposed ``EmbargoEvent``.
+        embargo: Its inline terms, when the message carries them; else they
+            are read from the store.
     """
     return OnPaths.at_case_manager(
         "AdmitsEmbargoProposalOnManagerPath",
         EmStateAdmitsProposalNode(case_id=case_id),
+        EmbargoTermsNotHeldNode(
+            case_id=case_id, embargo_id=embargo_id, embargo=embargo
+        ),
     )
 
 

@@ -80,6 +80,7 @@ from vultron.core.use_cases.received._bt_verdict.door import (
 from vultron.core.use_cases.received._bt_verdict.redelivery import (
     add_note_redelivery_verdict,
     embargo_answer_repeat_verdict,
+    embargo_terms_repeat_verdict,
     embargo_withdrawal_redelivery_verdict,
     ownership_answer_verdict,
     ownership_offer_verdict,
@@ -116,6 +117,7 @@ __all__ = [
     "door_guards_admitted",
     "door_refusal",
     "embargo_answer_repeat_verdict",
+    "embargo_terms_repeat_verdict",
     "embargo_withdrawal_redelivery_verdict",
     "failure_reason",
     "find_named",
