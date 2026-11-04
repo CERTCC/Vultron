@@ -1939,7 +1939,7 @@ groups:
     stories:
     - story_2022_104
     - story_2022_046
-    - story_2022_045
+    - story_2026_002
   - id: VP-10-003
     priority: MUST
     kind: protocol
@@ -2723,7 +2723,6 @@ groups:
       without sharing any details.
     stories:
     - story_2022_030
-    - story_2022_045
   - id: VP-16-003
     priority: SHOULD_NOT
     kind: protocol
@@ -2763,7 +2762,7 @@ groups:
     - rel_type: refines
       spec_id: VP-02-001
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_046
   - id: VP-17-002
     priority: MUST_NOT
@@ -2803,7 +2802,7 @@ groups:
     - rel_type: satisfies
       spec_id: VP-17-002
     stories:
-    - story_2022_045
+    - story_2026_057
 - id: VP-18
   title: Routing Topology
   specs:
@@ -2827,7 +2826,7 @@ groups:
       spec_id: PCR-08-001
       note: participant-case-relationships.yaml — PCR-08 covers ledger-based broadcast
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_041
   - id: VP-18-002
     priority: MUST_NOT
@@ -2860,5 +2859,5 @@ groups:
     - rel_type: refines
       spec_id: VP-18-001
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_106

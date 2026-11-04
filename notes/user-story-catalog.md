@@ -188,9 +188,10 @@ requirements, not the other way round.
   needed two axes the candidate list lacked: every copy matching the
   CASE_MANAGER's, and deployment needs told by an Implementer. Read the axes
   below as a start, not a closed set.
-- **045** "produce a shared verified public record of case activity" (135):
-  a record every participant shares; a record whose integrity can be verified;
-  a record that becomes public on disclosure.
+- **045** is split into `story_2026_069`–`079` (#4516, part 2), and its
+  citers already on a 2026 story kept that story. Most of its citers were about
+  what the ledger holds and who writes it, not about publication; only the
+  record-the-public-fact-first rules (`story_2026_077`) took the disclosure axis.
 - **014** "negotiate embargo/disclosure schedules…" (128): proposing an
   embargo; revising one; accepting or rejecting a proposal; ending one.
 

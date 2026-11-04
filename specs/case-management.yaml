@@ -70,7 +70,6 @@ groups:
       state from the CASE_MANAGER rather than from each other.
     stories:
     - story_2026_059
-    - story_2022_045
   - id: CM-02-003
     priority: MUST
     kind: protocol
@@ -237,7 +236,7 @@ groups:
     - ADR-0103
     stories:
     - story_2022_074
-    - story_2022_045
+    - story_2026_028
   - id: CM-02-018
     priority: MUST
     kind: protocol
@@ -1860,7 +1859,7 @@ groups:
     - ADR-0114
     stories:
     - story_2022_023
-    - story_2022_045
+    - story_2026_055
   - id: CM-11-009
     priority: MUST
     kind: protocol
@@ -2072,7 +2071,7 @@ groups:
     adr:
     - ADR-0121
     stories:
-    - story_2022_045
+    - story_2026_053
   - id: CM-11-035
     priority: MUST
     kind: protocol
@@ -2096,7 +2095,7 @@ groups:
     adr:
     - ADR-0121
     stories:
-    - story_2022_045
+    - story_2026_053
   - id: CM-11-036
     priority: MUST
     kind: protocol
@@ -2116,7 +2115,7 @@ groups:
     adr:
     - ADR-0121
     stories:
-    - story_2022_045
+    - story_2026_054
   - id: CM-11-013
     priority: MUST
     kind: protocol
@@ -3197,7 +3196,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that step 6 commits a case ledger
       entry that triggers `Announce(CaseLedgerEntry)` fan-out to all participants.
     stories:
-    - story_2022_045
+    - story_2026_075
     - story_2022_041
 - id: CM-15
   title: Case Creation Policy
@@ -3362,7 +3361,7 @@ groups:
     adr:
     - ADR-0114
     stories:
-    - story_2022_045
+    - story_2026_075
     - story_2022_053
   - id: CM-16-003
     priority: MUST
@@ -3558,7 +3557,7 @@ groups:
       decision is pending is recorded in the case ledger.
     stories:
     - story_2022_053
-    - story_2022_045
+    - story_2026_069
   - id: CM-16-009
     priority: MUST
     kind: protocol
@@ -3621,7 +3620,7 @@ groups:
     - ADR-0119
     stories:
     - story_2022_053
-    - story_2022_045
+    - story_2026_076
   - id: CM-16-014
     priority: MUST
     kind: project
@@ -5371,7 +5370,7 @@ groups:
     stories:
     - story_2022_050
     - story_2022_049
-    - story_2022_045
+    - story_2026_069
   - id: CM-21-030
     priority: MUST
     kind: protocol
@@ -5398,7 +5397,7 @@ groups:
     stories:
     - story_2022_050
     - story_2022_049
-    - story_2022_045
+    - story_2026_075
   - id: CM-21-008
     priority: MUST
     kind: protocol
@@ -6247,7 +6246,7 @@ groups:
     - rel_type: refines
       spec_id: CM-22-001
     stories:
-    - story_2022_045
+    - story_2026_023
   - id: CM-22-004
     priority: MUST
     kind: protocol
@@ -6819,7 +6818,7 @@ groups:
     adr:
     - ADR-0051
     stories:
-    - story_2022_045
+    - story_2026_042
     - story_2022_074
   - id: CM-23-008
     priority: MUST
@@ -8672,7 +8671,7 @@ groups:
     - ADR-0065
     - ADR-0118
     stories:
-    - story_2022_045
+    - story_2026_069
     - story_2022_074
   - id: CM-28-006
     priority: MUST
@@ -8793,7 +8792,7 @@ groups:
     - ADR-0118
     - ADR-0124
     stories:
-    - story_2022_045
+    - story_2026_069
     - story_2022_074
   - id: CM-28-022
     priority: MUST_NOT
@@ -8818,7 +8817,7 @@ groups:
     - ADR-0065
     - ADR-0118
     stories:
-    - story_2022_045
+    - story_2026_072
     - story_2022_074
   - id: CM-28-010
     priority: MUST_NOT

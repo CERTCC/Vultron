@@ -153,7 +153,7 @@ groups:
       (`test_entry_hash_auto_computed`) and that a changed field no longer matches it
       (`test_entry_hash_tamper_detection`).
     stories:
-    - story_2022_045
+    - story_2026_023
     - story_2022_089
   - id: SYNC-01-007
     priority: MUST
@@ -174,7 +174,7 @@ groups:
     - rel_type: extends
       spec_id: SYNC-01-003
     stories:
-    - story_2022_045
+    - story_2026_023
     - story_2022_089
   - id: SYNC-01-004
     priority: MUST
@@ -189,7 +189,7 @@ groups:
       Integration tests in `test/demo/` confirm that all canonical log entry writes
       pass through the CASE_MANAGER's single authoritative write path.
     stories:
-    - story_2022_045
+    - story_2026_023
     - story_2022_106
   - id: SYNC-01-005
     priority: MUST
@@ -222,7 +222,6 @@ groups:
       Integration tests in `test/demo/` confirm that log replication messages are
       wrapped in ActivityStreams Announce activities delivered to Participant Actors.
     stories:
-    - story_2022_045
     - story_2026_057
   - id: SYNC-02-002
     priority: MUST
@@ -239,7 +238,7 @@ groups:
       Integration tests in `test/demo/` confirm that each Announce(CaseLedgerEntry)
       identifies the sender, recipient, entry hash, and predecessor hash.
     stories:
-    - story_2022_045
+    - story_2026_045
     - story_2022_089
   - id: SYNC-02-003
     priority: MUST
@@ -261,7 +260,6 @@ groups:
     adr:
     - ADR-0114
     stories:
-    - story_2022_045
     - story_2022_046
     - story_2026_059
   - id: SYNC-02-004
@@ -280,7 +278,7 @@ groups:
       Integration tests in `test/demo/` confirm that Announce(CaseLedgerEntry) carries
       the CaseLedgerEntry with entry_hash and prev_log_hash.
     stories:
-    - story_2022_045
+    - story_2026_045
   - id: SYNC-02-005
     priority: MUST
     kind: project
@@ -320,7 +318,6 @@ groups:
       replication message whose predecessor hash does not match its current log
       tail hash.
     stories:
-    - story_2022_045
     - story_2026_045
   - id: SYNC-03-002
     priority: MUST
@@ -336,7 +333,6 @@ groups:
       retries replication starting from the entry following the receiver's last
       accepted hash.
     stories:
-    - story_2022_045
     - story_2026_047
   - id: SYNC-03-003
     priority: MUST_NOT
@@ -357,7 +353,6 @@ groups:
       spec_id: ID-02-001
       note: idempotency.md
     stories:
-    - story_2022_045
     - story_2026_014
   - id: SYNC-03-005
     priority: MUST
@@ -375,7 +370,7 @@ groups:
       `REFUSED` with an empty outbox.
     stories:
     - story_2022_035
-    - story_2022_045
+    - story_2026_054
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
@@ -407,7 +402,7 @@ groups:
     - ADR-0115
     stories:
     - story_2022_035
-    - story_2022_045
+    - story_2026_054
   - id: SYNC-03-006
     priority: MUST
     kind: protocol
@@ -424,7 +419,6 @@ groups:
       Tests marked `SYNC-03-006` deliver an entry whose content no longer matches its
       hash and assert it is not stored and not buffered.
     stories:
-    - story_2022_045
     - story_2026_046
     relationships:
     - rel_type: refines
@@ -454,7 +448,6 @@ groups:
     - rel_type: extends
       spec_id: SYNC-03-006
     stories:
-    - story_2022_045
     - story_2026_046
   - id: SYNC-03-007
     priority: MUST
@@ -481,7 +474,6 @@ groups:
       content does not reproduce its hash and asserts the replica queues the fault to
       the CASE_MANAGER and stores nothing.
     stories:
-    - story_2022_045
     - story_2026_046
   - id: SYNC-03-013
     priority: MUST
@@ -501,7 +493,6 @@ groups:
     - rel_type: extends
       spec_id: SYNC-03-007
     stories:
-    - story_2022_045
     - story_2026_046
   - id: SYNC-03-008
     priority: MUST_NOT
@@ -525,7 +516,7 @@ groups:
       asserts `SKIPPED`, an empty outbox, unchanged replication state and no new ledger
       entry for a fault from an active participant of a seeded case.
     stories:
-    - story_2022_045
+    - story_2026_046
   - id: SYNC-03-014
     priority: MUST
     kind: protocol
@@ -544,7 +535,7 @@ groups:
       asserts `REFUSED`, an empty outbox, unchanged replication state and no new ledger
       entry for a fault from a sender that is not a participant of the case.
     stories:
-    - story_2022_045
+    - story_2026_054
   - id: SYNC-03-010
     priority: MUST
     kind: project
@@ -619,7 +610,7 @@ groups:
       `test/architecture/test_send_announce_log_entry_has_one_caller.py` asserts no
       other code in `vultron/core/` calls `send_announce_log_entry`.
     stories:
-    - story_2022_045
+    - story_2026_074
   - id: SYNC-03-017
     priority: MUST_NOT
     kind: protocol
@@ -651,7 +642,7 @@ groups:
       content does not reproduce its hash, and one that states no hash, and assert that
       entry is not queued.
     stories:
-    - story_2022_045
+    - story_2026_074
   - id: SYNC-03-018
     priority: MUST
     kind: protocol
@@ -671,7 +662,7 @@ groups:
       `test_the_verified_send_raises_and_queues_nothing` asserts the error names the
       case, the entry, its `log_index` and the recipients.
     stories:
-    - story_2022_045
+    - story_2026_074
   - id: SYNC-03-019
     priority: MUST_NOT
     kind: protocol
@@ -696,7 +687,7 @@ groups:
       `test/core/behaviors/sync/test_send_side_hash_check.py` asserts that the entries
       before the broken one are queued, and that it and every later entry are not.
     stories:
-    - story_2022_045
+    - story_2026_074
 - id: SYNC-04
   title: Per-Peer Replication State
   specs:
@@ -714,7 +705,6 @@ groups:
       a per-peer state record containing at minimum the last acknowledged log
       entry hash for each peer.
     stories:
-    - story_2022_045
     - story_2026_047
   - id: SYNC-04-002
     priority: MUST
@@ -729,7 +719,6 @@ groups:
       survives a leader restart by verifying the acknowledged hash is restored
       from the DataLayer.
     stories:
-    - story_2022_045
     - story_2026_063
 - id: SYNC-05
   title: Retry and Backoff
@@ -911,7 +900,6 @@ groups:
       only after it has been durably written with its content hash recorded in the
       authoritative log.
     stories:
-    - story_2022_045
     - story_2026_063
   - id: SYNC-09-005
     priority: MUST_NOT
@@ -932,7 +920,6 @@ groups:
     - rel_type: extends
       spec_id: SYNC-09-001
     stories:
-    - story_2022_045
     - story_2026_063
   - id: SYNC-09-002
     priority: MUST
@@ -962,7 +949,7 @@ groups:
     adr:
     - ADR-0119
     stories:
-    - story_2022_045
+    - story_2026_076
     - story_2022_081
   - id: SYNC-09-003
     priority: MUST
@@ -1085,7 +1072,7 @@ groups:
       spec_id: SYNC-00-005
       note: Restates the immutability of SYNC-00-005 as a system invariant
     stories:
-    - story_2022_045
+    - story_2026_023
     - story_2022_089
   - id: SYNC-08-006
     priority: MUST
@@ -1105,7 +1092,7 @@ groups:
     - rel_type: extends
       spec_id: SYNC-08-001
     stories:
-    - story_2022_045
+    - story_2026_023
     - story_2022_089
   - id: SYNC-08-002
     priority: MUST
@@ -1121,7 +1108,6 @@ groups:
       Unit tests confirm that two compliant implementations processing an identical
       canonical log prefix derive identical case state after replay.
     stories:
-    - story_2022_045
     - story_2026_057
     - story_2022_106
   - id: SYNC-08-003
@@ -1150,7 +1136,6 @@ groups:
       Integration tests in `test/demo/` confirm that participants never acknowledge a
       log position lower than one previously acknowledged.
     stories:
-    - story_2022_045
     - story_2026_045
   - id: SYNC-08-005
     priority: MUST
@@ -1170,7 +1155,6 @@ groups:
     adr:
     - ADR-0037
     stories:
-    - story_2022_045
     - story_2026_045
   - id: SYNC-08-007
     priority: MUST
@@ -1193,7 +1177,6 @@ groups:
     adr:
     - ADR-0037
     stories:
-    - story_2022_045
     - story_2026_045
 - id: SYNC-10
   title: Catch-Up Gate Before New Actions
@@ -1215,7 +1198,6 @@ groups:
       post-restart state where the DataLayer has entries 0 and 2 but is missing
       entry 1). The behavior tree returns FAILURE and no new entry is persisted.
     stories:
-    - story_2022_045
     - story_2026_053
     adr:
     - ADR-0018
@@ -1274,7 +1256,6 @@ groups:
       actions when any gap exists in the canonical log prefix between genesis and the
       actor's acknowledged tip.
     stories:
-    - story_2022_045
     - story_2026_053
   - id: SYNC-10-005
     priority: MUST_NOT
@@ -1407,7 +1388,6 @@ groups:
       participant-status update, note attachment, invite-accept) are applied before a
       CaseLedgerEntry is persisted.
     stories:
-    - story_2022_045
     - story_2026_058
   - id: SYNC-12-004
     priority: MUST_NOT
@@ -1427,7 +1407,6 @@ groups:
     - rel_type: extends
       spec_id: SYNC-12-001
     stories:
-    - story_2022_045
     - story_2026_058
   - id: SYNC-12-002
     priority: MUST
@@ -1445,7 +1424,6 @@ groups:
       local ledger corresponds to one whose domain effects were all successfully applied
       before persistence.
     stories:
-    - story_2022_045
     - story_2026_058
   - id: SYNC-12-003
     priority: MUST
@@ -1463,7 +1441,6 @@ groups:
       Integration tests in `test/demo/` confirm that a duplicate Announce(CaseLedgerEntry)
       for an already-stored entry triggers neither effect application nor a second persist.
     stories:
-    - story_2022_045
     - story_2026_014
 - id: SYNC-13
   title: Ledger Write Ownership and Layer Boundary
@@ -1499,7 +1476,7 @@ groups:
       spec_id: SYNC-12-002
       note: SYNC-12-002 relies on this write-ownership guarantee to hold
     stories:
-    - story_2022_045
+    - story_2026_058
   - id: SYNC-13-002
     priority: MUST_NOT
     kind: project
@@ -1530,7 +1507,7 @@ groups:
       spec_id: SYNC-01-004
       note: Restates the single-writer rule of SYNC-01-004 for `CaseLedgerEntry` records
     stories:
-    - story_2022_045
+    - story_2026_023
     - story_2022_046
   - id: SYNC-13-006
     priority: MUST
@@ -1544,7 +1521,6 @@ groups:
       Integration tests in `test/demo/` confirm that participant replicas only acquire
       CaseLedgerEntry records through the Announce(CaseLedgerEntry) receive behavior tree.
     stories:
-    - story_2022_045
     - story_2026_057
   - id: SYNC-13-003
     priority: MUST_NOT
@@ -1592,7 +1568,7 @@ groups:
       Announce(CaseLedgerEntry) is routed to ANNOUNCE_CASE_LEDGER_ENTRY on first
       delivery, without a DataLayer lookup.
     stories:
-    - story_2022_045
+    - story_2026_014
   - id: SYNC-13-009
     priority: MUST
     kind: protocol
@@ -1610,7 +1586,7 @@ groups:
     - rel_type: extends
       spec_id: SYNC-13-004
     stories:
-    - story_2022_045
+    - story_2026_014
   - id: SYNC-13-007
     priority: MUST
     kind: project
@@ -1670,7 +1646,6 @@ groups:
       entry stored; integration tests in `test/demo/` confirm a forward-gap entry is
       retained rather than permanently discarded.
     stories:
-    - story_2022_045
     - story_2026_048
   - id: SYNC-14-010
     priority: MUST_NOT
@@ -1693,7 +1668,6 @@ groups:
     - ADR-0037
     - ADR-0135
     stories:
-    - story_2022_045
     - story_2026_048
   - id: SYNC-14-002
     priority: MUST
@@ -1715,7 +1689,6 @@ groups:
       a Reject(CaseLedgerEntry) carrying the last accepted hash to be sent to the
       CASE_MANAGER.
     stories:
-    - story_2022_045
     - story_2026_045
   - id: SYNC-14-003
     priority: MUST
@@ -1737,7 +1710,6 @@ groups:
       triggers a cascading drain of held entries whose prev_log_hash chains from the new
       tail.
     stories:
-    - story_2022_045
     - story_2026_048
   - id: SYNC-14-004
     priority: MUST
@@ -1759,7 +1731,6 @@ groups:
       spec_id: SYNC-12-001
       note: The drain MUST preserve the effects-before-persist invariant per applied entry
     stories:
-    - story_2022_045
     - story_2026_058
   - id: SYNC-14-007
     priority: MUST_NOT
@@ -1790,7 +1761,7 @@ groups:
       apply-then-persist function as the in-order delivery path rather than a separate
       code path.
     stories:
-    - story_2022_045
+    - story_2026_048
   - id: SYNC-14-009
     priority: MUST
     kind: project
@@ -2029,7 +2000,6 @@ groups:
       spec_id: SYNC-08-005
       note: Reject-on-divergence applies equally to the genesis-unavailable case
     stories:
-    - story_2022_045
     - story_2026_045
   - id: SYNC-15-002
     priority: MUST_NOT
@@ -2113,7 +2083,6 @@ groups:
       to replays for a peer whose acknowledged position has not advanced, preventing
       amplification loops.
     stories:
-    - story_2022_045
     - story_2026_051
   - id: SYNC-15-008
     priority: MUST
@@ -2128,7 +2097,6 @@ groups:
       Integration tests in `test/demo/` confirm that the CASE_MANAGER persists per-peer
       the entry_hash position and timestamp of the last non-empty replay.
     stories:
-    - story_2022_045
     - story_2026_051
   - id: SYNC-15-009
     priority: MUST_NOT
@@ -2155,7 +2123,6 @@ groups:
       ahead of the previously recorded peer position triggers a replay without waiting for
       any cooldown.
     stories:
-    - story_2022_045
     - story_2026_047
   - id: SYNC-15-011
     priority: MUST_NOT
@@ -2211,7 +2178,6 @@ groups:
         The Reject is retained as the loss backstop; holding is the primary
         convergence path
     stories:
-    - story_2022_045
     - story_2026_048
   - id: SYNC-15-005
     priority: MUST
@@ -2248,7 +2214,6 @@ groups:
       note: Drains exactly the entries that SYNC-15-004 held during the pre-genesis window
     stories:
     - story_2022_012
-    - story_2022_045
     - story_2026_048
   - id: SYNC-15-012
     priority: MUST_NOT
@@ -2275,7 +2240,6 @@ groups:
       adapter adds only the entries not already pending and records no position when it
       adds none.
     stories:
-    - story_2022_045
     - story_2026_051
   - id: SYNC-15-013
     priority: MUST
@@ -2304,7 +2268,6 @@ groups:
       confirms the loop to two unanchored peers settles under a clock that makes every
       round slower than the base cooldown.
     stories:
-    - story_2022_045
     - story_2026_051
   - id: SYNC-15-026
     priority: MUST
@@ -2323,7 +2286,6 @@ groups:
       `test/core/behaviors/sync/nodes/test_replay_guard.py` (`TestNoProgressBackoff`)
       confirms the cooldown resets on progress.
     stories:
-    - story_2022_045
     - story_2026_051
   - id: SYNC-15-014
     priority: MUST_NOT
@@ -2344,7 +2306,6 @@ groups:
       (`test_genesis_announce_skipped_when_replay_rate_limited`) confirms five genesis
       Rejects in one cooldown send the case once.
     stories:
-    - story_2022_045
     - story_2026_051
   - id: SYNC-15-015
     priority: MUST
@@ -2367,7 +2328,6 @@ groups:
       before the replay; `test_non_genesis_reject_skips_announce_vulnerability_case`
       confirms a Reject from a later position sends no case.
     stories:
-    - story_2022_045
     - story_2026_056
   - id: SYNC-15-016
     priority: SHOULD_NOT
@@ -2396,7 +2356,6 @@ groups:
     adr:
     - ADR-0168
     stories:
-    - story_2022_045
     - story_2026_051
   - id: SYNC-15-017
     priority: MUST
@@ -2421,7 +2380,6 @@ groups:
     adr:
     - ADR-0168
     stories:
-    - story_2022_045
     - story_2026_051
   - id: SYNC-15-018
     priority: MUST
@@ -2447,7 +2405,6 @@ groups:
     adr:
     - ADR-0168
     stories:
-    - story_2022_045
     - story_2026_051
   - id: SYNC-15-019
     priority: MAY
@@ -2469,7 +2426,6 @@ groups:
     adr:
     - ADR-0168
     stories:
-    - story_2022_045
     - story_2026_051
   - id: SYNC-15-020
     priority: MUST
@@ -2652,7 +2608,6 @@ groups:
       CASE_MANAGER alone;
       `test/core/behaviors/sync/test_divergence_recovery.py` pins the failure class.
     stories:
-    - story_2022_045
     - story_2026_045
   - id: SYNC-16-009
     priority: MUST
@@ -2674,7 +2629,6 @@ groups:
       `test/core/use_cases/received/test_embargo_consent_copy.py` asserts that the
       refused entry stays held and is not stored.
     stories:
-    - story_2022_045
     - story_2026_048
   - id: SYNC-16-002
     priority: MUST_NOT
@@ -2700,7 +2654,7 @@ groups:
       `test/core/behaviors/sync/test_hash_mismatch_fault.py` assert no case ledger
       gains an entry when the fault is sent or received.
     stories:
-    - story_2022_045
+    - story_2026_071
   - id: SYNC-16-003
     priority: MUST
     kind: protocol
@@ -2723,7 +2677,6 @@ groups:
       `test/demo/test_sync_ledger_replication.py` shows a diverged replica converging
       across two isolated actor apps.
     stories:
-    - story_2022_045
     - story_2026_047
   - id: SYNC-16-010
     priority: MUST
@@ -2746,7 +2699,6 @@ groups:
       `test/core/use_cases/received/test_case_diverged_reseed.py` asserts the fault from
       a stranger and from a participant that is not active is refused.
     stories:
-    - story_2022_045
     - story_2026_054
   - id: SYNC-16-011
     priority: MUST_NOT
@@ -2767,7 +2719,6 @@ groups:
       `test/core/use_cases/received/test_case_diverged_reseed.py` asserts that nothing
       is recorded or sent for the refused fault.
     stories:
-    - story_2022_045
     - story_2026_054
   - id: SYNC-16-004
     priority: MUST
@@ -2789,7 +2740,7 @@ groups:
       `test/core/use_cases/received/test_case_diverged_reseed.py` asserts a second
       fault within the cooldown sends no case, and one after it does.
     stories:
-    - story_2022_045
+    - story_2026_051
   - id: SYNC-16-012
     priority: MUST
     kind: protocol
@@ -2811,7 +2762,7 @@ groups:
       peer has a re-seed record after its first re-seed, and the SYNC-16-008 tests in
       that file judge later faults against the tail it records.
     stories:
-    - story_2022_045
+    - story_2026_051
   - id: SYNC-16-005
     priority: MUST
     kind: protocol
@@ -3066,7 +3017,6 @@ groups:
       `test/core/use_cases/received/test_case_copy_replacement.py` backfills a replaced
       replica to the CASE_MANAGER's tail with matching case files.
     stories:
-    - story_2022_045
     - story_2026_045
   - id: SYNC-16-023
     priority: MUST
@@ -3094,7 +3044,6 @@ groups:
       `test/core/behaviors/sync/test_divergence_recovery.py` asserts a first seed ahead
       of the chain stores the backfilled entries as no-ops at the copy's position.
     stories:
-    - story_2022_045
     - story_2026_050
   - id: SYNC-16-024
     priority: MUST_NOT
@@ -3118,7 +3067,6 @@ groups:
       `test/core/use_cases/received/test_case_copy_replacement.py` backfills a replaced
       replica without moving its position back.
     stories:
-    - story_2022_045
     - story_2026_050
   - id: SYNC-16-025
     priority: MUST
@@ -3140,7 +3088,6 @@ groups:
       `test/core/behaviors/sync/test_divergence_recovery.py` asserts that such an entry
       is refused and not stored.
     stories:
-    - story_2022_045
     - story_2026_050
   - id: SYNC-16-026
     priority: MUST
@@ -3162,7 +3109,6 @@ groups:
       `test/core/behaviors/sync/test_divergence_recovery.py` asserts the refusal is
       logged at ERROR.
     stories:
-    - story_2022_045
     - story_2026_052
   - id: SYNC-16-027
     priority: MUST
@@ -3187,7 +3133,6 @@ groups:
       `test/core/behaviors/sync/test_divergence_recovery.py` asserts that a replica with
       no entry sends the `Reject` that names none.
     stories:
-    - story_2022_045
     - story_2026_045
   - id: SYNC-16-028
     priority: MUST
@@ -3211,7 +3156,6 @@ groups:
       `test/core/use_cases/received/test_case_copy_replacement.py` refuses one that
       names neither an entry nor a case.
     stories:
-    - story_2022_045
     - story_2026_045
   - id: SYNC-16-029
     priority: MUST
@@ -3232,7 +3176,6 @@ groups:
       `test/core/use_cases/received/test_case_copy_replacement.py` replays a replica with
       no entry from genesis to the CASE_MANAGER's tail.
     stories:
-    - story_2022_045
     - story_2026_047
   - id: SYNC-16-008
     priority: SHOULD
@@ -3278,7 +3221,7 @@ groups:
       `test/core/behaviors/sync/nodes/test_chain.py` asserts the acknowledgement's
       claimed time is kept, the earliest for a restated position.
     stories:
-    - story_2022_045
+    - story_2026_052
 - id: SYNC-17
   title: Participant Position Statements
   description: >-
@@ -3311,7 +3254,6 @@ groups:
       A test marked `SYNC-17-001` builds the activity with the wire factory and asserts
       its type is `Read` and its `object` is the entry's id.
     stories:
-    - story_2022_045
     - story_2026_047
   - id: SYNC-17-002
     priority: MUST
@@ -3341,7 +3283,7 @@ groups:
       from a removed participant and from an unconsented participant, and assert
       `REFUSED`.
     stories:
-    - story_2022_045
+    - story_2026_054
   - id: SYNC-17-009
     priority: MUST_NOT
     kind: protocol
@@ -3361,7 +3303,7 @@ groups:
       `test/core/behaviors/sync/test_position_statements.py` assert no replication
       state for the sender and no `Announce(CaseLedgerEntry)` queued to it.
     stories:
-    - story_2022_045
+    - story_2026_054
   - id: SYNC-17-003
     priority: MUST
     kind: protocol
@@ -3383,7 +3325,7 @@ groups:
       A test marked `SYNC-17-003` delivers `Read(CaseLedgerEntry)` from an active
       participant and asserts the sender's replication state holds the named hash.
     stories:
-    - story_2022_045
+    - story_2026_047
   - id: SYNC-17-004
     priority: MUST
     kind: protocol
@@ -3415,7 +3357,6 @@ groups:
       also assert that a second lagging position inside the replay cooldown queues no
       second replay.
     stories:
-    - story_2022_045
     - story_2026_047
   - id: SYNC-17-010
     priority: MUST
@@ -3434,7 +3375,7 @@ groups:
       `test/core/behaviors/sync/test_position_statements.py` asserts that a position at
       the tail queues nothing.
     stories:
-    - story_2022_045
+    - story_2026_047
   - id: SYNC-17-005
     priority: MUST
     kind: protocol
@@ -3454,7 +3395,7 @@ groups:
       and a position whose index holds an entry with a different hash. Each asserts the
       WARNING record, an empty outbox and no replication state for the sender.
     stories:
-    - story_2022_045
+    - story_2026_049
   - id: SYNC-17-006
     priority: MUST_NOT
     kind: protocol
@@ -3472,7 +3413,7 @@ groups:
       Tests marked `SYNC-17-006` deliver `Read(CaseLedgerEntry)` at the tail and behind
       it, and assert each leaves the CASE_MANAGER's ledger unchanged.
     stories:
-    - story_2022_045
+    - story_2026_071
   - id: SYNC-17-007
     priority: SHOULD
     kind: project
@@ -3567,7 +3508,6 @@ groups:
       participant's `Add(Note)` and a CASE_MANAGER-sent one, built by each sender's
       trigger adapter, carry `ledgerPosition`.
     stories:
-    - story_2022_045
     - story_2026_049
   - id: SYNC-18-017
     priority: MUST_NOT
@@ -3598,7 +3538,6 @@ groups:
       `test/wire/as2/factories/test_ledger_position.py` asserts which activities the
       stamp skips.
     stories:
-    - story_2022_045
     - story_2026_049
   - id: SYNC-18-002
     priority: MUST
@@ -3620,7 +3559,7 @@ groups:
       ledger past genesis and asserts the stamped position equals its tail when the
       activity was built.
     stories:
-    - story_2022_045
+    - story_2026_049
   - id: SYNC-18-008
     priority: MUST
     kind: protocol
@@ -3639,7 +3578,7 @@ groups:
       `test/wire/as2/factories/test_ledger_position.py` checks the factory stamp;
       inspection confirms no other module sets `ledgerPosition`.
     stories:
-    - story_2022_045
+    - story_2026_049
   - id: SYNC-18-009
     priority: MUST
     kind: protocol
@@ -3661,7 +3600,7 @@ groups:
       sealed with. The resend itself holds through the outbox's sealed-body relay
       (OX-07-001), which its own tests cover.
     stories:
-    - story_2022_045
+    - story_2026_049
   - id: SYNC-18-003
     priority: MUST
     kind: protocol
@@ -3681,7 +3620,7 @@ groups:
       class either requires the position or is listed out of scope with its reason,
       and that an in-scope activity extracts the position it states.
     stories:
-    - story_2022_045
+    - story_2026_049
   - id: SYNC-18-015
     priority: MUST
     kind: protocol
@@ -3703,7 +3642,7 @@ groups:
       `Add(Note)` and one whose `ledgerPosition` does not parse, and assert each is
       refused with a reason naming the activity and that no ledger entry is written.
     stories:
-    - story_2022_045
+    - story_2026_049
   - id: SYNC-18-016
     priority: MUST_NOT
     kind: protocol
@@ -3725,7 +3664,7 @@ groups:
       `test/wire/as2/test_ledger_position_scope.py` asserts such a Reject is accepted
       without a position.
     stories:
-    - story_2022_045
+    - story_2026_049
   - id: SYNC-18-004
     priority: MUST_NOT
     kind: protocol
@@ -3749,7 +3688,7 @@ groups:
       `test/core/use_cases/received/test_activity_ledger_tail.py` delivers an
       `Add(Note)` stamped behind the CASE_MANAGER's tail and asserts it is applied.
     stories:
-    - story_2022_045
+    - story_2026_049
   - id: SYNC-18-010
     priority: MUST
     kind: protocol
@@ -3769,7 +3708,7 @@ groups:
       `test/core/use_cases/received/test_activity_ledger_tail.py` asserts the lag is
       logged at DEBUG with the activity and actor ids.
     stories:
-    - story_2022_045
+    - story_2026_049
   - id: SYNC-18-005
     priority: MUST
     kind: protocol
@@ -3791,7 +3730,6 @@ groups:
       `Add(Note)` whose position names a wrong hash, and one whose position is past the
       tail, and asserts each is applied.
     stories:
-    - story_2022_045
     - story_2026_049
   - id: SYNC-18-011
     priority: MUST
@@ -3812,7 +3750,6 @@ groups:
       `test/core/use_cases/received/test_activity_ledger_tail.py` asserts the split is
       logged at ERROR.
     stories:
-    - story_2022_045
     - story_2026_052
   - id: SYNC-18-012
     priority: MUST
@@ -3838,7 +3775,6 @@ groups:
       `test_a_second_split_inside_the_cooldown_reseeds_nothing` in
       `test/core/behaviors/sync/test_ledger_position_stage.py` asserts the rate bound.
     stories:
-    - story_2022_045
     - story_2026_047
   - id: SYNC-18-013
     priority: MUST_NOT
@@ -3861,7 +3797,6 @@ groups:
       `test/core/use_cases/received/test_activity_ledger_tail.py` asserts the same for a
       participant that withdrew its consent.
     stories:
-    - story_2022_045
     - story_2026_054
   - id: SYNC-18-006
     priority: MUST
@@ -3881,7 +3816,7 @@ groups:
       `test/core/use_cases/received/test_activity_ledger_tail.py` asserts the
       entry's `payload_snapshot` holds the received `ledgerPosition`.
     stories:
-    - story_2022_045
+    - story_2026_072
   - id: SYNC-18-007
     priority: MUST
     kind: protocol
@@ -3910,7 +3845,7 @@ groups:
       sender's acknowledged position is the stamped entry and the missing entries are
       queued to it.
     stories:
-    - story_2022_045
+    - story_2026_047
   - id: SYNC-18-014
     priority: MUST_NOT
     kind: protocol
@@ -3932,7 +3867,7 @@ groups:
       `test/core/use_cases/received/test_activity_ledger_tail.py` asserts the same for a
       participant that withdrew its consent.
     stories:
-    - story_2022_045
+    - story_2026_054
 - id: SYNC-19
   title: Arrival-Order Independence and Eventual Consistency
   description: >-
@@ -3981,7 +3916,6 @@ groups:
       one proposal index and one answer; its strict-`xfail` tests reproduce each order
       dependency still open.
     stories:
-    - story_2022_045
     - story_2026_059
   - id: SYNC-19-002
     priority: MUST
@@ -4005,7 +3939,6 @@ groups:
       that receives a revision Invite and its ledger entries in every order ends with
       no difference from the CASE_MANAGER's case file.
     stories:
-    - story_2022_045
     - story_2026_057
   - id: SYNC-19-004
     priority: MUST_NOT
@@ -4027,7 +3960,6 @@ groups:
       `Invite(EmbargoEvent)` before, between and after its ledger entries and asserts
       every order ends with the CASE_MANAGER's case file.
     stories:
-    - story_2022_045
     - story_2026_057
   - id: SYNC-19-003
     priority: MUST_NOT
@@ -4050,7 +3982,7 @@ groups:
       messages for one revision in orders other than the one its outbox sends, and
       asserts that each order is realized and every order ends the same.
     stories:
-    - story_2022_045
+    - story_2026_057
   - id: SYNC-19-007
     priority: MAY
     kind: protocol
@@ -4070,7 +4002,7 @@ groups:
     - ADR-0161
     - ADR-0112
     stories:
-    - story_2022_045
+    - story_2026_057
   - id: SYNC-19-005
     priority: MUST_NOT
     kind: protocol
@@ -4090,7 +4022,7 @@ groups:
       `test/core/use_cases/received/test_arrival_order.py` delivers one revision's
       messages in every order; a receiver that relied on per-recipient order fails it.
     stories:
-    - story_2022_045
+    - story_2026_057
   - id: SYNC-19-006
     priority: MUST_NOT
     kind: protocol
@@ -4111,7 +4043,7 @@ groups:
       messages in orders other than the one its outbox sends; a sender whose messages
       are correct only in its own order fails it.
     stories:
-    - story_2022_045
+    - story_2026_057
 - id: SYNC-20
   title: Resending Unanswered Invites
   description: >-
@@ -4158,7 +4090,7 @@ groups:
       one. `test/adapters/driving/fastapi/test_invite_resend_after_queue_expiry.py`
       drives the inert joiner's recovery through both actors' inbox pipelines.
     stories:
-    - story_2022_045
+    - story_2026_079
   - id: SYNC-20-002
     priority: MUST
     kind: protocol
@@ -4189,7 +4121,7 @@ groups:
       deadline and a replied full-case Invite are not resent, and that the Invite a
       stamped `Accept` answers is not resent with it.
     stories:
-    - story_2022_045
+    - story_2026_079
   - id: SYNC-20-003
     priority: MUST
     kind: protocol
@@ -4216,7 +4148,7 @@ groups:
       at the resent Invite's floor is accepted, and that an Invite with no sealed body
       is logged and not sent.
     stories:
-    - story_2022_045
+    - story_2026_079
   - id: SYNC-20-004
     priority: MUST_NOT
     kind: protocol
@@ -4238,7 +4170,7 @@ groups:
       `test/core/use_cases/received/test_invite_resend.py` states a position while the
       Invite's first send is pending and asserts one queued row and no resend record.
     stories:
-    - story_2022_045
+    - story_2026_079
   - id: SYNC-20-005
     priority: MUST
     kind: protocol
@@ -4262,7 +4194,7 @@ groups:
       the base once two were sent, a resend after twice the base, and that the cooldown
       stops at its ceiling.
     stories:
-    - story_2022_045
+    - story_2026_079
   - id: SYNC-20-006
     priority: MUST
     kind: project
@@ -4304,7 +4236,7 @@ groups:
       ledger unchanged, and that a stamped `Accept` that triggers one is applied with
       only its own entries committed.
     stories:
-    - story_2022_045
+    - story_2026_079
   - id: SYNC-20-008
     priority: MUST_NOT
     kind: protocol
@@ -4330,4 +4262,4 @@ groups:
       off the roster owes none; `test/core/behaviors/sync/test_position_statements.py`
       asserts a closed participant's `Read(CaseLedgerEntry)` is refused at the door.
     stories:
-    - story_2022_045
+    - story_2026_079

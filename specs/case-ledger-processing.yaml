@@ -34,7 +34,6 @@ groups:
       as participant assertions before the CASE_MANAGER processes them into canonical
       ledger entries.
     stories:
-    - story_2022_045
     - story_2026_040
   - id: CLP-01-002
     priority: MUST
@@ -65,7 +64,7 @@ groups:
       in the canonical ledger is authored by the CASE_MANAGER: the `actor` on the enclosing
       `Announce(CaseLedgerEntry)` transport always matches `case_actor_id`.'
     stories:
-    - story_2022_045
+    - story_2026_023
     - story_2022_106
   - id: CLP-01-004
     priority: MUST_NOT
@@ -96,7 +95,7 @@ groups:
       activity is processed at the case layer, the CASE_MANAGER's ledger grows by exactly
       one new `CaseLedgerEntry` for that case.
     stories:
-    - story_2022_045
+    - story_2026_069
     - story_2022_074
   - id: CLP-02-002
     priority: MUST
@@ -112,7 +111,7 @@ groups:
       that `CaseLedgerEntry` is a standalone Pydantic model that shares no inheritance
       with the `Announce` transport wrapper and can be serialized and validated independently.
     stories:
-    - story_2022_045
+    - story_2026_072
   - id: CLP-02-003
     priority: MUST
     kind: protocol
@@ -134,7 +133,6 @@ groups:
     adr:
     - ADR-0107
     stories:
-    - story_2022_045
     - story_2026_057
   - id: CLP-02-004
     priority: MUST
@@ -152,7 +150,7 @@ groups:
       that `CaseLedgerEntry` declares no `disposition`, `reason_code`, or
       `reason_detail` field.
     stories:
-    - story_2022_045
+    - story_2026_071
   - id: CLP-02-005
     priority: MUST
     kind: protocol
@@ -185,7 +183,6 @@ groups:
     - ADR-0131
     - ADR-0141
     stories:
-    - story_2022_045
     - story_2026_040
   - id: CLP-02-006
     priority: MUST
@@ -214,7 +211,7 @@ groups:
       is assigned within the authoritative commit node and that no external code path
       sets this field directly on the entry before commit.
     stories:
-    - story_2022_045
+    - story_2026_028
     - story_2022_074
   - id: CLP-02-009
     priority: MUST_NOT
@@ -256,7 +253,7 @@ groups:
       in a multi-node CASE_MANAGER cluster deployment carry a non-null `term` field equal
       to the Raft term at the time of append.
     stories:
-    - story_2022_045
+    - story_2026_028
     - story_2022_106
   - id: CLP-02-012
     priority: MUST
@@ -279,7 +276,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-05-002
     stories:
-    - story_2022_045
+    - story_2026_071
   - id: CLP-02-016
     priority: MUST
     kind: protocol
@@ -307,7 +304,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-02-001
     stories:
-    - story_2022_045
+    - story_2026_069
   - id: CLP-02-013
     priority: MUST
     kind: protocol
@@ -352,7 +349,7 @@ groups:
     - ADR-0152
     - ADR-0157
     stories:
-    - story_2022_045
+    - story_2026_069
   - id: CLP-02-017
     priority: MUST
     kind: protocol
@@ -374,7 +371,7 @@ groups:
     adr:
     - ADR-0152
     stories:
-    - story_2022_045
+    - story_2026_069
   - id: CLP-02-014
     priority: MUST
     kind: protocol
@@ -394,7 +391,7 @@ groups:
     adr:
     - ADR-0140
     stories:
-    - story_2022_045
+    - story_2026_011
   - id: CLP-02-018
     priority: MUST
     kind: protocol
@@ -416,7 +413,7 @@ groups:
     adr:
     - ADR-0140
     stories:
-    - story_2022_045
+    - story_2026_023
   - id: CLP-02-015
     priority: MUST
     kind: project
@@ -474,7 +471,7 @@ groups:
       a resolvable case ID are dropped before reaching `CommitCaseLedgerEntryNode`
       and produce no `CaseLedgerEntry` in the ledger.
     stories:
-    - story_2022_045
+    - story_2026_071
     - story_2022_074
   - id: CLP-03-002
     priority: MUST
@@ -491,7 +488,7 @@ groups:
       inbound messages are handled in a pre-ledger error path and that no `CaseLedgerEntry`
       is written for them.
     stories:
-    - story_2022_045
+    - story_2026_071
     - story_2022_089
 - id: CLP-04
   title: Canonical Ledger and Replication
@@ -514,7 +511,6 @@ groups:
       `test/core/use_cases/received/test_embargo_consent_copy.py` confirms that a
       locally scoped processing fault reaches no case ledger.
     stories:
-    - story_2022_045
     - story_2026_023
   - id: CLP-04-002
     priority: MUST
@@ -529,7 +525,6 @@ groups:
     verification: Integration tests in `test/demo/` confirm that case-state
       reconstruction reads exclusively from the canonical case ledger.
     stories:
-    - story_2022_045
     - story_2026_057
   - id: CLP-04-003
     priority: MUST
@@ -549,7 +544,7 @@ groups:
       the `entryHash` at each shared `logIndex`
       (`test_invariant_2_cross_actor_hash_agreement`).
     stories:
-    - story_2022_045
+    - story_2026_023
     - story_2022_089
   - id: CLP-04-004
     priority: MUST
@@ -565,7 +560,7 @@ groups:
       entry replicated from the CASE_MANAGER arrives at participants wrapped in an `Announce(CaseLedgerEntry)`
       ActivityStreams activity.
     stories:
-    - story_2022_045
+    - story_2026_075
     - story_2022_041
   - id: CLP-04-005
     priority: SHOULD
@@ -614,7 +609,6 @@ groups:
       `test/core/use_cases/received/test_close_report_on_case.py::test_close_report_on_an_open_case_is_refused`
       asserts a refused assertion adds no ledger entry.
     stories:
-    - story_2022_045
     - story_2026_023
   - id: CLP-04-008
     priority: MUST
@@ -690,7 +684,6 @@ groups:
     adr:
     - ADR-0141
     stories:
-    - story_2022_045
     - story_2026_040
   - id: CLP-05-004
     priority: MUST
@@ -711,7 +704,7 @@ groups:
     adr:
     - ADR-0141
     stories:
-    - story_2022_045
+    - story_2026_014
   - id: CLP-05-005
     priority: MUST
     kind: protocol
@@ -731,7 +724,6 @@ groups:
     adr:
     - ADR-0141
     stories:
-    - story_2022_045
     - story_2026_040
   - id: CLP-05-006
     priority: MUST_NOT
@@ -756,7 +748,7 @@ groups:
     adr:
     - ADR-0141
     stories:
-    - story_2022_045
+    - story_2026_040
   - id: CLP-05-007
     priority: MUST
     kind: protocol
@@ -776,7 +768,7 @@ groups:
     adr:
     - ADR-0141
     stories:
-    - story_2022_045
+    - story_2026_040
   - id: CLP-05-008
     priority: MUST_NOT
     kind: protocol
@@ -797,7 +789,7 @@ groups:
     adr:
     - ADR-0141
     stories:
-    - story_2022_045
+    - story_2026_040
   - id: CLP-05-009
     priority: MUST
     kind: protocol
@@ -821,7 +813,7 @@ groups:
     adr:
     - ADR-0141
     stories:
-    - story_2022_045
+    - story_2026_040
   - id: CLP-05-002
     priority: MUST_NOT
     kind: protocol
@@ -1007,7 +999,7 @@ groups:
     adr:
     - ADR-0019
     stories:
-    - story_2022_045
+    - story_2026_070
   - id: CLP-07-011
     priority: MUST
     kind: protocol
@@ -1045,7 +1037,7 @@ groups:
     - ADR-0107
     - ADR-0157
     stories:
-    - story_2022_045
+    - story_2026_072
   - id: CLP-07-012
     priority: MUST_NOT
     kind: protocol
@@ -1085,7 +1077,7 @@ groups:
     - ADR-0124
     - ADR-0019
     stories:
-    - story_2022_045
+    - story_2026_070
   - id: CLP-07-013
     priority: MUST
     kind: protocol
@@ -1131,7 +1123,7 @@ groups:
     - ADR-0124
     - ADR-0152
     stories:
-    - story_2022_045
+    - story_2026_070
   - id: CLP-07-021
     priority: MUST
     kind: protocol
@@ -1160,7 +1152,7 @@ groups:
     adr:
     - ADR-0124
     stories:
-    - story_2022_045
+    - story_2026_070
   - id: CLP-07-014
     priority: MUST_NOT
     kind: protocol
@@ -1186,7 +1178,7 @@ groups:
     adr:
     - ADR-0124
     stories:
-    - story_2022_045
+    - story_2026_071
   - id: CLP-07-022
     priority: MUST_NOT
     kind: protocol
@@ -1208,7 +1200,7 @@ groups:
     adr:
     - ADR-0124
     stories:
-    - story_2022_045
+    - story_2026_071
   - id: CLP-07-015
     priority: MUST
     kind: protocol
@@ -1249,7 +1241,7 @@ groups:
     - ADR-0146
     - ADR-0151
     stories:
-    - story_2022_045
+    - story_2026_078
   - id: CLP-07-023
     priority: MUST
     kind: protocol
@@ -1270,7 +1262,7 @@ groups:
     adr:
     - ADR-0146
     stories:
-    - story_2022_045
+    - story_2026_078
   - id: CLP-07-016
     priority: MUST
     kind: project
@@ -1360,7 +1352,7 @@ groups:
     - ADR-0088
     - ADR-0019
     stories:
-    - story_2022_045
+    - story_2026_072
     - story_2022_089
   - id: CLP-07-017
     priority: MUST
@@ -1387,7 +1379,7 @@ groups:
     - ADR-0088
     - ADR-0019
     stories:
-    - story_2022_045
+    - story_2026_072
     - story_2022_089
   - id: CLP-07-004
     priority: MUST_NOT
@@ -1454,7 +1446,7 @@ groups:
     - ADR-0107
     - ADR-0124
     stories:
-    - story_2022_045
+    - story_2026_072
   - id: CLP-07-018
     priority: MUST_NOT
     kind: protocol
@@ -1479,7 +1471,7 @@ groups:
     adr:
     - ADR-0107
     stories:
-    - story_2022_045
+    - story_2026_072
   - id: CLP-07-007
     priority: MUST
     kind: protocol
@@ -1498,7 +1490,7 @@ groups:
       URI) as the `payloadSnapshot.context` field for case-scoped entries such as
       `ParticipantStatus`.
     stories:
-    - story_2022_045
+    - story_2026_062
     - story_2022_030
   - id: CLP-07-009
     priority: MUST
@@ -1582,7 +1574,7 @@ groups:
       constant) when no recorded entries exist, and that a second case produces a
       different genesis hash.
     stories:
-    - story_2022_045
+    - story_2026_073
     - story_2022_089
   - id: CLP-08-002
     priority: MUST
@@ -1614,7 +1606,7 @@ groups:
     adr:
     - ADR-0117
     stories:
-    - story_2022_045
+    - story_2026_073
     - story_2022_089
   - id: CLP-08-003
     priority: MUST
@@ -1631,7 +1623,7 @@ groups:
       declares `genesis_hash` as a required field, and integration tests confirm it
       is populated with the per-case genesis hash at case creation time.
     stories:
-    - story_2022_045
+    - story_2026_073
   - id: CLP-08-004
     priority: MUST
     kind: protocol
@@ -1647,7 +1639,7 @@ groups:
       `CaseLedger.tail_hash` returns the per-case genesis hash when the recorded entry
       list is empty and returns the hash of the last recorded entry otherwise.
     stories:
-    - story_2022_045
+    - story_2026_073
   - id: CLP-08-005
     priority: MUST
     kind: protocol
@@ -1665,7 +1657,6 @@ groups:
       `test/core/test_sync_helpers.py` confirms a requester holding no entry states the
       case-specific genesis hash.
     stories:
-    - story_2022_045
     - story_2026_047
   - id: CLP-08-008
     priority: MUST
@@ -1686,7 +1677,6 @@ groups:
     - rel_type: extends
       spec_id: CLP-08-005
     stories:
-    - story_2022_045
     - story_2026_047
   - id: CLP-08-006
     priority: MUST
@@ -1701,7 +1691,7 @@ groups:
       case URIs containing a UUID4 component in the path segment; unit tests assert
       that newly created case URIs parse to a valid UUID4.
     stories:
-    - story_2022_045
+    - story_2026_073
     - story_2022_030
   - id: CLP-08-007
     priority: MUST_NOT
@@ -1736,7 +1726,7 @@ groups:
       and integration tests in `test/demo/` confirm no unauthorized commit reaches
       the ledger.
     stories:
-    - story_2022_045
+    - story_2026_023
     - story_2022_046
   - id: CLP-09-002
     priority: MUST_NOT
@@ -1769,7 +1759,7 @@ groups:
       `test/architecture/_ledger_commit_inventory.py`, that each one reaches a canonical
       commit or carries a CLP-02-013 exemption.
     stories:
-    - story_2022_045
+    - story_2026_069
     - story_2022_074
   - id: CLP-09-005
     priority: MUST
@@ -1790,7 +1780,7 @@ groups:
     - rel_type: verifies
       spec_id: CLP-09-003
     stories:
-    - story_2022_045
+    - story_2026_069
     - story_2022_074
   - id: CLP-09-006
     priority: MUST
@@ -1812,7 +1802,7 @@ groups:
     - rel_type: implements
       spec_id: CLP-02-013
     stories:
-    - story_2022_045
+    - story_2026_069
   - id: CLP-09-004
     priority: MUST
     kind: project
@@ -1833,7 +1823,7 @@ groups:
       receiver of one activity and confirm that only the CASE_MANAGER invocation
       produces a canonical ledger entry.
     stories:
-    - story_2022_045
+    - story_2026_023
     - story_2022_046
 - id: CLP-10
   title: CASE_MANAGER Inbox Routing for Canonical Ledger Entry Authorship
@@ -1873,7 +1863,7 @@ groups:
     - ADR-0021
     - ADR-0109
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_046
   - id: CLP-10-031
     priority: MUST
@@ -1896,7 +1886,7 @@ groups:
     adr:
     - ADR-0109
     stories:
-    - story_2022_045
+    - story_2026_069
   - id: CLP-10-032
     priority: MUST_NOT
     kind: protocol
@@ -1916,7 +1906,7 @@ groups:
     adr:
     - ADR-0109
     stories:
-    - story_2022_045
+    - story_2026_075
   - id: CLP-10-003
     priority: MUST_NOT
     kind: project
@@ -3466,7 +3456,6 @@ groups:
     adr:
     - ADR-0080
     stories:
-    - story_2022_045
     - story_2026_034
   - id: CLP-11-002
     priority: MUST_NOT
