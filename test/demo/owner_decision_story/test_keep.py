@@ -34,7 +34,6 @@ from test.demo.owner_decision_story._support import (
 )
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import (
-    invite_chain,
     owner_decision_story as ods,
 )
 from vultron.demo.helpers.coordinated_story import (

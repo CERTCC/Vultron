@@ -278,8 +278,7 @@ class TestTheOwnerHandsTheCaseOver:
         with pytest.raises(DemoStoryError, match="handed over"):
             state.kept(HANDED_OVER_CASE)
         assert any(
-            "GATE FAILED" in f and "restate" in f
-            for f in _demo_failures
+            "GATE FAILED" in f and "restate" in f for f in _demo_failures
         ), _demo_failures
         assert ran["wait_for_case_attributed_to"].called
 
