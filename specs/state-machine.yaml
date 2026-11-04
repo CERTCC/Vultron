@@ -330,6 +330,9 @@ groups:
       legal prefix terminus.'
     lint_suppress:
     - rationale_too_long
+    relationships:
+    - rel_type: implements
+      spec_id: CSB-17-003
   - id: SM-09-003
     priority: MUST
     kind: project

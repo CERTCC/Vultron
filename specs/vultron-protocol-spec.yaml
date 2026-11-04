@@ -2221,6 +2221,9 @@ groups:
     - story_2022_107
     - story_2022_108
     - story_2022_110
+    relationships:
+    - rel_type: constrains
+      spec_id: CSB-09-002
   - id: VP-12-002
     priority: SHOULD
     kind: protocol
