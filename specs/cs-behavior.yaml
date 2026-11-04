@@ -72,7 +72,7 @@ groups:
       note: 'CV shorthand wire-type mapping'
 
     stories:
-    - story_2022_088
+    - story_2026_036
     - story_2022_062
 - id: CSB-02
   title: Receive CF (Fix Ready)
@@ -132,7 +132,7 @@ groups:
       note: 'CF shorthand wire-type mapping'
 
     stories:
-    - story_2022_088
+    - story_2026_036
     - story_2022_107
 - id: CSB-03
   title: Receive CD (Fix Deployed)
@@ -192,7 +192,7 @@ groups:
       note: 'CD shorthand wire-type mapping'
 
     stories:
-    - story_2022_088
+    - story_2026_036
     - story_2022_107
 - id: CSB-04
   title: Receive CP (Public Aware)
@@ -247,7 +247,7 @@ groups:
     stories:
     - story_2022_081
     - story_2022_069
-    - story_2022_088
+    - story_2026_036
   - id: CSB-04-002
     priority: MUST
     kind: protocol
@@ -384,7 +384,7 @@ groups:
       note: 'CP shorthand wire-type mapping'
 
     stories:
-    - story_2022_088
+    - story_2026_014
     - story_2022_016
   - id: CSB-04-005
     priority: MUST
@@ -495,7 +495,7 @@ groups:
     stories:
     - story_2022_018
     - story_2022_081
-    - story_2022_088
+    - story_2026_036
   - id: CSB-05-002
     priority: MUST
     kind: protocol
@@ -639,7 +639,7 @@ groups:
 
     stories:
     - story_2022_018
-    - story_2022_088
+    - story_2026_036
   - id: CSB-05-005
     priority: MUST
     kind: protocol
@@ -671,7 +671,7 @@ groups:
       note: 'CX shorthand wire-type mapping'
 
     stories:
-    - story_2022_088
+    - story_2026_014
     - story_2022_016
   - id: CSB-05-006
     priority: MUST
@@ -807,7 +807,7 @@ groups:
     stories:
     - story_2022_019
     - story_2022_081
-    - story_2022_088
+    - story_2026_036
   - id: CSB-06-002
     priority: MUST
     kind: protocol
@@ -958,7 +958,7 @@ groups:
 
     stories:
     - story_2022_019
-    - story_2022_088
+    - story_2026_036
   - id: CSB-06-005
     priority: MUST
     kind: protocol
@@ -993,7 +993,7 @@ groups:
       note: 'CA shorthand wire-type mapping'
 
     stories:
-    - story_2022_088
+    - story_2026_014
     - story_2022_016
   - id: CSB-06-006
     priority: MUST
@@ -1119,7 +1119,7 @@ groups:
       spec_id: MSM-03-007
       note: 'CE shorthand wire-type mapping'
     stories:
-    - story_2022_088
+    - story_2026_040
 
 - id: CSB-08
   title: Receive CK (CS Acknowledgment)
@@ -2339,7 +2339,7 @@ groups:
       spec_id: BTND-10-001
 
     stories:
-    - story_2022_088
+    - story_2026_038
     - story_2022_074
   - id: CSB-16-005
     priority: MUST_NOT
@@ -2366,7 +2366,7 @@ groups:
     - rel_type: refines
       spec_id: CSB-16-001
     stories:
-    - story_2022_088
+    - story_2026_038
     - story_2022_074
   - id: CSB-16-003
     priority: MUST
@@ -2445,7 +2445,7 @@ groups:
       spec_id: BTND-10-001
 
     stories:
-    - story_2022_088
+    - story_2026_038
     - story_2022_074
   - id: CSB-16-007
     priority: MUST_NOT
@@ -2467,7 +2467,7 @@ groups:
     - rel_type: refines
       spec_id: CSB-16-002
     stories:
-    - story_2022_088
+    - story_2026_038
     - story_2022_074
   - id: CSB-16-004
     priority: MUST

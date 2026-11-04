@@ -92,7 +92,7 @@ groups:
       all state reads and writes go through DataLayer method calls, with no in-memory-only
       persistence outside the DataLayer.
     stories:
-    - story_2022_088
+    - story_2026_063
     - story_2022_074
   - id: BT-03-002
     priority: MUST_NOT
@@ -124,7 +124,7 @@ groups:
       A unit test confirms that a BT node's successful `update()` path calls `dl.save()`
       (or equivalent DataLayer commit) before returning `Status.SUCCESS`.
     stories:
-    - story_2022_088
+    - story_2026_063
     - story_2022_074
 - id: BT-04
   title: Handler Integration
@@ -455,7 +455,7 @@ groups:
       spec_id: SL-04-001
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_018
 - id: BT-08
   title: Command-Line Execution
   specs:
@@ -496,7 +496,7 @@ groups:
       different actors produces independent DataLayer writes with no cross-actor state
       overlap.
     stories:
-    - story_2022_088
+    - story_2026_061
     - story_2022_106
   - id: BT-09-002
     priority: MUST_NOT
@@ -619,7 +619,7 @@ groups:
       holder identified by `CVDRole.CASE_MANAGER` on its participant record rather than
       by any actor object.
     stories:
-    - story_2022_088
+    - story_2026_059
     - story_2022_039
   - id: BT-10-004
     priority: MUST
@@ -810,7 +810,7 @@ groups:
       sequentially, with each BT execution completing before the next message is
       dispatched.
     stories:
-    - story_2022_088
+    - story_2026_029
     - story_2022_039
   - id: BT-11-002
     priority: MUST_NOT
@@ -2171,7 +2171,7 @@ groups:
     stories:
     - story_2022_046
     - story_2022_014
-    - story_2022_088
+    - story_2026_058
   - id: BT-19-005
     priority: MUST
     kind: project
@@ -2194,7 +2194,7 @@ groups:
     stories:
     - story_2022_046
     - story_2022_014
-    - story_2022_088
+    - story_2026_058
   - id: BT-19-002
     priority: MUST
     kind: project

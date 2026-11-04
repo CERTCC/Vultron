@@ -341,7 +341,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-01-001
     stories:
-    - story_2022_088
+    - story_2026_061
     - story_2022_106
   - id: TRIG-06-002
     priority: MUST

@@ -1095,7 +1095,7 @@ groups:
       Unit tests: (1) valid forward transition succeeds; (2) same-state write
       succeeds; (3) None target skips validation.
     stories:
-    - story_2022_088
+    - story_2026_038
     - story_2022_107
   - id: BTND-10-002
     priority: MUST
