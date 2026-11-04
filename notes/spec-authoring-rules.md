@@ -11,8 +11,8 @@ description: >
   kinds, what a kind change moves, and the scoping of MS-12-006;
   the enum values spec-lint accepts for `kind`, `priority` and `rel_type`, and
   where each relationship is recorded (SR-13); how to pick a `rel_type` by its
-  definition, including `uses_definition` and recording no link when no type
-  fits (SR-13-017, SR-13-018); `adr:`
+  definition, including `uses_definition`, `satisfies` only when A alone meets
+  B, and recording no link when no type fits (SR-13-017, SR-13-018); `adr:`
   versus `references:`; reading the item format off its fields (ADR-0101); the
   PR-only marker-coverage guard and the strict-xfail pattern; priority tiers
   (MS-02-003/004); the `verification_debt` ratchet and its growth guard
@@ -238,6 +238,9 @@ requirement (ADR-0160). Pick the type by its definition, not by habit:
   alternative path or a scope boundary is no link.
 - `uses_definition` when A uses a term B defines ("an active participant
   (CM-10-004)"); a "see also" citation is no link.
+- `satisfies` only when meeting A alone meets all of B. A rule that is one case
+  of B is `refines`; one that uses a shorthand or message B defines is
+  `uses_definition` (the EMB transitions on the MSM-02 mappings, #5209).
 - `constrains`, on the general rule, when A must obey a rule it is not a case of.
 - A statement that says "X refines this" or "a test enforces X" already names the
   type; record it on X, the downstream end.

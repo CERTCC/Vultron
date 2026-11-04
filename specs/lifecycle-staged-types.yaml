@@ -63,7 +63,7 @@ groups:
     verification: A unit test confirms that constructing a `Case` without a vulnerability report or without at least two
       participants raises a validation error.
     relationships:
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: ARCH-10-001
     adr:
     - ADR-0041
@@ -131,9 +131,6 @@ groups:
       boundary (e.g. `EmbargoedCase.model_validate(case)`), which narrows on success and raises immediately on invariant violation.
     rationale: Applies ADR-0032's validate-at-the-edge pattern at the DataLayer read boundary; the subtype's own validator
       is the promotion logic.
-    relationships:
-    - rel_type: depends_on
-      spec_id: ARCH-15-002
     adr:
     - ADR-0032
   - id: LST-05-002
@@ -161,7 +158,7 @@ groups:
     verification: Inspection of `vultron/core/models/` confirms no staged type stores its stage as a persisted field;
       stage is always derived by re-validating base case data at read time.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: LST-05-002
     adr:
     - ADR-0033

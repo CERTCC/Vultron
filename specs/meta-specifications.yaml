@@ -272,9 +272,9 @@ groups:
     statement: Superseded requirements MUST be removed entirely rather than left in place as deprecated.
     rationale: >-
       A deprecated requirement that stays in the file confuses agents and implementers.
-      The file does not tell them if the obligation still applies. The `deprecated` and
-      `superseded_by` fields in the spec schema are not a sanctioned lifecycle state, so
-      they do not remove this confusion.
+      The file does not tell them if the obligation still applies. The spec schema has
+      no `deprecated` or `superseded_by` field, so no annotation can mark a requirement
+      as retired in place.
     tags:
     - documentation
     relationships:
@@ -461,9 +461,9 @@ groups:
       A deprecated requirement that stays in place is noise for agents and can cause
       incorrect behavior. An agent that reads the corpus cannot tell a retired
       obligation from a live one. A spec states the current understanding. Git and the
-      implementation history (MS-09-002) keep the text that it replaced. The
-      `deprecated` and `superseded_by` fields in the spec schema are not a sanctioned
-      lifecycle state.
+      implementation history (MS-09-002) keep the text that it replaced. The spec
+      schema refuses a `deprecated` or `superseded_by` key with a pointer to the
+      retirement archive (MS-09-007).
     tags:
     - documentation
   - id: MS-09-002

@@ -149,6 +149,9 @@ groups:
       written and read back keeps the same spelling.
     stories:
     - story_2026_012
+    relationships:
+    - rel_type: refines
+      spec_id: DUR-03-001
 - id: DUR-04
   title: Validation Requirements
   specs:
@@ -335,6 +338,9 @@ groups:
       creation gives the case an embargo without a negotiation round.
     stories:
     - story_2022_010
+    relationships:
+    - rel_type: implements
+      spec_id: DUR-07-004
   - id: DUR-07-003
     priority: MUST
     kind: protocol
@@ -369,9 +375,6 @@ groups:
       (`test_initialization_is_logged_at_info`) confirms that initializing the
       creation-time embargo, the path that applies the default duration, logs the
       creation service's INFO record naming the embargo and the case.
-    relationships:
-    - rel_type: implements
-      spec_id: DUR-07-003
   - id: DUR-07-004
     priority: MUST
     kind: protocol
@@ -398,9 +401,6 @@ groups:
       `test_eligible_case_without_embargo_is_not_validated`) confirms that a case
       created with P set reaches `RM.VALID` at `EM.NONE`, and an eligible case with no
       embargo is refused.
-    relationships:
-    - rel_type: depends_on
-      spec_id: DUR-07-002
     stories:
     - story_2026_080
     - story_2022_074

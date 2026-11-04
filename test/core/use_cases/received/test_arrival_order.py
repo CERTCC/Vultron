@@ -225,19 +225,16 @@ class TestRevisionInvitePermutations:
 # -- order dependencies the audit found (SYNC-19-001) ------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "SYNC-19-001: the owner's auto-accept of a relayed first-proposal"
-        " Invite reads EM NONE, which the proposal's own PROPOSE entry"
-        " changes. Tracked by #5199."
-    ),
-)
 @pytest.mark.spec("SYNC-19-001")
+@pytest.mark.spec("EP-09-005")
 def test_owner_answer_to_first_proposal_does_not_depend_on_its_entry(
     make_payload,
 ) -> None:
-    """The owner's answer is the same whether the PROPOSE entry came first."""
+    """The owner's answer is the same whether the PROPOSE entry came first.
+
+    The proposal's own register entry is not "an embargo that exists", so
+    the owner auto-accepts a first proposal inside its policy in both orders.
+    """
     answers = {}
     for entry_first in (False, True):
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=INVITEE)
@@ -258,9 +255,8 @@ def test_owner_answer_to_first_proposal_does_not_depend_on_its_entry(
         # One in-memory store per actor id: close it before the next order.
         dl.close()
 
-    # Which answer is right is not decided yet (#5199), so only agreement
-    # is asserted; the fix must also pin the decided answer here.
-    assert answers[False] == answers[True]
+    assert answers[False] == ["Accept"]
+    assert answers[True] == answers[False]
 
 
 def _apply_decision(dl: Any, case_id: str, embargo_id: str) -> None:

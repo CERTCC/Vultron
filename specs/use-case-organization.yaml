@@ -30,9 +30,6 @@ groups:
       `test/architecture/test_use_case_package_layout.py` discovers every use-case
       class in the package and asserts that each one whose result is
       a `HandlerResult` sits under `vultron/core/use_cases/received/`.
-    relationships:
-    - rel_type: implements
-      spec_id: CS-12-002
   - id: UCORG-01-002
     priority: MUST
     kind: project
@@ -49,9 +46,6 @@ groups:
       `test/architecture/test_use_case_package_layout.py` discovers every use-case
       class in the package and asserts that each one whose result is
       a `TriggerResult` sits under `vultron/core/use_cases/triggers/`.
-    relationships:
-    - rel_type: implements
-      spec_id: CS-12-003
   - id: UCORG-01-003
     priority: MUST_NOT
     kind: project
@@ -175,9 +169,6 @@ groups:
     rationale: >-
       Makes the use-case contract explicit and machine-checkable. See ADR-0040
       (docs/adr/0040-use-case-result-envelope.md).
-    relationships:
-    - rel_type: implements
-      spec_id: CS-11-001
     adr:
     - ADR-0040
   - id: UCORG-05-002
@@ -260,7 +251,7 @@ groups:
       the exact-response-key test parametrized over the trigger registry (TRIG-12-002)
       confirms each verb's HTTP body matches its declared subtype.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: UCORG-05-005
     adr:
     - ADR-0110
@@ -362,7 +353,7 @@ groups:
       distinct from handler-side results without runtime isinstance checks.
     relationships:
     - rel_type: refines
-      spec_id: UCORG-05-002
+      spec_id: UCORG-05-001
   - id: UCORG-05-008
     priority: MUST
     kind: project
@@ -371,9 +362,6 @@ groups:
     rationale: >-
       Inheriting from the common base type ensures that all use-case return values
       satisfy the UseCaseResult Protocol contract.
-    relationships:
-    - rel_type: refines
-      spec_id: UCORG-05-002
   - id: UCORG-05-009
     priority: MUST
     kind: project
@@ -430,9 +418,6 @@ groups:
       (AKM-05-010). A handler returns `DEFERRED` after dispatch for an entry that waits
       for its predecessor. All three reach the same `InboxOutcome.status`, but only the
       last goes through this mapping.
-    relationships:
-    - rel_type: implements
-      spec_id: IO-01-001
     adr:
     - ADR-0095
   - id: UCORG-05-012
@@ -453,8 +438,10 @@ groups:
       path: routing uses the semantics only, and the handler refuses that activity
       (HP-05-002).
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: UCORG-05-011
+    - rel_type: uses_definition
+      spec_id: SE-05-002
     adr:
     - ADR-0095
   - id: UCORG-05-013
@@ -469,9 +456,6 @@ groups:
       this line records would be invisible in normal operation, even when the dispatcher
       chain carries the verdict correctly (UCORG-05-010, UCORG-05-011). An operator must
       be able to see in the actor log that the actor refused a message.
-    relationships:
-    - rel_type: refines
-      spec_id: UCORG-05-011
     adr:
     - ADR-0095
   - id: UCORG-05-014
@@ -491,9 +475,6 @@ groups:
       in `ActorSession` method bodies.
     adr:
     - ADR-0110
-    relationships:
-    - rel_type: refines
-      spec_id: UCORG-05-005
   - id: UCORG-05-020
     priority: MUST
     kind: project
@@ -530,7 +511,7 @@ groups:
       `vultron/core/` that imports the wire layer, which a core `WireActivityResult`
       typed `as_TransitiveActivity` would need.
     relationships:
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: ARCH-01-001
     adr:
     - ADR-0110
@@ -551,3 +532,6 @@ groups:
       `vultron/core/models/use_case_result.py`.
     adr:
     - ADR-0110
+    relationships:
+    - rel_type: uses_definition
+      spec_id: UCORG-05-005

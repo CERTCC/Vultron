@@ -46,13 +46,7 @@ groups:
       `inbox`, and `preferred_duration` are declared as required fields with no
       default values.
     relationships:
-    - rel_type: implements
-      spec_id: VP-05-001
-    - rel_type: implements
-      spec_id: VP-07-001
-    - rel_type: implements
-      spec_id: VP-07-002
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: DUR-01-001
       note: ISO 8601 duration format
     stories:
@@ -74,11 +68,7 @@ groups:
       notes carry preferences that a duration cannot express. The fields are optional
       because many actors hold only a preferred length.
     relationships:
-    - rel_type: implements
-      spec_id: VP-05-001
-    - rel_type: implements
-      spec_id: VP-07-006
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: DUR-01-001
       note: ISO 8601 duration format
     stories:
@@ -101,6 +91,9 @@ groups:
       operations without data loss.
     stories:
     - story_2022_004
+    relationships:
+    - rel_type: uses_definition
+      spec_id: EP-01-001
   - id: EP-01-005
     priority: MUST
     kind: protocol
@@ -114,7 +107,7 @@ groups:
       A unit test confirms that `EmbargoPolicy` raises `ValidationError` when
       `actor_id` is a non-URI string and accepts a well-formed `https://` URI.
     relationships:
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: OID-01-001
     stories:
     - story_2022_034
@@ -129,7 +122,7 @@ groups:
       The minimum_duration field signals a floor below which the Actor will not
       accept an embargo; evaluating it prevents compatibility mismatches.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: EP-01-003
     stories:
     - story_2022_010
@@ -143,7 +136,7 @@ groups:
       The maximum_duration field signals a ceiling above which the Actor will not
       accept an embargo; evaluating it prevents compatibility mismatches.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: EP-01-003
     stories:
     - story_2022_010
@@ -204,6 +197,9 @@ groups:
     - story_2022_003
     - story_2022_004
     - story_2022_009
+    relationships:
+    - rel_type: uses_definition
+      spec_id: EP-01-001
   - id: EP-02-004
     priority: MUST_NOT
     kind: project
@@ -222,7 +218,7 @@ groups:
     scope:
     - production
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EP-02-005
     stories:
     - story_2022_003
@@ -333,6 +329,11 @@ groups:
     stories:
     - story_2022_003
     - story_2022_009
+    relationships:
+    - rel_type: uses_definition
+      spec_id: EP-01-002
+    - rel_type: uses_definition
+      spec_id: EP-01-003
   - id: EP-02-011
     priority: MUST
     kind: project
@@ -417,13 +418,6 @@ groups:
       in advance that it will decline.
     scope:
     - production
-    relationships:
-    - rel_type: implements
-      spec_id: VP-07-001
-    - rel_type: implements
-      spec_id: VP-07-006
-    - rel_type: implements
-      spec_id: VP-07-007
     stories:
     - story_2022_005
   - id: EP-03-002
@@ -442,17 +436,6 @@ groups:
       range, and compatible when it falls within the range.
     scope:
     - production
-    relationships:
-    - rel_type: implements
-      spec_id: VP-07-003
-    - rel_type: implements
-      spec_id: VP-07-004
-    - rel_type: implements
-      spec_id: VP-07-005
-    - rel_type: depends_on
-      spec_id: DUR-01-001
-    - rel_type: depends_on
-      spec_id: DUR-04-001
     stories:
     - story_2022_005
 - id: EP-04
@@ -580,6 +563,10 @@ groups:
         EP-04-003 is the two-party case-creation instance of this ordering rule.
         Both MUST resolve earliest-end-date first, and both MUST share one
         comparator (#3392).
+    - rel_type: uses_definition
+      spec_id: EP-01-001
+    - rel_type: uses_definition
+      spec_id: EP-04-004
     stories:
     - story_2026_081
     - story_2022_079
@@ -641,13 +628,13 @@ groups:
       `test/adapters/driving/fastapi/routers/test_trigger_report.py` confirm a sender states the
       terms through the `submit-report` trigger's `proposed_embargo_end_time`, which stores the
       `EmbargoEvent` about the report and carries it on the Offer.
-    relationships:
-    - rel_type: refines
-      spec_id: EP-04-003
     adr:
     - ADR-0096
     stories:
     - story_2026_081
+    relationships:
+    - rel_type: refines
+      spec_id: EP-04-009
   - id: EP-04-017
     priority: MUST
     kind: protocol
@@ -737,7 +724,7 @@ groups:
       default lies in [72 hours, 5 days] and that no value outside it can become the
       default.
     relationships:
-    - rel_type: constrains
+    - rel_type: extends
       spec_id: EP-04-005
     adr:
     - ADR-0096
@@ -819,7 +806,7 @@ groups:
       A unit test asserts that a 30-day actor default with no sender proposal yields a 30-day
       active embargo, not the protocol default.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: EP-04-003
     adr:
     - ADR-0096
@@ -862,8 +849,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-06-001
-    - rel_type: refines
-      spec_id: EP-04-005
     adr:
     - ADR-0096
     stories:
@@ -1030,9 +1015,9 @@ groups:
       that the same creation relays under the same Invite id, and that a failure inside
       the act keeps nothing.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EP-04-016
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: EP-09-002
       note: The creation-time revision is relayed by the same rule as any other revision.
     adr:
@@ -1119,9 +1104,6 @@ groups:
     relationships:
     - rel_type: part_of
       spec_id: EP-04-011
-    - rel_type: depends_on
-      spec_id: EP-08-002
-      note: Indexing the revision is what lets the default selection reach it.
     adr:
     - ADR-0113
     stories:
@@ -1169,10 +1151,6 @@ groups:
       `test/core/behaviors/case/test_case_proposal_received_tree.py` redelivers the same
       `Create(CaseProposal)` after exit and asserts it is answered with the case's embargo
       state and events unchanged.
-    relationships:
-    - rel_type: depends_on
-      spec_id: CP-05-006
-      note: The reuse path this rule guards is the duplicate-proposal recovery path.
   - id: EP-04-028
     priority: MUST_NOT
     kind: project
@@ -1203,12 +1181,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EP-04-012
-    - rel_type: depends_on
-      spec_id: CP-05-006
-      note: The reuse path this rule guards is the duplicate-proposal recovery path.
-    - rel_type: depends_on
-      spec_id: EMB-18-001
-      note: The guard reads EM state; it never writes it.
   - id: EP-04-029
     priority: MUST_NOT
     kind: project
@@ -1239,10 +1211,6 @@ groups:
     verification: >-
       `test/core/behaviors/case/nodes/test_embargo_resolution.py` confirms a case not
       yet initialized (`EM.NONE`, no embargo) still completes initialization.
-    relationships:
-    - rel_type: refines
-      spec_id: EP-04-002
-      note: The never-persisted PROPOSED state is what makes "has left NONE" a clean reading.
 - id: EP-05
   title: Revision Activation Consent Rule
   specs:
@@ -1274,7 +1242,7 @@ groups:
       already holding an `AGREED` row for the newly active embargo is its signatory with
       no further write.
     relationships:
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: CM-18-001
     adr:
     - ADR-0093
@@ -1308,8 +1276,12 @@ groups:
       revised row of every signatory to the replaced embargo, a `DECLINED` revision row
       included.
     relationships:
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: CM-18-001
+    - rel_type: uses_definition
+      spec_id: CM-18-003
+    - rel_type: refines
+      spec_id: MSM-07-019
     adr:
     - ADR-0093
     - ADR-0122
@@ -1337,14 +1309,16 @@ groups:
       Unit tests in `test/core/services/embargo_lifecycle/test_proposals.py` assert that
       `propose_embargo()` from `ACTIVE` and from `REVISE` leaves every participant's row
       for the embargo in force unchanged.
-    relationships:
-    - rel_type: refines
-      spec_id: EP-05-001
     adr:
     - ADR-0093
     - ADR-0122
     stories:
     - story_2026_089
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-18-001
+    - rel_type: refines
+      spec_id: MSM-07-022
 - id: EP-06
   title: PEC Idempotency
   specs:
@@ -1362,9 +1336,7 @@ groups:
       rule (don't double-add) is covered by CM-13-005; this rule covers the negative
       path (don't downgrade).
     relationships:
-    - rel_type: refines
-      spec_id: CM-13-005
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: CM-18-001
     stories:
     - story_2026_014
@@ -1399,9 +1371,6 @@ groups:
       (`test_no_config_applies_the_protocol_default`) confirms that an invitation
       arriving without `end_time` gets a deadline 7 days after its `published`
       timestamp.
-    relationships:
-    - rel_type: implements
-      spec_id: CM-28-002
     adr:
     - ADR-0065
     stories:
@@ -1411,7 +1380,7 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      The default RSVP window of EP-07-001 SHOULD be 7 days, matching CM-18-002.
+      The default RSVP window of EP-07-001 SHOULD be 7 days, matching CM-18-023.
     rationale: >-
       Aligning the fallback with the CM-18-023 policy window means an invitation that
       omits `end_time` gets the same answer window as the policy grants. See ADR-0065.
@@ -1474,9 +1443,6 @@ groups:
       when the supplied `end_time` is less than `published` plus the minimum window, and
       that for an embargo whose remaining duration is shorter than that window the
       remaining duration is used as the minimum instead.
-    relationships:
-    - rel_type: refines
-      spec_id: EP-07-006
     adr:
     - ADR-0065
     - ADR-0096
@@ -1542,6 +1508,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: EP-07-008
+    - rel_type: uses_definition
+      spec_id: EP-07-003
   - id: EP-07-003
     priority: MUST
     kind: protocol
@@ -1559,7 +1527,7 @@ groups:
       configuration; the clamp guarantees safety, not identical arithmetic.
 
       The clamp is bidirectional in effect but not in mechanism: this requirement
-      raises a sub-minimum deadline, and EP-07-006 lowers one that overshoots the
+      raises a sub-minimum deadline, and EP-07-011 lowers one that overshoots the
       embargo. Where both would apply — a remaining embargo shorter than the
       configured window — EP-07-002 has already reduced the minimum to the
       remaining embargo, so the two agree rather than fight.
@@ -1579,7 +1547,7 @@ groups:
       with `published + minimum_window` rather than using the on-wire value, and that
       the substituted value never exceeds the embargo's `end_time`.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: EP-07-002
     adr:
     - ADR-0065
@@ -1615,6 +1583,8 @@ groups:
     relationships:
     - rel_type: constrains
       spec_id: CM-18-023
+    - rel_type: constrains
+      spec_id: EP-07-002
     adr:
     - ADR-0096
     stories:
@@ -1626,7 +1596,7 @@ groups:
     statement: >-
       When a computed RSVP deadline would fall after the embargo's `end_time`, the actor
       that computes it MUST clamp it down to that `end_time`. This holds for a deadline
-      from an explicit `Invite.end_time` and from the CM-18-002 policy window alike.
+      from an explicit `Invite.end_time` and from the CM-18-023 policy window alike.
     rationale: >-
       Clamping is how a deadline is kept within the embargo (EP-07-006) without refusing
       the invitation: the invitee can still answer while the embargo exists.
@@ -1639,6 +1609,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: EP-07-006
+    - rel_type: uses_definition
+      spec_id: CM-18-023
     adr:
     - ADR-0096
     stories:
@@ -1656,7 +1628,7 @@ groups:
       an invite that never takes effect — and punishes the invitee for the inviter's
       misbehaviour.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: EP-07-003
     adr:
     - ADR-0065
@@ -1668,7 +1640,7 @@ groups:
     statement: >-
       A receiving actor MUST log every deadline clamp it applies to an
       `Invite(EmbargoEvent)` deadline — both the EP-07-003 clamp up to the
-      applicable minimum window and the EP-07-006 clamp down to the embargo's
+      applicable minimum window and the EP-07-011 clamp down to the embargo's
       `end_time`.
     rationale: >-
       Logging the clamp makes the adjustment observable for auditing and
@@ -1688,10 +1660,10 @@ groups:
       values, and that clamping a deadline down to the embargo's `end_time` emits the
       same record.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EP-07-003
-    - rel_type: refines
-      spec_id: EP-07-006
+    - rel_type: extends
+      spec_id: EP-07-011
     adr:
     - ADR-0065
     - ADR-0096
@@ -1754,9 +1726,6 @@ groups:
       (`test_default_selection_takes_open_revisions_earliest_expiring_first`)
       confirms that, with an embargo in force, an accept naming no revision takes the
       earliest-expiring open revision.
-    relationships:
-    - rel_type: extends
-      spec_id: EP-08-001
     adr:
     - ADR-0100
     stories:
@@ -1865,9 +1834,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EP-08-003
-    - rel_type: depends_on
-      spec_id: VP-04-002
-      note: One active embargo at a time is what makes every open proposal a revision of it.
     adr:
     - ADR-0113
     stories:
@@ -1925,11 +1891,6 @@ groups:
       spec_id: EMB-01-001
     - rel_type: implements
       spec_id: EMB-03-001
-    - rel_type: depends_on
-      spec_id: EMB-18-001
-      note: The EM write goes through EmbargoLifecycle, never a direct assignment.
-    - rel_type: depends_on
-      spec_id: RSH-08-003
     adr:
     - ADR-0113
     - ADR-0108
@@ -1956,8 +1917,6 @@ groups:
       spec_id: EMB-01-003
     - rel_type: implements
       spec_id: EMB-03-002
-    - rel_type: depends_on
-      spec_id: RSH-08-003
     adr:
     - ADR-0113
     - ADR-0108
@@ -1979,12 +1938,8 @@ groups:
       (`test_a_revision_of_a_public_case_is_refused_with_a_reject`) confirms that with
       P, X or A set the CASE_MANAGER refuses the revision and the case stays `ACTIVE`.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: EMB-01-002
-    - rel_type: implements
-      spec_id: EMB-03-003
-    - rel_type: implements
-      spec_id: EMB-03-004
     adr:
     - ADR-0113
     stories:
@@ -2027,9 +1982,6 @@ groups:
       spec_id: CM-24-001
     - rel_type: refines
       spec_id: CM-24-002
-    - rel_type: depends_on
-      spec_id: PCR-08-007
-      note: The same relay shape as the case Invite.
     adr:
     - ADR-0113
     - ADR-0114
@@ -2057,6 +2009,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: EP-09-002
+    - rel_type: refines
+      spec_id: SYNC-09-002
     adr:
     - ADR-0113
     stories:
@@ -2112,6 +2066,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: EP-09-002
+    - rel_type: uses_definition
+      spec_id: EMB-15-001
     adr:
     - ADR-0113
     - ADR-0119
@@ -2142,9 +2098,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: RSH-08-003
-    - rel_type: depends_on
-      spec_id: PCR-08-003
-      note: The fan-out is the only mechanism by which participants learn accepted state.
     adr:
     - ADR-0113
     stories:
@@ -2167,12 +2120,6 @@ groups:
       (`test_a_replica_follows_a_revision_from_proposal_to_activation`) replays a
       revision proposal's entries to a bystander and asserts it queues nothing to the
       CASE_MANAGER.
-    relationships:
-    - rel_type: depends_on
-      spec_id: PCR-08-003
-      note: >-
-        The fan-out is the only mechanism by which participants learn accepted
-        state.
     adr:
     - ADR-0113
     stories:
@@ -2203,7 +2150,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EP-05-002
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-18-003
     adr:
     - ADR-0113
@@ -2236,7 +2183,11 @@ groups:
       Invite (EP-09-006). The prototype keeps one bounded auto-accept, an implementation
       choice and not a protocol rule: the owner accepts on its own only while EM is `NONE` and
       the proposal ends no later than the owner's own policy duration from now, and never
-      while an embargo is `ACTIVE` or `REVISE` (#4179).
+      while an embargo is `ACTIVE` or `REVISE` (#4179). The EM read sets aside the
+      proposal's own register entry while it is still `PROPOSED`, so the answer is the
+      same whether that entry reached the owner's replica before the Invite or not
+      (SYNC-19-001, #5199); a proposal the register has already decided is not
+      answered again.
     verification: >-
       A unit test in `test/core/services/embargo_lifecycle/` asserts the owner's activation of
       a revision from `REVISE` activates it with no other participant having answered.
@@ -2245,6 +2196,11 @@ groups:
     - ADR-0122
     stories:
     - story_2026_087
+    relationships:
+    - rel_type: uses_definition
+      spec_id: MSM-07-008
+    - rel_type: uses_definition
+      spec_id: MSM-07-009
   - id: EP-09-006
     priority: SHOULD
     kind: protocol
@@ -2272,11 +2228,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-08-003
-    - rel_type: depends_on
-      spec_id: VP-09-007
-      note: >-
-        VP-09-007's rationale is where the protocol leaves "quorum" undefined; it stays
-        undefined here too.
     adr:
     - ADR-0113
     stories:
@@ -2326,8 +2277,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: RSH-08-004
-    - rel_type: depends_on
-      spec_id: EMB-18-001
+    - rel_type: refines
+      spec_id: CM-23-016
     adr:
     - ADR-0113
     - ADR-0108
@@ -2356,16 +2307,6 @@ groups:
       (`test_non_manager_trigger_asks_and_writes_no_em_state`) confirms a participant
       without the CASE_MANAGER role leaves its case at `EM.NONE`, sends its Invite to
       the CASE_MANAGER and declares no EM state.
-    relationships:
-    - rel_type: depends_on
-      spec_id: EP-09-007
-    - rel_type: depends_on
-      spec_id: SYNC-11-002
-    - rel_type: depends_on
-      spec_id: BT-17-001
-    - rel_type: refines
-      spec_id: RSH-08-003
-      note: The receive-side rule, applied to the trigger side for shared EM state.
     adr:
     - ADR-0113
     - ADR-0108
@@ -2400,8 +2341,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EP-09-008
-    - rel_type: depends_on
-      spec_id: EP-09-007
+    - rel_type: refines
+      spec_id: PCR-08-001
     adr:
     - ADR-0113
     - ADR-0108
@@ -2433,6 +2374,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: EP-09-008
+    - rel_type: uses_definition
+      spec_id: BT-17-001
   - id: EP-09-018
     priority: MUST
     kind: project
@@ -2447,10 +2390,12 @@ groups:
       (`test_non_manager_trigger_asks_and_writes_no_em_state`) confirms a non-manager's
       proposal is recorded in the pending-assertion store.
     relationships:
-    - rel_type: implements
+    - rel_type: extends
       spec_id: EP-09-017
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: EP-09-014
+    - rel_type: refines
+      spec_id: SYNC-11-002
   - id: EP-09-019
     priority: MUST
     kind: project
@@ -2469,7 +2414,7 @@ groups:
       CASE_MANAGER's `Reject` of the proposal and its `Reject` of the Invite close the
       pending entry.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: EP-09-018
   - id: EP-09-009
     priority: MUST_NOT
@@ -2490,8 +2435,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: MSM-02-009
-    - rel_type: implements
-      spec_id: EMB-09-001
     adr:
     - ADR-0113
     stories:
@@ -2518,9 +2461,6 @@ groups:
       `test/core/use_cases/received/test_embargo_invite_lapse.py`
       (`TestInviteeIsTheAddressee`, `TestInviteeIdProperty`) confirms a single-recipient
       Invite resolves that recipient.
-    relationships:
-    - rel_type: depends_on
-      spec_id: EP-09-002
     adr:
     - ADR-0113
     stories:
@@ -2591,10 +2531,10 @@ groups:
       revision `INVITED` and the row for the active embargo `AGREED`; a follow-up
       accept leaves it with an `AGREED` row for the revision, which binds it at activation.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: EP-09-002
-    - rel_type: depends_on
-      spec_id: CM-11-001
+    - rel_type: uses_definition
+      spec_id: CM-18-001
     adr:
     - ADR-0113
     - ADR-0114
@@ -2628,17 +2568,13 @@ groups:
       `test/core/use_cases/triggers/embargo/test_answer_in_force.py`
       (`test_answers_the_embargo_in_force_by_invite_id`) answers the embargo in force by
       Invite id with an `INVITED` row and with a `TIMED_OUT` row (accept and reject).
-    relationships:
-    - rel_type: constrains
-      spec_id: EP-08-002
-    - rel_type: depends_on
-      spec_id: MSM-07-003
-    - rel_type: depends_on
-      spec_id: EMB-17-002
     adr:
     - ADR-0122
     stories:
     - story_2026_093
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-18-001
   - id: EP-09-027
     priority: MUST_NOT
     kind: protocol
@@ -2737,7 +2673,7 @@ groups:
       it also asserts that a no-name reject with a revision open refuses the revision
       and leaves the row for the embargo in force `AGREED`.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: MSM-07-010
     - rel_type: refines
       spec_id: VP-13-017
@@ -2792,6 +2728,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: EP-09-013
+    - rel_type: implements
+      spec_id: EP-09-028
   - id: EP-09-031
     priority: MUST_NOT
     kind: project

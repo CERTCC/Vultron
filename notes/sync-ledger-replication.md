@@ -374,8 +374,11 @@ outside the ledger".
   paused signatory are the exception, and diverge when reversed (#5201).
 - **A replica's answer must not turn on its related entry.** A relayed message can
   arrive before or after the entry it relates to, so a guard reading the state that
-  entry changes answers twice differently. The owner's auto-accept reads EM `NONE`,
-  which the proposal's own `PROPOSE` step changes (#5199).
+  entry changes answers twice differently. Read the state with the related entry set
+  aside while it is still open, as the owner's auto-accept reads EM without the
+  proposal's own `PROPOSED` entry (`VulnerabilityCase.em_state_without_proposal`,
+  #5199). Never set aside a decided entry: dropping an `ACTIVE` one beside a
+  `SUPERSEDED` one breaks a register invariant, and the decision is already made.
 - **A replica-local index must end where the ledger puts it.**
   `pending_embargo_proposal_index` is written by relayed Invites, by ledger apply and
   by case copies, so the last writer wins; a late Invite leaves a decided proposal

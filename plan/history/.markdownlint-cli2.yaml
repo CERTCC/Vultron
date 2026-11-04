@@ -1,5 +1,6 @@
 # plan/history/ is append-only (HM-01-005): an entry is never rewrapped, so the
-# root config's 88-character MD013 stops here (PD-10-004). Every other rule
-# still applies; markdownlint-cli2 merges this file over the root config.
+# root config's 88-character MD013 stops here (PD-10-004). The root config's
+# `ignores` now keeps every markdownlint run out of plan/history/ (#2952), so
+# no run reads this file; it stays as the MD013 pin test_line_length.py checks.
 config:
   "MD013": false

@@ -96,7 +96,7 @@ groups:
       in containers. One sub-package for each kind keeps the two apart, and a fixed
       module path lets the CLI and the tests find each script by its name.
     relationships:
-    - rel_type: extends
+    - rel_type: refines
       spec_id: DC-02-002
   - id: DC-02-003
     priority: MUST_NOT
@@ -111,9 +111,6 @@ groups:
       `demo_check` wraps an observation-only assertion block: it checks state and
       collects assertion failures. A swap hides which steps act and which only verify,
       in scenario tracing, in logs and for readers.
-    relationships:
-    - rel_type: refines
-      spec_id: DC-02-001
   - id: DC-02-005
     priority: MUST_NOT
     kind: project
