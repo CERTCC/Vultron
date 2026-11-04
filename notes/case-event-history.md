@@ -25,6 +25,10 @@ related_notes:
   - notes/case-ledger-parsing.md
   - notes/case-ledger-authority.md
   - notes/case-state-model.md
+related_adrs:
+  - docs/adr/0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md
+  - docs/adr/0075-split-vfd-state-machine.md
+  - docs/adr/0060-re-express-legacy-cs-invariants.md
 relevant_packages:
   - vultron/measure
   - vultron/demo
@@ -35,8 +39,10 @@ relevant_packages:
 
 The reader-facing catalogue of events, clocks and gaps is
 `docs/topics/measuring_cvd/what_a_case_records.md`; the symbol table is
-`docs/topics/measuring_cvd/_case_events.md`. This note holds the design decisions
-the normative requirements in `specs/case-event-history.yaml` do not explain.
+`docs/topics/measuring_cvd/_case_events.md`. The decisions that weighed an
+alternative and rejected it are in ADR-0174. This note holds the rest of the design
+— the reasoning, the layout, and the traps — that neither the record nor the
+normative requirements in `specs/case-event-history.yaml` carry.
 
 ## An Event Is a State Change, Not a Message
 
@@ -46,14 +52,41 @@ type as the event's cause (CEH-04-001).
 
 A table keyed on the semantic type alone misses acts. One report-management move has
 several wire forms: accepting a stub Invite seats the joiner at Received (CM-11-001),
-answering a Full-Case Invite records Valid, Invalid or Closed (CM-11-031), a status
+answering a Full-Case Invite records Valid, Invalid or Closed (CM-11-011), a status
 update reports any move, and a `Leave` drives the leaver to Closed through every
 intermediate step (CM-23-022). A table that listed `Add(ParticipantStatus)` and
 stopped would report no intake events for a joiner at all.
 
 State comparison also gets the count right, because it emits nothing for an entry
 that re-reports a state already reached (CEH-04-013) and one event per step for an
-entry that moves several (CEH-04-012).
+entry that records several at once (CEH-04-012). A case closure is **not** such an
+entry: CM-23-022 commits one entry per report-management transition, so the leaver's
+`V → D → C` is three entries. The genesis entry is the real example — it seats the
+CASE_MANAGER's own participant at Received, Valid and Accepted together.
+
+Two things state comparison sees that are not events. An entry may carry a whole
+participant object as a *recommendation* for an actor not yet in the case, at
+`RM.START`, several entries before that actor's real record exists; deriving from it
+would date the actor's first event to before it was invited (CEH-04-014). And an entry
+may name a state *behind* the one already reached, which is a change but not a forward
+one — it is excluded from the events and reported, never emitted as a backward step
+(CEH-04-015, CEH-04-016).
+
+## Joining Is the Other Exception
+
+Joining has no state change of its own, so state comparison cannot see it, and the
+entry that *first* records a participant is the wrong entry to use. The CASE_MANAGER
+creates an invitee's `CaseParticipant` at `RM.RECEIVED` in its own entry while the
+participant is still inert (CM-11-006), and accepting the stub Invite then *leaves*
+report management at `RM.RECEIVED` (CM-11-001). So the only entry a "first records the
+participant" rule can find is the one that predates joining.
+
+Key the joining event on the **acceptance** entry instead (CEH-04-010). That is also
+what keeps a joining event off a participant that never joined: a refused invitation
+and an expired one both leave the inert record untouched, so the creation entry is
+there for them too. In the `rcv-reject` recording the invitee is seated, then the
+invitation is rejected two entries later — a "first records" rule would report that
+actor as having joined.
 
 ## The Embargo Is the Exception
 
@@ -85,6 +118,12 @@ A reader that cannot tell which clock a value came from cannot judge whether an
 interval means anything, so a single merged time field would make every measure
 unfalsifiable.
 
+The claimed-time field is absent-able even though a conforming entry always states one
+(CLP-15-006, and CLP-15-008 refuses an inbound activity carrying no `published`). This
+layer is handed archived and foreign ledgers it never validated, and an absent claimed
+time has to read as absent rather than as a commit stamp copied into its place
+(CEH-03-007, CEH-03-008).
+
 ## Four Gap Labels, Carried on the Event
 
 A measure built on an event inherits that event's gap, so the label belongs on the
@@ -95,7 +134,7 @@ in `what_a_case_records.md` change an event's time:
 |---|---|
 | Seated at creation | The creation sequence committed this status, so its stamp is the creation time (CM-14-009, CM-14-012) |
 | Stamped at adoption | The case's public state changed when the CASE_MANAGER committed its own case status, not when a participant first reported it |
-| Stamped when next handled | A passing deadline caused the change, and the CASE_MANAGER made it when it next handled the case (EMB-13-003, CM-28-015) |
+| Stamped when next handled | A passing deadline caused the change, and the CASE_MANAGER made it on its own lazy check, when it next handled the case (EMB-13-003, CM-28-015) |
 | Reported out of band | A public exploit or observed attacks happened outside the protocol, and the delay before the report is not recorded |
 
 The other gaps carry no label because they produce no event: refusals and replay
@@ -103,30 +142,74 @@ requests are never ledgered (CLP-02-013), an ownership-transfer expiry changes n
 participant record (CM-21-043), and the untimed register and consent rows are the
 reason for the join described above rather than a gap in an event.
 
-Where the record holds a deadline that bounds the real time better than the stamp,
+The "stamped when next handled" label marks the *distance* between the deadline and
+the commit, so it is wrong where that distance is not there. EMB-13-003 reaches the
+same termination two ways: the CASE_MANAGER's own lazy check, which can be much later,
+and an outside request made at the end time, such as from a Sentinel watching embargo
+timers, which is stamped close to the deadline. Label the lazy path only (CEH-03-013).
+
+Where the ledger holds a deadline that bounds the real time better than the stamp,
 carry the deadline too (CEH-03-015). An embargo terminated `END_TIME_REACHED` really
 ended at the embargo's end time; the commit stamp is only the latest possible end.
+The deadline is not always on the entry recording the event: a timed-out invitation
+carries none of its own, because CM-28-013 lets only an `INVITED` consent row hold an
+RSVP deadline and the row has already moved to `TIMED_OUT`. Carry it forward from the
+earlier entry that recorded the invitation.
 
 ## One Sequence per Vendor, None per Case
 
-Project one case-state sequence per participant holding the Vendor or Deployer role,
-combining that participant's own fix-path and deployment events with the case's
-public-state events (CEH-05-001, CEH-05-003). That is the shape
+Project one case-state sequence per participant **whose events include a
+vendor-awareness event**, combining that participant's own fix-path and deployment
+events with the case's public-state events (CEH-05-001, CEH-05-003). That is the shape
 `replay_cs_history` and `is_valid_cs_history_prefix` read
-(`vultron/core/states/cs_invariants.py`), and a single-vendor case yields one
-sequence `CVDmodel.score_history` can take.
+(`vultron/core/states/cs_invariants.py`).
 
 Do not collapse several vendors into one sequence (CEH-05-006). Vendor awareness and
 fix readiness occur once per vendor, and no rule yet says which vendor's event stands
 for the case. Choosing one here would settle an open research question without
 review; it is tracked as its own work.
 
-Validate every projected sequence as a prefix, and treat a missing event as an
-incomplete prefix rather than an invalid history (CEH-05-004, CEH-05-005). Many cases
-never see a public exploit or observed attacks, and an open case has not closed, so
-an incomplete sequence is the normal result. A sequence that fails the prefix check
-means the derivation is wrong, because the CASE_MANAGER refuses an impossible
-transition before it commits.
+### Why the key is the event, not the role
+
+Keying on the Vendor **role** builds sequences that cannot replay. A participant
+holding the Deployer role but not the Vendor role has no vendor-fix state of its own
+(CSB-15-004) and so emits no vendor-awareness and no fix-readiness event, yet it may
+legitimately reach fix-deployed. Its sequence would open on `D`, and the case-state
+model admits only `vfd`, `Vfd`, `VFd` and `VFD` — `vfD` has no spelling, so
+`is_valid_cs_history_prefix` refuses it. The two ephemeral rules (CSB-17-003) make
+this sharper: a public-state event with no vendor awareness in front of it obliges `V`
+next, so even a public-state-only sequence is refused rather than read as incomplete.
+
+So that participant gets **no sequence, and a stated reason** (CEH-05-007). Its
+fix-deployed event stays in the event history, where a measure that needs no
+replayable sequence reads it. Reporting the reason rather than an empty list is the
+same choice as a merged ledger reporting its holes: silence reads as a participant
+with no events, which is a different and wrong answer.
+
+Only a **trailing** event may be missing (CEH-05-005). Many cases never see a public
+exploit, and an open case has not closed, so a sequence that stops early is normal. A
+*gap* is not: the ephemeral rules forbid it.
+
+### The prefix check is this layer's, not the CASE_MANAGER's
+
+A sequence that fails the prefix check means the derivation is wrong — but not because
+the CASE_MANAGER already refused the transition. It validates a participant's
+dimensions and the case's public state *separately*, and skips any rule that reads a
+dimension the participant does not have (`composite_state_violations`, and
+`_compound_violations` returns no violation whenever the participant's `vf` is absent).
+That is ADR-0075's deliberate design. A ledger whose every entry the CASE_MANAGER
+accepted can therefore still project a compound sequence that does not replay. This
+layer builds the compound, so this layer owns the check (CEH-05-004).
+
+### The layer stops at the sequence
+
+It computes no score (CEH-05-008). The existing desiderata scorer is
+`CVDmodel.score_hist` in `vultron/core/case_states/hypercube.py` — note the name —
+and it admits only a *complete* six-event history, raising `ScoringError` on anything
+shorter. Every sequence the committed recordings yield is incomplete, so there is no
+score to compute for a typical case. How an incomplete sequence earns a score is an
+open research question, tracked by #5828; the measures themselves are out of this
+topic's scope either way.
 
 ## Read the Canonical Copy; a Merge Reports Its Holes
 
@@ -134,6 +217,20 @@ Only the CASE_MANAGER's ledger is complete. A participant's replica stops receiv
 entries while its embargo consent has lapsed and after its report closes
 (CM-10-005, CM-23-004), so an event recorded in a gap it missed is absent from its
 copy. Prefer that copy when the input holds it (CEH-02-004).
+
+Identify it from the **entries**, never from the path (CEH-02-009). A recording's
+ledger file is named for neither its actor nor its role: the committed recordings are
+`ui/src/recordings/<scenario>/case-actor.jsonl`, while a demo run writes
+`<actor>-case-ledger.jsonl` under a directory named for the actor. A path-derived
+answer misreads the scenario name as the actor name, finds no CASE_MANAGER, and sends
+every recording down the merge path to be reported as holed. The committing actor is
+in each entry, which is the one place the answer is always there.
+
+For the same reason the layer takes its files from the caller and globs for nothing
+itself (CEH-02-003, CEH-02-010). `vultron-demo-report` keeps its own
+`**/*-case-ledger.jsonl` discovery, which DRPT-01-007 pins; that glob matches none of
+the committed recordings, so a layer that inherited it could not open its own test
+corpus.
 
 A merge of participant replicas is the fallback, and it must report the log indices
 no replica supplied (CEH-02-006). A measure over a history with a hole is wrong
@@ -143,17 +240,58 @@ of scoring it.
 The committed canonical recordings under `ui/src/recordings/` are the test corpus:
 each is the CASE_MANAGER's own copy of a real scenario run, with a step list beside
 it. They cover an embargo termination, an embargo revision, a refused invitation and
-several vendors, so the merge path needs its own fixture (CEH-06-003).
+several vendors.
+
+### What the corpus does not cover
+
+Five requirements rest on ledger data no recording holds, so each needs a hand-built
+fixture or it passes with nothing exercising it (CEH-06-003, CEH-06-006):
+
+| Not in any recording | Leaves untested |
+|---|---|
+| A ledger with no CASE_MANAGER copy | the merge path and its reported holes |
+| An embargo ended `END_TIME_REACHED` — every recording ends early with a cause | the end-time exit, its label and its bounding deadline |
+| A `DECLINED` or `TIMED_OUT` consent row — every row is agreed, invited or uninvited | two of the three distinct consent answers |
+| A Deployer holding no Vendor role — the one deployer also holds Vendor | the unprojectable participant |
+
+This is why the prefix check over the recordings cannot stand alone as the derivation
+test: the corpus is missing exactly the shapes that break a naive derivation.
 
 ## Reuse the One JSONL Walker
 
 A dimension state sits at several depths and several spellings in a payload snapshot,
-and a walker that misses one reports no state for every affected row. The reader is
-shared, lives in the measure package, and `vultron/demo/report.py` imports it
-(CEH-02-003, CEH-02-009); the rules it implements are in
+and a walker that misses one reports no state for every affected row — which a measure
+cannot tell from a state the case never reached. That tolerance is the requirement
+(CEH-02-002); the rules it implements are in
 [case-ledger-parsing](case-ledger-parsing.md).
 
-The demo layer sits above the measure package, so that import goes downward and is
-allowed. `vultron-demo-report` keeps its own module, its per-entry grain and its
+**Where the code goes** is a layout choice, so it lives here rather than in the spec,
+which states only the boundary that nothing in the protocol path imports the layer
+(CEH-01-001):
+
+- The layer is `vultron/measure/`, outside the protocol path.
+- The JSONL walker and its tolerant field-spelling helpers move there out of
+  `vultron/demo/report.py`, and the report tool imports them from there. The demo layer
+  sits above the measure package, so that import goes downward.
+- The display-name resolver (`collect_actor_names`, `friendly_actor_name`) moves down
+  with it. Leaving it in `vultron/demo/report.py` while the report tool imports the
+  reader from `vultron/measure/` would make the two packages import each other, and
+  would put a demo dependency inside the package the boundary exists to keep clean.
+
+`vultron-demo-report` keeps its own module, its per-entry grain and its
 replica-presence matrix: it is a demo-CI forensic artifact, while the event history
 is a research instrument at the event grain.
+
+### One tolerant reader, one strict wrapper
+
+The two tools want opposite things from a malformed row. DRPT-01-004 has
+`vultron-demo-report` exit non-zero when a file cannot be parsed, and `_load_jsonl`
+raises on the first bad row to deliver that. The measure layer must instead degrade
+one bad row to one unusable entry and finish the rest, reporting the row
+(CEH-02-008) — a single corrupt line in an archived ledger is worth reporting, not
+worth losing every other event to.
+
+So the shared reader is the **tolerant** one, and the strictness is a thin wrapper the
+report tool applies: it raises when the tolerant reader reports any unusable row. Put
+the strictness in the shared reader instead and the measure layer cannot read a
+damaged archive at all.

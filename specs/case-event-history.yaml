@@ -19,21 +19,21 @@ groups:
   title: Package and Invocation
   specs:
   - id: CEH-01-001
-    priority: MUST
+    priority: MUST_NOT
     kind: project
     statement: >-
-      The event-history layer MUST live in a package outside the protocol path, at
-      `vultron/measure/`.
+      A module in the protocol path MUST NOT import the event-history layer.
     rationale: >-
       The layer reads a finished case and computes nothing the protocol acts on. A
-      home outside the protocol path keeps an analysis change from reaching case
-      behavior, and keeps the research code out of the import graph that the
-      architecture boundary tests govern.
+      one-way boundary keeps an analysis change from reaching case behavior, and keeps
+      the research code out of the import graph that the architecture boundary tests
+      govern. Which package holds the layer is a layout choice and lives in
+      `notes/case-event-history.md`, not here.
     verification: >-
       An architecture test fails when a module under `vultron/core/`, `vultron/wire/`
-      or `vultron/adapters/` imports the measure package.
-    lint_suppress:
-    - phantom_path_ref
+      or `vultron/adapters/` imports the event-history layer.
+    adr:
+    - ADR-0174
   - id: CEH-01-002
     priority: MUST_NOT
     kind: project
@@ -100,11 +100,13 @@ groups:
       friendly display names, never by a bare URI.
     rationale: >-
       Two tools that read the same ledger and name the same actor differently are hard
-      to read side by side. Reusing the display-name resolver that the ledger report
-      tool already builds keeps one answer for one actor.
+      to read side by side. One display-name resolver, serving both, keeps one answer
+      for one actor.
     verification: >-
-      A renderer test asserts that a table row for an event whose actor has a display
-      name shows that name, and shows no bare URI.
+      A renderer test asserts, for the actor cell and for the object cell of a rendered
+      row, that a subject holding a display name shows that name, and that neither cell
+      holds a bare URI. A fixture whose object has no display name asserts the
+      documented fallback rather than a URI.
     relationships:
     - rel_type: depends_on
       spec_id: DRPT-03-003
@@ -157,15 +159,17 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The layer MUST read its JSONL entries through the shared reader that
-      `vultron/demo/report.py` also uses, never through a second parser.
+      The layer MUST read a dimension state wherever a payload snapshot spells it,
+      across every depth and spelling the ledger format admits.
     rationale: >-
       A dimension state sits at several depths and in several spellings in a payload
-      snapshot. A second walker misses one of them and reports no state for every
-      affected entry, and the two walkers then drift apart.
+      snapshot. A reader that misses one of them reports no state for every affected
+      entry, which a measure cannot tell apart from a state the case never reached.
+      Which module holds that reader, and which tools share it, is a layout choice and
+      lives in `notes/case-event-history.md`.
     verification: >-
-      A test asserts that the state values read from one fixture are equal whether the
-      measure layer or the report tool read it, for each depth and each spelling.
+      A unit test reads one fixture holding each admitted depth and spelling of a
+      dimension state, and asserts the layer reports the same state for each.
     relationships:
     - rel_type: depends_on
       spec_id: DRPT-02-003
@@ -173,33 +177,48 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The shared reader MUST live in `vultron/measure/`.
+      The layer MUST take the ledger files it reads from its caller.
     rationale: >-
-      The demo layer sits above the measure package, so the reader's home is the lower
-      of the two packages that read it. Naming that home stops a later change from
-      copying the walker back up into the demo layer.
+      The committed recordings are named `case-actor.jsonl` under a scenario directory,
+      while a demo run writes `<actor>-case-ledger.jsonl` under an actor directory. A
+      layer that chose for itself would have to pick one shape, and a test corpus it
+      cannot open is a test that never runs.
     verification: >-
-      A test asserts that the reader's module is in the measure package.
+      A unit test builds a history from an explicit list of ledger paths under both
+      naming shapes, and asserts the same history from each.
+  - id: CEH-02-010
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The layer MUST NOT depend on a file-naming or directory-naming convention to
+      find its ledger files.
+    rationale: >-
+      Either naming shape is one deployment's habit, not a property of the format. A
+      layer that globbed for one would report an empty history for the other, which a
+      caller cannot tell from a case with no events.
+    verification: >-
+      A unit test points the layer at a directory holding ledger files under an
+      unfamiliar name and asserts it reads them when the caller names them.
     relationships:
-    - rel_type: implements
-      spec_id: CEH-02-002
-    lint_suppress:
-    - phantom_path_ref
+    - rel_type: refines
+      spec_id: CEH-02-003
   - id: CEH-02-009
     priority: MUST
     kind: project
     statement: >-
-      `vultron/demo/report.py` MUST import the shared reader from the measure package.
+      The layer MUST identify the CASE_MANAGER's copy of a ledger from the entries
+      themselves, never from the file's name or its directory's name.
     rationale: >-
-      Two walkers over one file format drift apart, and the drift shows only as a
-      state that one tool reads and the other reports as absent. One importer keeps
-      one walker.
+      A recording's ledger file is named for neither its actor nor its role, so a
+      path-derived answer misidentifies the canonical copy and sends every recording
+      down the merge path, where it is reported as holed. The committing actor is
+      recorded in each entry, which is the one place the answer is always present.
     verification: >-
-      A test asserts that the report tool imports the reader from the measure package
-      and defines no walker of its own.
+      A unit test renames a CASE_MANAGER ledger file and moves it to a differently
+      named directory, and asserts the layer still selects it as the canonical copy.
     relationships:
     - rel_type: extends
-      spec_id: CEH-02-003
+      spec_id: CEH-02-004
   - id: CEH-02-004
     priority: MUST
     kind: project
@@ -283,13 +302,19 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The layer MUST define the event record as a Pydantic v2 model.
+      The layer MUST refuse an event record that is missing a required field, at
+      construction.
     rationale: >-
-      The record crosses from this layer to every measure built on it, so its fields
-      need validation at construction rather than a convention each caller repeats.
+      The record crosses from this layer to every measure built on it, so a missing
+      field must fail where it is built rather than read as an absent event by each
+      caller in turn. Which validation library enforces it is a code-style matter
+      settled project-wide by CS-17-001.
     verification: >-
       A unit test asserts that constructing an event record with a missing required
       field raises a validation error.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CS-17-001
   - id: CEH-03-002
     priority: MUST
     kind: project
@@ -365,12 +390,15 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      An event record MUST carry the claimed time of the activity in its ledger entry,
-      separately from the commit stamp.
+      An event record MUST carry, in its own field, the claimed time of the activity in
+      its ledger entry whenever that entry states one.
     rationale: >-
       The claimed time comes from the sender's clock and should be when the event
       occurred. An interval whose two ends come from one sender is better measured on
-      claimed times, because a fixed offset in that sender's clock cancels out.
+      it, because a fixed offset in that sender's clock cancels out. The field is
+      nonetheless absent-able: CLP-15-008 refuses an inbound activity carrying no
+      `published`, but this layer is handed archived and foreign ledgers it never
+      validated, and an absent claimed time must read as absent.
     verification: >-
       A unit test uses an entry whose two timestamps differ, and asserts that the event
       carries each one in its own field.
@@ -388,8 +416,9 @@ groups:
       reader that cannot tell which clock a value came from cannot judge whether an
       interval is valid.
     verification: >-
-      A unit test asserts that an event derived from an entry with no claimed time
-      leaves that field empty, and does not copy the commit stamp into it.
+      A unit test derives an event from an archived entry that states no claimed time —
+      the shape CLP-15-008 refuses inbound but an archived ledger can still hold — and
+      asserts the claimed-time field is empty and holds no copy of the commit stamp.
     relationships:
     - rel_type: refines
       spec_id: CEH-03-007
@@ -457,15 +486,22 @@ groups:
       The layer MUST label an event that a passing deadline caused as stamped when the
       CASE_MANAGER next acted.
     rationale: >-
-      No timer ends an embargo at its end time and none times out an unanswered
-      invitation. The CASE_MANAGER makes each change when it next handles the case, so
-      the stamp can be much later than the deadline.
+      The CASE_MANAGER's own lazy check makes the change when it next handles the case,
+      so the stamp can be much later than the deadline. The label marks that distance,
+      which is why it is wrong to apply where the distance is not there: EMB-13-003
+      also admits an outside request at the end time, such as from a Sentinel watching
+      embargo timers, and an exit committed on that path is stamped close to its
+      deadline. Label the lazy path, not the requested one.
     verification: >-
-      A unit test asserts the deadline label on an embargo exit whose reason is that the
-      end time was reached, and on an invitation that timed out.
+      A unit test asserts the deadline label on an embargo exit reached by the
+      CASE_MANAGER's lazy check and on an invitation that timed out, and asserts the
+      label is absent on an exit committed from an outside request made at the end
+      time.
     relationships:
     - rel_type: implements
       spec_id: CEH-03-010
+    - rel_type: depends_on
+      spec_id: EMB-13-003
   - id: CEH-03-014
     priority: MUST
     kind: project
@@ -486,15 +522,20 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When the record of an event carries a deadline that bounds the event's real time,
+      When any entry in the ledger states a deadline that bounds an event's real time,
       the event record MUST carry that deadline.
     rationale: >-
-      An embargo that ended because its end time passed really ended at that end time,
-      and the commit stamp is only the latest possible end. The deadline is the better
-      value, and only the record of the event holds it.
+      An embargo that ended because its end time passed really ended then, and the
+      commit stamp is only the latest possible end. The deadline is the better value,
+      and it is not always on the entry recording the event. A timed-out invitation
+      carries no RSVP deadline of its own: CM-28-013 lets only an `INVITED` consent row
+      hold one, and the row has already moved to `TIMED_OUT`. The layer must carry that
+      deadline forward from the earlier invitation entry.
     verification: >-
       A unit test asserts that an embargo exit at its end time carries that end time,
-      and that a timed-out invitation carries its reply deadline.
+      and that a timed-out invitation carries the RSVP deadline stated on the earlier
+      entry that recorded the invitation, with no deadline on the timing-out entry
+      itself.
     relationships:
     - rel_type: extends
       spec_id: CEH-03-013
@@ -521,12 +562,14 @@ groups:
       The layer MUST emit one event for each state a participant's report management
       enters.
     rationale: >-
-      Report management has six states, and the measures of intake and triage need the
-      time of each. Emitting only the four states that have a symbol in the research
-      pages would drop the deferred and invalid verdicts.
+      Report management has seven states, `START` among them, and the measures of
+      intake and triage need the time of each one a participant actually enters.
+      Emitting only the four states that have a symbol in the research pages would drop
+      the deferred and invalid verdicts.
     verification: >-
       A unit test asserts that a ledger reaching a deferred verdict and one reaching an
-      invalid verdict each yield their own event.
+      invalid verdict each yield their own event, and that the event enumeration covers
+      every member of the report-management state enumeration.
     relationships:
     - rel_type: implements
       spec_id: CEH-04-001
@@ -642,18 +685,26 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The layer MUST emit a joining event for each participant, derived from the entry
-      that first records the participant as having joined the case.
+      The layer MUST emit a joining event for each participant that accepted its
+      invitation, derived from the entry recording that acceptance.
     rationale: >-
-      Time to join is measured from an invitation to this event, and a later joiner's
-      report receipt is the same event as its joining. Without it, an invited
-      participant has no first time in the case.
+      Time to join is measured from an invitation to this event, and the entry that
+      first records a participant is not it. CM-11-006 has the CASE_MANAGER create the
+      invitee's record at `RM.RECEIVED` while it is still inert, and CM-11-001 leaves
+      report management there when the stub invitation is accepted, so joining moves no
+      state. Keying on the acceptance entry also keeps a joining event off a
+      participant that never joined: a refused or expired invitation leaves that inert
+      record untouched.
     verification: >-
-      A unit test asserts one joining event per participant, and that a later joiner's
-      joining and report-received events share a log index.
+      A unit test asserts one joining event for each participant that accepted, that a
+      later joiner's joining and report-received events share a log index, and that a
+      ledger in which an invitation was refused and one in which it expired each yield
+      no joining event for that invitee.
     relationships:
     - rel_type: implements
-      spec_id: CEH-04-001
+      spec_id: CEH-04-005
+    - rel_type: depends_on
+      spec_id: CM-11-001
   - id: CEH-04-011
     priority: MUST
     kind: project
@@ -676,12 +727,16 @@ groups:
       When one ledger entry records more than one event, the layer MUST emit every one
       of those events, in the order the entry records them.
     rationale: >-
-      The creation sequence seats a participant record with its roles and its first
-      status in one entry, and a case closure commits one status entry for each report
-      management step it writes. Emitting one event per entry would drop the rest.
+      The creation sequence seats one participant record at several report-management
+      states in a single entry: in the committed recordings the genesis entry puts the
+      CASE_MANAGER's own participant at received, valid and accepted together. Emitting
+      one event per entry would drop all but the first. A case closure is not a second
+      example and must not be read as one. CM-23-022 commits one entry per transition,
+      so a leave from valid gives two entries rather than one entry holding two events.
     verification: >-
-      A unit test asserts that the entry seating a participant record yields both its
-      joining and its first report-management event, in that order.
+      A unit test asserts that a genesis entry seating a participant at several
+      report-management states yields one event per state, in the order the entry
+      records them.
     relationships:
     - rel_type: extends
       spec_id: CEH-04-011
@@ -701,6 +756,59 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CEH-04-001
+  - id: CEH-04-014
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The layer MUST NOT derive a participant's event from a status an entry carries as
+      a recommendation or an offer.
+    rationale: >-
+      An entry recommending an actor for a case carries a whole participant object for
+      an actor that is not yet in the case, at `RM.START`. In the committed recordings
+      that object appears several entries before the actor's real record, so a layer
+      that read every participant-shaped object would date the actor's first event to
+      before it was invited, and would give a recommendation a vendor-awareness slot.
+    verification: >-
+      A unit test builds a history from a ledger whose recommendation entry precedes
+      the recommended actor's own record, and asserts the actor's first event is dated
+      to its own record and that the recommendation yields none.
+    relationships:
+    - rel_type: refines
+      spec_id: CEH-04-001
+  - id: CEH-04-015
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The layer MUST NOT emit an event for a state that sits behind the state already
+      reached.
+    rationale: >-
+      CEH-04-013 excludes only an entry that records no change, and a snapshot naming
+      an earlier state is a change. Emitting it would put a backward step into a
+      history the state machines forbid, so a measure would read a regression the case
+      never had.
+    verification: >-
+      A unit test feeds an entry naming a report-management state behind the one
+      already reached, and asserts no event is emitted for it while the following
+      entries still yield theirs.
+    relationships:
+    - rel_type: extends
+      spec_id: CEH-04-013
+  - id: CEH-04-016
+    priority: MUST
+    kind: project
+    statement: >-
+      The layer MUST report each entry it excluded for naming a state behind the state
+      already reached.
+    rationale: >-
+      Dropping such an entry silently would hide a real disagreement between two copies
+      of a case, which is a finding in its own right. Surfacing it beside the events
+      lets a caller judge the history, as CEH-02-006 does for a merge hole.
+    verification: >-
+      A unit test asserts that an entry naming an earlier state is named in the
+      history's report of excluded entries.
+    relationships:
+    - rel_type: extends
+      spec_id: CEH-04-015
 - id: CEH-05
   title: Per-Participant Case-State Sequences
   specs:
@@ -708,15 +816,23 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The layer MUST project, for each participant that holds the Vendor or Deployer
-      role, that participant's case-state events as an ordered sequence.
+      The layer MUST project, for each participant whose events include a
+      vendor-awareness event, that participant's case-state events as an ordered
+      sequence.
     rationale: >-
-      The existing scoring code reads a case history as an ordered sequence of the six
-      case-state events. A sequence per vendor and per deployer is the form that code
-      can take, and the form the case-state history rules validate.
+      The case-state history rules admit only the four vendor-fix-path states vfd, Vfd,
+      VFd and VFD, so a sequence must open on vendor awareness to replay at all. A
+      participant holding the Deployer role but not the Vendor role has no
+      vendor-fix-path state of its own (CSB-15-004) and so cannot open one; keying the
+      projection on the event rather than on the role is what keeps an unreplayable
+      sequence from being built in the first place. CEH-05-007 says what that
+      participant gets instead.
     verification: >-
       A unit test builds a history from a two-vendor ledger and asserts one sequence per
-      vendor, each in log order.
+      vendor, each in log order, and asserts that a ledger whose deployer holds no
+      Vendor role yields no sequence for that deployer.
+    adr:
+    - ADR-0174
   - id: CEH-05-002
     priority: MUST
     kind: project
@@ -742,10 +858,14 @@ groups:
     rationale: >-
       The case state is the compound of a participant's fix path and the case's public
       state. A sequence holding only one of the two would be a partial history that
-      replays to the wrong state.
+      replays to the wrong state. A participant holding the Vendor role but not the
+      Deployer role contributes no deployment event, which leaves its sequence at VFd
+      and is a valid incomplete prefix under CEH-05-005.
     verification: >-
       A unit test asserts that a vendor's sequence holds the case's public-awareness
-      event as well as that vendor's own fix-readiness event.
+      event as well as that vendor's own fix-readiness event, and that a vendor holding
+      no Deployer role yields a sequence with no deployment event that the prefix
+      validator still accepts.
     relationships:
     - rel_type: refines
       spec_id: CEH-05-002
@@ -755,12 +875,17 @@ groups:
     statement: >-
       Every projected sequence MUST be a valid case-state history prefix.
     rationale: >-
-      A sequence that is not a valid prefix means the derivation is wrong, because the
-      CASE_MANAGER refuses an impossible transition before it commits. Checking the
-      prefix turns a derivation bug into a loud failure instead of a wrong score.
+      Checking the prefix turns a derivation bug into a loud failure instead of a wrong
+      score. It is not redundant with what the CASE_MANAGER enforces. That actor
+      validates a participant's dimensions and the case's public state separately, and
+      skips a rule reading a dimension the participant lacks (ADR-0075), so a ledger
+      whose every entry it accepted can still project a compound that does not replay.
+      This layer builds the compound, so it owns the check.
     verification: >-
       A unit test asserts the prefix validator accepts every sequence projected from
-      every committed ledger recording.
+      every committed ledger recording, and a unit test over a hand-built ledger whose
+      entries are each individually valid asserts the check fails on a compound
+      sequence that does not replay.
     relationships:
     - rel_type: depends_on
       spec_id: CSB-17-005
@@ -768,15 +893,19 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The layer MUST treat a projected sequence that is missing an event as an
+      The layer MUST treat a projected sequence that is missing a trailing event as an
       incomplete prefix, not as an invalid history.
     rationale: >-
       Many cases never see a public exploit or observed attacks, and an open case has
-      not closed. Prefix validation does not require all six events, so an incomplete
-      sequence is a normal result.
+      not closed. Prefix validation does not require all six events, so a sequence that
+      stops early is a normal result. Only a trailing event may be missing: an absent
+      event with later events after it is not tolerated, because the two ephemeral
+      rules (CSB-17-003) oblige a specific next event, so a public-state event with no
+      vendor awareness in front of it is refused rather than read as incomplete.
     verification: >-
       A unit test projects a sequence from a ledger with no public exploit and asserts
-      that the layer accepts it.
+      the layer accepts it, and asserts the layer refuses a sequence whose public-state
+      event precedes an absent vendor-awareness event.
     relationships:
     - rel_type: depends_on
       spec_id: CSB-17-010
@@ -796,6 +925,43 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CEH-05-001
+  - id: CEH-05-007
+    priority: MUST
+    kind: project
+    statement: >-
+      For a participant the layer projects no sequence for, the layer MUST report that
+      participant as unprojectable with a stated reason.
+    rationale: >-
+      A participant holding the Deployer role but not the Vendor role has case-state
+      events and no sequence they can replay in. Silence or an empty list reads as a
+      participant with no events, which is a different and wrong answer. Its events
+      stay in the event history, where a measure needing no replayable sequence reads
+      them.
+    verification: >-
+      A unit test builds a history whose deployer holds no Vendor role, and asserts the
+      participant is reported unprojectable with a stated reason, and that its
+      fix-deployed event is still present in the event history.
+    relationships:
+    - rel_type: extends
+      spec_id: CEH-05-001
+  - id: CEH-05-008
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The layer MUST NOT score a projected sequence.
+    rationale: >-
+      The existing desiderata scorer admits only a complete six-event history and
+      raises on anything shorter, while CEH-05-005 makes an incomplete sequence the
+      normal result, so there is no score this layer could compute for a typical case.
+      How an incomplete sequence earns a score is an open research question, and the
+      measures computed from a history are out of this topic's scope in any case. The
+      layer's deliverable is the validated sequence.
+    verification: >-
+      A test asserts that the event-history layer imports no scoring entry point and
+      exposes no score on a projected sequence.
+    relationships:
+    - rel_type: refines
+      spec_id: CEH-05-004
 - id: CEH-06
   title: Testing
   specs:
@@ -844,6 +1010,25 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CEH-02-006
+  - id: CEH-06-006
+    priority: MUST
+    kind: project
+    statement: >-
+      Hand-built ledger fixtures MUST cover an end-time embargo exit, a declined
+      invitation, a timed-out invitation, and a Vendor-less Deployer.
+    rationale: >-
+      No committed recording holds any of the four. Every recording's embargo ends
+      early with a termination cause, every consent row is agreed, invited or
+      uninvited, and the one recording with a deployer gives that actor the Vendor role
+      too. Without fixtures, the requirements on end-time exits, on the three consent
+      answers and on an unprojectable participant pass with nothing exercising them,
+      which is how a derivation bug survives a green suite.
+    verification: >-
+      A test module holds one fixture per case and asserts the event, the label and the
+      bounding deadline each one calls for.
+    relationships:
+    - rel_type: extends
+      spec_id: CEH-06-001
   - id: CEH-06-004
     priority: MUST
     kind: project
