@@ -13,11 +13,12 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""What paths the case, participant, report, status and embargo trees declare.
+"""What paths the migrated received trees declare, area by area.
 
-Every received tree in those areas declares the paths it handles once, to the
-factory (HP-01-038), and a receiver on a path the declaration omits is
-refused at the path stage with the composed reason (HP-01-039).  Two things
+The areas are the ones :data:`_ROOTS` names, and a wave adds its own as it
+migrates it.  Every received tree in these areas declares the paths it handles
+once, to the factory (HP-01-038), and a receiver on a path the declaration
+omits is refused at the path stage with the composed reason (HP-01-039).  Two things
 follow that a reader needs pinned, and this module pins both:
 
 1. **The declaration itself**, in :data:`DECLARED_PATHS`, keyed on the tree
@@ -69,13 +70,16 @@ from vultron.enums.roles import CVDRole
 _FACTORY = "create_receive_activity_tree"
 
 #: The migrated areas: the case, participant, report and status trees
-#: (#5043) and the embargo trees (#5042).  One inventory for all of them, so
-#: two waves cannot keep two tables of the same fact (CS-22-001).
+#: (#5043), the embargo trees (#5042) and the note and dead-letter trees
+#: (#5785).  One inventory for all of them, so several waves cannot keep
+#: several tables of the same fact (CS-22-001).
 _ROOTS = (
     _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "case",
     _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "report",
     _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "status",
     _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "embargo",
+    _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "note",
+    _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "dead_letter",
 )
 
 CM = ReceivedPath.CASE_MANAGER
@@ -90,6 +94,8 @@ _C = "vultron/core/behaviors/case"
 _R = "vultron/core/behaviors/report"
 _S = "vultron/core/behaviors/status"
 _E = "vultron/core/behaviors/embargo"
+_N = "vultron/core/behaviors/note"
+_D = "vultron/core/behaviors/dead_letter"
 
 #: Every declaration in these areas.  A conditional declaration records the
 #: paths of its declaring branch; see :data:`CONDITIONAL_DECLARATION_EXEMPTIONS`.
@@ -339,6 +345,29 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         "announce_embargo_received_tree",
         0,
     ): frozenset({CM, PR}),
+    # --- note (#5785) ----------------------------------------------------
+    # Both are directed types: the trigger side resolves the CASE_MANAGER and
+    # addresses the one activity to it (PCR-08-001), and no roster-derived
+    # selection sends either.  Neither is narrowed below its sender rule —
+    # each declares exactly the two non-empty sides of ``to_case_manager`` —
+    # so neither declaration refuses a delivery the guard would admit.  The
+    # replica path carries no effect: RSH-08-003 keeps every write at the
+    # CASE_MANAGER, so a note reaches a replica as the entry's Announce
+    # fan-out (SYNC-02-001, SYNC-02-003) and a direct Add(Note) there is
+    # refused (HP-01-005).  It is declared because the act is the
+    # CASE_MANAGER's to relay (PCR-03-001), the same reading the
+    # Add(VulnerabilityReport) twin above takes from the same rule shape
+    # (CM-30-003, CM-30-005).
+    (
+        f"{_N}/add_note_received_tree.py",
+        "create_add_note_to_case_received_tree",
+        0,
+    ): frozenset({CM, PR}),
+    (
+        f"{_N}/remove_note_received_tree.py",
+        "create_remove_note_from_case_received_tree",
+        0,
+    ): frozenset({CM, PR}),
 }
 
 #: Sites whose declaration is conditional on the tree naming a case at build
@@ -385,11 +414,12 @@ KNOWN_UNDECLARED_PATH_SITES: dict[Site, str] = {
     ): "#5044",
 }
 
-#: Sites that declare no paths by decision, each with the reason.  A received
-#: *delivery* always runs a tree that declares its paths; none of these is
-#: that, so none of them is waiting for a migration.
-# permanent: HP-01-038 (these call sites build no tree a delivery's path
-# stage would answer for)
+#: Sites that declare no paths by decision, each with the reason.  The
+#: discriminator is not whether a delivery runs the tree — several of these run
+#: on real deliveries — but whether any branch of it would use the answer a
+#: path stage resolved.  None of these has one, so none is waiting for a
+#: migration.
+# permanent: HP-01-038 (no branch of these trees would use a resolved path)
 UNDECLARED_PATH_EXEMPTIONS: dict[Site, str] = {
     # The intake-only tree archives an activity it cannot act on and refuses
     # it for its own stated reason (CLP-10-018).  It names no case and does
@@ -436,6 +466,17 @@ UNDECLARED_PATH_EXEMPTIONS: dict[Site, str] = {
         "embargo_invite_fault_tree",
         0,
     ): "the fault answers its sender on every path, scoped to none",
+    # The dead-letter tree is not a message type's: it runs for any activity
+    # whose object_ URI did not resolve, so no type's paths are its to
+    # declare (HP-01-038).  What it does is the receiver's own diagnostic —
+    # a DeadLetterRecord naming no case — with no branch of it keyed on the
+    # path, so a stage would read a role (HP-01-037) in a case the activity
+    # only happens to mention, and nothing would use the answer (HP-01-038).
+    (
+        f"{_D}/dead_letter_tree.py",
+        "create_store_dead_letter_tree",
+        0,
+    ): "the receiver's own diagnostic record, scoped to no case",
 }
 
 #: Every site that declares no paths, for whichever reason.

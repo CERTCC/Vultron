@@ -16,12 +16,16 @@
 
 Mirror of :mod:`add_note_received_tree`: only the CASE_MANAGER detaches the note
 and commits the canonical ledger entry; replicas apply the entry's fan-out
-(SYNC-02-002, RSH-08-004).  At the manager the sender must be the note's author
-(while an active participant) or the Case Owner (CM-30-001, ADR-0115).
+(SYNC-02-001, SYNC-02-003, RSH-08-004).  At the manager the sender must be the
+note's author (while an active participant) or the Case Owner (CM-30-001,
+ADR-0115).
 """
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.nodes.reference_list import (
     CaseReferenceEditPendingNode,
 )
@@ -49,6 +53,8 @@ def create_remove_note_from_case_received_tree(
 
         GuardedDetachAndCommitBT (Sequence)
         ├── IntakeReceivedActivityNode                    # intake
+        ├── ActivityAddressedToReceiverNode               # addressee door
+        ├── ReceivedPathNode                              # manager or replica
         ├── SenderRuleGuard (Sequence)                    # sender guard
         ├── CaseReferenceEditPendingNode                  # duplicate guard
         ├── GuardedCommitCaseLedgerEntryBT (Selector)     # commit
@@ -58,7 +64,10 @@ def create_remove_note_from_case_received_tree(
     committed; the handler reports it as ``SKIPPED``.
 
     The factory composes the sender guard from *sender_rule*, with the note
-    as the object an ``AUTHOR`` sender must have written (CM-30-001).
+    as the object an ``AUTHOR`` sender must have written (CM-30-001).  The
+    rule's two non-empty sides are the two paths the tree declares
+    (HP-01-038), so the path stage answers the role question once and the
+    guard's arms read its answer (HP-01-036).
 
     Args:
         note_id: ID of the note being removed.
@@ -68,6 +77,16 @@ def create_remove_note_from_case_received_tree(
     """
     return create_receive_activity_tree(
         name="GuardedDetachAndCommitBT",
+        # The note's author or the Case Owner asks the CASE_MANAGER, and at a
+        # replica only the CASE_MANAGER is an entitled sender (CM-30-001,
+        # CM-30-003): the two non-empty sides of the sender rule, so the two
+        # declared paths (HP-01-038).  As with the Add, the replica path
+        # carries no effect of its own — RSH-08-003 keeps every write at the
+        # CASE_MANAGER, so a replica detaches the note from the entry's
+        # Announce fan-out (SYNC-02-001, SYNC-02-003) and a direct
+        # Remove(Note) there is refused (HP-01-005).  It is declared all the
+        # same because the act is the CASE_MANAGER's to relay (PCR-03-001).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
