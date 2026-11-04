@@ -58,6 +58,9 @@ groups:
     stories:
     - story_2022_002
     - story_2022_039
+    relationships:
+    - rel_type: implements
+      spec_id: IE-03-001
     tags:
     - http
 - id: HTTP-02
@@ -77,7 +80,7 @@ groups:
       `test/adapters/driving/fastapi/routers/test_actors.py` sends a 2 MB body and
       is a strict `xfail` until the limit lands.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: IE-03-002
     scope:
     - production
@@ -266,9 +269,6 @@ groups:
       `test/adapters/driving/fastapi/routers/test_datalayer_serialization.py`
       confirms that a response that is not an ActivityStreams document is served as
       `application/json`, never `application/activity+json`.
-    relationships:
-    - rel_type: extends
-      spec_id: HTTP-04-001
 - id: HTTP-05
   title: Correlation ID Propagation
   description: >-
