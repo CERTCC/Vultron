@@ -11,6 +11,7 @@ consulted: >-
 informed: []
 stakeholder_type: [project-contributor]
 partially_supersedes:
+  - 0078-retire-finder-role.md
   - 0099-one-object-model-as2-is-a-serialization.md
   - 0122-per-embargo-participant-consent.md
 ---
@@ -59,7 +60,9 @@ In storage, such a key is refused by the same rule that refuses any unknown key 
 The refusal is the generic one; it does not say that a rename happened.
 No old name is ever read through an alias.
 
-This partly supersedes the retired-name clause of ADR-0099's inbound unknown-key detail, and ADR-0122's statement that the retired scalar consent keys are refused inbound by name.
+The same holds for a value of a closed vocabulary that the protocol once accepted and no longer does, such as a retired role: it is refused like any other value outside the vocabulary, never read as its replacement, and the refusal does not name the retirement.
+
+This partly supersedes the retired-name clause of ADR-0099's inbound unknown-key detail, ADR-0122's statement that the retired scalar consent keys are refused inbound by name, and ADR-0078's treatment of the retired Finder role as a value with its own refusal.
 The rest of both records stands.
 
 Backward compatibility of the wire format is to be decided again at 1.0, when a second protocol version first becomes possible.

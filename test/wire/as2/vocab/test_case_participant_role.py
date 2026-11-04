@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for as_CaseParticipantRole role parsing (ADR-0039, ADR-0078)."""
+"""Tests for as_CaseParticipantRole role parsing (ADR-0039, ADR-0078, ADR-0175)."""
 
 import pytest
 from pydantic import ValidationError
@@ -31,7 +31,9 @@ def test_role_parses_live_values(raw):
     assert role is CVDRole.VENDOR
 
 
-def test_offering_the_retired_finder_role_is_refused_with_its_reason():
-    """An inbound offer of 'finder' is refused and names ADR-0078."""
-    with pytest.raises(ValidationError, match="ADR-0078"):
+def test_offering_the_former_finder_role_is_refused():
+    """An inbound offer of 'finder' is refused as an invalid value (ADR-0175)."""
+    with pytest.raises(
+        ValidationError, match="'finder' is not a valid CVDRole"
+    ):
         as_CaseParticipantRole.model_validate({"role": "finder"})

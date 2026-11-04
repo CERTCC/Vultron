@@ -286,7 +286,7 @@ class TestRoleSubclasses:
 
 
 class TestRetiredFinderRole:
-    """FINDER and its participant subclasses are retired (ADR-0078)."""
+    """FINDER and its participant subclasses are gone (ADR-0078, ADR-0175)."""
 
     @pytest.mark.parametrize(
         "name", ["FinderParticipant", "FinderReporterParticipant"]
@@ -297,9 +297,11 @@ class TestRetiredFinderRole:
 
         assert not hasattr(module, name)
 
-    def test_stored_finder_role_is_refused_with_its_reason(self):
-        """A record stored before the retirement fails loudly, never re-read."""
-        with pytest.raises(ValidationError, match="ADR-0078"):
+    def test_stored_finder_role_is_refused_as_an_invalid_value(self):
+        """A record stored before the removal fails loudly, never re-read."""
+        with pytest.raises(
+            ValidationError, match="'finder' is not a valid CVDRole"
+        ) as excinfo:
             CaseParticipant.model_validate(
                 {
                     "attributed_to": _ACTOR,
@@ -307,22 +309,26 @@ class TestRetiredFinderRole:
                     "case_roles": ["finder", "reporter"],
                 }
             )
+        assert "ADR-0078" not in str(excinfo.value)
 
     @pytest.mark.parametrize(
         "cvd_role", [["FINDER"], ["reporter", "finder"], "finder"]
     )
-    def test_stored_status_finder_role_is_refused_with_its_reason(
+    def test_stored_status_finder_role_is_refused_as_an_invalid_value(
         self, cvd_role
     ):
-        """A stored status ``cvdRole`` naming FINDER fails with the reason.
+        """A stored status ``cvdRole`` naming FINDER fails as an invalid value.
 
         Stored ``cvdRole`` carries member names (``"FINDER"``) as well as
         values, so both spellings and the bare-string form are refused.
         """
-        with pytest.raises(ValidationError, match="ADR-0078"):
+        with pytest.raises(
+            ValidationError, match="'finder' is not a valid CVDRole"
+        ) as excinfo:
             ParticipantStatus.model_validate(
                 {"context": _CONTEXT, "cvd_role": cvd_role}
             )
+        assert "ADR-0078" not in str(excinfo.value)
 
 
 # ---------------------------------------------------------------------------

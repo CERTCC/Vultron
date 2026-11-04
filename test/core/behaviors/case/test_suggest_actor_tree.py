@@ -234,10 +234,10 @@ class TestEvaluateDefaultRolesNode:
             CVDRole.VENDOR
         ]
 
-    def test_injected_retired_finder_role_is_dropped(self, caplog):
+    def test_injected_finder_role_is_dropped(self, caplog):
         """An injected 'finder' is not a role (ADR-0078); only live roles stay.
 
-        The warning carries the retirement reason, not just "unrecognized".
+        The warning names the invalid value (ADR-0175).
         """
         caplog.set_level(logging.WARNING)
         node = EvaluateDefaultRolesNode(
@@ -254,7 +254,8 @@ class TestEvaluateDefaultRolesNode:
             CVDRole.VENDOR
         ]
         assert any(
-            "ADR-0078" in record.getMessage() for record in caplog.records
+            "'finder' is not a valid CVDRole" in record.getMessage()
+            for record in caplog.records
         )
 
     def test_returns_failure_when_compute_roles_returns_empty(self):

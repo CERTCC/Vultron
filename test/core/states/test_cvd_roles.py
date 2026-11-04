@@ -24,7 +24,6 @@ from enum import StrEnum
 import pytest
 
 from vultron.enums.roles import (
-    RETIRED_ROLE_VALUES,
     CVDRole,
     parse_role,
     serialize_roles,
@@ -227,31 +226,32 @@ def test_validate_roles_error_names_the_field():
         validate_roles("vendor", field_name="proposerCaseRoles")
 
 
-# --- retired roles (ADR-0078) ---
+# --- the former "finder" role (ADR-0078, ADR-0175) ---
 
 
 def test_finder_is_not_a_role():
-    """FINDER is retired (ADR-0078): an actor who found and reported holds REPORTER."""
+    """There is no FINDER (ADR-0078): a finder who reports holds REPORTER."""
     assert not hasattr(CVDRole, "FINDER")
     assert "finder" not in {role.value for role in CVDRole}
 
 
-def test_retired_values_are_not_members():
-    """No retired wire value names a live CVDRole member."""
-    live = {role.value for role in CVDRole}
-    assert set(RETIRED_ROLE_VALUES).isdisjoint(live)
+def test_roles_module_keeps_no_retired_value_list():
+    """No table of retired role values is kept before 1.0 (ADR-0175)."""
+    from vultron.enums import roles
+
+    assert not hasattr(roles, "RETIRED_ROLE_VALUES")
 
 
 @pytest.mark.parametrize("value", ["finder", "FINDER", "Finder"])
-def test_parse_role_refuses_finder_with_its_retirement_reason(value):
-    """A stored or inbound "finder" is refused with the reason, never aliased."""
-    with pytest.raises(ValueError, match="ADR-0078"):
+def test_parse_role_refuses_finder_as_an_invalid_value(value):
+    """A stored or inbound "finder" is refused as invalid, never aliased."""
+    with pytest.raises(ValueError, match=r"^'finder' is not a valid CVDRole$"):
         parse_role(value)
 
 
 def test_validate_roles_refuses_finder():
-    """validate_roles refuses a role list carrying the retired "finder" value."""
-    with pytest.raises(ValueError, match="retired"):
+    """validate_roles refuses a role list carrying the former "finder" value."""
+    with pytest.raises(ValueError, match=r"^'finder' is not a valid CVDRole$"):
         validate_roles(["finder", "reporter"])
 
 

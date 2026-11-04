@@ -181,7 +181,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0075 Split Per-Participant VFD Tracking into Separate Vendor-Path and Deployer-Path Sub-Machines](0075-split-vfd-state-machine.md)
 - [ADR-0076 Security-Significant Call-Out Gates Default to `RequireCaseOwnerApproval`](0076-security-significant-gates-default-require-case-owner-approval.md)
 - [ADR-0077 Scope Ledger Replication Mechanics to a Companion Spec; Single-Hub Fan-Out Is Normative](0077-ledger-replication-companion-spec.md)
-- [ADR-0078 Retire `CVDRole.FINDER` — Reporter Is the Protocol-Salient Role](0078-retire-finder-role.md)
+- [ADR-0078 Retire `CVDRole.FINDER` — Reporter Is the Protocol-Salient Role](0078-retire-finder-role.md) — partially superseded by 0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md
 - [ADR-0079 CaseLedger Causal Ordering: CaseActor Observation Order Is the Canonical Causal Order](0079-case-ledger-causal-ordering.md)
 - [ADR-0080 Asking Permission Is a Protocol Message, Not a Suspended Behavior](0080-protocol-asks-not-suspended-behaviors.md)
 - [ADR-0081 Peer Knowledge Lives in the Hosted Actor's Own Store, Not as a Hosted Actor](0081-peer-knowledge-in-hosted-actor-store.md)
@@ -265,7 +265,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0170 The Bootstrap Create Carries Its Case and Nested Objects Inline](0170-the-bootstrap-create-carries-its-case-and-nested-objects-inline.md) *(revision 2)* *(provisional)*
 - [ADR-0171 Publish the Site on a Weekday Schedule From Tags](0171-publish-the-site-on-a-weekday-schedule-from-tags.md) *(provisional)*
 - [ADR-0173 A Push Is Gated by CI's Non-Suite Checks and a Scratch Merge of the Overlap](0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md) *(provisional)* — partially supersedes 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md
-- [ADR-0175 Before 1.0, Vultron Supports One Protocol and Storage Version, So a Former Field Name Is an Unknown Key](0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md) *(provisional)* — partially supersedes 0099-one-object-model-as2-is-a-serialization.md, 0122-per-embargo-participant-consent.md
+- [ADR-0175 Before 1.0, Vultron Supports One Protocol and Storage Version, So a Former Field Name Is an Unknown Key](0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md) *(provisional)* — partially supersedes 0078-retire-finder-role.md, 0099-one-object-model-as2-is-a-serialization.md, 0122-per-embargo-participant-consent.md
 
 ## Proposed ADRs
 
