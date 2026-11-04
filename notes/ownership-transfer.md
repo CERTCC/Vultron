@@ -120,14 +120,14 @@ before the Offer's state is read (#4437).
   request) and its deadline not passed. A second, different Accept is refused.
 - **A redelivery changes nothing.** Re-running an old Accept could hand back
   ownership that a later Offer moved on, with no ledger entry; the open-Offer
-  guard sets `is_redelivery` and the run reports `SKIPPED` (HP-01-003).
+  guard sets `is_redelivery` and the run reports `SKIPPED` (HP-01-014).
 - **The transferee's standing is one predicate at all three checks.** The trigger,
   the proposal guard and the Accept guard all ask `may_act_on_case()`
   (`core/participants/recipients/`), so a participant whose closure is
   recorded is refused too: the Offer is case content (CM-23-004). The Accept's
   check is a precondition guard after the open-Offer guard, not part of the
   sender check:
-  a redelivered Accept stays `SKIPPED` after the new owner lapses (HP-01-003).
+  a redelivered Accept stays `SKIPPED` after the new owner lapses (HP-01-014).
   The Reject moves nothing, so it is not checked: CM-21-022 names the Accept.
 - **A new owner with no participant record raises** in
   `_TransferCaseOwnershipNode`, before the role move changes anything (the
@@ -284,7 +284,7 @@ CASE_MANAGER inbox receives Reject
   the path stage refuses every other receiver (HP-01-038). A proposal whose
   derived Offer the
   ledger already records is a redelivery: the guard sets `is_redelivery` and
-  `ownership_offer_verdict` reports `SKIPPED` (HP-01-003).
+  `ownership_offer_verdict` reports `SKIPPED` (HP-01-014).
 - **Withdrawal is an `Undo` of the proposal (CM-21-036, CM-21-037).** The
   CASE_MANAGER derives the Offer id from the proposal id and its own id, so the
   owner needs nothing it learned from the ledger; the ledgered Undo is a reply that
