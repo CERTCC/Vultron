@@ -461,7 +461,8 @@ groups:
       A deprecated requirement that stays in place is noise for agents and can cause
       incorrect behavior. An agent that reads the corpus cannot tell a retired
       obligation from a live one. A spec states the current understanding. Git and the
-      archive of retired requirements (MS-09-002, MS-09-005) keep the text that it replaced. The
+      archive of retired requirements (MS-09-002, MS-09-005) keep the text that it
+      replaced. The
       `deprecated` and `superseded_by` fields in the spec schema are not a sanctioned
       lifecycle state.
     tags:

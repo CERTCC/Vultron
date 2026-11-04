@@ -731,11 +731,14 @@ groups:
   - id: HM-08-001
     priority: MUST
     kind: project
-    statement: When `append-history` is invoked with type `implementation` or `idea` and `--source` names an existing issue
-      N in the CERTCC/Vultron repository, the tool MUST post the entry body as a comment on issue N using `gh issue comment`,
-      rather than writing a file under `plan/history/`. A source names issue N when it is `<PREFIX>-N` (a run of letters,
-      a hyphen, then a positive integer N, such as `ISSUE-N`, `TASK-N` or `BUG-N`) or a bare positive integer N, and `gh
-      issue view N` finds N in that repository.
+    statement: >-
+      When `append-history` is invoked with type `implementation` or `idea` and
+      `--source` names an existing issue N in the CERTCC/Vultron repository, the tool
+      MUST post the entry body as a comment on issue N using `gh issue comment`,
+      rather than writing a file under `plan/history/`. A source names issue N when it
+      is `<PREFIX>-N` (a run of letters, a hyphen, then a positive integer N, such as
+      `ISSUE-N`, `TASK-N` or `BUG-N`) or a bare positive integer N, and `gh issue view
+      N` finds N in that repository.
     rationale: >-
       An implementation or idea record for an issue is most useful on that issue, where
       all readers of the issue find it. The tool posts the record there, so the record
@@ -761,10 +764,12 @@ groups:
   - id: HM-08-003
     priority: MUST
     kind: project
-    statement: When `append-history` is invoked with type `implementation` or `idea` and `--source` does NOT name an existing
-      issue (HM-08-001), because it has another form (e.g. `TASK-BTND5`) or its number is not an issue in CERTCC/Vultron
-      (e.g. the date-based `IDEA-26042702`), the tool MUST fall back to writing a file under `plan/history/` as in the
-      pre-HM-08 behaviour.
+    statement: >-
+      When `append-history` is invoked with type `implementation` or `idea` and
+      `--source` does NOT name an existing issue (HM-08-001), because it has another
+      form (e.g. `TASK-BTND5`) or its number is not an issue in CERTCC/Vultron (e.g.
+      the date-based `IDEA-26042702`), the tool MUST fall back to writing a file under
+      `plan/history/` as in the pre-HM-08 behaviour.
     rationale: >-
       Not every source identifies an issue, and an entry with no issue for a comment
       still needs a record. A file under `plan/history/` gives it a record, in the
@@ -806,8 +811,10 @@ groups:
   - id: HM-08-007
     priority: MUST
     kind: project
-    statement: When `gh` cannot answer whether the issue that an `implementation` or `idea` entry's `--source` names exists
-      (HM-08-001), `append-history` MUST exit non-zero and write no file and no comment.
+    statement: >-
+      When `gh` cannot answer whether the issue that an `implementation` or `idea`
+      entry's `--source` names exists (HM-08-001), `append-history` MUST exit non-zero
+      and write no file and no comment.
     rationale: >-
       A lookup that fails says nothing about the issue. Taking it as "no issue" would
       write a file for an entry that belongs on an issue, and the file would then
