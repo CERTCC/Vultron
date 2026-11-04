@@ -39,6 +39,7 @@ from vultron.metadata.docs.threads import (
     LISTING_END,
     STOPPING_POINT,
     StartThread,
+    check as threads_check,
     check_threads,
     load_threads,
     page_titles,
@@ -467,7 +468,7 @@ class TestThreadCheck:
 
     def test_cli_exits_nonzero_on_a_fault(self, tmp_path, monkeypatch, capsys):
         root = tree(tmp_path, {"start/s.md": page("S")})
-        monkeypatch.setattr(threads, "_find_repo_root", lambda: root)
+        monkeypatch.setattr(threads_check, "_find_repo_root", lambda: root)
         with pytest.raises(SystemExit) as exc:
             threads.main([])
         assert exc.value.code == 1
@@ -495,8 +496,8 @@ class TestThreadCheck:
         "docs/start/contribute.md",
         "docs/topics/background/what-is-vultron.md",
         "mkdocs.yml",
-        "vultron/metadata/docs/threads.py",
-        "vultron/metadata/docs/page_schema.py",
+        "vultron/metadata/docs/threads/check.py",
+        "vultron/metadata/docs/page_schema/thread.py",
         "vultron/metadata/file_loading.py",
     ],
 )

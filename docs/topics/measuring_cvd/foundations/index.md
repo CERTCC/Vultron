@@ -56,7 +56,7 @@ The remaining pages use the measure or extend the model.
 
 !!! info "In the reference implementation"
 
-    `vultron/core/case_states/hypercube.py` reproduces the tables in these pages.
+    `vultron/core/case_states/hypercube/` reproduces the tables in these pages.
     The module builds the graph of case states and lists the possible histories.
     It calculates the probability of each history under the random walk, and the frequency of each desideratum.
     Its [Application Programming Interface (API) reference](../../../reference/code/case_states.md) documents each function.

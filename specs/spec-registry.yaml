@@ -255,7 +255,7 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: '`SpecTag` MUST be a controlled vocabulary StrEnum, defined in `vultron/metadata/specs/schema.py`.'
+    statement: '`SpecTag` MUST be a controlled vocabulary StrEnum, defined in `vultron/metadata/specs/schema/vocabulary.py`.'
     rationale: >-
       The schema module defines the tag vocabulary. This gives the linter (SR-04-006)
       and the selection tooling one list to check against, so a tag cannot come into use
@@ -436,7 +436,8 @@ groups:
       parsing prose. It also makes a misspelled category a validation error, not a
       silent new category.
     verification: >-
-      `TriggerType` StrEnum in `vultron/metadata/specs/schema.py` defines exactly three
+      `TriggerType` StrEnum in `vultron/metadata/specs/schema/vocabulary.py` defines
+      exactly three
       members: `message_received`, `state_entered`, and `scenario_start`.
   - id: SR-02-018
     priority: MUST
@@ -451,7 +452,7 @@ groups:
       specific event. Together they let conformance tooling match a trigger against a
       message or state without parsing prose.
     verification: >-
-      `Trigger` model in `vultron/metadata/specs/schema.py` has required fields
+      `Trigger` model in `vultron/metadata/specs/schema/models.py` has required fields
       `type: TriggerType` and `value: str`.
   - id: SR-02-019
     priority: MUST
@@ -463,7 +464,7 @@ groups:
       A prose description is for human readers. A reader cannot understand a
       precondition with no description.
     verification: >-
-      `Precondition` model in `vultron/metadata/specs/schema.py` has a required
+      `Precondition` model in `vultron/metadata/specs/schema/models.py` has a required
       `description: str` field.
   - id: SR-02-028
     priority: MAY
@@ -477,7 +478,7 @@ groups:
       directly against the RM, EM, role and CS enums, without parsing the prose
       description.
     verification: >-
-      `Precondition` model in `vultron/metadata/specs/schema.py` has optional typed
+      `Precondition` model in `vultron/metadata/specs/schema/models.py` has optional typed
       state fields `rm_state`, `em_state`, `role`, and `cs_pattern`.
   - id: SR-02-020
     priority: SHOULD
@@ -525,7 +526,8 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >-
-      Every Pydantic model in `vultron/metadata/specs/schema.py` (`Relationship`, `Trigger`,
+      Every Pydantic model in `vultron/metadata/specs/schema/models.py` (`Relationship`,
+      `Trigger`,
       `Precondition`, `BehaviorStep`, `Postcondition`, `StatementSpec`, `BehavioralSpec`,
       `SpecGroup`, `SpecFile`) MUST declare `model_config = ConfigDict(extra="forbid")`.
     rationale: >-
@@ -685,7 +687,8 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: The `vultron/metadata/specs/lint.py` module MUST provide a `lint(spec_dir)` function that returns exit code
+    statement: The `vultron/metadata/specs/lint/` package MUST provide a
+      `lint(spec_dir)` function that returns exit code
       `0` (clean) or `1` (errors found).
     rationale: >-
       A fixed exit code lets the pre-commit hook and CI block a commit or a build on
@@ -792,7 +795,7 @@ groups:
       `uv run spec-lint` exits 1 when any `.py` file under `vultron/` or `test/`
       (outside `test/metadata/specs/`) cites a spec ID absent from the registry, and
       exits 0 when all cited IDs resolve. Covered by the phantom-spec-id tests in
-      `test/metadata/specs/test_lint.py`.
+      `test/metadata/specs/lint/test_phantom_symbols.py`.
   - id: SR-04-011
     priority: MUST_NOT
     kind: project
@@ -1835,7 +1838,7 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >-
-      The `StoryIdStr` type in `vultron/metadata/specs/schema.py` MUST enforce that
+      The `StoryIdStr` type in `vultron/metadata/specs/schema/ids.py` MUST enforce that
       pattern through Pydantic `StringConstraints`.
     rationale: >-
       A constrained type checks the pattern wherever a story ID is validated. A check in
@@ -1853,19 +1856,18 @@ groups:
     kind: process
     statement: >-
       The spec linter MUST report as a hard error each `kind: protocol` spec with
-      `priority: MUST` that has no `stories:` entry.
-    note: >-
-      Deliberately MUST-only for now, which is the one exception MS-02-003 records.
-      #3601 adjudicated the protocol MUST_NOTs with no `stories:`; #2717 holds the
-      confirmed list, and the gate extends to `priority: MUST_NOT` as #2717's
-      closing step once their stories exist.
-    tracking_issue: '#2717 (MUST_NOT extension)'
+      `priority: MUST` or `priority: MUST_NOT` that has no `stories:` entry.
     verification: >-
-      `test/metadata/specs/test_lint.py::test_protocol_must_no_stories_is_hard_error`
-      and `::test_protocol_must_with_stories_passes` cover the error and the pass.
+      `test/metadata/specs/lint/test_advisories.py::test_protocol_must_no_stories_is_hard_error`,
+      `::test_protocol_must_not_no_stories_is_hard_error`,
+      `::test_protocol_must_with_stories_passes` and
+      `::test_protocol_must_not_with_stories_passes` cover the error and the pass
+      for both priorities; `::test_sr_11_003_gate_applies_selects_protocol_must_tier`
+      covers the gate's scope.
     rationale: >-
-      Protocol-level MUST requirements are the strongest obligations of an implementer.
-      A hard-error gate makes each of them traceable to at least one stakeholder need.
+      Protocol-level MUST-tier requirements are the strongest obligations of an
+      implementer. A hard-error gate makes each of them traceable to at least one
+      stakeholder need.
       The gate covers only `protocol`, because no user stories exist yet
       for behavior that Vultron inherits from ActivityStreams, ActivityPub and HTTP
       (`kind: foundation`). The gate covers the kinds that the story catalog can support
@@ -1876,6 +1878,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SR-11-001
+    - rel_type: refines
+      spec_id: MS-02-003
+      note: MUST_NOT is the MUST tier
     tags:
     - documentation
     - tooling
@@ -1886,10 +1891,11 @@ groups:
       The spec linter MUST let a spec suppress that hard error with
       `lint_suppress: [missing_story_reference]`.
     rationale: >-
-      Some implementation-detail MUSTs have no direct story. The suppression gives them
-      an exception and records on the spec that the exception is deliberate.
+      Some implementation-detail MUST-tier requirements have no direct story. The
+      suppression gives them an exception and records on the spec that the exception
+      is deliberate.
     verification: >-
-      `test/metadata/specs/test_lint.py::test_protocol_must_suppress_missing_story_reference`
+      `test/metadata/specs/lint/test_advisories.py::test_protocol_must_suppress_missing_story_reference`
       covers the suppression.
     adr:
     - ADR-0072
@@ -1914,7 +1920,7 @@ groups:
     - ADR-0072
     - ADR-0134
     verification: >-
-      `test/metadata/specs/test_lint.py::test_protocol_should_no_stories_is_advisory`,
+      `test/metadata/specs/lint/test_advisories.py::test_protocol_should_no_stories_is_advisory`,
       `::test_protocol_should_not_no_stories_is_advisory`, and
       `::test_protocol_may_no_stories_is_advisory` cover the three priorities;
       `::test_protocol_should_with_stories_no_story_warn` covers the pass.
@@ -1937,13 +1943,45 @@ groups:
       The suppression records a deliberate exception on the spec, so the warning does
       not repeat for a requirement that has no story by design.
     verification: >-
-      `test/metadata/specs/test_lint.py::test_protocol_should_suppress_advisory_story_warn`
+      `test/metadata/specs/lint/test_advisories.py::test_protocol_should_suppress_advisory_story_warn`
       covers the suppression.
     adr:
     - ADR-0072
     relationships:
     - rel_type: extends
       spec_id: SR-11-004
+    tags:
+    - documentation
+    - tooling
+  - id: SR-11-009
+    priority: SHOULD
+    kind: process
+    statement: >-
+      The spec linter SHOULD print one advisory line per spec file that counts
+      the file's `kind: project` and `kind: process` requirements with no
+      `stories:` field. The count leaves out `kind: protocol` and `kind:
+      architecture` requirements. The advisory does not change the exit code.
+      The IDs are listed only when the `--list-no-story-ids` flag is set.
+    rationale: >-
+      Project and process requirements may cite contributor and maintainer
+      stories, but the written rationale stays their required reason, so the
+      link is encouraged and not gated. A count per file shows the backlog
+      without a hard error. One line per file keeps the default output short,
+      and the opt-in ID list gives a worklist when one is wanted. Protocol
+      requirements are left out because SR-11-003 and SR-11-004 cover them.
+    verification: >-
+      In `test/metadata/specs/lint/test_advisories.py`,
+      `test_project_no_story_advisory_per_file` covers the per-file count,
+      `test_project_no_story_advisory_list_ids_opt_in` covers the opt-in
+      listing, `test_protocol_architecture_excluded_from_project_story_advisory`
+      covers the exclusion, and
+      `test_project_process_story_advisory_exit_code_unaffected` covers the
+      zero exit code.
+    adr:
+    - ADR-0072
+    relationships:
+    - rel_type: refines
+      spec_id: SR-11-001
     tags:
     - documentation
     - tooling
@@ -1993,7 +2031,7 @@ groups:
       assignment whose line span, decorators included, intersects a diff hunk.
     rationale: >-
       Symbol-level matching is much narrower than module-level matching. A module such
-      as `vultron/core/behaviors/bridge.py` is imported by dozens of test files, but
+      as `vultron/core/behaviors/bridge/` is imported by dozens of test files, but
       only the tests that import the edited names govern the edit.
     verification: >-
       `test/metadata/specs/test_backstop.py` asserts decorator spans and
@@ -2588,7 +2626,7 @@ groups:
       `relation_graph.recorded_relationships()` on their target, so a second copy adds
       nothing.
     verification: >-
-      `test/metadata/specs/test_lint.py::test_lint_fails_on_a_link_recorded_at_both_ends`
+      `test/metadata/specs/lint/test_structure.py::test_lint_fails_on_a_link_recorded_at_both_ends`
       fails when two requirements that each name the other pass spec-lint.
     tags:
     - documentation
@@ -2630,8 +2668,8 @@ groups:
       upstream end, not by which end recorded the link, also catches a `constrains`
       recorded backwards, which the recorded edges alone hide.
     verification: >-
-      `test/metadata/specs/test_lint.py::test_lint_fails_on_a_relationship_loop` asserts
-      spec-lint exits 1 naming the loop, and
+      `test/metadata/specs/lint/test_structure.py::test_lint_fails_on_a_relationship_loop`
+      asserts spec-lint exits 1 naming the loop, and
       `test/metadata/specs/test_relation_graph.py` asserts that a two-node loop, a
       three-node loop and a self-loop each produce one error, that a `constrains`
       recorded the wrong way closes a loop, and that
@@ -2673,7 +2711,7 @@ groups:
       `B constrains A` points both arcs the same way. The pair check enforces
       SR-13-012 directly.
     verification: >-
-      `test/metadata/specs/test_lint.py::test_lint_fails_on_a_link_recorded_at_both_ends`
+      `test/metadata/specs/lint/test_structure.py::test_lint_fails_on_a_link_recorded_at_both_ends`
       asserts spec-lint exits 1 naming both requirements, and
       `test/metadata/specs/test_relation_graph.py::test_mirror_image_double_recording_is_reported`,
       `test_both_ends_recorded_is_reported` and `test_real_specs_record_each_link_once`
@@ -2690,7 +2728,8 @@ groups:
     kind: project
     statement: >-
       The `RelationType` docstring MUST list each member's definition from one table in
-      `vultron/metadata/specs/schema.py` that also records each member's upstream end.
+      `vultron/metadata/specs/schema/vocabulary.py` that also records each member's
+      upstream end.
     rationale: >-
       The definitions are needed both by readers of the specs and by the code that
       orients the graph. One table keeps the two from drifting, where a second prose

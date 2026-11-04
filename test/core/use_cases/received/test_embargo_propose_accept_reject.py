@@ -25,7 +25,6 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.received import assert_held_only_as_received
-from vultron.adapters.driven.db_record import StorableRecord
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -36,6 +35,7 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.ports.datalayer import StorableRecord
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -1036,16 +1036,25 @@ class TestPxaRejectionAttribution:
         assert dl.outbox_list() == []
 
     @pytest.mark.spec("EMB-02-004")
+    @pytest.mark.spec("HP-01-038")
     def test_accept_refusal_is_sent_as_receiver_not_accepter(
         self, make_payload
     ):
-        """The invitee's Accept is refused as the receiving actor, to the invitee."""
+        """The invitee's Accept is refused as the receiving actor, to the invitee.
+
+        The receiving actor is the case's CASE_MANAGER here, because
+        EMB-02-004's duty is the CASE_MANAGER's and the Accept tree declares
+        that path alone (HP-01-038): a store that is not the case's
+        CASE_MANAGER is refused at the path stage and answers nothing.  The
+        accepter is still a different actor, which is what this pins — the
+        Reject is attributed to the receiver, not to the accepter.
+        """
         dl = self._dl()
         case_id = f"{self.CASE_ID}/ea"
         case, _, proposal = _make_pxa_case(
             dl,
             case_id=case_id,
-            coordinator_id=self.SENDER_ID,
+            coordinator_id=self.RECEIVER_ID,
             embargo_id=f"{case_id}/embargo_events/e1",
             pxa_state_name="Pxa",
             em_state=EM.PROPOSED,

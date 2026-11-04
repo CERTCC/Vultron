@@ -167,23 +167,6 @@ groups:
       activity.
     tags:
     - as2
-  - id: OX-02-003
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: >-
-      When an adapter enqueues an activity on behalf of a specific emitting actor, it MUST
-      enqueue against that actor's outbox explicitly (e.g. record_outbox_item(actor_id, ...)),
-      NOT via a scope-dependent append that targets the DataLayer instance's own actor scope.
-      A scope-dependent append is correct only when the DataLayer is guaranteed to be scoped
-      to the emitting actor.
-    rationale: >-
-      An activity that is queued in the wrong actor's outbox goes out from the wrong
-      actor, or it does not go out. For example, the CASE_MANAGER then does not receive
-      a participant's Reject(CaseLedgerEntry), and the participant's replica stays out
-      of step. See ADR-0037.
-    adr:
-    - ADR-0037
 - id: OX-03
   title: Outbox Delivery
   specs:
@@ -207,16 +190,18 @@ groups:
     tags:
     - activitypub
   - id: OX-03-002
-    priority: MUST
+    priority: MUST_NOT
     kind: project
-    statement: Delivery MUST occur after the generating handler completes
+    statement: >-
+      The outbox MUST NOT deliver an entry before the act that queued it has
+      committed.
     rationale: >-
-      A response activity reports the result of the handler that made it. If delivery
-      starts before that handler completes, a recipient can receive a response for work
-      that later fails or changes.
+      An outbound activity reports the result of the act that queued it. If delivery
+      starts before that act commits, a recipient can receive an activity for an act
+      that then fails and keeps none of its writes, so the recipient acts on a change
+      the sender never made. The drain wakes as soon as an activity is queued
+      (OX-09-001), so only the commit can order the two.
     verification: >-
-      Integration tests confirm that outbox delivery does not begin until the inbox
-      handler returns, and the HTTP response is sent before delivery is attempted.
       `test/core/behaviors/test_send_delivered_after_its_act_commits.py` runs each
       node frame that sends an activity and then commits the entry recording it,
       outside any `ActTransaction`, with a drain woken by the enqueue (OX-09-001)
@@ -234,7 +219,8 @@ groups:
       out. Thus the inbox answers 202 first (IE-07-002) and delivers later.
     verification: >-
       Inspection of `post_actor_inbox` in
-      `vultron/adapters/driving/fastapi/routers/actors/_routes.py` confirms the endpoint
+      `vultron/adapters/driving/fastapi/routers/actors/_routes/mailbox.py`
+      confirms the endpoint
       schedules `run_inbox_pipeline`, which runs the handlers and then drains the outbox,
       with `BackgroundTasks.add_task` and returns without awaiting it;
       `test/adapters/driving/fastapi/test_inbox_orchestration_offloop.py::test_event_loop_keeps_serving_while_a_payload_is_processed`
@@ -255,15 +241,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: OX-12-001
-  - id: OX-04-002
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: Local delivery MUST persist the inbox update immediately
-    rationale: >-
-      A recipient must not lose an activity that was delivered to it. The sender has the
-      202 answer and does not send the activity again. If the inbox update stays only in
-      memory, a restart loses the activity.
 - id: OX-05
   title: Federation Delivery
   specs:
@@ -774,40 +751,6 @@ groups:
       A deployment uses the default emitter when nobody configures a different one. If
       the default is not the HTTP delivery adapter, a deployment can send activities on
       a path that is not the one that the protocol uses (OX-12-001).
-    adr:
-    - ADR-0042
-  - id: OX-12-007
-    priority: MUST_NOT
-    kind: project
-    verification_debt: '#2575'
-    statement: >-
-      The ASGIEmitter in-process delivery adapter MUST NOT be wired as the default
-      emitter.
-    rationale: >-
-      Wiring ASGIEmitter as default restores the in-process shortcut prohibited by
-      OX-12-001 and masks inter-actor delivery bugs. See ADR-0042.
-    relationships:
-    - rel_type: derives_from
-      spec_id: OX-12-002
-    adr:
-    - ADR-0042
-  - id: OX-12-008
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: The ASGIEmitter in-process delivery adapter MUST be removed from the codebase.
-    rationale: >-
-      Retaining dead code invites accidental re-use and contradicts the ADR-0042
-      decision to retire the in-process delivery path entirely.
-    relationships:
-    - rel_type: supersedes
-      spec_id: ARCH-17-001
-    - rel_type: supersedes
-      spec_id: ARCH-17-002
-    - rel_type: supersedes
-      spec_id: ARCH-17-003
-    - rel_type: implements
-      spec_id: OX-12-006
     adr:
     - ADR-0042
   - id: OX-12-003

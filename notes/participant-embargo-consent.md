@@ -36,8 +36,8 @@ relevant_packages:
   - transitions
   - vultron/bt/embargo_management
   - vultron/core/behaviors/embargo
-  - vultron/core/models/case_participant.py
-  - vultron/core/models/embargo_apply.py
+  - vultron/core/models/case_participant/
+  - vultron/core/models/embargo_apply/
   - vultron/core/behaviors/sync/nodes
   - vultron/core/use_cases
 ---
@@ -127,9 +127,9 @@ and exited are reads; code that writes a row to record one re-creates the second
 record ADR-0122 removed.
 
 `ParticipantStatus` carries no consent and `embargo_adherence` is gone
-(ADR-0122 supersedes ADR-0056). The wire keys `emConsentState`,
-`embargoAdherence`, `embargoConsentState` and `acceptedEmbargoIds` are refused
-inbound by name (`RETIRED_NAMES`).
+(ADR-0122 supersedes ADR-0056). The former wire keys `emConsentState`,
+`embargoAdherence`, `embargoConsentState` and `acceptedEmbargoIds` are ordinary
+unknown keys inbound, set aside and reported (MV-11-003, ADR-0175).
 
 ---
 
@@ -249,7 +249,8 @@ calls the service's predicate rather than restating it.
 
 `CaseParticipant.copy_consent_row()` is the third row write, and the only one
 a replica may use: it stores a row exactly as a ledger entry carries it. It is
-called only from `apply_embargo_change()` (`vultron/core/models/embargo_apply.py`),
+called only from `apply_embargo_change()`
+(`vultron/core/models/embargo_apply/apply.py`),
 the one apply function the CASE_MANAGER's trial apply and every replica share.
 That function checks the starting state first (a `Create` row is new; an
 `Update` row is held and one consent transition, or a fresh `INVITED`
@@ -443,7 +444,7 @@ redacted per recipient, and a skipped entry would be replayed on the replica's
 gap Reject. So while an embargo is active a non-signatory is sent no ledger
 entries, by fan-out or replay; when the gate admits it, the CASE_MANAGER sends
 the withheld suffix in log order. The predicate is the shared selection in
-`vultron/core/participants/recipients.py` (CM-10-007); the pause mechanics are in
+`vultron/core/participants/recipients/` (CM-10-007); the pause mechanics are in
 [sync-ledger-replication.md](sync-ledger-replication.md) § "Fan-Out Recipients
 and the Embargo Gate". Invites are addressed directly, so the pause cannot lock a
 participant out of accepting.

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from test.metadata.specs._helpers import write_yaml
-from test.metadata.specs.test_lint import _minimal_spec
+from test.metadata.specs.lint._helpers import _minimal_spec
 from vultron.metadata.base import repo_root
 from vultron.metadata.specs.lint import lint
 from vultron.metadata.specs.registry import load_registry

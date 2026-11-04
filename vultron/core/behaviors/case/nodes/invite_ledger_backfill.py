@@ -30,8 +30,8 @@ from py_trees.ports import NoDataAvailable
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.behaviors.sync.nodes.embargo_pause import (
     send_ledger_suffix,
 )

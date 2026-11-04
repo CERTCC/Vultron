@@ -37,7 +37,7 @@ The adapter is composed from domain-focused mixin classes:
   case ledger
 
 See also:
-    - ``vultron/core/ports/trigger_activity.py`` — port Protocol
+    - ``vultron/core/ports/trigger_activity/`` — port Protocol
     - ``vultron/wire/as2/factories/`` — factory functions
     - ``vultron/wire/as2/factories/AGENTS.md``
 """

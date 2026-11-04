@@ -238,7 +238,7 @@ groups:
     verification: Integration tests confirm that the action rules endpoint returns a JSON object containing the current
       case state, the participant's CVD role, available action identifiers, and per-unavailable-action reason strings.
     stories:
-    - story_2022_088
+    - story_2026_044
     - story_2022_086
   - id: AR-07-003
     priority: MUST

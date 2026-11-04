@@ -67,7 +67,7 @@ groups:
     adr:
     - ADR-0170
     stories:
-    - story_2022_088
+    - story_2026_055
     - story_2022_090
   - id: CBT-01-003
     priority: MUST
@@ -283,7 +283,7 @@ groups:
     - ADR-0132
     stories:
     - story_2022_096
-    - story_2022_088
+    - story_2026_030
   - id: CBT-01-007
     priority: MUST
     kind: protocol
@@ -319,7 +319,7 @@ groups:
     adr:
     - ADR-0170
     stories:
-    - story_2022_088
+    - story_2026_055
     - story_2022_092
   - id: CBT-01-008
     priority: MUST
@@ -396,8 +396,8 @@ groups:
       spec_id: CBT-01-002
     - rel_type: refines
       spec_id: CBT-01-007
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_011
   - id: CBT-01-019
     priority: MUST
     kind: protocol
@@ -449,7 +449,7 @@ groups:
       spec_id: CBT-01-005
     stories:
     - story_2022_090
-    - story_2022_088
+    - story_2026_030
   - id: CBT-01-011
     priority: MUST
     kind: protocol
@@ -504,8 +504,7 @@ groups:
     - rel_type: refines
       spec_id: PCR-03-001
     stories:
-    - story_2022_088
-    - story_2022_045
+    - story_2026_055
   - id: CBT-02-002
     priority: MUST_NOT
     kind: protocol
@@ -520,6 +519,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: AKM-01-002
+    stories:
+    - story_2026_030
   - id: CBT-02-003
     priority: MUST
     kind: protocol
@@ -562,6 +563,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-06-002
+    stories:
+    - story_2026_005
   - id: CBT-03-002
     priority: MUST_NOT
     kind: protocol
@@ -575,6 +578,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-06-003
+    stories:
+    - story_2026_030
   - id: CBT-03-003
     priority: MUST
     kind: protocol
@@ -593,7 +598,7 @@ groups:
     - ADR-0163
     stories:
     - story_2022_090
-    - story_2022_088
+    - story_2026_019
   - id: CBT-03-005
     priority: MUST
     kind: project
@@ -700,7 +705,7 @@ groups:
     - ADR-0114
     stories:
     - story_2022_054
-    - story_2022_088
+    - story_2026_055
 - id: CBT-05
   title: Verification
   specs:
@@ -725,7 +730,7 @@ groups:
       bootstrap did not name.
     stories:
     - story_2022_090
-    - story_2022_088
+    - story_2026_030
   - id: CBT-05-002
     priority: MUST
     kind: project
@@ -766,7 +771,7 @@ groups:
       queue is dropped with a warning and that expiry queues nothing to the outbox.
     stories:
     - story_2022_090
-    - story_2022_088
+    - story_2026_030
   - id: CBT-05-004
     priority: MUST
     kind: project
@@ -829,7 +834,7 @@ groups:
       asserts the reporter's participant record is stored at `RM.ACCEPTED` after
       bootstrap.
     stories:
-    - story_2022_088
+    - story_2026_055
     - story_2022_038
     statement: >-
       Tests MUST verify that the bootstrap stores the reporter's participant record
@@ -868,8 +873,8 @@ groups:
       spec_id: CBT-01-007
     - rel_type: implements
       spec_id: CBT-01-008
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_013
 - id: CBT-06
   title: One Report Offered to Several Recipients
   specs:
@@ -894,7 +899,7 @@ groups:
       spec_id: HP-09-001
     stories:
     - story_2022_038
-    - story_2022_088
+    - story_2026_067
   - id: CBT-06-003
     priority: MUST
     kind: protocol
@@ -915,7 +920,7 @@ groups:
       recipients have distinct ids.
     stories:
     - story_2022_038
-    - story_2022_088
+    - story_2026_067
   - id: CBT-06-002
     priority: MUST
     kind: protocol

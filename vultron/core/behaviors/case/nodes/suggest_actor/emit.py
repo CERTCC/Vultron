@@ -39,8 +39,8 @@ from vultron.core.behaviors.case.nodes.participant.roles import (
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.behaviors.node_logger import port_wiring_logger
 from vultron.core.behaviors.note.case_manager_note import (
     CaseManagerNote,

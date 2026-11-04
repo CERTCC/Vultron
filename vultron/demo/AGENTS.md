@@ -49,7 +49,7 @@ is wrong. See [`notes/ownership-transfer.md`](../../notes/ownership-transfer.md)
 A scenario module declares itself, and nothing else anywhere does:
 
 - `@scenario(name, label, participants, feature, in_pr_set, story)` on `main()`,
-  from `scenario/registry.py`. `story` is **required** and is the only thing that
+  from `scenario/registry/`. `story` is **required** and is the only thing that
   places the scenario on the tree: its path is read off the story's `choose(...)`
   items, which name `scenario/branch_points.py` entries, and there is no path
   parameter to state it a second time (DEMOCI-11-019, DEMOCI-11-024). Every table
@@ -82,7 +82,7 @@ inline with a comment marking it for extraction. MUST-level per
 CS-22-001). Rationale and the four-step application in
 [`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md)
 § "Extract Before Reuse". (ISSUE-1652) Siblings go further: a family writes its shared
-opening **once**, as a named prefix of story fragments (`helpers/story.py`), and each
+opening **once**, as a named prefix of story fragments (`helpers/story/`), and each
 scenario assembles its story from that prefix plus one continuation (DEMOCI-11-019,
 [demo-scenario-tree](../../notes/demo-scenario-tree.md) § "Composition", #5533).
 

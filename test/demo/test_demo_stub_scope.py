@@ -11,16 +11,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from vultron.demo.helpers import invite_chain
-from vultron.demo.utils import reset_demo_failures
+from vultron.demo.helpers.invite_chain import links as invite_links
 
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """The real reply's gate records the stopped wait; drop it after."""
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 
 class _ReplyRan(Exception):
@@ -28,7 +22,7 @@ class _ReplyRan(Exception):
 
 
 def _reply(invitee_client: object) -> None:
-    invite_chain.reply_to_full_case_invite(
+    invite_links.reply_to_full_case_invite(
         invitee_name="Invitee",
         invitee_client=invitee_client,  # type: ignore[arg-type]
         invitee=MagicMock(),
@@ -43,7 +37,7 @@ def _reply(invitee_client: object) -> None:
 def test_full_case_reply_runs_for_a_real_client():
     """A non-mock client reaches the real reply, so its wait for the Invite runs."""
     with patch.object(
-        invite_chain, "find_full_case_invite_for_actor", side_effect=_ReplyRan
+        invite_links, "find_full_case_invite_for_actor", side_effect=_ReplyRan
     ) as find:
         _reply(SimpleNamespace())
     find.assert_called_once()
@@ -52,7 +46,7 @@ def test_full_case_reply_runs_for_a_real_client():
 def test_full_case_reply_is_skipped_for_a_mock_client():
     """A mock client has no container to poll, so the stub skips the reply."""
     with patch.object(
-        invite_chain, "find_full_case_invite_for_actor", side_effect=_ReplyRan
+        invite_links, "find_full_case_invite_for_actor", side_effect=_ReplyRan
     ) as find:
         _reply(MagicMock())
     find.assert_not_called()

@@ -13,6 +13,7 @@ related_specs:
   - specs/datalayer.yaml
   - specs/architecture.yaml (ARCH-12-003, ARCH-12-006, ARCH-23-003, ARCH-23-005)
   - specs/embargo-policy.yaml (EP-02-004)
+  - specs/message-validation.yaml (MV-11-004, MV-11-012)
   - specs/case-management.yaml (CM-11-017)
   - specs/outbox.yaml (OX-06-002)
   - specs/inbox-endpoint.yaml (IE-10-001)
@@ -65,14 +66,13 @@ narrowing), `read()` for other single objects, `list_objects()` for typed
 collections, and a dedicated typed helper when a generic query would expose raw
 persistence details.
 
-## CaseOutboxPersistence as a Smell Marker
+## CaseOutboxPersistence Marks Code That Sends
 
-`CaseOutboxPersistence` exists for the small amount of core code that
-must both update case state and enqueue outbound activities. That need is
-sometimes legitimate, but it should not become invisible. When a
-`ReceivedUseCase` depends on `CaseOutboxPersistence`, treat that as an
-architectural smell: the handler is mixing inbound processing with
-outbound broadcast and should be reviewed for a cleaner split later.
+Declare `CaseOutboxPersistence` only where core code queues outbound activities:
+the port adds `outbox_append` and `outbox_list` to `CasePersistence` (DL-04-004),
+so the type shows which code sends. A received use case declares it when its
+tree's effects stage emits, which is the received-tree order by design
+(ADR-0111), not a defect to split out.
 
 ## Write Path Stores Verbatim; the Boundary Is `extra="forbid"`
 
@@ -89,7 +89,7 @@ leaving `status.rm.state` at its default.
   write-side normalisation gate back.
 - **Reads project.** `ValidationError` is the shape-mismatch signal that drives
   the read-side fallback in
-  `vultron/adapters/driven/datalayer_sqlite/hydration.py`
+  `vultron/adapters/driven/datalayer_sqlite/hydration/row_types.py`
   (`project_wire_row_to_core`), so a wire-shaped row still reads back as core.
   When that projection also fails, `dl.read()` logs a WARNING and returns the
   **wire** object (see "A DataLayer Fallback Is a Smell" below).
@@ -161,7 +161,7 @@ delivery happened to store the value: a hidden dependency on delivery order.
 The smell does not apply when the message's copy is not authoritative. A field
 that grants standing is read from the receiver's record of what it sent, never
 from the copy the sender embeds. In `create_accept_invite_actor_to_case_tree`,
-`SenderIsInviteeNode` (`vultron/core/behaviors/sender_entitlement.py`) checks the
+`SenderIsInviteeNode` (`vultron/core/behaviors/sender_entitlement/`) checks the
 sender against the Invite the CASE_MANAGER recorded, and the invitee's roles come
 from the participant record written when that Invite was sent. Taking them from
 the copy inside the invitee's `Accept` lets any sender choose its own
@@ -185,7 +185,7 @@ message-subject-identity rule in
 ## Received Activity Artifacts: Inline Sub-Field Snapshots Are Intentional
 
 A received Activity is an **artifact**: `_dehydrate_data` in
-`vultron/adapters/driven/db_record.py` deliberately does NOT recursively
+`vultron/adapters/driven/db_record/codec.py` deliberately does NOT recursively
 dehydrate the sub-fields of an inline Activity object. When `Accept` stores an
 inline `Offer`, the `Offer`'s own `object_`, `target`, etc. stay a snapshot of
 what they contained at receipt time. Do not change this, for two reasons:
@@ -320,36 +320,21 @@ block raises (DL-02-004, ADR-0146, CLP-07-015). The rules that keep it sound:
 
 ## Retiring a Stored Field (Rename, Move, or Delete)
 
-Stored data carries no backwards compatibility.
-A renamed, moved, or deleted persisted field gets no read alias (`AliasChoices`)
-and no conversion: the model declares the old key in `retired_stored_fields` via
-`RetiredFieldsRecord` (`vultron/core/models/retired_stored_fields.py`), and a
-row that still carries it, in either the field-name or camelCase spelling, fails
-to load with a message naming the old shape and saying the store must be reset
-(#4128).
-Every retired key the row carries is reported, not only the first (EH-07-001),
-and a retirement table whose replacement the model does not declare, or whose old
-key it still declares, fails at class definition.
-
-Pass `RetiredStoredField(replacement, retired_by)` for a rename within the same
-model, `RetiredStoredField(replacement, retired_by, moved_to=OtherModel)` when
-the field moved to a different model, and `RetiredStoredField(None, retired_by)`
-when the field was deleted with no replacement.
-The camelCase spelling of the old key is refused in all three cases (#4950).
-
-The declaration is what makes the refusal legible.
-`CoreRecord` refuses unknown keys (`extra="forbid"`), so an undeclared change
-never loses a field silently, but the row fails with a bare "extra inputs are not
-permitted" (and a "field required" for a renamed field) that never says a change
-happened.
+Before 1.0 Vultron supports one storage version (ADR-0175), so a renamed, moved,
+or deleted persisted field gets no read alias (`AliasChoices`), no conversion and
+no list of its former names.
+Drop the field from the model and nothing else: a row that still carries the old
+key is refused by `extra="forbid"` like any other unknown key (MV-11-004,
+ARCH-12-003), with the generic "extra inputs are not permitted" error.
+Never add a guard that refuses the old key by name (MV-11-012): it is upkeep that
+nobody reads once the store is reset.
 The SQLite read path logs the validation reason at WARNING when it reads such a
 row as absent, so `dl.read()` returning `None` always has a logged cause.
 Every PR that retires a stored field carries an operator note saying a file-backed
 store must be reset (`docker compose down -v`); an in-memory store is unaffected.
 
-A deleted stored *type* needs no marker, only that operator note.
-There is no model left to hold a retirement table, and keeping the name alive
-for old rows is the shim PROTO-08-003 forbids.
+A deleted stored *type* needs no marker either, only that operator note.
+Keeping the name alive for old rows is the shim PROTO-08-003 forbids.
 The read is already legible: the vocabulary miss logs a WARNING naming the
 type and the row reads as absent (`test_sqlite_core_roundtrip.py`, #4940).
 
@@ -361,5 +346,5 @@ creates a missing table with its indexes but never alters one that exists, so
 an old store would otherwise open silently and fail later, at the first write
 that relies on the new shape. Check the new shape after `create_all` in
 `SqliteDataLayer.__init__` and raise `VultronStaleStoreError` saying the store
-must be reset, as for a renamed field. The outbox no-duplicate index is the
+must be reset. The outbox no-duplicate index is the
 example: `require_outbox_pending_index` in `datalayer_sqlite/schema.py` (#4629).

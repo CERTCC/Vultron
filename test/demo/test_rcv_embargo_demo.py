@@ -62,8 +62,11 @@ from vultron.demo.helpers.coordinated_story import (
 )
 from vultron.demo.helpers.story import Choose, Fragment, StoryState
 from vultron.demo.scenario.registry import discover_scenarios
-from vultron.demo.utils import _demo_failures, reset_demo_failures
+from vultron.demo.utils.failures import _demo_failures
 from vultron.errors import DemoStoryError
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: The cast ``rcv-embargo``'s fragments read, by the names the family seats
 #: its three fixed-role members under.
@@ -80,20 +83,6 @@ EXPECTED_PATH = (
     ("reporter-after-join", "propose-embargo"),
     ("vendor-after-embargo", "report-fix-ready"),
 )
-
-
-@pytest.fixture(autouse=True)
-def _clean_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, and a fragment
-    that records a failure leaves it there for the next test — where it also
-    changes what ``demo_gate`` does, since a gate skips its body once anything
-    is recorded.
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 def _item_names(items: Sequence[Choose | Fragment]) -> list[str]:

@@ -59,7 +59,7 @@ Parent Epic: #4747.
 The branch-point table (`vultron/demo/scenario/branch_points.py`) and the
 choices of each scenario's story (§ "Composition") are the tree;
 `scenario_tree()` in
-`registry.py` merges the paths and discovery fails unless every scenario is one
+`registry/discovery.py` merges the paths and discovery fails unless every scenario is one
 ending (DEMOCI-11-013, DEMOCI-11-014). The declaration rules are in
 [demo-scenario-registry.md](demo-scenario-registry.md) § "The path and the
 branch-point table". Read the tree there, not from a copy here.
@@ -180,7 +180,7 @@ registry takes no path parameter, so the path cannot be stated a second time
 the coordinator-first subtree, whose Reporter tells a Coordinator, and the
 vendor-first half, whose Reporter tells a Vendor.
 
-- **The API is four names.** `vultron/demo/helpers/story.py` holds them:
+- **The API is four names.** `vultron/demo/helpers/story/` holds them:
   `choose(branch point, choice, by=<cast name>)` declares one decision,
   `story(...)` concatenates named prefixes, choices and fragments into one flat
   sequence, `StoryState` is what a fragment runs against, and `run_story(name,
@@ -245,12 +245,12 @@ vendor-first half, whose Reporter tells a Vendor.
   of them slip in a step before the branch point. The coordinator-first
   subtree's named prefixes are `REPORTER_TELLS_THE_COORDINATOR` ⊂
   `COORDINATOR_INVITES_VENDOR` ⊂ `VENDOR_JOINS_THE_CASE` ⊂
-  `REPORTER_ASKS_THE_VENDOR` (`coordinated_story.py`),
+  `REPORTER_ASKS_THE_VENDOR` (`coordinated_story/`),
   `VENDOR_JOINS_THE_CASE` ⊂ `REPORTER_PROPOSES_EMBARGO`
   (`coordinated_embargo_story.py`) and `REPORTER_TELLS_THE_COORDINATOR` ⊂
   `C1_INVITES_C2` (`two_coordinator_story.py`), one per branch point the
   subtree parts at. The vendor-first half's are `REPORTER_TELLS_THE_VENDOR` ⊂
-  `THE_VENDOR_ANSWERS_THE_REPORTER` (`vendor_story.py`) ⊂
+  `THE_VENDOR_ANSWERS_THE_REPORTER` (`vendor_story/`) ⊂
   `THE_VENDOR_INVITES_A_COORDINATOR` (`vendor_coordinator_story.py`). The root
   one is the report submission and the owner's triage, which every scenario of
   a half tells identically, so a sub-family that parts earlier than its
@@ -282,7 +282,7 @@ vendor-first half, whose Reporter tells a Vendor.
   or hand the case over and let the new owner invite — appears in the
   coordinator-first pair and in the vendor-first one, with a different cast
   each time. Its two continuations therefore live in
-  `owner_decision_story.py`, taking the owner, the joiner and the newcomer as
+  `owner_decision_story/`, taking the owner, the joiner and the newcomer as
   `Part(name, label)` values read off the running story, never a family's
   cast constants; a family's module names only the parts each plays
   (DEMOMA-13-012, DEMOMA-14-017, #5535).

@@ -29,8 +29,8 @@ groups:
       before dispatch.
     note: >-
       Two distinct type lookups act on an inbound activity, and this requirement
-      governs the first. Vocabulary-level type resolution (the AS2 `WIRE_TYPE_MAP` /
-      `VOCABULARY`, consulted by `parse_activity`) is refused at the parse
+      governs the first. Vocabulary-level type resolution (the AS2 `WIRE_TYPE_MAP`,
+      consulted by `parse_activity`, VM-01-016) is refused at the parse
       threshold: an activity whose `type` is absent from the AS2 vocabulary is
       rejected with `VultronParseUnknownTypeError` → HTTP 422 and never reaches
       dispatch. The separate "route to `UNKNOWN`" behaviour (MV-01-006) applies to
@@ -584,9 +584,8 @@ groups:
     - rel_type: depends_on
       spec_id: MV-10-006
     stories:
-    - story_2022_088
+    - story_2026_054
     - story_2022_023
-    - story_2022_045
   - id: MV-10-006
     priority: MUST
     kind: protocol
@@ -676,10 +675,10 @@ groups:
     kind: project
     statement: >-
       This rule covers an unrecognised inbound key that is a near miss of a declared
-      spelling of the resolved class, or a retired name. A receiver MUST refuse the
-      whole activity, with the schema-fault response that MV-02-002 requires. A key is a
-      near miss when lowercasing it and removing every non-alphanumeric character yields
-      a declared spelling treated the same way. Thus `Actor`, `attributed-to` and
+      spelling of the resolved class. A receiver MUST refuse the whole activity, with
+      the schema-fault response that MV-02-002 requires. A key is a near miss when
+      lowercasing it and removing every non-alphanumeric character yields a declared
+      spelling treated the same way. Thus `Actor`, `attributed-to` and
       `ATTRIBUTEDTO` are near misses of `actor` and `attributedTo`. A spelling the
       resolved class accepts on input is declared, never a near miss. Both roots
       validate by field name as well as by alias (CS-14-001, CS-14-002), so
@@ -688,16 +687,17 @@ groups:
     rationale: >-
       A near miss is a key that the sender intended Vultron to read. If the receiver
       goes on without the key, it loses the sender's data and writes only a log line. A
-      refusal tells the sender which field to correct. A retired name is not a
-      misspelling, so the list names it directly. AS2 spells `id` and `type` with no `@`
-      prefix, because the AS2 context aliases the keywords (AS2 Core section 2.1). So a
-      document that carries `@id` or `@type` is legal JSON-LD but not conforming AS2
-      (MV-01-001).
+      refusal tells the sender which field to correct. A name that the protocol once
+      read and no longer reads is not a near miss: before 1.0 this codebase supports
+      one protocol version, so it keeps no list of such names, and the key is an
+      ordinary unknown key (MV-11-003, ADR-0175). AS2 spells `id` and `type` with no
+      `@` prefix, because the AS2 context aliases the keywords (AS2 Core section 2.1).
+      So a document that carries `@id` or `@type` is legal JSON-LD but not conforming
+      AS2 (MV-01-001).
     verification: >-
       `test/wire/as2/test_unknown_key_disposition.py` asserts that a case variant and a
-      separator variant (`attributed-to`) on the envelope and on an inline object, and a
-      retired name on an inline object (the retired-name list holds status-dimension
-      keys, which never sit on the envelope), each raise `VultronParseValidationError`;
+      separator variant (`attributed-to`) on the envelope and on an inline object each
+      raise `VultronParseValidationError`;
       that the JSON-LD keywords `@id` and `@type` on the envelope and on an inline
       object each raise the same parse-edge refusal, not a Pydantic dump; and that a
       snake_case field name is accepted as a declared spelling with nothing reported.
@@ -710,6 +710,7 @@ groups:
       spec_id: MV-01-001
     adr:
     - ADR-0099
+    - ADR-0175
   - id: MV-11-007
     priority: MUST_NOT
     kind: project
@@ -740,8 +741,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The refusal of MV-11-002 MUST name the arriving key and the declared or retired
-      spelling it resembles.
+      The refusal of MV-11-002 MUST name the arriving key and the declared spelling it
+      resembles.
     rationale: >-
       The refusal tells the peer the compact form to send. A refusal that names only
       the arriving key leaves the sender to guess which field Vultron meant.
@@ -761,9 +762,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The near-miss test (MV-11-002) MUST use exactly its normalisation plus the
-      retired-name list, and no edit distance, prefix match or other similarity
-      measure.
+      The near-miss test (MV-11-002) MUST use exactly its normalisation, and no edit
+      distance, prefix match or other similarity measure.
     rationale: >-
       The normalization is shallow on purpose. AS2 has many property names of two or
       three letters that are one character apart, so an edit-distance model gives many
@@ -784,7 +784,7 @@ groups:
     kind: project
     statement: >-
       A receiver MUST set aside and report, not refuse, an unrecognised inbound key that
-      is not a near miss or a retired name. The activity proceeds on its declared
+      is not a near miss. The activity proceeds on its declared
       fields. The receiver logs one INFO record per set-aside key with `activity_id`,
       the sender's `actor_id`, the dotted field path of the key's object, and the key.
     rationale: >-
@@ -797,6 +797,8 @@ groups:
       `test/wire/as2/test_unknown_key_disposition.py` asserts, for an unknown key in each
       position MV-11-001 names, that `parse_activity` returns an activity, and that
       exactly one INFO record names the key, the path, the activity id and the sender.
+      `test_a_former_field_name_is_set_aside_and_reported` in the same file asserts the
+      same for each name the protocol once read, such as `vfd_state` and `eventType`.
     relationships:
     - rel_type: refines
       spec_id: MV-11-001
@@ -809,6 +811,7 @@ groups:
     adr:
     - ADR-0099
     - ADR-0086
+    - ADR-0175
   - id: MV-11-010
     priority: MUST_NOT
     kind: project
@@ -854,49 +857,32 @@ groups:
       spec_id: ARCH-25-025
     adr:
     - ADR-0099
-  - id: MV-11-011
-    priority: MUST
-    kind: architecture
-    statement: >-
-      The retired-name list that MV-11-002 consults MUST live in the wire layer and be
-      consulted only at the parse edge.
-    rationale: >-
-      Retired names are spellings a peer may still send, so they are a wire concern.
-      One list at the one inbound door keeps one answer for each retired name.
-    verification: >-
-      `test_no_core_module_names_a_retired_key` in
-      `test/wire/as2/test_unknown_key_disposition.py` fails if any string constant under
-      `vultron/core/` names a key on the wire-side `RETIRED_NAMES` list.
-    relationships:
-    - rel_type: refines
-      spec_id: MV-11-002
-    adr:
-    - ADR-0099
   - id: MV-11-012
     priority: MUST_NOT
     kind: architecture
     statement: >-
-      Core types MUST NOT carry a per-class retired-key reject-guard (SDO-03-005).
-      The shared `RetiredFieldsRecord` base, which refuses a stored row's retired
-      field with a named reason, is not such a guard.
+      Core types MUST NOT carry a guard, per class or shared, that refuses a former
+      field name by name (SDO-03-005).
     rationale: >-
-      A retired-key guard on a core class copies the wire-side list into a second
-      place, and the two lists can become different. `extra="forbid"` already refuses a
-      retired key in in-process and stored data, but only as a bare "extra inputs"
-      error that never says a field was renamed, so the store reset a stored row needs
-      goes unexplained (CLP-02-014). Before 1.0 only the current protocol version is
-      supported, so retired-name tracking is to be dropped on both sides (#5573).
+      `extra="forbid"` already refuses a former field name in in-process and stored
+      data, as it refuses any unknown key (MV-11-004). Before 1.0 this codebase supports
+      one protocol and storage version, so it keeps no list of former names and no
+      refusal that names a rename (ADR-0175).
     verification: >-
       A grep of `vultron/core/models/` finds no `mode="before"` validator that rejects a
       retired key by name: #3921 deleted `ParticipantStatus._reject_retired_vfd_keys`.
       `test_no_core_module_names_a_retired_key` in
       `test/wire/as2/test_unknown_key_disposition.py` fails if any string constant under
-      `vultron/core/` names a retired key.
+      `vultron/core/` names a former wire name.
+      `test_a_former_field_name_is_refused_as_an_unknown_key` in
+      `test/core/models/test_former_field_names.py` requires each former stored name
+      to raise exactly one `extra_forbidden` error, which a named refusal would not.
     relationships:
     - rel_type: refines
       spec_id: SDO-03-005
     adr:
     - ADR-0099
+    - ADR-0175
   - id: MV-11-005
     priority: MUST_NOT
     kind: architecture

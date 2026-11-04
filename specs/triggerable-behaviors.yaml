@@ -311,8 +311,10 @@ groups:
   - id: TRIG-05-002
     priority: SHOULD
     kind: project
-    statement: The trigger endpoint SHOULD invoke the BT tree via the bridge layer (`vultron/core/behaviors/bridge.py`) using
-      the same pattern as existing BT-using handlers
+    statement: >-
+      The trigger endpoint SHOULD invoke the BT tree via the bridge layer
+      (`vultron/core/behaviors/bridge/`) using the same pattern as existing BT-using
+      handlers
     rationale: >-
       The bridge is the only place that sets up the blackboard and DataLayer of a tree,
       ticks the tree, and reads its result. When trigger trees run through the bridge,
@@ -341,7 +343,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-01-001
     stories:
-    - story_2022_088
+    - story_2026_061
     - story_2022_106
   - id: TRIG-06-002
     priority: MUST

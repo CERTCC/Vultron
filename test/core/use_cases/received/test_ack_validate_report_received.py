@@ -611,8 +611,9 @@ class TestValidateReportReceivedGuardedCommit:
     def test_refuses_when_this_store_holds_no_case_for_the_report(self):
         """No case for the report: REFUSED, with the reason naming why.
 
-        The declared rule's case sides need a case to check the sender
-        against, so the factory's guard refuses (HP-01-006, HP-01-008).
+        The declaration names the manager and participant-replica paths, so
+        a store that holds no case for the report is refused at the path
+        stage, which names the case the activity names (HP-01-039).
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -628,7 +629,7 @@ class TestValidateReportReceivedGuardedCommit:
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
-        assert "holds no case for it" in result.reason
+        assert "holds no replica of" in result.reason
 
     def test_skip_commit_when_receiving_actor_not_case_actor(self):
         """ValidateReportReceivedUseCase skips commit when receiving_actor != CaseActor.
@@ -707,7 +708,7 @@ class TestValidateReportReceivedGuardedCommit:
         role — the guarded commit BT MUST execute, resulting in a persisted
         CaseLedgerEntry.
         """
-        import vultron.core.behaviors.report.received_report_trees as rrt_module
+        import vultron.core.behaviors.report.received_report_trees.validate as rrt_module
         from vultron.core.models.report_case_link import VultronReportCaseLink
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
@@ -758,7 +759,7 @@ class TestValidateReportReceivedGuardedCommit:
         )
 
         # Track calls to create_receive_activity_tree in
-        # received_report_trees (where it is called in the ADR-0022 pattern).
+        # received_report_trees.validate (where it is called in the ADR-0022 pattern).
         original_create = rrt_module.create_receive_activity_tree
         commit_tree_calls: list[str | None] = []
 

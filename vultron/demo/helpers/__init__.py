@@ -21,13 +21,14 @@ Sub-modules
 - :mod:`~vultron.demo.helpers.actor_roles` — ``ActorRole``, ``role_map``, and
   ``role_kwarg_names``: the per-scenario actor role declarations the demo CLI
   turns into sub-command options (DEMOCI-11-011).
-- :mod:`~vultron.demo.helpers.polling` — ``_poll_until``,
-  ``find_case_invite_for_actor``, ``find_cp_offer_for_case``,
-  ``find_case_actor_participant_id``, ``find_ownership_transfer_offer_for_actor``,
+- :mod:`~vultron.demo.helpers.polling` — ``find_case_invite_for_actor``,
+  ``find_cp_offer_for_case``, ``find_case_actor_participant_id``,
+  ``find_ownership_transfer_offer_for_actor``,
   ``resolve_case_actor_store_id``, ``wait_for_object_stored``,
   ``wait_for_received_activity``, ``wait_for_report_submission_stored``,
   ``wait_for_reporter_introduction``,
-  and all ``wait_for_*`` helpers.
+  and all ``wait_for_*`` helpers (``_poll_until`` lives in
+  :mod:`~vultron.demo.helpers.polling._poll`).
 - :mod:`~vultron.demo.helpers.embargo` — ``make_embargo_event`` factory and
   ``publish_embargo_policy`` (``PUT /actors/{slug}/embargo-policy``, EP-02).
 - :mod:`~vultron.demo.helpers.embargo_outcome` — creation-time embargo outcome
@@ -36,10 +37,11 @@ Sub-modules
   ``verify_receiver_replica_agrees``).
 - :mod:`~vultron.demo.helpers.runner` — ``run_exchange_demos`` and
   ``check_all_containers``.
-- :mod:`~vultron.demo.helpers.seeding` — ``_dl_key``, ``get_actor_by_id``,
+- :mod:`~vultron.demo.helpers.seeding` — ``get_actor_by_id``,
   ``seed_containers``, ``seed_containers_rvv``, ``seed_containers_rccv``,
   ``seed_containers_rcv``, ``seed_containers_rcvcv``, and
-  ``reset_containers``.
+  ``reset_containers`` (``_dl_key`` lives in
+  :mod:`~vultron.demo.helpers.seeding.actors`).
 - :mod:`~vultron.demo.helpers.sync` — ``verify_replica_state`` and the shared
   sync-verification phase helpers ``wait_for_replica_ledger_coverage`` and
   ``run_sync_verification_phase``.
@@ -161,7 +163,6 @@ from vultron.demo.helpers.polling import (
     LEDGER_COVERAGE_TIMEOUT,
     PARTICIPANT_JOIN_TIMEOUT,
     REPLICA_PARTICIPANT_TIMEOUT,
-    _poll_until,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
     find_cp_offer_for_case,
@@ -190,12 +191,12 @@ from vultron.demo.helpers.polling import (
     wait_for_reporter_log_entry,
     wait_for_semantic_type_in_ledger,
 )
+from vultron.demo.helpers.polling._poll import _poll_until
 from vultron.demo.helpers.runner import (
     check_all_containers,
     run_exchange_demos,
 )
 from vultron.demo.helpers.seeding import (
-    _dl_key,
     get_actor_by_id,
     reset_containers,
     seed_containers,
@@ -204,14 +205,27 @@ from vultron.demo.helpers.seeding import (
     seed_containers_rcvcv,
     seed_containers_rvv,
 )
+from vultron.demo.helpers.seeding.actors import _dl_key
 from vultron.demo.helpers.sync import (
-    _extract_ref_id,
-    _get_log_entries_for_case,
     run_sync_verification_phase,
     verify_replica_state,
     wait_for_replica_ledger_coverage,
 )
+from vultron.demo.helpers.sync.ledger import (
+    _extract_ref_id,
+    _get_log_entries_for_case,
+)
 from vultron.demo.helpers.verification import (
+    verify_activity_in_inbox,
+    verify_case_actor_holds_records,
+    verify_receiver_case_state,
+)
+from vultron.demo.helpers.verification.participants import (
+    _fetch_participant,
+    _fetch_participant_data,
+    _require_case_participant_id,
+)
+from vultron.demo.helpers.verification.states import (
     _all_fetchable_participants_rm_closed,
     _assert_case_notes,
     _assert_participant_vf_pxa,
@@ -219,16 +233,8 @@ from vultron.demo.helpers.verification import (
     _assert_vendor_participant_state,
     _check_participant_d_state_in,
     _check_participant_vf_state_in,
-    _fetch_participant,
-    _fetch_participant_data,
-    _require_case_participant_id,
-    verify_activity_in_inbox,
-    verify_case_actor_holds_records,
-    verify_receiver_case_state,
 )
 from vultron.demo.helpers.workflow import (
-    _load_case_from_datalayer,
-    _report_id_from_offer_data,
     check_report_answer_recorded,
     find_case_by_report_id,
     find_case_for_offer,
@@ -245,4 +251,8 @@ from vultron.demo.helpers.workflow import (
     verify_reporter_trusts_introduction,
     wait_for_case_for_offer,
     wait_for_report_answer_recorded,
+)
+from vultron.demo.helpers.workflow.case_lookup import (
+    _load_case_from_datalayer,
+    _report_id_from_offer_data,
 )

@@ -21,7 +21,7 @@ so no scenario declares its own (DEMOCI-11-020).
 
 Both consumers read the same list:
 
-* ``vultron/demo/cli.py``'s command factory turns the list into that scenario's
+* ``vultron/demo/cli/``'s command factory turns the list into that scenario's
   click options, so a registered scenario cannot be missing a sub-command and a
   sub-command cannot be hand-declared (DEMOCI-11-044, DEMOCI-11-045);
 * the module's own ``*_BASE_URL`` constants are :attr:`ActorRole.url` values,

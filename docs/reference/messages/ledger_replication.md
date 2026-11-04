@@ -208,7 +208,7 @@ A `Create(VulnerabilityCase)` seed sends no such statement, because SYNC-17-008 
 - **Pattern:** `AnnounceVulnerabilityCasePattern` in
   `vultron/wire/as2/extractor/_instances.py`.
 - **Factory:** `announce_vulnerability_case_activity` in
-  `vultron/wire/as2/factories/case.py`.
+  `vultron/wire/as2/factories/case/content.py`.
 - **Spec:** SYNC-09-001.
 
 Each `Announce(VulnerabilityCase)` carries the case with its `ledgerPosition`: the `logIndex` and `entryHash` of the last ledger entry its case file reflects (SYNC-16-005).

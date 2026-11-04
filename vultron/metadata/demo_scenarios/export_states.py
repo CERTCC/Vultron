@@ -65,9 +65,11 @@ from vultron.core.scoring.embargo import EmbargoViability
 from vultron.core.states.cs import (
     CS_d,
     CS_vf,
+    create_pxa_machine,
+)
+from vultron.core.states.cs.transitions import (
     _d_transitions,
     _vf_transitions,
-    create_pxa_machine,
 )
 from vultron.core.states.em import create_em_machine
 from vultron.core.states.rm import create_rm_machine

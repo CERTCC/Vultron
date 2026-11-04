@@ -54,7 +54,7 @@
 
 ## Demo Script Conventions
 
-Use `demo_step` / `demo_check` context managers (`vultron/demo/utils.py`) to
+Use `demo_step` / `demo_check` context managers (`vultron/demo/utils/failures.py`) to
 wrap every workflow step and verification block. See
 [notes/codebase-structure.md](../../notes/codebase-structure.md) §
 "Demo Script Lifecycle Logging" for the full pattern.

@@ -31,7 +31,7 @@ relevant_packages:
   - vultron/core/use_cases/received/actor/
   - vultron/demo/exchange/transfer_ownership_demo.py
   - vultron/demo/scenario/rvcv_handoff_demo.py
-  - vultron/demo/helpers/owner_decision_story.py
+  - vultron/demo/helpers/owner_decision_story/
 ---
 
 # Ownership Transfer Protocol — Routing and Cascade Model
@@ -123,7 +123,7 @@ before the Offer's state is read (#4437).
   guard sets `is_redelivery` and the run reports `SKIPPED` (HP-01-003).
 - **The transferee's standing is one predicate at all three checks.** The trigger,
   the proposal guard and the Accept guard all ask `may_act_on_case()`
-  (`core/participants/recipients.py`), so a participant whose closure is
+  (`core/participants/recipients/`), so a participant whose closure is
   recorded is refused too: the Offer is case content (CM-23-004). The Accept's
   check is a precondition guard after the open-Offer guard, not part of the
   sender check:
@@ -228,9 +228,9 @@ sender guard admits the CASE_MANAGER alone. Nothing is committed there.
   (`RecordedOwnershipOffer.offerer_id()`); nothing downstream re-checks it
   (CLP-07-003 checks `payloadSnapshot.actor`).
 - **The snapshot builder's `_get_id` never falls back to `str(field)`**
-  (`vultron/wire/as2/extractor/_builders.py`): `attributedTo` may be an inline object
-  or array, and a Python repr in a hashed, replicated snapshot is unrecoverable
-  (CLP-07-011).
+  (`vultron/wire/as2/extractor/_builders/fields.py`): `attributedTo` may be an
+  inline object or array, and a Python repr in a hashed, replicated snapshot is
+  unrecoverable (CLP-07-011).
 
 ### `create_accept_ownership_transfer_tree()`
 
@@ -279,8 +279,10 @@ CASE_MANAGER inbox receives Reject
   while an Offer is open; once closed, the owner may propose again to anyone, the
   decliner included. The check is `NoOpenOwnershipOfferNode`
   (`core/behaviors/case/nodes/ownership_offer_guard.py`, reading
-  `open_ownership_offer()`) behind the CASE_MANAGER gate
-  `case_manager_admits_ownership_proposal_guard`. A proposal whose derived Offer the
+  `open_ownership_offer()`) in `case_manager_admits_ownership_proposal_guard`,
+  which needs no gate: the proposal's tree declares the manager path alone, so
+  the path stage refuses every other receiver (HP-01-038). A proposal whose
+  derived Offer the
   ledger already records is a redelivery: the guard sets `is_redelivery` and
   `ownership_offer_verdict` reports `SKIPPED` (HP-01-003).
 - **Withdrawal is an `Undo` of the proposal (CM-21-036, CM-21-037).** The

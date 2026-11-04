@@ -51,12 +51,12 @@ from vultron.core.models.embargo_termination import (
     ThreatSignalTermination,
 )
 from vultron.core.models.pending_assertion import (
-    _STORES,
     PendingAssertion,
     PendingAssertionStore,
     get_pending_assertion_store,
     record_pending_assertion,
 )
+from vultron.core.models.pending_assertion.registry import _STORES
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronWiringError
 

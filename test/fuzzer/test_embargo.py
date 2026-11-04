@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Unit tests for vultron/demo/fuzzer/embargo.py.
+"""Unit tests for vultron/demo/fuzzer/embargo/.
 
 Tests cover:
   - All 15 nodes are WeightedBehavior subclasses

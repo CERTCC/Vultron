@@ -46,8 +46,8 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import (
     TRIGGER_FACTORY_UNAVAILABLE,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.participants.recipients import case_content_recipients

@@ -157,7 +157,9 @@ class TestRmReadReportActivity:
 
 
 class TestAddReportToCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import _AddReportToCaseActivity
+    from vultron.wire.as2.vocab.activities.case.content import (
+        _AddReportToCaseActivity,
+    )
 
     cls = _AddReportToCaseActivity
 
@@ -172,7 +174,9 @@ class TestAddReportToCaseActivity:
 
 
 class TestAddStatusToCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import _AddStatusToCaseActivity
+    from vultron.wire.as2.vocab.activities.case.content import (
+        _AddStatusToCaseActivity,
+    )
 
     cls = _AddStatusToCaseActivity
 
@@ -187,7 +191,9 @@ class TestAddStatusToCaseActivity:
 
 
 class TestCreateCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import _CreateCaseActivity
+    from vultron.wire.as2.vocab.activities.case.content import (
+        _CreateCaseActivity,
+    )
 
     cls = _CreateCaseActivity
 
@@ -204,7 +210,9 @@ class TestCreateCaseActivity:
 
 
 class TestAddNoteToCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import _AddNoteToCaseActivity
+    from vultron.wire.as2.vocab.activities.case.content import (
+        _AddNoteToCaseActivity,
+    )
 
     cls = _AddNoteToCaseActivity
 
@@ -219,7 +227,9 @@ class TestAddNoteToCaseActivity:
 
 
 class TestUpdateCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import _UpdateCaseActivity
+    from vultron.wire.as2.vocab.activities.case.content import (
+        _UpdateCaseActivity,
+    )
 
     cls = _UpdateCaseActivity
 
@@ -236,7 +246,7 @@ class TestUpdateCaseActivity:
 
 
 class TestRmEngageCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import _RmEngageCaseActivity
+    from vultron.wire.as2.vocab.activities.case.rm import _RmEngageCaseActivity
 
     cls = _RmEngageCaseActivity
 
@@ -253,7 +263,7 @@ class TestRmEngageCaseActivity:
 
 
 class TestRmDeferCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import _RmDeferCaseActivity
+    from vultron.wire.as2.vocab.activities.case.rm import _RmDeferCaseActivity
 
     cls = _RmDeferCaseActivity
 
@@ -270,7 +280,7 @@ class TestRmDeferCaseActivity:
 
 
 class TestRmCloseCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import _RmCloseCaseActivity
+    from vultron.wire.as2.vocab.activities.case.rm import _RmCloseCaseActivity
 
     cls = _RmCloseCaseActivity
 
@@ -287,7 +297,9 @@ class TestRmCloseCaseActivity:
 
 
 class TestRmInviteToCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import _RmInviteToCaseActivity
+    from vultron.wire.as2.vocab.activities.case.invite import (
+        _RmInviteToCaseActivity,
+    )
 
     cls = _RmInviteToCaseActivity
     stub = {"target": as_VulnerabilityCaseStub(case_id="urn:uuid:case-1")}
@@ -438,11 +450,21 @@ class TestRemoveEmbargoFromCaseActivity:
         )
 
     @pytest.mark.parametrize(
-        "content", [None, "", "early", "THREAT_SIGNAL", "Ended early."]
+        ("content", "match"),
+        [
+            (None, "END_TIME_REACHED"),
+            ("early", "END_TIME_REACHED"),
+            ("THREAT_SIGNAL", "END_TIME_REACHED"),
+            ("Ended early.", "END_TIME_REACHED"),
+            # A blank is refused as blank before the reason check (CS-08-001).
+            ("", "non-empty string"),
+        ],
     )
-    def test_refuses_content_that_is_not_a_termination_reason(self, content):
+    def test_refuses_content_that_is_not_a_termination_reason(
+        self, content, match
+    ):
         """AC-1 (#4293): ``content`` is exactly END_TIME_REACHED or EARLY."""
-        with pytest.raises(ValidationError, match="END_TIME_REACHED"):
+        with pytest.raises(ValidationError, match=match):
             _make_activity(
                 self.cls,
                 as_EmbargoEvent(

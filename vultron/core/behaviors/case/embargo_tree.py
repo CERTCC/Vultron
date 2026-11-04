@@ -32,7 +32,7 @@ Subtrees defined here:
   embargo attached, the owner seeded as a signatory and that revision
   registered, in one commit (EP-04-002, EP-04-012).
 
-Consumed by ``case_proposal_received_tree.py``.
+Consumed by ``case_proposal_received_tree/``.
 
 Per specs/case-management.yaml CM-02, OX-03-001, CM-14-003.
 Per specs/embargo-policy.yaml EP-04-005 through EP-04-008 (ADR-0096).

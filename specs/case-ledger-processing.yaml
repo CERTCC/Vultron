@@ -34,19 +34,22 @@ groups:
       as participant assertions before the CASE_MANAGER processes them into canonical
       ledger entries.
     stories:
-    - story_2022_045
-    - story_2022_088
+    - story_2026_040
   - id: CLP-01-002
-    priority: MUST_NOT
+    priority: MUST
     kind: protocol
     verification_debt: '#3612'
-    statement: The protocol MUST NOT require a separate "asserted mode" marker on
-      ordinary participant activities for case/proto-case flows
+    statement: >-
+      A receiver MUST read a participant's ordinary activity in a case or proto-case
+      flow as an assertion from the sender's role and the message's path alone; the
+      protocol defines no separate "asserted mode" marker for it.
     rationale: >-
       The sender's role and the path of the message already show that a participant's
       activity is an assertion. A separate marker adds a field that every sender must
       set and every receiver must check, and a missing marker would then change the
       meaning of an ordinary message.
+    stories:
+    - story_2026_011
   - id: CLP-01-003
     priority: MUST
     kind: protocol
@@ -61,7 +64,7 @@ groups:
       in the canonical ledger is authored by the CASE_MANAGER: the `actor` on the enclosing
       `Announce(CaseLedgerEntry)` transport always matches `case_actor_id`.'
     stories:
-    - story_2022_045
+    - story_2026_023
     - story_2022_106
   - id: CLP-01-004
     priority: MUST_NOT
@@ -74,6 +77,8 @@ groups:
       replica that applies it directly can hold state that the ledger never records, so
       it drifts from every other replica. Replicas stay equal only when each change
       comes from a ledger entry.
+    stories:
+    - story_2026_002
 - id: CLP-02
   title: Canonical `CaseLedgerEntry`
   specs:
@@ -90,7 +95,7 @@ groups:
       activity is processed at the case layer, the CASE_MANAGER's ledger grows by exactly
       one new `CaseLedgerEntry` for that case.
     stories:
-    - story_2022_045
+    - story_2026_069
     - story_2022_074
   - id: CLP-02-002
     priority: MUST
@@ -106,7 +111,7 @@ groups:
       that `CaseLedgerEntry` is a standalone Pydantic model that shares no inheritance
       with the `Announce` transport wrapper and can be serialized and validated independently.
     stories:
-    - story_2022_045
+    - story_2026_072
   - id: CLP-02-003
     priority: MUST
     kind: protocol
@@ -128,8 +133,7 @@ groups:
     adr:
     - ADR-0107
     stories:
-    - story_2022_045
-    - story_2022_088
+    - story_2026_057
   - id: CLP-02-004
     priority: MUST
     kind: protocol
@@ -146,7 +150,7 @@ groups:
       that `CaseLedgerEntry` declares no `disposition`, `reason_code`, or
       `reason_detail` field.
     stories:
-    - story_2022_045
+    - story_2026_071
   - id: CLP-02-005
     priority: MUST
     kind: protocol
@@ -166,8 +170,9 @@ groups:
       When a precondition guard at the CASE_MANAGER refuses an incoming assertion, the
       CASE_MANAGER MUST send a `Reject` protocol activity to the asserting participant
       (CLP-05-001). The refusal itself is never written to the ledger (CLP-04-007). A
-      refusal by the sender guard (HP-01-006) gets no `Reject`, and neither does traffic
-      after the case has fully closed (CM-23-013).
+      refusal at a door guard gets no `Reject` — the post-close boundary (CM-23-013),
+      the addressee check (HP-01-005), the path stage (HP-01-039) or the closed-sender
+      door (CM-23-018) — and neither does a refusal by the sender guard (HP-01-006).
     rationale: >-
       The refused participant must learn that it was refused and why, so it can stop
       waiting for its entry. A refusal changes nothing in the case, and a ledgered
@@ -179,8 +184,7 @@ groups:
     - ADR-0131
     - ADR-0141
     stories:
-    - story_2022_045
-    - story_2022_088
+    - story_2026_040
   - id: CLP-02-006
     priority: MUST
     kind: protocol
@@ -208,7 +212,7 @@ groups:
       is assigned within the authoritative commit node and that no external code path
       sets this field directly on the entry before commit.
     stories:
-    - story_2022_045
+    - story_2026_028
     - story_2022_074
   - id: CLP-02-009
     priority: MUST_NOT
@@ -219,6 +223,8 @@ groups:
     rationale: Allowing external parties to set log_index would enable index spoofing,
       enabling forked or replayed ledger entries that corrupt the canonical append-only
       history.
+    stories:
+    - story_2026_023
   - id: CLP-02-007
     priority: MAY
     kind: protocol
@@ -248,7 +254,7 @@ groups:
       in a multi-node CASE_MANAGER cluster deployment carry a non-null `term` field equal
       to the Raft term at the time of append.
     stories:
-    - story_2022_045
+    - story_2026_028
     - story_2022_106
   - id: CLP-02-012
     priority: MUST
@@ -271,7 +277,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-05-002
     stories:
-    - story_2022_045
+    - story_2026_071
   - id: CLP-02-016
     priority: MUST
     kind: protocol
@@ -299,7 +305,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-02-001
     stories:
-    - story_2022_045
+    - story_2026_069
   - id: CLP-02-013
     priority: MUST
     kind: protocol
@@ -344,7 +350,7 @@ groups:
     - ADR-0152
     - ADR-0157
     stories:
-    - story_2022_045
+    - story_2026_069
   - id: CLP-02-017
     priority: MUST
     kind: protocol
@@ -366,7 +372,7 @@ groups:
     adr:
     - ADR-0152
     stories:
-    - story_2022_045
+    - story_2026_069
   - id: CLP-02-014
     priority: MUST
     kind: protocol
@@ -386,7 +392,7 @@ groups:
     adr:
     - ADR-0140
     stories:
-    - story_2022_045
+    - story_2026_011
   - id: CLP-02-018
     priority: MUST
     kind: protocol
@@ -408,7 +414,7 @@ groups:
     adr:
     - ADR-0140
     stories:
-    - story_2022_045
+    - story_2026_023
   - id: CLP-02-015
     priority: MUST
     kind: project
@@ -427,29 +433,6 @@ groups:
       spec_id: CLP-02-014
     adr:
     - ADR-0140
-  - id: CLP-02-019
-    priority: MUST
-    kind: project
-    statement: >-
-      This codebase MUST refuse a stored or received entry that still carries the
-      retired key `eventType`, never reading it through an alias. The refusal message
-      names the rename.
-    rationale: >-
-      Stored data has no backwards-compatibility requirement. An alias would keep two
-      names for one field in use, so the old key is refused and not translated.
-    verification: >-
-      Tests marked `CLP-02-019` in
-      `test/core/models/test_case_ledger_entry_semantic_type.py` confirm that a payload
-      carrying `eventType` beside `semanticType` is refused with an error naming the
-      rename, and that a stored row carrying the retired field is refused. Tests marked
-      `CLP-02-019` in `test/wire/as2/test_unknown_key_disposition.py` confirm that a
-      received inline entry, or any other inline object, carrying `eventType` is refused
-      at parse with a message naming the rename.
-    relationships:
-    - rel_type: extends
-      spec_id: CLP-02-015
-    adr:
-    - ADR-0140
 - id: CLP-03
   title: Audit Scope and Continuity
   specs:
@@ -466,7 +449,7 @@ groups:
       a resolvable case ID are dropped before reaching `CommitCaseLedgerEntryNode`
       and produce no `CaseLedgerEntry` in the ledger.
     stories:
-    - story_2022_045
+    - story_2026_071
     - story_2022_074
   - id: CLP-03-002
     priority: MUST
@@ -483,7 +466,7 @@ groups:
       inbound messages are handled in a pre-ledger error path and that no `CaseLedgerEntry`
       is written for them.
     stories:
-    - story_2022_045
+    - story_2026_071
     - story_2022_089
 - id: CLP-04
   title: Canonical Ledger and Replication
@@ -506,8 +489,8 @@ groups:
       `test/core/use_cases/received/test_embargo_consent_copy.py` confirms that a
       locally scoped processing fault reaches no case ledger.
     stories:
-    - story_2022_045
-    - story_2022_088
+    - story_2026_071
+    - story_2026_023
   - id: CLP-04-002
     priority: MUST
     kind: protocol
@@ -521,8 +504,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that case-state
       reconstruction reads exclusively from the canonical case ledger.
     stories:
-    - story_2022_045
-    - story_2022_088
+    - story_2026_057
   - id: CLP-04-003
     priority: MUST
     kind: protocol
@@ -541,7 +523,7 @@ groups:
       the `entryHash` at each shared `logIndex`
       (`test_invariant_2_cross_actor_hash_agreement`).
     stories:
-    - story_2022_045
+    - story_2026_023
     - story_2022_089
   - id: CLP-04-004
     priority: MUST
@@ -557,7 +539,7 @@ groups:
       entry replicated from the CASE_MANAGER arrives at participants wrapped in an `Announce(CaseLedgerEntry)`
       ActivityStreams activity.
     stories:
-    - story_2022_045
+    - story_2026_075
     - story_2022_041
   - id: CLP-04-005
     priority: SHOULD
@@ -569,6 +551,8 @@ groups:
       A participant and the CASE_MANAGER compare positions to find a replica that lags.
       A position from any other source, such as the participant's own pending records,
       names a point that the canonical chain does not have.
+    stories:
+    - story_2026_005
   - id: CLP-04-006
     priority: MUST
     kind: protocol
@@ -584,7 +568,7 @@ groups:
       log rather than from any other data source such as the outbox or actor-local
       state.
     stories:
-    - story_2022_088
+    - story_2026_057
   - id: CLP-04-007
     priority: MUST
     kind: protocol
@@ -604,8 +588,8 @@ groups:
       `test/core/use_cases/received/test_close_report_on_case.py::test_close_report_on_an_open_case_is_refused`
       asserts a refused assertion adds no ledger entry.
     stories:
-    - story_2022_045
-    - story_2022_088
+    - story_2026_071
+    - story_2026_023
   - id: CLP-04-008
     priority: MUST
     kind: project
@@ -680,8 +664,7 @@ groups:
     adr:
     - ADR-0141
     stories:
-    - story_2022_045
-    - story_2022_088
+    - story_2026_040
   - id: CLP-05-004
     priority: MUST
     kind: protocol
@@ -701,7 +684,7 @@ groups:
     adr:
     - ADR-0141
     stories:
-    - story_2022_045
+    - story_2026_014
   - id: CLP-05-005
     priority: MUST
     kind: protocol
@@ -721,15 +704,15 @@ groups:
     adr:
     - ADR-0141
     stories:
-    - story_2022_045
-    - story_2022_088
+    - story_2026_040
   - id: CLP-05-006
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST NOT send a refusal notice for a refusal by the sender guard
-      (HP-01-006). Nor does it send one for a repeat of an activity it already
-      processed.
+      The CASE_MANAGER MUST NOT send a refusal notice for a refusal at a door guard
+      (the post-close boundary, the addressee check, the path stage or the
+      closed-sender door) or by the sender guard (HP-01-006). Nor does it send one for
+      a repeat of an activity it already processed.
     rationale: >-
       A sender that is not entitled to make the assertion is owed no answer (HP-01-006,
       ADR-0141). A repeat was already answered, so a second notice adds nothing and
@@ -746,7 +729,7 @@ groups:
     adr:
     - ADR-0141
     stories:
-    - story_2022_045
+    - story_2026_040
   - id: CLP-05-007
     priority: MUST
     kind: protocol
@@ -766,7 +749,7 @@ groups:
     adr:
     - ADR-0141
     stories:
-    - story_2022_045
+    - story_2026_040
   - id: CLP-05-008
     priority: MUST_NOT
     kind: protocol
@@ -787,7 +770,7 @@ groups:
     adr:
     - ADR-0141
     stories:
-    - story_2022_045
+    - story_2026_040
   - id: CLP-05-009
     priority: MUST
     kind: protocol
@@ -811,7 +794,7 @@ groups:
     adr:
     - ADR-0141
     stories:
-    - story_2022_045
+    - story_2026_040
   - id: CLP-05-002
     priority: MUST_NOT
     kind: protocol
@@ -823,6 +806,8 @@ groups:
       A refusal is not a change to the case. If it is an entry, every replica must hold
       and skip it, and the hash chain then depends on traffic that the CASE_MANAGER did
       not admit.
+    stories:
+    - story_2026_002
   - id: CLP-05-003
     priority: MUST_NOT
     kind: protocol
@@ -839,6 +824,8 @@ groups:
       is an entry, it replicates to every participant and becomes part of the hash
       chain. Then the chain depends on the timing of one actor's processing and not on
       the case history.
+    stories:
+    - story_2026_002
 - id: CLP-06
   title: Pending Assertion Suppression
   specs:
@@ -854,6 +841,8 @@ groups:
       before the entry arrives. A short local record stops these duplicate sends.
     adr:
     - ADR-0018
+    stories:
+    - story_2026_014
   - id: CLP-06-002
     priority: MUST_NOT
     kind: project
@@ -991,7 +980,7 @@ groups:
     adr:
     - ADR-0019
     stories:
-    - story_2022_045
+    - story_2026_070
   - id: CLP-07-011
     priority: MUST
     kind: protocol
@@ -1029,7 +1018,7 @@ groups:
     - ADR-0107
     - ADR-0157
     stories:
-    - story_2022_045
+    - story_2026_072
   - id: CLP-07-012
     priority: MUST_NOT
     kind: protocol
@@ -1040,6 +1029,8 @@ groups:
       from the canonical log.
     adr:
     - ADR-0019
+    stories:
+    - story_2026_005
   - id: CLP-07-002
     priority: MUST
     kind: protocol
@@ -1067,7 +1058,7 @@ groups:
     - ADR-0124
     - ADR-0019
     stories:
-    - story_2022_045
+    - story_2026_070
   - id: CLP-07-013
     priority: MUST
     kind: protocol
@@ -1113,7 +1104,7 @@ groups:
     - ADR-0124
     - ADR-0152
     stories:
-    - story_2022_045
+    - story_2026_070
   - id: CLP-07-021
     priority: MUST
     kind: protocol
@@ -1142,7 +1133,7 @@ groups:
     adr:
     - ADR-0124
     stories:
-    - story_2022_045
+    - story_2026_070
   - id: CLP-07-014
     priority: MUST_NOT
     kind: protocol
@@ -1168,7 +1159,7 @@ groups:
     adr:
     - ADR-0124
     stories:
-    - story_2022_045
+    - story_2026_071
   - id: CLP-07-022
     priority: MUST_NOT
     kind: protocol
@@ -1190,7 +1181,7 @@ groups:
     adr:
     - ADR-0124
     stories:
-    - story_2022_045
+    - story_2026_057
   - id: CLP-07-015
     priority: MUST
     kind: protocol
@@ -1231,7 +1222,7 @@ groups:
     - ADR-0146
     - ADR-0151
     stories:
-    - story_2022_045
+    - story_2026_078
   - id: CLP-07-023
     priority: MUST
     kind: protocol
@@ -1252,7 +1243,7 @@ groups:
     adr:
     - ADR-0146
     stories:
-    - story_2022_045
+    - story_2026_078
   - id: CLP-07-016
     priority: MUST
     kind: project
@@ -1342,7 +1333,7 @@ groups:
     - ADR-0088
     - ADR-0019
     stories:
-    - story_2022_045
+    - story_2026_072
     - story_2022_089
   - id: CLP-07-017
     priority: MUST
@@ -1369,7 +1360,7 @@ groups:
     - ADR-0088
     - ADR-0019
     stories:
-    - story_2022_045
+    - story_2026_072
     - story_2022_089
   - id: CLP-07-004
     priority: MUST_NOT
@@ -1389,6 +1380,8 @@ groups:
       changes. An actor's own log can hold any detail with no effect on the protocol.
     adr:
     - ADR-0019
+    stories:
+    - story_2026_002
   - id: CLP-07-005
     priority: SHOULD
     kind: project
@@ -1434,7 +1427,7 @@ groups:
     - ADR-0107
     - ADR-0124
     stories:
-    - story_2022_045
+    - story_2026_072
   - id: CLP-07-018
     priority: MUST_NOT
     kind: protocol
@@ -1459,7 +1452,7 @@ groups:
     adr:
     - ADR-0107
     stories:
-    - story_2022_045
+    - story_2026_072
   - id: CLP-07-007
     priority: MUST
     kind: protocol
@@ -1478,7 +1471,7 @@ groups:
       URI) as the `payloadSnapshot.context` field for case-scoped entries such as
       `ParticipantStatus`.
     stories:
-    - story_2022_045
+    - story_2026_062
     - story_2022_030
   - id: CLP-07-009
     priority: MUST
@@ -1562,7 +1555,7 @@ groups:
       constant) when no recorded entries exist, and that a second case produces a
       different genesis hash.
     stories:
-    - story_2022_045
+    - story_2026_073
     - story_2022_089
   - id: CLP-08-002
     priority: MUST
@@ -1594,7 +1587,7 @@ groups:
     adr:
     - ADR-0117
     stories:
-    - story_2022_045
+    - story_2026_073
     - story_2022_089
   - id: CLP-08-003
     priority: MUST
@@ -1611,7 +1604,7 @@ groups:
       declares `genesis_hash` as a required field, and integration tests confirm it
       is populated with the per-case genesis hash at case creation time.
     stories:
-    - story_2022_045
+    - story_2026_073
   - id: CLP-08-004
     priority: MUST
     kind: protocol
@@ -1627,7 +1620,7 @@ groups:
       `CaseLedger.tail_hash` returns the per-case genesis hash when the recorded entry
       list is empty and returns the hash of the last recorded entry otherwise.
     stories:
-    - story_2022_045
+    - story_2026_073
   - id: CLP-08-005
     priority: MUST
     kind: protocol
@@ -1645,8 +1638,7 @@ groups:
       `test/core/test_sync_helpers.py` confirms a requester holding no entry states the
       case-specific genesis hash.
     stories:
-    - story_2022_045
-    - story_2022_088
+    - story_2026_047
   - id: CLP-08-008
     priority: MUST
     kind: protocol
@@ -1666,8 +1658,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-08-005
     stories:
-    - story_2022_045
-    - story_2022_088
+    - story_2026_047
   - id: CLP-08-006
     priority: MUST
     kind: protocol
@@ -1681,7 +1672,7 @@ groups:
       case URIs containing a UUID4 component in the path segment; unit tests assert
       that newly created case URIs parse to a valid UUID4.
     stories:
-    - story_2022_045
+    - story_2026_073
     - story_2022_030
   - id: CLP-08-007
     priority: MUST_NOT
@@ -1692,6 +1683,8 @@ groups:
     rationale: Predictable or human-chosen path segments allow an attacker to pre-compute
       a valid genesis hash and construct a forged chain. See `notes/case-ledger-authority.md`
       for future improvement paths (secret nonce, CASE_MANAGER keypairs).
+    stories:
+    - story_2026_023
 - id: CLP-09
   title: Commit Authorization and Coverage
   specs:
@@ -1714,7 +1707,7 @@ groups:
       and integration tests in `test/demo/` confirm no unauthorized commit reaches
       the ledger.
     stories:
-    - story_2022_045
+    - story_2026_023
     - story_2022_046
   - id: CLP-09-002
     priority: MUST_NOT
@@ -1747,7 +1740,7 @@ groups:
       `test/architecture/_ledger_commit_inventory.py`, that each one reaches a canonical
       commit or carries a CLP-02-013 exemption.
     stories:
-    - story_2022_045
+    - story_2026_069
     - story_2022_074
   - id: CLP-09-005
     priority: MUST
@@ -1768,7 +1761,7 @@ groups:
     - rel_type: verifies
       spec_id: CLP-09-003
     stories:
-    - story_2022_045
+    - story_2026_069
     - story_2022_074
   - id: CLP-09-006
     priority: MUST
@@ -1790,7 +1783,7 @@ groups:
     - rel_type: implements
       spec_id: CLP-02-013
     stories:
-    - story_2022_045
+    - story_2026_069
   - id: CLP-09-004
     priority: MUST
     kind: project
@@ -1811,7 +1804,7 @@ groups:
       receiver of one activity and confirm that only the CASE_MANAGER invocation
       produces a canonical ledger entry.
     stories:
-    - story_2022_045
+    - story_2026_023
     - story_2022_046
 - id: CLP-10
   title: CASE_MANAGER Inbox Routing for Canonical Ledger Entry Authorship
@@ -1851,7 +1844,7 @@ groups:
     - ADR-0021
     - ADR-0109
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_046
   - id: CLP-10-031
     priority: MUST
@@ -1874,7 +1867,7 @@ groups:
     adr:
     - ADR-0109
     stories:
-    - story_2022_045
+    - story_2026_069
   - id: CLP-10-032
     priority: MUST_NOT
     kind: protocol
@@ -1894,7 +1887,7 @@ groups:
     adr:
     - ADR-0109
     stories:
-    - story_2022_045
+    - story_2026_075
   - id: CLP-10-003
     priority: MUST_NOT
     kind: project
@@ -1932,6 +1925,8 @@ groups:
       case for `announce_case_ledger_entry` is exempt as a replica applying an entry and
       reaches no ledger commit, so an `Announce(CaseLedgerEntry)` is never committed as a
       canonical entry's `payloadSnapshot`.
+    stories:
+    - story_2026_002
   - id: CLP-10-023
     priority: MUST_NOT
     kind: project
@@ -2151,7 +2146,8 @@ groups:
     kind: project
     statement: 'In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT`
       subtree, the ordering MUST be: (1) intake, (2) door guards, in order: the
-      post-close write boundary (CM-23-013), the addressee check (HP-01-005) and
+      post-close write boundary (CM-23-013), the addressee check (HP-01-005), the
+      path stage (ADR-0153) and
       the sender guard (HP-01-006), (2a) the ledger-position answer (SYNC-18-004,
       SYNC-18-005, SYNC-18-007), (3) clock decisions
       (CLP-10-025), (4) precondition guards, (5) commit, (6) all protocol effects.
@@ -2163,7 +2159,10 @@ groups:
       commits nothing and leaves the disposition of the act to the later stages. Refusal
       effects (CLP-10-022) belong to stage (4): they run only
       after a precondition guard refuses, and the tree then ends without
-      reaching (5) or (6).'
+      reaching (5) or (6). A tree whose message type declares the paths it
+      handles carries the path stage. It asks the receiver''s role once and picks the
+      manager, participant-replica or no-case path. It refuses a path the declaration
+      omits, and it writes nothing.'
     rationale: Intake records what arrived. The canonical case ledger records the cause
       (the received activity the CASE_MANAGER accepted) and replicates it to all
       participants, so cause precedes effects. A clock decision is the CASE_MANAGER's
@@ -2172,11 +2171,17 @@ groups:
       unentitled sender never makes it write (ADR-0135). The ledger-position answer
       runs before the guards because it answers the sender's stated position
       whatever the act's own outcome (SYNC-18-007), and after the door guards for
-      the same reason as a clock decision.
-    verification: Covered by the structural test named in CLP-10-006.
+      the same reason as a clock decision. The path stage runs among the door guards
+      because the role question decides whether the message is this receiver's to act
+      on at all, and ahead of the sender guard so the guard reads the path instead of
+      asking the same question a second time (HP-01-012).
+    verification: Covered by the structural test named in CLP-10-006;
+      `test/core/behaviors/case/test_received_path_stage.py` pins the path stage's
+      place among the door guards.
     adr:
     - ADR-0111
     - ADR-0135
+    - ADR-0153
   - id: CLP-10-011
     priority: MUST
     kind: project
@@ -2371,7 +2376,7 @@ groups:
     adr:
     - ADR-0022
     stories:
-    - story_2022_088
+    - story_2026_037
   - id: CLP-10-024
     priority: MUST
     kind: project
@@ -2399,8 +2404,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Subject-identity resolution (CLP-10-015) MUST NOT select a subject by its
-      position in the `to:` list.
+      Subject-identity resolution (CLP-10-015) MUST give a result that does not change
+      when the `to:` list is reordered.
     note: >-
       Where a message names its subject as its sole `to:` recipient, there is
       no position to choose: the invitee of an `Invite(EmbargoEvent)` is that
@@ -2426,8 +2431,8 @@ groups:
     adr:
     - ADR-0022
     - ADR-0113
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_037
   - id: CLP-10-017
     priority: MUST
     kind: project
@@ -2698,9 +2703,10 @@ groups:
     kind: project
     statement: >-
       The factory MUST run the refusal effects only when a precondition guard refuses.
-      It never runs them when the sender guard refuses or the guards pass. Nor does it
-      run them when a guard's failure is an idempotent repeat, which the handler reports
-      `SKIPPED`.
+      It never runs them when a door guard refuses — the post-close boundary, the
+      addressee check, the path stage or the closed-sender door — when the sender guard
+      refuses, or when the guards pass. Nor does it run them when a guard's failure is
+      an idempotent repeat, which the handler reports `SKIPPED`.
     rationale: >-
       An unentitled sender is owed no answer (HP-01-006). A repeat whose effect is in
       place was not refused, so a `Reject` of it would contradict that effect.
@@ -3234,9 +3240,11 @@ groups:
       Only the CASE_MANAGER writes canonical case state. A replica that ran such a
       diversion would write a change no entry records.
     verification: >-
-      `test_the_case_manager_diverts` and `test_another_store_never_diverts` in
-      `test/core/behaviors/case/nodes/test_diversion_stage.py` assert a CASE_MANAGER
-      diversion never diverts at another store.
+      `test_the_case_manager_diverts` and
+      `test_another_store_is_refused_before_the_diversion` in
+      `test/core/behaviors/case/nodes/test_diversion_stage.py` assert a diversion in
+      a manager-only declaration never diverts at another store, because the path
+      stage refuses that receiver first (HP-01-038).
     relationships:
     - rel_type: extends
       spec_id: CLP-10-026
@@ -3252,11 +3260,11 @@ groups:
       The late-Accept answer commits and writes consent, which must be in the ledger.
       Anything more would put the received activity's own effects ahead of the guards.
     verification: >-
-      `test_a_case_manager_diversions_own_commit_is_allowed` and
-      `test_an_ungated_diversions_commit_is_flagged` in
+      `test_a_manager_only_declarations_diversion_commit_is_allowed` and
+      `test_a_two_path_declarations_diversion_commit_is_flagged` in
       `test/architecture/test_receive_side_bt_commit_ordering.py` accept a commit ahead
-      of the guarded commit only inside the clock-decision stage or a CASE_MANAGER
-      diversion.
+      of the guarded commit only inside the clock-decision stage or a diversion in a
+      tree declaring the CASE_MANAGER path alone.
     relationships:
     - rel_type: extends
       spec_id: CLP-10-026
@@ -3432,8 +3440,7 @@ groups:
     adr:
     - ADR-0080
     stories:
-    - story_2022_045
-    - story_2022_088
+    - story_2026_034
   - id: CLP-11-002
     priority: MUST_NOT
     kind: project
@@ -3471,7 +3478,8 @@ groups:
     verification: >-
       Inspection confirms that `CasePersistence.find_protocol_pair()` in
       `vultron/core/ports/case_persistence.py` returns a `ProtocolPair`, and that
-      `PendingAssertionStore` in `vultron/core/models/pending_assertion.py` keys its
+      `PendingAssertionStore` in `vultron/core/models/pending_assertion/store.py` keys
+      its
       entries by `ProtocolPair`.
   - id: CLP-11-006
     priority: MUST
@@ -3618,8 +3626,8 @@ groups:
       spec_id: CLP-01-003
     - rel_type: refines
       spec_id: SYNC-01-002
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_028
   - id: CLP-14-002
     priority: MUST
     kind: protocol
@@ -3636,8 +3644,8 @@ groups:
       field.
     adr:
     - ADR-0079
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_028
   - id: CLP-14-011
     priority: MUST
     kind: protocol
@@ -3685,8 +3693,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-14-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_028
   - id: CLP-14-004
     priority: MUST
     kind: protocol
@@ -3697,8 +3705,8 @@ groups:
       meaningless and breaks hash-chain verification (which is scoped per case).
     adr:
     - ADR-0079
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_023
   - id: CLP-14-012
     priority: MUST
     kind: protocol
@@ -3736,8 +3744,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SYNC-01-002
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_028
   - id: CLP-14-006
     priority: MUST
     kind: protocol
@@ -3757,8 +3765,8 @@ groups:
       `test/core/models/test_clp_14_15_invariants.py`.
     adr:
     - ADR-0079
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_028
   - id: CLP-14-013
     priority: MUST
     kind: protocol
@@ -3804,6 +3812,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-14-001
+    stories:
+    - story_2026_023
   - id: CLP-14-014
     priority: SHOULD
     kind: protocol
@@ -3821,6 +3831,8 @@ groups:
       spec_id: CLP-14-007
     adr:
     - ADR-0079
+    stories:
+    - story_2026_023
   - id: CLP-14-008
     priority: SHOULD
     kind: protocol
@@ -3837,6 +3849,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-14-001
+    stories:
+    - story_2026_023
   - id: CLP-14-015
     priority: SHOULD
     kind: protocol
@@ -3853,6 +3867,8 @@ groups:
       spec_id: CLP-14-008
     adr:
     - ADR-0079
+    stories:
+    - story_2026_023
   - id: CLP-14-009
     priority: MAY
     kind: project
@@ -3891,8 +3907,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SYNC-01-002
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_028
 - id: CLP-15
   title: Participant Assertion Timestamp Obligations
   description: Normative requirements on what well-behaved participants MUST do when
@@ -3923,8 +3939,8 @@ groups:
       `test/core/models/test_clp_14_15_invariants.py::test_clp_15_001_002_out_of_order_emission_detected_at_ledger_order`.'
     adr:
     - ADR-0079
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_029
   - id: CLP-15-002
     priority: MUST_NOT
     kind: protocol
@@ -3943,6 +3959,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-15-001
+    stories:
+    - story_2026_029
   - id: CLP-15-003
     priority: MUST
     kind: protocol
@@ -3972,8 +3990,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-15-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_029
   - id: CLP-15-004
     priority: SHOULD
     kind: protocol
@@ -3986,6 +4004,8 @@ groups:
       replays (CLP-14-008).
     adr:
     - ADR-0079
+    stories:
+    - story_2026_029
   - id: CLP-15-006
     priority: MUST
     kind: protocol
@@ -4006,8 +4026,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-15-004
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_029
   - id: CLP-15-008
     priority: MUST
     kind: protocol
@@ -4054,8 +4074,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-01-003
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_028
   - id: CLP-15-007
     priority: MUST
     kind: protocol
@@ -4081,8 +4101,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-15-006
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_029
   - id: CLP-15-009
     priority: MUST
     kind: protocol
@@ -4112,10 +4132,10 @@ groups:
       A receiver MUST reject at message validation an inbound activity carrying a
       `CaseStatus` with no `published`, wherever the status sits in it.
     rationale: >-
-      A case's current status is the one with the latest time (CM-29-001), so every
-      status needs one. Any place a receiver chose for an untimed status would be a
-      rule no sender agreed to. Ordering statuses is a decision that needs the time,
-      so it is refused at message validation (CLP-15-009), as CLP-15-008 refuses an
+      Every status carries its author's time (SM-05-003), and its `published`
+      follows its place in the case history (CM-29-005). A receiver that filled in
+      a missing time would claim one no sender made (CLP-15-007), so the status is
+      refused at message validation (CLP-15-009), as CLP-15-008 refuses an
       activity with no time.
       Participant statuses are not covered: nothing reads their time.
     verification: >-

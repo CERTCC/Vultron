@@ -102,13 +102,16 @@ def is_wire_type_alias(cls: type) -> bool:
 def find_in_vocabulary(
     item_name: str, *, include_core: bool = False
 ) -> type[BaseModel]:
-    """Find the class the wire registry holds for *item_name*.
+    """Find the class the wire registry holds for the wire ``type`` *item_name*.
 
-    Checks ``WIRE_TYPE_MAP`` (keyed by wire ``type`` value) first, then
-    ``VOCABULARY`` (keyed by full wire class name). By default that is all it
-    checks, so the answer is always a class the *wire* registry holds: an
-    ``as_Base`` subclass, or a core class registered in ``WIRE_TYPE_MAP`` as its
-    own wire form (ARCH-25-003, ADR-0099; e.g. ``VulnerabilityCase``). The
+    Checks ``WIRE_TYPE_MAP``, keyed by wire ``type`` value (VM-01-008). It
+    never consults ``VOCABULARY``, which is keyed by wire class name: a class
+    name such as ``as_Activity`` is never an AS2 ``type`` value (VM-01-016),
+    and ``as_Activity.type_`` is a bare ``str``, so a fallback to
+    ``VOCABULARY`` resolved an inbound ``"type": "as_Activity"`` (#5738). By
+    default the answer is therefore always a class the *wire* registry holds:
+    an ``as_Base`` subclass, or a core class registered in ``WIRE_TYPE_MAP`` as
+    its own wire form (ARCH-25-003, ADR-0099; e.g. ``VulnerabilityCase``). The
     discriminator is registry membership, not branch ancestry — an
     ``as_Base``-only rule would refuse the canonical case type.
 
@@ -129,9 +132,9 @@ def find_in_vocabulary(
     general; the parent field annotation stays the authority on that.
 
     Args:
-        item_name: The ``type`` value or wire class name to find.
-        include_core: Also consult ``CORE_TYPE_MAP`` when neither wire map
-            holds *item_name*. Wire-branch callers MUST leave this ``False``.
+        item_name: The wire ``type`` value to find.
+        include_core: Also consult ``CORE_TYPE_MAP`` when ``WIRE_TYPE_MAP``
+            does not hold *item_name*. Wire-branch callers MUST leave this ``False``.
     Returns:
         The class registered under that name.
     Raises:
@@ -139,8 +142,6 @@ def find_in_vocabulary(
     """
     if item_name in WIRE_TYPE_MAP:
         return WIRE_TYPE_MAP[item_name]
-    if item_name in VOCABULARY:
-        return VOCABULARY[item_name]
     if include_core:
         try:
             return find_in_core_type_map(item_name)

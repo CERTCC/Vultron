@@ -34,12 +34,12 @@ from vultron.metadata.docs.requirement_catalog import (
 from vultron.metadata.docs.site_urls import url_path
 from vultron.metadata.markdown_tables import exec_blocks
 from vultron.metadata.specs.docs_render import (
-    _REL_LABEL,
     render_catalog_page,
     render_for_kind,
     render_requirement_row,
     requirement_callout,
 )
+from vultron.metadata.specs.docs_render.rows import _REL_LABEL
 from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.schema import RelationType, SpecKind, SpecTag
 
@@ -1336,7 +1336,7 @@ def test_exec_blocks_find_callouts_only_where_they_print():
 def test_renderers_default_to_the_repository_registry(monkeypatch):
     """With no registry given, a callout and a catalog page load the
     repository's ``specs/``, once per state of the directory."""
-    from vultron.metadata.specs import docs_render
+    from vultron.metadata.specs.docs_render import pages as docs_render
 
     monkeypatch.setenv(EXEC_PAGE_ENV, _CALLOUT_PAGE)
     monkeypatch.setattr(docs_render, "_registry_cache", {})
@@ -1352,7 +1352,7 @@ def test_repository_registry_reloads_when_specs_change(tmp_path, monkeypatch):
     """An edited requirement file reaches the next ``mkdocs serve`` rebuild."""
     import os
 
-    from vultron.metadata.specs import docs_render
+    from vultron.metadata.specs.docs_render import pages as docs_render
 
     specs = tmp_path / "specs"
     specs.mkdir()

@@ -31,7 +31,7 @@ invite skipped the mark with the answer. Composing the story (#5533, PR #5588)
 moved the mark into the runner, where nothing nested it, and the first
 implementation raised — which a fresh-agent review caught by driving a failed
 invite trigger through `run_story`. `_mark_step`
-(`vultron/demo/helpers/story.py`) now takes (2) when the run has already
+(`vultron/demo/helpers/story/runner.py`) now takes (2) when the run has already
 recorded a failure and (1) when it has not, which is the reading the nested
 form had; nothing in DEMOCI-11 says it.
 

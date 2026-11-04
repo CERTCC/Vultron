@@ -242,6 +242,35 @@ is whether any **node** re-reads it, and when. Guards:
 `test_an_inner_actor_id_does_not_clobber_the_outer_one` and
 `test_a_later_sibling_reads_its_own_trees_actor` in `test_bridge.py`.
 
+### A Key Written as an Output Port Is Not `context_data`, So Name It Explicitly
+
+`managed_keys` picks up every `context_data` key automatically, so a key a use
+case *passes in* is scoped for free. A key a **node publishes through an output
+port** is not `context_data` and gets no entry, so its value outlives the
+execution that wrote it. Ask of any shared port key: does a node write it, and
+does another execution read it? If both, it belongs in the fixed `managed_keys`
+list.
+
+`case_id` is the worked example. Six nodes declare it as an output port
+(`CaseLookupNode`, the two `proposal_case_resolution` resolvers, the replay node
+and the case-creation nodes), while `ReceivedPathNode` and
+`CheckIsCaseManagerNode` both fall back to `/case_id` after their constructor
+argument and before the activity (`activity_case_id`). An unscoped `/case_id`
+therefore let one delivery's case decide a *later* delivery's path: a
+`Read(Offer(VulnerabilityReport))`, whose tree names no case and declares the
+no-case path alone, resolved a leaked case the reporter held a replica of and
+was refused at the path stage as a replica of a case it never named
+(RMB-08-003, HP-01-040). In a single-process run — every demo, every in-process
+integration test — the writer can be a *different actor's* execution, so the
+leak crosses the actor isolation BT-09 asks for. Guards:
+`test_execute_with_setup_does_not_leak_a_published_case_id` and
+`test_execute_with_setup_restores_a_preexisting_case_id` in `test_bridge.py`.
+
+The fix is the key's lifetime, never the reader: widening the declaration of the
+tree that tripped over it would have masked the leak and left
+`AddCaseStatusToCaseBT`, which passes `case_id or None` and declares the replica
+path, able to *admit* a status on a leaked case's replica path.
+
 ### Every Classifying Exception Handler Is One Helper
 
 Every `BTBridge` handler that builds a result — the tick loop in `execute_tree`
@@ -262,8 +291,8 @@ An inter-node handoff key in a tree factory that can run concurrently for severa
 messages of one type MUST carry the execution-scoped correlation id:
 `{noun}_{id_segment}`, where `id_segment` is the last `/`-segment of an HTTP id
 (or last `:`-segment of a URN), matching the `object_{id_segment}` keys in
-`helpers.py`. A flat key is overwritten by the concurrent instance before the
-downstream reader runs (BTND-03-004). When namespacing, audit every `register_key`
+`helpers/object_nodes.py`. A flat key is overwritten by the concurrent instance
+before the downstream reader runs (BTND-03-004). When namespacing, audit every `register_key`
 in the affected subtree, not only the key the issue names.
 
 ---
@@ -313,7 +342,7 @@ SYNC-09-003).
 ## Guard Name Must Match the State-Machine Transition Precondition
 
 Derive a guard's condition (and name) from the precondition of the transition it
-protects, read from the state machine (`vultron/core/states/cs.py`), not from the
+protects, read from the state machine (`vultron/core/states/cs/`), not from the
 issue's "not yet done" wording. "D bit unset" admits `vfd`/`Vfd`, but `vfd→VFD`
 via `TransitionCStoFixDeployed` is valid only from `VFd` — see
 `CheckCSFixNotYetDeployed` (#1825).
@@ -452,7 +481,7 @@ status-transparent, but a test asserting on the backend's concrete type or
 attributes must use `unwrap_call_out(node)`. Code that ticks a factory product
 outside a `BTBridge` tree must use `tick_once()` / `setup_with_descendants()`,
 never bare `update()` / `setup()` (see `_record_named_peer` in
-`use_cases/triggers/actor.py`). Rationale: [protocol-asks.md](protocol-asks.md)
+`use_cases/triggers/actor/_peers.py`). Rationale: [protocol-asks.md](protocol-asks.md)
 § "Why there is nothing to suspend" (ADR-0080); bundle
 configuration: [call-out-configuration.md](call-out-configuration.md).
 
@@ -528,8 +557,9 @@ never calls `create_case_manager_gated_tree` itself.
 - **Emit-capable nodes carry `EmitCapable`** (`vultron/core/behaviors/emit_capable.py`).
   The factory raises `VultronWiringError` when a marked node sits in
   `replica_effects` outside every `CaseManagerGate` without a covering exemption.
-  Only `create_case_manager_gated_tree` builds a `CaseManagerGate`; the
-  participant-replica gate does not count.
+  Only `create_case_manager_gated_tree` builds a `CaseManagerGate`; neither the
+  participant-replica gate nor a `PathBranch` off the manager path counts, since
+  both run at a replica.
 - **Ledger replication carries no marker.** Senders through `SyncActivityPort` or
   `create_commit_log_entry_tree` are gated by ledger authority
   (`DeclineForeignLedgerCommitNode`, ADR-0073) and pinned in

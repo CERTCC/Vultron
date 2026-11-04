@@ -45,14 +45,17 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from vultron.demo.helpers import story_cast, vendor_story
+from vultron.demo.helpers import story_cast
 from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
 from vultron.demo.helpers.story import Story, StoryState, story
-from vultron.demo.utils import reset_demo_failures
+from vultron.demo.helpers.vendor_story import cast as vendor_cast
 from vultron.errors import DemoFailureError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: What the scenario does before a case exists, as a patch target: a bare name
 #: is read off the scenario's own module, a dotted one is taken as written.
@@ -67,8 +70,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 #: the table would leave the artifact promise unchecked for the half of the
 #: tree that dies in that opening
 #: (:func:`test_every_registered_scenario_is_in_the_table`).
-_CAST_ONE = "vultron.demo.helpers.coordinated_story.open_coordinated_cast"
-_VENDOR_CAST_ONE = "vultron.demo.helpers.vendor_story.open_vendor_cast"
+_CAST_ONE = "vultron.demo.helpers.coordinated_story.cast.open_coordinated_cast"
+_VENDOR_CAST_ONE = "vultron.demo.helpers.vendor_story.cast.open_vendor_cast"
 
 # (module path, run function name, devlogs sub-directory name, first step)
 SCENARIOS: list[tuple[str, str, str, str]] = [
@@ -160,14 +163,6 @@ def _client_kwargs(run_fn) -> dict[str, MagicMock]:
     }
 
 
-@pytest.fixture(autouse=True)
-def _clean_failure_accumulator():
-    """Isolate the module-level demo failure accumulator between tests."""
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
-
-
 class TestManifestWrittenWhenScenarioDiesEarly:
     """A scenario that dies before the case exists still produces an artifact."""
 
@@ -253,9 +248,11 @@ class TestDumpRunsAfterMidStoryFailure:
             patch.object(
                 story_cast, "reset_datalayer", return_value={"status": "ok"}
             ),
-            patch("vultron.demo.helpers.seeding.seed_case_actor_identity"),
+            patch(
+                "vultron.demo.helpers.seeding.reset.seed_case_actor_identity"
+            ),
             patch.object(
-                vendor_story, "seed_containers", return_value=tuple(actors)
+                vendor_cast, "seed_containers", return_value=tuple(actors)
             ),
             patch.object(
                 story_cast, "get_actor_by_id", side_effect=list(actors)

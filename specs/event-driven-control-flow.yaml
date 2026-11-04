@@ -179,7 +179,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that injecting a primary event causes all expected cascade
       consequences (state changes, outbox activities) without any manual intermediate trigger steps.
     stories:
-    - story_2022_088
+    - story_2026_060
     - story_2022_106
   - id: EDF-03-005
     priority: MUST_NOT

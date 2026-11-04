@@ -31,24 +31,30 @@ from vultron.wire.as2.vocab.activities.actor import (
     _RecommendActorActivity,
     _RejectActorRecommendationActivity,
 )
-from vultron.wire.as2.vocab.activities.case import (
-    _AcceptCaseOwnershipTransferActivity,
+from vultron.wire.as2.vocab.activities.case.content import (
     _AddNoteToCaseActivity,
     _AddReportToCaseActivity,
     _AddStatusToCaseActivity,
     _CreateCaseActivity,
+    _UpdateCaseActivity,
+)
+from vultron.wire.as2.vocab.activities.case.invite import (
+    _RmAcceptInviteToCaseActivity,
+    _RmInviteToCaseActivity,
+    _RmRejectInviteToCaseActivity,
+)
+from vultron.wire.as2.vocab.activities.case.ownership import (
+    _AcceptCaseOwnershipTransferActivity,
     _OfferCaseOwnershipTransferActivity,
     _ProposeCaseOwnershipTransferActivity,
     _RejectCaseOwnershipTransferActivity,
-    _RmAcceptInviteToCaseActivity,
+    _UndoCaseOwnershipTransferActivity,
+)
+from vultron.wire.as2.vocab.activities.case.rm import (
     _RmCloseCaseActivity,
     _RmDeferCaseActivity,
     _RmEngageCaseActivity,
-    _RmInviteToCaseActivity,
     _RmRejectCloseCaseActivity,
-    _RmRejectInviteToCaseActivity,
-    _UndoCaseOwnershipTransferActivity,
-    _UpdateCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.case_participant import (
     _AddParticipantToCaseActivity,

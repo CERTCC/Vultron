@@ -26,8 +26,8 @@ dumped like the first — the properties the retired ``later_vendors`` and
 ``vendor_joins_coordinated_case`` parameters used to carry.  The generic
 contracts of those three helpers (whether an invitee triages, how a
 ``(devlogs name, cast name)`` pair is read, which client each leaver acts
-through) belong to ``test_coordinated_story.py``; what is pinned here is what
-only a four-party case can show.
+through) belong to ``test/demo/coordinated_story/``; what is pinned here
+is what only a four-party case can show.
 """
 
 from unittest.mock import MagicMock, patch
@@ -40,19 +40,23 @@ from test.demo._helpers import (
     story_state,
     stub_closure_gate,
 )
-from vultron.demo.helpers import closure, coordinated_story, story_cast
+from vultron.demo.helpers import closure, story_cast
 from vultron.demo.helpers.coordinated_story import (
     COORDINATOR,
     REPORTER,
     VENDOR,
     close_the_case,
     invitee_joins_the_case,
+    joining as coordinated_joining,
 )
 from vultron.demo.helpers.story import StoryState
 from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME, dump_story_ledgers
-from vultron.demo.utils import demo_failures, reset_demo_failures
+from vultron.demo.utils import demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: What ``rcvv-embargo`` calls its two vendors.  Vendor1 is the family's
 #: Vendor, seated under the name ``rcv-embargo``'s only Vendor uses, because
@@ -65,18 +69,6 @@ VENDOR2_LABEL = "Vendor2"
 
 #: The four-party cast of a scenario with a later vendor, in roster order.
 _FOUR = (REPORTER, COORDINATOR, VENDOR1, VENDOR2)
-
-
-@pytest.fixture(autouse=True)
-def _clean_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``demo_gate`` skips its body once anything is recorded, so a leftover
-    failure from another test would silently turn these runs into no-ops.
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 class TestALaterVendorJoins:
@@ -93,13 +85,15 @@ class TestALaterVendorJoins:
         state = story_state(*_FOUR, case=mock_case())
 
         with (
-            patch.object(coordinated_story, "wait_for_case_on_container"),
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
+            patch.object(coordinated_joining, "wait_for_case_on_container"),
             patch.object(
-                coordinated_story, "wait_for_case_participants"
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch.object(
+                coordinated_joining, "wait_for_case_participants"
             ) as roster,
             patch.object(
-                coordinated_story, "run_invite_path_rm_triage"
+                coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,
         ):
             invitee_joins_the_case(

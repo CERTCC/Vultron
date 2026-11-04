@@ -22,6 +22,8 @@ inside the CASE_MANAGER gate the factory builds here.  Split out of
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.path_branch import PathBranch
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.nodes.role_gates import (
     CaseManagerGate,
     create_case_manager_gated_tree,
@@ -34,6 +36,14 @@ from vultron.core.behaviors.replica_emit_exemptions import (
 )
 from vultron.errors import VultronWiringError
 
+#: The declaration that gates a branch on the CASE_MANAGER, as a set.
+_MANAGER_PATH_ONLY = frozenset({ReceivedPath.CASE_MANAGER})
+
+
+def _runs_at_the_manager_alone(node: py_trees.behaviour.Behaviour) -> bool:
+    """True when *node* is a path branch on the manager path alone."""
+    return isinstance(node, PathBranch) and node.paths == _MANAGER_PATH_ONLY
+
 
 def ungated_nodes(
     roots: list[py_trees.behaviour.Behaviour],
@@ -42,12 +52,19 @@ def ungated_nodes(
     """Every *marker* instance in *roots* outside a CASE_MANAGER gate.
 
     The walk does not descend into a :class:`CaseManagerGate`: whatever runs
-    there runs only at the CASE_MANAGER (BT-17-001).  Any other composite,
-    including the participant-replica gate, is walked.
+    there runs only at the CASE_MANAGER (BT-17-001).  Nor into a
+    :class:`~vultron.core.behaviors.case.nodes.path_branch.PathBranch` that
+    names the manager path alone, which is the same statement made as a
+    declared branch (HP-01-038).  Any other composite is walked, the
+    participant-replica gate and a branch off the manager path among them: a
+    branch that runs at a replica holds ungated nodes, so an emit inside it
+    needs its exemption (BT-17-008).
     """
     found: list[py_trees.behaviour.Behaviour] = []
     for root in roots:
-        if isinstance(root, CaseManagerGate):
+        if isinstance(root, CaseManagerGate) or _runs_at_the_manager_alone(
+            root
+        ):
             continue
         if isinstance(root, marker):
             found.append(root)

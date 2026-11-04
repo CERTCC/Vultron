@@ -25,7 +25,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from vultron.demo.helpers import workflow
+from vultron.demo.helpers.workflow import report as workflow_report
 from vultron.demo.utils import DataLayerClient
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -38,16 +38,14 @@ _END = datetime(2030, 6, 1, tzinfo=UTC)
 
 @pytest.fixture(autouse=True)
 def quiet_transport(monkeypatch):
-    """No node is running: delivery, provisioning and store checks are stubs."""
+    """No node is running: provisioning and store checks are stubs."""
     monkeypatch.setattr(
-        workflow, "post_to_inbox_and_wait", lambda *a, **k: None
+        workflow_report, "_provision_case_actor", lambda *a, **k: None
     )
     monkeypatch.setattr(
-        workflow, "_provision_case_actor", lambda *a, **k: None
-    )
-    monkeypatch.setattr(workflow, "verify_object_stored", lambda *a, **k: None)
-    monkeypatch.setattr(
-        workflow, "wait_for_report_submission_stored", lambda *a, **k: None
+        workflow_report,
+        "wait_for_report_submission_stored",
+        lambda *a, **k: None,
     )
 
 
@@ -87,9 +85,9 @@ class TestTriggerArm:
                 }
                 return type("R", (), {"offer": offer})()
 
-        monkeypatch.setattr(workflow, "ActorSession", _FakeSession)
+        monkeypatch.setattr(workflow_report, "ActorSession", _FakeSession)
 
-        report, offer = workflow.reporter_submits_report(
+        report, offer = workflow_report.reporter_submits_report(
             _client(),
             _REPORTER,
             _RECEIVER,
@@ -137,23 +135,27 @@ class TestTriggerArmDeliversOnlyThroughTheOutbox:
                 }
                 return type("R", (), {"offer": offer})()
 
-        monkeypatch.setattr(workflow, "ActorSession", _FakeSession)
+        monkeypatch.setattr(workflow_report, "ActorSession", _FakeSession)
+        # Any hand delivery leaves the demo as an inbox POST on some client, so
+        # record it at the transport, wherever the posting helper is imported.
+
+        def _record_call(_self, method, path: str, **_kwargs) -> dict:
+            if str(method).upper().endswith("POST") and "/inbox" in path:
+                calls.append("post")
+            return {}
+
+        monkeypatch.setattr(DataLayerClient, "call", _record_call)
         monkeypatch.setattr(
-            workflow,
-            "post_to_inbox_and_wait",
-            lambda *a, **k: calls.append("post"),
-        )
-        monkeypatch.setattr(
-            workflow,
+            workflow_report,
             "_provision_case_actor",
             lambda *a, **k: calls.append("provision"),
         )
         monkeypatch.setattr(
-            workflow,
+            workflow_report,
             "wait_for_report_submission_stored",
             lambda client, *args, **k: self._record_wait(calls, args),
         )
-        workflow.reporter_submits_report(
+        workflow_report.reporter_submits_report(
             _client(), _REPORTER, _RECEIVER, reporter_client=_client()
         )
         return calls
@@ -200,9 +202,9 @@ class TestReportText:
                 }
                 return type("R", (), {"offer": offer})()
 
-        monkeypatch.setattr(workflow, "ActorSession", _FakeSession)
+        monkeypatch.setattr(workflow_report, "ActorSession", _FakeSession)
 
-        report, _ = workflow.reporter_submits_report(
+        report, _ = workflow_report.reporter_submits_report(
             _client(),
             _REPORTER,
             _RECEIVER,

@@ -50,7 +50,7 @@ Nothing derivable is typed by hand; the rules for writing an occasion are in
 | send to (addressee) | `Occasion.addressee`, an `AddresseeSide`, worded by its `send_to` (ADR-0129) |
 | sent by | the side of the received use case's `sender_entitlement` matching the occasion's addressee (ADR-0115, ADR-0129) |
 | page | `SemanticEntry.page`, a `MessagePage` value |
-| `MappingStatus`, distinguished by | derived from the occasions by `vultron/metadata/msm/_mapping.py` (`evolved` declared on its occasion) |
+| `MappingStatus`, distinguished by | derived from the occasions by `vultron/metadata/msm/_mapping/` (`evolved` declared on its occasion) |
 | "Seen in" | the include directives on `docs/` pages |
 
 The message pages include the generated fragments; the fragments exist
@@ -72,8 +72,8 @@ lookup table is mostly links.
   declaration says which one its handler checks.
 - The wording is declared on each kind, not kept here: see
   `SenderEntitlementKind.sent_by` and `.term`, and `AddresseeSide.send_to`, in
-  `vultron/core/behaviors/sender_entitlement.py` (MSM-08-010). A test holds every
-  term to a glossary row. A position's wording names its object with an
+  `vultron/core/behaviors/sender_entitlement/declarations.py` (MSM-08-010). A test
+  holds every term to a glossary row. A position's wording names its object with an
   `{object}` placeholder ("the addressee of the case proposal", "the note's
   author"), and a nested request by its object and verb ("the addressee of the
   vulnerability case offer"); an exemption reads "not yet checked", and an

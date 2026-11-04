@@ -40,7 +40,9 @@ _SCENARIO_DIR = _DEMO_DIR / "scenario"
 
 #: Modules allowed to name a commit starter, each with its reason.
 _PINNED = {
-    _DEMO_DIR / "actor_session.py": "defines the endpoint client",
+    _DEMO_DIR
+    / "actor_session"
+    / "progress_triggers.py": "defines the endpoint client",
     _DEMO_DIR / "helpers" / "ledger_commit.py": "defines the test probe",
 }
 

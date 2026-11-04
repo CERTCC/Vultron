@@ -11,19 +11,15 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for ``VultronReportCaseLink`` field names and their retired keys.
+"""Tests for ``VultronReportCaseLink`` field names.
 
 #4020 renamed ``trusted_case_creator_id`` to ``case_creator_id`` and
 ``trusted_case_actor_id`` to ``case_manager_id`` so CodeQL's sensitive-name
-heuristic stops reading actor ids as secrets.  Stored data carries no
-backwards compatibility, so a link still holding an old key is refused with a
-reason naming the store reset; it is never aliased onto the new name.
+heuristic stops reading actor ids as secrets.  A link still holding an old
+key is refused as an unknown key (``test_former_field_names.py``).
 """
 
 import re
-
-import pytest
-from pydantic import ValidationError
 
 from vultron.core.models.report_case_link import VultronReportCaseLink
 
@@ -47,46 +43,6 @@ def test_field_names_avoid_sensitive_name_heuristic() -> None:
         if _SENSITIVE_NAME.search(name)
     ]
     assert flagged == []
-
-
-@pytest.mark.parametrize(
-    ("old", "new"),
-    [
-        ("trusted_case_creator_id", "case_creator_id"),
-        ("trusted_case_actor_id", "case_manager_id"),
-    ],
-)
-def test_a_retired_key_is_refused_naming_the_reset(old: str, new: str) -> None:
-    with pytest.raises(ValidationError, match="must be reset") as excinfo:
-        VultronReportCaseLink.model_validate(
-            {"report_id": REPORT_ID, old: CREATOR_ID}
-        )
-    assert repr(old) in str(excinfo.value)
-    assert repr(new) in str(excinfo.value)
-
-
-def test_a_retired_key_is_refused_beside_its_replacement() -> None:
-    with pytest.raises(ValidationError, match="must be reset"):
-        VultronReportCaseLink.model_validate(
-            {
-                "report_id": REPORT_ID,
-                "case_manager_id": MANAGER_ID,
-                "trusted_case_actor_id": "https://example.org/actors/stale",
-            }
-        )
-
-
-def test_a_row_carrying_both_retired_keys_reports_both() -> None:
-    with pytest.raises(ValidationError, match="2 violation") as excinfo:
-        VultronReportCaseLink.model_validate(
-            {
-                "report_id": REPORT_ID,
-                "trusted_case_creator_id": CREATOR_ID,
-                "trusted_case_actor_id": MANAGER_ID,
-            }
-        )
-    assert "'trusted_case_creator_id'" in str(excinfo.value)
-    assert "'trusted_case_actor_id'" in str(excinfo.value)
 
 
 def test_dump_round_trips_under_the_new_keys() -> None:

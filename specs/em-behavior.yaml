@@ -76,7 +76,7 @@ groups:
       note: 'EP shorthand wire-type mapping'
 
     stories:
-    - story_2022_014
+    - story_2026_086
     - story_2022_023
   - id: EMB-01-002
     priority: MUST
@@ -133,7 +133,7 @@ groups:
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
     stories:
-    - story_2022_014
+    - story_2026_033
 
   - id: EMB-01-003
     priority: MUST
@@ -182,7 +182,7 @@ groups:
       note: 'EP shorthand wire-type mapping'
 
     stories:
-    - story_2022_014
+    - story_2026_086
   - id: EMB-01-004
     priority: SHOULD_NOT
     kind: protocol
@@ -208,6 +208,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
+    stories:
+    - story_2026_084
 
   - id: EMB-01-005
     priority: SHOULD_NOT
@@ -235,6 +237,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
+    stories:
+    - story_2026_084
 
   - id: EMB-01-006
     priority: MUST
@@ -339,7 +343,7 @@ groups:
       note: 'EA shorthand wire-type mapping'
 
     stories:
-    - story_2022_014
+    - story_2026_086
     - story_2022_023
   - id: EMB-02-002
     priority: MUST_NOT
@@ -383,6 +387,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
+    stories:
+    - story_2026_033
 
   - id: EMB-02-003
     priority: SHOULD_NOT
@@ -411,6 +417,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
+    stories:
+    - story_2026_084
 
   - id: EMB-02-004
     priority: MUST
@@ -457,7 +465,7 @@ groups:
       spec_id: VP-06-001
       note: MUST NOT accept a new embargo when public/exploit/attacks
     stories:
-    - story_2022_014
+    - story_2026_033
 
 - id: EMB-03
   title: Receive EV (Embargo Revision Proposed)
@@ -530,7 +538,7 @@ groups:
       note: 'EV shorthand wire-type mapping'
 
     stories:
-    - story_2022_014
+    - story_2026_086
   - id: EMB-03-002
     priority: MUST
     kind: protocol
@@ -576,7 +584,7 @@ groups:
       note: 'EV shorthand wire-type mapping'
 
     stories:
-    - story_2022_014
+    - story_2026_086
   - id: EMB-03-003
     priority: MUST_NOT
     kind: protocol
@@ -766,7 +774,7 @@ groups:
       spec_id: MSM-02-004
       note: 'EJ shorthand wire-type mapping'
     stories:
-    - story_2022_014
+    - story_2026_086
   - id: EMB-04-003
     priority: MUST
     kind: protocol
@@ -796,7 +804,7 @@ groups:
     - rel_type: refines
       spec_id: EMB-18-005
     stories:
-    - story_2022_014
+    - story_2026_086
   - id: EMB-04-002
     priority: MUST
     kind: protocol
@@ -933,7 +941,7 @@ groups:
       spec_id: MSM-02-005
       note: 'EC shorthand wire-type mapping'
     stories:
-    - story_2022_014
+    - story_2026_086
   - id: EMB-05-003
     priority: MUST
     kind: protocol
@@ -965,7 +973,7 @@ groups:
     - rel_type: refines
       spec_id: EMB-18-005
     stories:
-    - story_2022_014
+    - story_2026_086
   - id: EMB-05-002
     priority: MUST
     kind: protocol
@@ -1090,7 +1098,7 @@ groups:
       note: 'ER shorthand wire-type mapping'
 
     stories:
-    - story_2022_014
+    - story_2026_086
 - id: EMB-07
   title: Receive ET (Embargo Terminated)
   description: Behaviors triggered when a participant receives an ET (Embargo Terminated) message, transitioning EM state to Terminated and acknowledging receipt.
@@ -1141,7 +1149,7 @@ groups:
       note: 'ET shorthand wire-type mapping'
 
     stories:
-    - story_2022_014
+    - story_2026_086
     - story_2022_023
   - id: EMB-07-002
     priority: MUST
@@ -1188,7 +1196,7 @@ groups:
       note: 'ET shorthand wire-type mapping'
 
     stories:
-    - story_2022_014
+    - story_2026_086
     - story_2022_023
   - id: EMB-07-003
     priority: MUST
@@ -1225,7 +1233,7 @@ groups:
       note: 'ET shorthand wire-type mapping'
 
     stories:
-    - story_2022_088
+    - story_2026_014
 - id: EMB-08
   title: Receive EE (Embargo Error)
   description: Behaviors triggered when a participant receives an EE (Embargo Management Error) signal, which has no dedicated semantic dispatch value and is handled outside the standard AS2 pattern-matching pipeline.
@@ -1264,6 +1272,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-008
       note: 'EE shorthand wire-type mapping'
+    stories:
+    - story_2022_039
 
 - id: EMB-09
   title: Receive EK (Embargo Acknowledgment)
@@ -1298,6 +1308,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-009
       note: 'EK shorthand wire-type mapping'
+    stories:
+    - story_2026_006
 
 - id: EMB-10
   title: Enter EM Proposed
@@ -1337,6 +1349,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-06-010
       note: Participants MAY accept or reject any proposed embargo as they see fit
+    stories:
+    - story_2026_083
 
   - id: EMB-10-002
     priority: SHOULD_NOT
@@ -1365,6 +1379,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-13-003
       note: SHOULD NOT begin EM with a proposal from a Participant in RM Invalid
+    stories:
+    - story_2026_084
 
 - id: EMB-11
   title: Enter EM Active
@@ -1396,6 +1412,8 @@ groups:
       note: >-
         SHOULD NOT share vulnerability report with newly invited Participant
         unless they accepted the embargo
+    stories:
+    - story_2022_023
 
   - id: EMB-11-002
     priority: SHOULD
@@ -1425,6 +1443,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-05-014
       note: SHOULD NOT publish information when there is an active embargo
+    stories:
+    - story_2022_023
 
   - id: EMB-11-003
     priority: MUST_NOT
@@ -1455,6 +1475,8 @@ groups:
       note: >-
         A Participant's closure or deferral SHALL NOT automatically terminate
         the embargo
+    stories:
+    - story_2022_066
 
   - id: EMB-11-004
     priority: SHOULD
@@ -1482,6 +1504,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-13-006
       note: SHOULD be held in Deferred or Invalid until embargo exits
+    stories:
+    - story_2022_066
 
   - id: EMB-11-005
     priority: SHOULD
@@ -1504,6 +1528,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-13-008
       note: Changes to adherence intention SHOULD be communicated clearly
+    stories:
+    - story_2022_015
 
 - id: EMB-12
   title: Enter EM Revise
@@ -1535,6 +1561,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-04-005
       note: Once accepted, revisions MAY be proposed, which MAY be accepted or rejected
+    stories:
+    - story_2026_083
 
   - id: EMB-12-002
     priority: MUST_NOT
@@ -1564,6 +1592,8 @@ groups:
       note: >-
         A Participant's closure or deferral SHALL NOT automatically terminate
         the embargo
+    stories:
+    - story_2022_066
 
   - id: EMB-12-003
     priority: SHOULD
@@ -1586,6 +1616,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-13-008
       note: Changes to adherence intention SHOULD be communicated clearly
+    stories:
+    - story_2022_015
 
 - id: EMB-13
   title: Enter EM Exited
@@ -1626,6 +1658,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-04-001
       note: Accepted embargoes MUST eventually terminate
+    stories:
+    - story_2026_001
 
   - id: EMB-13-003
     priority: MUST
@@ -2115,6 +2149,8 @@ groups:
       note: >-
         No new embargo once public awareness, exploit publication or attacks
         have occurred
+    stories:
+    - story_2026_033
 
 - id: EMB-14
   title: Actor-Voluntary Embargo Termination (Trigger Side)
@@ -2167,7 +2203,7 @@ groups:
       note: Voluntary actor termination is a sub-case of active-embargo termination
     stories:
     - story_2022_080
-    - story_2022_014
+    - story_2026_095
   - id: EMB-14-005
     priority: MUST_NOT
     kind: protocol
@@ -2189,7 +2225,7 @@ groups:
       spec_id: EMB-14-001
     stories:
     - story_2022_080
-    - story_2022_014
+    - story_2026_095
   - id: EMB-14-006
     priority: MUST
     kind: protocol
@@ -2221,7 +2257,7 @@ groups:
       spec_id: EMB-13-004
     stories:
     - story_2022_080
-    - story_2022_014
+    - story_2026_095
   - id: EMB-14-004
     priority: MUST
     kind: project
@@ -2441,7 +2477,7 @@ groups:
       spec_id: CM-18-003
       note: Flow B acceptance advances the participant's consent row (INVITED → AGREED)
     stories:
-    - story_2022_014
+    - story_2026_004
     - story_2022_006
   - id: EMB-15-005
     priority: MUST
@@ -2463,7 +2499,7 @@ groups:
       spec_id: EMB-15-001
 
     stories:
-    - story_2022_014
+    - story_2026_004
     - story_2022_006
   - id: EMB-15-002
     priority: MUST
@@ -2669,7 +2705,7 @@ groups:
       spec_id: CM-18-003
       note: Flow B rejection advances PEC to DECLINED
     stories:
-    - story_2022_014
+    - story_2026_087
     - story_2022_027
   - id: EMB-15-009
     priority: MAY
@@ -2692,7 +2728,7 @@ groups:
     adr:
     - ADR-0122
     stories:
-    - story_2022_014
+    - story_2026_087
   - id: EMB-15-010
     priority: MUST
     kind: protocol
@@ -2711,7 +2747,7 @@ groups:
       spec_id: EMB-01-002
       note: Mandatory rejection when public/exploit/attacks overrides default-accept
     stories:
-    - story_2022_014
+    - story_2026_033
   - id: EMB-15-008
     priority: MUST
     kind: project
@@ -2963,7 +2999,7 @@ groups:
     adr:
     - ADR-0113
     stories:
-    - story_2022_014
+    - story_2026_059
   - id: EMB-16-006
     priority: MUST_NOT
     kind: protocol
@@ -2987,7 +3023,7 @@ groups:
     adr:
     - ADR-0113
     stories:
-    - story_2022_014
+    - story_2026_059
 - id: EMB-17
   title: Late Accept of an Expired Embargo Invitation
   description: >-
@@ -3032,7 +3068,7 @@ groups:
     - ADR-0065
     stories:
     - story_2022_013
-    - story_2022_014
+    - story_2026_093
   - id: EMB-17-012
     priority: MUST
     kind: protocol
@@ -3067,7 +3103,7 @@ groups:
     - ADR-0065
     stories:
     - story_2022_013
-    - story_2022_014
+    - story_2026_093
   - id: EMB-17-002
     priority: MUST
     kind: protocol
@@ -3129,7 +3165,7 @@ groups:
     - ADR-0118
     - ADR-0152
     stories:
-    - story_2022_014
+    - story_2026_093
     - story_2022_013
   - id: EMB-17-003
     priority: MUST
@@ -3194,7 +3230,7 @@ groups:
     - ADR-0152
     stories:
     - story_2022_013
-    - story_2022_014
+    - story_2026_093
   - id: EMB-17-013
     priority: MUST
     kind: protocol
@@ -3221,7 +3257,7 @@ groups:
     - ADR-0152
     stories:
     - story_2022_013
-    - story_2022_014
+    - story_2026_093
   - id: EMB-17-014
     priority: MUST
     kind: protocol
@@ -3245,7 +3281,7 @@ groups:
     - ADR-0152
     stories:
     - story_2022_013
-    - story_2022_014
+    - story_2026_093
   - id: EMB-17-005
     priority: MUST_NOT
     kind: protocol
@@ -3263,6 +3299,8 @@ groups:
       spec_id: EMB-17-003
     adr:
     - ADR-0065
+    stories:
+    - story_2026_001
   - id: EMB-17-006
     priority: MUST_NOT
     kind: protocol
@@ -3278,6 +3316,8 @@ groups:
       spec_id: EMB-17-003
     adr:
     - ADR-0065
+    stories:
+    - story_2026_001
   - id: EMB-17-004
     priority: MUST
     kind: protocol
@@ -3338,7 +3378,7 @@ groups:
     - ADR-0152
     stories:
     - story_2022_013
-    - story_2022_088
+    - story_2026_064
   - id: EMB-17-015
     priority: MUST_NOT
     kind: protocol
@@ -3361,7 +3401,7 @@ groups:
     - ADR-0152
     stories:
     - story_2022_013
-    - story_2022_088
+    - story_2026_064
   - id: EMB-17-016
     priority: MUST_NOT
     kind: protocol
@@ -3384,7 +3424,7 @@ groups:
     - ADR-0152
     stories:
     - story_2022_013
-    - story_2022_088
+    - story_2026_064
   - id: EMB-17-017
     priority: MUST
     kind: protocol
@@ -3410,7 +3450,7 @@ groups:
     - ADR-0152
     stories:
     - story_2022_013
-    - story_2022_088
+    - story_2026_064
   - id: EMB-17-007
     priority: MUST_NOT
     kind: protocol
@@ -3427,6 +3467,8 @@ groups:
       spec_id: EMB-17-004
     adr:
     - ADR-0065
+    stories:
+    - story_2026_001
   - id: EMB-17-008
     priority: MUST_NOT
     kind: protocol
@@ -3443,6 +3485,8 @@ groups:
       spec_id: EMB-17-004
     adr:
     - ADR-0065
+    stories:
+    - story_2026_001
   - id: EMB-17-009
     priority: MUST
     kind: protocol
@@ -3486,7 +3530,7 @@ groups:
     - ADR-0152
     stories:
     - story_2022_013
-    - story_2022_014
+    - story_2026_093
   - id: EMB-17-018
     priority: MUST_NOT
     kind: protocol
@@ -3510,7 +3554,7 @@ groups:
     - ADR-0152
     stories:
     - story_2022_013
-    - story_2022_014
+    - story_2026_093
 
 - id: EMB-18
   title: EM Write-Boundary Consolidation
@@ -3695,7 +3739,7 @@ groups:
     adr:
     - ADR-0107
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: EMB-18-004
     priority: MUST
     kind: protocol
@@ -3729,7 +3773,7 @@ groups:
       one about another case's report is refused
       (`test_a_held_proposal_about_the_cases_own_report_is_accepted` and its neighbours).
     stories:
-    - story_2022_014
+    - story_2026_082
     testable: true
     relationships:
     - rel_type: refines
@@ -3755,7 +3799,7 @@ groups:
     - rel_type: extends
       spec_id: EMB-18-004
     stories:
-    - story_2022_014
+    - story_2026_082
   - id: EMB-18-005
     priority: MUST
     kind: protocol
@@ -3785,7 +3829,7 @@ groups:
     adr:
     - ADR-0130
     stories:
-    - story_2022_014
+    - story_2026_086
     testable: true
     relationships:
     - rel_type: refines
@@ -3894,7 +3938,7 @@ groups:
     - ADR-0109
     - ADR-0114
     stories:
-    - story_2022_045
+    - story_2026_075
     - story_2022_046
     tags:
     - protocol
@@ -3921,7 +3965,7 @@ groups:
     - protocol
     - messaging
     stories:
-    - story_2022_045
+    - story_2026_075
     - story_2022_046
   - id: EMB-19-004
     priority: MUST_NOT
@@ -3944,7 +3988,7 @@ groups:
     - protocol
     - messaging
     stories:
-    - story_2022_045
+    - story_2026_075
     - story_2022_046
   - id: EMB-19-002
     priority: MUST
@@ -3961,7 +4005,7 @@ groups:
     - rel_type: refines
       spec_id: EMB-19-001
     stories:
-    - story_2022_045
+    - story_2026_075
     tags:
     - protocol
     - messaging

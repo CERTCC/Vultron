@@ -13,6 +13,8 @@ supersedes:
 partially_supersedes:
   - 0063-wire-rendering-port-for-core-objects.md
   - 0074-wire-activity-artifact-immutability.md
+partially_superseded_by:
+  - 0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md
 ---
 
 # One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy

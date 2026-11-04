@@ -14,7 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Pre-seed the case for a peer that Rejected from genesis (SYNC-15-015).
 
-Split from ``replay.py`` to keep that module under the submodule line cap
+Split from ``replay`` to keep that module under the submodule line cap
 (CS-18-001); the node runs ahead of the replay in ``create_reject_log_entry_tree``.
 ``GenesisRejectAlreadyAnsweredNode`` runs ahead of both and declines a genesis
 Reject the last replay from genesis already answered (SYNC-15-024).
@@ -31,8 +31,8 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
     PortInformation,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
 from vultron.core.behaviors.sync.nodes.replay_case import replay_case_id
 from vultron.core.behaviors.sync.nodes.replay_guard import (

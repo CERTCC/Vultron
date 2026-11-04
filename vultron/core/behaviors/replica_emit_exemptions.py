@@ -117,11 +117,12 @@ EMBARGO_INVITE_ANSWER: Final = ReplicaEmitExemption(
     name="embargo-invite-answer",
     reason=(
         "Invite(EmbargoEvent) is answered by its addressee: the Accept or"
-        " Reject runs in the participant-replica arm, only when the executing"
-        " actor is the Invite's sole addressee, and is that actor's own"
-        " answer addressed to the CASE_MANAGER (EP-09-003, EP-09-010,"
-        " PCR-08).  When the addressee is the case owner its answer is its"
-        " decision for the case, Accept/Reject(EmbargoEvent)[target=VulnerabilityCase]"
+        " Reject runs in the tree's OnPaths.off_case_manager branch, only"
+        " when the executing actor is the Invite's sole addressee, and is"
+        " that actor's own answer addressed to the CASE_MANAGER (EP-09-003,"
+        " EP-09-010, PCR-08).  When the addressee is the case owner its"
+        " answer is its decision for the case,"
+        " Accept/Reject(EmbargoEvent)[target=VulnerabilityCase]"
         " (SendOwnerEmbargoDecisionNode, ADR-0122), likewise addressed to the"
         " CASE_MANAGER."
     ),
@@ -133,16 +134,18 @@ EMBARGO_INVITE_ANSWER: Final = ReplicaEmitExemption(
 EMBARGO_INVITE_REFUSAL: Final = ReplicaEmitExemption(
     name="embargo-invite-refusal",
     reason=(
-        "Once P/X/A is set, a received Invite(EmbargoEvent) or Accept of one"
-        " is refused with the executing actor's own Reject of that Invite:"
-        " a participant answers only an Invite addressed to it and sends"
-        " the Reject to the CASE_MANAGER, and the CASE_MANAGER answers the"
-        " actor that sent it the Invite or the Accept (EMB-01-002,"
-        " EMB-02-004, EP-09-003, EP-09-010, PCR-08-001)."
+        "Once P/X/A is set, a received Invite(EmbargoEvent) is refused with"
+        " the executing actor's own Reject of that Invite: a participant"
+        " answers only an Invite addressed to it (ReceiverIsInviteeNode) and"
+        " sends the Reject to the CASE_MANAGER, and the CASE_MANAGER answers"
+        " the actor that sent it the Invite (EMB-01-002, EP-09-003,"
+        " EP-09-010, PCR-08-001).  The Invite tree declares both the manager"
+        " and the participant-replica path, so the declaration alone does"
+        " not bound the emit; the refusal of an Accept runs in a tree that"
+        " declares the CASE_MANAGER path alone and needs no exemption"
+        " (EMB-02-004, HP-01-038)."
     ),
-    covers=frozenset(
-        {"SendEmbargoInviteAnswerNode", "SendEmbargoProposalRefusalNode"}
-    ),
+    covers=frozenset({"SendEmbargoProposalRefusalNode"}),
 )
 
 EMBARGO_INVITE_FAULT: Final = ReplicaEmitExemption(

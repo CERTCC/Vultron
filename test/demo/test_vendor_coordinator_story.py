@@ -22,10 +22,10 @@ copy of the code: the named prefix
 tell afterwards (DEMOMA-10, DEMOMA-11, DEMOMA-17-001).
 
 The tests here own what the pair shares; each scenario's own module owns its
-own fragments, ``test_vendor_story.py`` owns the vendor-first opening this
-prefix only names, and ``test_owner_decision_story.py`` owns the two
-``owner-keep-case`` continuations this module only names the parts of.  Every
-test patches the collaborators out, so no HTTP happens; ``demo_gate`` /
+own fragments, ``test/demo/vendor_story/`` owns the vendor-first opening this
+prefix only names, and ``test/demo/owner_decision_story/`` owns the
+two ``owner-keep-case`` continuations this module only names the parts of.
+Every test patches the collaborators out, so no HTTP happens; ``demo_gate`` /
 ``demo_check`` / ``demo_step`` stay real wherever the test is about control
 flow and are stubbed to ``nullcontext`` only where it is about call shape.
 """
@@ -37,7 +37,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
     functions_referencing,
     mock_actor,
@@ -47,7 +46,6 @@ from test.demo._helpers import (
     story_state,
 )
 from vultron.demo.helpers import (
-    coordinated_story,
     vendor_coordinator_story as pair,
 )
 from vultron.demo.helpers.coordinated_story import (
@@ -55,6 +53,8 @@ from vultron.demo.helpers.coordinated_story import (
     COORDINATOR_LABEL,
     REPORTER,
     REPORTER_LABEL,
+    cast as coordinated_cast,
+    joining as coordinated_joining,
 )
 from vultron.demo.helpers.owner_decision_story import Part
 from vultron.demo.helpers.story import Choose, UnseatedContainer
@@ -68,9 +68,12 @@ from vultron.demo.helpers.vendor_story import (
     VENDOR2_LABEL,
     VENDOR_LABEL,
 )
-from vultron.demo.utils import reset_demo_failures
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: The pair's four cast names, in ``ROLES`` order.
 _CAST = (REPORTER, VENDOR, COORDINATOR, VENDOR2)
@@ -90,22 +93,9 @@ _BRANCH = Choose(
 )
 
 
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, and a gate skips
-    its own body once anything is recorded, so a leftover failure changes what
-    the next test observes (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
-
-
 def _failures(prefix: str) -> list[str]:
     """Every recorded failure of the given kind, in order."""
-    return [f for f in demo_utils._demo_failures if prefix in f]
+    return [f for f in _demo_failures if prefix in f]
 
 
 def _four_party_state():
@@ -206,7 +196,7 @@ def _seeding_stubs(
     ``pair``'s own ``demo_step`` is left **real**: the tests here are about
     what a failed seeding leaves seated, and patching the step out would make
     its failure propagate instead of being recorded.  The read-back is looked
-    up on ``coordinated_story``, where ``seat_character_actors`` lives.
+    up on ``coordinated_story.cast``, where ``seat_character_actors`` lives.
     """
     with (
         patch.object(
@@ -216,7 +206,7 @@ def _seeding_stubs(
             side_effect=seed_error,
         ) as seed,
         patch.object(
-            coordinated_story,
+            coordinated_cast,
             "get_actor_by_id",
             side_effect=(
                 list(lookups) if lookups is not None else list(seeded[2:])
@@ -303,7 +293,7 @@ class TestTheCoordinatorAndVendor2AreSeeded:
         assert state.unseated == {}
         assert state.actor_id(COORDINATOR) == "urn:test:coordinator"
         assert state.actor_id(VENDOR2) == "urn:test:vendor2"
-        assert not _failures("STEP FAILED"), demo_utils._demo_failures
+        assert not _failures("STEP FAILED"), _demo_failures
 
     def test_both_are_seated_inside_the_step_that_seeded_them(self):
         """One step, so a reader of the devlogs sees one cause.
@@ -370,7 +360,7 @@ class TestTheCoordinatorAndVendor2AreSeeded:
         stubs.lookup.assert_not_called()
         assert sorted(state.cast) == sorted(_SEATED)
         assert sorted(state.unseated) == sorted([COORDINATOR, VENDOR2])
-        assert _failures("STEP FAILED"), demo_utils._demo_failures
+        assert _failures("STEP FAILED"), _demo_failures
 
     @pytest.mark.spec("EDF-06-005")
     def test_a_failed_read_back_of_vendor2_seats_neither(self):
@@ -390,7 +380,7 @@ class TestTheCoordinatorAndVendor2AreSeeded:
 
         assert sorted(state.cast) == sorted(_SEATED)
         assert sorted(state.unseated) == sorted([COORDINATOR, VENDOR2])
-        assert _failures("STEP FAILED"), demo_utils._demo_failures
+        assert _failures("STEP FAILED"), _demo_failures
 
 
 # ---------------------------------------------------------------------------
@@ -467,7 +457,7 @@ class TestTheJoinAsTheSharedHelperRunsIt:
     One pass with the chain stubbed rather than the whole helper, because the
     combination is what this pair relies on: ``triages=False`` moves the
     roster into the chain's own gate, and ``joined=`` makes that gate keep
-    the prop (``test_coordinated_story.py`` owns the helper itself).
+    the prop (``test/demo/coordinated_story/`` owns the helper itself).
     """
 
     def _invite(self, state, *, run_then: bool = False, roster=None):
@@ -479,26 +469,23 @@ class TestTheJoinAsTheSharedHelperRunsIt:
         a failing roster records its failure and keeps no prop.
         """
         with (
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
             patch.object(
-                coordinated_story, "run_invite_path_rm_triage"
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch.object(
+                coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "wait_for_case_participants",
                 side_effect=roster,
             ) as roster_wait,
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "demo_check",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-            patch.object(
-                coordinated_story,
-                "demo_step",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
@@ -581,7 +568,7 @@ class TestTheJoinAsTheSharedHelperRunsIt:
             DemoStoryError, match="case the Coordinator joined"
         ):
             state.kept(pair.COORDINATOR_JOINED)
-        assert _failures("GATE FAILED"), demo_utils._demo_failures
+        assert _failures("GATE FAILED"), _demo_failures
 
     @pytest.mark.spec("CLP-08-005")
     def test_the_reporter_holds_the_case_before_the_coordinator_answers(self):

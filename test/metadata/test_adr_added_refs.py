@@ -17,7 +17,7 @@ from vultron.metadata.adr.added_refs import (
     symbols_in,
 )
 from vultron.metadata.base import repo_root
-from vultron.metadata.specs.lint import _SPEC_SYMBOL_RE
+from vultron.metadata.specs.lint.phantom_symbols import _SPEC_SYMBOL_RE
 
 
 def _adr(body: str, suppress: list[str] | None = None) -> str:

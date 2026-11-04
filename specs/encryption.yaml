@@ -64,11 +64,10 @@ groups:
       An implementation MUST store each private key securely, and MUST NOT write one
       to a log or include it in an API response.
     lint_suppress:
-    # compound_statement: the storage half is production key handling (#1184), which
-    # agents may not build (AGENTS.md, ADR-0164). A split child would be a new
-    # protocol ID that the marker-coverage guard (SR-05-005) fails with no test to
-    # carry its marker. Split it when #1184 lands a key store with a test; #5662
-    # tracks the split.
+    # compound_statement: no private key exists in the code yet, so the "never log
+    # or expose" child would have nothing to test, and the marker-coverage guard
+    # (SR-05-005) fails a new protocol ID with no test. The split lands with #5380,
+    # the seeded-key signing helper, where private keys first exist.
     - compound_statement
     rationale: >-
       Anyone who obtains an actor's private key can read messages encrypted to it,
@@ -114,6 +113,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ENC-01-001
+    stories:
+    - story_2022_090
+    - story_2022_091
 - id: ENC-02
   title: Message Encryption
   specs:

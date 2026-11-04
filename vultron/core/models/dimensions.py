@@ -48,6 +48,8 @@ from vultron.core.states.cs import (
     PXA_Trigger,
     PxaState,
     VF_Trigger,
+)
+from vultron.core.states.cs.transitions import (
     _d_transitions,
     _pxa_transitions,
     _vf_transitions,

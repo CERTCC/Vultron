@@ -8,25 +8,22 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from test.demo._helpers import mock_actor, mock_case
-from vultron.demo import utils as demo_utils
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import invite_chain
 from vultron.demo.helpers.invite_chain import (
     CaseInviter,
     EmittedBy,
     answer_case_invite,
+    chain as invite_runs,
     invite_and_await_delivery,
+    links as invite_links,
     run_case_invite_chain,
 )
-from vultron.demo.utils import reset_demo_failures
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 
-
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 
 @pytest.fixture(autouse=True)
@@ -53,19 +50,19 @@ def chain_mocks():
         patch.object(ActorSession, "accept_case_invite") as accept,
         patch.object(ActorSession, "reject_case_invite") as reject,
         patch.object(
-            invite_chain,
+            invite_links,
             "find_case_invite_for_actor",
             return_value="urn:t:invite",
         ) as find,
-        patch.object(invite_chain, "assert_received_from") as received,
-        patch.object(invite_chain, "wait_for_case_on_container") as replica,
+        patch.object(invite_links, "assert_received_from") as received,
+        patch.object(invite_links, "wait_for_case_on_container") as replica,
         patch.object(
-            invite_chain,
+            invite_links,
             "find_full_case_invite_for_actor",
             return_value="urn:t:full-invite",
         ) as full_invite,
         patch.object(
-            invite_chain, "wait_for_replica_ledger_coverage"
+            invite_links, "wait_for_replica_ledger_coverage"
         ) as coverage,
         patch.object(ActorSession, "accept_full_case_invite") as full_reply,
     ):
@@ -157,7 +154,7 @@ def test_accept_path_invites_finds_accepts_and_waits_for_replica(chain_mocks):
         invite_id="urn:t:full-invite"
     )
     assert ran == [True]
-    assert demo_utils._demo_failures == []
+    assert _demo_failures == []
 
 
 @pytest.mark.spec("CM-11-011")
@@ -179,7 +176,7 @@ def test_every_invitee_replies_to_the_full_case_invite(chain_mocks, role):
     chain_mocks.full_reply.assert_called_once_with(
         invite_id="urn:t:full-invite"
     )
-    assert demo_utils._demo_failures == []
+    assert _demo_failures == []
 
 
 @pytest.mark.spec("SYNC-10-004")
@@ -276,7 +273,7 @@ def test_the_two_halves_invite_then_answer_like_the_whole_chain(chain_mocks):
     chain_mocks.accept.assert_called_once_with(invite_id="urn:t:invite")
     chain_mocks.replica.assert_called_once()
     chain_mocks.full_reply.assert_called_once()
-    assert demo_utils._demo_failures == []
+    assert _demo_failures == []
 
 
 def test_an_undelivered_invite_leaves_the_second_half_nothing_to_answer(
@@ -306,7 +303,7 @@ def test_an_undelivered_invite_leaves_the_second_half_nothing_to_answer(
 
     chain_mocks.accept.assert_not_called()
     chain_mocks.reject.assert_not_called()
-    assert len(demo_utils._demo_failures) == 2
+    assert len(_demo_failures) == 2
 
 
 @pytest.mark.spec("SYNC-10-004")
@@ -341,7 +338,7 @@ def test_undelivered_full_case_invite_skips_the_reply(chain_mocks):
     _run()
 
     chain_mocks.full_reply.assert_not_called()
-    assert len(demo_utils._demo_failures) == 1
+    assert len(_demo_failures) == 1
 
 
 def test_reject_path_rejects_and_awaits_no_replica(chain_mocks):
@@ -352,7 +349,7 @@ def test_reject_path_rejects_and_awaits_no_replica(chain_mocks):
     chain_mocks.replica.assert_not_called()
     chain_mocks.full_invite.assert_not_called()
     chain_mocks.full_reply.assert_not_called()
-    assert demo_utils._demo_failures == []
+    assert _demo_failures == []
 
 
 def test_recommend_path_has_no_inviter_and_triggers_no_invite(chain_mocks):
@@ -386,10 +383,9 @@ def test_failed_invite_trigger_skips_every_dependent(chain_mocks):
     chain_mocks.accept.assert_not_called()
     chain_mocks.replica.assert_not_called()
     assert ran == []
-    assert len(demo_utils._demo_failures) == 1
+    assert len(_demo_failures) == 1
     assert (
-        "Coordinator invites Vendor with CVDRole.VENDOR"
-        in (demo_utils._demo_failures[0])
+        "Coordinator invites Vendor with CVDRole.VENDOR" in (_demo_failures[0])
     )
 
 
@@ -402,10 +398,9 @@ def test_undelivered_invite_skips_the_answer_and_what_follows(chain_mocks):
     chain_mocks.accept.assert_not_called()
     chain_mocks.replica.assert_not_called()
     assert ran == []
-    assert len(demo_utils._demo_failures) == 1
+    assert len(_demo_failures) == 1
     assert (
-        "Vendor invite delivered to Vendor's DataLayer"
-        in (demo_utils._demo_failures[0])
+        "Vendor invite delivered to Vendor's DataLayer" in (_demo_failures[0])
     )
 
 
@@ -439,7 +434,7 @@ def test_failed_sender_check_is_recorded_but_does_not_block_the_answer(
     )
 
     chain_mocks.accept.assert_called_once()
-    assert len(demo_utils._demo_failures) == 1
+    assert len(_demo_failures) == 1
 
 
 def test_failed_replica_wait_is_recorded_and_then_still_runs(chain_mocks):
@@ -449,7 +444,7 @@ def test_failed_replica_wait_is_recorded_and_then_still_runs(chain_mocks):
     _run(then=lambda: ran.append(True))
 
     assert ran == [True]
-    assert len(demo_utils._demo_failures) == 1
+    assert len(_demo_failures) == 1
 
 
 def test_then_runs_after_a_reject(chain_mocks):
@@ -492,7 +487,7 @@ def test_the_chain_takes_no_hook_between_delivery_and_the_answer():
         "then",
     }
     assert set(
-        inspect.signature(invite_chain._await_and_answer).parameters
+        inspect.signature(invite_links._await_and_answer).parameters
     ) == {
         "case",
         "invitee_name",
@@ -514,9 +509,9 @@ def test_step_and_gate_labels_are_pinned(chain_mocks):
     """Scenario logs and CI triage grep these labels; changing one is visible."""
     labels: list[str] = []
     real_step, real_gate, real_check = (
-        invite_chain.demo_step,
-        invite_chain.demo_gate,
-        invite_chain.demo_check,
+        invite_links.demo_step,
+        invite_links.demo_gate,
+        invite_links.demo_check,
     )
 
     def recording(real):
@@ -527,9 +522,11 @@ def test_step_and_gate_labels_are_pinned(chain_mocks):
         return wrapper
 
     with (
-        patch.object(invite_chain, "demo_step", recording(real_step)),
-        patch.object(invite_chain, "demo_gate", recording(real_gate)),
-        patch.object(invite_chain, "demo_check", recording(real_check)),
+        patch.object(invite_links, "demo_step", recording(real_step)),
+        patch.object(invite_runs, "demo_step", recording(real_step)),
+        patch.object(invite_links, "demo_gate", recording(real_gate)),
+        patch.object(invite_runs, "demo_gate", recording(real_gate)),
+        patch.object(invite_links, "demo_check", recording(real_check)),
     ):
         _run(
             expect_emitted_by=EmittedBy(case_actor_id="x", consequence="y"),
@@ -557,12 +554,12 @@ def test_chain_seeds_stub_summary_on_case_manager_before_inviting(chain_mocks):
     )[1]
     with (
         patch.object(
-            invite_chain,
+            invite_links,
             "find_case_actor_participant_id",
             return_value="urn:t:case-actor",
         ),
         patch.object(
-            invite_chain,
+            invite_links,
             "get_actor_by_id",
             return_value=mock_actor("urn:t:ca"),
         ) as get_actor,
@@ -601,11 +598,15 @@ def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
     import ast
     from pathlib import Path
 
-    helpers_dir = Path(invite_chain.__file__).parent
+    helpers_dir = Path(invite_chain.__file__).parent.parent
     scenario_dir = helpers_dir.parent / "scenario"
     starters = {"run_case_invite_chain", "invite_and_await_delivery"}
     scenario_sources = sorted(scenario_dir.glob("*_demo.py"))
-    fragment_sources = sorted(helpers_dir.glob("coordinated_*.py"))
+    # The coordinator-first family is a package (#5592), so its submodules
+    # are read as well as the flat sub-family modules beside it.
+    fragment_sources = sorted(helpers_dir.glob("coordinated_*.py")) + sorted(
+        helpers_dir.glob("coordinated_story/*.py")
+    )
     # Each half asserted on its own: the scenario glob alone makes `sources`
     # non-empty, so a fragment glob that matched nothing — a renamed or moved
     # ``coordinated_*.py`` — would leave the composed half unguarded and the

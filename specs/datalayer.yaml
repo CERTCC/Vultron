@@ -357,23 +357,19 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: The current required minimum `CasePersistence` surface is `actor_id`, `clone_for_actor`, `create`, `read`,
-      `read_case`, `save`, `save_many`, `transaction`, `list_objects`,
-      `find_case_by_report_id`, `find_actor_by_short_id`,
-      `find_case_by_short_id`, `find_protocol_pair`, and `delete`; future additions MAY be made only when they preserve
-      the same core-facing persistence/query boundary and do not introduce queue, admin, health, or diagnostic
-      responsibilities. `actor_id` and `clone_for_actor` are part of the minimum because a store belongs to exactly one
-      actor (DL-07-002) and reaching another's is a named operation (DL-07-005). `read_case` is the canonical typed
-      accessor for `VulnerabilityCase` retrieval — callers prefer it over `read()` + isinstance narrowing (ISSUE-2490).
+    statement: >-
+      `CasePersistence` MUST declare at least the core-facing persistence surface. That
+      surface is `actor_id`, `clone_for_actor`, `create`, `read`, `read_case`, `save`,
+      `save_many`, `transaction`, `list_objects`, `find_case_by_report_id`,
+      `find_actor_by_short_id`, `find_case_by_short_id`, `find_protocol_pair` and
+      `delete`.
     rationale: >-
       A narrow port lets a reader see what core can do with storage. The list states the
-      declared Protocol in `vultron/core/ports/case_persistence.py`, so a difference
-      between the two is a spec defect, not a code defect. `actor_id` and
-      `clone_for_actor` are in the list because each store belongs to one actor
-      (DL-07-002) and access to the store of another actor must be named (DL-07-005).
-      `read_case` gives a typed case read, so callers do not narrow a `read()` result
-      themselves. New query helpers stay possible if they keep to domain persistence and
-      queries. `get` and `by_type` are not in the list (DL-04-005).
+      Protocol in `vultron/core/ports/case_persistence.py`; a difference is a spec
+      defect. `actor_id` and `clone_for_actor` are in it because each store belongs to
+      one actor (DL-07-002) and reaching another's must be named (DL-07-005).
+      `read_case` gives a typed case read, so callers do not narrow a `read()` result.
+      A new query helper may join it if it keeps to domain persistence (DL-04-003).
     adr:
     - ADR-0073
   - id: DL-04-003
@@ -397,28 +393,14 @@ groups:
     verification_debt: '#2575'
     statement: >-
       `CaseOutboxPersistence` MUST extend `CasePersistence` only with the outbound
-      enqueue method `outbox_append`.
+      queue's methods `outbox_append` and `outbox_list`.
     rationale: >-
-      An outbound enqueue is a side effect that a reader of a use case must be able to
-      see, and a separate port shows it in the type. `outbox_append` writes only to
-      the outbox of the actor that owns the store. A method that takes an actor id would
-      allow a write to the queue of another actor, which DL-07-001 forbids.
-    adr:
-    - ADR-0073
-  - id: DL-04-007
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: >-
-      This codebase MUST treat a `ReceivedUseCase` that depends on
-      `CaseOutboxPersistence` as a documented architectural smell, not as normal
-      design.
-    rationale: >-
-      A received use case that also sends is a mixed design. The port makes the
-      dependency visible, so that a reviewer can question it.
-    relationships:
-    - rel_type: extends
-      spec_id: DL-04-004
+      A reader of a use case must see that it sends, and a separate port shows it in
+      the type. Both methods work on the outbox of the actor that owns the store:
+      `outbox_append` queues an activity, and `outbox_list` reads which are pending.
+      Neither takes an actor id, since that would allow a write to the queue of
+      another actor (DL-07-001). A received tree emits through this port in its
+      effects stage (ADR-0111).
     adr:
     - ADR-0073
   - id: DL-04-005
@@ -594,7 +576,7 @@ groups:
     statement: >-
       The persistence write path MUST normalise wire to core through a
       `CORE_VOCABULARY` lookup (DL-05-006, ARCH-23-002), not through a hand-kept
-      list of wire classes in `vultron/adapters/driven/db_record.py`.
+      list of wire classes in `vultron/adapters/driven/db_record/`.
     rationale: >-
       A wire-shaped row in a core-typed table breaks every later read of that row. A
       hand-kept list of wire classes to normalise must change each time a type changes,
@@ -678,7 +660,7 @@ groups:
     statement: >-
       The persistence write path MUST NOT keep a deferral list of types not yet
       normalised, such as `_NOT_YET_NORMALIZED` in
-      `vultron/adapters/driven/db_record.py`.
+      `vultron/adapters/driven/db_record/`.
     rationale: >-
       With disjoint registry keys (ARCH-23-002), no wire type shadows a core type, so no
       type is left to defer. `extra="forbid"` (ARCH-12-003) makes a wrongly shaped row
@@ -1765,8 +1747,8 @@ groups:
       declaration, outbox delivery refuses the stored activity for AKM-03-003, and the
       invitee is never told about its invitation. Read-back must also re-type the inline
       object, or semantic matching classifies the activity as UNKNOWN. For this reason
-      the re-typing set (`_inline_typed_fields` in `db_record.py`) is wider than the
-      dehydration set and includes `context`.
+      the re-typing set (`_inline_typed_fields` in `db_record/ref_fields.py`) is wider
+      than the dehydration set and includes `context`.
     relationships:
     - rel_type: refines
       spec_id: DL-08-001

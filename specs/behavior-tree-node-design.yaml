@@ -239,7 +239,7 @@ groups:
     verification_debt: '#2574'
     statement: >-
       A new BT node in `vultron/core/behaviors/` MUST subclass
-      `DataLayerConditionWithPorts` or `DataLayerActionWithPorts` from `helpers.py`,
+      `DataLayerConditionWithPorts` or `DataLayerActionWithPorts` from `helpers/`,
       not `DataLayerCondition` or `DataLayerAction`.
     rationale: >-
       Typed port declarations are machine-readable and are at the class level. They are
@@ -470,7 +470,7 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: Logic shared between `behaviors/` and `use_cases/` MUST be extracted to a common helper in `vultron/core/`
-      or `vultron/core/behaviors/helpers.py`.
+      or `vultron/core/behaviors/helpers/`.
     rationale: >-
       `behaviors/` must not import `use_cases/` (BTND-04-003). Thus logic that both
       layers need must be in a location that both layers can import. Without that
@@ -485,7 +485,7 @@ groups:
     verification_debt: '#2574'
     statement: >-
       A BT node or subtree that more than one domain module uses MUST be defined in
-      `helpers.py` or another purpose-built shared module in `vultron/core/behaviors/`.
+      `helpers/` or another purpose-built shared module in `vultron/core/behaviors/`.
       Two such domain modules are `case/` and `report/`.
     rationale: >-
       A neutral shared module gives each domain module a place to import from that is
@@ -1095,7 +1095,7 @@ groups:
       Unit tests: (1) valid forward transition succeeds; (2) same-state write
       succeeds; (3) None target skips validation.
     stories:
-    - story_2022_088
+    - story_2026_038
     - story_2022_107
   - id: BTND-10-002
     priority: MUST

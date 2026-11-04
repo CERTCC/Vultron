@@ -21,7 +21,7 @@ parent ``update()`` that calls it).  Direct ``outbox_append`` calls inside
 outstanding-ask registration (ASK-04-008) and undelivered-activity
 correlation (OX-14-001).
 
-``vultron/core/behaviors/helpers.py`` is the authoritative seam file and is
+``vultron/core/behaviors/helpers/emit.py`` is the authoritative seam file and is
 excluded from this scan.
 
 A ``KNOWN_VIOLATIONS`` ratchet tracks pre-existing call sites awaiting
@@ -42,7 +42,7 @@ import pytest
 from test.architecture import _corpus
 
 _BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
-_SEAM_FILE = _BEHAVIORS_ROOT / "helpers.py"
+_SEAM_FILE = _BEHAVIORS_ROOT / "helpers" / "emit.py"
 
 
 def _is_outbox_append_call(node: ast.AST) -> bool:

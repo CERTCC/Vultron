@@ -24,6 +24,8 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.bridge.tree_execution import _BridgeExecution
+from vultron.core.behaviors.bridge.tree_setup import _BridgeSetup
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
@@ -48,6 +50,18 @@ def enable_blackboard_activity_stream():
     clears that storage around every test (TB-06-005).
     """
     py_trees.blackboard.Blackboard.enable_activity_stream()
+
+
+def test_btbridge_composes_setup_and_execution_mixins():
+    """``BTBridge`` is ``_BridgeSetup`` then ``_BridgeExecution`` (CS-18-002).
+
+    The bridge's setup and tick loop live in two mixin modules.  Importing them
+    here also makes this file a direct importer of both, so ``targeted-tests``
+    selects it when either module changes (PAD-18-002).
+    """
+    assert BTBridge.__mro__[1:3] == (_BridgeSetup, _BridgeExecution)
+    assert BTBridge.setup_tree is _BridgeSetup.setup_tree
+    assert BTBridge.execute_tree is _BridgeExecution.execute_tree
 
 
 # Test behavior nodes for verifying bridge functionality
@@ -168,6 +182,24 @@ class StageRMAnomalyThenFail(py_trees.behaviour.Behaviour):
         }
         self.feedback_message = "staged anomaly then aborting"
         return Status.FAILURE
+
+
+class PublishCaseId(py_trees.behaviour.Behaviour):
+    """Publish ``/case_id`` the way an output port does, then SUCCEED.
+
+    ``CaseLookupNode``, ``ResolveProposalCaseNode`` and the replay and
+    case-creation nodes all declare ``case_id`` as an **output port**, so
+    they write it outside the ``context_data`` the caller passes.  That is
+    the shape whose value used to outlive its execution.
+    """
+
+    def __init__(self, case_id: str, name: str = "PublishCaseId"):
+        super().__init__(name=name)
+        self._case_id = case_id
+
+    def update(self) -> Status:
+        py_trees.blackboard.Blackboard.storage["/case_id"] = self._case_id
+        return Status.SUCCESS
 
 
 class WriteRMAnomaly(py_trees.behaviour.Behaviour):
@@ -615,6 +647,68 @@ def test_execute_with_setup_clears_a_stale_rm_anomaly(bridge, test_actor_id):
     )
     assert second.status == Status.SUCCESS
     assert captured["present"] is False
+
+
+def test_execute_with_setup_does_not_leak_a_published_case_id(
+    bridge, test_actor_id
+):
+    """A ``/case_id`` an output port published dies with its execution.
+
+    A use case that knows its case passes it as ``context_data``, which the
+    bridge already scoped.  An output port is not ``context_data``, so the
+    value used to strand on the process-global blackboard, and the next
+    delivery whose own tree names no case resolved it: ``ReceivedPathNode``
+    and ``CheckIsCaseManagerNode`` both fall back to ``/case_id``, so the
+    path stage refused a `Read(Offer(VulnerabilityReport))` as a replica of
+    a case the acknowledgement never named (HP-01-040, RMB-08-003).
+    """
+    storage = py_trees.blackboard.Blackboard.storage
+    stale = "https://example.org/cases/leaked"
+
+    first = bridge.execute_with_setup(
+        tree=PublishCaseId(stale), actor_id=test_actor_id
+    )
+
+    assert first.status == Status.SUCCESS
+    assert "/case_id" not in storage
+    assert "case_id" not in storage
+
+    # The next execution must resolve no case of its own accord.
+    seen: dict[str, Any] = {}
+
+    class _CaptureCaseId(py_trees.behaviour.Behaviour):
+        def update(self) -> Status:
+            seen["value"] = storage.get("/case_id", storage.get("case_id"))
+            return Status.SUCCESS
+
+    second = bridge.execute_with_setup(
+        tree=_CaptureCaseId(name="CaptureCaseId"), actor_id=test_actor_id
+    )
+    assert second.status == Status.SUCCESS
+    assert seen["value"] is None
+
+
+def test_execute_with_setup_restores_a_preexisting_case_id(
+    bridge, test_actor_id
+):
+    """A caller-set ``/case_id`` survives an execution that republishes it.
+
+    The bridge restores the key to its pre-execution state, so scoping it
+    cannot break a nested call that legitimately handed one in (#3161).
+    """
+    storage = py_trees.blackboard.Blackboard.storage
+    outer = "https://example.org/cases/outer"
+    storage["/case_id"] = outer
+
+    try:
+        result = bridge.execute_with_setup(
+            tree=PublishCaseId("https://example.org/cases/inner"),
+            actor_id=test_actor_id,
+        )
+        assert result.status == Status.SUCCESS
+        assert storage["/case_id"] == outer
+    finally:
+        storage.pop("/case_id", None)
 
 
 def test_execute_with_setup_restores_a_preexisting_rm_anomaly(
@@ -1847,7 +1941,7 @@ class TestNestedExecutionKeyIsolation:
         not RUNNING.  So asserting on the raw blackboard is not enough: this
         asserts what a *sibling node* resolves, which is what
         ``OwnerLeaveSeq``'s ledger-committing node does downstream of a nested
-        call (``case/receive_close_case_tree.py``).
+        call (``case/receive_close_case_tree/closure_effects.py``).
         """
         inner_actor = "https://test.example/actors/case-actor"
         outer_seen: list[str | None] = []

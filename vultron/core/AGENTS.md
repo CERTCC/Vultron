@@ -56,7 +56,7 @@ class CreateReportReceivedUseCase:
 2. Define an `ActivityPattern` named `<TypeName>Pattern` in
    `vultron/wire/as2/extractor.py`
 3. Add a `SemanticEntry` to the **domain sub-module** under
-   `vultron/semantic_registry/` (e.g., `report.py`, `case.py`, `embargo.py`).
+   `vultron/semantic_registry/` (e.g., `report.py`, `case.py`, `embargo/`).
    **Do NOT add it directly to `__init__.py`** — see pitfall below.
    (**Order matters**: specific before general. Needs `page` + `Occasion`, MSM-08-001.)
 4. Implement a use-case class in `vultron/core/use_cases/` following the
@@ -82,8 +82,8 @@ class CreateReportReceivedUseCase:
   (`RegistryTriggerDispatcher`, port `ports/trigger_dispatcher.py`:
   `trigger(request, dl) -> ResultT_co`, UCORG-05-006)
 - **Data Layer port**: `vultron/core/ports/datalayer.py` — `DataLayer` Protocol
-- **BT Bridge**: `vultron/core/behaviors/bridge.py`
-- **BT nodes/trees**: `vultron/core/behaviors/report/`, `case/`, `helpers.py`
+- **BT Bridge**: `vultron/core/behaviors/bridge/`
+- **BT nodes/trees**: `vultron/core/behaviors/report/`, `case/`, `helpers/`
 - **Predicate layer** (`vultron/core/predicates/`): Pure rule layer (ISSUE-3058) — MAY import
   `states/`/`enums/`; MUST NOT import `behaviors/`/`services/`. See [notes/predicates-rule-layer.md](../../notes/predicates-rule-layer.md).
 - **Canonical Case History**: `CaseEvent` and `record_event()` removed in #792;
@@ -153,11 +153,11 @@ from core, never the reverse — which is why `VultronActivity.object_` is typed
 `vultron/semantic_registry/` is a package whose `__init__.py` assembles
 sub-module entry lists in the correct order and appends the `UNKNOWN`
 fallback entries last. When adding a new message type, add the `SemanticEntry`
-to the **domain sub-module** (`report.py`, `case.py`, `actor.py`,
-`embargo.py`, `note.py`, `status.py`, or `sync.py`), not to `__init__.py`
-directly. Editing `__init__.py` for individual entry additions defeats the
-purpose of the split (reducing merge conflicts) and risks silently corrupting
-the ordering invariant that keeps the `UNKNOWN` fallback last.
+to the **domain sub-module** (`report.py`, `case.py`, `actor/`, `embargo/`,
+`note.py`, `status.py`, `sync.py`; in a package, its concern's submodule), not
+to `__init__.py`. Editing `__init__.py` for individual entry additions
+defeats the purpose of the split (reducing merge conflicts) and risks silently
+corrupting the ordering invariant that keeps the `UNKNOWN` fallback last.
 
 ### EM State Writes Are Owned by `EmbargoLifecycle` (EMB-18-001)
 
@@ -169,11 +169,11 @@ Canonical Nodes". *Source: ISSUE-1474; retired ISSUE-2712*
 
 ---
 
-### Layer-Neutral Helpers Belong in `core/models/_helpers.py`, Not Use-Cases
+### Layer-Neutral Helpers Belong in `core/models/_helpers/`, Not Use-Cases
 
 When a utility function has **no dependencies above `models/`** (no ports, no
 state machines, no use-case logic — only primitive types like `str`, `Any`,
-`uuid`), its correct home is `vultron/core/models/_helpers.py`. That module
+`uuid`), its correct home is `vultron/core/models/_helpers/`. That package
 sits at the bottom of the hexagonal stack and is safely importable by **all**
 layers (`behaviors/`, `use_cases/`, `services/`, `adapters/`).
 
@@ -183,7 +183,7 @@ move the helper down the stack, not to create a sidecar module at the same level
 
 **How to apply:** Before placing a new utility in `use_cases/_helpers.py`, ask:
 does this function depend on anything above `models/`? If not, put it in
-`core/models/_helpers.py`.
+`core/models/_helpers/`.
 
 <!-- Source: ISSUE-1428 -->
 

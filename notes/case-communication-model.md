@@ -93,7 +93,7 @@ The one stated exception is RK: an addressee of the report's `Offer` sends it to
 reporter directly, case or no case, because it answers that Offer outside the case
 (PCR-08-001, RMB-08-003, #4560).
 The CASE_MANAGER picks broadcast recipients from
-`vultron/core/participants/recipients.py` (CM-10-007): `case_content_recipients()` for
+`vultron/core/participants/recipients/` (CM-10-007): `case_content_recipients()` for
 content (active participants not at RM.CLOSED), `ledger_entry_recipients()` for
 ledger entries (adds back only a closed participant the entry is about, CM-23-004),
 and `invitation_recipients()` for consent Invites.
@@ -141,8 +141,9 @@ Every CASE_MANAGER received-side handler that accepts a participant message fire
 cascade itself: guarded commit, then `FanOutLogEntryNode`
 (`core/behaviors/sync/nodes/fanout.py`) queues the `Announce` in the CASE_MANAGER
 outbox, and each participant's `AnnounceLedgerEntryReceivedUseCase` updates its replica.
-The `/actors/{actor_id}/demo/sync-log-entry` endpoint (`routers/demo_triggers.py`) is a
-test scaffold only; never part of the normal flow.
+The `/actors/{actor_id}/demo/sync-log-entry` endpoint
+(`routers/demo_triggers/actions.py`) is a test scaffold only; never part of the
+normal flow.
 
 ---
 
@@ -205,9 +206,10 @@ Reject(Invite(Actor)[target=VulnerabilityCaseStub]) instead of Accept → RM.CLO
   embeds the archived body (`read_received_as_received()`; CLP-10-036, ADR-0149,
   [inbox-orchestration](inbox-orchestration.md)).
 - The CASE_MANAGER processes the Accept (PCR-08-009). The same handler runs on any
-  actor holding a copy, so its effects sit behind the role gate, and a receiver the gate
-  turns away reports `REFUSED` through `case_manager_verdict()`, never `SKIPPED`
-  (HP-01-005).
+  actor holding a copy, so its effects sit behind the role gate, and a receiver on a
+  path the message type does not handle reports `REFUSED` — at the path stage in a tree
+  that declares its paths, through `case_manager_verdict()` in one that does not yet —
+  never `SKIPPED` (HP-01-005, ADR-0153).
 - The handler runs the tree as the **receiving** actor (`resolve_receiving_actor_id()`),
   never as a CASE_MANAGER address looked up from the store (BT-17-006).
 - Emit no `RmEngageCaseActivity` for the invitee. Accepting the stub is joining (RM
@@ -359,8 +361,9 @@ stub `Accept` moves no RM state (CM-11-001).
 
 ## Antipattern: Reading the CASE_MANAGER Gate as a Sender Check
 
-`create_case_manager_gated_tree` and `case_manager_verdict()` check that the
-**receiving** actor holds `CVDRole.CASE_MANAGER` (BT-17-001, HP-01-005); they say
+`create_case_manager_gated_tree`, `case_manager_verdict()` and the path stage's
+`ReceivedPath.CASE_MANAGER` all check that the **receiving** actor holds
+`CVDRole.CASE_MANAGER` (BT-17-001, HP-01-005, ADR-0153); they say
 nothing about the sender. A gated tree applies an assertion from *any* sender unless
 something else checks who sent it.
 
@@ -387,8 +390,10 @@ it in another actor's DataLayer: the `Announce` is queued under the wrong actor 
 canonical ledger never gets the entry (ADR-0021). Run the tree as the receiving actor
 (`resolve_receiving_actor_id()`) and pass the CASE_MANAGER effects as
 `create_receive_activity_tree(..., manager_effects=[...])`; the factory wraps them in
-the gate, and a received tree never calls the gate itself (BT-17-008). Then map a
-skipped gate to `REFUSED` with `case_manager_verdict()` (HP-01-005). See
+the gate, and a received tree never calls the gate itself (BT-17-008). Then declare
+the paths the message type handles, as the factory's `paths=`, so the path stage
+refuses a receiver on a path it does not handle (ADR-0153); a tree not yet declared
+maps a skipped gate to `REFUSED` with `case_manager_verdict()` (HP-01-005). See
 `vultron/core/behaviors/note/add_note_received_tree.py` for the shape.
 
 The gate is what makes identity correct: role holder, receiving actor and store owner

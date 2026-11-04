@@ -34,7 +34,7 @@ groups:
     - story_2022_074
     - story_2022_075
     - story_2022_087
-    - story_2022_088
+    - story_2026_036
     - story_2022_092
     - story_2022_093
   - id: VP-01-002
@@ -49,7 +49,7 @@ groups:
     - story_2022_061
     - story_2022_074
     - story_2022_075
-    - story_2022_088
+    - story_2026_036
   - id: VP-01-003
     priority: MUST_NOT
     kind: protocol
@@ -135,6 +135,8 @@ groups:
       been made. Closing straight from Valid would let a confirmed vul be dropped
       without that prioritization decision ever being taken or announced, so the report
       must pass through Accepted or Deferred first.
+    stories:
+    - story_2022_086
   - id: VP-02-005
     priority: SHOULD
     kind: protocol
@@ -185,6 +187,8 @@ groups:
       Other participants read RM transitions as signals. If the move out of Received
       follows no defined process, those signals carry no reliable meaning and reports
       can sit in Received indefinitely.
+    stories:
+    - story_2022_101
   - id: VP-02-009
     priority: SHOULD
     kind: protocol
@@ -204,6 +208,9 @@ groups:
       The RM state is how a participant tells others what it concluded about a report. A
       report left in Received, or put in the wrong state, misinforms every participant
       that tracks it (VP-01-002).
+    stories:
+    - story_2022_101
+    - story_2022_062
   - id: VP-02-011
     priority: SHOULD
     kind: protocol
@@ -227,6 +234,8 @@ groups:
       Many reports cannot be judged on first read because details are missing. Holding
       them, rather than marking them Invalid, keeps a real vul from being discarded only
       because the reporter has not yet supplied enough information.
+    stories:
+    - story_2022_077
   - id: VP-02-013
     priority: SHOULD
     kind: protocol
@@ -287,6 +296,8 @@ groups:
       Deferred is meant as a pause, not a resting place. Leaving reports there
       indefinitely hides whether work will ever resume, so the participant moves them on
       once that is known.
+    stories:
+    - story_2022_062
   - id: VP-02-018
     priority: SHOULD
     kind: protocol
@@ -295,6 +306,8 @@ groups:
       Closed tells other participants that this participant will do no more on the
       report. Closing before outstanding work is done, or keeping finished reports open,
       misinforms the participants who track RM state.
+    stories:
+    - story_2022_062
   - id: VP-02-019
     priority: SHOULD
     kind: protocol
@@ -332,6 +345,8 @@ groups:
       A duplicate still describes a real vul. Marking it Invalid would tell its
       reporter, and every participant tracking the state, that the report was wrong, and
       would discard any new detail it carries.
+    stories:
+    - story_2022_101
   - id: VP-02-023
     priority: SHOULD
     kind: protocol
@@ -340,6 +355,8 @@ groups:
     rationale: >-
       Passing through Valid records that the duplicate describes a real vul, so the
       duplicate's reporter learns that the report was sound.
+    stories:
+    - story_2022_101
   - id: VP-02-036
     priority: MAY
     kind: protocol
@@ -353,6 +370,8 @@ groups:
       `test/core/states/test_rm_duplicate_reports.py`
       (`test_a_valid_report_can_be_deferred`) confirms the RM machine's `defer`
       edge takes a report from Valid to Deferred.
+    stories:
+    - story_2022_086
   - id: VP-02-024
     priority: SHOULD
     kind: protocol
@@ -389,6 +408,8 @@ groups:
       Some participants need a record of a report and its correspondence from the moment
       it arrives, for example to show response times. A case at Received gives them that
       record without forcing it on everyone.
+    stories:
+    - story_2022_074
   - id: VP-02-027
     priority: MAY
     kind: protocol
@@ -399,6 +420,8 @@ groups:
       Invalid reports that receive no new information need no further work. A timer
       moves them to Closed so they do not pile up as open items, while still leaving the
       reporter a window to respond.
+    stories:
+    - story_2022_062
   - id: VP-02-028
     priority: MAY
     kind: protocol
@@ -421,6 +444,8 @@ groups:
       Work on a report is often paused and resumed as priorities change. Allowing
       repeated entry into Accepted lets the RM state follow the real work instead of
       forcing a single pass.
+    stories:
+    - story_2022_086
   - id: VP-02-030
     priority: MAY
     kind: protocol
@@ -431,6 +456,8 @@ groups:
       Work on a report is often paused and resumed as priorities change. Allowing
       repeated entry into Deferred lets the RM state follow the real work instead of
       forcing a single pass.
+    stories:
+    - story_2022_086
   - id: VP-02-031
     priority: MAY
     kind: protocol
@@ -441,6 +468,8 @@ groups:
       Deferred reports are easily forgotten. A policy timer moves them to Closed after
       inactivity, so open work lists reflect reality and other participants learn this
       participant has stopped work.
+    stories:
+    - story_2022_062
   - id: VP-02-032
     priority: MAY
     kind: protocol
@@ -449,6 +478,8 @@ groups:
       A case for an invalid report keeps the decision and correspondence on record. That
       record helps if the report is later revalidated (VP-02-033) or a duplicate
       arrives.
+    stories:
+    - story_2022_074
   - id: VP-02-033
     priority: MAY
     kind: protocol
@@ -459,6 +490,8 @@ groups:
       A report judged Invalid may become valid as new information, product versions or
       exploitation evidence appears. Periodic revalidation stops an early wrong call
       from becoming permanent.
+    stories:
+    - story_2022_101
   - id: VP-02-034
     priority: MAY
     kind: protocol
@@ -477,6 +510,8 @@ groups:
       Accepted or deferred work ends, whether fixed, out of scope or abandoned, and
       invalid reports may need nothing more. Closing marks that end so other
       participants know no further action is coming from this participant.
+    stories:
+    - story_2022_062
 - id: VP-03
   title: RM Messaging
   specs:
@@ -620,6 +655,8 @@ groups:
       recipient that understands the message can decline it with `as:Reject`
       instead (MSM-05-001). It never permits silence: a recipient that cannot
       process the message falls under ASK-07-001.
+    stories:
+    - story_2026_011
   - id: VP-03-011
     priority: SHOULD
     kind: protocol
@@ -680,6 +717,8 @@ groups:
       no entry: the CASE_MANAGER ignores a $GI$ message on a Closed case.
     adr:
     - ADR-0085
+    stories:
+    - story_2022_068
 - id: VP-04
   title: Embargo Management (EM) Process
   specs:
@@ -700,7 +739,7 @@ groups:
     - rel_type: refines
       spec_id: VP-05-001
     stories:
-    - story_2022_014
+    - story_2026_024
   - id: VP-04-002
     priority: MUST
     kind: protocol
@@ -718,7 +757,7 @@ groups:
     adr:
     - ADR-0122
     stories:
-    - story_2022_014
+    - story_2026_087
   - id: VP-04-003
     priority: MAY
     kind: protocol
@@ -729,7 +768,7 @@ groups:
       participants could only disclose with no coordination window.
     stories:
     - story_2022_010
-    - story_2022_014
+    - story_2026_083
   - id: VP-04-004
     priority: MAY
     kind: protocol
@@ -754,7 +793,7 @@ groups:
       (`test_an_accepted_embargo_can_be_revised_and_the_revision_answered`)
       confirms EM moves from ACTIVE to REVISE when a revision is proposed.
     stories:
-    - story_2022_014
+    - story_2026_083
   - id: VP-04-006
     priority: MAY
     kind: protocol
@@ -768,7 +807,7 @@ groups:
       (`test_an_accepted_embargo_can_be_revised_and_the_revision_answered`)
       confirms EM moves from REVISE back to ACTIVE on both accept and reject.
     stories:
-    - story_2022_014
+    - story_2026_087
 - id: VP-05
   title: Embargo Principles
   specs:
@@ -796,6 +835,8 @@ groups:
     rationale: >-
       Long embargoes keep users exposed to a vul that attackers may find independently.
       A one-year ceiling bounds that exposure.
+    stories:
+    - story_2022_078
   - id: VP-05-021
     priority: SHOULD
     kind: protocol
@@ -809,6 +850,8 @@ groups:
       Not met today: `EmbargoEvent` has no field to carry a justification (#5637).
       The strict xfail `test_an_embargo_over_90_days_carries_a_justification` in
       `test/core/models/test_embargo_event.py` carries this ID.
+    stories:
+    - story_2022_078
   - id: VP-05-003
     priority: MUST
     kind: protocol
@@ -819,7 +862,7 @@ groups:
       and no future start that could be read as permission to disclose now.
     verification_debt: '#3612'
     stories:
-    - story_2022_014
+    - story_2026_087
     - story_2022_074
   - id: VP-05-004
     priority: MUST
@@ -984,6 +1027,8 @@ groups:
       Affected vendors and needed coordinators are often found after an embargo starts.
       Letting newcomers join by accepting the terms brings them in without renegotiating
       or ending the embargo.
+    stories:
+    - story_2022_052
   - id: VP-05-016
     priority: MAY
     kind: protocol
@@ -994,6 +1039,8 @@ groups:
       Needs change as a case develops. Allowing proposals at any time, within the
       negotiation guidance, lets participants adjust the embargo when they learn
       something new.
+    stories:
+    - story_2026_083
   - id: VP-05-017
     priority: MAY
     kind: protocol
@@ -1001,6 +1048,8 @@ groups:
     rationale: >-
       An embargo binds only participants who agree. A participant must be free to refuse
       terms it cannot keep, rather than be held to terms it never accepted.
+    stories:
+    - story_2022_010
   - id: VP-05-018
     priority: MAY
     kind: protocol
@@ -1009,6 +1058,8 @@ groups:
       Embargo participation is voluntary. A participant that cannot or will not keep an
       embargo does less harm by saying so and leaving than by staying in and breaking
       it.
+    stories:
+    - story_2022_066
   - id: VP-05-019
     priority: MAY
     kind: protocol
@@ -1019,6 +1070,8 @@ groups:
       Sharing a vul with someone who has not agreed to keep it private puts the embargo
       at risk for everyone. Leaving out a participant that refuses the terms protects
       the others.
+    stories:
+    - story_2022_023
   - id: VP-05-020
     priority: MAY
     kind: protocol
@@ -1063,6 +1116,8 @@ groups:
       Once the fix is deployed there is nothing left to prepare in private. A new
       embargo would only delay telling users about a vul they are already protected
       against.
+    stories:
+    - story_2022_025
   - id: VP-06-003
     priority: SHOULD
     kind: protocol
@@ -1078,6 +1133,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-06-011
+    stories:
+    - story_2026_083
   - id: VP-06-004
     priority: SHOULD
     kind: protocol
@@ -1090,7 +1147,7 @@ groups:
       bounded reply time, never more than 14 days, makes the outcome known soon enough
       for participants to plan.
     stories:
-    - story_2022_014
+    - story_2026_094
   - id: VP-06-004b
     priority: SHOULD_NOT
     kind: protocol
@@ -1102,6 +1159,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-06-004
+    stories:
+    - story_2022_010
   - id: VP-06-005
     priority: SHOULD
     kind: protocol
@@ -1113,7 +1172,7 @@ groups:
       Retrying after a failed proposal gives coordination another chance before
       participants fall back to no embargo.
     stories:
-    - story_2022_014
+    - story_2026_083
   - id: VP-06-006
     priority: SHOULD
     kind: protocol
@@ -1123,6 +1182,8 @@ groups:
       Fix timelines, affected vendors and threat conditions change during a case. Terms
       that cannot adjust either expire before fixes are ready or keep holding after the
       need for them has passed.
+    stories:
+    - story_2026_083
   - id: VP-06-007
     priority: MUST
     kind: protocol
@@ -1135,7 +1196,7 @@ groups:
       being shared with no embargo in force.
     verification_debt: '#3612'
     stories:
-    - story_2022_014
+    - story_2026_081
     - story_2022_002
   - id: VP-06-008
     priority: MAY
@@ -1152,6 +1213,8 @@ groups:
     relationships:
     - rel_type: supersedes
       spec_id: VP-14-007
+    stories:
+    - story_2022_025
   - id: VP-06-008b
     priority: SHOULD
     kind: protocol
@@ -1164,6 +1227,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-06-008
+    stories:
+    - story_2022_025
   - id: VP-06-009
     priority: MAY
     kind: protocol
@@ -1174,6 +1239,8 @@ groups:
       Before the fix is ready, and while nothing is public or exploited, an embargo is
       what gives vendors time to prepare fixes in private. This is the case the EM
       process exists for.
+    stories:
+    - story_2026_083
   - id: VP-06-010
     priority: MAY
     kind: protocol
@@ -1181,6 +1248,8 @@ groups:
     rationale: >-
       An embargo binds only those who agree. Each participant knows its own ability to
       keep the terms and must be free to accept or refuse.
+    stories:
+    - story_2022_010
   - id: VP-06-011
     priority: MAY
     kind: protocol
@@ -1189,6 +1258,8 @@ groups:
       The receiver may need more or less time than the reporter suggested. A
       counter-proposal lets it say so while keeping the negotiation going, rather than
       rejecting outright.
+    stories:
+    - story_2026_083
   - id: VP-06-012
     priority: MAY
     kind: protocol
@@ -1197,6 +1268,8 @@ groups:
       A proposer may learn that its proposal does not fit the case after all.
       Withdrawing it before acceptance stops others from accepting terms the proposer
       has stopped supporting.
+    stories:
+    - story_2026_083
   - id: VP-06-013
     priority: MAY
     kind: protocol
@@ -1207,6 +1280,8 @@ groups:
       A proposer cannot wait forever for an answer. Reading silence as rejection lets it
       move on (VP-06-014) instead of being stuck undecided while the vul stays
       unaddressed.
+    stories:
+    - story_2026_094
   - id: VP-06-014
     priority: MAY
     kind: protocol
@@ -1216,6 +1291,8 @@ groups:
     rationale: >-
       Without an answer, no embargo binds the receiver, so the sender may act as if none
       exists. That stops an unresponsive party from blocking the sender indefinitely.
+    stories:
+    - story_2026_094
   - id: VP-06-015
     priority: MAY
     kind: protocol
@@ -1227,6 +1304,8 @@ groups:
       When negotiation has failed, there is no agreement to keep the information
       private. Participants then need to be free to act in users' interest, which may
       mean publishing.
+    stories:
+    - story_2022_020
   - id: VP-06-016
     priority: MAY
     kind: protocol
@@ -1236,6 +1315,8 @@ groups:
     rationale: >-
       A recipient given the report before agreeing to an embargo is free to disclose it.
       Waiting for acceptance protects the information.
+    stories:
+    - story_2022_023
   - id: VP-06-017
     priority: MAY
     kind: protocol
@@ -1247,6 +1328,8 @@ groups:
       A recipient often cannot judge how much time it needs until it has validated the
       report. A short initial embargo protects the report meanwhile and can be revised
       once the needs are known.
+    stories:
+    - story_2026_083
 - id: VP-07
   title: Embargo Default Policies
   specs:
@@ -1317,7 +1400,7 @@ groups:
     stories:
     - story_2022_004
     - story_2022_009
-    - story_2022_014
+    - story_2026_081
   - id: VP-07-003
     priority: MUST
     kind: protocol
@@ -1385,6 +1468,8 @@ groups:
       With no default of its own, the receiver has no stated reason to refuse. Accepting
       the sender's proposal puts an embargo in force at once and keeps the reporter in
       the coordinated process.
+    stories:
+    - story_2022_005
   - id: VP-07-008
     priority: SHOULD
     kind: protocol
@@ -1395,6 +1480,8 @@ groups:
       The shortest open proposal is acceptable to every proposer, since each asked for
       at least that much time. Accepting it puts an embargo in force at once, and
       treating the rest as revisions keeps the longer requests under discussion.
+    stories:
+    - story_2022_079
   - id: VP-07-009
     priority: SHOULD
     kind: protocol
@@ -1406,6 +1493,8 @@ groups:
       Open revisions with different end times interact: accepting a later one first can
       make an earlier one meaningless. Deciding them in expiration order lets each be
       judged against the terms actually in force.
+    stories:
+    - story_2022_079
   - id: VP-07-010
     priority: MAY
     kind: protocol
@@ -1415,6 +1504,8 @@ groups:
     rationale: >-
       A published default sets reporters' expectations and lets VP-07-002 apply. Keeping
       it optional leaves the protocol usable by participants who negotiate case by case.
+    stories:
+    - story_2022_009
   - id: VP-07-011
     priority: MAY
     kind: protocol
@@ -1425,6 +1516,8 @@ groups:
       Accepting the sender's proposal secures protection at once, but the receiver may
       need different terms once it knows more. A later revision lets it ask without
       leaving the case unprotected.
+    stories:
+    - story_2026_083
   - id: VP-07-012
     priority: MAY
     kind: protocol
@@ -1434,6 +1527,8 @@ groups:
     rationale: >-
       The sender's longer request is a proposed revision, not an obligation (VP-07-004).
       The receiver judges whether the extra time is justified.
+    stories:
+    - story_2022_005
   - id: VP-07-013
     priority: MAY
     kind: protocol
@@ -1443,6 +1538,8 @@ groups:
     rationale: >-
       The receiver's longer default is a proposed revision (VP-07-005), and the sender
       is not bound by it. The sender judges whether the extra time is acceptable.
+    stories:
+    - story_2022_005
 - id: VP-08
   title: Multi-Party Coordination
   specs:
@@ -1470,6 +1567,8 @@ groups:
     rationale: >-
       Information shared before an embargo is in place is unprotected. Establishing one
       early limits how much is shared without any agreement.
+    stories:
+    - story_2022_023
   - id: VP-08-003
     priority: SHOULD
     kind: protocol
@@ -1536,6 +1635,8 @@ groups:
       In an MPCVD case the slowest vendor sets when all affected users can have a fix. A
       participant whose own policy is short may need to accept more time so others can
       finish.
+    stories:
+    - story_2022_104
   - id: VP-08-008
     priority: SHOULD
     kind: protocol
@@ -1546,6 +1647,8 @@ groups:
       The existing terms were set around the existing participants' work. A newcomer
       that insists on its own longer default could hold them up, so it accepts the
       case's terms and seeks a revision if needed.
+    stories:
+    - story_2022_052
   - id: VP-08-009
     priority: SHOULD
     kind: protocol
@@ -1645,6 +1748,8 @@ groups:
     rationale: >-
       Accepting first secures the newcomer's protection and the case's information. A
       later revision still lets it ask for terms that fit its needs.
+    stories:
+    - story_2026_083
   - id: VP-08-017
     priority: MAY
     kind: protocol
@@ -1667,6 +1772,8 @@ groups:
     rationale: >-
       The newcomer may need more time than the existing embargo gives. Proposing a
       revision after accepting lets it ask while the case stays protected.
+    stories:
+    - story_2026_083
   - id: VP-08-019
     priority: MAY
     kind: protocol
@@ -1676,6 +1783,8 @@ groups:
     rationale: >-
       The existing terms were set around the existing participants' work. They must be
       free to decide whether a newcomer's request suits them.
+    stories:
+    - story_2022_010
   - id: VP-08-020
     priority: MAY
     kind: protocol
@@ -1685,6 +1794,8 @@ groups:
     rationale: >-
       A newly added vendor may need more time to prepare a fix. Extending the embargo
       lets its users also be protected at publication.
+    stories:
+    - story_2022_104
   - id: VP-08-021
     priority: MAY
     kind: protocol
@@ -1726,6 +1837,8 @@ groups:
       Leaks, exploit publication and attacks can end an embargo at any time. A
       participant with no plan for that moment cannot publish advice or fixes quickly,
       which leaves users exposed.
+    stories:
+    - story_2022_019
   - id: VP-09-003
     priority: SHOULD
     kind: protocol
@@ -1747,6 +1860,8 @@ groups:
     rationale: >-
       Adversaries holding exploit code can attack at any time. Ending the embargo early
       lets defenders get information and mitigations before attacks spread.
+    stories:
+    - story_2022_018
   - id: VP-09-005
     priority: SHOULD
     kind: protocol
@@ -1757,6 +1872,8 @@ groups:
       Downstream vendors build on upstream components and often cannot ship fixes until
       those are released. A quorum that ignores the supply chain could trigger release
       while many affected users still have no fix available.
+    stories:
+    - story_2022_104
   - id: VP-09-006
     priority: MAY
     kind: protocol
@@ -1779,6 +1896,8 @@ groups:
       may adopt different decision rules (simple majority by count, weighted by deployed-user
       impact, unanimity, etc.). This requirement marks an expansion point for future
       community-specific behavioral norms rather than prescribing a single rule.
+    stories:
+    - story_2022_104
 - id: VP-10
   title: Embargo Case Splits and Merges
   specs:
@@ -1820,7 +1939,7 @@ groups:
     stories:
     - story_2022_104
     - story_2022_046
-    - story_2022_045
+    - story_2026_002
   - id: VP-10-003
     priority: MUST
     kind: protocol
@@ -1859,6 +1978,8 @@ groups:
     rationale: >-
       The information in each new case was shared under the parent's embargo. Carrying
       the embargo over keeps it protected on terms everyone already agreed to.
+    stories:
+    - story_2022_104
   - id: VP-10-006
     priority: SHOULD
     kind: protocol
@@ -1869,6 +1990,8 @@ groups:
       The information in a child case is also held in its siblings. An earlier end in
       one child could expose the others before they are ready, so renegotiated terms
       should only extend the inherited date.
+    stories:
+    - story_2022_104
   - id: VP-10-007
     priority: MAY
     kind: protocol
@@ -1876,6 +1999,8 @@ groups:
     rationale: >-
       A merged case is still a case, and its work keeps changing. Participants need the
       usual way to adjust its terms.
+    stories:
+    - story_2022_104
   - id: VP-10-008
     priority: MAY
     kind: protocol
@@ -1886,6 +2011,8 @@ groups:
       Splitting a case creates embargo dependencies between the new cases that their
       participants may not each see. A trusted third party who can see all of them can
       keep them consistent.
+    stories:
+    - story_2022_104
 - id: VP-11
   title: EM Messaging
   specs:
@@ -1944,6 +2071,8 @@ groups:
       it commits already tells every participant the message was received; a separate
       $EK$ message would only add traffic and a second acknowledgment that could
       disagree with the ledger.
+    stories:
+    - story_2026_011
   - id: VP-11-005
     priority: SHOULD
     kind: protocol
@@ -2006,6 +2135,8 @@ groups:
       Participants must keep the existing terms until the new end time arrives. A
       revision proposal changes the end time through the usual agreement process, rather
       than leaving participants unsure whether the embargo still holds.
+    stories:
+    - story_2022_015
   - id: VP-11-009
     priority: MAY
     kind: protocol
@@ -2016,6 +2147,8 @@ groups:
     rationale: >-
       Negotiating before sending the report lets the sender protect it from the moment
       it is shared. Treating an early $E*$ as an error would block that.
+    stories:
+    - story_2022_023
   - id: VP-11-010
     priority: MAY
     kind: protocol
@@ -2023,6 +2156,8 @@ groups:
     rationale: >-
       An embargo binds only those who agree. Participants must be free to refuse
       proposals or revisions they cannot keep.
+    stories:
+    - story_2022_010
   - id: VP-11-011
     priority: MUST
     kind: protocol
@@ -2110,6 +2245,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-12-002
+    stories:
+    - story_2022_019
 - id: VP-13
   title: RM-EM Interactions
   specs:
@@ -2123,6 +2260,8 @@ groups:
       Received is the earliest point at which the recipient holds the report. Starting
       embargo work there protects the report before validation, rather than after
       information may already have been shared.
+    stories:
+    - story_2022_023
   - id: VP-13-002
     priority: SHOULD_NOT
     kind: protocol
@@ -2161,6 +2300,8 @@ groups:
       A participant that closes may stop watching the case and lose track of its
       obligations. Keeping the report open while the embargo runs keeps the participant
       aware of the embargo until it ends.
+    stories:
+    - story_2022_067
   - id: VP-13-006
     priority: SHOULD
     kind: protocol
@@ -2171,6 +2312,8 @@ groups:
       Holding the report in Deferred or Invalid keeps the participant attached to the
       case, and aware of the embargo, until the embargo ends, without claiming any
       further work.
+    stories:
+    - story_2022_067
   - id: VP-13-007
     priority: SHOULD
     kind: protocol
@@ -2181,6 +2324,8 @@ groups:
     rationale: >-
       Remaining participants need to know whether someone who closed will still keep the
       information private. That tells them whether the embargo still holds.
+    stories:
+    - story_2022_067
   - id: VP-13-008
     priority: SHOULD
     kind: protocol
@@ -2191,6 +2336,8 @@ groups:
       An RM or EM state change does not say whether the participant will keep the
       embargo. Saying so clearly stops others from relying on a commitment that has
       changed.
+    stories:
+    - story_2022_062
   - id: VP-13-009
     priority: MUST
     kind: protocol
@@ -2214,6 +2361,8 @@ groups:
     rationale: >-
       Negotiating before sending the report lets the sender protect it from the moment
       it is shared (VP-11-009).
+    stories:
+    - story_2022_023
   - id: VP-13-011
     priority: MAY
     kind: protocol
@@ -2223,6 +2372,8 @@ groups:
       In the active RM states the participant is working on the report. Allowing the
       embargo to start in any of them keeps protection timely without waiting for a
       later step.
+    stories:
+    - story_2022_023
   - id: VP-13-012
     priority: MAY
     kind: protocol
@@ -2232,6 +2383,8 @@ groups:
     rationale: >-
       Validation and prioritization can take time. Running embargo work alongside them
       protects the report while those decisions are made.
+    stories:
+    - story_2022_023
   - id: VP-13-013
     priority: MAY
     kind: protocol
@@ -2241,6 +2394,8 @@ groups:
     rationale: >-
       Valid, Accepted and Deferred participants still have a stake in the report.
       Allowing revisions then lets the embargo follow changes in the work.
+    stories:
+    - story_2026_084
   - id: VP-13-014
     priority: MAY
     kind: protocol
@@ -2251,6 +2406,8 @@ groups:
     rationale: >-
       An Invalid report may become valid with more information (VP-02-033). Keeping the
       negotiation open protects the report until that is known.
+    stories:
+    - story_2026_084
   - id: VP-13-015
     priority: MAY
     kind: protocol
@@ -2260,6 +2417,8 @@ groups:
     rationale: >-
       In these RM states the participant holds the report and is not done with it, so
       agreeing to an embargo protects real ongoing work.
+    stories:
+    - story_2026_084
   - id: VP-13-016
     priority: MAY
     kind: protocol
@@ -2284,6 +2443,8 @@ groups:
       the embargo for the case (VP-13-009). A signatory withdraws by sending
       `Leave(EmbargoEvent)` for the embargo in force, which moves its consent row
       `AGREED → DECLINED` (ADR-0093, MSM-07-010, EP-09-013).
+    stories:
+    - story_2022_066
   - id: VP-13-018
     priority: MAY
     kind: protocol
@@ -2299,6 +2460,8 @@ groups:
       a Participant other than the authorising Case Owner cannot effect the case-level
       teardown; it may terminate only its own compliance. Terminating the case-level embargo
       is the Case Owner's authority (VP-13-019).
+    stories:
+    - story_2022_066
   - id: VP-13-019
     priority: MAY
     kind: protocol
@@ -2315,6 +2478,8 @@ groups:
       (`test_owner_termination_sends_et_to_each_unreached_signatory`) confirms
       the CASE_MANAGER carries out the Case Owner's termination, with departed
       signatories among those it notifies.
+    stories:
+    - story_2022_046
 - id: VP-14
   title: RM-EM-CS Interactions
   specs:
@@ -2340,6 +2505,8 @@ groups:
     rationale: >-
       Once a vendor knows, information about the vul is spreading among parties.
       Starting the EM process then keeps it from spreading further without an agreement.
+    stories:
+    - story_2022_023
   - id: VP-14-006
     priority: SHOULD
     kind: protocol
@@ -2349,6 +2516,8 @@ groups:
     rationale: >-
       An undecided proposal leaves the notified vendor unsure whether it may share the
       information. A quick decision gives it clear terms to work under.
+    stories:
+    - story_2026_094
   - id: VP-14-007
     priority: SHOULD_NOT
     kind: protocol
@@ -2377,6 +2546,8 @@ groups:
     rationale: >-
       With a fix ready, most of the reason for the embargo is gone. Preparing to end it
       lets participants release quickly.
+    stories:
+    - story_2022_025
   - id: VP-14-009
     priority: SHOULD
     kind: protocol
@@ -2386,6 +2557,8 @@ groups:
     rationale: >-
       Publishing before all vendors are ready leaves the trailing vendors' users
       exposed. A reasonable extension can let everyone release together.
+    stories:
+    - story_2022_104
   - id: VP-14-010
     priority: SHOULD_NOT
     kind: protocol
@@ -2395,6 +2568,8 @@ groups:
     rationale: >-
       After the fix is deployed there is nothing left to protect by secrecy, so a new
       embargo only delays user awareness.
+    stories:
+    - story_2022_025
   - id: VP-14-015
     priority: SHOULD
     kind: protocol
@@ -2408,6 +2583,8 @@ groups:
       `test/core/behaviors/embargo/test_terminate_active_embargo_tree.py`
       (`test_the_chosen_reason_is_recorded_as_the_cause`) confirms the
       fix-deployed call-out ends the embargo with a `FIX_DEPLOYED` cause.
+    stories:
+    - story_2022_025
   - id: VP-14-011
     priority: SHOULD
     kind: protocol
@@ -2546,7 +2723,6 @@ groups:
       without sharing any details.
     stories:
     - story_2022_030
-    - story_2022_045
   - id: VP-16-003
     priority: SHOULD_NOT
     kind: protocol
@@ -2586,7 +2762,7 @@ groups:
     - rel_type: refines
       spec_id: VP-02-001
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_046
   - id: VP-17-002
     priority: MUST_NOT
@@ -2606,6 +2782,8 @@ groups:
       spec_id: VP-17-001
     - rel_type: constrains
       spec_id: SM-10-002
+    stories:
+    - story_2026_005
   - id: VP-17-003
     priority: MUST
     kind: protocol
@@ -2624,7 +2802,7 @@ groups:
     - rel_type: satisfies
       spec_id: VP-17-002
     stories:
-    - story_2022_045
+    - story_2026_057
 - id: VP-18
   title: Routing Topology
   specs:
@@ -2639,16 +2817,18 @@ groups:
       activity. Direct peer-to-peer delivery bypasses the ledger and the broadcast
       idempotency controls.
     verification: >-
-      Integration tests in `test/demo/test_sync_ledger_replication.py` confirm
-      that every accepted participant message produces a CaseLedgerEntry and an
-      `Announce(CaseLedgerEntry)` broadcast before delivery to other
-      participants.
+      `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_commits_log_entry_when_sync_port_provided`
+      confirms the path from the CASE_MANAGER on: a note a participant sends to
+      the CASE_MANAGER is committed as a CaseLedgerEntry and broadcast to the
+      participants in an `Announce` of that entry. The first step, a participant
+      addressing the CASE_MANAGER alone, is the PCR-08-001 rule this one refines,
+      and its own tests check it.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
       note: participant-case-relationships.yaml — PCR-08 covers ledger-based broadcast
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_041
   - id: VP-18-002
     priority: MUST_NOT
@@ -2662,6 +2842,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-18-001
+    stories:
+    - story_2026_002
   - id: VP-18-003
     priority: MUST
     kind: protocol
@@ -2672,12 +2854,14 @@ groups:
       Mediation through the CASE_MANAGER ensures all case activity is ledger-ordered
       and consistently broadcast to all participants.
     verification: >-
-      Integration tests in `test/demo/test_sync_ledger_replication.py` confirm
-      that no participant receives a case-state update before the CASE_MANAGER has
-      committed the corresponding CaseLedgerEntry.
+      `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_commits_log_entry_when_sync_port_provided`
+      confirms that a participant's note is committed as a CaseLedgerEntry, that
+      the entry is already in the ledger store when each `Announce` of it is
+      queued, and that the `Announce` fanned out to the participants carries that
+      committed entry.
     relationships:
     - rel_type: refines
       spec_id: VP-18-001
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_106

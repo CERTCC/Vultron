@@ -37,8 +37,9 @@ groups:
     priority: MUST_NOT
     kind: architecture
     verification_debt: '#2569'
-    statement: The `wire/` layer (AS2 parser, semantic extractor) MUST NOT contain handler logic, case management, or journal
-      management
+    statement: >-
+      The `wire/` layer (AS2 parser, semantic extractor) MUST NOT contain handler logic,
+      case management, or case ledger management.
     rationale: >-
       The wire layer encodes and decodes messages. Handler logic, case management and
       the case ledger are domain behavior, and they belong in core. If the wire layer
@@ -112,7 +113,7 @@ groups:
     statement: >-
       Demo-layer modules (`vultron/demo/**`) MUST NOT import from the legacy simulator
       package (`vultron/bt/**`). The one exception is the unified demo CLI aggregator,
-      `vultron/demo/cli.py` (DC-01-001).
+      `vultron/demo/cli/vultrabot_commands.py` (DC-01-001).
     rationale: >-
       `vultron/demo/` demonstrates the production protocol, and `vultron/bt/` is the
       frozen legacy simulator that is to be retired (see `notes/codebase-structure.md`
@@ -280,8 +281,9 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: Connector plugins MUST translate only — no case handling logic, authorization, or journal management belongs
-      in a connector
+    statement: >-
+      Connector plugins MUST translate only — no case handling logic, authorization, or
+      case ledger management belongs in a connector.
     rationale: >-
       A connector is an adapter: it translates between a tracker's format and Vultron
       domain types. Case logic, authorization and the case ledger belong in core, where
@@ -501,21 +503,34 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      The wire branch MUST NOT carry domain validators. Wire-branch overrides exist solely for
-      AS2 serialization shape (field aliases, `@context`, lenient `Any | None` types).
+      A wire-branch validator MUST NOT apply a rule that depends on case state or on
+      stored data.
     rationale: >-
-      Domain rules belong in core, where every reader of an object gets the same checks
-      (ARCH-01-003). A wire class for AS2 vocabulary that core does not model must parse
-      loose inbound data. A domain validator on it could refuse data that core accepts,
-      or accept data that core refuses. The `as_*` name of a domain type is its core
-      class (ARCH-25-003), so the domain validators of that class already apply when it
-      is read from the wire.
-    verification: 'Confirmed by `test_no_wire_types_in_core_type_map` (imports wire vocab and asserts no `vultron.wire`
-      module class appears in `CORE_TYPE_MAP`) and `test_core_record_types_in_core_type_map` (discovers
-      every `CoreRecord` that is not a `CoreObject`, including the dead-letter records
-      `DeadLetterRecord` and the adapter''s `OutboxDeadLetterEntry`, and asserts each is reachable
-      by class name and Literal value; the subject set is discovered, not listed) in
-      `test/architecture/test_hierarchy_invariants.py`. Both MUST NOT be marked `xfail`.'
+      Rules about case state belong in core, where every reader of an object gets the
+      same checks (ARCH-01-003) and the state they read is the receiver's own. A parse
+      step sees one message, so a rule that needed stored data there would have to
+      reach into the store from the wire layer, against the dependency direction. The
+      `as_*` name of a domain type is its core class (ARCH-25-003), so the domain
+      validators of that class already apply when it is read from the wire.
+    verification: >-
+      `test/architecture/test_wire_validators_stateless.py` discovers every
+      wire-branch class that declares a field or model validator. It asserts that no
+      module defining one imports from the adapters, the core ports, behaviors, use
+      cases or services, and that no validator names the store or the case-status
+      record (`test_no_wire_validator_module_imports_stateful_code`,
+      `test_no_wire_validator_names_the_store_or_case_state`).
+  - id: ARCH-12-021
+    priority: MAY
+    kind: project
+    statement: >-
+      A wire-branch validator MAY refuse a message whose own form breaks a protocol
+      rule, such as CP-01-012, SYNC-16-028, CM-11-011 or EMB-13-004.
+    rationale: >-
+      A rule about the form of one message needs nothing but that message, so the parse
+      edge can apply it and refuse the message once, with a clear reason, before any
+      later step works on it (ADR-0032). A proposer that claims the CASE_MANAGER role
+      (CP-01-012) or a Reject that names no object (SYNC-16-028) is malformed whatever
+      the receiver holds.
   - id: ARCH-12-008
     priority: MUST
     kind: project
@@ -768,7 +783,7 @@ groups:
     verification_debt: '#2569'
     statement: >-
       A layer-neutral domain helper, one with no dependency above `models/`, MUST live
-      in `vultron/core/models/_helpers.py`.
+      in `vultron/core/models/_helpers/`.
     rationale: >-
       A fixed place for each kind of helper lets a developer find the existing copy
       before writing a new one. A layer-neutral helper in `models/` can serve every
@@ -906,50 +921,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: ARCH-16-001
-- id: ARCH-17
-  title: ASGIEmitter Base URL
-  description: >-
-    SUPERSEDED by ADR-0042 / outbox.yaml OX-12. The ASGIEmitter in-process delivery
-    shortcut has been retired in favour of uniform HTTP delivery for all inter-actor
-    communication. These requirements are retained for historical traceability only and
-    no longer describe the delivery architecture; do not implement against them.
-  specs:
-  - id: ARCH-17-001
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: >-
-      The `ASGIEmitter` base URL MUST hold only the scheme and netloc components (e.g.
-      `https://example.org`), with no path prefix, trailing slash or mount-point segment.
-    rationale: >-
-      The emitter strips the mount prefix from request paths before it builds outbound
-      URLs, so a prefix in the base URL is applied twice.
-      A base URL with a path prefix, such as `https://example.org/api`, joined with a
-      request path such as `/api/actors/…`, gives
-      `https://example.org/api/api/actors/…`, which is an address that does not exist.
-      The `ASGIEmitter` is removed (ADR-0042), so no code now depends on this
-      requirement (see the group description).
-  - id: ARCH-17-002
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: >-
-      `ASGIEmitter` MUST detect re-entrant emission with a `contextvars.ContextVar[int]`
-      guard, not a `threading.Lock` or a boolean flag. A re-entrant emission is an
-      emitter call from a handler that an earlier emission invoked.
-    rationale: A `threading.Lock` guard would deadlock when the re-entrant call happens on the same thread (common in async/ASGI
-      contexts). A `ContextVar` is task-local and correctly tracks reentrancy per async task without thread-lock semantics.
-  - id: ARCH-17-003
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: '`ASGIEmitter` MUST raise `EmitterReentrancyError` on a re-entrant emission.'
-    rationale: >-
-      A re-entrant emission can loop with no end. A named error stops it and shows
-      where it started.
-    relationships:
-    - rel_type: extends
-      spec_id: ARCH-17-002
 - id: ARCH-18
   title: Architecture Ratchet Discipline
   specs:
@@ -1433,7 +1404,7 @@ groups:
       whole-store dump, whose
       contents include bare `CoreRecord` rows, to `application/json`. A route that returns a plain dict without `AS2JSONResponse`
       (for example the `get_object` and `get_object_by_key` fallbacks and
-      `get_objects` in `routers/datalayer.py`, or the demo ledger routes) serves
+      `get_objects` in `routers/datalayer/routes.py`, or the demo ledger routes) serves
       `application/json`, not an AS2 document, and is outside this requirement.
     adr:
     - ADR-0063
@@ -1484,7 +1455,7 @@ groups:
     kind: project
     statement: >-
       Core code MUST rebuild an object from a snapshot `dict` only through
-      `project_wire_snapshot_to_core` (`vultron/core/models/_helpers.py`).
+      `project_wire_snapshot_to_core` (`vultron/core/models/_helpers/inbound.py`).
     rationale: >-
       `rehydrate()` turns an ID into an object (VM-06-007), and the snapshot helper
       turns a dict into an object, so each case has one defined path.
@@ -1695,7 +1666,7 @@ groups:
       except `vultron/core/models/` and `vultron/core/states/`. The forbidden set
       includes `behaviors/`, `use_cases/`, `ports/`, `services/`, `predicates/`,
       `scoring/`, `case_states/`, `participants/`, `dispatcher.py` and
-      `sync_helpers.py`. The permitted set is an allow-list, so a package added to
+      `sync_helpers/`. The permitted set is an allow-list, so a package added to
       `vultron/core/` later is forbidden until this requirement admits it. A
       TYPE_CHECKING-guarded import is exempt, because it is erased at runtime and can
       only appear in an annotation.
@@ -2124,14 +2095,47 @@ groups:
       answers for the same actor and case. A negation decorator answers the opposite
       question with no second node.
     verification: >-
-      A test asserts one authority condition node is the only thing resolving "am I
-      the authority"; `CheckIsOwnCaseActorNode` / `CheckIsNotOwnCaseActorNode` are
-      removed or aliased.
+      `test_the_authority_question_is_asked_by_one_node` in
+      `test/architecture/test_role_authority_resolver.py` holds the set of BT node
+      classes that answer "am I the authority" to an exact inventory: one sanctioned
+      node, and the sites the ADR-0153 migration waves still have to retire, each
+      with the issue that owns it. A new asker fails it.
+      `test_removed_authority_nodes_are_not_defined` asserts
+      `CheckIsOwnCaseActorNode` / `CheckIsNotOwnCaseActorNode` are removed or aliased.
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-24-001
     adr:
     - ADR-0088
+  - id: ARCH-24-007
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Every node that answers "is the executing actor the case authority" MUST take its
+      answer from the single role-authority resolver of ARCH-24-001, whether it asks
+      through the shared role predicate or calls the resolver itself.
+    rationale: >-
+      ARCH-24-003 bounds how many nodes ask the question; this bounds what they may
+      answer it with, which is what stops the ones that do ask from disagreeing. A
+      roster recording `CVDRole.CASE_MANAGER` on two participants — the window a role
+      delegation opens (CM-33) — is where a second implementation diverges: a
+      roster-scanning predicate named the second holder the manager while the resolver
+      named the first, so a received tree's path stage admitted a delivery its own
+      CASE_MANAGER gate then skipped, and the handler reported `APPLIED` having
+      notified nobody (HP-01-005).
+    verification: >-
+      `test/core/participants/test_role_predicate.py::test_authority_agrees_with_the_single_resolver`
+      builds a roster that records the role on two participants and asserts
+      `has_role` answers exactly what `resolve_case_manager_id` answers for each
+      actor, which fails when the predicate scans the roster itself; and
+      `test/core/use_cases/received/actor/test_offer_case_participant.py::TestOfferCaseParticipantDecisionsAtNonCaseManager::test_a_second_manager_record_is_refused_not_silently_applied`
+      pins the disposition that a disagreement would turn into a silent `APPLIED`.
+    relationships:
+    - rel_type: extends
+      spec_id: ARCH-24-003
+    adr:
+    - ADR-0088
+    - ADR-0153
   - id: ARCH-24-006
     priority: MUST
     kind: architecture
@@ -2584,8 +2588,7 @@ groups:
     statement: >-
       This codebase MUST decide each unrecognised key on inbound data at the parse edge,
       `parse_activity`, by one rule for every object at every depth. A near miss for a
-      declared spelling, or a retired name, refuses the whole activity and names both
-      spellings. Any other
+      declared spelling refuses the whole activity and names both spellings. Any other
       unknown key is set aside and reported once at `INFO` (MV-11-001 to MV-11-003). The
       report carries `activity_id`, the sender's `actor_id`, the field path and the key,
       and the activity proceeds on its declared fields.
@@ -2732,13 +2735,13 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The parse edge MUST find a near miss only by MV-11-002's normalisation and the
-      retired-name list, never by a similarity measure such as edit distance. That
+      The parse edge MUST find a near miss only by MV-11-002's normalisation, never by
+      a similarity measure such as edit distance. That
       normalisation lowercases a key and removes every non-alphanumeric character.
     rationale: >-
       AS2 has many short property names that are one character apart, so an
-      edit-distance measure would give many false matches. A fixed normalization and a
-      list of retired names give a deterministic answer.
+      edit-distance measure would give many false matches. A fixed normalization gives a
+      deterministic answer.
     verification: >-
       `test_normalisation_is_lowercase_and_strip_non_alphanumerics` in
       `test/wire/as2/test_unknown_key_disposition.py` pins the normalization, and
@@ -2778,7 +2781,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `rehydrate()` in `vultron/wire/as2/rehydration.py` MUST be the sole owner of
+      `rehydrate()` in `vultron/wire/as2/rehydration/` MUST be the sole owner of
       ID-to-object materialisation, and resolve a reference through the `DataLayer` it
       is given.
     rationale: >-

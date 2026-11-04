@@ -64,7 +64,7 @@ working-record exclusion).
 **State machine enums are authoritative.** When docs and an enum disagree on
 state names, the enum wins and the doc is updated, unless a maintainer has
 named the enum a bug. Canonical files: `vultron/core/states/rm.py`,
-`vultron/core/states/em.py`, `vultron/core/states/cs.py`.
+`vultron/core/states/em.py`, `vultron/core/states/cs/`.
 
 **Check transitions against the formal protocol, under the specification.**
 `docs/reference/formal_protocol/` (`states.md`, `transitions.md`, `messages.md`)

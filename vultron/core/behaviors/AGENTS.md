@@ -117,11 +117,11 @@ module. An `EmitCapable` node in `replica_effects` outside a `CaseManagerGate`
 raises `VultronWiringError` unless `replica_emit_exemption` names a registered
 `ReplicaEmitExemption` (`replica_emit_exemptions.py`) whose `covers` lists it.
 A new emit node class reaching the outbox mixes in `EmitCapable` (or inherits
-it from its base). The pre-BT-17-008 `effect_nodes` parameter was retired
-(#4307) once the close-case tree, its last caller, moved its decline emit onto
-`manager_effects` (#3825). Full write-up:
+it from its base). The pre-BT-17-008 `effect_nodes` parameter is retired
+(#4307); do not reintroduce it. A tree declaring `paths=` asks the role once in
+the path stage, giving it path-only work as `OnPaths` (HP-01-035..041). Write-ups:
 `notes/bt-pitfalls.md` § "A Received Tree Gets Its CASE_MANAGER Gate From the
-Factory".
+Factory" and `notes/bt-integration.md` § "The Received-Side Stages".
 
 ---
 
@@ -142,7 +142,7 @@ then return here), then apply these BT-specific checks
    | Report | `_EmitCaseActorReportActivityBase` | `report/nodes/emit.py` |
    | Embargo (send); CASE_MANAGER's own act (build → queue if addressed → commit sealed blob, in one transaction: embargo decisions, case closure, late-Accept ack) | `_SendEmbargoActivityBase`; `_CommitCaseManagerActivityBase` | `embargo/nodes/emit.py`; `case_manager_commit.py` |
    | Participant-status | `_EmitParticipantStatusActivityBase` | `report/nodes/develop_fix.py` |
-   | Single-activity (invite, ownership, other case domains) | `_EmitSingleActivityBase` | `helpers.py` |
+   | Single-activity (invite, ownership, other case domains) | `_EmitSingleActivityBase` | `helpers/emit.py` |
 
    **If no base exists for your domain: create it first, then write the
    concrete node.** Do not implement `update()` inline in a concrete node

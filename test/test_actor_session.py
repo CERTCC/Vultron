@@ -127,7 +127,7 @@ def test_case_scoped_method_raises_without_a_bound_case():
 def test_verb_posts_expected_behavior_body_and_prefix():
     session = _session().with_case(_case())
     with patch(
-        "vultron.demo.actor_session.post_to_trigger", return_value={}
+        "vultron.demo.actor_session.binding.post_to_trigger", return_value={}
     ) as post:
         session.quiet().notify_fix_ready()
     post.assert_called_once()
@@ -150,7 +150,7 @@ def test_invite_actor_to_case_returns_typed_activity_result():
         "emitting_actor_id": _ACTOR_ID,
     }
     with patch(
-        "vultron.demo.actor_session.post_to_trigger", return_value=raw
+        "vultron.demo.actor_session.binding.post_to_trigger", return_value=raw
     ) as post:
         result = session.quiet().invite_actor_to_case(
             invitee_id="http://v2:7999/api/v2/actors/v2",
@@ -168,7 +168,9 @@ def test_sync_log_entry_returns_entry_hash():
         actor_id="http://case-actor:7999/api/v2/actors/case-actor",
     ).with_case(_case())
     raw = {"entry_hash": "abcd1234", "log_index": 3}
-    with patch("vultron.demo.actor_session.post_to_trigger", return_value=raw):
+    with patch(
+        "vultron.demo.actor_session.binding.post_to_trigger", return_value=raw
+    ):
         result = session.quiet().sync_log_entry(object_id=_CASE_ID)
     assert isinstance(result, WireSyncLogEntryResult)
     assert result.entry_hash == "abcd1234"
@@ -178,7 +180,9 @@ def test_sync_log_entry_returns_entry_hash():
 def test_add_note_to_case_returns_note_payload():
     session = _session().with_case(_case())
     raw = {"note": {"id": "http://vendor:7999/api/v2/Notes/1"}}
-    with patch("vultron.demo.actor_session.post_to_trigger", return_value=raw):
+    with patch(
+        "vultron.demo.actor_session.binding.post_to_trigger", return_value=raw
+    ):
         result = session.quiet().add_note_to_case(
             note_name="n", note_content="c"
         )
@@ -189,7 +193,7 @@ def test_add_note_to_case_returns_note_payload():
 def test_optional_note_omitted_from_body_when_absent():
     session = _session()
     with patch(
-        "vultron.demo.actor_session.post_to_trigger", return_value={}
+        "vultron.demo.actor_session.binding.post_to_trigger", return_value={}
     ) as post:
         session.quiet().validate_report(offer_id="offer-1")
     assert post.call_args.kwargs["body"] == {"offer_id": "offer-1"}
@@ -220,7 +224,8 @@ _PROPOSAL = {
 def test_embargo_proposal_verbs_post_the_end_time_and_note(verb, behavior):
     session = _session().with_case(_case())
     with patch(
-        "vultron.demo.actor_session.post_to_trigger", return_value=_PROPOSAL
+        "vultron.demo.actor_session.binding.post_to_trigger",
+        return_value=_PROPOSAL,
     ) as post:
         result = getattr(session, verb)(end_time=_END, note="why")
     assert result.activity.object_ == _EMBARGO_ID
@@ -235,7 +240,8 @@ def test_embargo_proposal_verbs_post_the_end_time_and_note(verb, behavior):
 def test_embargo_proposal_omits_an_absent_note():
     session = _session().with_case(_case())
     with patch(
-        "vultron.demo.actor_session.post_to_trigger", return_value=_PROPOSAL
+        "vultron.demo.actor_session.binding.post_to_trigger",
+        return_value=_PROPOSAL,
     ) as post:
         session.propose_embargo(end_time=_END)
     assert "note" not in post.call_args.kwargs["body"]
@@ -244,7 +250,7 @@ def test_embargo_proposal_omits_an_absent_note():
 def test_accept_embargo_names_the_proposal_only_when_given():
     session = _session().with_case(_case())
     with patch(
-        "vultron.demo.actor_session.post_to_trigger", return_value={}
+        "vultron.demo.actor_session.binding.post_to_trigger", return_value={}
     ) as post:
         session.accept_embargo()
         assert post.call_args.kwargs["body"] == {"case_id": _CASE_ID}
@@ -258,7 +264,7 @@ def test_accept_embargo_names_the_proposal_only_when_given():
 def test_terminate_embargo_posts_the_case():
     session = _session().with_case(_case())
     with patch(
-        "vultron.demo.actor_session.post_to_trigger", return_value={}
+        "vultron.demo.actor_session.binding.post_to_trigger", return_value={}
     ) as post:
         session.terminate_embargo()
     assert post.call_args.kwargs["behavior"] == "terminate-embargo"

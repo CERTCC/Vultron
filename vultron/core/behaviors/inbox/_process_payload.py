@@ -37,7 +37,7 @@ from vultron.core.behaviors.blackboard_scope import (
     restore_keys,
     snapshot_keys,
 )
-from vultron.core.behaviors.bridge import _BT_GLOBAL_LOCK
+from vultron.core.behaviors.bridge.lock import _BT_GLOBAL_LOCK
 from vultron.core.behaviors.inbox.inbox_tree import create_inbox_bt
 from vultron.core.behaviors.inbox.models import (
     DispatchAdapter,

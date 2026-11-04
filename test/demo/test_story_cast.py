@@ -23,8 +23,8 @@ session is bound to it.  It also owns the plumbing either side of the story:
 one health-checked client per container (``story_clients``) and the
 thin wrapper over the ledger dump (``dump_story_ledgers``, DEMOMA-23-002).
 Those are the claims below; a family's own seats and seeder are its business
-and are pinned in its own module's tests (``test_coordinated_story.py``,
-``test_vendor_story.py``).
+and are pinned in its own module's tests (``test/demo/coordinated_story/``,
+``test/demo/vendor_story/``).
 
 Every test patches the collaborators out, so no HTTP happens.  ``demo_step``
 is left real wherever the test is about control flow — a seeding failure is
@@ -71,9 +71,12 @@ from vultron.demo.helpers.story_cast import (
     open_story_cast,
     story_clients,
 )
-from vultron.demo.utils import case_actor_id_on, reset_demo_failures
+from vultron.demo.utils import case_actor_id_on
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: The two fixed-role seats a vendor-first family opens with, as the smallest
 #: cast that can still be seated in the wrong order (``vendor_seats``).
@@ -91,18 +94,6 @@ _SEED_STEP = "Seeding the Reporter and Vendor containers"
 #: take whatever names a scenario's ``ROLES`` seats.
 _REPORTER, _COORDINATOR, _VENDOR = "reporter", "coordinator", "vendor"
 _CAST = (_REPORTER, _COORDINATOR, _VENDOR)
-
-
-@pytest.fixture(autouse=True)
-def _fresh_failures() -> Iterator[None]:
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, and the failed
-    seeding below records one, which the next test would read as its own.
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 def _seats(*names: str) -> tuple[CastSeat, ...]:
@@ -142,7 +133,7 @@ def _opening(
     with (
         patch.object(story_cast, "reset_datalayer", recorder.reset_datalayer),
         patch(
-            "vultron.demo.helpers.seeding.seed_case_actor_identity",
+            "vultron.demo.helpers.seeding.reset.seed_case_actor_identity",
             recorder.seed_case_actor_identity,
         ),
         patch.object(
@@ -316,7 +307,7 @@ class TestOpenStoryCast:
         burying the one real cause (EDF-06-005).
         """
         seats = _seats(*_SEATS)
-        from vultron.demo import utils
+        from vultron.demo.utils.failures import _demo_failures
 
         with (
             _opening(None) as recorder,
@@ -343,11 +334,9 @@ class TestOpenStoryCast:
                 "the stop must name the containers whose seeding failed, so a"
                 f" reader knows where to look; it named {message!r}"
             )
-        assert any(
-            "container unreachable" in f for f in utils._demo_failures
-        ), (
+        assert any("container unreachable" in f for f in _demo_failures), (
             "the real cause must still be in the accumulator, recorded by the"
-            f" seeding's own demo_step; it holds {utils._demo_failures!r}"
+            f" seeding's own demo_step; it holds {_demo_failures!r}"
         )
 
     @pytest.mark.parametrize("extra", [-1, 1])

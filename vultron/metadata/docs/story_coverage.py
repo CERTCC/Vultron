@@ -27,7 +27,7 @@ rather than kept by hand:
 Both are whole-file artifacts in the ``docs-site`` flow, so ``uv run docs-site
 --check`` fails a hand edit (DF-11-005's shape, applied here by TRACE-03-003).
 Hand editing is how the old matrix came to link 161 of the 801 requirements
-that carried a story (measured 2026-10-12, ``notes/user-story-catalog.md``).
+that carried a story (measured 2026-10-12, #4487).
 
 Three design points worth not re-deriving:
 

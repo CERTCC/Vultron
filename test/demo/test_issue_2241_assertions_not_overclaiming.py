@@ -24,23 +24,23 @@ Defects covered:
    ``demo_step``, dereferenced outside → ``UnboundLocalError`` when the
    trigger is swallowed.
 
-2. ``verification.py:_all_fetchable_participants_rm_closed`` — when every
+2. ``verification/states.py:_all_fetchable_participants_rm_closed`` — when every
    participant fetch returns 404, builds an empty list and calls
    ``all_participants_rm_closed([])`` → ``True`` (vacuous convergence).
 
-3. ``polling.py:wait_for_case_participants`` — previously compared
+3. ``polling/case.py:wait_for_case_participants`` — previously compared
    ``len(case.case_participants) >= expected_count``; ``case_participants``
    is ``list[as_CaseParticipantRef]`` which can hold bare string IDs, so
    the count was satisfied even when no real ``CaseParticipant`` objects
    existed.  Fixed by switching to identity-based subset check on
    ``actor_participant_index``.
 
-4. ``polling.py:_wait_for_participant_status_field`` — timeout
+4. ``polling/participant.py:_wait_for_participant_status_field`` — timeout
    ``AssertionError`` message includes only the actor URI; the container
    that was polled (``client.base_url``) is absent, making it impossible
    to tell which container was checked.
 
-5. ``milestones.py:verify_fix_ready`` — checks only ``vfd_state``; does
+5. ``milestones/lifecycle.py:verify_fix_ready`` — checks only ``vfd_state``; does
    not verify the required cross-state invariant that CS.F entails RM in
    {ACCEPTED, DEFERRED, CLOSED}.
 """
@@ -50,7 +50,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import vultron.demo.utils as demo_utils
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.dimensions import (
     RmDimension,
@@ -60,10 +59,11 @@ from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import wait_for_case_participants
-from vultron.demo.helpers.verification import (
+from vultron.demo.helpers.verification.states import (
     _all_fetchable_participants_rm_closed,
 )
 from vultron.demo.utils import DataLayerClient, reset_demo_failures
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
@@ -102,7 +102,9 @@ def test_participant_adds_note_no_unbound_on_trigger_failure(monkeypatch):
     def _boom(*args, **kwargs):
         raise RuntimeError("simulated add-note-to-case trigger HTTP 500")
 
-    monkeypatch.setattr("vultron.demo.actor_session.post_to_trigger", _boom)
+    monkeypatch.setattr(
+        "vultron.demo.actor_session.binding.post_to_trigger", _boom
+    )
 
     poster = MagicMock()
     poster.id_ = _REPORTER_ID
@@ -131,7 +133,7 @@ def test_participant_adds_note_no_unbound_on_trigger_failure(monkeypatch):
         "dereferenced an unbound result variable (UnboundLocalError), "
         "masking the real failure (#2241)"
     )
-    assert demo_utils._demo_failures, (
+    assert _demo_failures, (
         "demo_step should have recorded the swallowed trigger failure on "
         "_demo_failures"
     )
@@ -231,8 +233,10 @@ def test_wait_participant_status_timeout_includes_base_url(monkeypatch):
     fired.  The error must include ``client.base_url`` so the container is
     identifiable from the message alone.
     """
-    import vultron.demo.helpers.polling as polling_module
-    from vultron.demo.helpers.polling import _wait_for_participant_status_field
+    import vultron.demo.helpers.polling.participant as polling_module
+    from vultron.demo.helpers.polling.participant import (
+        _wait_for_participant_status_field,
+    )
 
     ps = as_ParticipantStatus(
         context=_CASE_ID, rm=RmDimension(state=RM.RECEIVED)
@@ -295,17 +299,17 @@ def test_verify_fix_ready_fails_if_rm_not_engaged(monkeypatch):
     required RM invariant, so a participant at RM.RECEIVED with VF=VF CS state
     would pass the milestone check without having engaged with the report.
     """
-    import vultron.demo.helpers.milestones as milestones_module
-    import vultron.demo.helpers.verification as verification_module
+    import vultron.demo.helpers.milestones.lifecycle as milestones_module
+    import vultron.demo.helpers.verification.states as verification_module
     from vultron.demo.helpers.milestones import verify_fix_ready
 
     # Participant has fix-ready CS state (VF=VF) but has not yet engaged (RECEIVED)
     participant = _make_participant(vf=CS_vf.VF, rm=RM.RECEIVED)
 
     # _check_participant_vf_state_in and _check_participant_rm_state_in live
-    # in verification.py and call _fetch_participant from that module's namespace.
-    # _assert_vendor_role lives in milestones.py and calls it from milestones'
-    # namespace.  Both must be patched so all callers return our participant.
+    # in verification/states.py and call _fetch_participant from that module's
+    # namespace.  _assert_vendor_role lives in milestones/lifecycle.py and calls
+    # it from that module's namespace.  Both must be patched so all callers return our participant.
     monkeypatch.setattr(
         verification_module,
         "_fetch_participant",
@@ -345,7 +349,7 @@ def test_run_invite_path_rm_triage_polls_invited_client_for_rm_state(
     additional ``wait_for_participant_rm_state`` calls explicitly use
     ``invited_client``: once for RM.VALID and once for RM.ACCEPTED.
     """
-    import vultron.demo.helpers.workflow as workflow_module
+    import vultron.demo.helpers.workflow.triage as workflow_module
     from vultron.demo.helpers.workflow import run_invite_path_rm_triage
 
     auth_client_ids = []

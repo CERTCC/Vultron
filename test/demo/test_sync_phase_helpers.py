@@ -14,7 +14,7 @@
 """Helper-level tests for the shared replica sync-verification helpers.
 
 ``wait_for_replica_ledger_coverage`` and ``run_sync_verification_phase`` in
-``vultron/demo/helpers/sync.py`` replace the per-scenario copies of the
+``vultron/demo/helpers/sync/`` replace the per-scenario copies of the
 read-authority-tail-then-poll-each-replica loop and of the sync-verification
 story fragment (DEMOMA-23-005, DEMOMA-23-007, #3846).  The eight per-scenario
 "skip the coverage wait when the Reporter case never arrives" tests collapsed
@@ -31,8 +31,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import vultron.demo.helpers.sync as sync_module
-import vultron.demo.utils as demo_utils
+import vultron.demo.helpers.sync.ledger as sync_ledger
+import vultron.demo.helpers.sync.phase as sync_phase
 from vultron.demo.helpers.polling import (
     CROSS_CONTAINER_TIMEOUT,
     LATE_JOINER_COVERAGE_TIMEOUT,
@@ -43,17 +43,13 @@ from vultron.demo.helpers.sync import (
     run_sync_verification_phase,
     wait_for_replica_ledger_coverage,
 )
-from vultron.demo.utils import reset_demo_failures
+from vultron.demo.utils.failures import _demo_failures
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 _CASE_ID = "urn:uuid:test-case-3846-0001"
 _TAIL = [{"log_index": 5, "entry_hash": "abc123def456789a"}]
-
-
-@pytest.fixture(autouse=True)
-def _clean_accumulator():
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
 
 
 def _client(name: str) -> MagicMock:
@@ -90,10 +86,10 @@ class TestWaitForReplicaLedgerCoverage:
         auth = _client("auth")
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=[]
+                sync_ledger, "_get_log_entries_for_case", return_value=[]
             ),
             patch.object(
-                sync_module, "wait_for_contiguous_ledger_coverage", coverage
+                sync_ledger, "wait_for_contiguous_ledger_coverage", coverage
             ),
         ):
             wait_for_replica_ledger_coverage(
@@ -102,7 +98,7 @@ class TestWaitForReplicaLedgerCoverage:
                 case_id=_CASE_ID,
             )
         coverage.assert_not_called()
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
         assert auth.base_url in failure
         assert "holds no CaseLedgerEntry" in failure
@@ -118,10 +114,10 @@ class TestWaitForReplicaLedgerCoverage:
 
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=_TAIL
+                sync_ledger, "_get_log_entries_for_case", return_value=_TAIL
             ),
             patch.object(
-                sync_module, "wait_for_contiguous_ledger_coverage", _fake
+                sync_ledger, "wait_for_contiguous_ledger_coverage", _fake
             ),
         ):
             wait_for_replica_ledger_coverage(
@@ -153,10 +149,10 @@ class TestWaitForReplicaLedgerCoverage:
         timeouts, fake = _capture_coverage_timeouts()
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=_TAIL
+                sync_ledger, "_get_log_entries_for_case", return_value=_TAIL
             ),
             patch.object(
-                sync_module, "wait_for_contiguous_ledger_coverage", fake
+                sync_ledger, "wait_for_contiguous_ledger_coverage", fake
             ),
         ):
             wait_for_replica_ledger_coverage(
@@ -174,10 +170,10 @@ class TestWaitForReplicaLedgerCoverage:
         timeouts, fake = _capture_coverage_timeouts()
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=_TAIL
+                sync_ledger, "_get_log_entries_for_case", return_value=_TAIL
             ),
             patch.object(
-                sync_module, "wait_for_contiguous_ledger_coverage", fake
+                sync_ledger, "wait_for_contiguous_ledger_coverage", fake
             ),
         ):
             wait_for_replica_ledger_coverage(
@@ -202,10 +198,10 @@ class TestWaitForReplicaLedgerCoverage:
 
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=_TAIL
+                sync_ledger, "_get_log_entries_for_case", return_value=_TAIL
             ),
             patch.object(
-                sync_module, "wait_for_contiguous_ledger_coverage", _fake
+                sync_ledger, "wait_for_contiguous_ledger_coverage", _fake
             ),
         ):
             wait_for_replica_ledger_coverage(
@@ -214,7 +210,7 @@ class TestWaitForReplicaLedgerCoverage:
                 case_id=_CASE_ID,
             )
         assert polled == [id(first), id(second)]
-        failures = demo_utils._demo_failures
+        failures = _demo_failures
         assert len(failures) == 1
         assert "First ledger coverage" in failures[0]
 
@@ -228,10 +224,10 @@ class TestWaitForReplicaLedgerCoverage:
 
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=_TAIL
+                sync_ledger, "_get_log_entries_for_case", return_value=_TAIL
             ),
             patch.object(
-                sync_module, "wait_for_contiguous_ledger_coverage", _fake
+                sync_ledger, "wait_for_contiguous_ledger_coverage", _fake
             ),
         ):
             covered = wait_for_replica_ledger_coverage(
@@ -245,7 +241,7 @@ class TestWaitForReplicaLedgerCoverage:
         """Nothing to cover → nothing covered → dependent checks are skipped."""
         replicas = [(_client("r1"), "R1"), (_client("r2"), "R2")]
         with patch.object(
-            sync_module, "_get_log_entries_for_case", return_value=[]
+            sync_ledger, "_get_log_entries_for_case", return_value=[]
         ):
             covered = wait_for_replica_ledger_coverage(
                 auth_client=_client("auth"),
@@ -258,10 +254,10 @@ class TestWaitForReplicaLedgerCoverage:
         """Pre-notes use: a coverage timeout is a GATE FAILED (EDF-06-005)."""
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=_TAIL
+                sync_ledger, "_get_log_entries_for_case", return_value=_TAIL
             ),
             patch.object(
-                sync_module,
+                sync_ledger,
                 "wait_for_contiguous_ledger_coverage",
                 side_effect=AssertionError("timed out"),
             ),
@@ -271,7 +267,7 @@ class TestWaitForReplicaLedgerCoverage:
                 replicas=[(_client("r"), "Reporter")],
                 case_id=_CASE_ID,
             )
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
         assert "Reporter ledger coverage (sync-verification phase)" in failure
 
@@ -281,8 +277,18 @@ class TestWaitForReplicaLedgerCoverage:
 # ---------------------------------------------------------------------------
 
 
+#: The ``sync`` submodule each phase-helper collaborator is looked up in.
+_COLLABORATOR_MODULES = {
+    "wait_for_case_on_container": sync_phase,
+    "_get_log_entries_for_case": sync_ledger,
+    "wait_for_contiguous_ledger_coverage": sync_ledger,
+    "wait_for_participants_on_replicas": sync_phase,
+    "verify_replica_state": sync_phase,
+}
+
+
 def _phase_patches(**overrides):
-    """Patch every collaborator of the phase helper on the sync module."""
+    """Patch every collaborator of the phase helper where it is looked up."""
     defaults = {
         "wait_for_case_on_container": MagicMock(),
         "_get_log_entries_for_case": MagicMock(return_value=_TAIL),
@@ -298,7 +304,9 @@ def _run_phase(mocks, **kwargs):
     """Run the phase helper with every collaborator in *mocks* patched."""
     with ExitStack() as stack:
         for name, replacement in mocks.items():
-            stack.enter_context(patch.object(sync_module, name, replacement))
+            stack.enter_context(
+                patch.object(_COLLABORATOR_MODULES[name], name, replacement)
+            )
         run_sync_verification_phase(**kwargs)
 
 
@@ -338,7 +346,7 @@ class TestRunSyncVerificationPhase:
             ),
         )
         mocks["wait_for_contiguous_ledger_coverage"].assert_not_called()
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
         assert "SYNC-15" in failure
 
@@ -404,7 +412,7 @@ class TestRunSyncVerificationPhase:
             and c.kwargs["reporter_actor_id"] == "urn:test:reporter"
             for c in state_calls
         )
-        assert demo_utils._demo_failures == []
+        assert _demo_failures == []
 
     def test_declares_no_participant_wait_when_no_participants_expected(self):
         """rcv-reject declares no participant set: no participant poll runs."""
@@ -472,7 +480,7 @@ class TestRunSyncVerificationPhase:
             for c in mocks["verify_replica_state"].call_args_list
         ]
         assert compared == [other]
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
         assert "Reporter ledger coverage" in failure
 
@@ -493,7 +501,7 @@ class TestRunSyncVerificationPhase:
             ),
         )
         mocks["verify_replica_state"].assert_not_called()
-        assert len(demo_utils._demo_failures) == 1
+        assert len(_demo_failures) == 1
 
     def test_state_checks_are_skipped_when_the_authority_tail_is_empty(self):
         """An empty authority ledger is one GATE FAILED naming the authority.
@@ -517,7 +525,7 @@ class TestRunSyncVerificationPhase:
         )
         mocks["wait_for_contiguous_ledger_coverage"].assert_not_called()
         mocks["verify_replica_state"].assert_not_called()
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
         assert auth.base_url in failure
 
@@ -538,7 +546,7 @@ class TestRunSyncVerificationPhase:
                 state_checks=[(reporter, "Reporter")],
             ),
         )
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("CHECK FAILED")
         assert (
             "Reporter replica matches authoritative Vendor1 state" in failure

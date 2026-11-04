@@ -32,7 +32,7 @@ groups:
     - story_2022_029
     - story_2022_030
     - story_2022_034
-    - story_2022_045
+    - story_2026_016
     adr:
     - ADR-0010
     tags:
@@ -191,6 +191,30 @@ groups:
       spec_id: ARCH-10-001
     adr:
     - ADR-0032
+  - id: OID-01-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST treat two messages whose `actor` URIs are equal once a trailing
+      slash is removed from each as coming from the same actor.
+    rationale: >-
+      Actor ids are full URIs (OID-01-001), and two implementations that disagree on
+      which messages share an actor disagree on who did what. The equality is the one
+      a receiver normalises to (OID-01-006). This rule states identity, not trust:
+      whether a message really comes from the actor it names is the signing work
+      (ADR-0164). Revisit it when signing lands, in case identity should follow the
+      signing key.
+    verification: >-
+      A test marked `OID-01-010` in `test/wire/as2/test_extractor.py` extracts two
+      activities whose `actor` differs only by a trailing slash and asserts both
+      events name the same sender.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: OID-01-001
+    adr:
+    - ADR-0164
+    stories:
+    - story_2022_034
 - id: OID-02
   title: DataLayer Handling
   specs:

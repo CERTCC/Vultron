@@ -37,7 +37,7 @@ Provides:
   (CM-21-028, CM-21-029, ADR-0148).
 
 These leaf nodes are assembled into trigger/receive trees in the parent
-``actor_trigger_trees.py`` and ``ownership_transfer_tree.py`` modules per
+``actor_trigger_trees.py`` and ``ownership_transfer_tree/`` modules per
 BTND-07-003.
 """
 
@@ -60,8 +60,8 @@ from vultron.core.behaviors.case.nodes.ownership_transfer_apply import (
 from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.helpers import (
     TRIGGER_FACTORY_UNAVAILABLE,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models.protocol_pair import (
     OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE,

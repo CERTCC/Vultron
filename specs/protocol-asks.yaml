@@ -205,9 +205,11 @@ groups:
     - ADR-0080
     tags:
     - security
+    stories:
+    - story_2026_034
   - id: ASK-02-005
     stories:
-    - story_2022_045
+    - story_2026_038
     - story_2022_053
     priority: MUST
     kind: protocol
@@ -226,7 +228,7 @@ groups:
     - state-machine
   - id: ASK-02-006
     stories:
-    - story_2022_045
+    - story_2026_038
     - story_2022_053
     priority: MUST
     kind: protocol
@@ -303,6 +305,8 @@ groups:
     tags:
     - security
     - configuration
+    stories:
+    - story_2026_034
   - id: ASK-03-009
     priority: MUST_NOT
     kind: protocol
@@ -323,6 +327,8 @@ groups:
     - ADR-0080
     tags:
     - security
+    stories:
+    - story_2026_034
   - id: ASK-03-004
     stories:
     - story_2022_032
@@ -374,6 +380,8 @@ groups:
     - ADR-0026
     tags:
     - security
+    stories:
+    - story_2026_034
   - id: ASK-03-007
     priority: MUST
     kind: protocol
@@ -398,7 +406,7 @@ groups:
     - ADR-0080
     - ADR-0113
     stories:
-    - story_2022_014
+    - story_2026_006
   - id: ASK-03-008
     priority: MUST
     kind: protocol
@@ -625,7 +633,7 @@ groups:
     - ADR-0080
     - ADR-0113
     stories:
-    - story_2022_014
+    - story_2026_006
   - id: ASK-04-013
     priority: MUST_NOT
     kind: protocol
@@ -647,7 +655,7 @@ groups:
     - ADR-0080
     - ADR-0113
     stories:
-    - story_2022_014
+    - story_2026_006
 
 - id: ASK-05
   title: Expiry and Reaping
@@ -741,7 +749,7 @@ groups:
   - id: ASK-06-001
     stories:
     - story_2022_041
-    - story_2022_045
+    - story_2026_069
     priority: MUST
     kind: protocol
     statement: >-
@@ -756,7 +764,7 @@ groups:
   - id: ASK-06-003
     stories:
     - story_2022_041
-    - story_2022_045
+    - story_2026_075
     priority: MUST
     kind: protocol
     statement: >-
@@ -787,6 +795,8 @@ groups:
     - ADR-0080
     tags:
     - security
+    stories:
+    - story_2022_044
 - id: ASK-07
   title: Processing Faults
   description: >
@@ -830,6 +840,8 @@ groups:
     - ADR-0080
     tags:
     - security
+    stories:
+    - story_2026_035
   - id: ASK-07-003
     stories:
     - story_2022_039
@@ -944,6 +956,8 @@ groups:
     tags:
     - security
     - logging
+    stories:
+    - story_2026_035
   - id: ASK-07-007
     stories:
     - story_2022_039
@@ -962,7 +976,7 @@ groups:
     - ADR-0080
   - id: ASK-07-008
     stories:
-    - story_2022_045
+    - story_2026_069
     - story_2022_074
     priority: MUST
     kind: protocol
@@ -998,6 +1012,8 @@ groups:
       No ledger entry is committed for an activity that failed processing.
     adr:
     - ADR-0080
+    stories:
+    - story_2026_023
   - id: ASK-07-010
     stories:
     - story_2022_039
@@ -1190,3 +1206,5 @@ groups:
     - ADR-0080
     tags:
     - idempotency
+    stories:
+    - story_2026_014

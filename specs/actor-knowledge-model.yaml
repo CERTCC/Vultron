@@ -48,6 +48,8 @@ groups:
       A direct shortcut between co-located actors bypasses the inbox pipeline, so its
       exchanges skip validation, the addressee and entitlement gates, and the case
       ledger, and leave nothing a remote participant would receive.
+    stories:
+    - story_2026_002
   - id: AKM-01-003
     priority: MUST
     kind: protocol
@@ -99,6 +101,8 @@ groups:
       it unable to read what the activity acts on, so it must refuse the activity or
       guess. Carrying such an object inline, or by a reference the recipient can fetch,
       keeps every activity processable by its addressee.
+    stories:
+    - story_2026_016
   - id: AKM-02-004
     priority: MUST
     kind: project
@@ -454,7 +458,7 @@ groups:
     scope:
     - prototype
     stories:
-    - story_2022_014
+    - story_2026_098
     note: >-
       A refusal that stands in for dereference lapses where dereference exists. This
       codebase dereferences through the case host's object read (AKM-05-006) and the
@@ -488,7 +492,7 @@ groups:
     - rel_type: refines
       spec_id: AKM-05-003
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: AKM-05-006
     priority: MUST
     kind: project
@@ -600,7 +604,7 @@ groups:
     - ADR-0107
     - ADR-0170
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: AKM-05-010
     priority: MUST
     kind: protocol
@@ -623,7 +627,7 @@ groups:
     adr:
     - ADR-0107
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: AKM-05-011
     priority: MUST
     kind: protocol
@@ -642,7 +646,7 @@ groups:
     adr:
     - ADR-0107
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: AKM-05-012
     priority: MUST
     kind: protocol
@@ -665,7 +669,7 @@ groups:
     adr:
     - ADR-0107
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: AKM-05-008
     priority: MUST
     kind: project

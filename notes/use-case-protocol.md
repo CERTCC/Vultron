@@ -44,7 +44,7 @@ over a verb registry).
 `rejected` with `failure_reason`. Handlers never use `InboxOutcome` vocabulary
 themselves (HP-01-004, `test_use_cases_no_inbox_outcome.py`).
 
-Most handlers run a tree; `vultron/core/use_cases/received/_bt_verdict.py` turns
+Most handlers run a tree; `vultron/core/use_cases/received/_bt_verdict/` turns
 the run into a verdict. `verdict_from_bt` is the default reading: `SUCCESS` →
 `APPLIED`, a leadership skip → `SKIPPED`, `internal_error` or a missing port →
 raise `VultronBTInternalError`, any other `FAILURE` → `REFUSED` with the failing
@@ -63,7 +63,7 @@ A handler refines the default by asking which node decided (`node_failed`,
 | Activity about a case this actor does not hold | `REFUSED` |
 | Invalid transition; untrusted, non-participant or non-owner sender | `REFUSED` |
 | The handler answered with a `Reject` or a decline | `REFUSED` |
-| Not this actor's role (a CASE_MANAGER-addressed message at a non-manager, via `case_manager_verdict()`), or a copy whose `to` does not name it (`cc` addresses nobody, ADR-0109; a `cc`-only `Offer(VulnerabilityReport)` is one, HP-10-001) | `REFUSED` (HP-01-005) |
+| Not this actor's role (a CASE_MANAGER-addressed message at a non-manager, refused by the path stage in a tree that declares its paths and by `case_manager_verdict()` in one that does not yet, ADR-0153), or a copy whose `to` does not name it (`cc` addresses nobody, ADR-0109; a `cc`-only `Offer(VulnerabilityReport)` is one, HP-10-001) | `REFUSED` (HP-01-005) |
 | An addressee's first receipt of a message now pending its own decision (the Case Owner and `Offer(CaseParticipant)`), or of the CASE_MANAGER's direct removal or reinstatement notice, which its replica applies from the ledger entry (CM-31-007) | `APPLIED` |
 | Duplicate or redelivery of a message the receiver was entitled to act on | `SKIPPED` |
 | Buffered out-of-order or pre-genesis ledger entry | `DEFERRED` |

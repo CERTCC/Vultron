@@ -60,16 +60,16 @@ _SENDER_ID = "https://example.org/actors/sender-chain"
 _RECEIVER_ID = "https://example.org/actors/receiver-chain"
 # log_if_rejected logs every rejected outcome of an inbox run, live or replayed.
 _ORCHESTRATION_LOGGER = "vultron.adapters.driving.fastapi.inbox_queue_drain"
-_OUTBOX_LOGGER = "vultron.adapters.driving.fastapi.outbox_handler"
+_OUTBOX_LOGGER = "vultron.adapters.driving.fastapi.outbox_handler.drain"
 
 
 @pytest.fixture(autouse=True)
 def clear_actor_locks():
-    from vultron.adapters.driving.fastapi import inbox_orchestration
+    from vultron.adapters.driving.fastapi.inbox_orchestration import pipeline
 
-    inbox_orchestration._actor_inbox_locks.clear()
+    pipeline._actor_inbox_locks.clear()
     yield
-    inbox_orchestration._actor_inbox_locks.clear()
+    pipeline._actor_inbox_locks.clear()
 
 
 @pytest.fixture

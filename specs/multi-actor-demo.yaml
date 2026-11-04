@@ -2270,7 +2270,7 @@ groups:
       (DEMOCI-11-018). Naming it here keeps this group a whole story: a reader
       sees where RCV's own telling begins without reading the sibling's group.
     verification: >-
-      `test/demo_unit/test_story.py::test_both_scenarios_share_one_opening`
+      `test/demo_unit/story/test_assembly.py::test_both_scenarios_share_one_opening`
       asserts that `rcv`'s story begins with the items of
       `COORDINATOR_INVITES_VENDOR`, and `TestSharedPrefixes` in
       `test/demo_unit/test_recordings.py` compares the `rcv` and `rcv-reject`
@@ -2761,8 +2761,8 @@ groups:
       same module asserts that the story reaches back to the items of
       `REPORTER_TELLS_THE_COORDINATOR`;
       `test_a_named_prefix_nests_the_shorter_one_it_carries` in
-      `test/demo_unit/test_story.py` asserts that `C1_INVITES_C2` begins with
-      those items rather than restating them; `TestSharedPrefixes` in
+      `test/demo_unit/story/test_assembly.py` asserts that `C1_INVITES_C2`
+      begins with those items rather than restating them; `TestSharedPrefixes` in
       `test/demo_unit/test_recordings.py` compares every pair of registered
       scenarios byte for byte up to the branch point where each pair's paths
       part.
@@ -3011,7 +3011,7 @@ groups:
     statement: >-
       The RCCV-handoff scenario MUST get its `vultron-demo rccv-handoff` sub-command
       from its `@scenario` registration, not from a command declared in
-      `vultron/demo/cli.py` (DEMOCI-11-011).
+      `vultron/demo/cli/` (DEMOCI-11-011).
     rationale: >-
       The Docker entrypoint forwards the `DEMO=rccv-handoff` value to
       `vultron-demo rccv-handoff` (`demo-entrypoint.sh`). The CLI generates that
@@ -3199,9 +3199,10 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      `verify_fix_ready` in `vultron/demo/helpers/milestones.py` MUST accept only
-      actor IDs holding `CVDRole.VENDOR` in the case's participant index; the f→F
-      (fix-ready) transition is gated on VENDOR by `CheckVendorRoleNode`.
+      `verify_fix_ready` in `vultron/demo/helpers/milestones/lifecycle.py` MUST
+      accept only actor IDs holding `CVDRole.VENDOR` in the case's participant
+      index; the f→F (fix-ready) transition is gated on VENDOR by
+      `CheckVendorRoleNode`.
     rationale: >-
       The f→F (fix-ready) transition requires CVDRole.VENDOR, and a Coordinator has no
       vendor fix path. If `verify_fix_ready` accepted any actor, a call with a
@@ -3945,7 +3946,7 @@ groups:
     verification_debt: '#2573'
     statement: >-
       A `seed_containers_rcvcv` function MUST be added to
-      `vultron/demo/helpers/seeding.py` accepting five `DataLayerClient`
+      `vultron/demo/helpers/seeding/` accepting five `DataLayerClient`
       arguments (reporter_client, c1_client, v1_client, c2_client, v2_client)
       and five optional deterministic actor ID arguments.
     rationale: >-
@@ -5358,7 +5359,7 @@ groups:
     rationale: >-
       This applies DEMOMA-17-001 (extract before reuse) to gate predicates. The rule
       does not move the `demo_gate` context manager: DEMOCI-01-007 places it in
-      `vultron/demo/utils.py` with `demo_step` and `demo_check`. Only the functions
+      `vultron/demo/utils/failures.py` with `demo_step` and `demo_check`. Only the functions
       that read actor state live in the helpers.
     adr:
     - ADR-0058
@@ -5722,9 +5723,9 @@ groups:
     statement: >-
       This codebase MUST perform every wait for replicas to reach contiguous ledger
       coverage of an authority's tail through a shared helper in
-      `vultron/demo/helpers/sync.py`. The helper reads the authority tail and polls
+      `vultron/demo/helpers/sync/`. The helper reads the authority tail and polls
       each replica. It applies the named ledger-coverage timeout constants
-      from `vultron/demo/helpers/polling.py`: a default budget and a wider late-joiner
+      from `vultron/demo/helpers/polling/`: a default budget and a wider late-joiner
       budget. Neither budget is below one that a scenario carried before the loop was
       shared. The helper wraps each per-replica wait in a demo context.
     rationale: >-
@@ -5758,7 +5759,7 @@ groups:
     statement: >-
       This codebase MUST perform the closure-phase wait for a departed participant's
       replica to end at its own closure through a helper in
-      `vultron/demo/helpers/sync.py`.
+      `vultron/demo/helpers/sync/`.
     rationale: >-
       After case closure no replica covers the authority's tail, because a closed
       participant is sent nothing after the entries that record its own closure
@@ -5778,8 +5779,8 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      A module under `vultron/demo/` other than `vultron/demo/helpers/sync.py`
-      MUST NOT call or import `wait_for_contiguous_ledger_coverage` or
+      A module under `vultron/demo/` other than the `vultron/demo/helpers/sync/`
+      package MUST NOT call or import `wait_for_contiguous_ledger_coverage` or
       `_get_log_entries_for_case` directly. Defining the primitive and
       re-exporting either name from a package `__init__` are exempt.
     rationale: >-
@@ -5790,7 +5791,7 @@ groups:
       check of scenario modules only cannot see it.
     verification: >-
       An architecture test under `test/architecture/` parses every module under
-      `vultron/demo/` except `vultron/demo/helpers/sync.py` and fails if one
+      `vultron/demo/` except the `vultron/demo/helpers/sync/` package and fails if one
       calls or imports `wait_for_contiguous_ledger_coverage` or
       `_get_log_entries_for_case`, excluding the primitive's own definition and
       package `__init__` re-exports.
@@ -5813,7 +5814,7 @@ groups:
     kind: project
     statement: >-
       A scenario's replica sync-verification step MUST be a thin call to a
-      shared helper in `vultron/demo/helpers/sync.py`. It declares only the
+      shared helper in `vultron/demo/helpers/sync/`. It declares only the
       scenario's authority, replicas, late joiners, expected participant set
       and the replica pairs to state-check.
     rationale: >-
@@ -6621,7 +6622,8 @@ groups:
       (TRIG-03-002), producing an undetectable no-op. `ActorSession` makes
       both mistakes unrepresentable at the call site. `post_to_trigger` remains
       as the private implementation of `ActorSession._post` and MUST NOT be
-      imported outside `vultron/demo/utils.py` and `vultron/demo/actor_session.py`.
+      imported outside the `vultron/demo/utils/` package and
+      `vultron/demo/actor_session/binding.py`.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -7170,7 +7172,7 @@ groups:
       (DEMOCI-11-018). Naming it here keeps this group a whole story: a reader
       sees where the rejection path begins without reading RCV's group.
     verification: >-
-      `test/demo_unit/test_story.py::test_both_scenarios_share_one_opening`
+      `test/demo_unit/story/test_assembly.py::test_both_scenarios_share_one_opening`
       asserts that `rcv-reject`'s story begins with the items of
       `COORDINATOR_INVITES_VENDOR`, and `TestSharedPrefixes` in
       `test/demo_unit/test_recordings.py` compares the `rcv` and `rcv-reject`

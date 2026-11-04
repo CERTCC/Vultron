@@ -204,7 +204,9 @@ def test_raises_when_offer_names_no_case(monkeypatch):
     The parse of an archived Offer requires an object, so the loaded view
     is stood in for to reach the guard.
     """
-    from vultron.core.use_cases.triggers import actor as actor_triggers
+    from vultron.core.use_cases.triggers.actor import (
+        ownership as actor_triggers,
+    )
 
     actor_id = "https://example.org/actors/transferee-nocase"
     offer_id = "https://example.org/activities/offer-nocase"

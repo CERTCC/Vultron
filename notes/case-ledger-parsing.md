@@ -16,13 +16,13 @@ related_notes:
   - notes/status-dimension-objects.md
 relevant_packages:
   - vultron/core/behaviors/sync
-  - vultron/demo/report.py
+  - vultron/demo/report
   - test/ci/invariants/common.py
 ---
 
 # Case Ledger JSONL Parsing — State Extraction and Tolerant Parsing Patterns
 
-The reference implementation is `vultron/demo/report.py` (`_candidate_dicts`,
+The reference implementation is `vultron/demo/report/naming.py` (`_candidate_dicts`,
 `_dimension_state`); `test/ci/invariants/common.py` holds the invariant-side
 accessors. Reuse them instead of writing a new walker.
 

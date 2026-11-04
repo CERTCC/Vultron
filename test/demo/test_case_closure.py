@@ -26,36 +26,33 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import vultron.demo.utils as demo_utils
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, terminate
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.demo.helpers import closure, milestones
+from vultron.demo.helpers import closure
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.milestones import (
     case_closure_violations,
+    closure as milestones_closure,
     own_closure_tail_index,
     verify_case_closure_recorded,
 )
 from vultron.demo.helpers.sync import wait_for_replica_ledger_ending_at
 from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils.failures import _demo_failures
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 _CASE = "urn:uuid:case"
 _MANAGER = "http://owner:7999/api/v2/actors/case-actor"
 _OWNER = "http://owner:7999/api/v2/actors/owner"
 _REPORTER = "http://reporter:7999/api/v2/actors/reporter"
 _VENDOR = "http://vendor:7999/api/v2/actors/vendor"
-
-
-@pytest.fixture(autouse=True)
-def _clean_failures():
-    demo_utils.reset_demo_failures()
-    yield
-    demo_utils.reset_demo_failures()
 
 
 def _leaver(actor_id: str) -> CaseLeaver:
@@ -142,7 +139,7 @@ class TestCloseCaseOwnerLast:
         )
         assert sent == [_REPORTER, _VENDOR, "em-gate", _OWNER]
         assert departed == [_REPORTER, _VENDOR, _OWNER]
-        assert not demo_utils._demo_failures
+        assert not _demo_failures
 
     @pytest.mark.spec("CM-23-015")
     def test_owner_leave_gated_on_each_departure_in_manager_store(self):
@@ -174,7 +171,7 @@ class TestCloseCaseOwnerLast:
         self.recorded.assert_not_called()
         self.closed.assert_not_called()
         self.own_closure.assert_not_called()
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
         assert "CM-23-015" in failure
 
@@ -219,7 +216,7 @@ class TestCloseCaseOwnerLast:
             own_side_effect=[AssertionError("reporter lags"), None],
         )
         assert self.own_closure.call_count == 2
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert not failure.startswith("GATE FAILED")
         assert "replica holds its own closure" in failure
         assert "reporter lags" in failure
@@ -232,7 +229,7 @@ class TestCloseCaseOwnerLast:
             ledger_side_effect=AssertionError("reporter left after closure"),
         )
         assert sent == [_REPORTER, "em-gate", _OWNER]
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert not failure.startswith("GATE FAILED")
         assert (
             "M7: every departure recorded before the CASE_MANAGER's own"
@@ -257,7 +254,7 @@ class TestCloseCaseOwnerLast:
         )
         assert sent == [_REPORTER]
         assert departed == [_REPORTER]
-        (failure,) = demo_utils._demo_failures
+        (failure,) = _demo_failures
         assert failure.startswith("GATE FAILED")
 
     def test_owner_listed_among_others_is_refused(self):
@@ -447,9 +444,9 @@ class TestVerifyCaseClosureRecorded:
 
     def _patches(self):
         return (
-            patch.object(milestones, "wait_for_case_fully_closed"),
+            patch.object(milestones_closure, "wait_for_case_fully_closed"),
             patch.object(
-                milestones,
+                milestones_closure,
                 "find_case_actor_participant_id",
                 return_value=_MANAGER,
             ),
@@ -621,14 +618,16 @@ class TestVerifyCaseClosed:
             for actor, rm in rm_by_actor.items()
         }
         with (
-            patch.object(milestones, "wait_for_all_participants_rm_closed"),
             patch.object(
-                milestones,
+                milestones_closure, "wait_for_all_participants_rm_closed"
+            ),
+            patch.object(
+                milestones_closure,
                 "_fetch_participant_data",
                 side_effect=lambda _c, p_id: records[p_id],
             ),
         ):
-            milestones.verify_case_closed(
+            milestones_closure.verify_case_closed(
                 case_manager_client=client, case_id=_CASE
             )
 

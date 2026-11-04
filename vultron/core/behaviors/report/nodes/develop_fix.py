@@ -47,8 +47,8 @@ from vultron.core.behaviors.case.nodes.participant.status import (
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.behaviors.report.nodes.develop_fix_conditions import (
     CheckCSFixNotYetReady,
     CheckIsVendorRoleNode,

@@ -20,7 +20,7 @@ rcv family's ``REPORTER_TELLS_THE_COORDINATOR``, plus every continuation both
 scenarios tell afterwards (DEMOMA-13-012, DEMOMA-14-017, DEMOMA-17-001).
 
 The tests here own what the pair shares; each scenario's own module owns its
-own fragments, and ``test_coordinated_story.py`` owns the rcv family's
+own fragments, and ``test/demo/coordinated_story/`` owns the rcv family's
 opening, which this prefix only names.  Every test patches the collaborators
 out, so no HTTP happens; ``demo_gate`` / ``demo_check`` / ``demo_step`` stay
 real wherever the test is about control flow and are stubbed to
@@ -34,12 +34,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import vultron.demo.helpers.two_coordinator_story as pair
-import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
     devlogs_name_of,
     functions_referencing,
     mock_actor,
     mock_case,
+    modules_resolving_names,
     no_demo_banners,
     patch_chain_shared,
     story_state,
@@ -63,6 +63,8 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER,
     REPORTER_TELLS_THE_COORDINATOR,
     VENDOR,
+    cast as coordinated_cast,
+    joining as coordinated_joining,
 )
 from vultron.demo.helpers.notes import (
     WORKAROUND_ANSWER,
@@ -71,9 +73,12 @@ from vultron.demo.helpers.notes import (
 )
 from vultron.demo.helpers.owner_decision_story import Part
 from vultron.demo.helpers.story import Choose, UnseatedContainer
-from vultron.demo.utils import reset_demo_failures
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
+
+#: Clear the process-global failure accumulator around every test.
+pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 #: The pair's four cast names, in ``ROLES`` order.
 _CAST = (REPORTER, pair.C1, pair.C2, VENDOR)
@@ -82,26 +87,14 @@ _CAST = (REPORTER, pair.C1, pair.C2, VENDOR)
 _RCV_PREFIX_LEN = len(REPORTER_TELLS_THE_COORDINATOR.items)
 
 
-@pytest.fixture(autouse=True)
-def _fresh_failures():
-    """Clear the process-global failure accumulator around every test.
-
-    ``vultron.demo.utils._demo_failures`` is process-global, so a fragment
-    that records a failure would otherwise leave it for the next test to read
-    as its own (``notes/testing-pitfalls.md``).
-    """
-    reset_demo_failures()
-    yield
-    reset_demo_failures()
-
-
 @contextlib.contextmanager
 def _no_banners():
     """Every module a fragment of this pair reaches, patched once.
 
     ``owner_decision_story`` is not among them: this pair's module takes
     only ``Part`` and a timeout from it, so no fragment under test opens a
-    banner there (``test_owner_decision_story.py`` owns those).
+    banner there (the tests under ``test/demo/owner_decision_story/`` own
+    those).
     """
     with no_demo_banners(pair, coordinated_story):
         yield
@@ -261,7 +254,7 @@ class TestC2IsSeededAfterTheBranchPoint:
                 pair, "seed_containers_rccv", return_value=seeded
             ) as seed,
             patch.object(
-                coordinated_story,
+                coordinated_cast,
                 "get_actor_by_id",
                 side_effect=[seeded[2]],
             ) as lookup,
@@ -292,7 +285,7 @@ class TestC2IsSeededAfterTheBranchPoint:
 
         with (
             patch.object(pair, "seed_containers_rccv"),
-            patch.object(coordinated_story, "get_actor_by_id"),
+            patch.object(coordinated_cast, "get_actor_by_id"),
             _no_banners(),
             pytest.raises(DemoStoryError, match="no container waiting"),
         ):
@@ -316,26 +309,23 @@ class TestC1InvitesC2:
         a failing roster records its failure and keeps no prop.
         """
         with (
-            patch.object(coordinated_story, "run_case_invite_chain") as chain,
             patch.object(
-                coordinated_story, "run_invite_path_rm_triage"
+                coordinated_joining, "run_case_invite_chain"
+            ) as chain,
+            patch.object(
+                coordinated_joining, "run_invite_path_rm_triage"
             ) as triage,
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "wait_for_case_participants",
                 side_effect=roster,
             ) as roster_wait,
             patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
+                coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
             patch.object(
-                coordinated_story,
+                coordinated_joining,
                 "demo_check",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-            patch.object(
-                coordinated_story,
-                "demo_step",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
@@ -418,8 +408,8 @@ class TestC1InvitesC2:
             DemoStoryError, match="case the second Coordinator joined"
         ):
             state.kept(pair.SECOND_COORDINATOR_JOINED)
-        assert [f for f in demo_utils._demo_failures if "GATE FAILED" in f], (
-            demo_utils._demo_failures
+        assert [f for f in _demo_failures if "GATE FAILED" in f], (
+            _demo_failures
         )
 
     @pytest.mark.spec("CLP-08-005")
@@ -806,10 +796,18 @@ _PAIR_CAST_REFERENCES = _pair_cast_references()
 
 
 def _continuations_source() -> str:
-    """The source of the shared continuations, read as written."""
-    source = owner_decision_story.__file__
-    assert source is not None
-    return pathlib.Path(source).read_text(encoding="utf-8")
+    """The source of the shared continuations, read as written.
+
+    ``owner_decision_story`` is a package (#5592), so every submodule is read
+    and joined: its ``__init__`` only re-exports, and reading that alone
+    would leave every continuation unchecked.
+    """
+    modules = modules_resolving_names(owner_decision_story)
+    assert len(modules) > 1, modules
+    return "\n".join(
+        pathlib.Path(module.__file__ or "").read_text(encoding="utf-8")
+        for module in modules
+    )
 
 
 def _cast_references(source: str) -> tuple[set[str], set[str]]:

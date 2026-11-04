@@ -13,7 +13,9 @@ description: >
   CM-23-014); P/X/A refusal and teardown
   (EMB-01-002, EMB-16); earliest-expiration resolution of open proposals
   (EP-08); the relay through the CASE_MANAGER and its trigger write gate
-  (EP-09, ADR-0113); and who may send each embargo message (ADR-0115).
+  (EP-09, ADR-0113); who may send each embargo message (ADR-0115); and which
+  bound holds the manager's own work — the tree's path declaration or the
+  CASE_MANAGER gate (HP-01-038, ADR-0153).
 related_specs:
   - specs/case-management.yaml
   - specs/datalayer.yaml
@@ -47,12 +49,12 @@ related_notes:
 relevant_packages:
   - vultron/core/states/em.py
   - vultron/core/states/embargo_register.py
-  - vultron/core/models/embargo_register.py
+  - vultron/core/models/embargo_register/
   - vultron/core/models/embargo_termination.py
   - vultron/core/services/embargo_lifecycle/
   - vultron/core/services/carried_embargo.py
   - vultron/core/behaviors/embargo/
-  - vultron/core/models/pending_assertion.py
+  - vultron/core/models/pending_assertion/
   - vultron/core/use_cases/triggers/embargo/
   - vultron/core/use_cases/received/embargo/
 ---
@@ -349,7 +351,7 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
 ## Guidance for Agents
 
 1. **Decide through `EmbargoLifecycle`, write by copying**
-   (`vultron/core/services/embargo_lifecycle/`, `embargo_apply.py`). A
+   (`vultron/core/services/embargo_lifecycle/`, `embargo_apply/`). A
    committed step is written through `apply_embargo_change()`; BT nodes MUST
    NOT otherwise apply a register step, assign `case.current_status.em`, and
    `dl.save(case)` themselves (EMB-18-001, EMB-18-008). A refused step raises or
@@ -477,8 +479,8 @@ CASE_MANAGER's commit and announcement; no EK message exists or is to be built
 
 **A trigger writes shared EM state only as the CASE_MANAGER (EP-09-008,
 EP-09-014).** Each
-tree in `vultron/core/behaviors/embargo/trigger_tree.py` ends in two exclusive
-arms built by `_by_role()` (BT-17-001). Ratchet:
+tree in `vultron/core/behaviors/embargo/trigger_tree/` ends in two exclusive
+arms built by `_by_role()` (`trigger_tree/_arms.py`, BT-17-001). Ratchet:
 `test/architecture/test_embargo_trigger_writes_are_case_manager_gated.py`.
 
 - **As the CASE_MANAGER**: the `*EmbargoLifecycleNode` write runs `STRICT`, then
@@ -536,8 +538,14 @@ write.
 in any embargo tree; a resolver that finds nobody fails.
 
 **Only the CASE_MANAGER records an answer, and only one it can apply.** Answer
-and owner-decision effects sit behind the CASE_MANAGER gate; anyone else reports
-`REFUSED` and writes nothing (HP-01-005). Refuse before the guarded commit, with
+and owner-decision effects are bounded two ways, and which one applies is the
+tree's path declaration (HP-01-038): a tree that declares the CASE_MANAGER path
+alone is bounded by the path stage, which refuses every other receiver before
+any guard runs, so its guards and diversion need no gate; a tree that declares
+another path beside it keeps the CASE_MANAGER gate, or an
+`OnPaths.at_case_manager(...)` branch, around the manager's own work. Either
+way anyone else reports `REFUSED` and writes nothing (HP-01-005). Refuse before
+the guarded commit, with
 read-only guards (`IsAnswerableEmbargoNode`, `IsOpenEmbargoProposalNode`,
 `OwnerMayActivateEmbargoNode`): once committed, a failing replica apply blocks
 its persist (SYNC-12-004) and stalls every later entry (SYNC-14-001).
@@ -565,12 +573,12 @@ on the receiver (PCR-03-001, PCR-08-001):
 | Message | At the CASE_MANAGER | At any other replica |
 |---|---|---|
 | `Invite(EmbargoEvent)` | an active participant (CM-10-004), or the CASE_MANAGER itself | the CASE_MANAGER (EP-09-003) |
-| `Accept` / `Reject(Invite)` | the recorded Invite's sole `to` recipient (EP-09-010) | the same; the answer is then refused by the role gate |
+| `Accept` / `Reject(Invite)` | the recorded Invite's sole `to` recipient (EP-09-010) | the same, but this rule is reached only when the tree declares the path. The Accept tree declares the CASE_MANAGER path alone, so the path stage refuses a replica before the sender guard runs; the Reject tree declares both paths, so a replica is admitted and the handler closes the participant's pending ask (HP-01-038, EP-09-017, EP-09-019) |
 | `Remove(EmbargoEvent)` | the Case Owner, or the CASE_MANAGER itself | the CASE_MANAGER |
 | `Announce(EmbargoEvent)` | the CASE_MANAGER | the CASE_MANAGER |
 
 Each row is the use case's declared `SenderRule`, and the receive-tree factory
-composes the guard from it (HP-01-025, `vultron/core/behaviors/sender_guard.py`).
+composes the guard from it (HP-01-025, `vultron/core/behaviors/sender_guard/`).
 The embargo rows are checked in `embargo_sender_context()`: a store that holds no
 case, or a case that names no CASE_MANAGER, refuses the sender rather than
 passing it through. A proposer must be active (`ACTIVE_PARTICIPANT`), not only

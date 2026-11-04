@@ -53,18 +53,23 @@ where they now live and the Reporter's own poll stays on the scenario module,
 which is where its gate is.
 """
 
-import vultron.demo.helpers.sync as sync_module
+import vultron.demo.helpers.sync.ledger as sync_ledger
+import vultron.demo.helpers.sync.phase as sync_phase
 import vultron.demo.scenario.rv_demo as rv_demo_module
-import vultron.demo.utils as demo_utils
 from test.demo._helpers import mock_case, story_state
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import coordinated_story, vendor_story
-from vultron.demo.helpers.coordinated_story import REPORTER
+from vultron.demo.helpers.coordinated_story import (
+    REPORTER,
+    continuations as coordinated_continuations,
+)
 from vultron.demo.helpers.polling import (
     LATE_JOINER_COVERAGE_TIMEOUT,
     LEDGER_COVERAGE_TIMEOUT,
 )
-from vultron.demo.helpers.vendor_story import VENDOR
+from vultron.demo.helpers.vendor_story import (
+    VENDOR,
+    continuations as vendor_continuations,
+)
 from vultron.demo.scenario.rcvcv_demo import (
     C1,
     C2,
@@ -74,6 +79,7 @@ from vultron.demo.scenario.rcvcv_demo import (
 )
 from vultron.demo.scenario.rv_demo import the_vendor_reports_the_fix_ready
 from vultron.demo.utils import reset_demo_failures
+from vultron.demo.utils.failures import _demo_failures
 
 _CASE_ID = "urn:uuid:test-case-2361-0001"
 
@@ -138,10 +144,10 @@ def test_rv_reporter_timeout_records_single_gate_failure_not_two_check_failures(
         ActorSession, "notify_fix_ready", lambda *a, **kw: None
     )
     monkeypatch.setattr(
-        vendor_story, "verify_fix_ready", lambda *a, **kw: None
+        vendor_continuations, "verify_fix_ready", lambda *a, **kw: None
     )
     monkeypatch.setattr(
-        coordinated_story,
+        coordinated_continuations,
         "wait_for_participant_rm_state",
         lambda *a, **kw: None,
     )
@@ -155,16 +161,21 @@ def test_rv_reporter_timeout_records_single_gate_failure_not_two_check_failures(
 
     # Every module that polls a participant's vf_state, so a poll the
     # Reporter's replica never satisfies raises wherever it is made: the
-    # Vendor's own check in ``coordinated_story``, the Reporter gate in the
-    # scenario, and the milestone pair in ``vendor_story``.  Patching only
+    # Vendor's own check in ``coordinated_story.continuations``, the Reporter
+    # gate in the scenario, and the milestone pair in
+    # ``vendor_story.continuations``.  Patching only
     # one would leave the others able to poll the Reporter unguarded, which
     # is exactly the cascade #2361 removed.
-    for module in (coordinated_story, rv_demo_module, vendor_story):
+    for module in (
+        coordinated_continuations,
+        rv_demo_module,
+        vendor_continuations,
+    ):
         monkeypatch.setattr(module, "wait_for_participant_vf_state", _vfd_poll)
 
     the_vendor_reports_the_fix_ready(state)
 
-    failures = demo_utils._demo_failures
+    failures = _demo_failures
 
     assert len(failures) == 1, (
         f"Expected exactly 1 failure when reporter replication times out, "
@@ -200,7 +211,7 @@ def test_rv_fix_lifecycle_gates_on_rm_accepted(monkeypatch):
         call_order.append("rm_wait")
 
     monkeypatch.setattr(
-        coordinated_story, "wait_for_participant_rm_state", _rm_wait
+        coordinated_continuations, "wait_for_participant_rm_state", _rm_wait
     )
     monkeypatch.setattr(
         ActorSession,
@@ -208,9 +219,13 @@ def test_rv_fix_lifecycle_gates_on_rm_accepted(monkeypatch):
         lambda *a, **kw: call_order.append("fix_ready"),
     )
     monkeypatch.setattr(
-        vendor_story, "verify_fix_ready", lambda *a, **kw: None
+        vendor_continuations, "verify_fix_ready", lambda *a, **kw: None
     )
-    for module in (coordinated_story, rv_demo_module, vendor_story):
+    for module in (
+        coordinated_continuations,
+        rv_demo_module,
+        vendor_continuations,
+    ):
         monkeypatch.setattr(
             module, "wait_for_participant_vf_state", lambda *a, **kw: None
         )
@@ -252,12 +267,12 @@ def test_rcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
     reporter_client = state.client(REPORTER)
 
     monkeypatch.setattr(
-        sync_module,
+        sync_phase,
         "wait_for_case_on_container",
         lambda *a, **kw: None,
     )
     monkeypatch.setattr(
-        sync_module,
+        sync_ledger,
         "_get_log_entries_for_case",
         lambda *a, **kw: [{"log_index": 5, "entry_hash": "abc123deadbeef0a"}],
     )
@@ -271,22 +286,22 @@ def test_rcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
             )
 
     monkeypatch.setattr(
-        sync_module,
+        sync_ledger,
         "wait_for_contiguous_ledger_coverage",
         _ledger_coverage,
     )
     monkeypatch.setattr(
-        sync_module,
+        sync_phase,
         "wait_for_participants_on_replicas",
         lambda *a, **kw: None,
     )
     monkeypatch.setattr(
-        sync_module, "verify_replica_state", lambda *a, **kw: None
+        sync_phase, "verify_replica_state", lambda *a, **kw: None
     )
 
     every_replica_converges(state)
 
-    failures = demo_utils._demo_failures
+    failures = _demo_failures
     check_failures = [
         f for f in failures if "CHECK FAILED" in f and "ledger coverage" in f
     ]
@@ -323,12 +338,12 @@ def test_rcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
     v2_client = state.client(V2)
 
     monkeypatch.setattr(
-        sync_module,
+        sync_phase,
         "wait_for_case_on_container",
         lambda *a, **kw: None,
     )
     monkeypatch.setattr(
-        sync_module,
+        sync_ledger,
         "_get_log_entries_for_case",
         lambda *a, **kw: [{"log_index": 5, "entry_hash": "abc123deadbeef0a"}],
     )
@@ -341,17 +356,17 @@ def test_rcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
         timeouts_by_client_id[id(client)] = timeout_seconds
 
     monkeypatch.setattr(
-        sync_module,
+        sync_ledger,
         "wait_for_contiguous_ledger_coverage",
         _ledger_coverage,
     )
     monkeypatch.setattr(
-        sync_module,
+        sync_phase,
         "wait_for_participants_on_replicas",
         lambda *a, **kw: None,
     )
     monkeypatch.setattr(
-        sync_module, "verify_replica_state", lambda *a, **kw: None
+        sync_phase, "verify_replica_state", lambda *a, **kw: None
     )
 
     every_replica_converges(state)

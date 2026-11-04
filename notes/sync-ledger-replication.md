@@ -61,8 +61,8 @@ CaseActor clustering is unbuilt; its plan is
   process log, never the ledger (CLP-04-007, CLP-05-002), so replication needs no
   disposition filtering.
 - **Leadership guard.** The BT bridge's `is_leader` port (SYNC-09-003,
-  `vultron/core/behaviors/bridge.py`) is always `True` in single-node; it is the
-  seam the cluster plan fills.
+  `vultron/core/behaviors/bridge/leadership.py`) is always `True` in single-node;
+  it is the seam the cluster plan fills.
 - **Leadership is not ownership.** Case Ownership governs lifecycle permissions;
   replication leadership governs who accepts writes. An ownership transfer
   implies a leadership change, not the reverse.
@@ -226,7 +226,7 @@ as `VultronBTInternalError`, so the handler raises instead of reporting `REFUSED
 
 Every sender of ledger entries (the fan-out collectors, `SendMissingEntriesNode`,
 `AnnounceCaseOnGenesisRejectNode`) applies the CM-10-004 content gate through
-`vultron/core/participants/recipients.py` (`case_content_recipients()`,
+`vultron/core/participants/recipients/` (`case_content_recipients()`,
 `is_case_content_recipient()`; CM-10-007). A peer that is not an active
 participant gets no entries, and its `Reject(CaseLedgerEntry)` replays nothing
 and seeds no case.
@@ -480,7 +480,7 @@ case seed first (CP-09-009, CM-17-009), so this is recovery, not the steady stat
 
 - `ReconstructChainTailNode` writes sentinels (`tail_hash=""`, `tail_index=-1`)
   before FAILURE, and the `ReconstructOrRejectOnMissingCase` Selector in
-  `announce_tree.py` falls back to `SendGenesisRejectOnMissingCaseNode`, so a
+  `announce_tree/factory.py` falls back to `SendGenesisRejectOnMissingCaseNode`, so a
   Reject with `last_accepted_hash=""` ("replay from genesis") goes out
   (SYNC-15-001/002).
   Without it the CASE_MANAGER never learns of the failure.

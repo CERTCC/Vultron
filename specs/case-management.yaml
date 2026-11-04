@@ -25,7 +25,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that each actor maintains its own
       isolated RM/EM/CS state domain without cross-actor interference.
     stories:
-    - story_2022_088
+    - story_2026_061
   - id: CM-01-002
     priority: MUST
     kind: protocol
@@ -39,7 +39,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that each actor's RM state for a
       case is tracked independently in its own `ParticipantStatus` records.
     stories:
-    - story_2022_088
+    - story_2026_031
 - id: CM-02
   title: CASE_MANAGER Lifecycle
   specs:
@@ -69,8 +69,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that participants fetch canonical
       state from the CASE_MANAGER rather than from each other.
     stories:
-    - story_2022_088
-    - story_2022_045
+    - story_2026_059
   - id: CM-02-003
     priority: MUST
     kind: protocol
@@ -93,8 +92,8 @@ groups:
       Inspection of `vultron/core/` confirms nothing revokes `CVDRole.CASE_MANAGER` from the holding
       participant before the case closes. Read per the note: what must persist is the role assignment
       on the participant record, not an object's lifetime.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_046
   - id: CM-02-004
     priority: MUST
     kind: protocol
@@ -103,7 +102,7 @@ groups:
       Only the Case Owner can do some case actions (CM-02-005). The CASE_MANAGER can
       enforce this only if it knows the Case Owner. The case records the Case Owner in
       `attributed_to`.
-    verification: Inspection of `vultron/core/models/case.py` confirms that
+    verification: Inspection of `vultron/core/models/case/` confirms that
       `VulnerabilityCase.attributed_to` records the Case Owner and is readable by the
       CASE_MANAGER.
     stories:
@@ -159,7 +158,7 @@ groups:
       Case notes are the discussion of the case by the participants, and they must stay
       with the case. A `notes` collection on the case gives each `Add(Note)` a location.
       It also lets a participant that joins later see the notes from before it joined.
-    verification: 'Inspection of `vultron/core/models/case.py` confirms that `VulnerabilityCase`
+    verification: 'Inspection of `vultron/core/models/case/` confirms that `VulnerabilityCase`
       declares a `notes: list[as_NoteRef]` field.'
     stories:
     - story_2022_083
@@ -237,7 +236,7 @@ groups:
     - ADR-0103
     stories:
     - story_2022_074
-    - story_2022_045
+    - story_2026_028
   - id: CM-02-018
     priority: MUST
     kind: protocol
@@ -518,7 +517,7 @@ groups:
     - rel_type: implements
       spec_id: VP-03-001
     stories:
-    - story_2022_088
+    - story_2026_031
     - story_2022_075
   - id: CM-03-003
     priority: MUST
@@ -531,7 +530,7 @@ groups:
       proposed, active or ended is one fact for the whole case. One case-level record
       gives every participant the same answer. The consent rows keep each participant's
       agreement separately (CM-03-008).
-    verification: Inspection of `vultron/core/models/case.py` confirms that
+    verification: Inspection of `vultron/core/models/case/` confirms that
       `CaseStatus.em.state` exists as a case-level field tracking the collective embargo state.
     relationships:
     - rel_type: implements
@@ -541,7 +540,7 @@ groups:
     - rel_type: implements
       spec_id: VP-09-001
     stories:
-    - story_2022_014
+    - story_2026_031
     - story_2022_023
   - id: CM-03-008
     priority: MUST
@@ -570,10 +569,10 @@ groups:
       world, not about one participant. When the vulnerability is public, it is public
       for all participants. A copy for each participant can only disagree with the
       facts.
-    verification: Inspection of `vultron/core/models/case.py` confirms that
+    verification: Inspection of `vultron/core/models/case/` confirms that
       `CaseStatus.pxa.state` is a case-level field shared across all participants.
     stories:
-    - story_2022_088
+    - story_2026_031
     - story_2022_107
   - id: CM-03-005
     priority: MUST
@@ -588,7 +587,7 @@ groups:
       per-participant `ParticipantStatus.vf` or `ParticipantStatus.d` field (ADR-0075).
     stories:
     - story_2022_107
-    - story_2022_088
+    - story_2026_031
   - id: CM-03-006
     priority: MUST
     kind: project
@@ -612,8 +611,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VP-02-004
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_011
 - id: CM-04
   title: State Transition Correctness
   specs:
@@ -691,7 +690,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-03-008
     stories:
-    - story_2022_014
+    - story_2026_087
     - story_2022_023
   - id: CM-04-004
     priority: MUST
@@ -736,8 +735,8 @@ groups:
       a necessary step. Every replica then copies the incorrect state.
     verification: Inspection of `vultron/core/` confirms that VFD and PXA transition handlers
       call the state machine's transition validator before persisting any state change.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_005
   - id: CM-04-006
     priority: MUST_NOT
     kind: protocol
@@ -756,6 +755,8 @@ groups:
       spec_id: VP-13-009
     - rel_type: depends_on
       spec_id: CM-03-008
+    stories:
+    - story_2026_031
   - id: CM-04-010
     priority: MUST_NOT
     kind: protocol
@@ -775,6 +776,8 @@ groups:
       spec_id: CM-04-006
     - rel_type: depends_on
       spec_id: CM-03-008
+    stories:
+    - story_2026_031
   - id: CM-04-007
     priority: MUST
     kind: protocol
@@ -843,8 +846,8 @@ groups:
     verification: >-
       `test/core/models/test_distinct_domain_types.py` confirms that the serialized form
       of each of the six types validates as that type.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_032
   - id: CM-05-015
     priority: MUST_NOT
     kind: protocol
@@ -862,6 +865,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-05-001
+    stories:
+    - story_2026_032
   - id: CM-05-013
     priority: MUST
     kind: project
@@ -926,6 +931,8 @@ groups:
       with a CVE ID. If a case closes without one, the outcome is difficult to find and
       to cross-reference. Some cases close without one for a good reason, thus the rule
       is a SHOULD.
+    stories:
+    - story_2022_030
   - id: CM-05-014
     priority: SHOULD
     kind: project
@@ -947,6 +954,8 @@ groups:
       Advisories, patches and other public material can exist for a case or not. Their
       number depends on how many parties publish. Zero or more items let the case record
       what exists, with no placeholder.
+    stories:
+    - story_2022_069
   - id: CM-05-005
     priority: MUST
     kind: protocol
@@ -954,10 +963,10 @@ groups:
     rationale: >-
       A reference points a reader to a public resource. Without a `url`, it identifies
       nothing that a consumer can get or examine.
-    verification: Inspection of `vultron/core/models/case.py` confirms that the `CaseReference`
+    verification: Inspection of `vultron/core/models/case/` confirms that the `CaseReference`
       model declares a required `url` field.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_069
   - id: CM-05-006
     priority: MAY
     kind: protocol
@@ -991,6 +1000,8 @@ groups:
     rationale: >-
       When several vendors fix the same vulnerability, each vendor usually publishes its
       own advisory. The case must record all of these advisories, not only one.
+    stories:
+    - story_2022_069
   - id: CM-05-008
     priority: MUST_NOT
     kind: protocol
@@ -1000,12 +1011,16 @@ groups:
       the CVE ID format or any other namespace.
     rationale: Different organizations use different identifier namespaces (CVE, CERT/CC VU#, vendor-assigned IDs, etc.);
       requiring a specific format excludes valid records and prevents multi-namespace support
+    stories:
+    - story_2022_030
   - id: CM-05-009
     priority: SHOULD
     kind: protocol
     statement: A `VulnerabilityRecord` SHOULD support a list of alias identifiers from different namespaces for the same vulnerability
     rationale: Multiple IDs from different namespaces may refer to the same underlying vulnerability (e.g., a CVE ID and a
       CERT/CC VU# ID)
+    stories:
+    - story_2022_030
   - id: CM-05-010
     priority: MUST
     kind: protocol
@@ -1017,13 +1032,15 @@ groups:
       misread data that does not conform.
     verification: Inspection of `vultron/core/` confirms that `CVERecord` (or the equivalent
       CVE-typed `VulnerabilityRecord`) validates its data against the CVE JSON schema.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_030
   - id: CM-05-011
     priority: SHOULD
     kind: protocol
     statement: '`CaseReference` objects SHOULD include a `name` field containing a human-readable title.'
     rationale: A human-readable title makes references easier to identify in case summaries and reports.
+    stories:
+    - story_2022_069
   - id: CM-05-012
     priority: MAY
     kind: protocol
@@ -1034,6 +1051,8 @@ groups:
     rationale: >-
       Type descriptor tags allow consumers to filter or categorise references without
       parsing the URL or name.
+    stories:
+    - story_2022_069
 - id: CM-06
   title: Case Update Broadcast
   specs:
@@ -1087,7 +1106,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-02-002
     stories:
-    - story_2022_088
+    - story_2026_030
     - story_2022_089
   - id: CM-06-003
     priority: MUST
@@ -1103,7 +1122,7 @@ groups:
     scope:
     - production
     stories:
-    - story_2022_088
+    - story_2026_036
     - story_2022_028
   - id: CM-06-004
     priority: MUST
@@ -1166,7 +1185,7 @@ groups:
       spec_id: AR-07-002
     stories:
     - story_2022_031
-    - story_2022_088
+    - story_2026_044
   - id: CM-07-002
     priority: MUST
     kind: project
@@ -1179,7 +1198,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that the action rules endpoint
       returns the participant's role and current RM, EM, CS, and VFD states.
     stories:
-    - story_2022_088
+    - story_2026_044
     - story_2022_061
   - id: CM-07-003
     priority: MUST
@@ -1194,7 +1213,7 @@ groups:
       valid next actions as structured objects containing at minimum the action name.
     stories:
     - story_2022_086
-    - story_2022_088
+    - story_2026_044
 - id: CM-08
   title: Domain Model Architecture
   specs:
@@ -1258,6 +1277,8 @@ groups:
       protect yet.
     scope:
     - production
+    stories:
+    - story_2022_023
   - id: CM-09-002
     priority: MUST
     kind: protocol
@@ -1324,7 +1345,7 @@ groups:
       agreement to every shorter period, so no explicit `Accept` is necessary for it. A
       second record of consent next to the rows can disagree with them. A reader then
       cannot know which record is correct.
-    verification: Inspection of `vultron/core/models/case_participant.py` confirms that
+    verification: Inspection of `vultron/core/models/case_participant/` confirms that
       `CaseParticipant` carries `embargo_consents` rows and declares no scalar consent field and no
       `accepted_embargo_ids` or `invite_rsvp_deadline`.
     relationships:
@@ -1334,7 +1355,7 @@ groups:
     - ADR-0093
     - ADR-0122
     stories:
-    - story_2022_014
+    - story_2026_001
     - story_2022_023
   - id: CM-10-002
     priority: MUST
@@ -1478,7 +1499,7 @@ groups:
     rationale: >-
       Almost every send of case content selects its recipients from the roster. If each
       send site has its own check, the next send site that someone writes can omit it.
-      One shared selection (`vultron/core/participants/recipients.py`) prevents this.
+      One shared selection (`vultron/core/participants/recipients/`) prevents this.
       The embargo-ending notices are an exception. They must reach participants that
       are not active, including the due notices of a removed participant (ADR-0116).
     verification: >-
@@ -1545,7 +1566,7 @@ groups:
     - ADR-0114
     stories:
     - story_2022_054
-    - story_2022_088
+    - story_2026_043
   - id: CM-11-002
     priority: SHOULD
     kind: protocol
@@ -1606,7 +1627,7 @@ groups:
       spec_id: CM-11-001
     stories:
     - story_2022_054
-    - story_2022_088
+    - story_2026_043
   - id: CM-11-003
     priority: MUST
     kind: protocol
@@ -1627,8 +1648,8 @@ groups:
       the case named by the stub on the nested Invite.
     adr:
     - ADR-0114
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_016
   - id: CM-11-006
     priority: MUST
     kind: protocol
@@ -1838,7 +1859,7 @@ groups:
     - ADR-0114
     stories:
     - story_2022_023
-    - story_2022_045
+    - story_2026_055
   - id: CM-11-009
     priority: MUST
     kind: protocol
@@ -2050,7 +2071,7 @@ groups:
     adr:
     - ADR-0121
     stories:
-    - story_2022_045
+    - story_2026_053
   - id: CM-11-035
     priority: MUST
     kind: protocol
@@ -2074,7 +2095,7 @@ groups:
     adr:
     - ADR-0121
     stories:
-    - story_2022_045
+    - story_2026_053
   - id: CM-11-036
     priority: MUST
     kind: protocol
@@ -2094,7 +2115,7 @@ groups:
     adr:
     - ADR-0121
     stories:
-    - story_2022_045
+    - story_2026_054
   - id: CM-11-013
     priority: MUST
     kind: protocol
@@ -2343,7 +2364,7 @@ groups:
     adr:
     - ADR-0114
     stories:
-    - story_2022_014
+    - story_2026_097
     - story_2022_023
   - id: CM-11-044
     priority: MUST
@@ -2366,7 +2387,7 @@ groups:
     adr:
     - ADR-0114
     stories:
-    - story_2022_014
+    - story_2026_097
   - id: CM-11-045
     priority: MUST
     kind: protocol
@@ -2386,7 +2407,7 @@ groups:
     adr:
     - ADR-0114
     stories:
-    - story_2022_014
+    - story_2026_097
   - id: CM-11-046
     priority: MUST
     kind: protocol
@@ -2405,7 +2426,7 @@ groups:
     adr:
     - ADR-0114
     stories:
-    - story_2022_014
+    - story_2026_097
   - id: CM-11-017
     priority: MUST
     kind: protocol
@@ -2634,6 +2655,8 @@ groups:
       activity whose object is the original `Offer(VulnerabilityReport)`.
     adr:
     - ADR-0121
+    stories:
+    - story_2022_006
   - id: CM-11-051
     priority: MUST_NOT
     kind: protocol
@@ -2654,6 +2677,8 @@ groups:
       spec_id: CM-11-020
     adr:
     - ADR-0121
+    stories:
+    - story_2022_006
 - id: CM-12
   title: Case Creation Timing
   specs:
@@ -2764,7 +2789,7 @@ groups:
     adr:
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_080
     - story_2022_023
   - id: CM-12-005
     priority: MUST
@@ -2811,8 +2836,8 @@ groups:
       under a new activity id (no entry, no Announce, no state change), and
       `test_another_participants_answer_is_still_its_own_consent` confirms that a different
       participant's answer is still recorded as its own consent.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2026_014
   - id: CM-13-009
     priority: MUST
     kind: project
@@ -2940,7 +2965,7 @@ groups:
       spec_id: CM-14-001
     stories:
     - story_2022_046
-    - story_2022_014
+    - story_2026_080
   - id: CM-14-003
     priority: MUST
     kind: protocol
@@ -2960,7 +2985,7 @@ groups:
       spec_id: CM-13-006
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_080
   - id: CM-14-004
     priority: MUST
     kind: protocol
@@ -3030,6 +3055,8 @@ groups:
       spec_id: EP-04-004
     adr:
     - ADR-0096
+    stories:
+    - story_2022_010
   - id: CM-14-007
     priority: MUST_NOT
     kind: protocol
@@ -3053,7 +3080,7 @@ groups:
       spec_id: CM-14-001
     stories:
     - story_2022_052
-    - story_2022_014
+    - story_2026_080
   - id: CM-14-014
     priority: MUST_NOT
     kind: protocol
@@ -3074,7 +3101,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-14-001
     stories:
-    - story_2022_014
+    - story_2026_080
   - id: CM-14-008
     priority: MUST
     kind: protocol
@@ -3124,7 +3151,7 @@ groups:
     adr:
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_080
     - story_2022_023
   - id: CM-14-011
     priority: MUST
@@ -3169,7 +3196,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that step 6 commits a case ledger
       entry that triggers `Announce(CaseLedgerEntry)` fan-out to all participants.
     stories:
-    - story_2022_045
+    - story_2026_075
     - story_2022_041
 - id: CM-15
   title: Case Creation Policy
@@ -3334,7 +3361,7 @@ groups:
     adr:
     - ADR-0114
     stories:
-    - story_2022_045
+    - story_2026_075
     - story_2022_053
   - id: CM-16-003
     priority: MUST
@@ -3530,7 +3557,7 @@ groups:
       decision is pending is recorded in the case ledger.
     stories:
     - story_2022_053
-    - story_2022_045
+    - story_2026_069
   - id: CM-16-009
     priority: MUST
     kind: protocol
@@ -3593,7 +3620,7 @@ groups:
     - ADR-0119
     stories:
     - story_2022_053
-    - story_2022_045
+    - story_2026_076
   - id: CM-16-014
     priority: MUST
     kind: project
@@ -3652,6 +3679,8 @@ groups:
       a second transformed `Offer(CaseParticipant)` to the Case Owner.
     rationale: Sending a duplicate transformed Offer would create a second pending decision
       for the same actor, leading to conflicting state if the Case Owner responds to both.
+    stories:
+    - story_2026_014
   - id: CM-16-018
     priority: MUST
     kind: protocol
@@ -3781,7 +3810,7 @@ groups:
       spec_id: MV-10-006
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_097
   - id: CM-17-013
     priority: MUST
     kind: protocol
@@ -3822,7 +3851,7 @@ groups:
     - rel_type: extends
       spec_id: CM-17-002
     stories:
-    - story_2022_014
+    - story_2026_097
   - id: CM-17-003
     priority: MUST
     kind: project
@@ -3879,7 +3908,7 @@ groups:
     stories:
     - story_2022_054
     - story_2022_052
-    - story_2022_088
+    - story_2026_056
   - id: CM-17-005
     priority: MUST_NOT
     kind: protocol
@@ -3896,6 +3925,8 @@ groups:
       consented.
     adr:
     - ADR-0114
+    stories:
+    - story_2022_023
   - id: CM-17-006
     priority: MUST
     kind: project
@@ -4095,7 +4126,7 @@ groups:
     - ADR-0114
     stories:
     - story_2022_052
-    - story_2022_088
+    - story_2026_056
   - id: CM-17-010
     priority: MUST
     kind: protocol
@@ -4126,7 +4157,7 @@ groups:
       spec_id: CM-17-002
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_097
     adr:
     - ADR-0114
   - id: CM-17-020
@@ -4284,9 +4315,7 @@ groups:
       the inert invitee's Accept is
       `test/core/use_cases/received/actor/test_invite.py::TestInviteActorUseCases::test_accept_invite_backfills_canonical_ledger_from_genesis`.
       The guard alone is
-      `test/core/behaviors/case/nodes/test_idempotency_guards.py::TestCheckInviteeNotAlreadyParticipantNode`,
-      and a stored replication-state row that still carries a retired `join_backfill_*`
-      key is refused in `test/core/models/test_replication_state.py`.
+      `test/core/behaviors/case/nodes/test_idempotency_guards.py::TestCheckInviteeNotAlreadyParticipantNode`.
     relationships:
     - rel_type: refines
       spec_id: CM-17-004
@@ -4336,7 +4365,7 @@ groups:
     - ADR-0122
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_001
   - id: CM-18-019
     priority: MUST
     kind: protocol
@@ -4358,7 +4387,7 @@ groups:
     - ADR-0122
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_001
   - id: CM-18-020
     priority: MUST
     kind: protocol
@@ -4381,7 +4410,7 @@ groups:
     - ADR-0122
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_001
   - id: CM-18-021
     priority: MUST_NOT
     kind: protocol
@@ -4404,7 +4433,7 @@ groups:
     - ADR-0122
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_001
   - id: CM-18-017
     priority: MUST
     kind: project
@@ -4455,7 +4484,7 @@ groups:
     - ADR-0065
     stories:
     - story_2022_027
-    - story_2022_014
+    - story_2026_092
   - id: CM-18-022
     priority: MAY
     kind: protocol
@@ -4556,7 +4585,7 @@ groups:
     - ADR-0118
     - ADR-0122
     stories:
-    - story_2022_014
+    - story_2026_001
   - id: CM-18-004
     priority: MUST_NOT
     kind: protocol
@@ -4579,6 +4608,8 @@ groups:
     - ADR-0093
     - ADR-0118
     - ADR-0122
+    stories:
+    - story_2026_001
   - id: CM-18-005
     priority: MUST
     kind: project
@@ -4601,7 +4632,7 @@ groups:
       Inspection of `vultron/core/` confirms that all consent-write sites call
       `CaseParticipant.apply_pec_transition()` or `apply_pec_transition_if_legal()`,
       copy a carried row through `apply_embargo_change()` in
-      `vultron/core/models/embargo_apply.py`, or write the start rows through
+      `vultron/core/models/embargo_apply/apply.py`, or write the start rows through
       `CaseParticipant.write_uninvited_rows()`.
     relationships:
     - rel_type: refines
@@ -4791,7 +4822,7 @@ groups:
       it. Divergence between these two structures is a hard error, not a recoverable state.'
     rationale: A divergence means the cache has entries the authority doesn't know about (or vice versa), producing silently
       incorrect routing and access-control decisions.
-    verification: Inspection of `vultron/core/models/case.py` confirms that `case_participants`
+    verification: Inspection of `vultron/core/models/case/` confirms that `case_participants`
       is the persisted authority and `actor_participant_index` is declared as a derived cache,
       with any divergence treated as a hard error.
     stories:
@@ -4988,6 +5019,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-20-001
+    stories:
+    - story_2026_023
   - id: CM-20-005
     priority: MUST_NOT
     kind: protocol
@@ -5005,6 +5038,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-20-004
+    stories:
+    - story_2026_023
 - id: CM-21
   title: Ownership Transfer Protocol Effects
   specs:
@@ -5333,7 +5368,7 @@ groups:
     stories:
     - story_2022_050
     - story_2022_049
-    - story_2022_045
+    - story_2026_069
   - id: CM-21-030
     priority: MUST
     kind: protocol
@@ -5360,7 +5395,7 @@ groups:
     stories:
     - story_2022_050
     - story_2022_049
-    - story_2022_045
+    - story_2026_075
   - id: CM-21-008
     priority: MUST
     kind: protocol
@@ -5962,9 +5997,11 @@ groups:
       A proposal is sent to the CASE_MANAGER alone (CM-21-005). A replica that admitted
       one would act for the CASE_MANAGER, which only the CASE_MANAGER may do.
     verification: >-
-      `test_own_copy_is_refused_by_the_sender_guard` in
+      `test_own_copy_is_refused_at_the_path_stage` in
       `test/core/use_cases/received/actor/test_ownership.py` asserts that a replica
-      refuses the owner's own copy of its proposal and writes nothing.
+      refuses the owner's own copy of its proposal and writes nothing. The
+      proposal's type declares the manager path alone, so the path stage refuses
+      the replica ahead of the sender guard (HP-01-038, HP-01-039).
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
@@ -6018,7 +6055,7 @@ groups:
       active by CM-10-004, but it receives no further case content (CM-23-004) and may
       not act on the case (CM-23-018), so it cannot take the case on. The test is the
       one every sender guard and case-content selection uses, `may_act_on_case` in
-      `vultron/core/participants/recipients.py`.
+      `vultron/core/participants/recipients/sender_standing.py`.
     verification: >-
       Tests marked `CM-21-021` deliver to the CASE_MANAGER a proposal naming an actor
       off the roster, an invitee that has not accepted, a removed participant, a
@@ -6209,7 +6246,7 @@ groups:
     - rel_type: refines
       spec_id: CM-22-001
     stories:
-    - story_2022_045
+    - story_2026_023
   - id: CM-22-004
     priority: MUST
     kind: protocol
@@ -6234,7 +6271,7 @@ groups:
     - ADR-0041
 
     stories:
-    - story_2022_014
+    - story_2026_080
     - story_2022_023
 - id: CM-23
   title: RM Case Closure via Leave(VulnerabilityCase)
@@ -6709,7 +6746,7 @@ groups:
     adr:
     - ADR-0051
     stories:
-    - story_2022_088
+    - story_2026_042
     - story_2022_074
   - id: CM-23-033
     priority: MUST
@@ -6733,7 +6770,7 @@ groups:
     adr:
     - ADR-0051
     stories:
-    - story_2022_088
+    - story_2026_042
     - story_2022_074
   - id: CM-23-006
     priority: MUST
@@ -6753,7 +6790,7 @@ groups:
     adr:
     - ADR-0051
     stories:
-    - story_2022_088
+    - story_2026_042
   - id: CM-23-007
     priority: MUST
     kind: protocol
@@ -6781,7 +6818,7 @@ groups:
     adr:
     - ADR-0051
     stories:
-    - story_2022_045
+    - story_2026_042
     - story_2022_074
   - id: CM-23-008
     priority: MUST
@@ -6803,7 +6840,7 @@ groups:
     adr:
     - ADR-0051
     stories:
-    - story_2022_088
+    - story_2026_042
   - id: CM-23-009
     priority: MUST
     kind: protocol
@@ -6823,7 +6860,7 @@ groups:
     adr:
     - ADR-0051
     stories:
-    - story_2022_088
+    - story_2026_042
   - id: CM-23-010
     priority: MUST
     kind: protocol
@@ -6846,7 +6883,7 @@ groups:
     - ADR-0051
 
     stories:
-    - story_2022_088
+    - story_2026_042
     - story_2022_066
   - id: CM-23-011
     priority: MUST
@@ -8276,6 +8313,8 @@ groups:
       spec_id: CM-11-002
     adr:
     - ADR-0057
+    stories:
+    - story_2022_082
   - id: CM-25-005
     priority: MUST_NOT
     kind: protocol
@@ -8304,6 +8343,8 @@ groups:
       spec_id: CM-03-005
     adr:
     - ADR-0057
+    stories:
+    - story_2022_063
   - id: CM-25-006
     priority: MUST
     kind: protocol
@@ -8347,6 +8388,8 @@ groups:
     adr:
     - ADR-0057
     - ADR-0114
+    stories:
+    - story_2022_063
 
 - id: CM-26
   title: Role Stacking — Union of Permissions
@@ -8409,7 +8452,7 @@ groups:
       embargo itself ends. Code MUST read these independently and MUST NOT
       substitute one for the other. The embargo invitation is an `as_Invite`,
       not an `as_Offer` — see `em_propose_embargo_activity()` in
-      `vultron/wire/as2/factories/embargo.py`.
+      `vultron/wire/as2/factories/embargo/negotiation.py`.
     rationale: >-
       `as_Object.end_time` is inherited by `as_Activity` and therefore by every
       Vultron activity, so no vocabulary extension is required. On an Activity,
@@ -8423,7 +8466,7 @@ groups:
     adr:
     - ADR-0065
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-017
     priority: MAY
@@ -8446,7 +8489,7 @@ groups:
     adr:
     - ADR-0065
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-018
     priority: MUST_NOT
@@ -8469,7 +8512,7 @@ groups:
     adr:
     - ADR-0065
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-002
     priority: MUST
@@ -8504,7 +8547,7 @@ groups:
     - ADR-0065
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-019
     priority: MUST
@@ -8530,7 +8573,7 @@ groups:
     - ADR-0065
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-003
     priority: MUST
@@ -8553,7 +8596,7 @@ groups:
     - ADR-0065
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_092
   - id: CM-28-004
     priority: MUST
     kind: protocol
@@ -8586,7 +8629,7 @@ groups:
     - ADR-0118
     stories:
     - story_2022_027
-    - story_2022_014
+    - story_2026_092
   - id: CM-28-020
     priority: MUST
     kind: protocol
@@ -8608,7 +8651,7 @@ groups:
     - ADR-0118
     stories:
     - story_2022_027
-    - story_2022_014
+    - story_2026_092
   - id: CM-28-005
     priority: MUST
     kind: protocol
@@ -8628,7 +8671,7 @@ groups:
     - ADR-0065
     - ADR-0118
     stories:
-    - story_2022_045
+    - story_2026_069
     - story_2022_074
   - id: CM-28-006
     priority: MUST
@@ -8749,7 +8792,7 @@ groups:
     - ADR-0118
     - ADR-0124
     stories:
-    - story_2022_045
+    - story_2026_069
     - story_2022_074
   - id: CM-28-022
     priority: MUST_NOT
@@ -8774,7 +8817,7 @@ groups:
     - ADR-0065
     - ADR-0118
     stories:
-    - story_2022_045
+    - story_2026_072
     - story_2022_074
   - id: CM-28-010
     priority: MUST_NOT
@@ -8817,7 +8860,7 @@ groups:
     adr:
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-012
     priority: MUST
@@ -8853,7 +8896,7 @@ groups:
     - ADR-0113
     - ADR-0065
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-013
     priority: MUST
@@ -8885,7 +8928,7 @@ groups:
     - ADR-0065
     - ADR-0124
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-023
     priority: MUST
@@ -8911,7 +8954,7 @@ groups:
     - ADR-0113
     - ADR-0124
     stories:
-    - story_2022_014
+    - story_2026_057
     - story_2022_027
   - id: CM-28-024
     priority: MUST_NOT
@@ -8939,7 +8982,7 @@ groups:
     - ADR-0113
     - ADR-0124
     stories:
-    - story_2022_014
+    - story_2026_057
     - story_2022_027
   - id: CM-28-014
     priority: MUST
@@ -8978,7 +9021,7 @@ groups:
     - ADR-0065
     - ADR-0124
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-016
     priority: MUST
@@ -9055,7 +9098,7 @@ groups:
     - ADR-0118
     - ADR-0135
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-025
     priority: MUST_NOT
@@ -9077,7 +9120,7 @@ groups:
     adr:
     - ADR-0118
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-026
     priority: MUST
@@ -9102,7 +9145,7 @@ groups:
     adr:
     - ADR-0135
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-027
     priority: MUST
@@ -9128,7 +9171,7 @@ groups:
     adr:
     - ADR-0135
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-028
     priority: MUST
@@ -9155,7 +9198,7 @@ groups:
     - ADR-0118
     - ADR-0135
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-029
     priority: MUST
@@ -9182,7 +9225,7 @@ groups:
     adr:
     - ADR-0135
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
 
 - id: CM-27
@@ -9208,7 +9251,7 @@ groups:
       `case_statuses` on a `VulnerabilityCase` after construction except through its
       canonical mutators. Direct writes such as `case.case_participants.append(...)` and
       `case.case_statuses = [...]` are what it rules out. The mutator methods
-      themselves, in `vultron/core/models/case.py`, are exempt.
+      themselves, in `vultron/core/models/case/`, are exempt.
     rationale: >-
       A wire-shaped participant or status in a list of core types does not cause an
       error when code reads it. It reads as absent, and readers use an initial state in
@@ -9233,7 +9276,7 @@ groups:
       Constructor arguments are validated, which is precisely the guarantee
       CM-27-001 exists to restore. This clarification prevents over-application
       of the rule, mirroring PRM-03-002.
-    verification: Inspection of `vultron/core/models/case.py` confirms that constructor-time
+    verification: Inspection of `vultron/core/models/case/` confirms that constructor-time
       `case_participants` and `case_statuses` arguments pass through Pydantic validation,
       consistent with the post-construction mutation prohibition in CM-27-001.
     relationships:
@@ -9255,7 +9298,7 @@ groups:
       status mutator, code that records a new case status must append to `case_statuses`
       directly, which CM-27-001 forbids. `add_case_status()` on `VulnerabilityCase` is
       that mutator.
-    verification: Inspection of `vultron/core/models/case.py` confirms that `VulnerabilityCase`
+    verification: Inspection of `vultron/core/models/case/` confirms that `VulnerabilityCase`
       exposes a canonical mutator method for appending a case status to `case_statuses`.
     relationships:
     - rel_type: refines
@@ -9264,71 +9307,30 @@ groups:
     - ADR-0064
 - id: CM-29
   title: Case Status Recency Resolution
-  description: Rules for determining which CaseStatus snapshot is the most recent
-    when multiple snapshots exist in the case_statuses history.
+  description: Rules for determining which CaseStatus snapshot is current when
+    multiple snapshots exist in the case_statuses history, and how their times
+    follow that order.
   specs:
   - id: CM-29-001
     priority: MUST
     kind: project
     statement: >-
-      `VulnerabilityCase.current_status` MUST return the `CaseStatus` with the latest
-      time, where a status's time is its `updated` if present, else its `published`.
+      `VulnerabilityCase.current_status` MUST return the `CaseStatus` appended last to
+      the case's `case_statuses`.
     rationale: >-
-      The status timestamps are the only record of when each status was made, so
-      recency is read from them and from nothing else. `updated` comes first because
-      it records the latest change to a status. A receiver refuses a status with no
-      `published` (CLP-15-010), so every status has a time.
+      Every case status is the CASE_MANAGER's: it seeds the first at creation and
+      builds each later one from the current one, so each append is a valid next
+      step. A replica appends in ledger order (CLP-14-001), so append order is the
+      CASE_MANAGER's commit order everywhere. A timestamp rule would read a clock
+      instead: one that steps back, or a CASE_MANAGER role delegated to an actor on
+      another clock (CM-24-006), could make an older status current.
     verification: >-
-      `test_status_recency_key_prefers_updated_over_published` and
-      `test_status_recency_key_falls_back_to_published` in
-      `test/core/models/test_helpers.py` unit test the ordering key
-      `status_recency_key` in `vultron/core/models/_helpers.py`, where both the
-      `current_status` and the wire `as_CaseStatus` readers converge.
-      `test_case_status_requires_published` in
-      `test/core/models/test_case_status.py` confirms a `CaseStatus` cannot be
-      built without a `published`.
+      `test_current_status_is_the_last_appended` in `test/core/models/test_case.py`
+      gives the last appended status a `published` earlier than the one before it
+      and asserts the last appended one is current.
     relationships:
     - rel_type: refines
       spec_id: CM-27-001
-  - id: CM-29-003
-    priority: MUST
-    kind: project
-    statement: >-
-      Among `CaseStatus` entries with equal times, `VulnerabilityCase.current_status`
-      MUST return the one appended last.
-    rationale: >-
-      Received statuses carry the sender's time, so equal times are ordinary. Append
-      order is the only tiebreaker that is not an implementation detail (CM-29-002),
-      and without it a status appended with the same time as the one before it would
-      never become current.
-    verification: >-
-      `test_current_status_tie_goes_to_the_last_appended` in
-      `test/core/models/test_case.py` and in
-      `test/wire/as2/vocab/test_vulnerability_case.py` append two statuses with
-      equal times and assert the second is current.
-    relationships:
-    - rel_type: extends
-      spec_id: CM-29-001
-  - id: CM-29-002
-    priority: MUST_NOT
-    kind: project
-    statement: >-
-      `VulnerabilityCase.current_status` MUST NOT use the `id_` field as a sort
-      tiebreaker when it determines the most-recent `CaseStatus`.
-    rationale: >-
-      If `id_` breaks ties between statuses with equal times, the order depends on
-      the id scheme. Auto-seeded statuses have `urn:uuid:` ids, which sort above
-      `https://` ids, so an initial auto-seeded status would win over a received
-      status with the same time. An id scheme is an implementation detail, not a
-      measure of time.
-    verification: >-
-      `test_current_status_ignores_id_scheme_when_times_are_equal` in
-      `test/wire/as2/vocab/test_vulnerability_case.py` gives a `urn:uuid:` status
-      and an `https://` status the same `published`, appends the `https://` one
-      last, and asserts it is current.
-    relationships:
-    - rel_type: extends
-      spec_id: CM-29-001
   - id: CM-29-004
     priority: MUST
     kind: protocol
@@ -9337,10 +9339,10 @@ groups:
       `VulnerabilityCase` with no `caseStatuses`.
     rationale: >-
       Every case has a current status (CM-29-001), and the sender holds it. A
-      receiver that seeded a missing history would stamp its own clock on the
-      case's first status, a time no sender claimed (CLP-15-007), and that status
-      could outrank one the sender timed earlier. A case named by its `id` and
-      `type` alone is a reference, not a case, so this does not apply to it.
+      receiver that seeded a missing history would invent the case's first status
+      and stamp it with its own clock, a time no sender claimed (CLP-15-007). A
+      case named by its `id` and `type` alone is a reference, not a case, so this
+      does not apply to it.
     verification: >-
       `test_parse_refuses_a_case_with_no_case_statuses` in
       `test/wire/as2/test_nested_timestamps.py` asserts `parse_activity` refuses a
@@ -9354,6 +9356,88 @@ groups:
       spec_id: CM-29-001
     - rel_type: refines
       spec_id: CLP-15-007
+  - id: CM-29-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST give each `CaseStatus` it appends to a case a
+      `published` strictly later than the `published` of the status appended
+      before it.
+    rationale: >-
+      The current status is the last appended (CM-29-001), so a status's place in
+      the history is its order. Its `published` then agrees with that order, and a
+      reader who sorts the history by time gets the same order. The clock alone
+      does not ensure this: two statuses can be stamped in one clock tick, and a
+      clock can step back.
+    verification: >-
+      `test_snapshot_published_is_strictly_after_the_previous_status` in
+      `test/core/behaviors/status/nodes/test_case_status.py` commits two snapshots with
+      the clock fixed and asserts the second `published` is later than the first.
+    stories:
+    - story_2022_075
+    relationships:
+    - rel_type: refines
+      spec_id: CM-29-001
+    - rel_type: refines
+      spec_id: SM-05-003
+  - id: CM-29-006
+    priority: MUST
+    kind: project
+    statement: >-
+      A `CaseStatus` this codebase authors MUST carry an `updated` equal to its
+      `published`, or no `updated`.
+    rationale: >-
+      A committed case status never changes: a new state is a new status
+      (SM-05-001), and the EM stamp replaces the current status with a copy that
+      keeps its times (ADR-0122). So `published` is its one time, and an `updated`
+      that differs from it would claim a change that never happened.
+    verification: >-
+      `test_authored_case_status_updated_equals_published` in
+      `test/core/models/test_case_status.py` asserts that a status built here and
+      one built by `append_case_status` carry no `updated` other than their
+      `published`.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-29-005
+  - id: CM-29-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A replica MUST NOT refuse a ledgered `CaseStatus` because its `published` is
+      not later than that of the status before it.
+    rationale: >-
+      Append order decides the current status (CM-29-001), so an out-of-order time
+      cannot make the wrong status current. Refusing the entry would stall the
+      replica's ledger for a fault that changes nothing it reads. Claimed times are
+      reported, never refused, as the ledger treats them (CLP-15-005).
+    verification: >-
+      `test_out_of_order_case_status_is_applied_and_warned` in
+      `test/core/behaviors/sync/nodes/test_case_status_effect.py` applies an entry whose
+      status is timed before the replica's current status, and asserts the status
+      is appended, is current, and a WARNING names both statuses.
+    stories:
+    - story_2022_075
+    relationships:
+    - rel_type: refines
+      spec_id: CM-29-005
+    - rel_type: refines
+      spec_id: CLP-15-005
+  - id: CM-29-008
+    priority: MUST
+    kind: project
+    statement: >-
+      When a replica appends a ledgered `CaseStatus` whose `published` is not later
+      than that of the status before it, it MUST log a WARNING naming both
+      statuses and the case.
+    rationale: >-
+      The CASE_MANAGER broke CM-29-005, and the replica accepts the status anyway
+      (CM-29-007). The log is the only record that the fault happened.
+    verification: >-
+      `test_out_of_order_case_status_is_applied_and_warned` in
+      `test/core/behaviors/sync/nodes/test_case_status_effect.py` asserts the WARNING.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-29-007
 - id: CM-30
   title: Sender Entitlement for Case Content Changes
   description: >-
@@ -9381,7 +9465,7 @@ groups:
       author has left.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_066
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
@@ -9403,7 +9487,7 @@ groups:
       Remove from a sender that is not the CASE_MANAGER.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_030
     relationships:
     - rel_type: extends
       spec_id: CM-30-001
@@ -9425,7 +9509,7 @@ groups:
       with the note still in the case.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_066
     relationships:
     - rel_type: extends
       spec_id: CM-30-001
@@ -9449,7 +9533,7 @@ groups:
       CASE_MANAGER acts on the Add only from the Case Owner.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_066
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
@@ -9472,7 +9556,7 @@ groups:
       refuses the Add from a sender that is not the CASE_MANAGER.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_030
     relationships:
     - rel_type: extends
       spec_id: CM-30-002
@@ -9494,7 +9578,7 @@ groups:
       non-owner and asserts `REFUSED` with the report not attached.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_066
     relationships:
     - rel_type: extends
       spec_id: CM-30-002
@@ -10014,7 +10098,7 @@ groups:
     adr:
     - ADR-0116
     stories:
-    - story_2022_014
+    - story_2026_096
     - story_2022_023
   - id: CM-31-009
     priority: MUST
@@ -10043,7 +10127,7 @@ groups:
     - ADR-0116
     - ADR-0093
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-030
     priority: MUST
     kind: protocol
@@ -10071,7 +10155,7 @@ groups:
     - ADR-0116
     - ADR-0093
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-031
     priority: MUST_NOT
     kind: protocol
@@ -10092,7 +10176,7 @@ groups:
     adr:
     - ADR-0116
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-010
     priority: MUST
     kind: protocol
@@ -10114,7 +10198,7 @@ groups:
     adr:
     - ADR-0116
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-032
     priority: MUST
     kind: protocol
@@ -10135,7 +10219,7 @@ groups:
     adr:
     - ADR-0116
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-033
     priority: MUST
     kind: protocol
@@ -10156,7 +10240,7 @@ groups:
     adr:
     - ADR-0116
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-011
     priority: MUST
     kind: protocol
@@ -11376,7 +11460,7 @@ groups:
       queued addressed to the CASE_MANAGER only.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: implements
       spec_id: PCR-08-001
@@ -11396,7 +11480,7 @@ groups:
       and asserts an entry for the Offer.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-001
@@ -11420,7 +11504,7 @@ groups:
       CASE_MANAGER as `actor` and the Case Owner as `attributed_to`.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-001
@@ -11442,7 +11526,7 @@ groups:
       and asserts the target's roles are unchanged.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-001
@@ -11462,7 +11546,7 @@ groups:
       Owner and asserts `REFUSED` with no entry committed and nothing queued.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
@@ -11483,7 +11567,7 @@ groups:
       is then the CASE_MANAGER's own, so it has no Case Owner's Offer to forward.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-002
@@ -11501,7 +11585,7 @@ groups:
       it.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-010
@@ -11529,7 +11613,7 @@ groups:
       and asserts `REFUSED`.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: constrains
       spec_id: CM-02-016
@@ -11551,7 +11635,7 @@ groups:
       no entry committed.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-003
@@ -11570,7 +11654,7 @@ groups:
       no Offer forward is queued.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-003
@@ -11591,7 +11675,7 @@ groups:
       Offer with no role to the CASE_MANAGER and asserts `REFUSED`.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-003
@@ -11613,7 +11697,7 @@ groups:
       CASE_MANAGER's forward to the target and asserts one answer queued.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_030
     relationships:
     - rel_type: refines
       spec_id: PCR-03-001
@@ -11635,7 +11719,7 @@ groups:
       asserts one answer queued, addressed to the CASE_MANAGER only.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: implements
       spec_id: PCR-08-001
@@ -11662,7 +11746,7 @@ groups:
       `REFUSED` with no change.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_034
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
@@ -11686,7 +11770,7 @@ groups:
       committed and no role change each time.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_034
     relationships:
     - rel_type: extends
       spec_id: CM-33-005
@@ -11707,7 +11791,7 @@ groups:
       forward and asserts the Offer is closed and the role granted.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_034
     relationships:
     - rel_type: extends
       spec_id: CM-33-005
@@ -11727,7 +11811,7 @@ groups:
       and asserts `SKIPPED` with no new entry each time.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_014
     relationships:
     - rel_type: extends
       spec_id: CM-33-005
@@ -11749,7 +11833,7 @@ groups:
       with the `reject_case_participant_role` entry.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: implements
       spec_id: CLP-02-012
@@ -11774,7 +11858,7 @@ groups:
       and separately its Reject, and asserts a queued `Announce` each time.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-006
@@ -11794,7 +11878,7 @@ groups:
       and asserts the role on the target's participant record.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-006
@@ -11813,7 +11897,7 @@ groups:
       and asserts the target's roles are unchanged.
     stories:
     - story_2022_035
-    - story_2022_088
+    - story_2026_065
     relationships:
     - rel_type: extends
       spec_id: CM-33-006

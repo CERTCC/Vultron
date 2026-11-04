@@ -38,8 +38,10 @@ from vultron.adapters.driven.datalayer_sqlite import (
 )
 from vultron.adapters.driving.fastapi.main import app
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
-from vultron.adapters.driving.fastapi.routers.datalayer import _serve_stored
-from vultron.core.models import _helpers
+from vultron.adapters.driving.fastapi.routers.datalayer.stored import (
+    _serve_stored,
+)
+from vultron.core.models._helpers import clock as helpers_clock
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.offer_record import VultronOfferRecord
@@ -154,7 +156,7 @@ def _draws_after(
         for _ in range(reads):
             response = client.get(path, params=params)
             assert response.status_code == 200, response.text
-        return [uuid.uuid4() for _ in range(3)], _helpers.now_utc()
+        return [uuid.uuid4() for _ in range(3)], helpers_clock.now_utc()
 
 
 @pytest.mark.parametrize(("route", "object_type"), _READS)

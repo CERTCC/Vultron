@@ -17,7 +17,6 @@ groups:
   - id: UCORG-01-001
     priority: MUST
     kind: project
-    verification_debt: '#2575'
     statement: >-
       Use-case classes that process inbound received messages MUST reside under `vultron/core/use_cases/received/`
     rationale: >-
@@ -26,13 +25,17 @@ groups:
       and result types (UCORG-05-002, UCORG-05-007). When each kind has its own package,
       the location of a class tells a reader which kind it is, and the reader finds the
       use case for each received message in one place.
+    verification: >-
+      `test_each_use_case_sits_in_the_subpackage_its_kind_names` in
+      `test/architecture/test_use_case_package_layout.py` discovers every use-case
+      class in the package and asserts that each one whose result is
+      a `HandlerResult` sits under `vultron/core/use_cases/received/`.
     relationships:
     - rel_type: implements
       spec_id: CS-12-002
   - id: UCORG-01-002
     priority: MUST
     kind: project
-    verification_debt: '#2575'
     statement: >-
       Trigger use-case classes that implement actor-initiated behaviors MUST reside under
       `vultron/core/use_cases/triggers/`
@@ -41,22 +44,48 @@ groups:
       port. Received use cases answer messages from other actors. The two kinds have
       different callers and result types (UCORG-05-002, UCORG-05-007). When each kind
       has its own package, the location of a class tells a reader which kind it is.
+    verification: >-
+      `test_each_use_case_sits_in_the_subpackage_its_kind_names` in
+      `test/architecture/test_use_case_package_layout.py` discovers every use-case
+      class in the package and asserts that each one whose result is
+      a `TriggerResult` sits under `vultron/core/use_cases/triggers/`.
     relationships:
     - rel_type: implements
       spec_id: CS-12-003
   - id: UCORG-01-003
     priority: MUST_NOT
     kind: project
-    verification_debt: '#2575'
     statement: >-
-      The `vultron/core/use_cases/` package root MUST NOT hold a use-case
-      implementation. It holds only `__init__.py` and shared private helper modules.
+      The `vultron/core/use_cases/` package root MUST NOT hold anything but
+      `__init__.py`, `README.md`, the `query/`, `received/` and `triggers/` subpackages,
+      and shared private helper modules.
     rationale: >-
       A use case at the package root does not show which kind it is, for example a
       received use case or a trigger use case (UCORG-01-001, UCORG-01-002). The root is
-      for code that the use cases share. The use-case registry is in
-      `vultron/semantic_registry/`, not in this package, and the dispatcher receives the
-      map by injection.
+      for code that the use cases share and for the package's `README.md`, which
+      UCORG-04-001 requires. The use-case registry is in `vultron/semantic_registry/`,
+      not in this package, and the dispatcher receives the map by injection.
+    verification: >-
+      `test_the_package_root_holds_only_its_allowed_entries` in
+      `test/architecture/test_use_case_package_layout.py` lists the package root and
+      asserts that it holds nothing else.
+  - id: UCORG-01-004
+    priority: MUST
+    kind: project
+    statement: >-
+      Query use-case classes, which compute a read-only result from the DataLayer and
+      change no state, MUST reside under `vultron/core/use_cases/query/`.
+    rationale: >-
+      A query use case answers a question about the local actor's state, such as which
+      CVD actions an actor may take in a case. It is neither a received use case nor a
+      trigger use case, and its result type differs from both (UCORG-05-002,
+      UCORG-05-007). A package of its own tells a reader that the class changes
+      nothing.
+    verification: >-
+      `test_each_use_case_sits_in_the_subpackage_its_kind_names` in
+      `test/architecture/test_use_case_package_layout.py` discovers every use-case
+      class in the package and asserts that each one whose result is neither a
+      `HandlerResult` nor a `TriggerResult` sits under `vultron/core/use_cases/query/`.
 - id: UCORG-02
   title: Registry Synchronization
   specs:
@@ -478,7 +507,7 @@ groups:
       body fails where it arrives.
     verification: >-
       mypy passes with no `# type: ignore` in `ActorSession` method bodies, which read
-      the `WireActivityResult` that `vultron/demo/actor_session.py` validates from the
+      the `WireActivityResult` that `vultron/demo/actor_session/` validates from the
       `post_to_trigger` response.
     relationships:
     - rel_type: extends
