@@ -33,7 +33,6 @@ from test.demo._helpers import (
 )
 from test.demo.vendor_story._support import SEATED, family_state
 from vultron.demo.helpers import (
-    seeding,
     story_cast,
     vendor_story as family,
 )
@@ -43,6 +42,7 @@ from vultron.demo.helpers.coordinated_story import (
 )
 from vultron.demo.helpers.owner_decision_story import Part
 from vultron.demo.helpers.polling import LATE_JOINER_TIMEOUT
+from vultron.demo.helpers.seeding import reset as seeding_reset
 from vultron.demo.helpers.story import UnseatedContainer
 from vultron.demo.helpers.vendor_story import (
     cast as vendor_cast,
@@ -184,7 +184,7 @@ def _cast_stubs(seeded, *, seed_error=None) -> Iterator[SimpleNamespace]:
         patch.object(
             story_cast, "reset_datalayer", return_value={"status": "ok"}
         ) as reset,
-        patch.object(seeding, "seed_case_actor_identity") as reseed,
+        patch.object(seeding_reset, "seed_case_actor_identity") as reseed,
         patch.object(
             story_cast, "get_actor_by_id", side_effect=list(seeded)
         ) as lookup,

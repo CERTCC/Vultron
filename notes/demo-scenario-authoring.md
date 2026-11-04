@@ -94,7 +94,7 @@ It also double-delivers when the real delivery succeeds too (#3980).
    the effect, read from its own container — and gate on it with `demo_gate`
    (see [event-driven-control-flow.md](event-driven-control-flow.md)
    § "Temporal Sequence vs. Causal Sequence"). The polling helpers are in
-   `vultron/demo/helpers/polling.py`, `invite_chain/` and `milestones.py`.
+   `vultron/demo/helpers/polling/`, `invite_chain/` and `milestones.py`.
 2. A wait that times out reliably in CI points at the delivery path (retries,
    health checks, startup order), not at the demo script.
 3. There is no self-delivery exception: an actor's own replica updates from the
@@ -218,7 +218,7 @@ first failure and hides every co-occurring one.
    independent check.
 2. Prefer putting the wrap inside a shared scenario-facing helper so every caller
    inherits it, as `wait_for_replica_ledger_coverage` (`helpers/sync.py`) and
-   `wait_for_participants_on_replicas` (`helpers/polling.py`) do.
+   `wait_for_participants_on_replicas` (`helpers/polling/case.py`) do.
 3. Keep the low-level primitives raising; their unit tests depend on it.
 
 `test/architecture/test_demo_scenario_waits_in_demo_context.py` enforces the rule
@@ -254,7 +254,7 @@ once.
   `wait_for_contiguous_ledger_coverage` or `_get_log_entries_for_case`
   (DEMOMA-23-006, enforced by
   `test/architecture/test_demo_scenario_coverage_via_shared_helper.py`).
-- Timeouts are the named constants in `helpers/polling.py`
+- Timeouts are the named constants in `helpers/polling/_poll.py`
   (`LEDGER_COVERAGE_TIMEOUT`, `LATE_JOINER_COVERAGE_TIMEOUT`), passed as
   parameters, never literals in a scenario. Each is a stall budget, not a
   total: every newly arrived entry restarts it, up to

@@ -32,12 +32,11 @@ from vultron.demo.helpers.polling import (
     CROSS_CONTAINER_TIMEOUT,
     LATE_JOINER_COVERAGE_TIMEOUT,
     LEDGER_COVERAGE_TIMEOUT,
-    _client_in,
-    _poll_until,
     wait_for_case_on_container,
     wait_for_contiguous_ledger_coverage,
     wait_for_participants_on_replicas,
 )
+from vultron.demo.helpers.polling._poll import _client_in, _poll_until
 from vultron.demo.utils import DataLayerClient, demo_check, demo_gate
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,

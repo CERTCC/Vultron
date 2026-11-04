@@ -87,7 +87,7 @@ When the awaited effect is queued behind a variable amount of work — a late
 joiner's full-case Invite behind the join backfill (CM-11-010) — no fixed
 budget bounds it: the backlog's length times its per-item cost under CI load
 is unknown in advance (#4424). Gate on the backlog draining instead: a
-`ProgressDeadline` (`helpers/polling.py`) restarts its stall budget on each
+`ProgressDeadline` (`helpers/polling/_poll.py`) restarts its stall budget on each
 new high of a progress reading and stops at a ceiling, so the wait fails only
 when the backlog stops advancing. Read the progress from the same poll that
 looks for the effect, and name the last reading in the timeout message.

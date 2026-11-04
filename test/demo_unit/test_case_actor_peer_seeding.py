@@ -27,6 +27,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from vultron.demo.helpers import seeding
+from vultron.demo.helpers.seeding import actors as seeding_actors
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Actor,
     as_Organization,
@@ -34,7 +35,7 @@ from vultron.wire.as2.vocab.base.objects.actors import (
 )
 
 _CA_BASE = "http://case-actor:7999/api/v2"
-_SCENARIOS = Path(seeding.__file__).parent.parent / "scenario"
+_SCENARIOS = Path(seeding.__file__).parents[2] / "scenario"
 
 
 def _ca_client() -> MagicMock:
@@ -51,7 +52,7 @@ def test_every_seeded_actor_is_registered_with_the_case_actor():
             id_="http://vendor:7999/api/v2/actors/v", name="Vendor"
         ),
     ]
-    with patch.object(seeding, "seed_peer") as seed_peer:
+    with patch.object(seeding_actors, "seed_peer") as seed_peer:
         seeding.seed_case_actor_peers(_ca_client(), actors)
 
     assert [call.kwargs for call in seed_peer.call_args_list] == [
@@ -69,14 +70,14 @@ def test_every_seeded_actor_is_registered_with_the_case_actor():
 
 
 def test_no_case_actor_client_registers_nothing():
-    with patch.object(seeding, "seed_peer") as seed_peer:
+    with patch.object(seeding_actors, "seed_peer") as seed_peer:
         seeding.seed_case_actor_peers(None, [as_Actor(id_="http://x/a")])
     seed_peer.assert_not_called()
 
 
 def test_a_nameless_actor_is_refused():
     with (
-        patch.object(seeding, "seed_peer"),
+        patch.object(seeding_actors, "seed_peer"),
         pytest.raises(ValueError, match="no name"),
     ):
         seeding.seed_case_actor_peers(

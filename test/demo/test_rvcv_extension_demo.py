@@ -97,6 +97,7 @@ from vultron.demo.helpers.coordinated_story import (
 )
 from vultron.demo.helpers.owner_decision_story import Part
 from vultron.demo.helpers.polling import find_case_invite_for_actor
+from vultron.demo.helpers.seeding import reset as seeding_reset
 from vultron.demo.helpers.story import (
     Choose,
     StoryState,
@@ -1062,7 +1063,7 @@ class TestRvcvExtensionCastAndOpening:
             patch.object(
                 story_cast, "reset_datalayer", return_value={"status": "ok"}
             ) as reset,
-            patch.object(seeding, "seed_case_actor_identity") as reseed,
+            patch.object(seeding_reset, "seed_case_actor_identity") as reseed,
             patch.object(
                 vendor_cast, "seed_containers", return_value=tuple(seeded)
             ) as seed_two,

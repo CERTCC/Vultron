@@ -42,10 +42,12 @@ from vultron.demo.helpers.milestones import (
     verify_publicly_disclosed,
 )
 from vultron.demo.helpers.polling import (
-    _is_ownership_transfer_offer_for,
     find_ownership_transfer_offer_for_actor,
     wait_for_initialized_case,
     wait_for_participant_pxa_state,
+)
+from vultron.demo.helpers.polling.finders import (
+    _is_ownership_transfer_offer_for,
 )
 from vultron.demo.utils import DataLayerClient
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -458,7 +460,7 @@ class TestWaitForParticipantPxaState:
     def test_returns_immediately_when_already_public_aware(self):
         participant = _public_aware_participant(_PXA_RECEIVER_ID)
         with patch(
-            "vultron.demo.helpers.polling._fetch_participant",
+            "vultron.demo.helpers.polling.participant._fetch_participant",
             return_value=participant,
         ):
             wait_for_participant_pxa_state(
@@ -491,7 +493,7 @@ class TestWaitForParticipantPxaState:
             return public_participant
 
         with patch(
-            "vultron.demo.helpers.polling._fetch_participant",
+            "vultron.demo.helpers.polling.participant._fetch_participant",
             side_effect=_fetch,
         ):
             wait_for_participant_pxa_state(
@@ -514,7 +516,7 @@ class TestWaitForParticipantPxaState:
         none_participant.participant_statuses = [none_status]
 
         with patch(
-            "vultron.demo.helpers.polling._fetch_participant",
+            "vultron.demo.helpers.polling.participant._fetch_participant",
             return_value=none_participant,
         ):
             with pytest.raises(AssertionError, match="Timed out"):
@@ -639,7 +641,7 @@ class TestVerifyPubliclyDisclosedPollsEveryReplica:
                 "vultron.demo.helpers.milestones._fetch_participant",
                 return_value=participant,
             ),
-            patch("vultron.demo.helpers.polling.time.sleep"),
+            patch("vultron.demo.helpers.polling.participant.time.sleep"),
         ):
             verify_publicly_disclosed(
                 receiver_client=cast(DataLayerClient, receiver_client),
@@ -670,14 +672,14 @@ class TestVerifyPubliclyDisclosedPollsEveryReplica:
 
         with (
             patch(
-                "vultron.demo.helpers.polling._fetch_participant",
+                "vultron.demo.helpers.polling.participant._fetch_participant",
                 side_effect=_fetch,
             ),
             patch(
                 "vultron.demo.helpers.milestones._fetch_participant",
                 side_effect=_fetch,
             ),
-            patch("vultron.demo.helpers.polling.time.sleep"),
+            patch("vultron.demo.helpers.polling.participant.time.sleep"),
         ):
             verify_publicly_disclosed(
                 receiver_client=cast(DataLayerClient, receiver_client),
@@ -752,7 +754,7 @@ class TestWaitForInitializedCase:
 
     def _run(self, client: _LateInitializedCaseClient) -> as_VulnerabilityCase:
         with patch(
-            "vultron.demo.helpers.polling.case_actor_id_for_report",
+            "vultron.demo.helpers.polling.case.case_actor_id_for_report",
             return_value=_IC_CASE_ACTOR_ID,
         ):
             return wait_for_initialized_case(
@@ -805,7 +807,7 @@ class TestWaitForInitializedCase:
             (other_report, other_case["id"]),
         ):
             with patch(
-                "vultron.demo.helpers.polling.case_actor_id_for_report",
+                "vultron.demo.helpers.polling.case.case_actor_id_for_report",
                 return_value=_IC_CASE_ACTOR_ID,
             ):
                 result = wait_for_initialized_case(
@@ -821,7 +823,7 @@ class TestWaitForInitializedCase:
         client = _LateInitializedCaseClient(delay=0)
         with (
             patch(
-                "vultron.demo.helpers.polling.case_actor_id_for_report",
+                "vultron.demo.helpers.polling.case.case_actor_id_for_report",
                 return_value=_IC_CASE_ACTOR_ID,
             ),
             pytest.raises(AssertionError, match="Timed out"),
@@ -838,7 +840,7 @@ class TestWaitForInitializedCase:
         client = _LateInitializedCaseClient(delay=10**6)
         with pytest.raises(AssertionError, match="Timed out"):
             with patch(
-                "vultron.demo.helpers.polling.case_actor_id_for_report",
+                "vultron.demo.helpers.polling.case.case_actor_id_for_report",
                 return_value=_IC_CASE_ACTOR_ID,
             ):
                 wait_for_initialized_case(
@@ -858,11 +860,11 @@ class TestWaitForInitializedCase:
         client = _LateInitializedCaseClient(delay=0)
         with (
             patch(
-                "vultron.demo.helpers.polling.case_actor_id_for_report",
+                "vultron.demo.helpers.polling.case.case_actor_id_for_report",
                 return_value=_IC_CASE_ACTOR_ID,
             ),
             patch(
-                "vultron.demo.helpers.polling.as_VulnerabilityCase",
+                "vultron.demo.helpers.polling.case.as_VulnerabilityCase",
                 side_effect=TypeError("simulated schema breakage"),
             ),
             pytest.raises(AssertionError) as exc_info,

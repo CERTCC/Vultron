@@ -252,7 +252,7 @@ class TestCharacterActorsSeededAfterTheBranchPoint:
                 return_value={"status": "ok"},
             ) as reset,
             patch(
-                "vultron.demo.helpers.seeding.seed_case_actor_identity"
+                "vultron.demo.helpers.seeding.reset.seed_case_actor_identity"
             ) as reseed,
             patch.object(
                 coordinated_cast,

@@ -30,7 +30,7 @@ role is read from the canonical case in the CaseActor's own store
 
 from collections.abc import Mapping
 
-from vultron.demo.helpers.seeding import _dl_key
+from vultron.demo.helpers.seeding.actors import _dl_key
 from vultron.demo.utils import DataLayerClient
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoScenarioStepError

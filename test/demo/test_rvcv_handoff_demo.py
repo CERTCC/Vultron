@@ -336,7 +336,7 @@ class TestRvcvHandoffCast:
                 story_cast, "reset_datalayer", return_value={"status": "ok"}
             ) as reset,
             patch(
-                "vultron.demo.helpers.seeding.seed_case_actor_identity"
+                "vultron.demo.helpers.seeding.reset.seed_case_actor_identity"
             ) as reseed,
             patch.object(
                 vendor_cast, "seed_containers", return_value=tuple(seeded)
