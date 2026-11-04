@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from vultron.core.states.em import EM
@@ -221,7 +219,7 @@ class SpecGroup(BaseModel):
 
     @field_validator("specs", mode="before")
     @classmethod
-    def _refuse_lifecycle_keys_once(cls, v: Any) -> Any:
+    def _refuse_lifecycle_keys_once(cls, v: object) -> object:
         """Check raw items before the ``Spec`` union splits them (MS-09-001).
 
         Run here rather than on ``StatementSpec``: both union branches would

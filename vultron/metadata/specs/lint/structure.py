@@ -55,8 +55,8 @@ def _check_retirement_rules(
 
     An ID in ``plan/retired-specs/`` is never declared again. The other
     retirement rule, no ``deprecated:`` or ``superseded_by:`` key in place
-    (MS-09-001), is enforced at load time by ``StatementSpec``, so a
-    registry that reaches this check cannot carry either key.
+    (MS-09-001), is enforced at load time by the ``SpecGroup.specs``
+    validator, so a registry that reaches this check cannot carry either key.
     """
     retired = retired_spec_ids(repo_root)
     return [

@@ -271,7 +271,10 @@ def _validate_request(
         raise RetireError(
             f"replacement {replacement!r} is not another requirement ID"
         )
-    if replacement not in load_registry(root / "specs").all_specs:
+    # Found by text, not by loading the registry: a corpus that still
+    # carries a ``superseded_by:`` key no longer loads (MS-09-001), and that
+    # is the case a ``--replacement`` retirement exists to clean up.
+    if _find_in_dir(root / "specs", replacement) is None:
         raise RetireError(
             f"replacement {replacement} is not declared in specs/"
         )

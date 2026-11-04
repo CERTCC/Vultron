@@ -122,6 +122,34 @@ def test_retire_refuses_unknown_id_and_unknown_replacement(
         _retire(repo, replacement="TST-09-999")
 
 
+def test_retire_with_replacement_clears_a_refused_superseded_by_key(
+    tmp_path: Path,
+) -> None:
+    """The command the MS-09-001 refusal points to works on that corpus.
+
+    A ``superseded_by:`` key makes the registry unloadable, so the
+    replacement is checked without loading it.
+    """
+    (tmp_path / "specs").mkdir()
+    data = _two_spec_file()
+    data["groups"][0]["specs"][0]["superseded_by"] = "TST-01-002"
+    write_yaml(tmp_path / "specs", data)
+    _init_repo(tmp_path)
+
+    retire_spec(
+        "TST-01-001",
+        why="superseded",
+        retired_by="#1",
+        replacement="TST-01-002",
+        repo_root=tmp_path,
+        record_history=False,
+    )
+
+    assert set(load_registry(tmp_path / "specs").all_specs) == {"TST-01-002"}
+    entry = (tmp_path / "plan/retired-specs/TST-01-001.md").read_text()
+    assert "**Replacement**: TST-01-002" in entry
+
+
 def test_retire_restores_file_when_group_would_be_left_empty(
     tmp_path: Path,
 ) -> None:
@@ -172,7 +200,7 @@ def test_live_specs_do_not_reuse_or_deprecate() -> None:
     """The real corpus satisfies the retirement rules.
 
     It loads at all only if no requirement carries ``deprecated:`` or
-    ``superseded_by:``, which ``StatementSpec`` refuses (MS-09-001).
+    ``superseded_by:``, which ``SpecGroup`` refuses (MS-09-001).
     """
     root = repo_root()
     registry = load_registry(root / "specs")
