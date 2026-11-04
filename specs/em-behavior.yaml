@@ -68,12 +68,11 @@ groups:
     postconditions:
     - description: Receiver EM state is PROPOSED; EK discharged by the ledger commit
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-11-004
-      note: VP-11-004's EK is the CASE_MANAGER's ledger commit (EP-09-009)
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
+    - rel_type: uses_definition
+      spec_id: EP-09-009
 
     stories:
     - story_2026_086
@@ -95,7 +94,7 @@ groups:
       is classified as an embargo Invite only once the receiver holds the terms
       (SE-01-006). Its `Reject` follows the fetch of those terms (AKM-05-007), and none
       is sent when the fetch fails (AKM-05-015). A re-delivery of an Invite already
-      answered with a `Reject` is a duplicate, and gets no second `Reject` (HP-01-003).
+      answered with a `Reject` is a duplicate, and gets no second `Reject` (HP-01-014).
     rationale: >-
       Embargo negotiation is not viable once public disclosure has occurred.
       VP-06-001 prohibits new embargo negotiations in these states.
@@ -126,10 +125,10 @@ groups:
     - description: >-
         `Reject(Invite(EmbargoEvent))` emitted; no EM state transition to PROPOSED
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-06-001
       note: MUST NOT propose or accept embargo when public/exploit/attacks
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
     stories:
@@ -174,12 +173,11 @@ groups:
         EM state remains PROPOSED; counter-proposal terms available for
         evaluation; EK discharged by the ledger commit
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-11-004
-      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
+    - rel_type: uses_definition
+      spec_id: EP-09-009
 
     stories:
     - story_2026_086
@@ -201,11 +199,11 @@ groups:
     lint_suppress:
     - testable_without_steps
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-13-003
       note: >-
         SHOULD NOT begin EM with a proposal from a Participant in RM Invalid
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
     stories:
@@ -231,10 +229,10 @@ groups:
     lint_suppress:
     - testable_without_steps
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-13-002
       note: SHOULD NOT begin EM in an inactive RM state
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
     stories:
@@ -255,7 +253,7 @@ groups:
       queue write, redelivers the Invite twice, and asserts exactly one `Reject` is
       queued, naming the Invite.
     relationships:
-    - rel_type: implements
+    - rel_type: extends
       spec_id: EMB-01-002
   - id: EMB-01-007
     priority: MUST
@@ -273,9 +271,7 @@ groups:
       queue write, redelivers the Invite twice, and asserts exactly one `Reject` is
       queued, naming the Invite.
     relationships:
-    - rel_type: implements
-      spec_id: EMB-01-002
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: EMB-01-006
 - id: EMB-02
   title: Receive EA (Embargo Accepted)
@@ -332,15 +328,16 @@ groups:
         Receiver EM state is ACTIVE, or REVISE while another proposal is open;
         EK discharged by the ledger commit
     relationships:
-    - rel_type: satisfies
+    - rel_type: implements
       spec_id: VP-05-003
       note: An embargo SHALL begin at the moment it is accepted
-    - rel_type: satisfies
-      spec_id: VP-11-004
-      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
+    - rel_type: uses_definition
+      spec_id: EP-09-009
+    - rel_type: refines
+      spec_id: EMB-18-005
 
     stories:
     - story_2026_086
@@ -381,10 +378,10 @@ groups:
     postconditions:
     - description: Activation refused; EM state not transitioned to ACTIVE
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-06-001
       note: MUST NOT accept a new embargo when public/exploit/attacks
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
     stories:
@@ -409,12 +406,12 @@ groups:
     lint_suppress:
     - testable_without_steps
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-13-004
       note: >-
         SHOULD NOT proceed from EM Proposed to EM Accepted when RM is Invalid
         or Closed
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
     stories:
@@ -461,7 +458,7 @@ groups:
     - description: >-
         `Reject(Invite(EmbargoEvent))` emitted; the Participant's acceptance is not recorded
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-06-001
       note: MUST NOT accept a new embargo when public/exploit/attacks
     stories:
@@ -527,15 +524,11 @@ groups:
         Receiver EM state is REVISE; original embargo remains in force; EK
         discharged by the ledger commit
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-04-005
-      note: Once accepted, revisions MAY be proposed
-    - rel_type: satisfies
-      spec_id: VP-11-004
-      note: VP-11-004's EK is the CASE_MANAGER's ledger commit (EP-09-009)
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-003
       note: 'EV shorthand wire-type mapping'
+    - rel_type: uses_definition
+      spec_id: EP-09-009
 
     stories:
     - story_2026_086
@@ -576,12 +569,11 @@ groups:
     postconditions:
     - description: EM state remains REVISE; EK discharged by the ledger commit
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-11-004
-      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-003
       note: 'EV shorthand wire-type mapping'
+    - rel_type: uses_definition
+      spec_id: EP-09-009
 
     stories:
     - story_2026_086
@@ -647,12 +639,11 @@ groups:
         No revision proposal adopted; the receiver emits no ET and its EM state is
         unchanged
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-09-001
-      note: Embargoes SHALL terminate immediately when public/exploit
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-003
       note: 'EV shorthand wire-type mapping'
+    - rel_type: refines
+      spec_id: EP-09-003
 
     stories:
     - story_2022_023
@@ -705,12 +696,11 @@ groups:
     postconditions:
     - description: "`Reject(Invite(EmbargoEvent))` queued for the CASE_MANAGER"
     relationships:
-    - rel_type: refines
-      spec_id: EMB-01-002
-      note: Applies the proposal refusal to a revision Invite
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-003
       note: 'EV shorthand wire-type mapping'
+    - rel_type: uses_definition
+      spec_id: EMB-03-003
     stories:
     - story_2022_023
     - story_2022_080
@@ -767,12 +757,11 @@ groups:
         Receiver EM state is ACTIVE (revision rejected); EK discharged by the ledger
         commit
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-11-004
-      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-004
       note: 'EJ shorthand wire-type mapping'
+    - rel_type: uses_definition
+      spec_id: EP-09-009
     stories:
     - story_2026_086
   - id: EMB-04-003
@@ -865,10 +854,10 @@ groups:
     postconditions:
     - description: ET emitted; EM state is EXITED
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-09-001
       note: Embargoes SHALL terminate immediately when public/exploit
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-004
       note: 'EJ shorthand wire-type mapping'
 
@@ -931,15 +920,11 @@ groups:
     - description: >-
         Receiver EM state is ACTIVE with new terms; EK discharged by the ledger commit
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-04-006
-      note: Once accepted, revisions MAY be accepted
-    - rel_type: satisfies
-      spec_id: VP-11-004
-      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-005
       note: 'EC shorthand wire-type mapping'
+    - rel_type: uses_definition
+      spec_id: EP-09-009
     stories:
     - story_2026_086
   - id: EMB-05-003
@@ -1028,7 +1013,7 @@ groups:
     - rel_type: refines
       spec_id: EMB-02-002
       note: EC is the activation of a revision
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-005
       note: 'EC shorthand wire-type mapping'
 
@@ -1087,15 +1072,13 @@ groups:
         Receiver EM state is NONE (proposal rejected), or PROPOSED while another
         proposal is open; EK discharged by the ledger commit
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-11-004
-      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
-    - rel_type: satisfies
-      spec_id: VP-05-017
-      note: Participants MAY reject proposed embargo terms for any reason
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-006
       note: 'ER shorthand wire-type mapping'
+    - rel_type: uses_definition
+      spec_id: EP-09-009
+    - rel_type: refines
+      spec_id: EMB-18-005
 
     stories:
     - story_2026_086
@@ -1141,12 +1124,11 @@ groups:
     postconditions:
     - description: Receiver EM state is EXITED; EK discharged by the ledger commit
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-11-004
-      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-007
       note: 'ET shorthand wire-type mapping'
+    - rel_type: uses_definition
+      spec_id: EP-09-009
 
     stories:
     - story_2026_086
@@ -1188,12 +1170,11 @@ groups:
         Receiver EM state is EXITED; pending revision abandoned; EK discharged
         by the ledger commit
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-11-004
-      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-007
       note: 'ET shorthand wire-type mapping'
+    - rel_type: uses_definition
+      spec_id: EP-09-009
 
     stories:
     - story_2026_086
@@ -1225,12 +1206,11 @@ groups:
     postconditions:
     - description: EM state remains EXITED; no EK message emitted
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-11-004
-      note: Discharged by the CASE_MANAGER's ledger commit; no EK message (EP-09-009)
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-007
       note: 'ET shorthand wire-type mapping'
+    - rel_type: uses_definition
+      spec_id: EP-09-009
 
     stories:
     - story_2026_014
@@ -1264,14 +1244,16 @@ groups:
     postconditions:
     - description: GI emitted; EM state unchanged
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-11-005
       note: >-
         SHOULD inquire (GI) about the nature of an error reported by a fault
         about an E* message; no EK message exists
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-008
       note: 'EE shorthand wire-type mapping'
+    - rel_type: uses_definition
+      spec_id: EP-09-009
     stories:
     - story_2022_039
 
@@ -1302,10 +1284,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-11-004
-      note: The ledger entry is the acknowledgment; no acknowledgment of acknowledgment required
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-02-009
       note: 'EK shorthand wire-type mapping'
     - rel_type: uses_definition
@@ -1340,15 +1319,10 @@ groups:
         - PROPOSED
       description: EM state is Proposed
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-04-004
       note: Once proposed, an embargo MAY be accepted or rejected
-    - rel_type: satisfies
-      spec_id: VP-06-003
-      note: >-
-        A Receiver that cannot accept a Reporter's proposal as proposed SHOULD
-        counter-propose rather than reject it
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-06-010
       note: Participants MAY accept or reject any proposed embargo as they see fit
     stories:
@@ -1409,7 +1383,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-08-006
       note: >-
         SHOULD NOT share vulnerability report with newly invited Participant
@@ -1472,7 +1446,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-13-009
       note: >-
         A Participant's closure or deferral SHALL NOT automatically terminate
@@ -1560,7 +1534,7 @@ groups:
         - REVISE
       description: EM state is Revise
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-04-005
       note: Once accepted, revisions MAY be proposed, which MAY be accepted or rejected
     stories:
@@ -1589,7 +1563,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-13-009
       note: >-
         A Participant's closure or deferral SHALL NOT automatically terminate
@@ -1615,7 +1589,7 @@ groups:
         - REVISE
       description: EM state is Revise
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-13-008
       note: Changes to adherence intention SHOULD be communicated clearly
     stories:
@@ -1656,10 +1630,6 @@ groups:
       expected: No Participant is bound by an embargo; consent rows are as they were
     postconditions:
     - description: No active embargo and no signatory; EM state is terminal EXITED
-    relationships:
-    - rel_type: satisfies
-      spec_id: VP-04-001
-      note: Accepted embargoes MUST eventually terminate
     stories:
     - story_2026_001
 
@@ -1714,13 +1684,6 @@ groups:
         teardown announced
     adr:
     - ADR-0122
-    relationships:
-    - rel_type: refines
-      spec_id: VP-04-001
-      note: Every accepted embargo has an end time; reaching it ends the embargo
-    - rel_type: depends_on
-      spec_id: EP-08-004
-      note: The termination cancels every open proposal in the same step
     stories:
     - story_2022_010
     - story_2022_026
@@ -1828,10 +1791,6 @@ groups:
     - testable_without_steps
     adr:
     - ADR-0122
-    relationships:
-    - rel_type: refines
-      spec_id: EMB-13-001
-      note: Carries what ended the ACTIVE entry
     stories:
     - story_2022_080
     - story_2022_026
@@ -1896,8 +1855,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: EMB-13-004
-    - rel_type: refines
-      spec_id: EMB-13-001
     stories:
     - story_2022_080
     - story_2022_026
@@ -1955,7 +1912,7 @@ groups:
     adr:
     - ADR-0122
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: EMB-13-010
       note: Carries the recorded cause on the wire so replicas can copy it
     stories:
@@ -2146,7 +2103,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-06-001
       note: >-
         No new embargo once public awareness, exploit publication or attacks
@@ -2199,10 +2156,6 @@ groups:
       expected: Reason chosen
     postconditions:
     - description: A termination reason is chosen
-    relationships:
-    - rel_type: refines
-      spec_id: EMB-07-001
-      note: Voluntary actor termination is a sub-case of active-embargo termination
     stories:
     - story_2022_080
     - story_2026_095
@@ -2223,7 +2176,7 @@ groups:
     postconditions:
     - description: EM state is unchanged
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: EMB-14-001
     stories:
     - story_2022_080
@@ -2233,7 +2186,7 @@ groups:
     kind: protocol
     statement: >-
       An actor that ends an active embargo early of its own accord MUST record its
-      reason as the termination's cause (EMB-13-004).
+      reason as the termination's cause (EMB-13-010).
       The cause is `FIX_DEPLOYED`, `FIX_READY` or `OTHER` respectively, never an `EARLY`
       termination with no cause.
     rationale: >-
@@ -2256,7 +2209,7 @@ groups:
     - rel_type: extends
       spec_id: EMB-14-001
     - rel_type: uses_definition
-      spec_id: EMB-13-004
+      spec_id: EMB-13-010
     stories:
     - story_2022_080
     - story_2026_095
@@ -2340,7 +2293,7 @@ groups:
         SUCCESS: pipeline continues to OnEmbargoExit and terminate_embargo_bt.
         FAILURE: termination blocked; actor may retry with override.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EMB-14-007
   - id: EMB-14-008
     priority: MAY
@@ -2351,6 +2304,9 @@ groups:
     rationale: >-
       A policy engine can block termination on grounds orthogonal to the stated
       reason, such as an active revision negotiation or a pending approval.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: EMB-14-002
 
   - id: EMB-14-003
     priority: SHOULD
@@ -2382,7 +2338,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EMB-14-002
       note: Override is the fallback arm of the policy authorization Selector
   - id: EMB-14-009
@@ -2468,16 +2424,6 @@ groups:
     - description: >-
         Overture accepted by default; EM (Flow A) or PEC (Flow B) advanced by
         the existing mechanism
-    relationships:
-    - rel_type: satisfies
-      spec_id: BT-18-004
-      note: Decision node accepts a CallOutBackendFactory; deterministic default
-    - rel_type: refines
-      spec_id: EMB-01-001
-      note: Adds the response-decision layer above EP receipt
-    - rel_type: refines
-      spec_id: CM-18-003
-      note: Flow B acceptance advances the participant's consent row (INVITED → AGREED)
     stories:
     - story_2026_004
     - story_2022_006
@@ -2541,9 +2487,7 @@ groups:
         Owner responses proceed unconditionally; non-owner responses gated by
         the adjudication seam
     relationships:
-    - rel_type: satisfies
-      spec_id: BT-18-004
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EMB-15-001
     stories:
     - story_2022_046
@@ -2578,7 +2522,7 @@ groups:
       tree routes through `CaseOwnerApprovesEmbargoResponse`, which is resolved to a
       SUCCESS-returning node under the DETERMINISTIC bundle.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EMB-15-002
 
     stories:
@@ -2612,11 +2556,8 @@ groups:
     - description: >-
         The counter arm runs only when WillingToCounterEmbargoProposal succeeds
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EMB-15-001
-    - rel_type: satisfies
-      spec_id: EMB-01-001
-      note: Counter reuses the EP proposal path
   - id: EMB-15-011
     priority: MUST_NOT
     kind: project
@@ -2699,16 +2640,14 @@ groups:
         gets a Reject of the Invite, recording DECLINED
     postconditions:
     - description: Overture rejected with the activity that matches it
-    relationships:
-    - rel_type: refines
-      spec_id: EMB-06-001
-      note: Flow A rejection reuses the ER emission path
-    - rel_type: refines
-      spec_id: CM-18-003
-      note: Flow B rejection advances PEC to DECLINED
     stories:
     - story_2026_087
     - story_2022_027
+    relationships:
+    - rel_type: uses_definition
+      spec_id: MSM-07-009
+    - rel_type: uses_definition
+      spec_id: MSM-07-004
   - id: EMB-15-009
     priority: MAY
     kind: protocol
@@ -2724,13 +2663,13 @@ groups:
       `test/core/services/embargo_lifecycle/test_answers.py`
       (`test_reject_embargo_invite_signatory_owner_rejecting_first_proposal_declines`)
       confirms the owner's Reject of an Invite declines only its own row.
-    relationships:
-    - rel_type: extends
-      spec_id: EMB-15-004
     adr:
     - ADR-0122
     stories:
     - story_2026_087
+    relationships:
+    - rel_type: uses_definition
+      spec_id: MSM-07-004
   - id: EMB-15-010
     priority: MUST
     kind: protocol
@@ -2745,7 +2684,7 @@ groups:
       (`test_the_factory_builds_each_refusal_in_place`) confirms the P/X/A refusal is a
       diversion that answers before the received tree's decision runs.
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: EMB-01-002
       note: Mandatory rejection when public/exploit/attacks overrides default-accept
     stories:
@@ -2878,15 +2817,6 @@ groups:
     adr:
     - ADR-0122
     - ADR-0152
-    relationships:
-    - rel_type: extends
-      spec_id: EMB-01-002
-      note: >-
-        EMB-01-002 guards against entering PROPOSED with P/X/A set;
-        this entry covers the symmetric case where P/X/A fires while already in PROPOSED
-    - rel_type: refines
-      spec_id: EMB-06-001
-      note: ER emission semantics apply; EM returns to NONE
     stories:
     - story_2022_080
     - story_2022_023
@@ -2994,9 +2924,9 @@ groups:
       queued or committed and EM is unchanged, and that after the
       CASE_MANAGER's abandonment no Participant's consent moved.
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: EMB-16-001
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: EP-09-008
     adr:
     - ADR-0113
@@ -3020,7 +2950,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: EMB-16-002
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: EP-09-008
     adr:
     - ADR-0113
@@ -3063,9 +2993,6 @@ groups:
     - description: >-
         The Accept is not refused on deadline grounds; one of EMB-17-002,
         EMB-17-003, or EMB-17-004 has been applied
-    relationships:
-    - rel_type: depends_on
-      spec_id: CM-28-003
     adr:
     - ADR-0065
     stories:
@@ -3101,6 +3028,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: EMB-17-001
+    - rel_type: uses_definition
+      spec_id: MSM-07-003
     adr:
     - ADR-0065
     stories:
@@ -3160,8 +3089,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EMB-17-001
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: MSM-07-003
+    - rel_type: uses_definition
+      spec_id: CM-18-003
     adr:
     - ADR-0065
     - ADR-0118
@@ -3224,8 +3155,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EMB-17-001
-    - rel_type: depends_on
-      spec_id: CM-28-013
+    - rel_type: uses_definition
+      spec_id: EP-08-002
+    - rel_type: uses_definition
+      spec_id: EP-09-002
     adr:
     - ADR-0065
     - ADR-0118
@@ -3253,8 +3186,10 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: EMB-17-003
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: CM-28-013
+    - rel_type: refines
+      spec_id: SYNC-09-002
     adr:
     - ADR-0152
     stories:
@@ -3297,7 +3232,7 @@ groups:
       to terms they never saw. An Accept of an open proposal is not stale: the case
       can still record it on that proposal's own row (EMB-17-002). See ADR-0065.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EMB-17-003
     adr:
     - ADR-0065
@@ -3314,7 +3249,7 @@ groups:
       Rejecting a willing participant discards coordination capacity; re-inviting
       to the current terms is the correct response. See ADR-0065.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EMB-17-003
     adr:
     - ADR-0065
@@ -3369,11 +3304,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EMB-17-001
-    - rel_type: extends
-      spec_id: EMB-13-002
-      note: >-
-        EMB-13-002 covers the P/X/A case; this entry covers an Accept arriving
-        after EM EXITED when CS is not yet P/X/A
     adr:
     - ADR-0065
     - ADR-0118
@@ -3465,7 +3395,7 @@ groups:
       There is no active embargo to invite the actor to; a fresh invitation would
       manufacture a negotiation nobody requested. See ADR-0065.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: EMB-17-004
     adr:
     - ADR-0065
@@ -3483,7 +3413,7 @@ groups:
       Case participation is independent of embargo consent; the actor's
       willingness to coordinate must not result in their removal. See ADR-0065.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: EMB-17-004
     adr:
     - ADR-0065
@@ -3523,10 +3453,10 @@ groups:
         in the CASE_MANAGER's store, and the accepter's AGREED row is copied
         from it in every replica's store
     relationships:
+    - rel_type: extends
+      spec_id: EMB-17-002
     - rel_type: refines
-      spec_id: EMB-17-001
-    - rel_type: depends_on
-      spec_id: RSH-08-004
+      spec_id: CLP-07-011
     adr:
     - ADR-0118
     - ADR-0152
@@ -3552,6 +3482,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: EMB-17-009
+    - rel_type: refines
+      spec_id: CLP-07-002
     adr:
     - ADR-0152
     stories:
@@ -3591,9 +3523,6 @@ groups:
     adr:
     - ADR-0122
     - ADR-0124
-    relationships:
-    - rel_type: refines
-      spec_id: SM-04-001
   - id: EMB-18-008
     priority: MUST_NOT
     kind: architecture
@@ -3607,7 +3536,7 @@ groups:
       the PEC cascade, and the shared starting-state and EM checks. The EM value the
       register derives also overwrites a status EM that a path assigns directly.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: EMB-18-001
     adr:
     - ADR-0122
@@ -3624,7 +3553,7 @@ groups:
       correct pattern is to go through EmbargoLifecycle (EMB-18-001), which fails closed
       in STRICT mode.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EMB-18-001
   - id: EMB-18-009
     priority: MUST
@@ -3666,12 +3595,8 @@ groups:
       reference the store lacks is refused rather than saved.
     testable: true
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EMB-18-001
-    - rel_type: constrains
-      spec_id: EP-05-001
-    - rel_type: depends_on
-      spec_id: AKM-05-003
   - id: EMB-18-010
     priority: MUST
     kind: architecture
@@ -3691,7 +3616,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: EMB-18-003
-    - rel_type: constrains
+    - rel_type: implements
       spec_id: EP-05-001
   - id: EMB-18-011
     priority: MUST
@@ -3734,10 +3659,12 @@ groups:
       CASE_MANAGER fetches nothing.
     testable: true
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: EMB-18-003
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: AKM-05-007
+    - rel_type: refines
+      spec_id: AKM-05-010
     adr:
     - ADR-0107
     stories:
@@ -3778,8 +3705,8 @@ groups:
     - story_2026_082
     testable: true
     relationships:
-    - rel_type: refines
-      spec_id: EMB-18-003
+    - rel_type: uses_definition
+      spec_id: EP-04-009
   - id: EMB-18-012
     priority: MUST
     kind: protocol
@@ -3834,7 +3761,7 @@ groups:
     - story_2026_086
     testable: true
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EMB-18-001
   - id: EMB-18-006
     priority: MUST
@@ -3855,7 +3782,7 @@ groups:
     - ADR-0130
     testable: true
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: EMB-18-005
   - id: EMB-18-013
     priority: MUST
@@ -3927,11 +3854,6 @@ groups:
       (CLP-10-013, BT-17-008); a participant replica tears down its own copy and announces nothing. The
       ledger entry therefore already exists when the announce is queued, and a self-addressed copy would
       loop an activity back to the actor that just emitted it for no additional record.
-    relationships:
-    - rel_type: refines
-      spec_id: BT-05-006
-    - rel_type: refines
-      spec_id: CLP-10-001
     verification: >-
       `test/core/behaviors/embargo/test_announce_teardown_tree.py` asserts the announce
       is authored by the CASE_MANAGER, and, with each actor in its own store, that a participant
@@ -4004,7 +3926,7 @@ groups:
       only adds a queue entry that can never be resolved. Skipping keeps the teardown itself unaffected,
       consistent with the announcement being best-effort — a notification gap MUST NOT block a teardown.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EMB-19-001
     stories:
     - story_2026_075
