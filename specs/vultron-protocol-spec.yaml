@@ -2817,10 +2817,10 @@ groups:
       activity. Direct peer-to-peer delivery bypasses the ledger and the broadcast
       idempotency controls.
     verification: >-
-      Integration tests in `test/demo/test_sync_ledger_replication.py` confirm
-      that every accepted participant message produces a CaseLedgerEntry and an
-      `Announce(CaseLedgerEntry)` broadcast before delivery to other
-      participants.
+      `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_commits_log_entry_when_sync_port_provided`
+      confirms that a note a participant sends to the CASE_MANAGER is committed
+      as a CaseLedgerEntry and broadcast to the participants in an `Announce`
+      of that entry.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
@@ -2852,9 +2852,10 @@ groups:
       Mediation through the CASE_MANAGER ensures all case activity is ledger-ordered
       and consistently broadcast to all participants.
     verification: >-
-      Integration tests in `test/demo/test_sync_ledger_replication.py` confirm
-      that no participant receives a case-state update before the CASE_MANAGER has
-      committed the corresponding CaseLedgerEntry.
+      `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_commits_log_entry_when_sync_port_provided`
+      confirms that a participant's note is committed as a CaseLedgerEntry and
+      that the `Announce` fanned out to the participants carries that committed
+      entry.
     relationships:
     - rel_type: refines
       spec_id: VP-18-001

@@ -812,6 +812,8 @@ class TestNoteUseCases:
 
     @pytest.mark.spec("PCR-08-013")
     @pytest.mark.spec("PCR-08-003")
+    @pytest.mark.spec("VP-18-001")
+    @pytest.mark.spec("VP-18-003")
     def test_add_note_commits_log_entry_when_sync_port_provided(
         self, make_payload
     ):
