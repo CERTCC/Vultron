@@ -11,7 +11,7 @@ exactly as the production ``TriggerActivityAdapter.validate_report()`` does — 
 (``self._dl.create(activity)``).
 
 The DataLayer dehydrates ``as_ObjectRef``-typed fields (``object_``) to a bare ID
-string on store (``vultron/adapters/driven/db_record.py::_dehydrate_data``). When
+string on store (``vultron/adapters/driven/db_record/codec.py::_dehydrate_data``). When
 the activity was read back for delivery (the pre-#2655 outbox path; delivery now
 relays the sealed body instead), ``_rehydrate_fields`` tried to resolve that ID
 via ``dl.read(offer_id)``. In the

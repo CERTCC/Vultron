@@ -133,7 +133,7 @@ def _opening(
     with (
         patch.object(story_cast, "reset_datalayer", recorder.reset_datalayer),
         patch(
-            "vultron.demo.helpers.seeding.seed_case_actor_identity",
+            "vultron.demo.helpers.seeding.reset.seed_case_actor_identity",
             recorder.seed_case_actor_identity,
         ),
         patch.object(
@@ -307,7 +307,7 @@ class TestOpenStoryCast:
         burying the one real cause (EDF-06-005).
         """
         seats = _seats(*_SEATS)
-        from vultron.demo import utils
+        from vultron.demo.utils.failures import _demo_failures
 
         with (
             _opening(None) as recorder,
@@ -334,11 +334,9 @@ class TestOpenStoryCast:
                 "the stop must name the containers whose seeding failed, so a"
                 f" reader knows where to look; it named {message!r}"
             )
-        assert any(
-            "container unreachable" in f for f in utils._demo_failures
-        ), (
+        assert any("container unreachable" in f for f in _demo_failures), (
             "the real cause must still be in the accumulator, recorded by the"
-            f" seeding's own demo_step; it holds {utils._demo_failures!r}"
+            f" seeding's own demo_step; it holds {_demo_failures!r}"
         )
 
     @pytest.mark.parametrize("extra", [-1, 1])

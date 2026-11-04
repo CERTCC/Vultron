@@ -2243,7 +2243,11 @@ class TestInviteDispositions:
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason is not None and "unknown case" in result.reason
+        # The reply's type declares the manager path alone, so a store that
+        # holds no replica of the case is refused at the path stage, with the
+        # reason composed from the resolved path (HP-01-039).
+        assert result.reason is not None
+        assert "holds no replica of case" in result.reason
 
     @pytest.mark.spec("CM-11-018")
     def test_reject_invite_at_case_manager_refused_when_no_inert_record(
@@ -2383,7 +2387,11 @@ class TestInviteDispositions:
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason is not None and "unknown case" in result.reason
+        # The reply's type declares the manager path alone, so a store that
+        # holds no replica of the case is refused at the path stage, with the
+        # reason composed from the resolved path (HP-01-039).
+        assert result.reason is not None
+        assert "holds no replica of case" in result.reason
 
     @pytest.mark.spec("CM-11-052")
     @pytest.mark.spec("CM-11-021")

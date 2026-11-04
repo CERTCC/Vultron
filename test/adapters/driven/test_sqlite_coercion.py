@@ -507,7 +507,7 @@ class TestCollapseByReferenceFields:
 
     @staticmethod
     def _collapse(obj: object, semantics: str) -> object:
-        from vultron.adapters.driven.datalayer_sqlite.hydration import (
+        from vultron.adapters.driven.datalayer_sqlite.hydration.coercion import (
             _collapse_by_reference_fields,
         )
         from vultron.core.models.events import MessageSemantics

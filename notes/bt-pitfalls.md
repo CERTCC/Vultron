@@ -8,8 +8,7 @@ description: >
   the BTBridge exception-handler contract, idempotency patterns,
   memory=False partial-write behavior and the ActTransaction remedy, key
   namespacing, refusal-arm
-  fail-closed rules, and the received-tree CASE_MANAGER gate and declared
-  path branches.
+  fail-closed rules, and the received-tree CASE_MANAGER gate.
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/behavior-tree-node-design.yaml
@@ -17,7 +16,6 @@ related_specs:
   - specs/case-management.yaml
   - specs/case-proposal.yaml
   - specs/code-style.yaml
-  - specs/handler-protocol.yaml
   - specs/received-status-handling.yaml
   - specs/participant-case-replica.yaml
 related_notes:
@@ -243,6 +241,35 @@ the value it snapshotted. The general test for "may this key stay un-restored?"
 is whether any **node** re-reads it, and when. Guards:
 `test_an_inner_actor_id_does_not_clobber_the_outer_one` and
 `test_a_later_sibling_reads_its_own_trees_actor` in `test_bridge.py`.
+
+### A Key Written as an Output Port Is Not `context_data`, So Name It Explicitly
+
+`managed_keys` picks up every `context_data` key automatically, so a key a use
+case *passes in* is scoped for free. A key a **node publishes through an output
+port** is not `context_data` and gets no entry, so its value outlives the
+execution that wrote it. Ask of any shared port key: does a node write it, and
+does another execution read it? If both, it belongs in the fixed `managed_keys`
+list.
+
+`case_id` is the worked example. Six nodes declare it as an output port
+(`CaseLookupNode`, the two `proposal_case_resolution` resolvers, the replay node
+and the case-creation nodes), while `ReceivedPathNode` and
+`CheckIsCaseManagerNode` both fall back to `/case_id` after their constructor
+argument and before the activity (`activity_case_id`). An unscoped `/case_id`
+therefore let one delivery's case decide a *later* delivery's path: a
+`Read(Offer(VulnerabilityReport))`, whose tree names no case and declares the
+no-case path alone, resolved a leaked case the reporter held a replica of and
+was refused at the path stage as a replica of a case it never named
+(RMB-08-003, HP-01-040). In a single-process run — every demo, every in-process
+integration test — the writer can be a *different actor's* execution, so the
+leak crosses the actor isolation BT-09 asks for. Guards:
+`test_execute_with_setup_does_not_leak_a_published_case_id` and
+`test_execute_with_setup_restores_a_preexisting_case_id` in `test_bridge.py`.
+
+The fix is the key's lifetime, never the reader: widening the declaration of the
+tree that tripped over it would have masked the leak and left
+`AddCaseStatusToCaseBT`, which passes `case_id or None` and declares the replica
+path, able to *admit* a status on a leaked case's replica path.
 
 ### Every Classifying Exception Handler Is One Helper
 
@@ -521,22 +548,18 @@ Rules for the arm:
 gate; hand-wrapping each tree let new trees leave it out. A received-tree module
 never calls `create_case_manager_gated_tree` itself.
 
-- **Three effect kinds.** `replica_effects` run on every replica, ungated;
-  `participant_path_effects` run in the declared participant-replica path branch
-  the factory builds from the path stage's answer (HP-01-038, HP-01-042);
+- **Two effect kinds.** `replica_effects` run on every replica, ungated;
   `manager_effects` are wrapped in a `CaseManagerGate` on `manager_case_id`
   (separate from the commit's `case_id`, which may be `None`). Stage order:
-  intake → guards → commit → `replica_effects` → `participant_path_effects`
-  → `manager_effects`. `manager_gate_name`, `manager_body_name` and
-  `manager_case_may_be_absent` configure the gate;
-  `participant_path_branch_name` and `participant_path_body_name` the branch.
+  intake → guards → commit → `replica_effects` → `manager_effects`.
+  `manager_gate_name`, `manager_body_name` and `manager_case_may_be_absent`
+  configure the gate.
 - **Emit-capable nodes carry `EmitCapable`** (`vultron/core/behaviors/emit_capable.py`).
   The factory raises `VultronWiringError` when a marked node sits in
-  `replica_effects` outside every `CaseManagerGate` and every
-  `ReceivedPathBranch`, without a covering exemption. Only
-  `create_case_manager_gated_tree` builds a `CaseManagerGate` and only
-  `received_path_branch()` a `ReceivedPathBranch`; the hand-built
-  participant-replica gate counts as neither.
+  `replica_effects` outside every `CaseManagerGate` without a covering exemption.
+  Only `create_case_manager_gated_tree` builds a `CaseManagerGate`; neither the
+  participant-replica gate nor a `PathBranch` off the manager path counts, since
+  both run at a replica.
 - **Ledger replication carries no marker.** Senders through `SyncActivityPort` or
   `create_commit_log_entry_tree` are gated by ledger authority
   (`DeclineForeignLedgerCommitNode`, ADR-0073) and pinned in
@@ -546,19 +569,7 @@ never calls `create_case_manager_gated_tree` itself.
   reason and `covers`; the factory refuses an unregistered exemption, an ungated
   emitter outside `covers`, and an exemption covering nothing (stale). A
   migration-only exemption names the issue that deletes it. A sender check is no
-  substitute: it says nothing about whether this replica owns the case. An emit
-  inside a declared path branch needs none of this: the path names the actor the
-  emit speaks for, which is BT-17-008's other admitted guard (HP-01-042). An
-  exemption is for an emit a tree makes on *every* path it declares.
-- **The state-write walk is not weakened the same way.** `ungated_nodes` takes
-  the composites to skip: `ungated_emitters` skips a `ReceivedPathBranch`, the
-  `StateWriteCapable` walk does not, because a participant-replica branch is
-  exactly where RSH-08-003's one exception lives. What *does* excuse a write is
-  a declaration naming the CASE_MANAGER path alone — the stage refused every
-  other receiver, so the tree is gated whole, and
-  `MANAGER_ONLY_DECLARATION_EXEMPTIONS` in
-  `test_received_tree_state_writes_are_gated.py` pins which trees that covers
-  rather than skipping them silently.
+  substitute: it says nothing about whether this replica owns the case.
 - **Refusal effects are gated too**: `refusal_effects` run only when a guard
   refuses, inside `{name}RefusalIfCaseManager` with `case_may_be_absent=True`
   (CLP-10-022); see [bt-integration.md](bt-integration.md) § "The Four
@@ -574,10 +585,8 @@ never calls `create_case_manager_gated_tree` itself.
   pinned in `GATE_CALLERS_OUTSIDE_RECEIVED_TREES`.
 - **State writes carry `StateWriteCapable`** (RSH-08-003), checked on the built
   tree by `test/architecture/test_received_tree_state_writes_are_gated.py`: a
-  marked node outside every `CaseManagerGate` must be in one of two pinned
-  sets — `REPLICA_STATE_WRITES`, or `MANAGER_ONLY_DECLARATION_EXEMPTIONS` when
-  its tree's declaration gates it whole (see the bullet above, HP-01-042).
-  A class reaching a state-write seam (`dl.save`,
+  marked node outside every `CaseManagerGate` must be in the pinned
+  `REPLICA_STATE_WRITES` set. A class reaching a state-write seam (`dl.save`,
   `EmbargoLifecycle`, `apply_pec_transition`, directly or via a helper) carries the
   marker or is pinned in `WRITES_NO_CASE_STATE` with its reason; a leaf that
   builds and ticks a writer itself (`RMClosureWriter`) carries the marker, since

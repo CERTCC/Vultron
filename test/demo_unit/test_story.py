@@ -50,7 +50,11 @@ from vultron.demo.helpers.story import (
     story,
 )
 from vultron.demo.scenario import registry
-from vultron.demo.scenario.registry import ScenarioSpec, scenario
+from vultron.demo.scenario.registry import (
+    ScenarioSpec,
+    discovery as registry_discovery,
+    scenario,
+)
 from vultron.demo.scenario.tree import build_scenario_tree
 from vultron.demo.utils import demo_failures, demo_step, reset_demo_failures
 from vultron.errors import (
@@ -949,8 +953,10 @@ def _register_fixture(
     story_obj: Story,
 ) -> ScenarioSpec:
     """Register a fixture scenario in an isolated copy of the registry."""
-    monkeypatch.setattr(registry, "_REGISTRY", dict(registry._REGISTRY))
-    registry._REGISTRY.pop(name, None)
+    monkeypatch.setattr(
+        registry_discovery, "_REGISTRY", dict(registry_discovery._REGISTRY)
+    )
+    registry_discovery._REGISTRY.pop(name, None)
     decorate = scenario(
         name=name,
         label=name.upper(),
@@ -965,7 +971,7 @@ def _register_fixture(
 
     fixture_main.__module__ = "test.demo_unit.test_story"
     decorate(fixture_main)
-    return registry._REGISTRY[name]
+    return registry_discovery._REGISTRY[name]
 
 
 class TestRegisteringAStory:

@@ -257,7 +257,7 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         # it reads leniently instead of via Regime 1 _require_case. Authority is
         # still resolved role-based via resolve_case_manager_id (ADR-0088).
         (
-            "vultron/core/behaviors/sender_entitlement.py",
+            "vultron/core/behaviors/sender_entitlement/case_manager.py",
             "SenderIsCaseManagerNode.update",
         ),
         # lenient — sender-verification gate: a reply to an ownership-transfer
@@ -266,7 +266,7 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         # sender, logged at warning, not a Regime 1 local anomaly logged at
         # error (CM-21-011, CM-21-015, CM-33-005).
         (
-            "vultron/core/behaviors/sender_entitlement.py",
+            "vultron/core/behaviors/sender_entitlement/addressee.py",
             "_case_and_manager",
         ),
         # LEN — post-RM-close PEC step in Reject-Invite effects. By the time

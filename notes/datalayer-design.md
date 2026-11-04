@@ -88,7 +88,7 @@ leaving `status.rm.state` at its default.
   write-side normalisation gate back.
 - **Reads project.** `ValidationError` is the shape-mismatch signal that drives
   the read-side fallback in
-  `vultron/adapters/driven/datalayer_sqlite/hydration.py`
+  `vultron/adapters/driven/datalayer_sqlite/hydration/row_types.py`
   (`project_wire_row_to_core`), so a wire-shaped row still reads back as core.
   When that projection also fails, `dl.read()` logs a WARNING and returns the
   **wire** object (see "A DataLayer Fallback Is a Smell" below).
@@ -160,7 +160,7 @@ delivery happened to store the value: a hidden dependency on delivery order.
 The smell does not apply when the message's copy is not authoritative. A field
 that grants standing is read from the receiver's record of what it sent, never
 from the copy the sender embeds. In `create_accept_invite_actor_to_case_tree`,
-`SenderIsInviteeNode` (`vultron/core/behaviors/sender_entitlement.py`) checks the
+`SenderIsInviteeNode` (`vultron/core/behaviors/sender_entitlement/`) checks the
 sender against the Invite the CASE_MANAGER recorded, and the invitee's roles come
 from the participant record written when that Invite was sent. Taking them from
 the copy inside the invitee's `Accept` lets any sender choose its own
@@ -184,7 +184,7 @@ message-subject-identity rule in
 ## Received Activity Artifacts: Inline Sub-Field Snapshots Are Intentional
 
 A received Activity is an **artifact**: `_dehydrate_data` in
-`vultron/adapters/driven/db_record.py` deliberately does NOT recursively
+`vultron/adapters/driven/db_record/codec.py` deliberately does NOT recursively
 dehydrate the sub-fields of an inline Activity object. When `Accept` stores an
 inline `Offer`, the `Offer`'s own `object_`, `target`, etc. stay a snapshot of
 what they contained at receipt time. Do not change this, for two reasons:

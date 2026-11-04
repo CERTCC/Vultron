@@ -51,6 +51,7 @@ from vultron.demo.utils import (
     demo_step,
     reset_demo_failures,
 )
+from vultron.demo.utils.failures import _demo_failures
 from vultron.errors import DemoFailureError
 
 
@@ -114,7 +115,7 @@ def test_demo_step_swallow_does_not_leave_result_unbound(monkeypatch):
     assert result is None
 
     # The swallowed failure must be recorded and surface via assert_demo_success().
-    assert demo_utils._demo_failures, (
+    assert _demo_failures, (
         "demo_step should have recorded the swallowed trigger failure on "
         "_demo_failures"
     )

@@ -12,21 +12,18 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Where the embargo received trees put their factory-owned branches.
 
-The factory runs ``manager_effects`` last, after the declared
-participant-replica branch it builds from ``participant_path_effects``
-(BT-17-008, HP-01-038).  These pin what that means for the embargo trees
-that had work after their gate: the Invite tree writes its proposal index at
-the end of whichever arm runs, and the Add tree's admission backfill is its
-gate.
+The factory runs ``manager_effects`` last, after the ``replica_effects`` and
+the declared path branches it builds among them (BT-17-008, HP-01-038).
+These pin what that means for the embargo trees that had work after their
+gate: the Invite tree writes its proposal index at the end of whichever arm
+runs, and the Add tree's admission backfill is its gate.
 """
 
 import py_trees
 import pytest
 
-from vultron.core.behaviors.case.nodes.received_path import (
-    ReceivedPath,
-    ReceivedPathBranch,
-)
+from vultron.core.behaviors.case.nodes.path_branch import PathBranch
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.case.nodes.stub_reissue import (
     ReissueStubInvitesNode,
@@ -91,9 +88,9 @@ def test_invite_tree_replica_arm_is_a_declared_path_branch() -> None:
     (arm,) = [
         c for c in received_stages(tree) if c.name == "AnswerInviteOnReplica"
     ]
-    assert isinstance(arm, ReceivedPathBranch)
-    assert arm.branch_path is ReceivedPath.PARTICIPANT_REPLICA
-    body = arm.branch_body
+    assert isinstance(arm, PathBranch)
+    assert arm.paths == frozenset({ReceivedPath.PARTICIPANT_REPLICA})
+    body = arm.branch
     assert body.name == "AnswerInviteOnReplicaBody"
     assert isinstance(body.children[-1], IndexReceivedEmbargoProposalNode)
 

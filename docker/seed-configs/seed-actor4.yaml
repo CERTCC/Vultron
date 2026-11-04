@@ -1,6 +1,6 @@
 # Manual seed configuration for the actor4 container of the fixed demo
 # cast (DEMOCI-11-020).  Used by `vultron-demo seed`; the demo-runner
-# seeds the same actors programmatically (vultron/demo/helpers/seeding.py).
+# seeds the same actors programmatically (vultron/demo/helpers/seeding/).
 #
 # Cast slot 4: a character actor.  Its CVD role comes from the act that
 # seats it, so neither its name nor its id names one (DEMOCI-11-021).

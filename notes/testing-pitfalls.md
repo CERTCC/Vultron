@@ -100,8 +100,8 @@ with `worker 'gwN' crashed while running <test>`;
 `test/test_xdist_worker_crash.py` pins it. Two things killed workers: OOM kills,
 and the old `thread` timeout method (§ "Per-Test Timeout Guardrail"). Every local
 gate command also runs under `timeout -k 30 1800` (`GATE_CEILING` in
-`vultron/metadata/planning/targeted_tests.py`), so any hang still left ends with
-exit 124. The run-tests skill's table tells the three outcomes apart.
+`vultron/metadata/planning/targeted_tests/selection.py`), so any hang still left
+ends with exit 124. The run-tests skill's table tells the three outcomes apart.
 
 ### Per-Test Timeout Guardrail
 

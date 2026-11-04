@@ -32,11 +32,11 @@ from vultron.core.behaviors.case.nodes.intake import (
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
-from vultron.core.behaviors.case.nodes.received_path import (
-    PathScopedGuard,
-    ReceivedPathNode,
-    received_path_branch,
+from vultron.core.behaviors.case.nodes.path_branch import (
+    OnPaths,
+    resolve_path_branches,
 )
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPathNode
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
     RefusalEffectsBestEffort,
@@ -143,7 +143,8 @@ def case_manager_commit_types() -> tuple[type, ...]:
 
     ``CreateLogEntryNode`` commits an entry it mints in-tree, and
     ``_CommitCaseManagerActivityBase`` one activity it builds and commits;
-    neither belongs in a ``RECEIVER`` diversion (CLP-10-026).
+    neither belongs in the diversion of a tree that declares a non-manager
+    path (CLP-10-026).
     """
     return (CreateLogEntryNode, _CommitCaseManagerActivityBase)
 
@@ -151,30 +152,31 @@ def case_manager_commit_types() -> tuple[type, ...]:
 def diversion_stage(
     name: str,
     diversion: Diversion,
-    path_stage: ReceivedPathNode | None,
     case_id: str | None,
+    path_stage: ReceivedPathNode | None,
 ) -> DiversionStage:
     """Build the stage for one :class:`Diversion` (CLP-10-026).
 
-    Where the diversion may run is the tree's path declaration, read off
-    *path_stage* (HP-01-038): a tree that declares the manager path alone
-    runs it only at the case's CASE_MANAGER, which the path stage has
-    already established, so the diversion needs no gate of its own and may
-    commit its own entry.  A tree that also declares a non-manager path runs
-    it wherever the door guards admitted the copy, so it is the receiver's
-    own answer: its emits must be covered by its registered exemption and it
-    may write no case state (BT-17-008, RSH-08-003).
+    Where the diversion may run is read off the tree's path declaration and
+    nowhere else (HP-01-038, ADR-0153): a tree declaring the manager path
+    alone has already refused every other receiver at the path stage, so its
+    diversion needs no gate of its own and may commit its own
+    CASE_MANAGER-authored entry (BT-17-001).  A tree that also declares a
+    non-manager path runs the diversion wherever the door guards admitted the
+    copy, so it is the receiver's own answer: its emits must be covered by its
+    registered exemption and it may write no case state (BT-17-008,
+    RSH-08-003).
 
     Raises:
         VultronWiringError: the tree declared no paths, so nothing says where
-            the diversion runs; a manager-only tree names no case, so the
-            stage would resolve one at run time and the diversion could commit
-            against whatever case the activity named; the condition emits,
-            writes state or commits; an effect holds the received activity's
-            commit, which a diverted delivery never makes; a manager-only
-            tree's diversion carries an emit exemption it no longer needs; or a
-            diversion a non-manager receiver may reach writes case state,
-            commits an entry, or has an uncovered emit.
+            the diversion runs; a manager-only tree names no case, so a
+            diversion that commits would commit against whatever case the
+            activity named; the condition emits, writes state or commits; an
+            effect holds the received activity's commit, which a diverted
+            delivery never makes; a manager-only tree's diversion carries an
+            emit exemption it no longer needs; or a diversion a non-manager
+            receiver may reach writes case state, commits an entry, or has an
+            uncovered emit.
     """
     where = f"create_receive_activity_tree({name}): diversion {diversion.name}"
     if path_stage is None:
@@ -229,65 +231,26 @@ def diversion_stage(
     return DiversionStage(diversion.name, diversion.condition, body)
 
 
-def path_scoped_guard_stage(
-    name: str, scoped: PathScopedGuard, path_stage: ReceivedPathNode | None
-) -> py_trees.behaviour.Behaviour:
-    """Build the branch for one :class:`PathScopedGuard` (HP-01-038).
-
-    Raises:
-        VultronWiringError: the tree declared no paths, or its declaration
-            omits the guard's path — a guard scoped to a path the type does
-            not handle could never run.
-    """
-    where = (
-        f"create_receive_activity_tree({name}): path-scoped guard"
-        f" {scoped.guard.name}"
-    )
-    if path_stage is None:
-        raise VultronWiringError(
-            f"{where}: a path-scoped guard reads the path stage's answer;"
-            " declare the tree's paths with the factory's paths argument"
-            " (HP-01-038, ADR-0153)"
-        )
-    if scoped.path not in path_stage.declared:
-        raise VultronWiringError(
-            f"{where}: the guard is scoped to the {scoped.path.value} path,"
-            " which this tree does not declare"
-            f" ({sorted(p.value for p in path_stage.declared)})"
-            " (HP-01-038)"
-        )
-    label = scoped.path.name.title().replace("_", "")
-    return received_path_branch(
-        name=scoped.name or f"{scoped.guard.name}IfOn{label}",
-        stage=path_stage,
-        path=scoped.path,
-        children=[scoped.guard],
-    )
-
-
 def precondition_guard_nodes(
     name: str,
-    guards: Sequence[
-        py_trees.behaviour.Behaviour | Diversion | PathScopedGuard
-    ],
-    path_stage: ReceivedPathNode | None,
+    guards: Sequence[py_trees.behaviour.Behaviour | Diversion | OnPaths],
     case_id: str | None,
+    path_stage: ReceivedPathNode | None,
 ) -> list[py_trees.behaviour.Behaviour]:
-    """The tree's precondition guards, each declaration built in place.
-
-    A :class:`Diversion` becomes its stage and a :class:`PathScopedGuard`
-    its branch, each at the position the tree gave it, so the guard order
-    the tree declared is the order it runs in.
+    """The tree's guards, each :class:`Diversion` and :class:`OnPaths` in place.
 
     A diverted delivery is answered by its diversion, so the refusal stage
-    that wraps these guards runs no refusal effect for it (CLP-10-070).
+    that wraps these guards runs no refusal effect for it (CLP-10-070).  A
+    guard declared on some of the tree's paths becomes a path branch reading
+    the stage's answer, in the order the tree listed it (HP-01-038).
     """
-    built: list[py_trees.behaviour.Behaviour] = []
-    for guard in guards:
-        if isinstance(guard, Diversion):
-            built.append(diversion_stage(name, guard, path_stage, case_id))
-        elif isinstance(guard, PathScopedGuard):
-            built.append(path_scoped_guard_stage(name, guard, path_stage))
-        else:
-            built.append(guard)
-    return built
+    return resolve_path_branches(
+        f"create_receive_activity_tree({name})",
+        [
+            diversion_stage(name, guard, case_id, path_stage)
+            if isinstance(guard, Diversion)
+            else guard
+            for guard in guards
+        ],
+        path_stage,
+    )

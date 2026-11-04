@@ -47,6 +47,7 @@ from vultron.primitives import NonEmptyString
 
 __all__ = [
     "CASE_PROPOSAL",
+    "EMBARGO_INVITE_ANSWER",
     "EMBARGO_INVITE_FAULT",
     "EMBARGO_INVITE_REFUSAL",
     "OFFER_ROLE",
@@ -109,6 +110,24 @@ CASE_PROPOSAL: Final = ReplicaEmitExemption(
             "EmitRejectCaseProposalNode",
             "RelayCreationTimeRevisionNode",
         }
+    ),
+)
+
+EMBARGO_INVITE_ANSWER: Final = ReplicaEmitExemption(
+    name="embargo-invite-answer",
+    reason=(
+        "Invite(EmbargoEvent) is answered by its addressee: the Accept or"
+        " Reject runs in the tree's OnPaths.off_case_manager branch, only"
+        " when the executing"
+        " actor is the Invite's sole addressee, and is that actor's own"
+        " answer addressed to the CASE_MANAGER (EP-09-003, EP-09-010,"
+        " PCR-08).  When the addressee is the case owner its answer is its"
+        " decision for the case, Accept/Reject(EmbargoEvent)[target=VulnerabilityCase]"
+        " (SendOwnerEmbargoDecisionNode, ADR-0122), likewise addressed to the"
+        " CASE_MANAGER."
+    ),
+    covers=frozenset(
+        {"SendEmbargoInviteAnswerNode", "SendOwnerEmbargoDecisionNode"}
     ),
 )
 
@@ -185,10 +204,6 @@ REPORTER_INTRODUCTION: Final = ReplicaEmitExemption(
 #: outside the gate.  ``case-status`` was retired by #4851: add_case_status
 #: now runs only at a participant replica, from the CASE_MANAGER (RSH-04-005),
 #: and has no effects to exempt, so its threat-ask went with its teardown.
-#: ``embargo-invite-answer`` was retired by #5042: the Invite tree's answer
-#: arm became the declared participant-replica path branch the factory
-#: builds, which is the structural guard BT-17-008 asks for, so the arm's
-#: emits need no recorded exemption (HP-01-038).
 REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
     MappingProxyType(
         {
@@ -196,6 +211,7 @@ REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
             for exemption in (
                 OFFER_ROLE,
                 CASE_PROPOSAL,
+                EMBARGO_INVITE_ANSWER,
                 EMBARGO_INVITE_FAULT,
                 EMBARGO_INVITE_REFUSAL,
                 REPORT_CASE_PROPOSAL,

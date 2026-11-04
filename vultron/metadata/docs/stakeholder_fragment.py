@@ -32,7 +32,7 @@ def render_fragment() -> str:
     missing = [key for key in keys if key not in AUDIENCE_DESCRIPTIONS]
     if missing:
         raise ValueError(
-            "AUDIENCE_DESCRIPTIONS in vultron/metadata/docs/page_schema.py has "
+            "AUDIENCE_DESCRIPTIONS in vultron/metadata/docs/page_schema/frontmatter.py has "
             f"no entry for {', '.join(missing)}; describe every stakeholder "
             "type before regenerating the fragment (DF-11-011)"
         )
@@ -42,7 +42,7 @@ def render_fragment() -> str:
         for key in keys
     ]
     return (
-        "<!-- GENERATED from vultron/metadata/docs/page_schema.py by "
+        "<!-- GENERATED from vultron/metadata/docs/page_schema/frontmatter.py by "
         f"`{WRITE_COMMAND}` — do not edit (DF-11-011) -->\n\n"
         "| Stakeholder type | Who it is | What they want |\n"
         "|---|---|---|\n" + "\n".join(rows) + "\n"

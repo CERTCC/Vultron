@@ -467,44 +467,13 @@ class TestNamedExemption:
             ReplicaEmitExemption(name="x", reason="", covers=frozenset())
 
 
-def _declared_branch(
-    child: py_trees.behaviour.Behaviour,
-) -> py_trees.behaviour.Behaviour:
-    """A factory-built participant-replica branch around *child*."""
-    from vultron.core.behaviors.case.nodes.received_path import (
-        ReceivedPath,
-        ReceivedPathNode,
-        received_path_branch,
-    )
-
-    return received_path_branch(
-        name="Branch",
-        stage=ReceivedPathNode(
-            declared=frozenset({ReceivedPath.PARTICIPANT_REPLICA})
-        ),
-        path=ReceivedPath.PARTICIPANT_REPLICA,
-        children=[child],
-    )
-
-
-@pytest.mark.spec("BT-17-008")
-@pytest.mark.spec("HP-01-042")
-def test_ungated_emitters_skips_the_manager_gate_and_a_declared_branch() -> (
-    None
-):
-    """An emit inside a declared branch is guarded by the branch alone.
-
-    The path names the actor the emit speaks for, which is BT-17-008's other
-    admitted guard, so the branch needs no named exemption (HP-01-042).
-    """
+def test_ungated_emitters_skips_only_the_case_manager_gate() -> None:
     inside = _Emitter("Inside")
-    branched = _Emitter("Branched")
     outside = _Emitter("Outside")
     roots: list[py_trees.behaviour.Behaviour] = [
         create_case_manager_gated_tree(
             name="Gate", case_id=CASE_ID, children=[inside]
         ),
-        _declared_branch(branched),
         py_trees.composites.Sequence(
             name="Plain", memory=False, children=[outside]
         ),
@@ -513,21 +482,12 @@ def test_ungated_emitters_skips_the_manager_gate_and_a_declared_branch() -> (
     assert ungated_emitters(roots) == [outside]
 
 
-@pytest.mark.spec("RSH-08-003")
-@pytest.mark.spec("HP-01-042")
 def test_ungated_nodes_walks_the_replica_gate_but_not_the_manager_gate() -> (
     None
 ):
-    """The RSH-08-003 walk: only the CASE_MANAGER gate hides a write.
-
-    Not the hand-built participant-replica gate, and not the factory's
-    declared branch either: that branch is exactly where RSH-08-003's one
-    exception lives, so it has to stay visible to the ratchet that pins it
-    (HP-01-042).
-    """
+    """The RSH-08-003 walk: only the CASE_MANAGER gate hides a write."""
     gated = _Writer("Gated")
     replica = _Writer("ReplicaOnly")
-    branched = _Writer("Branched")
     bare = _Writer("Bare")
     roots: list[py_trees.behaviour.Behaviour] = [
         create_case_manager_gated_tree(
@@ -536,17 +496,12 @@ def test_ungated_nodes_walks_the_replica_gate_but_not_the_manager_gate() -> (
         create_participant_replica_gated_tree(
             name="ReplicaGate", case_id=CASE_ID, children=[replica]
         ),
-        _declared_branch(branched),
         py_trees.composites.Sequence(
             name="Plain", memory=False, children=[bare, _Emitter()]
         ),
     ]
 
-    assert ungated_nodes(roots, StateWriteCapable) == [
-        replica,
-        branched,
-        bare,
-    ]
+    assert ungated_nodes(roots, StateWriteCapable) == [replica, bare]
 
 
 class TestRefusalEffects:

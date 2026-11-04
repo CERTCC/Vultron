@@ -27,7 +27,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
     mock_case,
     no_demo_banners,
@@ -51,6 +50,7 @@ from vultron.demo.helpers.story import Choose
 from vultron.demo.helpers.vendor_story import (
     opening as vendor_opening,
 )
+from vultron.demo.utils.failures import _demo_failures
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
@@ -60,7 +60,7 @@ pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 def _gate_failures() -> list[str]:
     """Every recorded gate failure, in order."""
-    return [f for f in demo_utils._demo_failures if "GATE FAILED" in f]
+    return [f for f in _demo_failures if "GATE FAILED" in f]
 
 
 @contextlib.contextmanager
@@ -215,7 +215,7 @@ class TestTheReporterTellsTheVendor:
         harness.follow_ledger.assert_called_once_with(
             state.case_actor_client, case.id_
         )
-        assert _gate_failures(), demo_utils._demo_failures
+        assert _gate_failures(), _demo_failures
 
     @pytest.mark.spec("DEMOCI-01-011")
     def test_the_roster_gate_holds_everything_that_presupposes_it(self):
@@ -247,7 +247,7 @@ class TestTheReporterTellsTheVendor:
         )
         with pytest.raises(DemoStoryError, match="roster the Vendor"):
             state.kept(family.THE_VENDORS_CASE)
-        assert _gate_failures(), demo_utils._demo_failures
+        assert _gate_failures(), _demo_failures
 
     @pytest.mark.spec("CLP-08-005")
     def test_the_reporter_holds_the_case_inside_the_same_gate(self):
@@ -317,7 +317,7 @@ class TestTheReporterTellsTheVendor:
         assert state.case is case
         with pytest.raises(DemoStoryError, match="roster the Vendor"):
             state.kept(family.THE_VENDORS_CASE)
-        assert _gate_failures(), demo_utils._demo_failures
+        assert _gate_failures(), _demo_failures
 
 
 # ---------------------------------------------------------------------------

@@ -118,7 +118,7 @@ writes and the emit in `proposal_admission_actions.py` (BTND-07-003).
 
 ## CaseActor Native Initialization (ADR-0041)
 
-On accept, `case_proposal_received_tree.py` creates the case, its participants, the
+On accept, `case_proposal_received_tree/` creates the case, its participants, the
 default embargo and the canonical ledger entries natively — no back-fill, no prologue.
 
 - The case's `attributed_to` is the proposer, the CASE_OWNER (CP-09-001); the
@@ -162,7 +162,7 @@ included, sets `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api
 identity `http://case-actor:7999/api/v2/actors/case-actor`.
 
 - **The demo runner seeds it.** Reset clears every node and no container seeds
-  itself, so `reset_containers` (`vultron/demo/helpers/seeding.py`) re-seeds the
+  itself, so `reset_containers` (`vultron/demo/helpers/seeding/reset.py`) re-seeds the
   identity via `seed_case_actor_identity` when given the `case_actor_client`;
   without it every proposal answers 404. Every `seed_containers*` call then gets
   the same client, so `seed_case_actor_peers` refills the CaseActor's address
@@ -287,7 +287,7 @@ already-declined answer, closed-case decline, admission decision, accept flow.
 
 After `validate-report`, the CaseActor creates the canonical case on its own. Find it
 with `wait_for_initialized_case(client, report.id_)`
-(`vultron/demo/helpers/polling.py`), which matches on the report
+(`vultron/demo/helpers/polling/case.py`), which matches on the report
 (`case_references_report`): the CaseActor's store holds many cases, so "first case
 with participants" can return another report's case.
 

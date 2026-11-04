@@ -12,7 +12,6 @@ import pytest
 from vultron.metadata.adr.lifecycle import (
     AdrEpoch,
     Dependents,
-    _texts_at,
     check_change,
     check_paths,
     dependents_at,
@@ -26,6 +25,7 @@ from vultron.metadata.adr.lifecycle import (
     unflipped_adrs,
     verified_dependents,
 )
+from vultron.metadata.adr.lifecycle.git_reads import _texts_at
 from vultron.metadata.adr.schema import AdrFrontmatter
 
 TODAY = dt.date(2026, 10, 20)

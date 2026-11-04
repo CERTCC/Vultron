@@ -44,8 +44,10 @@ from vultron.core.behaviors.sync.nodes.embargo_pause import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import VultronEvent, resolve_case_context_id
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.case_closure import ledger_records_full_closure
+from vultron.enums.roles import CVDRole
 
 __all__ = [
     "CaseOpenToExternalWritesNode",
@@ -170,6 +172,7 @@ class CaseOpenToExternalWritesNode(DataLayerConditionWithPorts):
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
+        assert self.actor_id is not None
         case = self._resolve_case()
         if case is None:
             self.logger.debug(
@@ -180,7 +183,13 @@ class CaseOpenToExternalWritesNode(DataLayerConditionWithPorts):
         # Not the factory's CaseManagerGate: that gate *skips* its branch at a
         # non-manager, and this guard must instead *pass* there, so a replica
         # keeps applying the closure fan-out (CM-23-013 binds the CASE_MANAGER).
-        if resolve_case_manager_id(case, self.datalayer) != self.actor_id:
+        # Not the path stage's answer either: this door runs ahead of that
+        # stage (CLP-10-010), so it asks the shared role predicate, which
+        # takes the authority role from the single resolver (ARCH-24-007,
+        # ADR-0153).
+        if not has_role(
+            self.actor_id, case.id_, CVDRole.CASE_MANAGER, self.datalayer
+        ):
             return Status.SUCCESS
         if not case_is_fully_closed(self.datalayer, case):
             return Status.SUCCESS

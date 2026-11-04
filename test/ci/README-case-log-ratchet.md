@@ -9,7 +9,7 @@ universal invariant check functions live in
 `test/ci/invariants/`.
 
 Each scenario declares itself in its own demo module by decorating `main()`
-with `@scenario(...)` from `vultron/demo/scenario/registry.py`; that registry
+with `@scenario(...)` from `vultron/demo/scenario/registry/`; that registry
 is the sole declaration point (ADR-0098, DEMOCI-11-036). Both the table below
 and `.github/demo-scenarios.json` are generated from it, and the harness path
 in each row is derived from the scenario name by convention rather than stored
@@ -229,7 +229,7 @@ pass/fail to CI.
    writing the logic inline.
 
 5. Decorate the demo module's `main()` with `@scenario(...)` from
-   `vultron/demo/scenario/registry.py`. That decoration is the **only** place
+   `vultron/demo/scenario/registry/`. That decoration is the **only** place
    the scenario is declared: the CI matrix in `.github/demo-scenarios.json`,
    the table at the top of this document and the sub-command table in
    `vultron/demo/scenario/README.md` are all generated from it. Name the

@@ -44,7 +44,7 @@ groups:
       RM, EM, or CS state change in the receiver's DataLayer after the handler completes.
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_036
 - id: HP-01
   title: Handler Signature
   specs:
@@ -817,6 +817,15 @@ groups:
       gets the stage. The migration of the trees that have not declared yet is
       ratcheted by
       `test/architecture/test_received_path_role_question.py::test_received_side_role_question_sites_are_ratcheted`.
+      `test/core/behaviors/test_declared_received_paths.py` holds the declaration of
+      every tree in the migrated areas: `::test_the_declared_paths_are_pinned` pins
+      which paths each names,
+      `::test_every_factory_call_site_in_these_areas_is_accounted_for` fails a tree
+      added without a declaration, and `::test_the_disposition_at_a_non_manager_receiver`
+      asserts what each declaration gives a participant replica. A branch for part
+      of a declaration is an `OnPaths` the factory builds; a branch naming an
+      undeclared path, or every declared path, is a wiring error
+      (`test/core/behaviors/case/test_received_path_branch.py`).
     relationships:
     - rel_type: refines
       spec_id: HP-01-007
@@ -913,31 +922,33 @@ groups:
     kind: architecture
     statement: >-
       The receive-tree factory MUST build every HP-01-038 branch itself, from the
-      path the HP-01-035 stage resolved. An emit inside a branch satisfies
-      BT-17-008 by the branch alone, and needs no named replica-emit exemption. A
-      state write inside a branch does not: RSH-08-003 admits one only on the
-      manager path, or as its own exception, so a branch for any other path leaves
-      the write exposed to the ratchet that pins it.
+      path the HP-01-035 stage resolved. A branch naming the manager path alone
+      bounds what runs inside it for both BT-17-008 and RSH-08-003: neither an emit
+      nor a state write there needs a further record. A branch naming any other
+      path bounds neither, so an emit inside it still needs a named replica-emit
+      exemption and a state write inside it stays visible to the ratchet that pins
+      it.
     rationale: >-
       A branch a tree builds itself is a role check the tree asks, which HP-01-036
-      removes: it can disagree with the stage and the factory cannot read it. A
-      factory-built branch is a structural guard, so an emit inside one needs no
-      prose exemption — the path names the actor the emit speaks for. A state write
-      is not excused the same way: a participant-replica branch is where
-      RSH-08-003's one exception lives and has to stay visible.
+      removes: it can disagree with the stage, or omit the path check entirely, and
+      the factory's walks cannot tell it from the one they trust. The asymmetry
+      between the two branch kinds is what the walks need: the manager path is the
+      CASE_MANAGER, so BT-17-001's gate and the branch that names that path say the
+      same thing. Any other path says only that the receiver is *not* the
+      CASE_MANAGER, which is not yet a statement that the emit is that receiver's
+      own to send or that the write is one RSH-08-003 admits.
     verification: >-
-      `test/core/behaviors/case/test_received_path_stage.py::test_the_factory_builds_the_participant_branch`
-      and `::test_a_branch_for_an_undeclared_path_is_a_wiring_error` assert the
-      factory owns the branch,
-      `test/architecture/test_received_tree_case_manager_gate.py::test_only_the_factory_builds_a_received_path_branch`
-      asserts no tree builds one. In
-      `test/core/behaviors/case/test_receive_activity_tree.py`,
-      `::test_ungated_emitters_skips_the_manager_gate_and_a_declared_branch`
-      asserts an emit inside a branch needs no exemption and
-      `::test_ungated_nodes_walks_the_replica_gate_but_not_the_manager_gate`
-      that a state write inside one stays visible, while
-      `test/architecture/test_received_tree_state_writes_are_gated.py::test_manager_only_declarations_are_pinned`
-      records every tree the declaration gates whole.
+      `test/core/behaviors/case/test_received_path_branch.py` asserts the factory
+      owns the branch
+      (`::test_the_branch_reads_the_stages_answer_and_asks_nothing_itself`), that an
+      emit on the manager path alone needs no exemption
+      (`::test_an_emit_on_the_manager_path_alone_needs_no_replica_exemption`) and
+      that one off it is still ungated
+      (`::test_an_emit_off_the_manager_path_is_still_ungated`).
+      `test/architecture/test_received_tree_state_writes_are_gated.py::test_received_tree_state_writes_are_gated_or_known`
+      keeps every state write outside a `CaseManagerGate` pinned with its reason,
+      including the one a diversion makes in a tree declaring the manager path
+      alone.
     relationships:
     - rel_type: refines
       spec_id: HP-01-038
@@ -957,9 +968,9 @@ groups:
       HP-01-042 gives the factory that job for the same reason HP-01-007 gives it
       the sender guard.
     verification: >-
-      `test/architecture/test_received_tree_case_manager_gate.py::test_only_the_factory_builds_a_received_path_branch`
-      holds the set of modules that construct one to the path-stage module and the
-      factory's two stage builders.
+      `test/architecture/test_received_tree_case_manager_gate.py::test_only_the_factory_builds_a_path_branch`
+      holds the set of modules that construct one to the branch module itself and
+      the factory with its stage builders.
     relationships:
     - rel_type: depends_on
       spec_id: HP-01-042

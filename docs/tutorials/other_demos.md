@@ -613,5 +613,5 @@ We have:
 
 - **Understand the protocol** — browse the [Vultron AS Activity Guides](../howto/activitypub/activities/index.md) for task guides covering everything we observed.
 - **See the protocol run across containers** — [Running the Multi-Actor Container Demos](container_demos.md) uses the trigger endpoints to drive whole cases across isolated actors.
-- **Explore the demo scripts** — the exchange demos are in `vultron/demo/exchange/`; shared utilities are in `vultron/demo/utils.py`.
+- **Explore the demo scripts** — the exchange demos are in `vultron/demo/exchange/`; shared utilities are in `vultron/demo/utils/`.
 - **Read the demo README** — `vultron/demo/README.md` describes the demo architecture and available sub-commands.

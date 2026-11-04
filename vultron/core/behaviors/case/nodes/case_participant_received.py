@@ -44,12 +44,9 @@ BTND-07-003.
 
 from typing import Literal
 
-import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
-)
+from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -252,34 +249,33 @@ def case_manager_admits_removal_guard(
     participant_id: str,
     case_id: str,
     claimed_actor_id: str | None = None,
-) -> py_trees.composites.Selector:
+) -> OnPaths:
     """Precondition guard: when this actor is the CASE_MANAGER, the removal is admissible.
 
-    A read-only composite for the received tree's ``precondition_guards``
-    (CLP-10-009): a
-    replica skips it as ``SUCCESS`` (it writes nothing, RSH-08-003), and the
+    A read-only branch for the received tree's ``precondition_guards``
+    (CLP-10-009), declared on the manager path alone: a receiver on any
+    other declared path skips it (it writes nothing, RSH-08-003), and the
     CASE_MANAGER runs the three removal guards in order, so a removal it
-    refuses or skips leaves no ledger entry (CM-31-004, CM-31-022, CLP-13-001).
+    refuses or skips leaves no ledger entry (CM-31-004, CM-31-022,
+    CLP-13-001).  The branch reads the path the tree's stage resolved and
+    asks no role question of its own (HP-01-036, HP-01-038).
     *claimed_actor_id* is the actor the inline participant is attributed
     to, when it names one.
     """
-    return create_case_manager_gated_tree(
-        name="RemovalAdmissibleIfCaseManager",
-        case_id=case_id,
+    return OnPaths.at_case_manager(
+        "RemovalAdmissibleIfCaseManager",
+        MoveNamesCaseParticipantNode(
+            participant_id=participant_id,
+            case_id=case_id,
+            claimed_actor_id=claimed_actor_id,
+        ),
+        RemovalTargetIsRemovableNode(
+            participant_id=participant_id, case_id=case_id
+        ),
+        ParticipantNotYetRemovedNode(
+            participant_id=participant_id, case_id=case_id
+        ),
         body_name="RemovalAdmissible",
-        children=[
-            MoveNamesCaseParticipantNode(
-                participant_id=participant_id,
-                case_id=case_id,
-                claimed_actor_id=claimed_actor_id,
-            ),
-            RemovalTargetIsRemovableNode(
-                participant_id=participant_id, case_id=case_id
-            ),
-            ParticipantNotYetRemovedNode(
-                participant_id=participant_id, case_id=case_id
-            ),
-        ],
     )
 
 

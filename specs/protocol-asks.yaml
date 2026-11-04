@@ -209,7 +209,7 @@ groups:
     - story_2026_034
   - id: ASK-02-005
     stories:
-    - story_2022_045
+    - story_2026_038
     - story_2022_053
     priority: MUST
     kind: protocol
@@ -228,7 +228,7 @@ groups:
     - state-machine
   - id: ASK-02-006
     stories:
-    - story_2022_045
+    - story_2026_038
     - story_2022_053
     priority: MUST
     kind: protocol
@@ -406,7 +406,7 @@ groups:
     - ADR-0080
     - ADR-0113
     stories:
-    - story_2022_014
+    - story_2026_006
   - id: ASK-03-008
     priority: MUST
     kind: protocol
@@ -633,7 +633,7 @@ groups:
     - ADR-0080
     - ADR-0113
     stories:
-    - story_2022_014
+    - story_2026_006
   - id: ASK-04-013
     priority: MUST_NOT
     kind: protocol
@@ -655,7 +655,7 @@ groups:
     - ADR-0080
     - ADR-0113
     stories:
-    - story_2022_014
+    - story_2026_006
 
 - id: ASK-05
   title: Expiry and Reaping
@@ -749,7 +749,7 @@ groups:
   - id: ASK-06-001
     stories:
     - story_2022_041
-    - story_2022_045
+    - story_2026_069
     priority: MUST
     kind: protocol
     statement: >-
@@ -764,7 +764,7 @@ groups:
   - id: ASK-06-003
     stories:
     - story_2022_041
-    - story_2022_045
+    - story_2026_075
     priority: MUST
     kind: protocol
     statement: >-
@@ -976,7 +976,7 @@ groups:
     - ADR-0080
   - id: ASK-07-008
     stories:
-    - story_2022_045
+    - story_2026_069
     - story_2022_074
     priority: MUST
     kind: protocol

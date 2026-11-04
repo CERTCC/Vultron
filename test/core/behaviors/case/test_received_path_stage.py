@@ -40,13 +40,11 @@ from vultron.core.behaviors.case.nodes.case_lookup import (
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
+from vultron.core.behaviors.case.nodes.diversion_stage import Diversion
 from vultron.core.behaviors.case.nodes.received_path import (
     CheckReceivedPathNode,
-    PathScopedGuard,
     ReceivedPath,
-    ReceivedPathBranch,
     ReceivedPathNode,
-    received_path_branch,
     undeclared_path_reason,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -466,196 +464,9 @@ def test_the_stage_is_one_of_the_trees_door_guards() -> None:
     )
 
 
-@pytest.mark.spec("HP-01-038")
-@pytest.mark.spec("HP-01-042")
-def test_the_factory_builds_the_participant_branch() -> None:
-    """``participant_path_effects`` become the factory's own branch.
-
-    The branch selects on the answer the stage already gave
-    (:class:`CheckReceivedPathNode`), so no tree builds one and no second
-    role read is made (HP-01-036, HP-01-042).
-    """
-    effect = py_trees.behaviours.Success(name="ReplicaEffect")
-    tree = create_receive_activity_tree(
-        name="BranchedBT",
-        case_id=CASE_ID,
-        precondition_guards=[],
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
-        sender_rule=_RULE,
-        sender_context=_CONTEXT,
-        participant_path_effects=[effect],
-        participant_path_branch_name="ReplicaArm",
-    )
-    stage = next(
-        node for node in tree.iterate() if isinstance(node, ReceivedPathNode)
-    )
-    (branch,) = [
-        node for node in tree.iterate() if isinstance(node, ReceivedPathBranch)
-    ]
-
-    assert branch.name == "ReplicaArm"
-    assert branch.branch_path is ReceivedPath.PARTICIPANT_REPLICA
-    assert branch.branch_body is effect
-    (check,) = [
-        node
-        for node in branch.iterate()
-        if isinstance(node, CheckReceivedPathNode)
-    ]
-    assert check.stage is stage
-    assert check.path is ReceivedPath.PARTICIPANT_REPLICA
-    assert not [
-        node
-        for node in branch.iterate()
-        if isinstance(node, (CheckIsCaseManagerNode, ReceivedPathNode))
-    ]
-
-
-class TestReceivedPathBranchShape:
-    """A branch skips another path and propagates its own failure.
-
-    The ``Inverter`` is what keeps the two apart, as the CASE_MANAGER gate's
-    does: without it a receiver on the branch's path whose work failed would
-    read as a receiver on another path (BT-17-001).
-    """
-
-    @staticmethod
-    def _branch(
-        path: ReceivedPath,
-        resolved: ReceivedPath,
-        *children: py_trees.behaviour.Behaviour,
-    ) -> ReceivedPathBranch:
-        stage = ReceivedPathNode(declared=ALL_PATHS)
-        stage.resolved_path = resolved
-        branch = received_path_branch(
-            name="Branch", stage=stage, path=path, children=list(children)
-        )
-        py_trees.trees.BehaviourTree(root=branch).tick()
-        return branch
-
-    @pytest.mark.spec("HP-01-042")
-    def test_a_receiver_on_another_path_skips_the_branch(self) -> None:
-        work = py_trees.behaviours.Failure(name="Work")
-
-        branch = self._branch(
-            ReceivedPath.PARTICIPANT_REPLICA, ReceivedPath.CASE_MANAGER, work
-        )
-
-        assert branch.status is Status.SUCCESS
-        assert work.status is Status.INVALID
-
-    @pytest.mark.spec("HP-01-042")
-    def test_a_failure_on_the_branchs_own_path_propagates(self) -> None:
-        work = py_trees.behaviours.Failure(name="Work")
-
-        branch = self._branch(
-            ReceivedPath.PARTICIPANT_REPLICA,
-            ReceivedPath.PARTICIPANT_REPLICA,
-            work,
-        )
-
-        assert branch.status is Status.FAILURE
-        assert work.status is Status.FAILURE
-
-    def test_one_child_runs_bare_and_several_share_a_sequence(self) -> None:
-        one = py_trees.behaviours.Success(name="One")
-        first = py_trees.behaviours.Success(name="First")
-        second = py_trees.behaviours.Success(name="Second")
-
-        bare = self._branch(
-            ReceivedPath.CASE_MANAGER, ReceivedPath.CASE_MANAGER, one
-        )
-        wrapped = self._branch(
-            ReceivedPath.CASE_MANAGER,
-            ReceivedPath.CASE_MANAGER,
-            first,
-            second,
-        )
-
-        assert bare.branch_body is one
-        assert wrapped.branch_body.name == "BranchBody"
-        assert list(wrapped.branch_body.children) == [first, second]
-
-
-@pytest.mark.spec("HP-01-038")
-@pytest.mark.spec("HP-01-042")
-def test_a_branch_for_an_undeclared_path_is_a_wiring_error() -> None:
-    """A branch the declaration does not name could never run."""
-    with pytest.raises(VultronWiringError, match="PARTICIPANT_REPLICA"):
-        create_receive_activity_tree(
-            name="UndeclaredBranchBT",
-            case_id=CASE_ID,
-            precondition_guards=[],
-            paths={ReceivedPath.CASE_MANAGER},
-            sender_rule=_RULE,
-            sender_context=_CONTEXT,
-            participant_path_effects=[
-                py_trees.behaviours.Success(name="ReplicaEffect")
-            ],
-        )
-
-    with pytest.raises(VultronWiringError, match="declare the tree's paths"):
-        create_receive_activity_tree(
-            name="UndeclaredGuardBT",
-            case_id=CASE_ID,
-            precondition_guards=[
-                PathScopedGuard(
-                    path=ReceivedPath.CASE_MANAGER,
-                    guard=py_trees.behaviours.Success(name="ManagerGuard"),
-                )
-            ],
-            sender_rule=_RULE,
-            sender_context=_CONTEXT,
-        )
-
-    with pytest.raises(VultronWiringError, match="does not declare"):
-        create_receive_activity_tree(
-            name="GuardOffTheDeclarationBT",
-            case_id=CASE_ID,
-            paths={ReceivedPath.PARTICIPANT_REPLICA},
-            precondition_guards=[
-                PathScopedGuard(
-                    path=ReceivedPath.CASE_MANAGER,
-                    guard=py_trees.behaviours.Success(name="ManagerGuard"),
-                )
-            ],
-            sender_rule=_RULE,
-            sender_context=_CONTEXT,
-        )
-
-    with pytest.raises(VultronWiringError, match="declare the tree's paths"):
-        create_receive_activity_tree(
-            name="BranchWithoutDeclarationBT",
-            case_id=CASE_ID,
-            precondition_guards=[],
-            sender_rule=_RULE,
-            sender_context=_CONTEXT,
-            participant_path_effects=[
-                py_trees.behaviours.Success(name="ReplicaEffect")
-            ],
-        )
-
-
-@pytest.mark.spec("HP-01-042")
-def test_naming_a_branch_without_its_effects_is_a_wiring_error() -> None:
-    """A branch name with no branch would be silently ignored.
-
-    Its gate siblings are refused the same way: an argument that configures
-    something the tree did not ask for is a mistake, not a default.
-    """
-    with pytest.raises(VultronWiringError, match="only with"):
-        create_receive_activity_tree(
-            name="NamedNoBranchBT",
-            case_id=CASE_ID,
-            paths={ReceivedPath.PARTICIPANT_REPLICA},
-            precondition_guards=[],
-            sender_rule=_RULE,
-            sender_context=_CONTEXT,
-            participant_path_branch_name="ReplicaArm",
-        )
-
-
 @pytest.mark.spec("HP-01-040")
 @pytest.mark.spec("BT-17-001")
+@pytest.mark.spec("CLP-10-026")
 def test_a_manager_only_diversion_needs_the_trees_case() -> None:
     """A diversion that may commit must know the case it commits against.
 
@@ -663,13 +474,37 @@ def test_a_manager_only_diversion_needs_the_trees_case() -> None:
     names no case leaves the stage to resolve one at run time from the
     activity — so the diversion would commit against whatever case arrived.
     """
-    from vultron.core.behaviors.case.nodes.diversion_stage import Diversion
-
     with pytest.raises(VultronWiringError, match="must name the case"):
         create_receive_activity_tree(
             name="CaselessDiversionBT",
             case_id=None,
             paths={ReceivedPath.CASE_MANAGER},
+            precondition_guards=[
+                Diversion(
+                    name="D",
+                    condition=py_trees.behaviours.Success(name="C"),
+                )
+            ],
+            sender_rule=_RULE,
+            sender_context=_CONTEXT,
+        )
+
+
+@pytest.mark.spec("HP-01-038")
+@pytest.mark.spec("CLP-10-026")
+def test_a_diversion_in_a_tree_that_declared_no_paths_is_a_wiring_error() -> (
+    None
+):
+    """The declaration is the only statement of where a diversion runs.
+
+    ADR-0153 retires the ``gate=`` choice beside it, so a tree with no
+    declaration says nothing about whether its diversion may commit or must
+    stay the receiver's own answer, and the factory refuses to guess.
+    """
+    with pytest.raises(VultronWiringError, match="paths the tree declares"):
+        create_receive_activity_tree(
+            name="UndeclaredDiversionBT",
+            case_id=CASE_ID,
             precondition_guards=[
                 Diversion(
                     name="D",

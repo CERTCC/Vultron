@@ -28,14 +28,14 @@ Defects covered:
    participant fetch returns 404, builds an empty list and calls
    ``all_participants_rm_closed([])`` → ``True`` (vacuous convergence).
 
-3. ``polling.py:wait_for_case_participants`` — previously compared
+3. ``polling/case.py:wait_for_case_participants`` — previously compared
    ``len(case.case_participants) >= expected_count``; ``case_participants``
    is ``list[as_CaseParticipantRef]`` which can hold bare string IDs, so
    the count was satisfied even when no real ``CaseParticipant`` objects
    existed.  Fixed by switching to identity-based subset check on
    ``actor_participant_index``.
 
-4. ``polling.py:_wait_for_participant_status_field`` — timeout
+4. ``polling/participant.py:_wait_for_participant_status_field`` — timeout
    ``AssertionError`` message includes only the actor URI; the container
    that was polled (``client.base_url``) is absent, making it impossible
    to tell which container was checked.
@@ -50,7 +50,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import vultron.demo.utils as demo_utils
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.dimensions import (
     RmDimension,
@@ -64,6 +63,7 @@ from vultron.demo.helpers.verification import (
     _all_fetchable_participants_rm_closed,
 )
 from vultron.demo.utils import DataLayerClient, reset_demo_failures
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
@@ -102,7 +102,9 @@ def test_participant_adds_note_no_unbound_on_trigger_failure(monkeypatch):
     def _boom(*args, **kwargs):
         raise RuntimeError("simulated add-note-to-case trigger HTTP 500")
 
-    monkeypatch.setattr("vultron.demo.actor_session.post_to_trigger", _boom)
+    monkeypatch.setattr(
+        "vultron.demo.actor_session.binding.post_to_trigger", _boom
+    )
 
     poster = MagicMock()
     poster.id_ = _REPORTER_ID
@@ -131,7 +133,7 @@ def test_participant_adds_note_no_unbound_on_trigger_failure(monkeypatch):
         "dereferenced an unbound result variable (UnboundLocalError), "
         "masking the real failure (#2241)"
     )
-    assert demo_utils._demo_failures, (
+    assert _demo_failures, (
         "demo_step should have recorded the swallowed trigger failure on "
         "_demo_failures"
     )
@@ -231,8 +233,10 @@ def test_wait_participant_status_timeout_includes_base_url(monkeypatch):
     fired.  The error must include ``client.base_url`` so the container is
     identifiable from the message alone.
     """
-    import vultron.demo.helpers.polling as polling_module
-    from vultron.demo.helpers.polling import _wait_for_participant_status_field
+    import vultron.demo.helpers.polling.participant as polling_module
+    from vultron.demo.helpers.polling.participant import (
+        _wait_for_participant_status_field,
+    )
 
     ps = as_ParticipantStatus(
         context=_CASE_ID, rm=RmDimension(state=RM.RECEIVED)

@@ -21,13 +21,14 @@ Sub-modules
 - :mod:`~vultron.demo.helpers.actor_roles` — ``ActorRole``, ``role_map``, and
   ``role_kwarg_names``: the per-scenario actor role declarations the demo CLI
   turns into sub-command options (DEMOCI-11-011).
-- :mod:`~vultron.demo.helpers.polling` — ``_poll_until``,
-  ``find_case_invite_for_actor``, ``find_cp_offer_for_case``,
-  ``find_case_actor_participant_id``, ``find_ownership_transfer_offer_for_actor``,
+- :mod:`~vultron.demo.helpers.polling` — ``find_case_invite_for_actor``,
+  ``find_cp_offer_for_case``, ``find_case_actor_participant_id``,
+  ``find_ownership_transfer_offer_for_actor``,
   ``resolve_case_actor_store_id``, ``wait_for_object_stored``,
   ``wait_for_received_activity``, ``wait_for_report_submission_stored``,
   ``wait_for_reporter_introduction``,
-  and all ``wait_for_*`` helpers.
+  and all ``wait_for_*`` helpers (``_poll_until`` lives in
+  :mod:`~vultron.demo.helpers.polling._poll`).
 - :mod:`~vultron.demo.helpers.embargo` — ``make_embargo_event`` factory and
   ``publish_embargo_policy`` (``PUT /actors/{slug}/embargo-policy``, EP-02).
 - :mod:`~vultron.demo.helpers.embargo_outcome` — creation-time embargo outcome
@@ -36,10 +37,11 @@ Sub-modules
   ``verify_receiver_replica_agrees``).
 - :mod:`~vultron.demo.helpers.runner` — ``run_exchange_demos`` and
   ``check_all_containers``.
-- :mod:`~vultron.demo.helpers.seeding` — ``_dl_key``, ``get_actor_by_id``,
+- :mod:`~vultron.demo.helpers.seeding` — ``get_actor_by_id``,
   ``seed_containers``, ``seed_containers_rvv``, ``seed_containers_rccv``,
   ``seed_containers_rcv``, ``seed_containers_rcvcv``, and
-  ``reset_containers``.
+  ``reset_containers`` (``_dl_key`` lives in
+  :mod:`~vultron.demo.helpers.seeding.actors`).
 - :mod:`~vultron.demo.helpers.sync` — ``verify_replica_state`` and the shared
   sync-verification phase helpers ``wait_for_replica_ledger_coverage`` and
   ``run_sync_verification_phase``.
@@ -161,7 +163,6 @@ from vultron.demo.helpers.polling import (
     LEDGER_COVERAGE_TIMEOUT,
     PARTICIPANT_JOIN_TIMEOUT,
     REPLICA_PARTICIPANT_TIMEOUT,
-    _poll_until,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
     find_cp_offer_for_case,
@@ -190,12 +191,12 @@ from vultron.demo.helpers.polling import (
     wait_for_reporter_log_entry,
     wait_for_semantic_type_in_ledger,
 )
+from vultron.demo.helpers.polling._poll import _poll_until
 from vultron.demo.helpers.runner import (
     check_all_containers,
     run_exchange_demos,
 )
 from vultron.demo.helpers.seeding import (
-    _dl_key,
     get_actor_by_id,
     reset_containers,
     seed_containers,
@@ -204,6 +205,7 @@ from vultron.demo.helpers.seeding import (
     seed_containers_rcvcv,
     seed_containers_rvv,
 )
+from vultron.demo.helpers.seeding.actors import _dl_key
 from vultron.demo.helpers.sync import (
     _extract_ref_id,
     _get_log_entries_for_case,

@@ -51,7 +51,7 @@ groups:
     - ADR-0033
     stories:
     - story_2022_012
-    - story_2022_014
+    - story_2026_068
     - story_2022_023
   - id: LST-02-002
     priority: MUST
@@ -80,7 +80,7 @@ groups:
     verification: A unit test confirms that `EmbargoedCase.model_validate(...)` raises a validation error when
       `active_embargo` is None or `em_state` is outside `{ACTIVE, REVISE}`.
     stories:
-    - story_2022_014
+    - story_2026_068
     - story_2022_023
   - id: LST-02-004
     priority: MUST_NOT
@@ -166,8 +166,7 @@ groups:
     adr:
     - ADR-0033
     stories:
-    - story_2022_088
-    - story_2022_045
+    - story_2026_068
   - id: LST-05-003
     priority: MUST
     kind: project
@@ -179,5 +178,4 @@ groups:
     adr:
     - ADR-0033
     stories:
-    - story_2022_045
-    - story_2022_088
+    - story_2026_063

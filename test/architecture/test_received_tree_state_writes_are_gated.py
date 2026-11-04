@@ -32,28 +32,21 @@ The checks:
    :class:`~vultron.core.behaviors.state_write_capable.StateWriteCapable`
    node outside every ``CaseManagerGate`` is an ungated write.  The walk
    sees nodes a factory reaches through helpers, locals and nested factories,
-   and descends into the participant-replica gate and the factory's
-   participant-replica path branch, which run everywhere but the
-   CASE_MANAGER.  A tree whose declaration names the CASE_MANAGER path alone
-   is skipped whole: the path stage refuses every other receiver, so the
-   declaration is the gate (HP-01-042).
+   and descends into the participant-replica gate, which runs everywhere but
+   the CASE_MANAGER.
 2. **Pinned exemption set** :data:`REPLICA_STATE_WRITES` — trees whose
    ungated writes are the design: the ledger replay itself, the bootstrap
    trees that mint a case or seed a replica before any CASE_MANAGER gate could
-   pass, and the paused-signatory embargo
-   teardown the CASE_MANAGER's direct notice carries (CM-31-010).  Every other
+   pass, the paused-signatory embargo
+   teardown the CASE_MANAGER's direct notice carries (CM-31-010), and the
+   write a diversion makes inside a tree that declares the CASE_MANAGER path
+   alone, where the declaration is the gate (HP-01-042).  Every other
    received-side state write is now CASE_MANAGER-gated (#3814): the
    ``KNOWN_UNGATED_STATE_WRITES`` ratchet drove to empty and was deleted with
    its strict-``xfail`` goal test, per #3815's design.
 3. Every behaviors class that reaches a state-write seam carries the marker,
    or is in the **pinned exemption set** :data:`WRITES_NO_CASE_STATE` with
    its reason — so the marker, not a name list, decides what the walk finds.
-4. **Pinned exemption set**
-   :data:`MANAGER_ONLY_DECLARATION_EXEMPTIONS` — the trees check 1 skips
-   whole, each one a declaration naming the CASE_MANAGER path alone, which
-   gates its tree and so excuses the writes inside it (HP-01-042).  Kept per
-   entry rather than as a count, so one tree's declaration cannot narrow
-   while another's widens (#5535).
 
 Every set is held to equality in both directions (TB-10-002, ARCH-18-001):
 a new ungated write fails, and so does a row the code no longer needs.
@@ -69,7 +62,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
-import py_trees
 import pytest
 from py_trees.behaviour import Behaviour
 from py_trees.composites import Composite
@@ -82,9 +74,6 @@ from test.architecture.test_received_tree_case_manager_gate import (
     _calls,
     _rel,
     _top_level_scopes,
-)
-from vultron.core.behaviors.case.nodes.received_path import (
-    ReceivedPathNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import ungated_nodes
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
@@ -145,8 +134,24 @@ _ENDING_NOTICE = (
     " direct embargo-ending notice, its only channel; the sender guard admits"
     " only the CASE_MANAGER (CM-31-010, CM-31-032, PCR-03-001)"
 )
+_MANAGER_ONLY_DECLARATION = (
+    "the write runs in a diversion of a tree that declares the CASE_MANAGER"
+    " path alone, so the path stage refused every other receiver before any"
+    " guard ran and the declaration is the gate (HP-01-038, HP-01-042,"
+    " ADR-0153)"
+)
 # permanent: RSH-08-003 (replay and bootstrap writes; see each reason)
 REPLICA_STATE_WRITES: dict[_Write, str] = {
+    # The late-Accept re-invite (EMB-17-003): its diversion's effects used to
+    # sit in a CASE_MANAGER gate of their own, which ADR-0153 retires in
+    # favour of the tree's path declaration.  Pinned per node rather than by
+    # skipping the tree, so a second ungated writer in the same tree still
+    # fails (#5535).
+    (
+        f"{_E}/answer_trees.py",
+        "accept_invite_to_embargo_tree",
+        "ReinviteLateAccepterNode",
+    ): _MANAGER_ONLY_DECLARATION,
     (
         f"{_E}/announce_received_tree.py",
         "announce_embargo_received_tree",
@@ -161,9 +166,11 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
         "ClearActiveEmbargoNode",
     ): _ENDING_NOTICE,
     **{
-        (f"{_Y}/announce_tree.py", "create_announce_log_entry_tree", cls): (
-            _REPLAY
-        )
+        (
+            f"{_Y}/announce_tree/factory.py",
+            "create_announce_log_entry_tree",
+            cls,
+        ): (_REPLAY)
         for cls in (
             "ApplyCaseParticipantRoleGrantFromLedgerNode",
             "ApplyCaseParticipantUpdateFromLedgerNode",
@@ -211,7 +218,7 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
     },
     **{
         (
-            f"{_C}/case_proposal_received_tree.py",
+            f"{_C}/case_proposal_received_tree/factory.py",
             "create_case_proposal_received_tree",
             cls,
         ): _MINT
@@ -369,7 +376,7 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         f"{_B}.sync.nodes.replay_held",
         "ReplayHeldSuccessorNode",
     ): _HELD_ANNOUNCE,
-    (f"{_B}.sync.nodes.replay", "SendMissingEntriesNode"): _REPLICATION,
+    (f"{_B}.sync.nodes.replay.send", "SendMissingEntriesNode"): _REPLICATION,
     (f"{_B}.sync.nodes.reseed", "ReseedPeerNode"): _REPLICATION,
     (
         f"{_B}.sync.nodes.invite_resend",
@@ -378,103 +385,12 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# 4. **Pinned exemption set** MANAGER_ONLY_DECLARATION_EXEMPTIONS — the trees
-#    the walk skips whole, because their declaration names the CASE_MANAGER
-#    path alone and so gates them (HP-01-042).  Kept per item, not as a count:
-#    a count would let one tree's declaration narrow while another's widened,
-#    and a non-empty guard alone passes vacuously (#5535).  The name ends in
-#    _EXEMPTIONS so the ARCH-18-004 marker parser discovers it and enforces
-#    the permanent marker below (vultron/metadata/ratchet_markers.py).
-# ---------------------------------------------------------------------------
-# permanent: HP-01-042 (a manager-only declaration gates its tree; each entry
-# is that declaration, read off the built tree)
-MANAGER_ONLY_DECLARATION_EXEMPTIONS: frozenset[tuple[str, str]] = frozenset(
-    {
-        (f"{_E}/answer_trees.py", "accept_invite_to_embargo_tree"),
-        (f"{_E}/owner_decision_tree.py", "activate_embargo_on_case_tree"),
-        (
-            f"{_E}/owner_decision_tree.py",
-            "reject_embargo_proposal_on_case_tree",
-        ),
-        (f"{_E}/withdrawal_tree.py", "withdraw_from_embargo_on_case_tree"),
-        (
-            f"{_C}/suggest_actor_tree.py",
-            "create_accept_actor_recommendation_received_tree",
-        ),
-        (
-            f"{_C}/suggest_actor_tree.py",
-            "create_reject_actor_recommendation_received_tree",
-        ),
-    }
-)
-
-
-def _declares_manager_path_only(
-    tree: py_trees.behaviour.Behaviour,
-) -> bool:
-    """True when *tree*'s path declaration names the CASE_MANAGER path alone.
-
-    Such a tree is gated whole (HP-01-038, HP-01-042): the path stage the
-    factory placed among the door guards refuses every other receiver before
-    anything runs, so every node after it executes at the case's CASE_MANAGER
-    and RSH-08-003 is satisfied without a gate inside the tree.  The
-    declaration is the gate, which is the point of ADR-0153.
-
-    Read from the production predicate,
-    :attr:`~vultron.core.behaviors.case.nodes.received_path.ReceivedPathNode.manager_path_only`,
-    so this ratchet and the factory cannot drift apart on what the
-    declaration means (CS-22-001).
-    """
-    stages = [n for n in tree.iterate() if isinstance(n, ReceivedPathNode)]
-    return bool(stages) and stages[0].manager_path_only
-
-
-def _manager_only_trees() -> frozenset[tuple[str, str]]:
-    """``(module, factory)`` for each tree the declaration gates whole."""
-    return frozenset(
-        key
-        for key, tree in built_received_trees().items()
-        if _declares_manager_path_only(tree)
-    )
-
-
 def _ungated_state_writes() -> frozenset[_Write]:
-    """``(module, factory, class)`` for each ungated marked node.
-
-    A tree that declares the CASE_MANAGER path alone is skipped whole; see
-    :func:`_declares_manager_path_only`.
-    :func:`test_manager_only_declarations_are_pinned` records which trees
-    those are, so the skip cannot widen unnoticed.
-    """
+    """``(module, factory, class)`` for each ungated marked node."""
     return frozenset(
         (rel, factory, type(node).__name__)
         for (rel, factory), tree in built_received_trees().items()
-        if not _declares_manager_path_only(tree)
         for node in ungated_nodes([tree], StateWriteCapable)
-    )
-
-
-@pytest.mark.spec("HP-01-042")
-@pytest.mark.spec("RSH-08-003")
-@pytest.mark.spec("ARCH-18-005")
-def test_manager_only_declarations_are_pinned() -> None:
-    """Which trees the declaration gates whole, in both directions.
-
-    The skip rests on a declaration, so the declarations are the record: a
-    tree that gains one leaves the walk and must be listed here, and a tree
-    that loses one re-enters it.  Pinned per item rather than counted,
-    because a count cannot tell one tree narrowing from another widening
-    (#5535).
-    """
-    _assert_pinned(
-        "manager-only path declaration",
-        _manager_only_trees(),
-        MANAGER_ONLY_DECLARATION_EXEMPTIONS,
-        "a tree gated whole by its declaration is recorded here (HP-01-042)",
-    )
-    assert set(built_received_trees()) - _manager_only_trees(), (
-        "every received tree was excused; the walk is vacuous"
     )
 
 
@@ -484,7 +400,7 @@ def test_every_received_tree_factory_is_built() -> None:
     named = {(rel, factory) for rel, factory, _ in set(REPLICA_STATE_WRITES)}
     assert named <= built, sorted(named - built)
     assert (
-        f"{_Y}/announce_tree.py",
+        f"{_Y}/announce_tree/factory.py",
         "create_announce_log_entry_tree",
     ) in built
 

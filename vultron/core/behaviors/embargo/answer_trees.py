@@ -44,10 +44,8 @@ from datetime import datetime
 import py_trees
 
 from vultron.config.actor import ActorConfig
-from vultron.core.behaviors.case.nodes.received_path import (
-    PathScopedGuard,
-    ReceivedPath,
-)
+from vultron.core.behaviors.case.nodes.path_branch import OnPaths
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -349,18 +347,17 @@ def reject_invite_to_embargo_tree(
             ),
             # A repeat of a Reject already recorded commits nothing and
             # announces nothing (CM-13-005, HP-01-003).  Only the
-            # CASE_MANAGER records an answer, so the guard is scoped to its
-            # path: at a participant the Reject is the CASE_MANAGER's own,
-            # which records nothing there (HP-01-038, BT-17-001).
-            PathScopedGuard(
-                path=ReceivedPath.CASE_MANAGER,
-                guard=case_manager_admits_embargo_answer_guard(
+            # CASE_MANAGER records an answer, so the guard is declared on its
+            # path alone: at a participant the Reject is the CASE_MANAGER's
+            # own, which records nothing there (HP-01-038, BT-17-001).
+            OnPaths.at_case_manager(
+                "EmbargoAnswerNotRecordedOnManagerPath",
+                case_manager_admits_embargo_answer_guard(
                     case_id=case_id,
                     embargo_id=embargo_id,
                     answering_actor_id=rejecting_actor_id,
                     answer=EmbargoConsentState.DECLINED,
                 ),
-                name="EmbargoAnswerNotRecordedOnManagerPath",
             ),
             RejectIsNotWithdrawalNode(
                 case_id=case_id,
@@ -368,12 +365,11 @@ def reject_invite_to_embargo_tree(
                 rejecting_actor_id=rejecting_actor_id,
             ),
             # The Reject's entry carries the row it states (ADR-0122).
-            PathScopedGuard(
-                path=ReceivedPath.CASE_MANAGER,
-                guard=case_manager_admits_answer_change_guard(
+            OnPaths.at_case_manager(
+                "EmbargoAnswerAppliesOnManagerPath",
+                case_manager_admits_answer_change_guard(
                     case_id, embargo_id, rejecting_actor_id, accept=False
                 ),
-                name="EmbargoAnswerAppliesOnManagerPath",
             ),
         ],
         manager_effects=[

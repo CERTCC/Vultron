@@ -90,11 +90,11 @@ _CASE_ID = "https://example.org/cases/resend-after-expiry"
 
 @pytest.fixture(autouse=True)
 def clear_actor_locks() -> Iterator[None]:
-    from vultron.adapters.driving.fastapi import inbox_orchestration
+    from vultron.adapters.driving.fastapi.inbox_orchestration import pipeline
 
-    inbox_orchestration._actor_inbox_locks.clear()
+    pipeline._actor_inbox_locks.clear()
     yield
-    inbox_orchestration._actor_inbox_locks.clear()
+    pipeline._actor_inbox_locks.clear()
 
 
 @pytest.fixture

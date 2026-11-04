@@ -49,7 +49,8 @@ from test.architecture import _corpus
 
 _DEMO_DIR = _corpus.REPO_ROOT / "vultron" / "demo"
 _SCENARIO_DIR = _DEMO_DIR / "scenario"
-_POLLING = _DEMO_DIR / "helpers" / "polling.py"
+#: The module that defines the coverage primitive.
+_POLLING = _DEMO_DIR / "helpers" / "polling" / "ledger.py"
 _SYNC = _DEMO_DIR / "helpers" / "sync.py"
 
 #: The loop primitives DEMOMA-23-006 forbids a scenario module to call.
@@ -288,7 +289,7 @@ def test_the_check_flags_a_helper_module_copy_of_the_loop():
         "                client=replica_client, case_id=case_id,\n"
         "                expected_tail_index=tail_index,\n"
         "            )\n",
-        filename="vultron/demo/helpers/polling.py",
+        filename="vultron/demo/helpers/polling/ledger.py",
     )
     hits = _violations(_POLLING, sample)
     assert sorted(h[1:] for h in hits) == [
@@ -299,7 +300,7 @@ def test_the_check_flags_a_helper_module_copy_of_the_loop():
 
 
 def test_the_primitive_definition_is_not_a_violation():
-    """Guard: ``def wait_for_contiguous_ledger_coverage`` in polling.py is exempt."""
+    """Guard: ``def wait_for_contiguous_ledger_coverage`` in its module is exempt."""
     sample = _corpus.parse_inline(
         "def wait_for_contiguous_ledger_coverage(client, case_id, "
         "expected_tail_index, timeout_seconds=15.0):\n"

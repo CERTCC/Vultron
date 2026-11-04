@@ -13,22 +13,28 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""What each received embargo tree declares, and who it refuses (ADR-0153).
+"""Who each received embargo tree admits and refuses (ADR-0153).
 
-Every received embargo tree declares the paths it handles once, as the
-factory's ``paths`` argument (HP-01-038).  Two things follow, and both are
-pinned here:
+*Which* paths each tree declares is pinned once for the whole migrated
+corpus, in ``test/core/behaviors/test_declared_received_paths.py``
+(CS-22-001); this module asserts what that declaration *does*, from the tree
+the production factory actually builds rather than from a stage stood up on
+its own:
 
-- the declaration itself, tree by tree, so a tree that quietly widens or
-  narrows the receivers it serves fails;
-- the disposition of a delivery whose receiver is on a path the declaration
-  omits: the path stage refuses it, with a reason composed from the resolved
-  path and the declaration, and the tree ends there because the stage is a
-  door guard (HP-01-005, HP-01-039, CLP-10-010).
+- the stage is one of the tree's door guards, so its refusal ends the
+  delivery before any commit (CLP-10-010);
+- a receiver on a path the declaration omits is refused, with the reason
+  composed from the resolved path and the declaration (HP-01-005,
+  HP-01-039);
+- a receiver on *each* declared path is admitted — both arms of a two-path
+  declaration, not just the first.
 
-The reason is what makes a replica-only or manager-only declaration safe to
-make: each wording is true of the receiver it refuses, so the case's own
-CASE_MANAGER is never told it is not the CASE_MANAGER (#5041).
+The reason is what makes a narrowed declaration safe to make: each wording
+is true of the receiver it refuses, so the case's own CASE_MANAGER is never
+told it is not the CASE_MANAGER (#5041).  What no test here can falsify is
+the narrowing itself; that is a claim about who receives a message type, and
+only an end-to-end delivery to a real roster answers it (see
+``notes/`` on the announce tree's both-paths declaration).
 """
 
 from collections.abc import Callable
@@ -114,15 +120,6 @@ _BOTH = frozenset(
 
 #: A builder takes the case and its embargo and returns the built tree.
 _Builder = Callable[[str, str], py_trees.behaviour.Behaviour]
-
-#: ``(module path, function)`` of a production factory, as
-#: ``received_tree_factories()`` keys it.
-_Site = tuple[str, str]
-
-
-def _site(factory: Callable[..., object]) -> _Site:
-    """The corpus key of *factory*, read off the function itself."""
-    return (factory.__module__.replace(".", "/") + ".py", factory.__name__)
 
 
 def _accept(case_id: str, embargo_id: str) -> py_trees.behaviour.Behaviour:
@@ -210,15 +207,18 @@ def _remove(case_id: str, embargo_id: str) -> py_trees.behaviour.Behaviour:
     )
 
 
-#: ``(label, builder, declaration)`` for every received embargo tree that
-#: declares its paths.  ``embargo_invite_fault_tree`` is deliberately absent;
-#: see :func:`test_the_fault_tree_declares_no_paths`.
-TREES: tuple[tuple[str, _Builder, frozenset[ReceivedPath], _Site], ...] = (
+#: ``(label, builder, declaration)`` for every received embargo tree
+#: that declares its paths.  ``embargo_invite_fault_tree`` is deliberately
+#: absent; see :func:`test_the_fault_tree_declares_no_paths`.  The
+#: declaration repeated here is the one
+#: ``test/core/behaviors/test_declared_received_paths.py`` pins for the whole
+#: corpus; it is what each row probes against, and that module is what fails
+#: if a tree changes it.
+TREES: tuple[tuple[str, _Builder, frozenset[ReceivedPath]], ...] = (
     (
         "accept-invite",
         _accept,
         _MANAGER_ONLY,
-        _site(accept_invite_to_embargo_tree),
     ),
     # The Reject of an Invite is also the CASE_MANAGER's own refusal to the
     # participant it turns away (EMB-02-004, EP-09-017), so its tree admits
@@ -227,43 +227,36 @@ TREES: tuple[tuple[str, _Builder, frozenset[ReceivedPath], _Site], ...] = (
         "reject-invite",
         _reject_invite,
         _BOTH,
-        _site(reject_invite_to_embargo_tree),
     ),
     (
         "activate",
         _activate,
         _MANAGER_ONLY,
-        _site(activate_embargo_on_case_tree),
     ),
     (
         "reject-proposal",
         _reject_proposal,
         _MANAGER_ONLY,
-        _site(reject_embargo_proposal_on_case_tree),
     ),
     (
         "withdraw",
         _withdraw,
         _MANAGER_ONLY,
-        _site(withdraw_from_embargo_on_case_tree),
     ),
     (
         "announce-embargo",
         _announce,
         _BOTH,
-        _site(announce_embargo_received_tree),
     ),
     (
         "invite",
         _invite,
         _BOTH,
-        _site(invite_to_embargo_on_case_tree),
     ),
     (
         "remove",
         _remove,
         _BOTH,
-        _site(remove_embargo_from_case_tree),
     ),
 )
 
@@ -327,59 +320,6 @@ def _run_stage(
     return stage, case_id
 
 
-#: The one embargo received tree that declares no paths, with its reason in
-#: :func:`test_the_fault_tree_declares_no_paths`.
-_DECLARES_NOTHING = (
-    "vultron/core/behaviors/embargo/invite_received_tree.py",
-    "embargo_invite_fault_tree",
-)
-
-
-@pytest.mark.spec("HP-01-038")
-@pytest.mark.spec("ARCH-18-001")
-def test_every_embargo_received_tree_is_covered() -> None:
-    """:data:`TREES` covers every embargo received-tree factory there is.
-
-    Keyed on the discovered corpus rather than on this hand-written list, so
-    a tenth embargo tree cannot slip past its declaration pin — the
-    hand-maintained-subject-list failure of #5535.  Each factory is either
-    in :data:`TREES` or is the fault tree, which declares nothing.
-    """
-    from test.architecture._received_tree_builds import (
-        received_tree_factories,
-    )
-
-    discovered = {
-        site
-        for site in received_tree_factories()
-        if site[0].startswith("vultron/core/behaviors/embargo/")
-    }
-    covered = {site for _, _, _, site in TREES}
-
-    assert discovered, "no embargo received-tree factory found at all"
-    assert discovered - {_DECLARES_NOTHING} == covered, (
-        "every embargo received tree is pinned here or named as the one that"
-        f" declares nothing: discovered {sorted(discovered)}, covered"
-        f" {sorted(covered)}"
-    )
-
-
-@pytest.mark.spec("HP-01-038")
-@pytest.mark.parametrize(
-    ("label", "builder", "declared"),
-    [pytest.param(*row[:3], id=row[0]) for row in TREES],
-)
-def test_each_tree_declares_the_paths_it_handles(
-    label: str, builder: _Builder, declared: frozenset[ReceivedPath]
-) -> None:
-    """The declaration, tree by tree: widening or narrowing it fails here."""
-    case_id, embargo_id, _, _ = _store("manager", f"decl-{label}")
-
-    stage = _path_stage(builder(case_id, embargo_id))
-
-    assert stage.declared == declared
-
-
 @pytest.mark.spec("HP-01-038")
 @pytest.mark.spec("HP-01-041")
 def test_the_fault_tree_declares_no_paths() -> None:
@@ -402,7 +342,7 @@ def test_the_fault_tree_declares_no_paths() -> None:
 @pytest.mark.spec("HP-01-005")
 @pytest.mark.parametrize(
     ("label", "builder", "declared"),
-    [pytest.param(*row[:3], id=row[0]) for row in TREES],
+    [pytest.param(*row, id=row[0]) for row in TREES],
 )
 def test_a_receiver_off_the_declared_path_is_refused(
     label: str, builder: _Builder, declared: frozenset[ReceivedPath]
@@ -433,7 +373,7 @@ def test_a_receiver_off_the_declared_path_is_refused(
 @pytest.mark.spec("HP-01-037")
 @pytest.mark.parametrize(
     ("label", "builder", "declared"),
-    [pytest.param(*row[:3], id=row[0]) for row in TREES],
+    [pytest.param(*row, id=row[0]) for row in TREES],
 )
 def test_every_receiver_on_a_declared_path_is_admitted(
     label: str, builder: _Builder, declared: frozenset[ReceivedPath]

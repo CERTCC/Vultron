@@ -24,7 +24,8 @@ import httpx2 as httpx
 import pytest
 
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.demo.utils import DataLayerClient, _stamped_as_in_step
+from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils.inbox import _stamped_as_in_step
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 

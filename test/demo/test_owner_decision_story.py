@@ -33,7 +33,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
     mock_case,
     no_demo_banners,
@@ -56,6 +55,7 @@ from vultron.demo.helpers.owner_decision_story import (
     Part,
 )
 from vultron.demo.helpers.story import StoryProp
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 
@@ -102,7 +102,7 @@ def _state(joined: bool = True):
 
 def _gate_failures() -> list[str]:
     """Every recorded gate failure, in order."""
-    return [f for f in demo_utils._demo_failures if "GATE FAILED" in f]
+    return [f for f in _demo_failures if "GATE FAILED" in f]
 
 
 # ---------------------------------------------------------------------------
@@ -397,7 +397,7 @@ class TestTheOwnerApprovesASuggestedActor:
 
         ran["approve"].assert_not_called()
         failures = _gate_failures()
-        assert len(failures) == 1, demo_utils._demo_failures
+        assert len(failures) == 1, _demo_failures
         # The gate names the parts it was handed, not either pair's actors.
         assert NEWCOMER.label in failures[0]
         assert OWNER.label in failures[0]
@@ -508,8 +508,8 @@ class TestTheOwnerApprovesASuggestedActor:
         ran["approve"].assert_not_called()
         assert any(
             "GATE FAILED" in f and "no CaseActor participant" in f
-            for f in demo_utils._demo_failures
-        ), demo_utils._demo_failures
+            for f in _demo_failures
+        ), _demo_failures
 
 
 # ---------------------------------------------------------------------------
@@ -696,7 +696,7 @@ class TestTheOwnerHandsTheCaseOver:
         ran["wait_for_case_attributed_to"].assert_not_called()
         with pytest.raises(DemoStoryError, match="handed over"):
             state.kept(HANDED_OVER_CASE)
-        assert len(_gate_failures()) == 1, demo_utils._demo_failures
+        assert len(_gate_failures()) == 1, _demo_failures
 
     def test_a_completed_transfer_restates_the_case_and_keeps_the_prop(self):
         """The case is re-read as the old owner now stores it (CM-21-002)."""
@@ -725,9 +725,8 @@ class TestTheOwnerHandsTheCaseOver:
         with pytest.raises(DemoStoryError, match="handed over"):
             state.kept(HANDED_OVER_CASE)
         assert any(
-            "GATE FAILED" in f and "restate" in f
-            for f in demo_utils._demo_failures
-        ), demo_utils._demo_failures
+            "GATE FAILED" in f and "restate" in f for f in _demo_failures
+        ), _demo_failures
         assert ran["wait_for_case_attributed_to"].called
 
     def test_the_accept_is_skipped_when_the_case_actors_offer_never_arrives(
@@ -939,8 +938,8 @@ class TestTheNewOwnerInvites:
         ran["run_case_invite_chain"].assert_not_called()
         assert any(
             "GATE FAILED" in f and "no CaseActor participant" in f
-            for f in demo_utils._demo_failures
-        ), demo_utils._demo_failures
+            for f in _demo_failures
+        ), _demo_failures
 
 
 # ---------------------------------------------------------------------------

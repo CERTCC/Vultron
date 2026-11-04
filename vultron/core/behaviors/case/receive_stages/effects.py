@@ -16,20 +16,14 @@
 """The effect stages of a received tree, and the checks on them (BT-17-008).
 
 ``replica_effects`` run on every replica, ungated; ``manager_effects`` run
-inside the CASE_MANAGER gate the factory builds here, and
-``participant_path_effects`` inside the participant-replica path branch it
-builds here too (HP-01-038).  Split out of ``receive_activity_tree.py``
-(CS-18-005).
+inside the CASE_MANAGER gate the factory builds here.  Split out of
+``receive_activity_tree.py`` (CS-18-005).
 """
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.received_path import (
-    ReceivedPath,
-    ReceivedPathBranch,
-    ReceivedPathNode,
-    received_path_branch,
-)
+from vultron.core.behaviors.case.nodes.path_branch import PathBranch
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.nodes.role_gates import (
     CaseManagerGate,
     create_case_manager_gated_tree,
@@ -42,64 +36,64 @@ from vultron.core.behaviors.replica_emit_exemptions import (
 )
 from vultron.errors import VultronWiringError
 
+#: The declaration that gates a branch on the CASE_MANAGER, as a set.
+_MANAGER_PATH_ONLY = frozenset({ReceivedPath.CASE_MANAGER})
+
+
+def _runs_at_the_manager_alone(node: py_trees.behaviour.Behaviour) -> bool:
+    """True when *node* is a path branch on the manager path alone."""
+    return isinstance(node, PathBranch) and node.paths == _MANAGER_PATH_ONLY
+
 
 def ungated_nodes(
     roots: list[py_trees.behaviour.Behaviour],
     marker: type,
-    skip: tuple[type, ...] = (CaseManagerGate,),
 ) -> list[py_trees.behaviour.Behaviour]:
-    """Every *marker* instance in *roots* outside a *skip* composite.
+    """Every *marker* instance in *roots* outside a CASE_MANAGER gate.
 
-    By default the walk does not descend into a :class:`CaseManagerGate`:
-    whatever runs there runs only at the CASE_MANAGER (BT-17-001).  Any other
-    composite — including the hand-built participant-replica gate — is
-    walked.
-
-    *skip* differs by what is being looked for, because the two markers ask
-    different questions.  For an emit, a declared path branch is an answer:
-    the path names the actor the emit speaks for (:func:`ungated_emitters`).
-    For a state write it is not: only the CASE_MANAGER writes, so a
-    participant-replica branch is exactly where RSH-08-003's one exception
-    lives and must stay visible to the ratchet that pins it.
+    The walk does not descend into a :class:`CaseManagerGate`: whatever runs
+    there runs only at the CASE_MANAGER (BT-17-001).  Nor into a
+    :class:`~vultron.core.behaviors.case.nodes.path_branch.PathBranch` that
+    names the manager path alone, which is the same statement made as a
+    declared branch (HP-01-038).  Any other composite is walked, the
+    participant-replica gate and a branch off the manager path among them: a
+    branch that runs at a replica holds ungated nodes, so an emit inside it
+    needs its exemption (BT-17-008).
     """
     found: list[py_trees.behaviour.Behaviour] = []
     for root in roots:
-        if isinstance(root, skip):
+        if isinstance(root, CaseManagerGate) or _runs_at_the_manager_alone(
+            root
+        ):
             continue
         if isinstance(root, marker):
             found.append(root)
-        found.extend(ungated_nodes(list(root.children), marker, skip))
+        found.extend(ungated_nodes(list(root.children), marker))
     return found
 
 
 def ungated_emitters(
     roots: list[py_trees.behaviour.Behaviour],
 ) -> list[py_trees.behaviour.Behaviour]:
-    """Every :class:`EmitCapable` node in *roots* outside a bounded branch.
+    """Every :class:`EmitCapable` node in *roots* outside a CASE_MANAGER gate.
 
-    Neither a :class:`CaseManagerGate` nor a
-    :class:`~vultron.core.behaviors.case.nodes.received_path.ReceivedPathBranch`
-    is walked: the path stage already put the receiver on the branch's path,
-    so what emits there speaks for the actor the path names, which is the
-    other guard BT-17-008 admits (HP-01-038).
+    See :func:`ungated_nodes`; the state-write ratchet walks the same way for
+    :class:`~vultron.core.behaviors.state_write_capable.StateWriteCapable`
+    (RSH-08-003).
     """
-    return ungated_nodes(
-        roots, EmitCapable, (CaseManagerGate, ReceivedPathBranch)
-    )
+    return ungated_nodes(roots, EmitCapable)
 
 
 def check_gate_arguments(
     name: str,
     *,
     gate_arguments_without_effects: bool,
-    branch_arguments_without_effects: bool = False,
 ) -> None:
-    """Refuse gate or branch arguments that would be silently ignored.
+    """Refuse gate arguments that would be silently ignored.
 
     Raises:
         VultronWiringError: a gate argument is passed without
-            ``manager_effects`` (BT-17-008), or a branch-naming argument
-            without ``participant_path_effects`` (HP-01-042).
+            ``manager_effects`` (BT-17-008).
     """
     where = f"create_receive_activity_tree({name})"
     if gate_arguments_without_effects:
@@ -109,13 +103,6 @@ def check_gate_arguments(
             " the gate around manager_effects; pass them only with"
             " manager_effects"
             " (BT-17-008)"
-        )
-    if branch_arguments_without_effects:
-        raise VultronWiringError(
-            f"{where}: participant_path_branch_name and"
-            " participant_path_body_name name the branch around"
-            " participant_path_effects; pass them only with"
-            " participant_path_effects (HP-01-042)"
         )
 
 
@@ -184,43 +171,6 @@ def manager_stage(
         children=manager_effects,
         body_name=manager_body_name,
         case_may_be_absent=manager_case_may_be_absent,
-    )
-
-
-def participant_path_stage(
-    name: str,
-    participant_path_effects: list[py_trees.behaviour.Behaviour],
-    path_stage: ReceivedPathNode | None,
-    branch_name: str | None,
-    body_name: str | None,
-) -> ReceivedPathBranch:
-    """Wrap *participant_path_effects* in the participant-replica branch.
-
-    Raises:
-        VultronWiringError: the tree declared no path stage, or its
-            declaration omits ``ReceivedPath.PARTICIPANT_REPLICA`` — a branch
-            for a path the type does not handle could never run (HP-01-038).
-    """
-    where = f"create_receive_activity_tree({name})"
-    if path_stage is None:
-        raise VultronWiringError(
-            f"{where}: participant_path_effects are the branch of a declared"
-            " path; declare the tree's paths with the factory's paths"
-            " argument (HP-01-038, ADR-0153)"
-        )
-    if ReceivedPath.PARTICIPANT_REPLICA not in path_stage.declared:
-        raise VultronWiringError(
-            f"{where}: participant_path_effects need"
-            " ReceivedPath.PARTICIPANT_REPLICA among the declared paths;"
-            f" this tree declares"
-            f" {sorted(p.value for p in path_stage.declared)} (HP-01-038)"
-        )
-    return received_path_branch(
-        name=branch_name or f"{name}OnParticipantReplica",
-        stage=path_stage,
-        path=ReceivedPath.PARTICIPANT_REPLICA,
-        children=participant_path_effects,
-        body_name=body_name,
     )
 
 

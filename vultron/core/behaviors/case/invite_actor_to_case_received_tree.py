@@ -29,11 +29,9 @@ from vultron.core.behaviors.case.nodes.invite_received import (
 from vultron.core.behaviors.case.nodes.invite_reject_participant import (
     ApplyInviteRejectToParticipantNode,
 )
+from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
-)
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_participant_replica_gated_tree,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -94,6 +92,10 @@ def create_reject_invite_actor_to_case_received_tree(
 
     return create_receive_activity_tree(
         name="RejectInviteActorToCaseReceivedBT",
+        # The invitee rejects to the CASE_MANAGER that invited it, which alone
+        # closes the inert record (CM-11-007, PCR-08-001), so the manager path
+        # is the only one this type handles (HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         case_id=case_id,
         precondition_guards=[],
         sender_rule=sender_rule,
@@ -194,23 +196,24 @@ def create_invite_actor_to_case_received_tree(
             sender_id=inviter_id, case_id=case_id
         ),
         replica_effects=[
-            create_participant_replica_gated_tree(
-                name="InviteeRecordsInvite",
-                case_id=case_id,
-                children=[
-                    LogInviteReceivedNode(
-                        invitee_id=invitee_id,
-                        case_id=case_id,
-                        sender_id=inviter_id,
-                    ),
-                    RecordInviteTrustAnchorNode(
-                        case_id=case_id,
-                        invitee_id=invitee_id,
-                        case_actor_id=inviter_id,
-                        invite_id=invite_id,
-                    ),
-                ],
-                case_may_be_absent=True,
+            # The invitee's own record of the Invite, on every declared
+            # path but the manager's: the CASE_MANAGER issued this Invite,
+            # so it anchors no trust in it (HP-01-038, PCR-03-004).  The
+            # branch reads the path the stage resolved rather than asking
+            # the roster again (HP-01-036).
+            OnPaths.off_case_manager(
+                "InviteeRecordsInvite",
+                LogInviteReceivedNode(
+                    invitee_id=invitee_id,
+                    case_id=case_id,
+                    sender_id=inviter_id,
+                ),
+                RecordInviteTrustAnchorNode(
+                    case_id=case_id,
+                    invitee_id=invitee_id,
+                    case_actor_id=inviter_id,
+                    invite_id=invite_id,
+                ),
             ),
         ],
         case_may_be_absent=True,

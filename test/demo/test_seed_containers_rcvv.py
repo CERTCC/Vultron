@@ -16,6 +16,7 @@
 from unittest.mock import MagicMock, patch
 
 from vultron.demo.helpers import seeding
+from vultron.demo.helpers.seeding import actors as seeding_actors
 
 
 def _seed() -> tuple[tuple, MagicMock, dict]:
@@ -31,9 +32,11 @@ def _seed() -> tuple[tuple, MagicMock, dict]:
         return actor
 
     with (
-        patch.object(seeding, "seed_actor", side_effect=fake_seed_actor),
-        patch.object(seeding, "_own_actor", side_effect=lambda c, a: a),
-        patch.object(seeding, "seed_peer") as peer,
+        patch.object(
+            seeding_actors, "seed_actor", side_effect=fake_seed_actor
+        ),
+        patch.object(seeding_actors, "_own_actor", side_effect=lambda c, a: a),
+        patch.object(seeding_actors, "seed_peer") as peer,
     ):
         result = seeding.seed_containers_rcvv(
             reporter_client=clients["reporter"],

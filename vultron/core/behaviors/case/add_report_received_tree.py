@@ -24,6 +24,9 @@ replica (CM-30-002, CM-30-005, PCR-03-001, ADR-0115).
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.nodes.reference_list import (
     AttachReportToCaseNode,
     CaseReferenceEditPendingNode,
@@ -51,6 +54,7 @@ def create_add_report_to_case_received_tree(
 
         GuardedAttachReportAndCommitBT (Sequence)
         ├── IntakeReceivedActivityNode                    # intake
+        ├── ReceivedPathNode                              # manager or replica
         ├── SenderRuleGuard (Sequence)                    # sender guard
         ├── CaseReferenceEditPendingNode                  # duplicate guard
         ├── GuardedCommitCaseLedgerEntryBT (Selector)     # commit
@@ -69,6 +73,10 @@ def create_add_report_to_case_received_tree(
     """
     return create_receive_activity_tree(
         name="GuardedAttachReportAndCommitBT",
+        # The Case Owner asks the CASE_MANAGER to attach the report, and the
+        # CASE_MANAGER relays the attachment to a participant, which archives
+        # it and takes the fact from the ledger (RSH-08-003, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(

@@ -1,0 +1,143 @@
+"""Inbox dispatch and queue adapters.
+
+- :class:`FastAPIDispatchAdapter` — wraps the dispatcher port
+- :class:`FastAPIQueuePort` — wraps pending-case queue helpers
+"""
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+from typing import cast
+
+from vultron.adapters.driving.fastapi.inbox_handler import (
+    dispatch,
+    emit_processing_fault,
+)
+from vultron.adapters.driving.fastapi.inbox_pending_queue import (
+    _expire_pending_case_activities,
+    _queue_pending_case_activity,
+    _replay_pending_case_activities,
+)
+from vultron.adapters.inbox_staging import (
+    InlineObjectStaging,
+)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.events import VultronEvent
+from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.dispatcher import ActivityDispatcher
+
+
+class FastAPIDispatchAdapter:
+    """Dispatch adapter wrapping the inbox dispatcher port.
+
+    Args:
+        dl: Shared DataLayer for use-case dispatch.
+        actor_id: Canonical URI of the receiving actor; injected into
+            the domain event before dispatch.
+        dispatcher: Optional per-app dispatcher.  Falls back to the
+            module-level dispatcher when ``None``.
+    """
+
+    def __init__(
+        self,
+        dl: DataLayer,
+        actor_id: str,
+        dispatcher: ActivityDispatcher | None = None,
+    ) -> None:
+        self._dl = dl
+        self._actor_id = actor_id
+        self._dispatcher = dispatcher
+
+    def dispatch(self, event: VultronEvent) -> HandlerResult:
+        """Inject receiving actor ID, dispatch, and return the verdict."""
+        scoped_event = event.model_copy(
+            update={"receiving_actor_id": self._actor_id}
+        )
+        return dispatch(
+            event=scoped_event,
+            dl=self._dl,
+            dispatcher=self._dispatcher,
+        )
+
+    def emit_processing_fault(
+        self, event: VultronEvent, failure_class: str
+    ) -> None:
+        """Queue the receiving actor's fault to *event*'s sender (ASK-07-010)."""
+        emit_processing_fault(
+            self._dl,
+            self._actor_id,
+            event.activity_id,
+            event.actor_id,
+            failure_class,
+        )
+
+
+class FastAPIQueuePort:
+    """Pending-case queue port wrapping the adapter-layer helpers.
+
+    Args:
+        dl: Shared DataLayer, for case reads.
+        actor_dl: Actor-scoped DataLayer for queue management.
+        staging: The inbox run's inline-object staging; a deferred activity's
+            staged inline objects are held through it for the replay.
+    """
+
+    def __init__(
+        self,
+        dl: DataLayer,
+        actor_dl: DataLayer,
+        staging: InlineObjectStaging | None = None,
+    ) -> None:
+        self._dl = dl
+        self._actor_dl = cast(DataLayer, actor_dl)
+        self._staging = staging or InlineObjectStaging(actor_dl)
+
+    def is_case_known(self, case_id: str) -> bool:
+        """Return ``True`` if the case replica is locally available."""
+        return isinstance(self._dl.read(case_id), VulnerabilityCase)
+
+    def queue(
+        self,
+        activity_id: str,
+        case_id: str,
+        case_actor_id: str | None = None,
+    ) -> None:
+        """Persist *activity_id* in the deferred queue for *case_id*.
+
+        The activity is held whole with its staged inline objects, because
+        the replay rebuilds it after this delivery's staging is gone, and the
+        receiver keeps no copy under its id (DL-06-006).  It is held before
+        it is queued, so a failed hold queues nothing.
+        """
+        self._staging.hold_for_replay(activity_id)
+        _queue_pending_case_activity(
+            queue_dl=self._actor_dl,
+            case_id=case_id,
+            activity_id=activity_id,
+            case_actor_id=case_actor_id,
+        )
+
+    def check_and_expire(self, case_id: str) -> bool:
+        """Check expiry; drop queue and return ``True`` when expired."""
+        return _expire_pending_case_activities(
+            case_id=case_id, queue_dl=self._actor_dl
+        )
+
+    def replay(self, case_id: str) -> None:
+        """Move deferred activities for *case_id* back to the live inbox."""
+        _replay_pending_case_activities(
+            case_id=case_id,
+            dl=self._dl,
+            queue_dl=self._actor_dl,
+        )

@@ -43,8 +43,8 @@ in force, and only the CASE_MANAGER announces (BT-17-008):
     ├─ TerminationIsTimelyNode            # no END_TIME_REACHED before the end time
     └─ RemoveEmbargoFromCaseBTAct (ActTransaction)  # one act (ADR-0151)
        ├─ GuardedCommitCaseLedgerEntryBT     # record receipt before effects (CLP-10-006)
-       ├─ TeardownOnReplica (ReceivedPathBranch)  # replica path: paused only
-       │  ├─ SkipIfNotOnParticipantReplica
+       ├─ TeardownOnReplica (PathBranch)     # replica path: paused only
+       │  ├─ SkipOffTeardownOnReplica
        │  └─ ReplicaTeardownIfEndingNoticeAwaited (Selector)  # CM-31-010 only
        │     ├─ SkipUnlessEndingNoticeAwaited (Inverter)      # active replica: skip
        │     │  └─ AwaitsEmbargoEndingNoticeNode              # paused-stream check
@@ -83,6 +83,7 @@ from datetime import datetime
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -128,6 +129,9 @@ from vultron.core.behaviors.embargo.nodes.manager_consent import (
 from vultron.core.behaviors.embargo.refusal_tree import pxa_invite_refusal
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
+)
+from vultron.core.behaviors.replica_emit_exemptions import (
+    EMBARGO_INVITE_ANSWER,
 )
 from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
 from vultron.core.behaviors.sender_entitlement import SenderRule
@@ -226,7 +230,8 @@ def remove_embargo_from_case_tree(
     backfills any participant the end of the embargo admits (CM-10-006),
     re-issuing any outstanding stub Invite that carries the old terms
     (CM-11-016).
-    A participant replica's arm, in ``participant_path_effects``, tears down
+    A participant replica's arm is an ``OnPaths.off_case_manager``
+    declaration among ``replica_effects``; it tears down
     its own copy and sends nothing: the teardown is the CASE_MANAGER's act, so
     re-announcing it would speak for another actor (BT-17-008).  Each arm
     skips when there is nothing to tear down, and a failed teardown step
@@ -310,26 +315,30 @@ def remove_embargo_from_case_tree(
         # the one apply function (CM-31-010, ADR-0124), gated by
         # ``AwaitsEmbargoEndingNoticeNode``.  It tears down only and sends
         # nothing, so it carries no capture/notice.
-        participant_path_effects=[
-            py_trees.composites.Selector(
-                name="ReplicaTeardownIfEndingNoticeAwaited",
-                memory=False,
-                children=[
-                    py_trees.decorators.Inverter(
-                        name="SkipUnlessEndingNoticeAwaited",
-                        child=AwaitsEmbargoEndingNoticeNode(case_id=case_id),
-                    ),
-                    _teardown_if_active(
-                        case_id,
-                        embargo_id,
-                        termination,
-                        terminated_at,
-                        prefix="Replica",
-                    ),
-                ],
+        replica_effects=[
+            OnPaths.off_case_manager(
+                "TeardownOnReplica",
+                py_trees.composites.Selector(
+                    name="ReplicaTeardownIfEndingNoticeAwaited",
+                    memory=False,
+                    children=[
+                        py_trees.decorators.Inverter(
+                            name="SkipUnlessEndingNoticeAwaited",
+                            child=AwaitsEmbargoEndingNoticeNode(
+                                case_id=case_id
+                            ),
+                        ),
+                        _teardown_if_active(
+                            case_id,
+                            embargo_id,
+                            termination,
+                            terminated_at,
+                            prefix="Replica",
+                        ),
+                    ],
+                ),
             ),
         ],
-        participant_path_branch_name="TeardownOnReplica",
         # The CASE_MANAGER arm captures the embargo in force ahead of the
         # clear, then announces the teardown, sends the CM-31-009 ending
         # notices to the signatories the ledger no longer reaches, and
@@ -426,8 +435,9 @@ def invite_to_embargo_on_case_tree(
     embargo to this Invite's id) commits nothing and the handler reports it
     as a repeat (CLP-13-001, HP-01-003).  Each arm ends by writing that
     index (DL-06), so it is written only once the Invite has been applied in
-    whichever arm ran.  The participant-replica arm is the declared path
-    branch the factory builds from ``participant_path_effects``, and so runs
+    whichever arm ran.  The participant-replica arm is the ``PathBranch`` the
+    factory builds from an ``OnPaths.off_case_manager`` declaration among
+    ``replica_effects``, and so runs
     before the factory's CASE_MANAGER gate; the two arms are mutually
     exclusive on the one answer the path stage gave, so their order does not
     matter (HP-01-037, HP-01-038).
@@ -540,95 +550,98 @@ def invite_to_embargo_on_case_tree(
             ),
             case_manager_admits_proposal_guard(case_id=case_id),
         ],
-        replica_effects=[*intake],
-        participant_path_effects=[
-            py_trees.composites.Selector(
-                name="AnswerIfAddressee",
-                memory=False,
-                children=[
-                    py_trees.decorators.Inverter(
-                        name="SkipUnlessAnswerable",
-                        child=CanAnswerEmbargoInviteNode(
-                            case_id=case_id,
-                            invitee_id=invitee_id,
-                            embargo_id=embargo_id,
-                        ),
-                    ),
-                    # EP-09-005/006: the owner's answer is its own
-                    # to give; it auto-accepts only inside the
-                    # prototype's bound, otherwise it holds.
-                    py_trees.composites.Sequence(
-                        name="OwnerHoldsAnswer",
-                        memory=False,
-                        children=[
-                            ActorHoldsRoleInCaseNode(
-                                actor_id=invitee_id,
-                                role=CVDRole.CASE_OWNER,
+        replica_effects=[
+            *intake,
+            OnPaths.off_case_manager(
+                "AnswerInviteOnReplica",
+                py_trees.composites.Selector(
+                    name="AnswerIfAddressee",
+                    memory=False,
+                    children=[
+                        py_trees.decorators.Inverter(
+                            name="SkipUnlessAnswerable",
+                            child=CanAnswerEmbargoInviteNode(
                                 case_id=case_id,
-                                name="InviteeIsCaseOwner",
+                                invitee_id=invitee_id,
+                                embargo_id=embargo_id,
                             ),
-                            py_trees.decorators.Inverter(
-                                name="AutoAcceptNotAllowed",
-                                child=OwnerMayAutoAcceptEmbargoNode(
-                                    case_id=case_id,
-                                    embargo_id=embargo_id,
-                                ),
-                            ),
-                        ],
-                    ),
-                    # The owner's answer is its decision for the
-                    # case, sent as Accept/Reject of the embargo
-                    # itself (ADR-0122).
-                    py_trees.composites.Sequence(
-                        name="OwnerDecides",
-                        memory=False,
-                        children=[
-                            ActorHoldsRoleInCaseNode(
-                                actor_id=invitee_id,
-                                role=CVDRole.CASE_OWNER,
-                                case_id=case_id,
-                                name="InviteeIsOwner",
-                            ),
-                            create_embargo_response_decision_tree(
-                                case_id=case_id,
-                                deciding_actor_id=invitee_id,
-                                accept_bt=SendOwnerEmbargoDecisionNode(
-                                    case_id=case_id,
-                                    embargo_id=embargo_id,
-                                    accept=True,
-                                    name="SendActivateEmbargo",
-                                ),
-                                reject_bt=SendOwnerEmbargoDecisionNode(
-                                    case_id=case_id,
-                                    embargo_id=embargo_id,
-                                    accept=False,
-                                    name="SendRejectEmbargoProposal",
-                                ),
-                            ),
-                        ],
-                    ),
-                    create_embargo_response_decision_tree(
-                        case_id=case_id,
-                        deciding_actor_id=invitee_id,
-                        accept_bt=SendEmbargoInviteAnswerNode(
-                            case_id=case_id,
-                            invite_id=invite_id,
-                            accept=True,
-                            name="SendAcceptEmbargoInvite",
                         ),
-                        reject_bt=SendEmbargoInviteAnswerNode(
-                            case_id=case_id,
-                            invite_id=invite_id,
-                            accept=False,
-                            name="SendRejectEmbargoInvite",
+                        # EP-09-005/006: the owner's answer is its own
+                        # to give; it auto-accepts only inside the
+                        # prototype's bound, otherwise it holds.
+                        py_trees.composites.Sequence(
+                            name="OwnerHoldsAnswer",
+                            memory=False,
+                            children=[
+                                ActorHoldsRoleInCaseNode(
+                                    actor_id=invitee_id,
+                                    role=CVDRole.CASE_OWNER,
+                                    case_id=case_id,
+                                    name="InviteeIsCaseOwner",
+                                ),
+                                py_trees.decorators.Inverter(
+                                    name="AutoAcceptNotAllowed",
+                                    child=OwnerMayAutoAcceptEmbargoNode(
+                                        case_id=case_id,
+                                        embargo_id=embargo_id,
+                                    ),
+                                ),
+                            ],
                         ),
-                    ),
-                ],
+                        # The owner's answer is its decision for the
+                        # case, sent as Accept/Reject of the embargo
+                        # itself (ADR-0122).
+                        py_trees.composites.Sequence(
+                            name="OwnerDecides",
+                            memory=False,
+                            children=[
+                                ActorHoldsRoleInCaseNode(
+                                    actor_id=invitee_id,
+                                    role=CVDRole.CASE_OWNER,
+                                    case_id=case_id,
+                                    name="InviteeIsOwner",
+                                ),
+                                create_embargo_response_decision_tree(
+                                    case_id=case_id,
+                                    deciding_actor_id=invitee_id,
+                                    accept_bt=SendOwnerEmbargoDecisionNode(
+                                        case_id=case_id,
+                                        embargo_id=embargo_id,
+                                        accept=True,
+                                        name="SendActivateEmbargo",
+                                    ),
+                                    reject_bt=SendOwnerEmbargoDecisionNode(
+                                        case_id=case_id,
+                                        embargo_id=embargo_id,
+                                        accept=False,
+                                        name="SendRejectEmbargoProposal",
+                                    ),
+                                ),
+                            ],
+                        ),
+                        create_embargo_response_decision_tree(
+                            case_id=case_id,
+                            deciding_actor_id=invitee_id,
+                            accept_bt=SendEmbargoInviteAnswerNode(
+                                case_id=case_id,
+                                invite_id=invite_id,
+                                accept=True,
+                                name="SendAcceptEmbargoInvite",
+                            ),
+                            reject_bt=SendEmbargoInviteAnswerNode(
+                                case_id=case_id,
+                                invite_id=invite_id,
+                                accept=False,
+                                name="SendRejectEmbargoInvite",
+                            ),
+                        ),
+                    ],
+                ),
+                _index_received_proposal(case_id, embargo_id, invite_id),
+                body_name="AnswerInviteOnReplicaBody",
             ),
-            _index_received_proposal(case_id, embargo_id, invite_id),
         ],
-        participant_path_branch_name="AnswerInviteOnReplica",
-        participant_path_body_name="AnswerInviteOnReplicaBody",
+        replica_emit_exemption=EMBARGO_INVITE_ANSWER,
         manager_effects=[
             *adjudication,
             _index_received_proposal(case_id, embargo_id, invite_id),
