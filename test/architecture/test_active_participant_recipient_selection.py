@@ -28,8 +28,9 @@ record's ``attributed_to``.  A loop that only looks something up (it
 matches one participant ID, or collects something other than actor IDs) is
 not recipient selection and is not flagged.  The shared selection's own
 package is the one exemption; if the implementation moves it, move the
-exemption with it (a guard fails while the exemption covers nothing).  The retired roster-wide helper ``case_addressees`` must
-not come back under any import path.  See
+exemption with it (a guard fails while the exemption covers nothing).  The
+retired roster-wide helper ``case_addressees`` must not come back under any
+import path.  See
 ``notes/case-joining.md`` and #4046.
 """
 
