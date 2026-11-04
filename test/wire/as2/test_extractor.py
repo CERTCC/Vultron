@@ -962,10 +962,10 @@ def test_consent_coercion_helpers_are_retired():
     Consent is per-embargo rows on the core participant; neither the extractor
     nor the wire vocab base coerces a PEC string any more.
     """
-    from vultron.wire.as2.extractor import _builders
+    from vultron.wire.as2.extractor._builders import statuses
     from vultron.wire.as2.vocab.objects import base
 
-    assert not hasattr(_builders, "_coerce_pec_or_none")
+    assert not hasattr(statuses, "_coerce_pec_or_none")
     assert not hasattr(base, "_coerce_pec_or_none")
 
 

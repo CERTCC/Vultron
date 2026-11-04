@@ -228,9 +228,9 @@ sender guard admits the CASE_MANAGER alone. Nothing is committed there.
   (`RecordedOwnershipOffer.offerer_id()`); nothing downstream re-checks it
   (CLP-07-003 checks `payloadSnapshot.actor`).
 - **The snapshot builder's `_get_id` never falls back to `str(field)`**
-  (`vultron/wire/as2/extractor/_builders.py`): `attributedTo` may be an inline object
-  or array, and a Python repr in a hashed, replicated snapshot is unrecoverable
-  (CLP-07-011).
+  (`vultron/wire/as2/extractor/_builders/fields.py`): `attributedTo` may be an
+  inline object or array, and a Python repr in a hashed, replicated snapshot is
+  unrecoverable (CLP-07-011).
 
 ### `create_accept_ownership_transfer_tree()`
 

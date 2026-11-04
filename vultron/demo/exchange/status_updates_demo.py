@@ -50,8 +50,10 @@ from vultron.core.models.dimensions import (
 from vultron.core.states.cs import CS_pxa
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import (
-    _fetch_participant,
     verify_participant_status_appended,
+)
+from vultron.demo.helpers.verification.participants import (
+    _fetch_participant,
 )
 from vultron.demo.helpers.workflow import setup_initialized_case
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching

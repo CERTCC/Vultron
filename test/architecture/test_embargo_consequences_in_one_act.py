@@ -260,7 +260,7 @@ def test_the_walk_finds_later_nodes_inside_an_act() -> None:
             "activate_embargo_on_case_tree",
         ),
         (
-            f"{_B}/embargo/announce_teardown_tree.py",
+            f"{_B}/embargo/announce_teardown_tree/invite.py",
             "invite_to_embargo_on_case_tree",
         ),
         (

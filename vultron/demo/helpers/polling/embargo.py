@@ -19,7 +19,7 @@ from collections.abc import Callable
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.helpers.polling._poll import _poll_until
-from vultron.demo.helpers.verification import (
+from vultron.demo.helpers.verification.participants import (
     _fetch_participant,
 )
 from vultron.demo.utils import (

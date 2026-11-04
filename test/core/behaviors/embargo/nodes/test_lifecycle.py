@@ -41,15 +41,13 @@ from vultron.core.behaviors.embargo.nodes.em_state import (
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     ProposeEmbargoLifecycleNode,
 )
-from vultron.core.behaviors.embargo.trigger_tree import (
-    ASSERTED_ACTIVITY_KEY,
-    terminate_embargo_bt,
-)
+from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_termination import EmbargoTermination
+from vultron.core.models.pending_assertion import ASSERTED_ACTIVITY_KEY
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
