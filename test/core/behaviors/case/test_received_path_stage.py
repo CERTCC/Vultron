@@ -575,7 +575,14 @@ def test_the_sender_guards_arms_read_the_path_stages_answer() -> None:
 
 @pytest.mark.spec("HP-01-036")
 def test_without_a_path_stage_the_arms_read_the_role_themselves() -> None:
-    """The unmigrated shape is unchanged, so a tree may declare paths later."""
+    """The stageless shape still composes, which is what the tests rely on.
+
+    No received tree reaches it: after #5044 every call site that passes a
+    sender rule also declares its paths, so this is the shape the
+    guard-composition tests get when they compose a guard in isolation and
+    let the fallback read the receiver's role from their store fixture.  It
+    goes with the fallback itself, in #5876.
+    """
     guard = compose_sender_guard(_RULE, _CONTEXT)
     assert guard is not None
 

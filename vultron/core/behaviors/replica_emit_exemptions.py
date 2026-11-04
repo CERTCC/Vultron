@@ -33,6 +33,26 @@ executing actor, or is addressed only to an actor other than itself.
 A sender check added to a tree without an exemption is not enough on its own,
 because it says nothing about whether this replica owns the case (#2667).
 
+**An exemption is a waiver of BT-17-008, never a satisfaction of it.**  The
+requirement gives an emit two guards and no third: the CASE_MANAGER gate, or a
+check that the executing actor is the actor the emit speaks for.  So this
+registry holds only the emits that can carry neither, and every entry says
+which of the two it lacks and why.  An emit a tree *can* put behind either one
+loses its entry in the same change: a manager-only path declaration bounds it
+(HP-01-038), and a
+:class:`~vultron.core.behaviors.speaks_for_executing_actor.SpeaksForExecutingActor`
+leaf ahead of it is the second arm, which
+:func:`~vultron.core.behaviors.case.receive_stages.effects.ungated_emitters`
+reads.  That is how the role-offer answer, the embargo Invite answer and its
+P/X/A refusal stopped needing entries: each already had the leaf guard, and
+the walk could not see it.
+
+The registry itself is kept, not retired with them.  Its refusal of an
+unregistered or uncovered exemption is what makes a bare emit fail at
+construction rather than run on every replica, so deleting the registry would
+delete that enforcement.  ``AddresseeExemption`` / ``ADDRESSEE_EXEMPTIONS`` is
+the same shape, kept for the same reason (HP-01-005).
+
 ``test/architecture/test_received_tree_case_manager_gate.py`` pins which tree
 uses each exemption, in both directions (ARCH-18-001, ARCH-18-005).
 """
@@ -47,10 +67,7 @@ from vultron.primitives import NonEmptyString
 
 __all__ = [
     "CASE_PROPOSAL",
-    "EMBARGO_INVITE_ANSWER",
     "EMBARGO_INVITE_FAULT",
-    "EMBARGO_INVITE_REFUSAL",
-    "OFFER_ROLE",
     "REPLICA_EMIT_EXEMPTIONS",
     "REPORT_CASE_PROPOSAL",
     "REPORTER_INTRODUCTION",
@@ -75,24 +92,6 @@ class ReplicaEmitExemption(BaseModel):
     covers: frozenset[NonEmptyString]
 
 
-OFFER_ROLE: Final = ReplicaEmitExemption(
-    name="offer-role",
-    reason=(
-        "Offer(CaseParticipantRole) is answered by the actor offered the"
-        " role: the Accept or Reject runs in the participant-replica arm,"
-        " only when the executing actor is the Offer's target, and is that"
-        " actor's own act: its answer to the CASE_MANAGER's forward,"
-        " addressed to the CASE_MANAGER, which commits and announces it"
-        " (CM-33-015, CM-33-006, CM-33-019, PCR-08-001, ADR-0039)."
-    ),
-    covers=frozenset(
-        {
-            "AutoAcceptCaseParticipantRoleNode",
-            "EmitRejectCaseParticipantRoleNode",
-        }
-    ),
-)
-
 CASE_PROPOSAL: Final = ReplicaEmitExemption(
     name="case-proposal",
     reason=(
@@ -101,7 +100,11 @@ CASE_PROPOSAL: Final = ReplicaEmitExemption(
         " on (the tree has no commit stage), and the Accept or Reject, the"
         " bootstrap Create(VulnerabilityCase) and the creation-time revision"
         " relay are the executing actor's own acts as the new case's creator"
-        " (CP-05-002, ADR-0041, EP-04-011)."
+        " (CP-05-002, ADR-0041, EP-04-011).  Neither arm of BT-17-008 is"
+        " open: there is no CASE_MANAGER to gate on, and a no-case path"
+        " declaration says only that this receiver holds no replica, which"
+        " pins no identity, so declaring one would weaken the requirement"
+        " rather than meet it (HP-01-038, HP-01-041)."
     ),
     covers=frozenset(
         {
@@ -113,41 +116,6 @@ CASE_PROPOSAL: Final = ReplicaEmitExemption(
     ),
 )
 
-EMBARGO_INVITE_ANSWER: Final = ReplicaEmitExemption(
-    name="embargo-invite-answer",
-    reason=(
-        "Invite(EmbargoEvent) is answered by its addressee: the Accept or"
-        " Reject runs in the tree's OnPaths.off_case_manager branch, only"
-        " when the executing actor is the Invite's sole addressee, and is"
-        " that actor's own answer addressed to the CASE_MANAGER (EP-09-003,"
-        " EP-09-010, PCR-08).  When the addressee is the case owner its"
-        " answer is its decision for the case,"
-        " Accept/Reject(EmbargoEvent)[target=VulnerabilityCase]"
-        " (SendOwnerEmbargoDecisionNode, ADR-0122), likewise addressed to the"
-        " CASE_MANAGER."
-    ),
-    covers=frozenset(
-        {"SendEmbargoInviteAnswerNode", "SendOwnerEmbargoDecisionNode"}
-    ),
-)
-
-EMBARGO_INVITE_REFUSAL: Final = ReplicaEmitExemption(
-    name="embargo-invite-refusal",
-    reason=(
-        "Once P/X/A is set, a received Invite(EmbargoEvent) is refused with"
-        " the executing actor's own Reject of that Invite: a participant"
-        " answers only an Invite addressed to it (ReceiverIsInviteeNode) and"
-        " sends the Reject to the CASE_MANAGER, and the CASE_MANAGER answers"
-        " the actor that sent it the Invite (EMB-01-002, EP-09-003,"
-        " EP-09-010, PCR-08-001).  The Invite tree declares both the manager"
-        " and the participant-replica path, so the declaration alone does"
-        " not bound the emit; the refusal of an Accept runs in a tree that"
-        " declares the CASE_MANAGER path alone and needs no exemption"
-        " (EMB-02-004, HP-01-038)."
-    ),
-    covers=frozenset({"SendEmbargoProposalRefusalNode"}),
-)
-
 EMBARGO_INVITE_FAULT: Final = ReplicaEmitExemption(
     name="embargo-invite-fault",
     reason=(
@@ -157,7 +125,10 @@ EMBARGO_INVITE_FAULT: Final = ReplicaEmitExemption(
         " its own act, whose id derives from the Invite and the failure"
         " class (MSM-05-001, EP-09-010, ID-04-004).  An Invite to nobody"
         " names no addressee and may reach a store that is not the case's"
-        " CASE_MANAGER, so there is no gate to put it under."
+        " CASE_MANAGER, so there is no gate to put it under, and the tree"
+        " declares no paths to bound it with (HP-01-038).  The second arm is"
+        " vacuous here: the fault unconditionally speaks for whichever actor"
+        " is executing, and a tautology is not a guard."
     ),
     covers=frozenset({"EmitEmbargoInviteFaultNode"}),
 )
@@ -170,7 +141,9 @@ REPORT_CASE_PROPOSAL: Final = ReplicaEmitExemption(
         " case and no CASE_MANAGER exist yet to gate on (the tree has no"
         " commit stage), and the Create(CaseProposal) is the executing"
         " actor's own act, addressed to the CaseActor (CP-04-001, CP-04-002,"
-        " ADR-0041)."
+        " ADR-0041).  As for Create(CaseProposal), there is no CASE_MANAGER"
+        " to gate on and a no-case declaration would pin no identity"
+        " (HP-01-038)."
     ),
     covers=frozenset({"ProposeReportCaseToActorNode"}),
 )
@@ -188,7 +161,9 @@ REPORTER_INTRODUCTION: Final = ReplicaEmitExemption(
         " CASE_MANAGER routes (PCR-08-001), and the reporter has no anchor"
         " for the CASE_MANAGER until it arrives (CBT-01-005).  The receiving"
         " replica is never the case's CASE_MANAGER on this path, so there is"
-        " no gate to put it under."
+        " no gate to put it under, and the path declaration that admits it"
+        " names a receiver rather than the reporter the introduction speaks"
+        " for (HP-01-038)."
     ),
     covers=frozenset({"IntroduceCaseManagerToReporterNode"}),
 )
@@ -204,16 +179,17 @@ REPORTER_INTRODUCTION: Final = ReplicaEmitExemption(
 #: outside the gate.  ``case-status`` was retired by #4851: add_case_status
 #: now runs only at a participant replica, from the CASE_MANAGER (RSH-04-005),
 #: and has no effects to exempt, so its threat-ask went with its teardown.
+#: ``offer-role``, ``embargo-invite-answer`` and ``embargo-invite-refusal``
+#: were retired by #5044: each of those emits already sat behind a leaf that
+#: admits the executing actor alone, so each is BT-17-008's second arm and
+#: the waiver recorded nothing the tree did not already state.
 REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
     MappingProxyType(
         {
             exemption.name: exemption
             for exemption in (
-                OFFER_ROLE,
                 CASE_PROPOSAL,
-                EMBARGO_INVITE_ANSWER,
                 EMBARGO_INVITE_FAULT,
-                EMBARGO_INVITE_REFUSAL,
                 REPORT_CASE_PROPOSAL,
                 REPORTER_INTRODUCTION,
             )

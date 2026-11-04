@@ -950,8 +950,10 @@ def test_the_genesis_request_survives_the_inbox_rebuild() -> None:
     """The inbox rebuilds an activity's object before routing; the Reject
     that names none has none to rebuild, and still reaches its handler,
     whose sender guard refuses a stranger and records no replay state."""
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
-    dl.create(_owned_case("manager case"))
+    # The roster must name the receiver as CASE_MANAGER: the tree declares
+    # that path alone, so the path door would otherwise refuse the delivery
+    # before the sender guard this test is about ran (HP-01-038).
+    dl = _replica_holding("manager case", actor_id=_CASE_ACTOR_ID)
     body = genesis_replay_reject_activity(
         _CASE_ID, _EMPTY_CHAIN, actor=_STRANGER_ID, to=[_CASE_ACTOR_ID]
     ).model_dump(mode="json", by_alias=True, exclude_none=True)

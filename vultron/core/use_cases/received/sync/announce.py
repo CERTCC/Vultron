@@ -23,16 +23,15 @@ import logging
 from typing import ClassVar
 
 import py_trees
-from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
 from vultron.core.behaviors.sender_guard import sender_guard_refused
 from vultron.core.behaviors.sync.announce_tree import (
-    AT_CASE_MANAGER,
     create_announce_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes import (
@@ -69,9 +68,9 @@ from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     door_refusal,
-    named_node_status,
     node_failed,
     node_succeeded,
+    received_path,
     verdict_from_bt,
 )
 
@@ -129,7 +128,7 @@ def _announce_verdict(
     if verdict.disposition is HandlerDisposition.APPLIED:
         # Past the sender guard, an announcement the CASE_MANAGER admits is
         # its own (SYNC-13-006).
-        if named_node_status(tree, AT_CASE_MANAGER) is Status.SUCCESS:
+        if received_path(tree) is ReceivedPath.CASE_MANAGER:
             return HandlerResult.skipped(
                 f"own announcement of ledger entry '{entry.id_}' echoed back;"
                 " delivery confirmed"

@@ -270,16 +270,30 @@ SANCTIONED_AUTHORITY_ASKER: _authority_question.AuthorityAsker = (
 
 #: Nodes that answer the authority question besides the sanctioned one, so
 #: ARCH-24-003's "exactly one" is violated until each is retired.  Terminal
-#: value: empty.
-#: owner: #5193
+#: value: empty.  All three entries now turn on the same question — how
+#: ARCH-24-003 is measured — rather than on a migration still to run.
+#: owner: #5784
 KNOWN_SECOND_AUTHORITY_ASKERS: frozenset[
     _authority_question.AuthorityAsker
 ] = frozenset(
     {
-        # The received tree's path door stage.  ADR-0153 makes it the one
-        # asker for a received delivery, but every received tree still
-        # carries its own CASE_MANAGER gates until wave 4 removes them, so
-        # for now it is a second node asking.  Cleared by #5044.
+        # The received tree's path door stage.  #5044 was expected to clear
+        # this entry, on the reading that it was a second asker only while
+        # received trees built CASE_MANAGER gates of their own.  Those are
+        # gone, and the entry stands anyway: ADR-0153 keeps the gate the
+        # *factory* wraps round ``manager_effects`` (BT-17-001), so every
+        # declaring tree with manager effects still holds one
+        # ``CheckIsCaseManagerNode``, and the stage is a second *condition*
+        # node by ARCH-24-003's literal count while satisfying ARCH-24-007 —
+        # both take the role from the one resolver through ``has_role``, so
+        # neither can answer differently.  That is the same mismatch between
+        # ARCH-24-003 and how it is measured that the two entries below
+        # raise, so this entry moves to the issue that decides it rather
+        # than to another migration wave.  Clearing it needs either
+        # ARCH-24-003 measured by what the detector can mean, or the
+        # factory's gate re-expressed as an at-the-manager path branch,
+        # which would retire ``CheckIsCaseManagerNode`` from every declaring
+        # tree.  Owned by #5784.
         (
             "vultron/core/behaviors/case/nodes/received_path.py",
             "ReceivedPathNode",

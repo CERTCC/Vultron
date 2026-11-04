@@ -27,6 +27,7 @@ import py_trees
 from vultron.core.behaviors.case.intake_only_received_tree import (
     create_intake_only_received_tree,
 )
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -90,6 +91,11 @@ def create_case_diverged_fault_tree(
         name="CaseDivergedFaultReceivedBT",
         case_id=None,
         precondition_guards=[],
+        # The fault answers an Announce this store sent, so it reaches the
+        # CASE_MANAGER that holds the canonical ledger and nobody else; a
+        # fault is replication signalling and is never relayed to a replica
+        # (SYNC-16-002, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id

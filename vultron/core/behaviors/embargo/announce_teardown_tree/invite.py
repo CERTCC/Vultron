@@ -61,9 +61,6 @@ from vultron.core.behaviors.embargo.refusal_tree import pxa_invite_refusal
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
 )
-from vultron.core.behaviors.replica_emit_exemptions import (
-    EMBARGO_INVITE_ANSWER,
-)
 from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import embargo_sender_context
@@ -365,7 +362,6 @@ def invite_to_embargo_on_case_tree(
                 body_name="AnswerInviteOnReplicaBody",
             ),
         ],
-        replica_emit_exemption=EMBARGO_INVITE_ANSWER,
         manager_effects=[
             *adjudication,
             _index_received_proposal(case_id, embargo_id, invite_id),

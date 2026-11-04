@@ -34,6 +34,9 @@ from vultron.core.behaviors.replica_emit_exemptions import (
     REPLICA_EMIT_EXEMPTIONS,
     ReplicaEmitExemption,
 )
+from vultron.core.behaviors.speaks_for_executing_actor import (
+    SpeaksForExecutingActor,
+)
 from vultron.errors import VultronWiringError
 
 #: The declaration that gates a branch on the CASE_MANAGER, as a set.
@@ -43,6 +46,77 @@ _MANAGER_PATH_ONLY = frozenset({ReceivedPath.CASE_MANAGER})
 def _runs_at_the_manager_alone(node: py_trees.behaviour.Behaviour) -> bool:
     """True when *node* is a path branch on the manager path alone."""
     return isinstance(node, PathBranch) and node.paths == _MANAGER_PATH_ONLY
+
+
+def _skips_unless_the_subject(node: py_trees.behaviour.Behaviour) -> bool:
+    """True when *node* is a Selector arm that skips all the later arms.
+
+    The gate shape, read for BT-17-008's second arm: an ``Inverter`` round a
+    :class:`SpeaksForExecutingActor` leaf succeeds at every *other* actor, so
+    the Selector stops there and no later arm runs.  The ``Inverter`` is
+    accepted bare or wrapped in a one-child ``Sequence``, which is how
+    :func:`~vultron.core.behaviors.case.nodes.role_gates.create_case_manager_gated_tree`
+    spells its own skip arm.
+    """
+    if (
+        isinstance(node, py_trees.composites.Sequence)
+        and len(node.children) == 1
+    ):
+        node = node.children[0]
+    return isinstance(node, py_trees.decorators.Inverter) and isinstance(
+        node.decorated, SpeaksForExecutingActor
+    )
+
+
+def _subject_guard_cut(
+    parent: py_trees.behaviour.Behaviour | None,
+    children: list[py_trees.behaviour.Behaviour],
+) -> int:
+    """How many of *children* BT-17-008's second arm does not already bound.
+
+    ``len(children)`` when none of them is that arm, so the walk is
+    unchanged wherever no leaf claims to be it.  *parent* is the composite
+    whose children these are, or ``None`` for the effect list a tree passed,
+    which the factory runs in order like a ``Sequence``.
+    """
+    if parent is None or isinstance(parent, py_trees.composites.Sequence):
+        for index, child in enumerate(children):
+            if isinstance(child, SpeaksForExecutingActor):
+                return index
+    if isinstance(parent, py_trees.composites.Selector) and (
+        children and _skips_unless_the_subject(children[0])
+    ):
+        return 1
+    return len(children)
+
+
+def _walk(
+    parent: py_trees.behaviour.Behaviour | None,
+    nodes: list[py_trees.behaviour.Behaviour],
+    marker: type,
+    *,
+    second_arm_bounds: bool,
+) -> list[py_trees.behaviour.Behaviour]:
+    """The recursion both walks share; see :func:`ungated_nodes`."""
+    if second_arm_bounds:
+        nodes = nodes[: _subject_guard_cut(parent, nodes)]
+    found: list[py_trees.behaviour.Behaviour] = []
+    for node in nodes:
+        if isinstance(node, CaseManagerGate) or _runs_at_the_manager_alone(
+            node
+        ):
+            continue
+        if isinstance(node, marker):
+            found.append(node)
+        found.extend(
+            _walk(
+                node,
+                list(node.children),
+                marker,
+                second_arm_bounds=second_arm_bounds,
+            )
+        )
+    return found
 
 
 def ungated_nodes(
@@ -59,29 +133,28 @@ def ungated_nodes(
     participant-replica gate and a branch off the manager path among them: a
     branch that runs at a replica holds ungated nodes, so an emit inside it
     needs its exemption (BT-17-008).
+
+    Whom the node speaks for is not read here.  The state-write ratchet
+    (RSH-08-003) walks with this function, and RSH-08-003 asks a different
+    question of a write than BT-17-008 asks of an emit: a received-side
+    write belongs to the CASE_MANAGER whoever the write is *about*
+    (``notes/bt-pitfalls.md``).  Only :func:`ungated_emitters` reads the
+    second arm.
     """
-    found: list[py_trees.behaviour.Behaviour] = []
-    for root in roots:
-        if isinstance(root, CaseManagerGate) or _runs_at_the_manager_alone(
-            root
-        ):
-            continue
-        if isinstance(root, marker):
-            found.append(root)
-        found.extend(ungated_nodes(list(root.children), marker))
-    return found
+    return _walk(None, list(roots), marker, second_arm_bounds=False)
 
 
 def ungated_emitters(
     roots: list[py_trees.behaviour.Behaviour],
 ) -> list[py_trees.behaviour.Behaviour]:
-    """Every :class:`EmitCapable` node in *roots* outside a CASE_MANAGER gate.
+    """Every :class:`EmitCapable` node in *roots* that BT-17-008 leaves bare.
 
-    See :func:`ungated_nodes`; the state-write ratchet walks the same way for
-    :class:`~vultron.core.behaviors.state_write_capable.StateWriteCapable`
-    (RSH-08-003).
+    :func:`ungated_nodes`' walk, plus BT-17-008's second arm: an emit behind
+    a :class:`SpeaksForExecutingActor` leaf is already guarded, so it is not
+    reported and needs no exemption.  The two placements that bound it are in
+    :mod:`vultron.core.behaviors.speaks_for_executing_actor`.
     """
-    return ungated_nodes(roots, EmitCapable)
+    return _walk(None, list(roots), EmitCapable, second_arm_bounds=True)
 
 
 def check_gate_arguments(

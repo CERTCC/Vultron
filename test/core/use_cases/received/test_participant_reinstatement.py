@@ -1020,10 +1020,14 @@ def test_suggest_actor_trees_guard_a_removed_actor_before_the_commit(
 
     # The Accept tree's guard also refuses a joined or closed actor
     # (CM-16-006), so it is a different composite from the recommend tree's.
+    # Neither carries a gate of its own any more: the Accept tree declares
+    # the CASE_MANAGER path alone and runs its guard bare, and the recommend
+    # tree declares the replica path too, so its guard is the path branch
+    # the factory builds from the tree's OnPaths declaration (HP-01-038).
     guard_name = (
-        "SuggestedActorNotRemovedIfCaseManager"
+        "SuggestedActorAdmitted"
         if factory is create_recommend_actor_to_case_received_tree
-        else "AcceptedInviteeAdmittedIfCaseManager"
+        else "AcceptedInviteeAdmitted"
     )
     guard = names.index(guard_name)
     assert guard < names.index("GuardedCommitCaseLedgerEntryBT")

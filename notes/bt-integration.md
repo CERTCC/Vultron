@@ -371,11 +371,19 @@ answer, clock decisions, guards, commit, effects.
    other receiver, so its diversion needs no gate of its own and may commit its
    own entry, while a tree that also declares a non-manager path has a
    diversion that is the receiver's own answer — no case-state write, no entry,
-   and every emit covered by a registered `ReplicaEmitExemption` (CLP-10-026,
-   BT-17-008, RSH-08-003). An emit in an `OnPaths` branch off the manager path
-   still needs that exemption: the path says the receiver is not the
-   CASE_MANAGER, which is not the same as saying the emit is that receiver's
-   own to send, so `ungated_nodes()` keeps walking into the branch.
+   and every emit behind one of BT-17-008's two guards (CLP-10-026,
+   BT-17-008, RSH-08-003).
+
+   A branch off the manager path is not itself a guard for an emit inside it:
+   the path says the receiver is not the CASE_MANAGER, which is not the same
+   as saying the emit is that receiver's own to send, so
+   `ungated_emitters()` keeps walking into the branch. What bounds such an
+   emit is the second arm — a leaf carrying `SpeaksForExecutingActor` that
+   admits the executing actor alone, ahead of the emit in a `Sequence` or as
+   the inverted first arm of a `Selector`. Most such emits already had one,
+   which is why the exemption registry holds only the few that can carry
+   neither guard (`notes/bt-pitfalls.md` § "A Received Tree Gets Its
+   CASE_MANAGER Gate From the Factory").
 
    The reason an undeclared path is refused with is composed from the resolved
    path and the declaration, in `undeclared_path_reason()`, and nowhere else

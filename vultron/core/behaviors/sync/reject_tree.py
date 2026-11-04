@@ -4,6 +4,7 @@
 import py_trees
 
 from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -70,6 +71,11 @@ def create_reject_log_entry_tree(
         name="RejectLogEntryReceivedBT",
         case_id=None,
         precondition_guards=[],
+        # A Reject(CaseLedgerEntry) asks the holder of the canonical ledger
+        # for a redelivery, so it reaches that CASE_MANAGER and nobody else,
+        # and every step of the answer is the CASE_MANAGER's (SYNC-03-005,
+        # HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         post_close_exemption=PostCloseExemption.LEDGER_RESYNC,
         # Sender entitlement (SYNC-03-005, HP-01-006): only an active
         # participant's ``Reject`` is acted on, and the check precedes any
