@@ -2183,7 +2183,11 @@ groups:
       Invite (EP-09-006). The prototype keeps one bounded auto-accept, an implementation
       choice and not a protocol rule: the owner accepts on its own only while EM is `NONE` and
       the proposal ends no later than the owner's own policy duration from now, and never
-      while an embargo is `ACTIVE` or `REVISE` (#4179).
+      while an embargo is `ACTIVE` or `REVISE` (#4179). The EM read sets aside the
+      proposal's own register entry while it is still `PROPOSED`, so the answer is the
+      same whether that entry reached the owner's replica before the Invite or not
+      (SYNC-19-001, #5199); a proposal the register has already decided is not
+      answered again.
     verification: >-
       A unit test in `test/core/services/embargo_lifecycle/` asserts the owner's activation of
       a revision from `REVISE` activates it with no other participant having answered.
