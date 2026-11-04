@@ -390,8 +390,9 @@ def create_propose_ownership_transfer_tree(
 
     The CASE_MANAGER executes the owner's proposal (ADR-0148)::
 
-        Intake → doors → sender guard (the Case Owner, CM-21-019)
-            → CaseManagerGate[NoOpenOwnershipOffer, OwnershipProposalAdmissible]
+        Intake → doors (the path stage admits the manager path alone)
+            → sender guard (the Case Owner, CM-21-019)
+            → NoOpenOwnershipOffer → OwnershipProposalAdmissible
             → GuardedCommit (the proposal)
             → CaseManagerGate[MakeOwnershipTransferOfferNode]
 

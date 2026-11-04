@@ -486,8 +486,14 @@ def test_the_notice_routes_to_the_refusal_notice_semantics():
     assert routed.reason == REFUSAL
 
 
-@pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("HP-01-039")
 def test_a_notice_naming_no_case_is_refused():
+    """The receiver holds no replica of the case the notice names.
+
+    A path-stage refusal, not a sender-guard one: the type declares the
+    participant-replica path alone, so the no-case path is refused at the
+    door with the reason the composer gives it (HP-01-038, HP-01-039).
+    """
     net, _, invite_id = _network("caseless")
     event = _accept_event(net, invite_id)
     _run(net, MANAGER, _tree(net.case_id, BYSTANDER), event)
@@ -512,9 +518,15 @@ def test_a_notice_naming_no_case_is_refused():
     assert verdict.disposition is HandlerDisposition.REFUSED
 
 
-@pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("HP-01-039")
 def test_a_notice_reaching_the_case_manager_is_refused():
-    """The rule states no CASE_MANAGER side: only a participant reads one."""
+    """Only a participant reads a notice, so the manager path is refused.
+
+    A path-stage refusal, not a sender-guard one: the rule states no
+    CASE_MANAGER side and the type declares the replica path alone, so the
+    stage turns the case's own CASE_MANAGER away with a reason true of it
+    (HP-01-038, HP-01-039).
+    """
     net, _, invite_id = _network("to-manager")
     event = _accept_event(net, invite_id)
     _run(net, MANAGER, _tree(net.case_id, BYSTANDER), event)

@@ -42,7 +42,9 @@ from vultron.core.behaviors.case.nodes.received_path import (
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
+    ungated_emitters,
 )
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
@@ -60,6 +62,13 @@ OWNER_ID = "https://example.org/actors/owner"
 
 _RULE = SenderRule.to_case_manager(SenderEntitlementKind.CASE_OWNER)
 _CONTEXT = SenderCheckContext(sender_id=OWNER_ID, case_id=CASE_ID)
+
+
+class _Emitter(EmitCapable, py_trees.behaviour.Behaviour):
+    """A leaf the factory reads as reaching the outbox (BT-17-008)."""
+
+    def update(self) -> Status:
+        return Status.SUCCESS
 
 
 class _Marker(py_trees.behaviour.Behaviour):
@@ -165,11 +174,13 @@ def test_the_branch_reads_the_stages_answer_and_asks_nothing_itself() -> None:
     :class:`~vultron.core.behaviors.case.nodes.received_path.CheckReceivedPathNode`
     instances holding the tree's own stage.
     """
-    tree = _tree(_BOTH, OnPaths.at_case_manager("Adjudicate", _Marker("work")))
+    work = _Marker("work")
+    tree = _tree(_BOTH, OnPaths.at_case_manager("Adjudicate", work))
     stage = next(
         node for node in tree.iterate() if isinstance(node, ReceivedPathNode)
     )
     branch = _branch_of(tree)
+    assert branch.branch is work
 
     readers = [
         node
@@ -283,6 +294,61 @@ def test_an_empty_branch_declaration_is_a_wiring_error() -> None:
         _tree(
             _BOTH,
             OnPaths(name="Adjudicate", paths=frozenset(), children=()),
+        )
+
+
+@pytest.mark.spec("HP-01-038")
+def test_a_branch_holding_no_node_is_a_wiring_error() -> None:
+    """A branch with no work would read as a path the tree acts on.
+
+    An empty body is a Sequence that always succeeds, so the tree would say
+    it does something on that path and do nothing there.
+    """
+    with pytest.raises(VultronWiringError, match="holds no node"):
+        _tree(_BOTH, OnPaths.at_case_manager("Adjudicate"))
+
+
+@pytest.mark.spec("BT-17-008")
+def test_an_emit_on_the_manager_path_alone_needs_no_replica_exemption() -> (
+    None
+):
+    """A manager-only branch gates its emits, as the CASE_MANAGER gate does.
+
+    ``check_replica_effects`` refuses an ungated emit in ``replica_effects``
+    because it would run at a replica.  A branch declared on the manager
+    path alone is the same statement as the gate, so an emit inside it is
+    not ungated and needs no ``ReplicaEmitExemption`` — without this, an
+    author would invent one for a node that never runs at a replica.
+    """
+    emit = _Emitter("EmitSomething")
+    tree = create_receive_activity_tree(
+        name="PathBranchProofBT",
+        case_id=CASE_ID,
+        paths=_BOTH,
+        sender_rule=_RULE,
+        sender_context=_CONTEXT,
+        precondition_guards=[],
+        replica_effects=[OnPaths.at_case_manager("ManagerEmits", emit)],
+    )
+
+    assert ungated_emitters([_branch_of(tree)]) == []
+    assert emit in list(_branch_of(tree).branch.iterate())
+
+
+@pytest.mark.spec("BT-17-008")
+def test_an_emit_off_the_manager_path_is_still_ungated() -> None:
+    """The complement: a branch that runs at a replica holds ungated emits."""
+    emit = _Emitter("EmitSomething")
+
+    with pytest.raises(VultronWiringError, match="would run on every replica"):
+        create_receive_activity_tree(
+            name="PathBranchProofBT",
+            case_id=CASE_ID,
+            paths=_BOTH,
+            sender_rule=_RULE,
+            sender_context=_CONTEXT,
+            precondition_guards=[],
+            replica_effects=[OnPaths.off_case_manager("ReplicaEmits", emit)],
         )
 
 

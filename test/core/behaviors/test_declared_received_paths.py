@@ -27,6 +27,12 @@ follow that a reader needs pinned, and this module pins both:
    § "Key a Ratchet on the Act, Not on the Name of What Performs It").  The
    set is held to equality in both directions, so a tree that stops
    declaring, starts declaring, or changes which paths it names fails here.
+   A site that declares nothing is in one of two inventories, never both:
+   :data:`KNOWN_UNDECLARED_PATH_SITES`, the ratchet of sites an Epic #5193
+   wave still owes a declaration, whose terminal value is empty; and
+   :data:`UNDECLARED_PATH_EXEMPTIONS`, the pinned set of call sites no
+   delivery's path stage would answer for.
+   :data:`CONDITIONAL_DECLARATION_EXEMPTIONS` is pinned the same way.
 2. **The disposition at a non-manager receiver**, which is what the
    declaration decides (AC-3 of #5043): a tree that names the
    participant-replica path admits such a receiver, and one that does not
@@ -82,7 +88,7 @@ _R = "vultron/core/behaviors/report"
 _S = "vultron/core/behaviors/status"
 
 #: Every declaration in these areas.  A conditional declaration records the
-#: paths of its declaring branch; see :data:`CONDITIONAL`.
+#: paths of its declaring branch; see :data:`CONDITIONAL_DECLARATION_EXEMPTIONS`.
 DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     # --- case: joining, invites and their replies -----------------------
     (
@@ -273,10 +279,15 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
 }
 
 #: Sites whose declaration is conditional on the tree naming a case at build
-#: time.  The path stage runs before ``case_resolution`` (HP-01-040), so a
-#: tree whose case only that stage resolves declares no paths; the factory
-#: refuses the combination outright.
-CONDITIONAL: frozenset[Site] = frozenset(
+#: time.  The path stage runs before ``case_resolution``, so the factory
+#: refuses a declaration from a tree whose case only that stage resolves: it
+#: would read the no-case path for every delivery (``received_path_stage``,
+#: HP-01-025, ADR-0153).  Such a tree declares its paths when it names a case
+#: and none when it does not, which is still one declaration per message
+#: type (HP-01-038).
+# permanent: HP-01-025 (the factory refuses a declaration the stage cannot
+# answer; a tree in this set is not waiting for a migration)
+CONDITIONAL_DECLARATION_EXEMPTIONS: frozenset[Site] = frozenset(
     {
         (
             f"{_R}/received_report_trees.py",
@@ -286,9 +297,37 @@ CONDITIONAL: frozenset[Site] = frozenset(
     }
 )
 
-#: Sites that declare no paths, each with the reason.  A received *delivery*
-#: always runs a tree that declares its paths; these are not that.
-UNDECLARED: dict[Site, str] = {
+#: Sites in these areas still waiting for a declaration, each owned by the
+#: Epic #5193 wave that migrates its family.  Terminal value: empty.
+# owner: #5046
+# owner: #5044
+KNOWN_UNDECLARED_PATH_SITES: dict[Site, str] = {
+    # Offer(VulnerabilityReport) stores what it carried before it checks the
+    # addressee, so its path declaration waits for that rework.
+    (
+        f"{_C}/receive_report_case_tree.py",
+        "create_receive_report_case_tree",
+        0,
+    ): "#5046",
+    (
+        f"{_C}/receive_report_case_tree.py",
+        "create_offer_received_without_report_tree",
+        0,
+    ): "#5046",
+    # The Offer(Actor) tree migrates with the rest of the actor-offer family.
+    (
+        f"{_C}/suggest_actor_tree.py",
+        "create_recommend_actor_to_case_received_tree",
+        0,
+    ): "#5044",
+}
+
+#: Sites that declare no paths by decision, each with the reason.  A received
+#: *delivery* always runs a tree that declares its paths; none of these is
+#: that, so none of them is waiting for a migration.
+# permanent: HP-01-038 (these call sites build no tree a delivery's path
+# stage would answer for)
+UNDECLARED_PATH_EXEMPTIONS: dict[Site, str] = {
     # The intake-only tree archives an activity it cannot act on and refuses
     # it for its own stated reason (CLP-10-018).  It names no case and does
     # no path-dependent work, so a path stage could only refuse it a second
@@ -323,25 +362,12 @@ UNDECLARED: dict[Site, str] = {
         "create_close_case_received_tree",
         1,
     ): "a subtree of CloseCaseBT, inside its manager gate",
-    # Offer(VulnerabilityReport) stores what it carried before it checks the
-    # addressee, so its path declaration waits for that rework (#5046).
-    (
-        f"{_C}/receive_report_case_tree.py",
-        "create_receive_report_case_tree",
-        0,
-    ): "owner: #5046",
-    (
-        f"{_C}/receive_report_case_tree.py",
-        "create_offer_received_without_report_tree",
-        0,
-    ): "owner: #5046",
-    # The Offer(Actor) tree migrates with the rest of the actor-offer family
-    # (#5044).
-    (
-        f"{_C}/suggest_actor_tree.py",
-        "create_recommend_actor_to_case_received_tree",
-        0,
-    ): "owner: #5044",
+}
+
+#: Every site that declares no paths, for whichever reason.
+UNDECLARED: dict[Site, str] = {
+    **KNOWN_UNDECLARED_PATH_SITES,
+    **UNDECLARED_PATH_EXEMPTIONS,
 }
 
 
@@ -349,38 +375,90 @@ def _rel(path: Path) -> str:
     return path.relative_to(_corpus.REPO_ROOT).as_posix()
 
 
-def _paths_of(expr: ast.expr) -> frozenset[ReceivedPath] | None:
-    """The declaration *expr* names, or ``None`` when it is not a set.
+class UnreadableDeclaration(AssertionError):
+    """A ``paths=`` expression the scan cannot read statically.
+
+    Raised rather than folded into "declares no paths": a tree that does
+    declare, in a form this scan does not parse, would otherwise be reported
+    as undeclared with a false reason, and the inventory would misstate the
+    migration while still passing.  Spell the declaration as a set literal
+    of ``ReceivedPath`` members, or teach :func:`_paths_of` the new form.
+    """
+
+
+def _paths_of(expr: ast.expr, where: str) -> frozenset[ReceivedPath]:
+    """The declaration *expr* names, read statically.
 
     A conditional declaration is read from its declaring branch, which is
     the one the factory places a stage for.
+
+    Raises:
+        UnreadableDeclaration: *expr* is not a set literal of
+            ``ReceivedPath`` members.
     """
     if isinstance(expr, ast.IfExp):
-        return _paths_of(expr.body)
+        return _paths_of(expr.body, where)
     if not isinstance(expr, ast.Set):
-        return None
+        raise UnreadableDeclaration(
+            f"declaration is not statically readable at {where}:"
+            f" {ast.unparse(expr)}"
+        )
     found: set[ReceivedPath] = set()
     for element in expr.elts:
-        if not isinstance(element, ast.Attribute):
-            return None
-        member = getattr(ReceivedPath, element.attr, None)
+        member = (
+            getattr(ReceivedPath, element.attr, None)
+            if isinstance(element, ast.Attribute)
+            else None
+        )
         if member is None:
-            return None
+            raise UnreadableDeclaration(
+                f"declaration names something other than a ReceivedPath"
+                f" member at {where}: {ast.unparse(element)}"
+            )
         found.add(member)
     return frozenset(found)
 
 
+def _names_a_case_at_build_time(node: ast.Call) -> bool:
+    """Whether the factory can hand the stage a case, read as HP-01-040 does.
+
+    The same three places
+    :func:`~vultron.core.behaviors.case.receive_stages.doors.path_stage_case_id`
+    looks: the commit case, the case whose CASE_MANAGER gates the effects,
+    and the case the sender context names.  Read off the call site rather
+    than pinned, so a tree that starts or stops naming a case moves the
+    disposition test with it.
+    """
+    for keyword in node.keywords:
+        if keyword.arg in ("case_id", "manager_case_id") and not (
+            isinstance(keyword.value, ast.Constant)
+            and keyword.value.value is None
+        ):
+            return True
+        if (
+            keyword.arg == "sender_context"
+            and isinstance(keyword.value, ast.Call)
+            and any(k.arg == "case_id" for k in keyword.value.keywords)
+        ):
+            return True
+    return False
+
+
 @_corpus.gc_paused()
 def _call_sites() -> tuple[
-    dict[Site, frozenset[ReceivedPath] | None], frozenset[Site]
+    dict[Site, frozenset[ReceivedPath] | None],
+    frozenset[Site],
+    frozenset[Site],
 ]:
-    """Every factory call site in these areas, and which ones are conditional.
+    """Every factory call site in these areas, in three readings.
 
-    Maps the site onto the paths it declares, ``None`` for a site that
-    declares none.
+    Maps the site onto the paths it declares (``None`` for a site that
+    declares none), the sites whose declaration is conditional, and the
+    sites whose tree names a case the stage can read at build time.
     """
     declared: dict[Site, frozenset[ReceivedPath] | None] = {}
     conditional: set[Site] = set()
+    with_a_case: set[Site] = set()
     for root in _ROOTS:
         for path, tree in _corpus.files_mentioning(_FACTORY, under=root):
             module = _rel(path)
@@ -415,6 +493,8 @@ def _call_sites() -> tuple[
                 index = seen.get(name, 0)
                 seen[name] = index + 1
                 site = (module, name, index)
+                if _names_a_case_at_build_time(node):
+                    with_a_case.add(site)
                 keyword = next(
                     (k for k in node.keywords if k.arg == "paths"), None
                 )
@@ -423,8 +503,10 @@ def _call_sites() -> tuple[
                     continue
                 if isinstance(keyword.value, ast.IfExp):
                     conditional.add(site)
-                declared[site] = _paths_of(keyword.value)
-    return declared, frozenset(conditional)
+                declared[site] = _paths_of(
+                    keyword.value, f"{module}:{name}#{index}"
+                )
+    return declared, frozenset(conditional), frozenset(with_a_case)
 
 
 def _diff(label: str, actual: frozenset, expected: frozenset) -> str:
@@ -444,7 +526,7 @@ def test_every_factory_call_site_in_these_areas_is_accounted_for() -> None:
     declaration fails here instead of silently keeping the role gates
     (ARCH-18-001).
     """
-    sites, _ = _call_sites()
+    sites, _, _ = _call_sites()
     assert sites, (
         "no call site of"
         f" {_FACTORY} was found under {[_rel(root) for root in _ROOTS]} —"
@@ -455,16 +537,26 @@ def test_every_factory_call_site_in_these_areas_is_accounted_for() -> None:
     )
     assert undeclared == frozenset(UNDECLARED), _diff(
         "The set of call sites that declare no paths changed (HP-01-038):"
-        " declare the tree's paths, or list the site here with its reason.",
+        " declare the tree's paths, add the site to"
+        " KNOWN_UNDECLARED_PATH_SITES with the wave that owes it, or add it"
+        " to UNDECLARED_PATH_EXEMPTIONS with the reason no delivery's path"
+        " stage answers for it.",
         undeclared,
         frozenset(UNDECLARED),
+    )
+    assert not (
+        frozenset(KNOWN_UNDECLARED_PATH_SITES)
+        & frozenset(UNDECLARED_PATH_EXEMPTIONS)
+    ), (
+        "a site is both owed a declaration and exempt from one; it is one or"
+        " the other (ARCH-18-007, ARCH-18-011)"
     )
 
 
 @pytest.mark.spec("HP-01-038")
 def test_the_declared_paths_are_pinned() -> None:
     """Which paths each tree declares, held to equality in both directions."""
-    sites, _ = _call_sites()
+    sites, _, _ = _call_sites()
     actual = {
         site: paths for site, paths in sites.items() if paths is not None
     }
@@ -476,19 +568,23 @@ def test_the_declared_paths_are_pinned() -> None:
     )
 
 
-@pytest.mark.spec("HP-01-040")
+@pytest.mark.spec("HP-01-025")
+@pytest.mark.spec("HP-01-038")
 def test_a_conditional_declaration_is_listed_with_its_reason() -> None:
     """Only the listed sites make their declaration conditional.
 
     A declaration conditional on anything but the tree naming a case at
     build time is a message type deciding its paths per delivery, which
-    HP-01-038's "once" forbids.
+    HP-01-038's "once" forbids.  The one admitted condition is the factory's
+    own wiring rule: a tree whose case only ``case_resolution`` resolves is
+    refused a declaration, because the stage runs first and would read the
+    no-case path for every delivery (``received_path_stage``, HP-01-025).
     """
-    _, conditional = _call_sites()
-    assert conditional == CONDITIONAL, _diff(
+    _, conditional, _ = _call_sites()
+    assert conditional == CONDITIONAL_DECLARATION_EXEMPTIONS, _diff(
         "The set of conditional path declarations changed (HP-01-038).",
         conditional,
-        CONDITIONAL,
+        CONDITIONAL_DECLARATION_EXEMPTIONS,
     )
 
 
@@ -507,8 +603,18 @@ def _participant(suffix: str, actor_id: str, *roles: CVDRole):
     )
 
 
-def _stage_at(actor_id: str, declared: frozenset[ReceivedPath]):
-    """The path stage of a tree declaring *declared*, run in *actor_id*'s store."""
+def _stage_at(
+    actor_id: str,
+    declared: frozenset[ReceivedPath],
+    case_id: str | None = CASE_ID,
+):
+    """The path stage of a tree declaring *declared*, run in *actor_id*'s store.
+
+    *case_id* is what the factory hands the stage: the tree's case, or
+    ``None`` for a tree that names none at build time, which makes the stage
+    resolve one at run time and read an unresolvable case as the no-case
+    path (HP-01-040).
+    """
     manager = _participant("manager", MANAGER_ID, CVDRole.CASE_MANAGER)
     vendor = _participant("vendor", VENDOR_ID, CVDRole.VENDOR)
     scenario = BTTestScenario(actor_id=actor_id)
@@ -527,40 +633,74 @@ def _stage_at(actor_id: str, declared: frozenset[ReceivedPath]):
         ),
     )
     stage = ReceivedPathNode(
-        declared=declared, case_id=CASE_ID, label="DeclaredPathsBT"
+        declared=declared, case_id=case_id, label="DeclaredPathsBT"
     )
     scenario.run(stage, actor_id=actor_id)
     return stage
 
 
+def _non_manager_sites() -> list[tuple[Site, bool]]:
+    """Every declared site, paired with whether its tree names a case.
+
+    The pairing decides which non-manager receiver the tree can actually
+    give a disposition to: a tree that names a case can be received by a
+    participant replica, and one that names none resolves the no-case path
+    for every receiver (HP-01-040).  Derived from the call site, so a tree
+    that starts or stops naming a case changes which disposition is pinned.
+    """
+    _, _, with_a_case = _call_sites()
+    return sorted((site, site in with_a_case) for site in DECLARED_PATHS)
+
+
 @pytest.mark.spec("HP-01-005")
 @pytest.mark.spec("HP-01-039")
+@pytest.mark.spec("HP-01-040")
 @pytest.mark.parametrize(
-    "site", sorted(DECLARED_PATHS), ids=lambda site: f"{site[1]}#{site[2]}"
+    ("site", "names_a_case"),
+    _non_manager_sites(),
+    ids=lambda value: (
+        f"{value[1]}#{value[2]}" if isinstance(value, tuple) else str(value)
+    ),
 )
-def test_the_disposition_at_a_non_manager_receiver(site: Site) -> None:
-    """One test per declared tree: what a participant replica gets.
+def test_the_disposition_at_a_non_manager_receiver(
+    site: Site, names_a_case: bool
+) -> None:
+    """One test per declared tree: what a receiver that is not the manager gets.
 
-    The delivery is admitted when the type names the participant-replica
-    path, and refused with the composed reason when it does not — never
+    The delivery is admitted when the type names that receiver's path, and
+    refused with the composed reason when it does not — never
     admitted-and-silently-inert, which is the disposition HP-01-005 forbids
     and ADR-0153 closes by construction.
+
+    Which non-manager receiver the tree can give a disposition to follows
+    from the case it names: a tree that names one is received by a
+    participant replica, and a tree that names none hands the stage no case,
+    so every receiver is on the no-case path (HP-01-040).  Asserting the
+    replica path for the second kind would pin the reason composer rather
+    than a disposition the tree can reach.
     """
     declared = DECLARED_PATHS[site]
-    stage = _stage_at(VENDOR_ID, declared)
+    if names_a_case:
+        expected, case_id = ReceivedPath.PARTICIPANT_REPLICA, CASE_ID
+    else:
+        expected, case_id = ReceivedPath.NO_CASE, None
+    stage = _stage_at(VENDOR_ID, declared, case_id)
 
-    assert stage.resolved_path is ReceivedPath.PARTICIPANT_REPLICA
-    if ReceivedPath.PARTICIPANT_REPLICA in declared:
+    assert stage.resolved_path is expected
+    if expected in declared:
         assert stage.status is Status.SUCCESS
         assert not stage.feedback_message
         return
     assert stage.status is Status.FAILURE
     assert stage.feedback_message == undeclared_path_reason(
-        ReceivedPath.PARTICIPANT_REPLICA, declared, CASE_ID
+        expected, declared, case_id
     )
-    assert f"not the CASE_MANAGER of case '{CASE_ID}'" in (
-        stage.feedback_message
-    )
+    if expected is ReceivedPath.PARTICIPANT_REPLICA:
+        assert f"not the CASE_MANAGER of case '{CASE_ID}'" in (
+            stage.feedback_message
+        )
+    else:
+        assert "holds no replica of" in stage.feedback_message
 
 
 @pytest.mark.spec("HP-01-005")
@@ -584,7 +724,7 @@ def test_a_replica_only_declaration_refuses_the_case_manager(
     that path, rather than being told it is not one (HP-01-039).
     """
     declared = DECLARED_PATHS[site]
-    stage = _stage_at(MANAGER_ID, declared)
+    stage = _stage_at(MANAGER_ID, declared, CASE_ID)
 
     assert stage.resolved_path is ReceivedPath.CASE_MANAGER
     assert stage.status is Status.FAILURE

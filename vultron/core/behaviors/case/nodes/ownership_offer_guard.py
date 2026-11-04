@@ -23,9 +23,10 @@ Provides:
   participant (ADR-0148, CM-21-021).
 - :class:`NoOpenOwnershipOfferNode` — precondition guard that refuses a new
   proposal while an earlier ownership-transfer Offer for the case is open.
-- :func:`case_manager_admits_ownership_proposal_guard` — both behind the
-  CASE_MANAGER gate, for the received proposal tree's
-  ``precondition_guards``.
+- :func:`case_manager_admits_ownership_proposal_guard` — both of them, for
+  the received proposal tree's ``precondition_guards``.  No gate: that tree
+  declares the manager path alone, so the path stage refuses every other
+  receiver before the guards run (HP-01-038, HP-01-039).
 
 The guards on a reply to the Offer (:class:`OfferParty`,
 :class:`OwnershipOfferOpenNode`, :class:`OwnershipTransfereeActiveNode`,
@@ -76,9 +77,10 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
     Offer (its id, ``actor`` and ``to``) is the sender's and is never read,
     so the Offer the CASE_MANAGER makes carries its own id (CM-21-027).
 
-    Read-only, so it runs in ``precondition_guards`` behind the CASE_MANAGER
-    gate (:func:`case_manager_admits_ownership_proposal_guard`): a refused
-    proposal leaves no entry and sends nothing.
+    Read-only, so it runs in ``precondition_guards``
+    (:func:`case_manager_admits_ownership_proposal_guard`), which the
+    proposal tree's manager-path declaration already scopes to the
+    CASE_MANAGER: a refused proposal leaves no entry and sends nothing.
 
     Spec: CM-21-005, CM-21-026, CM-21-019, CM-21-021, BT-17-008.
     """
@@ -176,8 +178,9 @@ class NoOpenOwnershipOfferNode(
     neither it nor the proposal's entry (CLP-07-015), so a redelivery runs the
     act afresh.
 
-    Read-only, so it runs in ``precondition_guards`` behind the CASE_MANAGER
-    gate (:func:`case_manager_admits_ownership_proposal_guard`).
+    Read-only, so it runs in ``precondition_guards``
+    (:func:`case_manager_admits_ownership_proposal_guard`), scoped to the
+    CASE_MANAGER by the proposal tree's manager-path declaration.
     """
 
     _REPEAT_FLAG = "is_redelivery"

@@ -54,6 +54,7 @@ def create_add_report_to_case_received_tree(
 
         GuardedAttachReportAndCommitBT (Sequence)
         ├── IntakeReceivedActivityNode                    # intake
+        ├── ReceivedPathNode                              # manager or replica
         ├── SenderRuleGuard (Sequence)                    # sender guard
         ├── CaseReferenceEditPendingNode                  # duplicate guard
         ├── GuardedCommitCaseLedgerEntryBT (Selector)     # commit

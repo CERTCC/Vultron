@@ -98,7 +98,8 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
         """
         assert self.datalayer is not None
         assert self.actor_id is not None
-        if case.attributed_to != self.actor_id:
+        owner_actor_id = case.attributed_to
+        if owner_actor_id != self.actor_id:
             return "this actor is not the case owner"
         manager_id = resolve_case_manager_id(case, self.datalayer)
         if manager_id is None:
@@ -109,14 +110,18 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
                 self.case_id,
             )
             return "the case names no CASE_MANAGER"
-        if manager_id == case.attributed_to:
-            # A fact about the case, not about this receiver: a case whose
-            # owner manages it has nobody to introduce, and that owner's own
-            # Create is the reporter's only one (CBT-02-001, CM-02-010).  The
-            # receiver's role is not the question — the bootstrap tree names
-            # no case at build time, so no declared path answers it
-            # (HP-01-040) — and the check above already found this actor to
-            # be the owner.
+        # A fact about the case, not about this receiver: a case whose owner
+        # manages it has nobody to introduce, and that owner's own Create is
+        # the reporter's only one (CBT-02-001, CM-02-010).  The receiver's
+        # role is not the question here — the bootstrap tree names no case at
+        # build time, so no declared path answers it, and the stage reads the
+        # no-case path for every receiver (HP-01-040).  The assertion keeps
+        # that reading local: this skip is equivalent to the old
+        # "the manager is me" only while the owner check above stands, and a
+        # reorder that moved it would fail here rather than silently widen
+        # the skip.
+        assert owner_actor_id == self.actor_id
+        if manager_id == owner_actor_id:
             return "the case owner is the CASE_MANAGER (CBT-02-001)"
         self._sent_id = find_case_create_sent_by(
             self.datalayer, self.actor_id, self.case_id

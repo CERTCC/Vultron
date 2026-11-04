@@ -502,9 +502,12 @@ def create_invalidate_report_received_tree(
         # The participant declares RM.INVALID to the CASE_MANAGER, which
         # adjudicates and commits it; a participant replica archives its copy
         # and takes the RM state from the ledger entry that follows
-        # (RSH-06-006, RSH-08-003, HP-01-038).  The stage runs before
-        # ``case_resolution``, so a tree whose case only that stage resolves
-        # declares no path (HP-01-040).
+        # (RSH-06-006, RSH-08-003, HP-01-038).  The path stage runs before
+        # ``case_resolution``, so the factory refuses a declaration from a
+        # tree whose case only that stage resolves: it would read the no-case
+        # path for every delivery (``received_path_stage``, HP-01-025,
+        # ADR-0153).  With no case at build time this tree declares none and
+        # its guards refuse the delivery instead.
         paths=(
             {ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA}
             if case_id is not None

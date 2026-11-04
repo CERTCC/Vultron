@@ -86,6 +86,7 @@ def create_add_case_participant_received_tree(
 
         AddCaseParticipantReceivedBT (Sequence)
         ├── IntakeReceivedActivityNode                       # intake
+        ├── ReceivedPathNode                                 # manager or replica
         ├── SenderRuleGuard (Sequence)                       # sender guard
         ├── ReinstatementAdmissibleIfCaseManager (Selector)  # guards (manager only)
         │   ├── MoveNamesCaseParticipantNode
@@ -201,6 +202,7 @@ def create_remove_case_participant_received_tree(
 
         RemoveCaseParticipantReceivedBT (Sequence)
         ├── IntakeReceivedActivityNode                  # intake
+        ├── ReceivedPathNode                            # manager or replica
         ├── SenderRuleGuard (Sequence)                  # sender guard
         ├── RemovalAdmissibleIfCaseManager (Selector)   # guards (manager only)
         │   ├── MoveNamesCaseParticipantNode

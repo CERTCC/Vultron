@@ -232,7 +232,7 @@ def precondition_guard_nodes(
     name: str,
     guards: Sequence[py_trees.behaviour.Behaviour | Diversion | OnPaths],
     case_id: str | None,
-    path_stage: ReceivedPathNode | None = None,
+    path_stage: ReceivedPathNode | None,
 ) -> list[py_trees.behaviour.Behaviour]:
     """The tree's guards, each :class:`Diversion` and :class:`OnPaths` in place.
 

@@ -22,13 +22,17 @@ sent it reads the notice here::
     RefusalNoticeReceivedBT (Sequence)
     ├─ IntakeReceivedActivityNode
     ├─ CaseOpenToExternalWrites / ActivityAddressedToReceiverNode
+    ├─ ReceivedPathNode                # the participant replica alone
     ├─ <sender guard: the case's CASE_MANAGER only>
     └─ ClearRefusedAssertionNode
 
 Nothing is committed: the notice is about the ledger, not a case event
 (CLP-02-013).  The participant writes no case state and re-sends nothing
-(CLP-05-008, CLP-06-005).  A notice from anyone but the case's CASE_MANAGER,
-or one naming no case this store holds, is refused by the sender guard
+(CLP-05-008, CLP-06-005).  The type declares the participant-replica path
+alone, so a notice reaching the case's own CASE_MANAGER, or a store that
+holds no replica of the case it names, is refused at the path stage
+(HP-01-038, HP-01-039); a notice from a participant that does hold the
+replica but is not the CASE_MANAGER is refused by the sender guard
 (HP-01-006).
 """
 
@@ -85,8 +89,9 @@ def refusal_notice_received_tree(
         paths={ReceivedPath.PARTICIPANT_REPLICA},
         case_id=None,
         sender_rule=sender_rule,
-        # A case this store does not hold, or one naming no CASE_MANAGER,
-        # refuses the sender rather than passing it (Regime 1, ADR-0087).
+        # A case naming no CASE_MANAGER refuses the sender rather than
+        # passing it (Regime 1, ADR-0087); a case this store does not hold is
+        # refused one door earlier, at the path stage (HP-01-039).
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id, case_manager_required=True
         ),

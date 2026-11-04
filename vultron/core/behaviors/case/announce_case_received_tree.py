@@ -82,6 +82,7 @@ def create_announce_vulnerability_case_received_tree(
         AnnounceVulnerabilityCaseReceivedBT (Sequence)
         ├── IntakeReceivedActivityNode        # intake
         ├── CaseOpenToExternalWrites          # post-close boundary
+        ├── ReceivedPathNode                  # no case yet, replica or manager
         ├── SenderIsCaseManagerNode           # sender guard (anchored)
         ├── CaseCopyNotStaleNode              # guard (SYNC-16-006)
         ├── SeedAnnouncedCaseNode             # effect (seed or replace)

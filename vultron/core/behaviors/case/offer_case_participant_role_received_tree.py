@@ -30,6 +30,7 @@ Structure::
     OfferCaseParticipantRoleReceivedBT (Sequence)
     ├── IntakeReceivedActivityNode           # archives the Offer (CLP-10-017)
     ├── CaseOpenToExternalWrites
+    ├── ReceivedPathNode                     # the CASE_MANAGER or the target
     ├── SenderRuleGuard                      # Case Owner at the CM, the CM at
     │                                        # a participant (CM-33-002, -004)
     ├── RoleOfferAdmissibleNode              # CM-33-003
@@ -138,10 +139,10 @@ def create_offer_case_participant_role_received_tree(
         return create_receive_activity_tree(
             name="OfferCaseParticipantRoleReceivedBT",
             case_id=case_id,
-            # The Offer reaches two stores: the Case Owner's own at the
-            # CASE_MANAGER, which checks, commits and forwards it, and the
-            # CASE_MANAGER's forward at the target's replica, which answers it
-            # (CM-33-002, CM-33-015, HP-01-038).
+            # The Offer reaches two stores: the Case Owner addresses it to the
+            # CASE_MANAGER alone, which checks, commits and forwards it, and
+            # the forward reaches the target's replica, which answers it
+            # (CM-33-001, CM-33-002, CM-33-008, CM-33-015, HP-01-038).
             paths={
                 ReceivedPath.CASE_MANAGER,
                 ReceivedPath.PARTICIPANT_REPLICA,
@@ -188,10 +189,10 @@ def create_offer_case_participant_role_received_tree(
     return create_receive_activity_tree(
         name="OfferCaseParticipantRoleReceivedBT",
         case_id=case_id,
-        # The Offer reaches two stores: the Case Owner's own at the
-        # CASE_MANAGER, which checks, commits and forwards it, and the
-        # CASE_MANAGER's forward at the target's replica, which answers it
-        # (CM-33-002, CM-33-015, HP-01-038).
+        # The Offer reaches two stores: the Case Owner addresses it to the
+        # CASE_MANAGER alone, which checks, commits and forwards it, and
+        # the forward reaches the target's replica, which answers it
+        # (CM-33-001, CM-33-002, CM-33-008, CM-33-015, HP-01-038).
         paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         sender_context=sender_context,

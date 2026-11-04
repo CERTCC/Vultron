@@ -161,10 +161,11 @@ class PathBranch(py_trees.composites.Selector):
     """The Selector :func:`path_branch_stage` returns.
 
     A plain ``Selector`` in behaviour; the subclass names the shape so a
-    reader of a built tree — the architecture ratchets, a handler asking
-    which stages ran — can tell a path branch from any other Selector
-    without matching child names.  :attr:`branch` is the work; the first
-    child is the skip arm.
+    reader of a built tree can tell a path branch from any other Selector
+    without matching child names, and :attr:`paths` says which paths it runs
+    on.  :func:`~vultron.core.behaviors.case.receive_stages.effects.ungated_nodes`
+    reads :attr:`paths` to tell a manager-only branch from one that runs at a
+    replica.  :attr:`branch` is the work; the first child is the skip arm.
 
     Only :func:`path_branch_stage` constructs one, so the type implies the
     ``CheckReceivedPathNode`` skip arm.
@@ -182,7 +183,13 @@ class PathBranch(py_trees.composites.Selector):
 
     @property
     def branch(self) -> py_trees.behaviour.Behaviour:
-        """The child that runs only on :attr:`paths` (for inspection)."""
+        """The child that runs only on :attr:`paths`.
+
+        The counterpart of
+        :attr:`~vultron.core.behaviors.case.nodes.role_gates.CaseManagerGate.gated_branch`:
+        a reader of a built tree asking what the branch does reads this
+        rather than indexing into ``children``.
+        """
         return self.children[1]
 
 
@@ -235,6 +242,12 @@ def path_branch_stage(
             f"{where}: the {declaration.name!r} branch names no path, so it"
             " could never run (HP-01-038)"
         )
+    if not declaration.children:
+        raise VultronWiringError(
+            f"{where}: the {declaration.name!r} branch holds no node, so it"
+            " would read as a path the tree does something on and do nothing"
+            " there (HP-01-038)"
+        )
     paths = declaration.paths & stage.declared
     if not paths:
         raise VultronWiringError(
@@ -272,17 +285,21 @@ def path_branch_stage(
 
 def resolve_path_branches(
     where: str,
-    items: Collection[py_trees.behaviour.Behaviour | OnPaths],
+    items: Sequence[py_trees.behaviour.Behaviour | OnPaths],
     stage: ReceivedPathNode | None,
 ) -> list[py_trees.behaviour.Behaviour]:
     """*items* with every :class:`OnPaths` declaration built in place.
 
     The one place a path branch is constructed from what a tree passed, so a
     tree's guards and its effects get the same shape and the same wiring
-    errors.  A guard list may also hold a
-    :class:`~vultron.core.behaviors.case.nodes.diversion_stage.Diversion`,
-    which its own stage builder resolves after this one; the factory keeps
-    the two in that order.
+    errors.  Order is preserved and load-bearing: the returned list becomes
+    the tree's children in the order the tree listed them, which is why
+    *items* is a ``Sequence`` rather than any collection.  A guard list may
+    also hold a
+    :class:`~vultron.core.behaviors.case.nodes.diversion_stage.Diversion`;
+    :func:`~vultron.core.behaviors.case.receive_stages.guards.precondition_guard_nodes`
+    builds those first and passes the result here, so each stays at its own
+    place in the list.
     """
     return [
         path_branch_stage(where, item, stage)

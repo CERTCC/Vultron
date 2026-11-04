@@ -20,6 +20,7 @@ Structure (after intake, which the shared factory supplies first)::
     CreateCaseReceivedBT (Sequence)
     ├─ IntakeReceivedActivityNode
     ├─ CaseOpenToExternalWrites
+    ├─ ReceivedPathNode                     # no case yet, or the replica it seeded
     ├─ SenderIsExpectedCaseCreatorNode      # sender guard (CBT-01-011, HP-01-008)
     ├─ ClassifyBootstrapRouteNode           # trusted | redelivery
     └─ BootstrapRoute (Selector)

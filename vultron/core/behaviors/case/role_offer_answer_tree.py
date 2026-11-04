@@ -29,6 +29,7 @@ Structure::
     Accept/RejectCaseParticipantRoleReceivedBT (Sequence)
     ├── IntakeReceivedActivityNode      # archives the answer (CLP-10-017)
     ├── CaseOpenToExternalWrites
+    ├── ReceivedPathNode                # the CASE_MANAGER alone (HP-01-038)
     ├── SenderRuleGuard                 # the recorded Offer's target, at the
     │                                   # CASE_MANAGER only (CM-33-005)
     ├── RoleOfferOpenNode               # open, not a redelivery (CM-33-005)
@@ -158,8 +159,9 @@ def create_accept_case_participant_role_tree(
     )
     tree = create_receive_activity_tree(
         name="AcceptCaseParticipantRoleReceivedBT",
-        # The named actor answers the role Offer to the CASE_MANAGER, which
-        # alone records the roles (CM-17-016, PCR-08-001), so the manager path
+        # The target answers the role Offer to the CASE_MANAGER only, never
+        # to the Case Owner that made it, and the CASE_MANAGER alone records
+        # the roles (CM-33-015, CM-17-016, PCR-08-001), so the manager path
         # is the only one this type handles (HP-01-038).
         paths={ReceivedPath.CASE_MANAGER},
         case_id=case_id,
@@ -224,9 +226,10 @@ def create_reject_case_participant_role_tree(
     )
     tree = create_receive_activity_tree(
         name="RejectCaseParticipantRoleReceivedBT",
-        # The named actor answers the role Offer to the CASE_MANAGER, which
-        # alone records the refusal (CM-17-016, PCR-08-001), so the manager
-        # path is the only one this type handles (HP-01-038).
+        # The target answers the role Offer to the CASE_MANAGER only, never
+        # to the Case Owner that made it, and the CASE_MANAGER alone records
+        # the refusal (CM-33-015, CM-33-016, CM-17-016, PCR-08-001), so the
+        # manager path is the only one this type handles (HP-01-038).
         paths={ReceivedPath.CASE_MANAGER},
         case_id=case_id,
         sender_rule=sender_rule,

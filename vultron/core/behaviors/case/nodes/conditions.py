@@ -284,6 +284,10 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
+        # The case is read here to tell an absent replica from an ADR-0087
+        # Regime 1 anomaly, and again inside the predicate, which owns the
+        # read its answer rests on (ARCH-24-007).  Two cheap reads, not one
+        # read and one copy that could have gone stale.
         _, failure = self._require_case(case_id)
         if failure is not None:
             return failure  # Regime 1: case must exist (ADR-0087)
