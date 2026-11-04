@@ -807,7 +807,7 @@ groups:
       (`test_an_accepted_embargo_can_be_revised_and_the_revision_answered`)
       confirms EM moves from REVISE back to ACTIVE on both accept and reject.
     stories:
-    - story_2026_083
+    - story_2026_087
 - id: VP-05
   title: Embargo Principles
   specs:
@@ -862,7 +862,7 @@ groups:
       and no future start that could be read as permission to disclose now.
     verification_debt: '#3612'
     stories:
-    - story_2026_024
+    - story_2026_087
     - story_2022_074
   - id: VP-05-004
     priority: MUST
@@ -1400,7 +1400,7 @@ groups:
     stories:
     - story_2022_004
     - story_2022_009
-    - story_2026_080
+    - story_2026_081
   - id: VP-07-003
     priority: MUST
     kind: protocol

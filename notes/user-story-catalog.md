@@ -179,31 +179,18 @@ adding new ones; the prefixes are the expected citers, not a commitment.
 | 024 | Participant: timezone-aware embargo deadlines | DUR-06, CM-28 |
 | 025, 026, 027 | Contributor / Maintainer: requirement rationale, ratchet gates, generated traceability | SR-11, MS-10, MS-12-007, MS-12-008, TRACE |
 
-## Splitting the catch-all stories
+## Splitting a catch-all story
 
-Candidate axes; the splitting task decides the final set by reading the citing
-requirements, not the other way round.
+A story that many unrelated requirements cite answers "why does this
+requirement exist?" for none of them, so it is split. Read the citing
+requirements to choose the narrower stories. Candidate axes are a start, not a
+closed set: each of the three #4516 splits needed axes the candidate list
+lacked. Re-point onto an existing story before writing a new page.
 
-- **088** is split into `story_2026_036`–`068` (#4516, part 1). Its citers
-  needed two axes the candidate list lacked: every copy matching the
-  CASE_MANAGER's, and deployment needs told by an Implementer. Read the axes
-  below as a start, not a closed set.
-- **045** is split into `story_2026_069`–`079` (#4516, part 2), with many
-  citers re-pointed onto existing 2026 stories and those already on one keeping
-  it. Its citers were about what the ledger holds, who writes it, its integrity
-  and how it is shared; none was about the record becoming public, so the
-  disclosure axis got no story.
-- **014** is split into `story_2026_080`–`098` (#4516, part 3), with the
-  wire-form, threat-signal and replica-copy citers re-pointed onto existing
-  2026 stories. Its citers needed more axes than the four candidates: the
-  embargo a case starts under, RSVP deadlines and their expiry, late answers,
-  consent carried over to a revision, withdrawal, and notice to signatories
-  the fan-out skips. The citers about publication were about the embargo
-  it ends, so they went to `story_2026_033`.
-
-Each citation is re-pointed to the narrowest new story that states its need. A
-citation stays on the old ID only when the general reading is genuinely what
-the requirement serves; the aim is zero. The old pages are marked superseded.
+Each citation is re-pointed to the narrowest story that states its need, or
+dropped when the requirement already cites one. A citation stays on the old ID
+only when the general reading is genuinely what the requirement serves; the aim
+is zero. The old pages are marked superseded.
 
 ## Implementation Tasks
 
