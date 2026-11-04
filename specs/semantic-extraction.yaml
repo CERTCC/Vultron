@@ -74,7 +74,7 @@ groups:
       Inspection of `vultron/wire/` confirms that the semantic extraction algorithm
       handles both expanded objects and unresolved URI strings defensively.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: SE-01-002
   - id: SE-01-003
     priority: MUST_NOT
@@ -107,9 +107,6 @@ groups:
       `ActivityPattern._match_activity_field` uses subclass checks (e.g.
       `issubclass`) so that actor and object types match both exact types and their
       subclasses.
-    relationships:
-    - rel_type: depends_on
-      spec_id: SE-01-002
   - id: SE-01-006
     priority: MUST_NOT
     kind: project
@@ -135,7 +132,7 @@ groups:
       and fails if a member matches an activity of its verb that carries nothing but
       a bare `object`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SE-01-005
   - id: SE-01-007
     priority: MAY
@@ -152,9 +149,6 @@ groups:
       `test_bare_case_uri_in_target_or_context_satisfies_the_pattern` in
       `test/test_semantic_activity_patterns.py` matches activities whose `target` or
       `context` is a bare case URI and checks their semantic type.
-    relationships:
-    - rel_type: refines
-      spec_id: SE-01-005
 - id: SE-02
   title: Semantic Type Assignment
   specs:
@@ -189,7 +183,7 @@ groups:
     kind: project
     statement: >-
       `find_matching_semantics()` MUST return `MessageSemantics.UNKNOWN` if no pattern
-      matches, except where SE-01-003 requires `UNKNOWN_UNRESOLVABLE_OBJECT`.
+      matches, except where VAM-01-009 requires `UNKNOWN_UNRESOLVABLE_OBJECT`.
     rationale: >-
       The dispatcher needs a semantic type for each received activity. With a defined
       fallback, the receiver logs and handles an unrecognized activity in one place. The
@@ -273,7 +267,7 @@ groups:
       `test/wire/as2/test_pattern_ignores_sender.py` confirms that a change of sender
       alone changes no match.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: SE-03-004
     adr:
     - ADR-0152
@@ -291,8 +285,10 @@ groups:
       `test/architecture/test_sender_entitlement_ratchet.py::test_use_case_has_sender_entitlement_declared`
       fails on a received use case that declares no sender entitlement.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: HP-01-006
+    - rel_type: uses_definition
+      spec_id: HP-01-007
     adr:
     - ADR-0152
 - id: SE-04
@@ -349,7 +345,7 @@ groups:
       `test/core/ports/test_use_case.py` confirms that `UnknownUseCase` returns a
       `REFUSED` verdict whose reason names the unrecognized semantics.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SE-04-002
   - id: SE-04-007
     priority: MUST
@@ -369,8 +365,10 @@ groups:
       `test/core/use_cases/received/test_unresolvable_object.py` confirm the WARNING
       naming the URI, the stored dead-letter record and the `REFUSED` verdict.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SE-04-002
+    - rel_type: uses_definition
+      spec_id: SE-04-003
   - id: SE-04-003
     priority: MUST
     kind: project
@@ -446,9 +444,6 @@ groups:
       A unit test in `test/test_semantic_registry.py` confirms that `use_case_map()`
       holds exactly the `SEMANTIC_REGISTRY` entries that name a use case, each mapped
       to that entry's class, and that every dispatcher fallback names one.
-    relationships:
-    - rel_type: refines
-      spec_id: UCORG-05-012
     adr:
     - ADR-0140
     - ADR-0152
@@ -523,8 +518,8 @@ groups:
       is silent and shows only for the activities of the hidden pattern. Thus the check
       runs when the module is imported.
     relationships:
-    - rel_type: refines
-      spec_id: SE-05-001
+    - rel_type: verifies
+      spec_id: SE-03-002
   - id: SE-06-002
     priority: MUST
     kind: project
@@ -536,7 +531,7 @@ groups:
       With a dedicated exception, a test or a caller can tell an order defect from any
       other `ValueError` or failed assertion. The import failure also names its cause.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: SE-06-001
   - id: SE-06-003
     priority: MUST
@@ -550,7 +545,7 @@ groups:
       module. A test that calls the guard on the current registry makes an order defect
       a named CI failure on the change that caused it.
     relationships:
-    - rel_type: implements
+    - rel_type: verifies
       spec_id: SE-06-001
 - id: SE-07
   title: Display Metadata
@@ -582,7 +577,7 @@ groups:
       are reserved, and SE-07-005 stops phrases from using them until the pipeline
       fills them.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SE-07-001
   - id: SE-07-007
     priority: MUST
@@ -644,8 +639,6 @@ groups:
     relationships:
     - rel_type: verifies
       spec_id: SE-07-002
-    - rel_type: refines
-      spec_id: SE-07-004
   - id: SE-07-006
     priority: MUST
     kind: project
@@ -664,8 +657,6 @@ groups:
     relationships:
     - rel_type: verifies
       spec_id: SE-07-002
-    - rel_type: refines
-      spec_id: SE-07-005
 - id: SE-08
   title: Target-Field Discriminators
   specs:
@@ -684,9 +675,6 @@ groups:
       Inspection of `vultron/wire/` confirms that every `ActivityPattern` sharing
       activity and object type with another entry adds a `target_` or `context_`
       discriminator field.
-    relationships:
-    - rel_type: refines
-      spec_id: SE-03-002
     adr:
     - ADR-0039
   - id: SE-08-006
@@ -707,6 +695,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SE-03-002
+    - rel_type: uses_definition
+      spec_id: SE-08-001
     adr:
     - ADR-0039
   - id: SE-08-002
@@ -725,7 +715,7 @@ groups:
       a target-field discriminator declare that field as required, so constructing
       the activity without it raises a validation error at the sender.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: SE-08-001
     adr:
     - ADR-0039
@@ -747,7 +737,7 @@ groups:
       `notes/activitystreams-state-update.md` § "Patterns Sharing a Verb and Object Need
       a Strict Discriminator".
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: SE-08-001
     adr:
     - ADR-0039
@@ -775,5 +765,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SE-08-001
+    - rel_type: constrains
+      spec_id: SE-01-007
     adr:
     - ADR-0039
