@@ -25,7 +25,6 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.received import assert_held_only_as_received
-from vultron.adapters.driven.db_record import StorableRecord
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -36,6 +35,7 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.ports.datalayer import StorableRecord
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
