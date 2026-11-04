@@ -935,6 +935,26 @@ def test_paused_replica_applies_the_managers_shorter_revision() -> None:
     assert replica.record().is_signatory(REVISION_ID)
 
 
+@pytest.mark.spec("CM-31-010")
+@pytest.mark.spec("SYNC-19-001")
+@pytest.mark.spec("CM-31-042")
+def test_paused_replica_ignores_a_remove_of_the_superseded_embargo() -> None:
+    """A stale ``Remove`` naming the replaced embargo changes nothing.
+
+    Only a named revision the replica has not activated is adopted ahead of
+    the teardown; one the register already holds as ``SUPERSEDED`` is not
+    in force and is never re-activated (ADR-0122).
+    """
+    replica = _Replica(REMOVED)
+    _shorter_revision_announced_by(MANAGER, replica)
+    before = replica.embargo_state()
+
+    replica.receive(_termination_from(MANAGER, replica.dl, REMOVED))
+
+    assert replica.embargo_state() == before
+    assert replica.case().active_embargo_id == REVISION_ID
+
+
 @pytest.mark.spec("CM-31-032")
 @pytest.mark.spec("PCR-03-001")
 def test_paused_replica_ignores_a_revision_from_a_non_manager() -> None:

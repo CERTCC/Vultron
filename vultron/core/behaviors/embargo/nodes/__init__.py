@@ -66,6 +66,7 @@ from vultron.core.behaviors.embargo.nodes.ending_notice import (
     embargo_ending_notice_nodes,
 )
 from vultron.core.behaviors.embargo.nodes.ending_notice_replica import (
+    AdoptRemovedEmbargoRevisionNode,
     ApplyAnnouncedEmbargoRevisionNode,
     AwaitsEmbargoEndingNoticeNode,
 )
@@ -194,6 +195,7 @@ __all__ = [
     "RejectEmbargoProposalLifecycleNode",
     "SendOwnerEmbargoDecisionNode",
     # Embargo-ending notices to unreached signatories (CM-31-009, CM-31-010)
+    "AdoptRemovedEmbargoRevisionNode",
     "ApplyAnnouncedEmbargoRevisionNode",
     "CaptureActiveEmbargoNode",
     "AwaitsEmbargoEndingNoticeNode",

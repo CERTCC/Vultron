@@ -18,6 +18,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
     remove_embargo_from_case_tree,
 )
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.embargo import (
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
@@ -107,6 +108,11 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             ),
             actor_config=self._actor_config,
             sender_rule=self.sender_entitlement,
+            embargo=(
+                request.embargo
+                if isinstance(request.embargo, EmbargoEvent)
+                else None
+            ),
         )
         bridge = BTBridge(
             datalayer=self._dl,

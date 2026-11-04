@@ -10241,6 +10241,34 @@ groups:
     - ADR-0116
     stories:
     - story_2026_096
+  - id: CM-31-042
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a CM-31-009 `Remove(EmbargoEvent)` names a revision that a CM-31-010
+      paused replica has not activated, and the register holds that revision at no
+      final status, the replica MUST activate the revision and then terminate it.
+    rationale: >-
+      The CASE_MANAGER terminates only the embargo in force, so such a `Remove` has
+      overtaken the revision's CM-31-030 `Announce`, and per-recipient order is no
+      guarantee (SYNC-19-003). Skipping it would let the late `Announce` leave the
+      revision in force for good (SYNC-19-001). A named embargo at a final status is
+      a stale `Remove` and changes nothing (ADR-0122).
+    verification: >-
+      `test_paused_signatory_ending_notices_converge_in_either_order` in
+      `test/core/use_cases/received/test_arrival_order.py` delivers the revision's
+      `Announce` and `Remove` in both orders and asserts one EM state, register and
+      consent set; `test_paused_replica_ignores_a_remove_of_the_superseded_embargo` in
+      `test/core/use_cases/received/test_embargo_ending_notices.py` asserts a stale
+      `Remove` changes nothing.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-31-010
+    adr:
+    - ADR-0116
+    - ADR-0161
+    stories:
+    - story_2026_096
   - id: CM-31-011
     priority: MUST
     kind: protocol
