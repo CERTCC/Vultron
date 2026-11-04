@@ -268,15 +268,8 @@ def _apply_decision(dl: Any, case_id: str, embargo_id: str) -> None:
     dl.save(stored)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "SYNC-19-001, EP-08-003: a relayed Invite that arrives after its"
-        " proposal was decided indexes a decided proposal as open. Tracked"
-        " by #5200."
-    ),
-)
 @pytest.mark.spec("SYNC-19-001")
+@pytest.mark.spec("EP-08-003")
 def test_late_relayed_invite_leaves_the_same_proposal_index(
     make_payload,
 ) -> None:

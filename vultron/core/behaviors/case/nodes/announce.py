@@ -171,7 +171,7 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
                 self.case_id,
                 self._request.actor_id,
             )
-            self._replace()
+            self._replace(existing)
             return Status.SUCCESS
 
         try:
@@ -215,7 +215,7 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
             )
             return Status.FAILURE
 
-    def _replace(self) -> None:
+    def _replace(self, held: object) -> None:
         """Replace the held case with the copy, as one transaction.
 
         The participants, reports and the case at the copy's ledger position
@@ -228,9 +228,21 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
         record copied as received (CM-23-016), so one left stored by a failed
         replacement is the record a redelivery stores again, not a half
         replacement.
+
+        The proposal index is replica-local: each entry names the Invite this
+        replica answers, which the CASE_MANAGER's copy cannot know.  The held
+        entries keep their place over the copy's (EP-09-007), and only the
+        proposals the copy's register leaves undecided stay (EP-08-003), so
+        the index ends the same whether the copy or a relayed Invite came
+        first (SYNC-19-001).
         """
         assert self.datalayer is not None
         with self.datalayer.transaction():
+            held_index = (
+                held.pending_embargo_proposal_index
+                if isinstance(held, VulnerabilityCase)
+                else {}
+            )
             _store_embedded_reports(self.case_obj, self.datalayer)
             store_embedded_participants(
                 self.case_obj,
@@ -245,7 +257,15 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
                     update={
                         "case_participants": normalize_participant_refs(
                             self.case_obj
-                        )
+                        ),
+                        "pending_embargo_proposal_index": (
+                            self.case_obj.undecided_proposals(
+                                {
+                                    **self.case_obj.pending_embargo_proposal_index,
+                                    **held_index,
+                                }
+                            )
+                        ),
                     }
                 )
             )
