@@ -31,8 +31,8 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
     PortInformation,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
 from vultron.core.behaviors.sync.nodes.replay_case import replay_case_id
 from vultron.core.behaviors.sync.nodes.replay_guard import (

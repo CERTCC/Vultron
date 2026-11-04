@@ -464,7 +464,7 @@ INTEGRATION_BEARING_PATHS = [
     "vultron/demo/cli/__init__.py",
     "integration_tests/demo/run.sh",
     "vultron/adapters/driving/fastapi/main.py",
-    "vultron/core/behaviors/bridge.py",
+    "vultron/core/behaviors/bridge/bt_bridge.py",
     "vultron/core/use_cases/received/case.py",
     "vultron/wire/as2/extractor/__init__.py",
 ]

@@ -61,8 +61,8 @@ CaseActor clustering is unbuilt; its plan is
   process log, never the ledger (CLP-04-007, CLP-05-002), so replication needs no
   disposition filtering.
 - **Leadership guard.** The BT bridge's `is_leader` port (SYNC-09-003,
-  `vultron/core/behaviors/bridge.py`) is always `True` in single-node; it is the
-  seam the cluster plan fills.
+  `vultron/core/behaviors/bridge/leadership.py`) is always `True` in single-node;
+  it is the seam the cluster plan fills.
 - **Leadership is not ownership.** Case Ownership governs lifecycle permissions;
   replication leadership governs who accepts writes. An ownership transfer
   implies a leadership change, not the reverse.

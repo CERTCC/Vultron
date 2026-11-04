@@ -847,7 +847,7 @@ groups:
       these hooks may trigger secondary BT executions via the same bridge instance. A plain `Lock` would deadlock on the second
       acquisition from the same thread. An `RLock` allows re-entry by the owning thread while still blocking other threads.'
     verification: >-
-      Inspection of `vultron/core/behaviors/bridge.py` confirms `BTBridge` uses
+      Inspection of `vultron/core/behaviors/bridge/` confirms `BTBridge` uses
       `threading.RLock`; a unit test confirms that a re-entrant call from a setup hook
       does not deadlock.
     relationships:

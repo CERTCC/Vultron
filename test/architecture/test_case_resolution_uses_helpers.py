@@ -15,7 +15,7 @@
 """Architecture test: case resolution goes through the unified helpers.
 
 ADR-0087 unifies the "what to do when a case cannot be resolved" decision into
-two canonical helpers in ``vultron/core/behaviors/helpers.py``:
+two canonical helpers in ``vultron/core/behaviors/helpers/case_resolution.py``:
 
 - :func:`require_case` (``_require_case`` on the four DataLayer base classes) —
   **Regime 1**, authoritative coordination: an unresolvable case is an anomaly,
@@ -30,7 +30,7 @@ the per-site drift (#3101, silent / ``debug`` / ``warning`` / ``SUCCESS`` /
 ``FAILURE`` at random) that ADR-0087 eliminates.
 
 This test flags every direct ``.read_case(`` call under
-``vultron/core/behaviors/`` (except ``helpers.py``, which *is* the unified
+``vultron/core/behaviors/`` (except ``helpers/case_resolution.py``, which *is* the unified
 implementation), keyed by ``(relative_path, class-qualified function name)``.
 The ``KNOWN_ALLOWLIST`` enumerates the sites that deliberately do NOT route
 through the helpers, each falling into one of four examined categories:
@@ -69,7 +69,7 @@ from collections import Counter
 from test.architecture import _corpus
 
 _BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
-_HELPERS = _BEHAVIORS_ROOT / "helpers.py"
+_HELPERS = _BEHAVIORS_ROOT / "helpers" / "case_resolution.py"
 
 
 class _ReadCaseScopeVisitor(ast.NodeVisitor):

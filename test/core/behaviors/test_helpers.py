@@ -32,8 +32,8 @@ from vultron.core.behaviors.helpers import (
     FindParticipantByActorIdNode,
     ReadObject,
     UpdateObject,
-    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -1049,7 +1049,7 @@ class TestEmitSingleActivityBase:
     ):
         """Exception in _on_success() propagates; outbox write already committed.
 
-        _on_success() runs outside the try/except block (see helpers.py), so
+        _on_success() runs outside the try/except block (see helpers/emit.py), so
         a hook that raises is NOT silently swallowed as Status.FAILURE.  The
         exception bubbles to the BT executor, which is the correct behaviour:
         it signals an unexpected hook bug rather than masking a committed write

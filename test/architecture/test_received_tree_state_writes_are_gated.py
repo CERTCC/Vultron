@@ -336,7 +336,7 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         f"{_B}.embargo.nodes.proposal",
         "IndexReceivedEmbargoProposalNode",
     ): _PROPOSAL_INDEX,
-    (f"{_B}.helpers", "CreateObject"): _ARCHIVE,
+    (f"{_B}.helpers.object_nodes", "CreateObject"): _ARCHIVE,
     (f"{_B}.note.nodes.storage", "SaveNoteNode"): _ARCHIVE,
     (f"{_B}.report.nodes.case_creation", "CreateCaseActivity"): _ARCHIVE,
     (f"{_B}.report.nodes.storage", "StoreReportNode"): _ARCHIVE,

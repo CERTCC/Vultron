@@ -291,8 +291,8 @@ An inter-node handoff key in a tree factory that can run concurrently for severa
 messages of one type MUST carry the execution-scoped correlation id:
 `{noun}_{id_segment}`, where `id_segment` is the last `/`-segment of an HTTP id
 (or last `:`-segment of a URN), matching the `object_{id_segment}` keys in
-`helpers.py`. A flat key is overwritten by the concurrent instance before the
-downstream reader runs (BTND-03-004). When namespacing, audit every `register_key`
+`helpers/object_nodes.py`. A flat key is overwritten by the concurrent instance
+before the downstream reader runs (BTND-03-004). When namespacing, audit every `register_key`
 in the affected subtree, not only the key the issue names.
 
 ---

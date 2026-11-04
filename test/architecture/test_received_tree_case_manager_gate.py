@@ -625,8 +625,8 @@ def test_the_marked_families_cover_the_named_emitters() -> None:
     )
     from vultron.core.behaviors.helpers import (
         UpdateActorOutbox,
-        _EmitSingleActivityBase,
     )
+    from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
     from vultron.core.behaviors.sender.nodes.actions import QueueToOutboxNode
 
     for cls in (

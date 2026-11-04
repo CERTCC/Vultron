@@ -1210,13 +1210,14 @@ groups:
       consistent with the domain model and that `dl.read()` can rehydrate
       (ADR-0034). The record-level method is retained only as a compatibility
       shim for the adapter layer and for the legacy generic `UpdateObject` /
-      `CreateObject` BT nodes in `vultron/core/behaviors/helpers.py`.
+      `CreateObject` BT nodes in `vultron/core/behaviors/helpers/object_nodes.py`.
     verification: >-
       `test/architecture/test_no_record_level_persistence_in_core.py` scans
       `vultron/core/use_cases/` and `vultron/core/behaviors/` for a reference to
       `object_to_record`, a hand-built `StorableRecord(...)`, or a record-level
       `.update(id_, record)` call and pins the one legacy site
-      (`vultron/core/behaviors/helpers.py`) in an exact `KNOWN_VIOLATIONS` set
+      (`vultron/core/behaviors/helpers/object_nodes.py`) in an exact
+      `KNOWN_VIOLATIONS` set
       (ARCH-18-001). A record-level `create(record)` is caught through the
       `StorableRecord(...)` it must first build, since by call shape alone it is
       indistinguishable from the typed `dl.create(obj)`.
@@ -1369,7 +1370,8 @@ groups:
       `vultron/core/use_cases/` and `vultron/core/behaviors/` for a reference to
       `object_to_record`, a hand-built `StorableRecord(...)`, or a record-level
       `.update(id_, record)` call and pins the one legacy site
-      (`vultron/core/behaviors/helpers.py`) in an exact `KNOWN_VIOLATIONS` set
+      (`vultron/core/behaviors/helpers/object_nodes.py`) in an exact
+      `KNOWN_VIOLATIONS` set
       (ARCH-18-001).
     relationships:
     - rel_type: extends
