@@ -125,7 +125,13 @@ _IDS = [f"{cls.__name__}.{key}" for cls, _, key in _CASES]
 
 
 def test_no_retired_field_tracking_module_exists() -> None:
-    """No model base keeps a table of retired stored names (ADR-0175)."""
+    """The tracking module #5573 removed is gone (ADR-0175).
+
+    This checks one removal by its old module path only; a named refusal
+    reintroduced elsewhere is caught by
+    :func:`test_a_former_field_name_is_refused_as_an_unknown_key`, which
+    requires exactly one generic ``extra_forbidden`` error per former name.
+    """
     assert (
         importlib.util.find_spec("vultron.core.models.retired_stored_fields")
         is None

@@ -432,7 +432,13 @@ def test_a_former_field_name_is_set_aside_and_reported(
 
 
 def test_the_parse_edge_keeps_no_retired_name_list() -> None:
-    """``unknown_keys`` declares no table of retired names (ADR-0175)."""
+    """The table #5573 removed is gone from ``unknown_keys`` (ADR-0175).
+
+    This checks one removal by its old name only; a list reintroduced under
+    another name is caught by
+    :func:`test_a_former_field_name_is_set_aside_and_reported`, which fails
+    if any former name is refused instead of set aside.
+    """
     from vultron.wire.as2 import unknown_keys
 
     assert not hasattr(unknown_keys, "RETIRED_NAMES")

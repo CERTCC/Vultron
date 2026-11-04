@@ -108,6 +108,7 @@ def _row(
 def test_a_pre_rename_row_reads_absent_naming_the_unknown_key(
     dl, caplog, cls, key, fields, old, new
 ) -> None:
+    assert new in cls.model_fields and old not in cls.model_fields
     row = _row(cls, key, fields, old)
     dl.create(row)
 
