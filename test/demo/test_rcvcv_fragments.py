@@ -29,6 +29,7 @@ import pytest
 import vultron.demo.scenario.rcvcv_demo as demo
 from test.demo._helpers import (
     devlogs_name_of,
+    gate_failures,
     patch_chain_shared,
     sessions_of,
     stub_closure_gate,
@@ -132,7 +133,7 @@ class TestC1InvitesTheSecondCoordinator:
 
         C2's join is the suggestion's causal precondition, and a flat story
         cannot nest the suggestion inside the roster's gate, so the gate keeps
-        :data:`~vultron.demo.scenario.rcvcv_demo.C2_JOINED` and the shared
+        :data:`~vultron.demo.scenario.rcvcv_fragments.C2_JOINED` and the shared
         continuation reads it.  Without it the story stops rather than posting
         a suggestion from an actor that is not in the case.
         """
@@ -333,7 +334,7 @@ class TestC2SuggestsTheVendorDeployer:
         # reaches them; what the gate owns is the approval.
         assert chain.called
         assert triage.called
-        assert [f for f in _demo_failures if "GATE FAILED" in f], (
+        assert gate_failures(), (
             f"the closed gate must record one failure: {_demo_failures!r}"
         )
 

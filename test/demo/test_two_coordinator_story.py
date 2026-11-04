@@ -37,6 +37,7 @@ import vultron.demo.helpers.two_coordinator_story as pair
 from test.demo._helpers import (
     devlogs_name_of,
     functions_referencing,
+    gate_failures,
     mock_actor,
     mock_case,
     modules_resolving_names,
@@ -402,9 +403,7 @@ class TestC1InvitesC2:
             DemoStoryError, match="case the second Coordinator joined"
         ):
             state.kept(pair.SECOND_COORDINATOR_JOINED)
-        assert [f for f in _demo_failures if "GATE FAILED" in f], (
-            _demo_failures
-        )
+        assert gate_failures(), _demo_failures
 
     @pytest.mark.spec("CLP-08-005")
     def test_the_reporter_holds_the_case_before_c2_answers(self):
