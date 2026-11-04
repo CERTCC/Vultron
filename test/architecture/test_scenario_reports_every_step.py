@@ -40,7 +40,7 @@ from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 
 #: The module that is allowed to report a step: the story runner, which makes
 #: the call as it passes each ``choose(...)`` item (DEMOCI-11-019).
-_RUNNER_MODULE = "story.py"
+_RUNNER_MODULE = "story/runner.py"
 
 #: Every other helper module.  DEMOCI-11-019 forbids a mark placed by any
 #: helper, not only by one holding story fragments, so the scan takes the whole
@@ -48,7 +48,7 @@ _RUNNER_MODULE = "story.py"
 #: ``workflow.py`` and the invite halves from ``invite_chain/``, and a mark
 #: slipped into either would have been invisible to a ``*_story.py`` glob.
 #: Recursive, because a split module is a subpackage whose submodules hold the
-#: fragments (``coordinated_story/``, ``vendor_story/``, ``invite_chain/``;
+#: fragments (``coordinated_story/``, ``story/``, ``invite_chain/``, …;
 #: #5592, CS-18-005).
 _HELPERS_DIR = _corpus.REPO_ROOT / "vultron" / "demo" / "helpers"
 _HELPER_MODULES = sorted(
@@ -228,7 +228,7 @@ def test_the_runner_is_the_one_module_held_out_of_the_scan() -> None:
     runner passes ``item.branch_point`` and ``item.choice``, so it names no
     literal pair and the literal scan reads nothing from it.
     """
-    runner = _HELPERS_DIR / "story.py"
+    runner = _HELPERS_DIR / _RUNNER_MODULE
     assert runner.is_file(), runner
     assert _reporter_calls(_corpus.tree_of(runner)), (
         f"{_RUNNER_MODULE} is held out of the scan as the one module allowed "

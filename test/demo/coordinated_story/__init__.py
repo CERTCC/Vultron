@@ -29,7 +29,7 @@ These tests are mock-only, yet they live under ``test/demo/`` rather than
 directory's ``conftest.py`` — because they depend on its autouse fixtures:
 ``stub_summary_seed`` and ``stub_full_case_reply`` skip the two chain steps
 that have no container to talk to when the client is a mock (#5444), and the
-ledger-rebuild guard runs on the way out.  ``test/demo_unit/test_story.py``
+ledger-rebuild guard runs on the way out.  ``test/demo_unit/story/``
 states the other half of the rule: a test that needs none of those fixtures
 belongs there.
 """
