@@ -301,6 +301,28 @@ class TestStoryProps:
             "under, so each family would read the other's."
         )
 
+    def test_the_walk_reads_every_module_a_prop_is_declared_in(self) -> None:
+        """A prop below a package, or in a flat helper, is collected there.
+
+        The uniqueness check above asserts an absence, so it is only worth
+        what the walk reaches: a flat walk of ``vultron/demo/helpers/`` would
+        pass over every package a module split made (#5592), and a walk that
+        skipped a flat helper would miss rcvcv's own fragments (#5846).  Pin
+        one declaration from each shape.
+        """
+        sites = {
+            site
+            for where in _story_prop_declarations().values()
+            for site in where.values()
+        }
+
+        assert {
+            "vultron.demo.helpers.coordinated_story.opening.TIMELINE_ANSWER",
+            "vultron.demo.helpers.owner_decision_story.handover"
+            ".HANDED_OVER_CASE",
+            "vultron.demo.helpers.rcvcv_story.C2_JOINED",
+        } <= sites, sorted(sites)
+
 
 @pytest.mark.spec("DEMOCI-11-018")
 class TestSeatingACharacterActor:

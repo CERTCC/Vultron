@@ -37,6 +37,7 @@ import vultron.demo.helpers.two_coordinator_story as pair
 from test.demo._helpers import (
     devlogs_name_of,
     functions_referencing,
+    gate_failures,
     mock_actor,
     mock_case,
     modules_resolving_names,
@@ -103,11 +104,6 @@ def _no_banners():
 def _four_party_state():
     """A story state seating all four, on an open case."""
     return story_state(*_CAST, case=mock_case())
-
-
-def _sessions_of(mock_method) -> list[str]:
-    """The actor id of each session an ``autospec``-ed verb was called on."""
-    return [call.args[0].actor.id_ for call in mock_method.call_args_list]
 
 
 # ---------------------------------------------------------------------------
@@ -408,9 +404,7 @@ class TestC1InvitesC2:
             DemoStoryError, match="case the second Coordinator joined"
         ):
             state.kept(pair.SECOND_COORDINATOR_JOINED)
-        assert [f for f in _demo_failures if "GATE FAILED" in f], (
-            _demo_failures
-        )
+        assert gate_failures(), _demo_failures
 
     @pytest.mark.spec("CLP-08-005")
     def test_the_reporter_holds_the_case_before_c2_answers(self):
@@ -886,6 +880,14 @@ class TestTheOwnerDecisionParts:
         # (notes/architecture-ratchet-corpus.md, #5595).
         assert imported, "the import walk found nothing — the check is vacuous"
         assert referenced, "the name walk found nothing — the check is vacuous"
+        # Non-empty is not enough either: the package's ``__init__`` alone
+        # yields names. The invite chain is called only inside the
+        # continuations' bodies (an import is no ``ast.Name``), so finding it
+        # proves the walk read a continuation and not just the re-exports
+        # (#5846).
+        assert "run_case_invite_chain" in referenced, (
+            "the walk read no continuation body — the check is vacuous"
+        )
         assert pair.__name__ not in imported, (
             f"{pair.__name__} imported by owner_decision_story would"
             " hard-wire the two-coordinator cast into a continuation the"

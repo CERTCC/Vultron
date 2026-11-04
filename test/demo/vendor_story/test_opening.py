@@ -28,6 +28,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from test.demo._helpers import (
+    gate_failures,
     mock_case,
     no_demo_banners,
     story_state,
@@ -56,11 +57,6 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 #: Clear the process-global failure accumulator around every test.
 pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
-
-
-def _gate_failures() -> list[str]:
-    """Every recorded gate failure, in order."""
-    return [f for f in _demo_failures if "GATE FAILED" in f]
 
 
 @contextlib.contextmanager
@@ -145,7 +141,7 @@ class TestTheReporterTellsTheVendor:
         assert triage_kwargs["receiver_client"] is state.client(family.VENDOR)
         assert triage_kwargs["receiver"] is state.actor(family.VENDOR).actor
         assert triage_kwargs["offer"] is stubs.submit.return_value[1]
-        assert not _gate_failures(), _gate_failures()
+        assert not gate_failures(), gate_failures()
 
     def test_the_triage_runs_on_the_familys_one_budget(self):
         """The four scenarios share one copy, so they share one budget.
@@ -215,7 +211,7 @@ class TestTheReporterTellsTheVendor:
         harness.follow_ledger.assert_called_once_with(
             state.case_actor_client, case.id_
         )
-        assert _gate_failures(), _demo_failures
+        assert gate_failures(), _demo_failures
 
     @pytest.mark.spec("DEMOCI-01-011")
     def test_the_roster_gate_holds_everything_that_presupposes_it(self):
@@ -247,7 +243,7 @@ class TestTheReporterTellsTheVendor:
         )
         with pytest.raises(DemoStoryError, match="roster the Vendor"):
             state.kept(family.THE_VENDORS_CASE)
-        assert _gate_failures(), _demo_failures
+        assert gate_failures(), _demo_failures
 
     @pytest.mark.spec("CLP-08-005")
     def test_the_reporter_holds_the_case_inside_the_same_gate(self):
@@ -317,7 +313,7 @@ class TestTheReporterTellsTheVendor:
         assert state.case is case
         with pytest.raises(DemoStoryError, match="roster the Vendor"):
             state.kept(family.THE_VENDORS_CASE)
-        assert _gate_failures(), _demo_failures
+        assert gate_failures(), _demo_failures
 
 
 # ---------------------------------------------------------------------------
