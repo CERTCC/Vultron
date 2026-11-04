@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.embargo.announce_teardown_tree import (
+from vultron.core.behaviors.embargo.answer_trees import (
     reject_invite_to_embargo_tree,
 )
 from vultron.core.models._helpers import now_utc

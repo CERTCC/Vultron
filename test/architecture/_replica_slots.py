@@ -63,7 +63,7 @@ def _own_classes(slot: type) -> list[type]:
 #: followed (see :func:`_functions_reached`).
 _UNWALKED_MODEL_WRITES = frozenset(
     {
-        "VulnerabilityCase.apply_embargo_register_step",
+        "EmbargoRegisterMixin.apply_embargo_register_step",
         "VulnerabilityCase.add_participant",
     }
 )
