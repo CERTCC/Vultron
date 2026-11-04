@@ -142,7 +142,8 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   the step (#4714), so the wire and the entry cannot disagree. The CM-31-009
   notices read the what back from the register (`case.embargo_termination`).
   A `Remove` naming an embargo not in force changes nothing, on the
-  CASE_MANAGER and on a replica.
+  CASE_MANAGER and on a replica. Exception: a paused signatory's replica that
+  has not activated the named revision activates it, then ends it (CM-31-042).
 - **End-time termination is one idempotent path (EMB-13-003).**
   `end_embargo_at_end_time_bt` (`behaviors/embargo/end_time_tree.py`) answers an
   already-`EXITED` case as done and otherwise runs `terminate_embargo_bt` with

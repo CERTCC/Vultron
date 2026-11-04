@@ -71,9 +71,10 @@ side, as the CASE_MANAGER's arm does.  The
 RSH-08-003 replica gate (#3814) gates that write on
 ``AwaitsEmbargoEndingNoticeNode``, so only the paused signatory tears down
 directly.  A ``Remove`` naming a revision that replica has not activated
-overtook that revision's ``Announce`` notice (CM-31-030), so the replica
+means that revision replaced its embargo: the revision's ``Announce`` notice
+(CM-31-030) is late, or none was owed for a longer revision.  The replica
 activates the revision first and then tears it down, ending as the in-order
-delivery does (SYNC-19-001).
+delivery does (SYNC-19-001, CM-31-042).
 
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """

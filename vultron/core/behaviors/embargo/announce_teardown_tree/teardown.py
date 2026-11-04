@@ -141,8 +141,10 @@ def remove_embargo_from_case_tree(
     changes nothing: the register cancels a proposal only with a
     termination or on a threat signal.  The one exception is a paused
     signatory's replica, where a ``Remove`` naming a revision it has not
-    activated overtook that revision's ``Announce`` notice: the replica
-    activates the revision, then tears it down (SYNC-19-001, CM-31-010).
+    activated means that revision replaced the replica's embargo (its
+    ``Announce`` notice is late, or none was owed for a longer revision):
+    the replica activates the revision, then tears it down (SYNC-19-001,
+    CM-31-042).
     Always commits a canonical ledger entry when the executing actor holds
     the ``CASE_MANAGER`` role (via the guarded commit subtree).
 
@@ -260,10 +262,11 @@ def remove_embargo_from_case_tree(
                             children=[
                                 # The CASE_MANAGER terminates only the
                                 # embargo in force, so a named revision this
-                                # replica has not activated means its
-                                # Announce has not arrived yet: activate it
-                                # first, so either order ends the same
-                                # (SYNC-19-001, SYNC-19-003).
+                                # replica has not activated replaced its
+                                # embargo (a late Announce, or none owed for
+                                # a longer revision): activate it first, so
+                                # either order ends the same (SYNC-19-001,
+                                # SYNC-19-003, CM-31-042).
                                 AdoptRemovedEmbargoRevisionNode(
                                     case_id=case_id,
                                     embargo_id=embargo_id,

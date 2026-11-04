@@ -53,7 +53,7 @@ from vultron.core.services.embargo_lifecycle import (
     TransitionMode,
 )
 from vultron.core.states.embargo_register import FINAL_REGISTER_STATUSES
-from vultron.errors import VultronError
+from vultron.errors import INTERNAL_FAULTS, VultronError
 
 
 class AwaitsEmbargoEndingNoticeNode(DataLayerConditionWithPorts):
@@ -157,6 +157,8 @@ class _ObservedRevisionActivationNode(
                 actor_id=self.actor_id,
                 transition_mode=TransitionMode.OBSERVED,
             )
+        except INTERNAL_FAULTS:
+            raise  # never a refusal, so never answered (ADR-0095)
         except VultronError as exc:
             return self._refuse(exc)
         self.applied = True
@@ -218,6 +220,8 @@ class ApplyAnnouncedEmbargoRevisionNode(_ObservedRevisionActivationNode):
             notice = embargo_ending_notice(
                 datalayer, before=current, after=self.embargo_id
             )
+        except INTERNAL_FAULTS:
+            raise  # never a refusal, so never answered (ADR-0095)
         except VultronError as exc:
             return self._refuse(exc)
         if notice is None:
@@ -240,12 +244,14 @@ class AdoptRemovedEmbargoRevisionNode(_ObservedRevisionActivationNode):
 
     The CASE_MANAGER terminates only the embargo in force, so a
     ``Remove(EmbargoEvent)`` notice (CM-31-009) naming a revision this
-    paused replica has not activated means the revision's ``Announce``
-    (CM-31-030) has not arrived yet: per-recipient order is no guarantee
-    (SYNC-19-003).  The node activates that revision first, as the
-    ``Announce`` would have, so the teardown that follows terminates it and
-    the replica ends the same whichever notice arrives first (SYNC-19-001);
-    the late ``Announce`` then finds no embargo in force and changes nothing.
+    paused replica has not activated means that revision replaced the
+    replica's embargo.  Either its ``Announce`` (CM-31-030) has not arrived
+    yet, since per-recipient order is no guarantee (SYNC-19-003), or it was
+    a longer revision, for which no ``Announce`` is owed.  The node
+    activates that revision first, so the teardown that follows terminates
+    it and the replica ends the same whichever notice arrives first
+    (SYNC-19-001); a late ``Announce`` then finds no embargo in force and
+    changes nothing.
 
     It runs ahead of the teardown in the paused replica's arm only.  Nothing
     is written, and the node succeeds, when the replica has no embargo in
@@ -278,13 +284,15 @@ class AdoptRemovedEmbargoRevisionNode(_ObservedRevisionActivationNode):
             )
         try:
             self._hold_announced_embargo(datalayer, case)
+        except INTERNAL_FAULTS:
+            raise  # never a refusal, so never answered (ADR-0095)
         except VultronError as exc:
             return self._refuse(exc)
         return self._activate(
             datalayer,
             current,
-            "ahead of the CASE_MANAGER's termination notice, which overtook"
-            " the revision's Announce (CM-31-010, SYNC-19-001)",
+            "ahead of the CASE_MANAGER's termination notice, which names a"
+            " revision not yet applied here (CM-31-042, SYNC-19-001)",
         )
 
 
