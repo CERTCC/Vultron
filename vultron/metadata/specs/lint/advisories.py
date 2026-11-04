@@ -1,5 +1,5 @@
-"""Story traceability gate (SR-11-003) and per-spec advisory warnings
-(SR-04-002).
+"""Story traceability gate (SR-11-003), per-spec advisory warnings
+(SR-04-002) and the per-file project/process story advisory (SR-11-009).
 """
 
 from __future__ import annotations
@@ -117,3 +117,41 @@ def _check_per_spec_advisory_warnings(registry: SpecRegistry) -> list[str]:
             )
 
     return warnings
+
+
+_PROJECT_PROCESS_KINDS = frozenset({SpecKind.PROJECT, SpecKind.PROCESS})
+
+
+def _check_project_process_story_advisory(
+    registry: SpecRegistry,
+    *,
+    list_no_story_ids: bool = False,
+) -> list[str]:
+    """One summary ``[INFO]`` line per spec file for project/process
+    requirements with no ``stories:`` field (SR-11-009).
+
+    The count is computed from the loaded registry on every run. ``kind:
+    protocol`` and ``kind: architecture`` requirements are excluded: SR-11-003
+    and SR-11-004 cover protocol, and architecture is not this advisory's
+    business. The advisory never affects the exit code. The IDs appear under
+    each file's summary line only when *list_no_story_ids* is ``True``
+    (``--list-no-story-ids`` on the CLI).
+    """
+    lines: list[str] = []
+    for file in registry.files:
+        no_story_ids = sorted(
+            spec.id
+            for group in file.groups
+            for spec in group.specs
+            if spec.kind in _PROJECT_PROCESS_KINDS and not spec.stories
+        )
+        if not no_story_ids:
+            continue
+        lines.append(
+            f"[INFO] {LintWarningCode.NO_PROJECT_PROCESS_STORY}: {file.id} "
+            f"({file.title}): {len(no_story_ids)} project/process "
+            f"requirement(s) with no stories: field (SR-11-009)"
+        )
+        if list_no_story_ids:
+            lines.extend(f"    {spec_id}" for spec_id in no_story_ids)
+    return lines

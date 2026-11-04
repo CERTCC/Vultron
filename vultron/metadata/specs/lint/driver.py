@@ -25,6 +25,7 @@ from vultron.metadata.specs.lint.adr_refs import (
 from vultron.metadata.specs.lint.advisories import (
     _check_missing_story_references,
     _check_per_spec_advisory_warnings,
+    _check_project_process_story_advisory,
 )
 from vultron.metadata.specs.lint.phantom_paths import _check_phantom_paths
 from vultron.metadata.specs.lint.phantom_symbols import (
@@ -106,6 +107,7 @@ def lint(
     registry: SpecRegistry | None = None,
     *,
     list_unverified: bool = False,
+    list_no_story_ids: bool = False,
     debt_owners: Mapping[SpecKind, frozenset[str]] | None = None,
     check_debt_owners: bool = False,
     closing_pr: int | None = None,
@@ -131,6 +133,9 @@ def lint(
         list_unverified: Print the ID and marker of every unverified
             MUST-tier requirement under its kind's summary line
             (MS-10-020; ``--list-unverified`` on the CLI).
+        list_no_story_ids: Print the IDs of every project/process
+            requirement with no ``stories:`` field under its file's
+            summary line (SR-11-009; ``--list-no-story-ids`` on the CLI).
         debt_owners: The issues that own each kind's verification backlog.
             Defaults to the live
             :data:`~vultron.metadata.specs.verification.VERIFICATION_DEBT_OWNERS`;
@@ -207,6 +212,11 @@ def lint(
     hard_errors.extend(verification_errors)
     status_lines.extend(verification_lines)
     status_lines.extend(suppression_status_lines(registry))
+    status_lines.extend(
+        _check_project_process_story_advisory(
+            registry, list_no_story_ids=list_no_story_ids
+        )
+    )
     opt_in_errors, opt_in_warnings = _opt_in_checks(
         registry,
         spec_dir.parent,
@@ -265,6 +275,14 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--list-no-story-ids",
+        action="store_true",
+        help=(
+            "List the IDs of every project/process requirement with no "
+            "stories: field under its spec file's summary line (SR-11-009)"
+        ),
+    )
+    parser.add_argument(
         "--check-debt-owners",
         action="store_true",
         help=(
@@ -312,6 +330,7 @@ def main() -> None:
         or args.check_closing_pr is not None
         or args.check_debt_owners
         or args.list_unverified
+        or args.list_no_story_ids
     ):
         # --list-compound runs nothing else, so a combined check would pass
         # without having run.
@@ -327,6 +346,7 @@ def main() -> None:
         code = lint(
             spec_dir,
             list_unverified=args.list_unverified,
+            list_no_story_ids=args.list_no_story_ids,
             check_debt_owners=args.check_debt_owners,
             closing_pr=args.check_closing_pr,
             changed_since=args.changed_since,
