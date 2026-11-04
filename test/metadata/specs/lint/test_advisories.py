@@ -99,6 +99,7 @@ def test_protocol_must_no_stories_is_hard_error(tmp_path, capsys):
     captured = capsys.readouterr()
     assert result == 1
     assert "SR-11-003" in captured.err
+    assert "priority=MUST but" in captured.err
     assert "missing_story_reference" in captured.err
 
 
