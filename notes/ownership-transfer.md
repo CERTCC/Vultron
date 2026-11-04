@@ -123,7 +123,7 @@ before the Offer's state is read (#4437).
   guard sets `is_redelivery` and the run reports `SKIPPED` (HP-01-003).
 - **The transferee's standing is one predicate at all three checks.** The trigger,
   the proposal guard and the Accept guard all ask `may_act_on_case()`
-  (`core/participants/recipients.py`), so a participant whose closure is
+  (`core/participants/recipients/`), so a participant whose closure is
   recorded is refused too: the Offer is case content (CM-23-004). The Accept's
   check is a precondition guard after the open-Offer guard, not part of the
   sender check:

@@ -847,7 +847,7 @@ groups:
       where the receiver's chain ends, so the replay fills the gap.
     verification: >-
       Inspection of `RejectLedgerEntryReceivedUseCase` in
-      `vultron/core/use_cases/received/sync.py` confirms the mismatch-and-replay
+      `vultron/core/use_cases/received/sync/replay.py` confirms the mismatch-and-replay
       behaviour. `test/test_message_semantics_mapping.py`
       (`test_ledger_hash_mismatch_rejects_and_replays_from_last_accepted`) confirms
       the mismatch guard, the Reject emitter and the replaying use case are wired.

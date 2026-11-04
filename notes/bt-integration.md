@@ -270,7 +270,7 @@ answer, clock decisions, guards, commit, effects.
    (`case_is_fully_closed`, `core/predicates/case_closure.py`), it fails the
    tree so no commit, effect, or emit runs; on every other store it passes, so replicas
    keep applying the closure fan-out. The handler verdict comes from
-   `door_refusal` (`use_cases/received/_bt_verdict.py`), asked first by
+   `door_refusal` (`use_cases/received/_bt_verdict/`), asked first by
    `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. Never run a
    door guard as a one-node tree ahead of the received tree: that is the
    chained shape CLP-10-005 forbids (ADR-0135). A tree opts out only with a
@@ -304,7 +304,7 @@ answer, clock decisions, guards, commit, effects.
    `paths=` argument (HP-01-038). Declare a branch per path the type does real
    work on, never a narrower set with an ungated effect making up the
    difference. A handler reads the answer with `received_path(tree)`
-   (`use_cases/received/_bt_verdict.py`), never by inferring "not the manager"
+   (`use_cases/received/_bt_verdict/`), never by inferring "not the manager"
    from a gate skip anywhere in the tree.
 
    Read the declaration off the use case's sender rule, then narrow it. The
@@ -387,7 +387,7 @@ answer, clock decisions, guards, commit, effects.
    `closed_sender=ClosedSenderCheck(...)`: the factory places the door after the
    addressee check, so a sender the case records as closed stops the tree with
    nothing committed or sent. The handler asks `closed_sender_verdict()`
-   (`_bt_verdict.py`) before reading any other refusal: `SKIPPED` for a repeat of
+   (`_bt_verdict/`) before reading any other refusal: `SKIPPED` for a repeat of
    a closing act, `REFUSED` for anything else (CM-23-018, ID-05-003). Declare it
    on the tree; never run the check as a tree of its own or write it per handler.
 

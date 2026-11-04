@@ -226,7 +226,7 @@ as `VultronBTInternalError`, so the handler raises instead of reporting `REFUSED
 
 Every sender of ledger entries (the fan-out collectors, `SendMissingEntriesNode`,
 `AnnounceCaseOnGenesisRejectNode`) applies the CM-10-004 content gate through
-`vultron/core/participants/recipients.py` (`case_content_recipients()`,
+`vultron/core/participants/recipients/` (`case_content_recipients()`,
 `is_case_content_recipient()`; CM-10-007). A peer that is not an active
 participant gets no entries, and its `Reject(CaseLedgerEntry)` replays nothing
 and seeds no case.

@@ -945,7 +945,7 @@ class TestSubmitReportDisposition:
         from vultron.core.behaviors.case.nodes.post_close import (
             CaseOpenToExternalWritesNode,
         )
-        from vultron.core.use_cases.received.report import (
+        from vultron.core.use_cases.received.report.submission import (
             _submit_report_verdict,
         )
 
@@ -1093,8 +1093,8 @@ class TestSubmitReportKeepsWhatArrived:
         """The ratchet charges nothing to the handler (CLP-10-005)."""
         import inspect
 
-        from vultron.core.use_cases.received import report
+        from vultron.core.use_cases.received.report import submission
 
-        source = inspect.getsource(report)
+        source = inspect.getsource(submission)
         assert "_store_submit_report_dependencies" not in source
         assert "_store_dependency_idempotently" not in source

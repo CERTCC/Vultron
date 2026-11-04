@@ -34,7 +34,7 @@ related_notes:
   - notes/activitystreams-semantics.md
   - notes/protocol-event-cascades.md
 relevant_packages:
-  - vultron/core/participants/recipients.py
+  - vultron/core/participants/recipients
   - vultron/core/participants/stub_reply.py
   - vultron/core/models/case.py
   - vultron/core/models/case_participant.py
@@ -86,7 +86,7 @@ cases have no active embargo, so "inert until a signatory" is wrong.
   answers as the CASE_MANAGER does. It is computed, never stored (CM-31-002,
   CM-31-018): a stored "joined" property would read as "active" at a send site.
 - Every case-content send picks recipients through
-  `vultron/core/participants/recipients.py` (`case_content_recipients()`,
+  `vultron/core/participants/recipients/` (`case_content_recipients()`,
   `invitation_recipients()`), never at the send site (CM-10-004, CM-10-005). A roster
   entry whose record cannot be read gets nothing (CM-10-007).
 
@@ -116,7 +116,7 @@ from its role (CLP-09).
 
 - **A sender at RM `CLOSED` is refused, not just unsent-to (CM-23-018).** The
   `ACTIVE_PARTICIPANT` standing is "active and closure not recorded", asked through
-  one shared predicate, `may_act_on_case()` in `core/participants/recipients.py`, by
+  one shared predicate, `may_act_on_case()` in `core/participants/recipients/`, by
   every guard node for that kind. The bare active check is
   not enough: it leaves `CLOSED` out on purpose, because recipients need it.
   A closed participant would otherwise write to a case it can no longer see

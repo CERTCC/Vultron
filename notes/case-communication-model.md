@@ -93,7 +93,7 @@ The one stated exception is RK: an addressee of the report's `Offer` sends it to
 reporter directly, case or no case, because it answers that Offer outside the case
 (PCR-08-001, RMB-08-003, #4560).
 The CASE_MANAGER picks broadcast recipients from
-`vultron/core/participants/recipients.py` (CM-10-007): `case_content_recipients()` for
+`vultron/core/participants/recipients/` (CM-10-007): `case_content_recipients()` for
 content (active participants not at RM.CLOSED), `ledger_entry_recipients()` for
 ledger entries (adds back only a closed participant the entry is about, CM-23-004),
 and `invitation_recipients()` for consent Invites.
