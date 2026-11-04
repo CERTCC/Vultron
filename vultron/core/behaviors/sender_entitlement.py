@@ -88,12 +88,19 @@ missing attribute.
 Refusal reasons and log levels
 ------------------------------
 A check that does not admit the sender calls
-``SenderEntitlementConditionNode._refuse(reason)``, which records *reason* as
-``feedback_message`` for ``BTBridge.get_failure_reason`` (BT-13-001) and logs it
-at WARNING only when ``failure_is_the_refusal(node)`` says this node's FAILURE
-is the guard's whole answer.  Inside an any-of side a later arm may still admit
-the sender, so that line is DEBUG and drops the ``REFUSED`` wording: nothing was
-refused (SL-03-001, #5460).
+``SenderEntitlementConditionNode._refuse_by_placement(reason)``, which records
+*reason* as ``feedback_message`` for ``BTBridge.get_failure_reason``
+(BT-13-001) and logs it at WARNING only when ``failure_is_the_refusal(node)``
+says this node's FAILURE is the guard's whole answer.  Inside an any-of side a
+later arm may still admit the sender, so that line is DEBUG (SL-03-002) and drops
+the ``REFUSED`` wording (SL-03-003): nothing was refused (#5460).
+
+``SenderIsCaseManagerNode`` is so far the only check that takes this rule.  The
+others log WARNING from their own ``update()``, and three of them
+(``SenderIsRequestAddresseeNode``, ``SenderIsOfferingCaseOwnerNode``,
+``SenderIsParticipantRecordSubjectNode``) have a private ``_refuse`` that
+appends the ``REFUSED`` group instead of receiving it; #5786 brings the family
+onto one rule.
 
 Nodes
 -----
@@ -694,7 +701,7 @@ def _without_refusal_wording(reason: str) -> str:
     (:func:`failure_is_the_refusal` is ``False``) keeps the facts and drops
     that wording: ``REFUSED`` names a refusal, and a reader — and
     ``expect_no_sender_refusals`` in the demo tests — must be able to trust
-    it (SL-03-001).
+    it (SL-03-003).
     """
     return _REFUSAL_WORDING.sub("", reason)
 
@@ -710,9 +717,9 @@ class SenderEntitlementConditionNode(DataLayerConditionWithPorts):
     Subclasses of this class are the *only* permitted sender predicate nodes
     in the codebase; the architecture ratchet fails on any subclass defined
     outside this module (HP-01-007).
-    Beside the marker it carries one shared behaviour: :meth:`_refuse`,
-    which records a refusal reason and logs it at the level the node's place
-    in the composed guard makes right.
+    Beside the marker it carries one shared behaviour:
+    :meth:`_refuse_by_placement`, which records a refusal reason and logs it
+    at the level the node's place in the composed guard makes right.
 
     Each concrete subclass names the one kind it is a guard of in
     :attr:`guards_kind` (HP-01-009).
@@ -722,16 +729,24 @@ class SenderEntitlementConditionNode(DataLayerConditionWithPorts):
     """The kind this node is a guard of; ``None`` for a node that checks no
     one kind (the empty side and the any-of refusal the factory composes)."""
 
-    def _refuse(self, reason: str) -> Status:
+    def _refuse_by_placement(self, reason: str) -> Status:
         """Record *reason* as this check's failure reason and fail.
 
         *reason* becomes ``feedback_message``, which is what
-        ``BTBridge.get_failure_reason`` reports (BT-13-001).  The log level
+        ``BTBridge.get_failure_reason`` reports (BT-13-001), so it arrives
+        already carrying its own ``— REFUSED (IDs)`` group.  The log level
         follows the tree: WARNING when this node's FAILURE is the guard's
         refusal, DEBUG when a later arm of an any-of side still gets to
         admit the sender (:func:`failure_is_the_refusal`).  A line a
         receiver that then admits the activity would emit is branch
-        selection, not a refusal, so it belongs at DEBUG (SL-03-001).
+        selection, not a refusal, so it belongs at DEBUG (SL-03-002).
+
+        Named for the placement it reads, not ``_refuse``, because three
+        subclasses already define a ``_refuse`` of their own with the
+        opposite contract — it *appends* the ``REFUSED`` group and always
+        logs WARNING.  A base ``_refuse`` would be silently overridden on
+        those branches, which neither mypy nor pyright reports, so routing
+        them through this rule would look done and do nothing (#5786).
         """
         self.feedback_message = reason
         if failure_is_the_refusal(self):
@@ -1159,7 +1174,7 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
         case_actor_id = self._trusted_case_manager(case_id, case)
 
         if case_actor_id is None and self._anchored:
-            return self._refuse(
+            return self._refuse_by_placement(
                 f"No CASE_MANAGER is known for case '{case_id}' to"
                 f" match sender '{sender_id}' — REFUSED (HP-01-006,"
                 " PCR-03-004)"
@@ -1171,7 +1186,7 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
                 if case is None
                 else f"case '{case_id}' names no CASE_MANAGER"
             )
-            return self._refuse(
+            return self._refuse_by_placement(
                 f"Sender '{sender_id}' has no standing: {held} — REFUSED"
                 " (PCR-03-001, HP-01-006)"
             )
@@ -1194,7 +1209,7 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
             )
             return Status.SUCCESS
 
-        return self._refuse(
+        return self._refuse_by_placement(
             f"Sender '{sender_id}' is not the CASE_MANAGER for case"
             f" '{case_id}', which is '{case_actor_id}'"
             " — REFUSED (HP-01-006)"

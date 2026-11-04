@@ -1337,7 +1337,7 @@ def _refusal_lines(
     return [
         record
         for record in caplog.records
-        if record.name == name and record.funcName == "_refuse"
+        if record.name == name and record.funcName == "_refuse_by_placement"
     ]
 
 
@@ -1370,7 +1370,7 @@ def _only_case_manager_check(
     return found[0]
 
 
-@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-001")
+@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002")
 def test_a_kind_a_later_arm_overrules_logs_no_refusal(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -1394,10 +1394,13 @@ def test_a_kind_a_later_arm_overrules_logs_no_refusal(
     assert lines[0].levelno == logging.DEBUG
     assert "REFUSED" not in lines[0].getMessage()
     assert "is not the CASE_MANAGER" in lines[0].getMessage()
+    # Stripping the REFUSED group keeps the CASE_MANAGER it resolved, which
+    # is the whole diagnostic the deleted WARNING carried as "expected '<id>'".
+    assert f"which is '{MANAGER}'" in lines[0].getMessage()
     assert _refusals_logged(caplog) == []
 
 
-@pytest.mark.spec("HP-01-006", "SL-03-001")
+@pytest.mark.spec("HP-01-006", "SL-03-002")
 def test_the_lone_kind_of_a_side_still_logs_its_refusal_at_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -1425,7 +1428,7 @@ def test_the_lone_kind_of_a_side_still_logs_its_refusal_at_warning(
     )
 
 
-@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-001")
+@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002")
 def test_an_any_of_side_still_logs_one_refusal_for_a_sender_it_refuses(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -1484,7 +1487,7 @@ def _declared_case_manager_sides() -> list[tuple[str, str, SenderRule]]:
     return found
 
 
-@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-001")
+@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002")
 def test_every_declared_side_places_the_case_manager_check_knowingly() -> None:
     """Each received rule naming ``CASE_MANAGER`` composes a check that knows
     whether its own FAILURE refuses the sender: ``False`` where the side names
@@ -1525,7 +1528,7 @@ class _Leaf(py_trees.behaviour.Behaviour):
         return Status.FAILURE
 
 
-@pytest.mark.spec("SL-03-001")
+@pytest.mark.spec("SL-03-002")
 @pytest.mark.parametrize(
     ("shape", "expected"),
     [
