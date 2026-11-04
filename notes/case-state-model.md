@@ -66,7 +66,7 @@ rules for changing the code that implements it.
 - **Ephemeral states**: the six `vP` states must next take `V`, and the six
   `pX` states must next take `P` (`required_next_cs_events()`, CSB-17-003).
 
-Do not delete the legacy module (ADR-0060): `cs.py` still uses
+Do not delete the legacy module (ADR-0060): `cs/` still uses
 `case_states.validations.ensure_valid_state`, and
 `vultron/core/use_cases/query/action_rules.py` (the `actors_get_action_rules`
 endpoint) still uses `case_states.patterns.potential_actions`. Its potential

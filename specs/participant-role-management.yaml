@@ -314,7 +314,8 @@ groups:
     verification: >-
       `test_no_direct_case_roles_mutation_in_core` in
       `test/architecture/test_participant_case_roles.py` scans `vultron/core/` for the
-      two mutation patterns and fails on any match outside `case_participant.py`.
+      two mutation patterns and fails on any match outside
+      `case_participant/participant.py`.
     tags:
     - testing
     - tooling

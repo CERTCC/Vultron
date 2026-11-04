@@ -63,7 +63,3 @@ def main():
 
     print("Mermaid Diagrams of State machines")
     print(mermaid_machine(create_pxa_machine()))
-
-
-if __name__ == "__main__":
-    main()

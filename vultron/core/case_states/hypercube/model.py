@@ -305,7 +305,3 @@ def main():
     pr = m.compute_pagerank()
     for k, v in pr.items():
         print(f"- {k} {v}")
-
-
-if __name__ == "__main__":
-    main()

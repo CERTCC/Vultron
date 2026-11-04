@@ -76,7 +76,7 @@ def check_computed_field_inputs(
     if not isinstance(data, dict) or not computed:
         return handler(data)
 
-    spellings = computed_field_spellings(cls)
+    spellings = cls._computed_field_spellings()
 
     # Record every supplied computed-field value under the spelling it
     # arrived with, so that disagreeing duplicate spellings are each seen.

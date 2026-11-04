@@ -95,8 +95,8 @@ field must carry the case.
 Never keep a duplicate copy elsewhere; import from the canonical location.
 
 **`core/models/_helpers/` cannot import `vultron.core.states`.** The cycle runs
-through the package `__init__.py` (`models/base.py` → `_helpers` →
-`states/__init__.py` → `states/cs.py` → `states/common.py` → `models/base.py`), so
+through the package `__init__.py` (`models/base/` → `_helpers` →
+`states/__init__.py` → `states/cs/` → `states/common.py` → `models/base/`), so
 the target module's own imports look clean, and the error shows as a missing
 symbol in `models.base`, not a cycle. A helper needing a state enum goes with its
 type.

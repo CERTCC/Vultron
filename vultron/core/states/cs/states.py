@@ -32,7 +32,7 @@ from vultron.core.states.cs.dimensions import (
 )
 
 
-# a named tuple of the enums above.
+# a named tuple of the dimension enums.
 # NOTE (CONCERN-2099, planning group G06 / #2834): the earlier TODO here
 # contemplated replacing this with a combination of VfdState and PxaState, or
 # introducing a CaseState(BaseModel). The verdict is to KEEP the compound

@@ -357,6 +357,21 @@ def _frozen_clock(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@pytest.mark.parametrize("seam", ["datetime", "uuid"])
+def test_helpers_package_exposes_no_stale_seam(seam: str) -> None:
+    """The clock and id seams live in ``clock`` and ``ids``, not the package.
+
+    ``now_utc`` reads ``datetime`` from ``_helpers.clock`` and
+    ``new_object_id`` reads ``uuid`` from ``_helpers.ids``.  Were the package
+    to bind either name, a patch of the pre-split ``_helpers.datetime`` or
+    ``_helpers.uuid`` seam would succeed and silently change nothing; with
+    the name absent, such a patch raises ``AttributeError`` instead.
+    """
+    import vultron.core.models._helpers as helpers_package
+
+    assert not hasattr(helpers_package, seam)
+
+
 @pytest.mark.spec("CS-13-008")
 def test_now_utc_keeps_microseconds(_frozen_clock: None) -> None:
     assert now_utc() == _PINNED

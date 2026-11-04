@@ -44,9 +44,6 @@ from vultron.errors import (
     VultronValidationError,
 )
 
-if TYPE_CHECKING:
-    from vultron.core.models.base import NonEmptyString
-
 
 class EmbargoConsentRowsMixin:
     """Consent-row methods of :class:`CaseParticipant` (ADR-0122)."""
