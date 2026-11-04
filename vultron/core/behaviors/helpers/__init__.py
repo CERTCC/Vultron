@@ -41,14 +41,7 @@ from vultron.core.behaviors.helpers.case_resolution import (
     require_case,
     resolve_case_replica,
 )
-
-# Live interface for in-flight PR #5822 (behavior-tree split): three files it
-# edits import this private base from the package.  Repoint them to
-# ``vultron.core.behaviors.helpers.emit`` and drop this re-export once it merges.
-from vultron.core.behaviors.helpers.emit import (
-    UpdateActorOutbox,
-    _EmitSingleActivityBase,
-)
+from vultron.core.behaviors.helpers.emit import UpdateActorOutbox
 from vultron.core.behaviors.helpers.messages import (
     ACTIVITY_UNAVAILABLE,
     DATALAYER_OR_ACTOR_UNAVAILABLE,
@@ -88,7 +81,6 @@ __all__ = [
     "ReadObject",
     "UpdateActorOutbox",
     "UpdateObject",
-    "_EmitSingleActivityBase",
     "read_rm_states",
     "require_case",
     "resolve_case_replica",

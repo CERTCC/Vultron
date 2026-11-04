@@ -262,7 +262,7 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
             "EmitLedgerEntryFaultNode",
         ),
         (
-            "vultron.core.behaviors.sync.nodes.replay",
+            "vultron.core.behaviors.sync.nodes.replay.send",
             "SendMissingEntriesNode",
         ),
     }
@@ -278,7 +278,7 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
         (
             "CASE_PROPOSAL",
-            f"{_C}/case_proposal_received_tree.py",
+            f"{_C}/case_proposal_received_tree/factory.py",
             "create_case_proposal_received_tree",
         ),
         # The RM-declaration gap-note exemptions (engage, defer, the three
@@ -625,8 +625,8 @@ def test_the_marked_families_cover_the_named_emitters() -> None:
     )
     from vultron.core.behaviors.helpers import (
         UpdateActorOutbox,
-        _EmitSingleActivityBase,
     )
+    from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
     from vultron.core.behaviors.sender.nodes.actions import QueueToOutboxNode
 
     for cls in (

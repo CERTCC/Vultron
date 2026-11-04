@@ -138,7 +138,7 @@ KNOWN_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
         # Received trees that gate work themselves instead of declaring the
         # path it belongs to.
         (f"{_E}/announce_teardown_tree.py", GATE),
-        (f"{_B}/sync/announce_tree.py", CONDITION),
+        (f"{_B}/sync/announce_tree/factory.py", CONDITION),
     }
 )
 

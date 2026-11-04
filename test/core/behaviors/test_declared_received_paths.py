@@ -149,48 +149,48 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     ): frozenset({CM}),
     # --- case: actor offers already migrated by #5041 -------------------
     (
-        f"{_C}/suggest_actor_tree.py",
+        f"{_C}/suggest_actor_tree/owner_offer.py",
         "create_receive_offer_case_participant_tree",
         0,
     ): frozenset({CM, PR}),
     (
-        f"{_C}/suggest_actor_tree.py",
+        f"{_C}/suggest_actor_tree/owner_offer.py",
         "create_accept_actor_recommendation_received_tree",
         0,
     ): frozenset({CM}),
     (
-        f"{_C}/suggest_actor_tree.py",
+        f"{_C}/suggest_actor_tree/owner_offer.py",
         "create_reject_actor_recommendation_received_tree",
         0,
     ): frozenset({CM}),
     (
-        f"{_C}/suggest_actor_tree.py",
+        f"{_C}/suggest_actor_tree/answer.py",
         "create_recommendation_answer_received_tree",
         0,
     ): frozenset({PR}),
     # --- case: ownership transfer ---------------------------------------
     (
-        f"{_C}/ownership_transfer_tree.py",
+        f"{_C}/ownership_transfer_tree/proposal.py",
         "create_propose_ownership_transfer_tree",
         0,
     ): frozenset({CM}),
     (
-        f"{_C}/ownership_transfer_tree.py",
+        f"{_C}/ownership_transfer_tree/proposal.py",
         "create_offer_ownership_transfer_tree",
         0,
     ): frozenset({PR}),
     (
-        f"{_C}/ownership_transfer_tree.py",
+        f"{_C}/ownership_transfer_tree/replies.py",
         "create_accept_ownership_transfer_tree",
         0,
     ): frozenset({CM, PR}),
     (
-        f"{_C}/ownership_transfer_tree.py",
+        f"{_C}/ownership_transfer_tree/replies.py",
         "create_reject_ownership_transfer_tree",
         0,
     ): frozenset({CM, PR}),
     (
-        f"{_C}/ownership_transfer_tree.py",
+        f"{_C}/ownership_transfer_tree/replies.py",
         "create_undo_ownership_transfer_tree",
         0,
     ): frozenset({CM, PR}),
@@ -206,7 +206,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         0,
     ): frozenset({PR, NC}),
     (
-        f"{_C}/case_proposal_received_tree.py",
+        f"{_C}/case_proposal_received_tree/factory.py",
         "create_case_proposal_received_tree",
         0,
     ): frozenset({NC, CM}),
@@ -226,7 +226,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         0,
     ): frozenset({CM, PR}),
     (
-        f"{_C}/receive_close_case_tree.py",
+        f"{_C}/receive_close_case_tree/factory.py",
         "create_close_case_received_tree",
         2,
     ): frozenset({CM, PR}),
@@ -243,27 +243,27 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         {CM, PR}
     ),
     (
-        f"{_R}/received_report_trees.py",
+        f"{_R}/received_report_trees/validate.py",
         "create_validate_report_received_tree",
         0,
     ): frozenset({CM, PR}),
     (
-        f"{_R}/received_report_trees.py",
+        f"{_R}/received_report_trees/verdicts.py",
         "create_invalidate_report_received_tree",
         0,
     ): frozenset({CM, PR}),
     (
-        f"{_R}/received_report_trees.py",
+        f"{_R}/received_report_trees/receipt.py",
         "create_report_received_tree",
         0,
     ): frozenset({NC}),
     (
-        f"{_R}/received_report_trees.py",
+        f"{_R}/received_report_trees/receipt.py",
         "create_ack_report_received_tree",
         0,
     ): frozenset({NC}),
     (
-        f"{_R}/received_report_trees.py",
+        f"{_R}/received_report_trees/verdicts.py",
         "create_close_report_received_tree",
         0,
     ): frozenset({NC}),
@@ -290,7 +290,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
 CONDITIONAL_DECLARATION_EXEMPTIONS: frozenset[Site] = frozenset(
     {
         (
-            f"{_R}/received_report_trees.py",
+            f"{_R}/received_report_trees/verdicts.py",
             "create_invalidate_report_received_tree",
             0,
         ),
@@ -316,7 +316,7 @@ KNOWN_UNDECLARED_PATH_SITES: dict[Site, str] = {
     ): "#5046",
     # The Offer(Actor) tree migrates with the rest of the actor-offer family.
     (
-        f"{_C}/suggest_actor_tree.py",
+        f"{_C}/suggest_actor_tree/recommend.py",
         "create_recommend_actor_to_case_received_tree",
         0,
     ): "#5044",
@@ -350,7 +350,7 @@ UNDECLARED_PATH_EXEMPTIONS: dict[Site, str] = {
         0,
     ): "the Offer names no case, so the tree archives and refuses it",
     (
-        f"{_C}/receive_close_case_tree.py",
+        f"{_C}/receive_close_case_tree/factory.py",
         "create_close_case_received_tree",
         0,
     ): "the Leave names no sender, so the tree archives and refuses it",
@@ -358,7 +358,7 @@ UNDECLARED_PATH_EXEMPTIONS: dict[Site, str] = {
     # the delivery's own tree already asked the role question once; a second
     # stage here would ask it again (HP-01-037).
     (
-        f"{_C}/receive_close_case_tree.py",
+        f"{_C}/receive_close_case_tree/factory.py",
         "create_close_case_received_tree",
         1,
     ): "a subtree of CloseCaseBT, inside its manager gate",

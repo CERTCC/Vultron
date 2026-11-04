@@ -148,9 +148,11 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
         "ClearActiveEmbargoNode",
     ): _ENDING_NOTICE,
     **{
-        (f"{_Y}/announce_tree.py", "create_announce_log_entry_tree", cls): (
-            _REPLAY
-        )
+        (
+            f"{_Y}/announce_tree/factory.py",
+            "create_announce_log_entry_tree",
+            cls,
+        ): (_REPLAY)
         for cls in (
             "ApplyCaseParticipantRoleGrantFromLedgerNode",
             "ApplyCaseParticipantUpdateFromLedgerNode",
@@ -198,7 +200,7 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
     },
     **{
         (
-            f"{_C}/case_proposal_received_tree.py",
+            f"{_C}/case_proposal_received_tree/factory.py",
             "create_case_proposal_received_tree",
             cls,
         ): _MINT
@@ -356,7 +358,7 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         f"{_B}.sync.nodes.replay_held",
         "ReplayHeldSuccessorNode",
     ): _HELD_ANNOUNCE,
-    (f"{_B}.sync.nodes.replay", "SendMissingEntriesNode"): _REPLICATION,
+    (f"{_B}.sync.nodes.replay.send", "SendMissingEntriesNode"): _REPLICATION,
     (f"{_B}.sync.nodes.reseed", "ReseedPeerNode"): _REPLICATION,
     (
         f"{_B}.sync.nodes.invite_resend",
@@ -380,7 +382,7 @@ def test_every_received_tree_factory_is_built() -> None:
     named = {(rel, factory) for rel, factory, _ in set(REPLICA_STATE_WRITES)}
     assert named <= built, sorted(named - built)
     assert (
-        f"{_Y}/announce_tree.py",
+        f"{_Y}/announce_tree/factory.py",
         "create_announce_log_entry_tree",
     ) in built
 
