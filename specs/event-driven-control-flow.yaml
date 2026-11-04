@@ -88,7 +88,7 @@ groups:
       case context before a handler runs. A caller that invokes a handler directly skips
       those steps. The handler then acts on input that the pipeline did not check.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: EDF-02-005
   - id: EDF-02-004
     priority: MUST_NOT
@@ -101,7 +101,7 @@ groups:
       recipient and retries failed deliveries. A handler that sends directly to a peer
       skips that record and those retries, so nobody can see or repeat a lost delivery.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: EDF-02-006
   - id: EDF-02-005
     priority: MUST

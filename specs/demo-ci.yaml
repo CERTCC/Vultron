@@ -77,7 +77,7 @@ groups:
         rationale: >-
           A typed error lets the runner and the tests tell a demo failure apart from any
           other error. As a `VultronError`, it is in the same error hierarchy as the
-          other project errors (EH-01-001).
+          other project errors (EH-01-002).
         relationships:
           - rel_type: refines
             spec_id: EH-01-002
@@ -89,7 +89,7 @@ groups:
         statement: >-
           This codebase MUST define `DemoFailureError` in `vultron/errors.py`.
         rationale: >-
-          One module holds the project's error classes (EH-01-001). When
+          One module holds the project's error classes (EH-01-003). When
           `DemoFailureError` is defined there, the runner and the tests import it from
           the same place as every other project error.
         relationships:
@@ -585,7 +585,7 @@ groups:
           registration in the same pull request as the scenario gives the scenario a
           matrix entry when it merges.
         relationships:
-          - rel_type: uses_definition
+          - rel_type: refines
             spec_id: DEMOCI-11-001
 
       - id: DEMOCI-03-003
@@ -780,6 +780,9 @@ groups:
           phase (e.g. notes-exchange) regressing silently. Each scenario's
           expected-semantic-types list must reflect what that scenario is designed
           to prove end-to-end.
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DEMOMA-16-001
 
       - id: DEMOCI-04-005
         priority: MUST
@@ -822,9 +825,9 @@ groups:
         kind: project
         statement: >-
           Because the Dependabot exclusion is applied once on the upstream
-          `scenarios` job (DEMOCI-06-004), the invariant-harness `if:` MUST
-          pair `always()` with a check that the scenarios job succeeded AND a
-          check that the demo job was not cancelled, i.e.
+          `scenarios` job (DEMOCI-02-004, DEMOCI-06-008), the invariant-harness
+          `if:` MUST pair `always()` with a check that the scenarios job succeeded
+          AND a check that the demo job was not cancelled, i.e.
           `always() && needs.scenarios.result == 'success' &&
           needs.demo.result != 'cancelled'`.
         rationale: >-
@@ -1181,7 +1184,7 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOMA-20-005
-          - rel_type: uses_definition
+          - rel_type: refines
             spec_id: DEMOCI-11-001
           - rel_type: uses_definition
             spec_id: DEMOCI-11-021
@@ -1240,7 +1243,7 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOMA-21-006
-          - rel_type: uses_definition
+          - rel_type: refines
             spec_id: DEMOCI-11-001
           - rel_type: uses_definition
             spec_id: DEMOCI-11-021
@@ -2571,6 +2574,9 @@ groups:
           validated).
         adr:
           - ADR-0098
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DEMOCI-11-014
 
       - id: DEMOCI-11-023
         priority: MUST

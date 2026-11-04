@@ -1247,9 +1247,6 @@ groups:
     rationale: >-
       The final state shows that every participant took part in the whole run,
       including Vendor2, which joined late.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-03-002
   - id: DEMOMA-10-015
     priority: MUST
     kind: project
@@ -1566,9 +1563,6 @@ groups:
     rationale: >-
       The final state shows that every participant is still in the case after the
       ownership transfer.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-03-002
   - id: DEMOMA-11-018
     priority: MUST
     kind: project
@@ -1672,7 +1666,7 @@ groups:
         expected state before the next trigger is driven; scenario proceeds
         deterministically
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: DEMOMA-22-001
       note: >-
         This requirement is the RVCV-handoff instance of the general rule
@@ -1992,9 +1986,6 @@ groups:
       that the complete lifecycle ran for all three parties. The Coordinator and
       Reporter have no fix path, so a check on their fix path state would test
       nothing.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-03-002
   - id: DEMOMA-12-006
     priority: MUST
     kind: project
@@ -2499,9 +2490,6 @@ groups:
     rationale: >-
       The final state shows that every participant took part in the whole run,
       including the Vendor, which joined late.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-03-002
   - id: DEMOMA-13-018
     priority: MUST
     kind: project
@@ -4393,7 +4381,7 @@ groups:
       suite finds that defect later, after the pull request merges. A scenario in the PR
       set runs on each pull request that changes code the demos use.
     relationships:
-    - rel_type: uses_definition
+    - rel_type: refines
       spec_id: DEMOCI-11-001
   - id: DEMOMA-20-015
     priority: MUST
@@ -4794,7 +4782,7 @@ groups:
       merges. A scenario in the PR set runs on each pull request that changes code the
       demos use.
     relationships:
-    - rel_type: uses_definition
+    - rel_type: refines
       spec_id: DEMOCI-11-001
   - id: DEMOMA-21-021
     priority: MUST
@@ -5356,8 +5344,8 @@ groups:
     - rel_type: implements
       spec_id: EDF-06-005
       note: >-
-        EDF-06-005 requires unmet causal gates to prevent dependent steps;
-        this requirement enforces the same principle for the bare-call case.
+        Wrapping a causal wait in `demo_gate` is how an unmet gate stops
+        the dependent steps (EDF-06-005).
     tags:
     - demo
     - testing
@@ -5867,9 +5855,6 @@ groups:
     rationale: >-
       Verifying Vendor stops at VFd and Deployer reaches VFD confirms the role-separated
       VFD model.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-03-002
     tags:
     - demo
   - id: DEMOMA-24-016
@@ -6203,9 +6188,6 @@ groups:
       A participant that is not closed at the end shows that a closure did not reach
       it. A convergence check after each major event finds the first update that did
       not reach the Coordinator replica.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-03-002
     tags:
     - demo
   - id: DEMOMA-25-013
