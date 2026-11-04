@@ -49,7 +49,9 @@ from vultron.demo.helpers.polling import (
 )
 from vultron.demo.helpers.story import StoryState
 from vultron.demo.helpers.sync import run_sync_verification_phase
-from vultron.demo.helpers.verification import _check_participant_rm_state_in
+from vultron.demo.helpers.verification.states import (
+    _check_participant_rm_state_in,
+)
 from vultron.demo.utils import demo_check, demo_gate, demo_step, ref_id
 
 logger = logging.getLogger(__name__)

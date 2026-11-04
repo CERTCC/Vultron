@@ -406,7 +406,7 @@ class TestUnboundLocalErrorRegression:
         when post_to_trigger raises inside the demo_step block."""
         from unittest.mock import MagicMock
 
-        import vultron.demo.helpers.workflow as workflow_mod
+        import vultron.demo.helpers.workflow.report as workflow_mod
 
         monkeypatch.setattr(
             "vultron.demo.actor_session.post_to_trigger",

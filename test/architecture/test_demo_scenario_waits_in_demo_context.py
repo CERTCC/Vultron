@@ -53,11 +53,11 @@ A raising wait invoked from scenario-level code MUST therefore sit inside a
 ``demo_step`` / ``demo_check`` / ``demo_gate`` block, OR be invoked through a
 shared helper that performs that wrap internally so every caller inherits it
 (``wait_for_participants_on_replicas`` in ``polling/case.py`` and
-``wait_for_replica_ledger_coverage`` in ``helpers/sync.py`` are such helpers;
+``wait_for_replica_ledger_coverage`` in ``helpers/sync/ledger.py`` are such helpers;
 the latter is also governed by DEMOMA-23-005/006 and its own ratchet).
 
 The raising / wrapping classification is derived from the ``polling/``
-submodules and ``sync.py`` themselves, so a new raising helper in any of them is
+and ``sync/`` submodules themselves, so a new raising helper in any of them is
 covered
 automatically and a new self-wrapping helper is recognised as safe without
 editing this test.  A demo context is a literal ``demo_step`` / ``demo_check`` /
@@ -82,7 +82,7 @@ from test.architecture import _corpus
 _DEMO_DIR = _corpus.REPO_ROOT / "vultron" / "demo"
 _HELPERS_DIR = _DEMO_DIR / "helpers"
 _POLLING_DIR = _HELPERS_DIR / "polling"
-_SYNC = _HELPERS_DIR / "sync.py"
+_SYNC_DIR = _HELPERS_DIR / "sync"
 
 #: The demo failure-accumulation context managers (DEMOCI-01-004).
 _DEMO_CONTEXTS = frozenset({"demo_step", "demo_check", "demo_gate"})
@@ -293,13 +293,13 @@ def _wraps_in_demo_context(node: ast.AST) -> bool:
 
 def _is_helper_module(path: Path) -> bool:
     """True for a module whose ``wait_for_*`` / ``find_*`` functions are classified."""
-    return path == _SYNC or path.parent == _POLLING_DIR
+    return path.parent in (_SYNC_DIR, _POLLING_DIR)
 
 
 def _helper_trees() -> list[ast.Module]:
     """Return the parsed ASTs of every helper module from the shared corpus.
 
-    The helper modules are ``sync.py`` and every ``polling/`` submodule that
+    The helper modules are every ``sync/`` and ``polling/`` submodule that
     defines a wait; both must be found, so a moved package cannot leave the
     classification silently empty.
     """
@@ -310,7 +310,9 @@ def _helper_trees() -> list[ast.Module]:
         if _is_helper_module(path):
             assert isinstance(tree, ast.Module)
             found[path] = tree
-    assert _SYNC in found, f"{_SYNC} not found in the source corpus"
+    assert any(p.parent == _SYNC_DIR for p in found), (
+        f"no sync helper module found under {_SYNC_DIR}"
+    )
     assert any(p.parent == _POLLING_DIR for p in found), (
         f"no polling helper module found under {_POLLING_DIR}"
     )
@@ -322,7 +324,7 @@ def _classify_polling_helpers(
 ) -> tuple[frozenset[str], frozenset[str]]:
     """Return ``(raising, wrapping)`` helper-name sets from the helper modules.
 
-    Classifies the ``polling/`` submodules and ``sync.py`` (or the given
+    Classifies the ``polling/`` and ``sync/`` submodules (or the given
     *trees*).
 
     A ``wait_for_*`` / ``find_*`` function is a *wrapping* helper when it
@@ -753,7 +755,7 @@ def test_outer_scope_demo_context_is_not_resolved():
 
 
 def test_raising_helper_in_sync_module_is_flagged_when_called_bare():
-    """A raising helper defined in ``sync.py`` is classified and flagged."""
+    """A raising helper defined in a ``sync/`` submodule is classified and flagged."""
     sync_like = _corpus.parse_inline(
         "def wait_for_thing_on_replicas(client, case):\n"
         "    wait_for_case_participants(client, case.id_, set())\n"

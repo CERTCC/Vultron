@@ -39,7 +39,9 @@ from vultron.demo.helpers.polling import (
     resolve_case_actor_store_id,
     wait_for_participant_rm_state,
 )
-from vultron.demo.helpers.verification import _fetch_participant
+from vultron.demo.helpers.verification.participants import (
+    _fetch_participant,
+)
 from vultron.demo.utils import DataLayerClient
 
 _CASE_ID = "urn:uuid:case-actor-scope-0001"

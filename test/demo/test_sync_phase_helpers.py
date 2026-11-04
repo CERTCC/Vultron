@@ -14,7 +14,7 @@
 """Helper-level tests for the shared replica sync-verification helpers.
 
 ``wait_for_replica_ledger_coverage`` and ``run_sync_verification_phase`` in
-``vultron/demo/helpers/sync.py`` replace the per-scenario copies of the
+``vultron/demo/helpers/sync/`` replace the per-scenario copies of the
 read-authority-tail-then-poll-each-replica loop and of the sync-verification
 story fragment (DEMOMA-23-005, DEMOMA-23-007, #3846).  The eight per-scenario
 "skip the coverage wait when the Reporter case never arrives" tests collapsed
@@ -31,7 +31,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import vultron.demo.helpers.sync as sync_module
+import vultron.demo.helpers.sync.ledger as sync_ledger
+import vultron.demo.helpers.sync.phase as sync_phase
 import vultron.demo.utils as demo_utils
 from vultron.demo.helpers.polling import (
     CROSS_CONTAINER_TIMEOUT,
@@ -85,10 +86,10 @@ class TestWaitForReplicaLedgerCoverage:
         auth = _client("auth")
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=[]
+                sync_ledger, "_get_log_entries_for_case", return_value=[]
             ),
             patch.object(
-                sync_module, "wait_for_contiguous_ledger_coverage", coverage
+                sync_ledger, "wait_for_contiguous_ledger_coverage", coverage
             ),
         ):
             wait_for_replica_ledger_coverage(
@@ -113,10 +114,10 @@ class TestWaitForReplicaLedgerCoverage:
 
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=_TAIL
+                sync_ledger, "_get_log_entries_for_case", return_value=_TAIL
             ),
             patch.object(
-                sync_module, "wait_for_contiguous_ledger_coverage", _fake
+                sync_ledger, "wait_for_contiguous_ledger_coverage", _fake
             ),
         ):
             wait_for_replica_ledger_coverage(
@@ -148,10 +149,10 @@ class TestWaitForReplicaLedgerCoverage:
         timeouts, fake = _capture_coverage_timeouts()
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=_TAIL
+                sync_ledger, "_get_log_entries_for_case", return_value=_TAIL
             ),
             patch.object(
-                sync_module, "wait_for_contiguous_ledger_coverage", fake
+                sync_ledger, "wait_for_contiguous_ledger_coverage", fake
             ),
         ):
             wait_for_replica_ledger_coverage(
@@ -169,10 +170,10 @@ class TestWaitForReplicaLedgerCoverage:
         timeouts, fake = _capture_coverage_timeouts()
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=_TAIL
+                sync_ledger, "_get_log_entries_for_case", return_value=_TAIL
             ),
             patch.object(
-                sync_module, "wait_for_contiguous_ledger_coverage", fake
+                sync_ledger, "wait_for_contiguous_ledger_coverage", fake
             ),
         ):
             wait_for_replica_ledger_coverage(
@@ -197,10 +198,10 @@ class TestWaitForReplicaLedgerCoverage:
 
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=_TAIL
+                sync_ledger, "_get_log_entries_for_case", return_value=_TAIL
             ),
             patch.object(
-                sync_module, "wait_for_contiguous_ledger_coverage", _fake
+                sync_ledger, "wait_for_contiguous_ledger_coverage", _fake
             ),
         ):
             wait_for_replica_ledger_coverage(
@@ -223,10 +224,10 @@ class TestWaitForReplicaLedgerCoverage:
 
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=_TAIL
+                sync_ledger, "_get_log_entries_for_case", return_value=_TAIL
             ),
             patch.object(
-                sync_module, "wait_for_contiguous_ledger_coverage", _fake
+                sync_ledger, "wait_for_contiguous_ledger_coverage", _fake
             ),
         ):
             covered = wait_for_replica_ledger_coverage(
@@ -240,7 +241,7 @@ class TestWaitForReplicaLedgerCoverage:
         """Nothing to cover → nothing covered → dependent checks are skipped."""
         replicas = [(_client("r1"), "R1"), (_client("r2"), "R2")]
         with patch.object(
-            sync_module, "_get_log_entries_for_case", return_value=[]
+            sync_ledger, "_get_log_entries_for_case", return_value=[]
         ):
             covered = wait_for_replica_ledger_coverage(
                 auth_client=_client("auth"),
@@ -253,10 +254,10 @@ class TestWaitForReplicaLedgerCoverage:
         """Pre-notes use: a coverage timeout is a GATE FAILED (EDF-06-005)."""
         with (
             patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=_TAIL
+                sync_ledger, "_get_log_entries_for_case", return_value=_TAIL
             ),
             patch.object(
-                sync_module,
+                sync_ledger,
                 "wait_for_contiguous_ledger_coverage",
                 side_effect=AssertionError("timed out"),
             ),
@@ -276,8 +277,18 @@ class TestWaitForReplicaLedgerCoverage:
 # ---------------------------------------------------------------------------
 
 
+#: The ``sync`` submodule each phase-helper collaborator is looked up in.
+_COLLABORATOR_MODULES = {
+    "wait_for_case_on_container": sync_phase,
+    "_get_log_entries_for_case": sync_ledger,
+    "wait_for_contiguous_ledger_coverage": sync_ledger,
+    "wait_for_participants_on_replicas": sync_phase,
+    "verify_replica_state": sync_phase,
+}
+
+
 def _phase_patches(**overrides):
-    """Patch every collaborator of the phase helper on the sync module."""
+    """Patch every collaborator of the phase helper where it is looked up."""
     defaults = {
         "wait_for_case_on_container": MagicMock(),
         "_get_log_entries_for_case": MagicMock(return_value=_TAIL),
@@ -293,7 +304,9 @@ def _run_phase(mocks, **kwargs):
     """Run the phase helper with every collaborator in *mocks* patched."""
     with ExitStack() as stack:
         for name, replacement in mocks.items():
-            stack.enter_context(patch.object(sync_module, name, replacement))
+            stack.enter_context(
+                patch.object(_COLLABORATOR_MODULES[name], name, replacement)
+            )
         run_sync_verification_phase(**kwargs)
 
 

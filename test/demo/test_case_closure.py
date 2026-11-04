@@ -31,10 +31,11 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, terminate
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.demo.helpers import closure, milestones
+from vultron.demo.helpers import closure
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.milestones import (
     case_closure_violations,
+    closure as milestones_closure,
     own_closure_tail_index,
     verify_case_closure_recorded,
 )
@@ -443,9 +444,9 @@ class TestVerifyCaseClosureRecorded:
 
     def _patches(self):
         return (
-            patch.object(milestones, "wait_for_case_fully_closed"),
+            patch.object(milestones_closure, "wait_for_case_fully_closed"),
             patch.object(
-                milestones,
+                milestones_closure,
                 "find_case_actor_participant_id",
                 return_value=_MANAGER,
             ),
@@ -617,14 +618,16 @@ class TestVerifyCaseClosed:
             for actor, rm in rm_by_actor.items()
         }
         with (
-            patch.object(milestones, "wait_for_all_participants_rm_closed"),
             patch.object(
-                milestones,
+                milestones_closure, "wait_for_all_participants_rm_closed"
+            ),
+            patch.object(
+                milestones_closure,
                 "_fetch_participant_data",
                 side_effect=lambda _c, p_id: records[p_id],
             ),
         ):
-            milestones.verify_case_closed(
+            milestones_closure.verify_case_closed(
                 case_manager_client=client, case_id=_CASE
             )
 

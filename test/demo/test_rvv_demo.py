@@ -57,7 +57,8 @@ from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.helpers.polling.case as polling_case_module
-import vultron.demo.helpers.sync as sync_module
+import vultron.demo.helpers.sync.ledger as sync_ledger
+import vultron.demo.helpers.sync.phase as sync_phase
 import vultron.demo.scenario.rvv_demo as demo
 import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
@@ -837,14 +838,14 @@ class TestEveryReplicaConverges:
         """
         with (
             patch.object(
-                sync_module,
+                sync_ledger,
                 "_get_log_entries_for_case",
                 return_value=[
                     {"log_index": 5, "entry_hash": "abc123def456789a"}
                 ],
             ),
-            patch.object(sync_module, "wait_for_case_on_container"),
-            patch.object(sync_module, "wait_for_contiguous_ledger_coverage"),
+            patch.object(sync_phase, "wait_for_case_on_container"),
+            patch.object(sync_ledger, "wait_for_contiguous_ledger_coverage"),
             # Patched on the polling module, which is the global the real
             # wait_for_participants_on_replicas calls.
             patch.object(
@@ -852,9 +853,7 @@ class TestEveryReplicaConverges:
                 "wait_for_case_participants",
                 participant_wait,
             ),
-            patch.object(
-                sync_module, "verify_replica_state"
-            ) as verify_replica,
+            patch.object(sync_phase, "verify_replica_state") as verify_replica,
         ):
             yield verify_replica
 
@@ -1139,7 +1138,7 @@ class TestEveryoneCloses:
             patch.object(closure, "_verify_own_closure", real_own_closure),
             patch.object(closure, "case_manager_ledger", return_value=ledger),
             patch.object(
-                sync_module,
+                sync_ledger,
                 "wait_for_contiguous_ledger_coverage",
                 side_effect=AssertionError(
                     "contiguous ledger coverage timeout"
