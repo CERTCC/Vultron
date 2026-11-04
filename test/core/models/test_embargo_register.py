@@ -321,6 +321,20 @@ def test_case_views_read_the_register() -> None:
     }
 
 
+@pytest.mark.spec("SYNC-19-001")
+def test_em_state_without_sets_aside_one_embargo_entry() -> None:
+    """A proposal's own entry is not another embargo (#5199)."""
+    case = _case()
+    assert case.em_state_without(A) is EM.NONE
+    propose(case, A)
+    assert case.em_state_without(A) is EM.NONE
+    propose(case, B)
+    assert case.em_state_without(A) is EM.PROPOSED
+    activate(case, B)
+    assert case.em_state_without(A) is EM.ACTIVE
+    assert case.em_state_without(B) is EM.PROPOSED
+
+
 @pytest.mark.parametrize("in_force", [False, True])
 def test_rejecting_one_of_two_proposals_keeps_em_negotiating(
     in_force: bool,

@@ -112,8 +112,11 @@ class OwnerMayAutoAcceptEmbargoNode(DataLayerConditionWithPorts):
     The protocol never requires an automatic answer to an embargo Invite; the
     owner SHOULD gauge consensus first (EP-09-006).  This prototype bounds the
     one automatic answer it keeps: the owner accepts on its own only while no
-    embargo exists (``EM.NONE``) and the proposal ends no later than the
-    owner's own policy duration from now.  An owner that published no policy
+    other embargo exists — the case is at ``EM.NONE`` once the Invite's own
+    register entry is set aside, so the answer is the same whether that
+    entry arrived before the Invite or not (SYNC-19-001) — and the proposal
+    ends no later than the owner's own policy duration from now.  An owner
+    that published no policy
     has nothing to bound the proposal against, so nothing is auto-accepted.
     Every other case — above all a revision Invite while an embargo is active
     or being revised — is left for the owner, or its policy call-out, to
@@ -137,10 +140,13 @@ class OwnerMayAutoAcceptEmbargoNode(DataLayerConditionWithPorts):
                 f" on case '{self._case_id}'"
             )
         case = self._resolve_case_replica(self._case_id)
-        if case is None or case.em_state != EM.NONE:
+        # The Invite's own register entry is not counted: whether its
+        # PROPOSE entry reached this replica before the Invite must not
+        # change the answer (SYNC-19-001).
+        if case is None or case.em_state_without(self._embargo_id) != EM.NONE:
             self.feedback_message = (
-                "an embargo exists or is being revised — the owner answers,"
-                " nothing is auto-accepted (EP-09-006)"
+                "another embargo exists or is being revised — the owner"
+                " answers, nothing is auto-accepted (EP-09-006)"
             )
             return Status.FAILURE
         if self.actor_id is None:

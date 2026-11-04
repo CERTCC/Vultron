@@ -187,6 +187,20 @@ class EmbargoRegisterMixin:
         """The case's EM state, derived from its embargo register (ADR-0122)."""
         return derive_em(entry.status for entry in self.embargo_register)
 
+    def em_state_without(self, embargo_id: str) -> EM:
+        """The EM state the register derives without *embargo_id*'s entry.
+
+        A proposal's own ``PROPOSE`` entry is not "another embargo": a
+        decision about that proposal reads the case as it stands apart from
+        it, so it is the same whether the entry has reached this replica
+        yet or not (SYNC-19-001).
+        """
+        return derive_em(
+            entry.status
+            for entry in self.embargo_register
+            if entry.embargo_id != embargo_id
+        )
+
     @property
     def active_embargo(self) -> str | EmbargoEvent | None:
         """The embargo in force — the object when one was carried, else its id.
