@@ -1,71 +1,21 @@
-"""Validate the declarations ``docs/`` pages make in their frontmatter.
-
-The keys are ``stakeholder_type``, ``level``, ``page_type`` and ``subject``.
-
-Requirements: specs/diataxis-requirements.yaml DF-11-001, DF-11-003,
-DF-11-010, DF-11-012, DF-11-013, DF-11-018, DF-11-025, DF-11-026,
-DF-09-009; attribution per MS-17 via :mod:`vultron.metadata.file_loading`.
-Schema: :mod:`vultron.metadata.docs.page_schema`.
-
-Every ``docs/**/*.md`` file is one of three things:
-
-* an **include fragment** — a file some page pulls in whole with
-  ``{% include-markdown %}`` and that is not itself in the nav, or a
-  ``pymdownx.snippets`` ``auto_append`` file. It has no reader of its own, so it
-  is excluded from the target set and reported if it declares any of the
-  four keys (DF-11-010, DF-11-036, DF-11-026); its hosts' declarations govern
-  it.
-* a **working-record page** — matched by
-  :data:`~vultron.metadata.docs.page_schema.WORKING_RECORD_PATTERNS`. It
-  declares ``[project-contributor]``, no ``level`` (DF-11-033), no
-  ``page_type`` (DF-11-036) and no ``subject`` (DF-11-026), and it is
-  absent from the ``mkdocs.yml`` nav and matched by ``not_in_nav``
-  (DF-11-003).
-* a **reader-facing page** — everything else. It declares all four keys
-  (DF-11-001, DF-11-018, DF-11-025).
-
-A start page (``docs/start/*.md`` other than its ``index.md``) also declares
-its reading-path ``thread:``, and no other page may (DF-11-013).
-
-A file matched by ``exclude_docs`` that no page includes is none of the three:
-MkDocs never builds it, so it has no reader until a page pulls it in. The
-generated occasion fragments wait there for their hosts (ADR-0128).
-
-A page included only from a ``start=`` marker (a user story on its
-traceability page, a worked example quoted by the specification's annexes) is
-still a page: it has a URL and readers of its own. A page included *whole* has
-its frontmatter copied into its host, which would render its declarations
-there (DF-11-004), so such a page that declares any of the keys is reported
-too.
-
-Every page declares: an undeclared page is a failure. The shrink-only
-baseline that let this check land before the content audit (#3526) reached
-zero and was retired.
-
-Usage::
-
-    uv run docs-frontmatter   # check (pre-commit, CI)
-"""
+"""Check every page's frontmatter declarations and ``thread:`` (``docs-frontmatter``)."""
 
 from __future__ import annotations
 
 import argparse
 import re
 import sys
-from collections import defaultdict
-from collections.abc import Iterator, Mapping
-from dataclasses import dataclass, field
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 
-from pathspec.gitignore import GitIgnoreSpec
-
 from vultron.metadata.base import (
-    excluded_docs_spec,
-    mkdocs_config,
     nav_exclusion_fault,
-    nav_paths,
-    not_in_nav_spec,
     repo_root as _find_repo_root,
+)
+from vultron.metadata.docs.page_frontmatter.tree import (
+    DocsTree,
+    classify_docs_tree,
 )
 from vultron.metadata.docs.page_schema import (
     START_DIR,
@@ -92,39 +42,8 @@ DECLARATION_KEYS: tuple[str, ...] = (
     "subject",
 )
 
-# ``{% include-markdown "path" ... %}`` and the plugin's plain ``include``.
-_INCLUDE_RE = re.compile(
-    r"\{%-?\s*include(?:-markdown)?\s+(?:\"(?P<dq>[^\"]+)\"|'(?P<sq>[^']+)')"
-    r"(?P<opts>.*?)-?%\}",
-    re.DOTALL,
-)
-# Only ``start=`` skips the top of the file. An include with just ``end=``
-# copies from line 1, frontmatter included, so it is still a whole include.
-_START_OPTION_RE = re.compile(r"\bstart\s*=")
-# Either marker can cut a link out of what renders.
-_CUT_OPTION_RE = re.compile(r"\b(?:start|end)\s*=")
+
 _TOP_LEVEL_KEY_RE = re.compile(r"^([A-Za-z_][\w-]*)\s*:")
-
-
-@dataclass(frozen=True)
-class DocsTree:
-    """How each ``docs/**/*.md`` file is classified.
-
-    Attributes:
-        pages: ``docs/``-relative paths in the target set.
-        fragments: Excluded fragments, each mapped to the pages hosting it.
-        whole_includes: Every file included whole, mapped to its hosts.
-        navved: Every path the ``mkdocs.yml`` nav references.
-        not_in_nav: The ``mkdocs.yml`` ``not_in_nav`` patterns.
-    """
-
-    pages: tuple[str, ...]
-    fragments: Mapping[str, tuple[str, ...]]
-    whole_includes: Mapping[str, tuple[str, ...]]
-    navved: frozenset[str] = frozenset()
-    not_in_nav: GitIgnoreSpec = field(
-        default_factory=lambda: GitIgnoreSpec.from_lines([])
-    )
 
 
 @dataclass
@@ -134,118 +53,6 @@ class CheckResult:
     reader_pages: int = 0
     working_record_pages: int = 0
     fragments: int = 0
-
-
-def include_directives(
-    host_path: Path,
-    docs_dir: Path,
-    *,
-    uncut: bool = False,
-    existing: bool = True,
-) -> Iterator[tuple[int, str, bool]]:
-    """Yield ``(offset, target, whole)`` for each ``.md`` file *host_path* includes.
-
-    A target opening ``./`` or ``../`` resolves against the including file;
-    any other resolves against ``docs/``, matching the include-markdown
-    plugin. Globs expand. Targets outside ``docs/`` and non-Markdown targets
-    are not pages and are skipped. *offset* is where the directive starts in
-    the host's source, and *target* is ``docs/``-relative. *whole* means no
-    ``start=``, so the target's frontmatter renders; with *uncut* it also
-    means no ``end=``, so every link in the target renders. With
-    *existing* false, a target that does not exist yet is yielded too, so a
-    generator can read the directives naming a file it is about to write.
-    """
-    docs_resolved = docs_dir.resolve()
-    text = host_path.read_text(encoding="utf-8", errors="replace")
-    for match in _INCLUDE_RE.finditer(text):
-        spec = match.group("dq") or match.group("sq")
-        if "://" in spec:
-            continue
-        base = host_path.parent if spec.startswith(("./", "../")) else docs_dir
-        candidates = (
-            sorted(base.glob(spec))
-            if any(c in spec for c in "*?[")
-            else [base / spec]
-        )
-        cut_re = _CUT_OPTION_RE if uncut else _START_OPTION_RE
-        whole = not cut_re.search(match.group("opts"))
-        for candidate in candidates:
-            resolved = candidate.resolve()
-            if (
-                resolved.suffix == ".md"
-                and (resolved.is_file() or not existing)
-                and resolved.is_relative_to(docs_resolved)
-            ):
-                target = resolved.relative_to(docs_resolved).as_posix()
-                yield match.start(), target, whole
-
-
-def _include_targets(docs_dir: Path) -> dict[str, dict[str, bool]]:
-    """Map each included ``.md`` file to ``{host: included_whole}``."""
-    targets: dict[str, dict[str, bool]] = defaultdict(dict)
-    for host_path in sorted(docs_dir.rglob("*.md")):
-        host = host_path.relative_to(docs_dir).as_posix()
-        for _, target, whole in include_directives(host_path, docs_dir):
-            targets[target][host] = targets[target].get(host, False) or whole
-    return targets
-
-
-def _auto_appended(root: Path, docs_dir: Path) -> set[str]:
-    """``docs/``-relative files ``pymdownx.snippets`` appends to every page."""
-    found: set[str] = set()
-    extensions = mkdocs_config(root).get("markdown_extensions") or []
-    if not isinstance(extensions, list):
-        return found
-    for entry in extensions:
-        if not isinstance(entry, dict):
-            continue
-        options = entry.get("pymdownx.snippets")
-        if not isinstance(options, dict):
-            continue
-        for item in options.get("auto_append") or []:
-            path = (root / str(item)).resolve()
-            if path.is_relative_to(docs_dir.resolve()):
-                found.add(path.relative_to(docs_dir.resolve()).as_posix())
-    return found
-
-
-def classify_docs_tree(root: Path) -> DocsTree:
-    """Split ``docs/**/*.md`` into target pages and excluded fragments."""
-    docs_dir = root / "docs"
-    every = sorted(
-        p.relative_to(docs_dir).as_posix() for p in docs_dir.rglob("*.md")
-    )
-    navved = nav_paths(root)
-    includes = _include_targets(docs_dir)
-    whole_includes = {
-        target: tuple(sorted(h for h, whole in hosts.items() if whole))
-        for target, hosts in includes.items()
-        if any(hosts.values())
-    }
-    fragments: dict[str, tuple[str, ...]] = {
-        target: hosts
-        for target, hosts in whole_includes.items()
-        if target not in navved
-    }
-    for appended in _auto_appended(root, docs_dir):
-        fragments.setdefault(appended, ("every page (snippets auto_append)",))
-    # An excluded file is never built, so it has no reader of its own; until
-    # a page includes it (and it becomes a fragment above) it is neither.
-    # This holds for every `exclude_docs` pattern, not only the occasion
-    # fragments: a page excluded by mistake also leaves DF-11's scope, so
-    # widen `exclude_docs` only for files that are never pages.
-    excluded = excluded_docs_spec(mkdocs_config(root))
-    return DocsTree(
-        pages=tuple(
-            p
-            for p in every
-            if p not in fragments and not excluded.match_file(p)
-        ),
-        fragments=fragments,
-        whole_includes=whole_includes,
-        navved=navved,
-        not_in_nav=not_in_nav_spec(root),
-    )
 
 
 def frontmatter_key_lines(path: Path) -> dict[str, int]:
@@ -473,7 +280,3 @@ def main(argv: list[str] | None = None) -> None:
         f"{result.working_record_pages} working-record page(s); "
         f"{result.fragments} include fragment(s) excluded."
     )
-
-
-if __name__ == "__main__":
-    main()

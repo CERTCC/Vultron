@@ -75,7 +75,7 @@ def test_build_manifest_uses_git_date_and_existing_id(
     )
 
     monkeypatch.setattr(
-        "vultron.metadata.history.backfill_implementation._blame_dates_for_file",
+        "vultron.metadata.history.backfill_implementation.manifest._blame_dates_for_file",
         lambda repo_root, file_path: {1: "2026-02-24"},
     )
 
@@ -98,7 +98,7 @@ def test_build_manifest_synthesizes_for_multi_id_heading(
     )
 
     monkeypatch.setattr(
-        "vultron.metadata.history.backfill_implementation._blame_dates_for_file",
+        "vultron.metadata.history.backfill_implementation.manifest._blame_dates_for_file",
         lambda repo_root, file_path: {1: "2026-03-25"},
     )
 
@@ -123,7 +123,7 @@ def test_build_manifest_resolves_duplicate_candidate_sources(
     )
 
     monkeypatch.setattr(
-        "vultron.metadata.history.backfill_implementation._blame_dates_for_file",
+        "vultron.metadata.history.backfill_implementation.manifest._blame_dates_for_file",
         lambda repo_root, file_path: {1: "2026-03-30", 5: "2026-03-30"},
     )
 
@@ -145,7 +145,7 @@ def test_write_manifest_creates_historical_entries_and_readme(
     )
 
     monkeypatch.setattr(
-        "vultron.metadata.history.backfill_implementation._blame_dates_for_file",
+        "vultron.metadata.history.backfill_implementation.manifest._blame_dates_for_file",
         lambda repo_root, file_path: {1: "2026-03-24"},
     )
 

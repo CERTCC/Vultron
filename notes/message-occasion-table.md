@@ -50,7 +50,7 @@ Nothing derivable is typed by hand; the rules for writing an occasion are in
 | send to (addressee) | `Occasion.addressee`, an `AddresseeSide`, worded by its `send_to` (ADR-0129) |
 | sent by | the side of the received use case's `sender_entitlement` matching the occasion's addressee (ADR-0115, ADR-0129) |
 | page | `SemanticEntry.page`, a `MessagePage` value |
-| `MappingStatus`, distinguished by | derived from the occasions by `vultron/metadata/msm/_mapping.py` (`evolved` declared on its occasion) |
+| `MappingStatus`, distinguished by | derived from the occasions by `vultron/metadata/msm/_mapping/` (`evolved` declared on its occasion) |
 | "Seen in" | the include directives on `docs/` pages |
 
 The message pages include the generated fragments; the fragments exist

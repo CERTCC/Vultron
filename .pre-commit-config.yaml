@@ -109,7 +109,7 @@ repos:
         # which declares both page sets, the catalog placement table it reads
         # the catalog pages from, and the include-directive, schema and
         # failure readers it uses.
-        files: ^(docs/.*\.md|vultron/metadata/docs/(normative_banner|page_frontmatter|page_schema|requirement_catalog)\.py|vultron/metadata/(base|file_loading)\.py)$
+        files: ^(docs/.*\.md|vultron/metadata/docs/(normative_banner\.py|page_frontmatter/.*\.py|page_schema/.*\.py|requirement_catalog/.*\.py)|vultron/metadata/(base|file_loading)\.py)$
         pass_filenames: false
 
       - id: docs-nav-subjects
@@ -119,7 +119,7 @@ repos:
         # Every input that changes the verdict (DF-11-020): any docs page (its
         # subject:), the nav, and the checker, the schema and the nav and
         # failure readers it uses.
-        files: ^(mkdocs\.yml|docs/.*\.md|vultron/metadata/docs/(nav_subjects|landing_pages|page_schema)\.py|vultron/metadata/(base|file_loading)\.py)$
+        files: ^(mkdocs\.yml|docs/.*\.md|vultron/metadata/docs/(nav_subjects\.py|landing_pages/.*\.py|page_schema/.*\.py)|vultron/metadata/(base|file_loading)\.py)$
         pass_filenames: false
 
       - id: docs-level-order
@@ -258,7 +258,7 @@ repos:
         # in test/metadata/test_msm_occasions.py on one that changes vultron/;
         # the test is also the backstop for a deletion, which no `files:`
         # pattern can match.
-        files: ^(vultron/semantic_registry/.*\.py|vultron/wire/as2/extractor/.*\.py|vultron/core/use_cases/received/.*\.py|vultron/core/behaviors/sender_entitlement/.*\.py|vultron/enums/roles\.py|vultron/core/models/events/base\.py|vultron/core/models/enums\.py|vultron/wire/as2/enums\.py|vultron/core/states/.*\.py|vultron/metadata/(base|markdown_tables|file_loading|generated_files|docs/page_frontmatter)\.py|vultron/wire/as2/vocab/examples/.*\.py|vultron/metadata/msm/.*\.(py|yaml)|docs/.*\.md|mkdocs\.yml)$
+        files: ^(vultron/semantic_registry/.*\.py|vultron/wire/as2/extractor/.*\.py|vultron/core/use_cases/received/.*\.py|vultron/core/behaviors/sender_entitlement/.*\.py|vultron/enums/roles\.py|vultron/core/models/events/base\.py|vultron/core/models/enums\.py|vultron/wire/as2/enums\.py|vultron/core/states/.*\.py|vultron/metadata/(base|markdown_tables|file_loading|generated_files|docs/page_frontmatter/.*)\.py|vultron/wire/as2/vocab/examples/.*\.py|vultron/metadata/msm/.*\.(py|yaml)|docs/.*\.md|mkdocs\.yml)$
         pass_filenames: false
 
       - id: wire-context-sync

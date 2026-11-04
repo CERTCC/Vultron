@@ -249,7 +249,7 @@ not_in_nav: |
   # of the reader-facing nav. about/project_record.md is its one nav entry, and
   # each group below is reached through the routing page that door links. A
   # new working-record page goes here and in WORKING_RECORD_PATTERNS
-  # (vultron/metadata/docs/page_schema.py).
+  # (vultron/metadata/docs/page_schema/working_record.py).
   about/contributing.md
   adr/*.md
   adr/archived/*.md
@@ -306,8 +306,8 @@ hooks:
 # reading-path boxes (DF-11-023) are pulled into their host pages by
 # include-markdown, which reads them from disk, and their links are checked
 # there. Built on their own they would be checked against the wrong page and
-# each publish a URL (vultron/metadata/msm/occasions.py,
-# vultron/metadata/docs/threads.py).
+# each publish a URL (vultron/metadata/msm/occasions/,
+# vultron/metadata/docs/threads/).
 exclude_docs: |
   reference/messages/_occasions/
   start/_paths/
