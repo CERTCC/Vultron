@@ -81,9 +81,9 @@ _COLLECTOR_REMAPPINGS: dict[str, str] = {
 
 
 # ---------------------------------------------------------------------------
-# Fan-out — moved here from ``replay.py`` (BTND-07-004).
+# Fan-out — moved here from ``replay`` (BTND-07-004).
 #
-# These nodes lived in ``replay.py`` because reject-driven replay was written
+# These nodes lived in ``replay`` because reject-driven replay was written
 # first, but fan-out is a distinct concern: replay is catch-up for one lagging
 # peer, fan-out is distribution of one entry to every recipient.
 # ---------------------------------------------------------------------------

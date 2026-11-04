@@ -708,7 +708,7 @@ class TestValidateReportReceivedGuardedCommit:
         role — the guarded commit BT MUST execute, resulting in a persisted
         CaseLedgerEntry.
         """
-        import vultron.core.behaviors.report.received_report_trees as rrt_module
+        import vultron.core.behaviors.report.received_report_trees.validate as rrt_module
         from vultron.core.models.report_case_link import VultronReportCaseLink
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
@@ -759,7 +759,7 @@ class TestValidateReportReceivedGuardedCommit:
         )
 
         # Track calls to create_receive_activity_tree in
-        # received_report_trees (where it is called in the ADR-0022 pattern).
+        # received_report_trees.validate (where it is called in the ADR-0022 pattern).
         original_create = rrt_module.create_receive_activity_tree
         commit_tree_calls: list[str | None] = []
 
