@@ -155,52 +155,45 @@ autouse leak guard and its function-scope-only limitation:
 
 Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
 
-- **A `filterwarnings` exemption listed *before* `"error"` is a no-op** (SR-05-015)
-  — later entries win, so the warning becomes a session-aborting exception. Verify
+- **A `filterwarnings` exemption listed *before* `"error"` is a no-op** (SR-05-015) —
+  later entries win, so the warning becomes a session-aborting exception. Verify
   behaviourally in a `pytester` sub-session (SR-05-016); `pytest.warns`/`catch_warnings`
   replace the ini filters and cannot see the escalation.
 - **Vacuous assertions** — broadcast guards need a third participant; hash-chain
-  comparisons need presence checks before equality (`"" == ""` passes);
-  `MagicMock` needs `spec=` wherever code uses `isinstance()`; the genesis-hash
-  path needs a stored case (CLP-08-004); `call_args.args` over `call_args[0]`.
-- **A status fixture may not encode a state the CS invariants forbid** — a
-  pre-acceptance RM with `vf=VF` or `d=D`, or `Vf` with `d=D`, cannot exist
-  (CSB-18-001, CSB-17-001), so a test built on one passes for the wrong reason
-  and breaks when the invariant lands (#3046). An autouse guard covers
-  `test/core/behaviors/status/` and the shared `current_status()`/`seed_case()`
-  builders; everywhere else, ask `impossible_state_reasons()`.
-- **A test that "falls back to" a value for *malformed* input is asserting a
-  bug** — absent input and unreadable input are different.
-- **A FAILURE test must prove the harness can produce its named reason** — the
-  scenario always injects a datalayer and a trigger-activity adapter, so
-  "failure when X absent" for either is unreachable; assert the reason
-  (`assert_failure(result, reason=...)`), not just the status, and note that
-  `allow_internal=True` requires a `reason`.
+  comparisons need presence checks before equality (`"" == ""` passes); `MagicMock`
+  needs `spec=` wherever code uses `isinstance()`; the genesis-hash path needs a stored
+  case (CLP-08-004); `call_args.args` over `call_args[0]`; and "falls back to" a value
+  for *malformed* input asserts a bug — absent and unreadable input differ.
+- **A FAILURE test must prove its named reason is reachable** — the scenario always
+  injects a datalayer and a trigger-activity adapter, so "failure when X absent" for
+  either is unreachable; assert the reason (`assert_failure(result, reason=...)`), not
+  just the status, and note that `allow_internal=True` requires a `reason`.
 - **Process-global state** — reset only in root `test/conftest.py` (blackboard,
-  per-actor registries; no per-directory copy, #3996); define test BT subclasses
-  at module level; test-local `CoreObject`/`CoreRecord` subclasses pollute
-  `CORE_VOCABULARY`/`CORE_TYPE_MAP` (use `isolated_core_registries`);
-  `SUBFAILED` in `unittest` subtests does not fail pytest; `caplog.set_level()`
-  in a fixture captures other fixtures' setup.
-- **BT test patterns** — pass a deterministic factory when the default is
-  probabilistic; contract-test wrappers inherit the *production* node class; stub
-  every probabilistic node *except* the one under test;
-  `ResolveCaseManagerNode` needs a CASE_MANAGER participant in the fixture.
-- **Fixtures that silently miss deliveries** — the outbox `BackgroundTasks`
-  emitter has two resolution paths, patch both; a `InProcessRouter` WARNING for
-  an unregistered host is a config-leak signal; `rm -rf devlogs/` before running
-  the invariant harness locally.
-- **Coverage shape** — one test per distinct lookup path when consolidating
-  helpers; trigger use cases need per-use-case tests
+  per-actor registries; no per-directory copy, #3996); define test BT subclasses at
+  module level; test-local `CoreObject`/`CoreRecord` subclasses pollute
+  `CORE_VOCABULARY`/`CORE_TYPE_MAP` (use `isolated_core_registries`); `SUBFAILED` in
+  `unittest` subtests does not fail pytest; `caplog.set_level()` in a fixture captures
+  other fixtures' setup.
+- **BT test patterns** — pass a deterministic factory when the default is random;
+  contract-test wrappers inherit the *production* node class; stub every probabilistic
+  node *except* the one under test; `ResolveCaseManagerNode` needs a CASE_MANAGER
+  participant in the fixture.
+- **Fixtures that mislead** — the outbox `BackgroundTasks` emitter has two resolution
+  paths, patch both; an `InProcessRouter` WARNING for an unregistered host is a
+  config-leak signal; `rm -rf devlogs/` before the invariant harness; a
+  CSB-18-001-impossible status fixture is guarded only under
+  `test/core/behaviors/status/`; ask `impossible_state_reasons()` elsewhere.
+- **Coverage shape** — one test per distinct lookup path when consolidating helpers;
+  trigger use cases need per-use-case tests
   ([`notes/triggers-test-coverage.md`](../notes/triggers-test-coverage.md)).
-- **The timeout *method* sets what a trip costs; the ceiling only sets how
-  often** — `thread` killed the session or xdist worker, `signal` fails one test
-  (#3603); a dead worker fails the run, and gate exit 124 means it hung (#4809).
+- **The timeout *method* sets what a trip costs; the ceiling only sets how often** —
+  `thread` killed the session or xdist worker, `signal` fails one test (#3603); a dead
+  worker fails the run, and gate exit 124 means it hung (#4809).
 - **A marker sweep that counts declarations misses a directory hook** — grepping
-  `pytestmark` calls `test/demo/` non-compliant when its hook marks it 100%; ask
-  what collected items carry via a probe; the tier is asserted over the real
-  collection (#3604).
+  `pytestmark` calls `test/demo/` non-compliant when its hook marks it 100%; ask what
+  collected items carry via a probe; the tier is asserted over the real collection
+  (#3604).
 - **SYNC replication test setup** — `notes/sync-ledger-replication.md` § "SYNC
-  Replication Test Patterns". A `LedgerNetwork` is rebuilt from its ledger at
-  teardown; direct CASE_MANAGER setup writes call `bypass_ledger()`
+  Replication Test Patterns". A `LedgerNetwork` is rebuilt from its ledger at teardown;
+  direct CASE_MANAGER setup writes call `bypass_ledger()`
   ([`notes/case-ledger-authority.md`](../notes/case-ledger-authority.md)).
