@@ -39,6 +39,7 @@ from test.demo._helpers import (
     functions_referencing,
     mock_actor,
     mock_case,
+    modules_resolving_names,
     no_demo_banners,
     patch_chain_shared,
     story_state,
@@ -92,7 +93,8 @@ def _no_banners():
 
     ``owner_decision_story`` is not among them: this pair's module takes
     only ``Part`` and a timeout from it, so no fragment under test opens a
-    banner there (``test_owner_decision_story.py`` owns those).
+    banner there (the tests under ``test/demo/owner_decision_story/`` own
+    those).
     """
     with no_demo_banners(pair, coordinated_story):
         yield
@@ -794,10 +796,18 @@ _PAIR_CAST_REFERENCES = _pair_cast_references()
 
 
 def _continuations_source() -> str:
-    """The source of the shared continuations, read as written."""
-    source = owner_decision_story.__file__
-    assert source is not None
-    return pathlib.Path(source).read_text(encoding="utf-8")
+    """The source of the shared continuations, read as written.
+
+    ``owner_decision_story`` is a package (#5592), so every submodule is read
+    and joined: its ``__init__`` only re-exports, and reading that alone
+    would leave every continuation unchecked.
+    """
+    modules = modules_resolving_names(owner_decision_story)
+    assert len(modules) > 1, modules
+    return "\n".join(
+        pathlib.Path(module.__file__ or "").read_text(encoding="utf-8")
+        for module in modules
+    )
 
 
 def _cast_references(source: str) -> tuple[set[str], set[str]]:

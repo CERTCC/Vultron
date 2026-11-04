@@ -783,7 +783,7 @@ groups:
     verification_debt: '#2569'
     statement: >-
       A layer-neutral domain helper, one with no dependency above `models/`, MUST live
-      in `vultron/core/models/_helpers.py`.
+      in `vultron/core/models/_helpers/`.
     rationale: >-
       A fixed place for each kind of helper lets a developer find the existing copy
       before writing a new one. A layer-neutral helper in `models/` can serve every
@@ -1455,7 +1455,7 @@ groups:
     kind: project
     statement: >-
       Core code MUST rebuild an object from a snapshot `dict` only through
-      `project_wire_snapshot_to_core` (`vultron/core/models/_helpers.py`).
+      `project_wire_snapshot_to_core` (`vultron/core/models/_helpers/inbound.py`).
     rationale: >-
       `rehydrate()` turns an ID into an object (VM-06-007), and the snapshot helper
       turns a dict into an object, so each case has one defined path.
@@ -2588,8 +2588,7 @@ groups:
     statement: >-
       This codebase MUST decide each unrecognised key on inbound data at the parse edge,
       `parse_activity`, by one rule for every object at every depth. A near miss for a
-      declared spelling, or a retired name, refuses the whole activity and names both
-      spellings. Any other
+      declared spelling refuses the whole activity and names both spellings. Any other
       unknown key is set aside and reported once at `INFO` (MV-11-001 to MV-11-003). The
       report carries `activity_id`, the sender's `actor_id`, the field path and the key,
       and the activity proceeds on its declared fields.
@@ -2736,13 +2735,13 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The parse edge MUST find a near miss only by MV-11-002's normalisation and the
-      retired-name list, never by a similarity measure such as edit distance. That
+      The parse edge MUST find a near miss only by MV-11-002's normalisation, never by
+      a similarity measure such as edit distance. That
       normalisation lowercases a key and removes every non-alphanumeric character.
     rationale: >-
       AS2 has many short property names that are one character apart, so an
-      edit-distance measure would give many false matches. A fixed normalization and a
-      list of retired names give a deterministic answer.
+      edit-distance measure would give many false matches. A fixed normalization gives a
+      deterministic answer.
     verification: >-
       `test_normalisation_is_lowercase_and_strip_non_alphanumerics` in
       `test/wire/as2/test_unknown_key_disposition.py` pins the normalization, and
@@ -2782,7 +2781,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `rehydrate()` in `vultron/wire/as2/rehydration.py` MUST be the sole owner of
+      `rehydrate()` in `vultron/wire/as2/rehydration/` MUST be the sole owner of
       ID-to-object materialisation, and resolve a reference through the `DataLayer` it
       is given.
     rationale: >-

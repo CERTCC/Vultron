@@ -748,7 +748,8 @@ groups:
     verification_debt: '#2574'
     statement: >-
       New code that implements VFD or PXA state transitions MUST use
-      `create_vfd_machine()` and `create_pxa_machine()` in `vultron/core/states/cs.py`
+      `create_vfd_machine()` and `create_pxa_machine()` in
+      `vultron/core/states/cs/machine.py`
       as the authoritative source of valid transition sequences.
     rationale: Ensures the `transitions` machines remain the normative definition of valid VFD/PXA state progressions as new
       features are added, preventing divergence between the machines and the implementation.
@@ -846,7 +847,7 @@ groups:
       these hooks may trigger secondary BT executions via the same bridge instance. A plain `Lock` would deadlock on the second
       acquisition from the same thread. An `RLock` allows re-entry by the owning thread while still blocking other threads.'
     verification: >-
-      Inspection of `vultron/core/behaviors/bridge.py` confirms `BTBridge` uses
+      Inspection of `vultron/core/behaviors/bridge/` confirms `BTBridge` uses
       `threading.RLock`; a unit test confirms that a re-entrant call from a setup hook
       does not deadlock.
     relationships:

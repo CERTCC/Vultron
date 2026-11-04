@@ -10,7 +10,9 @@ from test.architecture import _corpus
 # vultron/core/ root
 _CORE_ROOT = _corpus.REPO_ROOT / "vultron" / "core"
 # The module that is permitted to access case_roles directly
-_ALLOWED_MODULES = frozenset([_CORE_ROOT / "models" / "case_participant.py"])
+_ALLOWED_MODULES = frozenset(
+    [_CORE_ROOT / "models" / "case_participant" / "participant.py"]
+)
 
 # Patterns that indicate direct case_roles mutation on an instance:
 #   .case_roles = ...   (attribute assignment)
@@ -40,14 +42,16 @@ def _case_roles_mutations() -> list[str]:
 
 @pytest.mark.spec("PRM-05-004")
 def test_no_direct_case_roles_mutation_in_core():
-    """No core file outside case_participant.py may mutate case_roles directly (PRM-05-004).
+    """No core file outside case_participant/participant.py mutates case_roles.
+
+    Direct mutation is reserved for the participant mutators (PRM-05-004).
 
     Constructor keyword-argument form (`case_roles=...`) is permitted and is
     NOT flagged by this test because it lacks the leading dot.
     """
     violations = _case_roles_mutations()
     assert not violations, (
-        "Direct case_roles mutation found in vultron/core/ outside case_participant.py:\n"
+        "Direct case_roles mutation found in vultron/core/ outside case_participant/participant.py:\n"
         + "\n".join(violations)
     )
 
@@ -66,7 +70,9 @@ def test_case_roles_mutation_scan_completes_within_one_second():
 
 
 def test_no_getattr_case_roles_read_in_core():
-    """No core file outside case_participant.py may read case_roles via getattr() (PRM-01-003).
+    """No core file outside case_participant/participant.py reads case_roles.
+
+    A ``getattr()`` read is reserved for the participant module (PRM-01-003).
 
     Use ``participant.roles`` (property) or ``participant.has_role(role)`` instead.
     Constructor keyword-argument form (``case_roles=...``) is permitted and is
@@ -84,7 +90,7 @@ def test_no_getattr_case_roles_read_in_core():
                     f"{py_file.relative_to(_CORE_ROOT)}:{lineno}: {line.strip()}"
                 )
     assert not violations, (
-        "getattr() read of case_roles found in vultron/core/ outside case_participant.py "
+        "getattr() read of case_roles found in vultron/core/ outside case_participant/participant.py "
         "(use .roles or .has_role() instead — PRM-01-003):\n"
         + "\n".join(violations)
     )

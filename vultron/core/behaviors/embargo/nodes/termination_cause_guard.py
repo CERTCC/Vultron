@@ -15,8 +15,6 @@
 
 """The received termination's cause guard (EMB-13-005)."""
 
-from typing import cast
-
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
@@ -24,8 +22,8 @@ from vultron.core.models.embargo_termination import (
     CASE_MANAGER_ONLY_CAUSE_KINDS,
     EmbargoTermination,
 )
-from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.participants.role_predicate import has_role
+from vultron.enums.roles import CVDRole
 
 
 class TerminationCauseIsAdmissibleNode(DataLayerConditionWithPorts):
@@ -46,6 +44,14 @@ class TerminationCauseIsAdmissibleNode(DataLayerConditionWithPorts):
     (HP-01-006).  It runs among the received tree's precondition guards, so a
     refused cause is never committed (CLP-10-006).  At a replica the declared
     rule admits the CASE_MANAGER alone, so this guard always passes there.
+
+    The sender's role comes from
+    :func:`~vultron.core.participants.role_predicate.has_role`, which answers
+    ``CVDRole.CASE_MANAGER`` from the single role-authority resolver, so this
+    guard and every path stage and gate in the tree read one answer
+    (ARCH-24-001, ARCH-24-007, CM-02-011).  It asks about the *sender*, not
+    the receiver, so it is no second asker of the receiver's question
+    (ARCH-24-003).
     """
 
     def __init__(
@@ -66,13 +72,16 @@ class TerminationCauseIsAdmissibleNode(DataLayerConditionWithPorts):
             return Status.SUCCESS
         if (f := self._require_datalayer()) is not None:
             return f
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure
-        manager_id = resolve_case_manager_id(
-            case, cast(CasePersistence, self.datalayer)
-        )
-        if manager_id is not None and manager_id == self._sender_actor_id:
+        assert self.datalayer is not None
+        # One read: the predicate reads the case itself, and reads its
+        # absence as "holds no role" (ADR-0153), which is the Regime 1
+        # refusal this guard owes anyway (ADR-0087).
+        if has_role(
+            self._sender_actor_id,
+            self.case_id,
+            CVDRole.CASE_MANAGER,
+            self.datalayer,
+        ):
             return Status.SUCCESS
         self.feedback_message = (
             f"Refused termination on case '{self.case_id}': only the"

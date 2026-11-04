@@ -1518,7 +1518,7 @@ groups:
       frozen (CM-18-003).
     verification: >-
       Inspection confirms that the `TERMINATE` register step
-      (vultron/core/models/embargo_apply.py) writes no consent row.
+      (vultron/core/models/embargo_apply/changes.py) writes no consent row.
       `test/core/use_cases/received/test_embargo_relay_replay.py`
       (`test_termination_leaves_nobody_a_signatory_in_every_store`) confirms the rows
       are unchanged and no participant is a signatory afterwards, on the CASE_MANAGER

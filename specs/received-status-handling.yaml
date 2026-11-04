@@ -1037,10 +1037,15 @@ groups:
       every received-side tree factory and walks it with the factory's own
       `ungated_nodes`: every node carrying the `StateWriteCapable` marker
       (`vultron/core/behaviors/state_write_capable.py`) must sit inside a
-      `CaseManagerGate`. The replay and bootstrap writes are a pinned exemption
-      set (`REPLICA_STATE_WRITES`) with a reason per entry (TB-10-002, ARCH-18-005);
-      all other received-side state writes are now CASE_MANAGER-gated (the
-      `KNOWN_UNGATED_STATE_WRITES` ratchet drove to empty and was deleted in #3814).
+      `CaseManagerGate`. The writes that do not are a pinned exemption set
+      (`REPLICA_STATE_WRITES`) with a reason per entry (TB-10-002, ARCH-18-005):
+      the replay and bootstrap writes, the paused signatory's own embargo
+      teardown, and the write a diversion makes in a tree whose path declaration
+      names the CASE_MANAGER path alone, where the declaration is the gate
+      (HP-01-038, CLP-10-066) and the walk, which reads a branch's own paths
+      rather than the tree's declaration, records it instead. All other received-side
+      state writes are now CASE_MANAGER-gated (the `KNOWN_UNGATED_STATE_WRITES`
+      ratchet drove to empty and was deleted in #3814).
       The same module checks that every behaviors class reaching a state-write seam
       carries the marker or is pinned as writing no case state.
     adr:
@@ -1471,7 +1476,8 @@ groups:
     note: >
       The predicates are `is_em_assertion_acceptable()` in
       `vultron/core/states/em.py` and `is_pxa_assertion_acceptable()` in
-      `vultron/core/states/cs.py`, applied by `CheckCaseStatusAcceptableNode`.
+      `vultron/core/states/cs/transitions.py`, applied by
+      `CheckCaseStatusAcceptableNode`.
       Every `CaseStatus` states an EM state: one that leaves `emState` out
       states `NONE`, so while an embargo is in force it is refused like any
       other EM that differs.

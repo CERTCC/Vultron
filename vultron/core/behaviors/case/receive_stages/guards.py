@@ -22,10 +22,8 @@ from collections.abc import Sequence
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     Diversion,
-    DiversionGate,
     DiversionStage,
 )
 from vultron.core.behaviors.case.nodes.intake import (
@@ -145,30 +143,57 @@ def case_manager_commit_types() -> tuple[type, ...]:
 
     ``CreateLogEntryNode`` commits an entry it mints in-tree, and
     ``_CommitCaseManagerActivityBase`` one activity it builds and commits;
-    neither belongs in a ``RECEIVER`` diversion (CLP-10-026).
+    neither belongs in the diversion of a tree that declares a non-manager
+    path (CLP-10-026).
     """
     return (CreateLogEntryNode, _CommitCaseManagerActivityBase)
 
 
 def diversion_stage(
-    name: str, diversion: Diversion, case_id: str | None
+    name: str,
+    diversion: Diversion,
+    case_id: str | None,
+    path_stage: ReceivedPathNode | None,
 ) -> DiversionStage:
     """Build the stage for one :class:`Diversion` (CLP-10-026).
 
-    A ``CASE_MANAGER`` diversion checks the role before its condition and
-    runs its effects inside the CASE_MANAGER gate on *case_id* (BT-17-001).
-    A ``RECEIVER`` diversion is the receiver's own answer: its emits must be
-    covered by its registered exemption and it may write no case state
-    (BT-17-008, RSH-08-003).
+    Where the diversion may run is read off the tree's path declaration and
+    nowhere else (HP-01-038, ADR-0153): a tree declaring the manager path
+    alone has already refused every other receiver at the path stage, so its
+    diversion needs no gate of its own and may commit its own
+    CASE_MANAGER-authored entry (BT-17-001).  A tree that also declares a
+    non-manager path runs the diversion wherever the door guards admitted the
+    copy, so it is the receiver's own answer: its emits must be covered by its
+    registered exemption and it may write no case state (BT-17-008,
+    RSH-08-003).
+
+    The two bounds are therefore checked in different places, because they see
+    different things.  This factory holds the declaration, so for a
+    manager-only diversion it skips the ungated-emit check outright — and
+    refuses a now-stale exemption.  The state-write ratchet instead walks
+    built trees with ``ungated_nodes``, which reads a ``PathBranch``'s own
+    paths and never the tree's declaration, so a manager-only diversion's
+    write is recorded in that ratchet's pinned set with its reason rather
+    than skipped there (CLP-10-066, RSH-08-003).
 
     Raises:
-        VultronWiringError: the condition emits, writes state or commits; an
+        VultronWiringError: the tree declared no paths, so nothing says where
+            the diversion runs; a manager-only tree names no case, so a
+            diversion that commits would commit against whatever case the
+            activity named; the condition emits, writes state or commits; an
             effect holds the received activity's commit, which a diverted
-            delivery never makes; a ``CASE_MANAGER`` diversion names no
-            case; or a ``RECEIVER`` diversion writes case state or has an
-            uncovered emit or commits an entry.
+            delivery never makes; a manager-only tree's diversion carries an
+            emit exemption it no longer needs; or a diversion a non-manager
+            receiver may reach writes case state, commits an entry, or has an
+            uncovered emit.
     """
     where = f"create_receive_activity_tree({name}): diversion {diversion.name}"
+    if path_stage is None:
+        raise VultronWiringError(
+            f"{where}: a diversion runs on the paths the tree declares;"
+            " declare them with the factory's paths argument"
+            " (CLP-10-026, HP-01-038, ADR-0153)"
+        )
     condition = [diversion.condition]
     if offenders := node_types(
         condition, (EmitCapable, StateWriteCapable, CommitCaseLedgerEntryNode)
@@ -183,7 +208,15 @@ def diversion_stage(
             f"{where}: a diverted delivery is never committed as received;"
             f" found {commits} (CLP-10-026)"
         )
-    if diversion.gate is DiversionGate.RECEIVER:
+    manager_only = path_stage.manager_path_only
+    if manager_only and case_id is None:
+        raise VultronWiringError(
+            f"{where}: a diversion in a manager-only declaration may commit"
+            " its own entry, so the tree must name the case it commits"
+            " against; pass case_id or manager_case_id (BT-17-001,"
+            " HP-01-040)"
+        )
+    if not manager_only:
         if writers := node_types(effects, StateWriteCapable):
             raise VultronWiringError(
                 f"{where}: a receiver's own answer writes no case state;"
@@ -195,37 +228,16 @@ def diversion_stage(
                 f" CASE_MANAGER; found {commits} (CLP-10-026, BT-17-001)"
             )
         check_replica_effects(name, effects, diversion.emit_exemption)
-        body: py_trees.behaviour.Behaviour = py_trees.composites.Sequence(
-            name=f"{diversion.name}Answer", memory=False, children=effects
-        )
-        return DiversionStage(diversion.name, diversion.condition, body)
-    if case_id is None:
+    elif diversion.emit_exemption is not None:
         raise VultronWiringError(
-            f"{where}: a CASE_MANAGER diversion needs the tree's case_id or"
-            " manager_case_id (BT-17-001)"
+            f"{where}: this tree declares the CASE_MANAGER path alone, so"
+            " the declaration is the gate; drop its emit exemption"
+            " (BT-17-008, HP-01-038)"
         )
-    if diversion.emit_exemption is not None:
-        raise VultronWiringError(
-            f"{where}: a CASE_MANAGER diversion's emits are gated; drop its"
-            " emit exemption (BT-17-008)"
-        )
-    gated_condition = py_trees.composites.Sequence(
-        name=f"{diversion.name}IfCaseManager",
-        memory=False,
-        children=[
-            CheckIsCaseManagerNode(case_id=case_id, case_may_be_absent=True),
-            diversion.condition,
-        ],
+    body: py_trees.behaviour.Behaviour = py_trees.composites.Sequence(
+        name=f"{diversion.name}Answer", memory=False, children=effects
     )
-    return DiversionStage(
-        diversion.name,
-        gated_condition,
-        create_case_manager_gated_tree(
-            name=f"{diversion.name}Answer",
-            case_id=case_id,
-            children=effects,
-        ),
-    )
+    return DiversionStage(diversion.name, diversion.condition, body)
 
 
 def precondition_guard_nodes(
@@ -244,7 +256,7 @@ def precondition_guard_nodes(
     return resolve_path_branches(
         f"create_receive_activity_tree({name})",
         [
-            diversion_stage(name, guard, case_id)
+            diversion_stage(name, guard, case_id, path_stage)
             if isinstance(guard, Diversion)
             else guard
             for guard in guards

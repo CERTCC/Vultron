@@ -27,16 +27,12 @@ Provides:
 - :class:`EmbargoAnswerNotRecordedNode` — precondition guard that fails, with
   :attr:`~EmbargoAnswerNotRecordedNode.is_repeat` set, when the sender's row
   for the embargo already holds the answer.
-- :func:`case_manager_admits_embargo_answer_guard` — the guard behind the
-  CASE_MANAGER gate, for a received answer tree's ``precondition_guards``.
+- :func:`case_manager_admits_embargo_answer_guard` — that guard, for a
+  received answer tree's ``precondition_guards``.
 """
 
-import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
-)
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.models.case import VulnerabilityCase
@@ -143,27 +139,35 @@ def case_manager_admits_embargo_answer_guard(
     embargo_id: str,
     answering_actor_id: str,
     answer: EmbargoConsentState,
-) -> py_trees.behaviour.Behaviour:
+) -> EmbargoAnswerNotRecordedNode:
     """Precondition guard: at the CASE_MANAGER, the answer is not a repeat.
 
-    A participant replica skips it as ``SUCCESS``: only the CASE_MANAGER
-    records an answer (BT-17-001), and a replica turned away by the gate is
-    reported as a refusal (HP-01-005), not as a repeat.  The CASE_MANAGER runs
-    :class:`EmbargoAnswerNotRecordedNode`, so a repeat is neither committed
-    nor announced.
+    The guard carries no role gate of its own, so the *caller* bounds it to
+    the manager, and which way depends on what the caller declares
+    (HP-01-038):
+
+    - :func:`~vultron.core.behaviors.embargo.answer_trees.accept_invite_to_embargo_tree`
+      declares the CASE_MANAGER path alone, so the path stage has already
+      refused every other receiver and the guard is passed bare.
+    - :func:`~vultron.core.behaviors.embargo.answer_trees.reject_invite_to_embargo_tree`
+      also declares the participant-replica path, because the CASE_MANAGER's
+      own ``Reject`` must reach the participant it refuses (EP-09-017,
+      EP-09-019), so it wraps the guard in ``OnPaths.at_case_manager(...)``.
+
+    Nothing in the factory enforces that choice: run at a replica the guard
+    reads that replica's own consent rows, and would refuse a delivery
+    EP-09-019 requires be admitted.  A new caller that declares any path
+    besides the CASE_MANAGER's MUST wrap it.  Only the CASE_MANAGER records
+    an answer (BT-17-001), and this keeps a repeat from being committed or
+    announced; a replica is reported as a refusal (HP-01-005) rather than as
+    a repeat.
     """
-    return create_case_manager_gated_tree(
-        name="EmbargoAnswerNotRecordedIfCaseManager",
+    return EmbargoAnswerNotRecordedNode(
+        name="EmbargoAnswerNotRecorded",
         case_id=case_id,
-        body_name="EmbargoAnswerNotRecorded",
-        children=[
-            EmbargoAnswerNotRecordedNode(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                answering_actor_id=answering_actor_id,
-                answer=answer,
-            )
-        ],
+        embargo_id=embargo_id,
+        answering_actor_id=answering_actor_id,
+        answer=answer,
     )
 
 

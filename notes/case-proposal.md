@@ -88,7 +88,7 @@ A refusal has no channel for a reason or cause, so the `Reject` carries no `summ
 and an unreachable backend reads as a permanent decline (#3446).
 
 The decision records name the actor owed the answer `proposer_uri`. A row
-carrying the retired `vendor_uri` key is refused
+carrying the former `vendor_uri` key is refused as an unknown key
 ([datalayer-design](datalayer-design.md) § "Retiring a Stored Field").
 
 Guards live in `vultron/core/behaviors/case/nodes/proposal_admission_conditions.py`;

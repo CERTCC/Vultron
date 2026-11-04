@@ -54,7 +54,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
-from vultron.core.models import pending_assertion
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
@@ -62,6 +61,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.pending_assertion import registry as pending_assertion
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.authority import resolve_case_manager_id

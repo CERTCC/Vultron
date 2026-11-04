@@ -142,7 +142,7 @@ then return here), then apply these BT-specific checks
    | Report | `_EmitCaseActorReportActivityBase` | `report/nodes/emit.py` |
    | Embargo (send); CASE_MANAGER's own act (build → queue if addressed → commit sealed blob, in one transaction: embargo decisions, case closure, late-Accept ack) | `_SendEmbargoActivityBase`; `_CommitCaseManagerActivityBase` | `embargo/nodes/emit.py`; `case_manager_commit.py` |
    | Participant-status | `_EmitParticipantStatusActivityBase` | `report/nodes/develop_fix.py` |
-   | Single-activity (invite, ownership, other case domains) | `_EmitSingleActivityBase` | `helpers.py` |
+   | Single-activity (invite, ownership, other case domains) | `_EmitSingleActivityBase` | `helpers/emit.py` |
 
    **If no base exists for your domain: create it first, then write the
    concrete node.** Do not implement `update()` inline in a concrete node

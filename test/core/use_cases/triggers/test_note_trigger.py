@@ -579,9 +579,9 @@ class TestSvcAddNoteToCaseUseCase:
         """When the store has zero timeout, is_suppressed always returns False
         even after execute() adds the entry (SYNC-11-001)."""
         from vultron.core.models.pending_assertion import (
-            _STORES,
             PendingAssertionStore,
         )
+        from vultron.core.models.pending_assertion.registry import _STORES
 
         zero_store = PendingAssertionStore(timeout_seconds=0)
         _STORES[self.vendor.id_] = zero_store

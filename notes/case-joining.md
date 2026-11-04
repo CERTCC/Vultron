@@ -37,7 +37,7 @@ relevant_packages:
   - vultron/core/participants/recipients
   - vultron/core/participants/stub_reply.py
   - vultron/core/models/case/
-  - vultron/core/models/case_participant.py
+  - vultron/core/models/case_participant/
   - vultron/core/models/actor_recommendation_record.py
   - vultron/core/behaviors/case/nodes/invite_participant.py
   - vultron/core/behaviors/case/nodes/on_behalf_guards.py
@@ -47,7 +47,7 @@ relevant_packages:
   - vultron/core/behaviors/embargo/nodes/reinvite.py
   - vultron/core/behaviors/sender_entitlement/
   - vultron/core/states/rm.py
-  - vultron/wire/as2/factories/case.py
+  - vultron/wire/as2/factories/case/
 ---
 
 # Joining a Case — Stub Invite, Inert Participant, Full-Case Invite

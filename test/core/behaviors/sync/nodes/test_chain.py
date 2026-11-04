@@ -24,10 +24,12 @@ from vultron.core.behaviors.sync.nodes import (
     ReconstructChainTailNode,
     UpdateReplicationStateNode,
 )
-from vultron.core.models import case_ledger as case_ledger_module
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_ledger import (
+    HashChainLedgerRecord,
+    record as case_ledger_module,
+)
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState

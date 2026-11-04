@@ -25,7 +25,9 @@
   and the revision (CS-22-001); the revision copy had no test before #3831.
 """
 
+import importlib
 import inspect
+import pkgutil
 from datetime import UTC, datetime, timedelta
 from typing import assert_type
 
@@ -212,14 +214,32 @@ def test_result_type_var_is_covariant_and_bound() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _is_body_module(module: str) -> bool:
+    """Whether *module* is the request-body package or one of its submodules."""
+    name = request_bodies.__name__
+    return module == name or module.startswith(f"{name}.")
+
+
 def _body_models() -> list[type[BaseModel]]:
-    return [
-        obj
-        for _, obj in inspect.getmembers(request_bodies, inspect.isclass)
-        if issubclass(obj, BaseModel)
-        and obj is not BaseModel
-        and obj.__module__ == request_bodies.__name__
+    """Every body model defined in the package, private bases included.
+
+    The package re-exports only the public models, so each submodule is
+    walked to reach the shared private bases as well.
+    """
+    modules = [request_bodies] + [
+        importlib.import_module(f"{request_bodies.__name__}.{info.name}")
+        for info in pkgutil.iter_modules(request_bodies.__path__)
     ]
+    found: dict[str, type[BaseModel]] = {}
+    for module in modules:
+        for _, obj in inspect.getmembers(module, inspect.isclass):
+            if (
+                issubclass(obj, BaseModel)
+                and obj is not BaseModel
+                and _is_body_module(obj.__module__)
+            ):
+                found[f"{obj.__module__}.{obj.__qualname__}"] = obj
+    return [found[key] for key in sorted(found)]
 
 
 def test_case_trigger_request_is_defined_once() -> None:
@@ -252,8 +272,7 @@ def test_every_core_request_adds_actor_id_to_a_body_model(
     bodies = [
         base
         for base in request_cls.__mro__
-        if issubclass(base, BaseModel)
-        and base.__module__ == request_bodies.__name__
+        if issubclass(base, BaseModel) and _is_body_module(base.__module__)
     ]
     assert bodies, f"{request_cls.__name__} derives from no body model"
     assert "actor_id" in request_cls.model_fields
@@ -362,14 +381,17 @@ _ROLE_LIST_BODIES: list[tuple[type[BaseModel], str]] = [
 
 @pytest.mark.parametrize(("model", "actor_field"), _ROLE_LIST_BODIES)
 @pytest.mark.parametrize("roles", [["finder"], ["vendor", "FINDER"]])
-def test_role_list_bodies_refuse_finder_with_its_reason(
+def test_role_list_bodies_refuse_finder_as_an_invalid_value(
     model: type[BaseModel], actor_field: str, roles: list[str]
 ) -> None:
-    """A trigger body offering the retired 'finder' role names ADR-0078."""
-    with pytest.raises(ValidationError, match="ADR-0078"):
+    """A trigger body offering the former 'finder' role is refused (ADR-0175)."""
+    with pytest.raises(ValidationError) as excinfo:
         model.model_validate(
             {"case_id": _CASE, actor_field: _ACTOR, "roles": roles}
         )
+    assert [e["msg"] for e in excinfo.value.errors()] == [
+        "Value error, 'finder' is not a valid CVDRole"
+    ]
 
 
 @pytest.mark.parametrize(("model", "actor_field"), _ROLE_LIST_BODIES)
@@ -386,12 +408,15 @@ def test_role_list_bodies_parse_roles_like_every_other_path(
 
 
 @pytest.mark.parametrize("role", ["finder", "Finder"])
-def test_offer_role_body_refuses_finder_with_its_reason(role: str) -> None:
-    """The offer-role trigger body refuses 'finder' with its reason."""
-    with pytest.raises(ValidationError, match="ADR-0078"):
+def test_offer_role_body_refuses_finder_as_an_invalid_value(role: str) -> None:
+    """The offer-role trigger body refuses 'finder' like any invalid value."""
+    with pytest.raises(ValidationError) as excinfo:
         OfferCaseParticipantRoleRequest.model_validate(
             {"case_id": _CASE, "target_actor_id": _ACTOR, "role": role}
         )
+    assert [e["msg"] for e in excinfo.value.errors()] == [
+        "Value error, 'finder' is not a valid CVDRole"
+    ]
 
 
 @pytest.mark.spec("CM-33-014")

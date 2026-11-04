@@ -22,8 +22,7 @@ Provides API v2 tests
 from datetime import timedelta
 
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.core.models import _helpers
-from vultron.core.models._helpers import now_utc
+from vultron.core.models._helpers import clock as helpers_clock, now_utc
 from vultron.demo.determinism import SteppingClock
 from vultron.wire.as2.vocab.base.objects.actors import as_Person
 
@@ -39,7 +38,7 @@ def _pin_clock_past_a_second_boundary(monkeypatch) -> None:
     boundary is made certain here rather than left to scheduling luck.
     """
     monkeypatch.setattr(
-        _helpers,
+        helpers_clock,
         "datetime",
         SteppingClock(now_utc() + timedelta(hours=1), step=timedelta(0)),
     )

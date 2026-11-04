@@ -26,9 +26,9 @@ specs/case-management.yaml CM-12-003.
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import (
-    _EmitSingleActivityBase,
     resolve_case_replica,
 )
+from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import (

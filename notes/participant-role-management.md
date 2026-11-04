@@ -6,15 +6,16 @@ description: >
   Design decisions and implementation guidance for the CaseParticipant
   role-management API (roles property, add_role/remove_role), participant
   lookup, the RM terminal-guard ordering, on-behalf assertion authority
-  (PRM-06), and the retired Finder role.
+  (PRM-06), and the removed Finder role.
 related_specs:
   - specs/participant-role-management.yaml
   - specs/case-management.yaml
+  - specs/message-validation.yaml (MV-11-012)
 related_notes:
   - notes/case-joining.md
   - notes/demo-ci-diagnostics.md
 relevant_packages:
-  - vultron/core/models/case_participant.py
+  - vultron/core/models/case_participant/
   - vultron/wire/as2/vocab/objects/case_participant.py
   - vultron/core/use_cases/query/action_rules.py
   - vultron/core/predicates/participants.py
@@ -87,7 +88,7 @@ Implementation: `SvcAddOnBehalfStatusUseCase` in
 `vultron/core/use_cases/triggers/case/add_on_behalf_status.py`; BT guards
 in `vultron/core/behaviors/case/nodes/on_behalf_guards.py`.
 
-## The Finder Role Is Retired (ADR-0078)
+## There Is No Finder Role (ADR-0078)
 
 No protocol state machine treats a Finder differently from a Reporter, so an
 actor that finds a vulnerability and reports it holds `CVDRole.REPORTER`. Who
@@ -95,8 +96,7 @@ discovered it is metadata: record it in the report content or case notes.
 
 `CVDRole.FINDER` and the `FinderParticipant` / `FinderReporterParticipant`
 subclasses are gone (#2677). Every boundary role parse goes through
-`parse_role()` in `vultron/enums/roles.py`, which refuses the retired wire
-value `"finder"` (any case) with the ADR-0078 reason listed in
-`RETIRED_ROLE_VALUES`. It is refused, never aliased to `reporter`, so stored
-data or a peer still carrying it fails validation rather than being silently
-rewritten.
+`parse_role()` in `vultron/enums/roles.py`, which refuses `"finder"` (any case)
+like any other value that names no role: before 1.0 no list of former values is
+kept (ADR-0175). Never alias it to `reporter`, so stored data or a peer still
+carrying it fails validation rather than being silently rewritten.

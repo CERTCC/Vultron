@@ -2031,7 +2031,7 @@ groups:
       assignment whose line span, decorators included, intersects a diff hunk.
     rationale: >-
       Symbol-level matching is much narrower than module-level matching. A module such
-      as `vultron/core/behaviors/bridge.py` is imported by dozens of test files, but
+      as `vultron/core/behaviors/bridge/` is imported by dozens of test files, but
       only the tests that import the edited names govern the edit.
     verification: >-
       `test/metadata/specs/test_backstop.py` asserts decorator spans and

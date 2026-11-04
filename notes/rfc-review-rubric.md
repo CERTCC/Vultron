@@ -234,7 +234,7 @@ Keep protocol text free of implementation accidents and drafting artifacts.
 Run against the current `main` branch of the implementation.
 
 - `[M]` Every state name used in the document appears in the corresponding
-  codebase enum under `vultron/core/states/` (`rm.py`, `em.py`, `cs.py`,
+  codebase enum under `vultron/core/states/` (`rm.py`, `em.py`, `cs/`,
   `participant_embargo_consent.py`).
 - `[M]` Every enum symbol cited in prose resolves against the codebase; for
   example `CS.P` is not a member of the `CS` enum.

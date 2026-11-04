@@ -291,8 +291,8 @@ An inter-node handoff key in a tree factory that can run concurrently for severa
 messages of one type MUST carry the execution-scoped correlation id:
 `{noun}_{id_segment}`, where `id_segment` is the last `/`-segment of an HTTP id
 (or last `:`-segment of a URN), matching the `object_{id_segment}` keys in
-`helpers.py`. A flat key is overwritten by the concurrent instance before the
-downstream reader runs (BTND-03-004). When namespacing, audit every `register_key`
+`helpers/object_nodes.py`. A flat key is overwritten by the concurrent instance
+before the downstream reader runs (BTND-03-004). When namespacing, audit every `register_key`
 in the affected subtree, not only the key the issue names.
 
 ---
@@ -342,7 +342,7 @@ SYNC-09-003).
 ## Guard Name Must Match the State-Machine Transition Precondition
 
 Derive a guard's condition (and name) from the precondition of the transition it
-protects, read from the state machine (`vultron/core/states/cs.py`), not from the
+protects, read from the state machine (`vultron/core/states/cs/`), not from the
 issue's "not yet done" wording. "D bit unset" admits `vfd`/`Vfd`, but `vfd→VFD`
 via `TransitionCStoFixDeployed` is valid only from `VFd` — see
 `CheckCSFixNotYetDeployed` (#1825).
@@ -481,7 +481,7 @@ status-transparent, but a test asserting on the backend's concrete type or
 attributes must use `unwrap_call_out(node)`. Code that ticks a factory product
 outside a `BTBridge` tree must use `tick_once()` / `setup_with_descendants()`,
 never bare `update()` / `setup()` (see `_record_named_peer` in
-`use_cases/triggers/actor.py`). Rationale: [protocol-asks.md](protocol-asks.md)
+`use_cases/triggers/actor/_peers.py`). Rationale: [protocol-asks.md](protocol-asks.md)
 § "Why there is nothing to suspend" (ADR-0080); bundle
 configuration: [call-out-configuration.md](call-out-configuration.md).
 

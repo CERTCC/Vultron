@@ -180,7 +180,7 @@ registry takes no path parameter, so the path cannot be stated a second time
 the coordinator-first subtree, whose Reporter tells a Coordinator, and the
 vendor-first half, whose Reporter tells a Vendor.
 
-- **The API is four names.** `vultron/demo/helpers/story.py` holds them:
+- **The API is four names.** `vultron/demo/helpers/story/` holds them:
   `choose(branch point, choice, by=<cast name>)` declares one decision,
   `story(...)` concatenates named prefixes, choices and fragments into one flat
   sequence, `StoryState` is what a fragment runs against, and `run_story(name,
@@ -282,7 +282,7 @@ vendor-first half, whose Reporter tells a Vendor.
   or hand the case over and let the new owner invite — appears in the
   coordinator-first pair and in the vendor-first one, with a different cast
   each time. Its two continuations therefore live in
-  `owner_decision_story.py`, taking the owner, the joiner and the newcomer as
+  `owner_decision_story/`, taking the owner, the joiner and the newcomer as
   `Part(name, label)` values read off the running story, never a family's
   cast constants; a family's module names only the parts each plays
   (DEMOMA-13-012, DEMOMA-14-017, #5535).

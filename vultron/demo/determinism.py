@@ -23,7 +23,7 @@ replaces both:
   to it by ``from uuid import uuid4``, which a patch of the ``uuid`` module
   alone does not reach.
 - **The clock.**  Every timestamp comes from
-  :func:`vultron.core.models._helpers.now_utc`, which reads the ``datetime``
+  :func:`vultron.core.models._helpers.clock.now_utc`, which reads the ``datetime``
   name on its module at call time so that it can be replaced.  Replacing that
   name, not ``now_utc`` itself, also reaches the ``default_factory=now_utc``
   references that model fields captured at class creation.
@@ -43,7 +43,7 @@ from unittest.mock import patch
 
 import py_trees
 
-from vultron.core.models import _helpers
+from vultron.core.models._helpers import clock as helpers_clock
 
 #: The instant a recording's clock starts from.  Fixed so that a recording does
 #: not change when it is regenerated on a later day.
@@ -89,7 +89,7 @@ class SteppingClock:
     clock at *start*.  *start* must be timezone-aware, as ``now_utc()`` promises
     its callers (CS-13-001).
 
-    Only ``now()`` is provided.  ``_helpers`` keeps a private reference to the
+    Only ``now()`` is provided.  ``_helpers.clock`` keeps a private reference to the
     real class for its ``isinstance`` guards, so any other attribute a patched
     path reaches for raises ``AttributeError`` instead of returning a wrong
     time.  Reads are serialized, because in-process deliveries run on worker
@@ -165,7 +165,7 @@ def deterministic_run(
                 stack.enter_context(
                     patch.object(sys.modules[module_name], "uuid4", ids)
                 )
-            stack.enter_context(patch.object(_helpers, "datetime", clock))
+            stack.enter_context(patch.object(helpers_clock, "datetime", clock))
             yield
     finally:
         for module_name in _modules_binding(ids, "uuid4"):

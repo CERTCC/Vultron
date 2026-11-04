@@ -1345,7 +1345,7 @@ groups:
       agreement to every shorter period, so no explicit `Accept` is necessary for it. A
       second record of consent next to the rows can disagree with them. A reader then
       cannot know which record is correct.
-    verification: Inspection of `vultron/core/models/case_participant.py` confirms that
+    verification: Inspection of `vultron/core/models/case_participant/` confirms that
       `CaseParticipant` carries `embargo_consents` rows and declares no scalar consent field and no
       `accepted_embargo_ids` or `invite_rsvp_deadline`.
     relationships:
@@ -4315,9 +4315,7 @@ groups:
       the inert invitee's Accept is
       `test/core/use_cases/received/actor/test_invite.py::TestInviteActorUseCases::test_accept_invite_backfills_canonical_ledger_from_genesis`.
       The guard alone is
-      `test/core/behaviors/case/nodes/test_idempotency_guards.py::TestCheckInviteeNotAlreadyParticipantNode`,
-      and a stored replication-state row that still carries a retired `join_backfill_*`
-      key is refused in `test/core/models/test_replication_state.py`.
+      `test/core/behaviors/case/nodes/test_idempotency_guards.py::TestCheckInviteeNotAlreadyParticipantNode`.
     relationships:
     - rel_type: refines
       spec_id: CM-17-004
@@ -4634,7 +4632,7 @@ groups:
       Inspection of `vultron/core/` confirms that all consent-write sites call
       `CaseParticipant.apply_pec_transition()` or `apply_pec_transition_if_legal()`,
       copy a carried row through `apply_embargo_change()` in
-      `vultron/core/models/embargo_apply.py`, or write the start rows through
+      `vultron/core/models/embargo_apply/apply.py`, or write the start rows through
       `CaseParticipant.write_uninvited_rows()`.
     relationships:
     - rel_type: refines
@@ -8454,7 +8452,7 @@ groups:
       embargo itself ends. Code MUST read these independently and MUST NOT
       substitute one for the other. The embargo invitation is an `as_Invite`,
       not an `as_Offer` — see `em_propose_embargo_activity()` in
-      `vultron/wire/as2/factories/embargo.py`.
+      `vultron/wire/as2/factories/embargo/negotiation.py`.
     rationale: >-
       `as_Object.end_time` is inherited by `as_Activity` and therefore by every
       Vultron activity, so no vocabulary extension is required. On an Activity,

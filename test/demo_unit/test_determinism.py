@@ -22,9 +22,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from vultron.core.models import _helpers
 from vultron.core.models._helpers import (
     URN_UUID_PREFIX,
+    clock as helpers_clock,
     new_object_id,
     now_utc,
 )
@@ -115,7 +115,7 @@ class TestDeterministicRun:
 
     def test_a_captured_default_factory_reads_the_recording_clock(self):
         # `published` defaults through a `now_utc` reference the field captured
-        # at class creation, which only the `_helpers.datetime` seam reaches.
+        # at class creation, which only the `_helpers.clock.datetime` seam reaches.
         with deterministic_run("rv", start=_START, step=timedelta(seconds=1)):
             entry = CaseLedgerEntry.model_validate(
                 {
@@ -152,12 +152,12 @@ class TestDeterministicRun:
 
     def test_everything_is_restored_on_exit(self, from_import_user):
         real_uuid4 = uuid.uuid4
-        real_datetime = _helpers.datetime
+        real_datetime = helpers_clock.datetime
         with deterministic_run("rv"):
             pass
         assert uuid.uuid4 is real_uuid4
         assert from_import_user.uuid4 is real_uuid4
-        assert _helpers.datetime is real_datetime
+        assert helpers_clock.datetime is real_datetime
 
     def test_a_module_imported_inside_the_block_is_restored(
         self, tmp_path, monkeypatch
@@ -173,8 +173,8 @@ class TestDeterministicRun:
 
     def test_everything_is_restored_when_the_block_raises(self):
         real_uuid4 = uuid.uuid4
-        real_datetime = _helpers.datetime
+        real_datetime = helpers_clock.datetime
         with pytest.raises(RuntimeError), deterministic_run("rv"):
             raise RuntimeError("boom")
         assert uuid.uuid4 is real_uuid4
-        assert _helpers.datetime is real_datetime
+        assert helpers_clock.datetime is real_datetime

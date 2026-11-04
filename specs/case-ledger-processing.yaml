@@ -433,29 +433,6 @@ groups:
       spec_id: CLP-02-014
     adr:
     - ADR-0140
-  - id: CLP-02-019
-    priority: MUST
-    kind: project
-    statement: >-
-      This codebase MUST refuse a stored or received entry that still carries the
-      retired key `eventType`, never reading it through an alias. The refusal message
-      names the rename.
-    rationale: >-
-      Stored data has no backwards-compatibility requirement. An alias would keep two
-      names for one field in use, so the old key is refused and not translated.
-    verification: >-
-      Tests marked `CLP-02-019` in
-      `test/core/models/test_case_ledger_entry_semantic_type.py` confirm that a payload
-      carrying `eventType` beside `semanticType` is refused with an error naming the
-      rename, and that a stored row carrying the retired field is refused. Tests marked
-      `CLP-02-019` in `test/wire/as2/test_unknown_key_disposition.py` confirm that a
-      received inline entry, or any other inline object, carrying `eventType` is refused
-      at parse with a message naming the rename.
-    relationships:
-    - rel_type: extends
-      spec_id: CLP-02-015
-    adr:
-    - ADR-0140
 - id: CLP-03
   title: Audit Scope and Continuity
   specs:
@@ -3263,9 +3240,11 @@ groups:
       Only the CASE_MANAGER writes canonical case state. A replica that ran such a
       diversion would write a change no entry records.
     verification: >-
-      `test_the_case_manager_diverts` and `test_another_store_never_diverts` in
-      `test/core/behaviors/case/nodes/test_diversion_stage.py` assert a CASE_MANAGER
-      diversion never diverts at another store.
+      `test_the_case_manager_diverts` and
+      `test_another_store_is_refused_before_the_diversion` in
+      `test/core/behaviors/case/nodes/test_diversion_stage.py` assert a diversion in
+      a manager-only declaration never diverts at another store, because the path
+      stage refuses that receiver first (HP-01-038).
     relationships:
     - rel_type: extends
       spec_id: CLP-10-026
@@ -3281,11 +3260,11 @@ groups:
       The late-Accept answer commits and writes consent, which must be in the ledger.
       Anything more would put the received activity's own effects ahead of the guards.
     verification: >-
-      `test_a_case_manager_diversions_own_commit_is_allowed` and
-      `test_an_ungated_diversions_commit_is_flagged` in
+      `test_a_manager_only_declarations_diversion_commit_is_allowed` and
+      `test_a_two_path_declarations_diversion_commit_is_flagged` in
       `test/architecture/test_receive_side_bt_commit_ordering.py` accept a commit ahead
-      of the guarded commit only inside the clock-decision stage or a CASE_MANAGER
-      diversion.
+      of the guarded commit only inside the clock-decision stage or a diversion in a
+      tree declaring the CASE_MANAGER path alone.
     relationships:
     - rel_type: extends
       spec_id: CLP-10-026
@@ -3499,7 +3478,8 @@ groups:
     verification: >-
       Inspection confirms that `CasePersistence.find_protocol_pair()` in
       `vultron/core/ports/case_persistence.py` returns a `ProtocolPair`, and that
-      `PendingAssertionStore` in `vultron/core/models/pending_assertion.py` keys its
+      `PendingAssertionStore` in `vultron/core/models/pending_assertion/store.py` keys
+      its
       entries by `ProtocolPair`.
   - id: CLP-11-006
     priority: MUST

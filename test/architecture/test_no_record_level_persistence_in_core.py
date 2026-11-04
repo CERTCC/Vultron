@@ -138,7 +138,7 @@ def _collect_violations() -> dict[str, list[str]]:
 # ---------------------------------------------------------------------------
 # Known pre-existing violations.
 #
-# ``vultron/core/behaviors/helpers.py`` holds the legacy generic
+# ``vultron/core/behaviors/helpers/object_nodes.py`` holds the legacy generic
 # ``UpdateObject`` and ``CreateObject`` BT nodes, which build a
 # ``StorableRecord`` from a dict and push it through ``DataLayer.update()`` /
 # ``DataLayer.create()``.  HP-08-001's rationale names them as the one
@@ -148,7 +148,7 @@ def _collect_violations() -> dict[str, list[str]]:
 # ---------------------------------------------------------------------------
 # owner: #5394
 KNOWN_VIOLATIONS: Mapping[str, int] = MappingProxyType(
-    {"vultron/core/behaviors/helpers.py": 5}
+    {"vultron/core/behaviors/helpers/object_nodes.py": 5}
 )
 
 

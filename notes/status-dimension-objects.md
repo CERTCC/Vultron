@@ -39,7 +39,7 @@ embargo register (ADR-0122). Decision: ADR-0036 (split of `vfd` into
 
 Dimension objects take the `*Dimension` suffix (`EmDimension`, `PxaDimension`,
 `RmDimension`, `VfDimension`, `DDimension`) so they do not collide with the
-`VfdState` / `PxaState` NamedTuples in `vultron/core/states/cs.py`. There is no
+`VfdState` / `PxaState` NamedTuples in `vultron/core/states/cs/states.py`. There is no
 consent dimension: participant embargo consent is per-embargo rows on
 `CaseParticipant` (ADR-0122).
 
