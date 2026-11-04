@@ -19,6 +19,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BlackboardKeyProbe
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -98,6 +99,24 @@ def _make_case_with_case_manager(
     return case
 
 
+def _make_case_without_case_manager(
+    store: SqliteDataLayer,
+    actor_id: str,
+) -> as_VulnerabilityCase:
+    """A stored case whose only participant is *actor_id*, a reporter."""
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="No Manager Case"
+    )
+    participant = ReporterParticipant(attributed_to=actor_id, context=case.id_)
+    object.__setattr__(case, "case_participants", [participant.id_])
+    object.__setattr__(
+        case, "actor_participant_index", {actor_id: participant.id_}
+    )
+    store.create(case)
+    store.create(participant)
+    return case
+
+
 class TestSenderSideBT:
     def test_tree_structure_has_three_expected_nodes(self):
         tree = sender_side_bt(
@@ -163,13 +182,8 @@ class TestSenderSideStaleKeyRegression:
     def test_stale_case_manager_id_not_present_after_execution(
         self, dl, bridge
     ):
-        """``/case_manager_id`` does not outlive its execution.
-
-        ``execute_with_setup`` now manages ``case_manager_id`` in its fixed
-        ``managed_keys`` list, so the key is absent after both a successful
-        and a failed run (#5803).  BT-17-003 (write None on the failure arm)
-        is still correct as the intra-execution defensive clear, but the
-        managed_keys restore is the definitive cross-execution guard.
+        """``/case_manager_id`` is absent after a successful and a failed
+        run alike: the bridge scopes it to its execution (#5803).
         """
         store, actor = dl
         storage = py_trees.blackboard.Blackboard.storage
@@ -186,19 +200,7 @@ class TestSenderSideStaleKeyRegression:
 
         # Run 2 (no blackboard clear between runs): fails — case has no
         # CASE_MANAGER participant.  The key is still absent afterwards.
-        case2 = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="No Manager Case"
-        )
-        participant2 = ReporterParticipant(
-            attributed_to=actor.id_,
-            context=case2.id_,
-        )
-        object.__setattr__(case2, "case_participants", [participant2.id_])
-        object.__setattr__(
-            case2, "actor_participant_index", {actor.id_: participant2.id_}
-        )
-        store.create(case2)
-        store.create(participant2)
+        case2 = _make_case_without_case_manager(store, actor.id_)
 
         tree2 = sender_side_bt(
             case_id=case2.id_,
@@ -207,6 +209,39 @@ class TestSenderSideStaleKeyRegression:
         result2 = bridge.execute_with_setup(tree=tree2, actor_id=actor.id_)
         assert result2.status == Status.FAILURE
         assert "/case_manager_id" not in storage
+
+    @pytest.mark.parametrize("case_kind", ["missing", "no_case_manager"])
+    def test_resolve_failure_overwrites_a_stale_case_manager_id_with_none(
+        self, dl, bridge, case_kind
+    ):
+        """Each failure arm of ``ResolveCaseManagerNode`` writes ``None``.
+
+        The bridge's restore removes a value only once the execution ends,
+        so within one execution a node later than the failed resolve, as in
+        a Selector, must see no manager rather than a value written before
+        it ticked (BT-17-003).
+        """
+        store, actor = dl
+        storage = py_trees.blackboard.Blackboard.storage
+        case_id = (
+            CASE_ID
+            if case_kind == "missing"
+            else _make_case_without_case_manager(store, actor.id_).id_
+        )
+        probe = BlackboardKeyProbe("case_manager_id")
+        tree = py_trees.composites.Selector(
+            name="ResolveOrProbe",
+            memory=False,
+            children=[ResolveCaseManagerNode(case_id=case_id), probe],
+        )
+        storage["/case_manager_id"] = "https://example.org/actors/stale"
+        try:
+            bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+        finally:
+            storage.pop("/case_manager_id", None)
+
+        assert probe.ran
+        assert probe.value is None
 
     def test_stale_activity_ids_cleared_on_construct_failure(self, dl, bridge):
         store, actor = dl

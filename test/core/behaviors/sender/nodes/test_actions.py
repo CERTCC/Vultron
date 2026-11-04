@@ -19,6 +19,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BlackboardKeyProbe
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -108,35 +109,17 @@ class TestResolveCaseManagerNode:
         assert result.status == Status.SUCCESS
 
     def test_writes_case_manager_id_to_blackboard(self, dl, bridge):
-        """``/case_manager_id`` is set during the execution and is readable by
-        a downstream sibling; ``execute_with_setup`` cleans it up afterwards
-        (the key must not outlive its execution — #5803).
+        """``/case_manager_id`` is published for later nodes of the same
+        execution and does not outlive it (#5803).
         """
         store, actor = dl
         case, _ = _make_case_with_case_manager(store, actor.id_, CASE_ACTOR_ID)
-
-        # Capture the value from inside the running tree, before cleanup.
-        captured: dict[str, object] = {}
-
-        class _CaptureCaseManagerId(py_trees.behaviour.Behaviour):
-            def update(self) -> Status:
-                captured["value"] = py_trees.blackboard.Blackboard.storage.get(
-                    "/case_manager_id"
-                )
-                return Status.SUCCESS
-
-        seq = py_trees.composites.Sequence(
-            name="test-seq",
-            memory=False,
-            children=[
-                ResolveCaseManagerNode(case_id=case.id_),
-                _CaptureCaseManagerId(name="Capture"),
-            ],
+        tree, probe = BlackboardKeyProbe.after(
+            ResolveCaseManagerNode(case_id=case.id_), "case_manager_id"
         )
-        result = bridge.execute_with_setup(tree=seq, actor_id=actor.id_)
+        result = bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
         assert result.status == Status.SUCCESS
-        assert captured["value"] == CASE_ACTOR_ID
-        # The key must not outlive the execution (#5803).
+        assert probe.value == CASE_ACTOR_ID
         assert "/case_manager_id" not in py_trees.blackboard.Blackboard.storage
 
     def test_failure_when_case_not_found(self, dl, bridge):

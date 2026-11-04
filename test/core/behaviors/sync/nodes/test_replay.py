@@ -9,6 +9,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BlackboardKeyProbe
 from test.core.behaviors.sync.nodes.conftest import (
     CASE_ID,
     OWNER_ACTOR_ID,
@@ -219,34 +220,17 @@ class TestFindCaseActorNode:
         )
         event = _make_reject_event(tail_hash="")
 
-        # Capture the value published by FindCaseActorNode from inside the
-        # running tree, before execute_with_setup cleans it up.
-        captured: dict[str, object] = {}
-
-        class _CaptureCaseActorId(py_trees.behaviour.Behaviour):
-            def update(self) -> Status:
-                captured["value"] = py_trees.blackboard.Blackboard.storage.get(
-                    "/case_actor_id"
-                )
-                return Status.SUCCESS
-
-        seq = py_trees.composites.Sequence(
-            name="test-seq",
-            memory=False,
-            children=[
-                FindCaseActorNode(name="FindCaseActor"),
-                _CaptureCaseActorId(name="Capture"),
-            ],
+        tree, probe = BlackboardKeyProbe.after(
+            FindCaseActorNode(name="FindCaseActor"), "case_actor_id"
         )
         result = bridge.execute_with_setup(
-            tree=seq,
+            tree=tree,
             actor_id=OWNER_ACTOR_ID,
             activity=event,
         )
 
         assert result.status == Status.SUCCESS
-        assert captured["value"] == MANAGER_ACTOR_ID
-        # The key must not outlive the execution (#5803).
+        assert probe.value == MANAGER_ACTOR_ID
         assert "/case_actor_id" not in py_trees.blackboard.Blackboard.storage
 
     @pytest.mark.spec("ARCH-24-004")

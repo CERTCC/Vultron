@@ -297,7 +297,7 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 # case passes it as ``context_data``, which the line below
                 # scopes; but six nodes publish ``/case_id`` as an *output
                 # port* instead (``CaseLookupNode``,
-                # ``ResolveProposalCaseNode``, the replay and case-creation
+                # ``LoadExistingCaseNode``, the replay and case-creation
                 # nodes), and an output port is not ``context_data``, so
                 # without this entry their value outlives the execution that
                 # wrote it.  A later delivery whose own tree names no case —
@@ -309,62 +309,80 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 # never named.  In a single-process run the writer can even
                 # be a different actor's execution (BT-09).
                 "case_id",
-                # The CASE_MANAGER actor for the delivery's case.
-                # ``ResolveCaseManagerNode`` (four code paths, one class)
-                # publishes it; ``ConstructActivitiesNode`` and
-                # ``SendTerminateEmbargoActivityNode`` fall back to it.  A
-                # stale value would route activities for this delivery to a
-                # different case's manager (BT-09, BTND-03-009).
+                # The CASE_MANAGER actor for the case a trigger acts on.
+                # ``ResolveCaseManagerNode`` publishes it, ``None`` on each of
+                # its failure arms (BT-17-003).  ``ConstructActivitiesNode``
+                # and ``SendTerminateEmbargoActivityNode`` read it strictly,
+                # and ``EmitCloseCaseNode`` reads it if present.  Strict does
+                # not help against a stale value, which is present: a previous
+                # execution's manager would address this execution's
+                # activities to another case's manager (BT-09, BTND-03-009).
                 "case_manager_id",
-                # The CASE_MANAGER's actor id for the delivery's case,
-                # published by three different classes:
-                # ``FindCaseActorNode`` (sync replay divergence),
-                # ``ReceivedPathNode`` (received-path gate), and
-                # ``CheckIsCaseManagerNode`` (manager-role condition).
-                # Readers are ``GenesisAnnounceNode`` and ``ReplaySendNode``.
-                # A stale value from a previous execution — potentially a
-                # different actor's — would cause genesis or replay activities
-                # to be addressed to the wrong actor (BT-09, BTND-03-009).
+                # The CASE_MANAGER's actor id, published by
+                # ``FindCaseActorNode`` (replay), ``ReceivedPathNode`` (path
+                # stage) and ``CheckIsCaseManagerNode`` (manager-role guard),
+                # and read by ``AnnounceCaseOnGenesisRejectNode`` and
+                # ``SendMissingEntriesNode``.  A previous execution's value,
+                # possibly another actor's, would address a genesis Announce
+                # or a replay to the wrong actor (BT-09, BTND-03-009).
                 "case_actor_id",
-                # --- Keys audited and recorded as deliberately NOT scoped ---
+                # --- Output-port keys audited and deliberately NOT scoped ---
                 #
-                # The following multi-writer output-port keys are NOT in this
-                # list because the writer always runs before the reader in the
-                # same execution tree (intra-tree keys).  If the writer fails,
-                # the Sequence short-circuits before the reader ticks, so a
-                # stale value is never read.
+                # Each key below has more than one writer, but no reader can
+                # see a value an earlier execution left: on every path that
+                # reaches a reader, a writer in the same execution ticks first
+                # and writes the key, or a sentinel, before the reader runs.
+                # Nor does any nested execute_with_setup run between a writer
+                # and its reader.  Adding a reader that a writer does not
+                # precede on every path means adding the key here.
                 #
-                # ``activity_ids`` — ConstructActivitiesNode (3 code paths,
-                #   one class) → QueueToOutboxNode; both always in the same
-                #   Sequence in send_tree.py and embargo trigger_tree.
+                # ``activity_ids`` — ConstructActivitiesNode (``None`` on its
+                #   failure arms) → QueueToOutboxNode, its next sibling in the
+                #   send tree and the embargo proposal and termination trees.
                 #
-                # ``tail_hash`` / ``tail_index`` — ReconstructChainTailNode
-                #   (2 code paths including the sentinel "" / -1 on failure)
-                #   → CreateLogEntryNode / CheckHashMatchesNode /
-                #   BufferOutOfOrderEntryNode; all in the same execution tree
-                #   in commit_tree.py and announce_tree/factory.py.
+                # ``tail_hash`` / ``tail_index`` — ReconstructChainTailNode →
+                #   CreateLogEntryNode in the commit tree, and in the announce
+                #   tree CheckHashMatchesNode, BufferOutOfOrderEntryNode and
+                #   SendRejectLogEntryNode.  One reader runs after the writer
+                #   FAILS: ReconstructOrRejectOnMissingCase is a Selector whose
+                #   SendGenesisRejectOnMissingCaseNode arm reads tail_hash.  It
+                #   is safe because the writer stores the "" / -1 sentinel
+                #   before returning FAILURE on the pre-genesis path.  Its only
+                #   other FAILURE, a missing datalayer, makes that arm raise
+                #   before it sends, and an unresolvable case id raises.
                 #
-                # ``log_entry`` / ``log_entry_preexisting`` — CreateLogEntryNode
-                #   (2 code paths: existing entry vs. new entry) →
-                #   PersistLogEntryNode / FanoutNewLogEntryNode; same
-                #   Sequence in commit_tree.py.
+                # ``log_entry`` / ``log_entry_preexisting`` —
+                #   CreateLogEntryNode (both arms write both keys) →
+                #   PersistLogEntryNode and FanOutLogEntryNode, its later
+                #   siblings in the commit tree.
                 #
                 # ``invitee_case`` — CheckInviteeNotAlreadyParticipantNode
-                #   (2 code paths, one class) → _CheckEmbargoActiveStateNode /
-                #   _SignEmbargoConsentLeafNode; always in the same
-                #   accept_invite_tree.py execution.
+                #   (``None`` on its duplicate arm), a precondition guard of
+                #   the accept-invite tree → _CheckEmbargoActiveStateNode and
+                #   _SignEmbargoConsentLeafNode, manager effects that run only
+                #   after every guard has passed.
                 #
                 # ``admission_record_was_prior`` — RecordProposalAdmissionNode
-                #   (2 code paths, one class); no downstream get_input readers
-                #   found.
+                #   (both SUCCESS arms write it) → LoadExistingCaseNode, which
+                #   runs right after it in the same ActTransaction of the
+                #   case-proposal tree.
                 #
-                # ``participant`` — LookupParticipantNode writes /participant,
-                #   FindParticipantByActorIdNode usually writes to a
-                #   caller-supplied key (e.g. /sender_participant); no
-                #   get_input("participant") readers found downstream.
+                # ``activity_id`` — _BuildCreateCaseActivityNode →
+                #   UpdateActorOutbox, its next sibling in the create-case
+                #   trigger tree.  The other writer, CreateCaseActivity, is in
+                #   no tree today.
                 #
-                # ``activity_id`` — _BuildCreateCaseActivityNode → UpdateActorOutbox
-                #   always in the same Sequence in create_case_trigger_tree.py.
+                # ``participant`` — LookupParticipantNode and
+                #   FindParticipantByActorIdNode (whose key a caller may
+                #   rename, as the sender guard does); nothing reads
+                #   ``/participant``.
+                #
+                # ``/ledger_position/case_id`` and
+                #   ``/ledger_position/case_actor_id`` — the scoped copies the
+                #   ledger-position stage's FindCaseActorNode writes →
+                #   ReplayMissingEntriesNode, its next sibling in that stage.
+                #   They are kept off the root keys so the act's own nodes
+                #   never read them.
             ]
             # setup_tree() also writes /activity (when one is supplied) and one
             # key per **context_data entry, so those are execution-scoped for
