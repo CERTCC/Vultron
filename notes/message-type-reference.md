@@ -183,7 +183,7 @@ how-to tree.
 ## Occasions (ADR-0128, MSM-08)
 
 - Occasions are declared on `SemanticEntry` (value objects in
-  `vultron/semantic_registry/_occasion.py`), and `MappingStatus` and the
+  the `vultron/semantic_registry/_occasion/` package), and `MappingStatus` and the
   discriminator are derived from them by `vultron/metadata/msm/_mapping/`; do
   not enter either by hand.
 - **An occasion names its example by `vocab_examples` function name**, not by
