@@ -1558,7 +1558,7 @@ groups:
       emission a composable side-effect, consistent with protocol-significant
       behavior living in the tree (BTND-01).
     verification: >
-      Inspection of `vultron/core/behaviors/sync/announce_tree.py` confirms the
+      Inspection of `vultron/core/behaviors/sync/announce_tree/` confirms the
       fault is emitted by `EmitImpossibleStateFaultNode`, the fallback child of
       the `ApplyOrFault` Selector whose first child is
       `ApplyParticipantStatusFromLedgerNode`, so the apply node only returns

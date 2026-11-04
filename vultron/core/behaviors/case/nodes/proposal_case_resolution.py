@@ -19,7 +19,7 @@
 Resolve which ``VulnerabilityCase`` a ``Create(CaseProposal)`` applies
 to (reuse an existing one or create a new one) and persist the report the
 proposal carried inline. Composed by ``create_case_proposal_received_tree``
-in the sibling ``case_proposal_received_tree.py`` (BTND-07-003).
+in the sibling ``case_proposal_received_tree/`` (BTND-07-003).
 """
 
 import logging
