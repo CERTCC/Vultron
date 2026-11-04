@@ -1308,6 +1308,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-009
       note: 'EK shorthand wire-type mapping'
+    - rel_type: uses_definition
+      spec_id: EP-09-009
     stories:
     - story_2026_006
 
