@@ -30,7 +30,7 @@ from vultron.core.states.cs import (
 )
 from vultron.core.states.em import is_em_embargo_active
 from vultron.core.states.rm import RM
-from vultron.demo.helpers.seeding.actors import _dl_key
+from vultron.demo.helpers.seeding.actors import dl_key
 from vultron.demo.helpers.verification.participants import (
     _fetch_participant,
     _fetch_participant_data,
@@ -60,7 +60,7 @@ def _assert_vendor_participant_state(
             RM state is not ``RM.ACCEPTED``.
     """
     participant = as_CaseParticipant(
-        **vendor_client.get(vendor_client.dl_path(_dl_key(participant_id)))
+        **vendor_client.get(vendor_client.dl_path(dl_key(participant_id)))
     )
     latest = participant.participant_status
     if latest is None:

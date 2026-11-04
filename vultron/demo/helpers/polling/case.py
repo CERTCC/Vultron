@@ -32,7 +32,7 @@ from vultron.demo.helpers.polling._poll import (
     _client_in,
     _poll_until,
 )
-from vultron.demo.helpers.seeding.actors import _dl_key
+from vultron.demo.helpers.seeding.actors import dl_key
 from vultron.demo.utils import (
     DataLayerClient,
     case_actor_id_for_report,
@@ -435,7 +435,7 @@ def wait_for_pending_inbox_quiescent(
 
     def _check() -> bool:
         try:
-            data = client.get(client.dl_path(_dl_key(pending_id)))
+            data = client.get(client.dl_path(dl_key(pending_id)))
             if not data:
                 return True
             activity_ids = data.get("activity_ids", [])

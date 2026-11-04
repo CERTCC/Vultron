@@ -30,7 +30,7 @@ role is read from the canonical case in the CaseActor's own store
 
 from collections.abc import Mapping
 
-from vultron.demo.helpers.seeding.actors import _dl_key
+from vultron.demo.helpers.seeding.actors import dl_key
 from vultron.demo.utils import DataLayerClient
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoScenarioStepError
@@ -125,7 +125,7 @@ def require_case_role(
             f"in case {case_id!r}, so it holds no {role.name} role there "
             "(DEMOCI-11-047)."
         )
-    participant = _read(case_actor_client, _dl_key(participant_id))
+    participant = _read(case_actor_client, dl_key(participant_id))
     roles = _field(participant, "caseRoles", "case_roles")
     if not isinstance(roles, list):
         raise _unreadable(participant_id, "has no list of case roles")
@@ -169,7 +169,7 @@ def require_report_submitter(
     for report in reports:
         author = _author(report)
         if author is None and (report_id := _ref_id(report)) is not None:
-            author = _author(_read(case_actor_client, _dl_key(report_id)))
+            author = _author(_read(case_actor_client, dl_key(report_id)))
         authors.append(author)
     if actor_id not in authors:
         raise DemoScenarioStepError(
