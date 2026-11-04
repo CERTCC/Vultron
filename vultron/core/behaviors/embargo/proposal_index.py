@@ -43,7 +43,9 @@ def record_embargo_proposal_index(
 
     With *overwrite* ``False`` an existing entry is kept: a replica replaying
     a proposal from the ledger must not displace the Invite actually
-    addressed to it (EP-09-007).
+    addressed to it (EP-09-007).  A proposal the case has already decided is
+    not recorded, so an Invite that arrives after its decision leaves the
+    index as it would be had it arrived first (EP-08-003, SYNC-19-001).
 
     Returns:
         ``True`` when the index changed and the case was saved.
@@ -54,6 +56,8 @@ def record_embargo_proposal_index(
     case = dl.read_case(case_id)
     if case is None:
         raise VultronNotFoundError("VulnerabilityCase", case_id)
+    if not case.undecided_proposals({embargo_id: proposal_id}):
+        return False
     current = case.pending_embargo_proposal_index.get(embargo_id)
     if current == proposal_id or (current is not None and not overwrite):
         return False

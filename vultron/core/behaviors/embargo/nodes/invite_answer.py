@@ -255,12 +255,18 @@ class SendEmbargoInviteAnswerNode(_SendEmbargoActivityBase):
         self, actor_id: str, invite_id: str, case_manager_id: str
     ) -> tuple[str, object]:
         assert self.trigger_activity_factory is not None
-        build = (
-            self.trigger_activity_factory.accept_embargo
-            if self._accept
-            else self.trigger_activity_factory.reject_embargo
-        )
-        return build(
+        factory = self.trigger_activity_factory
+        if self._accept:
+            # The automatic answer is one activity per Invite, so a
+            # re-delivered Invite cannot queue a second one (ID-04-004).
+            return factory.accept_embargo(
+                proposal_id=invite_id,
+                case_id=self._case_id,
+                actor=actor_id,
+                to=[case_manager_id],
+                derived_id=True,
+            )
+        return factory.reject_embargo(
             proposal_id=invite_id,
             case_id=self._case_id,
             actor=actor_id,

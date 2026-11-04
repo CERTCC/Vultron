@@ -52,6 +52,7 @@ from vultron.core.behaviors.embargo.nodes import (
     SendEmbargoInviteAnswerNode,
     SendOwnerEmbargoDecisionNode,
     case_manager_admits_proposal_guard,
+    invitee_not_yet_answered_guard,
 )
 from vultron.core.behaviors.embargo.nodes.manager_consent import (
     record_manager_embargo_consent_tree,
@@ -132,9 +133,14 @@ def invite_to_embargo_on_case_tree(
     ``actor`` is the role holder, and ``attributedTo`` is the proposer.
 
     **Either arm is preceded by an idempotency guard**: the same Invite
-    delivered again (``pending_embargo_proposal_index`` already maps the
-    embargo to this Invite's id) commits nothing and the handler reports it
-    as a repeat (CLP-13-001, HP-01-003).  At the CASE_MANAGER a proposal of
+    delivered again while its proposal is open
+    (``pending_embargo_proposal_index`` already maps the embargo to this
+    Invite's id) commits nothing and the handler reports it as a repeat
+    (CLP-13-001, HP-01-003).  The index holds no decided proposal
+    (EP-08-003), so on the participant path a second guard,
+    :class:`~vultron.core.behaviors.embargo.nodes.relay_guards.EmbargoInviteNotYetAnsweredNode`,
+    skips an Invite the invitee has already answered, however its proposal
+    has moved since (ID-04-004, SYNC-19-001).  At the CASE_MANAGER a proposal of
     terms the case already holds — the end time of a pending proposal, or,
     with no revision pending, of the embargo in force — is a repeat too,
     whatever its ids and sender (EP-09-032).  Each arm ends by writing that
@@ -251,6 +257,12 @@ def invite_to_embargo_on_case_tree(
                 invitee_id=invitee_id,
                 sender_id=sender_actor_id,
                 embargo=embargo,
+            ),
+            # The invitee answers one Invite once, decided or not (ID-04-004).
+            # After the P/X/A refusal, whose own guard re-queues a sealed
+            # Reject (ID-04-005).
+            invitee_not_yet_answered_guard(
+                invitee_id=invitee_id, invite_id=invite_id
             ),
             # EM admits the proposal, and its terms are new: a proposal of
             # terms the case already holds, under whatever ids and from

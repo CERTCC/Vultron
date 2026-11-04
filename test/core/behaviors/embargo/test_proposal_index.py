@@ -19,6 +19,7 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import activate, register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.proposal_index import (
     record_embargo_proposal_index,
@@ -82,6 +83,36 @@ def test_without_overwrite_an_absent_entry_is_recorded(
         dl, CASE_ID, EMBARGO_ID, "urn:proposal", overwrite=False
     )
     assert _index(dl) == {EMBARGO_ID: "urn:proposal"}
+
+
+@pytest.mark.spec("EP-08-003")
+@pytest.mark.parametrize("overwrite", [True, False])
+def test_a_decided_proposal_is_not_indexed(
+    dl: SqliteDataLayer, overwrite: bool
+) -> None:
+    """An Invite for an embargo that has left ``PROPOSED`` is not open."""
+    case = cast(VulnerabilityCase, dl.read(CASE_ID))
+    activate(case, EMBARGO_ID)
+    dl.save(case)
+
+    changed = record_embargo_proposal_index(
+        dl, CASE_ID, EMBARGO_ID, "urn:late-invite", overwrite=overwrite
+    )
+
+    assert changed is False
+    assert _index(dl) == {}
+
+
+@pytest.mark.spec("EP-08-003")
+def test_an_open_proposal_on_the_register_is_indexed(
+    dl: SqliteDataLayer,
+) -> None:
+    case = cast(VulnerabilityCase, dl.read(CASE_ID))
+    case.embargo_register = register(proposed=[EMBARGO_ID])
+    dl.save(case)
+
+    assert record_embargo_proposal_index(dl, CASE_ID, EMBARGO_ID, "urn:p")
+    assert _index(dl) == {EMBARGO_ID: "urn:p"}
 
 
 def test_an_unknown_case_raises(dl: SqliteDataLayer) -> None:
