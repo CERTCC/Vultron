@@ -54,8 +54,17 @@ _ANY_OF = "AnyOfSenderKinds"
 _COMPOSED_GUARD_MARK = "_vultron_composed_sender_guard"
 
 
-def _is_composed_guard(node: py_trees.behaviour.Behaviour) -> bool:
-    """*node* is the guard :func:`compose_sender_guard` returned."""
+def is_composed_sender_guard(node: py_trees.behaviour.Behaviour) -> bool:
+    """*node* is the guard :func:`compose_sender_guard` returned.
+
+    Read from the mark the factory set, so the guard is known by its origin
+    and not by its name, its type, or the checks inside it.  That is what
+    the levels ratchet asks of a door: a composed guard reads the level of
+    every refusal inside it from its own placement (SL-03-002), whether or
+    not any check in it happens to be a
+    :class:`~vultron.core.behaviors.sender_entitlement.SenderEntitlementConditionNode`
+    (#5786).
+    """
     return getattr(node, _COMPOSED_GUARD_MARK, False) is True
 
 
@@ -71,7 +80,7 @@ def sender_guard_refused(root: py_trees.behaviour.Behaviour) -> bool:
     """
     for child in root.children:
         if child.status is Status.FAILURE:
-            return _is_composed_guard(child)
+            return is_composed_sender_guard(child)
     return False
 
 

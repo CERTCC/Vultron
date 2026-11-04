@@ -58,7 +58,10 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.services.held_ledger_announces import held_ledger_announces
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
+from vultron.core.states.embargo_register import (
+    EmbargoRegisterStatus,
+    TerminationReason,
+)
 from vultron.core.use_cases.received.embargo import (
     InviteToEmbargoOnCaseReceivedUseCase,
 )
@@ -408,17 +411,9 @@ def test_an_invite_redelivered_after_a_changed_answer_sends_no_accept(
     dl.close()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "SYNC-19-001: a paused signatory applies the Remove of a revision"
-        " only while that revision is in force, so a Remove that overtakes"
-        " its Announce is skipped and the revision is left ACTIVE. Tracked"
-        " by #5201."
-    ),
-)
 @pytest.mark.spec("SYNC-19-001")
 @pytest.mark.spec("SYNC-19-002")
+@pytest.mark.spec("CM-31-042")
 def test_paused_signatory_ending_notices_converge_in_either_order() -> None:
     """``Announce(R1)`` then ``Remove(R1)`` ends the same in either order."""
     outcomes = {}
@@ -451,11 +446,27 @@ def test_paused_signatory_ending_notices_converge_in_either_order() -> None:
         outcomes[announce_first] = (
             case.current_status.em.state,
             case.active_embargo_id,
+            tuple(
+                (entry.embargo_id, entry.status)
+                for entry in case.embargo_register
+            ),
+            tuple(
+                (row.embargo_id, row.state)
+                for row in replica.record().embargo_consents
+            ),
         )
         replica.dl.close()
 
-    # The Remove ends the revision, in either order.
-    assert outcomes[True] == (EM.EXITED, None)
+    # The Remove ends the revision, in either order: R0 superseded by R1,
+    # and R1 terminated, with the same consent rows.
+    assert outcomes[True][:3] == (
+        EM.EXITED,
+        None,
+        (
+            (notices.EMBARGO_ID, EmbargoRegisterStatus.SUPERSEDED),
+            (notices.REVISION_ID, EmbargoRegisterStatus.TERMINATED),
+        ),
+    )
     assert outcomes[True] == outcomes[False]
 
 

@@ -25,7 +25,7 @@ import logging
 import pkgutil
 from collections.abc import Callable
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, get_args
 
 import py_trees
 import pytest
@@ -69,11 +69,15 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
     any_of,
     failure_is_the_refusal,
+    in_declaration_order,
+    refuse_by_placement,
 )
 from vultron.core.behaviors.sender_guard import (
     AddresseeRequest,
     AuthoredCaseProposal,
     AuthoredNote,
+    AuthoredObject,
+    AuthoredParticipantRecord,
     CaseProposalRequest,
     LedgerActivityContext,
     OwnershipOfferRequest,
@@ -1340,6 +1344,12 @@ def test_sender_guard_refused_names_only_the_sender_guards_refusal(
 # ---------------------------------------------------------------------------
 
 
+#: The one function every sender check logs its refusal reason from
+#: (``refuse_by_placement``), so a line is recognised by the rule that chose
+#: its level rather than by its node class or its wording (#5786).
+_REFUSAL_FUNC = refuse_by_placement.__name__
+
+
 def _refusal_lines(
     caplog: pytest.LogCaptureFixture, node_class: type
 ) -> list[logging.LogRecord]:
@@ -1352,7 +1362,16 @@ def _refusal_lines(
     return [
         record
         for record in caplog.records
-        if record.name == name and record.funcName == "_refuse_by_placement"
+        if record.name == name and record.funcName == _REFUSAL_FUNC
+    ]
+
+
+def _all_refusal_lines(
+    caplog: pytest.LogCaptureFixture,
+) -> list[logging.LogRecord]:
+    """Every line any sender check logged from the shared refusal helper."""
+    return [
+        record for record in caplog.records if record.funcName == _REFUSAL_FUNC
     ]
 
 
@@ -1534,6 +1553,229 @@ def test_every_declared_side_places_the_case_manager_check_knowingly() -> None:
     assert final, "no declared side names CASE_MANAGER alone"
     assert [row for row, ok in overruled.items() if not ok] == []
     assert [row for row, ok in final.items() if not ok] == []
+
+
+# ---------------------------------------------------------------------------
+# One refusal per refused sender, on every declared any-of side (#5786)
+# ---------------------------------------------------------------------------
+
+
+def _multi_kind_sides() -> list[tuple[str, str, SenderRule]]:
+    """Every (use case, side, rule) whose side names more than one kind.
+
+    Derived from ``SEMANTIC_REGISTRY``, not from a list, so a rule that gains
+    a kind joins the subjects and one that loses one leaves them.  The
+    CASE_MANAGER pair ``{CASE_OWNER, CASE_MANAGER}`` the first version of this
+    assertion used is the one pair whose non-last arm already logged nothing
+    above DEBUG, so it could not have failed (#5786).
+    """
+    sides = ("at_case_manager", "at_participant", "outside_case")
+    found: dict[tuple[str, str], SenderRule] = {}
+    for entry in SEMANTIC_REGISTRY:
+        use_case = entry.use_case_class
+        rule = getattr(use_case, "sender_entitlement", None)
+        if use_case is None or not isinstance(rule, SenderRule):
+            continue
+        for side in sides:
+            if len(getattr(rule, side)) > 1:
+                found.setdefault((use_case.__name__, side), rule)
+    return [(name, side, found[name, side]) for name, side in sorted(found)]
+
+
+#: The authored objects an ``AUTHOR`` side is ticked with: the factory picks a
+#: different check for each (``_author_node``), so a side naming ``AUTHOR`` is
+#: ticked once per shape rather than once for a guessed one.  ``AuthoredObject``
+#: has a third member, ``AuthoredCaseProposal``, left out for the reason
+#: ``test_every_authored_shape_is_ticked_or_excused`` states and pins.
+_AUTHORED_SHAPES: dict[str, AuthoredNote | AuthoredParticipantRecord] = {
+    "note": AuthoredNote(note_id=NOTE_ID),
+    "participant-record": AuthoredParticipantRecord(
+        participant_id=_VENDOR_PARTICIPANT_ID
+    ),
+}
+
+
+#: The authored object a side's ``AUTHOR`` kind is asked about, or ``None`` on
+#: a side that names no ``AUTHOR`` kind.
+_AuthoredShape = AuthoredNote | AuthoredParticipantRecord | None
+
+
+def _any_of_side_rows() -> list[tuple[str, SenderRule, str, _AuthoredShape]]:
+    """Every any-of side to tick, with the authored object its kinds need."""
+    rows: list[tuple[str, SenderRule, str, _AuthoredShape]] = []
+    for name, side, rule in _multi_kind_sides():
+        if Kind.AUTHOR in getattr(rule, side):
+            rows.extend(
+                (f"{name}.{side}[{label}]", rule, side, authored)
+                for label, authored in _AUTHORED_SHAPES.items()
+            )
+        else:
+            rows.append((f"{name}.{side}", rule, side, None))
+    return rows
+
+
+def _receiver_for(side: str) -> str:
+    """The actor whose store judges *side*'s arm of a two-sided rule."""
+    return VENDOR if side == "at_participant" else MANAGER
+
+
+@pytest.mark.spec("HP-01-009", "SL-03-002")
+def test_every_authored_shape_is_ticked_or_excused() -> None:
+    """``_AUTHORED_SHAPES`` covers every authored object but the excused one.
+
+    ``_author_node`` dispatches on the authored object's type, so a member of
+    ``AuthoredObject`` that ``_AUTHORED_SHAPES`` does not carry is an
+    ``AUTHOR`` arm whose log level the test below never asserts — and it would
+    go unverified in silence rather than failing (#5535).  Asked of the union
+    itself, so a fourth member fails here and has to be decided.
+
+    ``AuthoredCaseProposal`` is the one excused, because ticking it would
+    assert the wrong thing: ``SenderIsProposalAuthorNode`` returns SUCCESS for
+    a sender the store records no proposer for, so the side would admit the
+    stranger and the refusal this test is about would never happen.  The only
+    side naming that shape is a lone ``AUTHOR`` side, whose arm is the guard's
+    whole answer, so its level is WARNING either way.
+    """
+    excused = {AuthoredCaseProposal}
+    assert (
+        set(get_args(AuthoredObject))
+        == {type(shape) for shape in _AUTHORED_SHAPES.values()} | excused
+    )
+
+
+@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002", "SL-03-003")
+def test_every_any_of_side_logs_one_refusal_for_a_sender_it_refuses(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A sender no arm of an any-of side admits gets one WARNING, and it is
+    the side's last arm naming every standing the side accepts (BT-13-001).
+
+    Asked of every multi-kind side ``SEMANTIC_REGISTRY`` declares rather than
+    of one chosen pair, because the pair the first version of this assertion
+    chose was the only one whose earlier arms were already quiet: for the
+    other four the same assertion saw two WARNINGs (#5786).  Each arm that
+    did log is recorded per side, so no subject is lost to a count (#3984).
+    """
+    stores: dict[str, BTTestScenario] = {}
+    rows = _any_of_side_rows()
+    assert len(rows) > 1, "no declared side names more than one kind"
+    warnings: dict[str, list[str]] = {}
+    overruled: dict[str, list[tuple[int, bool]]] = {}
+    for label, rule, side, authored in rows:
+        guard = compose_sender_guard(
+            rule,
+            SenderCheckContext(
+                sender_id=STRANGER,
+                case_id=None if side == "outside_case" else CASE_ID,
+                invite_id="https://example.org/activities/invite",
+                request=CaseProposalRequest(report_id=REPORT_ID),
+                authored_object=authored,
+            ),
+        )
+        assert guard is not None, f"{label} composed no guard"
+        receiver = _receiver_for(side)
+        if receiver not in stores:
+            # One store per receiver: seeding a second store for the same
+            # actor id in one test re-creates its participant records.
+            stores[receiver] = _store(receiver)
+        scenario = stores[receiver]
+        caplog.clear()
+        with caplog.at_level(logging.DEBUG):
+            result = scenario.run(
+                guard, activity=SimpleNamespace(actor_id=STRANGER)
+            )
+        assert result.status == Status.FAILURE, label
+        warnings[label] = _refusals_logged(caplog)
+        # Every other arm that logged: its level, and whether its line still
+        # claims a refusal.  Both must be (DEBUG, no REFUSED) — SL-03-003.
+        overruled[label] = [
+            (record.levelno, "REFUSED" in record.getMessage())
+            for record in _all_refusal_lines(caplog)
+            if not record.name.endswith(SenderHoldsNoneOfNode.__name__)
+        ]
+        kinds = ", ".join(
+            kind.name for kind in in_declaration_order(getattr(rule, side))
+        )
+        assert BTBridge.get_failure_reason(guard) == (
+            "Sender holds none of the standings this activity accepts"
+            f" ({kinds}) — REFUSED (HP-01-006, HP-01-023)"
+        ), label
+
+    assert {
+        label: lines for label, lines in warnings.items() if len(lines) != 1
+    } == {}, "a refused sender drew more than one WARNING"
+    assert {
+        label: lines
+        for label, lines in warnings.items()
+        if "none of the standings" not in lines[0]
+    } == {}, "the one WARNING is not the arm naming every standing"
+    # Before judging the overruled arms' levels, require that some arm was
+    # overruled at all: `any()` over an empty list is False, so a DEBUG branch
+    # that went silent would pass the next assertion while proving nothing of
+    # SL-03-003 (the demoted arm must still record its reason, minus REFUSED).
+    assert {
+        label: seen for label, seen in overruled.items() if not seen
+    } == {}, (
+        "a side logged nothing from an overruled arm, so SL-03-003 is unpinned"
+    )
+    assert {
+        label: seen
+        for label, seen in overruled.items()
+        if any(level != logging.DEBUG or refused for level, refused in seen)
+    } == {}, "an overruled arm logged above DEBUG, or still claimed a refusal"
+
+
+@pytest.mark.spec("CM-23-018", "ID-05-003", "SL-03-001")
+def test_the_closed_sender_check_keeps_its_info_line(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """``SenderClosureNotRecordedNode`` stays at INFO wherever it sits.
+
+    Its FAILURE is not a refusal — the handler reports a repeat of a closing
+    act ``SKIPPED`` (ID-05-003) — so SL-03-002's WARNING-or-DEBUG choice does
+    not apply to it, and the reason is in its docstring.  It carries no
+    ``REFUSED`` wording, so nothing reads it as the tree's answer either
+    (SL-03-003).  Ticked in both placements it has, which
+    ``failure_is_the_refusal`` is asserted to read differently: a level taken
+    from the placement would have moved with them, and this one does not.
+    """
+    scenario = _close_owner(_store(MANAGER))
+    logger_name = (
+        f"{SenderClosureNotRecordedNode.__module__}"
+        f".{SenderClosureNotRecordedNode.__name__}"
+    )
+    seen: dict[str, list[tuple[int, bool]]] = {}
+    for label, rule in (
+        ("lone-side", SenderRule.in_case(Kind.CASE_OWNER)),
+        ("any-of-arm", SenderRule.in_case(Kind.CASE_OWNER, Kind.PARTICIPANT)),
+    ):
+        guard = compose_sender_guard(
+            rule, SenderCheckContext(sender_id=OWNER, case_id=CASE_ID)
+        )
+        assert guard is not None
+        closure = [
+            node
+            for node in guard.iterate()
+            if isinstance(node, SenderClosureNotRecordedNode)
+        ]
+        assert len(closure) == 1, label
+        assert failure_is_the_refusal(closure[0]) is (label == "lone-side")
+        caplog.clear()
+        with caplog.at_level(logging.DEBUG):
+            result = scenario.run(
+                guard, activity=SimpleNamespace(actor_id=OWNER)
+            )
+        assert result.status == Status.FAILURE, label
+        seen[label] = [
+            (record.levelno, "REFUSED" in record.getMessage())
+            for record in caplog.records
+            if record.name == logger_name
+            and "already closed" in record.getMessage()
+        ]
+    assert seen == {
+        "lone-side": [(logging.INFO, False)],
+        "any-of-arm": [(logging.INFO, False)],
+    }
 
 
 class _Leaf(py_trees.behaviour.Behaviour):

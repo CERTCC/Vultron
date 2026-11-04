@@ -24,6 +24,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from test.demo._helpers import (
+    gate_failures,
     mock_case,
     patch_chain_shared,
 )
@@ -33,7 +34,6 @@ from test.demo.owner_decision_story._support import (
     NEWCOMER,
     OWNER,
     SEATED,
-    gate_failures,
     neutral_state,
     no_banners,
 )
@@ -281,9 +281,7 @@ class TestTheOwnerHandsTheCaseOver:
         assert state.case.id_ == "urn:test:case"
         with pytest.raises(DemoStoryError, match="handed over"):
             state.kept(HANDED_OVER_CASE)
-        assert any(
-            "GATE FAILED" in f and "restate" in f for f in _demo_failures
-        ), _demo_failures
+        assert any("restate" in f for f in gate_failures()), _demo_failures
         assert ran["wait_for_case_attributed_to"].called
 
     def test_the_accept_is_skipped_when_the_case_actors_offer_never_arrives(
@@ -507,10 +505,9 @@ class TestTheNewOwnerInvites:
         )
 
         ran["run_case_invite_chain"].assert_not_called()
-        assert any(
-            "GATE FAILED" in f and "no CaseActor participant" in f
-            for f in _demo_failures
-        ), _demo_failures
+        assert any("no CaseActor participant" in f for f in gate_failures()), (
+            _demo_failures
+        )
 
 
 @pytest.mark.spec("CM-21-007")

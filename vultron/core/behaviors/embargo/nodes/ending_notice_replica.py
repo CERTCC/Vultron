@@ -22,7 +22,10 @@ itself — and :class:`ApplyAnnouncedEmbargoRevisionNode` applies a shorter
 revision from the CASE_MANAGER's ``Announce(EmbargoEvent)`` through
 ``EmbargoLifecycle`` (EMB-18-001).  A termination notice is a
 ``Remove(EmbargoEvent)``, which the received teardown tree already applies
-through ``EmbargoLifecycle``.  The sender check that admits only the
+through ``EmbargoLifecycle``; :class:`AdoptRemovedEmbargoRevisionNode` first
+activates the revision it names when that ``Remove`` overtook the revision's
+own ``Announce``, so the notices end the same in either order (SYNC-19-001).
+The sender check that admits only the
 CASE_MANAGER at a replica is the use case's sender guard (ADR-0115,
 PCR-03-001).
 """
@@ -49,7 +52,8 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.errors import VultronError
+from vultron.core.states.embargo_register import FINAL_REGISTER_STATUSES
+from vultron.errors import INTERNAL_FAULTS, VultronError
 
 
 class AwaitsEmbargoEndingNoticeNode(DataLayerConditionWithPorts):
@@ -96,24 +100,16 @@ class AwaitsEmbargoEndingNoticeNode(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
-class ApplyAnnouncedEmbargoRevisionNode(
+class _ObservedRevisionActivationNode(
     DataLayerActionWithPorts, StateWriteCapable
 ):
-    """Apply a shorter revision a paused replica was told of (CM-31-010).
+    """Shared base: activate a revision the CASE_MANAGER told a paused replica of.
 
-    The CASE_MANAGER's ``Announce(EmbargoEvent)`` notice names the revision
-    now in force.  When it ends no later than the replica's active embargo,
-    the node stores the announced ``EmbargoEvent`` (when carried inline and
-    not yet held, EMB-18-003) and activates it through
-    ``EmbargoLifecycle.activate_embargo`` in ``OBSERVED`` mode (EMB-18-001),
-    which carries the replica's signatories over as the CASE_MANAGER did
-    (EP-05-003).
-
-    Nothing is written, and the node succeeds, when the replica has no
-    embargo in force, already has the announced one, or the announced one
-    ends later: none of those is a shortening this replica is bound by.
-    ``applied`` says whether the revision was applied.  An announced embargo
-    that belongs to another case, or that cannot be read, fails the node.
+    Holds the inline ``EmbargoEvent`` the notice carries (EMB-18-003) and
+    activates it through ``EmbargoLifecycle.activate_embargo`` in
+    ``OBSERVED`` mode (EMB-18-001), which supersedes the embargo in force and
+    carries its signatories over as the CASE_MANAGER did (EP-05-003).
+    ``applied`` says whether this tick activated the revision.
     """
 
     def __init__(
@@ -145,50 +141,30 @@ class ApplyAnnouncedEmbargoRevisionNode(
             self._embargo if self._embargo is not None else self.embargo_id,
         )
 
-    def update(self) -> Status:
-        self.applied = False
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        datalayer = cast(CasePersistence, self.datalayer)
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure
-        current = case.active_embargo_id
-        if current is None or current == self.embargo_id:
-            self.feedback_message = (
-                f"Case '{self.case_id}' has {current!r} in force — the"
-                f" announced embargo '{self.embargo_id}' changes nothing"
-            )
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
+    def _no_change(self, message: str) -> Status:
+        self.feedback_message = message
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
+
+    def _activate(
+        self, datalayer: CasePersistence, current: str, why: str
+    ) -> Status:
+        """Activate the revision in place of *current*; FAILURE on refusal."""
         try:
-            self._hold_announced_embargo(datalayer, case)
-            notice = embargo_ending_notice(
-                datalayer, before=current, after=self.embargo_id
-            )
-            if notice is None:
-                self.feedback_message = (
-                    f"Announced embargo '{self.embargo_id}' ends later than"
-                    f" '{current}' on case '{self.case_id}' — not a"
-                    " shortening, ignored (CM-31-030)"
-                )
-                self.logger.warning("%s: %s", self.name, self.feedback_message)
-                return Status.SUCCESS
             result = EmbargoLifecycle(persistence=datalayer).activate_embargo(
                 case_id=self.case_id,
                 embargo_id=self.embargo_id,
                 actor_id=self.actor_id,
                 transition_mode=TransitionMode.OBSERVED,
             )
+        except INTERNAL_FAULTS:
+            raise  # never a refusal, so never answered (ADR-0095)
         except VultronError as exc:
-            self.feedback_message = str(exc)
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+            return self._refuse(exc)
         self.applied = True
         self.feedback_message = (
-            f"Applied shorter revision '{self.embargo_id}' (replacing"
-            f" '{current}') on case '{self.case_id}' from the CASE_MANAGER's"
-            " notice (CM-31-010)"
+            f"Applied revision '{self.embargo_id}' (replacing '{current}') on"
+            f" case '{self.case_id}' {why}"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         if result.em_after != result.em_before:
@@ -201,8 +177,127 @@ class ApplyAnnouncedEmbargoRevisionNode(
             )
         return Status.SUCCESS
 
+    def _refuse(self, exc: VultronError) -> Status:
+        self.feedback_message = str(exc)
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
+class ApplyAnnouncedEmbargoRevisionNode(_ObservedRevisionActivationNode):
+    """Apply a shorter revision a paused replica was told of (CM-31-010).
+
+    The CASE_MANAGER's ``Announce(EmbargoEvent)`` notice names the revision
+    now in force.  When it ends no later than the replica's active embargo,
+    the node stores the announced ``EmbargoEvent`` (when carried inline and
+    not yet held, EMB-18-003) and activates it through
+    ``EmbargoLifecycle.activate_embargo`` in ``OBSERVED`` mode (EMB-18-001),
+    which carries the replica's signatories over as the CASE_MANAGER did
+    (EP-05-003).
+
+    Nothing is written, and the node succeeds, when the replica has no
+    embargo in force, already has the announced one, or the announced one
+    ends later: none of those is a shortening this replica is bound by.
+    ``applied`` says whether the revision was applied.  An announced embargo
+    that belongs to another case, or that cannot be read, fails the node.
+    """
+
+    def update(self) -> Status:
+        self.applied = False
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        datalayer = cast(CasePersistence, self.datalayer)
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure
+        current = case.active_embargo_id
+        if current is None or current == self.embargo_id:
+            return self._no_change(
+                f"Case '{self.case_id}' has {current!r} in force — the"
+                f" announced embargo '{self.embargo_id}' changes nothing"
+            )
+        try:
+            self._hold_announced_embargo(datalayer, case)
+            notice = embargo_ending_notice(
+                datalayer, before=current, after=self.embargo_id
+            )
+        except INTERNAL_FAULTS:
+            raise  # never a refusal, so never answered (ADR-0095)
+        except VultronError as exc:
+            return self._refuse(exc)
+        if notice is None:
+            self.feedback_message = (
+                f"Announced embargo '{self.embargo_id}' ends later than"
+                f" '{current}' on case '{self.case_id}' — not a"
+                " shortening, ignored (CM-31-030)"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+        return self._activate(
+            datalayer,
+            current,
+            "from the CASE_MANAGER's shorter-revision notice (CM-31-010)",
+        )
+
+
+class AdoptRemovedEmbargoRevisionNode(_ObservedRevisionActivationNode):
+    """Activate the revision a paused replica's ``Remove`` names, if unseen.
+
+    The CASE_MANAGER terminates only the embargo in force, so a
+    ``Remove(EmbargoEvent)`` notice (CM-31-009) naming a revision this
+    paused replica has not activated means that revision replaced the
+    replica's embargo.  Either its ``Announce`` (CM-31-030) has not arrived
+    yet, since per-recipient order is no guarantee (SYNC-19-003), or it was
+    a longer revision, for which no ``Announce`` is owed.  The node
+    activates that revision first, so the teardown that follows terminates
+    it and the replica ends the same whichever notice arrives first
+    (SYNC-19-001); a late ``Announce`` then finds no embargo in force and
+    changes nothing.
+
+    It runs ahead of the teardown in the paused replica's arm only.  Nothing
+    is written, and the node succeeds, when the replica has no embargo in
+    force, the named embargo is the one in force, or the register holds the
+    named embargo at a status no activation leaves (``SUPERSEDED``,
+    ``TERMINATED``, ``REJECTED``, ``CANCELLED``): such a ``Remove`` is stale
+    and changes nothing (ADR-0122).  A named embargo that belongs to another
+    case, or that cannot be read, fails the node.
+    """
+
+    def update(self) -> Status:
+        self.applied = False
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        datalayer = cast(CasePersistence, self.datalayer)
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure
+        current = case.active_embargo_id
+        if current is None or current == self.embargo_id:
+            return self._no_change(
+                f"Case '{self.case_id}' has {current!r} in force — nothing to"
+                f" adopt before removing '{self.embargo_id}'"
+            )
+        entry = case.embargo_register_entry(self.embargo_id)
+        if entry is not None and entry.status in FINAL_REGISTER_STATUSES:
+            return self._no_change(
+                f"Embargo '{self.embargo_id}' is {entry.status} on case"
+                f" '{self.case_id}' — a stale Remove changes nothing"
+            )
+        try:
+            self._hold_announced_embargo(datalayer, case)
+        except INTERNAL_FAULTS:
+            raise  # never a refusal, so never answered (ADR-0095)
+        except VultronError as exc:
+            return self._refuse(exc)
+        return self._activate(
+            datalayer,
+            current,
+            "ahead of the CASE_MANAGER's termination notice, which names a"
+            " revision not yet applied here (CM-31-042, SYNC-19-001)",
+        )
+
 
 __all__ = [
+    "AdoptRemovedEmbargoRevisionNode",
     "ApplyAnnouncedEmbargoRevisionNode",
     "AwaitsEmbargoEndingNoticeNode",
 ]

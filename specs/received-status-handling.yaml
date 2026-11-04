@@ -60,7 +60,7 @@ groups:
       When the CASE_MANAGER adopts the `CaseStatus` that a sender's `ParticipantStatus`
       embeds, it MUST record the post-adoption `CaseStatus` in the canonical case
       ledger. It records nothing when the adoption changes neither EM nor PXA
-      (RSH-04-004).
+      (RSH-04-009).
     rationale: >-
       Adoption is the only path that moves the P, X or A state of a participant into the
       case status (RSH-04-005). Replicas learn the adopted status only from the ledger,
@@ -125,6 +125,9 @@ groups:
     - ADR-0046
     - ADR-0108
     - ADR-0166
+    relationships:
+    - rel_type: uses_definition
+      spec_id: RSH-01-003
 
 - id: RSH-03
   title: ThreatTerminationBranchNode
@@ -212,9 +215,6 @@ groups:
       A received `Add(CaseStatus)` is admitted only at a participant replica, from the
       CASE_MANAGER. The replica leaves the CASE_MANAGER's teardown to its committed
       entry (RSH-03-004), so a teardown node in this tree would act a second time.
-    relationships:
-    - rel_type: extends
-      spec_id: RSH-03-003
     verification: >-
       `test/core/behaviors/status/test_add_case_status_bt.py` asserts
       `add_case_status_tree` contains no `ThreatTerminationBranchNode`.
@@ -254,10 +254,8 @@ groups:
       the outbox stays empty (no ask, no diagnostic Note) for the
       CASE_MANAGER's status.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: RSH-03-001
-    - rel_type: depends_on
-      spec_id: EP-09-008
     stories:
     - story_2022_081
 - id: RSH-04
@@ -380,6 +378,11 @@ groups:
       commit is committed.
     stories:
     - story_2026_041
+    relationships:
+    - rel_type: implements
+      spec_id: RSH-04-002
+    - rel_type: implements
+      spec_id: RSH-04-003
   - id: RSH-04-008
     priority: MUST_NOT
     kind: protocol
@@ -418,6 +421,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: RSH-04-004
+    - rel_type: refines
+      spec_id: CLP-07-013
     verification: >-
       `test_an_unchanged_status_is_not_committed_again` in
       `test/core/behaviors/status/nodes/test_case_status.py` shows an unchanged snapshot
@@ -509,7 +514,7 @@ groups:
       declares a sender rule admitting only the CASE_MANAGER on the participant
       side, no sender at the CASE_MANAGER and none outside a case.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: RSH-04-001
     - rel_type: refines
       spec_id: HP-01-006
@@ -604,6 +609,9 @@ groups:
     stories:
     - story_2022_074
     - story_2026_039
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-09-003
   - id: RSH-06-003
     priority: MUST
     kind: project
@@ -628,6 +636,9 @@ groups:
     stories:
     - story_2022_074
     - story_2022_077
+    relationships:
+    - rel_type: uses_definition
+      spec_id: RSH-06-006
   - id: RSH-06-004
     priority: SHOULD
     kind: protocol
@@ -672,13 +683,16 @@ groups:
     stories:
     - story_2022_074
     - story_2022_077
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-031
   - id: RSH-06-007
     priority: MUST_NOT
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST NOT send the RSH-06-004 note to the sender as a direct
       `Add(Note)`, which a participant refuses (HP-01-005). The sender learns of the
-      note from the entry's `Announce(CaseLedgerEntry)` fan-out (SYNC-02-002).
+      note from the entry's `Announce(CaseLedgerEntry)` fan-out (SYNC-02-003).
     rationale: >-
       The note is a case act of the CASE_MANAGER, so it goes to the sender through the
       ledger. A participant refuses a direct `Add(Note)` (HP-01-005), so a direct send
@@ -717,6 +731,9 @@ groups:
     - story_2022_039
     - story_2022_074
     - story_2022_077
+    relationships:
+    - rel_type: extends
+      spec_id: RSH-06-004
 
   - id: RSH-06-006
     priority: MUST
@@ -756,6 +773,17 @@ groups:
     stories:
     - story_2022_074
     - story_2026_039
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-11-011
+    - rel_type: uses_definition
+      spec_id: RSH-06-001
+    - rel_type: uses_definition
+      spec_id: RSH-06-002
+    - rel_type: uses_definition
+      spec_id: RSH-06-004
+    - rel_type: uses_definition
+      spec_id: RSH-06-005
 - id: RSH-07
   title: Conservative Default Authorization Policy for Status Gates
   description: >
@@ -804,9 +832,6 @@ groups:
       With the default bundle, the Case Owner's P report reaches the case's
       canonical `CaseStatus` with no authorization recorded
       (`TestAdoptedPxaReachesTheCaseStatus::test_an_owners_public_awareness_is_adopted`).
-    relationships:
-    - rel_type: refines
-      spec_id: RSH-07-001
     adr:
     - ADR-0046
     - ADR-0076
@@ -839,6 +864,8 @@ groups:
       note: >-
         BT-18-014 generalises the criterion that replaced this gate's call-out
         mechanism with a routing subtree.
+    - rel_type: refines
+      spec_id: ASK-02-001
   - id: RSH-07-005
     priority: MUST_NOT
     kind: project
@@ -895,7 +922,7 @@ groups:
       `vultron/adapters/driving/fastapi/inbox_port_factories.py`, carries a
       comment that names the trusted or demo deployment it serves.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: RSH-07-003
     adr:
     - ADR-0076
@@ -1009,9 +1036,6 @@ groups:
       The declaration is the participant's own statement about itself and the
       participant is the authority on that; a mismatch with the act is a gap to
       flag under RSH-06-003, not a reason to prefer one message over the other.
-    relationships:
-    - rel_type: extends
-      spec_id: RSH-08-002
     verification: >-
       `TestDisagreeingDeclarationIsAdjudicated` in
       `test/core/behaviors/report/test_rm_declaration_adjudication.py` delivers the act,
@@ -1117,8 +1141,10 @@ groups:
       receipt. If the replay node does not exist yet, the replica loses its only path to
       the change.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: RSH-08-004
+    - rel_type: uses_definition
+      spec_id: RSH-08-003
     verification: >-
       `test/architecture/test_ledger_semantic_types_are_replayed.py` fails a branch that
       commits a `semantic_type` with neither a replica apply node nor a declared
@@ -1157,8 +1183,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: PCR-03-002
-    - rel_type: refines
-      spec_id: RSH-08-003
     adr:
     - ADR-0124
     stories:
@@ -1174,7 +1198,7 @@ groups:
       CASE_MANAGER would refuse. The check writes nothing, so the replica still holds
       only committed state.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: RSH-08-006
     verification: >-
       The paths that check the move before sending have a marked test that a refused
@@ -1202,7 +1226,7 @@ groups:
       `test/core/use_cases/triggers/case/test_add_participant_status.py` asserts the
       sender stores the status object it sends without appending it to its record.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: RSH-08-006
     adr:
     - ADR-0124
@@ -1237,8 +1261,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: RSH-08-001
-    - rel_type: depends_on
-      spec_id: HP-01-008
     adr:
     - ADR-0108
     - ADR-0121
@@ -1255,9 +1277,6 @@ groups:
     rationale: >-
       The on-behalf trigger sends only the PRM-06 moves, so the receive side admits
       those moves and no others (ADR-0121).
-    relationships:
-    - rel_type: extends
-      spec_id: RSH-08-007
     verification: >-
       `test_on_behalf_v_to_V_is_admitted` and `test_on_behalf_d_to_D_is_admitted` in
       `test/core/use_cases/received/test_status.py` confirm an on-behalf v→V, from the
@@ -1266,6 +1285,13 @@ groups:
     - ADR-0121
     stories:
     - story_2022_062
+    relationships:
+    - rel_type: refines
+      spec_id: PRM-06-003
+    - rel_type: refines
+      spec_id: PRM-06-004
+    - rel_type: supersedes
+      spec_id: RSH-08-007
 - id: RSH-09
   title: Whole Accept or Reject of a Received Status
   description: >
@@ -1308,7 +1334,7 @@ groups:
       sent (ADR-0075), so recording it as absent is recording the status as
       sent.
     relationships:
-    - rel_type: extends
+    - rel_type: refines
       spec_id: RSH-09-001
     verification: >
       `TestAcceptedStatusIsRecordedAsSent` in
@@ -1388,7 +1414,7 @@ groups:
       accepted, and that a status from a participant already at `CLOSED` is
       refused.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: RSH-09-001
     stories:
     - story_2026_039
@@ -1431,8 +1457,12 @@ groups:
       peer that advances through acceptance and reports fix readiness in one
       message (CSB-16-001). ISSUE-3015 records the analysis.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: RSH-09-001
+    - rel_type: uses_definition
+      spec_id: CSB-17-001
+    - rel_type: uses_definition
+      spec_id: CSB-18-001
     stories:
     - story_2026_039
   - id: RSH-09-012
@@ -1533,6 +1563,11 @@ groups:
     stories:
     - story_2026_039
     - story_2022_106
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CSB-17-001
+    - rel_type: uses_definition
+      spec_id: CSB-18-001
   - id: RSH-09-013
     priority: MUST
     kind: protocol
@@ -1604,7 +1639,7 @@ groups:
       `vultron/core/use_cases/received/status.py` tell these cases apart by
       walking the tree after execution.
     relationships:
-    - rel_type: implements
+    - rel_type: extends
       spec_id: RSH-09-002
   - id: RSH-09-009
     priority: MUST_NOT

@@ -95,12 +95,26 @@ says this node's FAILURE is the guard's whole answer.  Inside an any-of side a
 later arm may still admit the sender, so that line is DEBUG (SL-03-002) and drops
 the ``REFUSED`` wording (SL-03-003): nothing was refused (#5460).
 
-``SenderIsCaseManagerNode`` is so far the only check that takes this rule.  The
-others log WARNING from their own ``update()``, and three of them
-(``SenderIsRequestAddresseeNode``, ``SenderIsOfferingCaseOwnerNode``,
-``SenderIsParticipantRecordSubjectNode``) have a private ``_refuse`` that
-appends the ``REFUSED`` group instead of receiving it; #5786 brings the family
-onto one rule.
+Every check that logs a refusal reason takes this rule (#5786), so the level is
+read from the running tree at every call site rather than from one node's.  A
+check that composes its own citation around a shorter *why* does it in a
+``_refuse_citing`` method that delegates — never in a ``_refuse``, which would
+shadow a base method of that name with neither mypy nor pyright reporting it.
+``SenderIsParticipantNode`` — the one check here that records a refusal without
+being a ``SenderEntitlementConditionNode`` subclass — takes the same rule from
+the free function ``refuse_by_placement(node, reason)``.
+
+Some lines stay off this rule, each for a reason stated where it is
+logged: ``SenderClosureNotRecordedNode``, whose FAILURE the handler may report
+``SKIPPED`` rather than ``REFUSED`` (CM-23-018, ID-05-003), keeps INFO; a
+malformed activity (no ``actor_id``, an unreadable ledger entry) is an anomaly,
+not a standing the sender lacks, so it takes its level from SL-03-001 — WARNING
+at every such site but one, ERROR where ``SenderIsCaseManagerNode`` cannot read
+the ledger entry (#5862) — and records no refusal reason; and
+``SenderIsCaseOwnerNode``
+states its non-match in a DEBUG line of its own and records its reason without
+putting either through this rule, so a lone ``CASE_OWNER`` side's refusal never
+reaches WARNING — that gap is #5845, not this rule.
 
 Nodes
 -----
@@ -201,6 +215,7 @@ from vultron.core.behaviors.sender_entitlement.author import (
 from vultron.core.behaviors.sender_entitlement.base import (
     SenderEntitlementConditionNode,
     failure_is_the_refusal,
+    refuse_by_placement,
 )
 from vultron.core.behaviors.sender_entitlement.case_manager import (
     SenderIsCaseManagerNode,
@@ -255,6 +270,7 @@ __all__ = [
     # Helper predicates
     "is_case_owner",
     "failure_is_the_refusal",
+    "refuse_by_placement",
     # Base / marker class
     "SenderEntitlementConditionNode",
     # Condition nodes

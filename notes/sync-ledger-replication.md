@@ -372,7 +372,8 @@ outside the ledger".
   outside the ledger stores a record or closes a pending assertion; the replica
   takes its effect from the ledger entry (RSH-08-003). Reason: a message that
   writes case state races the entry that writes it too. The ending notices to a
-  paused signatory are the exception, and diverge when reversed (#5201).
+  paused signatory are the exception: a `Remove` naming a revision the replica
+  has not applied activates it first, so either order ends the same (CM-31-042).
 - **A replica's answer must not turn on its related entry.** A relayed message can
   arrive before or after the entry it relates to, so a guard reading the state that
   entry changes answers twice differently. Read the state with the related entry set
