@@ -48,6 +48,9 @@ groups:
       A direct shortcut between co-located actors bypasses the inbox pipeline, so its
       exchanges skip validation, the addressee and entitlement gates, and the case
       ledger, and leave nothing a remote participant would receive.
+    relationships:
+    - rel_type: derives_from
+      spec_id: PCR-01-003
     stories:
     - story_2026_002
   - id: AKM-01-003
