@@ -29,7 +29,8 @@ _LOGGER = logging.getLogger("vultron.test.refusal_matchers")
 @pytest.mark.parametrize(
     "message",
     [
-        "Sender 'a' is not the CASE_MANAGER for case 'c' — REFUSED (HP-01-006)",
+        "Sender 'a' is not the CASE_MANAGER for case 'c', which is 'm'"
+        " — REFUSED (HP-01-006)",
         "No CASE_MANAGER is known — REFUSED (HP-01-006, PCR-03-004)",
         "No sender is entitled to send this activity to the CASE_MANAGER"
         " — REFUSED (HP-01-006, HP-01-024)",
