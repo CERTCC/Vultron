@@ -216,6 +216,9 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
 - **`case-ledger-parsing.md`** · `guidance`
   Reading case-ledger JSONL: every nesting layer, tolerant rows, per-case partition.
   **Load when**: writing any consumer of case-ledger JSONL.
+- **`case-event-history.md`** · `plan`
+  Deriving CVD events from a ledger: state comparison, two clocks, four gap labels.
+  **Load when**: building or consuming the case event history for measurement.
 - **`sync-ledger-replication.md`** · `guidance`
   Replicating the ledger: hash-chain sync, commit and replica invariants, buffers.
   **Load when**: changing ledger fan-out, replica ingest, or SYNC requirements.
