@@ -20,11 +20,12 @@
 ``reject_embargo_proposal_on_case_tree`` handles
 ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122).  Only the case owner sends
 either (EP-09-005); the sender guard refuses anyone else (HP-01-006).  The
-owner addresses its decision to the CASE_MANAGER (PCR-08-001), so the
-effects write shared case state behind the factory's CASE_MANAGER gate
-(BT-17-008); a participant replica learns the decision from the
-``Announce(CaseLedgerEntry)`` broadcast (EP-09-007), never from the activity
-itself.
+owner addresses its decision to the CASE_MANAGER (PCR-08-001), so both trees
+declare the CASE_MANAGER path alone (HP-01-038) and their effects write
+shared case state behind the factory's gate (BT-17-008); a participant
+replica learns the decision from the ``Announce(CaseLedgerEntry)`` broadcast
+(EP-09-007), never from the activity itself, and is refused at the path stage
+(HP-01-039).
 """
 
 import logging
@@ -32,6 +33,7 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.nodes.stub_reissue import (
     ReissueStubInvitesNode,
 )
@@ -78,6 +80,7 @@ def activate_embargo_on_case_tree(
 
         ActivateEmbargoOnCaseBT (Sequence)
         ├─ IntakeReceivedActivityNode
+        ├─ ReceivedPathNode                  # door: the CASE_MANAGER only
         ├─ SenderIsCaseOwnerNode             # sender guard (ADR-0115)
         ├─ ClockDecisionsIfCaseManager       # overdue invites (CM-28-015)
         ├─ IsOpenEmbargoProposalNode         # read-only guards (CLP-10-009)
@@ -128,6 +131,12 @@ def activate_embargo_on_case_tree(
     root = create_receive_activity_tree(
         name="ActivateEmbargoOnCaseBT",
         case_id=case_id,
+        # Every step of this tree is the CASE_MANAGER's, which is the only
+        # path it handles (HP-01-038, ADR-0153): a receiver that is not the
+        # case's CASE_MANAGER is refused at the path stage, by the reason it
+        # composes, instead of running the tree with every gate skipped
+        # (HP-01-005, HP-01-039).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_actor_id, case_id=case_id
@@ -177,6 +186,7 @@ def reject_embargo_proposal_on_case_tree(
 
         RejectEmbargoProposalOnCaseBT (Sequence)
         ├─ IntakeReceivedActivityNode
+        ├─ ReceivedPathNode                  # door: the CASE_MANAGER only
         ├─ SenderIsCaseOwnerNode             # sender guard (ADR-0115)
         ├─ ClockDecisionsIfCaseManager       # overdue invites (CM-28-015)
         ├─ IsOpenEmbargoProposalNode         # read-only guard (CLP-10-009)
@@ -219,6 +229,12 @@ def reject_embargo_proposal_on_case_tree(
     root = create_receive_activity_tree(
         name="RejectEmbargoProposalOnCaseBT",
         case_id=case_id,
+        # Every step of this tree is the CASE_MANAGER's, which is the only
+        # path it handles (HP-01-038, ADR-0153): a receiver that is not the
+        # case's CASE_MANAGER is refused at the path stage, by the reason it
+        # composes, instead of running the tree with every gate skipped
+        # (HP-01-005, HP-01-039).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_actor_id, case_id=case_id

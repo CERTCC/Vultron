@@ -15,9 +15,12 @@
 
 """Received-side ``Remove(EmbargoEvent)`` tree (protocol ET).
 
-Two role-gated arms behind the shared intake and guarded commit; each tears
-its own copy down only when the embargo is in force, and only the
-CASE_MANAGER announces (BT-17-008).  The package docstring draws the tree.
+The type declares the manager and the participant-replica path, and the
+factory branches each arm on the one answer the path stage gave (HP-01-038,
+ADR-0153); a receiver that holds no replica of the case is refused there,
+with the reason the stage composes (HP-01-039).  Each arm tears its own copy
+down only when the embargo is in force, and only the CASE_MANAGER announces
+(BT-17-008).  The package docstring draws the tree.
 """
 
 import logging
@@ -26,9 +29,8 @@ from datetime import datetime
 import py_trees
 
 from vultron.config.actor import ActorConfig
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_participant_replica_gated_tree,
-)
+from vultron.core.behaviors.case.nodes.path_branch import OnPaths
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -138,16 +140,19 @@ def remove_embargo_from_case_tree(
     Always commits a canonical ledger entry when the executing actor holds
     the ``CASE_MANAGER`` role (via the guarded commit subtree).
 
-    The teardown runs in one of two mutually exclusive arms.  The
+    The teardown runs in one of two mutually exclusive declared path
+    branches (HP-01-038).  The
     CASE_MANAGER's arm, in ``manager_effects``, tears down the canonical
     case, announces the teardown to every other active participant and
     backfills any participant the end of the embargo admits (CM-10-006),
     re-issuing any outstanding stub Invite that carries the old terms
     (CM-11-016).
-    A participant replica's arm tears down its own copy and sends nothing:
-    the teardown is the CASE_MANAGER's act, so re-announcing it would speak
-    for another actor (BT-17-008).  Each arm skips when there is nothing to
-    tear down, and a failed teardown step fails the tree (#2255).
+    A participant replica's arm is an ``OnPaths.off_case_manager``
+    declaration among ``replica_effects``; it tears down
+    its own copy and sends nothing: the teardown is the CASE_MANAGER's act, so
+    re-announcing it would speak for another actor (BT-17-008).  Each arm
+    skips when there is nothing to tear down, and a failed teardown step
+    fails the tree (#2255).
 
     BT returns SUCCESS when the outer Sequence completes (including when no
     teardown was needed).  BT returns FAILURE when the case is not found or a
@@ -192,6 +197,12 @@ def remove_embargo_from_case_tree(
     root = create_receive_activity_tree(
         name="RemoveEmbargoFromCaseBT",
         case_id=case_id,
+        # The teardown does protocol work on both paths, so the type declares
+        # a branch for each (HP-01-038, ADR-0153): the CASE_MANAGER tears the
+        # canonical case down and announces it, a participant replica tears
+        # its own copy down when the ledger no longer reaches it.  A store
+        # that holds no replica of the case is refused at the path stage.
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
         sender_context=embargo_sender_context(sender_actor_id, case_id),
         # Every overdue invitation expires first (CM-28-028).
@@ -222,30 +233,27 @@ def remove_embargo_from_case_tree(
         # ``AwaitsEmbargoEndingNoticeNode``.  It tears down only and sends
         # nothing, so it carries no capture/notice.
         replica_effects=[
-            create_participant_replica_gated_tree(
-                name="TeardownOnReplica",
-                case_id=case_id,
-                children=[
-                    py_trees.composites.Selector(
-                        name="ReplicaTeardownIfEndingNoticeAwaited",
-                        memory=False,
-                        children=[
-                            py_trees.decorators.Inverter(
-                                name="SkipUnlessEndingNoticeAwaited",
-                                child=AwaitsEmbargoEndingNoticeNode(
-                                    case_id=case_id
-                                ),
+            OnPaths.off_case_manager(
+                "TeardownOnReplica",
+                py_trees.composites.Selector(
+                    name="ReplicaTeardownIfEndingNoticeAwaited",
+                    memory=False,
+                    children=[
+                        py_trees.decorators.Inverter(
+                            name="SkipUnlessEndingNoticeAwaited",
+                            child=AwaitsEmbargoEndingNoticeNode(
+                                case_id=case_id
                             ),
-                            _teardown_if_active(
-                                case_id,
-                                embargo_id,
-                                termination,
-                                terminated_at,
-                                prefix="Replica",
-                            ),
-                        ],
-                    ),
-                ],
+                        ),
+                        _teardown_if_active(
+                            case_id,
+                            embargo_id,
+                            termination,
+                            terminated_at,
+                            prefix="Replica",
+                        ),
+                    ],
+                ),
             ),
         ],
         # The CASE_MANAGER arm captures the embargo in force ahead of the

@@ -18,16 +18,18 @@
 A signatory leaves the embargo in force by sending ``Leave(EmbargoEvent)``
 to the CASE_MANAGER (EP-09-013, PCR-08).  The withdrawal is the sender's own
 consent and changes no register entry, so the embargo stays in force for
-everyone else (VP-13-017).  Only the CASE_MANAGER records it (BT-17-001);
+everyone else (VP-13-017).  Only the CASE_MANAGER records it (BT-17-001), so
+the tree declares that path alone (HP-01-038);
 every replica learns it from the ``Announce(CaseLedgerEntry)`` broadcast
-(EP-09-007), and a receiver the gate turns away reports ``REFUSED``
-(HP-01-005).
+(EP-09-007), and a receiver on any other path is refused at the path stage
+and reports ``REFUSED`` (HP-01-005, HP-01-039).
 """
 
 import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -59,11 +61,12 @@ def withdraw_from_embargo_on_case_tree(
 
         WithdrawFromEmbargoOnCaseBT (Sequence)
         ├─ IntakeReceivedActivityNode
+        ├─ ReceivedPathNode                      # door: the CASE_MANAGER only
         ├─ <sender guard>                        # composed from sender_rule
         ├─ ClockDecisionsIfCaseManager           # overdue invites (CM-28-015)
         ├─ IsWithdrawableEmbargoNode             # read-only guard (CLP-10-009)
         │                                        # and redelivery (HP-01-003)
-        ├─ EmbargoWithdrawalApplies (CASE_MANAGER gate)  # staged decision
+        ├─ EmbargoWithdrawalApplies              # staged decision
         └─ WithdrawFromEmbargoOnCaseBTAct (ActTransaction)  # one act (ADR-0151)
            ├─ GuardedCommitCaseLedgerEntryBT        # the Leave's own entry
            └─ RecordEmbargoWithdrawal (CASE_MANAGER gate)
@@ -98,6 +101,12 @@ def withdraw_from_embargo_on_case_tree(
     root = create_receive_activity_tree(
         name="WithdrawFromEmbargoOnCaseBT",
         case_id=case_id,
+        # Every step of this tree is the CASE_MANAGER's, which is the only
+        # path it handles (HP-01-038, ADR-0153): a receiver that is not the
+        # case's CASE_MANAGER is refused at the path stage, by the reason it
+        # composes, instead of running the tree with every gate skipped
+        # (HP-01-005, HP-01-039).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=withdrawing_actor_id, case_id=case_id

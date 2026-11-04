@@ -40,6 +40,7 @@ from vultron.core.behaviors.case.nodes.case_lookup import (
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
+from vultron.core.behaviors.case.nodes.diversion_stage import Diversion
 from vultron.core.behaviors.case.nodes.received_path import (
     CheckReceivedPathNode,
     ReceivedPath,
@@ -461,6 +462,32 @@ def test_the_stage_is_one_of_the_trees_door_guards() -> None:
     assert any(
         isinstance(guard, ReceivedPathNode) for guard in tree.door_guards
     )
+
+
+@pytest.mark.spec("HP-01-040")
+@pytest.mark.spec("BT-17-001")
+@pytest.mark.spec("CLP-10-026")
+def test_a_manager_only_diversion_needs_the_trees_case() -> None:
+    """A diversion that may commit must know the case it commits against.
+
+    A manager-only declaration carries no gate of its own, and a tree that
+    names no case leaves the stage to resolve one at run time from the
+    activity — so the diversion would commit against whatever case arrived.
+    """
+    with pytest.raises(VultronWiringError, match="must name the case"):
+        create_receive_activity_tree(
+            name="CaselessDiversionBT",
+            case_id=None,
+            paths={ReceivedPath.CASE_MANAGER},
+            precondition_guards=[
+                Diversion(
+                    name="D",
+                    condition=py_trees.behaviours.Success(name="C"),
+                )
+            ],
+            sender_rule=_RULE,
+            sender_context=_CONTEXT,
+        )
 
 
 @pytest.mark.spec("HP-01-007")

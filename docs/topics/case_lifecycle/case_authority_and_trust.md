@@ -182,6 +182,14 @@ The first check is about the receiver: *am I the CASE_MANAGER of this case?*
 A node that receives a message meant for the CASE_MANAGER, but does not hold the role, refuses it and says which role it lacks ([HP-01-005](../../reference/specs/project.md#hp-01-005)).
 It does not treat the message as a harmless duplicate.
 
+A receiver's answer to that question is one of three: it holds the role, it holds the case without the role, or it holds no copy of the case.
+A message type says once which of the three it serves, and a refusal names what is missing for the answer the receiver gave ([HP-01-038](../../reference/specs/architecture.md#hp-01-038), [HP-01-039](../../reference/specs/architecture.md#hp-01-039)).
+Usually that is the role, as above.
+Sometimes it is not.
+Take a node that holds no copy of the case the message names.
+It refuses the message and tells the sender that it holds no replica of that case, not that it lacks a role.
+Saying it lacks the role would be false, because a node with no replica holds no role in the case to lack.
+
 The second check is about the sender: *may this sender make this assertion?*
 The first check tells nothing about the second ([HP-01-006](../../reference/vultron-spec/requirements/message-processing.md#hp-01-006), [ADR-0115](../../adr/0115-received-handlers-check-sender-entitlement.md)).
 

@@ -43,6 +43,7 @@ from vultron.core.behaviors.case.nodes.received_path import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
     ungated_emitters,
+    ungated_nodes,
 )
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.sender_entitlement import (
@@ -50,6 +51,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
 )
 from vultron.core.behaviors.sender_guard import SenderCheckContext
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
@@ -66,6 +68,13 @@ _CONTEXT = SenderCheckContext(sender_id=OWNER_ID, case_id=CASE_ID)
 
 class _Emitter(EmitCapable, py_trees.behaviour.Behaviour):
     """A leaf the factory reads as reaching the outbox (BT-17-008)."""
+
+    def update(self) -> Status:
+        return Status.SUCCESS
+
+
+class _Writer(StateWriteCapable, py_trees.behaviour.Behaviour):
+    """A leaf the walks read as writing case state (RSH-08-003)."""
 
     def update(self) -> Status:
         return Status.SUCCESS
@@ -350,6 +359,34 @@ def test_an_emit_off_the_manager_path_is_still_ungated() -> None:
             precondition_guards=[],
             replica_effects=[OnPaths.off_case_manager("ReplicaEmits", emit)],
         )
+
+
+@pytest.mark.spec("HP-01-042")
+def test_a_state_write_is_bounded_only_by_a_manager_only_branch() -> None:
+    """The state-write walk reads the branch the same way the emit walk does.
+
+    :func:`ungated_nodes` takes the marker as an argument and skips on the
+    branch alone, so the asymmetry HP-01-042 states holds for a state write
+    too: a branch on the manager path alone is the gate, and a branch on any
+    other path is not.  No tree in the corpus puts a write in either kind of
+    branch, so without this the manager-only half of that rule would rest on
+    the emit walk's test and a reading of the code.
+    """
+    bounded = _Writer("WriteOnManagerPath")
+    unbounded = _Writer("WriteOffManagerPath")
+
+    at_manager = _tree(_BOTH, OnPaths.at_case_manager("Adjudicate", bounded))
+    off_manager = _tree(
+        _BOTH, OnPaths.off_case_manager("AnswerOnReplica", unbounded)
+    )
+
+    assert bounded in list(_branch_of(at_manager).branch.iterate())
+    assert unbounded in list(_branch_of(off_manager).branch.iterate())
+
+    assert ungated_nodes([_branch_of(at_manager)], StateWriteCapable) == []
+    assert ungated_nodes([_branch_of(off_manager)], StateWriteCapable) == [
+        unbounded
+    ]
 
 
 @pytest.mark.spec("CS-22-001")
