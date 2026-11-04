@@ -164,9 +164,6 @@ groups:
       A client must tell failures apart without reading prose. A fixed JSON body with a
       machine-readable code, a human-readable message and the status code gives every
       error response the same shape. One client parser can then handle all of them.
-    relationships:
-    - rel_type: depends_on
-      spec_id: HTTP-03-001
   - id: EH-05-002
     priority: MUST
     kind: project
@@ -180,9 +177,9 @@ groups:
       each violation, so a caller does not have to parse `message`. Such a parse breaks
       when the order of the internal checks changes.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EH-05-001
-    - rel_type: depends_on
+    - rel_type: implements
       spec_id: EH-07-001
     adr:
     - ADR-0086
@@ -259,7 +256,7 @@ groups:
       rules (SL-03-001) keeps a recoverable fault from raising an alarm and keeps a real
       failure from being hidden at DEBUG.
     relationships:
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: SL-03-001
 - id: EH-07
   title: Multi-Violation Rejection
@@ -314,7 +311,7 @@ groups:
       no value on a dimension it has no role for (ADR-0075), so a role gate cannot
       mislabel its consequences.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: EH-07-001
     adr:
     - ADR-0086
@@ -342,8 +339,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EH-04-001
-    - rel_type: refines
-      spec_id: EH-01-002
     adr:
     - ADR-0086
     verification: >-

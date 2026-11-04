@@ -262,6 +262,10 @@ Some deliveries get no notice:
 
 - A message that the sender has no standing to send is refused with no answer (HP-01-006).
 - A repeat of an answer already recorded, under a new id or the same one, is skipped and gets no notice (CM-13-005).
+- A repeated proposal of terms the case already holds is skipped and gets no notice (EP-09-032).
+  Its end time equals that of a pending proposal, or, with no revision pending, that of the embargo in force.
+  The CASE_MANAGER registers nothing, commits nothing and relays no `Invite`, whoever sent it and whatever its ids.
+  The proposer's pending ask for it closes when its timeout window ends (SYNC-11-005).
 - An `Invite` or `Accept` that arrives once the case is public, an exploit is public, or attacks are observed is answered with a `Reject` of the Invite instead (EMB-01-002, EMB-02-004).
   The CASE_MANAGER's `Reject` of an `Accept` reaches the participant.
   The participant then closes its pending `Accept`.

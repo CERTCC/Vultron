@@ -299,7 +299,7 @@ groups:
       entirely in terms of core domain types.
     rationale: Enforces hexagonal architecture layer separation (ARCH-01-001).
     relationships:
-    - rel_type: implements
+    - rel_type: derives_from
       spec_id: ARCH-01-001
   - id: DL-03-003
     priority: MUST_NOT
@@ -337,9 +337,6 @@ groups:
     rationale: >-
       A narrow, intention-revealing port as the default dependency shows a reader
       what core can do with storage, and keeps adapter-only operations out of core.
-    relationships:
-    - rel_type: implements
-      spec_id: ARCH-01-001
   - id: DL-04-006
     priority: MUST
     kind: project
@@ -457,7 +454,7 @@ groups:
       (ARCH-01-002). Reconstructing via the wire `VOCABULARY` returns wire objects that only work in core by structural
       coincidence of field names. Decided in ADR-0034; derived from ARCH-01-002 and DL-03-002.
     relationships:
-    - rel_type: implements
+    - rel_type: derives_from
       spec_id: ARCH-01-002
     tags:
     - persistence
@@ -493,8 +490,8 @@ groups:
       evading rather than honouring ARCH-01-001. When the read path returns core objects, the Protocols are dead weight
       and mask the boundary from mypy/pyright.
     relationships:
-    - rel_type: implements
-      spec_id: ARCH-01-001
+    - rel_type: refines
+      spec_id: ARCH-01-002
     tags:
     - persistence
     - wire-format
@@ -544,6 +541,9 @@ groups:
       Core still reads some activities back, and that read-back is a boundary
       violation tracked on its own (DL-06-001). The exemption lets the ratchet
       guard every other type while that work is open.
+    relationships:
+    - rel_type: supersedes
+      spec_id: DL-05-004
     tags:
     - persistence
     - testing
@@ -589,6 +589,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: DL-05-001
+    - rel_type: uses_definition
+      spec_id: DL-05-006
     tags:
     - persistence
     - testing
@@ -615,7 +617,7 @@ groups:
       `test_normalize_wire_to_core_ratchet.py` does not exist, and the ARCH-23-002
       disjointness test confirms no shadowing type remains to normalise.
     relationships:
-    - rel_type: extends
+    - rel_type: refines
       spec_id: DL-05-005
     - rel_type: depends_on
       spec_id: ARCH-23-002
@@ -671,7 +673,7 @@ groups:
       `test/architecture/test_core_extra_forbid.py` asserts `_NOT_YET_NORMALIZED`
       appears nowhere under `vultron/`.
     relationships:
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: DL-05-005
       note: The deferral list has no purpose once the normalisation list it defers against is gone.
     tags:
@@ -702,6 +704,8 @@ groups:
     - rel_type: depends_on
       spec_id: ARCH-12-003
       note: '`extra="forbid"` is the read-back guard that replaces per-type coverage bookkeeping.'
+    - rel_type: depends_on
+      spec_id: ARCH-23-002
     tags:
     - persistence
     - testing
@@ -738,9 +742,7 @@ groups:
       embedded report, or of a stored `Invite` to get its case or embargo id. See
       ADR-0035.
     relationships:
-    - rel_type: implements
-      spec_id: ARCH-09-001
-    - rel_type: implements
+    - rel_type: derives_from
       spec_id: ARCH-03-001
     tags:
     - persistence
@@ -804,7 +806,7 @@ groups:
       conveys, in domain vocabulary, capturing only what handlers use. Decided in
       ADR-0035.
     relationships:
-    - rel_type: implements
+    - rel_type: derives_from
       spec_id: ARCH-03-001
     tags:
     - persistence
@@ -866,9 +868,6 @@ groups:
       reconstitution cannot be produced by re-projecting core state. The original
       envelope, with its original id, must be kept and read back. A wire/adapter seam
       for that read keeps semantic authority in core (ADR-0035).
-    relationships:
-    - rel_type: refines
-      spec_id: DL-05-004
     tags:
     - persistence
     - wire-format
@@ -929,8 +928,10 @@ groups:
       so the set shows the work that remains. A test fails when an exempt type gets a
       core counterpart, so a stale entry cannot stay in the set. See ADR-0035.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DL-05-012
+    - rel_type: uses_definition
+      spec_id: DL-06-001
     tags:
     - persistence
     - testing
@@ -967,7 +968,7 @@ groups:
       deferred replay, and not in a received-side tree. A received activity is held only
       under a key the receiver derives from the activity id: its
       `ReceivedActivityRecord.build_id`, or the opaque deferred record that holds it for
-      replay (`DeferredInboxActivity.build_id`, IO-03-004). A record of an activity type
+      replay (`DeferredInboxActivity.build_id`, IO-03-009). A record of an activity type
       stored under its own id is then always one the receiver authored.
     rationale: >-
       An actor scans the type tables of its sent activities to answer "did I already
@@ -976,11 +977,6 @@ groups:
       also when its unsigned `actor` field names the receiver. CLP-10-017 keeps intake
       off the sender's id for this reason. This rule gives the same protection at every
       writer, so a received activity never looks like one that the receiver sent.
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-10-017
-    - rel_type: refines
-      spec_id: IO-03-004
     verification: >-
       `test/adapters/driving/fastapi/test_received_activity_not_sender_keyed.py`
       asserts that ingress writes nothing, and delivers through the real inbox an
@@ -997,6 +993,9 @@ groups:
       (`test/support/received.py`), that nothing is held under the activity's id and
       that its `ReceivedActivityRecord` is. Trigger tests marked DL-06-006 seed only
       that record and assert each reply is built from it.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: IO-03-009
     tags:
     - persistence
 - id: DL-07
@@ -1094,7 +1093,7 @@ groups:
       at the first call site that forgets. When no unscoped DataLayer can be
       constructed, a missed scope cannot break DL-07-001.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DL-07-001
     verification: >-
       `test_actor_id_is_required` in
@@ -1154,8 +1153,8 @@ groups:
     rationale: >-
       A single configured location cannot express one store per actor.
     relationships:
-    - rel_type: refines
-      spec_id: DL-07-002
+    - rel_type: implements
+      spec_id: DL-07-001
     tags:
     - persistence
     - configuration
@@ -1198,8 +1197,8 @@ groups:
       the same database. Two scenarios that must not see each other's rows therefore
       need two actor ids.
     relationships:
-    - rel_type: refines
-      spec_id: DL-07-002
+    - rel_type: extends
+      spec_id: DL-07-003
     tags:
     - persistence
     - testing
@@ -1215,7 +1214,7 @@ groups:
     rationale: >-
       Makes a fan-out explicit rather than something a forgotten filter grants.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DL-07-001
     tags:
     - persistence
@@ -1268,8 +1267,6 @@ groups:
       means only an actor whose id already has this node's shape is addressable here, which is correct:
       an id under another authority names a process elsewhere.
     relationships:
-    - rel_type: refines
-      spec_id: DL-07-005
     - rel_type: implements
       spec_id: ARCH-13-003
     tags:
@@ -1289,7 +1286,7 @@ groups:
       actor knows is bounded by what it has received. This is safe because delivery derives a
       recipient's inbox URL from its URI alone and never reads the peer's stored record.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DL-07-001
     references:
     - notes/actor-knowledge-model.md
@@ -1329,7 +1326,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DL-07-001
-    - rel_type: refines
+    - rel_type: extends
       spec_id: OX-13-001
     tags:
     - persistence
@@ -1371,11 +1368,6 @@ groups:
       actor while the outbox entry goes to the store of the executing actor. Delivery
       then cannot read the activity and skips it with no error, so the recipient is
       never told.
-    relationships:
-    - rel_type: refines
-      spec_id: DL-07-005
-    - rel_type: implements
-      spec_id: PCR-08-007
     verification: >-
       `test_ports_are_rebound_to_the_executing_actors_store` and
       `test_ports_are_left_alone_when_the_store_already_matches` in
@@ -1441,9 +1433,6 @@ groups:
       elsewhere. Two foreign ids with the same final path segment then share one store,
       and the second actor gets the record of the first. A check of the authority at the
       route keeps the node from hosting a foreign actor. See ADR-0081.
-    relationships:
-    - rel_type: refines
-      spec_id: DL-07-007
     verification: >-
       `test/adapters/driving/fastapi/routers/test_actors.py::TestCreateActor::test_a_foreign_absolute_id_is_rejected`
       asserts the 422.
@@ -1488,8 +1477,8 @@ groups:
       lands in the hosted actor's store, that the peer gets no store of its own, and
       that the peer is absent from `GET /actors/`.
     relationships:
-    - rel_type: extends
-      spec_id: DL-07-010
+    - rel_type: implements
+      spec_id: DL-07-007
     tags:
     - persistence
     adr:
@@ -1548,7 +1537,7 @@ groups:
       (#5319). In production one process is one node, so the configured `db_url` is the
       node's own deployment.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DL-07-022
     verification: >-
       `test/adapters/driven/test_actor_hosts.py` asserts that two in-memory deployments
@@ -1570,7 +1559,7 @@ groups:
       a slug, such as each node's `primary`, are different actors, and only the node's
       own base URL says which one this node hosts.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DL-07-011
     verification: >-
       `test/adapters/driven/test_actor_hosts.py` asserts that two in-memory deployments
@@ -1613,7 +1602,7 @@ groups:
       declares its own template it cleared another deployment's stores, left its own
       untouched, and still reported success (#5319).
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DL-07-011
     verification: >-
       `test/adapters/driving/fastapi/test_app_isolation.py` asserts that the admin reset
@@ -1646,11 +1635,6 @@ groups:
       `as_VulnerabilityReport` inline for exactly the reason that makes the collapse unrecoverable: the
       receiver may not hold the report and this codebase dereferences only the few
       references AKM-05-007 lists (AKM-03-003).
-    relationships:
-    - rel_type: refines
-      spec_id: CP-01-004
-    - rel_type: refines
-      spec_id: AKM-03-001
     verification: >-
       `test/adapters/driven/test_db_record.py` asserts a stored `as_CaseProposal` keeps its report as an
       inline object and that the report round-trips typed, with its `attributed_to` intact.
@@ -1715,8 +1699,8 @@ groups:
       storage layer has nothing to consult. A collapsed reference then fails far from
       its cause, and no message names the cause.
     relationships:
-    - rel_type: refines
-      spec_id: DL-08-001
+    - rel_type: extends
+      spec_id: DL-08-004
     tags:
     - persistence
     adr:
@@ -1750,10 +1734,8 @@ groups:
       the re-typing set (`_inline_typed_fields` in `db_record/ref_fields.py`) is wider
       than the dehydration set and includes `context`.
     relationships:
-    - rel_type: refines
-      spec_id: DL-08-001
-    - rel_type: refines
-      spec_id: AKM-03-001
+    - rel_type: uses_definition
+      spec_id: DL-08-004
     verification: >-
       `test/adapters/driven/test_db_record.py` asserts a stored
       `_RmInviteToCaseActivity` keeps its invitee as an object through a write/read

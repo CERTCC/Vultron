@@ -27,6 +27,7 @@ related_notes:
   - notes/status-dimension-objects.md
   - notes/lifecycle-staged-types.md
   - notes/case-ledger-authority.md
+  - notes/case-event-history.md
   - notes/sync-ledger-replication.md
   - notes/documentation-strategy.md
   - notes/rfc-review-rubric.md

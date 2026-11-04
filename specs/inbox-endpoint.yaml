@@ -66,8 +66,10 @@ groups:
       OPTIONS, PUT, PATCH, and DELETE on the inbox path each return HTTP 405 with
       `Allow: POST`, for both trailing-slash forms (`/inbox` and `/inbox/`).
     relationships:
-    - rel_type: depends_on
-      spec_id: HTTP-03-001
+    - rel_type: refines
+      spec_id: HTTP-03-006
+    - rel_type: satisfies
+      spec_id: IE-02-005
     stories:
     - story_2022_002
     - story_2022_038
@@ -91,11 +93,8 @@ groups:
       `test/adapters/driving/fastapi/routers/test_actors.py` confirms that GET, HEAD,
       OPTIONS, PUT, PATCH, and DELETE on the inbox path are each refused with 405.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: IE-02-002
-    - rel_type: depends_on
-      spec_id: IE-02-003
-      note: the status that refuses the methods this spec does not serve
   - id: IE-02-004
     priority: MUST_NOT
     kind: architecture
@@ -120,13 +119,6 @@ groups:
       the `/{actor_id:path}` profile catch-all, and no receipt bookkeeping on the
       actor record; `test/adapters/driving/fastapi/routers/test_actors.py` confirms
       the 405 for both trailing-slash forms.
-    relationships:
-    - rel_type: depends_on
-      spec_id: IE-02-003
-    - rel_type: depends_on
-      spec_id: ARCH-12-006
-    - rel_type: depends_on
-      spec_id: DL-07-001
 - id: IE-03
   title: Request Handling
   specs:
@@ -144,9 +136,6 @@ groups:
       `test_inbox_body_with_a_non_as2_media_type_answers_415` in
       `test/adapters/driving/fastapi/routers/test_actors.py` is a strict `xfail`
       until it does.
-    relationships:
-    - rel_type: depends_on
-      spec_id: HTTP-01-001
     tags:
     - activitypub
   - id: IE-03-002
@@ -174,13 +163,10 @@ groups:
       `test/adapters/driving/fastapi/routers/test_actors.py` is a strict `xfail`
       until it does.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: IE-03-002
-    - rel_type: depends_on
-      spec_id: HTTP-02-001
-      note: >-
-        HTTP-02-001's default limit decides when this 413 applies; HTTP-02-001 keeps
-        only the limit, and the 413 answer stays here (MS-12-010)
+    - rel_type: refines
+      spec_id: HTTP-03-007
     tags:
     - http
   - id: IE-03-004
@@ -196,7 +182,7 @@ groups:
       Inspection of the deployment configuration reference confirms that the default
       maximum request body size value is explicitly stated.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: IE-03-002
 - id: IE-04
   title: Activity Validation
@@ -238,8 +224,8 @@ groups:
       Integration tests in `test/demo/` confirm that a schema-invalid activity
       body causes the endpoint to return HTTP 422.
     relationships:
-    - rel_type: depends_on
-      spec_id: HTTP-03-001
+    - rel_type: refines
+      spec_id: HTTP-03-009
     stories:
     - story_2022_089
 - id: IE-05
@@ -258,7 +244,7 @@ groups:
       Integration tests in `test/demo/` confirm that the endpoint returns HTTP 202
       and response-time assertions verify the 100 ms budget is not exceeded.
     relationships:
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: HTTP-06-001
   - id: IE-05-002
     priority: MUST_NOT
@@ -320,8 +306,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: IE-06-002
-    - rel_type: depends_on
-      spec_id: BT-11-004
+    - rel_type: constrains
+      spec_id: IE-06-006
   - id: IE-06-007
     priority: MUST
     kind: project
@@ -362,9 +348,7 @@ groups:
       raises: it is re-queued until the configured attempt limit, counting attempts
       an earlier run stored, and a retry that succeeds clears its count.
     relationships:
-    - rel_type: depends_on
-      spec_id: DR-03-002
-    - rel_type: refines
+    - rel_type: extends
       spec_id: IE-06-001
     adr:
     - ADR-0066
@@ -404,9 +388,6 @@ groups:
       `test_a_protocol_violation_is_dropped_and_answered_at_once` in
       `test/adapters/driving/fastapi/test_inbox_queue_drain.py` show that each
       failure of a replayed item is logged at ERROR with `activity_id` and `actor_id`.
-    relationships:
-    - rel_type: depends_on
-      spec_id: DR-03-002
   - id: IE-06-010
     priority: MUST
     kind: project
@@ -440,8 +421,10 @@ groups:
       count (`test_inbox_and_outbox_attempt_counts_are_independent`), and that the
       count and the dead letter survive a restart of the store.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: IE-06-004
+    - rel_type: implements
+      spec_id: IE-06-008
     adr:
     - ADR-0066
   - id: IE-06-005
@@ -471,10 +454,8 @@ groups:
     adr:
     - ADR-0146
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: IE-06-004
-    - rel_type: depends_on
-      spec_id: DL-06-006
   - id: IE-06-012
     priority: MUST
     kind: project
@@ -496,8 +477,10 @@ groups:
     adr:
     - ADR-0146
     relationships:
-    - rel_type: implements
+    - rel_type: derives_from
       spec_id: IE-06-005
+    - rel_type: uses_definition
+      spec_id: IE-06-004
   - id: IE-06-013
     priority: MUST
     kind: project
@@ -514,7 +497,7 @@ groups:
       raises and that the next drain replays the item.
     relationships:
     - rel_type: extends
-      spec_id: IE-06-005
+      spec_id: IE-06-004
   - id: IE-06-006
     priority: MUST
     kind: project
@@ -533,10 +516,8 @@ groups:
       item is replayed with no new delivery to that actor, and that an item whose
       replay fails is re-queued with its count, as a replay after a delivery is.
     relationships:
-    - rel_type: depends_on
-      spec_id: IE-06-005
-    - rel_type: depends_on
-      spec_id: IE-06-003
+    - rel_type: extends
+      spec_id: IE-06-004
 - id: IE-07
   title: Error Responses
   specs:
@@ -560,8 +541,12 @@ groups:
       method other than POST is answered with 405. No check covers 413 yet, because
       the inbox enforces no body size limit (#4596).
     relationships:
-    - rel_type: depends_on
-      spec_id: HTTP-03-001
+    - rel_type: refines
+      spec_id: HTTP-03-004
+    - rel_type: refines
+      spec_id: HTTP-03-006
+    - rel_type: refines
+      spec_id: HTTP-03-007
     tags:
     - http
   - id: IE-07-002
@@ -586,6 +571,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: IE-07-001
+    - rel_type: uses_definition
+      spec_id: IE-11-001
 - id: IE-08
   title: Response Format
   specs:
@@ -637,13 +624,6 @@ groups:
     verification: >-
       Inspection of `vultron/adapters/driving/fastapi/` confirms that a structured
       INFO-level log entry is emitted for each incoming request.
-    relationships:
-    - rel_type: depends_on
-      spec_id: SL-01-001
-    - rel_type: depends_on
-      spec_id: SL-02-001
-    - rel_type: depends_on
-      spec_id: SL-03-001
 - id: IE-10
   title: Idempotency
   specs:
@@ -686,10 +666,14 @@ groups:
       asserts that it adds nothing to the store. No duplicate check keyed on the actor
       record exists in `vultron/adapters/driving/fastapi/routers/actors/`.
     relationships:
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: ID-05-002
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: DL-06-006
+    - rel_type: uses_definition
+      spec_id: VM-08-002
+    - rel_type: implements
+      spec_id: ID-05-001
   - id: IE-10-002
     priority: MUST
     kind: project
@@ -726,16 +710,10 @@ groups:
       same-body repeat still takes the in-place path to the SYNC-12-003 gate;
       `::test_a_body_that_differs_only_in_key_order_is_refused` pins the exact match.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: IE-10-001
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: VM-08-002
-    - rel_type: depends_on
-      spec_id: ID-01-001
-    - rel_type: refines
-      spec_id: ID-02-001
-    - rel_type: depends_on
-      spec_id: SYNC-12-003
   - id: IE-10-003
     priority: MUST_NOT
     kind: project
@@ -810,10 +788,6 @@ groups:
       `test/adapters/driving/fastapi/routers/test_actors.py` confirms that an
       Activity addressed only to another actor is refused (with this codebase's
       HTTP 400), synchronously, in place of the 202.
-    relationships:
-    - rel_type: depends_on
-      spec_id: IE-07-002
-      note: the HTTP status that carries the refusal is this codebase's choice
     adr:
     - ADR-0068
     - ADR-0073

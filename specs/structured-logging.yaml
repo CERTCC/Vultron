@@ -86,7 +86,7 @@ groups:
       pre-built into a name and then passed (`msg = f"..."; logger.info(msg)`) is
       outside their reach and is a review finding, not a ruff one.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SL-01-004
 - id: SL-02
   title: Correlation IDs
@@ -144,9 +144,9 @@ groups:
       attributes; an AST scan of `vultron/` finds no log call passing `activity_id`
       or `actor_id` through `extra=`.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: SL-02-001
-    - rel_type: refines
+    - rel_type: implements
       spec_id: SL-02-002
   - id: SL-02-004
     priority: MUST
@@ -245,7 +245,7 @@ groups:
       including the CASE_MANAGER it resolved, and that the arm that is the guard's
       answer still logs the full reason with its `REFUSED (IDs)` group.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SL-03-002
 - id: SL-04
   title: State Transition Logging

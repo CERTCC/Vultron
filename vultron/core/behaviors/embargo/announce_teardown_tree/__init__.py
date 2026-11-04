@@ -43,9 +43,11 @@ force, and only the CASE_MANAGER announces (BT-17-008):
        │  └─ ReplicaTeardownIfEndingNoticeAwaited (Selector)  # CM-31-010 only
        │     ├─ SkipUnlessEndingNoticeAwaited (Inverter)      # active replica: skip
        │     │  └─ AwaitsEmbargoEndingNoticeNode              # paused-stream check
-       │     └─ ReplicaTeardownIfActive (Selector)
-       │        ├─ EmbargoWasNotActive / EmbargoAlreadyExited # nothing to tear down
-       │        └─ ReplicaActiveTeardown: ClearActiveEmbargoNode   # sends nothing
+       │     └─ ReplicaApplyEndingNotice (Sequence)
+       │        ├─ AdoptRemovedEmbargoRevisionNode  # overtaken Announce (SYNC-19-001)
+       │        └─ ReplicaTeardownIfActive (Selector)
+       │           ├─ EmbargoWasNotActive / EmbargoAlreadyExited  # nothing to do
+       │           └─ ReplicaActiveTeardown: ClearActiveEmbargoNode  # sends nothing
        └─ TeardownAndAnnounceIfCaseManager (CaseManagerGate, from the factory)
           └─ TeardownIfActive (Selector)
              ├─ EmbargoWasNotActive / EmbargoAlreadyExited   # nothing to tear down
@@ -68,7 +70,11 @@ teardown through the one apply function (CM-31-010, ADR-0124) on the receive
 side, as the CASE_MANAGER's arm does.  The
 RSH-08-003 replica gate (#3814) gates that write on
 ``AwaitsEmbargoEndingNoticeNode``, so only the paused signatory tears down
-directly.
+directly.  A ``Remove`` naming a revision that replica has not activated
+means that revision replaced its embargo: the revision's ``Announce`` notice
+(CM-31-030) is late, or none was owed for a longer revision.  The replica
+activates the revision first and then tears it down, ending as the in-order
+delivery does (SYNC-19-001, CM-31-042).
 
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """

@@ -226,6 +226,9 @@ groups:
     - ADR-0080
     tags:
     - state-machine
+    relationships:
+    - rel_type: uses_definition
+      spec_id: ASK-01-001
   - id: ASK-02-006
     stories:
     - story_2026_038
@@ -407,6 +410,11 @@ groups:
     - ADR-0113
     stories:
     - story_2026_006
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-28-001
+    - rel_type: uses_definition
+      spec_id: CM-28-004
   - id: ASK-03-008
     priority: MUST
     kind: protocol
@@ -442,6 +450,9 @@ groups:
     stories:
     - story_2022_032
     - story_2022_074
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-11-014
 
 - id: ASK-04
   title: Outstanding-Ask Register
@@ -578,9 +589,6 @@ groups:
       register implementation.
     adr:
     - ADR-0080
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-11-002
   - id: ASK-04-008
     priority: MUST
     kind: architecture
@@ -634,6 +642,9 @@ groups:
     - ADR-0113
     stories:
     - story_2026_006
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-24-001
   - id: ASK-04-013
     priority: MUST_NOT
     kind: protocol
@@ -1064,8 +1075,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: ASK-07-010
-    - rel_type: depends_on
-      spec_id: IE-06-004
     adr:
     - ADR-0080
     tags:
@@ -1145,8 +1154,10 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: ASK-07-014
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: IE-06-008
+    - rel_type: uses_definition
+      spec_id: IE-06-004
     tags:
     - error-handling
   - id: ASK-07-018

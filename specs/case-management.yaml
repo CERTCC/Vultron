@@ -718,6 +718,8 @@ groups:
       spec_id: VP-06-001
     - rel_type: implements
       spec_id: VP-14-004
+    - rel_type: refines
+      spec_id: SM-10-002
     stories:
     - story_2022_018
     - story_2022_019
@@ -9331,6 +9333,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-27-001
+    - rel_type: refines
+      spec_id: SM-05-002
   - id: CM-29-004
     priority: MUST
     kind: protocol
@@ -10239,6 +10243,37 @@ groups:
       spec_id: CM-31-010
     adr:
     - ADR-0116
+    stories:
+    - story_2026_096
+  - id: CM-31-042
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A CM-31-010 paused replica can receive a CM-31-009 `Remove(EmbargoEvent)`
+      naming a revision it has not activated. When its register holds that revision
+      at no final status, the replica MUST activate the revision and then terminate
+      it.
+    rationale: >-
+      The CASE_MANAGER terminates only the embargo in force, so the named revision
+      replaced the replica's. Its CM-31-030 `Announce` was overtaken (SYNC-19-003),
+      or none was owed for a longer revision. Skipping the `Remove` leaves the
+      replica bound for good (SYNC-19-001). A named embargo at a final status is a
+      stale `Remove` and changes nothing (ADR-0122).
+    verification: >-
+      `test_paused_signatory_ending_notices_converge_in_either_order` in
+      `test/core/use_cases/received/test_arrival_order.py` delivers the revision's
+      `Announce` and `Remove` in both orders and asserts one EM state, register and
+      consent set; `test_paused_replica_ignores_a_remove_of_the_superseded_embargo` in
+      `test/core/use_cases/received/test_embargo_ending_notices.py` asserts a stale
+      `Remove` changes nothing and attempts no activation;
+      `test_paused_replica_ends_a_longer_revision_it_was_not_told_of` in the same
+      file asserts a `Remove` of a longer revision ends it.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-31-010
+    adr:
+    - ADR-0116
+    - ADR-0161
     stories:
     - story_2026_096
   - id: CM-31-011

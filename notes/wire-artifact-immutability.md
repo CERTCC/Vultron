@@ -15,7 +15,7 @@ related_specs:
   - specs/case-management.yaml (CM-17-002)
   - specs/message-validation.yaml (MV-10-001)
   - specs/inbox-endpoint.yaml (IE-10-001)
-  - specs/inbox-orchestration.yaml (IO-03-004)
+  - specs/inbox-orchestration.yaml (IO-03-009)
 related_notes:
   - notes/datalayer-design.md
   - notes/case-ledger-authority.md
@@ -80,7 +80,7 @@ fallback rendering.
 
 **The archive is the evidence, and nothing derived from it.** Intake stores
 `VultronEvent.received_evidence` as `ReceivedActivityRecord.received_body`, and the
-deferred record holds the same sealed text (CLP-10-036, IO-03-004). Every reader
+deferred record holds the same sealed text (CLP-10-036, IO-03-009). Every reader
 loads it again: core through `ReceivedActivityLoader`, which runs the inbox's parse,
 staged rebuild and extraction into a read-only `ReceivedActivityView`; a reply through
 `vultron/adapters/received_archive.py`, whose parsed activity `as_answered` embeds

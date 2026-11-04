@@ -41,6 +41,7 @@ from vultron.core.behaviors.embargo.embargo_clock_decisions import (
     embargo_clock_decisions,
 )
 from vultron.core.behaviors.embargo.nodes import (
+    AdoptRemovedEmbargoRevisionNode,
     AwaitsEmbargoEndingNoticeNode,
     ClearActiveEmbargoNode,
     HasEmbargoActiveNode,
@@ -55,6 +56,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
 )
 from vultron.core.behaviors.sender_guard import embargo_sender_context
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     TerminationCause,
@@ -127,6 +129,7 @@ def remove_embargo_from_case_tree(
     *,
     sender_rule: SenderRule,
     termination_cause: TerminationCause | None = None,
+    embargo: EmbargoEvent | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiver-side embargo removal (protocol ET).
 
@@ -136,7 +139,12 @@ def remove_embargo_from_case_tree(
     participant consent is written, since with no embargo in force nobody is
     bound (ADR-0118).  A ``Remove`` naming an embargo that is not in force
     changes nothing: the register cancels a proposal only with a
-    termination or on a threat signal.
+    termination or on a threat signal.  The one exception is a paused
+    signatory's replica, where a ``Remove`` naming a revision it has not
+    activated means that revision replaced the replica's embargo (its
+    ``Announce`` notice is late, or none was owed for a longer revision):
+    the replica activates the revision, then tears it down (SYNC-19-001,
+    CM-31-042).
     Always commits a canonical ledger entry when the executing actor holds
     the ``CASE_MANAGER`` role (via the guarded commit subtree).
 
@@ -179,6 +187,9 @@ def remove_embargo_from_case_tree(
             ``ActorConfig`` defaults.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
+        embargo: The ``EmbargoEvent`` the ``Remove`` carries inline, or
+            ``None``; a paused replica stores it when it activates a
+            revision it has not seen (EMB-18-003).
 
     Returns:
         Root node of the ``RemoveEmbargoFromCaseBT`` Sequence.
@@ -245,12 +256,30 @@ def remove_embargo_from_case_tree(
                                 case_id=case_id
                             ),
                         ),
-                        _teardown_if_active(
-                            case_id,
-                            embargo_id,
-                            termination,
-                            terminated_at,
-                            prefix="Replica",
+                        py_trees.composites.Sequence(
+                            name="ReplicaApplyEndingNotice",
+                            memory=False,
+                            children=[
+                                # The CASE_MANAGER terminates only the
+                                # embargo in force, so a named revision this
+                                # replica has not activated replaced its
+                                # embargo (a late Announce, or none owed for
+                                # a longer revision): activate it first, so
+                                # either order ends the same (SYNC-19-001,
+                                # SYNC-19-003, CM-31-042).
+                                AdoptRemovedEmbargoRevisionNode(
+                                    case_id=case_id,
+                                    embargo_id=embargo_id,
+                                    embargo=embargo,
+                                ),
+                                _teardown_if_active(
+                                    case_id,
+                                    embargo_id,
+                                    termination,
+                                    terminated_at,
+                                    prefix="Replica",
+                                ),
+                            ],
                         ),
                     ],
                 ),

@@ -301,6 +301,37 @@ class TestStoryProps:
             "under, so each family would read the other's."
         )
 
+    def test_the_walk_reads_every_module_a_prop_is_declared_in(self) -> None:
+        """A prop below a package, or in a flat helper, is collected there.
+
+        The uniqueness check above asserts an absence, so it is only worth
+        what the walk reaches: a flat walk of ``vultron/demo/helpers/`` would
+        pass over every package a module split made (#5592), and a walk that
+        skipped a flat helper would miss rcvcv's own fragments (#5846).  Pin
+        one declaration from each shape.
+        """
+        from vultron.demo.helpers import rcvcv_story
+        from vultron.demo.helpers.coordinated_story import opening
+        from vultron.demo.helpers.owner_decision_story import handover
+
+        declarations = _story_prop_declarations()
+        # Keyed on the prop object itself, not on the module the walk first
+        # saw it in, so an import added elsewhere cannot break the pin. Each
+        # pinned prop is held by no other module the walk reads (a package
+        # ``__init__`` is skipped), so a walk that missed its declaring
+        # module misses the prop: ``TIMELINE_ANSWER`` would not do, since
+        # ``rcvcv_story`` imports it.
+        missed = [
+            prop.name
+            for prop in (
+                opening.ENGAGED_CASE,
+                handover.HANDED_OVER_CASE,
+                rcvcv_story.C2_JOINED,
+            )
+            if id(prop) not in declarations.get(prop.name, {})
+        ]
+        assert not missed, f"the walk did not collect {missed}"
+
 
 @pytest.mark.spec("DEMOCI-11-018")
 class TestSeatingACharacterActor:
