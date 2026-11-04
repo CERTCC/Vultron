@@ -32,10 +32,8 @@ groups:
       are maintained as an internal data structure of each Actor, with no
       separate externally-addressable actor created per case.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: CM-01-001
-    - rel_type: refines
-      spec_id: AKM-01-002
     stories:
     - story_2022_092
   - id: PCR-01-002
@@ -69,13 +67,6 @@ groups:
       waits for a side channel, works only while two Actors share a host. Per-actor
       stores (ADR-0073) prevent direct reads and writes, but not code that expects the
       case to be visible early.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-01-001
-    - rel_type: refines
-      spec_id: AKM-01-002
-    - rel_type: implements
-      spec_id: DL-07-001
     adr:
     - ADR-0073
     stories:
@@ -91,7 +82,7 @@ groups:
       passes any other way works only while two Actors share a host, so the protocol
       would then depend on where the Actors run (PCR-01-003).
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: PCR-01-003
     adr:
     - ADR-0073
@@ -111,7 +102,7 @@ groups:
       actors in one process and asserts a record in the Vendor's store is not visible
       in the Reporter's.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: PCR-01-003
     adr:
     - ADR-0073
@@ -131,7 +122,7 @@ groups:
       two actors in one process and asserts the Reporter gets the case only through
       the outbox-to-inbox delivery path.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: PCR-01-003
     adr:
     - ADR-0073
@@ -156,7 +147,7 @@ groups:
       once the CASE_MANAGER's copy is in its own store, and never when it has not
       arrived.
     relationships:
-    - rel_type: extends
+    - rel_type: refines
       spec_id: PCR-01-003
     adr:
     - ADR-0041
@@ -183,11 +174,6 @@ groups:
       `Announce(VulnerabilityCase)`. `test/core/use_cases/received/test_case_diverged_reseed.py`
       confirms that the CASE_MANAGER re-seeds a diverged replica with an
       `Announce(VulnerabilityCase)`.
-    relationships:
-    - rel_type: implements
-      spec_id: AKM-03-001
-    - rel_type: implements
-      spec_id: SYNC-02-001
     stories:
     - story_2026_055
   - id: PCR-02-002
@@ -207,13 +193,15 @@ groups:
       `test_late_joiner_receives_case_replica` in `test/demo/test_pcr_late_joiner.py`
       confirms that a participant that accepts the stub Invite gets
       `Announce(VulnerabilityCase)` from the CASE_MANAGER.
-    relationships:
-    - rel_type: implements
-      spec_id: CM-06-001
     adr:
     - ADR-0114
     stories:
     - story_2022_092
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-10-004
+    - rel_type: part_of
+      spec_id: CM-11-008
   - id: PCR-02-006
     priority: MUST_NOT
     kind: protocol
@@ -225,8 +213,6 @@ groups:
       copy is case content. Sending it one would leak the case to an actor that has
       not joined or has not agreed to the embargo in force.
     relationships:
-    - rel_type: extends
-      spec_id: PCR-02-002
     - rel_type: refines
       spec_id: CM-10-004
     verification: >-
@@ -292,8 +278,10 @@ groups:
       `Create(VulnerabilityCase)` on the trusted route stores the case it carries as the
       receiver's replica.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CBT-01-002
+    - rel_type: uses_definition
+      spec_id: CBT-01-001
     adr:
     - ADR-0157
     stories:
@@ -317,8 +305,10 @@ groups:
       actor other than the designated CASE_MANAGER is rejected and a WARNING is
       logged.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: CM-06-002
+    - rel_type: constrains
+      spec_id: PCR-02-004
     stories:
     - story_2026_030
     - story_2022_089
@@ -333,11 +323,11 @@ groups:
       change and recorded it in the ledger. A direct write skips both steps, so the
       other replicas never learn of the change and the owner's copy then disagrees with
       the canonical case.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-02-010
     stories:
     - story_2026_002
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-03-005
   - id: PCR-03-003
     priority: MUST
     kind: protocol
@@ -385,7 +375,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-03-001
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: PCR-02-003
     stories:
     - story_2026_030
@@ -403,9 +393,6 @@ groups:
       participant. `test_create_seeds_case_replica` in `test/demo/test_pcr_bootstrap.py`
       exercises that path: a participant seeds its replica from the bootstrap
       `Create(VulnerabilityCase)`.
-    relationships:
-    - rel_type: refines
-      spec_id: PCR-03-002
     stories:
     - story_2026_059
     - story_2022_106
@@ -423,7 +410,7 @@ groups:
       CASE_MANAGER alone. The RSH-08-006 tests confirm a sender, the Case Owner
       included, leaves its own replica unchanged.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: PCR-03-002
     stories:
     - story_2026_059
@@ -532,9 +519,6 @@ groups:
       field is present on case-scoped activities, and a unit test confirms the
       dispatcher uses this field to route activities to the correct case
       handler.
-    relationships:
-    - rel_type: implements
-      spec_id: CM-01-002
     stories:
     - story_2026_062
   - id: PCR-04-002
@@ -665,9 +649,6 @@ groups:
     note: >-
       The stub Invite is the one exception: it precedes its case by design, and PCR-06-005
       bounds what it may write.
-    relationships:
-    - rel_type: depends_on
-      spec_id: PCR-06-005
     stories:
     - story_2026_030
   - id: PCR-06-005
@@ -685,10 +666,12 @@ groups:
       bring, so the invitee could never answer it, except from a copy stored under the
       sender's id, which DL-06-006 forbids.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: PCR-06-002
-    - rel_type: depends_on
-      spec_id: PCR-03-004
+    - rel_type: supersedes
+      spec_id: PCR-06-003
+    - rel_type: uses_definition
+      spec_id: CM-11-013
     adr:
     - ADR-0114
     verification: >-
@@ -716,6 +699,10 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: PCR-06-005
+    - rel_type: uses_definition
+      spec_id: CLP-10-036
+    - rel_type: uses_definition
+      spec_id: PCR-03-004
     adr:
     - ADR-0114
     verification: >-
@@ -743,7 +730,7 @@ groups:
       deferred activities are keyed by case ID in the receiving actor's own
       DataLayer, which ADR-0073 keeps apart from every other actor's.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: PCR-06-002
     adr:
     - ADR-0073
@@ -818,6 +805,9 @@ groups:
     stories:
     - story_2026_075
     - story_2026_060
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-10-004
   - id: PCR-08-004
     priority: MUST_NOT
     kind: project
@@ -837,9 +827,6 @@ groups:
       The ledger records what the CASE_MANAGER processed. An entry that a script or
       client creates directly records no processed activity, skips the CASE_MANAGER's
       checks, and lets a demo pass when the protocol path it shows does not work.
-    relationships:
-    - rel_type: refines
-      spec_id: PCR-08-003
   - id: PCR-08-013
     priority: MUST
     kind: protocol
@@ -857,7 +844,7 @@ groups:
       confirms the CASE_MANAGER commits the entry as part of processing a received
       `Add(Note)`, with no further request.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: PCR-08-003
     adr:
     - ADR-0021
@@ -912,9 +899,6 @@ groups:
       `test/demo/test_remote_case_actor_invite.py::TestOwnerInviteThroughARemoteCaseActor`
       confirms the Case Owner's trigger sends its own request and the CASE_MANAGER, on
       another container, is the `actor` of the `Invite`, not the Case Owner.
-    relationships:
-    - rel_type: refines
-      spec_id: PCR-08-001
     stories:
     - story_2022_053
     - story_2022_052
@@ -932,9 +916,6 @@ groups:
       `test_the_case_actor_emits_and_commits_the_invite` in
       `test/demo/test_remote_case_actor_invite.py` asserts the CASE_MANAGER's Invite
       names the Case Owner who asked for it in `attributedTo`.
-    relationships:
-    - rel_type: extends
-      spec_id: PCR-08-007
     stories:
     - story_2022_053
   - id: PCR-08-008
@@ -956,6 +937,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
+    - rel_type: uses_definition
+      spec_id: PCR-08-007
     stories:
     - story_2022_054
     - story_2022_052
@@ -975,17 +958,19 @@ groups:
       checks confirm that after the invitee's reply the CASE_MANAGER's store records the
       invitee's RM state as CM-11-011 states and lists the invitee as a case
       participant.
-    relationships:
-    - rel_type: refines
-      spec_id: PCR-08-001
-    - rel_type: refines
-      spec_id: PCR-08-003
     adr:
     - ADR-0114
     - ADR-0121
     stories:
     - story_2022_054
     - story_2026_043
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-11-001
+    - rel_type: uses_definition
+      spec_id: CM-11-007
+    - rel_type: uses_definition
+      spec_id: CM-11-011
   - id: PCR-08-014
     priority: MUST_NOT
     kind: protocol
@@ -1018,9 +1003,6 @@ groups:
       the sender checks depend on that. An activity that names another actor forges
       that actor's decision, and every receiver applies it as if that actor had sent
       it.
-    relationships:
-    - rel_type: refines
-      spec_id: PCR-08-001
     stories:
     - story_2022_089
   - id: PCR-08-015
@@ -1037,7 +1019,7 @@ groups:
       writes records into this store under that actor's identity, and it emits
       activities that claim to come from an actor that did not send them (PCR-08-010).
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: PCR-08-010
     adr:
     - ADR-0021
@@ -1059,14 +1041,10 @@ groups:
       unit test confirms the node returns FAILURE when no CASE_MANAGER can be
       resolved.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: PCR-08-001
-      note: Participant outbound activities route through the CASE_MANAGER only;
-        failure to resolve the CASE_MANAGER is a trigger-side error
-    - rel_type: refines
+    - rel_type: implements
       spec_id: PCR-08-002
-      note: Using a roster-wide list or None as the recipient in a trigger BT is
-        the specific violation this requirement prevents
     stories:
     - story_2022_039
   - id: PCR-08-016
@@ -1084,7 +1062,7 @@ groups:
       raises immediately when the participant list contains no actor with
       `CVDRole.CASE_MANAGER`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: PCR-08-011
   - id: PCR-08-017
     priority: MUST_NOT
@@ -1100,7 +1078,7 @@ groups:
       still reports success. The participant then waits for an answer to a message
       that nobody received.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: PCR-08-011
   - id: PCR-08-018
     priority: MUST
@@ -1141,7 +1119,7 @@ groups:
       `Accept`.
     relationships:
     - rel_type: refines
-      spec_id: PCR-08-009
+      spec_id: CM-11-001
     adr:
     - ADR-0114
     stories:
@@ -1162,8 +1140,8 @@ groups:
       the CASE_MANAGER records RM.ACCEPTED only after the invitee's
       `Join(VulnerabilityCase)`.
     relationships:
-    - rel_type: extends
-      spec_id: PCR-08-012
+    - rel_type: refines
+      spec_id: CM-11-004
     adr:
     - ADR-0114
     stories:
@@ -1323,7 +1301,7 @@ groups:
       invitee from the Case Owner's execution context.
     relationships:
     - rel_type: verifies
-      spec_id: PCR-08-009
+      spec_id: PCR-08-014
     - rel_type: verifies
       spec_id: PCR-08-010
   - id: PCR-07-010
