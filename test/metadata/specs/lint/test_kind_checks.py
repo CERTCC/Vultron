@@ -169,7 +169,7 @@ def test_non_implementer_kind_with_code_reference_not_flagged(
 def test_protocol_code_reference_is_not_priority_scoped(
     tmp_path, capsys, priority
 ):
-    """MS-12-006 fires on every tier; SR-11-003's MUST-only gate never reached these."""
+    """MS-12-006 fires on every tier, not only where SR-11-003's story gate does."""
     spec_dir, data = _protocol_spec_naming_code(tmp_path, priority=priority)
     write_yaml(spec_dir, data)
     result = lint(spec_dir)
