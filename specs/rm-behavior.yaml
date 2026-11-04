@@ -1512,6 +1512,8 @@ groups:
       note: >-
         SHOULD communicate intent to adhere or terminate compliance when closing
         during an active embargo
+    - rel_type: supersedes
+      spec_id: VP-13-005
     stories:
     - story_2022_067
 

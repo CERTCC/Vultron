@@ -333,6 +333,15 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CSB-17-003
+      note: >-
+        SM-09-003 governs the persistence boundary: an incoming status write
+        carrying vP or pX MUST be promoted to the forced form before it is
+        stored. CSB-17-003 governs trajectory validation, where the same two
+        conditions are modelled as ephemeral states with exactly one legal
+        successor. The two are consistent because they apply at different
+        boundaries: no vP or pX state is ever persisted, but such a state is
+        still a legal intermediate point in a replayed history, and CSB-17-004
+        therefore permits a history prefix to end in one.
   - id: SM-09-003
     priority: MUST
     kind: project

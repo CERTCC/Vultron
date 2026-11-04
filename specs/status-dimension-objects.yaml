@@ -384,9 +384,8 @@ groups:
       `ValidationError`, that `CaseStatus` defines no `em_state` attribute so `status.em_state = EM.X` raises pydantic `ValidationError`,
       and that a case whose register changes still stamps the derived EM onto its current status.
     relationships:
-    - rel_type: derives_from
+    - rel_type: implements
       spec_id: EMB-18-001
-      note: EMB-18-001 forbids assigning `case.current_status.em`; this requirement makes the assignment impossible.
     adr:
     - ADR-0122
   - id: SDO-03-010

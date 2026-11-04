@@ -606,7 +606,7 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: VAM-08-002
-    - rel_type: uses_definition
+    - rel_type: derives_from
       spec_id: RSH-04-001
     stories:
     - story_2022_069
@@ -642,7 +642,7 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: VAM-08-002
-    - rel_type: uses_definition
+    - rel_type: derives_from
       spec_id: RSH-04-001
     stories:
     - story_2022_018
@@ -678,7 +678,7 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: VAM-08-002
-    - rel_type: uses_definition
+    - rel_type: derives_from
       spec_id: RSH-04-001
     stories:
     - story_2022_019
@@ -1886,6 +1886,8 @@ groups:
       spec_id: MSM-07-035
     - rel_type: extends
       spec_id: MSM-07-010
+    - rel_type: derives_from
+      spec_id: EP-08-004
     adr:
     - ADR-0093
     - ADR-0122

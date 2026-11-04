@@ -661,7 +661,7 @@ groups:
     stories:
     - story_2026_011
     relationships:
-    - rel_type: uses_definition
+    - rel_type: refines
       spec_id: ASK-07-001
   - id: VP-03-011
     priority: SHOULD
@@ -997,7 +997,7 @@ groups:
     - story_2022_066
     - story_2022_068
     relationships:
-    - rel_type: uses_definition
+    - rel_type: refines
       spec_id: CM-10-004
   - id: VP-05-013
     priority: SHOULD
@@ -2200,9 +2200,9 @@ groups:
     stories:
     - story_2022_018
     relationships:
-    - rel_type: uses_definition
+    - rel_type: extends
       spec_id: VP-11-002
-    - rel_type: uses_definition
+    - rel_type: extends
       spec_id: VP-11-006
   - id: VP-11-012
     priority: MUST_NOT
@@ -2515,6 +2515,9 @@ groups:
       signatories among those it notifies.
     stories:
     - story_2022_046
+    relationships:
+    - rel_type: refines
+      spec_id: CM-02-005
 - id: VP-14
   title: RM-EM-CS Interactions
   specs:
