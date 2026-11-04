@@ -23,11 +23,6 @@ groups:
       used. Vultron inherits the ActivityPub rule.
     verification: Integration tests in `test/demo/` confirm that all `as_id` fields on created objects contain full URI
       strings with a scheme and authority component.
-    relationships:
-    - rel_type: implements
-      spec_id: VP-16-002
-    - rel_type: implements
-      spec_id: VP-16-003
     stories:
     - story_2022_029
     - story_2022_030
@@ -103,9 +98,6 @@ groups:
       this codebase must obey the normalization point, so it is `project` (ADR-0134).
     verification: Integration tests confirm that after actor creation or seed data loading, the actor's `as_id` field is
       a full URI rather than a bare UUID or short identifier.
-    relationships:
-    - rel_type: depends_on
-      spec_id: OID-01-003
     stories:
     - story_2022_034
     - story_2022_035
@@ -126,12 +118,6 @@ groups:
     verification: >-
       A received activity whose actor ids carry a trailing slash yields case records,
       written by the use case, that hold the ids without the slash.
-    relationships:
-    - rel_type: refines
-      spec_id: OID-01-005
-      note: >-
-        Extends normalisation at first establishment to ids extracted from received
-        activities.
     adr:
     - ADR-0032
   - id: OID-01-008
@@ -169,8 +155,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: OID-01-006
-    - rel_type: depends_on
-      spec_id: ARCH-22-001
     adr:
     - ADR-0032
   - id: OID-01-009
@@ -187,7 +171,7 @@ groups:
       A model test shows that constructing a received event with a sender id that ends
       in a trailing slash raises a validation error.
     relationships:
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: ARCH-10-001
     adr:
     - ADR-0032
@@ -277,7 +261,7 @@ groups:
     - ADR-0010
     relationships:
     - rel_type: refines
-      spec_id: BT-03-003
+      spec_id: BTND-03-005
 - id: OID-04
   title: Migration Requirements
   specs:

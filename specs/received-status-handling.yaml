@@ -833,6 +833,12 @@ groups:
       conservative default.
     adr:
     - ADR-0080
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-014
+      note: >-
+        BT-18-014 generalises the criterion that replaced this gate's call-out
+        mechanism with a routing subtree.
   - id: RSH-07-005
     priority: MUST_NOT
     kind: project
