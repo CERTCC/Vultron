@@ -401,7 +401,7 @@ Where the implementation still breaks the rule, the table names the open issue.
 | Stub `Invite(Actor)` | The invitee's participant entry | The CASE_MANAGER refuses an answer to an Invite that a later one replaced. |
 | Refusal notice `Reject(activity)`, embargo refusal, and refusal of a `Leave` | None | It only closes the participant's pending assertion. |
 | Removal and reinstatement notices | The removal or reinstatement entry | The participant stores the notice and applies the entry. |
-| Embargo ending notices to a participant the ledger no longer reaches | The termination or shorter-revision entry | Not yet safe: two notices about one revision diverge when they arrive reversed ([#5201](https://github.com/CERTCC/Vultron/issues/5201)). |
+| Embargo ending notices to a participant the ledger no longer reaches | The termination or shorter-revision entry | A termination notice that names a revision the participant has not applied yet means that revision's own notice is still on its way, so the participant applies the revision first and then ends it. The late revision notice then finds no embargo in force and changes nothing. |
 | Forwarded offers: a recommended participant, a role, an ownership transfer | The offer's own entry | The receiver stores the offer and answers it by trigger, and the CASE_MANAGER judges the answer against the ledger. |
 | Answers to a case proposal, and the `Create(VulnerabilityCase)` that starts a case | The case's first entries | Entries that arrive before the case are held until it arrives. |
 
