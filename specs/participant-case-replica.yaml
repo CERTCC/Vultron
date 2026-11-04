@@ -258,6 +258,9 @@ groups:
       case file.
     adr:
     - ADR-0142
+    relationships:
+    - rel_type: uses_definition
+      spec_id: SYNC-16-006
     stories:
     - story_2026_055
   - id: PCR-02-005
@@ -375,7 +378,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-03-001
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: PCR-02-003
     stories:
     - story_2026_030

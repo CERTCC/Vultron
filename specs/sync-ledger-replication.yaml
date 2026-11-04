@@ -375,7 +375,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: SYNC-03-002
     - rel_type: uses_definition
       spec_id: CM-10-004
@@ -2214,7 +2214,6 @@ groups:
       note: Reuses the cascading drain defined for forward gaps
     - rel_type: uses_definition
       spec_id: SYNC-14-004
-      note: The drained entry MUST apply effects before persisting, on the same path as in-order delivery
     - rel_type: uses_definition
       spec_id: SYNC-15-004
       note: Drains exactly the entries that SYNC-15-004 held during the pre-genesis window
@@ -2754,7 +2753,7 @@ groups:
       re-seed storm without stranding a peer whose re-seed was lost, which a permanent
       suppression would (SYNC-15-003 makes the same choice for replay).
     relationships:
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: SYNC-16-003
     adr:
     - ADR-0142
@@ -2936,8 +2935,6 @@ groups:
       replacement the case can be ahead of the chain, and a copy older than the
       replacing one must not move it back.
     relationships:
-    - rel_type: constrains
-      spec_id: PCR-02-004
     - rel_type: uses_definition
       spec_id: SYNC-16-005
     adr:

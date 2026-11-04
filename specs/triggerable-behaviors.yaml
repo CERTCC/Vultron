@@ -1053,7 +1053,7 @@ groups:
       (CM-23-011). Checking first keeps the owner's own systems from acting on a
       close that would be declined (ADR-0145).
     relationships:
-    - rel_type: extends
+    - rel_type: supersedes
       spec_id: TRIG-13-002
     adr:
     - ADR-0145

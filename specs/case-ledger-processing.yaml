@@ -807,9 +807,6 @@ groups:
       `test_case_managers_reject_closes_the_pending_proposal` in
       `test/core/use_cases/received/test_pending_refusal.py` asserts the CASE_MANAGER's
       `Reject(Invite(EmbargoEvent))` closes the proposer's pending entry.
-    relationships:
-    - rel_type: uses_definition
-      spec_id: CLP-05-001
     adr:
     - ADR-0141
     stories:
@@ -3083,9 +3080,6 @@ groups:
       `test_note_from_a_participant_ends_an_overdue_embargo` in
       `test/core/use_cases/received/test_note_and_announce_sender_rules.py` asserts that
       a participant's note prompts the end-time decision for its case.
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-10-054
     adr:
     - ADR-0135
   - id: CLP-10-056
@@ -3102,8 +3096,6 @@ groups:
       `test/core/use_cases/received/actor/test_ownership_deadline.py` asserts the
       claimed `published` time does not change the verdict.
     relationships:
-    - rel_type: refines
-      spec_id: CLP-10-054
     - rel_type: uses_definition
       spec_id: CLP-15-003
     adr:
@@ -3373,9 +3365,6 @@ groups:
       `test_a_receiver_diversion_with_a_covering_exemption_builds` in
       `test/core/behaviors/case/nodes/test_diversion_stage.py` builds a receiver
       diversion that answers from the activity it holds.
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-10-067
     adr:
     - ADR-0135
   - id: CLP-10-069

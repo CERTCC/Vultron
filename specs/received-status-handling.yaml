@@ -421,7 +421,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: RSH-04-004
-    - rel_type: derives_from
+    - rel_type: refines
       spec_id: CLP-07-013
     verification: >-
       `test_an_unchanged_status_is_not_committed_again` in
@@ -1261,8 +1261,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: RSH-08-001
-    - rel_type: uses_definition
-      spec_id: RSH-08-014
     adr:
     - ADR-0108
     - ADR-0121
@@ -1292,6 +1290,8 @@ groups:
       spec_id: PRM-06-003
     - rel_type: refines
       spec_id: PRM-06-004
+    - rel_type: supersedes
+      spec_id: RSH-08-007
 - id: RSH-09
   title: Whole Accept or Reject of a Received Status
   description: >
