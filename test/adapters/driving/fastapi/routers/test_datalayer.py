@@ -13,9 +13,11 @@
 
 from urllib.parse import quote
 
+import pytest
 from fastapi import status
 
 from vultron.adapters.driven.db_record import object_to_record
+from vultron.core.models._helpers import URN_UUID_PREFIX
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
 
@@ -171,6 +173,56 @@ def test_get_by_http_url_key_not_found_returns_404(
         f"/actors/{dl_route_key}/datalayer/{encoded}"
     )
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+# ---------------------------------------------------------------------------
+# A route that names an object by its UUID maps the segment to the full id
+# before it reads, since the store keys only on full ids (OID-02-004, #5737).
+# ---------------------------------------------------------------------------
+
+
+def _bare_uuid(object_id: str) -> str:
+    bare = object_id.removeprefix(URN_UUID_PREFIX)
+    assert bare != object_id
+    return bare
+
+
+@pytest.mark.spec("OID-02-004")
+def test_get_by_type_and_bare_uuid_serves_the_urn_object(
+    client_datalayer, datalayer, report, dl_route_key
+):
+    datalayer.create(report)
+    response = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/"
+        f"{report.type_}/{_bare_uuid(report.id_)}"
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["id"] == report.id_
+
+
+@pytest.mark.spec("OID-02-004")
+def test_get_by_bare_uuid_key_serves_the_urn_object(
+    client_datalayer, datalayer, report, dl_route_key
+):
+    datalayer.create(report)
+    response = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/{_bare_uuid(report.id_)}"
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["id"] == report.id_
+
+
+@pytest.mark.spec("OID-02-004")
+def test_get_report_by_bare_uuid_serves_the_urn_report(
+    client_datalayer, datalayer, report, dl_route_key
+):
+    datalayer.create(report)
+    response = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/Report/",
+        params={"id": _bare_uuid(report.id_)},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["id"] == report.id_
 
 
 def test_specific_routes_not_shadowed_by_catch_all(

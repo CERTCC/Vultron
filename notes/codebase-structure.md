@@ -10,6 +10,7 @@ description: >
   type-checker interplay, and small coding habits.
 related_specs:
   - specs/prototype-shortcuts.yaml
+  - specs/object-ids.yaml
   - specs/code-style.yaml
   - specs/behavior-tree-node-design.yaml
   - specs/architecture.yaml
@@ -180,10 +181,17 @@ actor appear under two IDs in the DataLayer.
 ### Actor ID Normalization in Trigger Paths: Resolve Path Params Before Outbox
 
 A trigger path that accepts a short actor ID from a route parameter overwrites
-`actor_id` with the resolved `actor.id_` before any outbox mutation. The SQLite
-DataLayer's bare-UUID compatibility lookup hides the bug for `urn:uuid:` IDs, so
-regression tests MUST use URL-form actor records, and should assert both the outbox
-mutation and the absence of a warning log (BUG-26042202).
+`actor_id` with the resolved `actor.id_` before any outbox mutation. Regression tests
+MUST use URL-form actor records, which only the surrogate-key lookup resolves from a
+short ID, and should assert both the outbox mutation and the absence of a warning log
+(BUG-26042202).
+
+### A Route Maps a Bare-UUID Segment Before It Reads
+
+`dl.read()` keys only on full ids and resolves no bare UUID (OID-02-004), so a route
+that names an object by its UUID maps the segment with
+`vultron/adapters/utils.py:full_object_id` before the read. A store-level fallback
+gives one object two keys (#5737).
 
 ---
 

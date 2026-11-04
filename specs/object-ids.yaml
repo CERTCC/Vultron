@@ -237,8 +237,11 @@ groups:
     priority: MUST_NOT
     kind: project
     verification: >-
-      Inspection confirms DataLayer lookups key on full-URI ids and that no lookup path
-      resolves a bare UUID.
+      `test/adapters/driven/test_sqlite_crud.py::test_read_does_not_resolve_a_bare_uuid`
+      confirms `read` keys only on the full-URI id and does not resolve a bare UUID.
+      The surrogate-key lookups (`find_actor_by_short_id`, `find_case_by_short_id`)
+      are a separate, named query (AKM-05-006, DL-04-002) and are out of this
+      requirement's scope.
     statement: >-
       A DataLayer lookup MUST NOT accept a bare UUID as a lookup key.
     rationale: >-

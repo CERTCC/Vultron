@@ -56,7 +56,8 @@ def _read_offer(datalayer: DataLayer, offer_id: str) -> as_Offer | None:
     sender's id (CLP-10-036, ADR-0149), since a receiver holds no received
     activity under the sender's id (DL-06-006); otherwise the row under
     *offer_id*, where an Offer the actor authored is stored.  *offer_id* may
-    be a bare UUID, as the store's own lookup allows.
+    be a bare UUID, which names its ``urn:uuid:`` id: the store keys only on
+    full ids (OID-02-004), so the route maps it here.
 
     Whatever is held under the id must be an Offer: every Offer a store holds
     is an ``as_Offer``, read back as its own class (ADR-0034) or parsed from
