@@ -68,7 +68,7 @@ _NOT_A_SNAPSHOT_EXEMPTIONS: dict[tuple[str, str], str] = {
         "update",
     ): "spreads the endpoints this node hosts for its own CaseActor",
     (
-        "vultron/core/use_cases/triggers/_base.py",
+        "vultron/core/use_cases/triggers/_base/activity.py",
         "_build_result",
     ): "spreads the fields of the activity this trigger captured",
     (

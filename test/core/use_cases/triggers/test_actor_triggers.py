@@ -382,7 +382,7 @@ class TestSvcInviteActorToCaseUseCase:
     def test_invite_uses_no_delegated_context(self, monkeypatch):
         """The trigger never resolves a delegated CASE_MANAGER identity."""
         import vultron.core.use_cases._helpers as use_case_helpers
-        import vultron.core.use_cases.triggers.actor as actor_triggers
+        import vultron.core.use_cases.triggers.actor.recommendation as actor_triggers
 
         def _forbidden(*_args, **_kwargs):
             raise AssertionError("the owner must not emit as the CASE_MANAGER")
@@ -1857,9 +1857,18 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         tree from the owner's proposal; the trigger module does not even
         import the helper.
         """
-        import vultron.core.use_cases.triggers.actor as actor_triggers
+        import importlib
+        import pkgutil
 
-        assert not hasattr(actor_triggers, "delegated_authorship")
+        import vultron.core.use_cases.triggers.actor as actor_package
+
+        modules = [actor_package] + [
+            importlib.import_module(f"{actor_package.__name__}.{info.name}")
+            for info in pkgutil.iter_modules(actor_package.__path__)
+        ]
+        assert len(modules) > 1
+        for module in modules:
+            assert not hasattr(module, "delegated_authorship"), module.__name__
 
     @pytest.mark.spec("CM-21-005")
     @pytest.mark.spec("CM-24-004")
@@ -2161,9 +2170,9 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         from vultron.core.models.received_activity_view import (
             ReceivedActivityView,
         )
-        from vultron.core.use_cases.triggers import actor as actor_triggers
         from vultron.core.use_cases.triggers.actor import (
             SvcAcceptCaseOwnershipTransferUseCase,
+            ownership as actor_triggers,
         )
         from vultron.core.use_cases.triggers.requests import (
             AcceptCaseOwnershipTransferTriggerRequest,

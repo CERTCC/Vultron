@@ -281,7 +281,7 @@ class TestAcceptCaseInvite:
         """An invite whose actor cannot be resolved raises VultronValidationError."""
         invite_id = self._make_invite(dl)
 
-        import vultron.adapters.driven.trigger_activity_adapter.actors as _mod
+        import vultron.adapters.driven.trigger_activity_adapter.actors.invites as _mod
 
         monkeypatch.setattr(_mod, "_as_id", lambda _: None)
 
@@ -389,7 +389,9 @@ class TestAcceptCaseInvite:
         """Only a stub Invite is answered here, and a stub is recognised by
         its ``type`` alone (CM-11-013).  A stub that fails its own validation
         never gets this far: the parse of the archived body refuses it."""
-        from vultron.adapters.driven.trigger_activity_adapter import actors
+        from vultron.adapters.driven.trigger_activity_adapter.actors import (
+            _helpers,
+        )
 
         held = as_Invite(
             actor=_ACTOR,
@@ -397,7 +399,7 @@ class TestAcceptCaseInvite:
             target=held_target,
         )
         monkeypatch.setattr(
-            actors, "read_received_as_received", lambda *_args: held
+            _helpers, "read_received_as_received", lambda *_args: held
         )
 
         with pytest.raises(

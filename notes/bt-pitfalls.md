@@ -481,7 +481,7 @@ status-transparent, but a test asserting on the backend's concrete type or
 attributes must use `unwrap_call_out(node)`. Code that ticks a factory product
 outside a `BTBridge` tree must use `tick_once()` / `setup_with_descendants()`,
 never bare `update()` / `setup()` (see `_record_named_peer` in
-`use_cases/triggers/actor.py`). Rationale: [protocol-asks.md](protocol-asks.md)
+`use_cases/triggers/actor/_peers.py`). Rationale: [protocol-asks.md](protocol-asks.md)
 § "Why there is nothing to suspend" (ADR-0080); bundle
 configuration: [call-out-configuration.md](call-out-configuration.md).
 

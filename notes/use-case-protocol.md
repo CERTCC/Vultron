@@ -44,7 +44,7 @@ over a verb registry).
 `rejected` with `failure_reason`. Handlers never use `InboxOutcome` vocabulary
 themselves (HP-01-004, `test_use_cases_no_inbox_outcome.py`).
 
-Most handlers run a tree; `vultron/core/use_cases/received/_bt_verdict.py` turns
+Most handlers run a tree; `vultron/core/use_cases/received/_bt_verdict/` turns
 the run into a verdict. `verdict_from_bt` is the default reading: `SUCCESS` →
 `APPLIED`, a leadership skip → `SKIPPED`, `internal_error` or a missing port →
 raise `VultronBTInternalError`, any other `FAILURE` → `REFUSED` with the failing
