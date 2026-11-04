@@ -23,9 +23,9 @@ tell afterwards (DEMOMA-10, DEMOMA-11, DEMOMA-17-001).
 
 The tests here own what the pair shares; each scenario's own module owns its
 own fragments, ``test/demo/vendor_story/`` owns the vendor-first opening this
-prefix only names, and ``test_owner_decision_story.py`` owns the two
-``owner-keep-case`` continuations this module only names the parts of.  Every
-test patches the collaborators out, so no HTTP happens; ``demo_gate`` /
+prefix only names, and ``test/demo/owner_decision_story/`` owns the
+two ``owner-keep-case`` continuations this module only names the parts of.
+Every test patches the collaborators out, so no HTTP happens; ``demo_gate`` /
 ``demo_check`` / ``demo_step`` stay real wherever the test is about control
 flow and are stubbed to ``nullcontext`` only where it is about call shape.
 """

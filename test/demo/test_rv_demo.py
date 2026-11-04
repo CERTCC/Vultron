@@ -110,7 +110,13 @@ from vultron.demo.helpers.polling import (
     wait_for_reporter_log_entry,
 )
 from vultron.demo.helpers.seeding import get_actor_by_id, seed_containers
-from vultron.demo.helpers.story import Choose, choose, run_story, story
+from vultron.demo.helpers.story import (
+    Choose,
+    choose,
+    run_story,
+    runner as story_runner,
+    story,
+)
 from vultron.demo.helpers.sync import verify_replica_state
 from vultron.demo.helpers.vendor_story import (
     REPORTER_TELLS_THE_VENDOR,
@@ -945,7 +951,7 @@ class TestARosterThatNeverFillsStopsTheStory:
         def stub(_demo_name: str):
             yield harness
 
-        monkeypatch.setattr(story_module, "scenario_harness", stub)
+        monkeypatch.setattr(story_runner, "scenario_harness", stub)
         yield harness
         reset_demo_failures()
 
