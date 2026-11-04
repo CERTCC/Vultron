@@ -112,10 +112,8 @@ def read(
         Reconstituted domain object or ``None``.
     """
     with dl._session() as session:
-        stmt = select(VultronObjectRecord).where(
-            VultronObjectRecord.id_ == object_id
-        )
-        row = session.exec(stmt).first()
+        # A primary-key get: one id means no ``select`` to compile per read.
+        row = session.get(VultronObjectRecord, object_id)
         if row is not None:
             if row.type_ == "CaseParticipant":
                 summary = participant_status_summary(row.data)
