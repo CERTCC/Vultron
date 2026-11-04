@@ -143,7 +143,7 @@ groups:
       application. Otherwise a repeat can add a duplicate status entry or move the state
       one more step.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: HP-07-001
       note: handler-protocol.md
 - id: SM-05
@@ -181,10 +181,6 @@ groups:
       current status is the last one appended, even when an earlier one has a newer
       timestamp. `TestVulnerabilityCaseCurrentStatus` in
       `test/core/models/test_case.py` confirms the case rule.
-    relationships:
-    - rel_type: implements
-      spec_id: CM-03-006
-      note: case-management.md
     stories:
     - story_2022_074
     - story_2026_036
@@ -206,6 +202,9 @@ groups:
       (CLP-14-002), so the status needs no second trusted field.
     adr:
     - ADR-0103
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-02-009
 - id: SM-06
   title: In-Memory (Transient) State
   specs:
@@ -297,7 +296,7 @@ groups:
       confirms a stored `ParticipantStatus` carries its RM, VF and D states, and a
       stored `CaseStatus` its EM and PXA states, as plain bare-label strings.
     relationships:
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: SM-08-001
   - id: SM-08-002
     priority: MUST
@@ -331,10 +330,6 @@ groups:
       legal prefix terminus.'
     lint_suppress:
     - rationale_too_long
-    relationships:
-    - rel_type: implements
-      spec_id: VP-09-001
-      note: exploit/attack public implies embargo termination, not just awareness
   - id: SM-09-003
     priority: MUST
     kind: project
@@ -361,9 +356,6 @@ groups:
       CS space to the 32 reachable CS states: 4 valid VFD combinations (vfd, Vfd, VFd, VFD) × 8 PXA combinations. See `docs/reference/formal_protocol/states.md`
       for the formal derivation. Note: the "40-state" figure in the formal protocol paper refers to the global case state
       space (`8 PXA × 5 EM`), not to CS alone.'
-    relationships:
-    - rel_type: refines
-      spec_id: SM-09-001
     stories:
     - story_2026_022
   - id: SM-09-004
@@ -424,11 +416,6 @@ groups:
       whether an embargo is in force or whether the vul is public.
     verification: Integration tests confirm that processing an EM or PXA message updates `CaseStatus.em.state`
       or `CaseStatus.pxa.state` on the shared `VulnerabilityCase` before the handler exits.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-04-003
-    - rel_type: refines
-      spec_id: CM-04-004
     stories:
     - story_2022_081
     - story_2026_031
@@ -516,7 +503,7 @@ groups:
       A unit test asserts that the transitions read back from each generated chart
       equal the (trigger, source, destination) triples of its table.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: SM-11-001
     adr:
     - ADR-0162
@@ -540,7 +527,7 @@ groups:
       destination, that the generated chart carries those names, and that each name is
       defined on the EM documentation page.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: SM-11-002
     adr:
     - ADR-0162
@@ -556,7 +543,7 @@ groups:
     verification: >-
       A unit test loads each committed chart with Sismic's YAML importer.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: SM-11-001
     adr:
     - ADR-0162
@@ -580,7 +567,5 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: SM-11-001
-    - rel_type: depends_on
-      spec_id: MSM-08-012
     adr:
     - ADR-0162
