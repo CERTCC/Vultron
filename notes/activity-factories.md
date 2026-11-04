@@ -24,7 +24,7 @@ relevant_packages:
 Operating rules: `vultron/wire/as2/factories/AGENTS.md`. Spec:
 `specs/activity-factories.yaml` (AF-01 through AF-09). The factory inventory is
 `vultron/wire/as2/factories/__init__.py` (`__all__`); one module per domain
-(`report.py`, `case.py`, `embargo.py`, `case_participant.py`, `actor.py`,
+(`report.py`, `case/`, `embargo/`, `case_participant.py`, `actor.py`,
 `sync.py`, `fault.py`) mirrors `vocab/activities/`.
 
 ## Design Rules

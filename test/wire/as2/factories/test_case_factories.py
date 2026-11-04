@@ -60,9 +60,7 @@ from vultron.wire.as2.factories import (
     undo_case_ownership_transfer_activity,
     update_case_activity,
 )
-from vultron.wire.as2.factories.case import (
-    _stub_embargo,
-)
+from vultron.wire.as2.factories.case.invite import _stub_embargo
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,

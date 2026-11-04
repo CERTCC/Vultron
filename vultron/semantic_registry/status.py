@@ -45,7 +45,7 @@ from vultron.wire.as2.extractor import (
     AddCaseStatusToCasePattern,
     AddParticipantStatusToParticipantPattern,
 )
-from vultron.wire.as2.vocab.activities.case import (
+from vultron.wire.as2.vocab.activities.case.content import (
     _AddStatusToCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.case_participant import (
