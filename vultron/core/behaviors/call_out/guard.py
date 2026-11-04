@@ -28,7 +28,8 @@ its child and raises :class:`CallOutContractError` — a plain ``RuntimeError``,
 classify the failure via its ``except Exception`` branch as
 ``internal_error=True`` (a mis-wired backend), rather than its
 ``except VultronError`` branch (a deliberate protocol outcome). See
-``bridge.py``'s two-branch exception handling.
+the two-branch exception handling in ``bridge/tree_execution.py`` and
+``bridge/bt_bridge.py``.
 
 The guard is applied uniformly at the bundle boundary via
 :func:`guard_call_out_factory`, so every node a call-out bundle hands out —

@@ -1049,7 +1049,7 @@ class TestEmitSingleActivityBase:
     ):
         """Exception in _on_success() propagates; outbox write already committed.
 
-        _on_success() runs outside the try/except block (see helpers.py), so
+        _on_success() runs outside the try/except block (see helpers/emit.py), so
         a hook that raises is NOT silently swallowed as Status.FAILURE.  The
         exception bubbles to the BT executor, which is the correct behaviour:
         it signals an unexpected hook bug rather than masking a committed write
