@@ -228,9 +228,9 @@ in each entry, which is the one place the answer is always there.
 
 For the same reason the layer takes its files from the caller and globs for nothing
 itself (CEH-02-003, CEH-02-010). `vultron-demo-report` keeps its own
-`**/*-case-ledger.jsonl` discovery, which DRPT-01-007 pins; that glob matches none of
-the committed recordings, so a layer that inherited it could not open its own test
-corpus.
+`**/*-case-ledger.jsonl` discovery in `vultron/demo/report/timeline.py`, which
+DRPT-01-007 pins; that glob matches none of the committed recordings, so a layer that
+inherited it could not open its own test corpus.
 
 A merge of participant replicas is the fallback, and it must report the log indices
 no replica supplied (CEH-02-006). A measure over a history with a hole is wrong
@@ -271,12 +271,16 @@ which states only the boundary that nothing in the protocol path imports the lay
 
 - The layer is `vultron/measure/`, outside the protocol path.
 - The JSONL walker and its tolerant field-spelling helpers move there out of
-  `vultron/demo/report.py`, and the report tool imports them from there. The demo layer
-  sits above the measure package, so that import goes downward.
-- The display-name resolver (`collect_actor_names`, `friendly_actor_name`) moves down
-  with it. Leaving it in `vultron/demo/report.py` while the report tool imports the
-  reader from `vultron/measure/` would make the two packages import each other, and
-  would put a demo dependency inside the package the boundary exists to keep clean.
+  `vultron/demo/report/timeline.py`, and the report tool imports them from there. The
+  demo layer sits above the measure package, so that import goes downward.
+- The display-name resolver (`collect_actor_names`, `friendly_actor_name`, in
+  `vultron/demo/report/naming.py`) moves down with it. Leaving it in the demo layer
+  while the report tool imports the reader from `vultron/measure/` would make the two
+  packages import each other, and would put a demo dependency inside the package the
+  boundary exists to keep clean.
+- `vultron/demo/report/` is a package, not a module: #5606 split it into `cli.py`,
+  `naming.py`, `render.py` and `timeline.py`. Only the two modules named above are
+  touched, and `discover_replicas` stays in `timeline.py` with its glob.
 
 `vultron-demo-report` keeps its own module, its per-entry grain and its
 replica-presence matrix: it is a demo-CI forensic artifact, while the event history
@@ -286,8 +290,9 @@ is a research instrument at the event grain.
 
 The two tools want opposite things from a malformed row. DRPT-01-004 has
 `vultron-demo-report` exit non-zero when a file cannot be parsed, and `_load_jsonl`
-raises on the first bad row to deliver that. The measure layer must instead degrade
-one bad row to one unusable entry and finish the rest, reporting the row
+(`vultron/demo/report/timeline.py`) raises on the first bad row to deliver that. The
+measure layer must instead degrade one bad row to one unusable entry and finish the
+rest, reporting the row
 (CEH-02-008) — a single corrupt line in an archived ledger is worth reporting, not
 worth losing every other event to.
 
