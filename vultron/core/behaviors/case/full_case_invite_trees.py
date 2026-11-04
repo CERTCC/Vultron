@@ -22,8 +22,9 @@ from vultron.core.behaviors.case.nodes.full_case_invite import (
     CheckFullCaseReplyNode,
     LogFullCaseInviteReceivedNode,
 )
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_participant_replica_gated_tree,
+from vultron.core.behaviors.case.nodes.path_branch import OnPaths
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -76,24 +77,38 @@ def create_invite_actor_to_full_case_received_tree(
     return create_receive_activity_tree(
         name="InviteActorToFullCaseReceivedBT",
         case_id=case_id,
+        # The invitee usually holds the case from the Announce, so it is on
+        # the participant-replica path; with no replica yet it is on the
+        # no-case path, which CM-11-032 requires this type to handle
+        # (whether the inbox should defer such a delivery instead is
+        # #5793) — the
+        # stub Invite's trust anchor decides the sender there (PCR-03-004).
+        # The CASE_MANAGER commits the Invite in the tree that emits it and
+        # its own copy takes the manager path, where intake records it and
+        # the branch below keeps the invitee-only log off it (ADR-0109,
+        # HP-01-038).
+        paths={
+            ReceivedPath.CASE_MANAGER,
+            ReceivedPath.PARTICIPANT_REPLICA,
+            ReceivedPath.NO_CASE,
+        },
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=inviter_id, case_id=case_id, case_manager_anchored=True
         ),
         precondition_guards=[],
         replica_effects=[
-            create_participant_replica_gated_tree(
-                name="InviteeRecordsFullCaseInvite",
-                case_id=case_id,
-                children=[
-                    LogFullCaseInviteReceivedNode(
-                        invitee_id=invitee_id,
-                        case_id=case_id,
-                        sender_id=inviter_id,
-                        floor=floor,
-                    )
-                ],
-                case_may_be_absent=True,
+            # The invitee's own record of the Invite, on every declared
+            # path but the manager's; the branch reads the path the stage
+            # resolved (HP-01-036, RSH-08-003).
+            OnPaths.off_case_manager(
+                "InviteeRecordsFullCaseInvite",
+                LogFullCaseInviteReceivedNode(
+                    invitee_id=invitee_id,
+                    case_id=case_id,
+                    sender_id=inviter_id,
+                    floor=floor,
+                ),
             ),
         ],
         case_may_be_absent=True,
@@ -138,6 +153,10 @@ def create_full_case_invite_reply_received_tree(
     return create_receive_activity_tree(
         name=name,
         case_id=case_id,
+        # The reply answers the CASE_MANAGER that asked, which alone judges
+        # it and records the declared RM state (CM-11-012, PCR-08-001), so
+        # the manager path is the only one this type handles (HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
         # A replier the case already records as closed may answer nothing
         # further; the handler reads a repeated Reject as SKIPPED

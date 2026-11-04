@@ -19,6 +19,7 @@ from vultron.core.behaviors.case.nodes.participant_reinstatement import (
     EmitParticipantReinstatementNoticeNode,
     ReinstateCaseParticipantReceivedNode,
 )
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.embargo.nodes.reinvite import (
     InviteReinstatedParticipantToEmbargoNode,
 )
@@ -52,7 +53,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     failure_reason,
     intake_verdict,
     node_failed,
-    not_case_manager,
+    received_path,
     verdict_from_bt,
 )
 from vultron.errors import VultronBTInternalError
@@ -187,7 +188,11 @@ class _CaseOwnerParticipantMoveUseCase[
                 verdict.reason,
             )
             return verdict
-        if not_case_manager(tree):
+        if received_path(tree) is ReceivedPath.PARTICIPANT_REPLICA:
+            # The move declares the manager and participant-replica paths,
+            # so the path the stage resolved says which this receiver is on;
+            # the handler never infers it from a gate that skipped
+            # (HP-01-038, ADR-0153).
             # No arm for a case without a CASE_MANAGER (CM-24-008): the
             # sender guard let it through only as the bootstrap window.
             if (

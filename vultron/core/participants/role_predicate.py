@@ -57,9 +57,11 @@ def has_role(
 
     The case is read from *dl*, the actor's own store, on every call: a role
     granted or removed mid-case is answered from the roster as it stands now
-    (CM-02-011).  The read is the same cheap one
-    :class:`~vultron.core.behaviors.case.nodes.conditions.CheckIsCaseManagerNode`
-    already makes per message.
+    (CM-02-011).  One cheap read per call, and this function owns it: a
+    caller that already holds the case — the authority condition node, which
+    reads it first to tell an absent replica from an ADR-0087 Regime 1
+    anomaly — reads it a second time here rather than passing it in, so the
+    answer cannot be given from a stale copy the caller happened to keep.
 
     ``False``, never an error, when the store holds no replica of *case_id*:
     an actor that does not hold the case holds no role in it.  Role stacking

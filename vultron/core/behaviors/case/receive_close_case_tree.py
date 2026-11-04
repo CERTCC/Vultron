@@ -79,6 +79,9 @@ from vultron.core.behaviors.case.nodes.leave import (
     ExpirePendingInvitesOnCloseNode,
 )
 from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.nodes.refusal_notice import (
     OWNER_CLOSE_DECLINE,
 )
@@ -184,6 +187,7 @@ def create_close_case_received_tree(
         ├── CaseOpenToExternalWrites                    # post-close boundary (CM-23-013)
         │       (under PostCloseReply.REJECT: a PostCloseStage whose refusal
         │        arm emits EmitRejectLateLeave at the CASE_MANAGER)
+        ├── ReceivedPathNode                            # manager or replica (HP-01-038)
         ├── SenderRuleGuard                             # composed from sender_rule (HP-01-025)
         ├── ClockDecisions (CaseManagerGate)            # embargo end-time check (CLP-10-051)
         └── CloseOrDeclineIfCaseManager (CaseManagerGate)  # BT-17-008, #3825
@@ -513,6 +517,14 @@ def create_close_case_received_tree(
         name="CloseCaseBT",
         case_id=None,
         precondition_guards=[],
+        # The leaver asks the CASE_MANAGER, which decides the close or the
+        # decline, and the CASE_MANAGER relays the Leave to a participant
+        # replica, which archives it and takes the closure from the ledger
+        # fan-out (CM-23-002, CLP-10-001, RSH-08-003, HP-01-038).  The close
+        # arm inside the manager gate declares no paths of its own: this
+        # tree's stage already answered the question for the delivery
+        # (HP-01-037).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         # A sender whose closure the case records repeats a closing act; the
         # Case Owner's Leave also closes the case, so while the case is not
         # fully closed its Leave runs to close it (CM-23-018, CM-23-002).

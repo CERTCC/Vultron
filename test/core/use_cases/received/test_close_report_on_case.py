@@ -150,13 +150,16 @@ def test_close_report_on_an_open_case_is_refused(sender: str) -> None:
     """The owner's and a participant's report closure is refused.
 
     Both send ``Reject(Offer(VulnerabilityReport))``, and both are refused.
+    No receiver applies one, so the type addresses only an actor that holds
+    no case for the report and the path stage refuses every receiver that
+    does (CM-23-019, HP-01-038, HP-01-039).
     """
     dl = _store()
 
     result = _run(dl, sender)
 
     assert result.disposition is HandlerDisposition.REFUSED, result.reason
-    assert "No sender is entitled" in (result.reason or "")
+    assert "does not address" in (result.reason or "")
     assert _rm(dl, sender) == RM.ACCEPTED
     assert _rm(dl, _OWNER if sender == _VENDOR else _VENDOR) == RM.ACCEPTED
     assert dl.list_objects("CaseLedgerEntry") == []
@@ -169,13 +172,15 @@ def test_close_report_at_a_participant_replica_is_refused() -> None:
     """A participant holding a replica refuses the owner's report closure too.
 
     The owner's ``Reject(Offer(VulnerabilityReport))`` is refused there as
-    well: no sender is entitled to send it to any case actor."""
+    well: the type addresses no receiver that holds the case, so the reason
+    names the replica it refuses (HP-01-039)."""
     dl = _store(receiver=_VENDOR)
 
     result = _run(dl, _OWNER, _close_report(_OWNER, receiver=_VENDOR))
 
     assert result.disposition is HandlerDisposition.REFUSED, result.reason
-    assert "No sender is entitled" in (result.reason or "")
+    assert "not the CASE_MANAGER of case" in (result.reason or "")
+    assert "does not address" in (result.reason or "")
     assert _rm(dl, _OWNER) == RM.ACCEPTED
     assert dl.list_objects("CaseLedgerEntry") == []
     assert dl.outbox_list() == []
@@ -187,7 +192,9 @@ def test_close_report_at_a_participant_replica_is_refused() -> None:
 def test_close_report_from_a_closed_sender_is_refused_not_skipped() -> None:
     """A closed participant's report closure is refused like any other.
 
-    Its ``Reject(Offer(VulnerabilityReport))`` is refused, not skipped.
+    Its ``Reject(Offer(VulnerabilityReport))`` is refused, not skipped: the
+    path stage turns away every receiver that holds the case, so a closed
+    sender gets no different disposition from an open one (CM-23-049).
     """
     dl = _store(closed=_VENDOR)
 
@@ -200,13 +207,19 @@ def test_close_report_from_a_closed_sender_is_refused_not_skipped() -> None:
 
 @pytest.mark.spec("HP-01-006")
 def test_close_report_from_a_non_participant_is_refused() -> None:
-    """A sender the case does not list is refused like every other."""
+    """A sender the case does not list is refused like every other.
+
+    The path stage refuses it ahead of the sender guard, because a receiver
+    holding the case is on no path this type addresses (HP-01-039); the
+    sender rule's outside-case side is exercised by
+    :func:`test_close_report_with_no_case_is_refused_as_before`.
+    """
     dl = _store()
 
     result = _run(dl, _STRANGER)
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert "No sender is entitled" in (result.reason or "")
+    assert "does not address" in (result.reason or "")
     assert dl.list_objects("CaseLedgerEntry") == []
     assert dl.outbox_list() == []
 

@@ -156,6 +156,9 @@ from vultron.core.behaviors.case.nodes.proposal_participants import (
 from vultron.core.behaviors.case.nodes.proposal_reporter import (
     AddReporterParticipantNode,
 )
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.offer_provenance import (
     offer_provenance_from_proposal,
 )
@@ -588,6 +591,11 @@ def create_case_proposal_received_tree(
     # the facts it creates (ADR-0041 AC-4).
     return create_receive_activity_tree(
         name="CreateCaseProposalReceivedBT",
+        # The proposal is what brings the case into being, so the first
+        # delivery lands on the no-case path (HP-01-041, CP-09-001); a
+        # redelivery lands at the CASE_MANAGER of the case this actor then
+        # created, where the idempotency arms answer it afresh (HP-01-038).
+        paths={ReceivedPath.NO_CASE, ReceivedPath.CASE_MANAGER},
         case_id=None,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(

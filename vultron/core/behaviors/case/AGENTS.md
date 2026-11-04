@@ -84,6 +84,14 @@ CASE_MANAGER-only node fires for every receiving actor. Placing the guard
 outside the tree (e.g., in `execute()`) is insufficient because the same tree
 factory may be shared across trigger-side and received-side paths.
 
+**A received tree that declares its paths does not build this composite.** It
+passes the work as an `OnPaths` declaration (`nodes/path_branch.py`) and the
+receive-tree factory builds the branch from the path its door stage already
+resolved, so the role is read once per message (HP-01-036, HP-01-038). The
+composite above stays for the trigger side, which ADR-0153 does not govern,
+and for a received tree that has not declared its paths yet. See
+`notes/bt-integration.md` § "The Received-Side Stages".
+
 ---
 
 ## Idempotency Guards Must Be Silent — No Ledger Write on Duplicate
