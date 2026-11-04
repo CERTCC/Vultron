@@ -41,9 +41,6 @@ groups:
       CaseActor's `Announce`, so a replica that does not update means that the routing
       is wrong. The exchange demos under `vultron/demo/exchange/` drive one backend
       directly and are outside this rule.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-00-001
 - id: DEMOMA-01
   title: Actor Isolation
   specs:
@@ -95,9 +92,6 @@ groups:
       When multiple Vultron actors are co-located in the same Python process (e.g., a
       report-receiver actor and its spawned Case Actor), each call to `create_app()` must
       produce a fully isolated application.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-01-001
   - id: DEMOMA-01-006
     priority: MUST_NOT
     kind: project
@@ -125,9 +119,6 @@ groups:
       delivery path: objects created by Actor A become immediately visible to Actor B
       without any delivery occurring. This makes integration tests unreliable and hides
       real cross-actor delivery bugs.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-01-001
 - id: DEMOMA-02
   title: Container Orchestration
   specs:
@@ -144,7 +135,7 @@ groups:
       Without it, the first triggers of a scenario can fail for reasons that have
       nothing to do with the protocol.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: IMPLTS-05-002
       note: tech-stack.md
     - rel_type: depends_on
@@ -260,8 +251,8 @@ groups:
       so the demo cannot find a defect in that logic. The trigger endpoint is the path
       on which the sending actor makes the decision itself (DEMOMA-05-001).
     relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-00-001
+    - rel_type: derives_from
+      spec_id: DEMOMA-05-001
   - id: DEMOMA-05-003
     priority: MAY
     kind: project
@@ -274,9 +265,6 @@ groups:
       exercise the inbox parsing path directly. This carve-out resolves the apparent
       contradiction between DEMOMA-05-001 (which would prohibit exchange demos) and the
       existing `vultron/demo/exchange/` code.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-05-001
   - id: DEMOMA-05-005
     priority: MUST_NOT
     kind: project
@@ -290,7 +278,7 @@ groups:
       Direct inbox injection bypasses the BT of the triggering actor, so the scenario
       does not test the protocol from end to end.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: DEMOMA-05-001
   - id: DEMOMA-05-004
     priority: MUST_NOT
@@ -311,7 +299,7 @@ groups:
       via `add_participant_status` gives the appearance that the participant left the case,
       but no `Leave(VulnerabilityCase)` message was ever sent or confirmed by the CaseActor.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: DEMOMA-05-001
 - id: DEMOMA-06
   title: rv Scenario Workflow
@@ -424,8 +412,8 @@ groups:
       A write puts state into an actor that the protocol did not put there, and the
       demo can then pass although the protocol failed (DEMOMA-05-004).
     relationships:
-    - rel_type: extends
-      spec_id: DEMOMA-06-003
+    - rel_type: derives_from
+      spec_id: DEMOMA-05-001
   - id: DEMOMA-06-004
     priority: MUST
     kind: project
@@ -458,8 +446,10 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DEMOMA-06-004
-    - rel_type: refines
+    - rel_type: depends_on
       spec_id: CP-08-001
+    - rel_type: depends_on
+      spec_id: CP-08-003
     adr:
     - ADR-0023
   - id: DEMOMA-06-005
@@ -474,7 +464,7 @@ groups:
       (DEMOMA-06-004). A check of that ledger shows that the canonical case history is
       complete, not only the replicas.
     relationships:
-    - rel_type: refines
+    - rel_type: verifies
       spec_id: DEMOMA-06-004
   - id: DEMOMA-06-009
     priority: MUST
@@ -511,10 +501,8 @@ groups:
     adr:
     - ADR-0058
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-06-002
-    - rel_type: refines
-      spec_id: DEMOMA-15-001
   - id: DEMOMA-06-007
     priority: MUST
     kind: project
@@ -540,8 +528,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
-    - rel_type: depends_on
-      spec_id: DEMOCI-11-019
     tags:
     - demo
 - id: DEMOMA-07
@@ -682,9 +668,10 @@ groups:
         embargo teardown triggered when any participant's CaseStatus carries
         CS.P, CS.X, or CS.A and an active embargo exists.
     relationships:
-    - rel_type: refines
-      spec_id: SYNC-02-002
-      note: step 3 propagation must use canonical Announce(CaseLedgerEntry) fan-out
+    - rel_type: uses_definition
+      spec_id: CM-10-004
+    - rel_type: uses_definition
+      spec_id: CM-23-004
   - id: DEMOMA-07-007
     priority: MUST
     kind: project
@@ -727,7 +714,7 @@ groups:
       to the Leave(VulnerabilityCase) receive path (CM-23-002).
     testable: true
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: DEMOMA-07-003
       note: >-
         Step 5 is superseded; AutoCloseSequence removed from add_participant_status_tree
@@ -766,9 +753,6 @@ groups:
     - rel_type: refines
       spec_id: DEMOMA-07-003
       note: prohibits the pre-SYNC raw re-broadcast artefact superseded by ADR-0019
-    - rel_type: refines
-      spec_id: SYNC-02-002
-      note: Announce(CaseLedgerEntry) is the sole canonical propagation path for status updates
 - id: DEMOMA-08
   title: Case Actor Bootstrap and CASE_MANAGER Role
   specs:
@@ -839,7 +823,7 @@ groups:
       choice of the demo, whose sender holds the report; the protocol lets the
       bootstrap name it by reference.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CBT-01-007
   - id: DEMOMA-08-010
     priority: MUST
@@ -976,9 +960,6 @@ groups:
       A convergence check after each major event finds the first event that did not
       reach a replica. A check only at the end can show that the replicas differ, but
       not when they became different.
-    relationships:
-    - rel_type: extends
-      spec_id: DEMOMA-09-004
   - id: DEMOMA-09-005
     priority: MUST
     kind: project
@@ -992,7 +973,9 @@ groups:
       notice. A separate CI job keeps each scenario failure visible on its own.
     relationships:
     - rel_type: refines
-      spec_id: DEMOCI-03-004
+      spec_id: DEMOCI-03-002
+    - rel_type: refines
+      spec_id: DEMOCI-11-001
   - id: DEMOMA-09-011
     priority: MUST
     kind: project
@@ -1003,9 +986,6 @@ groups:
       Concurrent jobs keep the elapsed time of a CI run close to the time of the
       slowest scenario, so total CI wall-clock time does not grow linearly with the
       number of scenarios.
-    relationships:
-    - rel_type: extends
-      spec_id: DEMOMA-09-005
   - id: DEMOMA-09-006
     priority: MUST
     kind: project
@@ -1020,9 +1000,6 @@ groups:
       case-actor container as its `case_actor_service_url` (CP-08-003, CP-08-008,
       DEMOMA-06-008). The scenarios share one Compose stack, so RVV cannot keep the
       Case Actor in the Vendor1 container unless every other scenario does the same.
-    relationships:
-    - rel_type: refines
-      spec_id: CP-08-008
   - id: DEMOMA-09-007
     priority: MUST
     kind: project
@@ -1048,8 +1025,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
-    - rel_type: depends_on
-      spec_id: DEMOCI-11-019
     tags:
     - demo
 
@@ -1098,9 +1073,6 @@ groups:
       This scenario demonstrates the "extension" variant: a vendor seeks facilitation
       help without surrendering case control, in contrast to the RVCV-handoff variant
       where ownership transfers.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-02-001
   - id: DEMOMA-10-011
     priority: MUST
     kind: project
@@ -1200,7 +1172,7 @@ groups:
         Vendor1 holds a pending Offer(CaseParticipant) for Vendor2 awaiting approval;
         no invitation has been sent to Vendor2 yet
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-16-001
   - id: DEMOMA-10-013
     priority: MUST
@@ -1216,7 +1188,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DEMOMA-10-004
-    - rel_type: refines
+    - rel_type: depends_on
       spec_id: CM-20-003
   - id: DEMOMA-10-005
     priority: MUST
@@ -1249,9 +1221,6 @@ groups:
     - description: >-
         Vendor2 holds an invitation to the case; scenario may advance to Vendor2
         acceptance
-    relationships:
-    - rel_type: refines
-      spec_id: CM-20-002
   - id: DEMOMA-10-014
     priority: MUST
     kind: project
@@ -1304,9 +1273,6 @@ groups:
     rationale: >-
       A run that is not deterministic gives a verdict that does not depend only on the
       code.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-09-004
   - id: DEMOMA-10-016
     priority: MUST
     kind: project
@@ -1319,9 +1285,6 @@ groups:
       Reporter, Coordinator and Vendor2 each hold a replica that must follow the
       canonical state. A check after each major event finds the first update that did
       not reach a replica.
-    relationships:
-    - rel_type: extends
-      spec_id: DEMOMA-10-007
   - id: DEMOMA-10-008
     priority: MUST
     kind: project
@@ -1336,11 +1299,11 @@ groups:
       job keeps its failures visible on their own. It also keeps the elapsed time of a
       CI run close to the time of the slowest scenario. The matrix is generated from the
       registry, so registration is the only step (ADR-0098).
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-09-005
     adr:
     - ADR-0098
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-11-001
   - id: DEMOMA-10-017
     priority: MUST
     kind: project
@@ -1353,7 +1316,7 @@ groups:
       runs it.
     relationships:
     - rel_type: extends
-      spec_id: DEMOMA-10-008
+      spec_id: DEMOMA-10-007
   - id: DEMOMA-10-009
     priority: MUST
     kind: project
@@ -1369,7 +1332,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-08-003
-    - rel_type: refines
+    - rel_type: implements
       spec_id: DEMOMA-10-019
   - id: DEMOMA-10-018
     priority: MUST
@@ -1387,6 +1350,10 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: DEMOMA-10-009
+    - rel_type: depends_on
+      spec_id: CP-08-001
+    - rel_type: depends_on
+      spec_id: CP-08-003
   - id: DEMOMA-10-010
     priority: MUST
     kind: project
@@ -1414,8 +1381,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
-    - rel_type: depends_on
-      spec_id: DEMOCI-11-019
     tags:
     - demo
 
@@ -1439,9 +1404,9 @@ groups:
       difference in their results then points to the ownership transfer and the steps
       that follow it.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: DEMOMA-10-001
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: DEMOMA-10-019
   - id: DEMOMA-11-002
     priority: MUST
@@ -1484,9 +1449,9 @@ groups:
         VulnerabilityCase.attributed_to = Coordinator actor ID; all participants' case
         replicas reflect the updated ownership
     relationships:
-    - rel_type: refines
+    - rel_type: depends_on
       spec_id: TRIG-11-001
-    - rel_type: refines
+    - rel_type: depends_on
       spec_id: TRIG-11-002
   - id: DEMOMA-11-003
     priority: MUST
@@ -1526,9 +1491,6 @@ groups:
     - description: >-
         Vendor2 is a signatory participant with a seeded case replica; scenario may
         advance to fix tracking and final state
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-10-012
   - id: DEMOMA-11-021
     priority: MUST
     kind: project
@@ -1554,9 +1516,6 @@ groups:
       `attributed_to` names the Case Owner, and owner checks such as `is_case_owner`
       compare an actor with it. If it keeps the old value after the transfer, the
       previous owner is still treated as the Case Owner.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-10-002
   - id: DEMOMA-11-016
     priority: MUST
     kind: project
@@ -1585,7 +1544,7 @@ groups:
       the embargo staying in force.
     relationships:
     - rel_type: refines
-      spec_id: DEMOMA-10-015
+      spec_id: DEMOMA-11-017
   - id: DEMOMA-11-017
     priority: MUST
     kind: project
@@ -1597,9 +1556,6 @@ groups:
       The transfer happens while the embargo is in force. An EM transition that fails
       or skips a state at that point would leave the participants with an embargo
       state that no protocol step produced.
-    relationships:
-    - rel_type: extends
-      spec_id: DEMOMA-11-005
   - id: DEMOMA-11-006
     priority: MUST
     kind: project
@@ -1612,7 +1568,7 @@ groups:
       ownership transfer.
     relationships:
     - rel_type: refines
-      spec_id: DEMOMA-10-006
+      spec_id: DEMOMA-03-002
   - id: DEMOMA-11-018
     priority: MUST
     kind: project
@@ -1625,8 +1581,6 @@ groups:
       transfer that left a participant unable to reach RM.CLOSED, or left the embargo
       active, would show in this check.
     relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-10-015
     - rel_type: extends
       spec_id: DEMOMA-11-006
   - id: DEMOMA-11-007
@@ -1638,9 +1592,6 @@ groups:
     rationale: >-
       A deterministic run gives a verdict that depends only on the code, before and
       after the ownership changes.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-10-007
   - id: DEMOMA-11-019
     priority: MUST
     kind: project
@@ -1653,11 +1604,6 @@ groups:
       After the transfer, every participant that is not the Case Owner must still
       receive canonical updates. A check after each major event finds the first update
       that a replica did not receive, before or after the ownership changes.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-10-016
-    - rel_type: extends
-      spec_id: DEMOMA-11-007
   - id: DEMOMA-11-008
     priority: MUST
     kind: project
@@ -1674,7 +1620,7 @@ groups:
     - ADR-0098
     relationships:
     - rel_type: refines
-      spec_id: DEMOMA-10-008
+      spec_id: DEMOCI-11-001
   - id: DEMOMA-11-009
     priority: MUST
     kind: project
@@ -1727,8 +1673,6 @@ groups:
         deterministically
     relationships:
     - rel_type: refines
-      spec_id: DEMOMA-10-007
-    - rel_type: refines
       spec_id: DEMOMA-22-001
       note: >-
         This requirement is the RVCV-handoff instance of the general rule
@@ -1751,8 +1695,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-08-003
-    - rel_type: refines
-      spec_id: DEMOMA-10-009
   - id: DEMOMA-11-020
     priority: MUST
     kind: project
@@ -1769,6 +1711,10 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: DEMOMA-11-010
+    - rel_type: depends_on
+      spec_id: CP-08-001
+    - rel_type: depends_on
+      spec_id: CP-08-003
   - id: DEMOMA-11-011
     priority: MUST
     kind: project
@@ -1831,8 +1777,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
-    - rel_type: depends_on
-      spec_id: DEMOCI-11-019
+    - rel_type: uses_definition
+      spec_id: DEMOMA-10-010
     tags:
     - demo
 
@@ -1926,12 +1872,8 @@ groups:
         established; trust bootstrap delivered to Reporter; no ownership
         transfer has occurred
     relationships:
-    - rel_type: refines
-      spec_id: CM-02-001
-    - rel_type: refines
-      spec_id: CBT-01-001
-    - rel_type: refines
-      spec_id: EP-04-001
+    - rel_type: uses_definition
+      spec_id: DEMOMA-12-019
   - id: DEMOMA-12-003
     priority: MUST_NOT
     kind: project
@@ -1945,10 +1887,8 @@ groups:
       exchange for the Reporter would record an invitation that never occurred
       (CM-18-003).
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: CM-22-002
-    - rel_type: refines
-      spec_id: CM-14-005
   - id: DEMOMA-12-020
     priority: MUST
     kind: project
@@ -1985,9 +1925,6 @@ groups:
     - description: >-
         Reporter is a signatory with a case replica; Vendor invitation has not
         yet been issued
-    relationships:
-    - rel_type: extends
-      spec_id: DEMOMA-12-003
   - id: DEMOMA-12-004
     priority: MUST
     kind: project
@@ -2025,9 +1962,6 @@ groups:
         Vendor is a signatory with a seeded case replica containing full history
         from genesis; all three actors (Reporter, Coordinator, Vendor) plus
         CaseActor are now case participants
-    relationships:
-    - rel_type: refines
-      spec_id: CM-17-001
     adr:
     - ADR-0026
   - id: DEMOMA-12-021
@@ -2061,8 +1995,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-03-002
-    - rel_type: refines
-      spec_id: EP-04-001
   - id: DEMOMA-12-006
     priority: MUST
     kind: project
@@ -2071,9 +2003,6 @@ groups:
       The RCV scenario MUST run deterministically end to end.
     rationale: >-
       A deterministic run gives a verdict that depends only on the code.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-09-004
   - id: DEMOMA-12-022
     priority: MUST
     kind: project
@@ -2085,9 +2014,6 @@ groups:
     rationale: >-
       The Reporter and Vendor replicas must follow the canonical state. A check after
       each major event finds the first update that did not reach a replica.
-    relationships:
-    - rel_type: extends
-      spec_id: DEMOMA-12-006
   - id: DEMOMA-12-007
     priority: MUST
     kind: project
@@ -2106,7 +2032,7 @@ groups:
     - rel_type: refines
       spec_id: DEMOCI-03-002
     - rel_type: refines
-      spec_id: DEMOCI-03-003
+      spec_id: DEMOCI-11-001
   - id: DEMOMA-12-008
     priority: MUST
     kind: project
@@ -2121,9 +2047,6 @@ groups:
       Requiring use of the shared library enforces the DRY constraint across
       scenarios. A file that copies invariant logic is not compliant even if
       it tests the correct things.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-12-006
   - id: DEMOMA-12-009
     priority: MUST
     kind: project
@@ -2146,8 +2069,10 @@ groups:
       enumerating them here means CI will catch regressions in the steps
       unique to RCV.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-12-008
+    - rel_type: verifies
+      spec_id: DEMOMA-12-003
   - id: DEMOMA-12-010
     priority: MUST
     kind: project
@@ -2163,7 +2088,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-08-003
-    - rel_type: refines
+    - rel_type: implements
       spec_id: DEMOMA-12-019
   - id: DEMOMA-12-023
     priority: MUST
@@ -2181,6 +2106,10 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: DEMOMA-12-010
+    - rel_type: depends_on
+      spec_id: CP-08-001
+    - rel_type: depends_on
+      spec_id: CP-08-003
   - id: DEMOMA-12-011
     priority: MUST
     kind: project
@@ -2278,8 +2207,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
-    - rel_type: depends_on
-      spec_id: DEMOCI-11-019
     tags:
     - demo
   - id: DEMOMA-12-018
@@ -2305,8 +2232,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-12-017
-    - rel_type: depends_on
-      spec_id: DEMOCI-11-019
     tags:
     - demo
 
@@ -2332,8 +2257,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
-    - rel_type: refines
-      spec_id: DEMOMA-10-001
   - id: DEMOMA-13-013
     priority: MUST
     kind: project
@@ -2348,8 +2271,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DEMOMA-13-001
-    - rel_type: refines
-      spec_id: DEMOMA-10-019
   - id: DEMOMA-13-002
     priority: MUST
     kind: project
@@ -2396,15 +2317,6 @@ groups:
         trust bootstrap delivered to Reporter; Reporter is an initial participant via
         the report-submission bootstrap (not via a separate invite-actor-to-case
         trigger); no ownership transfer has occurred
-    relationships:
-    - rel_type: refines
-      spec_id: CM-02-001
-    - rel_type: refines
-      spec_id: CBT-01-001
-    - rel_type: refines
-      spec_id: EP-04-001
-    - rel_type: refines
-      spec_id: DEMOMA-12-002
   - id: DEMOMA-13-014
     priority: MUST
     kind: project
@@ -2460,8 +2372,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-20-001
-    - rel_type: refines
-      spec_id: DEMOMA-10-003
   - id: DEMOMA-13-015
     priority: MUST
     kind: project
@@ -2474,8 +2384,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DEMOMA-13-003
-    - rel_type: refines
-      spec_id: DEMOMA-10-012
   - id: DEMOMA-13-004
     priority: MUST
     kind: project
@@ -2510,10 +2418,8 @@ groups:
         C1 holds a pending Offer(CaseParticipant) for Vendor awaiting approval;
         no invitation has been sent to Vendor yet
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-16-001
-    - rel_type: refines
-      spec_id: DEMOMA-10-004
   - id: DEMOMA-13-016
     priority: MUST
     kind: project
@@ -2528,10 +2434,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DEMOMA-13-004
-    - rel_type: refines
+    - rel_type: depends_on
       spec_id: CM-20-003
-    - rel_type: refines
-      spec_id: DEMOMA-10-013
   - id: DEMOMA-13-005
     priority: MUST
     kind: project
@@ -2569,11 +2473,6 @@ groups:
     - description: >-
         Vendor is a participant with CVDRole.VENDOR and a seeded case replica;
         all five participants present (Reporter, C1, C2, Vendor, CaseActor)
-    relationships:
-    - rel_type: refines
-      spec_id: CM-20-002
-    - rel_type: refines
-      spec_id: DEMOMA-10-005
   - id: DEMOMA-13-017
     priority: MUST
     kind: project
@@ -2590,8 +2489,6 @@ groups:
       spec_id: DEMOMA-13-005
     - rel_type: refines
       spec_id: CM-17-001
-    - rel_type: refines
-      spec_id: DEMOMA-10-014
   - id: DEMOMA-13-006
     priority: MUST
     kind: project
@@ -2605,8 +2502,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-03-002
-    - rel_type: refines
-      spec_id: DEMOMA-10-006
   - id: DEMOMA-13-018
     priority: MUST
     kind: project
@@ -2622,8 +2517,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DEMOMA-13-006
-    - rel_type: refines
-      spec_id: DEMOMA-10-015
   - id: DEMOMA-13-007
     priority: MUST
     kind: project
@@ -2632,11 +2525,6 @@ groups:
       The RCCV-extension scenario MUST run deterministically end to end.
     rationale: >-
       A deterministic run gives a verdict that depends only on the code.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-09-004
-    - rel_type: refines
-      spec_id: DEMOMA-10-007
   - id: DEMOMA-13-019
     priority: MUST
     kind: project
@@ -2648,11 +2536,6 @@ groups:
     rationale: >-
       Each replica that is not the authority must follow the canonical state. A check
       after each major event finds the first update that did not reach a replica.
-    relationships:
-    - rel_type: extends
-      spec_id: DEMOMA-13-007
-    - rel_type: refines
-      spec_id: DEMOMA-10-016
   - id: DEMOMA-13-008
     priority: MUST
     kind: project
@@ -2668,9 +2551,7 @@ groups:
       (DEMOCI-03-003).
     relationships:
     - rel_type: refines
-      spec_id: DEMOMA-09-005
-    - rel_type: refines
-      spec_id: DEMOMA-10-008
+      spec_id: DEMOCI-11-001
   - id: DEMOMA-13-009
     priority: MUST
     kind: project
@@ -2685,9 +2566,6 @@ groups:
       accidentally omitting protocol steps not covered by universal checks.
       The Vendor-as-late-joiner invariant is shared with RVCV-extension
       (DEMOMA-10) and RCCV-handoff (DEMOMA-15).
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-12-008
   - id: DEMOMA-13-010
     priority: MUST
     kind: project
@@ -2703,7 +2581,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-08-003
-    - rel_type: refines
+    - rel_type: implements
       spec_id: DEMOMA-13-013
   - id: DEMOMA-13-020
     priority: MUST
@@ -2721,6 +2599,10 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: DEMOMA-13-010
+    - rel_type: depends_on
+      spec_id: CP-08-001
+    - rel_type: depends_on
+      spec_id: CP-08-003
   - id: DEMOMA-13-011
     priority: MUST
     kind: project
@@ -2769,8 +2651,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
-    - rel_type: depends_on
-      spec_id: DEMOCI-11-019
     tags:
     - demo
 
@@ -2798,8 +2678,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
-    - rel_type: refines
-      spec_id: DEMOMA-13-001
   - id: DEMOMA-14-018
     priority: MUST
     kind: project
@@ -2814,8 +2692,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DEMOMA-14-001
-    - rel_type: refines
-      spec_id: DEMOMA-13-013
   - id: DEMOMA-14-002
     priority: MUST
     kind: project
@@ -2844,9 +2720,6 @@ groups:
       expected: C1 RM→VALID then RM→ACCEPTED; C1 holds CVDRole.CASE_OWNER
     postconditions:
     - description: C1 holds CVDRole.CASE_OWNER and case attributed_to=C1.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-13-002
   - id: DEMOMA-14-003
     priority: MUST
     kind: project
@@ -2870,7 +2743,7 @@ groups:
     postconditions:
     - description: C2 is a participant; CVDRole.COORDINATOR; case attributed_to=C1.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-14-002
   - id: DEMOMA-14-019
     priority: MUST
@@ -2913,8 +2786,10 @@ groups:
     - description: case attributed_to=C2 on C1's and C2's DataLayers.
     - description: C2 holds CVDRole.CASE_OWNER; C1 holds CVDRole.COORDINATOR.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-14-003
+    - rel_type: depends_on
+      spec_id: TRIG-11-001
   - id: DEMOMA-14-020
     priority: MUST
     kind: project
@@ -2927,6 +2802,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: DEMOMA-14-004
+    - rel_type: depends_on
+      spec_id: TRIG-11-002
   - id: DEMOMA-14-005
     priority: MUST
     kind: project
@@ -2950,7 +2827,7 @@ groups:
     postconditions:
     - description: Vendor is a participant; all five actors have case replicas.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-14-004
   - id: DEMOMA-14-021
     priority: MUST
@@ -2974,9 +2851,6 @@ groups:
     rationale: >-
       Verifying convergence here ensures the ownership-transfer workflow does not break
       LedgerFanout convergence.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-10-016
   - id: DEMOMA-14-022
     priority: MUST
     kind: project
@@ -3001,9 +2875,6 @@ groups:
     rationale: >-
       End-to-end completion is required to exercise the full CVD coordination
       workflow in the RCCV-handoff variant.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-11-018
   - id: DEMOMA-14-008
     priority: MUST
     kind: project
@@ -3021,7 +2892,7 @@ groups:
     - ADR-0098
     relationships:
     - rel_type: refines
-      spec_id: DEMOMA-04-002
+      spec_id: DEMOCI-11-011
   - id: DEMOMA-14-023
     priority: MUST
     kind: project
@@ -3042,7 +2913,7 @@ groups:
       `test/demo/test_rccv_handoff_demo.py` asserts that each named option appears in
       the `vultron-demo rccv-handoff --help` output.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: DEMOMA-14-008
   - id: DEMOMA-14-024
     priority: MUST
@@ -3056,7 +2927,7 @@ groups:
       environment. The CLI generates the binding from each role's `url_env` and
       `id_env`. The `--skip-health-check` flag has no environment binding.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: DEMOMA-14-008
   - id: DEMOMA-14-009
     priority: MUST
@@ -3072,9 +2943,6 @@ groups:
       accidentally omitting protocol steps not covered by universal checks.
       The Vendor-as-late-joiner invariant is shared with RVCV-extension
       (DEMOMA-10) and RCCV-extension (DEMOMA-13).
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-12-008
   - id: DEMOMA-14-010
     priority: MUST
     kind: project
@@ -3117,6 +2985,9 @@ groups:
     rationale: >-
       Accept must reach the CaseActor, not just the inviting actor, so the join
       is recorded in the authoritative ledger.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-008
   - id: DEMOMA-14-014
     priority: MUST
     kind: project
@@ -3187,8 +3058,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
-    - rel_type: depends_on
-      spec_id: DEMOCI-11-019
+    - rel_type: uses_definition
+      spec_id: DEMOMA-13-012
     tags:
     - demo
 - id: DEMOMA-15
@@ -3209,11 +3080,6 @@ groups:
       Coordinator would fail only later, as a fix-ready state that never appears. That
       failure does not show its cause. The role check names the wrong actor at once. An
       actor that holds both VENDOR and DEPLOYER passes the check.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-06-002
-    - rel_type: refines
-      spec_id: DEMOMA-12-005
   - id: DEMOMA-15-002
     priority: MUST
     kind: project
@@ -3287,10 +3153,8 @@ groups:
       only the types that a correct rv run produces, so that a missing type always
       means a defect.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: DEMOMA-16-001
-    - rel_type: refines
-      spec_id: DEMOMA-06-002
 
   - id: DEMOMA-16-003
     priority: MUST
@@ -3308,9 +3172,9 @@ groups:
       make Vendor2 a participant, so their ledger entries are the evidence that RVV
       ran as specified.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-16-001
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: DEMOMA-09-002
 
   - id: DEMOMA-16-004
@@ -3334,10 +3198,8 @@ groups:
       shows only that one invitee joined. The count checks in the harness show that both
       the Coordinator and Vendor2 joined.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-16-001
-    - rel_type: refines
-      spec_id: DEMOMA-10-001
 
   - id: DEMOMA-16-005
     priority: MUST
@@ -3358,10 +3220,8 @@ groups:
       The invitation types show that the invitation step ran. The count checks in the
       harness show that both the Coordinator and Vendor2 joined.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-16-001
-    - rel_type: refines
-      spec_id: DEMOMA-11-001
 
   - id: DEMOMA-16-006
     priority: MUST
@@ -3382,9 +3242,9 @@ groups:
       types show that the invitation step ran. The count checks in the harness show that
       both C2 and the Vendor joined.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-16-001
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-14-009
 
   - id: DEMOMA-16-007
@@ -3403,9 +3263,9 @@ groups:
       the type check. The Reporter is seated at case creation, so the invitation types
       in RCV are evidence about the Vendor only.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-16-001
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-12-008
 
   - id: DEMOMA-16-008
@@ -3457,10 +3317,8 @@ groups:
     adr:
     - ADR-0026
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-16-001
-    - rel_type: refines
-      spec_id: DEMOMA-19-001
 
   - id: DEMOMA-16-010
     priority: MUST
@@ -3483,10 +3341,8 @@ groups:
       `accept_invite_actor_to_case` shows only that one of them joined. The count checks
       in the harness show that both joined.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-16-001
-    - rel_type: refines
-      spec_id: DEMOMA-13-001
 
   - id: DEMOMA-16-011
     priority: MUST
@@ -3508,9 +3364,9 @@ groups:
       because a correct run never produces it. If it were in the list, every correct
       run would fail.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-16-001
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: DEMOMA-27-006
   - id: DEMOMA-16-012
     priority: MUST
@@ -3553,10 +3409,8 @@ groups:
       expected because there is no second-level recommendation in this
       two-actor scenario.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-16-001
-    - rel_type: refines
-      spec_id: DEMOMA-25-001
 
   - id: DEMOMA-16-016
     priority: MUST
@@ -3577,10 +3431,8 @@ groups:
       (DEMOMA-20-016); the harness imports them from that code, so a rename
       there fails the harness rather than leaving it checking a stale string.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-16-001
-    - rel_type: refines
-      spec_id: DEMOMA-20-016
 
   - id: DEMOMA-16-017
     priority: MUST
@@ -3602,10 +3454,8 @@ groups:
       (DEMOMA-21-022); the harness imports them from that code, so a rename
       there fails the harness rather than leaving it checking a stale string.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-16-001
-    - rel_type: refines
-      spec_id: DEMOMA-21-022
 
   - id: DEMOMA-16-014
     priority: MUST
@@ -3628,10 +3478,8 @@ groups:
       exercised for each. Unlike scenarios with ADR-0026 suggest-actor flows,
       RCVD uses only direct invitations from the Case Owner.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-16-001
-    - rel_type: refines
-      spec_id: DEMOMA-24-001
 
 - id: DEMOMA-18
   title: In-Process Fuzz Simulation Scenario
@@ -3648,7 +3496,7 @@ groups:
       and many times. Containers and network setup would make it too slow for local
       development and CI smoke tests.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: DEMOMA-01-001
   - id: DEMOMA-18-009
     priority: MUST
@@ -3701,9 +3549,6 @@ groups:
       The scenario's purpose is probabilistic state-space exploration.
       DETERMINISTIC bundles would produce an identical path on every
       iteration, defeating the simulation goal.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-18-001
   - id: DEMOMA-18-004
     priority: MUST
     kind: project
@@ -3719,7 +3564,7 @@ groups:
       and behavior tree, so the simulation tests the protocol logic of both actors and
       not only that of the sender.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: DEMOMA-18-001
   - id: DEMOMA-18-005
     priority: MUST
@@ -3744,9 +3589,6 @@ groups:
       Consistent with the existing ``vultron demo`` CLI structure
       (DC-01-001 through DC-01-005); the ``fuzz`` sub-command makes the
       scenario discoverable alongside other demo commands.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-18-001
   - id: DEMOMA-18-011
     priority: MUST
     kind: project
@@ -3795,9 +3637,6 @@ groups:
       The test provides a regression guard confirming the scenario still
       runs after code changes, independent of the specific protocol path
       taken.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-18-001
   - id: DEMOMA-18-013
     priority: MUST
     kind: project
@@ -3830,9 +3669,6 @@ groups:
     - rel_type: refines
       spec_id: CS-22-001
       note: MUST-level specialisation of the project-wide SHOULD rule for demo scenario files
-    - rel_type: refines
-      spec_id: DEMOMA-03-001
-      note: acceptance test scenario files are also subject to this rule
   - id: DEMOMA-17-003
     priority: MUST_NOT
     kind: project
@@ -3859,7 +3695,7 @@ groups:
       also makes a check weaker or stronger, the change in the verdict is hidden
       inside a refactor, where reviewers do not look for it.
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: DEMOMA-17-001
   - id: DEMOMA-17-004
     priority: MUST
@@ -3911,10 +3747,6 @@ groups:
       (DEMOCI-11-021).
     relationships:
     - rel_type: refines
-      spec_id: DEMOMA-01-001
-    - rel_type: refines
-      spec_id: DEMOMA-02-001
-    - rel_type: refines
       spec_id: DEMOCI-11-020
 
   - id: DEMOMA-19-023
@@ -3935,10 +3767,8 @@ groups:
       data volume, publishes it on its own host-port variable, and configures the
       actor id its slot hosts. The shared anchor itself is the remaining debt.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-19-001
-    - rel_type: refines
-      spec_id: DEMOMA-02-001
 
   - id: DEMOMA-19-002
     priority: MUST
@@ -3955,10 +3785,8 @@ groups:
       The N×(N-1) pattern is established by all existing multi-actor seed
       functions (seed_containers_rvv, seed_containers_rvcv, seed_containers_rccv).
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-19-001
-    - rel_type: refines
-      spec_id: DEMOMA-02-002
 
   - id: DEMOMA-19-003
     priority: MUST
@@ -3974,13 +3802,6 @@ groups:
       `rcvcv` scenario and its files together.
     adr:
     - ADR-0098
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-01-001
-    - rel_type: refines
-      spec_id: DEMOMA-03-002
-    - rel_type: refines
-      spec_id: DEMOMA-17-001
 
   - id: DEMOMA-19-004
     priority: MUST
@@ -3995,11 +3816,6 @@ groups:
       `verify_fix_ready` requires VENDOR; `verify_fix_deployed` requires
       DEPLOYER. Using V1 in a `verify_fix_deployed` call would exercise the
       wrong path and mask a future regression where the d→D BT gate is weakened.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-15-001
-    - rel_type: refines
-      spec_id: DEMOMA-19-003
   - id: DEMOMA-19-026
     priority: MUST
     kind: project
@@ -4023,11 +3839,6 @@ groups:
       V1 publishes first so that the scenario tests a teardown that a VENDOR participant
       who is not the Case Owner starts. ThreatTerminationBranchNode does not gate
       teardown on the role of the sender (RSH-03-002).
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-07-003
-    - rel_type: refines
-      spec_id: DEMOMA-19-003
   - id: DEMOMA-19-027
     priority: MUST
     kind: project
@@ -4058,9 +3869,6 @@ groups:
       builds one sub-command for each registered scenario (DEMOCI-11-011). A scenario
       that is not registered is not reachable from `vultron demo rcvcv`, and it has no
       entry in the CI matrix.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-01-001
 
   - id: DEMOMA-19-007
     priority: MUST
@@ -4079,9 +3887,7 @@ groups:
       making log archaeology easier.
     relationships:
     - rel_type: refines
-      spec_id: DEMOCI-04-001
-    - rel_type: refines
-      spec_id: DEMOMA-19-001
+      spec_id: DEMOCI-11-001
 
   - id: DEMOMA-19-008
     priority: MUST
@@ -4098,12 +3904,8 @@ groups:
       accepted, and that C2 made its suggestion. The chain checks for each actor show
       that each of the six devlogs holds a ledger with no gaps.
     relationships:
-    - rel_type: refines
-      spec_id: DEMOCI-04-001
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: DEMOMA-16-009
-    - rel_type: refines
-      spec_id: DEMOMA-19-003
 
   - id: DEMOMA-19-009
     priority: MUST
@@ -4122,9 +3924,6 @@ groups:
       scenario exists to test (DEMOMA-00-002).
     adr:
     - ADR-0026
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-19-003
   - id: DEMOMA-19-010
     priority: MUST
     kind: project
@@ -4155,8 +3954,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-11-030
-    - rel_type: refines
-      spec_id: DEMOCI-11-031
   - id: DEMOMA-19-012
     priority: MUST
     kind: project
@@ -4368,6 +4165,9 @@ groups:
       The harness path is derived from the registered scenario name by
       convention (DEMOCI-11-003) and reaches CI only through the generated
       matrix.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: DEMOCI-11-004
   - id: DEMOMA-19-030
     priority: MUST_NOT
     kind: project
@@ -4416,8 +4216,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
-    - rel_type: depends_on
-      spec_id: DEMOCI-11-019
+    - rel_type: uses_definition
+      spec_id: DEMOMA-12-018
     tags:
     - demo
 
@@ -4443,7 +4243,7 @@ groups:
       V2's waiting, and that the step that brings them in is the only caller
       of `seed_containers_rcvcv`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-19-024
     tags:
     - demo
@@ -4488,11 +4288,6 @@ groups:
     - ADR-0098
     lint_suppress:
     - phantom_path_ref
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-01-001
-    - rel_type: refines
-      spec_id: DEMOMA-12-001
 
   - id: DEMOMA-20-002
     priority: MUST
@@ -4521,6 +4316,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
+    - rel_type: uses_definition
+      spec_id: DEMOMA-26-007
   - id: DEMOMA-20-014
     priority: MUST
     kind: project
@@ -4564,8 +4361,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
-    - rel_type: refines
-      spec_id: DEMOMA-20-002
+    - rel_type: uses_definition
+      spec_id: DEMOMA-26-007
 
   - id: DEMOMA-20-004
     priority: MUST
@@ -4581,9 +4378,6 @@ groups:
       a developer can run it by name (DC-01-001, DEMOCI-11-011). The `rcv-embargo` name
       tells the reader that this scenario is about the embargo lifecycle. It also keeps
       the name different from the base `rcv` scenario (DEMOMA-12).
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-01-001
 
   - id: DEMOMA-20-005
     priority: MUST
@@ -4599,8 +4393,8 @@ groups:
       suite finds that defect later, after the pull request merges. A scenario in the PR
       set runs on each pull request that changes code the demos use.
     relationships:
-    - rel_type: refines
-      spec_id: DEMOCI-04-001
+    - rel_type: uses_definition
+      spec_id: DEMOCI-11-001
   - id: DEMOMA-20-015
     priority: MUST
     kind: project
@@ -4611,9 +4405,6 @@ groups:
     rationale: >-
       Scenario-role names in devlogs match the names used in scenario code. A reader who
       looks for an actor's log finds it under the name the scenario gives that actor.
-    relationships:
-    - rel_type: extends
-      spec_id: DEMOMA-20-005
 
   - id: DEMOMA-20-006
     priority: MUST
@@ -4630,12 +4421,8 @@ groups:
     lint_suppress:
     - phantom_path_ref
     relationships:
-    - rel_type: refines
-      spec_id: DEMOCI-04-001
-    - rel_type: refines
-      spec_id: DEMOMA-16-009
-    - rel_type: refines
-      spec_id: DEMOMA-20-001
+    - rel_type: extends
+      spec_id: DEMOMA-16-016
   - id: DEMOMA-20-016
     priority: MUST
     kind: project
@@ -4810,8 +4597,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
-    - rel_type: depends_on
-      spec_id: DEMOCI-11-019
     tags:
     - demo
 
@@ -4857,11 +4642,6 @@ groups:
     - ADR-0098
     lint_suppress:
     - phantom_path_ref
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-01-001
-    - rel_type: refines
-      spec_id: DEMOMA-12-001
 
   - id: DEMOMA-21-002
     priority: MUST
@@ -4885,8 +4665,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
-    - rel_type: refines
-      spec_id: DEMOMA-20-002
+    - rel_type: uses_definition
+      spec_id: DEMOMA-26-007
   - id: DEMOMA-21-017
     priority: MAY
     kind: project
@@ -4899,9 +4679,6 @@ groups:
       session can play both parts.
     adr:
     - ADR-0113
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-21-002
   - id: DEMOMA-21-018
     priority: MUST
     kind: project
@@ -4940,9 +4717,6 @@ groups:
       notification of a short-deadline vendor until the embargo terms are
       settled. The invitation reaches V2 through normal delivery, never by a post from
       the scenario to its inbox (DEMOMA-00-002).
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-21-001
   - id: DEMOMA-21-019
     priority: MUST
     kind: project
@@ -4973,11 +4747,6 @@ groups:
       emitting the EM termination activity automatically. Using
       `actor_notifies_published` from `vultron/demo/helpers/actions.py` exercises this
       code path end-to-end.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-21-001
-    - rel_type: refines
-      spec_id: DEMOMA-07-003
   - id: DEMOMA-21-020
     priority: MUST
     kind: project
@@ -5009,9 +4778,6 @@ groups:
       (DC-01-001). The CLI builds that sub-command from the registry (DEMOCI-11-011).
       Without the registration, the scenario can run only through its module, and the
       CLI does not show that the scenario exists.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-01-001
 
   - id: DEMOMA-21-006
     priority: MUST
@@ -5028,8 +4794,8 @@ groups:
       merges. A scenario in the PR set runs on each pull request that changes code the
       demos use.
     relationships:
-    - rel_type: refines
-      spec_id: DEMOCI-04-001
+    - rel_type: uses_definition
+      spec_id: DEMOCI-11-001
   - id: DEMOMA-21-021
     priority: MUST
     kind: project
@@ -5040,9 +4806,6 @@ groups:
     rationale: >-
       Scenario-role names in devlogs match the names used in scenario code. A reader who
       looks for an actor's log finds it under the name the scenario gives that actor.
-    relationships:
-    - rel_type: extends
-      spec_id: DEMOMA-21-006
 
   - id: DEMOMA-21-007
     priority: MUST
@@ -5062,12 +4825,8 @@ groups:
     lint_suppress:
     - phantom_path_ref
     relationships:
-    - rel_type: refines
-      spec_id: DEMOCI-04-001
-    - rel_type: refines
-      spec_id: DEMOMA-16-009
-    - rel_type: refines
-      spec_id: DEMOMA-21-001
+    - rel_type: extends
+      spec_id: DEMOMA-16-017
   - id: DEMOMA-21-022
     priority: MUST
     kind: project
@@ -5219,8 +4978,8 @@ groups:
       Reusing the activate path prevents divergence between the propose-and-activate
       and revision helpers when the embargo lifecycle nodes change.
     relationships:
-    - rel_type: extends
-      spec_id: DEMOMA-21-011
+    - rel_type: uses_definition
+      spec_id: DEMOMA-20-002
   - id: DEMOMA-21-012
     priority: MUST
     kind: project
@@ -5292,8 +5051,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
-    - rel_type: depends_on
-      spec_id: DEMOCI-11-019
+    - rel_type: uses_definition
+      spec_id: DEMOMA-20-013
     tags:
     - demo
 
@@ -5318,7 +5077,7 @@ groups:
       waiting, and that the step that invites Vendor2 is the only caller of
       `seed_containers_rcvv`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-21-015
     tags:
     - demo
@@ -5345,6 +5104,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EDF-06-001
+    - rel_type: refines
+      spec_id: EDF-06-003
     tags:
     - demo
     - testing
@@ -5366,12 +5127,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
-    - rel_type: depends_on
-      spec_id: DEMOCI-01-007
-      note: >-
-        DEMOCI-01-007 owns the location and semantics of the `demo_gate` context
-        manager; this requirement owns the location of the predicates passed to
-        it.
     tags:
     - demo
     - testing
@@ -5487,6 +5242,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-22-010
+    - rel_type: uses_definition
+      spec_id: CM-24-001
+    - rel_type: uses_definition
+      spec_id: PCR-08-007
     tags:
     - demo
     - documentation
@@ -5507,9 +5266,6 @@ groups:
     adr:
     - ADR-0058
     - ADR-0079
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOCI-04-001
     tags:
     - demo
     - testing
@@ -5591,13 +5347,13 @@ groups:
     adr:
     - ADR-0058
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-22-001
       note: >-
         DEMOMA-22-001 requires causal gating at every async boundary;
         this requirement closes the loophole of bare calls that appear to
         gate but do not integrate with the failure accumulator.
-    - rel_type: refines
+    - rel_type: implements
       spec_id: EDF-06-005
       note: >-
         EDF-06-005 requires unmet causal gates to prevent dependent steps;
@@ -5677,7 +5433,7 @@ groups:
       mechanics, so each fact is in one place and a defect in the export is
       fixed once (DEMOMA-23-002).
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: DEMOMA-23-002
     tags:
     - demo
@@ -5712,9 +5468,6 @@ groups:
       exception, so they are context, not the cause. Attaching them as notes keeps
       both: the reader sees the failure that stopped the run and every check that
       had already failed.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOCI-10-004
     tags:
     - demo
   - id: DEMOMA-23-005
@@ -5796,16 +5549,8 @@ groups:
       `_get_log_entries_for_case`, excluding the primitive's own definition and
       package `__init__` re-exports.
     relationships:
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: DEMOMA-23-005
-    - rel_type: refines
-      spec_id: DEMOMA-17-001
-    - rel_type: refines
-      spec_id: DEMOMA-22-002
-      note: >-
-        DEMOMA-22-002 places causal gate predicates in `vultron/demo/helpers/`;
-        this requirement names the specific predicate that every scenario needs
-        and forbids the scenario-local copy of it.
     tags:
     - demo
     - testing
@@ -5835,8 +5580,6 @@ groups:
       spec_id: DEMOMA-23-005
     - rel_type: refines
       spec_id: DEMOMA-17-001
-    - rel_type: refines
-      spec_id: DEMOMA-23-002
     tags:
     - demo
     - testing
@@ -5853,9 +5596,6 @@ groups:
       entries. An authority with no entries means that the case never reached it, or
       that its ledger was never read. Either way the run proved nothing, so it must
       fail and not pass with nothing checked.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-23-002
     tags:
     - demo
     - testing
@@ -5891,11 +5631,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
-    - rel_type: refines
-      spec_id: DEMOMA-12-001
-      note: >-
-        Extends the RCV four-container topology by adding a fifth Deployer
-        container
     tags:
     - demo
   - id: DEMOMA-24-009
@@ -5927,13 +5662,6 @@ groups:
       events attributed to separate actors. A Vendor-only actor cannot hold
       CVDRole.DEPLOYER; CSB-15-002 would block d→D for it regardless, but the scenario
       MUST make this explicit through role assignment and post-milestone verification.
-    relationships:
-    - rel_type: refines
-      spec_id: CSB-15-001
-    - rel_type: refines
-      spec_id: CSB-15-002
-    - rel_type: refines
-      spec_id: DEMOMA-15-001
     tags:
     - demo
   - id: DEMOMA-24-010
@@ -5966,7 +5694,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DEMOMA-24-002
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: CSB-15-002
     tags:
     - demo
@@ -5999,11 +5727,6 @@ groups:
       A DEPLOYER-only participant is the case this scenario adds. A Deployer that
       also held CVDRole.VENDOR could reach VFD on its own vendor path, and the
       scenario would not exercise the CSB-15-004 causal gate.
-    relationships:
-    - rel_type: refines
-      spec_id: CSB-15-002
-    - rel_type: refines
-      spec_id: DEMOMA-15-002
     tags:
     - demo
   - id: DEMOMA-24-013
@@ -6021,8 +5744,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DEMOMA-24-003
-    - rel_type: refines
-      spec_id: CSB-15-004
     tags:
     - demo
   - id: DEMOMA-24-004
@@ -6100,10 +5821,8 @@ groups:
       pass the Deployer actor ID (not the Vendor actor ID) to confirm that
       DEMOMA-15-002 is satisfied.
     relationships:
-    - rel_type: implements
+    - rel_type: verifies
       spec_id: CSB-15-004
-    - rel_type: refines
-      spec_id: DEMOMA-15-002
     tags:
     - demo
   - id: DEMOMA-24-014
@@ -6151,8 +5870,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-03-002
-    - rel_type: refines
-      spec_id: DEMOMA-12-005
     tags:
     - demo
   - id: DEMOMA-24-016
@@ -6190,9 +5907,7 @@ groups:
     - rel_type: refines
       spec_id: DEMOCI-03-002
     - rel_type: refines
-      spec_id: DEMOCI-03-003
-    - rel_type: refines
-      spec_id: DEMOMA-12-007
+      spec_id: DEMOCI-11-001
     tags:
     - demo
   - id: DEMOMA-24-007
@@ -6214,11 +5929,6 @@ groups:
       claim of the RCVD scenario; without an invariant test that explicitly checks
       both states, a regression that lets the Vendor silently reach VFD would pass
       CI undetected.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-12-008
-    - rel_type: refines
-      spec_id: DEMOMA-12-009
     tags:
     - demo
   - id: DEMOMA-24-017
@@ -6255,9 +5965,6 @@ groups:
       A run whose result depends on timing tells nothing about the code. It fails for
       a reason that is not a protocol defect, or it passes only when the timing is
       fortunate.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-09-004
     tags:
     - demo
   - id: DEMOMA-24-018
@@ -6272,11 +5979,11 @@ groups:
       The invitation reaches the Deployer container some time after the Coordinator
       sends it. If the demo drives the accept trigger before the invitation is there,
       the accept fails or answers nothing.
-    relationships:
-    - rel_type: implements
-      spec_id: DEMOMA-24-008
     tags:
     - demo
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-22-001
 
 - id: DEMOMA-25
   title: VC Scenario (Vendor self-reports; Coordinator joins as Observer)
@@ -6366,11 +6073,6 @@ groups:
         VulnerabilityCase created on Vendor/CaseActor; Vendor holds
         CVDRole.VENDOR + CVDRole.CASE_OWNER; default embargo initialized
         EM.ACTIVE (EP-04-001)
-    relationships:
-    - rel_type: refines
-      spec_id: CM-02-001
-    - rel_type: refines
-      spec_id: EP-04-001
     tags:
     - demo
   - id: DEMOMA-25-003
@@ -6402,11 +6104,6 @@ groups:
         CaseActor emits Announce(VulnerabilityCase) to seed Coordinator replica
     adr:
     - ADR-0057
-    relationships:
-    - rel_type: refines
-      spec_id: CM-25-001
-    - rel_type: refines
-      spec_id: CM-26-001
     tags:
     - demo
   - id: DEMOMA-25-009
@@ -6474,9 +6171,6 @@ groups:
       VENDOR or DEPLOYER. Driving Coordinator through VFD triggers in this
       scenario would incorrectly exercise a code path that the OBSERVER role
       is not supposed to activate.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-26-001
     tags:
     - demo
   - id: DEMOMA-25-012
@@ -6512,8 +6206,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-03-002
-    - rel_type: refines
-      spec_id: EP-04-001
     tags:
     - demo
   - id: DEMOMA-25-013
@@ -6562,7 +6254,7 @@ groups:
     - rel_type: refines
       spec_id: DEMOCI-03-002
     - rel_type: refines
-      spec_id: DEMOCI-03-003
+      spec_id: DEMOCI-11-001
     tags:
     - demo
     - testing
@@ -6580,9 +6272,6 @@ groups:
       other scenario.
     lint_suppress:
     - phantom_path_ref
-    relationships:
-    - rel_type: extends
-      spec_id: DEMOMA-25-006
     tags:
     - demo
     - testing
@@ -6598,8 +6287,6 @@ groups:
       scenarios. Without those checks, a run in which the Coordinator never joined,
       or ended in a state that has a fix path, could still pass.
     relationships:
-    - rel_type: extends
-      spec_id: DEMOMA-25-006
     - rel_type: verifies
       spec_id: DEMOMA-16-015
     tags:
@@ -6624,11 +6311,11 @@ groups:
       as the private implementation of `ActorSession._post` and MUST NOT be
       imported outside the `vultron/demo/utils/` package and
       `vultron/demo/actor_session/binding.py`.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-17-001
     tags:
     - demo
+    relationships:
+    - rel_type: derives_from
+      spec_id: DEMOMA-26-007
   - id: DEMOMA-26-007
     priority: MUST
     kind: project
@@ -6641,11 +6328,11 @@ groups:
       other path to a trigger endpoint, such as a hand-built URL, brings back the
       misspelled name or key that a request model with `extra="ignore"` drops
       without an error (TRIG-03-002).
-    relationships:
-    - rel_type: extends
-      spec_id: DEMOMA-26-001
     tags:
     - demo
+    relationships:
+    - rel_type: depends_on
+      spec_id: DEMOMA-26-004
   - id: DEMOMA-26-002
     priority: MUST
     kind: project
@@ -6661,9 +6348,6 @@ groups:
       `test_is_frozen` in `test/test_actor_session.py` asserts that a field of a
       constructed session cannot be assigned. Mypy reports the four fields at their
       declared types with no `Any` escapes.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-26-001
     tags:
     - demo
   - id: DEMOMA-26-008
@@ -6707,7 +6391,7 @@ groups:
       that `session.with_case(case)` returns a new object and that `with_case`
       accepts a bare case ID.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-26-002
     tags:
     - demo
@@ -6762,9 +6446,6 @@ groups:
       `test/architecture/test_actor_session_kwargs_match_request_models.py` fails
       when a public `ActorSession` verb method has no request model in the ratchet's
       map.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-26-001
     tags:
     - demo
     - testing
@@ -6831,9 +6512,6 @@ groups:
     verification: >-
       `vultron/demo/helpers/actions.py` does not exist in the repository after
       the PR merges.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-26-001
     tags:
     - demo
   - id: DEMOMA-26-013
@@ -6876,9 +6554,6 @@ groups:
     verification: >-
       After the PR merges, `test/architecture/test_demo_trigger_client_matches_actor.py`
       does not exist.
-    relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-26-001
     tags:
     - demo
     - testing
@@ -6928,8 +6603,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
-    - rel_type: refines
-      spec_id: DEMOMA-12-001
     tags:
     - demo
   - id: DEMOMA-27-005
@@ -6946,6 +6619,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DEMOMA-27-001
+    - rel_type: uses_definition
+      spec_id: CM-10-004
     tags:
     - demo
   - id: DEMOMA-27-002
@@ -6960,7 +6635,7 @@ groups:
       it is the only place the protocol's "invited but never participating"
       outcome is exercised end to end.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-27-001
     adr:
     - ADR-0114
@@ -7139,7 +6814,7 @@ groups:
         `reject_invite_actor_to_case` entry and no
         `accept_invite_actor_to_case` entry (DEMOMA-16-011, DEMOMA-27-006).
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DEMOMA-27-001
     tags:
     - demo
@@ -7180,7 +6855,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
-    - rel_type: depends_on
-      spec_id: DEMOCI-11-019
+    - rel_type: uses_definition
+      spec_id: DEMOMA-12-017
     tags:
     - demo
