@@ -794,6 +794,62 @@ class BTBridge:
                 # never named.  In a single-process run the writer can even
                 # be a different actor's execution (BT-09).
                 "case_id",
+                # The CASE_MANAGER actor for the delivery's case.
+                # ``ResolveCaseManagerNode`` (four code paths, one class)
+                # publishes it; ``ConstructActivitiesNode`` and
+                # ``SendTerminateEmbargoActivityNode`` fall back to it.  A
+                # stale value would route activities for this delivery to a
+                # different case's manager (BT-09, BTND-03-009).
+                "case_manager_id",
+                # The CASE_MANAGER's actor id for the delivery's case,
+                # published by three different classes:
+                # ``FindCaseActorNode`` (sync replay divergence),
+                # ``ReceivedPathNode`` (received-path gate), and
+                # ``CheckIsCaseManagerNode`` (manager-role condition).
+                # Readers are ``GenesisAnnounceNode`` and ``ReplaySendNode``.
+                # A stale value from a previous execution — potentially a
+                # different actor's — would cause genesis or replay activities
+                # to be addressed to the wrong actor (BT-09, BTND-03-009).
+                "case_actor_id",
+                # --- Keys audited and recorded as deliberately NOT scoped ---
+                #
+                # The following multi-writer output-port keys are NOT in this
+                # list because the writer always runs before the reader in the
+                # same execution tree (intra-tree keys).  If the writer fails,
+                # the Sequence short-circuits before the reader ticks, so a
+                # stale value is never read.
+                #
+                # ``activity_ids`` — ConstructActivitiesNode (3 code paths,
+                #   one class) → QueueToOutboxNode; both always in the same
+                #   Sequence in send_tree.py and embargo trigger_tree.
+                #
+                # ``tail_hash`` / ``tail_index`` — ReconstructChainTailNode
+                #   (2 code paths including the sentinel "" / -1 on failure)
+                #   → CreateLogEntryNode / CheckHashMatchesNode /
+                #   BufferOutOfOrderEntryNode; all in the same execution tree
+                #   in commit_tree.py and announce_tree/factory.py.
+                #
+                # ``log_entry`` / ``log_entry_preexisting`` — CreateLogEntryNode
+                #   (2 code paths: existing entry vs. new entry) →
+                #   PersistLogEntryNode / FanoutNewLogEntryNode; same
+                #   Sequence in commit_tree.py.
+                #
+                # ``invitee_case`` — CheckInviteeNotAlreadyParticipantNode
+                #   (2 code paths, one class) → _CheckEmbargoActiveStateNode /
+                #   _SignEmbargoConsentLeafNode; always in the same
+                #   accept_invite_tree.py execution.
+                #
+                # ``admission_record_was_prior`` — RecordProposalAdmissionNode
+                #   (2 code paths, one class); no downstream get_input readers
+                #   found.
+                #
+                # ``participant`` — LookupParticipantNode writes /participant,
+                #   FindParticipantByActorIdNode usually writes to a
+                #   caller-supplied key (e.g. /sender_participant); no
+                #   get_input("participant") readers found downstream.
+                #
+                # ``activity_id`` — _BuildCreateCaseActivityNode → UpdateActorOutbox
+                #   always in the same Sequence in create_case_trigger_tree.py.
             ]
             # setup_tree() also writes /activity (when one is supplied) and one
             # key per **context_data entry, so those are execution-scoped for

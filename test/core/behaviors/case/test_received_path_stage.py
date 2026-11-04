@@ -424,12 +424,38 @@ def test_the_manager_path_publishes_the_resolved_manager_id() -> None:
     A later node that reads the resolved manager's id must find it whichever
     of the two answered the role question, or swapping a sender-guard arm
     onto the path check would silently drop the key.
-    """
-    stage = _run_stage(ReceivedPath.CASE_MANAGER, ALL_PATHS)
-    published = py_trees.blackboard.Blackboard.get("/case_actor_id")
 
+    ``execute_with_setup`` now manages ``/case_actor_id`` in its fixed
+    ``managed_keys`` list, so the value is verified via an in-tree probe
+    rather than reading the blackboard after execution (#5803).
+    """
+    scenario = BTTestScenario(actor_id=MANAGER_ID)
+    _seed_case(scenario)
+
+    captured: dict[str, object] = {}
+
+    class _Probe(py_trees.behaviour.Behaviour):
+        def update(self) -> Status:
+            captured["value"] = py_trees.blackboard.Blackboard.storage.get(
+                "/case_actor_id"
+            )
+            return Status.SUCCESS
+
+    stage = ReceivedPathNode(
+        declared=frozenset(ALL_PATHS), case_id=CASE_ID, label="ProofBT"
+    )
+    seq = py_trees.composites.Sequence(
+        name="test-seq",
+        memory=False,
+        children=[stage, _Probe(name="Probe")],
+    )
+    result = scenario.run(seq, actor_id=MANAGER_ID)
+
+    assert result.status == Status.SUCCESS
     assert stage.resolved_path is ReceivedPath.CASE_MANAGER
-    assert published == MANAGER_ID
+    assert captured["value"] == MANAGER_ID
+    # The key must not outlive the execution (#5803).
+    assert "/case_actor_id" not in py_trees.blackboard.Blackboard.storage
 
 
 @pytest.mark.spec("CLP-10-010")

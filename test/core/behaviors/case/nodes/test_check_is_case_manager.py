@@ -136,12 +136,30 @@ def test_returns_failure_when_case_has_no_case_manager(
 def test_sets_case_actor_id_output_on_success(
     bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
 ) -> None:
-    bt_scenario.run(
-        CheckIsCaseManagerNode(case_id=case_with_manager.id_),
-        actor_id=MANAGER_ACTOR_ID,
+    """``/case_actor_id`` is set during execution and readable by a downstream
+    sibling; ``execute_with_setup`` cleans it up afterwards (#5803).
+    """
+    captured: dict[str, object] = {}
+
+    class _CaptureCaseActorId(py_trees.behaviour.Behaviour):
+        def update(self) -> Status:
+            captured["value"] = py_trees.blackboard.Blackboard.storage.get(
+                "/case_actor_id"
+            )
+            return Status.SUCCESS
+
+    seq = py_trees.composites.Sequence(
+        name="test-seq",
+        memory=False,
+        children=[
+            CheckIsCaseManagerNode(case_id=case_with_manager.id_),
+            _CaptureCaseActorId(name="Capture"),
+        ],
     )
-    stored = py_trees.blackboard.Blackboard.storage.get("/case_actor_id")
-    assert stored == MANAGER_ACTOR_ID
+    bt_scenario.run(seq, actor_id=MANAGER_ACTOR_ID)
+    assert captured["value"] == MANAGER_ACTOR_ID
+    # The key must not outlive the execution (#5803).
+    assert "/case_actor_id" not in py_trees.blackboard.Blackboard.storage
 
 
 @pytest.mark.executes_as(MANAGER_ACTOR_ID)

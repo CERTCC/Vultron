@@ -208,6 +208,10 @@ class TestFindCaseActorNode:
 
         ADR-0041 writes the CaseActor ``Service`` with no ``context``, so a
         ``context == case_id`` scan found nothing here and the node failed.
+
+        ``execute_with_setup`` now manages ``/case_actor_id`` in its fixed
+        ``managed_keys`` list, so the value is verified via an in-tree probe
+        rather than reading the blackboard after execution (#5803).
         """
         _seed_case_with_manager(datalayer, MANAGER_ACTOR_ID)
         datalayer.create(
@@ -215,17 +219,35 @@ class TestFindCaseActorNode:
         )
         event = _make_reject_event(tail_hash="")
 
+        # Capture the value published by FindCaseActorNode from inside the
+        # running tree, before execute_with_setup cleans it up.
+        captured: dict[str, object] = {}
+
+        class _CaptureCaseActorId(py_trees.behaviour.Behaviour):
+            def update(self) -> Status:
+                captured["value"] = py_trees.blackboard.Blackboard.storage.get(
+                    "/case_actor_id"
+                )
+                return Status.SUCCESS
+
+        seq = py_trees.composites.Sequence(
+            name="test-seq",
+            memory=False,
+            children=[
+                FindCaseActorNode(name="FindCaseActor"),
+                _CaptureCaseActorId(name="Capture"),
+            ],
+        )
         result = bridge.execute_with_setup(
-            tree=FindCaseActorNode(name="FindCaseActor"),
+            tree=seq,
             actor_id=OWNER_ACTOR_ID,
             activity=event,
         )
 
         assert result.status == Status.SUCCESS
-        assert (
-            py_trees.blackboard.Blackboard.storage.get("/case_actor_id")
-            == MANAGER_ACTOR_ID
-        )
+        assert captured["value"] == MANAGER_ACTOR_ID
+        # The key must not outlive the execution (#5803).
+        assert "/case_actor_id" not in py_trees.blackboard.Blackboard.storage
 
     @pytest.mark.spec("ARCH-24-004")
     def test_an_unrelated_service_object_is_not_borrowed_as_the_address(

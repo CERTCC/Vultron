@@ -160,13 +160,21 @@ class TestSenderSideBT:
 class TestSenderSideStaleKeyRegression:
     """Back-to-back runs on the same blackboard must not observe stale keys."""
 
-    def test_stale_case_manager_id_cleared_on_resolve_failure(
+    def test_stale_case_manager_id_not_present_after_execution(
         self, dl, bridge
     ):
+        """``/case_manager_id`` does not outlive its execution.
+
+        ``execute_with_setup`` now manages ``case_manager_id`` in its fixed
+        ``managed_keys`` list, so the key is absent after both a successful
+        and a failed run (#5803).  BT-17-003 (write None on the failure arm)
+        is still correct as the intra-execution defensive clear, but the
+        managed_keys restore is the definitive cross-execution guard.
+        """
         store, actor = dl
         storage = py_trees.blackboard.Blackboard.storage
 
-        # Run 1: succeeds — writes /case_manager_id to the global blackboard
+        # Run 1: succeeds — /case_manager_id is cleaned up afterwards.
         case1 = _make_case_with_case_manager(store, actor.id_)
         tree1 = sender_side_bt(
             case_id=case1.id_,
@@ -174,11 +182,10 @@ class TestSenderSideStaleKeyRegression:
         )
         result1 = bridge.execute_with_setup(tree=tree1, actor_id=actor.id_)
         assert result1.status == Status.SUCCESS
-        assert storage.get("/case_manager_id") == CASE_ACTOR_ID
+        assert "/case_manager_id" not in storage
 
         # Run 2 (no blackboard clear between runs): fails — case has no
-        # CASE_MANAGER participant, so ResolveCaseManagerNode takes its no-op
-        # path.  BT-17-003 requires it to clear /case_manager_id to None.
+        # CASE_MANAGER participant.  The key is still absent afterwards.
         case2 = as_VulnerabilityCase(
             attributed_to=CASE_OWNER_ID, name="No Manager Case"
         )
@@ -199,8 +206,7 @@ class TestSenderSideStaleKeyRegression:
         )
         result2 = bridge.execute_with_setup(tree=tree2, actor_id=actor.id_)
         assert result2.status == Status.FAILURE
-
-        assert storage.get("/case_manager_id") is None
+        assert "/case_manager_id" not in storage
 
     def test_stale_activity_ids_cleared_on_construct_failure(self, dl, bridge):
         store, actor = dl

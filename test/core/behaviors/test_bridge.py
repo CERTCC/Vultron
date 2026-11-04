@@ -188,6 +188,47 @@ class PublishCaseId(py_trees.behaviour.Behaviour):
         return Status.SUCCESS
 
 
+class PublishCaseManagerId(py_trees.behaviour.Behaviour):
+    """Publish ``/case_manager_id`` the way an output port does, then SUCCEED.
+
+    ``ResolveCaseManagerNode`` declares ``case_manager_id`` as an **output
+    port** (written outside the ``context_data`` the caller passes).  This
+    stands in for that node in tests that verify the key is execution-scoped.
+    """
+
+    def __init__(
+        self, case_manager_id: str, name: str = "PublishCaseManagerId"
+    ):
+        super().__init__(name=name)
+        self._case_manager_id = case_manager_id
+
+    def update(self) -> Status:
+        py_trees.blackboard.Blackboard.storage["/case_manager_id"] = (
+            self._case_manager_id
+        )
+        return Status.SUCCESS
+
+
+class PublishCaseActorId(py_trees.behaviour.Behaviour):
+    """Publish ``/case_actor_id`` the way an output port does, then SUCCEED.
+
+    Three nodes declare ``case_actor_id`` as an output port:
+    ``FindCaseActorNode``, ``ReceivedPathNode``, and ``CheckIsCaseManagerNode``.
+    This stands in for those nodes in tests that verify the key is
+    execution-scoped.
+    """
+
+    def __init__(self, case_actor_id: str, name: str = "PublishCaseActorId"):
+        super().__init__(name=name)
+        self._case_actor_id = case_actor_id
+
+    def update(self) -> Status:
+        py_trees.blackboard.Blackboard.storage["/case_actor_id"] = (
+            self._case_actor_id
+        )
+        return Status.SUCCESS
+
+
 class WriteRMAnomaly(py_trees.behaviour.Behaviour):
     """Write ``rm_transition_anomaly`` and SUCCEED.
 
@@ -695,6 +736,137 @@ def test_execute_with_setup_restores_a_preexisting_case_id(
         assert storage["/case_id"] == outer
     finally:
         storage.pop("/case_id", None)
+
+
+def test_execute_with_setup_does_not_leak_a_published_case_manager_id(
+    bridge, test_actor_id
+):
+    """A ``/case_manager_id`` an output port published dies with its execution.
+
+    ``ResolveCaseManagerNode`` declares ``case_manager_id`` as an output port
+    (4 code paths, all in one class), so it writes the key outside the
+    ``context_data`` the caller passes.  A stale value lets a later delivery's
+    ``ConstructActivitiesNode`` or ``SendTerminateEmbargoActivityNode`` read a
+    different case's CASE_MANAGER and route activities to the wrong actor
+    (BTND-03-009, BT-09).
+    """
+    storage = py_trees.blackboard.Blackboard.storage
+    stale = "https://example.org/actors/leaked-manager"
+
+    first = bridge.execute_with_setup(
+        tree=PublishCaseManagerId(stale), actor_id=test_actor_id
+    )
+
+    assert first.status == Status.SUCCESS
+    assert "/case_manager_id" not in storage
+    assert "case_manager_id" not in storage
+
+    seen: dict[str, Any] = {}
+
+    class _CaptureCaseManagerId(py_trees.behaviour.Behaviour):
+        def update(self) -> Status:
+            seen["value"] = storage.get(
+                "/case_manager_id", storage.get("case_manager_id")
+            )
+            return Status.SUCCESS
+
+    second = bridge.execute_with_setup(
+        tree=_CaptureCaseManagerId(name="CaptureCaseManagerId"),
+        actor_id=test_actor_id,
+    )
+    assert second.status == Status.SUCCESS
+    assert seen["value"] is None
+
+
+def test_execute_with_setup_restores_a_preexisting_case_manager_id(
+    bridge, test_actor_id
+):
+    """A caller-set ``/case_manager_id`` survives an execution that republishes
+    it.
+
+    The bridge restores the key to its pre-execution state, so scoping it
+    cannot break a nested call that legitimately handed one in.
+    """
+    storage = py_trees.blackboard.Blackboard.storage
+    outer = "https://example.org/actors/outer-manager"
+    storage["/case_manager_id"] = outer
+
+    try:
+        result = bridge.execute_with_setup(
+            tree=PublishCaseManagerId(
+                "https://example.org/actors/inner-manager"
+            ),
+            actor_id=test_actor_id,
+        )
+        assert result.status == Status.SUCCESS
+        assert storage["/case_manager_id"] == outer
+    finally:
+        storage.pop("/case_manager_id", None)
+
+
+def test_execute_with_setup_does_not_leak_a_published_case_actor_id(
+    bridge, test_actor_id
+):
+    """A ``/case_actor_id`` an output port published dies with its execution.
+
+    Three nodes declare ``case_actor_id`` as an output port
+    (``FindCaseActorNode``, ``ReceivedPathNode``, ``CheckIsCaseManagerNode``),
+    so the key is written outside ``context_data``.  A stale value lets
+    ``GenesisAnnounceNode`` or ``ReplaySendNode`` in a later delivery address
+    the wrong actor as the CASE_MANAGER (BTND-03-009, BT-09).
+    """
+    storage = py_trees.blackboard.Blackboard.storage
+    stale = "https://example.org/actors/leaked-case-actor"
+
+    first = bridge.execute_with_setup(
+        tree=PublishCaseActorId(stale), actor_id=test_actor_id
+    )
+
+    assert first.status == Status.SUCCESS
+    assert "/case_actor_id" not in storage
+    assert "case_actor_id" not in storage
+
+    seen: dict[str, Any] = {}
+
+    class _CaptureCaseActorId(py_trees.behaviour.Behaviour):
+        def update(self) -> Status:
+            seen["value"] = storage.get(
+                "/case_actor_id", storage.get("case_actor_id")
+            )
+            return Status.SUCCESS
+
+    second = bridge.execute_with_setup(
+        tree=_CaptureCaseActorId(name="CaptureCaseActorId"),
+        actor_id=test_actor_id,
+    )
+    assert second.status == Status.SUCCESS
+    assert seen["value"] is None
+
+
+def test_execute_with_setup_restores_a_preexisting_case_actor_id(
+    bridge, test_actor_id
+):
+    """A caller-set ``/case_actor_id`` survives an execution that republishes
+    it.
+
+    The bridge restores the key to its pre-execution state, so scoping it
+    cannot break a nested call that legitimately handed one in.
+    """
+    storage = py_trees.blackboard.Blackboard.storage
+    outer = "https://example.org/actors/outer-case-actor"
+    storage["/case_actor_id"] = outer
+
+    try:
+        result = bridge.execute_with_setup(
+            tree=PublishCaseActorId(
+                "https://example.org/actors/inner-case-actor"
+            ),
+            actor_id=test_actor_id,
+        )
+        assert result.status == Status.SUCCESS
+        assert storage["/case_actor_id"] == outer
+    finally:
+        storage.pop("/case_actor_id", None)
 
 
 def test_execute_with_setup_restores_a_preexisting_rm_anomaly(
