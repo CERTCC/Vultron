@@ -1476,7 +1476,8 @@ groups:
     note: >
       The predicates are `is_em_assertion_acceptable()` in
       `vultron/core/states/em.py` and `is_pxa_assertion_acceptable()` in
-      `vultron/core/states/cs.py`, applied by `CheckCaseStatusAcceptableNode`.
+      `vultron/core/states/cs/transitions.py`, applied by
+      `CheckCaseStatusAcceptableNode`.
       Every `CaseStatus` states an EM state: one that leaves `emState` out
       states `NONE`, so while an embargo is in force it is refused like any
       other EM that differs.

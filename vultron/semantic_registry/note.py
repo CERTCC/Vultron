@@ -34,7 +34,7 @@ from vultron.wire.as2.extractor import (
     AddNoteToCaseActivityPattern,
     RemoveNoteFromCasePattern,
 )
-from vultron.wire.as2.vocab.activities.case import (
+from vultron.wire.as2.vocab.activities.case.content import (
     _AddNoteToCaseActivity,
 )
 

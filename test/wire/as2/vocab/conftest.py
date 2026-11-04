@@ -23,8 +23,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-import vultron.core.models._helpers as _clock_module
 import vultron.wire.as2.vocab.examples.embargo as _embargo_examples
+from vultron.core.models._helpers import clock as _clock_module
 
 #: One millisecond before a minute (and therefore a second) tick.
 STRADDLE_START = datetime(2026, 10, 1, 16, 37, 59, 999_000, tzinfo=UTC)

@@ -46,7 +46,7 @@ _VULTRON_ROOT = _corpus.REPO_ROOT / "vultron"
 MODULE_SCOPE = "<module>"
 
 #: The shared minter: the one function that draws an object id.
-MINTER_SITE = ("vultron/core/models/_helpers.py", "new_object_id")
+MINTER_SITE = ("vultron/core/models/_helpers/ids.py", "new_object_id")
 
 #: Functions that draw a random UUID for something other than an object id,
 #: keyed on (repo-relative path, dotted enclosing function).

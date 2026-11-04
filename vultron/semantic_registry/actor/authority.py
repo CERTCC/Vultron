@@ -13,9 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.core.behaviors.sender_entitlement import (
-    AddresseeSide,
-)
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptCaseParticipantRoleReceivedEvent,
@@ -53,15 +51,17 @@ from vultron.wire.as2.extractor import (
     RejectCaseParticipantRolePattern,
     UndoCaseOwnershipTransferActivityPattern,
 )
-from vultron.wire.as2.vocab.activities.case import (
+from vultron.wire.as2.vocab.activities.case.ownership import (
     _AcceptCaseOwnershipTransferActivity,
-    _AcceptCaseParticipantRoleActivity,
     _OfferCaseOwnershipTransferActivity,
-    _OfferCaseParticipantRoleActivity,
     _ProposeCaseOwnershipTransferActivity,
     _RejectCaseOwnershipTransferActivity,
-    _RejectCaseParticipantRoleActivity,
     _UndoCaseOwnershipTransferActivity,
+)
+from vultron.wire.as2.vocab.activities.case.roles import (
+    _AcceptCaseParticipantRoleActivity,
+    _OfferCaseParticipantRoleActivity,
+    _RejectCaseParticipantRoleActivity,
 )
 
 ENTRIES: list[SemanticEntry] = [

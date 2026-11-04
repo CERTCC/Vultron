@@ -59,12 +59,16 @@ from vultron.wire.as2.vocab.base.registry import (
 
 
 def _collect_modules(*package_names: str) -> list[str]:
-    """Return fully-qualified names for all sibling modules in each package."""
+    """Return fully-qualified names for every module under each package.
+
+    Recursive: a split vocabulary module is a subpackage whose classes live in
+    its submodules, which a flat scan would silently drop.
+    """
     result: list[str] = []
     for pkg_name in package_names:
         pkg = importlib.import_module(pkg_name)
-        for mod_info in pkgutil.iter_modules(pkg.__path__):
-            result.append(f"{pkg_name}.{mod_info.name}")
+        for mod_info in pkgutil.walk_packages(pkg.__path__, f"{pkg_name}."):
+            result.append(mod_info.name)
     return result
 
 

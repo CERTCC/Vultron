@@ -47,10 +47,10 @@ rules for changing the code that implements it.
 
 ## Where the CS Rules Live (ADR-0060)
 
-- **Enums**: `vultron/core/states/cs.py`. The 32-member `CS` enum makes the
+- **Enums**: `vultron/core/states/cs/`. The 32-member `CS` enum makes the
   impossible combinations (`vF`, `fD`) unrepresentable; the split sub-machine
   enums are `CS_vf`, `CS_d`, `CS_pxa` (ADR-0075).
-- **Invariants**: `vultron/core/states/cs_invariants.py` (CSB-17). New code
+- **Invariants**: `vultron/core/states/cs_invariants/` (CSB-17). New code
   MUST use it and MUST NOT import `vultron/core/case_states/validations.py`.
   `vultron/core/case_states/` is a reference model and the test oracle for the
   invariants, not a protocol path.
@@ -66,7 +66,7 @@ rules for changing the code that implements it.
 - **Ephemeral states**: the six `vP` states must next take `V`, and the six
   `pX` states must next take `P` (`required_next_cs_events()`, CSB-17-003).
 
-Do not delete the legacy module (ADR-0060): `cs.py` still uses
+Do not delete the legacy module (ADR-0060): `cs/` still uses
 `case_states.validations.ensure_valid_state`, and
 `vultron/core/use_cases/query/action_rules.py` (the `actors_get_action_rules`
 endpoint) still uses `case_states.patterns.potential_actions`. Its potential
@@ -116,7 +116,7 @@ The vendor may self-report `v→V`, and the party that delivered the report to
 the vendor (or invited it) may assert `v→V` on its behalf, because awareness
 means having received the information. `f→F` and `d→D` are self-reports only.
 The on-behalf path is the add-on-behalf-status trigger, which permits only
-`v→V` for a vendor (`vultron/core/use_cases/triggers/request_bodies.py`). The
+`v→V` for a vendor (`vultron/core/use_cases/triggers/request_bodies/case.py`). The
 dispute edge cases are an open question in protocol spec §13.4.1
 (`docs/reference/vultron-spec/_oq-v-to-V.md`).
 

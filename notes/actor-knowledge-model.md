@@ -121,7 +121,7 @@ downstream to fill in a bare ID. If the error fires, fix the activity builder.
   profile carries both (ISSUE-3616). A peer record built with no endpoints
   passes `published=None, updated=None` too, or the base class stamps the clock.
 - **Discovery is an injectable Retriever call-out (AKM-05-002).** With no local
-  record, `_record_named_peer` (`vultron/core/use_cases/triggers/actor.py`) asks
+  record, `_record_named_peer` (`vultron/core/use_cases/triggers/actor/_peers.py`) asks
   the injected `ActorDiscoveryCallOutBundle` before recording a minimal
   `CoreActor`, which holds only the id (AKM-02-006). The default,
   `ACTOR_DISCOVERY_DETERMINISTIC`, always succeeds and logs at DEBUG. A failing

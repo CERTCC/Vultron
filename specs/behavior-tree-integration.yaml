@@ -748,7 +748,8 @@ groups:
     verification_debt: '#2574'
     statement: >-
       New code that implements VFD or PXA state transitions MUST use
-      `create_vfd_machine()` and `create_pxa_machine()` in `vultron/core/states/cs.py`
+      `create_vfd_machine()` and `create_pxa_machine()` in
+      `vultron/core/states/cs/machine.py`
       as the authoritative source of valid transition sequences.
     rationale: Ensures the `transitions` machines remain the normative definition of valid VFD/PXA state progressions as new
       features are added, preventing divergence between the machines and the implementation.

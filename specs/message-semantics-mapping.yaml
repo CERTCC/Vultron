@@ -847,7 +847,7 @@ groups:
       where the receiver's chain ends, so the replay fills the gap.
     verification: >-
       Inspection of `RejectLedgerEntryReceivedUseCase` in
-      `vultron/core/use_cases/received/sync.py` confirms the mismatch-and-replay
+      `vultron/core/use_cases/received/sync/replay.py` confirms the mismatch-and-replay
       behaviour. `test/test_message_semantics_mapping.py`
       (`test_ledger_hash_mismatch_rejects_and_replays_from_last_accepted`) confirms
       the mismatch guard, the Reject emitter and the replaying use case are wired.
@@ -1518,7 +1518,7 @@ groups:
       frozen (CM-18-003).
     verification: >-
       Inspection confirms that the `TERMINATE` register step
-      (vultron/core/models/embargo_apply.py) writes no consent row.
+      (vultron/core/models/embargo_apply/changes.py) writes no consent row.
       `test/core/use_cases/received/test_embargo_relay_replay.py`
       (`test_termination_leaves_nobody_a_signatory_in_every_store`) confirms the rows
       are unchanged and no participant is a signatory afterwards, on the CASE_MANAGER

@@ -43,7 +43,7 @@ from vultron.wire.as2.extractor import (
     ReadLogEntryPattern,
     RejectLogEntryPattern,
 )
-from vultron.wire.as2.vocab.activities.case import _RmCloseCaseActivity
+from vultron.wire.as2.vocab.activities.case.rm import _RmCloseCaseActivity
 from vultron.wire.as2.vocab.activities.sync import (
     _AnnounceLogEntryActivity,
     _ReadLogEntryActivity,

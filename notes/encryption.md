@@ -74,7 +74,7 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   `vultron.wire.as2.factories` owns outbound construction. Tests sign through a
   shared test helper built on it, never by hand.
 - **Use RFC 8785 JCS, not the ledger hash's canonical form.** The ledger's
-  `_canonical_bytes` in `vultron/core/models/case_ledger.py` is not JCS; reusing
+  `_canonical_bytes` in `vultron/core/models/case_ledger/hashing.py` is not JCS; reusing
   it makes proofs no other `eddsa-jcs-2022` verifier accepts. Refuse duplicate
   JSON keys and integers above 2^53 rather than sign or verify them, since
   parsers disagree on both.

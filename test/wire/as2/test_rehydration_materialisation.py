@@ -611,7 +611,7 @@ def test_uri_admitting_slot_is_still_seen_through_non_empty_string() -> None:
     unresolvable references refused instead of deferred (VM-06-004).
     """
     from vultron.primitives import NonEmptyString
-    from vultron.wire.as2.rehydration import (
+    from vultron.wire.as2.rehydration.slots import (
         _annotation_branches,
         _slot_requires_object,
     )
@@ -659,7 +659,9 @@ def test_rehydrate_keeps_unresolved_nested_object_and_logs_debug(
     assert isinstance(result, as_Read)
     assert result.object_ == MISSING_ID
     rehydration_records = [
-        r for r in caplog.records if r.name == "vultron.wire.as2.rehydration"
+        r
+        for r in caplog.records
+        if r.name.startswith("vultron.wire.as2.rehydration")
     ]
     kept = [
         r

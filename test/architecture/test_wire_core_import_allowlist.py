@@ -141,8 +141,8 @@ def _type_checking_import_nodes(tree: ast.AST) -> set[ast.stmt]:
     replaceable as a unit, which is the property ARCH-06-001 (ADR-0009) asks
     for.
 
-    Exempting the one current case instead — ``vultron/wire/as2/rehydration.py``,
-    whose ``DataLayer`` reference is TYPE_CHECKING-only — would have been a
+    Exempting the one current case instead — ``vultron/wire/as2/rehydration/``,
+    whose ``DataLayer`` references are TYPE_CHECKING-only — would have been a
     violation list with one entry, and ADR-0099 removed this test's violation
     list on purpose.
 

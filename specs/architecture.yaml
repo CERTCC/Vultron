@@ -783,7 +783,7 @@ groups:
     verification_debt: '#2569'
     statement: >-
       A layer-neutral domain helper, one with no dependency above `models/`, MUST live
-      in `vultron/core/models/_helpers.py`.
+      in `vultron/core/models/_helpers/`.
     rationale: >-
       A fixed place for each kind of helper lets a developer find the existing copy
       before writing a new one. A layer-neutral helper in `models/` can serve every
@@ -1455,7 +1455,7 @@ groups:
     kind: project
     statement: >-
       Core code MUST rebuild an object from a snapshot `dict` only through
-      `project_wire_snapshot_to_core` (`vultron/core/models/_helpers.py`).
+      `project_wire_snapshot_to_core` (`vultron/core/models/_helpers/inbound.py`).
     rationale: >-
       `rehydrate()` turns an ID into an object (VM-06-007), and the snapshot helper
       turns a dict into an object, so each case has one defined path.
@@ -1666,7 +1666,7 @@ groups:
       except `vultron/core/models/` and `vultron/core/states/`. The forbidden set
       includes `behaviors/`, `use_cases/`, `ports/`, `services/`, `predicates/`,
       `scoring/`, `case_states/`, `participants/`, `dispatcher.py` and
-      `sync_helpers.py`. The permitted set is an allow-list, so a package added to
+      `sync_helpers/`. The permitted set is an allow-list, so a package added to
       `vultron/core/` later is forbidden until this requirement admits it. A
       TYPE_CHECKING-guarded import is exempt, because it is erased at runtime and can
       only appear in an annotation.
@@ -2782,7 +2782,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `rehydrate()` in `vultron/wire/as2/rehydration.py` MUST be the sole owner of
+      `rehydrate()` in `vultron/wire/as2/rehydration/` MUST be the sole owner of
       ID-to-object materialisation, and resolve a reference through the `DataLayer` it
       is given.
     rationale: >-
