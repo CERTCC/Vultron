@@ -923,11 +923,10 @@ groups:
     statement: >-
       The receive-tree factory MUST build every HP-01-038 branch itself, from the
       path the HP-01-035 stage resolved. A branch naming the manager path alone
-      bounds what runs inside it for both BT-17-008 and RSH-08-003: neither an emit
-      nor a state write there needs a further record. A branch naming any other
-      path bounds neither, so an emit inside it still needs a named replica-emit
-      exemption and a state write inside it stays visible to the ratchet that pins
-      it.
+      bounds both BT-17-008 and RSH-08-003: neither an emit nor a state write
+      there needs a further record. A branch naming any other path bounds
+      neither. An emit inside it still needs a named replica-emit exemption, and
+      a state write inside it stays pinned with its reason.
     rationale: >-
       A branch a tree builds itself is a role check the tree asks, which HP-01-036
       removes: it can disagree with the stage, or omit the path check entirely, and
@@ -938,19 +937,25 @@ groups:
       CASE_MANAGER, which is not yet a statement that the emit is that receiver's
       own to send or that the write is one RSH-08-003 admits.
     verification: >-
-      `test/core/behaviors/case/test_received_path_branch.py` asserts the factory
-      owns the branch
+      `test/architecture/test_received_tree_case_manager_gate.py::test_only_the_factory_builds_a_path_branch`
+      holds the set of modules that construct a branch to the branch module and the
+      factory with its stage builders, so a tree that built one of its own fails it.
+      `test/core/behaviors/case/test_received_path_branch.py` asserts that the branch
+      reads the stage's answer and asks nothing itself
       (`::test_the_branch_reads_the_stages_answer_and_asks_nothing_itself`), that an
       emit on the manager path alone needs no exemption
-      (`::test_an_emit_on_the_manager_path_alone_needs_no_replica_exemption`) and
-      that one off it is still ungated
-      (`::test_an_emit_off_the_manager_path_is_still_ungated`).
+      (`::test_an_emit_on_the_manager_path_alone_needs_no_replica_exemption`), that
+      one off it is still ungated
+      (`::test_an_emit_off_the_manager_path_is_still_ungated`), and that the
+      state-write walk stops at a manager-only branch while descending into any
+      other
+      (`::test_a_state_write_is_bounded_only_by_a_manager_only_branch`).
       `test/architecture/test_received_tree_state_writes_are_gated.py::test_received_tree_state_writes_are_gated_or_known`
       keeps every state write outside a `CaseManagerGate` pinned with its reason,
       including the one a diversion makes in a tree declaring the manager path
       alone.
     relationships:
-    - rel_type: refines
+    - rel_type: depends_on
       spec_id: HP-01-038
     - rel_type: depends_on
       spec_id: HP-01-036

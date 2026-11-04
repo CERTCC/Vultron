@@ -37,9 +37,8 @@ Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
    the clock-decision stage or a diversion in a manager-only path
    declaration, and there only from a stage's own commit nodes — one per AS2
    activity the decision or the diversion needs — never the received
-   activity's, and no other
-   protocol-effect node runs inside the clock-decision stage (CLP-10-025,
-   CLP-10-026).
+   activity's, and no other protocol-effect node runs inside the
+   clock-decision stage (CLP-10-025, CLP-10-026).
 5. Ahead of its guarded commit, a built received tree writes or sends only
    inside a permitted pre-commit stage: the clock decisions, a diversion,
    a refusal or post-close reply, or the ledger-position answer, which itself

@@ -599,9 +599,9 @@ def test_only_the_gate_helper_constructs_a_case_manager_gate() -> None:
     )
 
 
-@pytest.mark.spec("HP-01-042")
+@pytest.mark.spec("HP-01-042", "HP-01-043")
 def test_only_the_factory_builds_a_path_branch() -> None:
-    """A declared path branch is the factory's, never a tree's (HP-01-042).
+    """A declared path branch is the factory's, never a tree's (HP-01-043).
 
     The factory's walks read a ``PathBranch``'s own ``paths`` to tell a
     manager-only branch from one that runs at a replica, so one a tree built
