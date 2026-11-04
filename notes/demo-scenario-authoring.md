@@ -200,6 +200,14 @@ records itself without ending the run. A helper that wraps a trigger call in
   boundary), treat `None` as "already recorded as failed": do not raise,
   guard each attribute access, and skip the dependent steps.
 
+`test/architecture/test_demo_step_no_unbound_ratchet.py` enforces both bullets.
+Its unbound check reports a name assigned only inside a demo block and read
+after it (#2308); its sentinel check reports a name pre-initialised to `None`,
+assigned inside a demo block, then passed to a call or attribute-accessed after
+it with no `is None` comparison, truthiness test or rebinding in between
+(#3038). The sentinel is therefore admitted exactly when the guard the second
+bullet asks for is present, and dropping the guard means nesting the reader.
+
 ---
 
 ## A Raising `wait_for_*` Must Never Run Bare in a Scenario

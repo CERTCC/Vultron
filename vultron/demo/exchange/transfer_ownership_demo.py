@@ -309,8 +309,9 @@ def demo_transfer_ownership_withdraw(
     )
     original_owner = initial_owner(client, case, case_actor_id)
 
-    # Bound before the step (#2308): a failed step leaves no unbound name.
-    proposal_id = ""
+    # The withdrawal names the proposal this step makes, so steps 3 and 4 nest
+    # inside it rather than reading an empty-string sentinel after it
+    # (ADR-0058, #3038).
     with demo_step(
         "Step 2: Vendor offers case ownership to coordinator via the CaseActor"
     ):
@@ -318,36 +319,37 @@ def demo_transfer_ownership_withdraw(
             client, case, vendor, coordinator, case_actor_id
         )
 
-    with demo_gate(
-        "Step 3: CaseActor sent its Offer to the coordinator (CM-21-005)"
-    ):
-        offer_id = await_ownership_transfer_offer(
-            client, case=case, transferee=coordinator
-        )
-        logger.info("CaseActor's offer id: %s", offer_id)
-
-        with demo_step(
-            "Step 4: Vendor withdraws the ownership transfer offer"
+        with demo_gate(
+            "Step 3: CaseActor sent its Offer to the coordinator (CM-21-005)"
         ):
-            # Through the vendor's own trigger (DEMOMA-05-001, TRIG-11-006),
-            # naming the vendor's own proposal: the one its store holds, from
-            # which the CaseActor made the Offer it withdraws (ADR-0148).
-            undo = (
-                ActorSession(client=client, actor=vendor)
-                .quiet()
-                .withdraw_case_ownership_transfer(offer_id=proposal_id)
-                .activity
+            offer_id = await_ownership_transfer_offer(
+                client, case=case, transferee=coordinator
             )
-            logger.info("Vendor sent withdrawal: %s", logfmt(undo))
-            with demo_check(
-                "Withdrawal addressed to the CaseActor (CM-21-036)"
+            logger.info("CaseActor's offer id: %s", offer_id)
+
+            with demo_step(
+                "Step 4: Vendor withdraws the ownership transfer offer"
             ):
-                recipients = recipient_ids(undo.to)
-                if recipients != [case_actor_id]:
-                    raise ValueError(
-                        f"Expected the Undo addressed to '{case_actor_id}',"
-                        f" got: {recipients}"
-                    )
+                # Through the vendor's own trigger (DEMOMA-05-001,
+                # TRIG-11-006), naming the vendor's own proposal: the one its
+                # store holds, from which the CaseActor made the Offer it
+                # withdraws (ADR-0148).
+                undo = (
+                    ActorSession(client=client, actor=vendor)
+                    .quiet()
+                    .withdraw_case_ownership_transfer(offer_id=proposal_id)
+                    .activity
+                )
+                logger.info("Vendor sent withdrawal: %s", logfmt(undo))
+                with demo_check(
+                    "Withdrawal addressed to the CaseActor (CM-21-036)"
+                ):
+                    recipients = recipient_ids(undo.to)
+                    if recipients != [case_actor_id]:
+                        raise ValueError(
+                            "Expected the Undo addressed to"
+                            f" '{case_actor_id}', got: {recipients}"
+                        )
 
     # Gate on the cause (EDF-06): the CaseActor ledgers the withdrawal and
     # broadcasts it (CM-21-015, CM-21-038); that entry is what closes the Offer.
