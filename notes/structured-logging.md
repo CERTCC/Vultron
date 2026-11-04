@@ -8,8 +8,9 @@ description: >
   f-string), how correlation fields reach a record (SL-02-003: boundary filter,
   not per-call `extra=`), narrative log template (SL-04-006), infrastructure
   demotion list (SL-04-007), why a Selector arm a sibling can overrule logs at
-  DEBUG (SL-03-002), and where new narrative lines go so INFO logs read
-  as a CVD protocol story.
+  DEBUG (SL-03-002) with the refusal wording kept to the refusal (SL-03-003),
+  which lines are not refusal reasons and stay off that rule, and where new
+  narrative lines go so INFO logs read as a CVD protocol story.
 related_specs:
   - specs/structured-logging.yaml
 related_notes:
@@ -233,15 +234,30 @@ received tree may place a sender door where anything above it can overrule the
 door's FAILURE. Nothing else catches that direction — the demo matcher below sees
 only a WARNING that should not be there, never a refusal gone quiet.
 
-**Name a level-aware refusal helper for the placement it reads, not `_refuse`.**
-`SenderEntitlementConditionNode._refuse_by_placement` is the walk's only caller, and
-so far only `SenderIsCaseManagerNode` takes the rule. The module's other checks log
-WARNING from their own `update()`, and three of them already define a private
-`_refuse` that *appends* the `REFUSED` group instead of receiving it. A base method
-called `_refuse` would be overridden on those three in silence: mypy does not check
-override parameter names, and pyright at `typeCheckingMode: basic` reports nothing
-either, so routing them through the rule would look done and do nothing. #5786
-brings the family onto one rule.
+**Every sender check takes the rule, through one helper.** A check records its
+refusal with `refuse_by_placement(node, reason)` in
+`vultron/core/behaviors/sender_entitlement/base.py`, reached by the base method
+`SenderEntitlementConditionNode._refuse_by_placement` or, for a check that is not a
+subclass of it, called directly. One helper is also what lets a test find a refusal
+line by the rule that chose its level rather than by its node class or its wording.
+A check that composes its own citation around a shorter *why* puts that in a
+`_refuse_citing` method which delegates — never in a `_refuse`, which would override
+a base method of that name in silence: mypy does not check override parameter names,
+and pyright at `typeCheckingMode: basic` reports nothing either, so routing such a
+check through the rule would look done and do nothing (#5786).
+
+**A line that is not a refusal reason stays off the rule, and says so where it is
+logged.** The placement rule picks the level of a *refusal reason*. Two kinds of
+line are not one. `SenderClosureNotRecordedNode` reports a recorded state whose
+verdict the handler decides — a repeat of a closing act is `SKIPPED`, not `REFUSED`
+(CM-23-018, ID-05-003) — so it keeps INFO in every placement, and it carries no
+`REFUSED` wording for a reader to misread. A malformed activity (no `actor_id`, an
+unreadable ledger entry) is a recoverable anomaly under SL-03-001, so it logs
+WARNING and records no refusal reason at all. Demoting the closure line to DEBUG
+would cost something concrete: at the closed-sender door that lets a closing Case
+Owner through it is the Selector's first arm, and the arm after it,
+`SenderIsCaseOwnerNode`, records its reason without logging it (#5845), so that
+door's refusal would have no line above DEBUG anywhere.
 
 **Keep the refusal wording to the refusal (SL-03-003).** `— REFUSED (IDs)` is the
 token the demo tests' `expect_no_sender_refusals` matches, so the DEBUG line states

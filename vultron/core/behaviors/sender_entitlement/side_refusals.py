@@ -55,12 +55,10 @@ class NoSenderAdmittedNode(SenderEntitlementConditionNode):
         self._side = side
 
     def update(self) -> Status:
-        self.feedback_message = (
+        return self._refuse_by_placement(
             f"No sender is entitled to send this activity to {self._side}"
             " — REFUSED (HP-01-006, HP-01-024)"
         )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
 
 class SenderHoldsNoneOfNode(SenderEntitlementConditionNode):
@@ -89,9 +87,7 @@ class SenderHoldsNoneOfNode(SenderEntitlementConditionNode):
 
     def update(self) -> Status:
         names = ", ".join(kind.name for kind in self._kinds)
-        self.feedback_message = (
+        return self._refuse_by_placement(
             f"Sender holds none of the standings this activity accepts"
             f" ({names}) — REFUSED (HP-01-006, HP-01-023)"
         )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE

@@ -34,6 +34,14 @@ through ``ReceivedActivityTree.door_guards`` rather than by matching a node or
 composite name, so no subject is lost to a rename (#5535).  A sender check
 that selects an *effect* after admission is deliberately out of scope: it is
 not a door, and its FAILURE is not the tree's answer.
+
+A door counts as a subject two ways, because either is enough to make the
+level depend on the placement.  It carries the composer's own mark
+(``is_composed_sender_guard``), whatever checks are inside it — a rule naming
+one kind whose check is not a ``SenderEntitlementConditionNode``, such as
+``PARTICIPANT``, composes a door of exactly that shape (#5786).  Or it holds
+such a check without being a composed guard, which is the closed-sender door
+with its Case Owner arm.
 """
 
 import py_trees
@@ -47,6 +55,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementConditionNode,
     failure_is_the_refusal,
 )
+from vultron.core.behaviors.sender_guard import is_composed_sender_guard
 
 
 def _holds_a_sender_check(node: py_trees.behaviour.Behaviour) -> bool:
@@ -57,11 +66,16 @@ def _holds_a_sender_check(node: py_trees.behaviour.Behaviour) -> bool:
     )
 
 
+def _judges_the_sender(node: py_trees.behaviour.Behaviour) -> bool:
+    """*node* is a door whose FAILURE's log level is read from its placement."""
+    return is_composed_sender_guard(node) or _holds_a_sender_check(node)
+
+
 def _sender_doors(
     tree: ReceivedActivityTree,
 ) -> list[py_trees.behaviour.Behaviour]:
     """The tree's door guards that judge the sender's standing."""
-    return [door for door in tree.door_guards if _holds_a_sender_check(door)]
+    return [door for door in tree.door_guards if _judges_the_sender(door)]
 
 
 @pytest.mark.spec("SL-03-002", "HP-01-025")

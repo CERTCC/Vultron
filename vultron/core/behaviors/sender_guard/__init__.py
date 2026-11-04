@@ -87,6 +87,7 @@ from vultron.core.behaviors.sender_check_context import (
 )
 from vultron.core.behaviors.sender_guard.compose import (
     compose_sender_guard,
+    is_composed_sender_guard,
     sender_guard_refused,
 )
 from vultron.core.behaviors.sender_guard.doors import (
@@ -117,5 +118,6 @@ __all__ = [
     "closed_sender_turned_away",
     "compose_sender_guard",
     "embargo_sender_context",
+    "is_composed_sender_guard",
     "sender_guard_refused",
 ]

@@ -91,14 +91,12 @@ class SenderIsNoteAuthorNode(SenderEntitlementConditionNode):
         ):
             return Status.SUCCESS
 
-        self.feedback_message = (
+        return self._refuse_by_placement(
             f"Sender '{self.sender_actor_id}' is not the author of note"
             f" '{self.note_id}' (author: '{author}') or not an active"
             f" participant of case '{self.case_id}' that has not left it"
             " — REFUSED (CM-30-001, CM-23-018, HP-01-006)"
         )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
 
 class SenderIsProposalAuthorNode(SenderEntitlementConditionNode):
@@ -171,14 +169,12 @@ class SenderIsProposalAuthorNode(SenderEntitlementConditionNode):
         for proposer in self._recorded_proposers():
             if same_actor_id(proposer, self.sender_actor_id):
                 continue
-            self.feedback_message = (
+            return self._refuse_by_placement(
                 f"Sender '{self.sender_actor_id}' is not the author of"
                 f" CaseProposal '{self.proposal_id}', which this store"
                 f" recorded for '{proposer}' — REFUSED"
                 " (CP-05-010, HP-01-006)"
             )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
         return Status.SUCCESS
 
 
@@ -218,14 +214,18 @@ class SenderIsParticipantRecordSubjectNode(SenderEntitlementConditionNode):
         self.sender_actor_id = sender_actor_id
         self.case_id = case_id
 
-    def _refuse(self, why: str) -> Status:
-        self.feedback_message = (
+    def _refuse_citing(self, why: str) -> Status:
+        """Compose the reason around *why*, then refuse by placement.
+
+        One ``_refuse_citing`` per citation across the family, never a
+        ``_refuse``: see
+        :meth:`SenderEntitlementConditionNode._refuse_by_placement`.
+        """
+        return self._refuse_by_placement(
             f"Sender '{self.sender_actor_id}' may not add a status to"
             f" participant record '{self.participant_id}': {why} — REFUSED"
             " (RSH-08-007, HP-01-006)"
         )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -239,7 +239,7 @@ class SenderIsParticipantRecordSubjectNode(SenderEntitlementConditionNode):
 
         own_id = case.actor_participant_index.get(self.sender_actor_id)
         if own_id != self.participant_id:
-            return self._refuse(
+            return self._refuse_citing(
                 f"case '{self.case_id}' lists '{own_id}' as the sender's"
                 " record; a participant asserts only its own status"
             )
@@ -247,9 +247,9 @@ class SenderIsParticipantRecordSubjectNode(SenderEntitlementConditionNode):
         if not isinstance(record, CaseParticipant) or not same_actor_id(
             _as_id(record.attributed_to) or "", self.sender_actor_id
         ):
-            return self._refuse("the record does not name the sender")
+            return self._refuse_citing("the record does not name the sender")
         if record.rm_closed:
-            return self._refuse(
+            return self._refuse_citing(
                 f"the sender has left case '{self.case_id}' (RM CLOSED) and"
                 " may act on nothing further (CM-23-018)"
             )
