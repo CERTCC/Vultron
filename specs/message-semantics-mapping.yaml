@@ -744,7 +744,7 @@ groups:
       actor suggestion is a `GI` expansion and MUST NOT be classified as case management. What the formal set models as one
       inquiry the implementation realizes as a multi-hop negotiation with its own accept and reject responses.'
     verification: >-
-      Inspection of `vultron/semantic_registry/actor.py` confirms the
+      Inspection of `vultron/semantic_registry/actor/recommendation.py` confirms the
       actor-suggestion entries are registered, and `docs/reference/formal_protocol/messages.md`
       lists participant suggestion as a `GI` example.
     relationships:
