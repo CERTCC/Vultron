@@ -212,13 +212,18 @@ def test_result_type_var_is_covariant_and_bound() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _is_body_module(module: str) -> bool:
+    """Whether *module* is the request-body package or one of its submodules."""
+    return module.startswith(f"{request_bodies.__name__}.")
+
+
 def _body_models() -> list[type[BaseModel]]:
     return [
         obj
         for _, obj in inspect.getmembers(request_bodies, inspect.isclass)
         if issubclass(obj, BaseModel)
         and obj is not BaseModel
-        and obj.__module__ == request_bodies.__name__
+        and _is_body_module(obj.__module__)
     ]
 
 
@@ -253,7 +258,7 @@ def test_every_core_request_adds_actor_id_to_a_body_model(
         base
         for base in request_cls.__mro__
         if issubclass(base, BaseModel)
-        and base.__module__ == request_bodies.__name__
+        and _is_body_module(base.__module__)
     ]
     assert bodies, f"{request_cls.__name__} derives from no body model"
     assert "actor_id" in request_cls.model_fields

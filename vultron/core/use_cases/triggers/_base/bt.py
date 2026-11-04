@@ -13,30 +13,15 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Abstract base classes for BT-backed trigger use cases.
 
-Three-level hierarchy:
+"""The template-method base of every BT-backed trigger use case.
 
-- :class:`SvcBTTriggerBase` — top-level template method that owns the
-  ``__init__``, the TriggerActivityPort guard, BTBridge construction, BT
-  execution, and the failure guard.  Generic in the :class:`TriggerResult`
-  subtype its verb returns (UCORG-05-007).  Subclasses implement
-  ``_prepare()``, ``_build_tree()``, ``_handle_result()`` and
-  ``_build_result()``.
-
-- :class:`SvcActivityTriggerBase` — binds the result to
-  :class:`ActivityResult` and builds it from the captured activity and the
-  emitting actor; the base of every verb whose body is
-  ``{"activity", "emitting_actor_id"}``.
-
-- :class:`SvcEmbargoTriggerBase` — extends ``SvcActivityTriggerBase`` with a
-  concrete ``_handle_result()`` for the two role arms of an embargo trigger
-  tree (EP-09-008): a non-manager's pending assertion is recorded, and a
-  CASE_MANAGER's ``lifecycle_result`` is validated and handed to the
-  per-operation ``_log_lifecycle_result()`` hook.
+:class:`SvcBTTriggerBase` owns the ``__init__``, the TriggerActivityPort
+guard, BTBridge construction, BT execution, and the failure guard.  It is
+generic in the :class:`TriggerResult` subtype its verb returns
+(UCORG-05-007).
 """
 
-import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, ClassVar
@@ -52,23 +37,17 @@ from vultron.core.behaviors.case.case_clock_decisions import (
 from vultron.core.behaviors.case.nodes.clock_decision_stage import (
     create_clock_decision_gate,
 )
-from vultron.core.behaviors.embargo.embargo_clock_decisions import (
-    embargo_clock_decisions,
-)
 from vultron.core.models._helpers import now_utc
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.pending_assertion import (
     ASSERTED_ACTIVITY_KEY,
     record_pending_assertion,
-    suppressed_repeat_reason,
 )
-from vultron.core.models.use_case_result import ActivityResult, TriggerResult
+from vultron.core.models.use_case_result import TriggerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.received_activity_loader import ReceivedActivityLoader
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.services.embargo_lifecycle import EmbargoLifecycleResult
 from vultron.core.use_cases.triggers._helpers import resolve_case
 from vultron.core.use_cases.triggers.request_bodies import CaseTriggerRequest
 from vultron.errors import (
@@ -77,8 +56,6 @@ from vultron.errors import (
     VultronValidationError,
     VultronWiringError,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
@@ -379,128 +356,3 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         read ``case_id`` from the blackboard).
         """
         return {}
-
-
-class SvcActivityTriggerBase(SvcBTTriggerBase[ActivityResult]):
-    """BT-backed trigger whose body is the emitted activity and its emitter.
-
-    Binds :class:`SvcBTTriggerBase` to :class:`ActivityResult` and builds it
-    from the activity the tree captured (``None`` when it captured nothing)
-    and the actor ``_prepare()`` resolved.  Verbs whose body differs bind the
-    generic base to their own subtype instead.
-    """
-
-    def _build_result(self) -> ActivityResult:
-        return ActivityResult(**self._activity_fields())
-
-    def _suppressed_repeat(
-        self, case_id: str, semantic_type: str, subject_id: str
-    ) -> ActivityResult | None:
-        """The no-activity result for a repeat still pending, else ``None``.
-
-        The check half of the pending-assertion pair whose record half is
-        :meth:`_record_asserted_activity`: a request about *subject_id* while
-        an assertion about it under *semantic_type* is pending is answered
-        without re-emitting it (SYNC-11-002).  Judged against
-        :attr:`_at`, this act's instant, so the check reads no clock of its
-        own (#5591).
-        """
-        reason = suppressed_repeat_reason(
-            self._actor_id, case_id, semantic_type, subject_id, at=self._at
-        )
-        if reason is None:
-            return None
-        logger.info("%s: %s", type(self).__name__, reason)
-        return ActivityResult(activity=None, emitting_actor_id=self._actor_id)
-
-
-class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
-    """Abstract base for embargo trigger use cases.
-
-    A trigger writes shared EM state only as the CASE_MANAGER (EP-09-008), so
-    the tree runs one of two arms and :meth:`_handle_result` handles both:
-
-    - **Asked the CASE_MANAGER** (the tree wrote
-      ``result_out[ASSERTED_ACTIVITY_KEY]``): records the queued activity in
-      the pending-assertion store through the helper the note trigger also
-      uses (SYNC-11-002, ASK-04-008).  No EM state was written, so there is
-      no lifecycle result.
-    - **Decided as the CASE_MANAGER**: extracts and validates
-      ``lifecycle_result``, raising ``RuntimeError`` if it is absent or the
-      wrong type, stores it as ``self._lifecycle_result`` and delegates to the
-      per-operation :meth:`_log_lifecycle_result` hook.
-
-    A repeat of an assertion still pending — the same :meth:`_assertion_subject`
-    asked again inside the window — is suppressed before the tree runs and
-    reported with no activity (:meth:`_suppressed_duplicate`).
-    """
-
-    #: Ledger ``semantic_type`` of the activity this trigger emits; the key the
-    #: pending assertion and the manager's commit share (SYNC-11-003).
-    _assertion_semantic_type: ClassVar[str]
-
-    _case: VulnerabilityCase
-
-    def _clock_decisions(
-        self, case_id: str
-    ) -> list[py_trees.behaviour.Behaviour]:
-        """The case-wide decisions, then the overdue-invitation sweep.
-
-        An embargo act reads the consent rows, so the CASE_MANAGER expires
-        every overdue invitation of the case first, and the case owner's
-        decision on a proposal is taken knowing of each timeout (CM-28-029,
-        EP-09-008).  The sweep runs even when the trigger opts out of the
-        case-wide decisions, as terminate-embargo does: the sweep never
-        pre-empts what the trigger answers for.  The stage runs only on the
-        actor holding ``CVDRole.CASE_MANAGER``; elsewhere it is skipped.
-        """
-        return [
-            *super()._clock_decisions(case_id),
-            *embargo_clock_decisions(case_id, now=self._at),
-        ]
-
-    def _asserted_semantic_type(self) -> str:
-        """The ledger ``semantic_type`` this run asserts.
-
-        :attr:`_assertion_semantic_type` by default; a trigger whose activity
-        depends on who runs it overrides this (the case owner's answer is its
-        decision for the case, ADR-0122).
-        """
-        return self._assertion_semantic_type
-
-    @abstractmethod
-    def _assertion_subject(self) -> str | None:
-        """What a repeat of this trigger would be about, or ``None``.
-
-        The proposal an answer names, the embargo a teardown ends, the terms a
-        proposal offers.  ``None`` when there is nothing to compare (the
-        tree's own guard then refuses the request).
-        """
-
-    def _suppressed_duplicate(self) -> ActivityResult | None:
-        subject = self._assertion_subject()
-        if subject is None:
-            return None
-        return self._suppressed_repeat(
-            self._case.id_, self._asserted_semantic_type(), subject
-        )
-
-    def _handle_result(self) -> None:
-        if self._record_asserted_activity(
-            self._case.id_,
-            self._asserted_semantic_type(),
-            subject_id=self._assertion_subject(),
-        ):
-            return
-        lifecycle_result = self._result_out.get("lifecycle_result")
-        if not isinstance(lifecycle_result, EmbargoLifecycleResult):
-            raise RuntimeError(  # noqa: TRY004  # ruff-baseline #3353
-                f"{type(self).__name__} did not capture lifecycle result"
-                " in BT output"
-            )
-        self._lifecycle_result: EmbargoLifecycleResult = lifecycle_result
-        self._log_lifecycle_result()
-
-    @abstractmethod
-    def _log_lifecycle_result(self) -> None:
-        """Log the per-operation lifecycle result after BT execution."""
