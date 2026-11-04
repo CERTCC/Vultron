@@ -193,8 +193,13 @@ requirements, not the other way round.
   it. Its citers were about what the ledger holds, who writes it, its integrity
   and how it is shared; none was about the record becoming public, so the
   disclosure axis got no story.
-- **014** "negotiate embargo/disclosure schedules…" (128): proposing an
-  embargo; revising one; accepting or rejecting a proposal; ending one.
+- **014** is split into `story_2026_080`–`098` (#4516, part 3), with the
+  wire-form, threat-signal and replica-copy citers re-pointed onto existing
+  2026 stories. Its citers needed more axes than the four candidates: the
+  embargo a case starts under, RSVP deadlines and their expiry, late answers,
+  consent carried over to a revision, withdrawal, and notice to signatories
+  the fan-out skips. The citers about publication were about the embargo
+  it ends, so they went to `story_2026_033`.
 
 Each citation is re-pointed to the narrowest new story that states its need. A
 citation stays on the old ID only when the general reading is genuinely what

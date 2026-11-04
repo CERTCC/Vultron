@@ -458,7 +458,7 @@ groups:
     scope:
     - prototype
     stories:
-    - story_2022_014
+    - story_2026_098
     note: >-
       A refusal that stands in for dereference lapses where dereference exists. This
       codebase dereferences through the case host's object read (AKM-05-006) and the
@@ -492,7 +492,7 @@ groups:
     - rel_type: refines
       spec_id: AKM-05-003
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: AKM-05-006
     priority: MUST
     kind: project
@@ -604,7 +604,7 @@ groups:
     - ADR-0107
     - ADR-0170
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: AKM-05-010
     priority: MUST
     kind: protocol
@@ -627,7 +627,7 @@ groups:
     adr:
     - ADR-0107
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: AKM-05-011
     priority: MUST
     kind: protocol
@@ -646,7 +646,7 @@ groups:
     adr:
     - ADR-0107
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: AKM-05-012
     priority: MUST
     kind: protocol
@@ -669,7 +669,7 @@ groups:
     adr:
     - ADR-0107
     stories:
-    - story_2022_014
+    - story_2026_098
   - id: AKM-05-008
     priority: MUST
     kind: project

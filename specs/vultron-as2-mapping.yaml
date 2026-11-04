@@ -346,7 +346,6 @@ groups:
       is not a received message.
     stories:
     - story_2026_059
-    - story_2022_014
     verification: >-
       The parametrized test
       `test_received_create_of_a_case_record_is_refused_case_unchanged` in
@@ -1056,7 +1055,7 @@ groups:
       `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
       asserts that the `remove_embargo` vocabulary example extracts as this semantic type.
     stories:
-    - story_2022_014
+    - story_2026_011
     - story_2022_023
   - id: VAM-05-004
     priority: MUST
@@ -1092,7 +1091,7 @@ groups:
       `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
       asserts that the `propose_embargo` vocabulary example extracts as this semantic type.
     stories:
-    - story_2022_014
+    - story_2026_011
     - story_2022_023
   - id: VAM-05-006
     priority: MUST
@@ -1109,7 +1108,7 @@ groups:
       `test/test_semantic_activity_patterns.py::test_owner_embargo_decisions_are_distinct_from_invite_answers`
       asserts that the `accept_embargo` vocabulary example extracts as this semantic type.
     stories:
-    - story_2022_014
+    - story_2026_011
   - id: VAM-05-007
     priority: MUST
     kind: protocol
@@ -1124,7 +1123,7 @@ groups:
       `test/test_semantic_activity_patterns.py::test_owner_embargo_decisions_are_distinct_from_invite_answers`
       asserts that the `reject_embargo` vocabulary example extracts as this semantic type.
     stories:
-    - story_2022_014
+    - story_2026_011
   - id: VAM-05-008
     priority: MUST
     kind: protocol
@@ -1144,7 +1143,7 @@ groups:
     adr:
     - ADR-0122
     stories:
-    - story_2022_014
+    - story_2026_011
   - id: VAM-05-009
     priority: MUST
     kind: protocol
@@ -1163,7 +1162,7 @@ groups:
     adr:
     - ADR-0122
     stories:
-    - story_2022_014
+    - story_2026_011
   - id: VAM-05-010
     priority: MUST
     kind: project
@@ -1213,7 +1212,7 @@ groups:
     adr:
     - ADR-0122
     stories:
-    - story_2022_014
+    - story_2026_011
     - story_2022_080
   - id: VAM-05-012
     priority: MUST
@@ -1265,7 +1264,7 @@ groups:
     adr:
     - ADR-0152
     stories:
-    - story_2022_014
+    - story_2026_011
     - story_2022_080
   - id: VAM-05-014
     priority: MUST
@@ -1288,7 +1287,7 @@ groups:
     adr:
     - ADR-0140
     stories:
-    - story_2022_014
+    - story_2026_011
     - story_2022_080
   - id: VAM-05-015
     priority: MUST
@@ -1312,7 +1311,7 @@ groups:
     adr:
     - ADR-0140
     stories:
-    - story_2022_014
+    - story_2026_011
     - story_2022_080
   - id: VAM-05-016
     priority: MUST
@@ -1346,7 +1345,7 @@ groups:
     adr:
     - ADR-0140
     stories:
-    - story_2022_014
+    - story_2026_011
     - story_2022_080
 - id: VAM-06
   title: Case Participant Management Messages

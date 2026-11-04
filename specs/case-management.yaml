@@ -540,7 +540,7 @@ groups:
     - rel_type: implements
       spec_id: VP-09-001
     stories:
-    - story_2022_014
+    - story_2026_031
     - story_2022_023
   - id: CM-03-008
     priority: MUST
@@ -690,7 +690,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-03-008
     stories:
-    - story_2022_014
+    - story_2026_087
     - story_2022_023
   - id: CM-04-004
     priority: MUST
@@ -1355,7 +1355,7 @@ groups:
     - ADR-0093
     - ADR-0122
     stories:
-    - story_2022_014
+    - story_2026_001
     - story_2022_023
   - id: CM-10-002
     priority: MUST
@@ -2364,7 +2364,7 @@ groups:
     adr:
     - ADR-0114
     stories:
-    - story_2022_014
+    - story_2026_097
     - story_2022_023
   - id: CM-11-044
     priority: MUST
@@ -2387,7 +2387,7 @@ groups:
     adr:
     - ADR-0114
     stories:
-    - story_2022_014
+    - story_2026_097
   - id: CM-11-045
     priority: MUST
     kind: protocol
@@ -2407,7 +2407,7 @@ groups:
     adr:
     - ADR-0114
     stories:
-    - story_2022_014
+    - story_2026_097
   - id: CM-11-046
     priority: MUST
     kind: protocol
@@ -2426,7 +2426,7 @@ groups:
     adr:
     - ADR-0114
     stories:
-    - story_2022_014
+    - story_2026_097
   - id: CM-11-017
     priority: MUST
     kind: protocol
@@ -2789,7 +2789,7 @@ groups:
     adr:
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_080
     - story_2022_023
   - id: CM-12-005
     priority: MUST
@@ -2965,7 +2965,7 @@ groups:
       spec_id: CM-14-001
     stories:
     - story_2022_046
-    - story_2022_014
+    - story_2026_080
   - id: CM-14-003
     priority: MUST
     kind: protocol
@@ -2985,7 +2985,7 @@ groups:
       spec_id: CM-13-006
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_080
   - id: CM-14-004
     priority: MUST
     kind: protocol
@@ -3080,7 +3080,7 @@ groups:
       spec_id: CM-14-001
     stories:
     - story_2022_052
-    - story_2022_014
+    - story_2026_080
   - id: CM-14-014
     priority: MUST_NOT
     kind: protocol
@@ -3101,7 +3101,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-14-001
     stories:
-    - story_2022_014
+    - story_2026_080
   - id: CM-14-008
     priority: MUST
     kind: protocol
@@ -3151,7 +3151,7 @@ groups:
     adr:
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_080
     - story_2022_023
   - id: CM-14-011
     priority: MUST
@@ -3810,7 +3810,7 @@ groups:
       spec_id: MV-10-006
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_097
   - id: CM-17-013
     priority: MUST
     kind: protocol
@@ -3851,7 +3851,7 @@ groups:
     - rel_type: extends
       spec_id: CM-17-002
     stories:
-    - story_2022_014
+    - story_2026_097
   - id: CM-17-003
     priority: MUST
     kind: project
@@ -4157,7 +4157,7 @@ groups:
       spec_id: CM-17-002
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_097
     adr:
     - ADR-0114
   - id: CM-17-020
@@ -4367,7 +4367,7 @@ groups:
     - ADR-0122
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_001
   - id: CM-18-019
     priority: MUST
     kind: protocol
@@ -4389,7 +4389,7 @@ groups:
     - ADR-0122
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_001
   - id: CM-18-020
     priority: MUST
     kind: protocol
@@ -4412,7 +4412,7 @@ groups:
     - ADR-0122
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_001
   - id: CM-18-021
     priority: MUST_NOT
     kind: protocol
@@ -4435,7 +4435,7 @@ groups:
     - ADR-0122
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_001
   - id: CM-18-017
     priority: MUST
     kind: project
@@ -4486,7 +4486,7 @@ groups:
     - ADR-0065
     stories:
     - story_2022_027
-    - story_2022_014
+    - story_2026_092
   - id: CM-18-022
     priority: MAY
     kind: protocol
@@ -4587,7 +4587,7 @@ groups:
     - ADR-0118
     - ADR-0122
     stories:
-    - story_2022_014
+    - story_2026_001
   - id: CM-18-004
     priority: MUST_NOT
     kind: protocol
@@ -6273,7 +6273,7 @@ groups:
     - ADR-0041
 
     stories:
-    - story_2022_014
+    - story_2026_080
     - story_2022_023
 - id: CM-23
   title: RM Case Closure via Leave(VulnerabilityCase)
@@ -8468,7 +8468,7 @@ groups:
     adr:
     - ADR-0065
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-017
     priority: MAY
@@ -8491,7 +8491,7 @@ groups:
     adr:
     - ADR-0065
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-018
     priority: MUST_NOT
@@ -8514,7 +8514,7 @@ groups:
     adr:
     - ADR-0065
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-002
     priority: MUST
@@ -8549,7 +8549,7 @@ groups:
     - ADR-0065
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-019
     priority: MUST
@@ -8575,7 +8575,7 @@ groups:
     - ADR-0065
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-003
     priority: MUST
@@ -8598,7 +8598,7 @@ groups:
     - ADR-0065
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_092
   - id: CM-28-004
     priority: MUST
     kind: protocol
@@ -8631,7 +8631,7 @@ groups:
     - ADR-0118
     stories:
     - story_2022_027
-    - story_2022_014
+    - story_2026_092
   - id: CM-28-020
     priority: MUST
     kind: protocol
@@ -8653,7 +8653,7 @@ groups:
     - ADR-0118
     stories:
     - story_2022_027
-    - story_2022_014
+    - story_2026_092
   - id: CM-28-005
     priority: MUST
     kind: protocol
@@ -8862,7 +8862,7 @@ groups:
     adr:
     - ADR-0096
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-012
     priority: MUST
@@ -8898,7 +8898,7 @@ groups:
     - ADR-0113
     - ADR-0065
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-013
     priority: MUST
@@ -8930,7 +8930,7 @@ groups:
     - ADR-0065
     - ADR-0124
     stories:
-    - story_2022_014
+    - story_2026_091
     - story_2022_027
   - id: CM-28-023
     priority: MUST
@@ -8956,7 +8956,7 @@ groups:
     - ADR-0113
     - ADR-0124
     stories:
-    - story_2022_014
+    - story_2026_057
     - story_2022_027
   - id: CM-28-024
     priority: MUST_NOT
@@ -8984,7 +8984,7 @@ groups:
     - ADR-0113
     - ADR-0124
     stories:
-    - story_2022_014
+    - story_2026_057
     - story_2022_027
   - id: CM-28-014
     priority: MUST
@@ -9023,7 +9023,7 @@ groups:
     - ADR-0065
     - ADR-0124
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-016
     priority: MUST
@@ -9100,7 +9100,7 @@ groups:
     - ADR-0118
     - ADR-0135
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-025
     priority: MUST_NOT
@@ -9122,7 +9122,7 @@ groups:
     adr:
     - ADR-0118
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-026
     priority: MUST
@@ -9147,7 +9147,7 @@ groups:
     adr:
     - ADR-0135
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-027
     priority: MUST
@@ -9173,7 +9173,7 @@ groups:
     adr:
     - ADR-0135
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-028
     priority: MUST
@@ -9200,7 +9200,7 @@ groups:
     - ADR-0118
     - ADR-0135
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
   - id: CM-28-029
     priority: MUST
@@ -9227,7 +9227,7 @@ groups:
     adr:
     - ADR-0135
     stories:
-    - story_2022_014
+    - story_2026_092
     - story_2022_027
 
 - id: CM-27
@@ -10100,7 +10100,7 @@ groups:
     adr:
     - ADR-0116
     stories:
-    - story_2022_014
+    - story_2026_096
     - story_2022_023
   - id: CM-31-009
     priority: MUST
@@ -10129,7 +10129,7 @@ groups:
     - ADR-0116
     - ADR-0093
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-030
     priority: MUST
     kind: protocol
@@ -10157,7 +10157,7 @@ groups:
     - ADR-0116
     - ADR-0093
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-031
     priority: MUST_NOT
     kind: protocol
@@ -10178,7 +10178,7 @@ groups:
     adr:
     - ADR-0116
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-010
     priority: MUST
     kind: protocol
@@ -10200,7 +10200,7 @@ groups:
     adr:
     - ADR-0116
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-032
     priority: MUST
     kind: protocol
@@ -10221,7 +10221,7 @@ groups:
     adr:
     - ADR-0116
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-033
     priority: MUST
     kind: protocol
@@ -10242,7 +10242,7 @@ groups:
     adr:
     - ADR-0116
     stories:
-    - story_2022_014
+    - story_2026_096
   - id: CM-31-011
     priority: MUST
     kind: protocol

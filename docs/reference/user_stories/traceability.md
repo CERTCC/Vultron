@@ -175,24 +175,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 {% include-markdown "./story_2022_014.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
 
-| Spec file | Citing requirements |
-|---|---|
-| AKM — Actor Knowledge Model | [AKM-05-003](../vultron-spec/requirements/messages.md#akm-05-003), [AKM-05-004](../vultron-spec/requirements/messages.md#akm-05-004), [AKM-05-007](../vultron-spec/requirements/messages.md#akm-05-007), [AKM-05-010](../vultron-spec/requirements/messages.md#akm-05-010), [AKM-05-011](../vultron-spec/requirements/messages.md#akm-05-011), [AKM-05-012](../vultron-spec/requirements/messages.md#akm-05-012) |
-| ASK — Protocol Asks and Outstanding-Ask Registers | [ASK-03-007](../vultron-spec/requirements/case-management.md#ask-03-007), [ASK-04-010](../vultron-spec/requirements/case-management.md#ask-04-010), [ASK-04-013](../vultron-spec/requirements/case-management.md#ask-04-013) |
-| BT — Behavior Tree Integration | [BT-19-003](../specs/project.md#bt-19-003), [BT-19-005](../specs/project.md#bt-19-005) |
-| CM — Case Management | [CM-03-003](../vultron-spec/requirements/case-management.md#cm-03-003), [CM-04-003](../vultron-spec/requirements/case-management.md#cm-04-003), [CM-10-001](../vultron-spec/requirements/case-management.md#cm-10-001), [CM-11-016](../vultron-spec/requirements/case-management.md#cm-11-016), [CM-11-044](../vultron-spec/requirements/case-management.md#cm-11-044), [CM-11-045](../vultron-spec/requirements/case-management.md#cm-11-045), [CM-11-046](../vultron-spec/requirements/case-management.md#cm-11-046), [CM-12-004](../vultron-spec/requirements/case-management.md#cm-12-004), [CM-14-002](../vultron-spec/requirements/case-management.md#cm-14-002), [CM-14-003](../vultron-spec/requirements/case-management.md#cm-14-003), [CM-14-007](../vultron-spec/requirements/case-management.md#cm-14-007), [CM-14-010](../vultron-spec/requirements/case-management.md#cm-14-010), [CM-14-014](../vultron-spec/requirements/case-management.md#cm-14-014), [CM-17-002](../vultron-spec/requirements/case-management.md#cm-17-002), [CM-17-010](../vultron-spec/requirements/case-management.md#cm-17-010), [CM-17-014](../vultron-spec/requirements/case-management.md#cm-17-014), [CM-18-001](../vultron-spec/requirements/case-management.md#cm-18-001), [CM-18-002](../vultron-spec/requirements/case-management.md#cm-18-002), [CM-18-003](../vultron-spec/requirements/case-management.md#cm-18-003), [CM-18-019](../vultron-spec/requirements/case-management.md#cm-18-019), [CM-18-020](../vultron-spec/requirements/case-management.md#cm-18-020), [CM-18-021](../vultron-spec/requirements/case-management.md#cm-18-021), [CM-22-004](../vultron-spec/requirements/case-management.md#cm-22-004), [CM-28-001](../vultron-spec/requirements/case-management.md#cm-28-001), [CM-28-002](../vultron-spec/requirements/case-management.md#cm-28-002), [CM-28-003](../vultron-spec/requirements/case-management.md#cm-28-003), [CM-28-004](../vultron-spec/requirements/case-management.md#cm-28-004), [CM-28-011](../vultron-spec/requirements/case-management.md#cm-28-011), [CM-28-012](../vultron-spec/requirements/case-management.md#cm-28-012), [CM-28-013](../vultron-spec/requirements/case-management.md#cm-28-013), [CM-28-014](../vultron-spec/requirements/case-management.md#cm-28-014), [CM-28-015](../specs/project.md#cm-28-015), [CM-28-017](../vultron-spec/requirements/case-management.md#cm-28-017), [CM-28-018](../vultron-spec/requirements/case-management.md#cm-28-018), [CM-28-019](../vultron-spec/requirements/case-management.md#cm-28-019), [CM-28-020](../vultron-spec/requirements/case-management.md#cm-28-020), [CM-28-023](../vultron-spec/requirements/case-management.md#cm-28-023), [CM-28-024](../vultron-spec/requirements/case-management.md#cm-28-024), [CM-28-025](../specs/project.md#cm-28-025), [CM-28-026](../specs/project.md#cm-28-026), [CM-28-027](../specs/project.md#cm-28-027), [CM-28-028](../specs/project.md#cm-28-028), [CM-28-029](../specs/project.md#cm-28-029), [CM-31-008](../vultron-spec/requirements/case-management.md#cm-31-008), [CM-31-009](../vultron-spec/requirements/case-management.md#cm-31-009), [CM-31-010](../vultron-spec/requirements/case-management.md#cm-31-010), [CM-31-030](../vultron-spec/requirements/case-management.md#cm-31-030), [CM-31-031](../vultron-spec/requirements/case-management.md#cm-31-031), [CM-31-032](../vultron-spec/requirements/case-management.md#cm-31-032), [CM-31-033](../vultron-spec/requirements/case-management.md#cm-31-033) |
-| CP — CaseProposal Protocol | [CP-01-009](../vultron-spec/requirements/case-management.md#cp-01-009), [CP-09-003](../vultron-spec/requirements/case-management.md#cp-09-003) |
-| CSB — CVD Case State Behavioral Requirements | [CSB-04-005](../vultron-spec/requirements/state-behavior.md#csb-04-005), [CSB-04-007](../vultron-spec/requirements/state-behavior.md#csb-04-007), [CSB-05-006](../vultron-spec/requirements/state-behavior.md#csb-05-006), [CSB-06-006](../vultron-spec/requirements/state-behavior.md#csb-06-006), [CSB-09-001](../vultron-spec/requirements/state-behavior.md#csb-09-001), [CSB-10-001](../vultron-spec/requirements/state-behavior.md#csb-10-001), [CSB-11-001](../vultron-spec/requirements/state-behavior.md#csb-11-001), [CSB-12-002](../vultron-spec/requirements/state-behavior.md#csb-12-002), [CSB-13-002](../vultron-spec/requirements/state-behavior.md#csb-13-002), [CSB-13-003](../vultron-spec/requirements/state-behavior.md#csb-13-003), [CSB-13-004](../vultron-spec/requirements/state-behavior.md#csb-13-004), [CSB-13-005](../vultron-spec/requirements/state-behavior.md#csb-13-005), [CSB-14-001](../vultron-spec/requirements/state-behavior.md#csb-14-001), [CSB-14-005](../vultron-spec/requirements/state-behavior.md#csb-14-005), [CSB-14-006](../vultron-spec/requirements/state-behavior.md#csb-14-006) |
-| DUR — Duration | [DUR-01-001](../vultron-spec/requirements/state-behavior.md#dur-01-001), [DUR-01-002](../vultron-spec/requirements/state-behavior.md#dur-01-002), [DUR-01-003](../vultron-spec/requirements/state-behavior.md#dur-01-003), [DUR-06-001](../vultron-spec/requirements/state-behavior.md#dur-06-001), [DUR-07-001](../vultron-spec/requirements/state-behavior.md#dur-07-001), [DUR-07-003](../vultron-spec/requirements/state-behavior.md#dur-07-003), [DUR-07-004](../vultron-spec/requirements/state-behavior.md#dur-07-004) |
-| EMB — Embargo Management Behavioral Requirements | [EMB-01-001](../vultron-spec/requirements/state-behavior.md#emb-01-001), [EMB-01-002](../vultron-spec/requirements/state-behavior.md#emb-01-002), [EMB-01-003](../vultron-spec/requirements/state-behavior.md#emb-01-003), [EMB-01-004](../vultron-spec/requirements/state-behavior.md#emb-01-004), [EMB-01-005](../vultron-spec/requirements/state-behavior.md#emb-01-005), [EMB-02-001](../vultron-spec/requirements/state-behavior.md#emb-02-001), [EMB-02-003](../vultron-spec/requirements/state-behavior.md#emb-02-003), [EMB-02-004](../vultron-spec/requirements/state-behavior.md#emb-02-004), [EMB-03-001](../vultron-spec/requirements/state-behavior.md#emb-03-001), [EMB-03-002](../vultron-spec/requirements/state-behavior.md#emb-03-002), [EMB-04-001](../vultron-spec/requirements/state-behavior.md#emb-04-001), [EMB-04-003](../vultron-spec/requirements/state-behavior.md#emb-04-003), [EMB-05-001](../vultron-spec/requirements/state-behavior.md#emb-05-001), [EMB-05-003](../vultron-spec/requirements/state-behavior.md#emb-05-003), [EMB-06-001](../vultron-spec/requirements/state-behavior.md#emb-06-001), [EMB-07-001](../vultron-spec/requirements/state-behavior.md#emb-07-001), [EMB-07-002](../vultron-spec/requirements/state-behavior.md#emb-07-002), [EMB-10-001](../vultron-spec/requirements/state-behavior.md#emb-10-001), [EMB-10-002](../vultron-spec/requirements/state-behavior.md#emb-10-002), [EMB-12-001](../vultron-spec/requirements/state-behavior.md#emb-12-001), [EMB-14-001](../vultron-spec/requirements/state-behavior.md#emb-14-001), [EMB-14-005](../vultron-spec/requirements/state-behavior.md#emb-14-005), [EMB-14-006](../vultron-spec/requirements/state-behavior.md#emb-14-006), [EMB-15-001](../specs/project.md#emb-15-001), [EMB-15-004](../vultron-spec/requirements/state-behavior.md#emb-15-004), [EMB-15-005](../specs/project.md#emb-15-005), [EMB-15-009](../vultron-spec/requirements/state-behavior.md#emb-15-009), [EMB-15-010](../vultron-spec/requirements/state-behavior.md#emb-15-010), [EMB-16-002](../vultron-spec/requirements/state-behavior.md#emb-16-002), [EMB-16-006](../vultron-spec/requirements/state-behavior.md#emb-16-006), [EMB-17-001](../vultron-spec/requirements/state-behavior.md#emb-17-001), [EMB-17-002](../vultron-spec/requirements/state-behavior.md#emb-17-002), [EMB-17-003](../vultron-spec/requirements/state-behavior.md#emb-17-003), [EMB-17-009](../vultron-spec/requirements/state-behavior.md#emb-17-009), [EMB-17-012](../vultron-spec/requirements/state-behavior.md#emb-17-012), [EMB-17-013](../vultron-spec/requirements/state-behavior.md#emb-17-013), [EMB-17-014](../vultron-spec/requirements/state-behavior.md#emb-17-014), [EMB-17-018](../vultron-spec/requirements/state-behavior.md#emb-17-018), [EMB-18-004](../vultron-spec/requirements/state-behavior.md#emb-18-004), [EMB-18-005](../vultron-spec/requirements/state-behavior.md#emb-18-005), [EMB-18-007](../vultron-spec/requirements/state-behavior.md#emb-18-007), [EMB-18-012](../vultron-spec/requirements/state-behavior.md#emb-18-012) |
-| EP — Embargo Policy | [EP-04-001](../vultron-spec/requirements/state-behavior.md#ep-04-001), [EP-04-003](../vultron-spec/requirements/state-behavior.md#ep-04-003), [EP-04-004](../vultron-spec/requirements/state-behavior.md#ep-04-004), [EP-04-005](../vultron-spec/requirements/state-behavior.md#ep-04-005), [EP-04-006](../vultron-spec/requirements/state-behavior.md#ep-04-006), [EP-04-007](../vultron-spec/requirements/state-behavior.md#ep-04-007), [EP-04-008](../vultron-spec/requirements/state-behavior.md#ep-04-008), [EP-04-009](../vultron-spec/requirements/state-behavior.md#ep-04-009), [EP-04-011](../vultron-spec/requirements/state-behavior.md#ep-04-011), [EP-04-016](../vultron-spec/requirements/state-behavior.md#ep-04-016), [EP-04-017](../vultron-spec/requirements/state-behavior.md#ep-04-017), [EP-04-018](../vultron-spec/requirements/state-behavior.md#ep-04-018), [EP-04-019](../vultron-spec/requirements/state-behavior.md#ep-04-019), [EP-04-020](../vultron-spec/requirements/state-behavior.md#ep-04-020), [EP-04-021](../vultron-spec/requirements/state-behavior.md#ep-04-021), [EP-04-024](../vultron-spec/requirements/state-behavior.md#ep-04-024), [EP-04-025](../vultron-spec/requirements/state-behavior.md#ep-04-025), [EP-04-026](../vultron-spec/requirements/state-behavior.md#ep-04-026), [EP-04-027](../vultron-spec/requirements/state-behavior.md#ep-04-027), [EP-05-001](../vultron-spec/requirements/state-behavior.md#ep-05-001), [EP-05-002](../vultron-spec/requirements/state-behavior.md#ep-05-002), [EP-05-003](../vultron-spec/requirements/state-behavior.md#ep-05-003), [EP-07-001](../vultron-spec/requirements/state-behavior.md#ep-07-001), [EP-07-002](../vultron-spec/requirements/state-behavior.md#ep-07-002), [EP-07-003](../vultron-spec/requirements/state-behavior.md#ep-07-003), [EP-07-004](../vultron-spec/requirements/state-behavior.md#ep-07-004), [EP-07-006](../vultron-spec/requirements/state-behavior.md#ep-07-006), [EP-07-009](../vultron-spec/requirements/state-behavior.md#ep-07-009), [EP-07-010](../vultron-spec/requirements/state-behavior.md#ep-07-010), [EP-07-011](../vultron-spec/requirements/state-behavior.md#ep-07-011), [EP-08-001](../vultron-spec/requirements/state-behavior.md#ep-08-001), [EP-08-002](../vultron-spec/requirements/state-behavior.md#ep-08-002), [EP-08-003](../specs/project.md#ep-08-003), [EP-08-004](../vultron-spec/requirements/state-behavior.md#ep-08-004), [EP-08-005](../vultron-spec/requirements/state-behavior.md#ep-08-005), [EP-09-001](../vultron-spec/requirements/state-behavior.md#ep-09-001), [EP-09-002](../vultron-spec/requirements/state-behavior.md#ep-09-002), [EP-09-003](../vultron-spec/requirements/state-behavior.md#ep-09-003), [EP-09-005](../vultron-spec/requirements/state-behavior.md#ep-09-005), [EP-09-008](../vultron-spec/requirements/state-behavior.md#ep-09-008), [EP-09-009](../vultron-spec/requirements/state-behavior.md#ep-09-009), [EP-09-010](../vultron-spec/requirements/state-behavior.md#ep-09-010), [EP-09-011](../vultron-spec/requirements/state-behavior.md#ep-09-011), [EP-09-012](../vultron-spec/requirements/state-behavior.md#ep-09-012), [EP-09-013](../vultron-spec/requirements/state-behavior.md#ep-09-013), [EP-09-017](../vultron-spec/requirements/state-behavior.md#ep-09-017), [EP-09-020](../vultron-spec/requirements/state-behavior.md#ep-09-020), [EP-09-021](../vultron-spec/requirements/state-behavior.md#ep-09-021), [EP-09-022](../vultron-spec/requirements/state-behavior.md#ep-09-022), [EP-09-023](../vultron-spec/requirements/state-behavior.md#ep-09-023), [EP-09-024](../vultron-spec/requirements/state-behavior.md#ep-09-024), [EP-09-025](../vultron-spec/requirements/state-behavior.md#ep-09-025), [EP-09-026](../vultron-spec/requirements/state-behavior.md#ep-09-026), [EP-09-027](../vultron-spec/requirements/state-behavior.md#ep-09-027), [EP-09-028](../vultron-spec/requirements/state-behavior.md#ep-09-028), [EP-09-032](../vultron-spec/requirements/state-behavior.md#ep-09-032) |
-| LST — Lifecycle-Staged Domain Types | [LST-02-001](../specs/project.md#lst-02-001), [LST-02-003](../specs/project.md#lst-02-003) |
-| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-02-001](../vultron-spec/requirements/messages.md#msm-02-001), [MSM-02-002](../vultron-spec/requirements/messages.md#msm-02-002), [MSM-02-004](../vultron-spec/requirements/messages.md#msm-02-004), [MSM-02-005](../vultron-spec/requirements/messages.md#msm-02-005), [MSM-02-006](../vultron-spec/requirements/messages.md#msm-02-006), [MSM-02-007](../vultron-spec/requirements/messages.md#msm-02-007), [MSM-02-010](../vultron-spec/requirements/messages.md#msm-02-010), [MSM-07-006](../vultron-spec/requirements/messages.md#msm-07-006), [MSM-07-008](../vultron-spec/requirements/messages.md#msm-07-008), [MSM-07-009](../vultron-spec/requirements/messages.md#msm-07-009), [MSM-07-010](../vultron-spec/requirements/messages.md#msm-07-010), [MSM-07-011](../vultron-spec/requirements/messages.md#msm-07-011), [MSM-07-012](../vultron-spec/requirements/messages.md#msm-07-012), [MSM-07-013](../vultron-spec/requirements/messages.md#msm-07-013), [MSM-07-014](../vultron-spec/requirements/messages.md#msm-07-014), [MSM-07-015](../vultron-spec/requirements/messages.md#msm-07-015), [MSM-07-016](../vultron-spec/requirements/messages.md#msm-07-016), [MSM-07-017](../vultron-spec/requirements/messages.md#msm-07-017), [MSM-07-018](../vultron-spec/requirements/messages.md#msm-07-018), [MSM-07-019](../vultron-spec/requirements/messages.md#msm-07-019), [MSM-07-020](../vultron-spec/requirements/messages.md#msm-07-020), [MSM-07-021](../vultron-spec/requirements/messages.md#msm-07-021), [MSM-07-022](../vultron-spec/requirements/messages.md#msm-07-022), [MSM-07-023](../vultron-spec/requirements/messages.md#msm-07-023), [MSM-07-024](../vultron-spec/requirements/messages.md#msm-07-024), [MSM-07-025](../vultron-spec/requirements/messages.md#msm-07-025), [MSM-07-026](../vultron-spec/requirements/messages.md#msm-07-026), [MSM-07-027](../vultron-spec/requirements/messages.md#msm-07-027), [MSM-07-028](../vultron-spec/requirements/messages.md#msm-07-028), [MSM-07-029](../vultron-spec/requirements/messages.md#msm-07-029), [MSM-07-030](../vultron-spec/requirements/messages.md#msm-07-030), [MSM-07-031](../vultron-spec/requirements/messages.md#msm-07-031), [MSM-07-032](../vultron-spec/requirements/messages.md#msm-07-032), [MSM-07-033](../vultron-spec/requirements/messages.md#msm-07-033), [MSM-07-034](../vultron-spec/requirements/messages.md#msm-07-034), [MSM-07-035](../vultron-spec/requirements/messages.md#msm-07-035), [MSM-07-036](../vultron-spec/requirements/messages.md#msm-07-036) |
-| RF — Response Format | [RF-04-001](../vultron-spec/requirements/message-processing.md#rf-04-001), [RF-04-003](../vultron-spec/requirements/message-processing.md#rf-04-003) |
-| RSH — Received-Side Status Authorization | [RSH-04-002](../vultron-spec/requirements/message-processing.md#rsh-04-002) |
-| SM — State Machine | [SM-10-002](../vultron-spec/requirements/state-behavior.md#sm-10-002) |
-| VAM — Vultron Semantic–AS2 Mapping | [VAM-01-011](../vultron-spec/requirements/messages.md#vam-01-011), [VAM-05-003](../vultron-spec/requirements/messages.md#vam-05-003), [VAM-05-005](../vultron-spec/requirements/messages.md#vam-05-005), [VAM-05-006](../vultron-spec/requirements/messages.md#vam-05-006), [VAM-05-007](../vultron-spec/requirements/messages.md#vam-05-007), [VAM-05-008](../vultron-spec/requirements/messages.md#vam-05-008), [VAM-05-009](../vultron-spec/requirements/messages.md#vam-05-009), [VAM-05-011](../vultron-spec/requirements/messages.md#vam-05-011), [VAM-05-013](../vultron-spec/requirements/messages.md#vam-05-013), [VAM-05-014](../vultron-spec/requirements/messages.md#vam-05-014), [VAM-05-015](../vultron-spec/requirements/messages.md#vam-05-015), [VAM-05-016](../vultron-spec/requirements/messages.md#vam-05-016) |
-| VP — Vultron Protocol | [VP-04-001](../vultron-spec/requirements/vultron-protocol.md#vp-04-001), [VP-04-002](../vultron-spec/requirements/vultron-protocol.md#vp-04-002), [VP-04-003](../vultron-spec/requirements/vultron-protocol.md#vp-04-003), [VP-04-005](../vultron-spec/requirements/vultron-protocol.md#vp-04-005), [VP-04-006](../vultron-spec/requirements/vultron-protocol.md#vp-04-006), [VP-05-003](../vultron-spec/requirements/vultron-protocol.md#vp-05-003), [VP-05-016](../vultron-spec/requirements/vultron-protocol.md#vp-05-016), [VP-06-003](../vultron-spec/requirements/vultron-protocol.md#vp-06-003), [VP-06-004](../vultron-spec/requirements/vultron-protocol.md#vp-06-004), [VP-06-005](../vultron-spec/requirements/vultron-protocol.md#vp-06-005), [VP-06-006](../vultron-spec/requirements/vultron-protocol.md#vp-06-006), [VP-06-007](../vultron-spec/requirements/vultron-protocol.md#vp-06-007), [VP-06-009](../vultron-spec/requirements/vultron-protocol.md#vp-06-009), [VP-06-011](../vultron-spec/requirements/vultron-protocol.md#vp-06-011), [VP-06-012](../vultron-spec/requirements/vultron-protocol.md#vp-06-012), [VP-06-013](../vultron-spec/requirements/vultron-protocol.md#vp-06-013), [VP-06-014](../vultron-spec/requirements/vultron-protocol.md#vp-06-014), [VP-06-017](../vultron-spec/requirements/vultron-protocol.md#vp-06-017), [VP-07-002](../vultron-spec/requirements/vultron-protocol.md#vp-07-002), [VP-07-011](../vultron-spec/requirements/vultron-protocol.md#vp-07-011), [VP-08-016](../vultron-spec/requirements/vultron-protocol.md#vp-08-016), [VP-08-018](../vultron-spec/requirements/vultron-protocol.md#vp-08-018), [VP-13-013](../vultron-spec/requirements/vultron-protocol.md#vp-13-013), [VP-13-014](../vultron-spec/requirements/vultron-protocol.md#vp-13-014), [VP-13-015](../vultron-spec/requirements/vultron-protocol.md#vp-13-015), [VP-14-006](../vultron-spec/requirements/vultron-protocol.md#vp-14-006) |
+*No mapped requirements* (TRACE-01-002).
 
 ## [story_2022_015](story_2022_015.md)
 
@@ -1249,10 +1232,10 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CM — Case Management | [CM-18-004](../vultron-spec/requirements/case-management.md#cm-18-004) |
+| CM — Case Management | [CM-10-001](../vultron-spec/requirements/case-management.md#cm-10-001), [CM-18-001](../vultron-spec/requirements/case-management.md#cm-18-001), [CM-18-003](../vultron-spec/requirements/case-management.md#cm-18-003), [CM-18-004](../vultron-spec/requirements/case-management.md#cm-18-004), [CM-18-019](../vultron-spec/requirements/case-management.md#cm-18-019), [CM-18-020](../vultron-spec/requirements/case-management.md#cm-18-020), [CM-18-021](../vultron-spec/requirements/case-management.md#cm-18-021) |
 | EMB — Embargo Management Behavioral Requirements | [EMB-13-001](../vultron-spec/requirements/state-behavior.md#emb-13-001), [EMB-17-005](../vultron-spec/requirements/state-behavior.md#emb-17-005), [EMB-17-006](../vultron-spec/requirements/state-behavior.md#emb-17-006), [EMB-17-007](../vultron-spec/requirements/state-behavior.md#emb-17-007), [EMB-17-008](../vultron-spec/requirements/state-behavior.md#emb-17-008) |
 | EP — Embargo Policy | [EP-06-001](../vultron-spec/requirements/state-behavior.md#ep-06-001), [EP-09-004](../vultron-spec/requirements/state-behavior.md#ep-09-004) |
-| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-002](../vultron-spec/requirements/messages.md#msm-07-002), [MSM-07-003](../vultron-spec/requirements/messages.md#msm-07-003), [MSM-07-004](../vultron-spec/requirements/messages.md#msm-07-004), [MSM-07-005](../vultron-spec/requirements/messages.md#msm-07-005), [MSM-07-007](../vultron-spec/requirements/messages.md#msm-07-007) |
+| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-002](../vultron-spec/requirements/messages.md#msm-07-002), [MSM-07-003](../vultron-spec/requirements/messages.md#msm-07-003), [MSM-07-004](../vultron-spec/requirements/messages.md#msm-07-004), [MSM-07-005](../vultron-spec/requirements/messages.md#msm-07-005), [MSM-07-007](../vultron-spec/requirements/messages.md#msm-07-007), [MSM-07-017](../vultron-spec/requirements/messages.md#msm-07-017), [MSM-07-018](../vultron-spec/requirements/messages.md#msm-07-018) |
 
 ## [story_2026_002](story_2026_002.md)
 
@@ -1277,6 +1260,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
+| EMB — Embargo Management Behavioral Requirements | [EMB-15-001](../specs/project.md#emb-15-001), [EMB-15-005](../specs/project.md#emb-15-005) |
 | RMB — Report Management Behavioral Requirements | [RMB-12-003](../vultron-spec/requirements/state-behavior.md#rmb-12-003) |
 
 ## [story_2026_005](story_2026_005.md)
@@ -1299,6 +1283,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
+| ASK — Protocol Asks and Outstanding-Ask Registers | [ASK-03-007](../vultron-spec/requirements/case-management.md#ask-03-007), [ASK-04-010](../vultron-spec/requirements/case-management.md#ask-04-010), [ASK-04-013](../vultron-spec/requirements/case-management.md#ask-04-013) |
 | CP — CaseProposal Protocol | [CP-05-007](../vultron-spec/requirements/case-management.md#cp-05-007) |
 | CSB — CVD Case State Behavioral Requirements | [CSB-08-001](../vultron-spec/requirements/state-behavior.md#csb-08-001) |
 | EMB — Embargo Management Behavioral Requirements | [EMB-09-001](../vultron-spec/requirements/state-behavior.md#emb-09-001) |
@@ -1326,7 +1311,9 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 {% include-markdown "./story_2026_010.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
 
-*No mapped requirements* (TRACE-01-002).
+| Spec file | Citing requirements |
+|---|---|
+| RF — Response Format | [RF-04-001](../vultron-spec/requirements/message-processing.md#rf-04-001), [RF-04-003](../vultron-spec/requirements/message-processing.md#rf-04-003) |
 
 ## [story_2026_011](story_2026_011.md)
 
@@ -1337,10 +1324,11 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | CBT — Case Bootstrap Trust | [CBT-01-009](../vultron-spec/requirements/ledger-replication.md#cbt-01-009) |
 | CLP — Case Ledger Processing | [CLP-01-002](../vultron-spec/requirements/ledger-replication.md#clp-01-002), [CLP-02-014](../vultron-spec/requirements/ledger-replication.md#clp-02-014) |
 | CM — Case Management | [CM-03-007](../vultron-spec/requirements/case-management.md#cm-03-007) |
-| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-03-001](../vultron-spec/requirements/messages.md#msm-03-001), [MSM-05-001](../vultron-spec/requirements/messages.md#msm-05-001), [MSM-05-002](../vultron-spec/requirements/messages.md#msm-05-002), [MSM-05-003](../vultron-spec/requirements/messages.md#msm-05-003), [MSM-05-006](../vultron-spec/requirements/messages.md#msm-05-006), [MSM-07-001](../vultron-spec/requirements/messages.md#msm-07-001) |
+| EP — Embargo Policy | [EP-09-009](../vultron-spec/requirements/state-behavior.md#ep-09-009) |
+| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-02-001](../vultron-spec/requirements/messages.md#msm-02-001), [MSM-02-002](../vultron-spec/requirements/messages.md#msm-02-002), [MSM-02-004](../vultron-spec/requirements/messages.md#msm-02-004), [MSM-02-005](../vultron-spec/requirements/messages.md#msm-02-005), [MSM-02-006](../vultron-spec/requirements/messages.md#msm-02-006), [MSM-02-007](../vultron-spec/requirements/messages.md#msm-02-007), [MSM-03-001](../vultron-spec/requirements/messages.md#msm-03-001), [MSM-05-001](../vultron-spec/requirements/messages.md#msm-05-001), [MSM-05-002](../vultron-spec/requirements/messages.md#msm-05-002), [MSM-05-003](../vultron-spec/requirements/messages.md#msm-05-003), [MSM-05-006](../vultron-spec/requirements/messages.md#msm-05-006), [MSM-07-001](../vultron-spec/requirements/messages.md#msm-07-001) |
 | RF — Response Format | [RF-05-001](../vultron-spec/requirements/message-processing.md#rf-05-001) |
 | SM — State Machine | [SM-08-001](../vultron-spec/requirements/state-behavior.md#sm-08-001) |
-| VAM — Vultron Semantic–AS2 Mapping | [VAM-01-008](../vultron-spec/requirements/messages.md#vam-01-008), [VAM-08-002](../vultron-spec/requirements/messages.md#vam-08-002), [VAM-08-004](../vultron-spec/requirements/messages.md#vam-08-004) |
+| VAM — Vultron Semantic–AS2 Mapping | [VAM-01-008](../vultron-spec/requirements/messages.md#vam-01-008), [VAM-05-003](../vultron-spec/requirements/messages.md#vam-05-003), [VAM-05-005](../vultron-spec/requirements/messages.md#vam-05-005), [VAM-05-006](../vultron-spec/requirements/messages.md#vam-05-006), [VAM-05-007](../vultron-spec/requirements/messages.md#vam-05-007), [VAM-05-008](../vultron-spec/requirements/messages.md#vam-05-008), [VAM-05-009](../vultron-spec/requirements/messages.md#vam-05-009), [VAM-05-011](../vultron-spec/requirements/messages.md#vam-05-011), [VAM-05-013](../vultron-spec/requirements/messages.md#vam-05-013), [VAM-05-014](../vultron-spec/requirements/messages.md#vam-05-014), [VAM-05-015](../vultron-spec/requirements/messages.md#vam-05-015), [VAM-05-016](../vultron-spec/requirements/messages.md#vam-05-016), [VAM-08-002](../vultron-spec/requirements/messages.md#vam-08-002), [VAM-08-004](../vultron-spec/requirements/messages.md#vam-08-004) |
 | VP — Vultron Protocol | [VP-03-010](../vultron-spec/requirements/vultron-protocol.md#vp-03-010), [VP-11-004](../vultron-spec/requirements/vultron-protocol.md#vp-11-004) |
 
 ## [story_2026_012](story_2026_012.md)
@@ -1350,7 +1338,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | CS — Code Style Specifications | [CS-13-005](../vultron-spec/requirements/messages.md#cs-13-005), [CS-13-007](../vultron-spec/requirements/messages.md#cs-13-007) |
-| DUR — Duration | [DUR-02-001](../vultron-spec/requirements/state-behavior.md#dur-02-001), [DUR-02-002](../vultron-spec/requirements/state-behavior.md#dur-02-002), [DUR-03-001](../vultron-spec/requirements/state-behavior.md#dur-03-001), [DUR-03-003](../vultron-spec/requirements/state-behavior.md#dur-03-003), [DUR-04-001](../vultron-spec/requirements/state-behavior.md#dur-04-001), [DUR-04-002](../vultron-spec/requirements/state-behavior.md#dur-04-002), [DUR-04-003](../vultron-spec/requirements/state-behavior.md#dur-04-003), [DUR-04-004](../vultron-spec/requirements/state-behavior.md#dur-04-004) |
+| DUR — Duration | [DUR-01-001](../vultron-spec/requirements/state-behavior.md#dur-01-001), [DUR-01-002](../vultron-spec/requirements/state-behavior.md#dur-01-002), [DUR-01-003](../vultron-spec/requirements/state-behavior.md#dur-01-003), [DUR-02-001](../vultron-spec/requirements/state-behavior.md#dur-02-001), [DUR-02-002](../vultron-spec/requirements/state-behavior.md#dur-02-002), [DUR-03-001](../vultron-spec/requirements/state-behavior.md#dur-03-001), [DUR-03-003](../vultron-spec/requirements/state-behavior.md#dur-03-003), [DUR-04-001](../vultron-spec/requirements/state-behavior.md#dur-04-001), [DUR-04-002](../vultron-spec/requirements/state-behavior.md#dur-04-002), [DUR-04-003](../vultron-spec/requirements/state-behavior.md#dur-04-003), [DUR-04-004](../vultron-spec/requirements/state-behavior.md#dur-04-004) |
 
 ## [story_2026_013](story_2026_013.md)
 
@@ -1466,7 +1454,8 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| DUR — Duration | [DUR-06-002](../vultron-spec/requirements/state-behavior.md#dur-06-002), [DUR-06-003](../vultron-spec/requirements/state-behavior.md#dur-06-003) |
+| DUR — Duration | [DUR-06-001](../vultron-spec/requirements/state-behavior.md#dur-06-001), [DUR-06-002](../vultron-spec/requirements/state-behavior.md#dur-06-002), [DUR-06-003](../vultron-spec/requirements/state-behavior.md#dur-06-003), [DUR-07-001](../vultron-spec/requirements/state-behavior.md#dur-07-001) |
+| VP — Vultron Protocol | [VP-04-001](../vultron-spec/requirements/vultron-protocol.md#vp-04-001), [VP-05-003](../vultron-spec/requirements/vultron-protocol.md#vp-05-003) |
 
 ## [story_2026_025](story_2026_025.md)
 
@@ -1521,7 +1510,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CM — Case Management | [CM-01-002](../vultron-spec/requirements/case-management.md#cm-01-002), [CM-03-002](../vultron-spec/requirements/case-management.md#cm-03-002), [CM-03-004](../vultron-spec/requirements/case-management.md#cm-03-004), [CM-03-005](../vultron-spec/requirements/case-management.md#cm-03-005), [CM-04-006](../vultron-spec/requirements/case-management.md#cm-04-006), [CM-04-010](../vultron-spec/requirements/case-management.md#cm-04-010) |
+| CM — Case Management | [CM-01-002](../vultron-spec/requirements/case-management.md#cm-01-002), [CM-03-002](../vultron-spec/requirements/case-management.md#cm-03-002), [CM-03-003](../vultron-spec/requirements/case-management.md#cm-03-003), [CM-03-004](../vultron-spec/requirements/case-management.md#cm-03-004), [CM-03-005](../vultron-spec/requirements/case-management.md#cm-03-005), [CM-04-006](../vultron-spec/requirements/case-management.md#cm-04-006), [CM-04-010](../vultron-spec/requirements/case-management.md#cm-04-010) |
 | SDO — Status Dimension Objects | [SDO-03-001](../specs/project.md#sdo-03-001), [SDO-03-002](../specs/project.md#sdo-03-002) |
 | SM — State Machine | [SM-10-002](../vultron-spec/requirements/state-behavior.md#sm-10-002), [SM-10-003](../vultron-spec/requirements/state-behavior.md#sm-10-003), [SM-10-004](../vultron-spec/requirements/state-behavior.md#sm-10-004) |
 
@@ -1539,8 +1528,10 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CSB — CVD Case State Behavioral Requirements | [CSB-14-003](../vultron-spec/requirements/state-behavior.md#csb-14-003), [CSB-18-002](../vultron-spec/requirements/state-behavior.md#csb-18-002), [CSB-18-003](../vultron-spec/requirements/state-behavior.md#csb-18-003), [CSB-18-004](../vultron-spec/requirements/state-behavior.md#csb-18-004) |
-| EMB — Embargo Management Behavioral Requirements | [EMB-02-002](../vultron-spec/requirements/state-behavior.md#emb-02-002), [EMB-13-002](../vultron-spec/requirements/state-behavior.md#emb-13-002) |
+| CSB — CVD Case State Behavioral Requirements | [CSB-04-005](../vultron-spec/requirements/state-behavior.md#csb-04-005), [CSB-04-007](../vultron-spec/requirements/state-behavior.md#csb-04-007), [CSB-05-006](../vultron-spec/requirements/state-behavior.md#csb-05-006), [CSB-06-006](../vultron-spec/requirements/state-behavior.md#csb-06-006), [CSB-10-001](../vultron-spec/requirements/state-behavior.md#csb-10-001), [CSB-11-001](../vultron-spec/requirements/state-behavior.md#csb-11-001), [CSB-12-002](../vultron-spec/requirements/state-behavior.md#csb-12-002), [CSB-13-002](../vultron-spec/requirements/state-behavior.md#csb-13-002), [CSB-13-003](../vultron-spec/requirements/state-behavior.md#csb-13-003), [CSB-14-001](../vultron-spec/requirements/state-behavior.md#csb-14-001), [CSB-14-003](../vultron-spec/requirements/state-behavior.md#csb-14-003), [CSB-18-002](../vultron-spec/requirements/state-behavior.md#csb-18-002), [CSB-18-003](../vultron-spec/requirements/state-behavior.md#csb-18-003), [CSB-18-004](../vultron-spec/requirements/state-behavior.md#csb-18-004) |
+| EMB — Embargo Management Behavioral Requirements | [EMB-01-002](../vultron-spec/requirements/state-behavior.md#emb-01-002), [EMB-02-002](../vultron-spec/requirements/state-behavior.md#emb-02-002), [EMB-02-004](../vultron-spec/requirements/state-behavior.md#emb-02-004), [EMB-13-002](../vultron-spec/requirements/state-behavior.md#emb-13-002), [EMB-15-010](../vultron-spec/requirements/state-behavior.md#emb-15-010) |
+| EP — Embargo Policy | [EP-09-021](../vultron-spec/requirements/state-behavior.md#ep-09-021) |
+| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-032](../vultron-spec/requirements/messages.md#msm-07-032) |
 
 ## [story_2026_034](story_2026_034.md)
 
@@ -1763,6 +1754,8 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | CLP — Case Ledger Processing | [CLP-02-003](../vultron-spec/requirements/ledger-replication.md#clp-02-003), [CLP-04-002](../vultron-spec/requirements/ledger-replication.md#clp-04-002), [CLP-04-006](../vultron-spec/requirements/ledger-replication.md#clp-04-006), [CLP-07-022](../vultron-spec/requirements/ledger-replication.md#clp-07-022) |
+| CM — Case Management | [CM-28-023](../vultron-spec/requirements/case-management.md#cm-28-023), [CM-28-024](../vultron-spec/requirements/case-management.md#cm-28-024) |
+| EP — Embargo Policy | [EP-09-003](../vultron-spec/requirements/state-behavior.md#ep-09-003) |
 | SYNC — Case Event Log Synchronization | [SYNC-02-001](../vultron-spec/requirements/ledger-replication.md#sync-02-001), [SYNC-08-002](../vultron-spec/requirements/ledger-replication.md#sync-08-002), [SYNC-13-006](../vultron-spec/requirements/ledger-replication.md#sync-13-006), [SYNC-19-002](../vultron-spec/requirements/ledger-replication.md#sync-19-002), [SYNC-19-003](../vultron-spec/requirements/ledger-replication.md#sync-19-003), [SYNC-19-004](../vultron-spec/requirements/ledger-replication.md#sync-19-004), [SYNC-19-005](../vultron-spec/requirements/ledger-replication.md#sync-19-005), [SYNC-19-006](../vultron-spec/requirements/ledger-replication.md#sync-19-006), [SYNC-19-007](../vultron-spec/requirements/ledger-replication.md#sync-19-007) |
 | VP — Vultron Protocol | [VP-17-003](../vultron-spec/requirements/vultron-protocol.md#vp-17-003) |
 
@@ -1784,6 +1777,9 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | BT — Behavior Tree Integration | [BT-10-003](../vultron-spec/requirements/message-processing.md#bt-10-003) |
 | CLP — Case Ledger Processing | [CLP-10-001](../vultron-spec/requirements/ledger-replication.md#clp-10-001) |
 | CM — Case Management | [CM-02-002](../vultron-spec/requirements/case-management.md#cm-02-002) |
+| CSB — CVD Case State Behavioral Requirements | [CSB-13-005](../vultron-spec/requirements/state-behavior.md#csb-13-005), [CSB-14-006](../vultron-spec/requirements/state-behavior.md#csb-14-006) |
+| EMB — Embargo Management Behavioral Requirements | [EMB-16-002](../vultron-spec/requirements/state-behavior.md#emb-16-002), [EMB-16-006](../vultron-spec/requirements/state-behavior.md#emb-16-006) |
+| EP — Embargo Policy | [EP-09-008](../vultron-spec/requirements/state-behavior.md#ep-09-008), [EP-09-017](../vultron-spec/requirements/state-behavior.md#ep-09-017) |
 | PCR — Participant Case Replica | [PCR-03-005](../vultron-spec/requirements/ledger-replication.md#pcr-03-005), [PCR-03-006](../vultron-spec/requirements/ledger-replication.md#pcr-03-006), [PCR-08-001](../vultron-spec/requirements/ledger-replication.md#pcr-08-001) |
 | RSH — Received-Side Status Authorization | [RSH-04-001](../vultron-spec/requirements/message-processing.md#rsh-04-001), [RSH-04-007](../vultron-spec/requirements/message-processing.md#rsh-04-007), [RSH-04-008](../vultron-spec/requirements/message-processing.md#rsh-04-008) |
 | SYNC — Case Event Log Synchronization | [SYNC-02-003](../vultron-spec/requirements/ledger-replication.md#sync-02-003), [SYNC-19-001](../vultron-spec/requirements/ledger-replication.md#sync-19-001) |
@@ -1837,6 +1833,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | EMB — Embargo Management Behavioral Requirements | [EMB-17-004](../vultron-spec/requirements/state-behavior.md#emb-17-004), [EMB-17-015](../vultron-spec/requirements/state-behavior.md#emb-17-015), [EMB-17-016](../vultron-spec/requirements/state-behavior.md#emb-17-016), [EMB-17-017](../vultron-spec/requirements/state-behavior.md#emb-17-017) |
+| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-012](../vultron-spec/requirements/messages.md#msm-07-012) |
 
 ## [story_2026_065](story_2026_065.md)
 
@@ -1868,7 +1865,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| LST — Lifecycle-Staged Domain Types | [LST-05-002b](../specs/project.md#lst-05-002b) |
+| LST — Lifecycle-Staged Domain Types | [LST-02-001](../specs/project.md#lst-02-001), [LST-02-003](../specs/project.md#lst-02-003), [LST-05-002b](../specs/project.md#lst-05-002b) |
 
 ## [story_2026_069](story_2026_069.md)
 
@@ -1905,6 +1902,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 |---|---|
 | CLP — Case Ledger Processing | [CLP-02-002](../vultron-spec/requirements/ledger-replication.md#clp-02-002), [CLP-07-003](../vultron-spec/requirements/ledger-replication.md#clp-07-003), [CLP-07-006](../vultron-spec/requirements/ledger-replication.md#clp-07-006), [CLP-07-011](../vultron-spec/requirements/ledger-replication.md#clp-07-011), [CLP-07-017](../vultron-spec/requirements/ledger-replication.md#clp-07-017), [CLP-07-018](../vultron-spec/requirements/ledger-replication.md#clp-07-018) |
 | CM — Case Management | [CM-28-022](../vultron-spec/requirements/case-management.md#cm-28-022) |
+| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-016](../vultron-spec/requirements/messages.md#msm-07-016) |
 | SYNC — Case Event Log Synchronization | [SYNC-18-006](../vultron-spec/requirements/ledger-replication.md#sync-18-006) |
 
 ## [story_2026_073](story_2026_073.md)
@@ -1951,7 +1949,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CSB — CVD Case State Behavioral Requirements | [CSB-05-010](../vultron-spec/requirements/state-behavior.md#csb-05-010), [CSB-06-010](../vultron-spec/requirements/state-behavior.md#csb-06-010) |
+| CSB — CVD Case State Behavioral Requirements | [CSB-05-010](../vultron-spec/requirements/state-behavior.md#csb-05-010), [CSB-06-010](../vultron-spec/requirements/state-behavior.md#csb-06-010), [CSB-13-004](../vultron-spec/requirements/state-behavior.md#csb-13-004), [CSB-14-005](../vultron-spec/requirements/state-behavior.md#csb-14-005) |
 
 ## [story_2026_078](story_2026_078.md)
 
@@ -1968,3 +1966,177 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | SYNC — Case Event Log Synchronization | [SYNC-20-001](../vultron-spec/requirements/ledger-replication.md#sync-20-001), [SYNC-20-002](../vultron-spec/requirements/ledger-replication.md#sync-20-002), [SYNC-20-003](../vultron-spec/requirements/ledger-replication.md#sync-20-003), [SYNC-20-004](../vultron-spec/requirements/ledger-replication.md#sync-20-004), [SYNC-20-005](../vultron-spec/requirements/ledger-replication.md#sync-20-005), [SYNC-20-007](../vultron-spec/requirements/ledger-replication.md#sync-20-007), [SYNC-20-008](../vultron-spec/requirements/ledger-replication.md#sync-20-008) |
+
+## [story_2026_080](story_2026_080.md)
+
+{% include-markdown "./story_2026_080.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CM — Case Management | [CM-12-004](../vultron-spec/requirements/case-management.md#cm-12-004), [CM-14-002](../vultron-spec/requirements/case-management.md#cm-14-002), [CM-14-003](../vultron-spec/requirements/case-management.md#cm-14-003), [CM-14-007](../vultron-spec/requirements/case-management.md#cm-14-007), [CM-14-010](../vultron-spec/requirements/case-management.md#cm-14-010), [CM-14-014](../vultron-spec/requirements/case-management.md#cm-14-014), [CM-22-004](../vultron-spec/requirements/case-management.md#cm-22-004) |
+| CP — CaseProposal Protocol | [CP-09-003](../vultron-spec/requirements/case-management.md#cp-09-003) |
+| DUR — Duration | [DUR-07-003](../vultron-spec/requirements/state-behavior.md#dur-07-003), [DUR-07-004](../vultron-spec/requirements/state-behavior.md#dur-07-004) |
+| EP — Embargo Policy | [EP-04-001](../vultron-spec/requirements/state-behavior.md#ep-04-001), [EP-04-005](../vultron-spec/requirements/state-behavior.md#ep-04-005), [EP-04-006](../vultron-spec/requirements/state-behavior.md#ep-04-006), [EP-04-008](../vultron-spec/requirements/state-behavior.md#ep-04-008), [EP-04-018](../vultron-spec/requirements/state-behavior.md#ep-04-018), [EP-04-019](../vultron-spec/requirements/state-behavior.md#ep-04-019), [EP-04-020](../vultron-spec/requirements/state-behavior.md#ep-04-020) |
+| VP — Vultron Protocol | [VP-07-002](../vultron-spec/requirements/vultron-protocol.md#vp-07-002) |
+
+## [story_2026_081](story_2026_081.md)
+
+{% include-markdown "./story_2026_081.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| EP — Embargo Policy | [EP-04-003](../vultron-spec/requirements/state-behavior.md#ep-04-003), [EP-04-004](../vultron-spec/requirements/state-behavior.md#ep-04-004), [EP-04-007](../vultron-spec/requirements/state-behavior.md#ep-04-007), [EP-04-011](../vultron-spec/requirements/state-behavior.md#ep-04-011), [EP-04-016](../vultron-spec/requirements/state-behavior.md#ep-04-016), [EP-04-024](../vultron-spec/requirements/state-behavior.md#ep-04-024), [EP-04-025](../vultron-spec/requirements/state-behavior.md#ep-04-025), [EP-04-026](../vultron-spec/requirements/state-behavior.md#ep-04-026), [EP-04-027](../vultron-spec/requirements/state-behavior.md#ep-04-027) |
+| VP — Vultron Protocol | [VP-06-007](../vultron-spec/requirements/vultron-protocol.md#vp-06-007) |
+
+## [story_2026_082](story_2026_082.md)
+
+{% include-markdown "./story_2026_082.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| EMB — Embargo Management Behavioral Requirements | [EMB-18-004](../vultron-spec/requirements/state-behavior.md#emb-18-004), [EMB-18-012](../vultron-spec/requirements/state-behavior.md#emb-18-012) |
+| EP — Embargo Policy | [EP-04-009](../vultron-spec/requirements/state-behavior.md#ep-04-009), [EP-04-017](../vultron-spec/requirements/state-behavior.md#ep-04-017), [EP-04-021](../vultron-spec/requirements/state-behavior.md#ep-04-021) |
+
+## [story_2026_083](story_2026_083.md)
+
+{% include-markdown "./story_2026_083.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CSB — CVD Case State Behavioral Requirements | [CSB-09-001](../vultron-spec/requirements/state-behavior.md#csb-09-001) |
+| EMB — Embargo Management Behavioral Requirements | [EMB-10-001](../vultron-spec/requirements/state-behavior.md#emb-10-001), [EMB-12-001](../vultron-spec/requirements/state-behavior.md#emb-12-001) |
+| VP — Vultron Protocol | [VP-04-003](../vultron-spec/requirements/vultron-protocol.md#vp-04-003), [VP-04-005](../vultron-spec/requirements/vultron-protocol.md#vp-04-005), [VP-04-006](../vultron-spec/requirements/vultron-protocol.md#vp-04-006), [VP-05-016](../vultron-spec/requirements/vultron-protocol.md#vp-05-016), [VP-06-003](../vultron-spec/requirements/vultron-protocol.md#vp-06-003), [VP-06-005](../vultron-spec/requirements/vultron-protocol.md#vp-06-005), [VP-06-006](../vultron-spec/requirements/vultron-protocol.md#vp-06-006), [VP-06-009](../vultron-spec/requirements/vultron-protocol.md#vp-06-009), [VP-06-011](../vultron-spec/requirements/vultron-protocol.md#vp-06-011), [VP-06-012](../vultron-spec/requirements/vultron-protocol.md#vp-06-012), [VP-06-017](../vultron-spec/requirements/vultron-protocol.md#vp-06-017), [VP-07-011](../vultron-spec/requirements/vultron-protocol.md#vp-07-011), [VP-08-016](../vultron-spec/requirements/vultron-protocol.md#vp-08-016), [VP-08-018](../vultron-spec/requirements/vultron-protocol.md#vp-08-018) |
+
+## [story_2026_084](story_2026_084.md)
+
+{% include-markdown "./story_2026_084.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| EMB — Embargo Management Behavioral Requirements | [EMB-01-004](../vultron-spec/requirements/state-behavior.md#emb-01-004), [EMB-01-005](../vultron-spec/requirements/state-behavior.md#emb-01-005), [EMB-02-003](../vultron-spec/requirements/state-behavior.md#emb-02-003), [EMB-10-002](../vultron-spec/requirements/state-behavior.md#emb-10-002) |
+| VP — Vultron Protocol | [VP-13-013](../vultron-spec/requirements/vultron-protocol.md#vp-13-013), [VP-13-014](../vultron-spec/requirements/vultron-protocol.md#vp-13-014), [VP-13-015](../vultron-spec/requirements/vultron-protocol.md#vp-13-015) |
+
+## [story_2026_085](story_2026_085.md)
+
+{% include-markdown "./story_2026_085.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| EP — Embargo Policy | [EP-09-001](../vultron-spec/requirements/state-behavior.md#ep-09-001), [EP-09-002](../vultron-spec/requirements/state-behavior.md#ep-09-002), [EP-09-010](../vultron-spec/requirements/state-behavior.md#ep-09-010), [EP-09-011](../vultron-spec/requirements/state-behavior.md#ep-09-011), [EP-09-020](../vultron-spec/requirements/state-behavior.md#ep-09-020), [EP-09-022](../vultron-spec/requirements/state-behavior.md#ep-09-022), [EP-09-025](../vultron-spec/requirements/state-behavior.md#ep-09-025), [EP-09-026](../vultron-spec/requirements/state-behavior.md#ep-09-026), [EP-09-027](../vultron-spec/requirements/state-behavior.md#ep-09-027), [EP-09-032](../vultron-spec/requirements/state-behavior.md#ep-09-032) |
+
+## [story_2026_086](story_2026_086.md)
+
+{% include-markdown "./story_2026_086.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| EMB — Embargo Management Behavioral Requirements | [EMB-01-001](../vultron-spec/requirements/state-behavior.md#emb-01-001), [EMB-01-003](../vultron-spec/requirements/state-behavior.md#emb-01-003), [EMB-02-001](../vultron-spec/requirements/state-behavior.md#emb-02-001), [EMB-03-001](../vultron-spec/requirements/state-behavior.md#emb-03-001), [EMB-03-002](../vultron-spec/requirements/state-behavior.md#emb-03-002), [EMB-04-001](../vultron-spec/requirements/state-behavior.md#emb-04-001), [EMB-04-003](../vultron-spec/requirements/state-behavior.md#emb-04-003), [EMB-05-001](../vultron-spec/requirements/state-behavior.md#emb-05-001), [EMB-05-003](../vultron-spec/requirements/state-behavior.md#emb-05-003), [EMB-06-001](../vultron-spec/requirements/state-behavior.md#emb-06-001), [EMB-07-001](../vultron-spec/requirements/state-behavior.md#emb-07-001), [EMB-07-002](../vultron-spec/requirements/state-behavior.md#emb-07-002), [EMB-18-005](../vultron-spec/requirements/state-behavior.md#emb-18-005) |
+
+## [story_2026_087](story_2026_087.md)
+
+{% include-markdown "./story_2026_087.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CM — Case Management | [CM-04-003](../vultron-spec/requirements/case-management.md#cm-04-003) |
+| EMB — Embargo Management Behavioral Requirements | [EMB-15-004](../vultron-spec/requirements/state-behavior.md#emb-15-004), [EMB-15-009](../vultron-spec/requirements/state-behavior.md#emb-15-009) |
+| EP — Embargo Policy | [EP-09-005](../vultron-spec/requirements/state-behavior.md#ep-09-005) |
+| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-02-010](../vultron-spec/requirements/messages.md#msm-02-010), [MSM-07-008](../vultron-spec/requirements/messages.md#msm-07-008), [MSM-07-009](../vultron-spec/requirements/messages.md#msm-07-009), [MSM-07-011](../vultron-spec/requirements/messages.md#msm-07-011), [MSM-07-013](../vultron-spec/requirements/messages.md#msm-07-013), [MSM-07-027](../vultron-spec/requirements/messages.md#msm-07-027), [MSM-07-028](../vultron-spec/requirements/messages.md#msm-07-028), [MSM-07-029](../vultron-spec/requirements/messages.md#msm-07-029), [MSM-07-030](../vultron-spec/requirements/messages.md#msm-07-030), [MSM-07-031](../vultron-spec/requirements/messages.md#msm-07-031), [MSM-07-033](../vultron-spec/requirements/messages.md#msm-07-033) |
+| VP — Vultron Protocol | [VP-04-002](../vultron-spec/requirements/vultron-protocol.md#vp-04-002) |
+
+## [story_2026_088](story_2026_088.md)
+
+{% include-markdown "./story_2026_088.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| EP — Embargo Policy | [EP-08-001](../vultron-spec/requirements/state-behavior.md#ep-08-001), [EP-08-002](../vultron-spec/requirements/state-behavior.md#ep-08-002), [EP-08-003](../specs/project.md#ep-08-003), [EP-08-005](../vultron-spec/requirements/state-behavior.md#ep-08-005) |
+
+## [story_2026_089](story_2026_089.md)
+
+{% include-markdown "./story_2026_089.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| EP — Embargo Policy | [EP-05-001](../vultron-spec/requirements/state-behavior.md#ep-05-001), [EP-05-002](../vultron-spec/requirements/state-behavior.md#ep-05-002), [EP-05-003](../vultron-spec/requirements/state-behavior.md#ep-05-003), [EP-09-023](../vultron-spec/requirements/state-behavior.md#ep-09-023), [EP-09-024](../vultron-spec/requirements/state-behavior.md#ep-09-024) |
+| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-019](../vultron-spec/requirements/messages.md#msm-07-019), [MSM-07-020](../vultron-spec/requirements/messages.md#msm-07-020), [MSM-07-021](../vultron-spec/requirements/messages.md#msm-07-021), [MSM-07-022](../vultron-spec/requirements/messages.md#msm-07-022), [MSM-07-023](../vultron-spec/requirements/messages.md#msm-07-023), [MSM-07-024](../vultron-spec/requirements/messages.md#msm-07-024) |
+
+## [story_2026_090](story_2026_090.md)
+
+{% include-markdown "./story_2026_090.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| EP — Embargo Policy | [EP-09-013](../vultron-spec/requirements/state-behavior.md#ep-09-013), [EP-09-028](../vultron-spec/requirements/state-behavior.md#ep-09-028) |
+| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-010](../vultron-spec/requirements/messages.md#msm-07-010), [MSM-07-014](../vultron-spec/requirements/messages.md#msm-07-014), [MSM-07-015](../vultron-spec/requirements/messages.md#msm-07-015), [MSM-07-034](../vultron-spec/requirements/messages.md#msm-07-034), [MSM-07-035](../vultron-spec/requirements/messages.md#msm-07-035), [MSM-07-036](../vultron-spec/requirements/messages.md#msm-07-036) |
+
+## [story_2026_091](story_2026_091.md)
+
+{% include-markdown "./story_2026_091.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CM — Case Management | [CM-28-001](../vultron-spec/requirements/case-management.md#cm-28-001), [CM-28-002](../vultron-spec/requirements/case-management.md#cm-28-002), [CM-28-011](../vultron-spec/requirements/case-management.md#cm-28-011), [CM-28-012](../vultron-spec/requirements/case-management.md#cm-28-012), [CM-28-013](../vultron-spec/requirements/case-management.md#cm-28-013), [CM-28-017](../vultron-spec/requirements/case-management.md#cm-28-017), [CM-28-018](../vultron-spec/requirements/case-management.md#cm-28-018), [CM-28-019](../vultron-spec/requirements/case-management.md#cm-28-019) |
+| EP — Embargo Policy | [EP-07-001](../vultron-spec/requirements/state-behavior.md#ep-07-001), [EP-07-002](../vultron-spec/requirements/state-behavior.md#ep-07-002), [EP-07-003](../vultron-spec/requirements/state-behavior.md#ep-07-003), [EP-07-004](../vultron-spec/requirements/state-behavior.md#ep-07-004), [EP-07-006](../vultron-spec/requirements/state-behavior.md#ep-07-006), [EP-07-009](../vultron-spec/requirements/state-behavior.md#ep-07-009), [EP-07-010](../vultron-spec/requirements/state-behavior.md#ep-07-010), [EP-07-011](../vultron-spec/requirements/state-behavior.md#ep-07-011) |
+
+## [story_2026_092](story_2026_092.md)
+
+{% include-markdown "./story_2026_092.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CM — Case Management | [CM-18-002](../vultron-spec/requirements/case-management.md#cm-18-002), [CM-28-003](../vultron-spec/requirements/case-management.md#cm-28-003), [CM-28-004](../vultron-spec/requirements/case-management.md#cm-28-004), [CM-28-014](../vultron-spec/requirements/case-management.md#cm-28-014), [CM-28-015](../specs/project.md#cm-28-015), [CM-28-020](../vultron-spec/requirements/case-management.md#cm-28-020), [CM-28-025](../specs/project.md#cm-28-025), [CM-28-026](../specs/project.md#cm-28-026), [CM-28-027](../specs/project.md#cm-28-027), [CM-28-028](../specs/project.md#cm-28-028), [CM-28-029](../specs/project.md#cm-28-029) |
+| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-026](../vultron-spec/requirements/messages.md#msm-07-026) |
+
+## [story_2026_093](story_2026_093.md)
+
+{% include-markdown "./story_2026_093.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| EMB — Embargo Management Behavioral Requirements | [EMB-17-001](../vultron-spec/requirements/state-behavior.md#emb-17-001), [EMB-17-002](../vultron-spec/requirements/state-behavior.md#emb-17-002), [EMB-17-003](../vultron-spec/requirements/state-behavior.md#emb-17-003), [EMB-17-009](../vultron-spec/requirements/state-behavior.md#emb-17-009), [EMB-17-012](../vultron-spec/requirements/state-behavior.md#emb-17-012), [EMB-17-013](../vultron-spec/requirements/state-behavior.md#emb-17-013), [EMB-17-014](../vultron-spec/requirements/state-behavior.md#emb-17-014), [EMB-17-018](../vultron-spec/requirements/state-behavior.md#emb-17-018) |
+| EP — Embargo Policy | [EP-09-012](../vultron-spec/requirements/state-behavior.md#ep-09-012) |
+
+## [story_2026_094](story_2026_094.md)
+
+{% include-markdown "./story_2026_094.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| VP — Vultron Protocol | [VP-06-004](../vultron-spec/requirements/vultron-protocol.md#vp-06-004), [VP-06-013](../vultron-spec/requirements/vultron-protocol.md#vp-06-013), [VP-06-014](../vultron-spec/requirements/vultron-protocol.md#vp-06-014), [VP-14-006](../vultron-spec/requirements/vultron-protocol.md#vp-14-006) |
+
+## [story_2026_095](story_2026_095.md)
+
+{% include-markdown "./story_2026_095.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| EMB — Embargo Management Behavioral Requirements | [EMB-14-001](../vultron-spec/requirements/state-behavior.md#emb-14-001), [EMB-14-005](../vultron-spec/requirements/state-behavior.md#emb-14-005), [EMB-14-006](../vultron-spec/requirements/state-behavior.md#emb-14-006) |
+| EP — Embargo Policy | [EP-08-004](../vultron-spec/requirements/state-behavior.md#ep-08-004) |
+| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-006](../vultron-spec/requirements/messages.md#msm-07-006), [MSM-07-025](../vultron-spec/requirements/messages.md#msm-07-025) |
+
+## [story_2026_096](story_2026_096.md)
+
+{% include-markdown "./story_2026_096.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CM — Case Management | [CM-31-008](../vultron-spec/requirements/case-management.md#cm-31-008), [CM-31-009](../vultron-spec/requirements/case-management.md#cm-31-009), [CM-31-010](../vultron-spec/requirements/case-management.md#cm-31-010), [CM-31-030](../vultron-spec/requirements/case-management.md#cm-31-030), [CM-31-031](../vultron-spec/requirements/case-management.md#cm-31-031), [CM-31-032](../vultron-spec/requirements/case-management.md#cm-31-032), [CM-31-033](../vultron-spec/requirements/case-management.md#cm-31-033) |
+
+## [story_2026_097](story_2026_097.md)
+
+{% include-markdown "./story_2026_097.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CM — Case Management | [CM-11-016](../vultron-spec/requirements/case-management.md#cm-11-016), [CM-11-044](../vultron-spec/requirements/case-management.md#cm-11-044), [CM-11-045](../vultron-spec/requirements/case-management.md#cm-11-045), [CM-11-046](../vultron-spec/requirements/case-management.md#cm-11-046), [CM-17-002](../vultron-spec/requirements/case-management.md#cm-17-002), [CM-17-010](../vultron-spec/requirements/case-management.md#cm-17-010), [CM-17-014](../vultron-spec/requirements/case-management.md#cm-17-014) |
+
+## [story_2026_098](story_2026_098.md)
+
+{% include-markdown "./story_2026_098.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| AKM — Actor Knowledge Model | [AKM-05-003](../vultron-spec/requirements/messages.md#akm-05-003), [AKM-05-004](../vultron-spec/requirements/messages.md#akm-05-004), [AKM-05-007](../vultron-spec/requirements/messages.md#akm-05-007), [AKM-05-010](../vultron-spec/requirements/messages.md#akm-05-010), [AKM-05-011](../vultron-spec/requirements/messages.md#akm-05-011), [AKM-05-012](../vultron-spec/requirements/messages.md#akm-05-012) |
+| CP — CaseProposal Protocol | [CP-01-009](../vultron-spec/requirements/case-management.md#cp-01-009) |
+| EMB — Embargo Management Behavioral Requirements | [EMB-18-007](../vultron-spec/requirements/state-behavior.md#emb-18-007) |
