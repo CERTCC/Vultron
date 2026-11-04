@@ -78,10 +78,30 @@ def _refuse_lifecycle_keys(item: object) -> None:
         )
 
 
+def _field_name(info: object) -> str:
+    """The field a ``field_validator`` is running for, for its diagnostic.
+
+    Pydantic passes a ``ValidationInfo``; the fallback keeps the message
+    readable if anything else calls the validator.
+    """
+    return str(getattr(info, "field_name", "list field"))
+
+
 def _check_nonempty_list(v: list | None, field_name: str) -> list | None:
-    """Shared validator: if present, must be non-empty."""
+    """Shared validator: an optional list, if present, must be non-empty.
+
+    Every optional-list field on the models below delegates here, so the
+    rule and its wording live in one place (CS-22-001).
+    """
     if v is not None and len(v) == 0:
         raise ValueError(f"{field_name} must be non-empty if present")
+    return v
+
+
+def _check_required_list(v: list, field_name: str) -> list:
+    """Shared validator: a required list must carry at least one entry."""
+    if not v:
+        raise ValueError(f"{field_name} must not be empty")
     return v
 
 
@@ -128,10 +148,7 @@ class StatementSpec(BaseModel):
     )
     @classmethod
     def _nonempty_if_present(cls, v: list | None, info: object) -> list | None:
-        if v is not None and len(v) == 0:
-            field_name = getattr(info, "field_name", "list field")
-            raise ValueError(f"{field_name} must be non-empty if present")
-        return v
+        return _check_nonempty_list(v, _field_name(info))
 
 
 class Precondition(BaseModel):
@@ -187,10 +204,7 @@ class BehavioralSpec(StatementSpec):
     def _behavioral_nonempty_if_present(
         cls, v: list | None, info: object
     ) -> list | None:
-        if v is not None and len(v) == 0:
-            field_name = getattr(info, "field_name", "list field")
-            raise ValueError(f"{field_name} must be non-empty if present")
-        return v
+        return _check_nonempty_list(v, _field_name(info))
 
 
 Spec = BehavioralSpec | StatementSpec
@@ -233,17 +247,12 @@ class SpecGroup(BaseModel):
     @field_validator("scope")
     @classmethod
     def _nonempty_if_present(cls, v: list | None, info: object) -> list | None:
-        if v is not None and len(v) == 0:
-            field_name = getattr(info, "field_name", "list field")
-            raise ValueError(f"{field_name} must be non-empty if present")
-        return v
+        return _check_nonempty_list(v, _field_name(info))
 
     @field_validator("specs")
     @classmethod
-    def _specs_nonempty(cls, v: list) -> list:
-        if not v:
-            raise ValueError("specs must not be empty")
-        return v
+    def _specs_nonempty(cls, v: list, info: object) -> list:
+        return _check_required_list(v, _field_name(info))
 
 
 class SpecFile(BaseModel):
@@ -271,21 +280,17 @@ class SpecFile(BaseModel):
 
     @field_validator("scope")
     @classmethod
-    def _scope_nonempty(cls, v: list) -> list:
-        if not v:
-            raise ValueError("scope must not be empty")
-        return v
+    def _scope_nonempty(cls, v: list, info: object) -> list:
+        return _check_required_list(v, _field_name(info))
 
     @field_validator("tags", "relationships")
     @classmethod
-    def _tags_nonempty_if_present(cls, v: list | None) -> list | None:
-        if v is not None and len(v) == 0:
-            raise ValueError("list field must be non-empty if present")
-        return v
+    def _tags_nonempty_if_present(
+        cls, v: list | None, info: object
+    ) -> list | None:
+        return _check_nonempty_list(v, _field_name(info))
 
     @field_validator("groups")
     @classmethod
-    def _groups_nonempty(cls, v: list) -> list:
-        if not v:
-            raise ValueError("groups must not be empty")
-        return v
+    def _groups_nonempty(cls, v: list, info: object) -> list:
+        return _check_required_list(v, _field_name(info))

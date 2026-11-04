@@ -613,6 +613,54 @@ def test_spec_file_empty_groups_rejected():
         )
 
 
+def _spec_file_kwargs() -> dict[str, object]:
+    """A ``SpecFile`` that validates, for a test that empties one field."""
+    return {
+        "id": "AB",
+        "title": "Test File",
+        "description": "A test file",
+        "scope": [Scope.PRODUCTION],
+        "tags": [SpecTag.TESTING],
+        "relationships": [
+            Relationship(rel_type=RelationType.REFINES, spec_id="AB-01-002")
+        ],
+        "groups": [
+            SpecGroup(
+                id="AB-01",
+                title="Group",
+                specs=[
+                    StatementSpec(
+                        id="AB-01-001",
+                        priority=RFC2119Priority.MUST,
+                        statement="AB-01-001 MUST work",
+                        rationale="Because testing.",
+                        kind=SpecKind.PROTOCOL,
+                    )
+                ],
+            )
+        ],
+    }
+
+
+@pytest.mark.parametrize("field", ["tags", "relationships", "scope", "groups"])
+def test_an_empty_list_rejection_names_the_field(field: str) -> None:
+    """Every empty-list rejection names the field, not "list field".
+
+    Each optional-list validator carried its own copy of the rule, and the
+    ``SpecFile.tags``/``relationships`` copy lost the field name because it
+    never read it.  They now delegate to the one shared validator, so a
+    lint failure on a spec file with sixty keys says which key to look at.
+    """
+    with pytest.raises(ValidationError, match=field):
+        SpecFile.model_validate({**_spec_file_kwargs(), field: []})
+
+
+def test_an_empty_required_list_on_a_group_names_the_field() -> None:
+    """``SpecGroup.specs`` reports its own name through the shared check."""
+    with pytest.raises(ValidationError, match="specs must not be empty"):
+        SpecGroup(id="AB-01", title="Group", specs=[])
+
+
 # ---------------------------------------------------------------------------
 # SpecRegistry / load_registry
 # ---------------------------------------------------------------------------
