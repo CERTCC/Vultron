@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 #  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -12,11 +10,12 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""
-Provides a backend API router for basic Vultron data layer operations.
+"""The actor-scoped datalayer read routes, ``/actors/{actor_id}/datalayer``.
+
+Routes are declared in matching order; the ``/{key:path}`` catch-all is
+last.
 """
 
-import json
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -24,41 +23,26 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
-    get_hosted_actor_dls,
 )
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
-from vultron.adapters.received_archive import (
-    read_held_as_received,
-    read_received_as_received,
+from vultron.adapters.driving.fastapi.routers.datalayer.stored import (
+    _OFFER_TYPE,
+    _actor_class_for_payload,
+    _read_offer,
+    _received_offers,
+    _serve_stored,
 )
-from vultron.adapters.utils import full_object_id
-from vultron.core.models.actor import CoreActor
-from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.models.received_activity_record import (
-    ReceivedActivityRecord,
-)
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
-from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.rehydration import rehydrate
-from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
-)
-from vultron.wire.as2.vocab.objects.vultron_actor import (
-    as_VultronApplication,
-    as_VultronGroup,
-    as_VultronOrganization,
-    as_VultronPerson,
-    as_VultronService,
 )
 
 # Debug/inspection views are actor-scoped: under ADR-0073 there is no "the"
@@ -67,80 +51,6 @@ from vultron.wire.as2.vocab.objects.vultron_actor import (
 # ADR-0058 causal gates honest — a gate must assert that *a named actor* has
 # committed some state, not merely that some actor in the container has.
 router = APIRouter(prefix="/actors/{actor_id}/datalayer", tags=["datalayer"])
-
-#: Node-level operations that legitimately span every hosted actor.  These are
-#: operator actions on the process (like a restart), not one actor reading
-#: another's data through the protocol.
-admin_router = APIRouter(prefix="/admin/datalayer", tags=["datalayer"])
-
-
-_OFFER_TYPE = "Offer"
-
-
-def _read_offer(datalayer: DataLayer, offer_id: str) -> as_Offer | None:
-    """The Offer *offer_id* as this actor holds it, or ``None``.
-
-    Read as :func:`~vultron.adapters.received_archive.read_held_as_received`
-    reads any activity this actor holds: a received one parsed from the body
-    its archive record keeps, under a key the receiver derives from the
-    sender's id (CLP-10-036, ADR-0149), since a receiver holds no received
-    activity under the sender's id (DL-06-006); otherwise the row under
-    *offer_id*, where an Offer the actor authored is stored.  *offer_id* may
-    be a bare UUID, as the store's own lookup allows.
-
-    Whatever is held under the id must be an Offer: every Offer a store holds
-    is an ``as_Offer``, read back as its own class (ADR-0034) or parsed from
-    its archived body, and ``as_Invite`` subclasses ``as_Offer`` but types
-    itself ``Invite``, so a received Invite is not served as one.
-    """
-    try:
-        held = read_held_as_received(
-            cast(CasePersistence, datalayer),
-            full_object_id(offer_id),
-            _OFFER_TYPE,
-        )
-    except VultronNotFoundError:
-        return None
-    if not isinstance(held, as_Offer) or held.type_ != _OFFER_TYPE:
-        return None
-    return held
-
-
-def _received_offers(datalayer: DataLayer) -> dict[str, as_Activity]:
-    """Every Offer this actor received, keyed by the sender's id for it.
-
-    Each is parsed from the body its archive record keeps, through the seam
-    that reads a held body (:func:`read_received_as_received`), so the list
-    and the single-Offer reads answer one received Offer the same way
-    (CLP-10-017, ADR-0149).  The record is listed before it is read, so the
-    read cannot miss.
-    """
-    return {
-        record.activity_id: read_received_as_received(
-            cast(CasePersistence, datalayer), record.activity_id, _OFFER_TYPE
-        )
-        for record in datalayer.list_objects(ReceivedActivityRecord.__name__)
-        if isinstance(record, ReceivedActivityRecord)
-        and json.loads(record.received_body).get("type") == _OFFER_TYPE
-    }
-
-
-def _serve_stored(obj: PersistableModel) -> AS2JSONResponse | dict[str, Any]:
-    """Serve *obj* as the store holds it, without rebuilding it.
-
-    ``dl.read()`` already returns the typed object (ADR-0034), and a
-    ``CoreObject`` is its own AS2 class (ADR-0099), so it renders as AS2
-    directly.  Rebuilding it from its dump ran its construction validators
-    again, and a validator that seeds a default drew an id and read the
-    clock: a read then shifted every id a seeded demo run minted after it
-    (#5510).  A bookkeeping row that has no AS2 form is served as its plain
-    dump.
-    """
-    if isinstance(obj, (as_Base, CoreObject)):
-        return AS2JSONResponse(obj)
-    # JSON mode, so a bookkeeping row's own serializers run and every time it
-    # carries is answered in the fixed form (CS-13-007).
-    return obj.model_dump(mode="json", by_alias=True, serialize_as_any=True)
 
 
 # Declared ahead of ``/{object_type}/{object_id}``: routes match in
@@ -348,24 +258,6 @@ def get_reports(
     )
 
 
-_DATALAYER_ACTOR_TYPE_MAP: dict[str, type[as_Actor | CoreActor]] = {
-    "Person": as_VultronPerson,
-    "Organization": as_VultronOrganization,
-    "Service": as_VultronService,
-    "Application": as_VultronApplication,
-    "Group": as_VultronGroup,
-}
-
-
-def _actor_class_for_payload(
-    payload: dict[str, Any],
-) -> type[as_Actor | CoreActor]:
-    payload_type = payload.get("type_") or payload.get("type")
-    if isinstance(payload_type, str):
-        return _DATALAYER_ACTOR_TYPE_MAP.get(payload_type, as_Actor)
-    return as_Actor
-
-
 @router.get(
     "/Actors/",
     description="Returns all Actor objects.",
@@ -442,50 +334,6 @@ def get_objects(
     results = datalayer.by_type(object_type)
 
     return results
-
-
-@admin_router.delete(
-    "/reset/",
-    description=(
-        "Resets this node by clearing the store of every actor it hosts."
-    ),
-    operation_id="datalayer_reset",
-)
-def reset_datalayer(
-    actor_dls: dict[str, DataLayer] = Depends(get_hosted_actor_dls),
-) -> dict:
-    """Clear every hosted actor's store.
-
-    A node-level operation: there is no single store to clear under ADR-0073,
-    and demo scenarios reset a whole container between runs.  Kept off the
-    actor-scoped router so that it cannot be mistaken for one actor reaching
-    into another's data.
-
-    Resetting does not *provision*.  An earlier ``init`` flag seeded the wire
-    vocabulary's example actors here, which per-actor storage made unworkable in
-    two independent ways: this loop iterates the actors the node already hosts,
-    so on a clean node it has nothing to iterate and the seed silently never ran;
-    and those example actors are named under ``https://vultron.example/users/…``,
-    which is not ``{base_url}actors/{slug}`` and so can never be addressed on this
-    node (ADR-0073#url-segment-computed-not-looked-up).  Provisioning an actor is ``POST /actors/``, and
-    callers that need a populated node call it — see
-    ``vultron.demo.utils.seed_exchange_actors``.
-
-    The stores arrive via :func:`get_hosted_actor_dls` rather than a loop over
-    ``get_datalayer``, so an app that supplied its own stores (a TestClient with
-    per-actor in-memory overrides) is reset for real instead of having the
-    process-global on-disk stores cleared behind it.
-    """
-    counts: dict[str, dict[str, int]] = {}
-    for actor_id, actor_dl in actor_dls.items():
-        actor_dl.clear_all()
-        counts[actor_id] = actor_dl.count_all()
-
-    return {
-        "status": "datalayer reset successfully",
-        "actors": len(counts),
-        "n_items": counts,
-    }
 
 
 @router.get(

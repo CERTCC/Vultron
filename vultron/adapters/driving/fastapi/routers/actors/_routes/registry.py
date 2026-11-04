@@ -60,7 +60,7 @@ logger = logging.getLogger("uvicorn.error")
 AnyActor = CoreActor
 
 
-router = APIRouter()
+router = APIRouter(prefix="/actors", tags=["Actors"])
 
 
 @router.get(

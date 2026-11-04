@@ -183,7 +183,8 @@ actor container (actor0 … actor4, case-actor; may host several actors)
 
 The stream is built (#3641): `GET
 /api/v2/actors/{actor_id}/demo/cases/{case_id}/log/stream`, prototype-only
-(TRIG-09), in `vultron/adapters/driving/fastapi/routers/demo_triggers.py` and
+(TRIG-09), in
+`vultron/adapters/driving/fastapi/routers/demo_triggers/ledger.py` and
 `vultron/adapters/driving/fastapi/ledger_stream.py`. Each event's `id:` is the
 entry's `log_index`, `?since=` or `Last-Event-ID` resumes, and the stream is
 demo tooling, not a replication channel (SYNC-02-001).

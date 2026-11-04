@@ -50,11 +50,11 @@ from vultron.core.use_cases.query.action_rules import (
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
-router = APIRouter()
+router = APIRouter(prefix="/actors", tags=["Actors"])
 
 # Registered last by the package: FastAPI matches routes in registration order,
 # and ``GET /{actor_id:path}`` would otherwise claim every longer actor path.
-catch_all_router = APIRouter()
+catch_all_router = APIRouter(prefix="/actors", tags=["Actors"])
 
 
 @router.get(

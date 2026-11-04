@@ -1404,7 +1404,7 @@ groups:
       whole-store dump, whose
       contents include bare `CoreRecord` rows, to `application/json`. A route that returns a plain dict without `AS2JSONResponse`
       (for example the `get_object` and `get_object_by_key` fallbacks and
-      `get_objects` in `routers/datalayer.py`, or the demo ledger routes) serves
+      `get_objects` in `routers/datalayer/routes.py`, or the demo ledger routes) serves
       `application/json`, not an AS2 document, and is outside this requirement.
     adr:
     - ADR-0063

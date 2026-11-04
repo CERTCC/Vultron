@@ -59,7 +59,10 @@ from vultron.adapters.driving.fastapi.routers.actors._routes.registry import (
     register_peer,
 )
 
-router = APIRouter(prefix="/actors", tags=["Actors"])
+# Each submodule's router carries the ``/actors`` prefix and the tag itself,
+# so every route keeps the path and tags it was declared with; the two
+# sibling routers get them at inclusion, as they did before the split.
+router = APIRouter()
 router.include_router(registry.router)
 router.include_router(profile.router)
 router.include_router(mailbox.router)
@@ -67,8 +70,10 @@ router.include_router(mailbox.router)
 # registration order, and ``GET /{actor_id:path}`` would otherwise claim
 # ``/actors/{slug}/embargo-policy`` and ``/actors/{slug}/cases/{key}/objects``
 # with the suffix folded into the segment.
-router.include_router(_embargo_policy.router)
-router.include_router(_case_object.router)
+router.include_router(
+    _embargo_policy.router, prefix="/actors", tags=["Actors"]
+)
+router.include_router(_case_object.router, prefix="/actors", tags=["Actors"])
 router.include_router(profile.catch_all_router)
 
 __all__ = [

@@ -55,7 +55,7 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 logger = logging.getLogger("uvicorn.error")
 
 
-router = APIRouter()
+router = APIRouter(prefix="/actors", tags=["Actors"])
 
 _INBOX_REFUSED_METHODS = ["GET", "HEAD", "OPTIONS", "PUT", "PATCH", "DELETE"]
 
