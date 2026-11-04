@@ -278,9 +278,10 @@ inventing a sequence.
 gate that selects by priority selects a *tier* (MS-02-003). In code, ask
 `spec.priority.is_must_tier` or `.tier` (MS-02-004), never
 `== RFC2119Priority.MUST`; `test/metadata/specs/test_priority_tier_gate.py`
-fails the literal comparison under `vultron/metadata/specs/` and `scripts/`. Its
-allowlist holds SR-11-003's selector, the recorded exception, written once in
-`sr_11_003_gate_applies()`.
+fails the literal comparison under `vultron/metadata/specs/` and `scripts/`
+with no allowlist. SR-11-003's story gate asks the tier too, in
+`sr_11_003_gate_applies()`, so a protocol `MUST_NOT` needs a story as a `MUST`
+does.
 
 The literal comparison fails silently: the prohibitions just drop out, as when
 a verification backfill reported the protocol tier complete with most
@@ -449,7 +450,7 @@ When a requirement exists to stop an implementation mistake, state the domain
 truth the mistake violates, in the vocabulary of its kind; put the bug in
 `rationale:` and let the regression test verify the positive rule (MS-05-005).
 A bare ban reads as if the mistake were a live design option, and gets only a
-contrived story once the story gate covers `MUST_NOT` (#4517). Keeping only the
+contrived story, since the story gate covers `MUST_NOT` (SR-11-003). Keeping only the
 test is not the fix: agents read specs more often than tests.
 
 Write "a participant's assertion about itself is about itself, not about

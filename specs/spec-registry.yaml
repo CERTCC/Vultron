@@ -1856,19 +1856,18 @@ groups:
     kind: process
     statement: >-
       The spec linter MUST report as a hard error each `kind: protocol` spec with
-      `priority: MUST` that has no `stories:` entry.
-    note: >-
-      Deliberately MUST-only for now, which is the one exception MS-02-003 records.
-      #3601 adjudicated the protocol MUST_NOTs with no `stories:`; #2717 holds the
-      confirmed list, and the gate extends to `priority: MUST_NOT` as #2717's
-      closing step once their stories exist.
-    tracking_issue: '#2717 (MUST_NOT extension)'
+      `priority: MUST` or `priority: MUST_NOT` that has no `stories:` entry.
     verification: >-
-      `test/metadata/specs/lint/test_advisories.py::test_protocol_must_no_stories_is_hard_error`
-      and `::test_protocol_must_with_stories_passes` cover the error and the pass.
+      `test/metadata/specs/lint/test_advisories.py::test_protocol_must_no_stories_is_hard_error`,
+      `::test_protocol_must_not_no_stories_is_hard_error`,
+      `::test_protocol_must_with_stories_passes` and
+      `::test_protocol_must_not_with_stories_passes` cover the error and the pass
+      for both priorities; `::test_sr_11_003_gate_applies_selects_protocol_must_tier`
+      covers the gate's scope.
     rationale: >-
-      Protocol-level MUST requirements are the strongest obligations of an implementer.
-      A hard-error gate makes each of them traceable to at least one stakeholder need.
+      Protocol-level MUST-tier requirements are the strongest obligations of an
+      implementer. A hard-error gate makes each of them traceable to at least one
+      stakeholder need.
       The gate covers only `protocol`, because no user stories exist yet
       for behavior that Vultron inherits from ActivityStreams, ActivityPub and HTTP
       (`kind: foundation`). The gate covers the kinds that the story catalog can support
@@ -1879,6 +1878,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SR-11-001
+    - rel_type: refines
+      spec_id: MS-02-003
+      note: MUST_NOT is the MUST tier
     tags:
     - documentation
     - tooling
@@ -1889,8 +1891,9 @@ groups:
       The spec linter MUST let a spec suppress that hard error with
       `lint_suppress: [missing_story_reference]`.
     rationale: >-
-      Some implementation-detail MUSTs have no direct story. The suppression gives them
-      an exception and records on the spec that the exception is deliberate.
+      Some implementation-detail MUST-tier requirements have no direct story. The
+      suppression gives them an exception and records on the spec that the exception
+      is deliberate.
     verification: >-
       `test/metadata/specs/lint/test_advisories.py::test_protocol_must_suppress_missing_story_reference`
       covers the suppression.
