@@ -40,5 +40,5 @@ if get_config().mode == RunMode.PROTOTYPE:
 - The demo router module is always imported; only its mounting depends on
   the mode (TRIG-09-002), in `vultron/adapters/driving/fastapi/app.py`.
 - Demo-only verbs reuse the trigger use cases in this package; the demo
-  router in `vultron/adapters/driving/fastapi/routers/demo_triggers.py`
+  router in `vultron/adapters/driving/fastapi/routers/demo_triggers/actions.py`
   wraps them with `run_trigger`.

@@ -32,7 +32,9 @@ from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
 from vultron.adapters.driven.trigger_activity_adapter.proposals import (
     _ProposalsMixin,
 )
-from vultron.adapters.driving.fastapi import outbox_handler
+from vultron.adapters.driving.fastapi.outbox_handler import (
+    drain as outbox_drain,
+)
 from vultron.adapters.driving.fastapi.outbox_lanes import (
     RowOutcome,
     StallOrder,
@@ -144,9 +146,7 @@ def _scenario_nodes(
             # Patched on the slot, as its docstring prescribes, so exit puts
             # back exactly what was installed, including nothing at all;
             # `get_default_emitter()` would hand back a fresh adapter instead.
-            patch.object(
-                outbox_handler._DEFAULT_EMITTER_SLOT, "value", router
-            ),
+            patch.object(outbox_drain._DEFAULT_EMITTER_SLOT, "value", router),
             contextlib.ExitStack() as stack,
         ):
             for base in bases:
@@ -242,9 +242,9 @@ def record_scenario(
                 _ProposalsMixin, "create_case_proposal", create_case_proposal
             ),
             patch.object(
-                outbox_handler,
+                outbox_drain,
                 "deliver_batch",
-                _one_row_at_a_time(outbox_handler.deliver_batch),
+                _one_row_at_a_time(outbox_drain.deliver_batch),
             ),
         ):
             module.main(

@@ -20,7 +20,7 @@ The handler is a dumb relay (VM-08-003): it never expands a bare ``object``
 from the DataLayer.  A body whose ``object`` is a reference is refused, not
 repaired (AKM-03-002, MV-09-002).
 
-Module under test: ``vultron/adapters/driving/fastapi/outbox_handler.py``
+Module under test: ``vultron/adapters/driving/fastapi/outbox_handler/drain.py``
 
 Spec coverage:
 - OX-08-001/002/003: ``to:`` field MUST be non-empty; raises

@@ -271,7 +271,8 @@ groups:
       first and processes the activity after the answer.
     verification: >-
       Inspection of `post_actor_inbox` in
-      `vultron/adapters/driving/fastapi/routers/actors/_routes.py` confirms the endpoint
+      `vultron/adapters/driving/fastapi/routers/actors/_routes/mailbox.py`
+      confirms the endpoint
       schedules `run_inbox_pipeline`, which runs the handlers and then drains the outbox,
       with `BackgroundTasks.add_task` and returns without awaiting it;
       `test/adapters/driving/fastapi/test_inbox_orchestration_offloop.py::test_event_loop_keeps_serving_while_a_payload_is_processed`
@@ -344,7 +345,8 @@ groups:
     kind: project
     statement: >-
       This rule covers an item that the inbox background task (`run_inbox_pipeline` in
-      `vultron/adapters/driving/fastapi/inbox_orchestration.py`) replays from the
+      `vultron/adapters/driving/fastapi/inbox_orchestration/pipeline.py`)
+      replays from the
       receiving actor's inbox queue. When the item raises an exception other than
       `VultronProtocolViolationError`, the task MUST re-queue it for at most a bounded,
       configurable number of attempts.

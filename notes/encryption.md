@@ -85,7 +85,7 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
 - **The proof survives the store.** A sender's `proof` reaches the ledger
   snapshot because the snapshot is the body as received (SIG-04-001). Check it
   survives the store's wire-identity rekeying (`_rekey_wire_identity` in
-  `vultron/adapters/driven/db_record.py`) inside a snapshot.
+  `vultron/adapters/driven/db_record/codec.py`) inside a snapshot.
 - **Verify as its own ingress stage**, after the body-size, media-type and
   JSON-shape checks and before the parser (SIG-03-003). The pre-parsed
   `as_Activity` ingress path has no body to verify and goes when verification

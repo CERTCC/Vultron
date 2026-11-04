@@ -35,7 +35,7 @@ These tests pin the delivery contract that closes that loop:
 - OX-13-012: a failed row is re-queued ahead of every later row sharing a
   recipient with it (#3878).
 
-Module under test: ``vultron/adapters/driving/fastapi/outbox_handler.py``
+Module under test: ``vultron/adapters/driving/fastapi/outbox_handler/drain.py``
 """
 
 import asyncio
@@ -46,7 +46,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from vultron.adapters.driving.fastapi import outbox_handler as oh
+from vultron.adapters.driving.fastapi.outbox_handler import (
+    bookkeeping,
+    drain as oh,
+)
 from vultron.adapters.outbox_sealed_body import (
     SealedOutboundBody,
     sealed_body_id,
@@ -316,7 +319,9 @@ def test_dead_lettered_row_releases_its_lane(monkeypatch):
     }
     queue = list(activities)
     dl = _mock_dl(queue, activities)
-    dl.get_outbox_attempt_count.return_value = oh.MAX_TOTAL_ATTEMPTS - 1
+    dl.get_outbox_attempt_count.return_value = (
+        bookkeeping.MAX_TOTAL_ATTEMPTS - 1
+    )
     rec = _Recorder(activities, failing={"urn:test:a1"})
     monkeypatch.setattr(oh, "handle_outbox_item", rec)
     monkeypatch.setattr(oh.asyncio, "sleep", _no_sleep)

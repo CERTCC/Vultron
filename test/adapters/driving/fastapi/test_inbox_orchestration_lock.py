@@ -35,8 +35,10 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
-    _get_actor_lock,
     run_inbox_pipeline,
+)
+from vultron.adapters.driving.fastapi.inbox_orchestration.pipeline import (
+    _get_actor_lock,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.actor import VultronService
@@ -62,11 +64,11 @@ _OWNER_ID = "https://example.org/actors/owner-lock-test"
 @pytest.fixture(autouse=True)
 def clear_actor_locks():
     """Remove any cached per-actor locks between tests."""
-    from vultron.adapters.driving.fastapi import inbox_orchestration
+    from vultron.adapters.driving.fastapi.inbox_orchestration import pipeline
 
-    inbox_orchestration._actor_inbox_locks.clear()
+    pipeline._actor_inbox_locks.clear()
     yield
-    inbox_orchestration._actor_inbox_locks.clear()
+    pipeline._actor_inbox_locks.clear()
 
 
 @pytest.fixture

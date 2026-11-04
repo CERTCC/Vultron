@@ -20,7 +20,7 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
-from vultron.adapters.driven.db_record import _AS_LIST_REF_FIELDS
+from vultron.adapters.driven.db_record.ref_fields import _AS_LIST_REF_FIELDS
 from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
 )

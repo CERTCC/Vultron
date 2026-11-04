@@ -1,12 +1,4 @@
-#!/usr/bin/env python
-"""
-Route handlers for the Vultron FastAPI actors router.
-
-Defines the ``/actors`` APIRouter and all its endpoints.  Route-level
-dependencies and business logic delegated to ``_lookup`` and ``_inbox``
-helpers; no direct DataLayer manipulation here beyond what FastAPI
-dependencies provide.
-"""
+"""Actor registry routes: list actors, create a hosted actor, register a peer."""
 
 #  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -22,16 +14,14 @@ dependencies provide.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import Any, Literal, cast
+from typing import Literal, cast
 from urllib.parse import urlsplit
 
 from fastapi import (
     APIRouter,
-    BackgroundTasks,
     Depends,
     HTTPException,
     Request,
-    Response,
     status,
 )
 from pydantic import BaseModel, Field
@@ -39,27 +29,12 @@ from pydantic import BaseModel, Field
 from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driven.ledger_position_stamp import (
-    with_sender_ledger_position,
-)
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
     node_base_url,
     node_db_url_template,
 )
-from vultron.adapters.driving.fastapi.inbox_orchestration import (
-    run_inbox_pipeline,
-)
-from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
-from vultron.adapters.driving.fastapi.routers.actors import (
-    _case_object,
-    _embargo_policy,
-)
-from vultron.adapters.driving.fastapi.routers.actors._inbox import (
-    _activity_addressed_to,
-    parse_activity,
-)
 from vultron.adapters.driving.fastapi.routers.actors._lookup import (
     _ACTOR_RECORD_TYPES,
     _ACTOR_TYPE_MAP,
@@ -68,30 +43,22 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
     _find_actor_record_by_id,
     _resolve_actor_or_404,
 )
-from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.adapters.utils import strip_id_prefix
 from vultron.config import get_config
 from vultron.core.models._helpers import new_object_id
 from vultron.core.models.actor import (
     CoreActor,
     VultronOrganization,
-    endpoint_uri,
     hosted_endpoints,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
-from vultron.core.use_cases.query.action_rules import (
-    ActionRulesRequest,
-    GetActionRulesUseCase,
-)
-from vultron.errors import VultronNotFoundError, VultronValidationError
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+
+logger = logging.getLogger("uvicorn.error")
+
 
 AnyActor = CoreActor
 
-logger = logging.getLogger("uvicorn.error")
 
 router = APIRouter(prefix="/actors", tags=["Actors"])
 
@@ -377,314 +344,4 @@ def register_peer(
     return AS2JSONResponse(
         peer.model_dump(mode="json", by_alias=True, exclude_none=True),
         status_code=status.HTTP_201_CREATED,
-    )
-
-
-@router.get(
-    "/{actor_id:path}/profile",
-    summary="Get Actor Profile",
-    description=(
-        "Returns an ActivityStreams actor profile including inbox and outbox "
-        "URLs for actor discovery and federation."
-    ),
-    operation_id="actors_get_profile",
-)
-def get_actor_profile(
-    actor_id: str, datalayer: DataLayer = Depends(get_actor_dl)
-):
-    """Returns an actor's discovery profile.
-
-    Includes actor metadata (name, type), inbox URL, outbox URL, and any
-    other ActivityStreams profile fields present on the actor.  Intended
-    for use by remote systems discovering how to interact with this actor.
-    The `inbox` and `outbox` fields are returned as URL strings, not
-    embedded collection objects.
-    """
-    actor_record = _find_actor_record(datalayer, actor_id)
-    if not actor_record:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
-        )
-
-    actor_cls = _actor_class_for_record(actor_record)
-    as_actor = cast(
-        Any, actor_cls.model_validate(actor_record.get("data_", {}))
-    )
-    profile = as_actor.model_dump(
-        mode="json", by_alias=True, exclude_none=True
-    )
-    # The actor this node hosts publishes the endpoints this node routes for
-    # it, which a record created before it stated them may lack (ISSUE-3616).
-    own = hosted_endpoints(as_actor.id_)
-    for field_name in ("inbox", "outbox"):
-        profile[field_name] = (
-            endpoint_uri(getattr(as_actor, field_name, None))
-            or own[field_name]
-        )
-    return AS2JSONResponse(profile)
-
-
-@router.get(
-    "/{actor_id:path}/cases/{case_id}/action-rules",
-    summary="Get CVD Action Rules for an Actor in a Case",
-    description=(
-        "Returns the set of valid CVD actions available to an actor in a "
-        "specific case. The actor/case pair is resolved to the matching "
-        "CaseParticipant internally."
-    ),
-    operation_id="actors_get_action_rules",
-)
-def get_action_rules(
-    actor_id: str,
-    case_id: str,
-    dl: DataLayer = Depends(get_actor_dl),
-) -> dict:
-    """Return valid CVD actions for an actor in a specific case."""
-    try:
-        canonical = actor_hosts.canonical_actor_uri(actor_id)
-        actor_obj = dl.read(canonical) or dl.read(actor_id)
-        case_obj = dl.read(case_id)
-        if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
-            case_obj = dl.find_case_by_short_id(case_id)
-        if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
-            raise VultronNotFoundError("VulnerabilityCase", case_id)  # noqa: TRY301  # ruff-baseline #3353
-        canonical_actor_id = canonical
-        if actor_obj is not None and hasattr(actor_obj, "id_"):
-            canonical_actor_id = actor_obj.id_
-        else:
-            actor_index = getattr(case_obj, "actor_participant_index", {})
-            if isinstance(actor_index, dict):
-                for candidate_id in actor_index:
-                    if (
-                        candidate_id == actor_id
-                        or candidate_id.endswith(f"/{actor_id}")
-                        or strip_id_prefix(candidate_id) == actor_id
-                    ):
-                        canonical_actor_id = candidate_id
-                        break
-        req = ActionRulesRequest(
-            case_id=case_obj.id_, actor_id=canonical_actor_id
-        )
-        # `dl` is typed as the narrow `DataLayer` port but this use case needs
-        # case-aware reads.  `SqliteDataLayer` satisfies both protocols
-        # structurally; a bare `DataLayer` does not, because
-        # `CasePersistence.clone_for_actor` returns a `CasePersistence`.
-        return (
-            GetActionRulesUseCase(dl=cast(CasePersistence, dl), request=req)
-            .execute()
-            .model_dump(mode="json")
-        )
-    except VultronNotFoundError as exc:
-        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        )
-    except VultronValidationError as exc:
-        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=str(exc),
-        )
-
-
-_INBOX_REFUSED_METHODS = ["GET", "HEAD", "OPTIONS", "PUT", "PATCH", "DELETE"]
-
-
-@router.api_route(
-    "/{actor_id:path}/inbox",
-    methods=_INBOX_REFUSED_METHODS,
-    include_in_schema=False,
-)
-@router.api_route(
-    "/{actor_id:path}/inbox/",
-    methods=_INBOX_REFUSED_METHODS,
-    include_in_schema=False,
-)
-def refuse_non_post_inbox(actor_id: str) -> None:
-    """Answer 405 to every non-POST method on the inbox path (IE-02-003).
-
-    The inbox is a delivery target with no read surface (IE-02-004): what an
-    actor has received is read from its store through the datalayer router.
-    This route exists because ``actors_get`` below is a path catch-all
-    (``/{actor_id:path}``); without it an unrouted GET on ``/inbox`` or
-    ``/inbox/`` would land there and answer 404 instead of 405.
-    """
-    raise HTTPException(
-        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-        detail="The inbox accepts POST only.",
-        headers={"Allow": "POST"},
-    )
-
-
-@router.post(
-    "/{actor_id:path}/inbox",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_class=Response,
-    include_in_schema=False,
-)
-@router.post(
-    "/{actor_id:path}/inbox/",
-    summary="Add an Activity to the Actor's Inbox.",
-    description="Adds an Activity to the Actor's Inbox. (stub implementation).",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_class=Response,
-    operation_id="actors_post_inbox",
-)
-def post_actor_inbox(
-    actor_id: str,
-    # as_Activity is a problem, because its subclasses have different required fields,
-    # so we really want to accept any subclass that we have a registered handler for here.
-    request: Request,
-    background_tasks: BackgroundTasks,
-    activity: as_Activity = Depends(parse_activity),
-    dl: DataLayer = Depends(get_actor_dl),
-) -> None:
-    """Adds an item to the Actor's Inbox.
-    The 202 Accepted status code indicates that the request has been accepted for
-    processing, but the processing has not been completed. This is appropriate here
-    because the inbox processing is handled asynchronously in the background.
-    The 202 carries no body (IE-08-001): nothing is known yet beyond acceptance,
-    and the sender already holds the activity's id.
-
-    Policy logic lives in ``process_payload`` (core BT module); this
-    endpoint is thin glue that supplies adapter implementations and
-    schedules the background task (IO-03-003).
-
-    It answers at ``/inbox``, the address a hosted actor's profile names
-    (``hosted_endpoints``) and a sender holding that profile posts to
-    (OX-12-009), as well as at ``/inbox/``.
-
-    Args:
-        actor_id: The ID of the Actor whose Inbox to add the item to.
-        request: The FastAPI Request (used to resolve the per-app emitter/dispatcher).
-        activity: The Activity item (parsed by the ``parse_activity`` dependency).
-        background_tasks: FastAPI BackgroundTasks instance to schedule background tasks.
-    Returns:
-        None
-    Raises:
-        HTTPException: If the Actor is not found.
-    """
-    actor = _resolve_actor_or_404(actor_id, dl)
-    canonical_actor_id = actor.id_
-
-    if not _activity_addressed_to(activity, canonical_actor_id):
-        logger.warning(
-            "Activity %s is not addressed to actor %s; refusing (IE-11-001).",
-            activity.id_,
-            canonical_actor_id,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Activity is not addressed to actor {canonical_actor_id}.",
-        )
-
-    emitter = getattr(request.app.state, "emitter", None)
-    dispatcher = getattr(request.app.state, "dispatcher", None)
-
-    background_tasks.add_task(
-        run_inbox_pipeline,
-        activity,
-        dl,
-        canonical_actor_id,
-        dispatcher,
-        emitter,
-    )
-
-
-@router.post(
-    "/{actor_id:path}/outbox/",
-    summary="Add an Activity to the Actor's Outbox.",
-    description="Adds an Activity to the Actor's Outbox. (stub implementation).",
-    status_code=status.HTTP_200_OK,
-    operation_id="actors_post_outbox",
-)
-def post_actor_outbox(
-    actor_id: str,
-    activity: as_Activity,
-    request: Request,
-    background_tasks: BackgroundTasks,
-    dl: DataLayer = Depends(get_actor_dl),
-) -> None:
-    """Adds an item to the Actor's Outbox.
-    Args:
-        actor_id: The ID of the Actor whose Outbox to add the item to.
-        activity: The Activity item to add to the Outbox.
-        request: The FastAPI Request (used to resolve the per-app emitter).
-        background_tasks: FastAPI BackgroundTasks instance to schedule background tasks.
-    Returns:
-        None
-    Raises:
-        HTTPException: If the Actor is not found.
-    """
-    actor = _resolve_actor_or_404(actor_id, dl)
-    canonical_actor_id = actor.id_
-
-    # actor.id_ must match activity.actor or activity.actor.id_
-    if isinstance(activity.actor, str):
-        activity_actor_id = activity.actor
-    elif activity.actor is not None and hasattr(activity.actor, "id_"):
-        activity_actor_id = activity.actor.id_
-    else:
-        activity_actor_id = None
-
-    if activity_actor_id != canonical_actor_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Activity actor does not match actor_id.",
-        )
-
-    logger.debug(
-        "Posting activity to actor %s outbox: %s", canonical_actor_id, activity
-    )
-
-    # No clone: the injected DataLayer already is this actor's store.
-    actor_dl = cast(Any, dl)
-    # A case activity states this actor's ledger tail, as one its own
-    # adapter builds does (SYNC-18-001); one that states a position keeps it.
-    activity = with_sender_ledger_position(actor_dl, activity)
-    actor_dl.create(object_to_record(activity))
-    # Seal what was posted: the outbox delivers this body, not a re-read of
-    # the record (VM-08-003).
-    seal_outbound_body(actor_dl, activity)
-    actor_dl.outbox_append(activity.id_)
-
-    emitter = getattr(request.app.state, "emitter", None)
-    # Keyword, not positional: `outbox_handler`'s third parameter used to be a
-    # second DataLayer (the shared one), so a positional third argument reads as
-    # a store here and silently becomes the emitter.  See the ratchet in
-    # test/architecture/test_outbox_handler_emitter_keyword.py.
-    background_tasks.add_task(
-        outbox_handler, canonical_actor_id, actor_dl, emitter=emitter
-    )
-
-
-# Included ahead of the catch-all below on purpose: FastAPI matches routes in
-# registration order, and ``GET /{actor_id:path}`` would otherwise claim
-# ``/actors/{slug}/embargo-policy`` and ``/actors/{slug}/cases/{key}/objects``
-# with the suffix folded into the segment.
-router.include_router(_embargo_policy.router)
-router.include_router(_case_object.router)
-
-
-@router.get(
-    "/{actor_id:path}",
-    description="Returns an Actor by surrogate key or canonical ID.",
-    operation_id="actors_get",
-)
-def get_actor(actor_id: str, datalayer: DataLayer = Depends(get_actor_dl)):
-    """Returns an Actor by actor_id.
-
-    Accepts either a canonical actor ID or the actor's surrogate key.
-    """
-    actor = _find_actor_record(datalayer, actor_id)
-    if not actor:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
-        )
-
-    cls = _actor_class_for_record(actor)
-    data = actor.get("data_", {})
-    return AS2JSONResponse(
-        cls.model_validate(data).model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        )
     )

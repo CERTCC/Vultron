@@ -138,7 +138,7 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 
 ### 4) Naming and Organization Rules
 
-- **File naming**: `snake_case.py` for modules (e.g., `bt_node.py`, `receive_activity_tree.py`); leading `_` marks package-private modules (e.g., `_routes.py`, `_entry.py`)
+- **File naming**: `snake_case.py` for modules (e.g., `bt_node.py`, `receive_activity_tree.py`); leading `_` marks package-private modules (e.g., `_inbox.py`, `_entry.py`)
 - **Class naming**: `PascalCase`.
   The `as_` prefix marks a wire class only for unpaired AS2 vocabulary (e.g., `as_Activity`, `as_Link`); for the paired domain types, `as_VulnerabilityCase` and `VulnerabilityCase` are the same class (ADR-0099, ARCH-14-001).
 - **Domain abbreviation**: `vul` (not `vuln`) for vulnerability; `em` for embargo management; `rm` for report management; `cs` for case state

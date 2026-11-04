@@ -54,7 +54,8 @@ def test_a_posted_case_activity_is_sealed_with_the_actors_tail(
     )
     # The outbox drain is not this test's subject.
     monkeypatch.setattr(
-        "vultron.adapters.driving.fastapi.routers.actors._routes.outbox_handler",
+        "vultron.adapters.driving.fastapi.routers.actors._routes.mailbox"
+        ".outbox_handler",
         lambda *args, **kwargs: None,
     )
     app = FastAPI()
