@@ -113,7 +113,7 @@ groups:
     adr:
     - ADR-0036
     stories:
-    - story_2022_088
+    - story_2026_038
   - id: SDO-02-002
     priority: MUST
     kind: project
@@ -128,7 +128,7 @@ groups:
     adr:
     - ADR-0032
     stories:
-    - story_2022_088
+    - story_2026_038
   - id: SDO-02-003
     priority: MUST_NOT
     kind: project
@@ -177,7 +177,7 @@ groups:
     - rel_type: refines
       spec_id: BTND-10-001
     stories:
-    - story_2022_088
+    - story_2026_038
   - id: SDO-02-005
     priority: MUST
     kind: project
@@ -208,7 +208,7 @@ groups:
     adr:
     - ADR-0036
     stories:
-    - story_2022_088
+    - story_2026_031
     - story_2022_062
   - id: SDO-03-002
     priority: MUST
@@ -225,7 +225,7 @@ groups:
     - ADR-0036
     - ADR-0075
     stories:
-    - story_2022_088
+    - story_2026_031
     - story_2022_107
   - id: SDO-03-003
     priority: MUST_NOT

@@ -95,7 +95,7 @@ groups:
       processing, and that the resulting DataLayer state is updated after the handler completes asynchronously.
     stories:
     - story_2022_002
-    - story_2022_088
+    - story_2026_036
 - id: TB-04
   title: Test Organization
   specs:

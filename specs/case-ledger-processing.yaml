@@ -35,7 +35,7 @@ groups:
       ledger entries.
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_040
   - id: CLP-01-002
     priority: MUST
     kind: protocol
@@ -135,7 +135,7 @@ groups:
     - ADR-0107
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_057
   - id: CLP-02-004
     priority: MUST
     kind: protocol
@@ -187,7 +187,7 @@ groups:
     - ADR-0141
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_040
   - id: CLP-02-006
     priority: MUST
     kind: protocol
@@ -516,7 +516,7 @@ groups:
       locally scoped processing fault reaches no case ledger.
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_023
   - id: CLP-04-002
     priority: MUST
     kind: protocol
@@ -531,7 +531,7 @@ groups:
       reconstruction reads exclusively from the canonical case ledger.
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_057
   - id: CLP-04-003
     priority: MUST
     kind: protocol
@@ -595,7 +595,7 @@ groups:
       log rather than from any other data source such as the outbox or actor-local
       state.
     stories:
-    - story_2022_088
+    - story_2026_057
   - id: CLP-04-007
     priority: MUST
     kind: protocol
@@ -616,7 +616,7 @@ groups:
       asserts a refused assertion adds no ledger entry.
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_023
   - id: CLP-04-008
     priority: MUST
     kind: project
@@ -692,7 +692,7 @@ groups:
     - ADR-0141
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_040
   - id: CLP-05-004
     priority: MUST
     kind: protocol
@@ -733,7 +733,7 @@ groups:
     - ADR-0141
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_040
   - id: CLP-05-006
     priority: MUST_NOT
     kind: protocol
@@ -1668,7 +1668,7 @@ groups:
       case-specific genesis hash.
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_047
   - id: CLP-08-008
     priority: MUST
     kind: protocol
@@ -1689,7 +1689,7 @@ groups:
       spec_id: CLP-08-005
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_047
   - id: CLP-08-006
     priority: MUST
     kind: protocol
@@ -2407,7 +2407,7 @@ groups:
     adr:
     - ADR-0022
     stories:
-    - story_2022_088
+    - story_2026_037
   - id: CLP-10-024
     priority: MUST
     kind: project
@@ -2463,7 +2463,7 @@ groups:
     - ADR-0022
     - ADR-0113
     stories:
-    - story_2022_088
+    - story_2026_037
   - id: CLP-10-017
     priority: MUST
     kind: project
@@ -3470,7 +3470,7 @@ groups:
     - ADR-0080
     stories:
     - story_2022_045
-    - story_2022_088
+    - story_2026_034
   - id: CLP-11-002
     priority: MUST_NOT
     kind: project

@@ -159,9 +159,7 @@ Measured 2026-10-12; the gap report is authoritative at execution time.
 
 The core protocol area also holds 90 advisory-tier `VP` requirements with no
 story: the protocol specification itself. Most should map to existing stories
-and are worth the pass even though the tier does not require it. The two `BW`
-requirements are adjudication candidates and fold into the closing step rather
-than a Task of their own.
+and are worth the pass even though the tier does not require it.
 
 ## Seed stories
 
@@ -186,9 +184,10 @@ adding new ones; the prefixes are the expected citers, not a commitment.
 Candidate axes; the splitting task decides the final set by reading the citing
 requirements, not the other way round.
 
-- **088** "maintain knowledge of the state of case and what options are
-  available" (156): knowing the current case state; knowing which actions are
-  available now; detecting and recovering loss of sync.
+- **088** is split into `story_2026_036`–`068` (#4516, part 1). Its citers
+  needed two axes the candidate list lacked: every copy matching the
+  CASE_MANAGER's, and deployment needs told by an Implementer. Read the axes
+  below as a start, not a closed set.
 - **045** "produce a shared verified public record of case activity" (135):
   a record every participant shares; a record whose integrity can be verified;
   a record that becomes public on disclosure.
@@ -223,14 +222,11 @@ ones it reads from.
   requirement they touch, they may cite it; the rationale is still the reason.
 - **#4482** (rationale rule) and **#4315** (PR-only growth
   guards replacing the count ceilings) build the helper the project/process
-  story advisory and the closing step should reuse, so a guard is written once.
+  story advisory reuses, so a guard is written once.
 - **#3601** (adjudicating suppressed protocol specs) was to hand the five Ideas
   their worklists by hand. With the Ideas closed by this plan and the gap report
   in place, its hand-off acceptance criteria point at the area Tasks instead;
   its per-spec verdicts remain its own and are recorded in the Tasks' PRs when
   an area reaches them first.
-- **Closing step** (SR-11-003 covers `MUST_NOT`, the MS-02-003 exception is
-  removed, no `missing_story_reference` suppression remains): a Task of its own,
-  blocked by the area Tasks, as the Epic's done-when already states.
 - **#4481** (link-type meaning and direction) does not touch `stories:`, which
   is a field of its own (ADR-0072), not a `rel_type`.

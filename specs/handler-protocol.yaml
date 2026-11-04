@@ -44,7 +44,7 @@ groups:
       RM, EM, or CS state change in the receiver's DataLayer after the handler completes.
     stories:
     - story_2022_074
-    - story_2022_088
+    - story_2026_036
 - id: HP-01
   title: Handler Signature
   specs:
