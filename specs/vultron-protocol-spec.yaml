@@ -2302,6 +2302,9 @@ groups:
       aware of the embargo until it ends.
     stories:
     - story_2022_067
+    relationships:
+    - rel_type: constrains
+      spec_id: RMB-11-004
   - id: VP-13-006
     priority: SHOULD
     kind: protocol
