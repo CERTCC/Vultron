@@ -547,8 +547,9 @@ groups:
       names its invitee by URI or `Link`;
       `test_a_stub_outside_a_case_invitation_target_is_refused`,
       `test_a_stub_as_the_target_of_another_activity_is_refused`,
-      `test_a_stub_in_an_embargo_invitation_is_refused` and
-      `test_a_stub_nested_outside_the_invite_target_is_refused` assert that a stub in
+      `test_a_stub_in_an_embargo_invitation_is_refused`,
+      `test_a_stub_nested_outside_the_invite_target_is_refused` and
+      `test_a_stub_inside_an_inline_domain_object_is_refused` assert that a stub in
       every other position is refused with the position named; and
       `test_every_misplaced_stub_is_named` asserts that each misplaced stub is reported.
     stories:

@@ -38,10 +38,11 @@ every misplaced slot at once (EH-07-001).
 
 from collections.abc import Callable, Iterator
 
+from pydantic import BaseModel
+
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case_naming import CASE_NAMING_ACTIVITY_TYPES
 from vultron.wire.as2.errors import VultronParseValidationError
-from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -51,7 +52,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 #: Whether *parent*'s field *field_name* is a slot the form may sit in.
-_SlotPredicate = Callable[[as_Base, str], bool]
+_SlotPredicate = Callable[[BaseModel, str], bool]
 
 
 def _misplaced(
@@ -65,7 +66,9 @@ def _misplaced(
     if isinstance(value, form):
         yield path
         return
-    if not isinstance(value, as_Base):
+    # Inline domain objects are core models, not ``as_Base`` (ARCH-25-004),
+    # and a misplaced form inside one is as misplaced as anywhere else.
+    if not isinstance(value, BaseModel):
         return
     for field_name, info in type(value).model_fields.items():
         child = getattr(value, field_name, None)
@@ -77,7 +80,7 @@ def _misplaced(
         yield from _misplaced(child, child_path, form, admits)
 
 
-def _names_case_by_reference(parent: as_Base, field_name: str) -> bool:
+def _names_case_by_reference(parent: BaseModel, field_name: str) -> bool:
     """The object of a ``Join``, ``Ignore``, ``Leave`` or ``Offer`` (AKM-03-004)."""
     return (
         field_name == "object_"
@@ -86,7 +89,7 @@ def _names_case_by_reference(parent: as_Base, field_name: str) -> bool:
     )
 
 
-def _is_case_invitation_target(parent: as_Base, field_name: str) -> bool:
+def _is_case_invitation_target(parent: BaseModel, field_name: str) -> bool:
     """The ``target`` of an ``Invite`` of an actor (MV-10-002).
 
     The invitee is the ``Invite``'s ``object``: an inline actor, or a URI or

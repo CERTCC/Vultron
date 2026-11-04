@@ -109,8 +109,9 @@ def test_a_stub_outside_a_case_invitation_target_is_refused(
 def test_a_stub_as_the_target_of_another_activity_is_refused(
     type_: str,
 ) -> None:
-    with pytest.raises(VultronParseValidationError, match="target"):
+    with pytest.raises(VultronParseValidationError, match="MV-10-002") as exc:
         parse_activity(_activity(type_, target=_stub()))
+    assert "VulnerabilityCaseStub at target;" in str(exc.value)
 
 
 @pytest.mark.spec("MV-10-002")
@@ -119,8 +120,11 @@ def test_a_stub_in_an_embargo_invitation_is_refused() -> None:
     for slot in ("context", "target"):
         body = _example("relay_embargo_proposal")
         body[slot] = _stub()
-        with pytest.raises(VultronParseValidationError, match=slot):
+        with pytest.raises(
+            VultronParseValidationError, match="MV-10-002"
+        ) as exc:
             parse_activity(body)
+        assert f"VulnerabilityCaseStub at {slot};" in str(exc.value)
 
 
 @pytest.mark.spec("MV-10-002")
@@ -131,6 +135,22 @@ def test_a_stub_nested_outside_the_invite_target_is_refused() -> None:
     invite["context"] = invite.pop("target")
     with pytest.raises(VultronParseValidationError, match=r"object\.context"):
         parse_activity(body)
+
+
+@pytest.mark.spec("MV-10-002")
+@pytest.mark.parametrize(
+    "name", ["create_case", "create_report", "submit_report"]
+)
+@pytest.mark.parametrize("slot", ["context", "inReplyTo", "attachment"])
+def test_a_stub_inside_an_inline_domain_object_is_refused(
+    name: str, slot: str
+) -> None:
+    """The walk reaches into inline core objects, a case or a report."""
+    body = _example(name)
+    body["object"][slot] = [_stub()] if slot == "attachment" else _stub()
+    with pytest.raises(VultronParseValidationError, match="MV-10-002") as exc:
+        parse_activity(body)
+    assert f"at object.{slot}" in str(exc.value)
 
 
 @pytest.mark.spec("MV-10-002")
