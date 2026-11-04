@@ -31,7 +31,23 @@ What generalises, for #5043, #5044, #5785 and any later wave:
   protocol where one actor holds several positions. The prototype's common shape
   is owner-as-manager, so "the manager is not a participant of its own case" is
   false by default, not by exception.
-- **A narrowing declaration is only as good as the run that exercised it.**
+- **Classify the type by how its recipients are chosen, and only then decide
+  what evidence the declaration needs.** This is the discriminator; without it
+  the rule below says "run a demo" for every narrowing, which is both too slow
+  and too weak to say when a demo was never the right oracle.
+  - A **directed** type names a single resolved role as its addressee
+    (`to=[case_manager_id]`). Its narrowing is provable *structurally*, from
+    the one emit site, and `ActivityAddressedToReceiverNode` turns away a
+    stray copy before the path stage ever runs. Cite the emit site; a demo
+    adds nothing. All four manager-only embargo declarations are this kind.
+  - A **roster-broadcast** type takes its addressees from a roster-derived
+    selection in `core/participants/recipients.py`. Its narrowing is an
+    empirical claim about roster shape, and only an end-to-end run can
+    falsify it. `Announce(EmbargoEvent)` is this kind — it goes to
+    `embargo_ending_notice_recipients`, and an owner that is its own
+    CASE_MANAGER is a bound signatory of its own case — which is why this is
+    the one that broke.
+- **For a roster-broadcast narrowing, name the run that exercised it.**
   Before declaring a path *out*, name the end-to-end scenario that would deliver
   the type to it and check that scenario. `test/demo/` is marker-gated, so a
   targeted local run misses it entirely: it needs `-m ""`.

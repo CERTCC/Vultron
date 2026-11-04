@@ -402,7 +402,10 @@ def received_path_branch(
             one is wrapped in a Sequence so a mid-branch FAILURE still
             propagates.
         body_name: Name for that wrapping Sequence; defaults to
-            ``{name}Body``.
+            ``{name}Body``.  A single child is its own body, so it keeps its
+            own name and this argument has no effect.  Passing either name
+            with no effects at all is a wiring error instead
+            (``branch_arguments_without_effects``, HP-01-042).
     """
     label = path.name.title().replace("_", "")
     if len(children) == 1:

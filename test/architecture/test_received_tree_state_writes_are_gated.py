@@ -36,7 +36,7 @@ The checks:
    participant-replica path branch, which run everywhere but the
    CASE_MANAGER.  A tree whose declaration names the CASE_MANAGER path alone
    is skipped whole: the path stage refuses every other receiver, so the
-   declaration is the gate (HP-01-038).
+   declaration is the gate (HP-01-042).
 2. **Pinned exemption set** :data:`REPLICA_STATE_WRITES` — trees whose
    ungated writes are the design: the ledger replay itself, the bootstrap
    trees that mint a case or seed a replica before any CASE_MANAGER gate could
@@ -48,6 +48,12 @@ The checks:
 3. Every behaviors class that reaches a state-write seam carries the marker,
    or is in the **pinned exemption set** :data:`WRITES_NO_CASE_STATE` with
    its reason — so the marker, not a name list, decides what the walk finds.
+4. **Pinned exemption set**
+   :data:`MANAGER_ONLY_DECLARATION_EXEMPTIONS` — the trees check 1 skips
+   whole, each one a declaration naming the CASE_MANAGER path alone, which
+   gates its tree and so excuses the writes inside it (HP-01-042).  Kept per
+   entry rather than as a count, so one tree's declaration cannot narrow
+   while another's widens (#5535).
 
 Every set is held to equality in both directions (TB-10-002, ARCH-18-001):
 a new ungated write fails, and so does a row the code no longer needs.
@@ -373,15 +379,17 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
 
 
 # ---------------------------------------------------------------------------
-# 3. **Pinned exemption set** MANAGER_ONLY_DECLARATIONS — the trees the walk
-#    skips whole, because their declaration names the CASE_MANAGER path alone
-#    and so gates them (HP-01-042).  Kept per item, not as a count: a count
-#    would let one tree's declaration narrow while another's widened, and a
-#    non-empty guard alone passes vacuously (#5535).
+# 4. **Pinned exemption set** MANAGER_ONLY_DECLARATION_EXEMPTIONS — the trees
+#    the walk skips whole, because their declaration names the CASE_MANAGER
+#    path alone and so gates them (HP-01-042).  Kept per item, not as a count:
+#    a count would let one tree's declaration narrow while another's widened,
+#    and a non-empty guard alone passes vacuously (#5535).  The name ends in
+#    _EXEMPTIONS so the ARCH-18-004 marker parser discovers it and enforces
+#    the permanent marker below (vultron/metadata/ratchet_markers.py).
 # ---------------------------------------------------------------------------
 # permanent: HP-01-042 (a manager-only declaration gates its tree; each entry
 # is that declaration, read off the built tree)
-MANAGER_ONLY_DECLARATIONS: frozenset[tuple[str, str]] = frozenset(
+MANAGER_ONLY_DECLARATION_EXEMPTIONS: frozenset[tuple[str, str]] = frozenset(
     {
         (f"{_E}/answer_trees.py", "accept_invite_to_embargo_tree"),
         (f"{_E}/owner_decision_tree.py", "activate_embargo_on_case_tree"),
@@ -462,7 +470,7 @@ def test_manager_only_declarations_are_pinned() -> None:
     _assert_pinned(
         "manager-only path declaration",
         _manager_only_trees(),
-        MANAGER_ONLY_DECLARATIONS,
+        MANAGER_ONLY_DECLARATION_EXEMPTIONS,
         "a tree gated whole by its declaration is recorded here (HP-01-042)",
     )
     assert set(built_received_trees()) - _manager_only_trees(), (

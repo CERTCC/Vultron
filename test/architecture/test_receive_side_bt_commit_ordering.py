@@ -34,10 +34,10 @@ Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
    at run time and ``test_receive_activity_tree.py`` that the factory gates
    it (CLP-10-022).
 4. No built received tree commits ahead of its guarded commit except inside
-   the clock-decision stage or a diversion in a manager-only path declaration,
-   and there only from
-   a stage's own commit nodes — one per AS2 activity the decision or the
-   diversion needs — never the received activity's, and no other
+   the clock-decision stage or a diversion in a manager-only path
+   declaration, and there only from a stage's own commit nodes — one per AS2
+   activity the decision or the diversion needs — never the received
+   activity's, and no other
    protocol-effect node runs inside the clock-decision stage (CLP-10-025,
    CLP-10-026).
 5. Ahead of its guarded commit, a built received tree writes or sends only
@@ -406,9 +406,8 @@ def _early_commits(root: py_trees.behaviour.Behaviour) -> list[str]:
 
     A commit ahead of the guarded commit is allowed only inside a
     :class:`ClockDecisionStage` or a diversion in a tree declaring the
-    CASE_MANAGER path alone, and there only
-    the stage's own entries (:func:`_decision_commit_types`); the received
-    activity's
+    CASE_MANAGER path alone, and there only from the stage's own entries
+    (:func:`_decision_commit_types`); the received activity's
     commit (``CommitCaseLedgerEntryNode``) inside the stage would commit the
     activity's own assertion before the guards judge it.  A tree with no
     guarded commit has no "ahead of the commit" and reports nothing.

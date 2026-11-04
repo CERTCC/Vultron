@@ -556,6 +556,7 @@ never calls `create_case_manager_gated_tree` itself.
   exactly where RSH-08-003's one exception lives. What *does* excuse a write is
   a declaration naming the CASE_MANAGER path alone — the stage refused every
   other receiver, so the tree is gated whole, and
+  `MANAGER_ONLY_DECLARATION_EXEMPTIONS` in
   `test_received_tree_state_writes_are_gated.py` pins which trees that covers
   rather than skipping them silently.
 - **Refusal effects are gated too**: `refusal_effects` run only when a guard
@@ -573,8 +574,10 @@ never calls `create_case_manager_gated_tree` itself.
   pinned in `GATE_CALLERS_OUTSIDE_RECEIVED_TREES`.
 - **State writes carry `StateWriteCapable`** (RSH-08-003), checked on the built
   tree by `test/architecture/test_received_tree_state_writes_are_gated.py`: a
-  marked node outside every `CaseManagerGate` must be in the pinned
-  `REPLICA_STATE_WRITES` set. A class reaching a state-write seam (`dl.save`,
+  marked node outside every `CaseManagerGate` must be in one of two pinned
+  sets — `REPLICA_STATE_WRITES`, or `MANAGER_ONLY_DECLARATION_EXEMPTIONS` when
+  its tree's declaration gates it whole (see the bullet above, HP-01-042).
+  A class reaching a state-write seam (`dl.save`,
   `EmbargoLifecycle`, `apply_pec_transition`, directly or via a helper) carries the
   marker or is pinned in `WRITES_NO_CASE_STATE` with its reason; a leaf that
   builds and ticks a writer itself (`RMClosureWriter`) carries the marker, since

@@ -1045,8 +1045,9 @@ groups:
       (`vultron/core/behaviors/state_write_capable.py`) must sit inside a
       `CaseManagerGate`. Two pinned exemption sets record what it does not walk,
       each with a reason per entry (TB-10-002, ARCH-18-005): `REPLICA_STATE_WRITES`
-      for the replay and bootstrap writes, and `MANAGER_ONLY_DECLARATIONS` for a
-      tree whose path declaration names the CASE_MANAGER path alone, which gates it
+      for the replay and bootstrap writes, and
+      `MANAGER_ONLY_DECLARATION_EXEMPTIONS` for a tree whose path declaration
+      names the CASE_MANAGER path alone, which gates it
       whole (HP-01-042) and is skipped rather than walked. All other received-side
       state writes are now CASE_MANAGER-gated (the `KNOWN_UNGATED_STATE_WRITES`
       ratchet drove to empty and was deleted in #3814).

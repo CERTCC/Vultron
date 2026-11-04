@@ -268,9 +268,9 @@ TREES: tuple[tuple[str, _Builder, frozenset[ReceivedPath], _Site], ...] = (
 )
 
 #: Who each declaration turns away, and the path the stage resolves there.
-#: The manager-only trees refuse a replica, the replica-only tree refuses the
-#: case's own CASE_MANAGER, and the two-path trees refuse a store holding no
-#: replica.
+#: The manager-only trees refuse a replica, and the two-path trees refuse a
+#: store holding no replica.  No embargo type declares the participant-replica
+#: path alone, so no row turns away the case's own CASE_MANAGER.
 _REFUSED: dict[frozenset[ReceivedPath], tuple[str, ReceivedPath]] = {
     _MANAGER_ONLY: ("replica", ReceivedPath.PARTICIPANT_REPLICA),
     _BOTH: ("stranger", ReceivedPath.NO_CASE),
