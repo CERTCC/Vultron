@@ -26,8 +26,11 @@ corresponding requirement is met in the diff.
 **Note**: `plan/history/` entries are excluded from triage scope.
 They are written by the `append-history` tool and MUST NOT be modified after
 merging (HM-01-005).
-A triage finding targeting one cannot be acted on without violating that rule,
-so no finding should be raised for those paths (#2952).
+A finding asking for an edit to an entry cannot be acted on without violating
+that rule, so raise none for those paths (#2952).
+The one exception is the rule itself: a diff that modifies or deletes an entry
+already on the base branch (`git diff --diff-filter=MD origin/<base>...HEAD --
+plan/history/`) is a **FAIL** against HM-01-005.
 
 ---
 

@@ -25,8 +25,9 @@ Two independent exclusions prevent recurrence:
    so every markdownlint invocation (with or without --fix) skips those
    files.
 
-Both checks run as ratchets: either one failing signals that the
-exclusion was removed and must be restored.
+The first two tests check each exclusion's text, so each fails only when its
+own exclusion is removed. A third runs `markdownlint-cli2` itself and fails if
+any route (a re-include, a nested config) makes a history entry reachable.
 
 Source: #2952.
 """
@@ -34,6 +35,8 @@ Source: #2952.
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -79,3 +82,39 @@ def test_markdownlint_config_ignores_plan_history() -> None:
         "list. Add it so that every markdownlint run (with or without --fix) "
         "skips write-once history entries (HM-01-005)."
     )
+
+
+_MARKDOWNLINT = shutil.which("markdownlint-cli2")
+
+
+@pytest.mark.spec("HM-01-005")
+@pytest.mark.skipif(
+    _MARKDOWNLINT is None, reason="markdownlint-cli2 not on PATH"
+)
+def test_markdownlint_reaches_no_history_entry() -> None:
+    """markdownlint-cli2 MUST lint zero files under plan/history/.
+
+    The text checks above pass even if a later ``!plan/history/**``
+    re-include or a nested config brings the entries back into scope; this
+    asks the tool itself, without ``--fix``, so it cannot modify anything.
+    """
+    entries = sorted((_REPO_ROOT / "plan" / "history").rglob("*.md"))
+    assert entries, (
+        "no plan/history entry to probe; the check would be vacuous"
+    )
+    probe = entries[0].relative_to(_REPO_ROOT).as_posix()
+    assert _MARKDOWNLINT is not None
+    for target in (probe, "plan/history/**/*.md"):
+        result = subprocess.run(
+            [_MARKDOWNLINT, "--config", ".markdownlint-cli2.yaml", target],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+        output = result.stdout + result.stderr
+        assert "Linting: 0 files" in output, (
+            f"markdownlint-cli2 reached plan/history/ for {target!r}; "
+            f"history entries must stay out of every run (HM-01-005).\n{output}"
+        )
