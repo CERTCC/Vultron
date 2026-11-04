@@ -53,7 +53,7 @@ def replica_route_key(client: DataLayerClient) -> str:
     names the wrong one, the dump reports "No case ledger entries" while the
     real store holds the whole exchange.
 
-    The client already knows: :func:`vultron.demo.helpers.seeding._own_actor`
+    The client already knows: :func:`vultron.demo.helpers.seeding.actors._own_actor`
     binds ``client.actor_id`` as each container's own actor is created, so by
     ledger-dump time every scenario client is bound.  The fallback covers the
     ordering exception — a client built for the pre-seed health check and dumped

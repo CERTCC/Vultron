@@ -78,7 +78,7 @@ class TestOpenCoordinatedCast:
                 return_value={"status": "ok"},
             ) as reset_mock,
             patch(
-                "vultron.demo.helpers.seeding.seed_case_actor_identity"
+                "vultron.demo.helpers.seeding.reset.seed_case_actor_identity"
             ) as reseed,
             patch.object(
                 coordinated_cast,
@@ -134,7 +134,9 @@ class TestOpenCoordinatedCast:
                 "reset_datalayer",
                 return_value={"status": "ok"},
             ) as reset_mock,
-            patch("vultron.demo.helpers.seeding.seed_case_actor_identity"),
+            patch(
+                "vultron.demo.helpers.seeding.reset.seed_case_actor_identity"
+            ),
             patch.object(
                 coordinated_cast,
                 "seed_containers_rcv",
@@ -170,7 +172,9 @@ class TestOpenCoordinatedCast:
         """The failure is recorded by demo_step; the story stops here."""
         with (
             patch.object(story_cast, "reset_datalayer"),
-            patch("vultron.demo.helpers.seeding.seed_case_actor_identity"),
+            patch(
+                "vultron.demo.helpers.seeding.reset.seed_case_actor_identity"
+            ),
             patch.object(
                 coordinated_cast,
                 "seed_containers_rcv",

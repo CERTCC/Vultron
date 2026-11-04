@@ -17,7 +17,7 @@
 call a raising ``wait_for_*`` helper outside a demo accumulation context.
 
 Every ``wait_for_*`` / ``find_*`` polling helper in
-``vultron/demo/helpers/polling.py`` raises ``AssertionError`` on timeout — the
+the ``vultron/demo/helpers/polling/`` package raises ``AssertionError`` on timeout — the
 correct contract for the unit tests that assert the timeout, but fatal inside a
 scenario: ``scenario_harness`` re-raises, so a bare call crashes the whole run
 at the first failure and buries every co-occurring failure (violating the
@@ -52,12 +52,13 @@ must fail"), and it fails too if a ``_phase_*`` function reappears.
 A raising wait invoked from scenario-level code MUST therefore sit inside a
 ``demo_step`` / ``demo_check`` / ``demo_gate`` block, OR be invoked through a
 shared helper that performs that wrap internally so every caller inherits it
-(``wait_for_participants_on_replicas`` in ``polling.py`` and
+(``wait_for_participants_on_replicas`` in ``polling/case.py`` and
 ``wait_for_replica_ledger_coverage`` in ``helpers/sync.py`` are such helpers;
 the latter is also governed by DEMOMA-23-005/006 and its own ratchet).
 
-The raising / wrapping classification is derived from ``polling.py`` and
-``sync.py`` themselves, so a new raising helper in either module is covered
+The raising / wrapping classification is derived from the ``polling/``
+submodules and ``sync.py`` themselves, so a new raising helper in any of them is
+covered
 automatically and a new self-wrapping helper is recognised as safe without
 editing this test.  A demo context is a literal ``demo_step`` / ``demo_check`` /
 ``demo_gate`` call, or a call to a local name bound only to those (for example
@@ -80,11 +81,8 @@ from test.architecture import _corpus
 
 _DEMO_DIR = _corpus.REPO_ROOT / "vultron" / "demo"
 _HELPERS_DIR = _DEMO_DIR / "helpers"
-_POLLING = _HELPERS_DIR / "polling.py"
+_POLLING_DIR = _HELPERS_DIR / "polling"
 _SYNC = _HELPERS_DIR / "sync.py"
-
-#: The helper modules whose ``wait_for_*`` / ``find_*`` functions are classified.
-_HELPER_MODULES = (_POLLING, _SYNC)
 
 #: The demo failure-accumulation context managers (DEMOCI-01-004).
 _DEMO_CONTEXTS = frozenset({"demo_step", "demo_check", "demo_gate"})
@@ -293,18 +291,30 @@ def _wraps_in_demo_context(node: ast.AST) -> bool:
     )
 
 
+def _is_helper_module(path: Path) -> bool:
+    """True for a module whose ``wait_for_*`` / ``find_*`` functions are classified."""
+    return path == _SYNC or path.parent == _POLLING_DIR
+
+
 def _helper_trees() -> list[ast.Module]:
-    """Return the parsed ASTs of every helper module from the shared corpus."""
+    """Return the parsed ASTs of every helper module from the shared corpus.
+
+    The helper modules are ``sync.py`` and every ``polling/`` submodule that
+    defines a wait; both must be found, so a moved package cannot leave the
+    classification silently empty.
+    """
     found: dict[Path, ast.Module] = {}
     for path, tree in _corpus.files_mentioning(
         "def wait_for_", "def find_", under=_HELPERS_DIR
     ):
-        if path in _HELPER_MODULES:
+        if _is_helper_module(path):
             assert isinstance(tree, ast.Module)
             found[path] = tree
-    missing = [p for p in _HELPER_MODULES if p not in found]
-    assert not missing, f"{missing} not found in the source corpus"
-    return [found[p] for p in _HELPER_MODULES]
+    assert _SYNC in found, f"{_SYNC} not found in the source corpus"
+    assert any(p.parent == _POLLING_DIR for p in found), (
+        f"no polling helper module found under {_POLLING_DIR}"
+    )
+    return [found[p] for p in sorted(found)]
 
 
 def _classify_polling_helpers(
@@ -312,7 +322,8 @@ def _classify_polling_helpers(
 ) -> tuple[frozenset[str], frozenset[str]]:
     """Return ``(raising, wrapping)`` helper-name sets from the helper modules.
 
-    Classifies ``polling.py`` and ``sync.py`` (or the given *trees*).
+    Classifies the ``polling/`` submodules and ``sync.py`` (or the given
+    *trees*).
 
     A ``wait_for_*`` / ``find_*`` function is a *wrapping* helper when it
     contains a demo context AND makes no raising poll call outside one —
@@ -428,7 +439,7 @@ def _scanned_trees() -> tuple[dict[Path, ast.AST], Counter[str]]:
 
     Narrowing the parametrisation to the files that actually hold a subject
     keeps the per-file test and its id meaningful, and makes the emptiness
-    assertion a real one: ``polling.py`` mentions ``wait_for_`` on every line
+    assertion a real one: ``polling/`` mentions ``wait_for_`` on every line
     and holds no scenario-level code at all.
     """
     trees: dict[Path, ast.AST] = {}

@@ -317,7 +317,9 @@ class TestTheSharedOpeningSeedsOnlyTheThree:
                     "reset_datalayer",
                     return_value={"status": "ok"},
                 ) as reset,
-                patch("vultron.demo.helpers.seeding.seed_case_actor_identity"),
+                patch(
+                    "vultron.demo.helpers.seeding.reset.seed_case_actor_identity"
+                ),
                 patch.object(
                     coordinated_cast,
                     "seed_containers_rcv",

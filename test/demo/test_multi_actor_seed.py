@@ -281,7 +281,9 @@ class TestSeedVendorParticipantRMState:
         """Call _seed_vendor_participant with a minimal mock case and DL."""
         from unittest.mock import MagicMock
 
-        from vultron.demo.helpers.seeding import _seed_vendor_participant
+        from vultron.demo.helpers.seeding.participants import (
+            _seed_vendor_participant,
+        )
 
         case_obj = MagicMock()
         case_obj.id_ = "https://example.org/cases/test-case"
