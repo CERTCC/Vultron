@@ -19,10 +19,15 @@ relevant to the changed file paths:
 | `vultron/adapters/` | `outbox.yaml`, `architecture.yaml` (ARCH-14) |
 | `vultron/demo/` | `behavior-tree-integration.yaml` (BT demo patterns) |
 | `docs/`, `notes/`, `specs/` | `project-documentation.yaml` |
-| `plan/history/` | `history-management.yaml` (HM-01–HM-05) |
 
 For each spec ID mentioned in the linked issue or PR body, confirm the
 corresponding requirement is met in the diff.
+
+**Note**: `plan/history/` entries are excluded from triage scope.
+They are written by the `append-history` tool and MUST NOT be modified after
+merging (HM-01-005).
+A triage finding targeting one cannot be acted on without violating that rule,
+so no finding should be raised for those paths (#2952).
 
 ---
 
