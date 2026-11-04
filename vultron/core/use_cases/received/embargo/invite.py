@@ -45,6 +45,7 @@ from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     door_refusal,
+    embargo_terms_repeat_verdict,
     node_failed,
     pxa_refusal_verdict,
     verdict_from_bt,
@@ -289,4 +290,5 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             return HandlerResult.skipped(
                 f"invite '{invite_id}' was already applied on case '{case_id}'"
             )
-        return verdict
+        # Terms the case already holds, under new ids (EP-09-032).
+        return embargo_terms_repeat_verdict(tree, verdict)

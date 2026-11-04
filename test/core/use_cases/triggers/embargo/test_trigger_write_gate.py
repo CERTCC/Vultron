@@ -35,7 +35,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import now_utc
+from vultron.core.models._helpers import format_timestamp, now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -179,6 +179,44 @@ def test_repeated_non_manager_proposal_is_suppressed(
         finder_dl, finder.id_, case.id_, end_time + timedelta(days=1)
     )
     assert third.activity is not None
+
+
+@pytest.mark.spec("EP-09-032")
+@pytest.mark.spec("SYNC-11-005")
+@pytest.mark.spec("SYNC-11-006")
+def test_an_ask_the_manager_treats_as_a_repeat_closes_on_its_timeout(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A proposal of terms the case holds stops suppressing at its timeout.
+
+    The CASE_MANAGER commits nothing for a duplicate proposal (EP-09-032),
+    so no ledger entry ever comes back to clear the proposer's pending ask.
+    The ask closes on the SYNC-11-005 timeout instead, and the same terms
+    can then be sent again.
+    """
+    finder, finder_dl = finder_actor_and_dl
+    case = _case_managed_by_someone_else(finder_dl, finder.id_)
+    end_time = datetime.now(tz=UTC) + timedelta(days=7)
+    subject = format_timestamp(end_time)
+    semantic_type = MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
+    store = get_pending_assertion_store(finder.id_)
+
+    assert _propose(finder_dl, finder.id_, case.id_, end_time).activity
+    pending = store.pending_for_subject(
+        case.id_, semantic_type, subject, at=now_utc()
+    )
+    assert pending is not None
+    # Nothing comes back for the duplicate; the window runs out.
+    pending.emitted_at -= timedelta(seconds=store.timeout_seconds)
+
+    assert (
+        store.pending_for_subject(
+            case.id_, semantic_type, subject, at=now_utc()
+        )
+        is None
+    )
+    assert pending.status == "timed_out"
+    assert _propose(finder_dl, finder.id_, case.id_, end_time).activity
 
 
 def _answer_or_teardown(

@@ -49,6 +49,9 @@ from vultron.core.behaviors.case.nodes.role_offer_guard import (
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     EmbargoAnswerNotRecordedNode,
 )
+from vultron.core.behaviors.embargo.nodes.proposal_repeat import (
+    EmbargoTermsNotHeldNode,
+)
 from vultron.core.behaviors.embargo.nodes.withdrawal import (
     IsWithdrawableEmbargoNode,
 )
@@ -61,6 +64,7 @@ from vultron.core.behaviors.idempotency import (
 #: Each guard a handler reads as a repeat, and the flag it sets on one.
 _FLAGGED = [
     (EmbargoAnswerNotRecordedNode, "is_repeat"),
+    (EmbargoTermsNotHeldNode, "is_repeat"),
     (IsWithdrawableEmbargoNode, "is_redelivery"),
     (NoOpenOwnershipOfferNode, "is_redelivery"),
     (OwnershipOfferOpenNode, "is_redelivery"),
