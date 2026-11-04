@@ -2128,7 +2128,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CM — Case Management | [CM-31-008](../vultron-spec/requirements/case-management.md#cm-31-008), [CM-31-009](../vultron-spec/requirements/case-management.md#cm-31-009), [CM-31-010](../vultron-spec/requirements/case-management.md#cm-31-010), [CM-31-030](../vultron-spec/requirements/case-management.md#cm-31-030), [CM-31-031](../vultron-spec/requirements/case-management.md#cm-31-031), [CM-31-032](../vultron-spec/requirements/case-management.md#cm-31-032), [CM-31-033](../vultron-spec/requirements/case-management.md#cm-31-033) |
+| CM — Case Management | [CM-31-008](../vultron-spec/requirements/case-management.md#cm-31-008), [CM-31-009](../vultron-spec/requirements/case-management.md#cm-31-009), [CM-31-010](../vultron-spec/requirements/case-management.md#cm-31-010), [CM-31-030](../vultron-spec/requirements/case-management.md#cm-31-030), [CM-31-031](../vultron-spec/requirements/case-management.md#cm-31-031), [CM-31-032](../vultron-spec/requirements/case-management.md#cm-31-032), [CM-31-033](../vultron-spec/requirements/case-management.md#cm-31-033), [CM-31-042](../vultron-spec/requirements/case-management.md#cm-31-042) |
 
 ## [story_2026_097](story_2026_097.md)
 
