@@ -31,6 +31,9 @@ import py_trees
 from vultron.core.behaviors.case.nodes.carried_object_case import (
     CarriedObjectInTargetCaseNode,
 )
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -70,6 +73,7 @@ def create_add_note_to_case_received_tree(
         GuardedAttachAndCommitBT (Sequence)
         ├── IntakeReceivedActivityNode                 # intake
         ├── CaseOpenToExternalWrites                   # post-close boundary
+        ├── ReceivedPathNode                           # manager or replica
         ├── SenderRuleGuard (Sequence)                 # sender guard
         ├── CaseManagerGate[ClockDecisionStage]        # embargo end-time check
         ├── PreconditionGuards
@@ -109,7 +113,10 @@ def create_add_note_to_case_received_tree(
     The factory composes the sender guard from *sender_rule* (HP-01-025):
     at the CASE_MANAGER the sender must be an active participant whose
     closure the case does not record (CM-23-018), and a replica takes the
-    attachment from the CASE_MANAGER alone (PCR-03-001).
+    attachment from the CASE_MANAGER alone (PCR-03-001).  Those are the two
+    non-empty sides of the rule, so they are the two paths the tree declares
+    (HP-01-038); the path stage then answers the role question once and the
+    guard's arms read its answer rather than asking again (HP-01-036).
 
     Args:
         note_obj: The note the ``Add`` carries inline.
@@ -123,6 +130,17 @@ def create_add_note_to_case_received_tree(
     """
     return create_receive_activity_tree(
         name="GuardedAttachAndCommitBT",
+        # An active participant asks the CASE_MANAGER to attach the note, and
+        # a replica takes the attachment from the CASE_MANAGER alone
+        # (PCR-03-001, PCR-08-001): the two non-empty sides of the sender
+        # rule, so the two declared paths (HP-01-038).  The replica path
+        # carries no effect of its own — the note reaches a replica as the
+        # entry's Announce fan-out and a direct Add(Note) there is refused
+        # (SYNC-02-002, HP-01-005) — and is declared all the same, because
+        # the act is the CASE_MANAGER's to relay and a declaration narrower
+        # than the sender rule would refuse at the door a delivery the guard
+        # admits (RSH-08-003).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(

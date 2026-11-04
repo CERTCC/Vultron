@@ -22,6 +22,9 @@ and commits the canonical ledger entry; replicas apply the entry's fan-out
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.nodes.reference_list import (
     CaseReferenceEditPendingNode,
 )
@@ -49,6 +52,7 @@ def create_remove_note_from_case_received_tree(
 
         GuardedDetachAndCommitBT (Sequence)
         ├── IntakeReceivedActivityNode                    # intake
+        ├── ReceivedPathNode                              # manager or replica
         ├── SenderRuleGuard (Sequence)                    # sender guard
         ├── CaseReferenceEditPendingNode                  # duplicate guard
         ├── GuardedCommitCaseLedgerEntryBT (Selector)     # commit
@@ -58,7 +62,10 @@ def create_remove_note_from_case_received_tree(
     committed; the handler reports it as ``SKIPPED``.
 
     The factory composes the sender guard from *sender_rule*, with the note
-    as the object an ``AUTHOR`` sender must have written (CM-30-001).
+    as the object an ``AUTHOR`` sender must have written (CM-30-001).  The
+    rule's two non-empty sides are the two paths the tree declares
+    (HP-01-038), so the path stage answers the role question once and the
+    guard's arms read its answer (HP-01-036).
 
     Args:
         note_id: ID of the note being removed.
@@ -68,6 +75,13 @@ def create_remove_note_from_case_received_tree(
     """
     return create_receive_activity_tree(
         name="GuardedDetachAndCommitBT",
+        # The note's author or the Case Owner asks the CASE_MANAGER, and a
+        # replica applies a removal only when the CASE_MANAGER sent it
+        # (CM-30-001, CM-30-003): the two non-empty sides of the sender rule,
+        # so the two declared paths (HP-01-038).  As with the Add, the
+        # replica path carries no effect of its own and is declared because
+        # the act is the CASE_MANAGER's to relay (RSH-08-003).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(

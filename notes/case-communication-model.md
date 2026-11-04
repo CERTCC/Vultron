@@ -392,8 +392,11 @@ canonical ledger never gets the entry (ADR-0021). Run the tree as the receiving 
 `create_receive_activity_tree(..., manager_effects=[...])`; the factory wraps them in
 the gate, and a received tree never calls the gate itself (BT-17-008). Then declare
 the paths the message type handles, as the factory's `paths=`, so the path stage
-refuses a receiver on a path it does not handle (ADR-0153); a tree not yet declared
-maps a skipped gate to `REFUSED` with `case_manager_verdict()` (HP-01-005). See
+refuses a receiver on a path it does not handle (ADR-0153). Declaring them does not
+retire `case_manager_verdict()`: a tree that declares a non-manager path admits that
+receiver at the door and then skips the gate, so the handler still maps the skip to
+`REFUSED` rather than reporting `APPLIED` having written nothing (HP-01-005). Only a
+manager-only declaration makes the mapping unreachable. See
 `vultron/core/behaviors/note/add_note_received_tree.py` for the shape.
 
 The gate is what makes identity correct: role holder, receiving actor and store owner
