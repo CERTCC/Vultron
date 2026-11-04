@@ -38,7 +38,7 @@ relevant_packages:
   - vultron/adapters/driven/datalayer_sqlite/engine.py
   - vultron/adapters/driving/fastapi/main.py
   - vultron/adapters/driving/fastapi/routers/trigger_actor.py
-  - vultron/adapters/driven/datalayer_sqlite/queues.py
+  - vultron/adapters/driven/datalayer_sqlite/queues/
   - vultron/core/models/activity_ids.py
 ---
 
