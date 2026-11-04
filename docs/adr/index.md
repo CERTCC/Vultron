@@ -204,7 +204,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0100 There Is No Multi-Candidate Embargo Poll; Open Proposals Resolve in Earliest-Expiration Order](0100-no-multi-candidate-embargo-poll.md)
 - [ADR-0101 Spec Item Format Is Field Presence, Not a Class Choice; a Bare Item Cannot Be a `BehavioralSpec`](0101-spec-item-format-is-field-presence.md)
 - [ADR-0102 Organize reader-facing documentation by stakeholder type and invisible prerequisite level](0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md) — partially superseded by 0136-organize-the-site-top-level-by-subject-and-reader-not-diataxis-type.md
-- [ADR-0103 An Object's Time Is Carried, Never Minted by the Receiver](0103-object-time-is-carried-never-minted.md)
+- [ADR-0103 An Object's Time Is Carried, Never Minted by the Receiver](0103-object-time-is-carried-never-minted.md) — partially superseded by 0176-an-act-reads-the-clock-once-at-its-edge.md
 - [ADR-0104 The Interactive Demo UI Is a React/ReactFlow Operator-Side Ledger Watcher, Fed by a Prototype-Only SSE Stream](0104-interactive-demo-ui-live-ledger-watcher.md)
 - [ADR-0105 Two Cases for One Vulnerability Merge by Owner Consent: the Offered Case Freezes and Redirects](0105-case-merge-freeze-and-redirect-by-owner-consent.md)
 - [ADR-0106 Version Each Machine-Facing Interface Independently of the Release Tag](0106-versioning-machine-facing-interfaces.md) *(provisional)* — partially supersedes 0069-vultron-namespace-uri.md
@@ -278,7 +278,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0162 Protocol Statecharts Are Projections of the Core Transition Tables, and Occasions Name Their Transitions](0162-protocol-statecharts-are-projections-of-the-core-transition-tables-and-occasions-name-their-transitions.md)
 - [ADR-0169 Case Roles Split Three Ways — Position, Case Authority and Actor Standing — and Every Participant Claims a Position](0169-case-roles-split-into-position-authority-and-standing.md) — partially supersedes 0133-the-report-receiver-states-its-case-roles-on-the-case-proposal.md
 - [ADR-0172 An Active Participant Is Not Closed](0172-an-active-participant-is-not-closed.md) — partially supersedes 0114-joining-a-case-stub-invite-inert-participant.md, 0116-removing-a-participant-withdraws-entitlement-not-membership.md
-- [ADR-0174 An Act Reads the Clock Once, at Its Edge](0174-an-act-reads-the-clock-once-at-its-edge.md) *(revision 2)*
+- [ADR-0176 An Act Reads the Clock Once, at Its Edge](0176-an-act-reads-the-clock-once-at-its-edge.md) *(revision 2)* — partially supersedes 0103-object-time-is-carried-never-minted.md
 
 ## Rejected ADRs
 

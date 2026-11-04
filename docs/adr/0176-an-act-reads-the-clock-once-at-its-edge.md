@@ -6,11 +6,14 @@ updated: 2026-11-04
 revision: 2
 deciders: Allen D. Householder
 consulted: >-
-  Claude Opus 5.5; issues #5676, #5591, #5649, #5650, #5651, #5652, #2887,
-  #3423;
+  Claude Opus 5.5; issues #5676, #5591, #5649, #5650, #5651, #5652, #5757,
+  #5758, #5760, #5761, #5848, #2887, #3423;
   ADR-0032, ADR-0103, ADR-0167; specs/code-style.yaml CS-13;
-  specs/case-ledger-processing.yaml CLP-15
+  specs/case-ledger-processing.yaml CLP-15;
+  specs/case-bootstrap-trust.yaml CBT-03-003
 informed: []
+partially_supersedes:
+- 0103-object-time-is-carried-never-minted.md
 stakeholder_type: [project-contributor]
 ---
 
@@ -36,7 +39,7 @@ Where does time enter the application, and how does code below that point learn 
 - One act must decide and record against one instant, so its decisions and its stamps agree.
 - A read that commits nothing must not change what a recording contains.
 - A missing time must fail fast, never be filled in silently (ARCH-10-001), because a silent fallback is how the current defects arose.
-- Several stamps written by one act must still sort in the order they were written (ADR-0167).
+- Several stamps written by one act must still sort in the order they were written (ADR-0167, CS-13-002).
 - A time a peer sent is carried, never minted (ADR-0103, CLP-15-007, CLP-15-008).
 - An act's instant must be the time it decides, not the time it queued for the tree lock.
 - The rule must be enforced by a test, not by audits.
@@ -45,14 +48,14 @@ Where does time enter the application, and how does code below that point learn 
 
 1. **Fix each read where it is found.** Give each site its own injected time, issue by issue.
 2. **One instant per act, passed as an argument everywhere.** Every builder, node, helper and model that needs time takes a required argument.
-3. **One instant per act, read at the act's edge; a tree's nodes read it from the tree run's shared state; everything else takes it as an argument.**
+3. **One instant per act, read at the act's edge.** A tree's nodes read it from the tree run's shared state; everything else takes it as an argument.
 4. **Re-read the clock where a decision needs it.** A tree with a time constraint reads the clock again at each decision, so a slow act decides against the current time.
 
 ## Decision Outcome
 
-Chosen option: "One instant per act, read at the act's edge", because it removes the cause rather than the symptoms and needs no signature change through every received handler and trigger.
+Chosen option: "One instant per act, read at the act's edge", because it removes the cause rather than the symptoms and needs no time parameter on any tree builder, node or nested tree run; only the act entry points and the bridge's outermost call take the instant.
 Option 1 has already produced four issues, and nothing stops a fifth.
-Option 2 meets every driver but threads a time through every tree builder and every nested tree run by hand, which is the change #5649 judged too wide to make.
+Option 2 meets every driver but threads a time through every tree builder and every nested tree run by hand, which #5649 found to be an architectural change rather than a defect fix.
 Option 4 answers a slow act's staleness by bringing back the first problem: the guard decides at one instant and the commit is stamped at another.
 Staleness is a separate problem, handled below by a stated assumption and a later drift limit, not by a second read of the clock.
 
@@ -67,18 +70,20 @@ The decision has seven parts.
   A held activity replayed later gets the instant of its replay, so an expiry is judged at the moment its effect lands.
   The arrival time stays its own recorded fact.
   The held activity itself is replayed as it arrived; only the decision time is new.
-- **Trees read the instant from the tree run.** The bridge that runs a tree will take the act's instant as a required argument and place it in the run's shared state, beside the data layer and the leadership check.
-  A nested tree run will inherit it, as it inherits the leadership check, so a nested run sees the same instant as the act that started it.
+  Each replayed activity is an act of its own, even when its replay runs inside the processing of the activity that released it: it reads its own instant, and a replay nested in another act does not inherit that act's instant.
+- **Trees read the instant from the tree run.** The bridge's outermost run of an act will take the act's instant as a required argument and place it in the run's shared state, beside the data layer and the leadership check.
+  A nested tree run will take no instant and inherit it, as it inherits the leadership check, so a nested run sees the same instant as the act that started it; a nested run with no instant to inherit fails.
   A node will read the instant when it ticks and fail if it is absent.
   Tree builders and node constructors take no time.
 - **Core code takes time, never reads it.** Below the act's edge, a helper or model that needs time takes it as a required argument.
-  A domain model has no field whose default reads the clock.
+  A domain model has no field whose default reads the clock, including an object this process authors (see More Information for ADR-0103).
   An ordered stamp is computed from the act's instant and the previous stamp, and the smallest step past the previous stamp keeps two stamps of one act in order.
   A deadline is the act's instant plus a duration.
 - **The parse edge reads no clock.** Parsing and extraction carry the times a peer sent and compute nothing from the clock.
   An inbound activity without `published` is already refused at parse (CLP-15-008), so a computation that measures from `published` will take it as required.
   A check that needs the current time, such as whether a deadline has already passed, belongs to the handler, which holds the act's instant.
   Clean-up of expired entries is an act of its own, not a step of receiving (#2887).
+  A held activity whose queue interval has expired is still dropped when its replay is attempted, judged against the replay act's instant, so a release that comes before the clean-up never applies an expired activity (CBT-03-003).
 - **The clock is injected.** The clock is a port with one operation, the current time, that the composition root supplies: the system clock in production and a recording clock in a recorded run.
   Only act entry points and adapter bookkeeping will hold it.
   Adapter bookkeeping times, such as when a delivery was dead-lettered, are infrastructure times read through the same port; they do not enter the case ledger and are not an act's instant.
@@ -96,12 +101,13 @@ Generated ids have the same shape, a global that the recording harness replaces,
 ### Consequences
 
 - Good: one act's decisions and records agree on when it happened.
-- Good: a read that commits nothing no longer moves a recording, and the recording clock steps once per act, so one tick means one act.
+- Good: a clock read inside an act no longer moves a recording; what a recording holds depends only on how many acts run, which the demos fix by ordering their steps on their causes (EDF-06).
 - Good: the per-site fallbacks and their time parameters are deleted rather than threaded, so most of the tree-node change is a removal.
 - Good: a missing instant fails at the point it is needed rather than being replaced by a clock read.
 - Neutral: an act's instant can be older than the wall clock by the time the act commits; the assumption above bounds the gap until the drift limit lands.
 - Neutral: two acts that race on two threads can still reach a recording in either order; that is real nondeterminism, and the demos still order their steps on their causes (EDF-06).
 - Bad: every test that builds a core model without a time will need one, so the model change is wide and is done as its own step.
+- Bad: stamps written by one act share its instant, so the smallest-step bump past the previous stamp becomes the routine way they are ordered, where ADR-0167 expected a same-instant tie to be rare.
 - Bad: one more value lives in a tree run's shared state, which is global to the process; it takes the same lock and inheritance rule as the leadership check.
 - Bad: every committed recording changes once, when the recording clock moves to the port.
 
@@ -117,6 +123,10 @@ Generated ids have the same shape, a global that the recording harness replaces,
 ## More Information
 
 The current time rules live in the CS-13 group of `specs/code-style.yaml` and the CLP-15 group of `specs/case-ledger-processing.yaml`.
-The CS-13 rules that name the clock helper and the deadline helpers will be restated against this decision as the code that meets them lands.
+The CS-13 rules that name the clock helper and the deadline helpers (CS-13-002, CS-13-004, CS-13-008) will be restated against this decision as the code that meets them lands.
 
-The work is tracked under #5676, in slices by node shape: the clock port, act entry points, tree-run instant and the architecture test first; then tree builders and guard nodes (#5649); sync rate-limit checks (#5651); core models; the parse edge (#5652); and last, the recording clock through the port.
+This decision narrows [ADR-0103](0103-object-time-is-carried-never-minted.md): ADR-0103 kept the `default_factory` clock for objects this process authors and told the two directions apart by a validation-context marker.
+Here no core model field defaults to the clock in either direction, so an authored object takes the act's instant explicitly and the inbound marker no longer has a default to suppress.
+ADR-0103's rule that a time a peer sent is carried, never minted, stands unchanged.
+
+The work is tracked under #5676, in slices by node shape: the clock port, act entry points, tree-run instant and the architecture test first (#5757); then tree builders and guard nodes (#5649); sync rate-limit checks (#5651); core models (#5758); the parse edge (#5652); and last, the recording clock through the port (#5760).
