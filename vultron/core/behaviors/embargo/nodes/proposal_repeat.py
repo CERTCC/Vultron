@@ -96,42 +96,27 @@ class EmbargoTermsNotHeldNode(
         """``True`` when the last run found the terms already held: a benign
         no-op, not a refusal."""
 
-    def _proposed_end_time(self) -> datetime | None:
-        """The proposal's end time: the inline terms, else the stored ones."""
+    def _proposed_end_time(self) -> datetime:
+        """The proposal's end time: the inline terms, else the stored ones.
+
+        Raises:
+            VultronError: the stored terms do not resolve.
+        """
         if self.embargo is not None:
             return self.embargo.end_time
         assert self.datalayer is not None
-        try:
-            return read_embargo_event(self.datalayer, self.embargo_id).end_time
-        except VultronError as exc:
-            self.logger.debug(
-                "%s: proposed terms '%s' not readable (%s) — nothing to"
-                " compare",
-                self.name,
-                self.embargo_id,
-                exc,
-            )
-            return None
+        return read_embargo_event(self.datalayer, self.embargo_id).end_time
 
-    def _entry_end_time(self, entry: EmbargoRegisterEntry) -> datetime | None:
-        """A register entry's end time, ``None`` with a WARNING when unreadable."""
+    def _entry_end_time(self, entry: EmbargoRegisterEntry) -> datetime:
+        """A register entry's end time.
+
+        Raises:
+            VultronError: the entry's terms do not resolve.
+        """
         if isinstance(entry.embargo, EmbargoEvent):
             return entry.embargo.end_time
         assert self.datalayer is not None
-        try:
-            return read_embargo_event(
-                self.datalayer, entry.embargo_id
-            ).end_time
-        except VultronError as exc:
-            self.logger.warning(
-                "%s: register entry '%s' on case '%s' is not readable (%s);"
-                " left out of the duplicate check (EP-09-032)",
-                self.name,
-                entry.embargo_id,
-                self.case_id,
-                exc,
-            )
-            return None
+        return read_embargo_event(self.datalayer, entry.embargo_id).end_time
 
     @staticmethod
     def _held_entries(
@@ -154,22 +139,6 @@ class EmbargoTermsNotHeldNode(
             if e.status == EmbargoRegisterStatus.ACTIVE
         ]
 
-    def _holding_entry(
-        self, case: VulnerabilityCase, end_time: datetime
-    ) -> EmbargoRegisterEntry | None:
-        # The proposal's own entry is not a second proposal of its terms:
-        # an Invite naming an embargo the register already holds is judged
-        # by id, by the guards and effects that read the register.
-        return next(
-            (
-                entry
-                for entry in self._held_entries(case)
-                if entry.embargo_id != self.embargo_id
-                and self._entry_end_time(entry) == end_time
-            ),
-            None,
-        )
-
     def update(self) -> Status:
         self.is_repeat = False
         if (f := self._require_datalayer()) is not None:
@@ -179,10 +148,40 @@ class EmbargoTermsNotHeldNode(
         case = self.datalayer.read(self.case_id)
         if not isinstance(case, VulnerabilityCase):
             return Status.SUCCESS
-        end_time = self._proposed_end_time()
-        if end_time is None:
+        try:
+            end_time = self._proposed_end_time()
+        except VultronError as exc:
+            self.logger.debug(
+                "%s: proposed terms '%s' not readable (%s) — nothing to"
+                " compare",
+                self.name,
+                self.embargo_id,
+                exc,
+            )
             return Status.SUCCESS
-        holding = self._holding_entry(case, end_time)
+        holding: EmbargoRegisterEntry | None = None
+        for entry in self._held_entries(case):
+            # The proposal's own entry is not a second proposal of its
+            # terms: an Invite naming an embargo the register already holds
+            # is judged by id, by the guards and effects that read the
+            # register.
+            if entry.embargo_id == self.embargo_id:
+                continue
+            try:
+                entry_end_time = self._entry_end_time(entry)
+            except VultronError as exc:
+                self.logger.warning(
+                    "%s: register entry '%s' on case '%s' is not readable"
+                    " (%s); left out of the duplicate check (EP-09-032)",
+                    self.name,
+                    entry.embargo_id,
+                    self.case_id,
+                    exc,
+                )
+                continue
+            if entry_end_time == end_time:
+                holding = entry
+                break
         if holding is None:
             return Status.SUCCESS
         self.is_repeat = True

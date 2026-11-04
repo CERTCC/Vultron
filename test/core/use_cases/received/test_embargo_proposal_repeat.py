@@ -114,6 +114,40 @@ def test_an_initial_proposal_repeating_pending_terms_registers_nothing(
 
 
 @pytest.mark.spec("EP-09-032")
+def test_a_duplicate_proposal_is_logged_at_info_not_warning(
+    make_payload, caplog
+):
+    """A duplicate is a benign no-op, so its handler logs no WARNING."""
+    case_id = "https://example.org/cases/repeat-log-level"
+    dl, first = _unbound_case(
+        case_id, store_actor=MANAGER, participants=[PROPOSER, OTHER_A]
+    )
+    _deliver(dl, _proposal(first, case_id), make_payload, MANAGER)
+    repeat = _terms(dl, case_id, "repeat-log", first.end_time)
+    repeat_invite_id = f"{case_id}/embargo_proposals/repeat-log"
+
+    with caplog.at_level(
+        logging.INFO, logger="vultron.core.use_cases.received.embargo.invite"
+    ):
+        verdict = _deliver(
+            dl,
+            _proposal(repeat, case_id, id_=repeat_invite_id),
+            make_payload,
+            MANAGER,
+        )
+
+    assert verdict.disposition is HandlerDisposition.SKIPPED
+    handler_records = [
+        r
+        for r in caplog.records
+        if r.name == "vultron.core.use_cases.received.embargo.invite"
+        and repeat_invite_id in r.getMessage()
+    ]
+    assert handler_records
+    assert all(r.levelno == logging.INFO for r in handler_records)
+
+
+@pytest.mark.spec("EP-09-032")
 def test_the_same_terms_from_another_participant_are_a_duplicate(
     make_payload,
 ):

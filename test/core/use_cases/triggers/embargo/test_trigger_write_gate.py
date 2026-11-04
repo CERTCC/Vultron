@@ -181,7 +181,6 @@ def test_repeated_non_manager_proposal_is_suppressed(
     assert third.activity is not None
 
 
-@pytest.mark.spec("EP-09-032")
 @pytest.mark.spec("SYNC-11-005")
 @pytest.mark.spec("SYNC-11-006")
 def test_an_ask_the_manager_treats_as_a_repeat_closes_on_its_timeout(

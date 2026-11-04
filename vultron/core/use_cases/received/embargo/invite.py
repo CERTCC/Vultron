@@ -254,7 +254,10 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 verdict = HandlerResult.refused(subjects.reason)
         elif verdict.disposition is HandlerDisposition.REFUSED:
             verdict = self._refusal(tree, verdict, case_id, subjects)
-        if verdict.disposition is not HandlerDisposition.APPLIED:
+        if verdict.disposition is HandlerDisposition.SKIPPED:
+            # A repeat is a benign no-op, not a recoverable fault (CLP-13-003).
+            logger.info("%s (invite '%s')", verdict.reason, invite_id)
+        elif verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning("%s (invite '%s')", verdict.reason, invite_id)
         # No deadline is stored on receipt: the CASE_MANAGER recorded the one
         # it stamped at its relay's commit, and a replica records that value
