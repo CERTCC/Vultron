@@ -45,9 +45,13 @@ that hand-rolls its own participant is caught too.
 
 from __future__ import annotations
 
+import functools
 import logging
 from collections.abc import Callable, Iterator
 from typing import Any
+
+import pytest
+from pydantic import ValidationError
 
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
@@ -147,6 +151,15 @@ _GUARDED_WRITE_METHODS = (
     "update",
 )
 
+#: Every violation the guard raised during the current test, newest last.
+#:
+#: The raise alone cannot be trusted to surface: BT nodes and the bridge catch
+#: ``Exception`` and turn it into ``Status.FAILURE`` or an ``internal_error``
+#: result, so a swallowed guard failure would leave a test green with an
+#: impossible state in its store.  ``install_impossible_state_guard`` clears
+#: this list, and the installing fixture drains it after the test body.
+_RECORDED_VIOLATIONS: list[str] = []
+
 
 def impossible_state_reasons(status: object) -> list[str]:
     """Return every composite-state entailment *status* violates.
@@ -177,17 +190,41 @@ def assert_possible_participant_status(status: object, where: str) -> None:
     """Raise when *status* encodes a state the CS invariants forbid.
 
     *where* names the thing being checked — a participant id, a fixture helper
-    — so the failure points at the fixture rather than at the guard.
+    — so the failure points at the fixture rather than at the guard.  The
+    message is also recorded in :data:`_RECORDED_VIOLATIONS`, so a caller whose
+    raise is swallowed downstream can still report it.
     """
     reasons = impossible_state_reasons(status)
     if not reasons:
         return
-    raise AssertionError(
+    message = (
         f"{where} encodes a participant state the protocol forbids."
         " A fixture in an impossible state makes the test pass for a reason"
         " other than the behaviour it names, and fail when the matching"
         f" invariant is enforced (#3046). Violations: {'; '.join(reasons)}"
     )
+    _RECORDED_VIOLATIONS.append(message)
+    raise AssertionError(message)
+
+
+def _readable_status(entry: object) -> object | None:
+    """*entry* with readable dimensions, or ``None`` when it is not a status.
+
+    A domain object is already readable.  A ``StorableRecord``'s ``data_`` holds
+    ``model_dump(mode="json")`` output, so its entries are plain dicts; those
+    are coerced through :class:`ParticipantStatus` so the canonical dimension
+    readers can see them.  Anything that will not validate is not a status this
+    guard can judge — ``test_impossible_fixture_guard.py`` pins both halves of
+    that, so the skip cannot quietly widen into a no-op.
+    """
+    if getattr(entry, "rm", None) is not None:
+        return entry
+    if isinstance(entry, dict):
+        try:
+            return ParticipantStatus.model_validate(entry)
+        except ValidationError:
+            return None
+    return None
 
 
 def assert_recorded_states_possible(
@@ -197,42 +234,70 @@ def assert_recorded_states_possible(
 
     ``participant_statuses`` is the participant's append-only history
     (SM-05-002), and CSB-18-001 is a statement about a participant's composite
-    state, so every entry is in scope, not only the current one.  Entries held
-    by reference (a bare id rather than an inline snapshot) carry no dimensions
-    and are skipped.
+    state, so every entry is in scope, not only the current one.
     """
-    statuses = getattr(participant, "participant_statuses", None)
+    statuses = _status_entries(participant)
     if not statuses:
         return
     label = where or str(getattr(participant, "id_", participant))
-    for index, status in enumerate(statuses):
-        if getattr(status, "rm", None) is None:
+    for index, entry in enumerate(statuses):
+        status = _readable_status(entry)
+        if status is None:
             continue
         assert_possible_participant_status(
             status, f"{label} participant_statuses[{index}]"
         )
 
 
+def _status_entries(value: object) -> list[Any]:
+    """The participant-status list *value* carries, in either shape.
+
+    A domain object exposes ``participant_statuses``; a ``StorableRecord``
+    carries the same list inside its ``data_`` dict, which is how
+    ``UpdateObject`` writes a participant.  Reading only the attribute left the
+    record shape unchecked.
+    """
+    statuses = getattr(value, "participant_statuses", None)
+    if statuses:
+        return list(statuses)
+    data = getattr(value, "data_", None)
+    if isinstance(data, dict):
+        return list(data.get("participant_statuses") or ())
+    return []
+
+
 def _participant_records(value: object) -> Iterator[object]:
     """Yield every participant record reachable from a persisted *value*.
 
-    A test may seed a participant on its own (``dl.create(vendor)``) or only
-    inline on the case (``case.case_participants``), and
-    ``_dehydrate_data`` keeps the inline snapshot, so both reach a store.  A
-    standalone ``ParticipantStatus`` write is *not* a participant record and is
-    deliberately not yielded: the received-side tests store the inbound status
-    they expect to be refused, and that one is allowed to be impossible.
+    Four shapes reach a store and all four are walked:
+
+    * a participant seeded on its own (``dl.create(vendor)``);
+    * a participant held inline on a case (``case.case_participants``) —
+      ``_dehydrate_data`` keeps the inline snapshot;
+    * a ``StorableRecord`` whose ``data_`` dict holds the statuses, which is
+      what ``UpdateObject`` writes;
+    * a list or tuple of any of those, which is what ``save_many`` takes —
+      ownership transfer and embargo staging both write participants that way.
+
+    A standalone ``ParticipantStatus`` write is *not* a participant record and
+    is deliberately not yielded: the received-side tests store the inbound
+    status they expect to be refused, and that one is allowed to be impossible.
     """
-    if getattr(value, "participant_statuses", None):
+    if isinstance(value, list | tuple):
+        for item in value:
+            yield from _participant_records(item)
+        return
+    if _status_entries(value):
         yield value
     for participant in getattr(value, "case_participants", None) or ():
-        if getattr(participant, "participant_statuses", None):
+        if _status_entries(participant):
             yield participant
 
 
 def _guarded_write(
     method: Callable[..., Any], name: str
 ) -> Callable[..., Any]:
+    @functools.wraps(method)
     def _wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
         for value in (*args, *kwargs.values()):
             for candidate in _participant_records(value):
@@ -245,7 +310,7 @@ def _guarded_write(
     return _wrapper
 
 
-def install_impossible_state_guard(monkeypatch: Any) -> None:
+def install_impossible_state_guard(monkeypatch: pytest.MonkeyPatch) -> None:
     """Refuse any DataLayer write of a participant in an impossible state.
 
     Wraps each of :data:`_GUARDED_WRITE_METHODS` on ``SqliteDataLayer`` so the
@@ -253,19 +318,52 @@ def install_impossible_state_guard(monkeypatch: Any) -> None:
     the state.  A teardown scan could not do that: the store a test opens is
     closed by the fixture that opened it.
 
-    The guard holds the whole protocol to the rule, not just the fixtures: a
-    production path that commits an impossible participant state fails here
-    too, which is the point — CSB-18-001's ``verification`` asks for exactly
-    this call over each participant.
+    The guard holds the production paths to the rule too, not just the
+    fixtures: a tree that commits an impossible participant state trips it on
+    the way to the store, which is what CSB-18-001's ``verification`` asks for.
+    The raise alone is not enough to *report* that, because a tree write runs
+    under ``except Exception`` handlers that turn it into ``Status.FAILURE`` or
+    an ``internal_error`` result (``notes/bt-integration.md``).  So each
+    violation is also recorded in :data:`_RECORDED_VIOLATIONS`, which the
+    caller asserts empty once the test body is done — see
+    :func:`drain_recorded_violations`.
 
     ``monkeypatch`` undoes the wrapping at teardown, so the guard never leaks
     into a test that did not ask for it.
     """
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
+    _RECORDED_VIOLATIONS.clear()
     for name in _GUARDED_WRITE_METHODS:
         monkeypatch.setattr(
             SqliteDataLayer,
             name,
             _guarded_write(getattr(SqliteDataLayer, name), name),
         )
+
+
+def drain_recorded_violations() -> list[str]:
+    """Return and clear every violation the guard raised during the test.
+
+    A node's ``except Exception`` can swallow the guard's ``AssertionError``,
+    so the raise is not a reliable report on a tree write path.  This list is:
+    the caller fails the test on a non-empty return even when nothing
+    propagated.
+    """
+    recorded = list(_RECORDED_VIOLATIONS)
+    _RECORDED_VIOLATIONS.clear()
+    return recorded
+
+
+def expect_recorded_violation(fragment: str) -> None:
+    """Acknowledge a violation this test *meant* to trip, and clear the record.
+
+    A test whose subject is the guard catches the raise itself, so the record
+    the installing fixture drains afterwards would fail it.  Calling this both
+    asserts the violation was recorded — the raise and the record must agree —
+    and takes it off the list.
+    """
+    recorded = drain_recorded_violations()
+    assert any(fragment in message for message in recorded), (
+        f"expected a recorded violation naming {fragment!r}; got {recorded!r}"
+    )

@@ -195,17 +195,21 @@ class TestDeferCheckNodeBootstrapNeverDeferred:
 
     @pytest.mark.spec("PCR-06-002", "PCR-07-005")
     def test_non_bootstrap_case_semantic_is_still_deferred(self):
-        """Semantics that presuppose the case are still deferred."""
+        """Semantics that presuppose the case are still deferred.
+
+        The whole queued tuple is pinned, so the entry is shown to be keyed on
+        the resolved case context rather than merely to exist.
+        """
+        unknown_case = "https://example.org/cases/not-yet-known"
         queue = _StubQueuePort(case_known=False)
         status = _run_node(
-            "https://example.org/cases/not-yet-known",
+            unknown_case,
             queue,
             semantic_type=MessageSemantics.ENGAGE_CASE,
         )
 
         assert status == Status.FAILURE
-        assert len(queue.queued) == 1
-        assert queue.queued[0][1] == "https://example.org/cases/not-yet-known"
+        assert queue.queued == [(ACTIVITY_ID, unknown_case, ACTOR_ID)]
 
 
 class TestDeferCheckNodeStubInviteProcessedOnArrival:

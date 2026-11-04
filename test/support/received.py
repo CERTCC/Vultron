@@ -376,19 +376,30 @@ def received_activity(dl: Any, activity_id: str) -> Any:
     return read_received_as_received(dl, activity_id)
 
 
-def received_of_type(dl: CasePersistence, activity_type: str) -> list[Any]:
-    """Every *activity_type* activity *dl* holds as received, as received.
+def received_activities(dl: CasePersistence) -> list[Any]:
+    """Every activity *dl* holds as received, whatever its type.
 
     A receiver keeps a received activity only in its ``ReceivedActivityRecord``
     (DL-06-006), so a per-type table scan never finds one.  Each is parsed
     from the body the record holds.
+
+    Use this when the question is about the whole delivered set — "did anything
+    arrive naming *this* actor as its sender" — rather than about one type.
     """
-    parsed = (
+    return [
         parse_received_body(record.received_body)
         for record in dl.list_objects(ReceivedActivityRecord.__name__)
         if isinstance(record, ReceivedActivityRecord)
-    )
-    return [activity for activity in parsed if activity.type_ == activity_type]
+    ]
+
+
+def received_of_type(dl: CasePersistence, activity_type: str) -> list[Any]:
+    """Every *activity_type* activity *dl* holds as received, as received."""
+    return [
+        activity
+        for activity in received_activities(dl)
+        if activity.type_ == activity_type
+    ]
 
 
 def received_record(

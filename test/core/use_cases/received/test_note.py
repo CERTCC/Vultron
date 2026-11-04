@@ -143,22 +143,34 @@ class TestNoteUseCases:
     def test_the_context_decides_which_replica_the_note_lands_on(
         self, make_payload
     ):
-        """PCR-07-004: ``context`` alone picks the case the activity acts on.
+        """PCR-07-004: the case ``context`` names is the one the note reaches.
 
-        One actor holds one inbox and several replicas (PCR-04-003), so the
-        only thing that distinguishes two otherwise identical ``Add(Note)``
-        activities is the case their ``context`` names.  Holding *two* cases is
-        what makes the assertion mean something: against a store holding one
-        case, "the note landed on the case" is true however the handler chose
-        it.
+        One actor holds one inbox and several replicas (PCR-04-003), so what
+        this pins is that the activity acts on the case its ``context`` names
+        and leaves the other alone.  Holding *two* cases is what makes that
+        mean anything: against a store holding one case, "the note landed on
+        the case" is true however the handler chose it.
+
+        It does not isolate ``context`` from ``target``: a well-formed
+        ``Add(Note)`` names the same case in both, so an activity naming one
+        case in ``context`` and another in ``target`` is not a shape the
+        protocol produces.  That ``context`` and not the inline object is what
+        the resolver reads is pinned separately, by
+        ``test_non_bootstrap_ignores_inline_object_id`` in
+        ``test/core/models/events/test_case_context.py``.
+
+        The bystander is seeded *first*, so the CaseActor ``Service`` the two
+        cases share carries the bystander's id in its own single-valued
+        ``context``: a handler that read the receiving actor's context instead
+        of the activity's would land the note on the wrong case.
         """
         case_actor_id = "https://example.org/cases/case_n1r/actor"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
-        addressed = self._setup_case_with_case_manager(
-            dl, "https://example.org/cases/case_n1r", case_actor_id
-        )
         bystander = self._setup_case_with_case_manager(
             dl, "https://example.org/cases/case_n1r_other", case_actor_id
+        )
+        addressed = self._setup_case_with_case_manager(
+            dl, "https://example.org/cases/case_n1r", case_actor_id
         )
         note = as_Note(
             id_="https://example.org/notes/note-routed",

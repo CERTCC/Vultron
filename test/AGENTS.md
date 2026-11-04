@@ -163,6 +163,12 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
   comparisons need presence checks before equality (`"" == ""` passes);
   `MagicMock` needs `spec=` wherever code uses `isinstance()`; the genesis-hash
   path needs a stored case (CLP-08-004); `call_args.args` over `call_args[0]`.
+- **A status fixture may not encode a state the CS invariants forbid** — a
+  pre-acceptance RM with `vf=VF` or `d=D`, or `Vf` with `d=D`, cannot exist
+  (CSB-18-001, CSB-17-001), so a test built on one passes for the wrong reason
+  and breaks when the invariant lands (#3046). An autouse guard covers
+  `test/core/behaviors/status/` and the shared `current_status()`/`seed_case()`
+  builders; everywhere else, ask `impossible_state_reasons()`.
 - **A test that "falls back to" a value for *malformed* input is asserting a
   bug** — absent input and unreadable input are different.
 - **A FAILURE test must prove the harness can produce its named reason** — the
