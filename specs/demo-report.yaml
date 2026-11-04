@@ -243,7 +243,7 @@ groups:
       case; partitioning by `case_id` preserves that guarantee when the input
       directory holds more than one.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DRPT-02-004
   - id: DRPT-02-009
     priority: MUST
@@ -341,7 +341,7 @@ groups:
       A URI or a UUID as the subject or object of a summary hides who did what. The
       friendly name of DRPT-03-001 goes in that position instead.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: DRPT-03-001
   - id: DRPT-03-010
     priority: SHOULD
@@ -353,7 +353,7 @@ groups:
       that actor (DRPT-01-003). That name is short and reads as a role, such as
       `reporter` or `vendor`.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: DRPT-03-001
   - id: DRPT-03-011
     priority: MAY
@@ -364,9 +364,6 @@ groups:
     rationale: >-
       The full identifier stays available as secondary detail, so a reader can still
       find the exact object while the summary uses its friendly name.
-    relationships:
-    - rel_type: refines
-      spec_id: DRPT-03-001
   - id: DRPT-03-003
     priority: MUST
     kind: project
@@ -384,7 +381,7 @@ groups:
       in wire payloads (e.g. `Organization` objects in `Invite` or `Accept`
       activities), making payload-scan the correct extraction point.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: DRPT-03-001
   - id: DRPT-03-002
     priority: MUST
@@ -398,9 +395,6 @@ groups:
       `SEMANTIC_REGISTRY` already holds a phrase for each message semantic (SE-07-001).
       When the tool uses that phrase, every semantic in the registry has a summary, and
       the summary cannot become different from the registry.
-    relationships:
-    - rel_type: refines
-      spec_id: DRPT-03-001
   - id: DRPT-03-004
     priority: MUST
     kind: project
@@ -412,7 +406,7 @@ groups:
       The resolved display labels are the friendly names of DRPT-03-001. Slots filled
       from them give a summary such as "Reporter submitted report".
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: DRPT-03-002
   - id: DRPT-03-012
     priority: MUST
@@ -540,9 +534,6 @@ groups:
     rationale: >-
       A report written to a file can be kept as a CI artifact or shared after the run.
       A configurable path lets a CI job put it where the artifact upload looks.
-    relationships:
-    - rel_type: extends
-      spec_id: DRPT-04-004
   - id: DRPT-04-005
     priority: SHOULD
     kind: project
@@ -606,8 +597,6 @@ groups:
       spec_id: DRPT-04-001
     - rel_type: extends
       spec_id: DRPT-04-002
-    - rel_type: extends
-      spec_id: DRPT-04-006
 
   - id: DRPT-04-008
     priority: MUST
@@ -803,7 +792,11 @@ groups:
       the cases that a fixture with real events does not reach.
     relationships:
     - rel_type: verifies
-      spec_id: DRPT-04-007
+      spec_id: DRPT-04-012
+    - rel_type: verifies
+      spec_id: DRPT-04-013
+    - rel_type: verifies
+      spec_id: DRPT-04-014
 
   - id: DRPT-05-006
     priority: MUST
