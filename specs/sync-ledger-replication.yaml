@@ -933,7 +933,7 @@ groups:
       spec_id: SYNC-09-001
     stories:
     - story_2022_045
-    - story_2026_015
+    - story_2026_063
   - id: SYNC-09-002
     priority: MUST
     kind: protocol

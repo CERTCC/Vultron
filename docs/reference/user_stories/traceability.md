@@ -1405,7 +1405,6 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 |---|---|
 | MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-05-005](../vultron-spec/requirements/messages.md#msm-05-005) |
 | OX — Outbox | [OX-14-002](../vultron-spec/requirements/transport-security.md#ox-14-002) |
-| SYNC — Case Event Log Synchronization | [SYNC-09-005](../vultron-spec/requirements/ledger-replication.md#sync-09-005) |
 | VM — Vocabulary Model | [VM-08-003](../vultron-spec/requirements/messages.md#vm-08-003) |
 
 ## [story_2026_016](story_2026_016.md)
@@ -1834,7 +1833,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | BT — Behavior Tree Integration | [BT-03-001](../specs/project.md#bt-03-001), [BT-03-004](../specs/project.md#bt-03-004) |
 | LST — Lifecycle-Staged Domain Types | [LST-05-003](../specs/project.md#lst-05-003) |
 | SM — State Machine | [SM-06-002](../specs/project.md#sm-06-002) |
-| SYNC — Case Event Log Synchronization | [SYNC-04-002](../specs/project.md#sync-04-002), [SYNC-09-001](../vultron-spec/requirements/ledger-replication.md#sync-09-001) |
+| SYNC — Case Event Log Synchronization | [SYNC-04-002](../specs/project.md#sync-04-002), [SYNC-09-001](../vultron-spec/requirements/ledger-replication.md#sync-09-001), [SYNC-09-005](../vultron-spec/requirements/ledger-replication.md#sync-09-005) |
 
 ## [story_2026_064](story_2026_064.md)
 
