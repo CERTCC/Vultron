@@ -32,7 +32,7 @@ related_notes:
   - notes/case-ledger-authority.md
 relevant_packages:
   - vultron/adapters/driven/http_delivery.py
-  - vultron/adapters/driving/fastapi/outbox_handler.py
+  - vultron/adapters/driving/fastapi/outbox_handler/
   - vultron/adapters/driving/fastapi/outbox_lanes.py
   - vultron/adapters/driven/sync_activity_adapter.py
   - vultron/adapters/driven/datalayer_sqlite/engine.py

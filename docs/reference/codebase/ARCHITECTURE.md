@@ -64,7 +64,7 @@ HTTP POST /actors/{actor_id}/inbox  (wire: AS2 JSON)
   -> BTBridge runs the received tree  `vultron/core/behaviors/bridge.py`
      intake -> door guards -> [ledger-position answer] -> [clock decisions] -> precondition guards -> commit -> effects; nodes write through DataLayer
   -> DataLayer                     `vultron/adapters/driven/datalayer_sqlite/` (one store per actor, ADR-0073)
-  -> outbox handler + lanes        `vultron/adapters/driving/fastapi/outbox_handler.py`, `outbox_lanes.py`
+  -> outbox handler + lanes        `vultron/adapters/driving/fastapi/outbox_handler/drain.py`, `outbox_lanes.py`
      (sealed body relayed as stored; per-recipient order, ADR-0112)
   -> outbound delivery             `vultron/adapters/driven/http_delivery.py`
      (`prod_http_delivery.py` is a NotImplementedError stub; demo uses `demo_http_delivery.py`)
