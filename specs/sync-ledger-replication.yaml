@@ -2650,6 +2650,8 @@ groups:
       spec_id: CLP-04-007
     - rel_type: constrains
       spec_id: RSH-09-006
+    - rel_type: supersedes
+      spec_id: ASK-07-008
     adr:
     - ADR-0142
     verification: >-
