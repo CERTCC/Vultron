@@ -556,27 +556,43 @@ never calls `create_case_manager_gated_tree` itself.
   configure the gate.
 - **Emit-capable nodes carry `EmitCapable`** (`vultron/core/behaviors/emit_capable.py`).
   The factory raises `VultronWiringError` when a marked node sits in
-  `replica_effects` outside every `CaseManagerGate` without a covering exemption.
-  Only `create_case_manager_gated_tree` builds a `CaseManagerGate`; neither the
-  participant-replica gate nor a `PathBranch` off the manager path counts, since
-  both run at a replica.
+  `replica_effects` outside both of BT-17-008's guards.
+  Only `create_case_manager_gated_tree` builds a `CaseManagerGate`, and a
+  `PathBranch` counts only when it names the manager path alone; one off that
+  path runs at a replica, so the walk descends into it.
 - **Ledger replication carries no marker.** Senders through `SyncActivityPort` or
   `create_commit_log_entry_tree` are gated by ledger authority
   (`DeclineForeignLedgerCommitNode`, ADR-0073) and pinned in
   `LEDGER_REPLICATION_SENDERS`.
-- **A by-design ungated emit is a named exemption.** `replica_emit_exemption`
-  takes a `ReplicaEmitExemption` (`replica_emit_exemptions.py`) with a name, a
-  reason and `covers`; the factory refuses an unregistered exemption, an ungated
-  emitter outside `covers`, and an exemption covering nothing (stale). A
-  migration-only exemption names the issue that deletes it. A sender check is no
-  substitute: it says nothing about whether this replica owns the case.
+- **BT-17-008's second arm is a marked leaf, not a shape.** A leaf that admits
+  the executing actor alone — the Invite's invitee, the role Offer's target —
+  carries `SpeaksForExecutingActor`
+  (`vultron/core/behaviors/speaks_for_executing_actor.py`), and
+  `ungated_emitters` stops at it: ahead of the emit in a `Sequence`, or as the
+  inverted first arm of a `Selector`, it bounds what follows exactly as the
+  gate does. Carry it only for an identity check; a node that checks the
+  receiver holds the case, holds a role, or has its port wired says nothing
+  about whom the emit speaks for. `ungated_nodes` does **not** read it: the
+  state-write ratchet asks RSH-08-003's question, and a received-side write
+  belongs to the CASE_MANAGER whoever it is about.
+- **An exemption is a waiver of BT-17-008, never a satisfaction of it.** The
+  requirement has two arms and no third, so `replica_emit_exemption` takes a
+  `ReplicaEmitExemption` (`replica_emit_exemptions.py`) only for an emit that
+  can carry neither, and its `reason` says which it lacks. The registry stays
+  small by construction: an emit a path declaration can bound loses its entry,
+  and so does one already behind a marked leaf. The factory refuses an
+  unregistered exemption, an ungated emitter outside `covers`, and an
+  exemption covering nothing (stale) — which is the enforcement the registry
+  exists for, and why the registry is kept rather than retired with its
+  entries. A sender check is no substitute: it says nothing about whether this
+  replica owns the case.
 - **Refusal effects are gated too**: `refusal_effects` run only when a guard
   refuses, inside `{name}RefusalIfCaseManager` with `case_may_be_absent=True`
   (CLP-10-022); see [bt-integration.md](bt-integration.md) § "The Four
   Received-Side Stages".
 - **`manager_effects` run last, so a step that must follow gated work moves.** If
-  the gate and the participant-replica arm partition every receiver, put the step
-  at the end of each arm. If the step is also CASE_MANAGER-only, put both in
+  the gate and an `OnPaths.off_case_manager` branch partition every receiver, put
+  the step at the end of each arm. If the step is also CASE_MANAGER-only, put both in
   `manager_effects` in order. A gated emit inside a branch whose guards cannot be
   re-checked is not split from it — each arm builds the whole branch from one
   helper. Never keep the order with an in-place `Selector[Sequence[check, emit],

@@ -48,8 +48,16 @@ A tree that declares its paths needs no such reading: its path door stage
 refuses the undeclared path itself, :func:`door_refusal` returns that refusal
 with the reason the stage composed from the resolved path and the declaration
 (HP-01-039), and the handler asks :func:`received_path` which of the three
-paths it is on.  :func:`not_case_manager` and
-:func:`not_case_manager_refusal` remain for the trees still to be migrated.
+paths it is on.
+
+:func:`not_case_manager` and :func:`not_case_manager_refusal` remain for the
+trees still to be migrated, and go with the last of them rather than with a
+migration wave of their own: the predicate reads a failed
+``CheckIsCaseManagerNode`` anywhere in the tree, and the factory's own gate
+round ``manager_effects`` holds one in every tree that has any, so the
+predicate cannot be deleted while a tree that passes no path declaration
+still reaches it.  The note and dead-letter trees (#5785) and the
+``Offer(VulnerabilityReport)`` trees (#5046) are the ones left.
 """
 
 from vultron.core.use_cases.received._bt_verdict.case_manager import (

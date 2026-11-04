@@ -24,9 +24,10 @@ from collections.abc import Callable
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
+from vultron.core.behaviors.case.nodes.path_branch import wrap_children
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
-    create_participant_replica_gated_tree,
 )
 from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
@@ -67,6 +68,42 @@ def _asserting(
 ABANDONMENT_LEFT_TO_CASE_MANAGER = "LeaveToCaseManager"
 
 
+def _skip_at_case_manager(
+    name: str,
+    case_id: str,
+    children: list[py_trees.behaviour.Behaviour],
+) -> py_trees.composites.Selector:
+    """Run *children* only when the executing actor is **not** the CASE_MANAGER.
+
+    The complement of
+    :func:`~vultron.core.behaviors.case.nodes.role_gates.create_case_manager_gated_tree`,
+    kept here because the trigger side is the only caller left: a trigger runs
+    on the actor's own initiative, so no received path chose it and there is no
+    path stage whose answer the arm could read (ADR-0153 governs the received
+    side alone).  A received tree asks for this with
+    :meth:`~vultron.core.behaviors.case.nodes.path_branch.OnPaths.off_case_manager`
+    instead, and the factory builds the branch (HP-01-038).
+
+    Structure::
+
+        <name> (Selector)
+        ├── SkipIfCaseManager (CheckIsCaseManagerNode)  # SUCCESS when it is
+        └── <children>                                  # only when it is not
+
+    No ``Inverter`` is needed and no failure is masked: the first arm is a
+    pure condition, so a Selector that falls through to *children* reports
+    their FAILURE as its own.
+    """
+    return py_trees.composites.Selector(
+        name=name,
+        memory=False,
+        children=[
+            CheckIsCaseManagerNode(case_id=case_id, name="SkipIfCaseManager"),
+            wrap_children(name, children),
+        ],
+    )
+
+
 def _by_role(
     name: str,
     case_id: str,
@@ -90,7 +127,7 @@ def _by_role(
             children=as_case_manager,
             as_one_act=True,
         ),
-        create_participant_replica_gated_tree(
+        _skip_at_case_manager(
             name=f"{name}{otherwise_suffix}",
             case_id=case_id,
             children=otherwise,

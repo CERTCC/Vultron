@@ -28,9 +28,6 @@ from vultron.core.behaviors.act_transaction import (
     ActTransaction,
     OneActExemption,
 )
-from vultron.core.behaviors.case.nodes.delegation import (
-    EmitRejectCaseParticipantRoleNode,
-)
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
@@ -43,7 +40,6 @@ from vultron.core.behaviors.case.nodes.refusal_stage import (
 from vultron.core.behaviors.case.nodes.role_gates import (
     CaseManagerGate,
     create_case_manager_gated_tree,
-    create_participant_replica_gated_tree,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -53,7 +49,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 )
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.replica_emit_exemptions import (
-    OFFER_ROLE,
+    EMBARGO_INVITE_FAULT,
     ReplicaEmitExemption,
 )
 from vultron.core.behaviors.sender_entitlement import (
@@ -69,7 +65,6 @@ from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.ledger_position_stage import (
     LEDGER_POSITION_GATE_NAME,
 )
-from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
 
 CASE_ID = "https://example.org/cases/case-factory-gate-001"
@@ -116,14 +111,15 @@ def _effect(name: str = "Effect") -> py_trees.behaviour.Behaviour:
     return py_trees.behaviours.Success(name=name)
 
 
-def _role_reject_emit() -> EmitRejectCaseParticipantRoleNode:
-    return EmitRejectCaseParticipantRoleNode(
-        offer_id="urn:uuid:offer",
-        case_id=CASE_ID,
-        role=CVDRole.VENDOR,
-        target_actor_id="urn:uuid:target",
-        vendor_id="urn:uuid:vendor",
-    )
+class _CoveredEmitter(_Emitter):
+    """A stand-in named like the emit the surviving exemption covers."""
+
+
+_CoveredEmitter.__name__ = "EmitEmbargoInviteFaultNode"
+
+
+def _covered_emit() -> py_trees.behaviour.Behaviour:
+    return _CoveredEmitter("CoveredEmit")
 
 
 def _names(tree: py_trees.behaviour.Behaviour) -> list[str]:
@@ -413,14 +409,14 @@ class TestNamedExemption:
     def test_a_registered_exemption_admits_the_emitters_it_covers(
         self,
     ) -> None:
-        emit = _role_reject_emit()
+        emit = _covered_emit()
 
         tree = create_receive_activity_tree(
             name="RoleOfferBT",
             case_id=CASE_ID,
             precondition_guards=[],
             replica_effects=[emit],
-            replica_emit_exemption=OFFER_ROLE,
+            replica_emit_exemption=EMBARGO_INVITE_FAULT,
         )
 
         assert received_stages(tree)[-1] is emit
@@ -433,8 +429,8 @@ class TestNamedExemption:
                 name="RoleOfferBT",
                 case_id=CASE_ID,
                 precondition_guards=[],
-                replica_effects=[_role_reject_emit(), _Emitter()],
-                replica_emit_exemption=OFFER_ROLE,
+                replica_effects=[_covered_emit(), _Emitter()],
+                replica_emit_exemption=EMBARGO_INVITE_FAULT,
             )
 
     def test_an_unregistered_exemption_is_refused(self) -> None:
@@ -459,7 +455,7 @@ class TestNamedExemption:
                 case_id=CASE_ID,
                 precondition_guards=[],
                 replica_effects=[_effect()],
-                replica_emit_exemption=OFFER_ROLE,
+                replica_emit_exemption=EMBARGO_INVITE_FAULT,
             )
 
     def test_an_exemption_needs_a_reason(self) -> None:
@@ -485,7 +481,16 @@ def test_ungated_emitters_skips_only_the_case_manager_gate() -> None:
 def test_ungated_nodes_walks_the_replica_gate_but_not_the_manager_gate() -> (
     None
 ):
-    """The RSH-08-003 walk: only the CASE_MANAGER gate hides a write."""
+    """The RSH-08-003 walk: only the CASE_MANAGER gate hides a write.
+
+    The complement-gate shape is built inline: ADR-0153 retired the factory
+    that made it on the received side, and the walk must still descend into
+    it wherever one is written again (#5044).
+    """
+    from vultron.core.behaviors.case.nodes.conditions import (
+        CheckIsCaseManagerNode,
+    )
+
     gated = _Writer("Gated")
     replica = _Writer("ReplicaOnly")
     bare = _Writer("Bare")
@@ -493,8 +498,15 @@ def test_ungated_nodes_walks_the_replica_gate_but_not_the_manager_gate() -> (
         create_case_manager_gated_tree(
             name="Gate", case_id=CASE_ID, children=[gated]
         ),
-        create_participant_replica_gated_tree(
-            name="ReplicaGate", case_id=CASE_ID, children=[replica]
+        py_trees.composites.Selector(
+            name="ReplicaGate",
+            memory=False,
+            children=[
+                CheckIsCaseManagerNode(
+                    case_id=CASE_ID, name="SkipIfCaseManager"
+                ),
+                replica,
+            ],
         ),
         py_trees.composites.Sequence(
             name="Plain", memory=False, children=[bare, _Emitter()]

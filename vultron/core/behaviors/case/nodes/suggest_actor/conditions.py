@@ -35,9 +35,6 @@ Node classes:
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
-)
 from vultron.core.behaviors.case.nodes.suggest_actor.pending_request import (
     invitee,
     offered_participant_actor,
@@ -284,7 +281,7 @@ class SuggestedActorIsInvitableNode(
 
 def case_manager_admits_accepted_invitee_guard(
     answer_id: str, case_id: str
-) -> py_trees.composites.Selector:
+) -> py_trees.composites.Sequence:
     """Precondition guard for the Case Owner's Accept of a recommendation.
 
     The CASE_MANAGER looks up the Offer the Accept names and the
@@ -292,13 +289,17 @@ def case_manager_admits_accepted_invitee_guard(
     runs :class:`AcceptedInviteeIsNotRemovedNode` (CM-31-013) and
     :class:`SuggestedActorIsInvitableNode` on the recorded invitee, so an
     Accept naming an Offer it never recorded, or a removed, joined or closed
-    actor, is refused before the guarded commit; a replica skips all three
-    as ``SUCCESS`` (RSH-08-003).
+    actor, is refused before the guarded commit.
+
+    The three run bare, with no gate of their own: their tree declares the
+    CASE_MANAGER path alone, so the path door stage has already refused every
+    other receiver and a gate here would ask the role a second time
+    (HP-01-036, HP-01-038).  The composite keeps the gate body's name, so a
+    built tree still reads the same.
     """
-    return create_case_manager_gated_tree(
-        name="AcceptedInviteeAdmittedIfCaseManager",
-        case_id=case_id,
-        body_name="AcceptedInviteeAdmitted",
+    return py_trees.composites.Sequence(
+        name="AcceptedInviteeAdmitted",
+        memory=False,
         children=[
             RequireRecordedOfferAnswerNode(
                 verb="Accept", answer_id=answer_id, case_id=case_id
@@ -315,46 +316,38 @@ def case_manager_admits_accepted_invitee_guard(
 
 def case_manager_requires_recorded_rejection_guard(
     answer_id: str, case_id: str
-) -> py_trees.composites.Selector:
+) -> py_trees.behaviour.Behaviour:
     """Precondition guard for the Case Owner's Reject of a recommendation.
 
     The CASE_MANAGER looks up the Offer the Reject names and the
     recommendation behind it (:class:`RequireRecordedOfferAnswerNode`), so a
-    Reject naming either unrecorded is refused before the guarded commit; a
-    replica skips it as ``SUCCESS`` (RSH-08-003).
+    Reject naming either unrecorded is refused before the guarded commit.
+    One node, run bare for the reason in
+    :func:`case_manager_admits_accepted_invitee_guard`.
     """
-    return create_case_manager_gated_tree(
-        name="RejectedOfferRecordedIfCaseManager",
+    return RequireRecordedOfferAnswerNode(
+        verb="Reject",
+        answer_id=answer_id,
         case_id=case_id,
-        body_name="RejectedOfferRecorded",
-        children=[
-            RequireRecordedOfferAnswerNode(
-                verb="Reject", answer_id=answer_id, case_id=case_id
-            ),
-        ],
+        name="RejectedOfferRecorded",
     )
 
 
 def case_manager_admits_suggested_actor_guard(
     recommended_id: str, case_id: str
-) -> py_trees.composites.Selector:
-    """Precondition guard: when this actor is the CASE_MANAGER, the suggested actor is not removed.
+) -> py_trees.behaviour.Behaviour:
+    """Precondition guard: the suggested actor is not a removed participant.
 
-    A read-only composite for the received tree's ``precondition_guards``
-    (CLP-10-009), in the shape of ``case_manager_admits_removal_guard``: a
-    replica skips it as ``SUCCESS`` (RSH-08-003), and the CASE_MANAGER runs
-    :class:`SuggestedActorIsNotRemovedNode`, so a refused recommendation
-    leaves no ledger entry (CM-31-013).
+    A read-only guard for the received tree's ``precondition_guards``
+    (CLP-10-009): :class:`SuggestedActorIsNotRemovedNode`, so a refused
+    recommendation leaves no ledger entry (CM-31-013).  One node, run bare
+    for the reason in
+    :func:`case_manager_admits_accepted_invitee_guard`.
     """
-    return create_case_manager_gated_tree(
-        name="SuggestedActorNotRemovedIfCaseManager",
+    return SuggestedActorIsNotRemovedNode(
+        recommended_id=recommended_id,
         case_id=case_id,
-        body_name="SuggestedActorNotRemoved",
-        children=[
-            SuggestedActorIsNotRemovedNode(
-                recommended_id=recommended_id, case_id=case_id
-            )
-        ],
+        name="SuggestedActorNotRemoved",
     )
 
 

@@ -7,6 +7,7 @@ at the CASE_MANAGER; ``state_positions_tree`` sends one (SYNC-17-007).
 """
 
 from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
     create_receive_activity_tree,
@@ -78,6 +79,11 @@ def create_read_log_entry_tree(
         name="ReadLogEntryReceivedBT",
         case_id=None,
         precondition_guards=[],
+        # A Read(CaseLedgerEntry) states a position to the holder of the
+        # canonical ledger, so it reaches that CASE_MANAGER and nobody else,
+        # and every step of the answer is the CASE_MANAGER's (SYNC-17-003,
+        # HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         post_close_exemption=PostCloseExemption.LEDGER_RESYNC,
         # The Read's whole act is the position statement this tree answers,
         # so the factory's answer to a stamped position would repeat it

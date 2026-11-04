@@ -39,6 +39,9 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
+from vultron.core.behaviors.speaks_for_executing_actor import (
+    SpeaksForExecutingActor,
+)
 from vultron.core.predicates.embargo import pxa_is_embargo_eligible
 
 __all__ = [
@@ -79,12 +82,19 @@ class PxaBarsEmbargoNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class ReceiverIsInviteeNode(DataLayerConditionWithPorts):
+class ReceiverIsInviteeNode(
+    SpeaksForExecutingActor, DataLayerConditionWithPorts
+):
     """Guard: the executing actor is the Invite's invitee (EP-09-010).
 
     Only the invitee answers an Invite.  A store that holds a copy addressed
     otherwise (its own sent Invite, say) keeps it and answers nothing, and
     the WARNING says so.  Reads only the blackboard.
+
+    Carries
+    :class:`~vultron.core.behaviors.speaks_for_executing_actor.SpeaksForExecutingActor`:
+    it is BT-17-008's second arm, so the emit behind it needs no recorded
+    exemption.
     """
 
     def __init__(

@@ -13,24 +13,33 @@
 #  Carnegie Mellon®, CERTⓇ and CERT Coordination CenterⓇ are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Role-gated BT *composites*.
+"""The role-gated BT *composite*.
 
 Sibling of :mod:`vfd_role_guards`, which holds role-gate *condition nodes*. This
-module holds the composites that wrap other work in such a gate — the difference
-being that a condition node answers a question, while these decide whether a
+module holds the composite that wraps other work in such a gate — the difference
+being that a condition node answers a question, while this one decides whether a
 subtree runs at all.
 
-Two gates: :func:`create_case_manager_gated_tree`, the single sanctioned shape
+One gate: :func:`create_case_manager_gated_tree`, the single sanctioned shape
 for "only the CASE_MANAGER may do this" (BTND-07-005) — canonical ledger commits
-and the note-attachment path both build on it — and its complement
-:func:`create_participant_replica_gated_tree`, for the work a received tree does
-only when the executing actor is *not* the CASE_MANAGER (RSH-08-003).
-
-A received tree that declares its paths uses neither: the factory builds an
+and the note-attachment path both build on it.  Its complement, the gate for
+work done only when the executing actor is *not* the CASE_MANAGER, is retired
+on the received side: a tree that declares its paths passes
+:meth:`~vultron.core.behaviors.case.nodes.path_branch.OnPaths.off_case_manager`
+and the factory builds a
 :class:`~vultron.core.behaviors.case.nodes.path_branch.PathBranch` from the
 path the door stage resolved, so the role is read once per message
-(HP-01-036, HP-01-038, ADR-0153).  Both gates stay for the trees still to
-declare and for the trigger side, which that record does not govern.
+(HP-01-036, HP-01-038, ADR-0153).  The one place that still forks on the role
+without a received path to read is the trigger side, which that record does
+not govern, and it builds its own arm
+(``embargo/trigger_tree/_arms.py``).
+
+The CASE_MANAGER gate itself stays, and the factory keeps placing it round
+``manager_effects``: a tree declaring the manager path alone has it as dead
+weight whose skip arm no delivery reaches, and a tree declaring that path
+beside another needs it (BT-17-001).  So this module's own role read is the
+factory's, classified as sanctioned in
+``test/architecture/test_received_path_role_question.py``.
 """
 
 import py_trees
@@ -43,7 +52,6 @@ from vultron.core.behaviors.case.nodes.path_branch import wrap_children
 __all__ = [
     "CaseManagerGate",
     "create_case_manager_gated_tree",
-    "create_participant_replica_gated_tree",
 ]
 
 
@@ -137,61 +145,6 @@ def create_case_manager_gated_tree(
                         ),
                     ),
                 ],
-            ),
-            gated,
-        ],
-    )
-
-
-def create_participant_replica_gated_tree(
-    name: str,
-    case_id: str | None,
-    children: list[py_trees.behaviour.Behaviour],
-    body_name: str | None = None,
-    case_may_be_absent: bool = False,
-) -> py_trees.composites.Selector:
-    """Run *children* only when the executing actor is **not** the CASE_MANAGER.
-
-    The complement of :func:`create_case_manager_gated_tree`, for a received
-    tree whose manager-side and replica-side effects differ (EP-09-001 versus
-    EP-09-003): the manager adjudicates and relays, a participant replica
-    records what arrived.  The two gates placed side by side in one Sequence
-    are mutually exclusive, so exactly one arm runs.
-
-    Structure::
-
-        <name> (Selector)
-        ├── CheckIsCaseManagerNode        # SUCCESS when IS case manager → skip
-        └── <children>                    # only reached when NOT case manager
-
-    No ``Inverter`` is needed here and no failure is masked: the first arm is a
-    pure condition, so a Selector that falls through to *children* reports
-    their FAILURE as its own.
-
-    Args:
-        name: Name for the root Selector.
-        case_id: Case whose CASE_MANAGER role gates the children.
-        children: Nodes to run when the executing actor is not the manager.
-            More than one is wrapped in a Sequence so a mid-sequence failure
-            still propagates.
-        body_name: Name for that wrapping Sequence. Defaults to ``{name}Body``.
-        case_may_be_absent: Read a case the executing actor does not hold as
-            "not the CASE_MANAGER" instead of an anomaly; see
-            :class:`CheckIsCaseManagerNode`.
-
-    Returns:
-        The gated root Selector.
-    """
-    gated = wrap_children(name, children, body_name)
-
-    return py_trees.composites.Selector(
-        name=name,
-        memory=False,
-        children=[
-            CheckIsCaseManagerNode(
-                case_id=case_id,
-                name="SkipIfCaseManager",
-                case_may_be_absent=case_may_be_absent,
             ),
             gated,
         ],

@@ -881,30 +881,39 @@ class TestPreGenesisAnnounceBuffering:
         assert errors == []
 
     @pytest.mark.spec("SYNC-15-001")
-    def test_own_echo_for_missing_case_logs_error(self, dl, caplog):
+    def test_own_echo_for_missing_case_is_refused_at_error(self, dl, caplog):
         """The CASE_MANAGER's own echoed Announce still needs its case.
 
-        Its sender is the receiving actor, so the receiver is the case's
-        CASE_MANAGER, and a case it does not hold is a Regime 1 anomaly
-        (ADR-0087): both role checks log it at ERROR (#5513).
+        Its sender is the receiving actor, and the actor that announces an
+        entry holds the case's canonical ledger, so a case it does not hold
+        is a Regime 1 anomaly (ADR-0087, #5513).  The path stage reads the
+        absent case as the no-case path, which for a peer's Announce is the
+        self-healing pre-genesis window; ``AnnouncedEntryIsNotOwnEchoNode``
+        is what keeps this delivery out of it, reporting the anomaly at ERROR
+        and refusing it rather than letting the store buffer its own entry
+        and ask itself for the case.
         """
         case = _make_case()  # deliberately NOT saved
         entry = _make_entry(CASE_URI, 0, case.genesis_hash)
 
         with caplog.at_level(logging.DEBUG):
-            AnnounceLedgerEntryReceivedUseCase(
+            result = AnnounceLedgerEntryReceivedUseCase(
                 dl,
                 _announce_event(entry, actor=RECEIVER_URI),
                 sync_port=SyncActivityAdapter(dl),
             ).execute()
 
+        assert result.disposition is HandlerDisposition.REFUSED
         errors = [
             r.getMessage()
             for r in caplog.records
             if r.levelno >= logging.ERROR
         ]
-        assert any("CheckIsCaseManager:" in m for m in errors), errors
-        assert any("CheckIsCaseManagerInverse:" in m for m in errors), errors
+        assert any("AnnouncedEntryIsNotOwnEcho:" in m for m in errors), errors
+        # The entry is neither stored nor held, and nothing is asked for.
+        assert dl.read(entry.id_) is None
+        assert held_depth(dl, CASE_URI) == 0
+        assert dl.outbox_list() == []
 
     @pytest.mark.spec("SYNC-03-006")
     @pytest.mark.spec("SYNC-15-004")

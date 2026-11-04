@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""What paths the case, participant, report, status and embargo trees declare.
+"""What paths the case, report, status, embargo and sync trees declare.
 
 Every received tree in those areas declares the paths it handles once, to the
 factory (HP-01-038), and a receiver on a path the declaration omits is
@@ -69,13 +69,15 @@ from vultron.enums.roles import CVDRole
 _FACTORY = "create_receive_activity_tree"
 
 #: The migrated areas: the case, participant, report and status trees
-#: (#5043) and the embargo trees (#5042).  One inventory for all of them, so
-#: two waves cannot keep two tables of the same fact (CS-22-001).
+#: (#5043), the embargo trees (#5042) and the sync trees (#5044).  One
+#: inventory for all of them, so two waves cannot keep two tables of the
+#: same fact (CS-22-001).
 _ROOTS = (
     _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "case",
     _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "report",
     _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "status",
     _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "embargo",
+    _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "sync",
 )
 
 CM = ReceivedPath.CASE_MANAGER
@@ -90,6 +92,7 @@ _C = "vultron/core/behaviors/case"
 _R = "vultron/core/behaviors/report"
 _S = "vultron/core/behaviors/status"
 _E = "vultron/core/behaviors/embargo"
+_SY = "vultron/core/behaviors/sync"
 
 #: Every declaration in these areas.  A conditional declaration records the
 #: paths of its declaring branch; see :data:`CONDITIONAL_DECLARATION_EXEMPTIONS`.
@@ -172,6 +175,19 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         "create_recommendation_answer_received_tree",
         0,
     ): frozenset({PR}),
+    # Offer(Actor)[target=VulnerabilityCase] reaches two stores: the
+    # recommending participant addresses it to the case's CASE_MANAGER
+    # (PCR-08-001), which admits, commits and forwards an
+    # Offer(CaseParticipant) to the Case Owner, and the CASE_MANAGER's copy
+    # reaches a participant replica, which takes it from the CASE_MANAGER
+    # alone and acts on nothing (PCR-03-001, #4646).  The replica path is
+    # not derivable from the one emit site, and dropping it broke
+    # test_replica_sender_rule.py.
+    (
+        f"{_C}/suggest_actor_tree/recommend.py",
+        "create_recommend_actor_to_case_received_tree",
+        0,
+    ): frozenset({CM, PR}),
     # --- case: ownership transfer ---------------------------------------
     (
         f"{_C}/ownership_transfer_tree/proposal.py",
@@ -339,6 +355,40 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         "announce_embargo_received_tree",
         0,
     ): frozenset({CM, PR}),
+    # --- sync: the ledger replication envelopes (#5044) ------------------
+    # Announce(CaseLedgerEntry) is the one replication message every
+    # receiver takes: the CASE_MANAGER gets its own announcement echoed
+    # back, a replica applies the entry to its chain, and a receiver that
+    # holds no replica yet is in the pre-genesis window, where the entry is
+    # held until the genesis anchor arrives (SYNC-15-004).  Its sender guard
+    # is a ledger-activity guard with no side split, so the no-case path
+    # costs nothing there (HP-01-024).
+    (
+        f"{_SY}/announce_tree/factory.py",
+        "create_announce_log_entry_tree",
+        0,
+    ): frozenset({CM, PR, NC}),
+    # The remaining four are directed at the holder of the canonical ledger
+    # and reach it alone: a Reject and a Read ask it for a redelivery or
+    # state a position to it (SYNC-03-005, SYNC-17-003), and the two ledger
+    # faults answer an Announce this store sent, as replication signalling
+    # that is never ledgered and never relayed (SYNC-16-002).  Every effect
+    # of all four is the CASE_MANAGER's, so no receiver off that path does
+    # anything with them.
+    (f"{_SY}/reject_tree.py", "create_reject_log_entry_tree", 0): frozenset(
+        {CM}
+    ),
+    (f"{_SY}/read_tree.py", "create_read_log_entry_tree", 0): frozenset({CM}),
+    (
+        f"{_SY}/divergence_tree.py",
+        "create_case_diverged_fault_tree",
+        0,
+    ): frozenset({CM}),
+    (
+        f"{_SY}/hash_mismatch_tree.py",
+        "create_hash_mismatch_fault_tree",
+        0,
+    ): frozenset({CM}),
 }
 
 #: Sites whose declaration is conditional on the tree naming a case at build
@@ -363,7 +413,6 @@ CONDITIONAL_DECLARATION_EXEMPTIONS: frozenset[Site] = frozenset(
 #: Sites in these areas still waiting for a declaration, each owned by the
 #: Epic #5193 wave that migrates its family.  Terminal value: empty.
 # owner: #5046
-# owner: #5044
 KNOWN_UNDECLARED_PATH_SITES: dict[Site, str] = {
     # Offer(VulnerabilityReport) stores what it carried before it checks the
     # addressee, so its path declaration waits for that rework.
@@ -377,12 +426,6 @@ KNOWN_UNDECLARED_PATH_SITES: dict[Site, str] = {
         "create_offer_received_without_report_tree",
         0,
     ): "#5046",
-    # The Offer(Actor) tree migrates with the rest of the actor-offer family.
-    (
-        f"{_C}/suggest_actor_tree/recommend.py",
-        "create_recommend_actor_to_case_received_tree",
-        0,
-    ): "#5044",
 }
 
 #: Sites that declare no paths by decision, each with the reason.  A received

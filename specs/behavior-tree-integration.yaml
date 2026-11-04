@@ -1314,7 +1314,15 @@ groups:
       is the actor the emit speaks for.
     rationale: >-
       An emit outside a guard runs at every receiver of the activity. The guard makes
-      sure that only the actor the emit speaks for sends it.
+      sure that only the actor the emit speaks for sends it. There are two arms and no
+      third: a recorded exemption waives this requirement rather than meeting it, so
+      an emit that can carry either arm carries it instead of an exemption. Neither arm
+      is something a tree asks for by hand. The receive-tree factory places the
+      CASE_MANAGER gate round the effects a tree declares as the CASE_MANAGER's, and
+      the path a message type declares (HP-01-038) is the same statement where the
+      declaration names that path alone. The second arm is a leaf that admits the
+      executing actor alone, marked so the factory's walk can see it: the walk reads
+      composites, and any leaf could otherwise be the check.
     verification: >-
       `test_every_effect_is_inside_the_case_manager_gate` in
       `test/core/behaviors/case/test_suggest_actor_tree.py` checks gate placement for
@@ -1322,14 +1330,26 @@ groups:
       `test_manager_effects_are_gated_after_the_commit_and_replica_effects` in
       `test/core/behaviors/case/test_receive_activity_tree.py` checks that the factory
       gates `manager_effects`.
+      `test/core/behaviors/case/test_speaks_for_executing_actor.py` pins the second
+      arm: the two placements that bound an emit, the shapes that do not, and that the
+      state-write walk does not read the marker.
+      `test/architecture/test_received_tree_case_manager_gate.py` holds every tree that
+      waives the requirement with a `ReplicaEmitExemption`, equal to the registry in
+      both directions (ARCH-18-001, ARCH-18-005).
     relationships:
     - rel_type: refines
       spec_id: BT-17-001
       note: >-
         BT-17-001 requires the gate for CASE_MANAGER-only subtrees; this entry says
         every received-side emit is gated by role or by sender
+    - rel_type: depends_on
+      spec_id: HP-01-038
+      note: >-
+        a manager-only path declaration is the CASE_MANAGER gate made as a declaration,
+        so it bounds the emits of the tree it declares
     adr:
     - ADR-0109
+    - ADR-0153
   - id: BT-17-015
     priority: MUST_NOT
     kind: project

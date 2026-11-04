@@ -26,6 +26,9 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.speaks_for_executing_actor import (
+    SpeaksForExecutingActor,
+)
 from vultron.core.models._helpers import now_utc
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.services.embargo_duration import (
@@ -37,7 +40,9 @@ from vultron.core.states.em import EM
 from vultron.errors import VultronNotFoundError, VultronWiringError
 
 
-class CanAnswerEmbargoInviteNode(DataLayerConditionWithPorts):
+class CanAnswerEmbargoInviteNode(
+    SpeaksForExecutingActor, DataLayerConditionWithPorts
+):
     """SUCCESS when this store is the one that answers the Invite.
 
     Only the invitee answers — the Invite's sole ``to`` recipient, not whoever's
@@ -55,6 +60,11 @@ class CanAnswerEmbargoInviteNode(DataLayerConditionWithPorts):
     (HP-01-005, ADR-0118); ``cc`` addresses nobody (ADR-0109).  The
     not-the-invitee arm below is the backstop for a copy that *is* addressed
     to this actor while it names someone else as the invitee.
+
+    Carries
+    :class:`~vultron.core.behaviors.speaks_for_executing_actor.SpeaksForExecutingActor`:
+    it is BT-17-008's second arm, so the emit behind it needs no recorded
+    exemption.
     """
 
     def __init__(

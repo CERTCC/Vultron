@@ -171,7 +171,6 @@ from vultron.core.behaviors.case.nodes.proposal_reporter import (
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
-    create_participant_replica_gated_tree,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor import (
     ActorAlreadyParticipantNode,
@@ -240,9 +239,8 @@ __all__ = [
     "EmitRejectCaseOwnershipTransferNode",
     "EmitWithdrawCaseOwnershipTransferNode",
     "MakeOwnershipTransferOfferNode",
-    # role_gates (gated composites)
+    # role_gates (the gated composite)
     "create_case_manager_gated_tree",
-    "create_participant_replica_gated_tree",
     # vfd_role_guards (condition nodes)
     "CheckNotSoleObserverVfdNode",
     # on_behalf_guards (ADR-0121)

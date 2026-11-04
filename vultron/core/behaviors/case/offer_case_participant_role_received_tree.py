@@ -66,7 +66,6 @@ from vultron.core.behaviors.case.nodes.role_offer_guard import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.replica_emit_exemptions import OFFER_ROLE
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.enums.roles import CVDRole
@@ -198,7 +197,6 @@ def create_offer_case_participant_role_received_tree(
         sender_context=sender_context,
         precondition_guards=[admissible],
         replica_effects=[answer],
-        replica_emit_exemption=OFFER_ROLE,
         manager_effects=[forward],
         manager_case_id=case_id,
         manager_gate_name="ForwardRoleOfferToTargetCMGated",

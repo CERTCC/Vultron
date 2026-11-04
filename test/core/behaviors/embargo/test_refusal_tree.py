@@ -14,10 +14,10 @@
 
 """The P/X/A refusal diversions' shape (BT-17-008, CLP-10-026).
 
-The Reject is the receiver's own answer, so each refusal is a ``RECEIVER``
-diversion whose one emit is admitted by the ``EMBARGO_INVITE_REFUSAL``
-exemption; the factory refuses it otherwise.  The Reject comes last, after the
-checks that decide whether it can be sent at all.
+The Reject is the receiver's own answer, and what bounds its emit is the
+``ReceiverIsInviteeNode`` ahead of it, which admits the invitee alone and is
+BT-17-008's second arm; neither refusal records an exemption.  The Reject
+comes last, after the checks that decide whether it can be sent at all.
 """
 
 import pytest
@@ -47,9 +47,6 @@ from vultron.core.behaviors.embargo.refusal_tree import (
     PXA_INVITE_REFUSAL,
     pxa_accept_refusal,
     pxa_invite_refusal,
-)
-from vultron.core.behaviors.replica_emit_exemptions import (
-    EMBARGO_INVITE_REFUSAL,
 )
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -81,9 +78,10 @@ def test_the_invite_refusal_stores_checks_then_sends_the_reject_last() -> None:
     refusal = _invite_refusal(embargo)
 
     assert refusal.name == PXA_INVITE_REFUSAL
-    # Its host tree declares the manager and the participant-replica path,
-    # so the declaration alone does not bound the Reject's emit (HP-01-038).
-    assert refusal.emit_exemption == EMBARGO_INVITE_REFUSAL
+    # Its host tree declares the manager and the participant-replica path, so
+    # the declaration does not bound the Reject's emit; ReceiverIsInviteeNode
+    # ahead of it does, so no exemption is recorded (BT-17-008, HP-01-038).
+    assert refusal.emit_exemption is None
     assert isinstance(refusal.condition, PxaBarsEmbargoNode)
     assert [type(n) for n in refusal.effects] == [
         PersistEmbargoEventNode,

@@ -14,6 +14,10 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+    ReceivedPathNode,
+)
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.replay_guard import (
@@ -181,16 +185,21 @@ def test_create_reject_log_entry_tree_returns_sequence():
         sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
     )
     assert tree.name == "RejectLogEntryReceivedBT"
-    # Intake first (CLP-10-017), the addressee door (HP-01-005), the sender
+    # Intake first (CLP-10-017), the addressee door (HP-01-005), the path
+    # door stage on the one declared path (HP-01-035, ADR-0153), the sender
     # guard the factory composes (HP-01-025, #4696), the case lookup, then
     # the CASE_MANAGER gate holding every effect (BT-17-008).
     assert [child.name for child in tree.children] == [
         "IntakeReceivedActivityNode",
         "ActivityAddressedToReceiverNode",
+        "ReceivedPathNode",
         "SenderIsActiveLedgerParticipant",
         "FindCaseActor",
         "AnswerRejectIfCaseManager",
     ]
+    stage = tree.children[2]
+    assert isinstance(stage, ReceivedPathNode)
+    assert stage.declared == frozenset({ReceivedPath.CASE_MANAGER})
     assert isinstance(tree.children[-1], CaseManagerGate)
     gated = tree.children[-1].gated_branch.children
     assert [child.name for child in gated] == [
@@ -1105,14 +1114,16 @@ def test_reject_at_a_participant_replica_sends_and_records_nothing():
         ),
         actor_id=REPLICA_ID,
         # The copy reaches the replica too, so the addressee door admits it
-        # and the CASE_MANAGER gate is what keeps the replica idle.
+        # and the path door is what keeps the replica idle: the tree declares
+        # the CASE_MANAGER path alone, so a replica is refused there with the
+        # reason composed from its path (HP-01-038, HP-01-039).
         activity=_make_event(
             entry, tail_hash="", to=[OWNER_ACTOR_ID, REPLICA_ID]
         ),
         sync_port=sync_port,
     )
 
-    assert result.status == Status.SUCCESS
+    assert result.status == Status.FAILURE
     trigger_activity.announce_vulnerability_case.assert_not_called()
     sync_port.send_announce_log_entry.assert_not_called()
     state_id = VultronReplicationState(case_id=CASE_ID, peer_id=PEER_ID).id_
