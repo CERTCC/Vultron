@@ -682,6 +682,6 @@ groups:
     kind: project
     statement: The system MAY use numpy and pandas for data manipulation and analysis.
     rationale: >-
-      The CS state model code (`vultron/core/case_states/hypercube.py`) uses pandas and
+      The CS state model code (`vultron/core/case_states/hypercube/`) uses pandas and
       numpy for table work over the case state space. A MAY lets other analysis code use
       them too, but it does not require them where plain Python is enough.

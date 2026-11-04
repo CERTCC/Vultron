@@ -46,7 +46,8 @@ groups:
       (RM state), VfDimension (CS_vf state, the vendor path) and DDimension (CS_d state, the deployer path). Participant
       embargo consent is not a status dimension: it is a per-embargo row set on the participant (CM-18-001, ADR-0122).'
     rationale: The "Dimension" suffix avoids collision with the existing VfState, DState and PxaState NamedTuples in
-      vultron/core/states/cs.py. ADR-0075 split the former vendor-fix-deployed machine into the VF and D machines, so
+      vultron/core/states/cs/states.py. ADR-0075 split the former vendor-fix-deployed
+      machine into the VF and D machines, so
       each has its own dimension object. See ADR-0036.
     adr:
     - ADR-0036

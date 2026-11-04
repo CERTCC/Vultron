@@ -15,7 +15,7 @@ related_notes:
   - notes/case-joining.md
   - notes/demo-ci-diagnostics.md
 relevant_packages:
-  - vultron/core/models/case_participant.py
+  - vultron/core/models/case_participant/
   - vultron/wire/as2/vocab/objects/case_participant.py
   - vultron/core/use_cases/query/action_rules.py
   - vultron/core/predicates/participants.py

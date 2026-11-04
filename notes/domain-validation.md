@@ -83,7 +83,7 @@ field must carry the case.
 ## Canonical Helper Locations
 
 - Layer-neutral utilities with no dependency above `models/` go in
-  `vultron/core/models/_helpers.py`, importable by every layer (`_as_id()`).
+  `vultron/core/models/_helpers/ids.py`, importable by every layer (`_as_id()`).
 - Helpers that need ports, state machines or use-case logic go in
   `vultron/core/use_cases/_helpers.py`.
 - A reader of one dimension of one type lives with the type
@@ -94,9 +94,9 @@ field must carry the case.
 
 Never keep a duplicate copy elsewhere; import from the canonical location.
 
-**`core/models/_helpers.py` cannot import `vultron.core.states`.** The cycle runs
-through the package `__init__.py` (`models/base.py` → `_helpers` →
-`states/__init__.py` → `states/cs.py` → `states/common.py` → `models/base.py`), so
+**`core/models/_helpers/` cannot import `vultron.core.states`.** The cycle runs
+through the package `__init__.py` (`models/base/` → `_helpers` →
+`states/__init__.py` → `states/cs/` → `states/common.py` → `models/base/`), so
 the target module's own imports look clean, and the error shows as a missing
 symbol in `models.base`, not a cycle. A helper needing a state enum goes with its
 type.

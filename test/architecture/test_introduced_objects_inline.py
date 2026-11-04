@@ -314,11 +314,20 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
 
 
 def _factory_modules() -> list[types.ModuleType]:
-    """Every public module of the factories package, found, not listed."""
+    """Every public module of the factories package, found, not listed.
+
+    Recursive: a split factory module is a subpackage whose factories live in
+    its submodules, which a flat scan would silently drop.
+    """
+    prefix = f"{factories_package.__name__}."
     return [
-        importlib.import_module(f"{factories_package.__name__}.{info.name}")
-        for info in pkgutil.iter_modules(factories_package.__path__)
-        if not info.name.startswith("_") and info.name != "errors"
+        importlib.import_module(info.name)
+        for info in pkgutil.walk_packages(factories_package.__path__, prefix)
+        if not any(
+            part.startswith("_")
+            for part in info.name.removeprefix(prefix).split(".")
+        )
+        and info.name != f"{prefix}errors"
     ]
 
 

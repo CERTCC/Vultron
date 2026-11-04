@@ -3476,7 +3476,8 @@ groups:
     verification: >-
       Inspection confirms that `CasePersistence.find_protocol_pair()` in
       `vultron/core/ports/case_persistence.py` returns a `ProtocolPair`, and that
-      `PendingAssertionStore` in `vultron/core/models/pending_assertion.py` keys its
+      `PendingAssertionStore` in `vultron/core/models/pending_assertion/store.py` keys
+      its
       entries by `ProtocolPair`.
   - id: CLP-11-006
     priority: MUST

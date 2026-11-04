@@ -32,8 +32,11 @@ from typing import Any
 
 import pytest
 
-from vultron.core.models import _helpers
-from vultron.core.models._helpers import INBOUND_CONTEXT_KEY, now_utc
+from vultron.core.models._helpers import (
+    INBOUND_CONTEXT_KEY,
+    clock as helpers_clock,
+    now_utc,
+)
 from vultron.core.models.actor import (
     VultronApplication,
     VultronGroup,
@@ -391,7 +394,7 @@ def test_actor_round_trips_across_a_clock_tick(actor_cls, dump, monkeypatch):
     actor = actor_cls(id_=ACTOR_ID, name="Alice", **hosted_endpoints(ACTOR_ID))
     as_stored = dump(actor)
     monkeypatch.setattr(
-        _helpers,
+        helpers_clock,
         "datetime",
         SteppingClock(now_utc() + timedelta(hours=1), step=timedelta(0)),
     )

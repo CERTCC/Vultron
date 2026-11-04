@@ -19,6 +19,7 @@ from vultron.core.models import (
 )
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import VULTRON_CONTEXT_URI, CoreRecord
+from vultron.core.models.base.record import concrete_type_annotation
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry as CoreCaseLedgerEntry,
@@ -201,6 +202,30 @@ def test_subclass_with_union_type_override_does_not_register(
         type_: str | None = None
 
     assert "CoreVocabFixtureUnion" not in CORE_VOCABULARY
+
+
+def test_concrete_type_annotation_is_none_for_an_unresolvable_hint():
+    """An annotation ``get_type_hints`` cannot resolve marks no concrete type.
+
+    A forward reference to an undefined name raises ``NameError`` inside
+    ``get_type_hints``; the helper reads that as "not registrable", the same
+    as a union ``type_``, so neither registration hook half-registers it.
+    """
+
+    class UnresolvableHintProbe:
+        type_: "UndefinedTypeName"  # type: ignore[name-defined]  # noqa: F821
+
+    assert concrete_type_annotation(UnresolvableHintProbe) is None
+
+
+def test_concrete_type_annotation_returns_a_literal_type_():
+    class ConcreteHintProbe:
+        type_: Literal["ConcreteHintProbe"]
+
+    assert (
+        concrete_type_annotation(ConcreteHintProbe)
+        == Literal["ConcreteHintProbe"]
+    )
 
 
 def test_registry_key_is_class_name_verbatim(isolated_core_registries):

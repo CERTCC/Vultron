@@ -45,10 +45,12 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case_ledger import (
     CaseLedger,
     HashChainLedgerRecord,
-    _canonical_bytes,
-    _sha256_hex,
     compute_genesis_hash,
     ledger_entry_hash_intact,
+)
+from vultron.core.models.case_ledger.hashing import (
+    _canonical_bytes,
+    _sha256_hex,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState

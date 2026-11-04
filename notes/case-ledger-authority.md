@@ -246,7 +246,7 @@ case event, is the CASE_MANAGER's at sending (CLP-09-001, CLP-09-003).
 
 ## `pending_assertions`: Local Decision-Suppression Memory
 
-Actor-local `pending_assertions` (`vultron/core/models/pending_assertion.py`)
+Actor-local `pending_assertions` (`vultron/core/models/pending_assertion/`)
 suppresses duplicate emits during the canonical round trip. It is temporary local
 memory, not a second source of truth. A timeout marks the assertion `timed_out`
 and logs an error but never auto-retries; a matching canonical entry clears it.

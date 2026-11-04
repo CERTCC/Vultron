@@ -199,7 +199,10 @@ def test_the_walk_follows_a_slots_helpers() -> None:
     """The walk is not vacuous: it reaches the one apply function."""
     reached = _functions_reached(ApplyEmbargoConsentFromLedgerNode)
 
-    assert "vultron.core.models.embargo_apply.apply_embargo_change" in reached
+    assert (
+        "vultron.core.models.embargo_apply.apply.apply_embargo_change"
+        in reached
+    )
 
 
 def test_the_walk_follows_a_model_method() -> None:
@@ -215,7 +218,10 @@ def test_the_walk_follows_a_model_method() -> None:
         if names & _LIFECYCLE_NAMES
     }
 
-    assert any(f.endswith("CaseParticipant.sign_embargo") for f in offenders)
+    # CaseParticipant's consent-row methods live on its consent mixin.
+    assert any(
+        f.endswith("EmbargoConsentRowsMixin.sign_embargo") for f in offenders
+    )
 
 
 def _writes_embargo_state(cls: type) -> bool:

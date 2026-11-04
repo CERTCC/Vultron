@@ -24,7 +24,7 @@ object types without per-type manual wiring.
 
 The registry value type is ``type[BaseModel]`` rather than
 ``type[CoreObject]`` to keep this module import-cycle free —
-``base.py`` imports from this module.
+the ``base`` package imports from this module.
 """
 
 from pydantic import BaseModel

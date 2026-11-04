@@ -15,6 +15,7 @@ import unittest
 from itertools import product
 
 import vultron.core.case_states.hypercube as hc
+from vultron.core.case_states.hypercube import graph
 from vultron.core.case_states.validations import (
     is_valid_transition,
     valid_states,
@@ -24,7 +25,7 @@ from vultron.errors import TransitionValidationError
 
 class MyTestCase(unittest.TestCase):
     def test_create_graph(self):
-        G = hc._create_graph()
+        G = graph._create_graph()
         states = valid_states()
         self.assertEqual(len(G.nodes), len(states))
         for state in states:
