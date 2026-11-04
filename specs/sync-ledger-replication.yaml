@@ -222,6 +222,7 @@ groups:
       Integration tests in `test/demo/` confirm that log replication messages are
       wrapped in ActivityStreams Announce activities delivered to Participant Actors.
     stories:
+    - story_2026_075
     - story_2026_057
   - id: SYNC-02-002
     priority: MUST
@@ -260,6 +261,7 @@ groups:
     adr:
     - ADR-0114
     stories:
+    - story_2026_075
     - story_2022_046
     - story_2026_059
   - id: SYNC-02-004

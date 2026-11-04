@@ -1761,7 +1761,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CLP — Case Ledger Processing | [CLP-02-003](../vultron-spec/requirements/ledger-replication.md#clp-02-003), [CLP-04-002](../vultron-spec/requirements/ledger-replication.md#clp-04-002), [CLP-04-006](../vultron-spec/requirements/ledger-replication.md#clp-04-006) |
+| CLP — Case Ledger Processing | [CLP-02-003](../vultron-spec/requirements/ledger-replication.md#clp-02-003), [CLP-04-002](../vultron-spec/requirements/ledger-replication.md#clp-04-002), [CLP-04-006](../vultron-spec/requirements/ledger-replication.md#clp-04-006), [CLP-07-022](../vultron-spec/requirements/ledger-replication.md#clp-07-022) |
 | SYNC — Case Event Log Synchronization | [SYNC-02-001](../vultron-spec/requirements/ledger-replication.md#sync-02-001), [SYNC-08-002](../vultron-spec/requirements/ledger-replication.md#sync-08-002), [SYNC-13-006](../vultron-spec/requirements/ledger-replication.md#sync-13-006), [SYNC-19-002](../vultron-spec/requirements/ledger-replication.md#sync-19-002), [SYNC-19-003](../vultron-spec/requirements/ledger-replication.md#sync-19-003), [SYNC-19-004](../vultron-spec/requirements/ledger-replication.md#sync-19-004), [SYNC-19-005](../vultron-spec/requirements/ledger-replication.md#sync-19-005), [SYNC-19-006](../vultron-spec/requirements/ledger-replication.md#sync-19-006), [SYNC-19-007](../vultron-spec/requirements/ledger-replication.md#sync-19-007) |
 | VP — Vultron Protocol | [VP-17-003](../vultron-spec/requirements/vultron-protocol.md#vp-17-003) |
 
@@ -1893,7 +1893,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CLP — Case Ledger Processing | [CLP-02-004](../vultron-spec/requirements/ledger-replication.md#clp-02-004), [CLP-02-012](../vultron-spec/requirements/ledger-replication.md#clp-02-012), [CLP-03-001](../vultron-spec/requirements/ledger-replication.md#clp-03-001), [CLP-03-002](../vultron-spec/requirements/ledger-replication.md#clp-03-002), [CLP-07-014](../vultron-spec/requirements/ledger-replication.md#clp-07-014), [CLP-07-022](../vultron-spec/requirements/ledger-replication.md#clp-07-022) |
+| CLP — Case Ledger Processing | [CLP-02-004](../vultron-spec/requirements/ledger-replication.md#clp-02-004), [CLP-02-012](../vultron-spec/requirements/ledger-replication.md#clp-02-012), [CLP-03-001](../vultron-spec/requirements/ledger-replication.md#clp-03-001), [CLP-03-002](../vultron-spec/requirements/ledger-replication.md#clp-03-002), [CLP-04-001](../vultron-spec/requirements/ledger-replication.md#clp-04-001), [CLP-04-007](../vultron-spec/requirements/ledger-replication.md#clp-04-007), [CLP-07-014](../vultron-spec/requirements/ledger-replication.md#clp-07-014) |
 | SYNC — Case Event Log Synchronization | [SYNC-16-002](../vultron-spec/requirements/ledger-replication.md#sync-16-002), [SYNC-17-006](../vultron-spec/requirements/ledger-replication.md#sync-17-006) |
 
 ## [story_2026_072](story_2026_072.md)
@@ -1932,6 +1932,8 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | CLP — Case Ledger Processing | [CLP-04-004](../vultron-spec/requirements/ledger-replication.md#clp-04-004), [CLP-10-032](../vultron-spec/requirements/ledger-replication.md#clp-10-032) |
 | CM — Case Management | [CM-14-013](../vultron-spec/requirements/case-management.md#cm-14-013), [CM-16-002](../vultron-spec/requirements/case-management.md#cm-16-002), [CM-21-030](../vultron-spec/requirements/case-management.md#cm-21-030) |
 | EMB — Embargo Management Behavioral Requirements | [EMB-19-001](../vultron-spec/requirements/state-behavior.md#emb-19-001), [EMB-19-002](../vultron-spec/requirements/state-behavior.md#emb-19-002), [EMB-19-003](../vultron-spec/requirements/state-behavior.md#emb-19-003), [EMB-19-004](../vultron-spec/requirements/state-behavior.md#emb-19-004) |
+| PCR — Participant Case Replica | [PCR-08-003](../vultron-spec/requirements/ledger-replication.md#pcr-08-003) |
+| SYNC — Case Event Log Synchronization | [SYNC-02-001](../vultron-spec/requirements/ledger-replication.md#sync-02-001), [SYNC-02-003](../vultron-spec/requirements/ledger-replication.md#sync-02-003) |
 
 ## [story_2026_076](story_2026_076.md)
 

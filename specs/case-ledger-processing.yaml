@@ -511,6 +511,7 @@ groups:
       `test/core/use_cases/received/test_embargo_consent_copy.py` confirms that a
       locally scoped processing fault reaches no case ledger.
     stories:
+    - story_2026_071
     - story_2026_023
   - id: CLP-04-002
     priority: MUST
@@ -609,6 +610,7 @@ groups:
       `test/core/use_cases/received/test_close_report_on_case.py::test_close_report_on_an_open_case_is_refused`
       asserts a refused assertion adds no ledger entry.
     stories:
+    - story_2026_071
     - story_2026_023
   - id: CLP-04-008
     priority: MUST
@@ -1200,7 +1202,7 @@ groups:
     adr:
     - ADR-0124
     stories:
-    - story_2026_071
+    - story_2026_057
   - id: CLP-07-015
     priority: MUST
     kind: protocol

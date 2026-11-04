@@ -816,6 +816,7 @@ groups:
       `test/core/behaviors/sync/nodes/test_active_participant_fanout.py` asserts that
       the announcement reaches only the active participants (CM-10-004).
     stories:
+    - story_2026_075
     - story_2026_060
   - id: PCR-08-004
     priority: MUST_NOT
