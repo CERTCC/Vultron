@@ -571,7 +571,7 @@ groups:
     adr:
     - ADR-0167
     stories:
-    - story_2022_045
+    - story_2026_012
     - story_2022_089
     relationships:
     - rel_type: refines

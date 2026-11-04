@@ -190,7 +190,6 @@ groups:
       spec_id: SYNC-02-001
     stories:
     - story_2026_055
-    - story_2022_045
   - id: PCR-02-002
     priority: MUST
     kind: protocol
@@ -257,7 +256,6 @@ groups:
       persist a new case replica in its DataLayer.
     stories:
     - story_2026_055
-    - story_2022_045
   - id: PCR-02-004
     priority: MUST
     kind: protocol
@@ -276,7 +274,6 @@ groups:
     - ADR-0142
     stories:
     - story_2026_055
-    - story_2022_045
   - id: PCR-02-005
     priority: MUST
     kind: protocol
@@ -301,7 +298,6 @@ groups:
     - ADR-0157
     stories:
     - story_2026_055
-    - story_2022_045
 - id: PCR-03
   title: Replica Update Authority
   specs:
@@ -411,7 +407,7 @@ groups:
     - rel_type: refines
       spec_id: PCR-03-002
     stories:
-    - story_2022_045
+    - story_2026_059
     - story_2022_106
   - id: PCR-03-006
     priority: MUST
@@ -430,7 +426,6 @@ groups:
     - rel_type: refines
       spec_id: PCR-03-002
     stories:
-    - story_2022_045
     - story_2026_059
   - id: PCR-03-007
     priority: MUST
@@ -781,7 +776,6 @@ groups:
       `PCR-08-001` in `test/core/use_cases/triggers/test_ack_report.py` confirm that
       the RK exception reaches the reporter alone once a case exists.
     stories:
-    - story_2022_045
     - story_2026_059
   - id: PCR-08-002
     priority: MUST_NOT
@@ -822,7 +816,7 @@ groups:
       `test/core/behaviors/sync/nodes/test_active_participant_fanout.py` asserts that
       the announcement reaches only the active participants (CM-10-004).
     stories:
-    - story_2022_045
+    - story_2026_075
     - story_2026_060
   - id: PCR-08-004
     priority: MUST_NOT
@@ -868,7 +862,6 @@ groups:
     adr:
     - ADR-0021
     stories:
-    - story_2022_045
     - story_2026_060
   - id: PCR-08-005
     priority: MUST

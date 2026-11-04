@@ -3938,7 +3938,7 @@ groups:
     - ADR-0109
     - ADR-0114
     stories:
-    - story_2022_045
+    - story_2026_075
     - story_2022_046
     tags:
     - protocol
@@ -3965,7 +3965,7 @@ groups:
     - protocol
     - messaging
     stories:
-    - story_2022_045
+    - story_2026_075
     - story_2022_046
   - id: EMB-19-004
     priority: MUST_NOT
@@ -3988,7 +3988,7 @@ groups:
     - protocol
     - messaging
     stories:
-    - story_2022_045
+    - story_2026_075
     - story_2022_046
   - id: EMB-19-002
     priority: MUST
@@ -4005,7 +4005,7 @@ groups:
     - rel_type: refines
       spec_id: EMB-19-001
     stories:
-    - story_2022_045
+    - story_2026_075
     tags:
     - protocol
     - messaging

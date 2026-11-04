@@ -586,6 +586,17 @@ reference/user_stories/story_2026_065.md
 reference/user_stories/story_2026_066.md
 reference/user_stories/story_2026_067.md
 reference/user_stories/story_2026_068.md
+reference/user_stories/story_2026_069.md
+reference/user_stories/story_2026_070.md
+reference/user_stories/story_2026_071.md
+reference/user_stories/story_2026_072.md
+reference/user_stories/story_2026_073.md
+reference/user_stories/story_2026_074.md
+reference/user_stories/story_2026_075.md
+reference/user_stories/story_2026_076.md
+reference/user_stories/story_2026_077.md
+reference/user_stories/story_2026_078.md
+reference/user_stories/story_2026_079.md
 reference/user_stories/table.md
 reference/user_stories/traceability.md
 reference/versioning.md

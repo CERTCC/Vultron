@@ -747,7 +747,7 @@ groups:
     testable: true
 
     stories:
-    - story_2022_045
+    - story_2026_077
     - story_2022_074
 - id: CSB-06
   title: Receive CA (Attacks Observed)
@@ -1069,7 +1069,7 @@ groups:
     testable: true
 
     stories:
-    - story_2022_045
+    - story_2026_077
     - story_2022_074
 - id: CSB-07
   title: Receive CE (CS Error)
@@ -2545,7 +2545,7 @@ groups:
     adr:
     - ADR-0060
     stories:
-    - story_2022_045
+    - story_2026_022
     - story_2022_074
 
   - id: CSB-17-002
@@ -2610,7 +2610,7 @@ groups:
     - ADR-0060
 
     stories:
-    - story_2022_045
+    - story_2026_022
     - story_2022_074
   - id: CSB-17-014
     priority: MUST
@@ -2635,7 +2635,7 @@ groups:
     adr:
     - ADR-0060
     stories:
-    - story_2022_045
+    - story_2026_022
     - story_2022_074
   - id: CSB-17-003
     priority: MUST
@@ -2762,7 +2762,7 @@ groups:
     - ADR-0060
 
     stories:
-    - story_2022_045
+    - story_2026_022
     - story_2022_074
   - id: CSB-17-006
     priority: MUST
@@ -2779,7 +2779,7 @@ groups:
       illegal VFD jump.
     testable: true
     stories:
-    - story_2022_045
+    - story_2026_022
     - story_2022_074
 
   - id: CSB-17-007
@@ -2797,7 +2797,7 @@ groups:
       illegal VFD jump.
     testable: true
     stories:
-    - story_2022_045
+    - story_2026_022
     - story_2022_074
 
   - id: CSB-17-008
@@ -2817,7 +2817,7 @@ groups:
     testable: true
 
     stories:
-    - story_2022_045
+    - story_2026_022
     - story_2022_074
   - id: CSB-17-009
     priority: MUST
@@ -2885,7 +2885,7 @@ groups:
     testable: true
 
     stories:
-    - story_2022_045
+    - story_2026_022
     - story_2022_074
   - id: CSB-17-015
     priority: MAY
@@ -2900,7 +2900,7 @@ groups:
       that prefix validation accepts a prefix that ends in an ephemeral state.
     testable: true
     stories:
-    - story_2022_045
+    - story_2026_022
     - story_2022_074
   - id: CSB-17-011
     priority: MUST
@@ -2919,7 +2919,7 @@ groups:
     testable: true
 
     stories:
-    - story_2022_045
+    - story_2026_022
     - story_2022_074
 - id: CSB-18
   title: Cross-Machine State Entailments
