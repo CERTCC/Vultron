@@ -26,9 +26,9 @@ from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
     make_testclient_call,
 )
 from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
+from vultron.adapters.driving.fastapi import outbox_handler
 from vultron.adapters.driving.fastapi.main import app as api_app
 from vultron.adapters.driving.fastapi.outbox_handler import (
-    bookkeeping,
     get_default_emitter,
 )
 from vultron.demo.helpers.invite_chain import (
@@ -285,12 +285,15 @@ def _no_outbox_row_is_dead_lettered(caplog):
     ``setup_initialized_case``, until this guard.
     """
     yield
-    # Keyed on the outbox bookkeeping's logger: the inbox dead-letters with the
+    # Keyed on the outbox package's loggers: the inbox dead-letters with the
     # same wording (IE-06-004), and this guard must not blame the outbox for it.
+    # A prefix, not one module's name, so moving the dead-letter call to another
+    # submodule cannot silence the guard.
+    outbox_logger = outbox_handler.__name__
     dead = [
         r.getMessage()
         for r in caplog.get_records("call")
-        if r.name == bookkeeping.__name__
+        if (r.name == outbox_logger or r.name.startswith(outbox_logger + "."))
         and r.levelno >= logging.ERROR
         and "moved to dead letter" in r.getMessage().lower()
     ]

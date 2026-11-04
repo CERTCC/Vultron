@@ -33,12 +33,7 @@ from vultron.adapters.driven.db_record.record import (
     object_to_record,
     record_to_object,
 )
-from vultron.adapters.driven.db_record.ref_fields import (
-    # Private, but imported by trigger_activity_adapter/_base.py, which open
-    # PR #5815 is restructuring; repoint that import once it merges.
-    _AS_LIST_REF_FIELDS,
-    object_ref_fields,
-)
+from vultron.adapters.driven.db_record.ref_fields import object_ref_fields
 
 __all__ = [
     "Record",

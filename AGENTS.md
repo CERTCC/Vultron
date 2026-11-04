@@ -156,7 +156,7 @@ six-step checklist (enum → pattern → use-case → map → tests).
 
 - **Enums / MessageSemantics**: `vultron/core/models/events/base.py`
 - **Dispatchers**: `vultron/core/dispatcher.py`, `vultron/core/trigger_dispatcher.py`
-- **Inbox**: `vultron/adapters/driving/fastapi/routers/actors/` (package; `_routes.py`
+- **Inbox**: `vultron/adapters/driving/fastapi/routers/actors/` (package; `_routes/`
   defines endpoints)
 - **Errors**: `vultron/errors.py`
 - **Demo**: `vultron/demo/cli.py` (entry point)
