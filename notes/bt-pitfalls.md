@@ -242,6 +242,35 @@ is whether any **node** re-reads it, and when. Guards:
 `test_an_inner_actor_id_does_not_clobber_the_outer_one` and
 `test_a_later_sibling_reads_its_own_trees_actor` in `test_bridge.py`.
 
+### A Key Written as an Output Port Is Not `context_data`, So Name It Explicitly
+
+`managed_keys` picks up every `context_data` key automatically, so a key a use
+case *passes in* is scoped for free. A key a **node publishes through an output
+port** is not `context_data` and gets no entry, so its value outlives the
+execution that wrote it. Ask of any shared port key: does a node write it, and
+does another execution read it? If both, it belongs in the fixed `managed_keys`
+list.
+
+`case_id` is the worked example. Six nodes declare it as an output port
+(`CaseLookupNode`, the two `proposal_case_resolution` resolvers, the replay node
+and the case-creation nodes), while `ReceivedPathNode` and
+`CheckIsCaseManagerNode` both fall back to `/case_id` after their constructor
+argument and before the activity (`activity_case_id`). An unscoped `/case_id`
+therefore let one delivery's case decide a *later* delivery's path: a
+`Read(Offer(VulnerabilityReport))`, whose tree names no case and declares the
+no-case path alone, resolved a leaked case the reporter held a replica of and
+was refused at the path stage as a replica of a case it never named
+(RMB-08-003, HP-01-040). In a single-process run — every demo, every in-process
+integration test — the writer can be a *different actor's* execution, so the
+leak crosses the actor isolation BT-09 asks for. Guards:
+`test_execute_with_setup_does_not_leak_a_published_case_id` and
+`test_execute_with_setup_restores_a_preexisting_case_id` in `test_bridge.py`.
+
+The fix is the key's lifetime, never the reader: widening the declaration of the
+tree that tripped over it would have masked the leak and left
+`AddCaseStatusToCaseBT`, which passes `case_id or None` and declares the replica
+path, able to *admit* a status on a leaked case's replica path.
+
 ### Every Classifying Exception Handler Is One Helper
 
 Every `BTBridge` handler that builds a result — the tick loop in `execute_tree`

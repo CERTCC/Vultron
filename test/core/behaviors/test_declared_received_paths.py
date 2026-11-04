@@ -568,6 +568,42 @@ def test_the_declared_paths_are_pinned() -> None:
     )
 
 
+@pytest.mark.spec("HP-01-038")
+@pytest.mark.parametrize(
+    ("expression", "because"),
+    [
+        ("DECLARED_ELSEWHERE", "a module constant the scan cannot resolve"),
+        ("frozenset({ReceivedPath.NO_CASE})", "a call, not a set literal"),
+        ("{ReceivedPath.NO_CASE, SOMETHING_ELSE}", "a non-member element"),
+        ("{'manager'}", "a bare string rather than a member"),
+    ],
+    ids=["constant", "frozenset-call", "non-member", "string"],
+)
+def test_an_unreadable_declaration_raises_rather_than_reading_as_none(
+    expression: str, because: str
+) -> None:
+    """A declaration the scan cannot parse is loud, never "declares none".
+
+    Folding it into the undeclared inventory would report a tree that *does*
+    declare as undeclared, with a false reason, and the whole inventory would
+    misstate the migration while still passing.
+    """
+    expr = ast.parse(expression, mode="eval").body
+
+    with pytest.raises(UnreadableDeclaration):
+        _paths_of(expr, f"test ({because})")
+
+
+@pytest.mark.spec("HP-01-038")
+def test_a_readable_declaration_is_read_rather_than_raising() -> None:
+    """The guard above is not vacuous: the supported form still parses."""
+    expr = ast.parse(
+        "{ReceivedPath.NO_CASE, ReceivedPath.CASE_MANAGER}", mode="eval"
+    ).body
+
+    assert _paths_of(expr, "test") == frozenset({NC, CM})
+
+
 @pytest.mark.spec("HP-01-025")
 @pytest.mark.spec("HP-01-038")
 def test_a_conditional_declaration_is_listed_with_its_reason() -> None:
@@ -642,14 +678,35 @@ def _stage_at(
 def _non_manager_sites() -> list[tuple[Site, bool]]:
     """Every declared site, paired with whether its tree names a case.
 
-    The pairing decides which non-manager receiver the tree can actually
-    give a disposition to: a tree that names a case can be received by a
-    participant replica, and one that names none resolves the no-case path
-    for every receiver (HP-01-040).  Derived from the call site, so a tree
-    that starts or stops naming a case changes which disposition is pinned.
+    The pairing decides which non-manager receivers the tree can be reached
+    by, which :func:`_non_manager_probes` turns into the dispositions pinned
+    for it.  Derived from the call site, so a tree that starts or stops
+    naming a case changes what is pinned.
     """
     _, _, with_a_case = _call_sites()
     return sorted((site, site in with_a_case) for site in DECLARED_PATHS)
+
+
+def _non_manager_probes(
+    names_a_case: bool,
+) -> list[tuple[ReceivedPath, str | None]]:
+    """The non-manager paths a tree can reach, as (path, the stage's case).
+
+    A tree that names its case at build time hands the stage that case, so
+    its non-manager receiver is a participant replica.
+
+    A tree that names none is **not** thereby a tree whose receiver holds no
+    case: ``ReceivedPathNode.update`` falls back to the execution's
+    ``/case_id`` and then to the activity, so it resolves a case at run time
+    and a receiver holding a replica of that case is on the replica path
+    (HP-01-040).  Both dispositions are reachable, so both are pinned —
+    previously the replica one went unprobed for these trees, leaving the
+    refusal their declaration implies unasserted.
+    """
+    replica = (ReceivedPath.PARTICIPANT_REPLICA, CASE_ID)
+    if names_a_case:
+        return [replica]
+    return [(ReceivedPath.NO_CASE, None), replica]
 
 
 @pytest.mark.spec("HP-01-005")
@@ -672,35 +729,44 @@ def test_the_disposition_at_a_non_manager_receiver(
     admitted-and-silently-inert, which is the disposition HP-01-005 forbids
     and ADR-0153 closes by construction.
 
-    Which non-manager receiver the tree can give a disposition to follows
-    from the case it names: a tree that names one is received by a
-    participant replica, and a tree that names none hands the stage no case,
-    so every receiver is on the no-case path (HP-01-040).  Asserting the
-    replica path for the second kind would pin the reason composer rather
-    than a disposition the tree can reach.
+    Which non-manager receivers the tree can be reached by follows from the
+    case it names, and :func:`_non_manager_probes` says which dispositions
+    that makes reachable.  A tree naming no case reaches both the no-case and
+    the replica path, because the stage resolves a case at run time when the
+    factory named none (HP-01-040), so both are pinned here.
+
+    **What this test cannot tell you.** It reads the declaration out of the
+    call site and asserts the stage's verdict *for that declaration*, so it
+    agrees with whatever the tree declares.  A declaration that narrows away
+    a path a real receiver is on still passes here — the refusal just becomes
+    the pinned expectation.  A narrowing is a claim about who receives a
+    message type, and only a delivery to a real roster can falsify it: run
+    the ``test/demo/`` scenarios for the type, with ``-m ""``, and above all
+    one where a single actor holds two roles, which is where a replica-only
+    declaration meets a receiver that is also the CASE_MANAGER.
     """
     declared = DECLARED_PATHS[site]
-    if names_a_case:
-        expected, case_id = ReceivedPath.PARTICIPANT_REPLICA, CASE_ID
-    else:
-        expected, case_id = ReceivedPath.NO_CASE, None
-    stage = _stage_at(VENDOR_ID, declared, case_id)
+    for expected, case_id in _non_manager_probes(names_a_case):
+        # One store per probe: an actor id *is* a store name (DL-07-004), so
+        # two probes sharing one would re-seed the same case.
+        receiver = f"{VENDOR_ID}-{expected.name.lower()}"
+        stage = _stage_at(receiver, declared, case_id)
 
-    assert stage.resolved_path is expected
-    if expected in declared:
-        assert stage.status is Status.SUCCESS
-        assert not stage.feedback_message
-        return
-    assert stage.status is Status.FAILURE
-    assert stage.feedback_message == undeclared_path_reason(
-        expected, declared, case_id
-    )
-    if expected is ReceivedPath.PARTICIPANT_REPLICA:
-        assert f"not the CASE_MANAGER of case '{CASE_ID}'" in (
-            stage.feedback_message
+        assert stage.resolved_path is expected
+        if expected in declared:
+            assert stage.status is Status.SUCCESS
+            assert not stage.feedback_message
+            continue
+        assert stage.status is Status.FAILURE
+        assert stage.feedback_message == undeclared_path_reason(
+            expected, declared, case_id
         )
-    else:
-        assert "holds no replica of" in stage.feedback_message
+        if expected is ReceivedPath.PARTICIPANT_REPLICA:
+            assert f"not the CASE_MANAGER of case '{CASE_ID}'" in (
+                stage.feedback_message
+            )
+        else:
+            assert "holds no replica of" in stage.feedback_message
 
 
 @pytest.mark.spec("HP-01-005")

@@ -114,13 +114,14 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
         # manages it has nobody to introduce, and that owner's own Create is
         # the reporter's only one (CBT-02-001, CM-02-010).  The receiver's
         # role is not the question here — the bootstrap tree names no case at
-        # build time, so no declared path answers it, and the stage reads the
-        # no-case path for every receiver (HP-01-040).  The assertion keeps
-        # that reading local: this skip is equivalent to the old
-        # "the manager is me" only while the owner check above stands, and a
-        # reorder that moved it would fail here rather than silently widen
-        # the skip.
-        assert owner_actor_id == self.actor_id
+        # build time and the case does not exist yet when the door stage
+        # asks, so the stage reads the no-case path and no declared path
+        # answers this (HP-01-040).  The assertion keeps that reading local:
+        # this skip is equivalent to the old "the manager is me" only while
+        # the owner check above stands, so it re-reads the case rather than
+        # the local the check used, and a reorder that moved it would fail
+        # here rather than silently widen the skip.
+        assert case.attributed_to == self.actor_id
         if manager_id == owner_actor_id:
             return "the case owner is the CASE_MANAGER (CBT-02-001)"
         self._sent_id = find_case_create_sent_by(

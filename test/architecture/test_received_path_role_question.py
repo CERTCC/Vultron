@@ -26,8 +26,13 @@ sites:
    that asks the question another way.  Terminal value: empty, driven there
    by the Epic's migration waves: #5042 for the embargo trees, #5043 for the
    case, participant, report and status trees, #5044 for the sync, ledger
-   and actor-offer trees and the role-gate registries, #5744 for the sender
-   guard's own arms.
+   and actor-offer trees and the role-gate registries, #5046 for the
+   `Offer(VulnerabilityReport)` trees.  The last two entries go with the
+   waves rather than with a wave of their own: ``role_gates.py`` goes when
+   the last tree stops building a gate for itself, and ``sender_guard.py``'s
+   fallback read is taken only when a tree passes no path stage, so it goes
+   when the last tree declares.  #5044's AC-3 is what holds the set at empty
+   afterwards.
 2. **Pinned exemption set** :data:`SANCTIONED_ROLE_QUESTION_SITES`: the
    factory's own stage builders, whose CASE_MANAGER gate ADR-0153 keeps
    (BT-17-001 still holds for the manager path), and the trigger-side trees

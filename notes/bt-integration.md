@@ -311,14 +311,32 @@ answer, clock decisions, guards, commit, effects.
    non-empty sides of the rule are the baseline, because an empty side already
    admits no sender (HP-01-008) and HP-01-036 maps the three sides onto the
    three paths, so a declaration of exactly those sides refuses nothing the
-   sender guard did not already refuse. Narrow a side away only where the type
-   is addressed to one role and the tree does no protocol work on the other: a
-   participant sends only to the CASE_MANAGER (PCR-08-001), so an `in_case`
-   rule whose kinds exclude `CASE_MANAGER` names a participant side no sender
-   may legitimately use. Widen with the no-case path where the type precedes
-   or establishes its case (HP-01-041). Every declaration in the migrated
-   areas, and the disposition each gives a non-manager receiver, is pinned in
-   `test/core/behaviors/test_declared_received_paths.py`.
+   sender guard did not already refuse.
+
+   Narrow by what the **receiver** on a path has to do, never by the sender
+   kinds the side lists. A kind set that merely omits the `CASE_MANAGER` kind
+   does not name an empty participant side: the CASE_MANAGER holds a
+   participant record of its own, so `PARTICIPANT` and `ACTIVE_PARTICIPANT`
+   both admit it as a sender at a participant. Reasoning from the kinds
+   narrows the four RM declarations (`Engage`, `Defer`, `Validate`,
+   `Invalidate`) to the manager path, and all four need both: the CASE_MANAGER
+   fans the admitted act out to the roster, and each replica must pass the
+   door to archive its copy and converge from the ledger (PCR-03-001,
+   RSH-08-003). So keep the replica path wherever the act is relayed, even
+   when every effect of the tree sits behind the CASE_MANAGER gate and the
+   replica's own verdict is a refusal.
+
+   Drop a path only where no receiver on it ever holds the message — the
+   answer to a request the CASE_MANAGER alone made, which reaches that
+   CASE_MANAGER and nobody else.
+
+   Widen with the no-case path where the type precedes or establishes its
+   case (HP-01-041), and with the manager path where a redelivery can reach
+   the CASE_MANAGER of a case this actor created only after the first
+   delivery — which is why `Create(CaseProposal)` declares the manager path
+   beside the no-case one its sender rule gives it. Every declaration in the
+   migrated areas, and the disposition each gives a non-manager receiver, is
+   pinned in `test/core/behaviors/test_declared_received_paths.py`.
 
    Work that belongs to some declared paths and not others is an `OnPaths`
    declaration in `precondition_guards` or `replica_effects`, which the
