@@ -366,12 +366,13 @@ def test_role_list_bodies_refuse_finder_as_an_invalid_value(
     model: type[BaseModel], actor_field: str, roles: list[str]
 ) -> None:
     """A trigger body offering the former 'finder' role is refused (ADR-0175)."""
-    with pytest.raises(
-        ValidationError, match="'finder' is not a valid CVDRole"
-    ):
+    with pytest.raises(ValidationError) as excinfo:
         model.model_validate(
             {"case_id": _CASE, actor_field: _ACTOR, "roles": roles}
         )
+    assert [e["msg"] for e in excinfo.value.errors()] == [
+        "Value error, 'finder' is not a valid CVDRole"
+    ]
 
 
 @pytest.mark.parametrize(("model", "actor_field"), _ROLE_LIST_BODIES)
@@ -390,12 +391,13 @@ def test_role_list_bodies_parse_roles_like_every_other_path(
 @pytest.mark.parametrize("role", ["finder", "Finder"])
 def test_offer_role_body_refuses_finder_as_an_invalid_value(role: str) -> None:
     """The offer-role trigger body refuses 'finder' like any invalid value."""
-    with pytest.raises(
-        ValidationError, match="'finder' is not a valid CVDRole"
-    ):
+    with pytest.raises(ValidationError) as excinfo:
         OfferCaseParticipantRoleRequest.model_validate(
             {"case_id": _CASE, "target_actor_id": _ACTOR, "role": role}
         )
+    assert [e["msg"] for e in excinfo.value.errors()] == [
+        "Value error, 'finder' is not a valid CVDRole"
+    ]
 
 
 @pytest.mark.spec("CM-33-014")

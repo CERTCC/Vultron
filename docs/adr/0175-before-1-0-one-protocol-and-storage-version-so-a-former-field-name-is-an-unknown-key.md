@@ -62,8 +62,8 @@ No old name is ever read through an alias.
 
 The same holds for a value of a closed vocabulary that the protocol once accepted and no longer does, such as a retired role: it is refused like any other value outside the vocabulary, never read as its replacement, and the refusal does not name the retirement.
 
-This partly supersedes the retired-name clause of ADR-0099's inbound unknown-key detail, ADR-0122's statement that the retired scalar consent keys are refused inbound by name, and ADR-0078's treatment of the retired Finder role as a value with its own refusal.
-The rest of both records stands.
+This partly supersedes the retired-name clause of ADR-0099's inbound unknown-key detail, ADR-0122's statement that the retired scalar consent keys are refused inbound by name, and ADR-0078's expectation that the retired Finder value may still be met as a deprecated value in stored data.
+The rest of each record stands.
 
 Backward compatibility of the wire format is to be decided again at 1.0, when a second protocol version first becomes possible.
 

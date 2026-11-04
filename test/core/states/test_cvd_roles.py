@@ -235,13 +235,6 @@ def test_finder_is_not_a_role():
     assert "finder" not in {role.value for role in CVDRole}
 
 
-def test_roles_module_keeps_no_retired_value_list():
-    """No table of retired role values is kept before 1.0 (ADR-0175)."""
-    from vultron.enums import roles
-
-    assert not hasattr(roles, "RETIRED_ROLE_VALUES")
-
-
 @pytest.mark.parametrize("value", ["finder", "FINDER", "Finder"])
 def test_parse_role_refuses_finder_as_an_invalid_value(value):
     """A stored or inbound "finder" is refused as invalid, never aliased."""

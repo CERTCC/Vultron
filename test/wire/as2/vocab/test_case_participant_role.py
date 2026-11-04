@@ -33,7 +33,8 @@ def test_role_parses_live_values(raw):
 
 def test_offering_the_former_finder_role_is_refused():
     """An inbound offer of 'finder' is refused as an invalid value (ADR-0175)."""
-    with pytest.raises(
-        ValidationError, match="'finder' is not a valid CVDRole"
-    ):
+    with pytest.raises(ValidationError) as excinfo:
         as_CaseParticipantRole.model_validate({"role": "finder"})
+    assert [e["msg"] for e in excinfo.value.errors()] == [
+        "Value error, 'finder' is not a valid CVDRole"
+    ]

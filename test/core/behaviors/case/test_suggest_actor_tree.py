@@ -254,7 +254,7 @@ class TestEvaluateDefaultRolesNode:
             CVDRole.VENDOR
         ]
         assert any(
-            "'finder' is not a valid CVDRole" in record.getMessage()
+            record.getMessage().endswith("'finder' is not a valid CVDRole")
             for record in caplog.records
         )
 

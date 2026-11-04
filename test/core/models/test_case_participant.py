@@ -309,7 +309,9 @@ class TestRetiredFinderRole:
                     "case_roles": ["finder", "reporter"],
                 }
             )
-        assert "ADR-0078" not in str(excinfo.value)
+        assert [e["msg"] for e in excinfo.value.errors()] == [
+            "Value error, 'finder' is not a valid CVDRole"
+        ]
 
     @pytest.mark.parametrize(
         "cvd_role", [["FINDER"], ["reporter", "finder"], "finder"]
@@ -328,7 +330,9 @@ class TestRetiredFinderRole:
             ParticipantStatus.model_validate(
                 {"context": _CONTEXT, "cvd_role": cvd_role}
             )
-        assert "ADR-0078" not in str(excinfo.value)
+        assert [e["msg"] for e in excinfo.value.errors()] == [
+            "Value error, 'finder' is not a valid CVDRole"
+        ]
 
 
 # ---------------------------------------------------------------------------
