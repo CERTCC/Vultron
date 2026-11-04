@@ -103,9 +103,11 @@ _STRANGER = "https://example.org/actors/stranger"
 _INVITE = "https://example.org/activities/invite1"
 _LEAVE = "https://example.org/activities/leave1"
 
-#: The two declarations the embargo trees make.
+#: The two declarations the embargo trees make.  No embargo type declares the
+#: participant-replica path alone: an announcement reaches the manager too when
+#: the manager is a participant of its own case, which is what the exchange
+#: demos showed (HP-01-038).
 _MANAGER_ONLY = frozenset({ReceivedPath.CASE_MANAGER})
-_REPLICA_ONLY = frozenset({ReceivedPath.PARTICIPANT_REPLICA})
 _BOTH = frozenset(
     {ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA}
 )
@@ -248,7 +250,7 @@ TREES: tuple[tuple[str, _Builder, frozenset[ReceivedPath], _Site], ...] = (
     (
         "announce-embargo",
         _announce,
-        _REPLICA_ONLY,
+        _BOTH,
         _site(announce_embargo_received_tree),
     ),
     (
@@ -271,7 +273,6 @@ TREES: tuple[tuple[str, _Builder, frozenset[ReceivedPath], _Site], ...] = (
 #: replica.
 _REFUSED: dict[frozenset[ReceivedPath], tuple[str, ReceivedPath]] = {
     _MANAGER_ONLY: ("replica", ReceivedPath.PARTICIPANT_REPLICA),
-    _REPLICA_ONLY: ("manager", ReceivedPath.CASE_MANAGER),
     _BOTH: ("stranger", ReceivedPath.NO_CASE),
 }
 
@@ -421,13 +422,12 @@ def test_a_receiver_off_the_declared_path_is_refused(
     assert stage.feedback_message == undeclared_path_reason(
         refused_path, declared, case_id
     )
-    if ReceivedPath.CASE_MANAGER not in declared:
-        # A manager-free declaration refuses the case's own CASE_MANAGER, so
-        # the clause is true of it and what the reason names as missing is a
-        # branch, not the role (#5041).
-        assert "is the CASE_MANAGER of case" not in stage.feedback_message
-        assert stage.feedback_message.startswith("the CASE_MANAGER of case")
-        assert "this message type does not address" in stage.feedback_message
+    # No embargo type declares a manager-free set today, so the composer's
+    # other arm — the one that tells the case's own CASE_MANAGER that it *is*
+    # the CASE_MANAGER — is pinned where it lives, in
+    # `test/core/behaviors/case/test_received_path_stage.py`, rather than
+    # asserted here against a configuration no row has (#5041).
+    assert ReceivedPath.CASE_MANAGER in declared
 
 
 @pytest.mark.spec("HP-01-037")
