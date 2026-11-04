@@ -2170,7 +2170,6 @@ groups:
       resolves the CASE_MANAGER before storing terms.
     stories:
     - story_2022_046
-    - story_2022_014
     - story_2026_058
   - id: BT-19-005
     priority: MUST
@@ -2193,7 +2192,6 @@ groups:
       spec_id: BT-19-003
     stories:
     - story_2022_046
-    - story_2022_014
     - story_2026_058
   - id: BT-19-002
     priority: MUST

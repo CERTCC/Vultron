@@ -265,7 +265,7 @@ groups:
     - rel_type: implements
       spec_id: VP-06-004
     stories:
-    - story_2022_014
+    - story_2026_010
   - id: RF-04-002
     priority: SHOULD
     kind: protocol
@@ -293,7 +293,7 @@ groups:
       validation error, and `TestInlineTypedObjectAccepted` confirms that a
       `TentativeReject` of the Offer is accepted.
     stories:
-    - story_2022_014
+    - story_2026_010
   - id: RF-04-004
     priority: MUST
     kind: project

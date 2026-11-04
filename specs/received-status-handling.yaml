@@ -337,7 +337,6 @@ groups:
     adr:
     - ADR-0046
     stories:
-    - story_2022_014
     - story_2026_041
   - id: RSH-04-003
     priority: MUST

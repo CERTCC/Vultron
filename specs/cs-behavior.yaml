@@ -407,7 +407,7 @@ groups:
     testable: true
 
     stories:
-    - story_2022_014
+    - story_2026_033
     - story_2022_023
   - id: CSB-04-007
     priority: MUST
@@ -441,7 +441,7 @@ groups:
 
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_033
 - id: CSB-05
   title: Receive CX (Exploit Public)
   description: Behaviors triggered when a participant receives a CX (Exploit Public) message, recording public availability of an exploit and initiating embargo teardown if an active embargo exists.
@@ -694,7 +694,7 @@ groups:
     testable: true
 
     stories:
-    - story_2022_014
+    - story_2026_033
     - story_2022_023
   - id: CSB-05-008
     priority: MUST
@@ -1016,7 +1016,7 @@ groups:
     testable: true
 
     stories:
-    - story_2022_014
+    - story_2026_033
     - story_2022_023
   - id: CSB-06-008
     priority: MUST
@@ -1194,7 +1194,7 @@ groups:
         Once a case has reached Vendor Aware, if the EM process has not started,
         it SHOULD begin as soon as possible
     stories:
-    - story_2022_014
+    - story_2026_083
 
   - id: CSB-09-002
     priority: SHOULD
@@ -1264,7 +1264,7 @@ groups:
         start and pending embargoes SHOULD be rejected, except for the VP-06-008
         publication or deployment embargo
     stories:
-    - story_2022_014
+    - story_2026_033
 
   - id: CSB-10-002
     priority: SHOULD
@@ -1338,7 +1338,7 @@ groups:
         By the time a fix has been deployed, any existing embargo SHOULD
         terminate
     stories:
-    - story_2022_014
+    - story_2026_033
 
   - id: CSB-11-002
     priority: SHOULD
@@ -1521,7 +1521,7 @@ groups:
       spec_id: VP-06-001
       note: Once Public Awareness, new embargoes SHALL NOT be sought
     stories:
-    - story_2022_014
+    - story_2026_033
     - story_2022_023
 
   - id: CSB-12-003
@@ -1680,7 +1680,7 @@ groups:
 
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_033
   - id: CSB-13-005
     priority: MUST
     kind: protocol
@@ -1728,7 +1728,7 @@ groups:
         exploit code
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_059
   - id: CSB-13-004
     priority: MUST
     kind: protocol
@@ -1753,7 +1753,7 @@ groups:
       spec_id: CSB-13-002
     stories:
     - story_2022_023
-    - story_2022_014
+    - story_2026_077
   - id: CSB-13-003
     priority: MUST_NOT
     kind: protocol
@@ -1777,7 +1777,7 @@ groups:
       spec_id: VP-06-001
       note: Once Exploit Publication, new embargoes SHALL NOT be sought
     stories:
-    - story_2022_014
+    - story_2026_033
     - story_2022_023
 
 - id: CSB-14
@@ -1836,7 +1836,7 @@ groups:
         Embargoes SHOULD terminate immediately when there is evidence of active
         exploitation
     stories:
-    - story_2022_014
+    - story_2026_033
   - id: CSB-14-006
     priority: SHOULD
     kind: protocol
@@ -1883,7 +1883,7 @@ groups:
       note: >-
         Participants SHOULD initiate embargo termination on learning of attacks
     stories:
-    - story_2022_014
+    - story_2026_059
 
 
   - id: CSB-14-005
@@ -1909,7 +1909,7 @@ groups:
     - rel_type: refines
       spec_id: CSB-14-001
     stories:
-    - story_2022_014
+    - story_2026_077
   - id: CSB-14-003
     priority: MUST_NOT
     kind: protocol

@@ -406,7 +406,7 @@ groups:
     - ADR-0080
     - ADR-0113
     stories:
-    - story_2022_014
+    - story_2026_006
   - id: ASK-03-008
     priority: MUST
     kind: protocol
@@ -633,7 +633,7 @@ groups:
     - ADR-0080
     - ADR-0113
     stories:
-    - story_2022_014
+    - story_2026_006
   - id: ASK-04-013
     priority: MUST_NOT
     kind: protocol
@@ -655,7 +655,7 @@ groups:
     - ADR-0080
     - ADR-0113
     stories:
-    - story_2022_014
+    - story_2026_006
 
 - id: ASK-05
   title: Expiry and Reaping
