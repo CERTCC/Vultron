@@ -21,7 +21,7 @@ Split from ``conditions`` to keep that leaf under the BTND-07-004 line cap.
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
-from vultron.core.behaviors.report.nodes.rm_transitions import (
+from vultron.core.behaviors.report.nodes.rm_transitions.report_phase import (
     _read_report_case_link,
 )
 from vultron.core.states.rm import RM, is_rm_write_permitted

@@ -217,11 +217,11 @@ class TestSeedCLIWithDeterministicId:
         runner = CliRunner()
         with (
             patch(
-                "vultron.demo.cli.seed_actor",
+                "vultron.demo.cli.seed_command.seed_actor",
                 MagicMock(side_effect=_capturing_seed),
             ),
             patch(
-                "vultron.demo.cli.seed_peer",
+                "vultron.demo.cli.seed_command.seed_peer",
                 MagicMock(side_effect=_capturing_peer),
             ),
         ):

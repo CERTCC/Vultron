@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from test.demo._helpers import mock_actor, mock_case
-from vultron.demo import utils as demo_utils
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import invite_chain
 from vultron.demo.helpers.invite_chain import (
@@ -20,6 +19,7 @@ from vultron.demo.helpers.invite_chain import (
     links as invite_links,
     run_case_invite_chain,
 )
+from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 
 #: Clear the process-global failure accumulator around every test.
@@ -154,7 +154,7 @@ def test_accept_path_invites_finds_accepts_and_waits_for_replica(chain_mocks):
         invite_id="urn:t:full-invite"
     )
     assert ran == [True]
-    assert demo_utils._demo_failures == []
+    assert _demo_failures == []
 
 
 @pytest.mark.spec("CM-11-011")
@@ -176,7 +176,7 @@ def test_every_invitee_replies_to_the_full_case_invite(chain_mocks, role):
     chain_mocks.full_reply.assert_called_once_with(
         invite_id="urn:t:full-invite"
     )
-    assert demo_utils._demo_failures == []
+    assert _demo_failures == []
 
 
 @pytest.mark.spec("SYNC-10-004")
@@ -273,7 +273,7 @@ def test_the_two_halves_invite_then_answer_like_the_whole_chain(chain_mocks):
     chain_mocks.accept.assert_called_once_with(invite_id="urn:t:invite")
     chain_mocks.replica.assert_called_once()
     chain_mocks.full_reply.assert_called_once()
-    assert demo_utils._demo_failures == []
+    assert _demo_failures == []
 
 
 def test_an_undelivered_invite_leaves_the_second_half_nothing_to_answer(
@@ -303,7 +303,7 @@ def test_an_undelivered_invite_leaves_the_second_half_nothing_to_answer(
 
     chain_mocks.accept.assert_not_called()
     chain_mocks.reject.assert_not_called()
-    assert len(demo_utils._demo_failures) == 2
+    assert len(_demo_failures) == 2
 
 
 @pytest.mark.spec("SYNC-10-004")
@@ -338,7 +338,7 @@ def test_undelivered_full_case_invite_skips_the_reply(chain_mocks):
     _run()
 
     chain_mocks.full_reply.assert_not_called()
-    assert len(demo_utils._demo_failures) == 1
+    assert len(_demo_failures) == 1
 
 
 def test_reject_path_rejects_and_awaits_no_replica(chain_mocks):
@@ -349,7 +349,7 @@ def test_reject_path_rejects_and_awaits_no_replica(chain_mocks):
     chain_mocks.replica.assert_not_called()
     chain_mocks.full_invite.assert_not_called()
     chain_mocks.full_reply.assert_not_called()
-    assert demo_utils._demo_failures == []
+    assert _demo_failures == []
 
 
 def test_recommend_path_has_no_inviter_and_triggers_no_invite(chain_mocks):
@@ -383,10 +383,9 @@ def test_failed_invite_trigger_skips_every_dependent(chain_mocks):
     chain_mocks.accept.assert_not_called()
     chain_mocks.replica.assert_not_called()
     assert ran == []
-    assert len(demo_utils._demo_failures) == 1
+    assert len(_demo_failures) == 1
     assert (
-        "Coordinator invites Vendor with CVDRole.VENDOR"
-        in (demo_utils._demo_failures[0])
+        "Coordinator invites Vendor with CVDRole.VENDOR" in (_demo_failures[0])
     )
 
 
@@ -399,10 +398,9 @@ def test_undelivered_invite_skips_the_answer_and_what_follows(chain_mocks):
     chain_mocks.accept.assert_not_called()
     chain_mocks.replica.assert_not_called()
     assert ran == []
-    assert len(demo_utils._demo_failures) == 1
+    assert len(_demo_failures) == 1
     assert (
-        "Vendor invite delivered to Vendor's DataLayer"
-        in (demo_utils._demo_failures[0])
+        "Vendor invite delivered to Vendor's DataLayer" in (_demo_failures[0])
     )
 
 
@@ -436,7 +434,7 @@ def test_failed_sender_check_is_recorded_but_does_not_block_the_answer(
     )
 
     chain_mocks.accept.assert_called_once()
-    assert len(demo_utils._demo_failures) == 1
+    assert len(_demo_failures) == 1
 
 
 def test_failed_replica_wait_is_recorded_and_then_still_runs(chain_mocks):
@@ -446,7 +444,7 @@ def test_failed_replica_wait_is_recorded_and_then_still_runs(chain_mocks):
     _run(then=lambda: ran.append(True))
 
     assert ran == [True]
-    assert len(demo_utils._demo_failures) == 1
+    assert len(_demo_failures) == 1
 
 
 def test_then_runs_after_a_reject(chain_mocks):

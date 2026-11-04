@@ -53,7 +53,9 @@ from vultron.errors import DemoScenarioRegistryError
 
 _REPO_ROOT = Path(__file__).parents[2]
 _SCENARIO_DIR = _REPO_ROOT / SCENARIO_DIR
-_REGISTRY_SOURCE = _SCENARIO_DIR / "registry.py"
+#: Every module of the registry package: an import or the ``pkgutil`` walk can
+#: sit in any of them, so the source check scans them all.
+_REGISTRY_SOURCES = tuple(sorted((_SCENARIO_DIR / "registry").glob("*.py")))
 
 #: A valid path for fixture specs; which one does not matter to these tests.
 _PATH = (
@@ -122,10 +124,15 @@ def test_no_hand_maintained_import_list() -> None:
     docstring or comment — as this module's own prose does — cannot satisfy or
     trip the check.
     """
-    tree = ast.parse(_REGISTRY_SOURCE.read_text(encoding="utf-8"))
+    assert _REGISTRY_SOURCES, f"no registry modules under {_SCENARIO_DIR}"
+    nodes = [
+        node
+        for path in _REGISTRY_SOURCES
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+    ]
 
     imported: list[str] = []
-    for node in ast.walk(tree):
+    for node in nodes:
         if isinstance(node, ast.Import):
             imported.extend(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module:
@@ -138,7 +145,7 @@ def test_no_hand_maintained_import_list() -> None:
         name for name in imported if name.endswith(MODULE_SUFFIX)
     )
     assert not offenders, (
-        f"{_REGISTRY_SOURCE.name} imports scenario demo module(s) by name: "
+        f"the registry imports scenario demo module(s) by name: "
         f"{offenders}. Discovery must enumerate the package with pkgutil "
         "(DEMOCI-11-002, DEMOCI-11-038); a named import list omits any module "
         "nobody remembers to add."
@@ -146,11 +153,11 @@ def test_no_hand_maintained_import_list() -> None:
 
     calls = {
         f"{getattr(node.func.value, 'id', '')}.{node.func.attr}"
-        for node in ast.walk(tree)
+        for node in nodes
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
     }
     assert "pkgutil.iter_modules" in calls, (
-        f"{_REGISTRY_SOURCE.name} no longer calls pkgutil.iter_modules; "
+        "the registry no longer calls pkgutil.iter_modules; "
         "package traversal is what makes discovery independent of anyone "
         "remembering to register a module (DEMOCI-11-002)."
     )
@@ -183,7 +190,7 @@ def test_derived_paths_resolve(spec: ScenarioSpec) -> None:
 def test_every_scenario_has_a_cli_subcommand(spec: ScenarioSpec) -> None:
     """Each registered scenario is reachable from ``vultron-demo``.
 
-    Since ISSUE-3475 ``vultron/demo/cli.py`` generates one sub-command per
+    Since ISSUE-3475 ``vultron/demo/cli/`` generates one sub-command per
     registered scenario rather than hand-wiring a ``@main.command`` block each
     (DEMOCI-11-011), so this can no longer fail by someone forgetting a block —
     it fails if discovery and command registration disagree.
@@ -197,7 +204,7 @@ def test_every_scenario_has_a_cli_subcommand(spec: ScenarioSpec) -> None:
     direction), both in ``test_scenario_cli_factory.py``.
     """
     assert spec.name in cli.main.commands, (
-        f"scenario {spec.name!r} is registered but vultron/demo/cli.py exposes "
+        f"scenario {spec.name!r} is registered but vultron/demo/cli/ exposes "
         f"no '{spec.name}' sub-command, so nothing can run it. The CLI builds "
         "one per registered scenario; check discover_scenarios() and "
         "_make_scenario_command()."

@@ -176,7 +176,7 @@ def test_pre_commit_runs_the_check() -> None:
     # the index itself.
     for watched in (
         "vultron/demo/scenario/branch_points.py",
-        "vultron/demo/scenario/registry.py",
+        "vultron/demo/scenario/registry/discovery.py",
         "vultron/demo/scenario/tree.py",
         "vultron/demo/scenario/rv_demo.py",
         "vultron/demo/recordings/layout.py",

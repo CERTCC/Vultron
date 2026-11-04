@@ -118,7 +118,7 @@ writes and the emit in `proposal_admission_actions.py` (BTND-07-003).
 
 ## CaseActor Native Initialization (ADR-0041)
 
-On accept, `case_proposal_received_tree.py` creates the case, its participants, the
+On accept, `case_proposal_received_tree/` creates the case, its participants, the
 default embargo and the canonical ledger entries natively — no back-fill, no prologue.
 
 - The case's `attributed_to` is the proposer, the CASE_OWNER (CP-09-001); the

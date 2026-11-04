@@ -776,7 +776,7 @@ NESTED_COMMIT_TREES: frozenset[str] = frozenset(
         # The close arm is a received tree nested in the close tree; the
         # factory gives the nested arm no stage of its own (one answer per
         # delivery), and its commit is the arm's.
-        "vultron/core/behaviors/case/receive_close_case_tree.py:"
+        "vultron/core/behaviors/case/receive_close_case_tree/factory.py:"
         "create_close_case_received_tree",
     }
 )

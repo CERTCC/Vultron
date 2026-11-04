@@ -18,7 +18,7 @@ A replay node reads the case from the received activity
 (:func:`replay_case_id`), or from the tree when the tree names it
 (:class:`CaseNamedReplayNode`): the answer to a stamped ``ledgerPosition``
 is built for the tree's case, since a case activity names it in different
-slots (SYNC-18-007).  Split out of ``replay.py`` (BTND-07-004).
+slots (SYNC-18-007).  Split out of ``replay`` (BTND-07-004).
 """
 
 from typing import Any

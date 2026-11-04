@@ -37,7 +37,7 @@ Provides:
   (CM-21-028, CM-21-029, ADR-0148).
 
 These leaf nodes are assembled into trigger/receive trees in the parent
-``actor_trigger_trees.py`` and ``ownership_transfer_tree.py`` modules per
+``actor_trigger_trees.py`` and ``ownership_transfer_tree/`` modules per
 BTND-07-003.
 """
 

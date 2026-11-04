@@ -19,13 +19,17 @@ import pytest
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from vultron.adapters.driven.db_record import (
-    _KEEP_INLINE_NESTED_TYPES,
     Record,
-    _dehydrate_data,
-    _inline_required_refs,
-    _rekey_wire_identity,
     object_to_record,
     record_to_object,
+)
+from vultron.adapters.driven.db_record.codec import (
+    _dehydrate_data,
+    _rekey_wire_identity,
+)
+from vultron.adapters.driven.db_record.ref_fields import (
+    _KEEP_INLINE_NESTED_TYPES,
+    _inline_required_refs,
 )
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.errors import (
@@ -188,7 +192,7 @@ def test_dehydrate_data_ignores_empty_string_id():
 
 def test_dehydrate_data_dehydrates_all_object_ref_fields():
     """Every generic Activity object-reference field is a dehydration candidate."""
-    from vultron.adapters.driven.db_record import (
+    from vultron.adapters.driven.db_record.ref_fields import (
         _activity_object_ref_properties,
     )
 
@@ -1085,7 +1089,7 @@ def test_activity_object_ref_properties_is_the_full_activity_slot_set():
     ``test_dehydrate_data_dehydrates_all_object_ref_fields`` would have looped
     over an empty set and passed.  Pinning the set keeps that loop honest.
     """
-    from vultron.adapters.driven.db_record import (
+    from vultron.adapters.driven.db_record.ref_fields import (
         _activity_object_ref_properties,
     )
 
@@ -1095,7 +1099,9 @@ def test_activity_object_ref_properties_is_the_full_activity_slot_set():
 
 
 def test_is_generic_object_ref_sees_through_the_non_empty_string_branch():
-    from vultron.adapters.driven.db_record import _is_generic_object_ref
+    from vultron.adapters.driven.db_record.ref_fields import (
+        _is_generic_object_ref,
+    )
     from vultron.wire.as2.vocab.base.objects.actors import as_ActorRef
     from vultron.wire.as2.vocab.base.objects.base import (
         as_ObjectRef,

@@ -141,8 +141,9 @@ Every CASE_MANAGER received-side handler that accepts a participant message fire
 cascade itself: guarded commit, then `FanOutLogEntryNode`
 (`core/behaviors/sync/nodes/fanout.py`) queues the `Announce` in the CASE_MANAGER
 outbox, and each participant's `AnnounceLedgerEntryReceivedUseCase` updates its replica.
-The `/actors/{actor_id}/demo/sync-log-entry` endpoint (`routers/demo_triggers.py`) is a
-test scaffold only; never part of the normal flow.
+The `/actors/{actor_id}/demo/sync-log-entry` endpoint
+(`routers/demo_triggers/actions.py`) is a test scaffold only; never part of the
+normal flow.
 
 ---
 

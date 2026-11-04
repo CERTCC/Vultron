@@ -30,7 +30,7 @@ from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.exchange import embargo_lifecycle as lifecycle
 from vultron.demo.helpers.polling import case_actor as polling_case_actor
-from vultron.demo.utils import _demo_failures
+from vultron.demo.utils.failures import _demo_failures
 
 #: Clear the process-global failure accumulator around every test.
 pytestmark = pytest.mark.usefixtures("fresh_demo_failures")

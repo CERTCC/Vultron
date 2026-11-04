@@ -302,7 +302,7 @@ def _registry_entries() -> list[dict]:
     """The ``.github/demo-scenarios.json`` entries that are JSON objects.
 
     That file is a generated projection of the scenario registry in
-    ``vultron/demo/scenario/registry.py`` (ADR-0098, DEMOCI-11-004), and it is
+    ``vultron/demo/scenario/registry/`` (ADR-0098, DEMOCI-11-004), and it is
     what the CI matrix expands, so it is the right list to read here. Do not add
     a second list of harness files.
     """
