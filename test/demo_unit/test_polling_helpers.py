@@ -20,16 +20,23 @@ and negative cases (timeout → AssertionError).
 import inspect
 import json
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from unittest.mock import MagicMock, patch
+from urllib.parse import unquote
 
+import httpx2 as httpx
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driving.fastapi.routers.datalayer import (
+    get_object_by_key,
+)
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.helpers.polling import (
@@ -397,16 +404,112 @@ def test_wait_for_pending_inbox_quiescent_empty_list():
     )
 
 
-def test_wait_for_pending_inbox_quiescent_exception_treated_as_quiescent():
-    """Exceptions from client.get → treat as quiescent (inbox does not exist)."""
+def _pending_inbox_route_client(
+    dl: SqliteDataLayer, actor_id: str
+) -> MagicMock:
+    """Client whose reads are served by the real ``get_object_by_key`` route.
+
+    Routes ``client.get(client.dl_path(...))`` through the FastAPI datalayer
+    route function so that key-encoding is tested end-to-end: the path the
+    helper builds must round-trip through one URL decode to the stored key.
+    A 404 from the route function is translated to ``httpx.HTTPStatusError``
+    (status 404) as ``DataLayerClient.call`` does, so the fix can distinguish
+    "row absent" from other errors.
+    """
     client = MagicMock()
-    client.base_url = "http://vendor:7999"
-    client.get.side_effect = Exception("404 not found")
+    client.base_url = "http://test:7999"
+    client.actor_id = actor_id
+    client.dl_path.side_effect = lambda key="", actor_id=None: (
+        f"/datalayer/{key}"
+    )
+
+    def _get(path: str, **kwargs: Any) -> Any:
+        raw_key = path.removeprefix("/datalayer/")
+        decoded_key = unquote(raw_key)
+        try:
+            return get_object_by_key(key=decoded_key, datalayer=dl)
+        except Exception as exc:
+            status_code = getattr(exc, "status_code", None)
+            mock_request: Any = MagicMock()
+            mock_response: Any = MagicMock()
+            mock_response.status_code = status_code or 500
+            raise httpx.HTTPStatusError(
+                f"HTTP {mock_response.status_code}",
+                request=mock_request,
+                response=mock_response,
+            ) from exc
+
+    client.get.side_effect = _get
+    return client
+
+
+_PENDING_INBOX_ACTOR = "http://test.example/actors/vendor"
+
+
+@pytest.mark.spec("EDF-06-001")
+def test_wait_for_pending_inbox_quiescent_non_empty_times_out_through_route():
+    """Non-empty pending inbox → AssertionError through the real datalayer route.
+
+    Verifies AC-1 (#5722): with a ``VultronPendingCaseInbox`` holding activity
+    IDs the gate must time out (raise ``AssertionError``) rather than pass.
+    The key encoding must survive one URL decode so the route finds the row.
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_PENDING_INBOX_ACTOR)
+    pending = VultronPendingCaseInbox(
+        case_id=CASE_ID,
+        activity_ids=["http://example.com/activities/act-1"],
+    )
+    dl.save(pending)
+    client = _pending_inbox_route_client(dl, _PENDING_INBOX_ACTOR)
+    with pytest.raises(AssertionError, match="PendingCaseInbox"):
+        wait_for_pending_inbox_quiescent(
+            client=client,
+            case_id=CASE_ID,
+            timeout_seconds=0,
+            poll_interval=0.01,
+        )
+
+
+@pytest.mark.spec("EDF-06-001")
+def test_wait_for_pending_inbox_quiescent_absent_through_route():
+    """Absent pending inbox → returns immediately through the real route.
+
+    Verifies AC-2 (#5722): when the ``VultronPendingCaseInbox`` row is not in
+    the store, a 404 from the route is treated as quiescent (row absent).
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_PENDING_INBOX_ACTOR)
+    # No VultronPendingCaseInbox seeded — row is absent.
+    client = _pending_inbox_route_client(dl, _PENDING_INBOX_ACTOR)
     wait_for_pending_inbox_quiescent(
         client=client,
         case_id=CASE_ID,
         timeout_seconds=1.0,
     )
+
+
+@pytest.mark.spec("EDF-06-001")
+def test_wait_for_pending_inbox_quiescent_non_404_error_propagates():
+    """Non-404 ``httpx.HTTPStatusError`` propagates instead of being quiescent.
+
+    Verifies AC-3 (#5722): a server error (status != 404) must not be reported
+    as "drained" — it should propagate so the caller knows something went wrong.
+    """
+    mock_request: Any = MagicMock()
+    mock_response: Any = MagicMock()
+    mock_response.status_code = 500
+    client = MagicMock()
+    client.base_url = "http://test:7999"
+    client.get.side_effect = httpx.HTTPStatusError(
+        "500 Internal Server Error",
+        request=mock_request,
+        response=mock_response,
+    )
+    with pytest.raises(httpx.HTTPStatusError):
+        wait_for_pending_inbox_quiescent(
+            client=client,
+            case_id=CASE_ID,
+            timeout_seconds=1.0,
+        )
 
 
 def test_wait_for_pending_inbox_quiescent_raises_when_not_empty():
