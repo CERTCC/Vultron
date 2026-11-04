@@ -182,6 +182,7 @@ adr/0170-the-bootstrap-create-carries-its-case-and-nested-objects-inline.md
 adr/0171-publish-the-site-on-a-weekday-schedule-from-tags.md
 adr/0172-an-active-participant-is-not-closed.md
 adr/0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md
+adr/0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
