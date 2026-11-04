@@ -163,18 +163,20 @@ def test_lint_rejects_deprecated_in_place(
     write_yaml(specs, data)
 
     assert lint(specs) == 1
-    assert "MS-09-001" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "MS-09-001" in err
+    assert "uv run spec-retire TST-01-001" in err
 
 
 def test_live_specs_do_not_reuse_or_deprecate() -> None:
-    """The real corpus satisfies the retirement rules."""
+    """The real corpus satisfies the retirement rules.
+
+    It loads at all only if no requirement carries ``deprecated:`` or
+    ``superseded_by:``, which ``StatementSpec`` refuses (MS-09-001).
+    """
     root = repo_root()
     registry = load_registry(root / "specs")
     assert not set(registry.all_specs) & retired_spec_ids(root)
-    assert all(
-        not {"deprecated", "superseded_by"} & s.model_fields_set
-        for s in registry.all_specs.values()
-    )
 
 
 def test_archive_is_outside_the_spec_loader_scope() -> None:

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -50,6 +52,12 @@ class Relationship(BaseModel):
     note: str | None = None
 
 
+#: Keys a requirement once used to stay in place after it was superseded.
+#: The schema declares neither: a superseded requirement is removed and
+#: archived instead (MS-04-005, MS-09-001).
+_RETIRED_LIFECYCLE_KEYS: tuple[str, ...] = ("deprecated", "superseded_by")
+
+
 def _check_nonempty_list(v: list | None, field_name: str) -> list | None:
     """Shared validator: if present, must be non-empty."""
     if v is not None and len(v) == 0:
@@ -72,8 +80,6 @@ class StatementSpec(BaseModel):
     statement: NonEmptyStr
     rationale: NonEmptyStr
     testable: bool = True
-    deprecated: bool = False
-    superseded_by: SpecIdStr | None = None
     verification: NonEmptyStr | None = None
     #: Set only on a MUST-tier item with no ``verification:`` (MS-10-006).
     #: Distinct from ``tracking_issue``, which tracks planned implementation.
@@ -89,6 +95,29 @@ class StatementSpec(BaseModel):
     adr: list[AdrIdStr] | None = None
     lint_suppress: list[LintWarningCode] | None = None
     stories: list[StoryIdStr] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _refuse_lifecycle_keys(cls, data: Any) -> Any:
+        """Refuse ``deprecated:``/``superseded_by:`` with the retirement path.
+
+        ``extra="forbid"`` (SR-02-022) would already reject either key, but
+        only as an unnamed extra input. This names the rule and the command
+        that replaces the key, so spec-lint's refusal stays actionable
+        (MS-09-001, MS-09-007).
+        """
+        if isinstance(data, dict):
+            found = [k for k in _RETIRED_LIFECYCLE_KEYS if k in data]
+            if found:
+                spec_id = data.get("id", "<unknown>")
+                keys = ", ".join(f"'{k}:'" for k in found)
+                raise ValueError(
+                    f"Spec '{spec_id}' carries {keys}; a superseded "
+                    f"requirement is removed, not marked in place. Archive "
+                    f"it with `uv run spec-retire {spec_id}` instead "
+                    f"(MS-09-001)"
+                )
+        return data
 
     @field_validator(
         "scope",

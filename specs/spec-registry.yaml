@@ -494,30 +494,31 @@ groups:
   - id: SR-02-021
     priority: MUST
     kind: project
-    verification_debt: '#2574'
     statement: >-
       `StatementSpec` MUST support these optional fields beyond the core set, and
       `BehavioralSpec` inherits them: `verification`, `note`, `tracking_issue`,
-      `verification_debt`, `references`, `exceptions`, `trigger`, `deprecated` and
-      `superseded_by`. The `verification` field (NonEmptyStr) is a machine-executable or
-      human-reviewable check that confirms the requirement is met. The `note` field
-      (NonEmptyStr) is a correction notice or clarifying annotation. The
-      `tracking_issue` field (str) holds the GitHub issue references that track planned
-      implementation. The `verification_debt` field (`#N`) names the issue that owns
-      verifying a `MUST`-tier requirement with no `verification` (MS-10-006). The
-      `references` field (list[str]) holds file paths or URIs to supporting documents.
-      The `exceptions` field (list[NonEmptyStr]) lists permitted exceptions to the rule
-      that the requirement states. The `trigger` field (Trigger) is the activating event
-      of a behavioral spec item. The `deprecated` field (bool) defaults to False. The
-      `superseded_by` field (SpecIdStr | None) is the ID of the replacement requirement.
+      `verification_debt`, `references`, `exceptions` and `trigger`. The
+      `verification` field (NonEmptyStr) is a machine-executable or human-reviewable
+      check that confirms the requirement is met. The `note` field (NonEmptyStr) is a
+      correction notice or clarifying annotation. The `tracking_issue` field (str)
+      holds the GitHub issue references that track planned implementation. The
+      `verification_debt` field (`#N`) names the issue that owns verifying a
+      `MUST`-tier requirement with no `verification` (MS-10-006). The `references`
+      field (list[str]) holds file paths or URIs to supporting documents. The
+      `exceptions` field (list[NonEmptyStr]) lists permitted exceptions to the rule
+      that the requirement states. The `trigger` field (Trigger) is the activating
+      event of a behavioral spec item.
     rationale: >-
       Without these fields in the schema, the loader would reject (SR-02-022) or ignore
       annotations that requirements need. These annotations tell how a requirement is
       checked, who owns its missing check, its exceptions, its trigger and its
-      supporting references. Typed fields let tooling validate each one. Because the
-      schema declares `deprecated` and `superseded_by`, spec-lint can recognize them. It
-      refuses them with a pointer to the retirement archive (MS-09-001), and does not
-      fail on an unknown key.
+      supporting references. Typed fields let tooling validate each one. The list has
+      no lifecycle field: a superseded requirement is removed and archived, not marked
+      in place (MS-04-005, MS-09-001).
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_statement_spec_optional_field_set`
+      asserts that both models declare each listed field as optional and declare
+      no `deprecated` or `superseded_by` field.
     relationships:
     - rel_type: refines
       spec_id: SR-02-009
