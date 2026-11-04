@@ -5,7 +5,8 @@ kind: guidance
 description: >
   Rules for the shared source/markdown corpus behind test/architecture/
   ratchets, for ratchets that start from a live object, for applying the
-  prefilter per definition rather than per file, and for baselines:
+  prefilter per definition rather than per file, for stating whether each
+  loose reading can miss a violation or invent one, and for baselines:
   owner markers and the ratchet-versus-pinned-exemption-set split.
 related_specs:
   - specs/architecture.yaml
@@ -123,6 +124,19 @@ grows until every guard reads as covered. The rule is real and is recorded as a
 test-authoring rule in [testing-pitfalls](testing-pitfalls.md) § "Drive a Guard
 Through Its Production Entry Point"; what has no structural form is the check
 (#3156).
+
+## Say, Per Loose Reading, Whether It Can Miss or Invent
+
+A ratchet reading source by name rather than by binding is imprecise in both
+directions, and the two directions are not equally safe: a reading that **misses**
+a violation costs coverage, while one that **invents** one fails correct code and
+gets the ratchet switched off. List each loose reading in the module docstring
+with its direction, and narrow every reading that can invent. A docstring that
+claims one-sidedness for all of them stops anyone looking: the guard-reachability
+derivation made that claim while four of its readings could invent a violation —
+a method's positional index read off the signature instead of the call, a `*args`
+splat not given the benefit of the doubt its `**kwargs` sibling had, a nested
+scope walked into, and a rebound parameter read as a gate (#3156).
 
 ## Key a Ratchet on the Act, Not on the Name of What Performs It
 

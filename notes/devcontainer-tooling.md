@@ -6,7 +6,8 @@ description: >
   Environment-level pitfalls specific to this devcontainer: why every tool must
   run under `uv run`, why the image exports no `PYTHONPATH` and what to do in
   a container built before that fix, the `UV_NO_SYNC=1`
-  workaround for a root-owned venv, running `ruff` bare, the hanging
+  workaround for a root-owned venv, running `ruff` bare, why `pyright` and an
+  `-n auto` suite must not run together, the hanging
   `actionlint` hook, pushing to `origin`
   with `-u` rather than a token URL, the HTTP/2 push that never gets a reply,
   the `.claude/skills` symlink to `.agents/skills`, and the CodeQL name
@@ -68,6 +69,16 @@ list silently diverges from what the hook and CI check. The `ruff` pre-commit
 hook checks only staged files and is fast, so a commit needs no long timeout;
 the slow linters (`mypy`, `pyright`) are not hooks and run through
 `.agents/skills/shared/run-if-changed.sh` in `run-linters`.
+
+## Never Run `pyright` Beside `pytest -n auto`
+
+Run the slow linters and the suites one at a time. A whole-tree `pyright` and an
+`-n auto` suite together exhaust the container's memory: `pyright` exits 247 with
+no output, and — the part that costs time — the suite's markdown-rendering and
+AST-scanning tests trip `pytest-timeout` and report as failures. Three runs were
+spent chasing eight such "failures" that all passed when re-run alone (#3156).
+A timeout trip with no assertion in its traceback, in a test that does not touch
+the diff, is the signature.
 
 ## The `actionlint` Hook Hangs: `SKIP=actionlint`
 
