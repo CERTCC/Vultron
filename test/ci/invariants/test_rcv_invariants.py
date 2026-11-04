@@ -49,7 +49,7 @@ _RCV_EXPECTED_SEMANTIC_TYPES = [
     pytest.param("close_case", id="close_case"),
     pytest.param("add_note_to_case", id="add_note_to_case"),
     # DEMOMA-16-001: universal — the shared RM-triage helpers in
-    # vultron/demo/helpers/workflow.py engage the case in every scenario.
+    # vultron/demo/helpers/workflow/triage.py engage the case in every scenario.
     pytest.param("engage_case", id="engage_case"),
     # DEMOMA-16-007: the Coordinator invites the Vendor, who accepts.  The
     # Reporter is seated at case creation (CM-22-002) — no Invite.

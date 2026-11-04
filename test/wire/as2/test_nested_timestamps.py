@@ -621,7 +621,9 @@ def test_extractor_refuses_a_case_status_that_bypassed_the_parser():
     letting the core default stamp the receiver's clock.
     """
     from vultron.core.models.case_status import CaseStatus
-    from vultron.wire.as2.extractor._builders import _build_case_status_object
+    from vultron.wire.as2.extractor._builders.statuses import (
+        _build_case_status_object,
+    )
 
     untimed = CaseStatus.model_construct(
         id_="https://example.org/case-statuses/1",

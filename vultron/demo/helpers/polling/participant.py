@@ -21,9 +21,11 @@ from typing import Literal, get_args
 from vultron.core.models.dimensions import dimension_state
 from vultron.core.states.cs import CS_pxa
 from vultron.demo.helpers.polling._poll import _poll_until
-from vultron.demo.helpers.verification import (
-    _all_fetchable_participants_rm_closed,
+from vultron.demo.helpers.verification.participants import (
     _fetch_participant,
+)
+from vultron.demo.helpers.verification.states import (
+    _all_fetchable_participants_rm_closed,
 )
 from vultron.demo.utils import (
     DataLayerClient,

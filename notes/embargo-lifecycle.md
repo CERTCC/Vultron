@@ -477,8 +477,8 @@ CASE_MANAGER's commit and announcement; no EK message exists or is to be built
 
 **A trigger writes shared EM state only as the CASE_MANAGER (EP-09-008,
 EP-09-014).** Each
-tree in `vultron/core/behaviors/embargo/trigger_tree.py` ends in two exclusive
-arms built by `_by_role()` (BT-17-001). Ratchet:
+tree in `vultron/core/behaviors/embargo/trigger_tree/` ends in two exclusive
+arms built by `_by_role()` (`trigger_tree/_arms.py`, BT-17-001). Ratchet:
 `test/architecture/test_embargo_trigger_writes_are_case_manager_gated.py`.
 
 - **As the CASE_MANAGER**: the `*EmbargoLifecycleNode` write runs `STRICT`, then

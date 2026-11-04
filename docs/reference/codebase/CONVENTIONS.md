@@ -11,7 +11,7 @@ stakeholder_type: [project-contributor]
 | Item | Rule | Example | Evidence |
 |------|------|---------|----------|
 | Python modules | `snake_case.py`; leading `_` for package-private modules | `datalayer.py`, `bt_node.py`, `_inbox.py` | Any source file in `vultron/` |
-| Classes | `PascalCase` | `VulnerabilityCase`, `SqliteDataLayer` | `vultron/core/models/case.py` |
+| Classes | `PascalCase` | `VulnerabilityCase`, `SqliteDataLayer` | `vultron/core/models/case/vulnerability_case.py` |
 | Wire-layer AS2 vocab classes | `as_` prefix + `PascalCase` for unpaired AS2 vocabulary; for paired domain types the `as_` name is an alias of the core class (ADR-0099, ARCH-14-001) | `as_Activity`, `as_Link`; `as_VulnerabilityCase is VulnerabilityCase` | `vultron/wire/as2/vocab/objects/`, `vultron/wire/as2/AGENTS.md` |
 | Trigger use-case classes | `Svc` + verb + noun + `UseCase` | `SvcLeaveCaseUseCase`, `SvcEngageCaseUseCase` | `vultron/core/use_cases/triggers/` |
 | Received use-case classes | verb/noun + `ReceivedUseCase` suffix | `CreateReportReceivedUseCase` | `vultron/core/use_cases/received/`, `vultron/core/AGENTS.md` |

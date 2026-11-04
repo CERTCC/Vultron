@@ -37,7 +37,6 @@ from vultron.adapters.driving.fastapi.routers.datalayer import (
     get_objects,
 )
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.demo.helpers import workflow
 from vultron.demo.helpers.polling import (
     assert_received_from,
     find_case_invite_for_actor,
@@ -46,6 +45,7 @@ from vultron.demo.helpers.polling import (
     wait_for_received_activity,
 )
 from vultron.demo.helpers.verification import verify_activity_in_inbox
+from vultron.demo.helpers.workflow import case_lookup
 from vultron.demo.utils import (
     get_offer_from_datalayer,
     read_received_activities,
@@ -319,9 +319,9 @@ def test_find_case_for_offer_reads_the_report_from_the_received_offer(
     case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=CASE_ID)
 
     with patch.object(
-        workflow, "find_case_by_report_id", return_value=case
+        case_lookup, "find_case_by_report_id", return_value=case
     ) as by_report:
-        assert workflow.find_case_for_offer(client, offer.id_) is case
+        assert case_lookup.find_case_for_offer(client, offer.id_) is case
 
     by_report.assert_called_once_with(client, REPORT_ID)
 
@@ -330,8 +330,8 @@ def test_find_case_for_offer_finds_nothing_from_a_row_under_the_senders_id():
     offer = _report_offer()
     client = _route_client(_ingress_only(offer))
 
-    with patch.object(workflow, "find_case_by_report_id") as by_report:
-        assert workflow.find_case_for_offer(client, offer.id_) is None
+    with patch.object(case_lookup, "find_case_by_report_id") as by_report:
+        assert case_lookup.find_case_for_offer(client, offer.id_) is None
 
     by_report.assert_not_called()
 

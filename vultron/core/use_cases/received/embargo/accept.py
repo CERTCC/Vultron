@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 import py_trees
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
-from vultron.core.behaviors.embargo.announce_teardown_tree import (
+from vultron.core.behaviors.embargo.answer_trees import (
     accept_invite_to_embargo_tree,
 )
 from vultron.core.behaviors.embargo.expiry_tree import (

@@ -35,7 +35,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from vultron.core.states.rm import RM
-from vultron.demo.helpers import workflow
+from vultron.demo.helpers.workflow import case_lookup, triage
 
 
 @pytest.fixture
@@ -77,15 +77,15 @@ def test_engage_gated_on_receivers_own_rm_valid(actors):
 
     with (
         patch.object(
-            workflow, "receiver_validates_report", side_effect=_validate
+            triage, "receiver_validates_report", side_effect=_validate
         ),
-        patch.object(workflow, "find_case_for_offer", return_value=case),
+        patch.object(case_lookup, "find_case_for_offer", return_value=case),
         patch.object(
-            workflow, "wait_for_participant_rm_state", side_effect=_wait_rm
+            triage, "wait_for_participant_rm_state", side_effect=_wait_rm
         ),
-        patch.object(workflow, "receiver_engages_case", side_effect=_engage),
+        patch.object(triage, "receiver_engages_case", side_effect=_engage),
     ):
-        result = workflow.run_direct_path_rm_triage(
+        result = triage.run_direct_path_rm_triage(
             receiver_client=receiver_client,
             receiver=receiver,
             offer=offer,
@@ -119,15 +119,17 @@ def test_validate_gated_on_local_case_replica(actors):
 
     with (
         patch.object(
-            workflow,
+            triage,
             "receiver_validates_report",
             side_effect=lambda **_kw: call_order.append("validate"),
         ),
-        patch.object(workflow, "find_case_for_offer", side_effect=_find_case),
-        patch.object(workflow, "wait_for_participant_rm_state"),
-        patch.object(workflow, "receiver_engages_case"),
+        patch.object(
+            case_lookup, "find_case_for_offer", side_effect=_find_case
+        ),
+        patch.object(triage, "wait_for_participant_rm_state"),
+        patch.object(triage, "receiver_engages_case"),
     ):
-        result = workflow.run_direct_path_rm_triage(
+        result = triage.run_direct_path_rm_triage(
             receiver_client=receiver_client,
             receiver=receiver,
             offer=offer,
@@ -154,16 +156,16 @@ def test_validate_not_called_when_case_replica_never_arrives(actors):
 
     with (
         patch.object(
-            workflow, "receiver_validates_report", side_effect=validate_called
+            triage, "receiver_validates_report", side_effect=validate_called
         ),
-        patch.object(workflow, "find_case_for_offer", return_value=None),
-        patch.object(workflow, "wait_for_participant_rm_state"),
+        patch.object(case_lookup, "find_case_for_offer", return_value=None),
+        patch.object(triage, "wait_for_participant_rm_state"),
         patch.object(
-            workflow, "receiver_engages_case", side_effect=engage_called
+            triage, "receiver_engages_case", side_effect=engage_called
         ),
         pytest.raises(AssertionError, match="never arrived"),
     ):
-        workflow.run_direct_path_rm_triage(
+        triage.run_direct_path_rm_triage(
             receiver_client=receiver_client,
             receiver=receiver,
             offer=offer,
@@ -188,16 +190,16 @@ def test_engage_not_called_when_rm_valid_never_commits(actors):
             raise AssertionError("timed out waiting for RM.VALID")
 
     with (
-        patch.object(workflow, "receiver_validates_report"),
-        patch.object(workflow, "find_case_for_offer", return_value=case),
+        patch.object(triage, "receiver_validates_report"),
+        patch.object(case_lookup, "find_case_for_offer", return_value=case),
         patch.object(
-            workflow, "wait_for_participant_rm_state", side_effect=_wait_rm
+            triage, "wait_for_participant_rm_state", side_effect=_wait_rm
         ),
         patch.object(
-            workflow, "receiver_engages_case", side_effect=engage_called
+            triage, "receiver_engages_case", side_effect=engage_called
         ),
     ):
-        workflow.run_direct_path_rm_triage(
+        triage.run_direct_path_rm_triage(
             receiver_client=receiver_client,
             receiver=receiver,
             offer=offer,
@@ -274,11 +276,11 @@ def test_invite_path_engage_gated_on_own_rm_valid(invite_actors):
 
     with (
         patch.object(
-            workflow, "wait_for_participant_rm_state", side_effect=_wait_rm
+            triage, "wait_for_participant_rm_state", side_effect=_wait_rm
         ),
-        patch.object(workflow, "receiver_engages_case", side_effect=_engage),
+        patch.object(triage, "receiver_engages_case", side_effect=_engage),
     ):
-        workflow.run_invite_path_rm_triage(
+        triage.run_invite_path_rm_triage(
             invited_client=invited_client,
             invited_actor=invited_actor,
             offer=offer,
@@ -328,14 +330,14 @@ def test_invite_path_caseactor_checks_read_the_case_actors_own_store(
 
     with (
         patch.object(
-            workflow, "resolve_case_actor_store_id", return_value=case_actor_id
+            triage, "resolve_case_actor_store_id", return_value=case_actor_id
         ),
         patch.object(
-            workflow, "wait_for_participant_rm_state", side_effect=_wait_rm
+            triage, "wait_for_participant_rm_state", side_effect=_wait_rm
         ),
-        patch.object(workflow, "receiver_engages_case"),
+        patch.object(triage, "receiver_engages_case"),
     ):
-        workflow.run_invite_path_rm_triage(
+        triage.run_invite_path_rm_triage(
             invited_client=invited_client,
             invited_actor=invited_actor,
             offer=offer,
@@ -375,13 +377,13 @@ def test_invite_path_engage_not_called_when_own_rm_valid_never_commits(
 
     with (
         patch.object(
-            workflow, "wait_for_participant_rm_state", side_effect=_wait_rm
+            triage, "wait_for_participant_rm_state", side_effect=_wait_rm
         ),
         patch.object(
-            workflow, "receiver_engages_case", side_effect=engage_called
+            triage, "receiver_engages_case", side_effect=engage_called
         ),
     ):
-        workflow.run_invite_path_rm_triage(
+        triage.run_invite_path_rm_triage(
             invited_client=invited_client,
             invited_actor=invited_actor,
             offer=offer,
@@ -411,11 +413,11 @@ def test_invite_path_never_validates_the_original_report(invite_actors):
     ) = invite_actors
 
     with (
-        patch.object(workflow, "receiver_validates_report") as validate,
-        patch.object(workflow, "wait_for_participant_rm_state"),
-        patch.object(workflow, "receiver_engages_case"),
+        patch.object(triage, "receiver_validates_report") as validate,
+        patch.object(triage, "wait_for_participant_rm_state"),
+        patch.object(triage, "receiver_engages_case"),
     ):
-        workflow.run_invite_path_rm_triage(
+        triage.run_invite_path_rm_triage(
             invited_client=invited_client,
             invited_actor=invited_actor,
             offer=offer,
