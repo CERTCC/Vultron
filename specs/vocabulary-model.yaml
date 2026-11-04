@@ -562,9 +562,11 @@ groups:
       in the store of the actor that received the activity. A `dl` parameter makes the
       caller name that store. A global or default store could resolve the reference
       against the wrong actor's data, or against no data.
-    verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that `rehydrate()` accepts and uses the `dl`
-      parameter to resolve URI strings; tests in `test/adapters/driven/test_sqlite_rehydration.py` verify that resolved
-      objects are fetched from the supplied DataLayer.
+    verification: >-
+      Inspection of `vultron/wire/as2/rehydration/resolve.py` confirms that
+      `rehydrate()` accepts and uses the `dl` parameter to resolve URI strings; tests in
+      `test/adapters/driven/test_sqlite_rehydration.py` verify that resolved objects are
+      fetched from the supplied DataLayer.
   - id: VM-06-003
     priority: MUST
     kind: project
@@ -576,8 +578,10 @@ groups:
       If rehydration expanded only the top level, the inner reference would stay a bare
       URI and the pattern would not match. The depth limit stops unbounded recursion on
       a reference cycle or a very deep structure.
-    verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that the rehydration loop is bounded by
-      `MAX_REHYDRATION_DEPTH` and recurses into newly materialized objects to expand nested URI strings at each level.
+    verification: >-
+      Inspection of `vultron/wire/as2/rehydration/resolve.py` confirms that the
+      rehydration loop is bounded by `MAX_REHYDRATION_DEPTH` and recurses into newly
+      materialized objects to expand nested URI strings at each level.
   - id: VM-06-004
     priority: MUST
     kind: project
@@ -616,8 +620,10 @@ groups:
       pattern matching and use cases would then act on fields that are missing or wrong.
       Raising stops the activity at rehydration, where the unknown `type` is the
       reported fault, and no later step acts on a guess.
-    verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that a vocabulary lookup failure for an unknown
-      `as_type` propagates as `KeyError` or `ValueError` rather than returning a partially constructed object.
+    verification: >-
+      Inspection of `vultron/wire/as2/rehydration/resolve.py` confirms that a vocabulary
+      lookup failure for an unknown `as_type` propagates as `KeyError` or `ValueError`
+      rather than returning a partially constructed object.
   - id: VM-06-007
     priority: MUST
     kind: project
@@ -627,7 +633,7 @@ groups:
       `list[as_Activity]`. For a bare IRI in such a slot, `rehydrate()` MUST resolve the
       IRI through the supplied `DataLayer`.
     note: >-
-      `rehydrate()` in `vultron/wire/as2/rehydration.py` is the sole owner of
+      `rehydrate()` in `vultron/wire/as2/rehydration/` is the sole owner of
       ID-to-object materialisation. A bare IRI is not a value an object-only slot can
       hold. A core dimension field admits no `str` either, but it serializes to a bare
       state value (SDO-01-004), not to a reference, so it is out of scope. Slots that do

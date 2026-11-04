@@ -8454,7 +8454,7 @@ groups:
       embargo itself ends. Code MUST read these independently and MUST NOT
       substitute one for the other. The embargo invitation is an `as_Invite`,
       not an `as_Offer` — see `em_propose_embargo_activity()` in
-      `vultron/wire/as2/factories/embargo.py`.
+      `vultron/wire/as2/factories/embargo/negotiation.py`.
     rationale: >-
       `as_Object.end_time` is inherited by `as_Activity` and therefore by every
       Vultron activity, so no vocabulary extension is required. On an Activity,

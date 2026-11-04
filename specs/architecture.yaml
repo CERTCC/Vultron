@@ -2782,7 +2782,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `rehydrate()` in `vultron/wire/as2/rehydration.py` MUST be the sole owner of
+      `rehydrate()` in `vultron/wire/as2/rehydration/` MUST be the sole owner of
       ID-to-object materialisation, and resolve a reference through the `DataLayer` it
       is given.
     rationale: >-

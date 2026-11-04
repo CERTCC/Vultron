@@ -49,7 +49,7 @@ def wire_classes() -> dict[str, type[as_Base]]:
     """Every ``as_Base`` subclass the wire package defines, by qualified name.
 
     Walks the class tree rather than ``VOCABULARY``: the case-scoped activity
-    classes in ``vocab/activities/case.py`` are private (``_RmInviteToCase…``)
+    classes in ``vocab/activities/case/`` are private (``_RmInviteToCase…``)
     and never register, yet they are exactly where the hand-spelled unions
     #3876 AC-2 names live.  Iterating the registry examined none of them.
     """

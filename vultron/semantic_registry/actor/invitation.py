@@ -13,9 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.core.behaviors.sender_entitlement import (
-    AddresseeSide,
-)
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.events.actor import (
     AcceptInviteActorToCaseReceivedEvent,
     AcceptInviteActorToFullCaseReceivedEvent,
@@ -54,8 +52,10 @@ from vultron.wire.as2.extractor import (
     RejectInviteActorToFullCasePattern,
     TentativeRejectInviteActorToFullCasePattern,
 )
-from vultron.wire.as2.vocab.activities.case import (
+from vultron.wire.as2.vocab.activities.case.content import (
     _AnnounceVulnerabilityCaseActivity,
+)
+from vultron.wire.as2.vocab.activities.case.invite import (
     _RmAcceptFullCaseInviteActivity,
     _RmAcceptInviteToCaseActivity,
     _RmInviteToCaseActivity,
