@@ -913,11 +913,11 @@ groups:
     kind: architecture
     statement: >-
       The receive-tree factory MUST build every HP-01-038 branch itself, from the
-      path the HP-01-035 stage resolved, and a tree MUST NOT build one. An emit
-      inside a branch satisfies BT-17-008 by the branch alone, and needs no named
-      replica-emit exemption. A state write inside a branch does not: RSH-08-003
-      admits one only on the manager path, or as its own exception, so a branch for
-      any other path leaves the write exposed to the ratchet that pins it.
+      path the HP-01-035 stage resolved. An emit inside a branch satisfies
+      BT-17-008 by the branch alone, and needs no named replica-emit exemption. A
+      state write inside a branch does not: RSH-08-003 admits one only on the
+      manager path, or as its own exception, so a branch for any other path leaves
+      the write exposed to the ratchet that pins it.
     rationale: >-
       A branch a tree builds itself is a role check the tree asks, which HP-01-036
       removes: it can disagree with the stage and the factory cannot read it. A
@@ -943,6 +943,26 @@ groups:
       spec_id: HP-01-038
     - rel_type: depends_on
       spec_id: HP-01-036
+    adr:
+    - ADR-0153
+  - id: HP-01-043
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      A received tree MUST NOT build an HP-01-038 branch of its own.
+    rationale: >-
+      A branch a tree builds for itself is a role check the tree asks, which
+      HP-01-036 removes: it can read a stage of its own, or omit the path check
+      entirely, and the factory's walks cannot tell it from the one they trust.
+      HP-01-042 gives the factory that job for the same reason HP-01-007 gives it
+      the sender guard.
+    verification: >-
+      `test/architecture/test_received_tree_case_manager_gate.py::test_only_the_factory_builds_a_received_path_branch`
+      holds the set of modules that construct one to the path-stage module and the
+      factory's two stage builders.
+    relationships:
+    - rel_type: depends_on
+      spec_id: HP-01-042
     adr:
     - ADR-0153
   - id: HP-01-032
