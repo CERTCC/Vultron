@@ -8,8 +8,8 @@ Activates the revision for the case. It replaces the active embargo in the same 
 
     - **When…** the Case Owner decides to replace the active embargo with a proposed revision
     - **Send:** `Accept(EmbargoEvent)[target=VulnerabilityCase]`
-    - **Send to:** the CASE_MANAGER
-    - **Sent by:** the Case Owner
+    - **Send to:** the case manager
+    - **Sent by:** the case owner
     - **Distinguished by:** EM state `REVISE`
     - **Seen in:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
     - **Formal definition:** [Embargo Revision Acceptance (EC)](../../../formal_protocol/messages.md#em-message-types)

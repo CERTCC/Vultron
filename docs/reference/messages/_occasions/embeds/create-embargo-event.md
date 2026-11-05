@@ -4,10 +4,10 @@
 
     Carries the new embargo in full, its start and end times included. It follows the case's genesis entry.
 
-    - **When…** the CASE_MANAGER has created a case and, with it, an embargo such as the default embargo
+    - **When…** the Case Manager has created a case and, with it, an embargo such as the default embargo
     - **Send:** `Create(EmbargoEvent)`
     - **Send to:** a participant
-    - **Sent by:** internal to the CASE_MANAGER
+    - **Sent by:** internal to the case manager
     - **Reference:** [Create embargo event](../../em.md#create-embargo-event)
 
     ??? example "Example activity"

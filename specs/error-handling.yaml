@@ -314,6 +314,7 @@ groups:
     - rel_type: extends
       spec_id: EH-07-001
     adr:
+    - ADR-0075
     - ADR-0086
     verification: >-
       A cross-dimension violation whose dimensions are each individually valid is

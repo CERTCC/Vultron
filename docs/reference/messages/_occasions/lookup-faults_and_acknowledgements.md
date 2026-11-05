@@ -2,5 +2,5 @@
 
 | When… | Send | Send to | Sent by | Distinguished by | Details |
 |---|---|---|---|---|---|
-| a Participant has received a message it cannot process | `Create(ProcessingFault)` | the CASE_MANAGER | an active participant | — | [Create processing fault](../faults_and_acknowledgements.md#create-processing-fault) |
-| the CASE_MANAGER has refused a participant's assertion because a precondition did not hold | `Reject(Activity)` | a participant | the CASE_MANAGER | — | [Refusal notice](../faults_and_acknowledgements.md#refusal-notice) |
+| a Participant has received a message it cannot process | `Create(ProcessingFault)` | the case manager | an active participant | — | [Create processing fault](../faults_and_acknowledgements.md#create-processing-fault) |
+| the Case Manager has refused a participant's assertion because a precondition did not hold | `Reject(Activity)` | a participant | the case manager | — | [Refusal notice](../faults_and_acknowledgements.md#refusal-notice) |

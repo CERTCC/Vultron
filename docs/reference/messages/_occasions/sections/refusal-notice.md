@@ -6,10 +6,10 @@ Tells the participant that its assertion was received and understood but refused
 
 === "Details"
 
-    - **When…** the CASE_MANAGER has refused a participant's assertion because a precondition did not hold
+    - **When…** the Case Manager has refused a participant's assertion because a precondition did not hold
     - **Send:** `Reject(Activity)`
     - **Send to:** a participant
-    - **Sent by:** the CASE_MANAGER
+    - **Sent by:** the case manager
     - **Mapping status:** [evolved](../../index.md#mapping-status)
 
 === "Example activity"

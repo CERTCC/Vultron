@@ -1,4 +1,4 @@
-<!-- GENERATED from vultron/metadata/docs/page_schema/frontmatter.py by `uv run docs-site --write` — do not edit (DF-11-011) -->
+<!-- GENERATED from vultron/metadata/docs/page_schema.py by `uv run docs-site --write` — do not edit (DF-11-011) -->
 
 | Stakeholder type | Who it is | What they want |
 |---|---|---|

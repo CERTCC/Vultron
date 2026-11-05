@@ -2,14 +2,14 @@
 
 ## Add case participant to case { #add-case-participant-to-case }
 
-Asks the CASE_MANAGER to reinstate the participant record named by the object. The Participant becomes active again and receives the ledger entries it missed.
+Asks the Case Manager to reinstate the participant record named by the object. The Participant becomes active again and receives the ledger entries it missed.
 
 === "Details"
 
     - **When…** the Case Owner reinstates a removed Participant
     - **Send:** `Add(CaseParticipant)[target=VulnerabilityCase]`
-    - **Send to:** the CASE_MANAGER
-    - **Sent by:** the Case Owner
+    - **Send to:** the case manager
+    - **Sent by:** the case owner
     - **Seen in:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)
     - **Mapping status:** [none](../../index.md#mapping-status)
 

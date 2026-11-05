@@ -2,14 +2,14 @@
 
 ## Tell a participant the embargo has ended { #embargo-termination-notice }
 
-Tells one participant that the embargo has ended, with immediate effect. The CASE_MANAGER sends one to each participant other than itself, naming the Case Owner in `attributedTo` when the Case Owner asked for the termination.
+Tells one participant that the embargo has ended, with immediate effect. The Case Manager sends one to each participant other than itself, naming the Case Owner in `attributedTo` when the Case Owner asked for the termination.
 
 === "Details"
 
-    - **When…** the CASE_MANAGER ends the active embargo, on its own decision or on the Case Owner's
+    - **When…** the Case Manager ends the active embargo, on its own decision or on the Case Owner's
     - **Send:** `Remove(EmbargoEvent)`
     - **Send to:** a participant
-    - **Sent by:** the CASE_MANAGER
+    - **Sent by:** the case manager
     - **Seen in:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
     - **Mapping status:** [direct](../../index.md#mapping-status)
 

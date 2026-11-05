@@ -4,7 +4,7 @@
 
     Mints the vulnerability case, seats its initial participants and links the report.
 
-    - **When…** the CASE_MANAGER has opened a case for a submitted report
+    - **When…** the Case Manager has opened a case for a submitted report
     - **Send:** `Create(VulnerabilityCase)`
     - **Send to:** a participant
     - **Sent by:** the addressee of the case proposal or vulnerability report offer

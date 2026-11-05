@@ -8,8 +8,8 @@ Rejects the proposal for the case. The case has no embargo once no other proposa
 
     - **When…** the Case Owner decides to reject a proposed embargo for a case with no active embargo
     - **Send:** `Reject(EmbargoEvent)[target=VulnerabilityCase]`
-    - **Send to:** the CASE_MANAGER
-    - **Sent by:** the Case Owner
+    - **Send to:** the case manager
+    - **Sent by:** the case owner
     - **Distinguished by:** EM state `PROPOSED`
     - **Seen in:** [How to Establish an Embargo](../../../../howto/activitypub/activities/establish_embargo.md)
     - **Formal definition:** [Embargo Proposal Rejection (ER)](../../../formal_protocol/messages.md#em-message-types)

@@ -4,10 +4,10 @@
 
     Tells a participant that the case status now records that the public knows of the vulnerability.
 
-    - **When…** the CASE_MANAGER records that the public knows of the vulnerability
+    - **When…** the Case Manager records that the public knows of the vulnerability
     - **Send:** `Add(CaseStatus)[target=VulnerabilityCase]`
     - **Send to:** a participant
-    - **Sent by:** the CASE_MANAGER
+    - **Sent by:** the case manager
     - **Distinguished by:** `pxaState` = `Pxa`
     - **Reference:** [Public awareness in a case status](../../cs.md#public-awareness)
 

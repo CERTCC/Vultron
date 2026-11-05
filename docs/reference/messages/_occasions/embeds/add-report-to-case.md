@@ -6,8 +6,8 @@
 
     - **When…** the Case Owner links a further report to an existing case
     - **Send:** `Add(VulnerabilityReport)[target=VulnerabilityCase]`
-    - **Send to:** the CASE_MANAGER
-    - **Sent by:** the Case Owner
+    - **Send to:** the case manager
+    - **Sent by:** the case owner
     - **Reference:** [Add report to case](../../case_management.md#add-report-to-case)
 
     ??? example "Example activity"

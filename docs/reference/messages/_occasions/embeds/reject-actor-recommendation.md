@@ -4,10 +4,10 @@
 
     Declines the recommender's suggestion, with `inReplyTo` naming it. The suggested actor is not invited.
 
-    - **When…** the CASE_MANAGER tells a recommender that the Case Owner declined the actor it suggested
+    - **When…** the Case Manager tells a recommender that the Case Owner declined the actor it suggested
     - **Send:** `Reject(Offer(Actor)[target=VulnerabilityCase])`
     - **Send to:** a participant
-    - **Sent by:** the CASE_MANAGER
+    - **Sent by:** the case manager
     - **Reference:** [Reject actor recommendation](../../general.md#reject-actor-recommendation)
 
     ??? example "Example activity"

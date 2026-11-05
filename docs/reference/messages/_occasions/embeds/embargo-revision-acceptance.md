@@ -6,8 +6,8 @@
 
     - **When…** the Case Owner decides to replace the active embargo with a proposed revision
     - **Send:** `Accept(EmbargoEvent)[target=VulnerabilityCase]`
-    - **Send to:** the CASE_MANAGER
-    - **Sent by:** the Case Owner
+    - **Send to:** the case manager
+    - **Sent by:** the case owner
     - **Distinguished by:** EM state `REVISE`
     - **Reference:** [Embargo Revision Acceptance (EC)](../../em.md#embargo-revision-acceptance)
 

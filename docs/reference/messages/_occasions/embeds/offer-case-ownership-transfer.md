@@ -4,10 +4,10 @@
 
     Offers the case to the actor named by the target, on the Case Owner's behalf: `attributedTo` names the owner. This is the one offer of the transfer, the one the new owner accepts or rejects. It carries the proposal's `endTime`, if any.
 
-    - **When…** the CASE_MANAGER offers the case to the actor the Case Owner proposed
+    - **When…** the Case Manager offers the case to the actor the Case Owner proposed
     - **Send:** `Offer(VulnerabilityCase)`
     - **Send to:** a participant
-    - **Sent by:** the CASE_MANAGER
+    - **Sent by:** the case manager
     - **Reference:** [Offer case ownership transfer](../../case_management.md#offer-case-ownership-transfer)
 
     ??? example "Example activity"

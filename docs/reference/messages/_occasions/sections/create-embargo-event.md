@@ -6,10 +6,10 @@ Carries the new embargo in full, its start and end times included. It follows th
 
 === "Details"
 
-    - **When…** the CASE_MANAGER has created a case and, with it, an embargo such as the default embargo
+    - **When…** the Case Manager has created a case and, with it, an embargo such as the default embargo
     - **Send:** `Create(EmbargoEvent)`
     - **Send to:** a participant
-    - **Sent by:** internal to the CASE_MANAGER
+    - **Sent by:** internal to the case manager
     - **Mapping status:** [none](../../index.md#mapping-status)
 
     Each participant learns of it from the case ledger, so it is addressed to nobody.

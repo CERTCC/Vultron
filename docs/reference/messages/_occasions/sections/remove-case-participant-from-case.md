@@ -2,14 +2,14 @@
 
 ## Remove case participant from case { #remove-case-participant-from-case }
 
-Asks the CASE_MANAGER to remove the participant record named by the object. The removed Participant receives a direct notice.
+Asks the Case Manager to remove the participant record named by the object. The removed Participant receives a direct notice.
 
 === "Details"
 
     - **When…** the Case Owner removes a Participant from active participation
     - **Send:** `Remove(CaseParticipant)[target=VulnerabilityCase]`
-    - **Send to:** the CASE_MANAGER
-    - **Sent by:** the Case Owner
+    - **Send to:** the case manager
+    - **Sent by:** the case owner
     - **Seen in:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)
     - **Mapping status:** [none](../../index.md#mapping-status)
 

@@ -2,12 +2,12 @@
 
 !!! info "Accept case participant offer"
 
-    Accepts the proposed participant record. The CASE_MANAGER then invites the suggested actor.
+    Accepts the proposed participant record. The Case Manager then invites the suggested actor.
 
     - **When…** the Case Owner approves a suggested actor
     - **Send:** `Accept(Offer(CaseParticipant)[target=VulnerabilityCase])`
-    - **Send to:** the CASE_MANAGER
-    - **Sent by:** the Case Owner
+    - **Send to:** the case manager
+    - **Sent by:** the case owner
     - **Reference:** [Accept case participant offer](../../general.md#accept-case-participant-offer)
 
     ??? example "Example activity"

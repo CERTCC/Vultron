@@ -2,12 +2,12 @@
 
 !!! info "Update embargo consent"
 
-    Carries the changed consent row in full. A CASE_MANAGER with an embargo stake of its own records a change of its own consent this way, never as a Reject of the Invite.
+    Carries the changed consent row in full. A Case Manager with an embargo stake of its own records a change of its own consent this way, never as a Reject of the Invite.
 
-    - **When…** the CASE_MANAGER changes a participant's consent row, such as an invitation timing out, the rows carried over at activation or a change of its own consent
+    - **When…** the Case Manager changes a participant's consent row, such as an invitation timing out, the rows carried over at activation or a change of its own consent
     - **Send:** `Update(EmbargoConsent)`
     - **Send to:** a participant
-    - **Sent by:** internal to the CASE_MANAGER
+    - **Sent by:** internal to the case manager
     - **Reference:** [Update embargo consent](../../em.md#update-embargo-consent)
 
     ??? example "Example activity"

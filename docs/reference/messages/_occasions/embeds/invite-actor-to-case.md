@@ -4,10 +4,10 @@
 
     Sends a Stub Invite carrying the case stub and the embargo terms the invitee would agree to.
 
-    - **When…** the CASE_MANAGER invites an actor to join the case
+    - **When…** the Case Manager invites an actor to join the case
     - **Send:** `Invite(Actor)[target=VulnerabilityCaseStub]`
     - **Send to:** a participant
-    - **Sent by:** the CASE_MANAGER
+    - **Sent by:** the case manager
     - **Reference:** [Invite actor to case](../../case_management.md#invite-actor-to-case)
 
     ??? example "Example activity"

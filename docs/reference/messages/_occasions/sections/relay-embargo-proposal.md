@@ -2,14 +2,14 @@
 
 ## Ask a participant about proposed embargo terms { #relay-embargo-proposal }
 
-Asks one participant to accept or reject proposed embargo terms, or a proposed revision. The CASE_MANAGER sends one to each participant other than the proposer, naming the proposer in `attributedTo`, and the participant's answer names this Invite.
+Asks one participant to accept or reject proposed embargo terms, or a proposed revision. The Case Manager sends one to each participant other than the proposer, naming the proposer in `attributedTo`, and the participant's answer names this Invite.
 
 === "Details"
 
-    - **When…** the CASE_MANAGER asks a Participant to answer embargo terms another Participant proposed
+    - **When…** the Case Manager asks a Participant to answer embargo terms another Participant proposed
     - **Send:** `Invite(EmbargoEvent)[context=VulnerabilityCase]`
     - **Send to:** a participant
-    - **Sent by:** the CASE_MANAGER
+    - **Sent by:** the case manager
     - **Seen in:** [How to Establish an Embargo](../../../../howto/activitypub/activities/establish_embargo.md)
     - **Mapping status:** [collapse](../../index.md#mapping-status)
 

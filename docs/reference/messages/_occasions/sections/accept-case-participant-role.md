@@ -2,13 +2,13 @@
 
 ## Accept case participant role { #accept-case-participant-role }
 
-Accepts the offered role. The participant holds the role once the CASE_MANAGER records the acceptance.
+Accepts the offered role. The participant holds the role once the Case Manager records the acceptance.
 
 === "Details"
 
     - **When…** a participant accepts a role offered to it on the case
     - **Send:** `Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])`
-    - **Send to:** the CASE_MANAGER
+    - **Send to:** the case manager
     - **Sent by:** the addressee of the case participant role offer
     - **Seen in:** [How to Delegate a Role to Another Participant](../../../../howto/activitypub/activities/role_delegation.md)
     - **Mapping status:** [none](../../index.md#mapping-status)

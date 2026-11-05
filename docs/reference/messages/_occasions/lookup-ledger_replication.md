@@ -2,6 +2,6 @@
 
 | When… | Send | Send to | Sent by | Distinguished by | Details |
 |---|---|---|---|---|---|
-| the CASE_MANAGER has committed a case event to the case ledger | `Announce(CaseLedgerEntry)` | a participant | the CASE_MANAGER | — | [Announce case ledger entry](../ledger_replication.md#announce-case-ledger-entry) |
-| a received ledger entry does not chain onto the Participant's own ledger | `Reject(CaseLedgerEntry)` | the CASE_MANAGER | an active participant, including one that has left the case | — | [Reject case ledger entry](../ledger_replication.md#reject-case-ledger-entry) |
-| a Participant checks that its ledger is current, such as after a restart | `Read(CaseLedgerEntry)` | the CASE_MANAGER | a participant | — | [Read case ledger entry](../ledger_replication.md#read-case-ledger-entry) |
+| the Case Manager has committed a case event to the case ledger | `Announce(CaseLedgerEntry)` | a participant | the case manager | — | [Announce case ledger entry](../ledger_replication.md#announce-case-ledger-entry) |
+| a received ledger entry does not chain onto the Participant's own ledger | `Reject(CaseLedgerEntry)` | the case manager | an active participant, including one that has left the case | — | [Reject case ledger entry](../ledger_replication.md#reject-case-ledger-entry) |
+| a Participant checks that its ledger is current, such as after a restart | `Read(CaseLedgerEntry)` | the case manager | a participant | — | [Read case ledger entry](../ledger_replication.md#read-case-ledger-entry) |

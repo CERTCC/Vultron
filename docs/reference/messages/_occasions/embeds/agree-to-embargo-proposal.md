@@ -6,7 +6,7 @@
 
     - **When…** a Participant agrees to proposed embargo terms
     - **Send:** `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])`
-    - **Send to:** the CASE_MANAGER
+    - **Send to:** the case manager
     - **Sent by:** the invitee
     - **Distinguished by:** EM state `PROPOSED`
     - **Reference:** [Agree to proposed embargo terms](../../em.md#agree-to-embargo-proposal)

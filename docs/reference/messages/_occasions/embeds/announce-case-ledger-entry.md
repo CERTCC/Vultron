@@ -4,10 +4,10 @@
 
     Fans out the newly committed ledger entry to each active participant.
 
-    - **When…** the CASE_MANAGER has committed a case event to the case ledger
+    - **When…** the Case Manager has committed a case event to the case ledger
     - **Send:** `Announce(CaseLedgerEntry)`
     - **Send to:** a participant
-    - **Sent by:** the CASE_MANAGER
+    - **Sent by:** the case manager
     - **Reference:** [Announce case ledger entry](../../ledger_replication.md#announce-case-ledger-entry)
 
     ??? example "Example activity"

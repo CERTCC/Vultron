@@ -2,7 +2,7 @@
 
 ## Close report { #report-closed }
 
-Closes the report, moving the sender's RM state to Closed. Once a case holds the report, its Case Owner closes the case with Leave(VulnerabilityCase) instead, and every receiver refuses a Reject(Offer(VulnerabilityReport)) for it.
+Closes the report, moving the sender's RM state to Closed. Once a case holds the report, its Case Owner closes the case with Leave(VulnerabilityCase) instead, and every receiver refuses a Close(Report) for it.
 
 === "Details"
 

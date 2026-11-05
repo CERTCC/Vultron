@@ -2,12 +2,12 @@
 
 !!! info "Accept actor recommendation"
 
-    Accepts the recommender's suggestion, with `inReplyTo` naming it. The CASE_MANAGER sends it once the Case Owner approves, or at once when the suggested actor is already invited or has joined.
+    Accepts the recommender's suggestion, with `inReplyTo` naming it. The Case Manager sends it once the Case Owner approves, or at once when the suggested actor is already invited or has joined.
 
-    - **When…** the CASE_MANAGER tells a recommender that the actor it suggested will be invited
+    - **When…** the Case Manager tells a recommender that the actor it suggested will be invited
     - **Send:** `Accept(Offer(Actor)[target=VulnerabilityCase])`
     - **Send to:** a participant
-    - **Sent by:** the CASE_MANAGER
+    - **Sent by:** the case manager
     - **Reference:** [Accept actor recommendation](../../general.md#accept-actor-recommendation)
 
     ??? example "Example activity"
