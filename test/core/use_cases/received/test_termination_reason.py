@@ -227,6 +227,7 @@ def test_case_manager_refuses_an_end_time_remove_before_the_end_time(
 
 
 @pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("EMB-13-008")
 @pytest.mark.spec("CM-31-042")
 def test_case_manager_judges_an_end_time_remove_by_the_embargo_in_force(
     make_payload,

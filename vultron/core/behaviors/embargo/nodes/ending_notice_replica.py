@@ -60,7 +60,10 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.core.states.embargo_register import FINAL_REGISTER_STATUSES
+from vultron.core.states.embargo_register import (
+    FINAL_REGISTER_STATUSES,
+    TerminationReason,
+)
 from vultron.errors import INTERNAL_FAULTS, VultronError
 
 
@@ -92,25 +95,36 @@ def adopted_revision_timing_violations(
 ) -> list[str] | None:
     """Judge a termination by the revision a paused replica adopts first.
 
-    ``None`` unless *actor_id* is a paused signatory (CM-31-010) and the
-    ``Remove`` names a revision it would adopt
-    (:func:`names_unadopted_revision`, CM-31-042).  Otherwise the reasons
-    *termination*, claimed at *at*, may not end that revision, judged by its
-    own end time: the stored record, else the ``Remove``'s inline copy
-    (EMB-18-003), checked as the adoption checks it (EMB-18-004).
+    ``None`` unless *termination* is ``END_TIME_REACHED``, *actor_id* is a
+    paused signatory (CM-31-010) and the ``Remove`` names a revision it
+    would adopt (:func:`names_unadopted_revision`, CM-31-042).  Otherwise
+    the reasons *termination*, claimed at *at*, may not end that revision,
+    judged by its own end time: the stored record, else the ``Remove``'s
+    inline copy (EMB-18-003), checked as the adoption checks it
+    (EMB-18-004).  An ``EARLY`` termination has no time rule, so it reads
+    nothing here and the adoption alone judges the named revision.
+
+    The guard calling this runs on every path, while the adoption runs only
+    off the CASE_MANAGER's; the two still agree, because the CASE_MANAGER is
+    never a paused signatory of an embargo in force: it is never removed
+    (CM-24-006), and it reaches RM ``CLOSED`` only on an owner close that an
+    embargo in force blocks (CM-23-002, CM-23-011).
 
     Raises:
         VultronNotFoundError: the revision cannot be read.
         VultronValidationError: the revision belongs to another case.
     """
     if (
-        embargo_id is None
+        termination.reason != TerminationReason.END_TIME_REACHED
+        or embargo_id is None
         or actor_id is None
         or not names_unadopted_revision(case, embargo_id)
         or not awaits_embargo_ending_notice(case, datalayer, actor_id)
     ):
         return None
-    named = embargo_for_case(datalayer, case, embargo or embargo_id)
+    named = embargo_for_case(
+        datalayer, case, embargo if embargo is not None else embargo_id
+    )
     return end_time_violations(termination, end_time=named.end_time, at=at)
 
 
