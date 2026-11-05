@@ -15,7 +15,9 @@ description: >
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
   blackboard isolation, py_trees test patterns, CoreObject subclass isolation,
   assertion-quality traps (vacuous asserts, "falls back to" tests, bare
-  MagicMock), why turning nesting into sequence moves the skip nobody tests,
+  MagicMock), the three future-date idioms a sweep must tell apart before
+  replacing a literal, why turning nesting into sequence moves the skip nobody
+  tests,
   test layout rules for module splits, why a two-sided count pin
   races concurrent PRs (keep a per-item record and a PR-only growth guard
   instead), why a schema change that the merge base fails breaks every growth
@@ -427,6 +429,18 @@ carrier: #5534's answer is a `StoryProp` the gate keeps and the dependent
 reads, so a failed gate leaves the artifact absent and the runner stops the
 story (`notes/demo-scenario-tree.md` § "Composition"). ADR-0135's "compose,
 never chain" rule for BT helpers is the same shape seen from the design side.
+
+### A Future Date Is Three Idioms — Decide Which One Before Replacing It
+
+A test that names a future date is asking one of three questions, and a sweep
+that swaps the literals without sorting them turns an assertion green for the
+wrong reason. `FAR_FUTURE` from `test/support/future_dates.py` answers only the
+first — "some date plausibly ahead, expected to be accepted". An absolute
+`datetime(2099, ...)` usually means "implausibly far ahead, expected to be
+**refused**", and substituting a relative value can land it inside the very
+tolerance under test; a pinned instant means the value *is* the assertion. That
+module's docstring holds the rule, the witnesses, and why `FAR_FUTURE`
+truncates its microseconds (#2879).
 
 ### A Test That Says "Falls Back To" for Malformed Input Is Asserting a Bug
 

@@ -20,7 +20,41 @@ future would fail.  Importing :data:`FAR_FUTURE` from here instead of
 repeating the arithmetic in each module keeps the fix in one place (CS-22-001).
 
 The value is computed once at import time — well in advance of the current
-date — so every test in a run shares a consistent value.
+date — so every test in a run shares a consistent value.  Its microseconds are
+truncated on purpose: the reason sits on :data:`FAR_FUTURE` itself, beside the
+call that does it, and it is load-bearing for wire assertions in two other
+modules.  Do not "simplify" it away.
+
+Three idioms, and which one to reach for
+========================================
+
+A test that names a date is asking one of three different questions, and only
+the first is :data:`FAR_FUTURE`'s.  A sweep that replaces date literals MUST
+decide which question each site asks before touching it.
+
+1. *"Some date plausibly ahead, which I expect to be accepted."*  Use
+   :data:`FAR_FUTURE`.  The specific instant does not matter, so an absolute
+   literal buys nothing and adds a time bomb.
+
+2. *"A date implausibly far ahead, which I expect to be refused."*  Keep the
+   absolute ``datetime(2099, ...)`` literal.  Substituting :data:`FAR_FUTURE`
+   could land the value *inside* the tolerance the test is probing and turn a
+   refusal test green for the wrong reason: CLP-14-007 bounds how far ahead a
+   claimed ``published`` may be, and
+   ``test_clp_14_007_future_timestamp_payload_rejected`` in
+   ``test/core/models/test_clp_14_15_invariants.py`` asserts the
+   ``VultronCanonicalEntryError`` that bound raises.  Five years ahead may sit
+   inside a tolerance a 2099 date is safely outside.
+
+3. *"This exact instant."*  Keep the literal: the value *is* the assertion.  A
+   naive-to-UTC coercion test needs both halves to name one instant
+   (``test_naive_deadline_is_read_as_utc`` in
+   ``test/core/models/test_case_participant.py``), a pinned instant anchors a
+   serialization or ordering expectation, and a deliberately *past* date is not
+   a future date at all.
+
+An idiom 2 or idiom 3 site stays as it is, carrying a one-line reason that says
+which it is.  See also ``notes/testing-pitfalls.md`` § "Assertion Quality".
 """
 
 from vultron.core.models._helpers.clock import days_from_now_utc
