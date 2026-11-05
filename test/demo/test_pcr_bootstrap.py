@@ -50,8 +50,8 @@ from test.support.embargo_register import activate
 from vultron.core.models.dimensions import (
     RmDimension,
 )
-from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.services.received_holding import records_awaiting_case
 from vultron.core.states.rm import RM
 from vultron.demo.in_process import (
     InProcessRouter,
@@ -555,8 +555,8 @@ class TestBootstrapSequence:
         After the case replica is seeded directly in the store, a
         subsequent ``Add(Note)[target=VulnerabilityCase]`` (``context`` set to the
         case id) delivered to the same inbox
-        must be dispatched immediately — it must NOT be placed into
-        ``VultronPendingCaseInbox`` (the pre-bootstrap deferral queue).
+        must be dispatched immediately — it must NOT be left waiting on the
+        case in the pre-bootstrap deferral queue (ADR-0154).
 
         Seeding the replica directly (rather than via the full owner →
         participant chain) is intentional: this test specifically covers the
@@ -605,17 +605,16 @@ class TestBootstrapSequence:
         )
         _post_to_inbox(participant_tc, _actor_slug(actor_id), note_activity)
 
-        # Assert 1: The note activity must NOT have been deferred.
-        pending_id = VultronPendingCaseInbox.build_id(_DIRECT_CASE_ID)
-        pending = actor_dl.read(pending_id)
-        deferred = isinstance(pending, VultronPendingCaseInbox) and (
-            note_activity.id_ in pending.activity_ids
-        )
-        assert not deferred, (
-            f"Case-scoped activity '{note_activity.id_}' was placed in "
-            f"VultronPendingCaseInbox even though case replica "
-            f"'{_DIRECT_CASE_ID}' already exists. "
-            f"Activity was incorrectly deferred (PCR-07-006 AC-2)."
+        # Assert 1: The note activity must NOT have been deferred.  What
+        # waits on a case names it on its own received record (ADR-0154).
+        waiting = [
+            record.activity_id
+            for record in records_awaiting_case(actor_dl, _DIRECT_CASE_ID)
+        ]
+        assert note_activity.id_ not in waiting, (
+            f"Case-scoped activity '{note_activity.id_}' was left waiting on "
+            f"case '{_DIRECT_CASE_ID}' even though its replica already "
+            f"exists. Activity was incorrectly deferred (PCR-07-006 AC-2)."
         )
 
         # Assert 2: Non-CaseActors must NOT attach the note to their replica.

@@ -17,9 +17,10 @@
 
 Replays a held received activity, a held ``Announce(CaseLedgerEntry)``, through
 the receiving actor's own inbox as a delivery of its own (SYNC-14-009,
-ADR-0135).  The activity is already held as the body that arrived, in a
-``DeferredInboxActivity`` keyed by the receiver (IO-03-009, DL-06-006); this
-adapter only appends its id to the actor's inbox queue.
+ADR-0135).  The activity is already held as the body that arrived, on its one
+``ReceivedActivityRecord`` keyed by the receiver, marked as owing a replay
+(IO-03-009, DL-06-006, ADR-0154); this adapter only appends its id to the
+actor's inbox queue.
 
 That queue is the inbox's existing scheduling path: the delivery that made the
 entry appliable is still running when the port is called, and once it ends
@@ -32,9 +33,11 @@ delivery, so it archives nothing new (CLP-10-017).
 """
 
 import logging
+from typing import cast
 
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.services.received_holding import owes_replay
 from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
@@ -61,8 +64,7 @@ class InboxReplayAdapter:
                 with no held body would be dropped by the replay
                 (DL-06-006).
         """
-        held = self._dl.read(DeferredInboxActivity.build_id(activity_id))
-        if not isinstance(held, DeferredInboxActivity):
+        if not owes_replay(cast(CasePersistence, self._dl), activity_id):
             raise VultronWiringError(
                 f"inbox replay: nothing holds activity '{activity_id}' for"
                 " its replay, so queueing it would drop it (DL-06-006)"

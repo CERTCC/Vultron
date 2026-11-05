@@ -146,8 +146,8 @@ received", and do not add receipt bookkeeping to the actor record to feed one:
 - **The activity itself is already archived.** Intake keeps the received
   activity as a `ReceivedActivityRecord` under the receiver's key; ingress
   writes nothing, never a row under the sender's id (DL-06-006). Redelivery is
-  detected at ingress from that record or a deferred activity's
-  `DeferredInboxActivity` (IE-10-001).
+  detected at ingress from that one record, whose `replay_owed` decides whether
+  the copy routed carries received evidence (IE-10-001, ADR-0154).
 - **Who may look, and where.** Reading an actor's received mail is an operator
   concern, served by the datalayer router over that actor's own store
   (`/actors/{id}/datalayer/...`). A sender learns what became of what it posted

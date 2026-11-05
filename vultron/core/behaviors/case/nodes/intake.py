@@ -73,6 +73,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
+    ReceivedStage,
 )
 from vultron.core.services.received_activity import holds_received_activity
 from vultron.errors import VultronAlreadyExistsError
@@ -98,9 +99,9 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
 
     An event with no received evidence is a resend under an id the receiver
     already holds (VM-08-010, IE-10-001): it is routed without a body of its
-    own, so there is nothing new to archive.  Intake finds the archive, or
-    the deferred record whose replay will archive it, and succeeds having
-    written nothing.  With neither, there is no body to archive and none
+    own, so there is nothing new to archive.  Intake finds the record holding
+    it -- archived, or still owing the replay that will archive it -- and
+    succeeds having written nothing.  With neither, there is no body to archive and none
     held: that is a wiring fault, and the node returns ``FAILURE`` and writes
     nothing (ARCH-15-001).
 
@@ -160,7 +161,13 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
         try:
             self.datalayer.create(
                 ReceivedActivityRecord(
-                    activity_id=activity_id, received_body=evidence
+                    activity_id=activity_id,
+                    received_body=evidence,
+                    # Intake is what archives (CLP-10-017); it never leaves a
+                    # body held for a replay, which is the inbox's own stage
+                    # (ADR-0154).
+                    stage=ReceivedStage.ARCHIVED,
+                    replay_owed=False,
                 )
             )
         except VultronAlreadyExistsError:
@@ -183,9 +190,9 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
         """Answer an event with no body: find what this receiver holds.
 
         A resend under an id already held carries no received evidence
-        (VM-08-010).  Finding its archive, or the deferred record whose
-        replay archives it, is success with nothing written; finding neither
-        is a wiring fault (ARCH-15-001).
+        (VM-08-010).  Finding the record that holds it -- archived, or still
+        owing the replay that archives it -- is success with nothing written;
+        finding none is a wiring fault (ARCH-15-001).
         """
         assert self.datalayer is not None
         if holds_received_activity(self.datalayer, activity_id):

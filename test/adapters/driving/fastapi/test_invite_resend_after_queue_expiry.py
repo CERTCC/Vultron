@@ -80,6 +80,7 @@ from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
 from vultron.core.models.replication_state import VultronReplicationState
+from vultron.core.services.received_holding import records_awaiting_case
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -134,7 +135,8 @@ def _expire_pending_queue(dl: SqliteDataLayer) -> None:
     """Age the joiner's pre-bootstrap queue past its window (CBT-03-001)."""
     pending = dl.read(VultronPendingCaseInbox.build_id(_CASE_ID))
     assert isinstance(pending, VultronPendingCaseInbox)
-    assert len(pending.activity_ids) == 2
+    # Both Invites wait on the case, each on its own held record (ADR-0154).
+    assert len(records_awaiting_case(dl, _CASE_ID)) == 2
     dl.save(
         VultronPendingCaseInbox.model_validate(
             {

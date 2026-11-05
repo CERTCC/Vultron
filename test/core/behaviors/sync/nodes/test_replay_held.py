@@ -41,7 +41,10 @@ from vultron.core.behaviors.sync.nodes import (
     ReplayHeldSuccessorNode,
     replay_held as replay_held_mod,
 )
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
+from vultron.core.services.received_holding import (
+    discard_holding,
+    owes_replay,
+)
 from vultron.errors import VultronWiringError
 
 
@@ -141,16 +144,16 @@ def test_successor_is_replayed_then_released(
 def test_successor_with_no_held_body_is_dropped_not_wedged(
     bridge, datalayer, case_obj, replay, caplog
 ):
-    """An index row whose body is gone can never replay: the node drops it
+    """An index row that owes no replay can never replay: the node drops it
     with a warning instead of failing every later drain of the case."""
     event = _make_event(
         _make_entry(0, prev_hash=case_obj.genesis_hash), CASE_MANAGER_ID
     )
     hold_received(datalayer, event)
-    datalayer.delete(
-        "DeferredInboxActivity",
-        DeferredInboxActivity.build_id(event.activity_id),
-    )
+    # Give up the replay claim the index row needs, as an eviction does.  The
+    # archive intake wrote stays behind it (CLP-10-018, ADR-0154).
+    discard_holding(datalayer, event.activity_id)
+    assert not owes_replay(datalayer, event.activity_id)
 
     with caplog.at_level("WARNING"):
         result = _run(bridge, replay)

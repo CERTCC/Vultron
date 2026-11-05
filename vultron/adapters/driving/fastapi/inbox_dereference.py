@@ -46,7 +46,6 @@ from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.config import get_config
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.object_fetch import (
     ObjectFetchState,
@@ -57,6 +56,7 @@ from vultron.core.models.object_fetch import (
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.services.dereference import references_to_fetch
+from vultron.core.services.received_holding import owes_replay
 from vultron.errors import (
     VultronError,
     VultronValidationError,
@@ -362,10 +362,7 @@ def _queue_ready_waiters(
 
 def _is_held(dl: DataLayer, activity_id: str) -> bool:
     """Whether *dl* holds *activity_id* whole for its replay."""
-    return isinstance(
-        dl.read(DeferredInboxActivity.build_id(activity_id)),
-        DeferredInboxActivity,
-    )
+    return owes_replay(cast(CasePersistence, dl), activity_id)
 
 
 def _drop_waiters(

@@ -156,8 +156,8 @@ class StoredActivityIngressAdapter:
     Used when the payload is an activity-ID string popped from the inbox
     queue: an activity deferred pending its case, or a held
     ``Announce(CaseLedgerEntry)`` replayed once its entry applies
-    (SYNC-14-009).  Either is held whole, as received, in a
-    :class:`~vultron.core.models.deferred_inbox_activity.DeferredInboxActivity`,
+    (SYNC-14-009).  Either is held whole, as received, on its one
+    :class:`~vultron.core.models.received_activity_record.ReceivedActivityRecord`,
     never under its own id (DL-06-006).
 
     ``parse`` rebuilds the held activity and releases its record.

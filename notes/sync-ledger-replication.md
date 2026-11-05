@@ -311,8 +311,10 @@ does not re-queue an `Announce` the outbox already holds for that peer
 (SYNC-15-012). The hold below is the backstop for loss, not the steady state.
 
 - **Hold the Announce, never the entry alone** (SYNC-14-010). The body intake
-  archived is held in a `DeferredInboxActivity`, the inbox's replay record
-  (IO-03-009); a `HeldLedgerAnnounce` row indexes it. Reason: an entry held alone
+  archived is marked as owing a replay on its own `ReceivedActivityRecord`
+  (IO-03-009); a `HeldLedgerAnnounce` row indexes it. This is the one hold that
+  lands on an already-archived record, so releasing or discarding it leaves the
+  archive standing and only gives up the replay (CLP-10-018). Reason: an entry held alone
   can only reach the inbox again inside an Announce the replica makes up and
   attributes to the CASE_MANAGER (ISSUE-5012). Both live in the receiver's store,
   never as a `CaseLedgerEntry` (SYNC-14-011), so a restart keeps them.

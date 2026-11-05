@@ -39,8 +39,8 @@ class InboxReplayPort(Protocol):
     def replay_held(self, activity_id: str) -> None:
         """Queue the held received activity *activity_id* for replay.
 
-        The activity's received body is already held for the replay, in a
-        ``DeferredInboxActivity`` (IO-03-009).  The adapter queues the id for
+        The activity's received body is already held for the replay, on
+        its one ``ReceivedActivityRecord`` (IO-03-009).  The adapter queues the id for
         the receiving actor's inbox processing and does not process it: the
         replay runs after the delivery that called this method has finished,
         and parses the held body again, so it carries the first delivery's

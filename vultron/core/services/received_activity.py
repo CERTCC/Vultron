@@ -14,9 +14,9 @@
 """Read an activity as this actor holds it (CLP-10-017, DL-06-006, ADR-0149).
 
 A received activity is held only under a key the receiver derives (DL-06-006),
-and only as the body that arrived: its ``ReceivedActivityRecord`` once intake
-archived it, or, while the inbox defers it until its case is known, the
-``DeferredInboxActivity`` that holds it for replay.  Core reads its facts by
+and only as the body that arrived: one ``ReceivedActivityRecord``, whichever
+stage it is in -- archived by intake, or held for a replay the inbox still
+owes (ADR-0154).  Core reads its facts by
 loading that body through the ``ReceivedActivityLoader`` port, which parses
 and extracts it as the inbox did and returns a read-only view.  That is the
 one sanctioned way core reads a received activity's facts (DL-06-001,
@@ -32,10 +32,10 @@ These readers are importable from any core layer, BT nodes included
 import json
 from typing import Any
 
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
+    ReceivedStage,
 )
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.ports.case_persistence import CasePersistence
@@ -45,20 +45,15 @@ from vultron.errors import VultronNotFoundError, VultronWiringError
 
 def held_received_record(
     dl: CasePersistence, activity_id: str
-) -> ReceivedActivityRecord | DeferredInboxActivity | None:
+) -> ReceivedActivityRecord | None:
     """The receiver-keyed record holding the received *activity_id*, if any.
 
-    Intake's archive first, then the record that holds a deferred activity
-    for its replay; never a row under the id the sender chose (DL-06-006).
-    Nothing is parsed.
+    One read of one row, whatever stage it is in: intake's archive and a body
+    held for a replay are the same record now (ADR-0154).  Never a row under
+    the id the sender chose (DL-06-006).  Nothing is parsed.
     """
     record = dl.read(ReceivedActivityRecord.build_id(activity_id))
-    if isinstance(record, ReceivedActivityRecord):
-        return record
-    deferred = dl.read(DeferredInboxActivity.build_id(activity_id))
-    if isinstance(deferred, DeferredInboxActivity):
-        return deferred
-    return None
+    return record if isinstance(record, ReceivedActivityRecord) else None
 
 
 def holds_received_activity(dl: CasePersistence, activity_id: str) -> bool:
@@ -81,10 +76,12 @@ def archived_received_body(
     Raises:
         VultronWiringError: When nothing is archived for *activity_id*.  The
             callers run after intake, which archives every received activity
-            before any guard (CLP-10-017), so the tree is miswired.
+            before any guard (CLP-10-017), so the tree is miswired.  A record
+            still only held for a replay has not been archived, and these
+            callers never run on one.
     """
-    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
-    if not isinstance(record, ReceivedActivityRecord):
+    record = held_received_record(dl, activity_id)
+    if record is None or record.stage is not ReceivedStage.ARCHIVED:
         raise VultronWiringError(
             f"activity '{activity_id}' is not archived, so there is no"
             " received body to embed (CLP-10-017)"
@@ -113,17 +110,13 @@ def read_received_activity(
 ) -> ReceivedActivityView:
     """Return the read-only view of the received activity *activity_id*.
 
-    A received activity that reached its use case is archived by intake as a
-    ``ReceivedActivityRecord`` under the receiver's own key (CLP-10-017,
-    ADR-0111), so that record is loaded first.
-
-    An activity the inbox deferred until its case is known has not reached
-    intake yet.  The inbox holds its body for replay in a
-    ``DeferredInboxActivity``, also under a key the receiver derives
-    (DL-06-006), and that body is loaded next.  A stub Invite is never in that
-    state: it precedes its case by design, so the invitee processes it on
-    arrival and intake archives it (PCR-06-005).  Nothing is read under the
-    sender's id.
+    One ``ReceivedActivityRecord`` under the receiver's own key holds the
+    body, whichever stage it is in (ADR-0154): archived by intake once the
+    activity reached its use case (CLP-10-017), or held for a replay while
+    the inbox defers it until its case is known (IO-03-009).  A stub Invite
+    is never in that second stage: it precedes its case by design, so the
+    invitee processes it on arrival and intake archives it (PCR-06-005).
+    Nothing is read under the sender's id (DL-06-006).
 
     Either way the view is parsed from the held body on this call, so it is
     what the delivery saw, and it cannot be changed (ADR-0149).

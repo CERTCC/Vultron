@@ -21,11 +21,13 @@ The record holds the body that arrived and nothing derived from it (ADR-0149).
 import json
 
 import pytest
+from pydantic import ValidationError
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
+    ReceivedStage,
 )
 from vultron.errors import VultronAlreadyExistsError
 
@@ -139,3 +141,116 @@ def test_sender_cannot_occupy_a_receiver_derived_id(dl):
     assert dl.read(marker_id) is None
     dl.create(VultronPendingCaseInbox(case_id=CASE_ID, case_actor_id=RECEIVER))
     assert isinstance(dl.read(marker_id), VultronPendingCaseInbox)
+
+
+# --------------------------------------------------------------------------
+# The stage/replay invariant (ADR-0154)
+#
+# One record carries two independent facts — how far the message got
+# (``stage``) and whether a replay is still owed from its body
+# (``replay_owed``) — because both combinations of them are reachable.  Three
+# of the four pairings are legitimate; the fourth is unreachable rubbish and
+# is refused at construction.
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CLP-10-017")
+@pytest.mark.parametrize(
+    ("stage", "replay_owed"),
+    [
+        # Intake archived it and nothing is owed: the ordinary archive.
+        (ReceivedStage.ARCHIVED, False),
+        # Held for a replay, never archived: the inbox deferred it.
+        (ReceivedStage.HELD, True),
+        # Archived *and* owing a replay: a buffered Announce(CaseLedgerEntry)
+        # that intake archived before its handler found the ledger gap.
+        (ReceivedStage.ARCHIVED, True),
+    ],
+)
+def test_the_three_reachable_stage_and_replay_pairings_are_accepted(
+    stage, replay_owed
+):
+    record = ReceivedActivityRecord(
+        activity_id=ACTIVITY_ID,
+        received_body=_body(),
+        stage=stage,
+        replay_owed=replay_owed,
+    )
+    assert record.stage is stage
+    assert record.replay_owed is replay_owed
+
+
+@pytest.mark.spec("CLP-10-017")
+def test_a_held_record_owing_no_replay_is_refused():
+    """Nothing would ever read it again, so it is a wiring mistake."""
+    with pytest.raises(ValidationError) as caught:
+        ReceivedActivityRecord(
+            activity_id=ACTIVITY_ID,
+            received_body=_body(),
+            stage=ReceivedStage.HELD,
+            replay_owed=False,
+        )
+    assert "HELD with no replay owed" in str(caught.value)
+
+
+@pytest.mark.spec("IO-03-009")
+def test_awaiting_a_case_with_no_replay_owed_is_refused():
+    """A wait that owes no replay could never end."""
+    with pytest.raises(ValidationError) as caught:
+        ReceivedActivityRecord(
+            activity_id=ACTIVITY_ID,
+            received_body=_body(),
+            stage=ReceivedStage.ARCHIVED,
+            replay_owed=False,
+            awaiting_case_id=CASE_ID,
+        )
+    assert "could never end" in str(caught.value)
+
+
+@pytest.mark.spec("IO-03-009")
+def test_awaiting_a_case_is_accepted_when_a_replay_is_owed():
+    """The positive side of the invariant above, so neither reads vacuously."""
+    record = ReceivedActivityRecord(
+        activity_id=ACTIVITY_ID,
+        received_body=_body(),
+        stage=ReceivedStage.HELD,
+        replay_owed=True,
+        awaiting_case_id=CASE_ID,
+    )
+    assert record.awaiting_case_id == CASE_ID
+
+
+@pytest.mark.spec("CLP-10-017")
+def test_the_invariant_survives_assignment(dl):
+    """``validate_assignment`` applies it after construction too (ARCH-21-001)."""
+    record = _record()
+    with pytest.raises(ValidationError):
+        record.stage = ReceivedStage.HELD
+
+
+@pytest.mark.spec("IO-03-009")
+def test_the_default_record_is_an_archive_owing_nothing():
+    """Intake's write needs no stage arguments to mean "archived"."""
+    record = _record()
+    assert record.stage is ReceivedStage.ARCHIVED
+    assert record.replay_owed is False
+    assert record.awaiting_case_id is None
+    assert record.replay_rows_json == "[]"
+
+
+@pytest.mark.spec("IO-03-009")
+def test_the_replay_rows_round_trip_through_the_datalayer(dl):
+    """The staged inline rows the replay needs survive storage (IO-03-009)."""
+    rows = json.dumps([{"id_": NOTE_ID, "type_": "Note", "data_": "{}"}])
+    dl.create(
+        ReceivedActivityRecord(
+            activity_id=ACTIVITY_ID,
+            received_body=_body(),
+            stage=ReceivedStage.HELD,
+            replay_owed=True,
+            replay_rows_json=rows,
+        )
+    )
+    stored = dl.read(ReceivedActivityRecord.build_id(ACTIVITY_ID))
+    assert stored.replay_rows_json == rows
+    assert json.loads(stored.replay_rows_json)[0]["id_"] == NOTE_ID
