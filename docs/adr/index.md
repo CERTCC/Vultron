@@ -227,7 +227,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0123 An Embargo Invite May Name Its Terms by URI](0123-embargo-invite-may-name-its-terms-by-uri.md) *(provisional)*
 - [ADR-0124 The Case Is a Projection of Its Ledger: Every Change Is an Entry, and Replicas Copy](0124-case-is-a-projection-of-its-ledger.md) *(revision 2)* *(provisional)*
 - [ADR-0125 A Case Splits by Its Owner Proposing a Child Case: the Child Links Its Parent and Inherits the Embargo Terms Only](0125-case-split-child-case-inherits-the-embargo-only.md) *(provisional)*
-- [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md) *(revision 2)* *(provisional)* — partially superseded by 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md, 0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md
+- [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md) *(revision 2)* *(provisional)* — partially superseded by 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md, 0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md, 0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md
 - [ADR-0127 Decision Records Leave Routine Agent Context; Specs and Notes Carry the Current State](0127-decision-records-leave-routine-agent-context.md) *(provisional)*
 - [ADR-0128 Message Vocabulary Docs Are Projections of the Semantic Registry](0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md) *(provisional)*
 - [ADR-0129 A Sender Rule States Every Position on Both Sides, and Is the Source of "Sent By"](0129-a-sender-rule-states-every-position-on-both-sides-and-is-the-source-of-sent-by.md) *(provisional)*
@@ -243,7 +243,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0140 A Ledger Entry's Semantic Type Is the Registry Label of Its AS2 Payload](0140-a-ledger-entrys-semantic-type-is-the-registry-label-of-its-as2-payload.md) *(revision 4)* *(provisional)* — partially superseded by 0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md
 - [ADR-0141 A Refused Assertion Is Answered With a Reject of the Refused Activity](0141-a-refused-assertion-is-answered-with-a-reject-of-the-refused-activity.md) *(provisional)*
 - [ADR-0142 A Diverged Replica Is Repaired by a Fresh Case Copy That Names Its Ledger Position](0142-a-diverged-replica-is-repaired-by-a-fresh-case-copy-that-names-its-ledger-position.md) *(revision 2)* *(provisional)*
-- [ADR-0143 A Fix Commit's Local Gate Escalates Only for Shared Test Infrastructure](0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md) *(provisional)* — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md
+- [ADR-0143 A Fix Commit's Local Gate Escalates Only for Shared Test Infrastructure](0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md) *(provisional)* — partially superseded by 0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md; partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md
 - [ADR-0144 Once a Report Belongs to a Case, Only Its Owner Closes It, by Leave](0144-once-a-report-belongs-to-a-case-only-its-owner-closes-it-by-leave.md) *(provisional)*
 - [ADR-0145 A Case Is Left Through the Leave-Case Trigger, Whose Actor Runs Its Pre-Close Step First](0145-a-case-is-left-through-the-leave-case-trigger-whose-actor-runs-its-pre-close-step-first.md) *(provisional)*
 - [ADR-0146 One Atomic Commit per CASE_MANAGER Act](0146-one-atomic-commit-per-case-manager-act.md) *(revision 5)* *(provisional)*
@@ -264,7 +264,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0168 A Replay from the Start Is Asked Once per Wait and Answered Once per Need](0168-a-replay-from-the-start-is-asked-once-per-wait-and-answered-once-per-need.md) *(provisional)*
 - [ADR-0170 The Bootstrap Create Carries Its Case and Nested Objects Inline](0170-the-bootstrap-create-carries-its-case-and-nested-objects-inline.md) *(revision 2)* *(provisional)*
 - [ADR-0171 Publish the Site on a Weekday Schedule From Tags](0171-publish-the-site-on-a-weekday-schedule-from-tags.md) *(provisional)*
-- [ADR-0173 A Push Is Gated by CI's Non-Suite Checks and a Scratch Merge of the Overlap](0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md) *(provisional)* — partially supersedes 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md
+- [ADR-0173 A Push Is Gated by CI's Non-Suite Checks and a Scratch Merge of the Overlap](0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md) *(provisional)* — partially superseded by 0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md; partially supersedes 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md
 - [ADR-0175 Before 1.0, Vultron Supports One Protocol and Storage Version, So a Former Field Name Is an Unknown Key](0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md) *(provisional)* — partially supersedes 0078-retire-finder-role.md, 0099-one-object-model-as2-is-a-serialization.md, 0122-per-embargo-participant-consent.md
 - [ADR-0177 A Requirement a Statement Cites With No Relationship Is Listed in `see_also`, With a Reason](0177-a-cited-requirement-with-no-relationship-is-listed-in-see-also.md) *(provisional)*
 
@@ -282,6 +282,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0172 An Active Participant Is Not Closed](0172-an-active-participant-is-not-closed.md) — partially supersedes 0114-joining-a-case-stub-invite-inert-participant.md, 0116-removing-a-participant-withdraws-entitlement-not-membership.md
 - [ADR-0174 CVD Measures Read a Case Ledger Through a Read-Only Event History, Derived by State Comparison](0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md)
 - [ADR-0176 An Act Reads the Clock Once, at Its Edge](0176-an-act-reads-the-clock-once-at-its-edge.md) *(revision 2)* — partially supersedes 0103-object-time-is-carried-never-minted.md
+- [ADR-0179 A Local Check Runs Only When It Answers Before a Required CI Gate](0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md) — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md, 0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md, 0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md
 
 ## Rejected ADRs
 
