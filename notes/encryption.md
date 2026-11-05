@@ -7,7 +7,6 @@ tracks:
   - "#1184"
   - "#2841"
   - "#3477"
-  - "#5380"
   - "#5383"
   - "#5386"
 description: >
@@ -70,14 +69,23 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   runs. Only the owner computes its key from the seed; verification reads the
   key from the author's profile (SIG-05-002). Never deploy seeded keys; random
   keys, storage and rotation are #1184 (ENC-01-001, ENC-01-004 to ENC-01-006).
-- **One module signs and verifies** (SIG-05-003), the way
-  `vultron.wire.as2.factories` owns outbound construction. Tests sign through a
-  shared test helper built on it, never by hand.
+  A `SigningKey` exports no private key and shows only its public half, so
+  logging one discloses nothing (ENC-01-007).
+- **One module signs and verifies** (SIG-05-003): `vultron/wire/as2/signing.py`,
+  the way `vultron.wire.as2.factories` owns outbound construction. Tests sign
+  through a shared test helper built on it, never by hand. A verifier passes it
+  the author's published `publicKeyMultibase`, never a `SigningKey`.
 - **Use RFC 8785 JCS, not the ledger hash's canonical form.** The ledger's
   `_canonical_bytes` in `vultron/core/models/case_ledger/hashing.py` is not JCS; reusing
   it makes proofs no other `eddsa-jcs-2022` verifier accepts. Refuse duplicate
   JSON keys and integers above 2^53 rather than sign or verify them, since
   parsers disagree on both.
+- **A signed activity's `@context` is a list.** Signing appends
+  `https://w3id.org/security/data-integrity/v2` to the activity's own
+  `@context`, as FEP-8b32's examples do and other implementers expect, so a
+  single context becomes a list. The wire model types `@context` as one string,
+  so the outbox-signing Task (#5382) widens that field before a signed body can
+  be parsed again.
 - **Sign before the body is sealed.** The sealed body is final (OX-07-001), so
   the outbox signs the activity immediately before sealing it. The delivered
   body, the ledger snapshot and the relayed `Announce` then hold the same bytes
@@ -142,7 +150,7 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
 ## Implementation guidance
 
 - Log encryption and decryption actions at INFO or DEBUG without exposing
-  private material or plaintext content (ENC-01-004).
+  private material or plaintext content (ENC-01-007).
 - When persisting activities, store ciphertext only if you intend to retain
   encrypted blobs; otherwise store the canonical plaintext activity objects.
 - For Accept/Reject responses and similar reply activities, carry the

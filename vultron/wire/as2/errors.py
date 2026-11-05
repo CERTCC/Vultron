@@ -32,3 +32,27 @@ class VultronParseMissingPublishedError(VultronParseError):
     Absence is therefore a message-validity failure, caught at the parse
     threshold rather than corrected downstream (ADR-0032: validate at the edge).
     """
+
+
+class VultronProofError(VultronWireError):
+    """Raised when an object integrity proof cannot be made or checked."""
+
+
+class VultronProofInvalidError(VultronProofError):
+    """Raised when a document's proof is missing, malformed or does not verify.
+
+    A receiver refuses the document (SIG-03-002).
+    """
+
+
+class VultronUnsignableJsonError(VultronProofError, ValueError):
+    """Raised when JSON is refused rather than signed or verified.
+
+    Duplicate object keys, non-finite numbers and integers outside
+    ±(2^53 - 1) are read differently by different parsers, so a signer and a
+    verifier could canonicalize different values from one body.
+    """
+
+
+class VultronMultikeyError(VultronProofError, ValueError):
+    """Raised when a ``Multikey`` value is not a base58btc Ed25519 key."""

@@ -1019,7 +1019,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| ENC — Encryption | [ENC-01-004](../vultron-spec/requirements/transport-security.md#enc-01-004), [ENC-01-005](../vultron-spec/requirements/transport-security.md#enc-01-005), [ENC-01-006](../vultron-spec/requirements/transport-security.md#enc-01-006), [ENC-02-001](../vultron-spec/requirements/transport-security.md#enc-02-001), [ENC-02-002](../vultron-spec/requirements/transport-security.md#enc-02-002) |
+| ENC — Encryption | [ENC-01-004](../vultron-spec/requirements/transport-security.md#enc-01-004), [ENC-01-005](../vultron-spec/requirements/transport-security.md#enc-01-005), [ENC-01-006](../vultron-spec/requirements/transport-security.md#enc-01-006), [ENC-01-007](../vultron-spec/requirements/transport-security.md#enc-01-007), [ENC-02-001](../vultron-spec/requirements/transport-security.md#enc-02-001), [ENC-02-002](../vultron-spec/requirements/transport-security.md#enc-02-002) |
 | VP — Vultron Protocol | [VP-15-004](../vultron-spec/requirements/vultron-protocol.md#vp-15-004) |
 
 ## [story_2022_092](story_2022_092.md)
