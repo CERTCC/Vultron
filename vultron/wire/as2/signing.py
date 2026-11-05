@@ -83,6 +83,12 @@ _BASE58BTC = "z"
 #: The base58btc alphabet; a value with any other character, whitespace
 #: included, is not base58btc.
 _BASE58_TEXT = re.compile(r"[1-9A-HJ-NP-Za-km-z]+")
+#: The shape of an XML Schema ``dateTimeStamp``, which Data Integrity requires
+#: of ``created``: a full RFC 3339 date-time with seconds and an explicit
+#: offset (CS-13-006).  Range checks are left to ``datetime.fromisoformat``.
+_TIMESTAMP_TEXT = re.compile(
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})"
+)
 #: Domain separation for seeds, versioned so a scheme change changes every key.
 _SEED_LABEL = b"vultron-prototype-seeded-key/v1\n"
 
@@ -312,12 +318,13 @@ def sign(
         document: the JSON object to sign; it must carry no ``proof``.
         key: the author's signing key; the proof names its key id.
         created: the proof's ``created`` time; a ``datetime`` is written in
-            the one serialized form a time has, a string is used as given.
-            Defaults to now.
+            the one serialized form a time has, a string is used as given
+            once it is a timestamp :func:`verify` accepts.  Defaults to now.
 
     Raises:
-        VultronUnsignableJsonError: *document* already carries a proof, or
-            holds a value that cannot be canonicalized.
+        VultronUnsignableJsonError: *document* already carries a proof, holds
+            a value that cannot be canonicalized, or *created* is not an RFC
+            3339 date-time with an offset.
     """
     if not isinstance(document, Mapping):
         raise VultronUnsignableJsonError("only a JSON object can be signed")
@@ -329,9 +336,10 @@ def sign(
         created = now_utc()
     if isinstance(created, datetime):
         created = format_timestamp(created)
-    if not isinstance(created, str) or not created:
+    if not _is_timestamp(created):
         raise VultronUnsignableJsonError(
-            "a proof's created time must be a datetime or a non-empty string"
+            "a proof's created time must be a datetime or an RFC 3339 "
+            "date-time with an offset"
         )
 
     unsecured = copy.deepcopy(dict(document))
@@ -392,7 +400,8 @@ def _context_entries(context: Any) -> list[Any]:
 
 
 def _is_timestamp(value: Any) -> bool:
-    if not isinstance(value, str) or not value:
+    """Whether *value* is a ``created`` time both sign and verify accept."""
+    if not isinstance(value, str) or not _TIMESTAMP_TEXT.fullmatch(value):
         return False
     try:
         datetime.fromisoformat(value)

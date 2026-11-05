@@ -639,13 +639,98 @@ def test_base58_with_whitespace_is_refused():
         )
 
 
-def test_a_created_time_that_is_not_a_time_is_refused_when_signing():
+#: ``created`` values Data Integrity refuses: it requires an XML Schema
+#: ``dateTimeStamp``, a full date-time with an explicit offset (CS-13-006).
+NOT_TIMESTAMPS = [
+    "not a time",
+    "2026-01-01",
+    "2026-01-01T00:00:00",
+    "20260101T000000Z",
+    "2026-W01-1",
+    "2026-01-01 00:00:00Z",
+    "2026-01-01T00:00Z",
+    "2026-02-30T00:00:00Z",
+]
+NOT_TIMESTAMP_IDS = [
+    "words",
+    "date-only",
+    "no-offset",
+    "basic-format",
+    "week-date",
+    "space-separator",
+    "no-seconds",
+    "no-such-day",
+]
+
+
+@pytest.mark.parametrize(
+    "created", [5, *NOT_TIMESTAMPS], ids=["int", *NOT_TIMESTAMP_IDS]
+)
+def test_a_created_time_that_is_not_a_time_is_refused_when_signing(
+    created: Any,
+):
     with pytest.raises(VultronUnsignableJsonError, match="created"):
         signing.sign(
             {"id": "urn:x:1"},
             signing.seeded_signing_key(ACTOR),
-            created=5,  # type: ignore[arg-type]
+            created=created,
         )
+
+
+@pytest.mark.parametrize("created", NOT_TIMESTAMPS, ids=NOT_TIMESTAMP_IDS)
+def test_a_created_time_that_is_not_a_time_is_refused_when_verifying(
+    created: str,
+):
+    signed = _signed_note()
+    signed["proof"]["created"] = created
+
+    with pytest.raises(VultronProofInvalidError, match="created"):
+        signing.verify(
+            signed, signing.seeded_signing_key(ACTOR).public_key_multibase
+        )
+
+
+@pytest.mark.parametrize(
+    "created",
+    [
+        "2023-02-24T23:36:38Z",
+        "2023-02-24T23:36:38.123Z",
+        "2023-02-24T23:36:38-05:00",
+    ],
+    ids=["utc", "fraction", "offset"],
+)
+def test_a_created_string_that_sign_accepts_verifies(created: str):
+    """Signer and verifier agree on what a created time is (SIG-05-003)."""
+    key = signing.seeded_signing_key(ACTOR)
+    signed = signing.sign({"id": "urn:x:1"}, key, created=created)
+
+    assert signed["proof"]["created"] == created
+    signing.verify(signed, key.public_key_multibase)
+
+
+def test_a_bare_multibase_prefix_is_refused():
+    signed = _signed_note()
+    signed["proof"]["proofValue"] = "z"
+
+    with pytest.raises(VultronMultikeyError, match="base58btc"):
+        signing.decode_public_key_multibase("z")
+    with pytest.raises(VultronProofInvalidError, match="base58btc"):
+        signing.verify(
+            signed, signing.seeded_signing_key(ACTOR).public_key_multibase
+        )
+
+
+@pytest.mark.parametrize(
+    "text",
+    ['{"id": "a", "id": "b"}', '{"ratio": NaN}', '{"ratio": 1e400}'],
+    ids=["duplicate-key", "nan", "overflow"],
+)
+def test_a_refused_kind_of_json_is_not_reported_as_unreadable(text: str):
+    """The refusal names its reason; it is not re-wrapped as "not JSON"."""
+    with pytest.raises(VultronUnsignableJsonError) as refused:
+        signing.load_json(text)
+
+    assert not str(refused.value).startswith("not JSON")
 
 
 @pytest.mark.spec("SIG-01-003")
