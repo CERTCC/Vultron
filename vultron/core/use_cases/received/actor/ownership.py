@@ -66,7 +66,7 @@ class ProposeCaseOwnershipTransferReceivedUseCase:
     Offer (CM-21-028, CM-21-029).  Anyone else is ``REFUSED`` by the tree's sender
     guard before anything but intake's archive is written (CLP-10-018): no
     expiry, no ledger entry, no Offer.  A redelivery of a proposal the
-    CASE_MANAGER already made its Offer from is ``SKIPPED`` (HP-01-003).
+    CASE_MANAGER already made its Offer from is ``SKIPPED`` (HP-01-014).
     """
 
     # Only the Case Owner proposes; a participant never receives a proposal,
@@ -166,7 +166,7 @@ class OfferCaseOwnershipTransferReceivedUseCase:
     the id its sender chose (DL-06-006).  At the CASE_MANAGER no sender is
     admitted: an owner proposes, it does not offer.  Anyone else is
     ``REFUSED`` with nothing but intake's archive written (CLP-10-018).  A
-    redelivery is ``SKIPPED`` (HP-01-003).
+    redelivery is ``SKIPPED`` (HP-01-014).
     """
 
     # Only the CASE_MANAGER makes the Offer; nobody sends it one
@@ -238,7 +238,7 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
     same way and answered with the refusal notice (CM-21-014, CLP-05-001).
     The new owner is read from the recorded Offer, never from the sender.
     A redelivery of the Accept that already closed the Offer changes nothing
-    and is ``SKIPPED`` (HP-01-003).
+    and is ``SKIPPED`` (HP-01-014).
     """
 
     # The transferee is the addressee of the Offer (ADR-0129), checked at the
@@ -306,7 +306,7 @@ class RejectCaseOwnershipTransferReceivedUseCase:
     broadcasts ``Announce(CaseLedgerEntry)``, which closes the Offer on every
     replica (CM-21-014) and is how the offerer learns of the decline.
     Ownership is unchanged.  A redelivery of the Reject that already closed
-    the Offer is ``SKIPPED`` (HP-01-003).
+    the Offer is ``SKIPPED`` (HP-01-014).
     """
 
     # The same two-sided transferee rule as the Accept (ADR-0129).
@@ -371,7 +371,7 @@ class UndoCaseOwnershipTransferReceivedUseCase:
     broadcasts ``Announce(CaseLedgerEntry)``, which closes the Offer on every
     replica (CM-21-014): the transferee learns it can no longer accept, and
     the case may be offered again.  Ownership is unchanged.  A redelivery of
-    the Undo that already closed the Offer is ``SKIPPED`` (HP-01-003).
+    the Undo that already closed the Offer is ``SKIPPED`` (HP-01-014).
     """
 
     # The offerer, which must still be the Case Owner (CM-21-015), checked at

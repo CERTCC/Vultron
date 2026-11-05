@@ -17,7 +17,7 @@
 
 A guard that fails because the delivery is a redelivery, a repeated answer
 or a stale copy ends the run with nothing applied; the handler reports
-``SKIPPED``, not the default ``REFUSED`` (HP-01-003).
+``SKIPPED``, not the default ``REFUSED`` (HP-01-003, HP-01-014).
 """
 
 import py_trees

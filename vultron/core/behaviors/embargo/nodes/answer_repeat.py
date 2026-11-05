@@ -65,7 +65,7 @@ class EmbargoAnswerNotRecordedNode(
     FAILURE with :attr:`is_repeat` set when the row already holds *answer*:
     the sender answered this invitation this way before, so the commit would
     add an entry that records no change and the effects would re-announce it
-    (CM-13-005, HP-01-003).  The handler reports the run as ``SKIPPED``.
+    (CM-13-005, HP-01-014).  The handler reports the run as ``SKIPPED``.
 
     Keyed on the identity of the answer being adjudicated — the sender and the
     embargo its Invite proposed, the same key the effect writes — never on the

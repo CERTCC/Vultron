@@ -167,7 +167,7 @@ def test_a_short_replica_is_replaced_then_backfilled_to_the_tail(
 @pytest.mark.spec("SYNC-16-006")
 def test_a_late_copy_from_before_the_replicas_tail_changes_nothing() -> None:
     """A copy taken before entries the replica now holds arrives late:
-    ``SKIPPED``, the case file as it was (HP-01-003)."""
+    ``SKIPPED``, the case file as it was (HP-01-014)."""
     net = LedgerNetwork("https://example.org/cases/copy-late")
     _send(net, net.pxa_report(OWNER, CS_pxa.pXa))
     late = _case_copy(net)

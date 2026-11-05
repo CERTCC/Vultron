@@ -20,7 +20,7 @@ and the ``Offer`` of a submitted report) and the recorded ownership-transfer
 the case file needs its own committed entry (CLP-07-013).
 
 The node reports what it did through :attr:`outcome` so the handler reports
-``APPLIED`` / ``SKIPPED`` (HP-01-003) without inspecting the DataLayer
+``APPLIED`` / ``SKIPPED`` (HP-01-014) without inspecting the DataLayer
 (ADR-0111).  The store itself is
 :func:`~vultron.core.services.idempotent_store.idempotent_store`, the one
 implementation of idempotent store (CS-22-001).

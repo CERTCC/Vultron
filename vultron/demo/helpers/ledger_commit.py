@@ -52,7 +52,7 @@ def trigger_log_commit(
     Returns:
         The ``entry_hash`` of the newly committed log entry.
 
-    Spec: SYNC-02-002, SYNC-02-003.
+    Spec: SYNC-02-001, SYNC-02-003.
     """
     session = ActorSession(
         client=client, actor=as_Actor(id_=actor_id)

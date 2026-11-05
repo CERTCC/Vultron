@@ -63,7 +63,7 @@ class SvcSyncLogEntryUseCase(SvcBTTriggerBase[SyncLogEntryResult]):
     semantic type is the registry's label for that payload (ADR-0140), and
     the caller-supplied ``object_id`` is recorded verbatim.
     The fan-out rides on the ``sync_port`` the dispatcher injects
-    (SYNC-02-002).
+    (SYNC-02-003).
     """
 
     def _prepare(self) -> None:

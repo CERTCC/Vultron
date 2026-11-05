@@ -91,7 +91,7 @@ def withdraw_from_embargo_on_case_tree(
             withdrawing.  Read from the message, never from the receiving
             store (ADR-0022).
         activity_id: The Leave's own id; a Leave the ledger already records
-            is a redelivery, reported ``SKIPPED`` (HP-01-003).
+            is a redelivery, reported ``SKIPPED`` (HP-01-014).
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
 

@@ -233,7 +233,7 @@ class TestDuplicateRecommendationNoteAddressesTheCaseOwner:
         """The CaseActor records the note for the owner, never DMs itself.
 
         The note is its own ``add_note_to_case`` entry, so the Case Owner
-        learns of it from the entry's ``Announce`` (SYNC-02-002); a direct
+        learns of it from the entry's ``Announce`` (SYNC-02-001, SYNC-02-003); a direct
         ``Add(Note)`` would be refused at the owner (HP-01-005, #4829).
         """
         _seed_case_actor_store(case_actor_dl)

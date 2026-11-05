@@ -605,9 +605,9 @@ class TestNoteUseCases:
         nor commits.
 
         Case replica updates arrive exclusively via Announce(CaseLedgerEntry)
-        fan-out (SYNC-02-002). The BT CheckIsCaseManagerNode guard keeps the
-        non-manager from attaching or committing, and the handler reports the
-        misaddressed note as a refusal (#3752).
+        fan-out (SYNC-02-001, SYNC-02-003). The BT CheckIsCaseManagerNode guard
+        keeps the non-manager from attaching or committing, and the handler
+        reports the misaddressed note as a refusal (#3752).
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -1020,7 +1020,7 @@ class TestNoteUseCases:
         }
         assert announced_to == {author_id, participant_id}
 
-    @pytest.mark.spec("SYNC-02-002")
+    @pytest.mark.spec("SYNC-02-003")
     @pytest.mark.spec("BT-14-001")
     def test_add_note_without_sync_port_raises_as_wiring_fault(
         self, make_payload

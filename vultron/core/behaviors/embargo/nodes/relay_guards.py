@@ -103,7 +103,7 @@ class EmbargoInviteNotYetAnsweredNode(
     Invite (ID-04-004), so the trigger-activity port can say whether it was
     sent (``answered_embargo_invite``).  A re-delivered Invite it already
     answered fails here, so it queues no second answer and the handler reads
-    it as SKIPPED (CLP-13-001, HP-01-003).  This holds in either arrival
+    it as SKIPPED (CLP-13-001, HP-01-014).  This holds in either arrival
     order: whether the Invite came before its proposal's decision, whose
     register step then took it out of the proposal index, or after it, when
     it was never indexed (EP-08-003, SYNC-19-001).

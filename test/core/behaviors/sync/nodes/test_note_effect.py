@@ -2,7 +2,7 @@
 """Tests for ApplyNoteFromLedgerNode.
 
 Covers add_note_to_case ledger event application to the local case replica.
-Per SYNC-02-002, ADR-0022.
+Per SYNC-02-001, ADR-0022.
 """
 
 import pytest

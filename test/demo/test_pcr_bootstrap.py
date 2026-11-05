@@ -623,8 +623,9 @@ class TestBootstrapSequence:
         # CheckIsCaseManagerNode — only the CaseActor attaches the note to its
         # case replica.  Non-CaseActor participants receive the note update
         # exclusively via Announce(CaseLedgerEntry) fan-out from the CaseActor
-        # (SYNC-02-002).  The BT still returns SUCCESS (via the fallback path),
-        # so the handler ran to completion — demonstrated by Assert 3 below.
+        # (SYNC-02-001, SYNC-02-003).  The BT still returns SUCCESS (via the
+        # fallback path), so the handler ran to completion — demonstrated by
+        # Assert 3 below.
         replica = actor_dl.read(_DIRECT_CASE_ID)
         assert replica is not None
         replica_note_ids = [
@@ -635,7 +636,7 @@ class TestBootstrapSequence:
             f"Note '{note.id_}' was unexpectedly attached to a non-CaseActor "
             f"case replica. Non-CaseActors must not update replica notes "
             f"directly from Add(Note)[target=VulnerabilityCase] messages "
-            f"(SYNC-02-002, ADR-0022). "
+            f"(SYNC-02-001, ADR-0022). "
             f"Replica notes: {replica_note_ids!r}"
         )
 

@@ -411,7 +411,7 @@ passes for the wrong reason.
 
 ### Why the `Announce(CaseLedgerEntry)` envelope is not a payload
 
-`Announce(CaseLedgerEntry)` is the replication envelope (SYNC-02-002). A canonical
+`Announce(CaseLedgerEntry)` is the replication envelope (SYNC-02-001). A canonical
 entry's `payloadSnapshot` is the activity that *triggered* the entry, never the
 transport that delivered it, so `announce_case_ledger_entry` MUST NOT appear in
 `EXPECTED_SEMANTIC_TYPES` for the canonical log (CLP-10-004, ADR-0021).
