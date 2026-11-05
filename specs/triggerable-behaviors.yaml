@@ -153,10 +153,9 @@ groups:
     priority: MUST
     kind: project
     verification: >-
-      The trigger registry rows for add-note-to-case and sync-log-entry declare
-      demo-only exposure, and the route-to-registry test
-      (`test/adapters/driving/fastapi/test_trigger_registry_routes.py`) asserts each
-      demo-only row is mounted under `/demo/`.
+      `test_demo_shortcut_verbs_are_classified_demo_only` in
+      `test/test_trigger_registry.py` asserts that the registry rows for
+      add-note-to-case and sync-log-entry declare demo-only exposure.
     statement: >-
       The add-note-to-case and sync-log-entry triggers MUST be classified demo-only
       (TRIG-08-002).

@@ -61,6 +61,10 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: IO-01-002
+    - rel_type: uses_definition
+      spec_id: UCORG-05-017
+    adr:
+    - ADR-0095
   - id: IO-01-003
     priority: MUST
     kind: project

@@ -1561,8 +1561,14 @@ groups:
       leaves the participant at `RM.RECEIVED`, sets VF `V` for a vendor, and
       marks its consent row for the active embargo `AGREED` when an embargo is active,
       and that it leaves a `DECLINED` row for that embargo unchanged.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-03-008
+    - rel_type: extends
+      spec_id: BT-10-005
     adr:
     - ADR-0114
+    - ADR-0121
     stories:
     - story_2022_013
     - story_2022_023

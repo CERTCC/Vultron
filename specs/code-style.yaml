@@ -750,9 +750,9 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      The test suite for a subpackage split from a flat module SHOULD mirror the
-      subpackage structure, with one `test_<submodule>.py` per submodule. For a BT
-      `nodes/` subpackage, that test directory is `test/…/nodes/`.
+      Each subpackage split from a flat module, and each BT `nodes/` subpackage
+      (BTND-07-001), SHOULD have mirrored tests: one `test_<submodule>.py` per
+      submodule.
     rationale: >-
       A monolithic test file grows in parallel with the flat module and inherits the
       same blast-radius problem. Mirrored test files scope failures to the affected
@@ -762,6 +762,9 @@ groups:
       For each subpackage split from a flat module, including each BT `nodes/`
       subpackage (BTND-07-001), inspection confirms a matching test directory with
       one test file per submodule.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-07-001
 - id: CS-20
   title: Protocol and Type-Guard Hygiene
   specs:
