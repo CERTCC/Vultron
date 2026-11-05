@@ -163,7 +163,9 @@ class TestBandScheme:
 
 class TestBandShares:
     def test_counts_and_shares_follow_the_classifier(self):
-        prs = [pr(1, 10), pr(2, 100), pr(3, 101), pr(4, 5000)]
+        small = size_bands.SIZE_BANDS[0].max_lines
+        assert small is not None
+        prs = [pr(1, 10), pr(2, small), pr(3, small + 1), pr(4, 50_000)]
         shares = measures.band_shares(prs, SCHEME)
         assert [(s.label, s.count) for s in shares] == [
             ("size:S", 2),
@@ -316,7 +318,8 @@ class TestReport:
     def test_band_lines_carry_share_and_target(self):
         text = report.render_report(self._window(), SCHEME)
         assert "size:S" in text and "25.0%  (target 23%)" in text
-        assert "size:L ceiling 1200" in text
+        large = size_bands.SIZE_BANDS[2]
+        assert f"{large.label} ceiling {large.max_lines}" in text
 
     def test_accuracy_names_what_the_shares_are_of(self):
         text = report.render_report(self._window(), SCHEME)

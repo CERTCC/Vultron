@@ -1,11 +1,11 @@
 # Applies the PAD-05 `size:` label to every pull request from its measured
 # diff, so the measurement stops depending on an agent remembering to do it.
 #
-# A survey of 692 PRs merged 2026-07-22..2026-09-22 found 40% carrying no
-# `size:` label and `size:S` applied correctly 24% of the time, while the rule
-# lived only in skill prose. The band table is `size_bands.py` (PAD-05-011) and
-# this workflow is its only applier at PR-open time, so the thresholds are never
-# restated here — `pr-size` is called instead.
+# While the rule lived only in skill prose it was skipped on a large share of
+# PRs; the survey figures are stated once, in the PAD-05-011 rationale. The band
+# table is `size_bands.py` (PAD-05-011) and this workflow is its only applier at
+# PR-open time, so the thresholds are never restated here — `pr-size` is called
+# instead.
 
 name: "PR size label"
 

@@ -749,6 +749,33 @@ groups:
         verification: >-
           A reviewer checks the split proposal when `calve-epics` Mode 3 makes
           it.
+      - id: PAD-02-041
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          An Issue opened during other work (any `opened-as` reason) that does
+          not block the Issue being worked, and that the PR working that Issue
+          does not also close, MUST NOT be routed to a Focus or Now Epic unless
+          that Epic's title claim stays false while the Issue is open. It is
+          routed among the same-theme Epics in Next, Later and Someday instead.
+        rationale: >-
+          A finding about code an agent is touching always matches best the
+          Epic that is working on that code, and it inherits that Epic's tier.
+          Routed by grain alone, discovered work piles into Focus Epics, which
+          then never finish and crowd out the work the quarter planned. The
+          title test keeps a discovery that is part of the Epic's claim, such
+          as a mismatch an audit Epic exists to find, and sends the rest to be
+          ranked on its own. An Issue the same PR closes is part of delivering
+          the worked Issue, not backlog to rank, so it may go under the worked
+          Issue's Epic whatever its tier.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-02-022
+        verification: >-
+          A reviewer checks the routing `create-issue` Phase 8 reports for each
+          discovered Issue: a Focus or Now parent comes with the Issue blocking
+          the worked Issue, the PR that also closes it, or the reason its
+          parent's title claim needs it.
 
   - id: PAD-03
     title: Priority Ordering Authority
@@ -934,8 +961,8 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          At Issue creation, an Issue with 1–2 acceptance-criteria (AC)
-          checkboxes MUST receive the `size:S` label.
+          At Issue creation, an Issue with 1 acceptance-criteria (AC)
+          checkbox MUST receive the `size:S` label.
         rationale: >-
           Provides an objective, count-based size estimate at the point the
           Issue is created, before any implementation diff is available.
@@ -996,6 +1023,10 @@ groups:
           work was predicted to cost, and does so at the moment the Issue
           closes, where no consumer reads the result.
       - id: PAD-05-011
+        # The survey figures live in this rationale and nowhere else (#3544),
+        # so it is long on purpose.
+        lint_suppress:
+        - rationale_too_long
         priority: MUST
         kind: process
         statement: >-
@@ -1006,7 +1037,28 @@ groups:
         rationale: >-
           A threshold that prose restates can contain a typing error, and each copy
           changes independently. With one table and one tool that applies it, every
-          label uses the same bands.
+          label uses the same bands. This rationale is also the one place that states
+          the survey figures behind the bands; every other site points here, and a
+          recalibration replaces them here (re-run with `pr-size --calibrate`).
+          Survey of 2026-11-03, PRs merged 2026-09-22..2026-11-03: under the previous
+          bands and AC rule, 22% of estimates matched the measured band and 76% were
+          too small. The current AC rule scored 42% exact, 95% within one band and
+          23% too small on held-out Issues, against 14% / 62% / 83% for the
+          previous rule. The current diff
+          ceilings sit near the p23 / p61 / p87 quantiles the previous bands were cut
+          at, recomputed on those PRs. Later bug fixes per 1,000 diff lines are flat
+          from 200 to 3,500 lines (0.4–0.7, overlapping intervals), so no size marks a
+          quality break; above about 2,500 lines the CI-fix rate doubles (about 40%
+          against 20%), which is where `size:XL` starts. Drift baseline,
+          `pr-size --calibrate` on 2026-11-05 over 60 days (1081 merged PRs): band
+          shares S / M / L / XL 27.5% / 34.5% / 23.3% / 14.7% against targets 23 /
+          38 / 26 / 13; p23 / p61 / p87 at 156 / 970 / 2665 diff lines; the existing
+          Issue estimates, made under the previous AC rule, 32% exact and 80% within
+          one band of 898; median 262 diff lines per AC. Earlier, while the rule
+          lived only in skill prose, a survey of 692 PRs merged
+          2026-07-22..2026-09-22 found 40% with no `size:` label and `size:S`
+          applied correctly 24% of the time, which is why `pr-size-label` applies
+          the measured label (PAD-05-002).
         verification: >-
           `test/metadata/test_size_bands.py::TestDerivation` asserts every
           derived constant reads the table rather than restating it, and
@@ -1015,7 +1067,7 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          At Issue creation, an Issue with 3–6 acceptance-criteria (AC)
+          At Issue creation, an Issue with 2–3 acceptance-criteria (AC)
           checkboxes MUST receive the `size:M` label.
         rationale: >-
           Provides an objective, count-based size estimate at the point the
@@ -1029,7 +1081,7 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          At Issue creation, an Issue with 7+ acceptance-criteria (AC)
+          At Issue creation, an Issue with 4–8 acceptance-criteria (AC)
           checkboxes MUST receive the `size:L` label.
         rationale: >-
           Provides an objective, count-based size estimate at the point the
@@ -1037,20 +1089,19 @@ groups:
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           AC ceiling itself, and
-          `::TestBandForAcs::test_each_ceiling_and_the_one_after_it_land_correctly`
+          `::TestBandForAcs::test_the_last_ceiling_is_inclusive_and_one_past_it_decomposes`
           pins that the ceiling is inclusive.
       - id: PAD-05-006
         priority: MUST
         kind: process
         statement: >-
-          At PR open time, a diff of ≤100 lines MUST receive the `size:S`
+          At PR open time, a diff of ≤200 lines MUST receive the `size:S`
           label.
         rationale: >-
           The size label shows the implementation effort measured at PR open time
-          (PAD-05-002). The `size:S` ceiling is well below the median merged-PR diff
-          that the survey in `vultron/metadata/planning/size_bands.py` measured. Thus
-          `size:S` holds the small changes, and it is not a band that almost no PR falls
-          in.
+          (PAD-05-002). The `size:S` ceiling sits near the quantile of merged-PR diff
+          size it was cut at (the survey in the PAD-05-011 rationale). Thus `size:S`
+          holds the small changes, and it is not a band that almost no PR falls in.
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           threshold value itself, and
@@ -1060,13 +1111,13 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          At PR open time, a diff of 101–400 lines MUST receive the `size:M`
+          At PR open time, a diff of 201–1000 lines MUST receive the `size:M`
           label.
         rationale: >-
           The size label shows the implementation effort measured at PR open time
-          (PAD-05-002). The survey in `vultron/metadata/planning/size_bands.py` found no
-          natural clusters in merged-PR diff size. This band holds the median of that
-          survey, so `size:M` covers the normal unit of work.
+          (PAD-05-002). Merged-PR diff size has no natural clusters (the survey in the
+          PAD-05-011 rationale). This band holds the median merged PR, so `size:M`
+          covers the normal unit of work.
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           threshold value itself, and
@@ -1076,13 +1127,13 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          At PR open time, a diff of 401–1200 lines MUST receive the `size:L`
+          At PR open time, a diff of 1001–2500 lines MUST receive the `size:L`
           label.
         rationale: >-
           The size label shows the implementation effort measured at PR open time
-          (PAD-05-002). The upper bound separates a large change from a change that
-          review cannot cover (PAD-05-009). Without an upper bound, the band would put
-          both changes under one label.
+          (PAD-05-002). The upper bound separates a large change from one whose CI-fix
+          rate doubles (PAD-05-009). Without an upper bound, the band would put both
+          changes under one label.
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           threshold value itself, and
@@ -1092,15 +1143,15 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          At PR open time, a diff of 1201+ lines MUST receive the `size:XL`
+          At PR open time, a diff of 2501+ lines MUST receive the `size:XL`
           label.
         rationale: >-
-          `size:XL` marks a PR that review cannot cover, not merely a big one.
-          Across the surveyed window, review findings held steady at roughly
-          4.5 per 1000 diff lines from 200 lines through 1000, then fell to 3.5
-          (1000–1499), 2.7 (1500–2499) and 1.5 (2500+). True defect density
-          does not drop threefold in large PRs, so the falling detection rate
-          is review saturation.
+          `size:XL` marks the size where a PR's CI-fix rate doubles, not a quality
+          break. Later bug fixes per diff line stay flat from small PRs through the
+          largest band, so a large PR is not shipping more defects per line. Above
+          the XL floor, though, a PR needs CI repair about twice as often as below
+          it, which is a cost worth splitting the work to avoid. The survey figures
+          are in the PAD-05-011 rationale.
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           threshold value itself, and
@@ -1114,11 +1165,33 @@ groups:
           estimate; `size:XL` is reachable only by measuring a diff.
         rationale: >-
           An Issue predicted to need more work than `size:L` should be
-          decomposed, not labelled. XL is a retrospective finding — the PR grew
-          past the point where review stays effective — and "estimated L,
-          landed XL" is the signal worth keeping.
+          decomposed, not labelled (PAD-05-013). XL is a retrospective finding —
+          the PR grew past the size where CI-fix rates double — and "estimated
+          L, landed XL" is the signal worth keeping.
         verification: >-
           `test/metadata/test_size_bands.py::TestBandForAcs::test_no_ac_count_can_reach_a_measured_only_band`
+      - id: PAD-05-013
+        priority: MUST
+        kind: process
+        statement: >-
+          At Issue creation, an Issue with 9+ acceptance-criteria (AC)
+          checkboxes MUST be decomposed into smaller Issues rather than given a
+          `size:` label; `pr-size --acs` reports `decompose` for it.
+        rationale: >-
+          An AC costs a roughly steady number of diff lines once its tests,
+          specs and docs are counted (`.agents/skills/shared/sizing.md`), so
+          nine or more ACs predict a PR past the `size:L` ceiling.
+          Labelling such an Issue would record an estimate in a band the AC
+          rule does not cover; splitting it gives each part an estimate that
+          can land in its measured band.
+        verification: >-
+          `test/metadata/test_size_bands.py::TestBandForAcs::test_the_last_ceiling_is_inclusive_and_one_past_it_decomposes`
+          pins the boundary, and
+          `::TestCLI::test_acs_past_the_ceiling_reports_decompose_and_no_label`
+          pins what `pr-size --acs` reports.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-05-012
 
   - id: PAD-07
     title: Pre-PR Review Protocol
@@ -1952,7 +2025,7 @@ groups:
           a `Someday` Concern and two `size:L` Tasks as equal members of one bundle.
         verification: >-
           In `test/metadata/test_bundle_fit.py`, `TestWorkflowPartition`,
-          `TestScheduleTier`, `TestSizeBudget`, `TestReviewCeiling` and
+          `TestScheduleTier`, `TestSizeBudget`, `TestBundleSizeCeiling` and
           `TestCoherenceHints` cover the fit rules applied after eligibility.
         relationships:
         - rel_type: derives_from
@@ -2079,13 +2152,14 @@ groups:
         statement: >-
           An Issue labelled `size:XL` MUST NOT be proposed as a bundle member.
         rationale: >-
-          `size:XL` means a change that already exhausts the review budget on
-          its own (PAD-05-009), so it is refused outright rather than given a
+          `size:XL` means a change already past the size where its CI-fix rate
+          doubles (PAD-05-009), and a bundle is one PR, so adding members only
+          makes it bigger. It is refused outright rather than given a
           weight. A weight would say "fits alongside something smaller", which
           is precisely what this band rules out, and a raised `--budget` could
           then reopen it.
         verification: >-
-          `test/metadata/test_bundle_fit.py::TestReviewCeiling` asserts the
+          `test/metadata/test_bundle_fit.py::TestBundleSizeCeiling` asserts the
           refusal is categorical, survives a raised budget, does not end the
           scan, and names the band rather than a weight.
       - id: PAD-15-006
@@ -2440,8 +2514,8 @@ groups:
         rationale: >-
           An Epic is a container, not work that is claimed, reviewed, and
           merged. Its progress is the sub-issue progress GitHub already shows,
-          and a decomposition-needed Epic is identified by its
-          `needs-decomposition` label.
+          and an Epic that still needs planning is identified by its
+          `needs-planning` label.
         verification: >-
           Inspection: no Epic item on Project #24 has a `Status` value.
 
@@ -3079,6 +3153,39 @@ groups:
         relationships:
         - rel_type: extends
           spec_id: PAD-18-024
+      - id: PAD-18-026
+        adr:
+        - ADR-0179
+        priority: MUST
+        kind: process
+        statement: >-
+          A local gate's linter step MUST run ruff's linter and formatter, and
+          mypy.
+        rationale: >-
+          These checks find most type and style failures in seconds, before CI
+          would. mypy keeps a cache, so a run on a small change takes
+          seconds.
+        verification: >-
+          Inspection: the `run-linters` skill runs `ruff check`, `ruff format`
+          and `mypy`.
+      - id: PAD-18-031
+        adr:
+        - ADR-0179
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          A local gate MUST NOT drop one of its checks in favor of CI unless
+          GitHub requires that check. GitHub requires a check when it refuses a
+          merge into the base while the check is red or has not run.
+        rationale: >-
+          Never merge on red holds only for a check that something enforces.
+          A check moved to CI that GitHub does not require can be merged past
+          unseen.
+        verification: >-
+          Inspection: for each check a pull request removes from a local gate,
+          an active ruleset on `main` (`gh api repos/CERTCC/Vultron/rulesets`)
+          lists that check as a required status check, with no bypass actors,
+          such as `main-3 Require CI gate` (#5945).
 
   - id: PAD-19
     title: Epic Claim for an Epic Run

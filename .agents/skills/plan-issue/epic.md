@@ -100,12 +100,11 @@ Epic's grain.
 
 ## Completion
 
-Remove `needs-decomposition` label and post a summary comment:
+Post a summary comment. Leave the `needs-planning` label alone: the
+`epic-needs-planning` workflow removes it once the Epic has children and none
+is an open, unblocked Concern or Idea, and a manual removal would be reverted.
 
 ```bash
-gh issue edit "${ISSUE_NUMBER}" --repo CERTCC/Vultron \
-  --remove-label "needs-decomposition"
-
 gh issue comment "${ISSUE_NUMBER}" --repo CERTCC/Vultron \
   --body "✅ Decomposed into Tasks: $(echo "${TASK_NUMBERS[@]}" | sed 's/ /, #/g; s/^/#/').
 

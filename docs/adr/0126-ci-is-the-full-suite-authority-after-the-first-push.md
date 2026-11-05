@@ -13,6 +13,7 @@ stakeholder_type: [project-contributor]
 partially_superseded_by:
   - 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md
   - 0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md
+  - 0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md
 ---
 
 # CI Is the Full-Suite Authority After a Pull Request's First Push

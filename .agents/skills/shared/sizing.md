@@ -31,6 +31,12 @@ Landing a `size:L` estimate as a `size:XL` PR is worth knowing about.
 `size:L` should be **decomposed**, not labelled XL — there is no AC count that
 reaches the band. XL is a retrospective finding.
 
+Past the `size:L` AC ceiling, `pr-size --acs` prints `decompose` instead of a
+label and exits 3 (PAD-05-013). Apply no `size:` label; split the Issue into
+smaller ones and estimate each. The rule rests on one figure: an AC costs about
+200 diff lines once its tests, specs and docs are counted, so the AC ceilings
+predict the same bands the diff ceilings measure.
+
 ## Who applies them
 
 - **Estimate**: the skill that writes the acceptance criteria — `plan-issue` and
@@ -42,10 +48,9 @@ reaches the band. XL is a retrospective finding.
   it into implementation Tasks.
 - **Measurement**: the `pr-size-label` GitHub Actions workflow, on every push to
   every same-repo PR. **Do not set the measured label by hand.** The rule used to
-  live in skill prose alone, and a survey of 692 PRs merged
-  2026-07-22..2026-09-22 found 40% of them carrying no `size:` label and
-  `size:S` applied correctly 24% of the time. Prose-only rules degrade at that
-  rate; this one is now enforced. A PR from a **fork** is the one exception: its
+  live in skill prose alone, and it was skipped on a large share of PRs (the
+  survey is in the PAD-05-011 rationale); this one is now enforced. A PR from a
+  **fork** is the one exception: its
   token is read-only, so the workflow skips it and no label is applied.
 
 For a bundle the measurement is the **whole-PR** diff, not per member — one
@@ -53,14 +58,10 @@ bundle is one PR (`bundling.md`).
 
 ## What the top band means
 
-`size:XL` does not mean "big". It means **review probably did not cover this**.
-
-Across the surveyed window, review findings held steady at roughly 4.5 per 1000
-diff lines from 200 lines through 1000, then fell to 3.5 (1000–1499), 2.7
-(1500–2499) and 1.5 (2500+). True defect density does not drop threefold in
-large PRs, so the falling detection rate is review saturation, not cleaner code.
-CI-fix rate roughly doubles across the same boundary, and median time-open jumps
-from under two hours to over eleven.
+`size:XL` does not mean "worse code". Later bug fixes per diff line stay flat
+from small PRs through the largest band, so size alone marks no quality break.
+It means **this PR will probably need CI repair**: above the XL floor the CI-fix
+rate doubles (PAD-05-009; the figures are in the PAD-05-011 rationale).
 
 Two consequences:
 
@@ -72,11 +73,10 @@ Two consequences:
 
 ## Apparent optimal size
 
-Roughly **300–800 diff lines**, with a ceiling near 1000. Below ~150 lines a PR
-pays the full fixed cost of review and CI for very little delivered change;
-above ~1000 detection quality degrades and elapsed time jumps an order of
-magnitude. This is guidance for shaping work, not a gate — nothing rejects a PR
-for being small.
+Aim for `size:M`: a PR in that band delivers a full unit of work without the
+CI repair rounds that the XL band brings. Below about 150 lines a PR pays the
+full fixed cost of review and CI for very little delivered change. This is
+guidance for shaping work, not a gate — nothing rejects a PR for being small.
 
 ## Recalibrating
 
@@ -103,26 +103,17 @@ Run it **quarterly**, and **after any workflow change** that could move PR size
 Recalibrate the bands when either drift appears:
 
 - **Median lines per AC moves more than about 1.5×** from the last recorded
-  figure (below), either way. The AC rule then estimates a different amount of work than
+  figure, either way. The AC rule then estimates a different amount of work than
   the diff bands measure, so estimates land in the wrong band.
 - **A band's share moves more than about 10 points** from its target share. Its
   ceiling no longer sits at the quantile it was cut at.
 
 Smaller moves are window noise. Recalibrating means re-cutting the thresholds in
-`size_bands.py`, updating the survey figures that argue for them, and replacing
-the record below with the run the new cut came from.
+`size_bands.py` and replacing the survey figures, which are stated once, dated,
+in the PAD-05-011 rationale (`PYTHONPATH= uv run spec-dump --ids PAD-05-011`).
 
 ### Last recorded run
 
-2026-11-05, 60 days, 1075 merged PRs, against the bands in `size_bands.py` at
-that date:
-
-| Measure | Value |
-|---|---|
-| Band shares (S / M / L / XL) | 16% / 25% / 26% / 33% (targets 23 / 38 / 26 / 13) |
-| p23 / p61 / p87 diff lines | 154 / 962 / 2666 |
-| Estimate exact / within one band | 20% / 58% of 893 estimated Issues |
-| Median lines per AC | 262 |
-
-This run is the drift baseline. The bands have not been re-cut from it yet, though
-the M and XL shares already sit more than 10 points off target (#5833 re-cuts them).
+The last run, its date, and the figures to compare a new run against are in the
+PAD-05-011 rationale, beside the survey the current bands were cut from. They
+are not copied here, so a recalibration updates one place.
