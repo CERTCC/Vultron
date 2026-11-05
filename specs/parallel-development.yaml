@@ -763,7 +763,7 @@ groups:
         - rel_type: extends
           spec_id: PAD-02-022
         verification: >-
-          A reviewer checks the routing `create-issue` Phase 5 reports for each
+          A reviewer checks the routing `create-issue` Phase 8 reports for each
           discovered Issue: a Focus or Now parent comes with the Issue blocking
           the worked Issue, or with the reason its parent's title claim needs
           it.

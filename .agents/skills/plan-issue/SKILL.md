@@ -61,6 +61,10 @@ gh issue list --repo CERTCC/Vultron --state open --limit 1000 \
         | "#\(.number) [Epic/needs-planning]: \(.title)"'
 ```
 
+The workflow also labels an Epic that has children but an open, unblocked
+Concern or Idea among them. That child is already in the first list: plan it
+there, and offer the Epic itself only when it has no sub-issues.
+
 Include a **"Create a new Idea"** option at the end. Wait for the user's
 selection before continuing.
 

@@ -139,10 +139,11 @@ runs this mode for every new issue before it is created.
    design idea this issue advances. A protocol-correctness bug belongs with
    protocol correctness even if its title mentions a demo scenario; a prod-only
    concern belongs with productionization even if it surfaced during demo work.
-   An issue opened during other work that blocks nothing being worked goes
-   under a Focus or Now epic only when that epic's title claim needs it
-   (PAD-02-041). Otherwise route it among the theme's Next, Later and Someday
-   epics, even when the Focus epic's design idea matches it better.
+   An issue opened during other work (any `opened-as` reason) that does not
+   block the issue being worked goes under a Focus or Now epic only when that
+   epic's title claim stays false while the issue is open (PAD-02-041).
+   Otherwise route it among the theme's Next, Later and Someday epics, even
+   when the Focus epic's design idea matches it better.
 
 4. **Decide autonomy by ambiguity:**
    - **Exactly one clearly-matching epic** → parent it there automatically via
@@ -216,7 +217,7 @@ failing because the right home does not exist yet.
    agreed title, theme, body (the `Theme:` line, then the `Design idea:`
    line), leaf issue numbers, and Schedule. `create-epic` owns epic-type
    creation, sub-issue wiring, and board placement (the `epic-needs-planning`
-   workflow sets `needs-planning`) — do not reimplement any of that here. Its
+   workflow manages `needs-planning`) — do not reimplement any of that here. Its
    gate refuses a title with an ID or an `Epic:` label and a body without a
    `Design idea:` line or with one that restates the title or the `Theme:`
    outcome.

@@ -72,7 +72,7 @@ NON_TOPIC_LABELS = frozenset(
         "needs-rebase",
         "needs-triage",
         "needs-info",
-        "needs-decomposition",
+        "needs-planning",
     }
 )
 

@@ -5,8 +5,10 @@
 #   FIELD         schedule (Epics, PAD-02-001) or status (non-Epics, PAD-16-001)
 #   OPTION        option name, e.g. Now, or "In Progress"
 #
-# Adding an item that is already on the board returns the existing item, so the
-# script is safe to run on an issue the board already carries.
+# Adding an item that is already on the board returns the existing item, and an
+# add refused as "Content already exists" (a board automation got there first)
+# falls back to reading that item, so the script is safe to run on an issue the
+# board already carries.
 set -euo pipefail
 
 ISSUE_NUMBER="${1:?Usage: set-board-field.sh <ISSUE_NUMBER> <schedule|status> <OPTION>}"
@@ -64,7 +66,7 @@ if ! ADD_OUT=$(gh api graphql -f query="mutation {
   fi
   ADD_OUT=""
   for _ in 1 2 3 4 5; do
-    ADD_OUT=$(existing_item_id)
+    ADD_OUT=$(existing_item_id) || ADD_OUT=""
     [[ -n "${ADD_OUT}" ]] && break
     sleep 2
   done

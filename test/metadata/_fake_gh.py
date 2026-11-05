@@ -4,7 +4,8 @@
 Installed as ``gh`` on ``PATH`` by ``test_claim_scripts.py``. Every call is
 appended to ``$FAKE_GH_LOG`` as one JSON argv list. The reply comes from the
 first rule in ``$FAKE_GH_RULES`` whose ``match`` substrings all occur in the
-space-joined argv: ``{"match": [...], "stdout": "...", "exit": 0}``.
+space-joined argv: ``{"match": [...], "stdout": "...", "stderr": "...",
+"exit": 0}``.
 
 ``createLinkedBranch`` is not rule-driven: it behaves like GitHub, creating the
 branch in the bare repo ``$FAKE_GH_ORIGIN`` and answering ``linkedBranch: null``
@@ -59,6 +60,7 @@ def main() -> int:
         log.write(json.dumps(argv) + "\n")
 
     joined = " ".join(argv)
+    stderr = ""
     if "createLinkedBranch" in joined:
         stdout, code = _linked_branch(argv), 0
     else:
@@ -67,6 +69,7 @@ def main() -> int:
         for rule in rules:
             if all(m in joined for m in rule["match"]):
                 stdout, code = rule.get("stdout", ""), rule.get("exit", 0)
+                stderr = rule.get("stderr", "")
                 break
         else:
             print(f"fake gh: no rule for {argv}", file=sys.stderr)
@@ -82,6 +85,7 @@ def main() -> int:
             check=True,
         ).stdout
     sys.stdout.write(stdout)
+    sys.stderr.write(stderr)
     return code
 
 

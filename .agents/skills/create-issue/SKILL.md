@@ -135,7 +135,8 @@ Now parent with its reason: the issue it blocks, or the title claim that needs
 it.
 
 1. **Suggested parent.** If the caller suggested an Epic that carries the
-   theme and whose design idea the issue advances, use it.
+   theme, whose design idea the issue advances, and that the rule above did
+   not drop, use it.
 2. **Otherwise, route** with `calve-epics` Mode 1 ("Route an issue onto the
    forest"), restricted to the candidates: match by design grain, inherit the
    Epic's tier. Read the full open-Epic list, never a truncated one.
