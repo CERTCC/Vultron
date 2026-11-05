@@ -80,6 +80,22 @@ def _id_key(spec_id: str) -> tuple[str, int, int] | None:
     return match["prefix"], int(match["group"]), int(match["index"])
 
 
+def written_spec_ids(text: str) -> set[str]:
+    """Every requirement ID *text* writes out, sub-item letter kept.
+
+    A slash list ``PREFIX-NN-AAA/BBB`` writes ``PREFIX-NN-BBB`` beside
+    ``PREFIX-NN-AAA``. A range writes only its ends: unlike
+    :func:`cited_spec_ids`, ``CM-10-001 through CM-10-005`` yields no ID
+    between them. These are the IDs a statement cites for SR-13-022, each one
+    a reader can see and an author can link or list in ``see_also``.
+    """
+    found = set(_CITED_ID_RE.findall(text))
+    for match in _SPEC_ID_SLASH_RE.finditer(text):
+        stem, tail = match.groups()
+        found.update(stem + index for index in tail.split("/")[1:])
+    return found
+
+
 def cited_spec_ids(text: str, known_ids: Iterable[str]) -> set[str]:
     """Every requirement ID *text* names, with ranges and slash lists expanded.
 
@@ -98,7 +114,7 @@ def cited_spec_ids(text: str, known_ids: Iterable[str]) -> set[str]:
     Returns:
         The IDs *text* names, as a set.
     """
-    found = set(_CITED_ID_RE.findall(text))
+    found = written_spec_ids(text)
     keyed = [(key, i) for i in known_ids if (key := _id_key(i)) is not None]
     for match in _SPEC_ID_RANGE_RE.finditer(text):
         prefix = match["prefix"]
@@ -112,9 +128,6 @@ def cited_spec_ids(text: str, known_ids: Iterable[str]) -> set[str]:
         low = (prefix, int(match["group"]), int(match["index"]))
         high = (prefix, int(end_group), int(end_index))
         found.update(i for key, i in keyed if low <= key <= high)
-    for match in _SPEC_ID_SLASH_RE.finditer(text):
-        stem, tail = match.groups()
-        found.update(stem + index for index in tail.split("/")[1:])
     return found
 
 

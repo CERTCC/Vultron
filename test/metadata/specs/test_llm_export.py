@@ -584,6 +584,7 @@ class TestNoteIsExported:
             "note",
             "testable",
             "relationships",
+            "see_also",
             "adr",
             "verification",
         }
@@ -596,3 +597,49 @@ class TestNoteIsExported:
             "vultron/metadata/specs/llm_export/records.py, or to `dropped` here with a "
             "reason."
         )
+
+
+SEE_ALSO_YAML = {
+    "id": "SA",
+    "title": "See Also",
+    "description": "A citation listed in see_also",
+    "scope": ["production"],
+    "groups": [
+        {
+            "id": "SA-01",
+            "title": "See also",
+            "specs": [
+                {
+                    "id": "SA-01-001",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "SA-01-001 MUST hold, as SA-01-002 shows.",
+                    "rationale": "Because testing.",
+                    "see_also": [
+                        {"spec_id": "SA-01-002", "reason": "an example"}
+                    ],
+                },
+                {
+                    "id": "SA-01-002",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "SA-01-002 MUST hold.",
+                    "rationale": "Because testing.",
+                },
+            ],
+        }
+    ],
+}
+
+
+@pytest.mark.spec("SR-13-022")
+def test_see_also_is_exported_with_its_reason_and_absent_when_empty(tmp_path):
+    (tmp_path / "sa.yaml").write_text(yaml.dump(SEE_ALSO_YAML))
+    payload = json.loads(to_llm_json(load_registry(tmp_path)))
+    recs = {r["id"]: r for r in payload["requirements"]}
+
+    assert recs["SA-01-001"]["see_also"] == [
+        {"spec_id": "SA-01-002", "reason": "an example"}
+    ]
+    assert "see_also" not in recs["SA-01-002"]
+    assert all(e["from"] != "SA-01-001" for e in payload["edges"])

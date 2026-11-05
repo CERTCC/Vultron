@@ -73,6 +73,14 @@ def _spec_to_dict(spec: Spec, group: SpecGroup, file: SpecFile) -> dict:
             if spec.relationships
             else None
         ),
+        "see_also": (
+            [
+                {"spec_id": entry.spec_id, "reason": entry.reason}
+                for entry in spec.see_also
+            ]
+            if spec.see_also
+            else None
+        ),
         "lint_suppress": (
             [warning.value for warning in spec.lint_suppress]
             if spec.lint_suppress

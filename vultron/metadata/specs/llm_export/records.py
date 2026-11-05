@@ -80,6 +80,14 @@ def _spec_record(
     if spec.relationships:
         rec["relationships"] = [_rel_record(r) for r in spec.relationships]
 
+    # A cited requirement no relationship links, with why (SR-13-022): an
+    # agent reading the statement's citation needs the reason it is unlinked.
+    if spec.see_also:
+        rec["see_also"] = [
+            {"spec_id": entry.spec_id, "reason": entry.reason}
+            for entry in spec.see_also
+        ]
+
     if spec.adr:
         rec["adr"] = list(spec.adr)
 

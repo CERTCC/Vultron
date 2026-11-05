@@ -1383,3 +1383,63 @@ def test_dangling_links_flags_a_missing_id():
         "../../specs/project/#nope",
         "#vm-10-001",
     ]
+
+
+# ---------------------------------------------------------------------------
+# see_also citations in the Related cell (SR-13-022)
+# ---------------------------------------------------------------------------
+
+SEE_ALSO_YAML = {
+    "id": "SAL",
+    "title": "See-Also Specs",
+    "description": "A citation listed in see_also",
+    "scope": ["production"],
+    "groups": [
+        {
+            "id": "SAL-01",
+            "title": "See-Also Group",
+            "specs": [
+                {
+                    "id": "SAL-01-001",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "SAL-01-001 MUST hold, as SAL-01-002 shows.",
+                    "rationale": "Because testing.",
+                    "relationships": [
+                        {"rel_type": "refines", "spec_id": "SAL-01-003"}
+                    ],
+                    "see_also": [
+                        {"spec_id": "SAL-01-002", "reason": "an example"}
+                    ],
+                },
+                {
+                    "id": "SAL-01-002",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "SAL-01-002 MUST hold.",
+                    "rationale": "Because testing.",
+                },
+                {
+                    "id": "SAL-01-003",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "SAL-01-003 MUST hold.",
+                    "rationale": "Because testing.",
+                },
+            ],
+        }
+    ],
+}
+
+
+@pytest.mark.spec("SR-13-022")
+def test_render_for_kind_related_cell_lists_see_also_after_links(tmp_path):
+    (tmp_path / "sal.yaml").write_text(yaml.dump(_as_kind(SEE_ALSO_YAML)))
+    md = render_for_kind(_KIND, load_registry(tmp_path))
+
+    row = next(line for line in md.splitlines() if "SAL-01-001 MUST" in line)
+    related = row.rsplit("|", 2)[1]
+    assert (
+        "*Refines*: [SAL-01-003](#sal-01-003)"
+        "<br>*See also*: [SAL-01-002](#sal-01-002) — an example"
+    ) in related

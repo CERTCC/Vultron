@@ -155,6 +155,11 @@ that bite most often:
 - **`rel_type:`** — one of the enumerated values; `related_to` is not among them.
   Each type's meaning and upstream end is SR-13; record a link at one end only
   (SR-13-012), or spec-lint fails on the loop or the double record.
+- **A statement citation needs a link or a `see_also` entry** — every ID a
+  statement writes out is linked at either end, or listed in the citing
+  requirement's `see_also: [{spec_id, reason}]` when no type fits. spec-lint
+  hard-errors on a cited ID in neither place and on a stale entry (not cited,
+  now linked, or no such ID) (SR-13-022, SR-13-023, ADR-0177).
 - **`references:`** — not a schema field, silently dropped. Use `adr:`.
 - **Item format is field presence, not a class you pick** (ADR-0101).
   `BehavioralSpec` requires at least one of `preconditions`, `steps`,

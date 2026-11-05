@@ -13,7 +13,8 @@ description: >
   where each relationship is recorded (SR-13); how to pick a `rel_type` by its
   definition, including `uses_definition`, `satisfies` only when A alone meets
   B, `supersedes` on a named exception, no `extends` from a MAY, and recording
-  no link when no type fits (SR-13-017, SR-13-018); `adr:`
+  no link when no type fits but listing the citation in `see_also` (SR-13-017,
+  SR-13-018, SR-13-022); `adr:`
   versus `references:`; reading the item format off its fields (ADR-0101); the
   PR-only marker-coverage guard and the strict-xfail pattern; priority tiers
   (MS-02-003/004); the `verification_debt` ratchet and its growth guard
@@ -239,6 +240,13 @@ requirement (ADR-0160). Pick the type by its definition, not by habit:
   alternative path or a scope boundary is no link.
 - `uses_definition` when A uses a term B defines ("an active participant
   (CM-10-004)"); a "see also" citation is no link.
+- A citation in a statement needs a link, or a `see_also` entry when no type
+  fits: `see_also: [{spec_id: B, reason: ...}]` on the citing requirement, the
+  reason saying why (a rationale, a scope boundary, an example, a link that
+  would close a loop). spec-lint fails on a cited ID in neither place, and on a
+  `see_also` entry the statement no longer cites or a link now covers
+  (SR-13-022, SR-13-023, ADR-0177). A range writes only its ends; IDs between
+  them are not citations.
 - `satisfies` only when meeting A alone meets all of B. A rule that is one case
   of B is `refines`; one that uses a shorthand or message B defines is
   `uses_definition` (the EMB transitions on the MSM-02 mappings, #5209).
