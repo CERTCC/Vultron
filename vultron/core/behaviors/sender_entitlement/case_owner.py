@@ -97,11 +97,34 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
     a CASE_OWNER's status reports are authoritative ("gospel") and do not
     require approval by the ``CaseOwnerApprovesStatusUpdate`` call-out.
 
+    A non-match goes through
+    :meth:`~vultron.core.behaviors.sender_entitlement.base
+    .SenderEntitlementConditionNode._refuse_by_placement`, the rule every
+    other kind check takes, so the one line it writes for a non-match is
+    WARNING where this check is the guard's whole answer and DEBUG where a
+    later arm, a Selector or a decorator can still turn it into an admission
+    (SL-03-002, SL-03-003).  Before #5845 it recorded the reason and logged a
+    DEBUG line that named no refusal, so a lone-``CASE_OWNER`` side refused a
+    sender with no line above DEBUG anywhere in the run.
+
+    That matters because this node is also a *standing read*: the
+    suggest-actor, Leave, status and embargo trees tick it to pick an arm
+    rather than to refuse.  Each of those placements sits under a Selector
+    with a later sibling or under an ``Inverter``, so the walk answers
+    ``False`` and the line is DEBUG, which is what a branch choice should be.
+    One placement is neither: the CM-23-011 decline arm, the last child of
+    ``CloseOrDecline``, which ticks only once the close arm has already
+    failed — so the tree does refuse the Leave, and the WARNING is honest
+    about the outcome even though the standing it names is not the whole
+    cause; moving that read is a tree change, tracked as #5903.
+    ``test/core/behaviors/test_sender_guard.py`` records both groups from the
+    built trees.
+
     Reads ``case_id`` from constructor or from the blackboard input port.
 
     Merged from ``CheckIsCaseOwnerNode`` (ADR-0115, AC-2).
 
-    Spec: RSH-01-002, HP-01-006.
+    Spec: RSH-01-002, HP-01-006, SL-03-002, SL-03-003.
     """
 
     guards_kind: ClassVar[SenderEntitlementKind | None] = (
@@ -155,18 +178,7 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
             )
             return Status.SUCCESS
 
-        self.logger.debug(
-            "%s: sender '%s' is NOT CASE_OWNER for case '%s'",
-            self.name,
-            self._sender_actor_id,
-            case_id,
-        )
-        return self._not_case_owner(case_id)
-
-    def _not_case_owner(self, case_id: str | None) -> Status:
-        """Record the missing entitlement by name and fail (HP-01-006)."""
-        self.feedback_message = (
+        return self._refuse_by_placement(
             f"Sender '{self._sender_actor_id}' is not the Case Owner of case"
             f" '{case_id}' — REFUSED (HP-01-006)"
         )
-        return Status.FAILURE

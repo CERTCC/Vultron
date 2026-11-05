@@ -110,11 +110,14 @@ logged: ``SenderClosureNotRecordedNode``, whose FAILURE the handler may report
 malformed activity (no ``actor_id``, an unreadable ledger entry) is an anomaly,
 not a standing the sender lacks, so it takes its level from SL-03-001 — WARNING
 at every such site but one, ERROR where ``SenderIsCaseManagerNode`` cannot read
-the ledger entry (#5862) — and records no refusal reason; and
-``SenderIsCaseOwnerNode``
-states its non-match in a DEBUG line of its own and records its reason without
-putting either through this rule, so a lone ``CASE_OWNER`` side's refusal never
-reaches WARNING — that gap is #5845, not this rule.
+the ledger entry (#5862) — and records no refusal reason.
+
+``SenderIsCaseOwnerNode`` is also read as a standing rather than as a door, by
+the suggest-actor, Leave, status and embargo trees, and it takes this rule all
+the same (#5845): every one of those placements sits under a Selector with a
+later sibling or under an ``Inverter``, so the walk answers ``False`` there and
+the branch choice is DEBUG.  A kind check needs no second rule to be read as a
+standing — the placement already says which it is.
 
 Nodes
 -----

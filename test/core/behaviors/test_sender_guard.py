@@ -31,6 +31,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.architecture._received_tree_builds import built_received_trees
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
@@ -41,6 +42,9 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.core.behaviors import sender_entitlement
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.leave_case_trigger_tree import (
+    create_leave_case_trigger_tree,
+)
 from vultron.core.behaviors.case.nodes.carried_snapshot import (
     StoreEmbeddedParticipantsNode,
 )
@@ -1776,6 +1780,168 @@ def test_the_closed_sender_check_keeps_its_info_line(
         "lone-side": [(logging.INFO, False)],
         "any-of-arm": [(logging.INFO, False)],
     }
+
+
+# ---------------------------------------------------------------------------
+# A lone CASE_OWNER side logs its refusal; an overruled arm does not (#5845)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("HP-01-006", "SL-03-002", "BT-13-001")
+def test_a_lone_case_owner_side_logs_its_refusal_at_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """``CASE_OWNER`` alone on the side is the guard's whole answer, so a
+    sender that does not hold the role draws one WARNING, and it carries the
+    reason ``BTBridge.get_failure_reason`` reports (BT-13-001).
+
+    Until #5845 this side logged nothing above DEBUG: the node recorded the
+    reason on ``feedback_message`` and never asked the placement rule, so a
+    real refusal by a live lone-``CASE_OWNER`` side — the Add(Report),
+    Add/Remove(CaseParticipant), Offer(CaseParticipantRole) and the two
+    owner embargo decisions among them — was invisible to a reader and to
+    ``expect_no_sender_refusals``.
+    """
+    guard = compose_sender_guard(
+        SenderRule.in_case(Kind.CASE_OWNER),
+        SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
+    )
+    assert guard is not None
+    check = _owner_role_check(guard)
+    assert isinstance(check, SenderIsCaseOwnerNode)
+    assert failure_is_the_refusal(check) is True
+    with caplog.at_level(logging.DEBUG):
+        result = _store(MANAGER).run(
+            guard, activity=SimpleNamespace(actor_id=VENDOR)
+        )
+    assert result.status == Status.FAILURE
+    lines = _refusal_lines(caplog, SenderIsCaseOwnerNode)
+    assert [record.levelno for record in lines] == [logging.WARNING]
+    assert "is not the Case Owner" in lines[0].getMessage()
+    assert "REFUSED (HP-01-006)" in lines[0].getMessage()
+    assert (
+        BTBridge.get_failure_reason(guard)
+        == lines[0].getMessage().split(": ", 1)[1]
+    )
+    # The one line above DEBUG in the whole tick, so the refusal is neither
+    # missing nor doubled by a second line stating the same thing.
+    assert _refusals_logged(caplog) == [lines[0].getMessage()]
+
+
+@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002", "SL-03-003")
+def test_an_overruled_case_owner_arm_logs_debug_without_refusal_wording(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Inside an any-of side the ``CASE_OWNER`` arm refuses no one: the side's
+    last arm names every standing it accepts, so the arm's own line is DEBUG
+    and drops the ``REFUSED`` group (SL-03-002, SL-03-003)."""
+    guard = compose_sender_guard(
+        ANY_OF, SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID)
+    )
+    assert guard is not None
+    with caplog.at_level(logging.DEBUG):
+        result = _store(MANAGER).run(
+            guard, activity=SimpleNamespace(actor_id=VENDOR)
+        )
+    assert result.status == Status.FAILURE
+    lines = _refusal_lines(caplog, SenderIsCaseOwnerNode)
+    assert [record.levelno for record in lines] == [logging.DEBUG]
+    assert "is not the Case Owner" in lines[0].getMessage()
+    assert "REFUSED" not in lines[0].getMessage()
+    refusals = _refusals_logged(caplog)
+    assert len(refusals) == 1, refusals
+    assert "none of the standings" in refusals[0]
+
+
+# ---------------------------------------------------------------------------
+# Where the CASE_OWNER check is read as a standing, not as a door (#5845)
+# ---------------------------------------------------------------------------
+
+
+def _owner_check_placements() -> dict[tuple[str, str, str], bool]:
+    """Every built placement of ``SenderIsCaseOwnerNode``, and the walk's answer.
+
+    Read from the built trees, so a placement a helper or a nested factory
+    makes is seen exactly as it runs, and keyed by (factory, parent, node
+    name) rather than counted, so a moved or renamed placement names itself
+    rather than being lost to a tally (#3984, #5535).  The Leave trigger tree
+    is built beside the received corpus because it reuses the same close
+    guards on the trigger side, where no received tree would reach them.
+    """
+    trees: dict[str, py_trees.behaviour.Behaviour] = {
+        f"{module.rsplit('/', 1)[-1]}:{factory}": tree
+        for (module, factory), tree in built_received_trees().items()
+    }
+    trees["leave_case_trigger_tree.py:create_leave_case_trigger_tree"] = (
+        create_leave_case_trigger_tree(
+            actor_id=OWNER,
+            case_id=CASE_ID,
+            activity_builder=lambda _case_id: [],
+            result_out={},
+        )
+    )
+    found: dict[tuple[str, str, str], bool] = {}
+    for site, tree in trees.items():
+        for node in tree.iterate():
+            if not isinstance(node, SenderIsCaseOwnerNode):
+                continue
+            parent = node.parent
+            assert parent is not None, f"{site}: {node.name} has no parent"
+            found[site, parent.name, node.name] = failure_is_the_refusal(node)
+    return found
+
+
+#: The built placements of ``SenderIsCaseOwnerNode`` whose FAILURE the walk
+#: reads as the tree's whole answer, so the check logs it at WARNING.  Every
+#: other placement is a standing read that picks an arm, and sits under a
+#: Selector with a later sibling or under an ``Inverter``, so its branch
+#: choice is DEBUG — which is why routing this node onto the shared rule
+#: (#5845) did not have to give the standing reads a rule of their own.
+_OWNER_CHECK_IS_THE_REFUSAL = {
+    # The composed CASE_OWNER door of the Leave's sender guard: the refusal
+    # the fix exists to make visible.
+    (
+        "factory.py:create_close_case_received_tree",
+        "SenderOpenOrClosingCaseOwner",
+        "SenderIsCaseOwnerNode",
+    ),
+    # The CM-23-011 decline arm, last child of ``CloseOrDecline``.  Its
+    # FAILURE picks no branch that can rescue the delivery: the arm ticks
+    # only once the close arm has already failed, so the tree refuses the
+    # Leave whatever this check answers, and a WARNING states a real
+    # outcome even though the standing it names is not the whole cause.
+    # Moving it is a tree change, outside this check's package: #5903.
+    (
+        "factory.py:create_close_case_received_tree",
+        "DeclineOwnerCloseIfEmbargoed",
+        "CheckIsCaseOwnerForClose",
+    ),
+}
+
+
+@pytest.mark.spec("SL-03-002", "RSH-01-002")
+def test_every_case_owner_standing_read_is_placed_below_the_refusal() -> None:
+    """A ``CASE_OWNER`` check ticked to pick an arm logs its non-match at DEBUG.
+
+    The node is both a sender door and a standing read (RSH-01-002): the
+    suggest-actor, Leave, status and embargo trees tick it to choose a
+    branch.  Routing its non-match onto the shared refusal rule (#5845)
+    gives each of those the level its own placement implies, so this records
+    which placements the walk calls the tree's answer.  A new standing read
+    that lands in one of those positions would log ``REFUSED`` at WARNING
+    for a branch it merely did not take, and has to be decided here.
+    """
+    placements = _owner_check_placements()
+    assert len(placements) > 1, (
+        "no built tree places a CASE_OWNER check, so this proved nothing;"
+        " the corpus or the node's placement has moved"
+    )
+    assert {
+        site for site, is_refusal in placements.items() if is_refusal
+    } == _OWNER_CHECK_IS_THE_REFUSAL
+    assert {
+        site for site, is_refusal in placements.items() if not is_refusal
+    }, "every CASE_OWNER placement is a door, so no standing read is pinned"
 
 
 class _Leaf(py_trees.behaviour.Behaviour):
