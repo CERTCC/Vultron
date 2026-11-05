@@ -109,6 +109,12 @@ def _build_activity_snapshot(
         # The sender's position (SYNC-18-001), so a reader of the received
         # activity (the full-case Invite's floor) gets it from core.
         ledger_position=getattr(activity, "ledger_position", None),
+        # The sender's number (SYNC-21-001), and a refusal notice's next
+        # expected one (SYNC-21-015), so core reads them from the activity.
+        sender_sequence=getattr(activity, "sender_sequence", None),
+        expected_sender_sequence=getattr(
+            activity, "expected_sender_sequence", None
+        ),
         suggested_roles=getattr(activity, "suggested_roles", None) or None,
         roles=getattr(activity, "roles", None) or None,
         termination_cause=getattr(activity, "termination_cause", None),

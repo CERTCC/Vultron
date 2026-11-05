@@ -24,6 +24,7 @@ from vultron.adapters.driving.fastapi.routers import actors as actors_router
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.ledger_position import EMPTY_LEDGER_LOG_INDEX
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -37,6 +38,61 @@ def actor_dl() -> Iterator[tuple[as_Service, SqliteDataLayer]]:
     yield actor, dl
     dl.clear_all()
     dl.close()
+
+
+_MANAGER = "https://example.org/users/manager"
+
+
+def _post(dl: SqliteDataLayer, actor: as_Service, activity, monkeypatch):
+    # The outbox drain is not this test's subject.
+    monkeypatch.setattr(
+        "vultron.adapters.driving.fastapi.routers.actors._routes.mailbox"
+        ".outbox_handler",
+        lambda *args, **kwargs: None,
+    )
+    app = FastAPI()
+    app.include_router(actors_router.router)
+    app.dependency_overrides[get_actor_dl] = lambda: dl
+    return TestClient(app).post(
+        f"/actors/{actor.id_}/outbox/",
+        content=activity.model_dump_json(by_alias=True, exclude_none=True),
+        headers={"Content-Type": "application/json"},
+    )
+
+
+@pytest.mark.spec("SYNC-21-001")
+@pytest.mark.spec("SYNC-21-002")
+def test_posted_activities_to_the_case_manager_are_numbered_one_up(
+    actor_dl, monkeypatch
+) -> None:
+    actor, dl = actor_dl
+    case = VulnerabilityCase(attributed_to=actor.id_)
+    dl.create(case)
+    # The address the case's CASE_MANAGER was reached at (CBT-01-006).
+    dl.save(
+        VultronReportCaseLink(
+            report_id=f"{case.id_}/report",
+            case_id=case.id_,
+            case_manager_id=_MANAGER,
+        )
+    )
+    numbers = []
+    for n in (1, 2):
+        note = add_note_to_case_activity(
+            as_Note(
+                id_=f"{case.id_}/notes/{n}", content="n", context=case.id_
+            ),
+            target=case.id_,
+            actor=actor.id_,
+            to=[_MANAGER],
+        )
+        response = _post(dl, actor, note, monkeypatch)
+        assert response.status_code == 200, response.text
+        body = read_sealed_body_dict(dl, note.id_)
+        assert body is not None
+        numbers.append(body.get("senderSequence"))
+
+    assert numbers == [1, 2]
 
 
 @pytest.mark.spec("SYNC-18-001")
