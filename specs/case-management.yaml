@@ -4776,7 +4776,7 @@ groups:
     - ADR-0124
     see_also:
     - spec_id: CM-23-016
-      reason: 'context for the reader'
+      reason: 'a citation #5887 is to repoint; context for the reader until then'
   - id: CM-18-026
     priority: MUST_NOT
     kind: project
@@ -5127,7 +5127,7 @@ groups:
     - story_2026_023
     see_also:
     - spec_id: CBT-01-003
-      reason: 'context for the reader'
+      reason: 'a citation #5887 is to repoint; context for the reader until then'
 - id: CM-21
   title: Ownership Transfer Protocol Effects
   specs:
