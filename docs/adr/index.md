@@ -282,6 +282,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0172 An Active Participant Is Not Closed](0172-an-active-participant-is-not-closed.md) — partially supersedes 0114-joining-a-case-stub-invite-inert-participant.md, 0116-removing-a-participant-withdraws-entitlement-not-membership.md
 - [ADR-0174 CVD Measures Read a Case Ledger Through a Read-Only Event History, Derived by State Comparison](0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md)
 - [ADR-0176 An Act Reads the Clock Once, at Its Edge](0176-an-act-reads-the-clock-once-at-its-edge.md) *(revision 2)* — partially supersedes 0103-object-time-is-carried-never-minted.md
+- [ADR-0178 A Participant Numbers Its Case Activities, and the Case Manager Applies Each Sender's in That Order](0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)
 - [ADR-0179 A Local Check Runs Only When It Answers Before a Required CI Gate](0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md) — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md, 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md, 0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md, 0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md
 
 ## Rejected ADRs

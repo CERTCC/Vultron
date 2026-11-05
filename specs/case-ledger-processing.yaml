@@ -290,7 +290,7 @@ groups:
       Every text that describes the case ledger MUST use "Accept" and "Reject" only as
       the names of the AS2 activities. The CASE_MANAGER's verdict on whether an
       assertion enters the ledger is *admitted* or *refused*. The rules that keep
-      refusals off the ledger (CLP-02-005, CLP-04-007, CLP-05-002) govern that verdict,
+      refusals off the ledger (CLP-02-005, CLP-04-007) govern that verdict,
       not the `Reject` activity.
     rationale: >-
       The same word cannot name both the ledger verdict and an AS2 activity. If it does,
@@ -307,10 +307,6 @@ groups:
       reason: 'context for the reader'
     - spec_id: CLP-04-007
       reason: 'context for the reader'
-    - spec_id: CLP-05-002
-      reason: >-
-        a rule on the words texts use is not a narrower case of keeping refusals off the
-        ledger
   - id: CLP-02-016
     priority: MUST
     kind: protocol
@@ -624,7 +620,8 @@ groups:
     rationale: >-
       Every replica applies every entry. A refusal in the ledger would make each replica
       tell a refusal from a change, and an implementation that fails to do this would
-      apply a change that never happened. A refusal is recorded in the process log. A
+      apply a change that never happened. The hash chain would also depend on traffic
+      that the CASE_MANAGER did not admit. A refusal is recorded in the process log. A
       refusal by a precondition guard is also answered with a refusal notice
       (CLP-02-005).
     verification: >-
@@ -636,6 +633,7 @@ groups:
     stories:
     - story_2026_071
     - story_2026_023
+    - story_2026_002
   - id: CLP-04-008
     priority: MUST
     kind: project
@@ -847,22 +845,6 @@ groups:
     - ADR-0141
     stories:
     - story_2026_040
-  - id: CLP-05-002
-    priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
-    statement: Refusals MUST NOT be recorded as entries in the canonical case
-      ledger; the canonical ledger contains only admitted protocol-significant
-      assertions (see CLP-04-007).
-    rationale: >-
-      A refusal is not a change to the case. If it is an entry, every replica must hold
-      and skip it, and the hash chain then depends on traffic that the CASE_MANAGER did
-      not admit.
-    stories:
-    - story_2026_002
-    see_also:
-    - spec_id: CLP-04-007
-      reason: 'context for the reader'
   - id: CLP-05-003
     priority: MUST_NOT
     kind: protocol
@@ -2670,7 +2652,7 @@ groups:
       receiver's DataLayer, never removing or altering it.
     rationale: Receipt is a fact and refusal is a verdict on the assertion, not on the
       record of receipt. The refusal itself belongs in the process log, never the
-      ledger (CLP-05-002). A receiver that declines to create a case and still keeps
+      ledger (CLP-04-007). A receiver that declines to create a case and still keeps
       the report and the Offer (CM-15-002) does so as an effect of that policy
       branch, from the event's copy, not because intake stored them.
     verification: A received-side handler test posts an activity that a precondition

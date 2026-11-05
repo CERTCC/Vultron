@@ -193,6 +193,19 @@ class LedgerNetwork:
 
         manager_dl.save = _save  # type: ignore[method-assign]
 
+    def reopen(self, actor: str) -> SqliteDataLayer:
+        """Replace *actor*'s DataLayer with a fresh instance on the same store.
+
+        Stands in for a restart: only what the store persisted survives. The
+        CASE_MANAGER's fresh instance keeps the seed capture, so the rebuild
+        check still sees its first ledger entry.
+        """
+        reopened = self.stores[actor].clone_for_actor(actor)
+        if actor == MANAGER:
+            self._capture_seed_at_first_entry(reopened)
+        self.stores[actor] = reopened
+        return reopened
+
     def _case_file_records(self, dl: SqliteDataLayer) -> list[CoreObject]:
         case = cast(VulnerabilityCase, dl.read(self.case_id))
         ids = [

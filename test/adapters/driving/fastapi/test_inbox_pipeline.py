@@ -656,7 +656,7 @@ def test_failure_after_dispatch_is_still_bounded(
     assert activity_id not in queue_dl.inbox_list()
 
 
-@pytest.mark.spec("UCORG-05-011")
+@pytest.mark.spec("IO-01-006")
 @pytest.mark.parametrize(
     ("verdict", "replays"),
     [

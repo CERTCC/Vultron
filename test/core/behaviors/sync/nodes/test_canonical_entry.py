@@ -16,7 +16,7 @@
 """Unit tests for ``_validate_canonical_entry`` (CLP-07).
 
 Mirrors ``vultron/core/behaviors/sync/nodes/canonical_entry.py``, which was
-split out of ``chain.py`` (BTND-07-002, CS-18-004).  Tests that exercise the
+split out of ``chain.py`` (CS-18-004).  Tests that exercise the
 guard *through* ``CreateLogEntryNode`` stay in ``test_chain.py``; these call
 the validator directly.
 """

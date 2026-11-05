@@ -234,7 +234,7 @@ def test_the_refusal_notice_embeds_the_refused_activity_as_received():
 
 
 @pytest.mark.spec("CLP-05-001")
-@pytest.mark.spec("CLP-05-002")
+@pytest.mark.spec("CLP-04-007")
 def test_a_refusal_notice_commits_nothing():
     net, _, invite_id = _network("uncommitted")
     before = len(net.stores[MANAGER].list_objects("CaseLedgerEntry"))
