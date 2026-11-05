@@ -955,3 +955,33 @@ groups:
       against an empty `KNOWN_UNSUPPLIED_GATES` baseline.
       `test_detector_catches_the_witness_gate` proves the check fires, against the
       pre-fix shape reconstructed inline.
+- id: TB-17
+  title: Strict Goal Markers
+  specs:
+  - id: TB-17-001
+    priority: MUST
+    kind: project
+    statement: >-
+      An `xfail` marker on a test under `test/` MUST be written with `strict=True`.
+      A marker in a `pytest.param(marks=...)` entry counts the same as a decorator.
+      The one exception is a file recorded, with its reason, in the pinned exemption
+      set the enforcing check reads.
+    rationale: >-
+      An `xfail` here marks a goal state: a requirement written before the code that
+      satisfies it. Under `strict=False` the day that code lands is an XPASS in a
+      tally nobody reads, so the marker outlives its defect and the assertion it
+      guarded stops being checked (#3934 item 2, #2244). ARCH-21-008 asks the same,
+      but as a SHOULD and only of an ARCH-21-005 backlog's goal test, so the broader
+      rule several prose statements assert had no requirement behind it, and its
+      check would read as unfounded.
+    verification: >-
+      `test_every_xfail_is_strict` in `test/architecture/test_ratchet_hygiene.py`
+      takes every `xfail` marker under `test/` from the shared corpus (TB-13-001)
+      and fails on any that omits or disables `strict`, naming each as `path:line`.
+      It keys on the marker, not on the decorated function's name, so a rename
+      loses no subjects. `test_the_xfail_matcher_can_see_a_violation` drives the
+      same matcher over inline source holding each lax spelling, and
+      `test_the_xfail_scan_reaches_the_test_tree` floors the markers the walk finds,
+      so the empty violation list that is the expected result is not a vacuous pass.
+      `xfail_strict = true` in `pyproject.toml` is the run-time half, catching an
+      indirection the source scan cannot resolve.

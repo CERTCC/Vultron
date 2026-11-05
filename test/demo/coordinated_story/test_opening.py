@@ -32,7 +32,10 @@ from test.demo._helpers import (
     patch_chain_shared,
     story_state,
 )
-from test.demo.coordinated_story._support import CAST
+from test.demo.coordinated_story._support import (
+    CAST,
+    patched_rejection_polls,
+)
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.coordinated_story import (
     ENGAGED_CASE,
@@ -223,7 +226,14 @@ class TestInviteChainSkipsDependents:
         )
         assert state.delivered_invite(VENDOR) is None
 
-        with patch.object(ActorSession, "reject_case_invite") as reject:
+        # The rejection fragment's own container polls are stubbed, the way the
+        # sibling above stubs the joining fragment's.  The subject here is that
+        # the answer is skipped; left real, those polls run out their budget
+        # against a mock store and cost 20 s proving nothing (#5597).
+        with (
+            patch.object(ActorSession, "reject_case_invite") as reject,
+            patched_rejection_polls(),
+        ):
             vendor_rejects_invite(state)
         reject.assert_not_called()
 

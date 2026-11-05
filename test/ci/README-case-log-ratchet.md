@@ -165,7 +165,7 @@ pass/fail to CI.
    ```python
    @pytest.mark.case_ledger_invariants
    @pytest.mark.xfail(
-       strict=False,
+       strict=True,
        reason="<description>; will pass when #<issue> lands",
    )
    def test_<scenario>_<slug>(
@@ -173,11 +173,19 @@ pass/fail to CI.
    ) -> None:
        """<One-line summary>.
 
-       When this xfail is unexpectedly promoted to XPASS, remove the
-       ``xfail`` decorator to make it a permanent regression guard.
+       Strict, so the run fails the moment this starts passing. Remove the
+       ``xfail`` decorator then, to make it a permanent regression guard.
        """
        ...
    ```
+
+   `strict=True`, never `strict=False`. This xfail is a **goal state**: it
+   records an invariant the project intends to hold, so the day it starts
+   holding is news. Under `strict=False` an XPASS is reported in a tally
+   nobody reads, the decorator stays, and the invariant it was protecting
+   quietly stops being checked — the gate has gone inert. Strict turns that
+   XPASS into a failure that names the test, which is the only signal that
+   reliably reaches a reader (#2244, #3934).
 
    Name the owning issue in the `reason` string. For a universal invariant,
    record the same issue number in the diagnostic map's Status column;

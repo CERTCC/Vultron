@@ -71,12 +71,11 @@ ends the sentinel rather than reading it.
 Both checks key on the act — the pre-initialisation, the guarded ``with``, the
 read — and not on the name of the function that performs it, so neither loses
 subjects to a rename (#5535).  Neither carries a baseline: the terminal value
-of both is the empty set, and it is reached (ARCH-18-005), which is what makes
-the closing paragraph below stale; retiring it is #3934's item 3.
+of both is the empty set, and it is reached (ARCH-18-005).
 
-Once all 93 sites documented in issue #2308 are fixed this test becomes a
-permanent ratchet — adding a new undefended site will cause the CI job to
-fail.
+So this is a zero-tolerance invariant, not a ratchet counting down to one: the
+93 sites #2308 found were all fixed in the commit that added this module, and
+either check failing means a new undefended site was just introduced.
 """
 
 import ast
