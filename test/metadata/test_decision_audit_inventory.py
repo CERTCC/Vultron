@@ -114,13 +114,19 @@ class TestBuildInventory:
         spec_only = build_inventory(kinds=("spec",))
         assert all(c.kind == "spec-group" for c in spec_only)
 
-    @pytest.mark.xfail(
-        reason="CM-22 derives-from-non-accepted-adr signal not yet firing. "
-        "Tracked in #1993."
-    )
     def test_known_landmine_surfaces(self, inventory):
-        """CM-22 derives from superseded ADR-0015 — the moved-premise signal
-        must fire (the ISSUE-1272 class of defect)."""
+        """CM-22's derivation reaches an ADR that is not accepted.
+
+        The moved-premise signal has to fire for it — the ISSUE-1272 class of
+        defect, a group resting on a decision the project has not settled.
+        This was a goal-state ``xfail`` for #1993 while the signal was silent;
+        it now fires (on ``ADR-0132=accepted-provisional``), so the marker is
+        gone and this is a permanent regression guard (#3934 item 2).
+
+        Deliberately not pinned to one ADR: the invariant is that *some*
+        unsettled decision in the chain is reported, not which.  That CM-22
+        also cites superseded ADR-0015 is the sibling test's subject.
+        """
         cm22 = next((c for c in inventory if c.id == "CM-22"), None)
         assert cm22 is not None
         assert any(

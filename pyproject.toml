@@ -361,9 +361,6 @@ filterwarnings = [
     # test_spec_marker_gate.py::TestWarningIsNotEscalated.
     "always::vultron.metadata.specs.UnknownSpecIdWarning",
     "always::vultron.metadata.specs.SpecRegistryUnavailableWarning",
-    "ignore::DeprecationWarning:vultron.demo.scenario.three_actor_demo",
-    "ignore:three_actor_demo.py is based on older code:DeprecationWarning",
-    "ignore::DeprecationWarning:vultron.demo.scenario.multi_vendor_demo",
 ]
 markers = [
     "integration: marks tests as integration tests (exercise the full HTTP stack; deselected by default)",

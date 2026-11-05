@@ -28,6 +28,10 @@ the same for the real ``test/demo/`` collection (#3604).
 
 ``TestTimeoutTripFailsOneTest`` and ``TestTimeoutTripReleasesTheBtLock`` pin
 what a trip costs under the configured ``timeout_method`` (#3603).
+
+``TestTheUnitCeilingIsLive`` pins that the ceiling is *applied*, not merely
+written down (#5597) — everything else here either stubs the resolution hook or
+supplies the probe session's ceiling with ``-o timeout=``.
 """
 
 import json
@@ -36,6 +40,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import pytest_timeout
 
 from test.conftest import (
     INTEGRATION_TIMEOUT_SECONDS,
@@ -290,6 +295,21 @@ _PROBE_TRIP_SECONDS = 1
 #: about a second, and a hang never ends; either way this bounds the test.
 _PROBE_SESSION_CEILING_SECONDS = 20
 
+#: Ceiling on the ``-n 2`` probe session, which pays for two worker boots
+#: before any test runs.  Its caller is integration-tiered for the same reason.
+_XDIST_PROBE_SESSION_CEILING_SECONDS = 60
+
+#: The ``-n`` probe's whole body: one test that outlives the ceiling.  A trip's
+#: blast radius is pinned serially, so the xdist run asks only whether the
+#: ceiling reached the worker at all.
+_XDIST_TRIP_TEST = """
+import time
+
+
+def test_hangs():
+    time.sleep(30)
+"""
+
 _TIMEOUT_TRIP_TESTS = """
 import time
 
@@ -362,11 +382,21 @@ def test_lock_is_free_after_the_interrupted_wait():
 """
 
 
-def _run_probe_session(pytester, pytestconfig, tests):
+def _run_probe_session(
+    pytester,
+    pytestconfig,
+    tests,
+    *extra_args,
+    session_ceiling=_PROBE_SESSION_CEILING_SECONDS,
+):
     """Run *tests* under this repo's ``timeout_method`` in a subprocess.
 
     A subprocess, not ``runpytest``: an inline session would share this
     process's ``SIGALRM`` handler, and a ``thread`` trip would end this process.
+
+    *extra_args* go on the command line after the fixed options, so a caller can
+    add ``-n`` to run the same probe under ``pytest-xdist``; *session_ceiling*
+    is there for that caller, because booting workers is not free.
     """
     pytester.makepyfile(test_probe=tests)
     try:
@@ -377,7 +407,8 @@ def _run_probe_session(pytester, pytestconfig, tests):
             f"timeout={_PROBE_TRIP_SECONDS}",
             "-o",
             f"timeout_method={pytestconfig.getini('timeout_method')}",
-            timeout=_PROBE_SESSION_CEILING_SECONDS,
+            *extra_args,
+            timeout=session_ceiling,
         )
     except pytester.TimeoutExpired:
         pytest.fail("a per-test timeout trip did not end the hanging test")
@@ -536,3 +567,98 @@ class TestDemoItemsResolveToTheIntegrationTier:
         )
 
         assert off_tier == []
+
+
+# ---------------------------------------------------------------------------
+# The ceiling is live, not merely configured (#5597)
+# ---------------------------------------------------------------------------
+#
+# Everything above either stubs the resolution hook or runs a probe session
+# whose ceiling is supplied with ``-o timeout=``.  Both are deliberate: they
+# isolate the hook's logic and a trip's blast radius from the configured value.
+# Neither asks the question #5597 raised, though — does *this* session, launched
+# the canonical way, actually apply ``timeout`` from ``pyproject.toml`` to an
+# ordinary unit test?  Without that, a test that polls a ``MagicMock`` for a
+# minute reads as healthy.
+#
+# A ceiling can go inert three ways:
+#
+# 1. ``pytest-timeout`` is absent or disabled, so nothing resolves at all.
+# 2. The ini is never read, because pytest's rootdir resolution found no
+#    ``configfile``.  This is the one #5597's own control experiment hit: in a
+#    scratch directory outside the repo a test sleeping 35 s passed, there being
+#    no configuration to apply.  Inside the tree the same file is killed at 30 s,
+#    serially and under ``-n`` alike, so the ceiling was never the defect.
+# 3. The ceiling resolves in the controlling process but never reaches an xdist
+#    worker, where almost every test actually runs.
+#
+# ``test_this_session_resolves_the_configured_ceiling`` closes 1 and 2 by asking
+# pytest-timeout what it resolved for the running test and checking that the
+# configuration pytest loaded is this repo's.
+# ``test_a_trip_reaches_an_xdist_worker`` closes 3.  The ceiling's *value* is
+# pinned by :class:`TestUnitTierTimeout` and a trip's behaviour by
+# :class:`TestTimeoutTripFailsOneTest`, so between the four the ceiling cannot
+# go inert without one of them saying so.
+
+
+@pytest.mark.spec("TB-14-001")
+class TestTheUnitCeilingIsLive:
+    """The configured unit ceiling is applied to real tests (#5597)."""
+
+    def test_this_session_resolves_the_configured_ceiling(
+        self, request, pytestconfig
+    ):
+        """This very test runs under the ``timeout`` in ``pyproject.toml``.
+
+        Read from ``pytest_timeout`` rather than from the ini, because the ini
+        is what *should* apply; ``_get_item_settings`` is what does.  A missing
+        plugin or an unread config both land as ``None`` here.
+        """
+        assert pytestconfig.inipath is not None, (
+            "pytest loaded no configuration file, so"
+            " [tool.pytest.ini_options] — the per-test ceiling included — is"
+            " not in force.  This is the whole of #5597: a control test run"
+            " from a directory outside the repo gets no configfile and sleeps"
+            " past the ceiling untouched."
+        )
+        assert pytestconfig.inipath.name == "pyproject.toml"
+
+        resolved = pytest_timeout._get_item_settings(request.node).timeout
+
+        assert resolved is not None, (
+            "no per-test timeout resolved for this unit test: the ceiling is"
+            " inert (#5597)"
+        )
+        assert resolved == float(pytestconfig.getini("timeout"))
+
+    # Integration-tiered deliberately: this spawns a pytest subprocess which
+    # itself boots two xdist workers, and worker startup on a loaded host does
+    # not reliably fit the 30 s unit tier.  The thing under test is a process
+    # tree, which is what the wider tier is for (TB-14-003: move the tier, do
+    # not sprinkle markers).  Its serial twin above stays in the unit tier.
+    @pytest.mark.integration
+    def test_a_trip_reaches_an_xdist_worker(self, pytester, pytestconfig):
+        """A worker process kills its own over-ceiling test.
+
+        Each worker is a separate process, so the ``signal`` method's
+        ``SIGALRM`` has to land on that worker's main thread rather than the
+        controller's.  The canonical gate command is ``-n auto``, which makes
+        this the configuration nearly every test actually runs in.
+
+        Only the hanging test is in this probe: that a trip leaves the session
+        running and names every failure is :class:`TestTimeoutTripFailsOneTest`'s
+        subject, and pinning it again here would only buy worker boots.
+        """
+        result = _run_probe_session(
+            pytester,
+            pytestconfig,
+            _XDIST_TRIP_TEST,
+            "-n",
+            "2",
+            session_ceiling=_XDIST_PROBE_SESSION_CEILING_SECONDS,
+        )
+
+        result.assert_outcomes(failed=1)
+        result.stdout.fnmatch_lines(
+            ["*test_hangs*Failed: Timeout*"], consecutive=False
+        )

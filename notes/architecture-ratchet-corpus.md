@@ -6,8 +6,10 @@ description: >
   Rules for the shared source/markdown corpus behind test/architecture/
   ratchets, for ratchets that start from a live object, for applying the
   prefilter per definition rather than per file, for stating whether each
-  loose reading can miss a violation or invent one, and for baselines:
-  owner markers and the ratchet-versus-pinned-exemption-set split.
+  loose reading can miss a violation or invent one, for the two meta-ratchets
+  that police the gates themselves — one corpus, and every `xfail` strict —
+  and for baselines: owner markers and the
+  ratchet-versus-pinned-exemption-set split.
 related_specs:
   - specs/architecture.yaml
   - specs/testability.yaml
@@ -36,14 +38,26 @@ module import time. A module-level corpus is therefore exempt from the per-test
 timeout; a session-scoped fixture is not, and a cold parse of the whole tree in
 one would recreate the margin problem the corpus exists to fix.
 
-## Meta-Ratchet
+## Meta-Ratchets
 
-`test/architecture/test_ratchet_hygiene.py` fails when any sibling file contains
-`ast.parse(` or `.rglob(` outside `_corpus.py` (TB-13-003, TB-13-009), so every
-ratchet routes discovery through the one cache. When a new ratchet needs a file set the
-corpus does not offer, extend the corpus rather than reaching for a spelling the
+`test/architecture/test_ratchet_hygiene.py` holds the checks that police the
+other gates. Two live there.
+
+**One corpus.** It fails when any sibling file contains `ast.parse(` or
+`.rglob(` outside `_corpus.py` (TB-13-003, TB-13-009), so every ratchet routes
+discovery through the one cache. When a new ratchet needs a file set the corpus
+does not offer, extend the corpus rather than reaching for a spelling the
 hygiene check does not pattern-match: the rule is about one cache, not the
 literal substring.
+
+**Every `xfail` is strict.** `test_every_xfail_is_strict` fails on any `xfail`
+under `test/` that omits or disables `strict`, generalising ARCH-21-008 from a
+backlog's companion goal test to every marker. A non-strict goal xfail keeps
+passing after the work lands, so the marker outlives its defect and the
+assertion it guards stops being checked — the gate goes inert (#3934). A
+genuine exception goes in `_NON_STRICT_XFAIL_EXEMPT` with its reason. The
+matcher keys on the marker call, so it covers a `pytest.param(marks=…)` entry
+and loses no subjects to a rename (#5535).
 
 ## The Markdown Tier
 

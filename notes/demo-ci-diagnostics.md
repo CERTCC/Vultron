@@ -127,11 +127,15 @@ a label: it skips 8 (scenario-local, below) and the unnumbered rows are named fo
 the spec clause they check.
 
 **Keep any new xfail as narrow as its defect.** A marker on a check that
-aggregates several properties silences all of them, and with `strict=False` an
-`XPASS` is green, so the silence does not lift when the defect is fixed. That is
-why the four `per_actor_replica_*` checks are separate tests (ISSUE-3385). When
-an `XPASS` appears, remove the marker; `test/ci/README-case-log-ratchet.md` has
-the promotion steps.
+aggregates several properties silences all of them, so the silence would not
+lift one property at a time as each defect is fixed. That is why the four
+`per_actor_replica_*` checks are separate tests (ISSUE-3385).
+
+**Write it `strict=True`.** The run then fails the moment the check starts
+passing, which is what tells you to remove the marker; under `strict=False` the
+`XPASS` is green and the marker outlives its defect (#3934).
+`test_every_xfail_is_strict` in `test/architecture/test_ratchet_hygiene.py`
+enforces this, and `test/ci/README-case-log-ratchet.md` has the promotion steps.
 
 ### Reading individual invariants
 
