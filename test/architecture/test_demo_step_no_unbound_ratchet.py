@@ -82,7 +82,7 @@ fail.
 import ast
 import functools
 import pathlib
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from typing import NamedTuple
 
 import pytest
@@ -344,22 +344,39 @@ def _truthiness_test(test: ast.expr, name: str) -> bool:
     if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
         return _truthiness_test(test.operand, name)
     if isinstance(test, ast.BoolOp):
-        return any(_truthiness_test(value, name) for value in test.values)
+        tested = [_truthiness_test(value, name) for value in test.values]
+        # ``a and x`` is true only when ``x`` is, so one operand testing the
+        # name is enough; ``a or x`` is true when ``a`` alone is, so every
+        # operand must test it or the body can still see the placeholder.
+        return any(tested) if isinstance(test.op, ast.And) else all(tested)
     return False
 
 
-_COMPARISON_GUARD_OPS = (ast.Is, ast.IsNot, ast.Eq, ast.NotEq)
+#: ``is``/``==`` decides the name is not a placeholder whatever constant it is
+#: compared against; ``is not``/``!=`` decides it only against a placeholder,
+#: since ``name != "ok"`` holds for ``None`` too.
+_EQUALITY_GUARD_OPS = (ast.Is, ast.Eq)
+_COMPARISON_GUARD_OPS = (*_EQUALITY_GUARD_OPS, ast.IsNot, ast.NotEq)
 
 
 def _is_placeholder_comparison(node: ast.AST, name: str) -> bool:
-    """True for ``name is None``, ``name is not None``, ``name == ""`` …"""
-    return (
+    """True for a comparison of *name* that decides it is not a placeholder.
+
+    ``name is None``, ``name is not None`` and ``name != ""`` compare against
+    a placeholder under any of the four operators; ``name == "ok"`` and
+    ``name is True`` prove the same thing by equality with a non-placeholder
+    constant.  ``name != "ok"`` proves nothing and is not a guard.
+    """
+    if not (
         isinstance(node, ast.Compare)
         and isinstance(node.left, ast.Name)
         and node.left.id == name
-        and all(isinstance(op, _COMPARISON_GUARD_OPS) for op in node.ops)
-        and all(_is_placeholder(right) for right in node.comparators)
-    )
+        and all(isinstance(c, ast.Constant) for c in node.comparators)
+    ):
+        return False
+    if all(_is_placeholder(right) for right in node.comparators):
+        return all(isinstance(op, _COMPARISON_GUARD_OPS) for op in node.ops)
+    return all(isinstance(op, _EQUALITY_GUARD_OPS) for op in node.ops)
 
 
 def _guards_name(node: ast.AST, name: str) -> bool:
@@ -417,14 +434,27 @@ def _reads_name(node: ast.AST, name: str) -> bool:
     """True when *node* passes *name* to a call, or indexes into it.
 
     These are the shapes that turn a placeholder into a failure blamed on the
-    wrong step: the step posts the placeholder as a trigger body, or it raises
-    ``AttributeError`` / ``TypeError`` on ``None``.  A bare ``return name``
-    is not one of them — that is the documented ``Optional[T]`` contract, and
-    the caller carries the guard.
+    wrong step: the step posts the placeholder as a trigger body, iterates or
+    calls it, or it raises ``AttributeError`` / ``TypeError`` on ``None``.  A
+    bare ``return name`` is not one of them — that is the documented
+    ``Optional[T]`` contract, and the caller carries the guard.
     """
     if isinstance(node, (ast.Attribute, ast.Subscript)):
         return isinstance(node.value, ast.Name) and node.value.id == name
+    if isinstance(node, (ast.For, ast.AsyncFor)):
+        return isinstance(node.iter, ast.Name) and node.iter.id == name
+    if isinstance(node, _COMPREHENSIONS):
+        # Keyed on the comprehension expression, not its ``for`` clause: the
+        # clause carries no line number, so a site built from it would report
+        # "line 0".  The outermost iterable runs in the enclosing scope and
+        # before every ``if`` clause, so a guard there cannot defend it.
+        return any(
+            isinstance(gen.iter, ast.Name) and gen.iter.id == name
+            for gen in node.generators
+        )
     if isinstance(node, ast.Call):
+        if isinstance(node.func, ast.Name) and node.func.id == name:
+            return True
         return name in _call_argument_names(node)
     return False
 
@@ -580,7 +610,7 @@ def _sites_for_block(
 def _sentinel_sites_in_stmts(
     stmts: list[ast.stmt],
     inherited: dict[str, int] | None = None,
-    trailing: tuple[ast.stmt, ...] = (),
+    trailing: Sequence[ast.stmt] = (),
 ) -> list[SentinelSite]:
     """Every placeholder sentinel a guarded block in *stmts* assigns.
 
@@ -596,7 +626,6 @@ def _sentinel_sites_in_stmts(
 
     for index, stmt in enumerate(stmts):
         following = [*stmts[index + 1 :], *trailing]
-        onward = tuple(following)
 
         preinit = _placeholder_preinit_names(stmt)
         if preinit:
@@ -607,11 +636,11 @@ def _sentinel_sites_in_stmts(
             sites += _sites_for_block(stmt, sentinels, following)
             # A sentinel declared inside the block is its own subject; the
             # outer ones are already recorded above, so they do not descend.
-            sites += _sentinel_sites_in_stmts(stmt.body, None, onward)
+            sites += _sentinel_sites_in_stmts(stmt.body, None, following)
             continue
 
         for block in _nested_blocks(stmt):
-            sites += _sentinel_sites_in_stmts(block, sentinels, onward)
+            sites += _sentinel_sites_in_stmts(block, sentinels, following)
 
         for name in _rebound_names(stmt):
             sentinels.pop(name, None)
@@ -1080,15 +1109,27 @@ def example():
     assert _sentinel_leaks(src) == []
 
 
-def test_read_in_the_iterable_of_a_later_for_is_a_leak():
-    """The iterable *is* evaluated before the loop variable is rebound."""
-    src = """\
+@pytest.mark.parametrize(
+    "iterable",
+    [
+        pytest.param("targets", id="bare-name"),
+        pytest.param("sorted(targets)", id="inside-a-call"),
+    ],
+)
+def test_read_in_the_iterable_of_a_later_for_is_a_leak(iterable: str):
+    """The iterable *is* evaluated before the loop variable is rebound.
+
+    Both forms must count.  A bare name is reached only by the ``For.iter``
+    arm of :func:`_reads_name`; wrapping it in a call would otherwise be the
+    only shape the check saw, and iterating ``None`` raises just the same.
+    """
+    src = f"""\
 def example():
     targets = None
     with demo_step("Resolve the targets"):
         targets = resolve()
 
-    for client in sorted(targets):
+    for client in {iterable}:
         reset(client)
 """
     assert _sentinel_leaks(src) == [("targets", 6)]
@@ -1208,16 +1249,25 @@ def example():
 
 
 def test_name_inside_a_nested_call_counts_for_that_call():
-    """A name in an inner call is that call's argument, and still a read."""
+    """A name in an inner call is that call's argument, and still a read.
+
+    The outer call is split across lines so the two ``ast.Call`` nodes have
+    different ``lineno``s: on one line the assertion would hold whether or not
+    :func:`_passed_names` declined to descend into the nested call, which is
+    the behaviour this pins.
+    """
     src = """\
 def example():
     offer = None
     with demo_step("Step 1: produce"):
         offer = submit_report()
 
-    logger.info("offer: %s", logfmt(offer))
+    logger.info(
+        "offer: %s",
+        logfmt(offer),
+    )
 """
-    assert _sentinel_leaks(src) == [("offer", 6)]
+    assert _sentinel_leaks(src) == [("offer", 8)]
 
 
 def test_producer_nested_in_an_if_with_an_outer_read_is_a_leak():
@@ -1238,23 +1288,36 @@ def example(flag):
     assert _sentinel_leaks(src) == [("offer", 7)]
 
 
-def test_producer_nested_in_try_except_else_finally_is_found():
-    src = """\
-def example():
-    offer = None
-    try:
-        with demo_step("Step 1: produce"):
-            offer = submit_report()
-    except ValueError:
-        pass
-    else:
-        pass
-    finally:
-        pass
+@pytest.mark.parametrize("arm", ["try", "except", "else", "finally"])
+def test_producer_nested_in_try_except_else_finally_is_found(arm: str):
+    """Each of the four arms is its own statement list in ``_nested_blocks``.
 
-    acknowledge(offer)
-"""
-    assert _sentinel_leaks(src) == [("offer", 13)]
+    Parametrised because a producer in ``try`` alone leaves the other three
+    yields unexercised: deleting them would keep such a test green.
+    """
+    producer = (
+        '        with demo_step("Step 1: produce"):\n'
+        "            offer = submit_report()\n"
+    )
+    arms = {
+        "try": "    try:\n"
+        + producer
+        + "    except ValueError:\n        pass\n",
+        "except": "    try:\n        pass\n    except ValueError:\n"
+        + producer,
+        "else": (
+            "    try:\n        pass\n    except ValueError:\n        pass\n"
+            "    else:\n" + producer
+        ),
+        "finally": "    try:\n        pass\n    finally:\n" + producer,
+    }
+    src = (
+        "def example():\n    offer = None\n"
+        + arms[arm]
+        + "\n    acknowledge(offer)\n"
+    )
+    leaks = _sentinel_leaks(src)
+    assert [name for name, _ in leaks] == ["offer"], (arm, src)
 
 
 def test_producer_nested_in_a_match_case_is_found():
@@ -1393,6 +1456,68 @@ def example():
     acknowledge(offer)
 """
     assert _sentinel_leaks(src) == []
+
+
+@pytest.mark.parametrize(
+    ("test", "leaks"),
+    [
+        pytest.param('offer == "ok"', False, id="eq-constant-guards"),
+        pytest.param("offer is True", False, id="is-constant-guards"),
+        pytest.param('offer != "ok"', True, id="ne-constant-does-not"),
+        pytest.param("offer is not None", False, id="is-not-placeholder"),
+        pytest.param("flag and offer", False, id="and-chain-guards"),
+        pytest.param("flag or offer", True, id="or-chain-does-not"),
+        pytest.param("offer or flag", True, id="or-chain-reversed"),
+    ],
+)
+def test_comparison_and_boolean_guard_forms(test: str, leaks: bool):
+    """Only a test that is false for the placeholder defends the read.
+
+    ``offer == "ok"`` proves the name is neither ``None`` nor ``""``, so it is
+    a guard; ``offer != "ok"`` holds for ``None`` too, so it is not.  In
+    ``flag or offer`` the body runs on ``flag`` alone, so the placeholder
+    still reaches the read; in ``flag and offer`` it cannot.
+    """
+    src = f"""\
+def example(flag):
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    if {test}:
+        acknowledge(offer)
+"""
+    assert bool(_sentinel_leaks(src)) is leaks
+
+
+@pytest.mark.parametrize(
+    "read",
+    [
+        pytest.param(
+            "for item in offer:\n        use(item)", id="for-iterable"
+        ),
+        pytest.param("offer()", id="called-as-a-function"),
+        pytest.param("xs = [i for i in offer]", id="comprehension-iterable"),
+        pytest.param("xs = {i for i in offer}", id="setcomp-iterable"),
+        pytest.param("total = sum(i for i in offer)", id="genexp-iterable"),
+    ],
+)
+def test_iterating_or_calling_the_sentinel_is_a_read(read: str):
+    """Iterating or calling a placeholder raises just as posting it does.
+
+    The outermost iterable of a comprehension runs in the enclosing scope and
+    before every ``if`` clause, so no guard inside the comprehension can
+    defend it.
+    """
+    src = f"""\
+def example():
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    {read}
+"""
+    assert [name for name, _ in _sentinel_leaks(src)] == ["offer"]
 
 
 def test_comprehension_rebinding_the_name_is_its_own_scope():
