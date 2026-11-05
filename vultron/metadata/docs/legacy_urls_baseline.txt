@@ -186,6 +186,7 @@ adr/0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md
 adr/0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md
 adr/0176-an-act-reads-the-clock-once-at-its-edge.md
 adr/0177-a-cited-requirement-with-no-relationship-is-listed-in-see-also.md
+adr/0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
