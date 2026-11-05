@@ -224,7 +224,7 @@ def process_payload(
     Returns:
         :class:`InboxOutcome` whose ``status`` is an
         :class:`InboxOutcomeStatus` member, derived from the handler's
-        ``HandlerResult`` when dispatch ran (UCORG-05-011).
+        ``HandlerResult`` when dispatch ran (IO-01-006).
     """
     # The shared BT global lock serialises BT blackboard access
     # across concurrent FastAPI BackgroundTasks.  The RLock supports

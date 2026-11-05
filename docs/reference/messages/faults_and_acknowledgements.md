@@ -81,7 +81,7 @@ The door guards are the post-close write boundary, which is how a fully closed c
 A receiver on a path the message type does not address is refused at the path stage, so the refusal is about who received the activity rather than about what it asserts, and the sender is owed no answer about its content.
 It sends none for a delivery that an answer of its own replaces, such as the `Reject` of the Invite that answers an embargo `Invite` or `Accept` once the case is public, an exploit is public, or attacks are observed, because that answer already tells the sender ([CLP-10-070](../specs/project.md#clp-10-070)).
 It sends none for a failure inside the CASE_MANAGER, which is not a refusal: the internal-error fault above answers that.
-A refusal is not a case event, so the notice is not ledgered ([CLP-05-002](../vultron-spec/requirements/ledger-replication.md#clp-05-002)).
+A refusal is not a case event, so the notice is not ledgered ([CLP-04-007](../vultron-spec/requirements/ledger-replication.md#clp-04-007)).
 
 The participant closes the pending assertion it recorded for the refused activity ([CLP-06-006](../specs/project.md#clp-06-006)).
 It writes no case state and does not send the assertion again.

@@ -28,7 +28,7 @@ class _RefusalNoticeActivity(as_Reject):
     Sent to the asserting participant alone when a precondition guard at the
     CASE_MANAGER refuses its assertion, so the participant learns the
     assertion had no effect (CLP-02-005, CLP-05-001, ADR-0141).  Nothing is
-    ledgered for it (CLP-05-002).
+    ledgered for it (CLP-04-007).
 
     object_: The refused activity, inline.
     in_reply_to: The refused activity's id.

@@ -18,7 +18,7 @@ Every ``POST`` route mounted under ``/actors/{actor_id}/trigger/`` or
 its final path segment and whose ``exposure`` names the prefix it sits under,
 and every row has such a route — exact set equality in both directions
 (ARCH-18-001).  This is the executable form of the verification clauses on
-TRIG-08-003 and TRIG-08-004, which until the registry existed read
+TRIG-08-003 and TRIG-09-001, which until the registry existed read
 "inspection confirms".
 
 The mounted routes are read from the OpenAPI document the app renders, built
@@ -107,7 +107,7 @@ def trigger_routes(
 
 @pytest.mark.spec("TRIG-12-004")
 @pytest.mark.spec("TRIG-08-003")
-@pytest.mark.spec("TRIG-08-004")
+@pytest.mark.spec("TRIG-09-001")
 def test_trigger_routes_and_registry_rows_are_in_bijection(
     paths: dict[str, Any],
 ) -> None:
@@ -124,7 +124,7 @@ def test_trigger_routes_and_registry_rows_are_in_bijection(
 
 
 @pytest.mark.spec("TRIG-08-003")
-@pytest.mark.spec("TRIG-08-004")
+@pytest.mark.spec("TRIG-09-001")
 @pytest.mark.parametrize("exposure", list(TriggerExposure), ids=str)
 def test_every_row_is_mounted_under_its_exposures_prefix(
     paths: dict[str, Any], exposure: TriggerExposure

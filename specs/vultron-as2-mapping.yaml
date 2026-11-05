@@ -144,8 +144,6 @@ groups:
     relationships:
     - rel_type: supersedes
       spec_id: VAM-01-007
-    - rel_type: supersedes
-      spec_id: SE-02-003
   - id: VAM-01-012
     priority: MUST_NOT
     kind: project
@@ -185,9 +183,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `MessageSemantics.UNKNOWN` MUST be returned when no registered pattern
-      matches the incoming activity, except where VAM-01-009 requires
-      `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`
+      `find_matching_semantics()` MUST return `MessageSemantics.UNKNOWN` when no
+      registered pattern matches the incoming activity, except where VAM-01-009
+      requires `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`
     rationale: >-
       A received activity needs one defined result even when no pattern describes it.
       `UNKNOWN` gives the inbox a value that it can refuse and log, in place of an

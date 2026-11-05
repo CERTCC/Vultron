@@ -480,7 +480,7 @@ answer, clock decisions, guards, commit, effects.
    own before the received tree.
 4. **Guards** — read-only precondition checks that return FAILURE to refuse and
    write nothing. A refusal goes to the process log and, where the protocol
-   calls for an answer, back to the sender — never to the ledger (CLP-05-002).
+   calls for an answer, back to the sender — never to the ledger (CLP-04-007).
    The factory adds that answer, the refusal notice, to every tree that commits
    to a case and has precondition guards, unless the tree names a registered
    `RefusalNoticeExemption`; a tree passes only further feedback (the RSH-06-004

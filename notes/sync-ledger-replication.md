@@ -59,7 +59,7 @@ CaseActor clustering is unbuilt; its plan is
 - **Eventual consistency.** Participants converge by applying replicated
   entries.
 - **Only admitted entries are replicated.** Refusals go to the asserter and the
-  process log, never the ledger (CLP-04-007, CLP-05-002), so replication needs no
+  process log, never the ledger (CLP-04-007), so replication needs no
   disposition filtering.
 - **Leadership guard.** The BT bridge's `is_leader` port (SYNC-09-003,
   `vultron/core/behaviors/bridge/leadership.py`) is always `True` in single-node;

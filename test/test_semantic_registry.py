@@ -201,7 +201,7 @@ def test_lookup_entry_returns_correct_entry():
     assert entry.semantics == MessageSemantics.CREATE_REPORT
 
 
-@pytest.mark.spec("SE-02-003")
+@pytest.mark.spec("VAM-01-007")
 def test_lookup_entry_unknown_returns_unknown():
     entry = lookup_entry(MessageSemantics.UNKNOWN)
     assert entry is not None
