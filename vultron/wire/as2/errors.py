@@ -1,5 +1,6 @@
 """AS2 wire layer errors for the Vultron Protocol."""
 
+from vultron.errors import VultronProofVerificationError
 from vultron.wire.errors import VultronWireError
 
 
@@ -38,10 +39,14 @@ class VultronProofError(VultronWireError):
     """Raised when an object integrity proof cannot be made or checked."""
 
 
-class VultronProofInvalidError(VultronProofError):
+class VultronProofInvalidError(
+    VultronProofError, VultronProofVerificationError
+):
     """Raised when a document's proof is missing, malformed or does not verify.
 
-    A receiver refuses the document (SIG-03-002).
+    A receiver refuses the document (SIG-03-002).  It is the wire form of the
+    core category :exc:`~vultron.errors.VultronProofVerificationError`
+    (EH-03-005), so the inbox answers it 422 like any other proof failure.
     """
 
 

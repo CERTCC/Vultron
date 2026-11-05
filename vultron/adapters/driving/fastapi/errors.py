@@ -8,6 +8,7 @@ from vultron.errors import (
     VultronError,
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
+    VultronProofVerificationError,
     VultronValidationError,
 )
 
@@ -51,6 +52,20 @@ def translate_domain_errors(exc: Exception) -> HTTPException:
     if isinstance(exc, VultronInvalidStateTransitionError):
         return conflict_http_exception(
             str(exc), activity_id=getattr(exc, "activity_id", None)
+        )
+    if isinstance(exc, VultronProofVerificationError):
+        # EH-03-005: a missing or failing proof is answered 422, like content
+        # that fails validation, under its own error name so a sender can tell
+        # it from a field error.  No ``activity_id``: an unverified document's
+        # id is the forger's claim.
+        return HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "status": 422,
+                "error": "ProofVerificationError",
+                "message": str(exc),
+                "activity_id": None,
+            },
         )
     if isinstance(exc, (VultronValidationError, PydanticValidationError)):
         detail: dict[str, object] = {
