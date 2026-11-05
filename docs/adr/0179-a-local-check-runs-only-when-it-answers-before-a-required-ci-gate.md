@@ -22,10 +22,11 @@ partially_supersedes:
 ## Context and Problem Statement
 
 [ADR-0126](0126-ci-is-the-full-suite-authority-after-the-first-push.md) kept one full local run of the unit and integration suites before a Pull Request's first push, so that an obviously broken branch stayed out of CI.
+[ADR-0138](0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md) kept a full local run after a conflict merge that touches shared test configuration.
 [ADR-0143](0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md) kept a full local run for a fix commit that touches shared test infrastructure.
 [ADR-0173](0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md) added a local mirror of every non-suite CI check before each push, and a local test run on a scratch merge of the branch with its base.
 
-All three rested on two premises.
+All four rested on two premises.
 The first was that CI was not an enforced gate: no ruleset required a green CI run before a merge, so a local run was the only check an agent could not skip.
 The second was that a local run cost little next to a CI round.
 
@@ -47,7 +48,7 @@ The question this record settles: once GitHub refuses a merge without a green CI
 - Never merge on red is non-negotiable. Only a check GitHub enforces may be left to CI alone.
 - A local check is worth its cost only when it answers before CI would. That is the test ADR-0126 and ADR-0173 already applied, with old numbers.
 - Parallel agents share one host. A heavy local run slows every other agent on it, and a CI run slows none of them.
-- A CI round still costs a push, a wait and a review of the fix. A cheap local check that finds the most frequent push failures in seconds keeps that saving.
+- A CI round still costs a push, a wait and a review of the fix. A cheap local check that finds the most frequent push failures in minutes, before CI would, keeps that saving.
 
 ## Considered Options
 
@@ -61,7 +62,7 @@ Chosen option: **run locally only the checks that answer before CI would, and le
 
 The rule is: a local pre-push check stays only when it answers before CI would, and a check is left to CI alone only when GitHub refuses a merge while that check is red or has not run.
 The rule takes effect for each check when GitHub starts to require it.
-Until then, the gates of ADR-0126, ADR-0143 and ADR-0173 stand.
+Until then, the gates of ADR-0126, ADR-0138, ADR-0143 and ADR-0173 stand.
 
 With the required CI gate in place, these checks run in CI only:
 
@@ -76,7 +77,7 @@ These checks stay local, before every push:
 - The targeted test set of the diff, including the tree-reading architecture and metadata checks.
 - The cheap mirror checks: generated-file sync, front matter, the decision-record index, spec lint, and Markdown lint on the changed files. These find the most frequent push failures in a few minutes.
 
-A Pull Request now meets the full suite for the first time in CI, so its first push opens it as a draft.
+With the required CI gate in place, a Pull Request meets the full suite for the first time in CI, so its first push opens it as a draft.
 It is marked ready for review once a CI run on its current head passes, so a failed first run keeps it a draft only until a fix passes.
 That first run does not count against the limit on CI rounds for fixes, because it is the full-suite run the local gate no longer makes.
 

@@ -3089,8 +3089,8 @@ groups:
           mypy.
         rationale: >-
           These checks find most type and style failures in seconds, before CI
-          would. mypy keeps a cache, so a run on a small change takes about
-          eight seconds.
+          would. mypy keeps a cache, so a run on a small change takes
+          seconds.
         verification: >-
           Inspection: the `run-linters` skill runs `ruff check`, `ruff format`
           and `mypy`.
@@ -3108,9 +3108,10 @@ groups:
           A check moved to CI that GitHub does not require can be merged past
           unseen.
         verification: >-
-          Inspection: each pull request that removes a check from a local gate
-          cites a ruleset on `main` that requires that check with no bypass
-          actors, such as `main-3 Require CI gate` (#5945).
+          Inspection: for each check a pull request removes from a local gate,
+          an active ruleset on `main` (`gh api repos/CERTCC/Vultron/rulesets`)
+          lists that check as a required status check, with no bypass actors,
+          such as `main-3 Require CI gate` (#5945).
 
   - id: PAD-19
     title: Epic Claim for an Epic Run
