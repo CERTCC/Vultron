@@ -35,6 +35,7 @@ supplies the probe session's ceiling with ``-o timeout=``.
 """
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -411,7 +412,13 @@ def _run_probe_session(
             timeout=session_ceiling,
         )
     except pytester.TimeoutExpired:
-        pytest.fail("a per-test timeout trip did not end the hanging test")
+        pytest.fail(
+            "the probe session outran its own"
+            f" {session_ceiling}s ceiling with args {extra_args!r}, so either a"
+            " per-test timeout trip did not end the hanging test or the"
+            " session never got that far — under -n, worker startup on a"
+            " loaded host is the other candidate"
+        )
 
 
 @pytest.mark.spec("TB-14-002", "TB-14-008", "TB-14-009")
@@ -613,7 +620,25 @@ class TestTheUnitCeilingIsLive:
         Read from ``pytest_timeout`` rather than from the ini, because the ini
         is what *should* apply; ``_get_item_settings`` is what does.  A missing
         plugin or an unread config both land as ``None`` here.
+
+        Skipped when the ceiling is overridden for the session.
+        ``pytest_timeout.get_env_settings`` prefers ``--timeout`` and then
+        ``PYTEST_TIMEOUT`` over the ini, so under the ``--timeout=0`` that
+        ``docs/reference/codebase/TESTING.md`` documents for diagnosing a
+        suite-level hang, the resolved value is honestly 0 and the ini is
+        honestly 30.  The canonical gate command passes neither, so the gate
+        still runs on every real session — but a diagnostic switch must not
+        turn into a spurious red.
         """
+        override = pytestconfig.getvalue("timeout")
+        if override is not None or os.environ.get("PYTEST_TIMEOUT"):
+            pytest.skip(
+                "the per-test ceiling is overridden for this session"
+                f" (--timeout={override!r},"
+                f" PYTEST_TIMEOUT={os.environ.get('PYTEST_TIMEOUT')!r}), so"
+                " the configured value is not what applies"
+            )
+
         assert pytestconfig.inipath is not None, (
             "pytest loaded no configuration file, so"
             " [tool.pytest.ini_options] — the per-test ceiling included — is"

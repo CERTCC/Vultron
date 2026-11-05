@@ -1,7 +1,7 @@
 ---
 title: "No requirement makes every xfail strict, though three places state the doctrine and a new ratchet now enforces it"
 type: learning
-timestamp: "2026-11-05T21:30:00Z"
+timestamp: "2026-11-05T18:32:07Z"
 source: ISSUE-3934
 signal: spec-gap
 ---
@@ -45,3 +45,24 @@ Note the generalisation is not obviously safe in perpetuity: a genuinely
 platform-conditional `xfail`, or one with `raises=`, could want laxity. The
 ratchet's `_NON_STRICT_XFAIL_EXEMPT` is the hatch, and it is empty today —
 which is evidence for the broader rule, not proof of it.
+
+## Resolved in the same PR's review (2026-11-05)
+
+The corpus carries the broader rule: **TB-17-001** (`specs/testability.yaml`,
+group TB-17 "Strict Goal Markers"), a `MUST` with a `verification:` naming
+`test_every_xfail_is_strict`, which now carries a matching
+`@pytest.mark.spec("TB-17-001")` and cites the ID in its docstring. The
+exemption-set hatch is normative in the statement as the one exception, so a
+future laxity case has a recorded route rather than an unexplained marker. The
+hatch was renamed `_NON_STRICT_XFAIL_EXEMPTIONS` in the same review, because
+`test_ratchet_baselines_name_an_owner.py` matches `_EXEMPTIONS` and not
+`_EXEMPT`, so under the old name a filled hatch would have escaped the
+ARCH-18-003 owner gate — the same inert-gate shape the PR is about.
+
+Routing: not `notes/` and not an ADR. The `specs/AGENTS.md` "would another
+implementation notice?" gate reads as if an internal convention belongs in
+`AGENTS.md`, but the whole TB topic is internal test convention — TB-13-003
+forbids a bare `ast.parse()` under `test/architecture/`, TB-14 sets the timeout
+tiers, and TB-16 was added by PR #5889's review for this same situation — so TB
+is the established home and precedent governs. No ADR, because no alternative
+was seriously weighed (MS-11-005).

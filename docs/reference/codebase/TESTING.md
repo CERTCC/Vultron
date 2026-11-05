@@ -90,7 +90,7 @@ timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&
     `--max-worker-restart=0` in `addopts` fails the run when an xdist worker dies, instead of hanging it.
     Run with `--timeout=0` to disable when diagnosing suite-level hangs.
     `TestTheUnitCeilingIsLive` in `test/test_integration_timeout_tier.py` pins that the tier is actually applied, because the ceiling lives in `pyproject.toml` and a probe run from outside the repo tree gets no `configfile` and so no ceiling at all (#5597).
-  - Every `xfail` under `test/` must be `strict=True`; `test_every_xfail_is_strict` in `test/architecture/test_ratchet_hygiene.py` fails otherwise.
+  - Every `xfail` under `test/` must be `strict=True` (TB-17-001); `test_every_xfail_is_strict` in `test/architecture/test_ratchet_hygiene.py` fails otherwise, and a bare `@pytest.mark.xfail` counts as non-strict.
     A non-strict goal xfail keeps passing after the work lands, so the marker outlives its defect and the assertion it guards silently stops being checked.
   - `caplog` captures log records emitted during fixture setup, not just the test body; set `caplog.set_level()` inside the test, not in a fixture.
   - Test-only TODO: `test/core/use_cases/test_reporting_workflow.py:116` asks whether dispatcher routing to the right handler should be tested there.

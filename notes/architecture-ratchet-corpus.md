@@ -50,14 +50,18 @@ does not offer, extend the corpus rather than reaching for a spelling the
 hygiene check does not pattern-match: the rule is about one cache, not the
 literal substring.
 
-**Every `xfail` is strict.** `test_every_xfail_is_strict` fails on any `xfail`
-under `test/` that omits or disables `strict`, generalising ARCH-21-008 from a
+**Every `xfail` is strict.** TB-17-001 is the rule and
+`test_every_xfail_is_strict` is its check: it fails on any `xfail` under
+`test/` that omits or disables `strict`, generalising ARCH-21-008 from a
 backlog's companion goal test to every marker. A non-strict goal xfail keeps
 passing after the work lands, so the marker outlives its defect and the
 assertion it guards stops being checked — the gate goes inert (#3934). A
-genuine exception goes in `_NON_STRICT_XFAIL_EXEMPT` with its reason. The
-matcher keys on the marker call, so it covers a `pytest.param(marks=…)` entry
-and loses no subjects to a rename (#5535).
+genuine exception goes in `_NON_STRICT_XFAIL_EXEMPTIONS` with its reason — a
+pinned exemption set, named `_EXEMPTIONS` so that a later entry is a baseline
+`test_ratchet_baselines_name_an_owner.py` can see. The matcher keys on the
+marker, so it covers a `pytest.param(marks=…)` entry, loses no subjects to a
+rename (#5535), and counts a bare `@pytest.mark.xfail` as lax, that being the
+laxest spelling of all and the one a call-keyed matcher misses.
 
 ## The Markdown Tier
 

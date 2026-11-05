@@ -283,11 +283,15 @@ def test_scan_actually_reaches_core_modules():
 # today, so the terminal value is reached (ARCH-18-005) and there is no
 # baseline to carry.
 #
-# Loose reading: it can **invent** a violation, and cannot miss one.  Every
-# occurrence counts, a docstring included, so core prose that quotes the URI
-# rather than naming the constant trips it.  That is the intended answer —
-# name ``ACTIVITY_STREAMS_NS``, or say "the ActivityStreams namespace" as
-# ``core_object.py`` and ``context.py`` already do.
+# Loose reading: it can **invent** a violation, and it can **miss** one.  It
+# invents because every occurrence counts, a docstring included, so core prose
+# that quotes the URI rather than naming the constant trips it.  That is the
+# intended answer — name ``ACTIVITY_STREAMS_NS``, or say "the ActivityStreams
+# namespace" as ``core_object.py`` and ``context.py`` already do.  It misses
+# any spelling the source text does not hold verbatim: an ``http://`` scheme, a
+# literal split across two adjacent strings, or a URI assembled in an f-string.
+# A plain substring scan is the right trade here — the mistake it exists to
+# catch is a paste, and a paste is verbatim.
 
 
 def test_core_does_not_reference_the_as2_namespace():

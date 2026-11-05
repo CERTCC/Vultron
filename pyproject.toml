@@ -362,6 +362,14 @@ filterwarnings = [
     "always::vultron.metadata.specs.UnknownSpecIdWarning",
     "always::vultron.metadata.specs.SpecRegistryUnavailableWarning",
 ]
+# An `xfail` that omits `strict` is strict anyway (TB-17-001).  This is the
+# run-time half of the rule `test_every_xfail_is_strict` enforces over the
+# source: the ratchet reads names, so an indirection it cannot see — a bare
+# `@pytest.mark.xfail`, an aliased marker, `getattr(pytest.mark, "xfail")` —
+# would otherwise stay lax.  Provably inert today: all 92 marker sites in the
+# tree write `strict=True` explicitly and nothing adds an xfail marker
+# dynamically, so this changes no current outcome and only closes the hole.
+xfail_strict = true
 markers = [
     "integration: marks tests as integration tests (exercise the full HTTP stack; deselected by default)",
     "spec(*spec_ids): mark test as verifying one or more spec requirement IDs",

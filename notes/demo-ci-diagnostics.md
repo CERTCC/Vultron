@@ -6,15 +6,18 @@ description: >
   Runbook for a failed Demo Integration CI run: the three log layers, the
   per-invariant diagnostic map (ratcheted against the invariant factory), the
   local Docker reproduction, CI artifacts (one set per run attempt), telling a
-  post-demo hang from a demo timeout, and the causal-versus-temporal wait test
-  for demo timeouts.
+  post-demo hang from a demo timeout, the causal-versus-temporal wait test
+  for demo timeouts, and writing a new invariant xfail strict and as narrow as
+  its defect.
 related_specs:
+  - specs/testability.yaml
   - specs/demo-ci.yaml
   - specs/case-ledger-processing.yaml
   - specs/multi-actor-demo.yaml
   - specs/case-management.yaml
   - specs/event-driven-control-flow.yaml
 related_notes:
+  - notes/architecture-ratchet-corpus.md
   - notes/demo-ci-invariants.md
   - notes/demo-ci-scenario-coverage.md
   - notes/case-ledger-authority.md
@@ -131,11 +134,12 @@ aggregates several properties silences all of them, so the silence would not
 lift one property at a time as each defect is fixed. That is why the four
 `per_actor_replica_*` checks are separate tests (ISSUE-3385).
 
-**Write it `strict=True`.** The run then fails the moment the check starts
-passing, which is what tells you to remove the marker; under `strict=False` the
-`XPASS` is green and the marker outlives its defect (#3934).
+**Write it `strict=True`** (TB-17-001). The run then fails the moment the check
+starts passing, which is what tells you to remove the marker; under
+`strict=False` the `XPASS` is green and the marker outlives its defect (#3934).
 `test_every_xfail_is_strict` in `test/architecture/test_ratchet_hygiene.py`
-enforces this, and `test/ci/README-case-log-ratchet.md` has the promotion steps.
+enforces this over the source and `xfail_strict = true` enforces it at run
+time, and `test/ci/README-case-log-ratchet.md` has the promotion steps.
 
 ### Reading individual invariants
 
