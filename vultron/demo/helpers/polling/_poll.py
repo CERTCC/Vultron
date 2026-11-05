@@ -49,9 +49,11 @@ REPLICA_PARTICIPANT_TIMEOUT: float = 10.0
 # applies it (ADR-0058).  The longest wait on that chain is embargo teardown
 # at publication, measured at 1.92–4.73 s over 13 samples from 7 main-push
 # Demo Integration runs on 2026-11-04/05, in both extension scenarios; 30 s
-# is a 6.3x margin on the worst of those.  Sized from that measurement and
-# not widened on report: the single flake behind #1978 was bracketed by
-# passing runs of the same scenario, so there was nothing to widen for.
+# is a 6.3x margin on the worst of those.  That band is a sample, not a
+# ceiling: a 38-job sweep of the same window, scenarios and event reached
+# 4.76 s, which is still 6.3x.  Sized from that measurement and not widened
+# on report: the single flake behind #1978 was bracketed by passing runs of
+# the same scenario, so there was nothing to widen for.
 EM_TRANSITION_TIMEOUT: float = 30.0
 # 30 s: contiguous ledger-coverage budget for a replica that has been receiving
 # Announce(CaseLedgerEntry) as each entry was committed. 15 s fired at 0/29
