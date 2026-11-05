@@ -104,6 +104,18 @@ def ledger_position_case_ids(activity: as_Activity) -> Iterator[str]:
         return
     if object_states_its_own_position(activity):
         return
+    yield from named_case_ids(activity)
+
+
+def named_case_ids(activity: as_Activity) -> Iterator[str]:
+    """Every case *activity* may name, in the order to try them.
+
+    The slots :func:`_named_cases` lists, then those of the activity it
+    answers (an ``Accept`` or ``Reject`` carries the activity inline), each
+    reduced to the case URI it names (:func:`case_uri_of`), once each.  A
+    value that names something other than a case is yielded too; the
+    caller skips it because its store holds no case under that id.
+    """
     sources = _named_cases(activity)
     obj = getattr(activity, "object_", None)
     if isinstance(obj, as_Activity):
@@ -135,6 +147,7 @@ def stamp_ledger_position(
 
 __all__ = [
     "ledger_position_case_ids",
+    "named_case_ids",
     "object_states_its_own_position",
     "stamp_ledger_position",
 ]

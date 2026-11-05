@@ -27,6 +27,7 @@ from pydantic import (
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.sender_sequence import SenderSequence
 from vultron.wire.as2.enums import as_ObjectType as O_type
 from vultron.wire.as2.vocab.base.base import VULTRON_PROPERTY_EXTRA
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
@@ -90,6 +91,20 @@ class as_Activity(as_Object):
         default=None,
         validation_alias="ledgerPosition",
         serialization_alias="ledgerPosition",
+        json_schema_extra=VULTRON_PROPERTY_EXTRA,
+    )
+
+    # SYNC-21-001 (ADR-0178): a participant numbers each case activity it
+    # sends the CASE_MANAGER that states a ``ledgerPosition``, except a
+    # ``Read`` or ``Reject`` of a ledger entry, with the Vultron property
+    # ``senderSequence``: 1 for its first on the case, one more after that.
+    # Declared on the base for the reason ``ledger_position`` is, so every
+    # inbound activity keeps it through the parse (MV-11-003).  Set only by
+    # ``vultron.wire.as2.factories`` (SYNC-21-004).
+    sender_sequence: SenderSequence | None = Field(
+        default=None,
+        validation_alias="senderSequence",
+        serialization_alias="senderSequence",
         json_schema_extra=VULTRON_PROPERTY_EXTRA,
     )
 

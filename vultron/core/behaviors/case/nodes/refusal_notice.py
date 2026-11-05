@@ -21,7 +21,9 @@ had no effect.  :class:`EmitRefusalNoticeNode` tells it: one ``Reject`` of the
 refused activity, inline, threaded by ``inReplyTo``, addressed to the asserter
 alone and carrying the refusing guard's reason in ``summary`` (CLP-02-005,
 CLP-05-001).  :class:`ClearRefusedAssertionNode` is the participant's side:
-it closes the pending assertion the notice answers (CLP-06-006).
+it closes the pending assertion the notice answers (CLP-06-006), and
+:class:`ResumeOutboundSequenceNode` moves its sender sequence up to the number
+a notice names (SYNC-21-007).
 
 The node is a refusal effect, and the factory adds it itself:
 :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
@@ -72,6 +74,7 @@ from vultron.core.models.pending_assertion import (
     get_pending_assertion_store,
 )
 from vultron.core.services.received_activity import held_received_body
+from vultron.core.sync_helpers import resume_sender_sequence_at
 from vultron.errors import VultronWiringError
 from vultron.primitives import NonEmptyString
 
@@ -81,6 +84,7 @@ __all__ = [
     "OWNER_CLOSE_DECLINE",
     "REFUSAL_NOTICE_EXEMPTIONS",
     "RefusalNoticeExemption",
+    "ResumeOutboundSequenceNode",
     "refusal_effects_with_notice",
     "refusal_notice",
 ]
@@ -312,4 +316,63 @@ class ClearRefusedAssertionNode(DataLayerActionWithPorts):
             self.reason or "no reason given",
             len(self.cleared),
         )
+        return Status.SUCCESS
+
+
+class ResumeOutboundSequenceNode(DataLayerActionWithPorts):
+    """Resume the sender sequence at the number a refusal notice names.
+
+    A CASE_MANAGER that refuses an activity for its ``senderSequence`` names
+    the number it expects next as ``expectedSenderSequence`` (SYNC-21-015).
+    Runs at the participant, after the sender guard established that the
+    notice came from the case's CASE_MANAGER (HP-01-006), and moves this
+    actor's counter for the case so its next activity is numbered no lower
+    (SYNC-21-007).  It never moves the counter down, re-sends nothing and
+    writes no case state (CLP-05-008): asserting the refused content again
+    is the participant's own later act (SYNC-21-019).
+
+    The counter is this actor's own bookkeeping (SYNC-21-020), not case
+    state, so the node is not a state writer.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        expected: int,
+        sender_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.expected = expected
+        self.sender_id = sender_id
+        self.moved = False
+        """Whether the last run moved the counter."""
+
+    def update(self) -> Status:
+        self.moved = False
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.actor_id is not None
+        assert self.datalayer is not None
+        self.moved = resume_sender_sequence_at(
+            self.datalayer, self.case_id, self.actor_id, self.expected
+        )
+        if self.moved:
+            self.logger.info(
+                "Actor '%s' resumes its sender sequence for case '%s' at %d,"
+                " as CASE_MANAGER '%s' expects (SYNC-21-007)",
+                self.actor_id,
+                self.case_id,
+                self.expected,
+                self.sender_id,
+            )
+        else:
+            self.logger.debug(
+                "Actor '%s' is already at or past sender sequence %d for"
+                " case '%s' (SYNC-21-007)",
+                self.actor_id,
+                self.expected,
+                self.case_id,
+            )
         return Status.SUCCESS

@@ -99,6 +99,10 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "report_id": f"{_URI}/report",
         "offer_actor_id": _URI,
     },
+    "SenderSequenceCounter": {
+        "case_id": f"{_URI}/case",
+        "sender_id": f"{_URI}/sender",
+    },
     "VultronPendingCaseInbox": {"case_id": f"{_URI}/case"},
     "VultronReplicationState": {
         "case_id": f"{_URI}/case",
