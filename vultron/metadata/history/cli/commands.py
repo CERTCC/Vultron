@@ -10,6 +10,7 @@ from typing import NoReturn
 
 from vultron.metadata.history.cli.entry import (
     _build_content,
+    _check_body_has_no_frontmatter,
     _check_timestamp_not_future,
     _parse_iso_datetime,
     _validate_frontmatter,
@@ -257,6 +258,12 @@ def _handle_normal_mode(args: argparse.Namespace) -> None:
 
     entry_type = _parse_entry_type(args.entry_type)
     body = _read_body(args.file)
+    # Refuse a body that opens with a YAML mapping frontmatter block before
+    # building content, posting any comment, or writing any file (HM-07-002).
+    try:
+        _check_body_has_no_frontmatter(body)
+    except ValueError as exc:
+        _fail(str(exc))
     timestamp = _parse_timestamp(args.timestamp)
     signal = _parse_signal(args.signal, entry_type)
 

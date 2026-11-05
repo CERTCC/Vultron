@@ -1297,6 +1297,103 @@ class TestGitHubCommentMode:
         assert not mock_run.called
 
 
+@pytest.mark.spec("HM-07-002")
+class TestBodyFrontmatterRejection:
+    """HM-07-002: stdin and --file mode refuse body that opens with frontmatter.
+
+    --from-file mode moves a complete pre-formatted entry and is exempt.
+    """
+
+    _FM_BODY = (
+        "---\n"
+        "title: Hand-written title\n"
+        "type: idea\n"
+        "timestamp: '2026-06-22T10:00:00+00:00'\n"
+        "source: IDEA-26062201\n"
+        "---\n\n"
+        "Body text.\n"
+    )
+
+    def test_stdin_with_frontmatter_exits_nonzero(
+        self, fake_repo: Path
+    ) -> None:
+        """stdin body that opens with a YAML mapping block is refused (HM-07-002)."""
+        result = _run_append(
+            "idea",
+            body=self._FM_BODY,
+            title="T",
+            source="IDEA-26110001",
+            cwd=fake_repo,
+        )
+        assert result.returncode != 0
+
+    def test_stdin_with_frontmatter_names_hm_07_002(
+        self, fake_repo: Path
+    ) -> None:
+        """Error message cites HM-07-002 so the caller knows the rule."""
+        result = _run_append(
+            "idea",
+            body=self._FM_BODY,
+            title="T",
+            source="IDEA-26110001",
+            cwd=fake_repo,
+        )
+        assert "HM-07-002" in result.stderr
+
+    def test_file_mode_with_frontmatter_exits_nonzero(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        """--file body that opens with a YAML mapping block is refused (HM-07-002)."""
+        body_file = tmp_path / "body-with-fm.md"
+        body_file.write_text(self._FM_BODY)
+        result = _run_append(
+            "idea",
+            body="",
+            title="T",
+            source="IDEA-26110002",
+            extra_args=["--file", str(body_file)],
+            cwd=fake_repo,
+        )
+        assert result.returncode != 0
+
+    def test_file_mode_with_frontmatter_names_hm_07_002(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        """--file error message cites HM-07-002."""
+        body_file = tmp_path / "body-with-fm.md"
+        body_file.write_text(self._FM_BODY)
+        result = _run_append(
+            "idea",
+            body="",
+            title="T",
+            source="IDEA-26110002",
+            extra_args=["--file", str(body_file)],
+            cwd=fake_repo,
+        )
+        assert "HM-07-002" in result.stderr
+
+    def test_body_without_frontmatter_is_accepted(
+        self, fake_repo: Path
+    ) -> None:
+        """A plain body (no --- block) still succeeds (regression guard)."""
+        result = _run_append(
+            "idea",
+            body=_IDEA_BODY,
+            title="T",
+            source="IDEA-26110003",
+            cwd=fake_repo,
+        )
+        assert result.returncode == 0
+
+    def test_from_file_mode_with_frontmatter_unchanged(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        """--from-file is exempt: it moves a complete pre-formatted entry."""
+        src = _make_incoming_file(tmp_path, content=_LEARNING_CONTENT)
+        result = _run_from_file(src)
+        assert result.returncode == 0, result.stderr
+
+
 @pytest.mark.spec("HM-01-011")
 def test_monthly_readme_is_gitignored() -> None:
     """Git ignores every monthly index, so none can be committed (HM-01-011)."""

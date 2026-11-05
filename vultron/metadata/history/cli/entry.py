@@ -27,6 +27,38 @@ from vultron.metadata.history.types import (
 _UTC = datetime.UTC
 
 
+def _check_body_has_no_frontmatter(body: str) -> None:
+    """Raise ValueError if *body* opens with a YAML mapping frontmatter block.
+
+    In stdin or ``--file`` mode the caller supplies body text only; the tool
+    builds frontmatter from ``--title`` and ``--source`` (HM-07-005).
+    A body whose first non-blank content is a ``---``-delimited YAML mapping
+    violates HM-07-002.
+
+    ``--from-file`` mode is exempt: that path calls :func:`_validate_frontmatter`,
+    which *requires* a mapping block.
+
+    Args:
+        body: Raw body text from stdin or ``--file``.
+
+    Raises:
+        ValueError: If *body* contains a YAML mapping frontmatter block
+            (HM-07-002).
+    """
+    try:
+        post = loads_frontmatter(body)
+    except MetadataLoadError:
+        # The ``---`` block exists but is not a YAML mapping (e.g. a list).
+        # That is not a frontmatter mapping; let the normal build proceed.
+        return
+    if post.metadata:
+        raise ValueError(
+            "body must not include a YAML frontmatter block (HM-07-002): "
+            "append-history builds frontmatter from --title and --source; "
+            "supply only the body text"
+        )
+
+
 def _validate_frontmatter(content: str) -> HistoryEntryFrontmatter:
     """Parse and validate YAML frontmatter from *content*.
 
