@@ -13,15 +13,22 @@ description: >
   measuring effective markers rather than declarations,
   `filterwarnings` precedence, `nproc` in a worktree slot, `xdist_group` for
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
-  blackboard isolation, py_trees test patterns, CoreObject subclass isolation,
+  blackboard isolation, why a status fixture may not encode a state the CS
+  invariants forbid and where the guard for that reaches,
+  py_trees test patterns, CoreObject subclass isolation,
   assertion-quality traps (vacuous asserts, "falls back to" tests, bare
   MagicMock), driving a guard through its production entry point rather than by
-  direct call, why turning nesting into sequence moves the skip nobody tests,
+  direct call, the three future-date idioms a sweep must tell apart before
+  replacing a literal, why turning nesting into sequence moves the skip nobody
+  tests,
   test layout rules for module splits, why a two-sided count pin
   races concurrent PRs (keep a per-item record and a PR-only growth guard
   instead), why a schema change that the merge base fails breaks every growth
-  guard, when to delete a migration check, and why a child Python process
-  must get its environment from `child_env()`.
+  guard, when to delete a migration check, why a child Python process
+  must get its environment from `child_env()`, why a test that spawns children
+  sizes its fan-out from the cgroup rather than the host's cores, and why a
+  harness that fails for the environment — a filesystem that refuses the
+  fixture, a bash the construct needs — hides real failures.
   `test/AGENTS.md` keeps the short index and the rules you need on every run.
 related_specs:
   - specs/testability.yaml
@@ -31,6 +38,7 @@ related_specs:
   - specs/handler-protocol.yaml
   - specs/outbox.yaml
   - specs/case-ledger-processing.yaml
+  - specs/cs-behavior.yaml
 related_notes:
   - notes/flaky-tests.md
   - notes/configuration.md
@@ -271,6 +279,39 @@ that dead-letters a row.
 
 ## Fixture and Store Isolation
 
+### A Status Fixture May Not Encode a State the CS Invariants Forbid
+
+A participant status pairing a pre-acceptance RM state with the VFD F bit —
+`rm=VALID` with `vf=VF`, say — is a state CSB-18-001 says cannot exist, and a
+test standing on one passes for a reason other than the behaviour it names.
+When the matching invariant is finally enforced every such test breaks at once,
+so a real enforcement improvement reads as a regression (#2906, #3046). The
+same holds for `d=D` against a pre-acceptance RM, and for `Vf` with `d=D`, the
+`*fD*` compound CSB-17-001 rules out.
+
+`test/core/behaviors/status/conftest.py` installs an autouse guard that calls
+`composite_state_violations` on every participant record a test in that package
+writes to a store, and the shared `current_status()` and `seed_case()` builders
+in `test/support/rm_declaration.py` check the fixture they build. **Outside
+`test/core/behaviors/status/` there is no guard**: a status fixture under
+`sync/`, `report/` or `test/core/use_cases/` is the author's to get right. Ask
+`impossible_state_reasons()` (`test/support/participant_status.py`) before
+seeding one.
+
+Two properties of the guard's design are worth keeping if it moves:
+
+- It keys on the evaluator and on the DataLayer write, never on a fixture
+  builder's name, so a renamed or hand-rolled builder cannot slip past
+  (#5535). `save_many` takes a list and `UpdateObject` writes a
+  `StorableRecord` whose statuses are plain dicts, so both shapes are walked.
+- A BT node's `except Exception`, or the bridge's own handler, turns the
+  guard's raise into `Status.FAILURE` or an `internal_error` result, so the
+  raise alone does not report a tree write. Each violation is recorded as well,
+  and the installing fixture fails the test on a non-empty record.
+
+The inbound status under judgement is deliberately *not* checked: several
+received-side tests exist to show an impossible one refused.
+
 ### Delete `devlogs/` Before Running the Invariant Harness Locally
 
 `test/demo/test_rv_demo.py` runs the demo in-process and writes real ledger files
@@ -311,6 +352,47 @@ the script's directory, so the other checkout's `vultron` wins and a module it
 lacks fails to import (#5456). A devcontainer built before #5571 exports
 `PYTHONPATH=/app` ([devcontainer-tooling](devcontainer-tooling.md) § "The Image
 Exports No `PYTHONPATH`; Rebuild if `$PYTHONPATH` Is `/app`").
+
+### A Test That Spawns Children Sizes Them From The Cgroup, Not The Host
+
+A test that runs several child processes at once MUST take its fan-out from
+`child_process_budget()` (`test/support/xdist_workers.py`), not from
+`os.cpu_count()`. The budget is the memory one xdist worker is given
+(`WORKER_MEMORY_BYTES / CHILD_MEMORY_BYTES`), capped by `worker_count()` — the
+same cgroup reading `-n auto` is sized from (§ "`nproc` in a Worktree Slot").
+Sizing from the core count puts as many children in the container as the *host*
+has cores however little of it the slot allows, beside workers already sized to
+the slot; the OOM killer then takes a worker, which xdist reports as a crash of
+whatever test that worker happened to hold (#5184).
+
+A per-test `xdist_group` is not the lever here: it co-locates tests on one
+worker, it does not stop the other workers spending the container at the same
+time. When the symptom is a wall-clock trip rather than a crash, look for a
+*serial* bottleneck inside the test before widening its ceiling — one
+brand-new interpreter at a time cost `test_every_module_imports_fresh.py` 88 of
+its 110 seconds, and batching that route under the same bound took the whole
+test to 47s.
+
+### A Harness That Fails For The Environment Hides Real Failures
+
+A gate that is red for a reason the diff cannot cause trains a contributor to
+read past red, so the next real failure is read past too. Two shapes of it:
+
+- **A fixture the filesystem refuses.** Attempt the write and `pytest.skip` on
+  `OSError`; do not skip on `sys.platform`. APFS rejects a file name that is
+  not valid UTF-8, so `test_changed_files_keeps_a_non_utf8_name` errored in
+  setup on macOS (#5449). The property under test belongs to the filesystem, so
+  the refusal is the condition: a Linux host on a UTF-8-enforcing mount skips
+  for the same reason, and a filesystem that later accepts the name is still
+  covered. Exercise the skip arm with a refusal every host raises (a missing
+  parent directory), or CI never runs it.
+- **A shell construct the host's bash lacks.** macOS ships bash 3.2, so a
+  bash 4 builtin exits 127 there while passing on the Linux runners —
+  `ensure-issue-type.sh` used `mapfile` and failed three `test/ci/` tests
+  (#5698). `test/ci/test_shell_script_portability.py` scans every tracked
+  `*.sh` for the constructs that have bitten;
+  [ci-workflow-authoring](ci-workflow-authoring.md) § "A Script Runs On The
+  Host's bash, Which May Be 3.2" carries the portable spellings.
 
 ### Store Scoping
 
@@ -443,6 +525,18 @@ The production half is structural and checked.
 nothing under `vultron/` references, and on a parameter whose presence opens a
 refusal that no call site supplies. A caller alone is not enough: the witness
 had one, and it never passed the argument the check needed.
+
+### A Future Date Is Three Idioms — Decide Which One Before Replacing It
+
+A test that names a future date is asking one of three questions, and a sweep
+that swaps the literals without sorting them turns an assertion green for the
+wrong reason. `FAR_FUTURE` from `test/support/future_dates.py` answers only the
+first — "some date plausibly ahead, expected to be accepted". An absolute
+`datetime(2099, ...)` usually means "implausibly far ahead, expected to be
+**refused**", and substituting a relative value can land it inside the very
+tolerance under test; a pinned instant means the value *is* the assertion. That
+module's docstring holds the rule, the witnesses, and why `FAR_FUTURE`
+truncates its microseconds (#2879).
 
 ### A Test That Says "Falls Back To" for Malformed Input Is Asserting a Bug
 

@@ -562,8 +562,7 @@ class TestOwnerDirectInviteAtCaseManager:
     _CASE_ID = "https://example.org/cases/owner-direct-invite-case"
 
     def _setup_dl(self, seed_case_manager, with_active_embargo=False):
-        from datetime import UTC, datetime
-
+        from test.support.future_dates import FAR_FUTURE
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.enums.roles import CVDRole
@@ -592,7 +591,7 @@ class TestOwnerDirectInviteAtCaseManager:
             embargo = as_EmbargoEvent(
                 id_=f"{case.id_}/embargo/e1",
                 content="Active embargo",
-                end_time=datetime(2030, 1, 1, tzinfo=UTC),
+                end_time=FAR_FUTURE,
                 context=case.id_,
             )
             dl.create(embargo)

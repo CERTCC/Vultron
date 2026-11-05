@@ -10241,7 +10241,12 @@ groups:
       `test/core/use_cases/received/test_embargo_ending_notices.py` asserts a stale
       `Remove` changes nothing and attempts no activation;
       `test_paused_replica_ends_a_longer_revision_it_was_not_told_of` in the same
-      file asserts a `Remove` of a longer revision ends it.
+      file asserts a `Remove` of a longer revision ends it;
+      `test_paused_replica_ends_an_expired_revision_it_has_not_activated` there
+      asserts an `END_TIME_REACHED` `Remove` of an expired revision ends it as an
+      `EARLY` one does, judged by the revision's own end time, and
+      `test_paused_replica_refuses_an_early_expiry_remove_of_a_revision` that one
+      claimed before that end time is refused.
     relationships:
     - rel_type: refines
       spec_id: CM-31-010

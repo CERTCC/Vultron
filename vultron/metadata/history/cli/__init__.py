@@ -33,6 +33,13 @@ Normal mode (``<type>`` required):
 4. Deletes the source file from ``plan/incoming/``.
 5. Prints the written file path to stdout.
 
+An ``implementation`` or ``idea`` entry takes a fixed ``--source``
+vocabulary (``source``): ``ISSUE-N`` is posted as a comment on CERTCC/Vultron
+issue N, which must exist and not be a pull request, and the comment URL is
+printed (HM-08-001, HM-08-002, HM-08-009); ``ISSUE-N-<slug>``
+(implementation) and ``IDEA-YYMMDDNN`` (idea) write a file (HM-08-003); any
+other source is refused (HM-08-008).
+
 ``--from-file`` is mutually exclusive with ``<type>``, ``--title``,
 ``--source``, ``--file``, and ``--timestamp``.
 
@@ -40,7 +47,8 @@ See ``specs/history-management.yaml`` HM-03, HM-06, HM-07.
 See ``specs/build-workflow.yaml`` BW-01 for the incoming-learnings queue.
 
 Submodules, by concern: ``entry`` (building, validating and writing an
-entry file), ``github`` (the optional GitHub issue comment) and ``commands``
+entry file), ``source`` (the implementation and idea source vocabulary),
+``github`` (the optional GitHub issue comment) and ``commands``
 (the argument parser and the two input modes).
 """
 

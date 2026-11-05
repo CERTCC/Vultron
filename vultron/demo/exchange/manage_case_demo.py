@@ -141,7 +141,8 @@ def demo_engage_path(
     logger.info("DEMO 1: Engage Path (submit → validate → engage → close)")
     logger.info("=" * 80)
 
-    case = None
+    # Steps 3 and 4 act on the case the setup step created, so they nest
+    # inside it rather than reading a None sentinel after it (ADR-0058, #3038).
     with demo_step(
         "Steps 1–2: Submit report, validate, create case with vendor "
         "participant"
@@ -168,17 +169,19 @@ def demo_engage_path(
                     f"Report '{report.id_}' not linked to case after setup"
                 )
 
-    with demo_step("Step 3: Vendor engages the case (RmEngageCaseActivity)"):
-        engage = rm_engage_case_activity(case.id_, actor=vendor.id_)
-        post_to_inbox_and_wait(client, vendor.id_, engage)
-        with demo_check("RmEngageCaseActivity activity stored"):
-            verify_received_activity_stored(client, engage.id_)
+        with demo_step(
+            "Step 3: Vendor engages the case (RmEngageCaseActivity)"
+        ):
+            engage = rm_engage_case_activity(case.id_, actor=vendor.id_)
+            post_to_inbox_and_wait(client, vendor.id_, engage)
+            with demo_check("RmEngageCaseActivity activity stored"):
+                verify_received_activity_stored(client, engage.id_)
 
-    with demo_step("Step 4: Vendor closes the case (RmCloseCaseActivity)"):
-        close = rm_close_case_activity(case.id_, actor=vendor.id_)
-        post_to_inbox_and_wait(client, vendor.id_, close)
-        with demo_check("RmCloseCaseActivity activity stored"):
-            verify_received_activity_stored(client, close.id_)
+        with demo_step("Step 4: Vendor closes the case (RmCloseCaseActivity)"):
+            close = rm_close_case_activity(case.id_, actor=vendor.id_)
+            post_to_inbox_and_wait(client, vendor.id_, close)
+            with demo_check("RmCloseCaseActivity activity stored"):
+                verify_received_activity_stored(client, close.id_)
 
     logger.info("✅ DEMO 1 COMPLETE: Case engaged then closed.")
 
@@ -211,7 +214,8 @@ def demo_defer_reengage_path(
     )
     logger.info("=" * 80)
 
-    case = None
+    # Steps 3 to 5 act on the case the setup step created, so they nest inside
+    # it rather than reading a None sentinel after it (ADR-0058, #3038).
     with demo_step(
         "Steps 1–2: Submit report, validate, create case with vendor "
         "participant"
@@ -231,31 +235,35 @@ def demo_defer_reengage_path(
         with demo_check("Case created and report linked"):
             log_case_state(client, case.id_, "after setup")
 
-    with demo_step("Step 3: Vendor defers the case (RmDeferCaseActivity)"):
-        defer = rm_defer_case_activity(case.id_, actor=vendor.id_)
-        post_to_inbox_and_wait(client, vendor.id_, defer)
-        with demo_check("RmDeferCaseActivity activity stored"):
-            verify_received_activity_stored(client, defer.id_)
-        logger.info("Case is now deferred (RM → DEFERRED).")
+        with demo_step("Step 3: Vendor defers the case (RmDeferCaseActivity)"):
+            defer = rm_defer_case_activity(case.id_, actor=vendor.id_)
+            post_to_inbox_and_wait(client, vendor.id_, defer)
+            with demo_check("RmDeferCaseActivity activity stored"):
+                verify_received_activity_stored(client, defer.id_)
+            logger.info("Case is now deferred (RM → DEFERRED).")
 
-    with demo_step(
-        "Step 4: Vendor re-engages the case (RmEngageCaseActivity from DEFERRED)"
-    ):
-        reengage = rm_engage_case_activity(case.id_, actor=vendor.id_)
-        post_to_inbox_and_wait(client, vendor.id_, reengage)
-        with demo_check("RmEngageCaseActivity (re-engage) activity stored"):
-            verify_received_activity_stored(client, reengage.id_)
-        logger.info(
-            "Case re-engaged via RmEngageCaseActivity (RM → ACCEPTED). "
-            "Note: re-engagement uses the same RmEngageCaseActivity activity as initial "
-            "engagement; there is no separate RmReEngageCase activity."
-        )
+        with demo_step(
+            "Step 4: Vendor re-engages the case (RmEngageCaseActivity from"
+            " DEFERRED)"
+        ):
+            reengage = rm_engage_case_activity(case.id_, actor=vendor.id_)
+            post_to_inbox_and_wait(client, vendor.id_, reengage)
+            with demo_check(
+                "RmEngageCaseActivity (re-engage) activity stored"
+            ):
+                verify_received_activity_stored(client, reengage.id_)
+            logger.info(
+                "Case re-engaged via RmEngageCaseActivity (RM → ACCEPTED). "
+                "Note: re-engagement uses the same RmEngageCaseActivity"
+                " activity as initial engagement; there is no separate"
+                " RmReEngageCase activity."
+            )
 
-    with demo_step("Step 5: Vendor closes the case (RmCloseCaseActivity)"):
-        close = rm_close_case_activity(case.id_, actor=vendor.id_)
-        post_to_inbox_and_wait(client, vendor.id_, close)
-        with demo_check("RmCloseCaseActivity activity stored"):
-            verify_received_activity_stored(client, close.id_)
+        with demo_step("Step 5: Vendor closes the case (RmCloseCaseActivity)"):
+            close = rm_close_case_activity(case.id_, actor=vendor.id_)
+            post_to_inbox_and_wait(client, vendor.id_, close)
+            with demo_check("RmCloseCaseActivity activity stored"):
+                verify_received_activity_stored(client, close.id_)
 
     logger.info("✅ DEMO 2 COMPLETE: Case deferred, re-engaged, then closed.")
 
@@ -286,7 +294,9 @@ def demo_invalidate_path(
     logger.info("DEMO 3: Invalidate Path (submit → invalidate → close case)")
     logger.info("=" * 80)
 
-    report = offer = None
+    # Everything after step 1 acts on the report and Offer it produced, so it
+    # nests inside that step rather than reading a None sentinel after it
+    # (ADR-0058, #3038).
     with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
         # Through the reporter's own submit-report trigger (CBT-01-005, #4675).
         report, offer = reporter_submits_report(
@@ -302,25 +312,27 @@ def demo_invalidate_path(
         )
         logger.info("Submitted report: %s", logfmt(report))
 
-    with demo_step(
-        "Steps 2-3: Vendor invalidates the report and closes the case"
-    ):
-        # Through the vendor's own triggers, to the CASE_MANAGER of the case
-        # opened on receipt (#5438).
-        receiver_invalidates_and_closes(
-            client,
-            reporter,
-            vendor,
-            offer.id_,
-            note=(
-                "Assessed as not a vulnerability — consistent error messages "
-                "are expected behavior per the security policy."
-            ),
-        )
+        with demo_step(
+            "Steps 2-3: Vendor invalidates the report and closes the case"
+        ):
+            # Through the vendor's own triggers, to the CASE_MANAGER of the
+            # case opened on receipt (#5438).
+            receiver_invalidates_and_closes(
+                client,
+                reporter,
+                vendor,
+                offer.id_,
+                note=(
+                    "Assessed as not a vulnerability — consistent error"
+                    " messages are expected behavior per the security policy."
+                ),
+            )
 
-    # The case was created on receipt (auto_create_case), so the vendor still
-    # introduces it to the reporter (CBT-01-001); it is never engaged.
-    verify_reporter_trusts_introduction(client, reporter, vendor, report)
+        # The case was created on receipt (auto_create_case), so the vendor
+        # still introduces it to the reporter (CBT-01-001); it is never
+        # engaged.  The helper is itself a demo_check, so it names and records
+        # its own failure — do not wrap it in another one.
+        verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
         "✅ DEMO 3 COMPLETE: Report invalidated and closed (no case engaged)."

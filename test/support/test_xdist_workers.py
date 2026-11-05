@@ -23,9 +23,11 @@ import pytest
 from test import conftest as root_conftest
 from test.support import xdist_workers
 from test.support.xdist_workers import (
+    CHILD_MEMORY_BYTES,
     WORKER_MEMORY_BYTES,
     cgroup_cpu_limit,
     cgroup_memory_limit,
+    child_process_budget,
     worker_count,
 )
 
@@ -172,3 +174,29 @@ def test_available_cpus_falls_back_without_affinity(monkeypatch):
     monkeypatch.delattr(xdist_workers.os, "sched_getaffinity", raising=False)
     monkeypatch.setattr(xdist_workers.os, "cpu_count", lambda: 7)
     assert xdist_workers.available_cpus() == 7
+
+
+def test_child_budget_is_one_workers_memory_not_the_hosts_cores(tmp_path):
+    """The defect #5184 fixed: the fan-out was sized from the core count.
+
+    Sixteen cores and no cgroup limit gave sixteen children beside sixteen
+    xdist workers; the budget is what one worker's memory pays for instead.
+    """
+    assert child_process_budget(tmp_path, cpus=16) == (
+        WORKER_MEMORY_BYTES // CHILD_MEMORY_BYTES
+    )
+
+
+def test_child_budget_cannot_exceed_the_slots_worker_count(tmp_path):
+    """A two-CPU slot runs two children, not one worker's memory worth."""
+    root = _cgroup(
+        tmp_path, **{"cpu.max": "200000 100000", "memory.max": str(6 * GIB)}
+    )
+    assert worker_count(root, cpus=16) == 2
+    assert child_process_budget(root, cpus=16) == 2
+
+
+def test_child_budget_is_never_below_one(tmp_path):
+    """A slot too small for one worker still runs one child, not zero."""
+    root = _cgroup(tmp_path, **{"memory.max": str(WORKER_MEMORY_BYTES // 2)})
+    assert child_process_budget(root, cpus=4) == 1

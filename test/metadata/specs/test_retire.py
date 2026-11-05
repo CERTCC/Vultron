@@ -1,4 +1,4 @@
-"""Tests for the retired-requirement archive (MS-09-001, -004, -005, -006, -008)."""
+"""Tests for the retired-requirement archive (MS-09-001, -002, -004 to -008)."""
 
 import subprocess
 from datetime import date
@@ -94,15 +94,22 @@ def test_retire_moves_item_to_archive(repo: Path) -> None:
     assert retired_spec_ids(repo) == {"TST-01-001"}
 
 
-def test_retire_records_history_and_lists_cross_references(
-    repo: Path,
-) -> None:
+def test_retire_lists_cross_references(repo: Path) -> None:
     refs = _retire(repo)
 
-    history = list((repo / "plan/history").glob("*/implementation/*.md"))
-    assert [p.name for p in history] == ["SPEC-RETIRE-TST-01-001.md"]
-    assert "superseded by a better rule" in history[0].read_text()
     assert [(rel, n) for rel, n, _ in refs] == [("notes.md", 1)]
+
+
+@pytest.mark.spec("MS-09-002")
+def test_retire_records_the_removal_only_in_the_archive(repo: Path) -> None:
+    """The archive file is the record; no plan/history/ entry repeats it."""
+    _retire(repo, replacement="TST-01-002")
+
+    entry = (repo / "plan/retired-specs/TST-01-001.md").read_text()
+    assert "2026-10-05 (#1)" in entry
+    assert "**Why**: superseded by a better rule" in entry
+    assert "**Replacement**: TST-01-002" in entry
+    assert not (repo / "plan/history").exists()
 
 
 def test_retire_refuses_archived_id_and_changes_nothing(repo: Path) -> None:
@@ -142,7 +149,6 @@ def test_retire_with_replacement_clears_a_refused_superseded_by_key(
         retired_by="#1",
         replacement="TST-01-002",
         repo_root=tmp_path,
-        record_history=False,
     )
 
     assert set(load_registry(tmp_path / "specs").all_specs) == {"TST-01-002"}
@@ -217,16 +223,23 @@ def test_archive_is_outside_the_spec_loader_scope() -> None:
     assert not any(archive in p.parents for p in loaded)
 
 
-def test_retire_rolls_back_when_history_write_fails(
+def test_retire_rolls_back_when_archive_write_fails(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A failure after the spec edit leaves spec and archive untouched."""
-    import vultron.metadata.specs.retire as retire_mod
+    """A write that fails part way leaves spec and archive untouched.
 
-    def boom(*args, **kwargs):
-        raise OSError("disk full")
+    The archive file is written, then the write raises, so the rollback must
+    remove both the file and the archive folder it created (MS-09-012).
+    """
+    real_write_text = Path.write_text
 
-    monkeypatch.setattr(retire_mod, "append_history_entry", boom)
+    def partial_write(self: Path, data: str, *args, **kwargs) -> int:
+        written = real_write_text(self, data, *args, **kwargs)
+        if self.name == "TST-01-001.md":
+            raise OSError("disk full")
+        return written
+
+    monkeypatch.setattr(Path, "write_text", partial_write)
     before = (repo / "specs/specs.yaml").read_text()
 
     with pytest.raises(OSError):

@@ -158,9 +158,17 @@ fi
 
 # Pass 1: keep the open, scheduled Epics; remember each one's tier and
 # ancestors.
-declare -A TIER_OF ANCESTORS_OF
+#
+# Indexed arrays, not associative ones: every key here is an issue number (the
+# argument parser above rejects anything else, and the board query reads
+# `.number`), so a plain sparse indexed array keys on it directly. `declare -A`
+# needs bash 4, and macOS ships bash 3.2, so this script died there on its
+# first lookup (#5698). Both loops below are expanded as `${a[@]+"${a[@]}"}`
+# for the same host: before bash 4.4, `"${empty[@]}"` under `set -u` is an
+# unbound variable, and either array is empty when nothing qualified.
+declare -a TIER_OF ANCESTORS_OF
 ROOTS=()
-for epic in "${EPICS[@]}"; do
+for epic in ${EPICS[@]+"${EPICS[@]}"}; do
   info=$(describe "$epic")
   IFS=$'\t' read -r state type t ancestors <<<"$info"
   if [ "$state" != OPEN ] || [ "$type" != Epic ]; then
@@ -177,7 +185,7 @@ done
 
 # Pass 2: an Epic nested under another root is reached from that root's walk;
 # walking it again would double-count it and plan against a stale tier.
-for epic in "${ROOTS[@]}"; do
+for epic in ${ROOTS[@]+"${ROOTS[@]}"}; do
   covered=""
   for a in ${ANCESTORS_OF[$epic]}; do
     [ -n "${TIER_OF[$a]:-}" ] && covered="$a"

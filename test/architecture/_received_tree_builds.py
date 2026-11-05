@@ -39,7 +39,7 @@ import functools
 import importlib
 import inspect
 from collections.abc import Callable, Sequence
-from datetime import UTC, datetime
+from datetime import datetime
 from enum import Enum
 from types import UnionType
 from typing import Any, Union, get_args, get_origin
@@ -51,6 +51,7 @@ from test.architecture import _corpus
 from test.architecture.test_received_tree_case_manager_gate import (
     _receive_calls,
 )
+from test.support.future_dates import FAR_FUTURE
 from vultron.core.behaviors.case.nodes.submit_report import (
     submit_report_received_effects,
 )
@@ -88,7 +89,7 @@ def _domain_values() -> dict[type, Any]:
         EmbargoEvent: EmbargoEvent(
             id_=f"{_BASE}/embargoes/embargo",
             context=_CASE_ID,
-            end_time=datetime(2030, 1, 1, tzinfo=UTC),
+            end_time=FAR_FUTURE,  # far-future; relative so tree builds do not time-bomb
         ),
         LedgerPosition: LedgerPosition(log_index=0, entry_hash="0" * 64),
         # The entry a replica refused, which a fault about it names (SYNC-16).
@@ -103,7 +104,7 @@ def _domain_values() -> dict[type, Any]:
             )
         ),
         # A clock reading a clock decision compares a deadline against.
-        datetime: datetime(2030, 1, 1, tzinfo=UTC),
+        datetime: FAR_FUTURE,  # far-future; any valid datetime serves as a sample "now"
         RM: RM.ACCEPTED,
         CVDRole: CVDRole.VENDOR,
         # The declared rule a migrated tree composes its sender guard from

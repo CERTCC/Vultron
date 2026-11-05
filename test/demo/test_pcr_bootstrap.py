@@ -546,6 +546,7 @@ class TestBootstrapSequence:
             f"(PCR-07-006 AC-1 field preservation)."
         )
 
+    @pytest.mark.spec("PCR-07-004")
     def test_subsequent_case_scoped_activity_routes_without_deferral(
         self, participant_setup
     ):

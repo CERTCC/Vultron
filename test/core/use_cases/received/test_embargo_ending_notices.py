@@ -784,10 +784,12 @@ def test_notice_recipients_are_the_joined_unreached_signatories() -> None:
 class _Replica:
     """*actor_id*'s own replica, as it stands once its stream is paused."""
 
-    def __init__(self, actor_id: str, *, removed: bool = True) -> None:
+    def __init__(
+        self, actor_id: str, *, removed: bool = True, end_in_days: int = 60
+    ) -> None:
         self.actor_id = actor_id
         self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-        _seed(self.dl)
+        _seed(self.dl, end_in_days=end_in_days)
         if removed:
             self._set_removal(f"{CASE_ID}/removals/{actor_id[-12:]}")
 
@@ -1013,6 +1015,126 @@ def test_paused_replica_ends_a_longer_revision_it_was_not_told_of() -> None:
     _shorter_revision_announced_by(MANAGER, replica, end_in_days=90)
 
     assert replica.embargo_state() == after
+
+
+def _removed_revision(
+    reason: TerminationReason, *, end_in_days: int, to: str = REMOVED
+) -> Any:
+    """The CASE_MANAGER's ``Remove`` of a revision ending in *end_in_days*."""
+    revision = as_EmbargoEvent(
+        id_=REVISION_ID,
+        context=CASE_ID,
+        end_time=days_from_now_utc(end_in_days),
+    )
+    return remove_embargo_from_case_activity(
+        revision,
+        origin=CASE_ID,
+        context=CASE_ID,
+        actor=MANAGER,
+        to=[to],
+        reason=reason,
+    )
+
+
+@pytest.mark.spec("CM-31-042")
+@pytest.mark.spec("EMB-18-003")
+@pytest.mark.spec("SYNC-19-001")
+@pytest.mark.parametrize(
+    "reason",
+    [TerminationReason.EARLY, TerminationReason.END_TIME_REACHED],
+)
+def test_paused_replica_ends_an_expired_revision_it_has_not_activated(
+    reason: TerminationReason,
+) -> None:
+    """An expiry ``Remove`` of an unseen, expired revision ends it (#5900).
+
+    The replica's own embargo (60 days out) has not reached its end time,
+    but the revision the ``Remove`` names has: the claim is judged against
+    the revision's own end time, so either reason ends the same.
+    """
+    replica = _Replica(REMOVED)
+
+    result = replica.receive(_removed_revision(reason, end_in_days=-1))
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    case = replica.case()
+    assert case.active_embargo_id is None
+    assert case.current_status.em.state == EM.EXITED
+    assert [(e.embargo_id, e.status) for e in case.embargo_register] == [
+        (EMBARGO_ID, EmbargoRegisterStatus.SUPERSEDED),
+        (REVISION_ID, EmbargoRegisterStatus.TERMINATED),
+    ]
+    assert case.embargo_termination is not None
+    assert case.embargo_termination.reason is reason
+
+
+@pytest.mark.spec("CM-31-042")
+@pytest.mark.spec("EMB-13-008")
+def test_paused_replica_refuses_an_early_expiry_remove_of_a_revision() -> None:
+    """An ``END_TIME_REACHED`` before the revision's own end time is refused."""
+    replica = _Replica(REMOVED)
+    before = replica.embargo_state()
+
+    result = replica.receive(
+        _removed_revision(TerminationReason.END_TIME_REACHED, end_in_days=30)
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert replica.embargo_state() == before
+
+
+@pytest.mark.spec("CM-31-042")
+@pytest.mark.spec("EMB-13-008")
+@pytest.mark.spec("CLP-10-006")
+def test_paused_replica_refuses_expiry_of_a_longer_revision() -> None:
+    """An expired embargo in force does not make a longer revision's expiry timely.
+
+    The replica's own embargo has passed its end time, but the revision the
+    ``Remove`` names has not: the claim is judged against the revision, so
+    it is refused before anything is written, the revision not even stored.
+    """
+    replica = _Replica(REMOVED, end_in_days=-1)
+    before = replica.embargo_state()
+
+    result = replica.receive(
+        _removed_revision(TerminationReason.END_TIME_REACHED, end_in_days=30)
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert replica.dl.read(REVISION_ID) is None
+    assert replica.embargo_state() == before
+
+
+@pytest.mark.spec("CM-31-042")
+@pytest.mark.spec("EMB-18-004")
+def test_paused_replica_refuses_an_expiry_remove_of_another_case() -> None:
+    """An ``END_TIME_REACHED`` naming another case's revision is refused.
+
+    The timing guard reads the named revision with the adoption's case
+    check (EMB-18-004), so the refusal comes before anything is written.
+    """
+    replica = _Replica(REMOVED)
+    before = replica.embargo_state()
+    foreign = as_EmbargoEvent(
+        id_=REVISION_ID,
+        context="https://example.org/cases/another-case",
+        end_time=days_from_now_utc(-1),
+    )
+
+    result = replica.receive(
+        remove_embargo_from_case_activity(
+            foreign,
+            origin=CASE_ID,
+            context=CASE_ID,
+            actor=MANAGER,
+            to=[REMOVED],
+            reason=TerminationReason.END_TIME_REACHED,
+        )
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert replica.dl.read(REVISION_ID) is None
+    assert replica.embargo_state() == before
 
 
 @pytest.mark.spec("CM-31-042")

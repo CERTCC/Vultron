@@ -16,10 +16,10 @@ from vultron.metadata.history.cli.entry import (
     append_history_entry,
 )
 from vultron.metadata.history.cli.github import (
-    _GITHUB_COMMENT_TYPES,
+    _confirm_issue,
     _post_github_comment,
-    _resolve_issue_number,
 )
+from vultron.metadata.history.cli.source import classify_source
 from vultron.metadata.history.types import (
     RETIRED_SIGNALS,
     HistoryEntryType,
@@ -61,7 +61,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="ID",
         help=(
-            "Originating identifier (e.g. IDEA-26043001, TASK-FOO). "
+            "Originating identifier. implementation and idea entries take "
+            "ISSUE-N, posted as a comment on CERTCC/Vultron issue N; "
+            "otherwise implementation takes ISSUE-N-<slug> and idea takes "
+            "IDEA-YYMMDDNN, each written to a file. learning, note and "
+            "priority sources are free-form. "
             "Required unless --from-file is provided."
         ),
     )
@@ -207,8 +211,17 @@ def _handle_from_file_mode(source_path: Path) -> None:
 
     try:
         fm = _validate_frontmatter(content)
+        issue = classify_source(fm.type, fm.source)
     except ValueError as exc:
         _fail(str(exc))
+    # An ISSUE-N implementation or idea entry is a comment, never a file
+    # (HM-01-008); only the vocabulary's file forms may be archived here.
+    if issue is not None:
+        _fail(
+            f"{source_path}: an {fm.type.value} entry with source "
+            f"{fm.source} is posted as an issue comment; run "
+            f"append-history {fm.type.value} --source {fm.source} instead"
+        )
 
     try:
         _check_timestamp_not_future(fm.timestamp)
@@ -247,21 +260,12 @@ def _handle_normal_mode(args: argparse.Namespace) -> None:
     timestamp = _parse_timestamp(args.timestamp)
     signal = _parse_signal(args.signal, entry_type)
 
-    # GitHub comment mode: implementation/idea with an ISSUE-N source (HM-08-001).
-    if (
-        entry_type in _GITHUB_COMMENT_TYPES
-        and (issue_number := _resolve_issue_number(args.source)) is not None
-    ):
-        try:
-            url = _post_github_comment(
-                issue_number, entry_type, args.title, body
-            )
-        except RuntimeError as exc:
-            _fail(str(exc))
-        print(url)
-        return
-
+    # Validate the title, source and timestamp before either output mode, so
+    # a comment is never posted for an entry a file would refuse. The source
+    # vocabulary decides the mode: ISSUE-N is a comment, the file forms are
+    # files, anything else is refused (HM-08-001, HM-08-003, HM-08-008).
     try:
+        issue_number = classify_source(entry_type, args.source)
         content = _build_content(
             entry_type, args.title, args.source, body, timestamp, signal
         )
@@ -270,6 +274,22 @@ def _handle_normal_mode(args: argparse.Namespace) -> None:
         # always "now" and cannot be in the future.
         if timestamp is not None:
             _check_timestamp_not_future(timestamp)
+    except ValueError as exc:
+        _fail(str(exc))
+
+    # GitHub comment mode: ISSUE-N, once GitHub confirms issue N (HM-08-001,
+    # HM-08-007, HM-08-009).
+    if issue_number is not None:
+        try:
+            url = _post_github_comment(
+                _confirm_issue(issue_number), entry_type, args.title, body
+            )
+        except (RuntimeError, ValueError) as exc:
+            _fail(str(exc))
+        print(url)
+        return
+
+    try:
         target_date = timestamp.date() if timestamp is not None else None
         entry_file = append_history_entry(
             entry_type,

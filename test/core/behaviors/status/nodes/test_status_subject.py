@@ -16,6 +16,7 @@
 
 import pytest
 
+from test.support.participant_status import impossible_state_reasons
 from vultron.core.behaviors.status.nodes.status_subject import (
     on_behalf_status_roles,
     on_behalf_status_violations,
@@ -56,7 +57,20 @@ def _status(
 
 
 @pytest.mark.spec("RSH-08-007")
-def test_both_moves_together_are_one_on_behalf_assertion():
+@pytest.mark.spec("RSH-08-014")
+@pytest.mark.spec("PRM-06-008")
+@pytest.mark.spec("CSB-17-001")
+def test_both_moves_in_one_status_are_refused_as_impossible():
+    """The two on-behalf moves cannot be asserted in one status.
+
+    The shape rule asks only what the status asserts, so a status carrying
+    ``v→V`` plus ``d→D`` passes it — and goes no further.  It lands the target
+    on the compound state ``VfD``, a fix deployed before it was ready, one of
+    the combinations CSB-17-001 rules out, which the entailment rule that
+    PRM-06-008 requires downstream refuses.  So the fixture is deliberately in
+    an impossible state, and the test pins both layers: shape admits,
+    entailment refuses, and RSH-08-014 permits one move, never the pair.
+    """
     status = _status(vf=CS_vf.Vf, d=CS_d.D)
 
     assert (
@@ -67,6 +81,11 @@ def test_both_moves_together_are_one_on_behalf_assertion():
         CVDRole.VENDOR,
         CVDRole.DEPLOYER,
     ]
+    assert impossible_state_reasons(status), (
+        "VfD must stay impossible; if it becomes legal, a status carrying both"
+        " on-behalf moves is reachable end to end, and RSH-08-014 and"
+        " PRM-06-003/004 refuse it on a premise that no longer holds"
+    )
 
 
 @pytest.mark.spec("RSH-08-007")

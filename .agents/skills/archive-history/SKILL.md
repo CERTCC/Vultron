@@ -31,7 +31,7 @@ The caller provides four pieces of information (see the calling skill for body f
 |---|---|---|
 | `TYPE` | Entry type | `idea`, `implementation`, `learning`, `note`, `priority` |
 | `TITLE` | Short summary | `AGENTS.md routing policy` |
-| `SOURCE` | Originating identifier | `CONCERN-507`, `IDEA-42`, `ISSUE-576` |
+| `SOURCE` | Originating identifier | `ISSUE-576` (implementation, idea), `IDEA-26042702` (idea), `CONCERN-507` (learning) |
 | Body | Full entry text via heredoc | Include PR URL and outcome summary |
 
 ---
@@ -63,8 +63,16 @@ Capture the output in `HISTORY_OUTPUT`. The tool either:
   the local `plan/history/YYMM/README.md` (gitignored), and prints the file
   path to stdout.
 - **GitHub comment mode** (`implementation`/`idea` with `--source ISSUE-N`):
-  posts a comment on the issue and prints the comment URL to stdout
-  (starts with `https://`). No file is written.
+  posts a comment on issue N and prints the comment URL to stdout (starts with
+  `https://`). No file is written. N must be an existing CERTCC/Vultron issue,
+  not a pull request, and `gh` must be authenticated; otherwise the tool exits 1
+  and writes nothing.
+
+`implementation` and `idea` take only these sources: `ISSUE-N` (comment),
+`ISSUE-N-<slug>` (an `implementation` file) and `IDEA-YYMMDDNN` (an `idea`
+file). Any other source, such as `TASK-4646` or `CONCERN-507`, is refused with
+the accepted forms named (HM-08-008). `learning`, `note` and `priority` sources
+are free-form.
 
 ### Step 2 — Check output mode
 

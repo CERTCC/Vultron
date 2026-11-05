@@ -14,8 +14,11 @@ Usage::
         [--replacement <NEW-ID>] [--base REF]
 
 The helper removes the item from its spec file, archives its last published
-text, records the removal in the implementation history (MS-09-002), and lists
-every remaining cross-reference that MS-09-003 requires repointing.
+text, and lists every remaining cross-reference that MS-09-003 requires
+repointing.
+The archive file is the record of the removal (MS-09-002): it holds the date,
+the retiring issue or PR, the reason, any replacement and the final text, so
+the helper writes no ``plan/history/`` entry that would repeat it.
 
 The archived text is the item's block at the merge base of the base branch and
 ``HEAD`` (MS-09-008), not the working tree: a branch that edits a requirement
@@ -41,9 +44,6 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from vultron.metadata.base import repo_root as _repo_root
-from vultron.metadata.history.cli import append_history_entry
-from vultron.metadata.history.cli.entry import _build_content
-from vultron.metadata.history.types import HistoryEntryType
 from vultron.metadata.specs.growth_guard import (
     BaseUnavailableError,
     base_ref_name,
@@ -288,7 +288,6 @@ def retire_spec(
     replacement: str | None = None,
     repo_root: Path | None = None,
     today: datetime.date | None = None,
-    record_history: bool = True,
     base_ref: str | None = None,
 ) -> list[tuple[str, int, str]]:
     """Move *spec_id* from its spec file to the archive (MS-09-001/002/005).
@@ -343,10 +342,6 @@ def retire_spec(
             ) from exc
         archive.mkdir(parents=True, exist_ok=True)
         archive_file.write_text(entry, encoding="utf-8")
-        if record_history:
-            _record_history(
-                root, spec_id, path, why, retired_by, replacement, today
-            )
     except BaseException:
         # Whole retirement, or none (MS-09-012): undo the spec edit and the
         # archive entry on any failure.
@@ -362,44 +357,13 @@ def retire_spec(
     return find_cross_references(root, spec_id)
 
 
-def _record_history(
-    root: Path,
-    spec_id: str,
-    spec_path: Path,
-    why: str,
-    retired_by: str,
-    replacement: str | None,
-    today: datetime.date,
-) -> None:
-    """Write the MS-09-002 implementation-history entry for the removal."""
-    body = (
-        f"Retired {spec_id} from `{spec_path.relative_to(root)}` "
-        f"({retired_by}).\n\nWhy: {why.strip()}\n"
-    )
-    if replacement:
-        body += f"\nReplacement: {replacement}\n"
-    body += f"\nFinal text: `{RETIRED_SPECS_RELPATH}/{spec_id}.md`.\n"
-    content = _build_content(
-        HistoryEntryType.implementation,
-        f"Retired requirement {spec_id}",
-        f"SPEC-RETIRE-{spec_id}",
-        body,
-    )
-    append_history_entry(
-        HistoryEntryType.implementation,
-        content,
-        repo_root=root,
-        target_date=today,
-    )
-
-
 def main(argv: list[str] | None = None) -> None:
     """CLI entry point: ``uv run spec-retire <ID> --why ... --by ...``."""
     parser = argparse.ArgumentParser(
         prog="spec-retire",
         description=(
-            "Move a requirement from specs/ to plan/retired-specs/, record "
-            "the removal in plan/history/, and list the citations to repoint."
+            "Move a requirement from specs/ to plan/retired-specs/, which "
+            "records the removal, and list the citations to repoint."
         ),
     )
     parser.add_argument("spec_id", help="ID of the requirement to retire")

@@ -164,8 +164,8 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
   the `### <ID>` headings). When the trimmed section would still hide what a
   reviewer must check, such as a split's full old-to-new mapping, write the
   untrimmed record with `uv run append-history implementation --source
-  ISSUE-<N>-<slug>` and link it from the section. Use a distinct source so it
-  does not collide with the completion entry. Never split the PR to fit. The
+  ISSUE-<N>-<slug>` and link it from the section; the slug keeps several such
+  records for one issue apart. Never split the PR to fit. The
   section is the single place a reviewer sees spec text moved to fit code; the
   material test in `notes/agentic-workflow.md` § "Spec Text Conflicts With Code"
   decides whether the Reason is a clarification (allowed in the PR) or an

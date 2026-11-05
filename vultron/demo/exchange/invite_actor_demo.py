@@ -120,63 +120,71 @@ def demo_invite_actor_accept(
             f"No CASE_MANAGER participant found for case '{case.id_}' (CM-02-014, CM-02-015)"
         )
 
-    invite_id = ""
+    # Step 3 answers the Invite this step sends, so it nests inside it rather
+    # than reading an empty-string sentinel after it (ADR-0058, #3038).
+    # Steps 4 and 5 follow that answer and must stay in sequence after it, so
+    # they nest with it.
     with demo_step("Step 2: Vendor invites coordinator to case"):
         invite_id = case_manager_invites_actor(
             client, case, vendor, coordinator, invite_actor_id
         )
 
-    with demo_step("Step 3: Coordinator accepts invitation"):
-        ActorSession(
-            client=client, actor=coordinator
-        ).quiet().accept_case_invite(invite_id=invite_id)
+        with demo_step("Step 3: Coordinator accepts invitation"):
+            ActorSession(
+                client=client, actor=coordinator
+            ).quiet().accept_case_invite(invite_id=invite_id)
 
-    with demo_step("Step 4: Coordinator answers the full-case Invite"):
-        # CM-11-010/011: the join is followed by the full-case Invite, and the
-        # coordinator judges the case by replying to it.
-        reply_to_full_case_invite(
-            invitee_name="Coordinator",
-            invitee_client=client.model_copy(
-                update={"actor_id": coordinator.id_}
-            ),
-            invitee=coordinator,
-            invitee_in_own_container=coordinator,
-            case=case,
-            authority_client=client,
-            timeout=FULL_CASE_REPLY_TIMEOUT,
-        )
-        # The reply trigger returns 202 before its status write lands, so wait
-        # on the CaseActor's own store rather than reading once (ADR-0058).
-        with demo_check("Coordinator at RM.VALID after its reply (CM-11-011)"):
-            wait_for_participant_rm_state(
-                client=client,
-                case_id=str(case.id_),
-                actor_id=str(coordinator.id_),
-                expected_states={RM.VALID},
-                dl_actor_id=resolve_case_actor_store_id(client, case.id_),
+        with demo_step("Step 4: Coordinator answers the full-case Invite"):
+            # CM-11-010/011: the join is followed by the full-case Invite, and
+            # the coordinator judges the case by replying to it.
+            reply_to_full_case_invite(
+                invitee_name="Coordinator",
+                invitee_client=client.model_copy(
+                    update={"actor_id": coordinator.id_}
+                ),
+                invitee=coordinator,
+                invitee_in_own_container=coordinator,
+                case=case,
+                authority_client=client,
+                timeout=FULL_CASE_REPLY_TIMEOUT,
             )
-
-    with demo_step("Step 5: Verify coordinator added as case participant"):
-        with demo_check("Coordinator present in case participant list"):
-            # The handler creates a participant with ID
-            # {case_uuid}/participants/{coord_segment}. Check participant list grew.
-            final_case = log_case_state(client, case.id_, "after accept")
-            if final_case is None:
-                raise ValueError("Could not retrieve case after accept")
-            participant_ids = [
-                (ref_id(p) or str(p)) for p in final_case.case_participants
-            ]
-            coord_segment = coordinator.id_.split("/")[-1]
-            coord_participant = [
-                pid
-                for pid in participant_ids
-                if str(pid).endswith(coord_segment)
-            ]
-            if not coord_participant:
-                raise ValueError(
-                    f"Coordinator '{coordinator.id_}' not found in case "
-                    f"participants after accept. Participants: {participant_ids}"
+            # The reply trigger returns 202 before its status write lands, so
+            # wait on the CaseActor's own store rather than reading once
+            # (ADR-0058).
+            with demo_check(
+                "Coordinator at RM.VALID after its reply (CM-11-011)"
+            ):
+                wait_for_participant_rm_state(
+                    client=client,
+                    case_id=str(case.id_),
+                    actor_id=str(coordinator.id_),
+                    expected_states={RM.VALID},
+                    dl_actor_id=resolve_case_actor_store_id(client, case.id_),
                 )
+
+        with demo_step("Step 5: Verify coordinator added as case participant"):
+            with demo_check("Coordinator present in case participant list"):
+                # The handler creates a participant with ID
+                # {case_uuid}/participants/{coord_segment}. Check participant
+                # list grew.
+                final_case = log_case_state(client, case.id_, "after accept")
+                if final_case is None:
+                    raise ValueError("Could not retrieve case after accept")
+                participant_ids = [
+                    (ref_id(p) or str(p)) for p in final_case.case_participants
+                ]
+                coord_segment = coordinator.id_.split("/")[-1]
+                coord_participant = [
+                    pid
+                    for pid in participant_ids
+                    if str(pid).endswith(coord_segment)
+                ]
+                if not coord_participant:
+                    raise ValueError(
+                        f"Coordinator '{coordinator.id_}' not found in case"
+                        " participants after accept. Participants:"
+                        f" {participant_ids}"
+                    )
 
     logger.info("✅ DEMO COMPLETE (accept path): Coordinator added to case.")
 
@@ -221,7 +229,10 @@ def demo_invite_actor_reject(
             f"No CASE_MANAGER participant found for case '{case.id_}' (CM-02-014, CM-02-015)"
         )
 
-    invite_id = ""
+    # Step 3 rejects the Invite this step sends, so it nests inside it rather
+    # than reading an empty-string sentinel after it (ADR-0058, #3038).
+    # Step 4 verifies that rejection and must stay in sequence after it, so it
+    # nests too.
     with demo_step(
         "Step 2: Vendor fires invite-actor-to-case trigger and delivers invite"
     ):
@@ -229,37 +240,39 @@ def demo_invite_actor_reject(
             client, case, vendor, coordinator, invite_actor_id
         )
 
-    with demo_step("Step 3: Coordinator rejects invitation"):
-        ActorSession(
-            client=client, actor=coordinator
-        ).quiet().reject_case_invite(invite_id=invite_id)
+        with demo_step("Step 3: Coordinator rejects invitation"):
+            ActorSession(
+                client=client, actor=coordinator
+            ).quiet().reject_case_invite(invite_id=invite_id)
 
-    with demo_step(
-        "Step 4: Verify coordinator in actor_participant_index at RM.CLOSED"
-    ):
-        with demo_check(
-            "Coordinator present in actor_participant_index (inert record from"
-            " invite-send, CM-11-006)"
+        with demo_step(
+            "Step 4: Verify coordinator in actor_participant_index at"
+            " RM.CLOSED"
         ):
-            final_case = log_case_state(client, case.id_, "after reject")
-            if final_case is None:
-                raise ValueError("Could not retrieve case after reject")
-            if coordinator.id_ not in final_case.actor_participant_index:
-                raise ValueError(
-                    f"Coordinator '{coordinator.id_}' missing from"
-                    f" actor_participant_index — expected inert record from"
-                    f" invite-send (ADR-0114, CM-11-006)"
+            with demo_check(
+                "Coordinator present in actor_participant_index (inert record"
+                " from invite-send, CM-11-006)"
+            ):
+                final_case = log_case_state(client, case.id_, "after reject")
+                if final_case is None:
+                    raise ValueError("Could not retrieve case after reject")
+                if coordinator.id_ not in final_case.actor_participant_index:
+                    raise ValueError(
+                        f"Coordinator '{coordinator.id_}' missing from"
+                        " actor_participant_index — expected inert record"
+                        " from invite-send (ADR-0114, CM-11-006)"
+                    )
+            with demo_check(
+                "Coordinator at RM.CLOSED after rejection (never active,"
+                " DEMOMA-27-008)"
+            ):
+                _check_participant_rm_state_in(
+                    client=client,
+                    case_id=str(case.id_),
+                    actor_id=str(coordinator.id_),
+                    expected_states={RM.CLOSED},
+                    label="Coordinator (rejected invitee)",
                 )
-        with demo_check(
-            "Coordinator at RM.CLOSED after rejection (never active, DEMOMA-27-008)"
-        ):
-            _check_participant_rm_state_in(
-                client=client,
-                case_id=str(case.id_),
-                actor_id=str(coordinator.id_),
-                expected_states={RM.CLOSED},
-                label="Coordinator (rejected invitee)",
-            )
 
     logger.info(
         "✅ DEMO COMPLETE (reject path): Coordinator at RM.CLOSED, never active."

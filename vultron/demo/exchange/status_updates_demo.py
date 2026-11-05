@@ -132,7 +132,8 @@ def demo_notes_workflow(
 
     case, _participant = _setup_initialized_case(client, reporter, vendor)
 
-    note = None
+    # Step 2 removes the note step 1 added, so it nests inside that step
+    # rather than reading a None sentinel after it (ADR-0058, #3038).
     with demo_step("Step 1: Vendor adds a note, carried inline, to the case"):
         note = as_Note(
             name="Initial Triage Note",
@@ -160,26 +161,30 @@ def demo_notes_workflow(
                         f"Note '{note.id_}' not found in case after AddNoteToCaseActivity"
                     )
 
-    with demo_step("Step 2: Vendor removes note from case"):
-        # The vendor is this case's CASE_OWNER and its CASE_MANAGER
-        # (setup_initialized_case), so its inbox is the manager's inbox and the
-        # sender is the note's author: the Remove(Note) is entitled (CM-30-001).
-        remove_note_activity = as_Remove(
-            actor=vendor.id_,
-            object_=note,
-            target=case.id_,
-        )
-        post_to_inbox_and_wait(client, vendor.id_, remove_note_activity)
-        with demo_check("Note absent from case"):
-            updated_case = log_case_state(
-                client, case.id_, "after RemoveNoteFromCase"
+        with demo_step("Step 2: Vendor removes note from case"):
+            # The vendor is this case's CASE_OWNER and its CASE_MANAGER
+            # (setup_initialized_case), so its inbox is the manager's inbox
+            # and the sender is the note's author: the Remove(Note) is
+            # entitled (CM-30-001).
+            remove_note_activity = as_Remove(
+                actor=vendor.id_,
+                object_=note,
+                target=case.id_,
             )
-            if updated_case:
-                note_ids = [(ref_id(n) or str(n)) for n in updated_case.notes]
-                if note.id_ in note_ids:
-                    raise ValueError(
-                        f"Note '{note.id_}' still in case after RemoveNoteFromCase"
-                    )
+            post_to_inbox_and_wait(client, vendor.id_, remove_note_activity)
+            with demo_check("Note absent from case"):
+                updated_case = log_case_state(
+                    client, case.id_, "after RemoveNoteFromCase"
+                )
+                if updated_case:
+                    note_ids = [
+                        (ref_id(n) or str(n)) for n in updated_case.notes
+                    ]
+                    if note.id_ in note_ids:
+                        raise ValueError(
+                            f"Note '{note.id_}' still in case after"
+                            " RemoveNoteFromCase"
+                        )
 
     logger.info("✅ DEMO COMPLETE: Notes workflow finished.")
 
@@ -222,8 +227,9 @@ def demo_status_workflow(
     if before is None:
         raise ValueError(f"Could not retrieve case {case.id_} after setup")
 
-    # Bound before the step so Step 2 can read it (#2308 ratchet).
-    participant_status = None
+    # Step 2 verifies the ParticipantStatus step 1 built, so it nests inside
+    # that step rather than reading a None sentinel after it (ADR-0058,
+    # #3038).
     with demo_step(
         "Step 1: Vendor reports public awareness in its own ParticipantStatus"
     ):
@@ -249,21 +255,27 @@ def demo_status_workflow(
         )
         post_to_inbox_and_wait(client, vendor.id_, add_pstatus_activity)
 
-    with demo_step("Step 2: Verify the status and the adopted case status"):
-        with demo_check("ParticipantStatus present on the vendor's record"):
-            verify_participant_status_appended(
-                client, case.id_, vendor.id_, participant_status.id_
-            )
-        with demo_check("Case status adopted public awareness"):
-            updated_case = log_case_state(client, case.id_, "final state")
-            if updated_case is None:
-                raise ValueError("Could not retrieve case after the report")
-            pxa = updated_case.current_status.pxa.state
-            if pxa != CS_pxa.Pxa:
-                raise ValueError(
-                    f"Case status pxaState is {pxa}, expected"
-                    f" {CS_pxa.Pxa} after the vendor's report"
+        with demo_step(
+            "Step 2: Verify the status and the adopted case status"
+        ):
+            with demo_check(
+                "ParticipantStatus present on the vendor's record"
+            ):
+                verify_participant_status_appended(
+                    client, case.id_, vendor.id_, participant_status.id_
                 )
+            with demo_check("Case status adopted public awareness"):
+                updated_case = log_case_state(client, case.id_, "final state")
+                if updated_case is None:
+                    raise ValueError(
+                        "Could not retrieve case after the report"
+                    )
+                pxa = updated_case.current_status.pxa.state
+                if pxa != CS_pxa.Pxa:
+                    raise ValueError(
+                        f"Case status pxaState is {pxa}, expected"
+                        f" {CS_pxa.Pxa} after the vendor's report"
+                    )
 
     logger.info("✅ DEMO COMPLETE: Status updates workflow finished.")
 

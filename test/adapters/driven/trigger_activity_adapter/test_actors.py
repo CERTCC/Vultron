@@ -18,12 +18,12 @@ CASE_MANAGER delegation.
 """
 
 import json
-from datetime import UTC, datetime
 
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
+from test.support.future_dates import FAR_FUTURE
 from test.support.received import (
     archive_delivered,
     archive_received,
@@ -867,7 +867,7 @@ class TestAnswerReceivedOwnershipOffer:
     @pytest.mark.spec("CM-21-025")
     def test_the_proposal_nests_the_offer_it_asks_for(self, adapter, dl):
         case = _make_case(dl)
-        deadline = datetime(2030, 1, 1, tzinfo=UTC)
+        deadline = FAR_FUTURE  # far-future; tests date round-trip, not a specific value
 
         _, blob = adapter.propose_case_ownership_transfer(
             case_id=case.id_,
@@ -885,7 +885,7 @@ class TestAnswerReceivedOwnershipOffer:
         assert inner["type"] == "Offer"
         assert inner["object"]["id"] == case.id_
         assert inner["target"]["id"] == _INVITEE
-        assert inner["endTime"].startswith("2030-01-01")
+        assert inner["endTime"].startswith(deadline.isoformat()[:10])
 
     @pytest.mark.spec("CM-21-005")
     def test_the_offer_built_under_a_derived_id_is_built_once(
