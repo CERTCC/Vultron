@@ -147,7 +147,8 @@ position.
 
 ### Phase 4 — Grill-Me Adjudication (human decides)
 
-Invoke `grill-me`, following `.agents/skills/shared/asking-the-user.md`. Ask
+Invoke `grill-me`, following `.agents/skills/shared/asking-the-user.md` and its
+pre-ask check: ask what the decision should be, not how to word it. Ask
 one question at a time (`ask_user` for discrete choices), each with a
 recommended answer grounded in the Phase 3 evidence. Resolve, per candidate:
 
