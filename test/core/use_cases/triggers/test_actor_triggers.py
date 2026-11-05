@@ -42,6 +42,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.future_dates import FAR_FUTURE
 from test.support.received import archive_received, case_stub
 from test.support.transferee import (
     INACTIVE_STANDINGS,
@@ -205,14 +206,12 @@ def _activate_embargo(
     Each of *signatories* agrees to it, so it stays an active participant
     that may act on the case (CM-10-004, CM-23-018).
     """
-    from datetime import datetime
-
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
     embargo = as_EmbargoEvent(
         id_=f"{case_id}/embargo/e1",
         content="Active embargo",
-        end_time=datetime(2030, 1, 1, tzinfo=UTC),
+        end_time=FAR_FUTURE,
         context=case_id,
     )
     dl.create(embargo)

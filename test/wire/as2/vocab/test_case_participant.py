@@ -16,12 +16,12 @@
 """Tests for as_CaseParticipant model, focusing on the embargo_consents rows (CM-10-001)."""
 
 import unittest
-from datetime import UTC, datetime
 from typing import cast
 
 import pytest
 from pydantic import ValidationError
 
+from test.support.future_dates import FAR_FUTURE
 from vultron.adapters.driven.db_record import (
     object_to_record,
     record_to_object,
@@ -51,7 +51,7 @@ class TestCaseParticipantEmbargoConsents(unittest.TestCase):
         self.case_id = "https://example.org/cases/case-001"
         self.embargo_id_1 = "https://example.org/embargoes/emb-001"
         self.embargo_id_2 = "https://example.org/embargoes/emb-002"
-        self.rsvp_deadline = datetime(2030, 1, 2, 3, 4, 5, tzinfo=UTC)
+        self.rsvp_deadline = FAR_FUTURE  # far-future; tests consent serialization, not a specific date
         self.participant = as_CaseParticipant(
             attributed_to=self.actor_id,
             context=self.case_id,
@@ -125,7 +125,7 @@ class TestCaseParticipantEmbargoConsents(unittest.TestCase):
                     "attributedTo": self.actor_id,
                     "embargoId": self.embargo_id_2,
                     "state": "INVITED",
-                    "rsvpDeadline": "2030-01-02T03:04:05.000000+00:00",
+                    "rsvpDeadline": self.rsvp_deadline.isoformat(),
                 },
             ],
             [
