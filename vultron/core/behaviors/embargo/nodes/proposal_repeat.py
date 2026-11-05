@@ -32,10 +32,13 @@ Provides:
   :attr:`~EmbargoTermsNotHeldNode.is_repeat` set, when the case already holds
   the proposed end time.
 
-The guard runs behind the CASE_MANAGER gate of
-:func:`~vultron.core.behaviors.embargo.nodes.relay_guards.case_manager_admits_proposal_guard`:
-only the CASE_MANAGER registers a proposal (EP-09-001), and a relayed Invite
-names terms the CASE_MANAGER already admitted.
+The guard runs only where the CASE_MANAGER registers a proposal
+(EP-09-001): behind the CASE_MANAGER gate of
+:func:`~vultron.core.behaviors.embargo.nodes.relay_guards.case_manager_admits_proposal_guard`
+on the received side, where a relayed Invite names terms the CASE_MANAGER
+already admitted, and in the CASE_MANAGER arm of its own propose and revise
+triggers (``trigger_tree/proposal.py``).  A trigger admits only valid steps,
+so there the repeat is a refusal of the whole request, not a no-op (#5899).
 """
 
 from datetime import datetime
@@ -49,7 +52,7 @@ from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import EmbargoRegisterEntry
 from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
-from vultron.errors import VultronError
+from vultron.errors import VultronError, VultronInvalidStateTransitionError
 
 
 class EmbargoTermsNotHeldNode(
@@ -71,6 +74,12 @@ class EmbargoTermsNotHeldNode(
     is a no-op, never a refusal, so a guard that cannot prove one admits the
     proposal and the effect path decides what it means.
 
+    Given *result_out*, as the CASE_MANAGER's own trigger tree gives it, a
+    repeat also writes a ``VultronInvalidStateTransitionError`` to
+    ``result_out["error"]``: the trigger refuses the whole request, which then
+    registers, commits and relays nothing (RSH-09, #5899).  The received
+    tree passes none and reports the repeat as ``SKIPPED``.
+
     Keyed on the terms alone, never on the sender, the activity id or the
     embargo id, which a repeat sent under new ids does not share.  The
     proposal's own register entry is left out: an Invite naming an embargo
@@ -86,12 +95,14 @@ class EmbargoTermsNotHeldNode(
         case_id: str,
         embargo_id: str,
         embargo: EmbargoEvent | None = None,
+        result_out: dict[str, object] | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.embargo_id = embargo_id
         self.embargo = embargo
+        self._result_out = result_out
         self.is_repeat = False
         """``True`` when the last run found the terms already held: a benign
         no-op, not a refusal."""
@@ -196,6 +207,10 @@ class EmbargoTermsNotHeldNode(
             " does — repeat, nothing to apply (EP-09-032)"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
+        if self._result_out is not None:
+            self._result_out["error"] = VultronInvalidStateTransitionError(
+                f"Cannot propose embargo: {self.feedback_message}"
+            )
         return Status.FAILURE
 
 
