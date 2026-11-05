@@ -747,10 +747,10 @@ groups:
         kind: process
         statement: >-
           An Issue opened during other work (any `opened-as` reason) that does
-          not block the Issue being worked MUST NOT be routed to a Focus or Now
-          Epic unless that Epic's title claim stays false while the Issue is
-          open. It is routed among the same-theme Epics in Next, Later and
-          Someday instead.
+          not block the Issue being worked, and that the PR working that Issue
+          does not also close, MUST NOT be routed to a Focus or Now Epic unless
+          that Epic's title claim stays false while the Issue is open. It is
+          routed among the same-theme Epics in Next, Later and Someday instead.
         rationale: >-
           A finding about code an agent is touching always matches best the
           Epic that is working on that code, and it inherits that Epic's tier.
@@ -758,15 +758,17 @@ groups:
           then never finish and crowd out the work the quarter planned. The
           title test keeps a discovery that is part of the Epic's claim, such
           as a mismatch an audit Epic exists to find, and sends the rest to be
-          ranked on its own.
+          ranked on its own. An Issue the same PR closes is part of delivering
+          the worked Issue, not backlog to rank, so it may go under the worked
+          Issue's Epic whatever its tier.
         relationships:
         - rel_type: extends
           spec_id: PAD-02-022
         verification: >-
           A reviewer checks the routing `create-issue` Phase 8 reports for each
           discovered Issue: a Focus or Now parent comes with the Issue blocking
-          the worked Issue, or with the reason its parent's title claim needs
-          it.
+          the worked Issue, the PR that also closes it, or the reason its
+          parent's title claim needs it.
 
   - id: PAD-03
     title: Priority Ordering Authority

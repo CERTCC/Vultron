@@ -140,10 +140,12 @@ runs this mode for every new issue before it is created.
    protocol correctness even if its title mentions a demo scenario; a prod-only
    concern belongs with productionization even if it surfaced during demo work.
    An issue opened during other work (any `opened-as` reason) that does not
-   block the issue being worked goes under a Focus or Now epic only when that
-   epic's title claim stays false while the issue is open (PAD-02-041).
-   Otherwise route it among the theme's Next, Later and Someday epics, even
-   when the Focus epic's design idea matches it better.
+   block the issue being worked, and that the PR working that issue does not
+   also close, goes under a Focus or Now epic only when that epic's title claim
+   stays false while the issue is open (PAD-02-041). Otherwise route it among
+   the theme's Next, Later and Someday epics, even when the Focus epic's design
+   idea matches it better. An issue the same PR closes may go under the worked
+   issue's epic whatever its tier.
 
 4. **Decide autonomy by ambiguity:**
    - **Exactly one clearly-matching epic** → parent it there automatically via
