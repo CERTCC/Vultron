@@ -26,8 +26,7 @@ from vultron.metadata.history.types import (
 
 _UTC = datetime.UTC
 
-_FRONTMATTER_REFUSAL = (
-    "body must not include a YAML frontmatter block (HM-07-002): "
+_FRONTMATTER_REFUSAL_REASON = (
     "append-history builds frontmatter from --title and --source; "
     "supply only the body text"
 )
@@ -63,11 +62,14 @@ def _check_body_has_no_frontmatter(body: str) -> None:
             # not frontmatter. Let the normal build proceed.
             return
         raise ValueError(
-            f"{_FRONTMATTER_REFUSAL}; the block is also malformed "
-            f"({exc.detail})"
+            "body must not include a YAML frontmatter block, even a malformed "
+            f"one (HM-07-002): {_FRONTMATTER_REFUSAL_REASON} ({exc.detail})"
         ) from exc
     if post.metadata:
-        raise ValueError(_FRONTMATTER_REFUSAL)
+        raise ValueError(
+            "body must not include a YAML frontmatter block (HM-07-002): "
+            f"{_FRONTMATTER_REFUSAL_REASON}"
+        )
 
 
 def _validate_frontmatter(content: str) -> HistoryEntryFrontmatter:
