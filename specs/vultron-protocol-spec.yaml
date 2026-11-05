@@ -2612,6 +2612,11 @@ groups:
     - compound_statement
     stories:
     - story_2022_025
+    see_also:
+    - spec_id: VP-06-008b
+      reason: >-
+        names the bound on the exception; the exception itself is VP-06-008, which
+        records `supersedes`
   - id: VP-14-008
     priority: SHOULD
     kind: protocol

@@ -3861,6 +3861,9 @@ groups:
       scenario can become a package when it outgrows one module (CS-18-001).
     adr:
     - ADR-0098
+    relationships:
+    - rel_type: uses_definition
+      spec_id: DEMOCI-11-003
 
   - id: DEMOMA-19-004
     priority: MUST

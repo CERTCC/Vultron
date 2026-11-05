@@ -280,6 +280,9 @@ groups:
       prose, so tools can find and resolve citations (SR-04-008). The suffix lets a
       split requirement keep the address of its parent, so existing citations stay
       valid.
+    see_also:
+    - spec_id: LST-05-002b
+      reason: 'an example of a sub-requirement ID'
   - id: SR-02-009
     priority: MUST
     kind: project

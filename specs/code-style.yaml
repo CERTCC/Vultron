@@ -730,6 +730,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CS-18-001
+    - rel_type: refines
+      spec_id: CS-18-005
   - id: CS-18-003
     priority: MUST
     kind: project
