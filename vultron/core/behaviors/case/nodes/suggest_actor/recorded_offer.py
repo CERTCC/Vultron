@@ -43,9 +43,9 @@ from vultron.core.models.actor_recommendation_record import (
     ActorRecommendationRecord,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.enums.roles import serialize_roles
+from vultron.enums.roles import CVDRole, serialize_roles
 from vultron.errors import VultronError, VultronWiringError
 
 #: The Case Owner's two answers to an ``Offer(CaseParticipant)``.
@@ -101,10 +101,10 @@ def _is_managers_offer_about(
     """True when *stored_offer* was sent by *case*'s CASE_MANAGER about it."""
     if stored_offer is None:
         return False
-    manager_id = resolve_case_manager_id(case, dl)
+    sender_id = _ref_id(getattr(stored_offer, "actor", None))
     return (
-        manager_id is not None
-        and _ref_id(getattr(stored_offer, "actor", None)) == manager_id
+        isinstance(sender_id, str)
+        and has_role(sender_id, case.id_, CVDRole.CASE_MANAGER, dl)
         and _ref_id(getattr(stored_offer, "target", None)) == case.id_
     )
 

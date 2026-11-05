@@ -12,13 +12,22 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Architecture ratchet: single neutral role-authority resolver (ARCH-24-001..004).
+"""Architecture ratchet: single neutral role-authority resolver (ARCH-24-001..009).
 
 Verifies the ADR-0088 invariant that ``resolve_case_manager_id`` is defined in
 exactly one module (``vultron.core.participants.authority``), that neither
 ``vultron.core.behaviors`` nor ``vultron.core.use_cases`` contains a twin
-definition, and that exactly one authority condition node
-(``CheckIsCaseManagerNode``) exists — with the old Service-based nodes removed.
+definition, and that the authority condition node ``CheckIsCaseManagerNode`` is
+defined in exactly one module — with the old Service-based nodes removed.
+
+Two questions are kept apart here, because one blurred set of helpers used to
+serve both.  *Who* is the authority returns an id that addressing needs, and
+the resolver is its one implementation (ARCH-24-001).  *Is this actor* the
+authority returns a bool, and the shared role predicate is its one source
+(ARCH-24-008); the two ingredient paths that can answer it without the
+predicate are reported as violations (ARCH-24-009).  That is a check on the
+*call*, not a count of the classes that make it, so there is no sanctioned-class
+list to keep and a node renamed cannot drop out of scope (#5535, #5921).
 
 Also ratchets the *negative* half of the ADR.  ARCH-24-004 names **two** retired
 signals and both are covered here:
@@ -37,7 +46,7 @@ that fires it on a known-bad snippet, because a scanner bug would otherwise read
 as a clean repo.
 
 Spec: ARCH-24-001, ARCH-24-002, ARCH-24-003, ARCH-24-004, ARCH-24-007,
-CM-02-012, CM-02-013.
+ARCH-24-008, ARCH-24-009, CM-02-012, CM-02-013.
 """
 
 import ast
@@ -249,110 +258,76 @@ def test_exactly_one_authority_condition_node():
 
 
 # ---------------------------------------------------------------------------
-# ARCH-24-003 — how many node classes answer "am I the authority"
+# ARCH-24-008 / ARCH-24-009 — one source for "is this actor the authority"
 #
-# The cardinality, as an exact inventory rather than a count: one sanctioned
-# node, and the sites the ADR-0153 migration waves still have to retire, each
-# recorded with the issue that owns it.  Held to equality in both directions
-# (ARCH-18-001, ARCH-18-002), so a *new* asker fails and a retired entry fails
-# until it is removed.  The detector is shared with the ADR-0153 ratchet
-# (``_authority_question``) so both judge the same act, and reads the
-# resolver, predicate and role names off the live objects, so a rename moves
-# it with the code instead of blinding it (#5535).
+# The boolean has one source, the shared role predicate, and the two
+# *ingredient* paths that can answer it without the predicate are reported as
+# violations: the resolved manager id compared with another id, and a
+# participant's role list tested for the authority role.  Both are shapes, so
+# the scan needs no list of sanctioned classes and a fourth way of computing
+# the answer is reported for what it does rather than for what it is called
+# (``_authority_question``, #5535).
+#
+# The ratchet's terminal value is empty.  What survives it is not a list but
+# the detector: a permanently non-empty scan of modules, a permanently
+# non-empty set of *compliant* askers, and one synthetic control per shape in
+# each direction, so a detector that has stopped seeing the act fails here
+# instead of reporting a clean repo
+# (``notes/architecture-ratchet-corpus.md``).
 # ---------------------------------------------------------------------------
 
-#: The one node ARCH-24-006 sanctions: the authority condition node, which
-#: calls the single resolver.
-SANCTIONED_AUTHORITY_ASKER: _authority_question.AuthorityAsker = (
-    "vultron/core/behaviors/case/nodes/conditions.py",
-    _AUTHORITY_NODE_NAME,
-)
-
-#: Nodes that answer the authority question besides the sanctioned one, so
-#: ARCH-24-003's "exactly one" is violated until each is retired.  Terminal
-#: value: empty.  All three entries now turn on the same question — how
-#: ARCH-24-003 is measured — rather than on a migration still to run.
-#: owner: #5784
-KNOWN_SECOND_AUTHORITY_ASKERS: frozenset[
-    _authority_question.AuthorityAsker
+#: Sites that still answer "is this actor the case authority" from an
+#: ingredient rather than from the shared predicate.  Terminal value: empty.
+#: Both entries sit in ``use_cases/received/``, which a concurrent run was
+#: declared to own when the rest were converted, so neither waits on a
+#: design question — each is a mechanical swap for the predicate.
+#: owner: #5924
+KNOWN_AUTHORITY_INGREDIENT_SITES: frozenset[
+    _authority_question.IngredientSite
 ] = frozenset(
     {
-        # The received tree's path door stage.  #5044 was expected to clear
-        # this entry, on the reading that it was a second asker only while
-        # received trees built CASE_MANAGER gates of their own.  Those are
-        # gone, and the entry stands anyway: ADR-0153 keeps the gate the
-        # *factory* wraps round ``manager_effects`` (BT-17-001), so every
-        # declaring tree with manager effects still holds one
-        # ``CheckIsCaseManagerNode``, and the stage is a second *condition*
-        # node by ARCH-24-003's literal count while satisfying ARCH-24-007 —
-        # both take the role from the one resolver through ``has_role``, so
-        # neither can answer differently.  That is the same mismatch between
-        # ARCH-24-003 and how it is measured that the two entries below
-        # raise, so this entry moves to the issue that decides it rather
-        # than to another migration wave.  Clearing it needs either
-        # ARCH-24-003 measured by what the detector can mean, or the
-        # factory's gate re-expressed as an at-the-manager path branch,
-        # which would retire ``CheckIsCaseManagerNode`` from every declaring
-        # tree.  Owned by #5784.
+        # Gates clearing the pending proposal slot on the rejecting *sender*
+        # being the CASE_MANAGER.
         (
-            "vultron/core/behaviors/case/nodes/received_path.py",
-            "ReceivedPathNode",
+            "vultron/core/use_cases/received/_pending_refusal.py",
+            _authority_question.COMPARISON,
         ),
-        # Two nodes that ask the question where no declared path can answer
-        # it, and so ask it through the shared predicate (ARCH-24-007)
-        # rather than comparing the resolver's answer inline.  Neither is a
-        # condition node, so ARCH-24-003's "exactly one authority condition
-        # node" is arguably already met; whether this inventory should count
-        # an action node that asks the sanctioned predicate, or the rule
-        # should move into tree composition, is #5784.
-        #
-        # The creation-time embargo is the case owner's to set, or the
-        # CASE_MANAGER's on the owner's behalf (CP-09-003), and the case the
-        # rule is about does not exist when the path stage asks, so no
-        # declared path distinguishes the two.
+        # Decides whether an Invite attributing its proposal to a third party
+        # is the CASE_MANAGER relaying it (PCR-08-010).
         (
-            "vultron/core/behaviors/case/nodes/embargo.py",
-            "InitializeCreationEmbargoNode",
-        ),
-        # The post-close write boundary binds the CASE_MANAGER (CM-23-013)
-        # and is the first door guard of every received tree, ahead of the
-        # path stage in the CLP-10-010 order, so there is no resolved path
-        # for it to read.
-        (
-            "vultron/core/behaviors/case/nodes/post_close.py",
-            "CaseOpenToExternalWritesNode",
+            "vultron/core/use_cases/received/embargo/invite.py",
+            _authority_question.COMPARISON,
         ),
     }
 )
 
 
-def _authority_askers() -> frozenset[_authority_question.AuthorityAsker]:
-    return _authority_question.node_classes_answering_it(_BEHAVIORS_ROOT)
+def _ingredient_sites() -> frozenset[_authority_question.IngredientSite]:
+    return _authority_question.ingredient_sites(*_PROTOCOL_ROOTS)
 
 
-def test_the_authority_question_is_asked_by_one_node():
-    """ARCH-24-003: one sanctioned asker, plus a recorded migration backlog.
+def test_the_authority_boolean_has_one_source():
+    """Only the listed sites derive the boolean without the predicate.
 
-    The scan is held to equality, so adding another asker fails here even
-    though some are already recorded. That is the whole point of carrying the
-    transitional violation instead of relaxing ARCH-24-003: the rule still
-    says "exactly one", and this inventory says which nodes have yet to
-    reach it and who owns getting them there.
+    Held to equality in both directions (ARCH-18-001, ARCH-18-002), so a new
+    site fails here and a converted one fails until its entry goes.
 
-    Spec: ARCH-24-003
+    Spec: ARCH-24-009
     """
-    askers = _authority_askers()
-    expected = KNOWN_SECOND_AUTHORITY_ASKERS | {SANCTIONED_AUTHORITY_ASKER}
-    new = askers - expected
-    stale = expected - askers
-    assert askers == expected, "\n".join(
+    sites = _ingredient_sites()
+    new = sites - KNOWN_AUTHORITY_INGREDIENT_SITES
+    stale = KNOWN_AUTHORITY_INGREDIENT_SITES - sites
+    assert sites == KNOWN_AUTHORITY_INGREDIENT_SITES, "\n".join(
         [
-            "The set of BT node classes answering 'is the executing actor the"
-            " case authority' changed (ARCH-24-003).",
+            "The set of sites deriving 'is this actor the case authority'"
+            " from an ingredient changed (ARCH-24-009).",
             *(
                 [
-                    "NEW asker — take the answer from the path stage or the"
-                    " authority condition node, do not add a sixth:",
+                    "NEW site — ask"
+                    f" {_authority_question.PREDICATE_NAME}(actor_id, case_id,"
+                    f" {_authority_question.ROLE_ENUM_NAME}"
+                    f".{_authority_question.AUTHORITY_ROLE_NAME}, dl), which is"
+                    " the one source of that boolean (ARCH-24-008):",
                     *(f"  + {entry}" for entry in sorted(new)),
                 ]
                 if new
@@ -371,68 +346,310 @@ def test_the_authority_question_is_asked_by_one_node():
     )
 
 
-def test_the_sanctioned_asker_is_among_them():
-    """The scan sees the authority condition node, so it is not blind.
-
-    The sanctioned asker is permanent, so a scan that misses it means the
-    detector stopped matching the act — a renamed resolver, a moved module, a
-    reshaped corpus — and that is a failure rather than a clean bill of
-    health (#5535).
-
-    Spec: ARCH-24-003
-    """
-    assert SANCTIONED_AUTHORITY_ASKER in _authority_askers(), (
-        f"{_AUTHORITY_NODE_NAME} no longer reads as an authority asker; the"
-        " detector in test/architecture/_authority_question.py has gone"
-        f" blind (it looks for {_authority_question.RESOLVER_NAME} and"
-        f" {_authority_question.PREDICATE_NAME})"
-    )
-
-
-def test_the_backlog_of_second_askers_is_not_yet_empty():
+def test_the_authority_ingredient_backlog_is_not_yet_empty():
     """The ratchet is not at its terminal value.
 
-    When the last entry goes, invert this and fold
-    :data:`KNOWN_SECOND_AUTHORITY_ASKERS` away rather than deleting the scan:
-    the detector keeps covering the act, so a second asker written again is
-    reported instead of silently exempt
+    When the last entry goes, invert this to assert the scan reports no site
+    and fold :data:`KNOWN_AUTHORITY_INGREDIENT_SITES` away rather than
+    deleting the scan: the detector keeps covering both shapes, so one
+    written again is reported instead of silently exempt
     (``notes/architecture-ratchet-corpus.md``).
 
-    Spec: ARCH-24-003
+    Spec: ARCH-18-002
     """
-    assert KNOWN_SECOND_AUTHORITY_ASKERS, (
-        "every node now takes the authority answer from one asker: replace"
-        " this with an assertion that the scan reports the sanctioned asker"
-        " alone, and keep test_the_sanctioned_asker_is_among_them as the"
-        " positive control"
+    assert KNOWN_AUTHORITY_INGREDIENT_SITES, (
+        "every site now takes the authority boolean from"
+        f" {_authority_question.PREDICATE_NAME}: replace this with an"
+        " assertion that the scan reports no site, and keep the synthetic"
+        " controls as the positive half"
     )
 
 
-def test_the_detector_ignores_a_permission_role_question():
-    """``has_role`` about another role is not the authority question.
+def test_the_ingredient_scan_opens_modules():
+    """The subject set is non-empty, so the ratchet cannot pass vacuously.
 
-    A path branch checks the receiver's Vendor or Deployer role with the same
-    predicate (HP-01-037). Those are permission rules inside a path, so a node
-    that asks one must not be reported as a second authority asker.
+    An empty scan means the prefilter, the corpus or the roots stopped
+    matching — a failure, not a clean bill of health (#5535).
 
-    Spec: ARCH-24-003
+    Spec: ARCH-18-001
+    """
+    scanned = _authority_question.scanned_modules(*_PROTOCOL_ROOTS)
+    assert scanned, (
+        "the ingredient scan opened no module under"
+        f" {[root.name for root in _PROTOCOL_ROOTS]}; its prefilter fragments"
+        f" are {_authority_question.RESOLVER_NAME!r} and"
+        f" {_authority_question.AUTHORITY_ROLE_NAME!r}"
+    )
+
+
+def test_the_authority_question_is_asked_through_the_predicate():
+    """The compliant askers are permanently non-empty.
+
+    This is the control that outlives the ratchet.  The codebase does ask
+    "is this actor the authority" — the authority condition node, the path
+    stage, the post-close door, the creation-time embargo — so a scan that
+    finds no *compliant* asker means the detector stopped matching the act,
+    which would make the violation half pass for the same reason (#5535).
+
+    Spec: ARCH-24-008
+    """
+    askers = _authority_question.predicate_asker_modules(*_PROTOCOL_ROOTS)
+    assert askers, (
+        "no module asks"
+        f" {_authority_question.PREDICATE_NAME}(...,"
+        f" {_authority_question.ROLE_ENUM_NAME}"
+        f".{_authority_question.AUTHORITY_ROLE_NAME}, ...); the detector in"
+        " test/architecture/_authority_question.py has gone blind"
+    )
+    condition_node_module = "vultron/core/behaviors/case/nodes/conditions.py"
+    assert condition_node_module in askers, (
+        f"{_AUTHORITY_NODE_NAME}'s module no longer reads as an asker of the"
+        " authority question through the shared predicate (ARCH-24-006)"
+    )
+
+
+def test_the_detector_reports_a_planted_id_comparison():
+    """A comparison of the resolved manager with another id is reported.
+
+    The mutation control for :data:`_authority_question.COMPARISON`, in the
+    spelling every converted site used: bind the resolver\'s answer, compare
+    it one statement later.
+
+    Spec: ARCH-24-009
+    """
+    source = (
+        "def f(case, dl, actor_id):\n"
+        f"    held = {_authority_question.RESOLVER_NAME}(case, dl)\n"
+        "    return held == actor_id\n"
+    )
+    tree = _corpus.parse_inline(source, filename="<synthetic>")
+    assert _authority_question.ingredient_shapes_in(tree) == frozenset(
+        {_authority_question.COMPARISON}
+    )
+
+
+def test_the_detector_reports_a_planted_id_comparison_by_call():
+    """The same act spelled as a tolerant-id call is reported too.
+
+    Spec: ARCH-24-009
+    """
+    source = (
+        "def f(case, dl, actor_id):\n"
+        f"    held = {_authority_question.RESOLVER_NAME}(case, dl)\n"
+        f"    return {_authority_question.ID_COMPARISON_NAME}(held,"
+        " actor_id)\n"
+    )
+    tree = _corpus.parse_inline(source, filename="<synthetic>")
+    assert _authority_question.ingredient_shapes_in(tree) == frozenset(
+        {_authority_question.COMPARISON}
+    )
+
+
+def test_the_detector_reports_a_planted_role_list_test():
+    """A role list tested for the authority role is reported.
+
+    The mutation control for :data:`_authority_question.ROLE_LIST`, in the
+    shape ``has_case_manager_role`` hid: the membership test the detector
+    could not see through a helper, which is why that helper is gone (#5921).
+
+    Spec: ARCH-24-009
+    """
+    role = (
+        f"{_authority_question.ROLE_ENUM_NAME}"
+        f".{_authority_question.AUTHORITY_ROLE_NAME}"
+    )
+    inline = _corpus.parse_inline(
+        f"def f(participant):\n    return {role} in participant.case_roles\n",
+        filename="<synthetic>",
+    )
+    assert _authority_question.ingredient_shapes_in(inline) == frozenset(
+        {_authority_question.ROLE_LIST}
+    )
+    through_helper = _corpus.parse_inline(
+        f"def has_case_manager_role(roles):\n    return {role} in roles\n",
+        filename="<synthetic>",
+    )
+    assert _authority_question.ingredient_shapes_in(
+        through_helper
+    ) == frozenset({_authority_question.ROLE_LIST}), (
+        "a helper that tests a role list for the authority role is the shape,"
+        " however it is named"
+    )
+
+
+def test_the_detector_reports_the_per_record_predicate():
+    """``participant.has_role(CASE_MANAGER)`` is the role-list shape.
+
+    The record method answers about one record, which is the divergence
+    ARCH-24-008 closes: authority has one answer per case.
+
+    Spec: ARCH-24-009
+    """
+    source = (
+        "def f(participant):\n"
+        f"    return participant.{_authority_question.RECORD_PREDICATE_NAME}("
+        f"{_authority_question.ROLE_ENUM_NAME}"
+        f".{_authority_question.AUTHORITY_ROLE_NAME})\n"
+    )
+    tree = _corpus.parse_inline(source, filename="<synthetic>")
+    assert _authority_question.ingredient_shapes_in(tree) == frozenset(
+        {_authority_question.ROLE_LIST}
+    )
+
+
+def test_the_detector_passes_a_compliant_predicate_call():
+    """Asking the shared predicate is not a violation.
+
+    The other direction of the mutation control: a detector that reported the
+    sanctioned source would make every compliant site a violation and get
+    switched off.
+
+    Spec: ARCH-24-008
     """
     source = (
         "class Node:\n"
         "    def update(self):\n"
         f"        return {_authority_question.PREDICATE_NAME}("
-        "self.actor_id, case_id, CVDRole.VENDOR, self.datalayer)\n"
+        "self.actor_id, self.case_id,"
+        f" {_authority_question.ROLE_ENUM_NAME}"
+        f".{_authority_question.AUTHORITY_ROLE_NAME}, self.datalayer)\n"
     )
     tree = _corpus.parse_inline(source, filename="<synthetic>")
-    assert not _authority_question.answers_the_authority_question(tree)
+    assert _authority_question.ingredient_shapes_in(tree) == frozenset()
+    assert _authority_question.asks_the_predicate_about_the_authority_role(
+        tree
+    ), "the compliant call must still read as an asker"
 
-    authority = source.replace(
-        "CVDRole.VENDOR",
-        f"CVDRole.{_authority_question.AUTHORITY_ROLE_NAME}",
+
+def test_the_detector_ignores_a_resolver_none_test():
+    """ "Does the case name an authority at all" stays legal.
+
+    A fact about the case, not a boolean about an actor, and the spelling
+    about sixty callers of the resolver use.
+
+    Spec: ARCH-24-009
+    """
+    source = (
+        "def f(case, dl):\n"
+        f"    held = {_authority_question.RESOLVER_NAME}(case, dl)\n"
+        "    if held is None:\n"
+        "        return None\n"
+        "    return held\n"
     )
-    assert _authority_question.answers_the_authority_question(
-        _corpus.parse_inline(authority, filename="<synthetic>")
-    ), "the same node asking about the authority role must be reported"
+    tree = _corpus.parse_inline(source, filename="<synthetic>")
+    assert _authority_question.ingredient_shapes_in(tree) == frozenset()
+
+
+def test_the_detector_ignores_a_permission_role_question():
+    """``has_role`` about another role is not the authority question.
+
+    A path branch checks the receiver\'s Vendor or Deployer role with the same
+    predicate (HP-01-037). Those are permission rules inside a path, so a node
+    that asks one must not read as an authority asker.
+
+    Spec: ARCH-24-008
+    """
+    source = (
+        "class Node:\n"
+        "    def update(self):\n"
+        f"        return {_authority_question.PREDICATE_NAME}("
+        f"self.actor_id, case_id, {_authority_question.ROLE_ENUM_NAME}"
+        ".VENDOR, self.datalayer)\n"
+    )
+    tree = _corpus.parse_inline(source, filename="<synthetic>")
+    assert not _authority_question.asks_the_predicate_about_the_authority_role(
+        tree
+    )
+    assert _authority_question.ingredient_shapes_in(tree) == frozenset()
+
+
+def test_the_detector_ignores_a_path_enum_of_the_same_member_name():
+    """``ReceivedPath.CASE_MANAGER`` names a path, not a role.
+
+    The path stage reads it to pick a branch (HP-01-038), so a detector keyed
+    on the member name alone would report every declaring tree.
+
+    Spec: ARCH-24-009
+    """
+    source = (
+        "def f(declared):\n"
+        f"    return ReceivedPath.{_authority_question.AUTHORITY_ROLE_NAME}"
+        " in declared\n"
+    )
+    tree = _corpus.parse_inline(source, filename="<synthetic>")
+    assert _authority_question.ingredient_shapes_in(tree) == frozenset()
+
+
+def test_a_validator_refusing_a_claimed_role_list_is_not_the_question():
+    """Refusing a claimed ``CASE_MANAGER`` at the parse edge is validation.
+
+    A ``CaseProposal`` whose ``proposerCaseRoles`` names the authority role is
+    refused at construction (CP-01-012). No participant record is in question
+    there, so the exemption is the decorator, read off ``pydantic``.
+
+    Spec: ARCH-24-009
+    """
+    role = (
+        f"{_authority_question.ROLE_ENUM_NAME}"
+        f".{_authority_question.AUTHORITY_ROLE_NAME}"
+    )
+    source = (
+        "class Event:\n"
+        "    @field_validator('proposer_case_roles')\n"
+        "    @classmethod\n"
+        "    def _no_case_manager(cls, value):\n"
+        f"        if {role} in value:\n"
+        "            raise ValueError('CP-01-012')\n"
+        "        return value\n"
+    )
+    tree = _corpus.parse_inline(source, filename="<synthetic>")
+    assert _authority_question.ingredient_shapes_in(tree) == frozenset(
+        {_authority_question.ROLE_LIST}
+    ), "the raw shape is present; the exemption is what removes it"
+    assert (
+        _authority_question._shapes_outside_exempt_functions(tree, frozenset())
+        == frozenset()
+    )
+
+
+def test_the_exemption_is_scoped_to_the_function_not_the_file():
+    """An ingredient beside an exempt function is still reported.
+
+    A whole-file exemption would let a renamed copy of the deleted role-list
+    predicate sit beside the sanctioned one and pass every check here.
+
+    Spec: ARCH-24-009
+    """
+    role = (
+        f"{_authority_question.ROLE_ENUM_NAME}"
+        f".{_authority_question.AUTHORITY_ROLE_NAME}"
+    )
+    source = (
+        f"def {_authority_question.RESOLVER_NAME}(case, dl):\n"
+        "    for p in iter_case_participants(case, dl):\n"
+        f"        if {role} in p.roles:\n"
+        "            return p.attributed_to\n"
+        "    return None\n"
+        "\n"
+        "def manages(participant):\n"
+        f"    return {role} in participant.case_roles\n"
+    )
+    tree = _corpus.parse_inline(source, filename="<synthetic>")
+    exempt = frozenset({_authority_question.RESOLVER_NAME})
+    assert _authority_question._shapes_outside_exempt_functions(
+        tree, exempt
+    ) == frozenset({_authority_question.ROLE_LIST})
+
+    resolver_only = _corpus.parse_inline(
+        source.split("\ndef manages", maxsplit=1)[0] + "\n",
+        filename="<synthetic>",
+    )
+    assert (
+        _authority_question._shapes_outside_exempt_functions(
+            resolver_only, exempt
+        )
+        == frozenset()
+    ), "the resolver's own role read is the sanctioned one"
 
 
 # ---------------------------------------------------------------------------
