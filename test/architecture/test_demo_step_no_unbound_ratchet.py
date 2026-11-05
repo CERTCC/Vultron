@@ -64,7 +64,9 @@ placeholder.  The first guard, rebinding or read in evaluation order decides,
 so a guard beside the later reads defends them as an enclosing one would —
 deliberate, because ``if x is None: raise`` is the shape the authoring note
 asks for.  Nested function and class bodies are a separate scope and are not
-followed.
+followed, nor is a ``lambda`` or a comprehension that binds the name itself:
+there the name is a different variable, and a rebinding — ``:=`` included —
+ends the sentinel rather than reading it.
 
 Both checks key on the act — the pre-initialisation, the guarded ``with``, the
 read — and not on the name of the function that performs it, so neither loses
@@ -284,28 +286,32 @@ def _placeholder_preinit_names(stmt: ast.stmt) -> set[str]:
     return set()
 
 
+def _rebound_targets(node: ast.AST) -> list[ast.expr]:
+    """The assignment targets *node* binds to a non-placeholder value.
+
+    Empty for a node that binds nothing, and for one whose value is a
+    placeholder literal: re-writing the sentinel does not end it.  A bare
+    annotation (``x: int``) has no value and so binds nothing either.
+    """
+    if isinstance(node, ast.Assign):
+        return [] if _is_placeholder(node.value) else list(node.targets)
+    if isinstance(node, (ast.AnnAssign, ast.NamedExpr)):
+        if node.value is None or _is_placeholder(node.value):
+            return []
+        return [node.target]
+    if isinstance(node, (ast.AugAssign, ast.For, ast.AsyncFor)):
+        return [node.target]
+    if isinstance(node, (ast.With, ast.AsyncWith)):
+        return [i.optional_vars for i in node.items if i.optional_vars]
+    return []
+
+
 def _rebound_names(node: ast.AST) -> set[str]:
     """Names *node* binds to something other than a placeholder literal."""
-    if isinstance(node, ast.Assign):
-        if _is_placeholder(node.value):
-            return set()
-        names: set[str] = set()
-        for target in node.targets:
-            names |= _store_names(target)
-        return names
-    if isinstance(node, ast.AnnAssign):
-        if node.value is None or _is_placeholder(node.value):
-            return set()
-        return _store_names(node.target)
-    if isinstance(node, (ast.AugAssign, ast.For, ast.AsyncFor)):
-        return _store_names(node.target)
-    if isinstance(node, (ast.With, ast.AsyncWith)):
-        bound: set[str] = set()
-        for item in node.items:
-            if item.optional_vars:
-                bound |= _store_names(item.optional_vars)
-        return bound
-    return set()
+    names: set[str] = set()
+    for target in _rebound_targets(node):
+        names |= _store_names(target)
+    return names
 
 
 def _assigned_within(stmts: list[ast.stmt]) -> set[str]:
@@ -430,7 +436,9 @@ def _evaluated_before_binding(node: ast.AST) -> list[ast.AST]:
     not a read of the sentinel; the iterable is evaluated before, so one there
     is.
     """
-    if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+    if isinstance(
+        node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr)
+    ):
         return [node.value] if node.value is not None else []
     if isinstance(node, (ast.For, ast.AsyncFor)):
         return [node.iter]
@@ -447,6 +455,30 @@ _COMPREHENSIONS = (
     ast.GeneratorExp,
     ast.DictComp,
 )
+
+
+def _binds_in_own_scope(node: ast.AST, name: str) -> bool:
+    """True when *node* is an expression scope that binds *name* itself.
+
+    A ``lambda`` parameter and a comprehension's ``for`` target are local to
+    that expression, so a mention of *name* inside it is a different variable
+    and neither reads nor guards the sentinel.  Treated like the nested
+    ``def`` in :data:`_SCOPE_TYPES`: not followed.  Kept out of that tuple so
+    the unbound check's own scope rule is unchanged.
+    """
+    if isinstance(node, ast.Lambda):
+        args = node.args
+        declared = [
+            *args.posonlyargs,
+            *args.args,
+            *args.kwonlyargs,
+            *([args.vararg] if args.vararg else []),
+            *([args.kwarg] if args.kwarg else []),
+        ]
+        return any(arg.arg == name for arg in declared)
+    if isinstance(node, _COMPREHENSIONS):
+        return any(name in _store_names(gen.target) for gen in node.generators)
+    return False
 
 
 def _in_evaluation_order(node: ast.AST) -> list[ast.AST]:
@@ -470,7 +502,7 @@ def _first_event(node: ast.AST, name: str) -> tuple[str, int] | None:
     a rebinding, ``("read", line)`` for an unguarded read, ``None`` when
     *node* neither guards nor reads *name*.
     """
-    if isinstance(node, _SCOPE_TYPES):
+    if isinstance(node, _SCOPE_TYPES) or _binds_in_own_scope(node, name):
         return None
     if _guards_name(node, name):
         return "safe", _corpus.node_line(node)
@@ -1359,6 +1391,51 @@ def example():
     if offer:
         log("the offer landed")
     acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == []
+
+
+def test_comprehension_rebinding_the_name_is_its_own_scope():
+    """A comprehension target is comprehension-local, not the sentinel.
+
+    ``[use(offer) for offer in items]`` reads the comprehension's own
+    ``offer``, so reporting it would fail correct code.
+    """
+    src = """\
+def example(items):
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    picked = [use(offer) for offer in items]
+"""
+    assert _sentinel_leaks(src) == []
+
+
+def test_walrus_rebinding_ends_the_sentinel():
+    """``:=`` binds the name to a real value, so later reads are not leaks."""
+    src = """\
+def example():
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    if (offer := fetch_offer()):
+        acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == []
+
+
+def test_lambda_parameter_shadowing_the_name_is_its_own_scope():
+    """A ``lambda`` parameter is lambda-local, not the sentinel."""
+    src = """\
+def example():
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    render = lambda offer: acknowledge(offer)
+    return render
 """
     assert _sentinel_leaks(src) == []
 
