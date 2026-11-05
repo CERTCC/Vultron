@@ -196,13 +196,23 @@ class TestProofVerificationError:
             translate_domain_errors(error)
 
     @pytest.mark.spec("EH-03-005")
-    def test_is_a_vultron_error_and_not_a_validation_error(self):
-        """Pydantic must not absorb it, and no ``except ValueError`` catches it."""
-        assert issubclass(VultronProofVerificationError, VultronError)
-        assert not issubclass(VultronProofVerificationError, ValueError)
-        assert not issubclass(
-            VultronProofVerificationError, VultronValidationError
-        )
+    @pytest.mark.parametrize(
+        "error_class",
+        [VultronProofVerificationError, VultronProofInvalidError],
+        ids=["core-category", "signing-subclass"],
+    )
+    def test_is_a_vultron_error_and_not_a_validation_error(
+        self, error_class: type[VultronError]
+    ):
+        """Pydantic must not absorb it, and no ``except ValueError`` catches it.
+
+        The signing subclass is checked too: it is the class ``signing.verify``
+        raises, and its second base could bring ``ValueError`` back in.
+        """
+        assert issubclass(error_class, VultronProofVerificationError)
+        assert issubclass(error_class, VultronError)
+        assert not issubclass(error_class, ValueError)
+        assert not issubclass(error_class, VultronValidationError)
 
     @pytest.mark.spec("EH-05-001")
     def test_context_manager_raises_the_422(self):
