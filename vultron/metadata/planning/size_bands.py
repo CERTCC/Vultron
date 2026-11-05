@@ -41,6 +41,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 
 from vultron.metadata.base import repo_root
+from vultron.metadata.git_runner import GitError, GitRunner
 from vultron.metadata.planning.gh import (
     DEFAULT_REPO,
     GH_FAILURES,
@@ -50,8 +51,6 @@ from vultron.metadata.planning.gh import (
 )
 from vultron.metadata.planning.size_calibration import (
     BandScheme,
-    GitError,
-    GitRunner,
     complete_commits,
     fetch_window,
     render_report,

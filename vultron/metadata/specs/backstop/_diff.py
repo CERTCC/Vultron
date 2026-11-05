@@ -15,14 +15,13 @@
 from __future__ import annotations
 
 import re
-import subprocess  # nosec B404 - runs fixed git commands only
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from pathlib import Path
 
+from vultron.metadata.git_runner import GitRunner, git_runner
 from vultron.metadata.specs.backstop._model import (
     BackstopError,
     FileChange,
-    GitRunner,
 )
 
 _HUNK_RE = re.compile(r"^@@ -\S+ \+(\d+)(?:,(\d+))? @@")
@@ -64,25 +63,12 @@ def parse_diff_hunks(diff: str) -> tuple[dict[str, set[int]], set[str]]:
 
 
 def run_git(root: Path) -> GitRunner:
-    """A :data:`GitRunner` for the repository at *root*.
+    """A :data:`~vultron.metadata.git_runner.GitRunner` for the repository at *root*.
 
-    A non-zero git exit raises :class:`BackstopError` carrying git's stderr.
+    A failure raises :class:`BackstopError`, the error every backstop caller
+    reports, carrying git's stderr (:func:`~vultron.metadata.git_runner.git_runner`).
     """
-
-    def run(args: Sequence[str]) -> str:
-        proc = subprocess.run(  # nosec B603 B607 - fixed git argv
-            ["git", *args],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if proc.returncode != 0:
-            detail = proc.stderr.strip() or f"exit {proc.returncode}"
-            raise BackstopError(f"git {' '.join(args)}: {detail}")
-        return proc.stdout
-
-    return run
+    return git_runner(root, BackstopError)
 
 
 def git_toplevel(cwd: Path) -> Path:

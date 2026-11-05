@@ -27,8 +27,6 @@ so this package never imports it.
 """
 
 from vultron.metadata.planning.size_calibration.blame import (
-    GitError,
-    GitRunner,
     complete_commits,
     run_git,
     trace_fixes,
@@ -58,8 +56,6 @@ __all__ = [
     "CalibrationData",
     "ClosedIssue",
     "FixTrace",
-    "GitError",
-    "GitRunner",
     "IssuePair",
     "MergedPr",
     "Section",

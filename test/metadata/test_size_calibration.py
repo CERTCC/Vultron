@@ -13,10 +13,10 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from test.metadata._fake_runner import FakeRunner
+from vultron.metadata.git_runner import GitError
 from vultron.metadata.planning import size_bands
 from vultron.metadata.planning.gh import GhError
 from vultron.metadata.planning.size_calibration import (
-    GitError,
     fetch,
     measures,
     report,

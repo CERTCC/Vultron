@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 
+from vultron.metadata.git_runner import GitRunner
 from vultron.metadata.planning.targeted_tests.index import (
     _is_test_file,
     _no_history,
@@ -14,7 +15,6 @@ from vultron.metadata.planning.targeted_tests.index import (
 from vultron.metadata.specs.backstop import (
     TEST_PREFIX,
     FileChange,
-    GitRunner,
     TestFile,
     base_changed_paths,
     changed_paths,

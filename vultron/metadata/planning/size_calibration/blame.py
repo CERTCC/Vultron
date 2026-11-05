@@ -29,57 +29,28 @@ calls over them.
 from __future__ import annotations
 
 import re
-import subprocess
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import replace
 
 from vultron.metadata.base import repo_root
+from vultron.metadata.git_runner import GitError, GitRunner, git_runner
 from vultron.metadata.planning.size_calibration.model import FixTrace, MergedPr
 
 TRACED_PATHS = "vultron/"
 """The tree a fix's changed lines are traced in: the product code."""
 
-GitRunner = Callable[[Sequence[str]], str]
-"""Runs a ``git`` argument list and returns its standard output.
-
-Raises :class:`GitError` on failure.
-"""
-
-
-class GitError(Exception):
-    """``git`` could not be run, failed, or its output could not be read."""
-
 
 def run_git(args: Sequence[str]) -> str:
     """Run ``git`` in the repository root and return its standard output.
 
-    Output is read as UTF-8, with any undecodable byte replaced: blame
-    carries file content, which need not be valid UTF-8, and only the commit
-    ids in it are read.
+    The default :data:`~vultron.metadata.git_runner.GitRunner` for the trace,
+    resolving the root at call time.
 
     Raises:
         GitError: If ``git`` cannot be run or exits non-zero; the message
             carries its stderr.
     """
-    try:
-        result = subprocess.run(
-            ["git", *args],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            cwd=repo_root(),
-            check=False,
-        )
-    except FileNotFoundError as exc:
-        raise GitError("git is not installed or not on PATH") from exc
-    except OSError as exc:
-        raise GitError(f"cannot run git: {exc}") from exc
-    if result.returncode != 0:
-        raise GitError(
-            f"`git {' '.join(args)}` failed: {result.stderr.strip()}"
-        )
-    return result.stdout
+    return git_runner(repo_root())(args)
 
 
 _HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@")

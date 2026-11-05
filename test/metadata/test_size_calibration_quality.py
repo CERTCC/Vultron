@@ -17,10 +17,11 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from test.metadata._fake_runner import FakeRunner
+from vultron.metadata import git_runner
 from vultron.metadata.base import repo_root
+from vultron.metadata.git_runner import GitError
 from vultron.metadata.planning import size_bands
 from vultron.metadata.planning.size_calibration import (
-    GitError,
     blame,
     measures,
     report,
@@ -558,53 +559,24 @@ class TestCompleteCommits:
 
 
 class TestRunGit:
-    """The real runner, with ``subprocess.run`` replaced: no git is called."""
+    """The trace's default runner, with ``subprocess.run`` replaced."""
 
-    def test_a_failing_command_raises_with_its_stderr(self, monkeypatch):
-        def failed(args, **kwargs):
-            return subprocess.CompletedProcess(args, 128, "", "fatal: bad\n")
-
-        monkeypatch.setattr(blame.subprocess, "run", failed)
-        with pytest.raises(
-            GitError, match=r"`git blame x` failed: fatal: bad$"
-        ):
-            blame.run_git(["blame", "x"])
-
-    def test_output_is_returned_from_the_repository_root(self, monkeypatch):
+    def test_it_runs_in_the_repository_root(self, monkeypatch):
         seen: dict[str, object] = {}
 
         def ran(args, **kwargs):
             seen.update(kwargs, args=args)
             return subprocess.CompletedProcess(args, 0, "out\n", "")
 
-        monkeypatch.setattr(blame.subprocess, "run", ran)
+        monkeypatch.setattr(git_runner.subprocess, "run", ran)
         assert blame.run_git(["status"]) == "out\n"
         assert seen["args"] == ["git", "status"]
         assert seen["cwd"] == repo_root()
 
-    def test_output_is_decoded_leniently(self, monkeypatch):
-        seen: dict[str, object] = {}
+    def test_a_failure_is_a_git_error(self, monkeypatch):
+        def failed(args, **kwargs):
+            return subprocess.CompletedProcess(args, 128, "", "fatal: bad\n")
 
-        def ran(args, **kwargs):
-            seen.update(kwargs)
-            return subprocess.CompletedProcess(args, 0, "", "")
-
-        monkeypatch.setattr(blame.subprocess, "run", ran)
-        blame.run_git(["status"])
-        assert (seen["encoding"], seen["errors"]) == ("utf-8", "replace")
-
-    def test_an_os_error_is_a_git_error(self, monkeypatch):
-        def denied(args, **kwargs):
-            raise PermissionError("denied")
-
-        monkeypatch.setattr(blame.subprocess, "run", denied)
-        with pytest.raises(GitError, match="cannot run git: denied"):
-            blame.run_git(["status"])
-
-    def test_a_missing_git_is_a_git_error(self, monkeypatch):
-        def missing(args, **kwargs):
-            raise FileNotFoundError("git")
-
-        monkeypatch.setattr(blame.subprocess, "run", missing)
-        with pytest.raises(GitError, match="not installed"):
-            blame.run_git(["status"])
+        monkeypatch.setattr(git_runner.subprocess, "run", failed)
+        with pytest.raises(GitError, match=r"^git blame x: fatal: bad$"):
+            blame.run_git(["blame", "x"])
