@@ -40,6 +40,7 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import _as_id, days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.services.received_activity import sealed_body_of
 from vultron.core.use_cases.received.actor.invite import (
     AcceptInviteActorToCaseReceivedUseCase,
     InviteActorToCaseReceivedUseCase,
@@ -364,7 +365,7 @@ class TestInviteActorUseCases:
         record = dl.read(ReceivedActivityRecord.build_id(invite.id_))
         assert isinstance(record, ReceivedActivityRecord)
         assert record.activity_id == invite.id_
-        assert json.loads(record.received_body)["id"] == invite.id_
+        assert json.loads(sealed_body_of(record))["id"] == invite.id_
         assert dl.get(invite.type_.value, invite.id_) is None
 
     def test_invite_receipt_logged_in_narrative_form(

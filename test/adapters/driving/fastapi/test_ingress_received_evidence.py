@@ -53,6 +53,7 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.services.received_activity import sealed_body_of
 from vultron.errors import VultronReusedActivityIdError, VultronWiringError
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
@@ -309,7 +310,7 @@ def test_a_different_body_under_a_deferred_id_is_refused(
     held = dl.read(ReceivedActivityRecord.build_id(first["id"]))
     assert isinstance(held, ReceivedActivityRecord)
     assert held == held_before
-    assert json.loads(held.received_body) == first
+    assert json.loads(sealed_body_of(held)) == first
 
 
 @pytest.mark.spec("IE-10-002")
@@ -337,11 +338,13 @@ def test_a_body_that_differs_only_in_key_order_is_refused(
     """The match is exact, with no normalisation (IE-10-002 ``note:``)."""
     first = _offer_of_stored_report(dl)
     record = archive_received(dl, parse_activity(copy.deepcopy(first)))
-    reordered = dict(reversed(list(json.loads(record.received_body).items())))
+    reordered = dict(
+        reversed(list(json.loads(sealed_body_of(record)).items()))
+    )
     adapter = FastAPIIngressAdapter(dl=dl)
     artifact = adapter.parse(reordered)
     assert artifact is not None
-    assert artifact.received_evidence == json.loads(record.received_body)
+    assert artifact.received_evidence == json.loads(sealed_body_of(record))
 
     with pytest.raises(VultronReusedActivityIdError):
         adapter.rehydrate(artifact)
@@ -360,14 +363,14 @@ def test_resend_of_an_archived_body_routes_the_archived_copy(
     record = archive_received(dl, parse_activity(copy.deepcopy(first)))
     before = _store_state(dl)
     adapter = FastAPIIngressAdapter(dl=dl)
-    artifact = adapter.parse(json.loads(record.received_body))
+    artifact = adapter.parse(json.loads(sealed_body_of(record)))
     assert artifact is not None
 
     routed = adapter.rehydrate(artifact)
 
     assert routed is not artifact
     assert routed.id_ == first["id"]
-    archived = json.loads(record.received_body)
+    archived = json.loads(sealed_body_of(record))
     assert routed.summary == "first"
     assert routed.received_evidence == archived
     assert prepare_for_dispatch(routed).received_body() == archived
@@ -497,7 +500,7 @@ def test_a_replayed_deferral_is_archived_as_its_first_delivery(
 
     record = dl.read(ReceivedActivityRecord.build_id(body["id"]))
     assert isinstance(record, ReceivedActivityRecord)
-    assert json.loads(record.received_body) == body
+    assert json.loads(sealed_body_of(record)) == body
 
 
 @pytest.mark.spec("VM-08-002")
@@ -550,14 +553,14 @@ def test_a_resend_whose_held_copy_does_not_rebuild_is_a_wiring_fault(
         held = dl.read(ReceivedActivityRecord.build_id(first["id"]))
         assert isinstance(held, ReceivedActivityRecord)
         assert held.replay_owed
-        resend = held.received_body
+        resend = sealed_body_of(held)
         monkeypatch.setattr(
             InlineObjectStaging, "rehydrate_held", lambda *_args: None
         )
     else:
-        resend = archive_received(
-            dl, parse_activity(copy.deepcopy(first))
-        ).received_body
+        resend = sealed_body_of(
+            archive_received(dl, parse_activity(copy.deepcopy(first)))
+        )
         monkeypatch.setattr(
             InlineObjectStaging, "rehydrate_archived", lambda *_args: None
         )
@@ -579,7 +582,7 @@ def test_an_archived_resend_deferred_again_is_held_with_the_archived_body(
     record = archive_received(dl, parse_activity(copy.deepcopy(first)))
     staging = InlineObjectStaging(dl)
     adapter = FastAPIIngressAdapter(dl=dl, staging=staging)
-    artifact = adapter.parse(json.loads(record.received_body))
+    artifact = adapter.parse(json.loads(sealed_body_of(record)))
     assert artifact is not None
     adapter.rehydrate(artifact)
 
@@ -589,8 +592,8 @@ def test_an_archived_resend_deferred_again_is_held_with_the_archived_body(
     assert isinstance(held, ReceivedActivityRecord)
     assert held.stage is ReceivedStage.ARCHIVED, "the archive is kept"
     assert held.replay_owed
-    archived = json.loads(record.received_body)
-    assert json.loads(held.received_body) == archived
+    archived = json.loads(sealed_body_of(record))
+    assert json.loads(sealed_body_of(held)) == archived
     replayed = StoredActivityIngressAdapter(dl=dl).parse(first["id"])
     assert replayed is not None
     assert replayed.received_evidence == archived

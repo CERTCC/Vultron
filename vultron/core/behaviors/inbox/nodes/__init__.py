@@ -34,15 +34,20 @@ from vultron.core.behaviors.inbox.nodes.dispatch import (
     BuildOutcomeNode,
     DispatchNode,
 )
+from vultron.core.behaviors.inbox.nodes.outcome_stage import (
+    SettleReceivedOutcome,
+)
 from vultron.core.behaviors.inbox.nodes.pipeline import (
     ALL_INBOX_KEYS,
     KEY_ACTIVITY,
     KEY_CONTEXT_ID,
     KEY_DEREFERENCE,
     KEY_DISPATCH,
+    KEY_DISPOSITION,
     KEY_EVENT,
     KEY_FAILURE_REASON,
     KEY_INGRESS,
+    KEY_OUTCOME,
     KEY_OUTCOME_STATUS,
     KEY_PAYLOAD,
     KEY_QUEUE,

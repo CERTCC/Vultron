@@ -75,7 +75,10 @@ from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
     ReceivedStage,
 )
-from vultron.core.services.received_activity import holds_received_activity
+from vultron.core.services.received_activity import (
+    held_received_record,
+    holds_received_activity,
+)
 from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
@@ -90,12 +93,18 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
     record holds the event's received evidence, the body the parser sealed
     (VM-08-002), and nothing else (ADR-0149).
 
-    Idempotent: an activity already archived is left untouched and its sender
-    id recorded in :attr:`found_ids`; one this store did not hold is archived
-    and recorded in :attr:`stored_ids`.  Presence is the
-    ``VultronAlreadyExistsError`` that ``create()`` raises on the derived id.
-    Only that error is caught: any other failure to store is a fault this
-    node must surface (ARCH-15-001), not a benign duplicate.
+    Idempotent: an activity whose body this store already holds is left
+    untouched and its sender id recorded in :attr:`found_ids`; one this store
+    did not hold is archived and recorded in :attr:`stored_ids`.  Presence is
+    the ``VultronAlreadyExistsError`` that ``create()`` raises on the derived
+    id.  Only that error is caught: any other failure to store is a fault
+    this node must surface (ARCH-15-001), not a benign duplicate.
+
+    One record it finds is not a body: a receipt stub, all an earlier
+    refusal left (CLP-10-018).  That delivery is still one this receiver has
+    seen, so its id goes in :attr:`found_ids`, and the body it brings is
+    archived over the stub, because the tree about to run may apply it
+    (:meth:`_archive_over_a_receipt_stub`).
 
     An event with no received evidence is a resend under an id the receiver
     already holds (VM-08-010, IE-10-001): it is routed without a body of its
@@ -172,8 +181,9 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
             )
         except VultronAlreadyExistsError:
             self.found_ids.append(activity_id)
+            self._archive_over_a_receipt_stub(activity_id, evidence)
             self.logger.debug(
-                "Intake: %s activity '%s' already archived",
+                "Intake: %s activity '%s' already held",
                 event.activity_type,
                 activity_id,
             )
@@ -185,6 +195,42 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
             activity_id,
         )
         return Status.SUCCESS
+
+    def _archive_over_a_receipt_stub(
+        self, activity_id: str, evidence: str
+    ) -> None:
+        """Archive *evidence* when all this receiver held was a receipt stub.
+
+        A receipt stub is what a refusal left (CLP-10-018): the receipt
+        without the message.  A later delivery of the same activity brings a
+        body again, and the tree about to run may apply it, so the archive
+        CLP-10-017 promises has to exist.  The stub is replaced by that
+        archive; the activity id stays in :attr:`found_ids`, because this
+        receiver *had* seen the activity before, which is the question every
+        reader of that list asks.
+
+        This runs only while the doors still follow intake.  Once the
+        seen-before door runs first, a resend of a refused message is
+        answered from its stub and never reaches intake (#5046, #5047).
+        """
+        assert self.datalayer is not None
+        record = held_received_record(self.datalayer, activity_id)
+        if record is None or not record.is_receipt_stub:
+            return
+        self.datalayer.save(
+            ReceivedActivityRecord(
+                activity_id=activity_id,
+                received_body=evidence,
+                stage=ReceivedStage.ARCHIVED,
+                replay_owed=False,
+                received_at=record.received_at,
+            )
+        )
+        self.logger.info(
+            "Intake archived activity '%s' over the receipt stub its earlier"
+            " refusal left (CLP-10-017, CLP-10-018)",
+            activity_id,
+        )
 
     def _find_held(self, activity_id: str) -> Status:
         """Answer an event with no body: find what this receiver holds.

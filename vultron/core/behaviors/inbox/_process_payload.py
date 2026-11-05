@@ -45,6 +45,7 @@ from vultron.core.behaviors.inbox.models import (
     InboxOutcomeStatus,
     IngressPayloadAdapter,
     PendingCaseQueuePort,
+    ReceivedOutcomePort,
 )
 from vultron.core.behaviors.inbox.nodes import (
     ALL_INBOX_KEYS,
@@ -54,6 +55,7 @@ from vultron.core.behaviors.inbox.nodes import (
     KEY_EVENT,
     KEY_FAILURE_REASON,
     KEY_INGRESS,
+    KEY_OUTCOME,
     KEY_OUTCOME_STATUS,
     KEY_PAYLOAD,
     KEY_QUEUE,
@@ -86,6 +88,7 @@ def _write_inbox_inputs(
     dispatch_adapter: DispatchAdapter,
     queue_port: PendingCaseQueuePort | None,
     dereference_port: ObjectDereferencePort | None = None,
+    received_outcome_port: ReceivedOutcomePort | None = None,
 ) -> None:
     """Write pipeline inputs to the BT blackboard."""
     setup_bb = py_trees.blackboard.Client(name="InboxOrchestrator-setup")
@@ -94,11 +97,13 @@ def _write_inbox_inputs(
     setup_bb.register_key(KEY_DISPATCH, access=py_trees.common.Access.WRITE)
     setup_bb.register_key(KEY_QUEUE, access=py_trees.common.Access.WRITE)
     setup_bb.register_key(KEY_DEREFERENCE, access=py_trees.common.Access.WRITE)
+    setup_bb.register_key(KEY_OUTCOME, access=py_trees.common.Access.WRITE)
     setup_bb.inbox_payload = payload
     setup_bb.inbox_ingress = ingress_adapter
     setup_bb.inbox_dispatch = dispatch_adapter
     setup_bb.inbox_queue = queue_port
     setup_bb.inbox_dereference = dereference_port
+    setup_bb.inbox_received_outcome = received_outcome_port
 
 
 def _run_bt_pipeline(actor_config: ActorConfig | None = None) -> Status:
@@ -195,6 +200,7 @@ def process_payload(
     queue_port: PendingCaseQueuePort | None = None,
     actor_config: ActorConfig | None = None,
     dereference_port: ObjectDereferencePort | None = None,
+    received_outcome_port: ReceivedOutcomePort | None = None,
 ) -> InboxOutcome:
     """Process one inbox payload through the BT pipeline.
 
@@ -220,6 +226,11 @@ def process_payload(
         dereference_port: Optional fetch-and-defer port.  When provided,
             an activity naming an object the receiver must fetch first waits
             on the fetch instead of being processed without it (AKM-05-007).
+        received_outcome_port: Optional port that moves the received record
+            to its final outcome stage.  When provided, a refused delivery's
+            body is given up for a receipt stub (CLP-10-018, ADR-0154); both
+            production pipelines provide it, and without it a refused body is
+            over-retained rather than lost.
 
     Returns:
         :class:`InboxOutcome` whose ``status`` is an
@@ -241,6 +252,7 @@ def process_payload(
                 dispatch_adapter,
                 queue_port,
                 dereference_port,
+                received_outcome_port,
             )
             _run_bt_pipeline(actor_config)
             outcome = _read_inbox_outcome()

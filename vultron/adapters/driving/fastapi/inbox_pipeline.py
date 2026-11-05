@@ -103,7 +103,7 @@ def _record_the_wait_for_the_replay(
     if bodies.actor_id == queue.actor_id:
         return
     held = held_received_record(bodies, activity_id)
-    if held is None:
+    if held is None or held.received_body is None:
         return
     hold_body_for_replay(
         queue,

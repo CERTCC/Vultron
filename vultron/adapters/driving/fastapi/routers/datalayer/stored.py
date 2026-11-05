@@ -97,6 +97,7 @@ def _received_offers(datalayer: DataLayer) -> dict[str, as_Activity]:
         # received into this actor's records yet (ADR-0154), and the
         # delivery that routes it may still refuse it.
         and record.stage is ReceivedStage.ARCHIVED
+        and record.received_body is not None
         and json.loads(record.received_body).get("type") == _OFFER_TYPE
     }
 

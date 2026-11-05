@@ -19,7 +19,6 @@ body.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import hashlib
 import logging
 from dataclasses import dataclass
 from typing import Any, Literal, cast
@@ -27,6 +26,7 @@ from typing import Any, Literal, cast
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
+from vultron.core.models.received_body import received_body_digest
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.services.received_activity import held_received_record
@@ -91,11 +91,6 @@ def _sender_id(activity: as_Activity) -> str | None:
     return str(getattr(actor, "id_", actor))
 
 
-def _body_digest(sealed_text: str) -> str:
-    """The SHA-256 digest of a sealed received text (IE-10-002)."""
-    return hashlib.sha256(sealed_text.encode("utf-8")).hexdigest()
-
-
 def _refuse_a_different_body(activity: as_Activity, held: _HeldBody) -> None:
     """Refuse *activity* unless its sealed body is exactly *held*'s.
 
@@ -117,7 +112,7 @@ def _refuse_a_different_body(activity: as_Activity, held: _HeldBody) -> None:
             " body, so it cannot be compared with the held one (VM-08-002,"
             " IE-10-002)"
         )
-    if _body_digest(evidence) == _body_digest(held.body):
+    if received_body_digest(evidence) == received_body_digest(held.body):
         return
     sender = _sender_id(activity)
     logger.warning(
@@ -304,7 +299,12 @@ class FastAPIIngressAdapter:
         record = held_received_record(
             cast(CasePersistence, self._dl), activity_id
         )
-        if record is None:
+        if record is None or record.received_body is None:
+            # Nothing, or a receipt stub: a refusal gave the body up
+            # (CLP-10-018), so there is no held copy to route in this
+            # delivery's place.  The delivery is answered on its own, and
+            # the tree judges it again; answering it from the stub instead
+            # is the seen-before door's, with the resend rules (#5046).
             return None
         kind: Literal["awaiting_replay", "archived"] = (
             "awaiting_replay" if record.replay_owed else "archived"

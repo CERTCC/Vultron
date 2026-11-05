@@ -2582,18 +2582,26 @@ groups:
     kind: project
     statement: >-
       Every receive-side BT tree MUST begin with the shared intake node that
-      `create_receive_activity_tree` supplies.
+      `create_receive_activity_tree` supplies. The record that node writes is the
+      message's one staged record, not yet at its final stage: what the receiver keeps
+      is decided once the tree has run, by the outcome stage (CLP-10-073).
     rationale: >-
       Receipt is a fact whether or not the receiver admits the assertion, so the record
       of what arrived is written before any step judges it. One shared node gives every
-      received tree the same first step (ADR-0111).
+      received tree the same first step (ADR-0111). Keeping the body permanently is a
+      separate question from recording the receipt, and it is answered by the verdict,
+      so the archive a reader loads holds only messages the receiver applied
+      (ADR-0154).
     verification: >-
       `test/architecture/test_receive_side_intake_first.py` asserts the intake node is
       the first child of every tree `create_receive_activity_tree` returns and that
       every receive-side factory returns that tree.
+      `test/adapters/driving/fastapi/test_received_outcome_stage.py` asserts an applied
+      or skipped delivery keeps the sealed body intake wrote.
     adr:
     - ADR-0111
     - ADR-0149
+    - ADR-0154
   - id: CLP-10-036
     priority: MUST
     kind: project
@@ -2666,29 +2674,65 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A refusal of an inbound assertion MUST leave the archive that intake wrote in the
-      receiver's DataLayer, never removing or altering it.
+      A refusal of an inbound assertion MUST leave a receipt stub in the receiver's
+      DataLayer, under the same receiver-derived key as the record it replaces,
+      recording who sent the message, the sender's activity id, the time of receipt,
+      the reason it was refused, and the digest of the body it gave up (IE-10-002). The
+      stub keeps no body (CLP-10-075). A delivery whose body is still owed to a replay
+      is left alone while that replay is owed (CLP-10-076, IO-03-009). A second refusal
+      of the same activity leaves the reason the first recorded (CLP-10-077).
     rationale: Receipt is a fact and refusal is a verdict on the assertion, not on the
-      record of receipt. The refusal itself belongs in the process log, never the
-      ledger (CLP-05-002). A receiver that declines to create a case and still keeps
-      the report and the Offer (CM-15-002) does so as an effect of that policy
-      branch, from the event's copy, not because intake stored them.
-    verification: A received-side handler test posts an activity that a precondition
-      guard refuses, asserts the handler disposition is REFUSED, and asserts the
-      activity is readable from the receiver's DataLayer afterward.
+      record of receipt, so the receipt stays and only the message goes. The refusal
+      itself belongs in the process log, never the ledger (CLP-05-002). A receiver that
+      declines to create a case and still keeps the report and the Offer (CM-15-002)
+      does so as an effect of that policy branch, from the event's copy, not because
+      intake stored them. Keeping the full body of every declined message, including
+      copies never addressed to the receiver, costs storage that grows with refused
+      traffic and gives the receiver content it will never act on; the digest keeps
+      enough to tell a resend of the same body from a reused id without the body
+      (ADR-0154). The cost is that the receiver no longer holds evidence of what a
+      misbehaving sender sent, which is then only in the process log.
+    verification: >-
+      `test/adapters/driving/fastapi/test_received_outcome_stage.py` drives a refused
+      delivery through the inbox and asserts the record left is a stub with no body,
+      carrying the sender, the reason, the digest and the original time of receipt, and
+      that a body still owed to a replay is left alone;
+      `test/core/services/test_received_outcome.py` asserts a second refusal leaves the
+      first reason; `test/adapters/driving/fastapi/test_unaddressed_copy_sweep.py`
+      asserts it over every dispatchable example activity;
+      `test/core/models/test_received_activity_record.py` pins, in both directions, that
+      a stub keeps no body and a body-bearing record carries none of a stub's fields.
+    see_also:
+    - spec_id: IE-10-002
+      reason: >-
+        the digest the stub keeps is what IE-10-002 compares, but refusing a reused id
+        is not a narrower case of what a refusal leaves
+    - spec_id: IO-03-009
+      reason: >-
+        the body a replay still owes is IO-03-009's hold, named here only to say which
+        delivery this rule leaves alone
     adr:
     - ADR-0111
+    - ADR-0154
   - id: CLP-10-019
     priority: MUST_NOT
     kind: project
     statement: >-
       A received-side use case MUST NOT store the received activity through any path but
       the intake node. Such other paths include a handler-local helper, a per-tree store
-      node, and a call in `execute()`.
+      node, and a call in `execute()`. The intake node is the only path that writes the
+      received body; the outcome stage (CLP-10-073) is the only path that moves that
+      record to its final stage, and it is outside the use case.
     rationale: >-
       A second store path can store the activity in a different form, or store it twice.
       One shared intake node is the DRY form (CS-22-001), and every received tree gets
-      it from the shared factory.
+      it from the shared factory. The outcome stage writes no body and runs once, after
+      the tree, so it cannot store a second form of the activity (ADR-0154).
+    see_also:
+    - spec_id: CLP-10-073
+      reason: >-
+        the other sanctioned writer of that record, named here so the one-writer rule is
+        read against it; neither is a case of the other
     verification: '`test/architecture/test_no_dl_mutations_in_execute.py` (CLP-10-020)
       flags any DataLayer write an `execute()` body reaches through a use-case-layer
       helper, so a handler-local store path fails the build unless enumerated in
@@ -3576,6 +3620,169 @@ groups:
       spec_id: CM-24-011
     adr:
     - ADR-0109
+  - id: CLP-10-073
+    priority: MUST
+    kind: project
+    statement: >-
+      One outcome stage, outside the handling tree and after it, MUST map the handler's
+      disposition onto the received record's final stage: an APPLIED or SKIPPED delivery
+      keeps the sealed body the record holds, and that is the archive (CLP-10-017); a
+      REFUSED delivery leaves a receipt stub and no body (CLP-10-018); a DEFERRED
+      delivery leaves the holding record as the wait left it (IO-03-009). The stage
+      reads that disposition from the handler's result, the handler's only channel to
+      the inbox (UCORG-05-010), and not from state an earlier stage left in memory
+      (CLP-10-078). It records the outcome and never decides one (CLP-10-079).
+    rationale: >-
+      Every stage reads only the record and the store, so a later stage cannot be fooled
+      by what an earlier one happened to leave in memory, and the stages stay separable
+      (ADR-0154). One stage rather than a write in each tree means a tree cannot forget
+      it or disagree with another about what a refusal keeps (CS-22-001). It runs after
+      the tree because a node in the run embeds the body of the message being handled —
+      the refusal notice does (CLP-05-001) — so the body must still be there while the
+      tree runs.
+    verification: >-
+      `test/adapters/driving/fastapi/test_received_outcome_stage.py` drives each
+      disposition through the real inbox tree and asserts what remains, including a
+      handler that reads the body through the function the refusal notice reads it
+      through and is then refused;
+      `test/architecture/test_intake_flag_readers.py` asserts no module outside the
+      handling tree reads the intake node's in-memory lists.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CLP-10-017
+    - rel_type: uses_definition
+      spec_id: CLP-10-018
+    - rel_type: uses_definition
+      spec_id: IO-03-009
+    - rel_type: uses_definition
+      spec_id: UCORG-05-010
+    adr:
+    - ADR-0154
+  - id: CLP-10-074
+    priority: MUST
+    kind: project
+    statement: >-
+      A delivery that produced no handler verdict MUST leave the received record exactly
+      as it is, with its sealed body. That covers a dispatch that raised, a dispatch
+      that returned no `HandlerResult`, and a semantic type no use case handles
+      (IO-01-005).
+    rationale: >-
+      None of those is a verdict on the assertion, so none is an outcome. The act rolled
+      back and kept nothing (ADR-0151), so a resend or a re-run must be able to run it
+      again from the body the receiver holds; reducing that record to a receipt stub
+      would record a refusal the receiver never made and take the body the re-run needs
+      (ADR-0154).
+    verification: >-
+      `test/adapters/driving/fastapi/test_received_outcome_stage.py` asserts the body
+      stays after a dispatch that raised and after an unhandled semantic type;
+      `test/adapters/driving/fastapi/test_failed_act_redelivery.py` asserts the resend of
+      a failed act is applied from the body the receiver kept.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-073
+    - rel_type: uses_definition
+      spec_id: IO-01-005
+    adr:
+    - ADR-0154
+  - id: CLP-10-075
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A receipt stub MUST NOT keep the received body.
+    rationale: >-
+      Keeping it would make the refusal cost the same storage as an applied message,
+      permanently, for content the receiver will never act on, which is what the stub
+      exists to avoid (ADR-0154). The digest the stub keeps is enough to tell a resend
+      of the same body from a reused id (IE-10-002).
+    verification: >-
+      `test/core/models/test_received_activity_record.py` refuses a stub that carries a
+      body, at construction and under assignment;
+      `test/adapters/driving/fastapi/test_unaddressed_copy_sweep.py` asserts the stub
+      left by every dispatchable example activity holds none.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-018
+    adr:
+    - ADR-0154
+  - id: CLP-10-076
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The outcome stage MUST NOT reduce to a receipt stub a delivery whose body is still
+      owed to a replay.
+    rationale: >-
+      The replay routes that body (IO-03-009), so dropping it would lose the message the
+      wait exists to deliver. The hold ends first, through the holding service, and only
+      then is there a body to give up.
+    verification: >-
+      `test/core/services/test_received_outcome.py` asserts a held body that still owes
+      a replay is left as it is, and the attempt raises.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-018
+    - rel_type: uses_definition
+      spec_id: IO-03-009
+    adr:
+    - ADR-0154
+  - id: CLP-10-077
+    priority: MUST
+    kind: project
+    statement: >-
+      A second refusal of an activity already reduced to a receipt stub MUST leave the
+      reason the first refusal recorded.
+    rationale: >-
+      A refusal is whole and final for that activity, so the record of why it was
+      refused is the first verdict's; a later delivery that is refused again for some
+      other reason would otherwise rewrite history (ADR-0154).
+    verification: >-
+      `test/core/services/test_received_outcome.py` refuses the same activity twice with
+      different reasons and asserts the first stands.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-018
+    adr:
+    - ADR-0154
+  - id: CLP-10-078
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The outcome stage MUST NOT decide the received record's final stage from in-memory
+      state an earlier stage left behind, including the intake node's own lists of what
+      it stored and what it found.
+    rationale: >-
+      Every stage reads the record and the store, so the stages stay separable and a
+      later one cannot be fooled by what an earlier one happened to leave in memory
+      (ADR-0154). The handler's result is the one channel from the handling tree
+      (UCORG-05-010); whether a delivery was seen before is a question for the record.
+    verification: >-
+      `test/architecture/test_intake_flag_readers.py` pins the readers of the intake
+      node's lists to an exact allow-list, every one inside the handling tree, and
+      names the outcome stage as reading none.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-073
+    - rel_type: uses_definition
+      spec_id: UCORG-05-010
+    adr:
+    - ADR-0154
+  - id: CLP-10-079
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The outcome stage MUST NOT change the verdict the sender is answered with.
+    rationale: >-
+      The stage records an outcome the handler already decided. A failure to record it
+      over-retains a refused body, which is a bookkeeping fault, while rewriting the
+      verdict would answer the sender for a reason no guard gave (MV-01-007).
+    verification: >-
+      `test/core/behaviors/inbox/nodes/test_outcome_stage.py` asserts the node returns
+      the decorated dispatch's status unchanged, and that a port whose write raises
+      leaves the delivery's disposition and reason as the handler gave them.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-073
+    adr:
+    - ADR-0154
 - id: CLP-11
   title: Protocol Request/Reply State Detection
   description: Requirements for querying whether a protocol-level request/reply pair
