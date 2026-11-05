@@ -116,8 +116,10 @@ Spec: `specs/<topic>.yaml`
 
 Set the `size:` label from the AC count with
 `PYTHONPATH= uv run pr-size --acs <N> --quiet`. Do not restate the bands — see
-`.agents/skills/shared/sizing.md`. This is an **estimate**; the measured size is
-applied to the PR by CI and never overwrites it (PAD-05-010).
+`.agents/skills/shared/sizing.md`. When it prints `decompose` (exit 3), apply no
+label and split the gap into smaller issues (PAD-05-013). This is an
+**estimate**; the measured size is applied to the PR by CI and never overwrites
+it (PAD-05-010).
 
 Do **not** create issues outside `create-issue`.
 

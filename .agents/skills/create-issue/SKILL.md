@@ -33,7 +33,7 @@ knows instead, and this skill asks only for what is missing:
 | Description or drafted fields | yes | the Phase 3 fields for the type |
 | Type | no | inferred in Phase 1 when absent |
 | Reason | yes | `planned`, or `opened-as <excursion\|separate-defect\|debt\|deferred>`; `debt` also needs `where` |
-| `size:` | Bug and Task | from `pr-size --acs <N>` (`shared/sizing.md`) |
+| `size:` | Bug and Task | from `pr-size --acs <N>` (`shared/sizing.md`); `decompose` means split it and set no `size:` (PAD-05-013) |
 | Blockers | no | `blocked-by` and `blocks` issue numbers |
 | Suggested parent | no | the Epic the caller expects; used only if it carries the theme (Phase 5) |
 | User present | yes | whether a person can answer questions now |
