@@ -31,22 +31,6 @@ def schedule_of(node: dict, project_number: int) -> str | None:
     return None
 
 
-def graphql_errors(payload: dict) -> list[str]:
-    """Messages from a GraphQL ``errors`` block, if the query failed.
-
-    A failed GraphQL query still returns HTTP 200 with ``data`` null or partial,
-    so a reader that looks only at ``data`` reports "no sub-issues found" for a
-    bad Epic number, a token without the ``read:project`` scope that
-    ``projectItems`` needs, and a rate limit alike. Error messages are this
-    package's product, so the real cause is surfaced verbatim.
-    """
-    return [
-        str(error.get("message") or error)
-        for error in payload.get("errors") or []
-        if isinstance(error, dict)
-    ]
-
-
 def epic_assignees(payload: dict) -> list[str]:
     """Who has claimed the Epic for an epic run (PAD-19-001); empty if no one."""
     issue = ((payload.get("data") or {}).get("repository") or {}).get(

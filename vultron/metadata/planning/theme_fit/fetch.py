@@ -28,11 +28,13 @@ import json
 from typing import Any
 
 from vultron.metadata.planning.bundle_fit.model import PLANNING_PROJECT_NUMBER
-from vultron.metadata.planning.bundle_fit.parse import (
+from vultron.metadata.planning.bundle_fit.parse import schedule_of
+from vultron.metadata.planning.gh import (
+    GhError,
+    Runner,
     graphql_errors,
-    schedule_of,
+    run_gh,
 )
-from vultron.metadata.planning.gh import GhError, Runner, run_gh
 from vultron.metadata.planning.theme_fit.model import Ancestor, OpenIssue
 
 _SCHEDULE_FIELD = """

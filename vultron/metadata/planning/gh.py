@@ -12,9 +12,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """One seam for the ``gh`` CLI, shared by the planning scripts.
 
-The scripts that read or write GitHub (``theme-labels``, ``theme-fit``) take a
-:data:`Runner` so their tests fake ``gh`` instead of reaching the network;
-:func:`run_gh` is the real runner they default to.
+The scripts that read or write GitHub (``theme-labels``, ``theme-fit``,
+``pr-size --calibrate``) take a :data:`Runner` so their tests fake ``gh``
+instead of reaching the network; :func:`run_gh` is the real runner they default
+to. :func:`graphql_errors` is the shared reading of a failed GraphQL reply.
 """
 
 from __future__ import annotations
@@ -60,3 +61,19 @@ def gh_failure_detail(exc: GhError | subprocess.CalledProcessError) -> str:
     if isinstance(exc, subprocess.CalledProcessError) and exc.stderr:
         return str(exc.stderr).strip()
     return str(exc)
+
+
+def graphql_errors(payload: dict) -> list[str]:
+    """Messages from a GraphQL ``errors`` block, if the query failed.
+
+    A failed GraphQL query still returns HTTP 200 with ``data`` null or partial,
+    so a reader that looks only at ``data`` reports "no sub-issues found" for a
+    bad Epic number, a token without the ``read:project`` scope that
+    ``projectItems`` needs, and a rate limit alike. Error messages are the
+    planning scripts' product, so the real cause is surfaced verbatim.
+    """
+    return [
+        str(error.get("message") or error)
+        for error in payload.get("errors") or []
+        if isinstance(error, dict)
+    ]
