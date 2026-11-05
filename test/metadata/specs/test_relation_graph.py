@@ -7,7 +7,7 @@ import pytest
 from test.metadata.specs.conftest import spec_file_data
 from vultron.metadata.specs import relation_graph
 from vultron.metadata.specs.registry import SpecRegistry
-from vultron.metadata.specs.schema import SpecFile
+from vultron.metadata.specs.schema import SpecFile, written_spec_ids
 
 
 def _registry(*links: tuple[str, str, str]) -> SpecRegistry:
@@ -287,6 +287,55 @@ def test_backward_short_range_end_is_not_a_citation():
     )
 
     assert relation_graph.check_statement_citations(registry) == []
+
+
+@pytest.mark.spec("SR-13-022")
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("IO-03-003a–003b", {"IO-03-003a", "IO-03-003b"}),
+        ("IO-03-003a–003", {"IO-03-003a"}),
+        ("CM-10-001/002–004", {"CM-10-001", "CM-10-002", "CM-10-004"}),
+        ("CM-10-001–003/005", {"CM-10-001", "CM-10-003", "CM-10-005"}),
+        (
+            "CM-10-001 to CM-10-003–005",
+            {"CM-10-001", "CM-10-003", "CM-10-005"},
+        ),
+        ("CM-10-001–002–003", {"CM-10-001", "CM-10-002", "CM-10-003"}),
+        ("CM-10-001..11-002", {"CM-10-001", "CM-11-002"}),
+        ("CM-10-001 — 100 actors", {"CM-10-001"}),
+        ("CM-10-001 – 003", {"CM-10-001"}),
+        ("CM-10-001 — 11-002", {"CM-10-001", "CM-11-002"}),
+        ("CM-10-001s and CM-10-002", {"CM-10-001s", "CM-10-002"}),
+    ],
+    ids=[
+        "suffixed-short-end",
+        "backward-suffix",
+        "slash-then-range",
+        "range-then-slash",
+        "word-range-then-dash",
+        "chained-range",
+        "cross-group-short-end",
+        "spaced-dash-is-prose",
+        "spaced-en-dash-is-prose",
+        "spaced-group-end-is-a-range",
+        "plural-reads-as-sub-item",
+    ],
+)
+def test_written_spec_ids_reads_each_written_end(text, expected):
+    assert written_spec_ids(text) == expected
+
+
+@pytest.mark.spec("SR-13-023")
+def test_plural_id_is_reported_as_naming_no_requirement():
+    registry = _citing_registry(f"{A} MUST hold for {B}s.")
+
+    errors = relation_graph.check_statement_citations(registry)
+
+    assert errors == [
+        f"{A}'s statement cites {B}s, but no requirement has that ID. "
+        f"Cite the requirement meant (SR-13-022)"
+    ]
 
 
 @pytest.mark.spec("SR-13-023")
