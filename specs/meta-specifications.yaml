@@ -440,9 +440,6 @@ groups:
       The README is the index of the spec corpus that a person reads first, and
       Markdown renders on the code host. The spec loaders read only YAML files, so a
       Markdown README stays outside the corpus they load.
-    relationships:
-    - rel_type: supersedes
-      spec_id: MS-08-001
     tags:
     - documentation
 - id: MS-09
@@ -1028,8 +1025,8 @@ groups:
       growth guard (MS-10-016, `test/architecture/test_verification_debt_guard.py`)
       rejects.
     relationships:
-    - rel_type: constrains
-      spec_id: MS-10-006
+    - rel_type: refines
+      spec_id: MS-10-003
     tags:
     - documentation
     - tooling
@@ -1233,7 +1230,7 @@ groups:
     - rel_type: verifies
       spec_id: MS-10-013
     - rel_type: verifies
-      spec_id: MS-11-004
+      spec_id: SR-02-020
     tags:
     - documentation
     - tooling
@@ -1801,11 +1798,11 @@ groups:
       logged skip when no base ref is available.
     relationships:
     - rel_type: constrains
-      spec_id: SR-11-003
-      note: guards the suppression escape hatch SR-11-003 provides against growth
+      spec_id: SR-11-007
+      note: bounds the lint_suppress opt-out SR-11-007 allows for the hard error
     - rel_type: constrains
-      spec_id: SR-11-004
-      note: the same suppression code silences this advisory, so dead suppressions are in scope
+      spec_id: SR-11-008
+      note: the same suppression code silences the SR-11-004 advisory through SR-11-008
     adr:
     - ADR-0038
     tags:
@@ -3166,11 +3163,11 @@ groups:
     tags:
     - tooling
     relationships:
-    - rel_type: constrains
+    - rel_type: implements
       spec_id: MS-17-001
-    - rel_type: constrains
+    - rel_type: implements
       spec_id: MS-17-002
-    - rel_type: constrains
+    - rel_type: implements
       spec_id: MS-17-005
   - id: MS-17-004
     priority: MUST

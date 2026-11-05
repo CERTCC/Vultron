@@ -1513,7 +1513,7 @@ groups:
           `test_a_rerun_after_a_failed_draft_reuses_the_tag` in
           `test/ci/test_release.py`.
         relationships:
-          - rel_type: extends
+          - rel_type: supersedes
             spec_id: DOCBW-07-001
           - rel_type: supersedes
             spec_id: DOCBW-07-016

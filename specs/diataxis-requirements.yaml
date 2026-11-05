@@ -368,7 +368,7 @@ groups:
       to follow. It answers the tutorial's question, so it belongs in the tutorial's
       content type.
     relationships:
-    - rel_type: extends
+    - rel_type: supersedes
       spec_id: DF-04-009
   - id: DF-04-010
     priority: SHOULD
@@ -1216,6 +1216,11 @@ groups:
     verification: >-
       Inspection of rendered output and of `mkdocs.yml` confirms no page presents its own
       stakeholder type or a label derived from it.
+    relationships:
+    - rel_type: constrains
+      spec_id: DF-11-015
+    - rel_type: constrains
+      spec_id: DF-11-032
   - id: DF-11-032
     priority: MUST
     kind: process
@@ -1231,9 +1236,6 @@ groups:
     verification: >-
       Inspection of rendered output confirms that each generated routing page's title
       states a reader situation.
-    relationships:
-    - rel_type: derives_from
-      spec_id: DF-11-009
   - id: DF-11-010
     priority: MUST_NOT
     kind: process
@@ -1332,9 +1334,6 @@ groups:
       `stakeholder_type` or `level` value. That every member page and start page shows
       its boxes is checked over the built site by DF-11-045. Covered by
       `test/metadata/docs/test_thread_boxes.py::TestBoxTable`.
-    relationships:
-    - rel_type: derives_from
-      spec_id: DF-11-009
   - id: DF-11-034
     priority: MUST
     kind: process

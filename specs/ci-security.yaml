@@ -206,7 +206,7 @@ groups:
       aggregate-keyed close step in a qualifying workflow requires the absence
       of `cancelled`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CISEC-05-002
   - id: CISEC-05-010
     priority: MUST

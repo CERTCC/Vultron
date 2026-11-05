@@ -268,10 +268,6 @@ groups:
           - rel_type: verifies
             spec_id: BW-02-001
           - rel_type: verifies
-            spec_id: BW-02-002
-          - rel_type: verifies
-            spec_id: BW-02-003
-          - rel_type: verifies
             spec_id: BW-02-004
       - id: BW-02-006
         priority: MUST
@@ -470,7 +466,7 @@ groups:
           same future-date check applies, so a file that the normal path rejects cannot
           go into the archive by this path.
         relationships:
-        - rel_type: refines
+        - rel_type: derives_from
           spec_id: HM-06-004
       - id: BW-05-006
         priority: MUST

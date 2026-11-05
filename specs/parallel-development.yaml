@@ -3146,7 +3146,7 @@ groups:
           and Concern candidates under an assigned Epic, and `claim-issue.sh`
           claims a Bug.
         relationships:
-        - rel_type: derives_from
+        - rel_type: extends
           spec_id: PAD-19-002
       - id: PAD-19-003
         priority: MUST

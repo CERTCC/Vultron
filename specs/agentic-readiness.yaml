@@ -257,7 +257,7 @@ groups:
     - rel_type: uses_definition
       spec_id: AR-01-001
     - rel_type: uses_definition
-      spec_id: CM-07-001
+      spec_id: AR-07-001
 - id: AR-08
   title: CLI Interface
   specs:
