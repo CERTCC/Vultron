@@ -46,7 +46,7 @@ class VultronProofInvalidError(
 
     A receiver refuses the document (SIG-03-002).  It is the wire form of the
     core category :exc:`~vultron.errors.VultronProofVerificationError`
-    (EH-03-005), so the inbox answers it 422 like any other proof failure.
+    (EH-03-005), so ``translate_domain_errors`` maps it to 422.
     """
 
 

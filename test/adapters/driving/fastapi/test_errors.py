@@ -42,7 +42,11 @@ from vultron.errors import (
     VultronProofVerificationError,
     VultronValidationError,
 )
-from vultron.wire.as2.errors import VultronProofInvalidError
+from vultron.wire.as2.errors import (
+    VultronMultikeyError,
+    VultronProofInvalidError,
+    VultronUnsignableJsonError,
+)
 
 
 def _as_body(exc: HTTPException) -> dict[str, Any]:
@@ -167,13 +171,29 @@ class TestProofVerificationError:
             VultronProofInvalidError("proof does not verify")
         )
         assert exc.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
-        assert _as_body(exc)["error"] == "ProofVerificationError"
+        assert _as_body(exc) == {
+            "status": 422,
+            "error": "ProofVerificationError",
+            "message": "proof does not verify",
+            "activity_id": None,
+        }
 
-    @pytest.mark.spec("EH-03-005")
-    def test_is_told_apart_from_a_field_error(self):
-        proof = _as_body(self._translate(VultronProofVerificationError("x")))
-        field = _as_body(self._translate(VultronValidationError("x")))
-        assert proof["error"] != field["error"]
+    @pytest.mark.parametrize(
+        "error",
+        [
+            VultronMultikeyError("not a base58btc Ed25519 key"),
+            VultronUnsignableJsonError("duplicate key"),
+        ],
+        ids=["multikey", "unsignable-json"],
+    )
+    def test_other_signing_errors_are_outside_the_category(
+        self, error: VultronError
+    ):
+        """Only a bad proof is in the category; how ingress answers a bad
+        published key or an uncanonicalizable body is #5386's decision."""
+        assert not isinstance(error, VultronProofVerificationError)
+        with pytest.raises(type(error)):
+            translate_domain_errors(error)
 
     @pytest.mark.spec("EH-03-005")
     def test_is_a_vultron_error_and_not_a_validation_error(self):

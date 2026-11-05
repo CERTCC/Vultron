@@ -126,10 +126,12 @@ groups:
       An authentication or authorization failure needs a response of its own, and it
       must not read as bad input or a missing object. A category for it lets the HTTP
       error handler and the logs tell it apart. `VultronProofVerificationError` is
-      the category for a `proof` that is missing or does not verify. The inbox
-      answers it 422 under its own error name: the proof is content, not an HTTP
-      credential, so 401 does not fit, and a verified sender that is not entitled
-      gets a `Reject` from core (HP-01-006), not a 403.
+      the category for a `proof` that is missing or does not verify, the
+      authentication half. `translate_domain_errors` maps it to 422 under its own
+      error name: the proof is content, not an HTTP credential, so 401 does not
+      fit, and at the inbox a verified sender that is not entitled gets a `Reject`
+      from core (HP-01-006), not a 403. `VultronNotACaseParticipantError` is the
+      authorization half, answered 403 by the case-object read (AKM-05-006).
     verification: >-
       `test/adapters/driving/fastapi/test_errors.py::TestProofVerificationError`
       maps the category, and the signing module's subclass of it, to 422 with

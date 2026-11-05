@@ -22,32 +22,47 @@ def domain_error_translation() -> Generator[None, None, None]:
         raise translate_domain_errors(e)  # noqa: B904  # ruff-baseline #3353
 
 
+def _error_http_exception(
+    status_code: int,
+    error: str,
+    message: str,
+    *,
+    activity_id: str | None = None,
+    details: list[dict[str, object]] | None = None,
+) -> HTTPException:
+    """An HTTPException carrying the structured EH-05-001 error body.
+
+    ``status`` mirrors *status_code*, and ``details`` (EH-05-002) is added only
+    when given.
+    """
+    detail: dict[str, object] = {
+        "status": status_code,
+        "error": error,
+        "message": message,
+        "activity_id": activity_id,
+    }
+    if details:
+        detail["details"] = details
+    return HTTPException(status_code=status_code, detail=detail)
+
+
 def conflict_http_exception(
     message: str, *, activity_id: str | None = None
 ) -> HTTPException:
     """A 409 carrying the structured EH-05-001 body every conflict uses."""
-    return HTTPException(
-        status_code=status.HTTP_409_CONFLICT,
-        detail={
-            "status": 409,
-            "error": "Conflict",
-            "message": message,
-            "activity_id": activity_id,
-        },
+    return _error_http_exception(
+        status.HTTP_409_CONFLICT,
+        "Conflict",
+        message,
+        activity_id=activity_id,
     )
 
 
 def translate_domain_errors(exc: Exception) -> HTTPException:
     """Convert a domain exception to an appropriate HTTPException."""
     if isinstance(exc, VultronNotFoundError):
-        return HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={
-                "status": 404,
-                "error": "NotFound",
-                "message": str(exc),
-                "activity_id": None,
-            },
+        return _error_http_exception(
+            status.HTTP_404_NOT_FOUND, "NotFound", str(exc)
         )
     if isinstance(exc, VultronInvalidStateTransitionError):
         return conflict_http_exception(
@@ -58,22 +73,12 @@ def translate_domain_errors(exc: Exception) -> HTTPException:
         # that fails validation, under its own error name so a sender can tell
         # it from a field error.  No ``activity_id``: an unverified document's
         # id is the forger's claim.
-        return HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "status": 422,
-                "error": "ProofVerificationError",
-                "message": str(exc),
-                "activity_id": None,
-            },
+        return _error_http_exception(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "ProofVerificationError",
+            str(exc),
         )
     if isinstance(exc, (VultronValidationError, PydanticValidationError)):
-        detail: dict[str, object] = {
-            "status": 422,
-            "error": "ValidationError",
-            "message": str(exc),
-            "activity_id": getattr(exc, "activity_id", None),
-        }
         # EH-05-002: when the boundary recognised more than one violation,
         # surface them as structured entries so callers are not forced to parse
         # `message` — a fragility ISSUE-2112 named, since a change to internal
@@ -81,18 +86,19 @@ def translate_domain_errors(exc: Exception) -> HTTPException:
         # `message` still renders the whole set, so text-only consumers are no
         # worse off.
         violations = getattr(exc, "violations", ())
-        if violations:
-            detail["details"] = [
+        return _error_http_exception(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "ValidationError",
+            str(exc),
+            activity_id=getattr(exc, "activity_id", None),
+            details=[
                 {
                     "message": violation.message,
                     "classification": violation.classification,
                     "dimensions": list(violation.dimensions),
                 }
                 for violation in violations
-            ]
-        return HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=detail,
+            ],
         )
     raise exc
 
