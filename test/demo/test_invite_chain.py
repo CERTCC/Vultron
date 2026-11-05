@@ -606,10 +606,9 @@ def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
     # scenarios: a chain started from a module beside them is a chain too.
     scenario_sources = sorted(scenario_dir.rglob("*.py"))
     # Every helper module, recursively: shared fragments live in flat
-    # modules (``rcvcv_story.py``) and in split packages alike
-    # (``coordinated_story/``, ``vendor_story/``, ``owner_decision_story/``;
-    # #5592), and a family-name glob passes over any family it does not name
-    # (#5846).
+    # modules and in split packages alike (``coordinated_story/``,
+    # ``vendor_story/``, ``owner_decision_story/``; #5592), and a family-name
+    # glob passes over any family it does not name (#5846).
     fragment_sources = sorted(helpers_dir.rglob("*.py"))
     # ``fragment_sources`` cannot come back empty: ``helpers_dir`` is found
     # from ``invite_chain``, which lives under it. What keeps the fragment
@@ -659,11 +658,12 @@ def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
     # The scan found a call to each starter it looks for, so renaming one of
     # them fails here rather than silently emptying the check.
     assert seen_starters == starters, sorted(starters - seen_starters)
-    # The fragment half's guard: modules a family-name glob passed over are
-    # read (#5846). rcvcv's own
-    # fragments sit in a flat helper module no family glob names, and the
-    # handover starts an inviter chain from inside a split package: the scan
-    # must not only list it but find that chain, so the check reaches it.
-    assert helpers_dir / "rcvcv_story.py" in sources, sorted(map(str, sources))
+    # The guard on both halves: modules a family-name glob or a flat walk
+    # passed over are read (#5846, #5825). rcvcv's own fragments sit inside
+    # the scenario's own package, which a ``*_demo.py`` glob would skip, and
+    # the handover starts an inviter chain from inside a split package: the
+    # scan must not only list it but find that chain, so the check reaches it.
+    rcvcv_fragments = scenario_dir / "rcvcv_demo" / "fragments.py"
+    assert rcvcv_fragments in sources, sorted(map(str, sources))
     handover = helpers_dir / "owner_decision_story" / "handover.py"
     assert handover in with_an_inviter, sorted(map(str, with_an_inviter))

@@ -2216,7 +2216,7 @@ groups:
       DEMOMA-12-017's shorter opening, which RCV-reject also starts with
       (DEMOMA-27-004), obliging exactly what it always did.
     verification: >-
-      `test/demo/test_rcvcv_demo.py` asserts that `rcv`'s and `rcvcv`'s
+      `test/demo/rcvcv_demo/test_story.py` asserts that `rcv`'s and `rcvcv`'s
       stories begin with the items of `REPORTER_ASKS_THE_VENDOR`, and
       `TestSharedPrefixes` in `test/demo_unit/test_recordings.py` compares
       every pair of registered scenarios byte for byte up to the branch point
@@ -3783,8 +3783,8 @@ groups:
     verification_debt: '#2573'
     statement: >-
       The RCVCV scenario MUST be implemented at its derived demo path
-      (DEMOCI-11-003): `vultron/demo/scenario/rcvcv_demo.py`, or an `rcvcv_demo`
-      package in the same directory.
+      (DEMOCI-11-003): the `vultron/demo/scenario/rcvcv_demo/` package, or a
+      module of the same name in the same directory.
     rationale: >-
       The scenario registry derives the script path, the test harness path and the
       narrative path from the scenario name (ADR-0098, DEMOCI-11-003). A script at any
@@ -4228,7 +4228,7 @@ groups:
       a second after RCV's (#5532). A character actor takes no part until it
       is invited, so seeding it there costs the story nothing.
     verification: >-
-      `test/demo/test_rcvcv_demo.py` asserts, in
+      `test/demo/rcvcv_demo/test_story.py` asserts, in
       `TestCharacterActorsSeededAfterTheBranchPoint`, that the scenario's cast
       opening seeds only the three fixed-role containers and leaves C2's and
       V2's waiting, and that the step that brings them in is the only caller

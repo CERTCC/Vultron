@@ -70,13 +70,8 @@ from vultron.demo.helpers.vendor_story import (
     VENDOR,
     continuations as vendor_continuations,
 )
-from vultron.demo.scenario.rcvcv_demo import (
-    C1,
-    C2,
-    V1,
-    V2,
-    every_replica_converges,
-)
+from vultron.demo.scenario.rcvcv_demo import C1, C2, V1, V2
+from vultron.demo.scenario.rcvcv_demo.fragments import every_replica_converges
 from vultron.demo.scenario.rv_demo import the_vendor_reports_the_fix_ready
 from vultron.demo.utils import reset_demo_failures
 from vultron.demo.utils.failures import _demo_failures
