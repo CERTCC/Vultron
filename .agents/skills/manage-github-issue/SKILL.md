@@ -52,7 +52,7 @@ never call the create mode themselves.
 | `--assignees` | — | Comma-separated GitHub usernames |
 | `--issue-type-id` | — | GraphQL node ID of the issue type (**required** on create) |
 | `--parent` | — | Parent epic issue number (**required** on create; must be open and carry the issue's theme) |
-| `--milestone` | — | Milestone number (optional; use only for a release milestone) |
+| `--milestone` | — | Milestone number (optional; a release milestone, or a Focus/Now/Next Epic's objective milestone per `notes/planning-rules.md`) |
 | `--blocked-by` | — | Space-separated issue numbers that block this one |
 | `--blocks` | — | Space-separated issue numbers this one blocks |
 | `--sub-issue` | — | Child issue number (repeatable) |

@@ -73,7 +73,11 @@ while true; do
           pageInfo { hasNextPage endCursor }
           nodes {
             content {
-              ... on Issue { number title state }
+              ... on Issue {
+                number title state
+                issueType { name }
+                milestone { title dueOn }
+              }
             }
             fieldValueByName(name: "Schedule") {
               ... on ProjectV2ItemFieldSingleSelectValue { name }
@@ -89,8 +93,9 @@ while true; do
 done
 ```
 
-Group results by `fieldValueByName.name` (Now / Next / Later / Someday /
-null = unset).
+Group results by `fieldValueByName.name` (Focus / Now / Next / Later /
+Someday / null = unset). `issueType` and `milestone` feed the Tier-Milestone
+Breaches check below.
 
 ### Theme Coherence per Tier
 
@@ -201,6 +206,25 @@ nit — it usually means the dependent is parented on the wrong epic, or that th
 dependent and its blocker are one coherent chunk that should calve into a single
 schedulable iceberg. This skill only surfaces the inversion (see the hard stop);
 `calve-epics` decides how to resolve it.
+
+#### Tier-Milestone Breaches
+
+An open Epic whose milestone disagrees with its Schedule tier
+(`notes/planning-rules.md` § "Tiers Need Milestones"). The current quarter's
+milestones are those titled `YYYYQn · <name>` for today's quarter. Report both
+directions:
+
+- a **Focus, Now or Next** Epic with no current-quarter milestone;
+- a **Later or Someday** Epic that has one.
+
+```text
+#<epic> (<tier>) — missing current-quarter milestone
+#<epic> (<tier>) — has <milestone title>, which Later/Someday must not
+```
+
+A release milestone (`release-YYYY.M.P`) is not a quarter milestone and
+satisfies neither rule. This skill only reports a breach; moving the Epic or
+its milestone is `update-priorities` work.
 
 ### Theme Coherence
 
