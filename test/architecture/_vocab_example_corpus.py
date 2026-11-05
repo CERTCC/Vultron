@@ -43,7 +43,10 @@ from vultron.wire.as2.vocab.examples import (
 _NOT_EXAMPLES = frozenset(
     {
         "main",
-        "cast",
+        "build_examples",
+        "check_tables",
+        "example_filename",
+        "example_uuid",
         "obj_to_file",
         "json2md",
         "print_obj",

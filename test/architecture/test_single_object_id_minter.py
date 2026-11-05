@@ -59,7 +59,8 @@ MINTER_SITE = ("vultron/core/models/_helpers/ids.py", "new_object_id")
 #: Functions that draw a random UUID for something other than an object id,
 #: keyed on (repo-relative path, dotted enclosing function).
 #: Pinned exemption set: each entry is a recorded decision, not a debt.
-# permanent: OID-01-004 (each entry draws, or replaces the draw of, a UUID that never mints an object id)
+# permanent: OID-01-004 (each entry draws, or replaces the draw of, a
+# UUID that never mints an object id)
 NON_ID_RANDOM_UUID_EXEMPTIONS: dict[tuple[str, str], str] = {
     (
         "vultron/adapters/driving/fastapi/app.py",
