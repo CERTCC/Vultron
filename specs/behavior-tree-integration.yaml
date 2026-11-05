@@ -681,33 +681,6 @@ groups:
       invitee is seated at RM.RECEIVED.
     stories:
     - story_2022_013
-  - id: BT-10-010
-    priority: SHOULD
-    kind: protocol
-    statement: >-
-      The CASE_MANAGER SHOULD leave the invitee's RM state at RM.RECEIVED when the
-      invitee accepts the stub Invite (CM-11-001).
-    rationale: >-
-      When the invitee accepts the stub Invite, it only asks for the full case. It does
-      not say if the report is valid. The invitee's replies to the full-case Invite
-      drive its triage (RM.VALID, RM.INVALID or RM.CLOSED, CM-11-011). Then
-      `Join(VulnerabilityCase)` or `Ignore(VulnerabilityCase)` moves it to RM.ACCEPTED
-      or RM.DEFERRED. Thus the record of the CASE_MANAGER does not show a decision that
-      the invitee has not made.
-    verification: >-
-      `test_accept_invite_participant_recorded_at_rm_received` in
-      `test/core/use_cases/received/actor/test_invite.py` asserts that an accepted
-      Invite records the participant at RM.RECEIVED only.
-    relationships:
-    - rel_type: part_of
-      spec_id: CM-11-001
-    - rel_type: extends
-      spec_id: BT-10-005
-    stories:
-    - story_2022_013
-    adr:
-    - ADR-0114
-    - ADR-0121
   - id: BT-10-006
     priority: MUST
     kind: project

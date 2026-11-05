@@ -243,7 +243,7 @@ class TestInboxOutcomeModel:
         assert o.failure_reason == "parse failed"
 
     def test_status_is_a_str_enum_member(self):
-        """UCORG-05-011: the status vocabulary is a StrEnum, not a Literal."""
+        """IO-01-002: the status vocabulary is a StrEnum, not a Literal."""
         assert issubclass(InboxOutcomeStatus, StrEnum)
         o = InboxOutcome.model_validate({"status": "processed"})
         assert o.status is InboxOutcomeStatus.PROCESSED
@@ -509,7 +509,7 @@ class TestProcessPayloadLogLevels:
 
 
 # ---------------------------------------------------------------------------
-# Handler disposition → outcome status (UCORG-05-011, HP-01-004)
+# Handler disposition → outcome status (IO-01-006, HP-01-004)
 # ---------------------------------------------------------------------------
 
 
@@ -526,7 +526,7 @@ class _NoVerdictDispatchAdapter:
 
 
 class TestProcessPayloadHandlerDisposition:
-    @pytest.mark.spec("UCORG-05-011")
+    @pytest.mark.spec("IO-01-006")
     @pytest.mark.parametrize(
         ("result", "status"),
         [
@@ -548,7 +548,7 @@ class TestProcessPayloadHandlerDisposition:
 
         assert outcome.status is status
 
-    @pytest.mark.spec("UCORG-05-011")
+    @pytest.mark.spec("IO-01-007")
     def test_refusal_reason_becomes_failure_reason(self, report_activity):
         ingress = _StubIngressAdapter(activity=report_activity)
         dispatch = _StubDispatchAdapter(
@@ -559,7 +559,7 @@ class TestProcessPayloadHandlerDisposition:
 
         assert outcome.failure_reason == "sender is not a participant"
 
-    @pytest.mark.spec("UCORG-05-011")
+    @pytest.mark.spec("IO-01-004")
     def test_handler_deferral_keeps_its_reason(self, report_activity):
         ingress = _StubIngressAdapter(activity=report_activity)
         dispatch = _StubDispatchAdapter(
