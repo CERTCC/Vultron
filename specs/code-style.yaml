@@ -759,9 +759,9 @@ groups:
       concern, keep each concern's tests together and runnable alone, and make it
       easier to add focused per-unit tests.
     verification: >-
-      For each subpackage split from a flat module, including each BT `nodes/`
-      subpackage (BTND-07-001), inspection confirms a matching test directory with
-      one test file per submodule.
+      For each subpackage split from a flat module and each BT `nodes/` subpackage
+      (BTND-07-001), inspection confirms a matching test directory with one test
+      file per submodule.
     relationships:
     - rel_type: extends
       spec_id: BTND-07-001
