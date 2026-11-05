@@ -272,6 +272,20 @@ class TestClaimIssue:
         assert box.remote_branches() == []
         assert _git("branch", "--list", f"task/{TASK}-s", cwd=box.work) == ""
 
+    def test_a_failed_status_write_names_the_member_left_announced(
+        self, box: Sandbox
+    ):
+        """Assign and comment ran before Status failed; the retry must know."""
+        box.issue(TASK)
+        box.fail("updateProjectV2ItemFieldValue")
+        result = box.run("claim-issue.sh", str(TASK), "task", "slug")
+        assert result.returncode != 0
+        assert f"May already be assigned and commented: #{TASK}" in (
+            result.stderr
+        )
+        assert "delete their claim comments" in result.stderr
+        assert box.remote_branches() == []
+
     def test_a_task_under_a_claimed_epic_is_held(self, box: Sandbox):
         box.issue(TASK, epic_assignees=["me"])
         result = box.run("claim-issue.sh", str(TASK), "task", "slug")

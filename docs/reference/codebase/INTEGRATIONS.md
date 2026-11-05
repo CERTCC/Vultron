@@ -31,7 +31,7 @@ stakeholder_type: [project-contributor]
 - **Hardcoding checks**: no hardcoded credentials observed in source; the database URL is injected via config
 - **Rotation or lifecycle notes**: no secrets manager integration observed.
   ADR-0164 computes each prototype actor's signing key from a fixed seed, which makes no security claim; production key generation, private-key storage and rotation are deferred to #1184.
-  No signing key of either kind is implemented yet.
+  Seeded keys are computed by `vultron/wire/as2/signing.py`, which nothing calls yet; production keys are not implemented.
 
 ### 4) Reliability and Failure Behavior
 

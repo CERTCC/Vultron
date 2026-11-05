@@ -13,9 +13,7 @@
 """Every proof goes through one shared signing module (SIG-05-003, ADR-0164).
 
 The module that creates and verifies proofs is the only one that imports the
-Ed25519 or JCS primitives; everything else, tests included, calls it.  The
-signing module does not exist yet, so the test is a strict ``xfail`` until
-#5380 adds it.
+Ed25519 or JCS primitives; everything else, tests included, calls it.
 """
 
 import ast
@@ -72,12 +70,8 @@ def test_the_scan_sees_a_primitive_import():
     assert not _imports_a_primitive(_corpus.parse_inline("import json\n"))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SIG-05-003: there is no signing module yet. Tracked by #5380.",
-)
 @pytest.mark.spec("SIG-05-003")
 def test_one_module_calls_the_signing_primitives():
     modules = _modules_calling_primitives()
 
-    assert len(modules) == 1, modules
+    assert modules == ["vultron/wire/as2/signing.py"]

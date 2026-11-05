@@ -69,7 +69,7 @@ def test_an_unsigned_get_returns_the_profile_with_its_key(tmp_path: Path):
 
 @pytest.mark.xfail(
     strict=True,
-    reason=f"SIG-05-001: {_NO_KEY} Seeded keys: #5380.",
+    reason=f"SIG-05-001: {_NO_KEY}",
 )
 @pytest.mark.spec("SIG-05-001")
 def test_an_actors_key_is_the_same_in_every_store(tmp_path: Path):

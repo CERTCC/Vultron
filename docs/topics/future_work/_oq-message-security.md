@@ -12,10 +12,13 @@
     It also puts decryption in the inbox handler, before semantic extraction.
     Each handler thus continues to receive typed and validated activities.
 
-    Each requirement in that file has `scope: production`.
-    The requirements apply to a deployment, and the prototype is not a deployment.
+    Most requirements in that file have `scope: production`.
+    These requirements apply to a deployment, and the prototype is not a deployment.
+    Two requirements also apply to the prototype.
+    ENC-01-002 publishes the public key in the actor profile, and ENC-01-007 keeps each private key out of logs and out of the responses that the actor sends on HTTP.
 
-    Signing has a design, but the prototype does not implement it yet.
+    Signing has a design.
+    The prototype has the module that makes and checks proofs, but it does not sign or verify its activities yet.
     `specs/signing.yaml` (SIG-01 through SIG-05) puts a proof inside each activity that an actor sends ([ADR-0164](../../adr/0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md)).
     The proof uses the FEP-8b32 `eddsa-jcs-2022` form.
     It thus stays in the activity when the CASE_MANAGER relays the activity or records it in the case ledger.
