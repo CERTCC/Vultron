@@ -369,18 +369,15 @@ groups:
     statement: >-
       A `VulnerabilityCase` MUST have both a `CVDRole.CASE_OWNER` participant and a
       `CVDRole.CASE_MANAGER` participant from the moment of creation onward. Neither
-      slot may be left empty or deferred to a later operation. Both creation paths
-      register the CASE_MANAGER: a dedicated CASE_MANAGER actor holding `COORDINATOR` +
-      `CASE_MANAGER` under ADR-0041, or the creating actor as `CASE_OWNER` +
-      `CASE_MANAGER` under CM-02-015. Role delegation transfers the CASE_MANAGER role
-      without a gap.
+      slot may be left empty or deferred to a later operation. Role delegation transfers
+      the CASE_MANAGER role without a gap.
     rationale: >-
-      An empty `CASE_OWNER` or `CASE_MANAGER` slot makes role-guard checks undefined
-      from the moment the case exists. A case created without either cannot heal itself
-      without an explicit repair, and `resolve_case_manager_id` returns `None` at once,
-      so the role ledger is no longer the single source of authority (ADR-0088,
-      ARCH-24-001). With a CASE_MANAGER always present, every case-scoped message has
-      the CASE_MANAGER to go through (PCR-08-001).
+      An empty `CASE_OWNER` or `CASE_MANAGER` slot leaves every role check without an
+      answer from the moment the case exists, and a case created without either has no
+      participant entitled to repair it (ADR-0088). Both creation paths register a
+      CASE_MANAGER: a dedicated CASE_MANAGER actor (ADR-0041), or the creating actor
+      holding both roles. With a CASE_MANAGER always present, every case-scoped message
+      has the CASE_MANAGER to go through (PCR-08-001).
     verification: >-
       `test_create_case_trigger_registers_owner_and_manager` in
       `test/core/use_cases/triggers/case/test_create.py` asserts both `CVDRole.CASE_OWNER`
@@ -8046,10 +8043,10 @@ groups:
       A trigger, received tree or shared helper in this codebase MUST NOT carry an arm
       for a case with no CASE_MANAGER (CM-24-014).
     rationale: >-
-      How this codebase keeps CM-24-014 from being bypassed; kept apart from CM-02-014
-      and CM-24-014 so they state only that a case always has a CASE_MANAGER and that no
-      activity goes around it (MS-12-010). Trees, helpers and resolvers are this codebase's
-      structure.
+      How this codebase keeps CM-24-014 from being bypassed; kept apart from the
+      protocol rules that a case always has a CASE_MANAGER (CM-02-014) and that no
+      activity goes around it (CM-24-014), as MS-12-010 directs. Trees, helpers and
+      resolvers are this codebase's structure.
     verification: >-
       Until #3964 retires the success-with-a-warning arms, the strict `xfail`s
       `test/core/behaviors/status/nodes/test_lifecycle.py::TestEmitCloseCaseNode::test_fails_when_case_manager_id_missing`

@@ -1536,9 +1536,9 @@ groups:
     kind: protocol
     statement: >-
       When the CASE_MANAGER accepts a `Create(CaseProposal)`, it MUST create the
-      `VulnerabilityCase` in its own store, attributed to the proposing actor. Its
-      `attributedTo` never names the CASE_MANAGER's own actor ID. The proposing actor is
-      the report receiver, who becomes the CASE_OWNER.
+      `VulnerabilityCase` in its own store, with `attributedTo` naming the proposing
+      actor, never itself. The proposing actor is the report receiver, who becomes the
+      CASE_OWNER.
     rationale: >-
       The CASE_MANAGER is the case's authoritative creator, so the case starts in its
       store (CP-09-005). `attributed_to` records the Case Owner (CM-02-008), which

@@ -39,7 +39,6 @@ groups:
     - story_2022_012
     - story_2022_090
     - story_2022_081
-    - story_2026_080
   - id: CBT-01-002
     priority: MUST
     kind: protocol

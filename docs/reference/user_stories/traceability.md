@@ -1976,7 +1976,6 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 
 | Spec file | Citing requirements |
 |---|---|
-| CBT — Case Bootstrap Trust | [CBT-01-001](../vultron-spec/requirements/ledger-replication.md#cbt-01-001) |
 | CM — Case Management | [CM-12-004](../vultron-spec/requirements/case-management.md#cm-12-004), [CM-14-002](../vultron-spec/requirements/case-management.md#cm-14-002), [CM-14-003](../vultron-spec/requirements/case-management.md#cm-14-003), [CM-14-007](../vultron-spec/requirements/case-management.md#cm-14-007), [CM-14-010](../vultron-spec/requirements/case-management.md#cm-14-010), [CM-14-014](../vultron-spec/requirements/case-management.md#cm-14-014) |
 | CP — CaseProposal Protocol | [CP-09-003](../vultron-spec/requirements/case-management.md#cp-09-003) |
 | DUR — Duration | [DUR-07-003](../vultron-spec/requirements/state-behavior.md#dur-07-003), [DUR-07-004](../vultron-spec/requirements/state-behavior.md#dur-07-004) |
