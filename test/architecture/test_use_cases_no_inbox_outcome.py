@@ -27,7 +27,7 @@ names.  It does not forbid the inbox *package*: a use case may name an inbox
 module so long as it never names the outcome types.  ``KNOWN_VIOLATIONS`` is empty
 and the assertion is bidirectional (ARCH-18-001), so the first offender fails.
 
-Spec: HP-01-004 (``specs/handler-protocol.yaml``); UCORG-05-011; ADR-0095.
+Spec: HP-01-004 (``specs/handler-protocol.yaml``); IO-01-006; ADR-0095.
 Corpus: TB-13-001 (shared ``_corpus`` scan, substring prefilter).
 """
 

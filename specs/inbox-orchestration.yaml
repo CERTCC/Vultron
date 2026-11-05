@@ -42,14 +42,16 @@ groups:
     kind: project
     statement: >-
       When dispatch ran, the inbox pipeline MUST derive InboxOutcome's status from the
-      handler's HandlerResult disposition (UCORG-05-011), not from dispatch merely not
+      handler's HandlerResult disposition (UCORG-05-017), not from dispatch merely not
       raising. APPLIED and SKIPPED yield processed, DEFERRED yields deferred, and
       REFUSED yields rejected.
     rationale: >-
       A dispatch that does not raise can still be a refusal, so the status must come
       from the handler's own verdict. The mapping lives only in the pipeline's
       dispatch node, so handlers never name this vocabulary (HP-01-004). A dispatch
-      where no handler ran is never processed (UCORG-05-012).
+      where no handler ran is never processed (UCORG-05-012). `DeferCheckNode` and
+      `DereferenceCheckNode` (AKM-05-010) also defer, before dispatch. Only a
+      handler's DEFERRED goes through this mapping.
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` drives each
       disposition and unhandled semantics through the real dispatch adapters and
@@ -57,10 +59,12 @@ groups:
     tags:
     - messaging
     relationships:
-    - rel_type: refines
-      spec_id: UCORG-05-011
     - rel_type: uses_definition
       spec_id: IO-01-002
+    - rel_type: uses_definition
+      spec_id: UCORG-05-017
+    adr:
+    - ADR-0095
   - id: IO-01-003
     priority: MUST
     kind: project

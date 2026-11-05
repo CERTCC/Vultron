@@ -178,7 +178,7 @@ groups:
     statement: 'Handler (received-side) use cases MUST return `HandlerResult`.'
     rationale: >-
       `HandlerResult` carries the verdict of the handler to `InboxOutcome`
-      (UCORG-05-011). If a handler returns no result, the inbox cannot tell an applied
+      (IO-01-006). If a handler returns no result, the inbox cannot tell an applied
       message from a no-op, and it reports both as processed. A separate subtype also
       lets callers tell a received-side result from a trigger-side result without an
       `isinstance` check on the base. See ADR-0095.
@@ -284,7 +284,7 @@ groups:
       an optional `reason`.
     rationale: >-
       The disposition is the verdict that `DispatchNode` maps onto the inbox outcome
-      (UCORG-05-011). The reason says why a handler refused, deferred or skipped.
+      (IO-01-006). The reason says why a handler refused, deferred or skipped.
     verification: >-
       `test_handler_result_fields_are_disposition_reason_and_unhandled` in
       `test/core/models/test_use_case_result.py` asserts the field set of
@@ -400,26 +400,6 @@ groups:
       the verdict before any other link sees it. See ADR-0095.
     adr:
     - ADR-0095
-  - id: UCORG-05-011
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: >-
-      When a dispatch occurred, this codebase MUST derive `InboxOutcome.status` from the
-      handler's `HandlerDisposition`. It does not infer the status from the absence of a
-      raised exception. Under this rule, `APPLIED` and `SKIPPED` map to `processed`, and
-      `DEFERRED` maps to `deferred`. Also, `REFUSED` maps to `rejected`, with
-      `failure_reason` taken from the handler's `reason`.
-    rationale: >-
-      If the outcome comes from "dispatch did not raise", a handler that takes no action
-      is still reported as `processed`. Three components produce `deferred`, and they
-      must not be confused. `DeferCheckNode` defers before dispatch for missing case
-      context. `DereferenceCheckNode` defers before dispatch while an object is fetched
-      (AKM-05-010). A handler returns `DEFERRED` after dispatch for an entry that waits
-      for its predecessor. All three reach the same `InboxOutcome.status`, but only the
-      last goes through this mapping.
-    adr:
-    - ADR-0095
   - id: UCORG-05-012
     priority: MUST
     kind: project
@@ -439,7 +419,7 @@ groups:
       (HP-05-002).
     relationships:
     - rel_type: extends
-      spec_id: UCORG-05-011
+      spec_id: IO-01-006
     - rel_type: uses_definition
       spec_id: SE-05-002
     adr:
@@ -454,7 +434,7 @@ groups:
     rationale: >-
       `run_inbox_pipeline` logs every `outcome.status` at `DEBUG`. A refusal that only
       this line records would be invisible in normal operation, even when the dispatcher
-      chain carries the verdict correctly (UCORG-05-010, UCORG-05-011). An operator must
+      chain carries the verdict correctly (UCORG-05-010, IO-01-006). An operator must
       be able to see in the actor log that the actor refused a message.
     adr:
     - ADR-0095

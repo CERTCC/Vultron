@@ -31,7 +31,7 @@ verb's core request and hands it to
 The routes are grouped by concern (CS-18-005): ``actions`` holds the
 puppeteering POSTs and ``ledger`` the ledger reads.
 
-Spec: TRIG-08-004, TRIG-09-001 through TRIG-09-005, TRIG-10-003, TRIG-10-004.
+Spec: TRIG-09-001 through TRIG-09-005, TRIG-10-003, TRIG-10-004.
 """
 
 from fastapi import APIRouter

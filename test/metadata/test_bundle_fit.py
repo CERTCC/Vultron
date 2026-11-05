@@ -30,12 +30,12 @@ from vultron.metadata.planning.bundle_fit import (
     eligibility,
     epic_assignees,
     epic_hold_reason,
-    graphql_errors,
     main,
     parse_graphql,
     schedule_rank,
     select_bundle,
 )
+from vultron.metadata.planning.gh import graphql_errors
 
 
 def task(number: int, size: str | None = "size:M", **kw) -> Candidate:

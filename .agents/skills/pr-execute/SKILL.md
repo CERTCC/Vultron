@@ -243,7 +243,10 @@ iterations:
 4. **Rerun exception.** A failed check may be re-run once only if it is already
    tracked by an open `flaky-test` issue with a reproduction (see
    [REFERENCE.md](REFERENCE.md) § "Flaky Test Dedup"); cite that issue in
-   `skip_reason`. A rerun that passes with no such issue is not evidence —
+   `skip_reason`. Re-run the `CI gate` job after it as well: the gate judges
+   once per pull-request event and stays red over a re-run that passed
+   (`notes/ci-workflow-authoring.md`). A rerun that passes with no such issue
+   is not evidence —
    file the issue with the reproduction (`create-issue`, `opened-as
    separate-defect`) and
    leave the PR held.

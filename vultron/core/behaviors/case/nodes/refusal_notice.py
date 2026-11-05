@@ -16,7 +16,7 @@
 """The CASE_MANAGER's refusal notice to the asserting participant (ADR-0141).
 
 When a precondition guard at the CASE_MANAGER refuses an assertion, nothing is
-committed (CLP-05-002), so the participant would never learn its assertion
+committed (CLP-04-007), so the participant would never learn its assertion
 had no effect.  :class:`EmitRefusalNoticeNode` tells it: one ``Reject`` of the
 refused activity, inline, threaded by ``inReplyTo``, addressed to the asserter
 alone and carrying the refusing guard's reason in ``summary`` (CLP-02-005,

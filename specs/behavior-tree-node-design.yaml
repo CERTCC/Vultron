@@ -787,23 +787,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: BTND-07-001
-  - id: BTND-07-002
-    priority: SHOULD
-    kind: project
-    statement: >-
-      The test suite for a `nodes/` subpackage SHOULD mirror the subpackage structure: a `test/…/nodes/`
-      directory with one `test_<submodule>.py` per submodule, so that each concern's tests are co-located and independently
-      runnable.
-    rationale: A monolithic `test_nodes.py` grows in parallel with the flat `nodes.py` and inherits the same blast-radius
-      problem. Mirrored test files scope test failures to the affected concern and make it easier to add focused per-node
-      unit tests.
-    relationships:
-    - rel_type: extends
-      spec_id: BTND-07-001
-    - rel_type: refines
-      spec_id: CS-18-004
-    verification: For any `nodes/` subpackage, confirm that a matching `test/…/nodes/` directory exists with per-submodule
-      test files.
   - id: BTND-07-003
     priority: MUST
     kind: project

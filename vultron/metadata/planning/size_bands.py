@@ -9,6 +9,9 @@ and *computed* in none, which is why a survey of 692 PRs merged between
 and 40% of PRs carrying no ``size:`` label at all. A rule that lives only in
 agent prose degrades at that rate. This module is the single definition; the
 ``pr-size`` console script applies it and ``bundle_fit`` imports its weights.
+``pr-size --calibrate`` re-runs the survey against the table
+(:mod:`~vultron.metadata.planning.size_calibration`), so a drifted threshold
+shows up as a number rather than a retrospective.
 
 Two bands, two domains. An **estimate** comes from the acceptance-criteria
 count at Issue creation; a **measurement** comes from the diff at PR-open time.
@@ -35,8 +38,21 @@ import json
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 from vultron.metadata.base import repo_root
+from vultron.metadata.planning.gh import (
+    DEFAULT_REPO,
+    GH_FAILURES,
+    Runner,
+    gh_failure_detail,
+    run_gh,
+)
+from vultron.metadata.planning.size_calibration import (
+    BandScheme,
+    fetch_window,
+    render_report,
+)
 
 
 @dataclass(frozen=True)
@@ -302,6 +318,35 @@ def _classify(args: argparse.Namespace) -> tuple[SizeBand, str]:
     return band_for_diff(lines), f"{lines} diff lines (measured)"
 
 
+DEFAULT_CALIBRATION_DAYS = 60
+"""The ``--calibrate`` window when ``--days`` is not given."""
+
+
+def calibration_scheme() -> BandScheme:
+    """This table and its classifier, as ``--calibrate`` measures them."""
+    return BandScheme(bands=SIZE_BANDS, classify=band_for_diff)
+
+
+def calibrate(
+    days: int,
+    run: Runner = run_gh,
+    now: datetime | None = None,
+    repo: str = DEFAULT_REPO,
+) -> str:
+    """The calibration report for PRs merged in the last ``days`` days.
+
+    Raises:
+        ValueError: If ``days`` is not positive.
+        GhError: If a ``gh`` response cannot be read.
+        subprocess.CalledProcessError: If ``gh`` exits non-zero.
+    """
+    if days < 1:
+        raise ValueError(f"--days must be at least 1, got {days}")
+    until = now or datetime.now(UTC)
+    data = fetch_window(repo, until - timedelta(days=days), until, run)
+    return render_report(data, calibration_scheme())
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point: report the ``size:`` band for a diff or an AC count."""
     parser = argparse.ArgumentParser(
@@ -336,11 +381,41 @@ def main(argv: list[str] | None = None) -> int:
         help="print label name/description/color as JSON and exit",
     )
     parser.add_argument(
+        "--calibrate",
+        action="store_true",
+        help=(
+            "survey recent merged PRs against the band table and the AC rule "
+            "(reads GitHub through gh) and exit"
+        ),
+    )
+    parser.add_argument(
+        "--days",
+        type=int,
+        metavar="N",
+        help=(
+            "with --calibrate, the window in days "
+            f"(default: {DEFAULT_CALIBRATION_DAYS})"
+        ),
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="print only the label, for shell capture",
     )
     args = parser.parse_args(argv)
+    if args.days is not None and not args.calibrate:
+        parser.error("--days applies only with --calibrate")
+    if args.days is not None and args.days < 1:
+        parser.error(f"--days must be at least 1, got {args.days}")
+
+    if args.calibrate:
+        days = DEFAULT_CALIBRATION_DAYS if args.days is None else args.days
+        try:
+            print(calibrate(days))
+        except GH_FAILURES as exc:
+            print(f"❌ {gh_failure_detail(exc)}", file=sys.stderr)
+            return 1
+        return 0
 
     if args.table:
         print(markdown_table())

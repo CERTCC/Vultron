@@ -1004,7 +1004,7 @@ class TestInviteActorUseCases:
         case = cast(as_VulnerabilityCase, case)
         assert invitee_id in case.actor_participant_index
 
-    @pytest.mark.spec("MV-10-006")
+    @pytest.mark.spec("CM-11-001")
     def test_accept_invite_actor_to_case_records_active_embargo(
         self, monkeypatch, make_payload
     ):
@@ -1078,7 +1078,7 @@ class TestInviteActorUseCases:
         participant_obj = cast(Any, participant_obj)
         assert participant_obj.consent_for(embargo.id_) == "AGREED"
 
-    @pytest.mark.spec("BT-10-010")
+    @pytest.mark.spec("CM-11-001")
     def test_accept_invite_participant_recorded_at_rm_received(
         self, make_payload
     ):

@@ -40,7 +40,7 @@ class InboxOutcomeStatus(StrEnum):
 
     - ``PROCESSED`` — dispatched, and the handler applied or correctly skipped it.
     - ``DEFERRED`` — held for replay: by ``DeferCheckNode`` before dispatch
-      (missing case context), or by the handler after it (UCORG-05-011).
+      (missing case context), or by the handler after it (IO-01-006).
     - ``REJECTED`` — refused, unparseable, undispatchable, or the dispatch
       raised.
 

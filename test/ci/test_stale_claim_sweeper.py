@@ -179,6 +179,7 @@ class _FakeGitHub:
         self.sub_issues = sub_issues or {}
         self.assigned_at = assigned_at
         self.writes: list[tuple[str, ...]] = []
+        self.unretried: list[tuple[str, ...]] = []
 
     def paginated(self, endpoint: str) -> list[dict]:
         if endpoint.startswith("repos/o/r/issues?"):
@@ -193,7 +194,9 @@ class _FakeGitHub:
         number = int(endpoint.split("/issues/")[1].split("/", maxsplit=1)[0])
         return self.sub_issues.get(number, [])
 
-    def gh(self, *args: str) -> str:
+    def gh(self, *args: str, retry: bool = True) -> str:
+        if not retry:
+            self.unretried.append(args[:2])
         if args[:2] == ("pr", "list"):
             return json.dumps(
                 [
@@ -225,6 +228,11 @@ def test_an_orphaned_issue_claim_is_labelled_and_commented(
     assert fake.writes == [
         ("issue", "edit", "7"),
         ("issue", "comment", "7"),
+    ]
+    # A retried comment would post twice; a deleted branch's 404 is no flake.
+    assert fake.unretried == [
+        ("api", "repos/o/r/commits/sha0"),
+        ("issue", "comment"),
     ]
 
 
@@ -279,3 +287,10 @@ def test_workflow_runs_the_sweeper_script() -> None:
         for step in job["steps"]
     ]
     assert any(".github/scripts/stale_claim_sweeper.py" in r for r in runs)
+
+
+def test_a_hung_gh_call_ends_well_before_the_job_cap() -> None:
+    """A hung call fails the job red; the cap would cancel it unreported."""
+    (job,) = load_workflow(_WORKFLOW)["jobs"].values()
+    timeout = float(job["env"]["GH_CALL_TIMEOUT_SECONDS"])
+    assert 2 * timeout <= 60 * job["timeout-minutes"]

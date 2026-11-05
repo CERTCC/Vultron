@@ -138,7 +138,8 @@ class _AnnounceVulnerabilityCaseActivity(as_Announce):
     """The case owner announces full case details to a newly accepted invitee.
 
     Sent by the case owner after an ``Accept(Invite)`` is received and the
-    invitee's embargo consent has been verified (MV-10-003 through MV-10-006).
+    invitee's embargo consent has been verified (MV-10-003 through MV-10-005,
+    CM-11-001).
     The full :class:`VulnerabilityCase` is sent as the inline object so the
     recipient can seed their local DataLayer.
 

@@ -127,7 +127,6 @@ def _process(
     )
 
 
-@pytest.mark.spec("UCORG-05-011")
 @pytest.mark.spec("IO-01-007", "IO-01-006")
 def test_refused_handler_yields_rejected_with_its_reason(dl, body):
     outcome = _process(
@@ -138,7 +137,7 @@ def test_refused_handler_yields_rejected_with_its_reason(dl, body):
     assert outcome.failure_reason == "not a participant"
 
 
-@pytest.mark.spec("UCORG-05-011")
+@pytest.mark.spec("IO-01-006")
 @pytest.mark.parametrize(
     "verdict", [HandlerResult.applied(), HandlerResult.skipped("duplicate")]
 )
@@ -150,7 +149,6 @@ def test_applied_or_skipped_handler_yields_processed(dl, body, verdict):
     assert outcome.failure_reason is None
 
 
-@pytest.mark.spec("UCORG-05-011")
 @pytest.mark.spec("IO-01-006")
 def test_deferred_handler_yields_deferred(dl, body):
     outcome = _process(
@@ -382,7 +380,7 @@ def test_pipeline_reports_no_use_case_found_at_info_only(dl, body, caplog):
 
 
 @pytest.mark.spec("HP-01-003")
-@pytest.mark.spec("UCORG-05-011")
+@pytest.mark.spec("IO-01-006")
 def test_real_handler_refusal_reaches_inbox_outcome(dl):
     """#2255: a real received handler's refusal is not reported as processed.
 
