@@ -39,6 +39,7 @@ the selections, so read it off them.
 from __future__ import annotations
 
 import re
+import subprocess
 from dataclasses import dataclass
 from typing import Any
 
@@ -47,6 +48,7 @@ import pytest
 from test.ci._workflows import (
     REPO_ROOT,
     WORKFLOWS_DIR,
+    job_needs,
     load_workflow,
     workflow_files,
 )
@@ -60,6 +62,10 @@ GATE_SCRIPT = REPO_ROOT / ".agents" / "skills" / "shared" / "verify-ci-gate.sh"
 _GATE_PREFIX_RE = re.compile(
     r"VERIFY_CI_INTEGRATION_CHECK:-(?P<prefix>[^}\"]+)\}"
 )
+
+#: The pattern the gate counts the declared parts with, as the script writes
+#: it: ``declared="$(grep -cE '<pattern>' "${test_workflow}" …)"``.
+_GATE_PARTS_RE = re.compile(r"declared=\"\$\(grep -cE '(?P<pattern>[^']+)'")
 
 #: The job whose matrix fans the suite out. ``build`` and ``notify`` reach
 #: every part through ``needs:`` on this one job id.
@@ -96,12 +102,6 @@ def _job(job_id: str) -> dict[str, Any]:
     return job
 
 
-def _needs(job_id: str) -> list[str]:
-    """The jobs *job_id* waits for, from either the list or scalar form."""
-    needs = _job(job_id).get("needs", [])
-    return [needs] if isinstance(needs, str) else [str(n) for n in needs]
-
-
 def _pytest_jobs() -> list[str]:
     """Every job id in the workflow with a step that runs pytest."""
     jobs = load_workflow(WORKFLOW).get("jobs", {})
@@ -126,6 +126,27 @@ def gate_check_prefix() -> str:
         "merge gate matches the parts on"
     )
     return found.group("prefix")
+
+
+def gate_declared_parts() -> int:
+    """How many parts `verify-ci-gate.sh` derives from the workflow.
+
+    Runs the script's own pattern, with the same ``grep``, rather than a
+    re-implementation: the point is whether *that* derivation sees every leg.
+    """
+    found = _GATE_PARTS_RE.search(GATE_SCRIPT.read_text(encoding="utf-8"))
+    assert found, (
+        f"{GATE_SCRIPT.name} no longer derives its part count with "
+        "`grep -cE`; this test cannot read the pattern the merge gate counts "
+        "the parts with"
+    )
+    counted = subprocess.run(
+        ["grep", "-cE", found.group("pattern"), str(WORKFLOW)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return int(counted.stdout.strip() or 0)
 
 
 def _matrix_include() -> list[dict[str, Any]]:
@@ -190,7 +211,20 @@ def _catch_all() -> Part:
 
 
 def _named_claims() -> dict[str, tuple[str, ...]]:
-    return {p.name: p.claims for p in _parts() if not p.has_ignores}
+    """The paths each non-catch-all part claims, keyed by part name.
+
+    The guard belongs here rather than in each caller: four tests read this
+    one subject set, and every one of them passes vacuously over an empty
+    mapping (a zero-target gate, #5535). An empty one is a defect of the
+    matrix, not of the test that noticed.
+    """
+    claims = {p.name: p.claims for p in _parts() if not p.has_ignores}
+    assert claims, (
+        "no part claims a path, so the catch-all subtracts nothing and every "
+        "check below has nothing to compare; the matrix needs named parts "
+        "beside the catch-all"
+    )
+    return claims
 
 
 def unpartitioned(
@@ -373,12 +407,12 @@ def test_the_downstream_jobs_wait_for_every_pytest_job(job_id: str) -> None:
     promoted to its own job id is the hazard TB-11-003's rationale names, and
     a `needs:` list can omit it while still naming `test`.
     """
-    needs = _needs(job_id)
+    needs = job_needs(_job(job_id))
     missing = [job for job in _pytest_jobs() if job not in needs]
     assert not missing, (
         f"the `{job_id}` job does not need {missing}, which run pytest, so a "
         f"red part there neither fails the run nor reaches its "
-        f"`needs.*.result` aggregate: needs {needs}"
+        f"`needs.*.result` aggregate: needs {sorted(needs)}"
     )
 
 
@@ -398,6 +432,27 @@ def test_the_matrix_job_name_starts_with_the_gate_prefix() -> None:
     )
 
 
+@pytest.mark.spec("TB-11-002")
+def test_the_gate_expects_as_many_parts_as_the_matrix_declares() -> None:
+    """The gate's part count is the matrix's length, or it fails open.
+
+    `verify-ci-gate.sh` needs every part to have reported before it calls the
+    suite passed, and it counts how many to expect by reading this workflow.
+    An under-count is the dangerous direction: expecting one part makes one
+    green leg out of four read as a whole suite, which is the false green the
+    count exists to refuse. The derivation is line-shaped, so a key reorder, a
+    flow-style entry or a renamed key could silently break it — this couples
+    the two so such an edit reds here instead.
+    """
+    declared = gate_declared_parts()
+    assert declared == len(_parts()), (
+        f"{GATE_SCRIPT.name} derives {declared} test parts from "
+        f"{WORKFLOW.name}, which declares {len(_parts())}. Under-counting "
+        "makes the merge gate read a subset of green parts as the whole "
+        "suite; over-counting fails every pull request as `incomplete`."
+    )
+
+
 @pytest.mark.spec("DEMOCI-06-010")
 def test_no_job_gates_itself_on_the_matrix_context() -> None:
     """A job-level ``if:`` on ``matrix.*`` yields a run with no jobs.
@@ -407,9 +462,14 @@ def test_no_job_gates_itself_on_the_matrix_context() -> None:
     than a regression. Asked of every workflow: this rule's subjects are
     matrix jobs, and the `test` job above is the second one in the repository.
     """
+    found = workflow_files()
+    assert found, (
+        f"no workflow files under {WORKFLOWS_DIR}, so this gate has no "
+        "targets and would pass having read nothing"
+    )
     gated = [
         f"{path.name}:{job_id}"
-        for path in workflow_files()
+        for path in found
         for job_id, job in (load_workflow(path).get("jobs") or {}).items()
         if isinstance(job, dict) and "matrix." in str(job.get("if", ""))
     ]

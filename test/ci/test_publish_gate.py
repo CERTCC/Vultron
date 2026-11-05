@@ -37,6 +37,7 @@ from test.ci._workflows import (
     REPO_ROOT,
     WORKFLOWS_DIR,
     index_of,
+    job_needs,
     load_workflow,
     steps,
     triggers,
@@ -1028,8 +1029,7 @@ def _job_steps(name: str) -> list[dict[str, Any]]:
 
 
 def _needs(name: str) -> set[str]:
-    needs = _job(name).get("needs", [])
-    return {needs} if isinstance(needs, str) else set(needs)
+    return job_needs(_job(name))
 
 
 @pytest.mark.spec("DOCBW-06-007")

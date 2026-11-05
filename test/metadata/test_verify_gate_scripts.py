@@ -307,6 +307,12 @@ def test_ci_gate_maps_each_row(
         # A check with no name must not make the match raise, and a check with
         # no bucket must not print `null` as its verdict.
         (((None, "pass"), ("Tests (pytest) core", None)), 1, "ci-failing", "unknown"),
+        # Four reports of one part's name are one part. Counting array
+        # elements instead of distinct names would call this `pass`.
+        ((("Tests (pytest) core", "pass"), ("Tests (pytest) core", "pass")), 2, "ci-failing", "incomplete"),
+        # No part count at all: the gate refuses rather than defaulting to 1,
+        # which would admit one green part as the whole suite.
+        ((("Tests (pytest) core", "pass"),), 0, "ci-failing", "unknown-parts"),
     ],
 )  # fmt: skip
 def test_integration_needs_every_pytest_check_to_have_passed(
