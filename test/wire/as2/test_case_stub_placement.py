@@ -17,19 +17,21 @@
 
 The stub exists so an invitee can decide whether to join a case before it is
 entitled to the case (ADR-0114).  Its one place is the ``target`` of the
-``Invite`` that invites an actor to the case, including that ``Invite``
-carried inline in its ``Accept`` or ``Reject``.  Anywhere else the parser
+``Invite`` that invites an actor to the case, wherever that ``Invite`` is
+carried inline: in its ``Accept`` or ``Reject``, or in a refusal notice
+quoting such a reply.  Anywhere else the parser
 refuses the activity and names the slot (#5770).
 """
 
 import copy
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
 from vultron.wire.as2.errors import VultronParseValidationError
+from vultron.wire.as2.factories import refusal_notice_activity
 from vultron.wire.as2.parser import parse_activity
 
 _EXAMPLES = Path(__file__).resolve().parents[3] / "docs/reference/examples"
@@ -74,6 +76,35 @@ def test_a_stub_as_the_target_of_a_case_invitation_is_accepted(
 ) -> None:
     """The case invitation and its two replies, as the examples send them."""
     parse_activity(_example(name))
+
+
+@pytest.mark.spec("MV-10-002")
+@pytest.mark.spec("CLP-05-001")
+@pytest.mark.parametrize(
+    "name", ["accept_invite_to_case", "reject_invite_to_case"]
+)
+def test_a_refusal_notice_quoting_a_reply_to_a_case_invitation_is_accepted(
+    name: str,
+) -> None:
+    """The stub stays the target of its Invite however deep it is quoted.
+
+    A refusal notice carries the refused reply inline, and the reply carries
+    its Invite inline, so the stub is three levels down (MV-10-002).
+    """
+    notice = refusal_notice_activity(
+        _example(name),
+        "a precondition did not hold",
+        actor="https://example.org/actors/case-manager",
+        to=["https://example.org/actors/vendor"],
+    )
+    body = json.loads(notice.to_json())
+    assert (
+        body["object"]["object"]["target"]["type"] == "VulnerabilityCaseStub"
+    )
+
+    received = cast(Any, parse_activity(body))
+
+    assert received.object_.object_.target.type_ == "VulnerabilityCaseStub"
 
 
 _REFUSED_SLOTS = [

@@ -528,9 +528,10 @@ groups:
     kind: protocol
     statement: >-
       A `VulnerabilityCaseStub` object is ONLY permitted as the `target` of an `Invite`
-      whose `object` is the actor invited to the case, including that `Invite` carried
-      inline in its `Accept` or `Reject`. A receiver MUST refuse an activity that carries
-      a stub in any other position, naming each position.
+      whose `object` is the actor invited to the case, wherever that `Invite` is carried
+      inline: for example inside its `Accept` or `Reject`, or inside a refusal notice
+      that quotes such a reply. A receiver MUST refuse an activity that carries a stub in
+      any other position, naming each position.
     rationale: >-
       The stub exists so that an invitee can decide whether to join a case before it is
       entitled to the case (MV-10-001, ADR-0114). The case invitation is the one message
@@ -544,7 +545,9 @@ groups:
       `test_a_stub_as_the_target_of_a_case_invitation_is_accepted` parses the case
       invitation and its `Accept` and `Reject`, and
       `test_a_case_invitation_naming_its_invitee_by_reference_keeps_its_stub` one that
-      names its invitee by URI or `Link`;
+      names its invitee by URI or `Link`, and
+      `test_a_refusal_notice_quoting_a_reply_to_a_case_invitation_is_accepted` a
+      refusal notice that quotes the `Accept` or `Reject`;
       `test_a_stub_outside_a_case_invitation_target_is_refused`,
       `test_a_stub_as_the_target_of_another_activity_is_refused`,
       `test_a_stub_in_an_embargo_invitation_is_refused`,
