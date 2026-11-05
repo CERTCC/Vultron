@@ -35,6 +35,11 @@ from pathlib import Path
 #: fit, two did.
 WORKER_MEMORY_BYTES = 1536 * 1024 * 1024
 
+#: Memory budgeted per child interpreter a *test* spawns.  Measured: the
+#: fresh-import driver's children peak at ~270 MiB resident, each importing
+#: pydantic, fastapi and one ``vultron`` module; rounded up for headroom.
+CHILD_MEMORY_BYTES = 384 * 1024 * 1024
+
 DEFAULT_CGROUP_ROOT = Path("/sys/fs/cgroup")
 
 
@@ -111,3 +116,25 @@ def worker_count(
     if memory_limit is not None:
         count = min(count, memory_limit // WORKER_MEMORY_BYTES)
     return max(1, count)
+
+
+def child_process_budget(
+    root: Path = DEFAULT_CGROUP_ROOT, cpus: int | None = None
+) -> int:
+    """How many child interpreters one test may run at once.
+
+    A test that spawns children runs inside one xdist worker, and every other
+    worker is spending its own share of the container at the same time, so the
+    fan-out is budgeted from the memory *one* worker is given
+    (:data:`WORKER_MEMORY_BYTES` / :data:`CHILD_MEMORY_BYTES`), never from the
+    host's core count.  Sizing it from ``os.cpu_count()`` put sixteen children
+    beside sixteen workers on a sixteen-core host; the container's OOM killer
+    then took a worker, which xdist reports as a crash of whatever test that
+    worker happened to hold (#5184, ``notes/testing-pitfalls.md`` § "A Dead
+    xdist Worker Hung the Run").
+
+    Capped by :func:`worker_count`, so a two-CPU slot runs two children rather
+    than four: the cap is the same cgroup reading ``-n auto`` is sized from.
+    """
+    from_memory = WORKER_MEMORY_BYTES // CHILD_MEMORY_BYTES
+    return max(1, min(from_memory, worker_count(root, cpus)))

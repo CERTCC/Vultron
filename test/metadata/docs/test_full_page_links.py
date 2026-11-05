@@ -308,6 +308,19 @@ def _hrefs(html: str) -> list[str]:
     return parser.hrefs
 
 
+# The `full_page` fixture assembles and renders the whole single-page
+# specification: 13.2s of setup measured on an idle 16-core host here, 16.2s
+# and 21.0s on others (#5657). That is 4x to 7x the slowest test the 30s unit
+# ceiling was sized from, so it had under 1.5x headroom and tripped under load
+# — in setup, where a trip aborts the whole run with INTERNALERROR rather than
+# failing one test, or leaves the class's tests reporting ERROR as if the pages
+# were wrong. The explicit ceiling is the integration tier's 120s
+# (`INTEGRATION_TIMEOUT_SECONDS`, sized from measured cost under load), which
+# an explicit mark gets without moving the class out of the default run; the
+# tier itself is unchanged, because the class exercises no HTTP stack. Lower it
+# if the fixture is ever made cheap. See `notes/testing-pitfalls.md`
+# § "Per-Test Timeout Guardrail".
+@pytest.mark.timeout(120)
 class TestAssembledFullPage:
     def test_the_hook_rewrites_cross_references(self, full_page: _FullPage):
         """Non-vacuity (DF-09-009): the page has cross-references to rewrite,
