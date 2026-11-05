@@ -199,8 +199,7 @@ Keep protocol text free of implementation accidents and drafting artifacts.
   `notes/rfc-spec-authoring.md` § "Page Map") plus the heading anchor — for
   example `tracking-models.md#6-report-management-rm-state-machine-n` — and
   resolves. No link targets `index.md#…`: the landing page holds no sections.
-  Run `bash .github/scripts/mkdocs-build-strict.sh` and treat any broken-anchor
-  warning as a blocker.
+  Run the `build-docs` skill and treat any broken-anchor warning as a blocker.
 - `[M]` Every section citation carries the number and the section name:
   "§6 Report Management (RM) State Machine", never a bare "§6", because a bare
   number does not say which page the section is on. An annex is cited as

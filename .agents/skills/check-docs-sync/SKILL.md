@@ -129,7 +129,7 @@ For each small update:
    available on failure — never pipe it, or `--strict`'s non-zero exit is lost:
 
    ```bash
-   UV_NO_SYNC=1 uv run mkdocs build --strict > /tmp/mkdocs-build.log 2>&1; rc=$?; tail -20 /tmp/mkdocs-build.log; echo "exit: $rc"; (exit $rc)
+   UV_NO_SYNC=1 uv run python .agents/skills/shared/run-heavy.py uv run mkdocs build --strict > /tmp/mkdocs-build.log 2>&1; rc=$?; tail -20 /tmp/mkdocs-build.log; echo "exit: $rc"; (exit $rc)
    # On failure with insufficient tail output: grep /tmp/mkdocs-build.log
    ```
 

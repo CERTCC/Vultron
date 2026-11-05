@@ -8,7 +8,7 @@ tags:
   - ci
 shell: "zsh"
 commands:
-  - 'log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; timeout -k 30 1800 uv run pytest -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)'
+  - 'log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)'
 inputs:
   - name: repo_root
     description: "Repository root"
@@ -24,9 +24,9 @@ outputs:
 
 | Suite | Command |
 |---|---|
-| Unit (default) | `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; timeout -k 30 1800 uv run pytest -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)` |
-| Integration | `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)` |
-| All | `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; timeout -k 30 1800 uv run pytest -m "" -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)` |
+| Unit (default) | `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)` |
+| Integration | `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)` |
+| All | `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -m "" -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)` |
 
 The shape is always the same: **redirect, capture `$?` immediately, tail the log,
 print the code last, then re-raise it.** `rc=$?` must come directly after the
@@ -45,6 +45,20 @@ in a short tail; tell them apart by the `exit:` line and the log:
 | `exit: 127` and `timeout: command not found` | No test ran: the host has no `timeout` (stock macOS). Run the gate in the devcontainer. |
 
 See `notes/testing-pitfalls.md` § "A Dead xdist Worker Hung the Run".
+
+`uv run python .agents/skills/shared/run-heavy.py` runs the gate in one of
+this host's heavy-check slots (#5947). Every slot container on the host shares
+one Docker VM, and each `-n auto` run sizes itself to its own container without
+seeing the others, so a few slots cap how many run at once. The wrapper comes
+before `timeout`, so time spent waiting is not charged to the run. While every
+slot is taken it writes one `run-heavy: all N heavy-check slots on this host are
+busy; waiting (...)` line, naming the holders, at the top of the log: a slow
+start with that line is a queue, not a hang. Its exit status is the command's,
+so the table above holds, plus one row:
+
+| You see | It means |
+|---|---|
+| `exit: 75` and `run-heavy: gave up after 3600s` | No test ran: no slot came free within the wrapper's wait limit. Find the holders the wait line names before rerunning. |
 
 `-n auto` runs the suite on `pytest-xdist` workers. `test/conftest.py` sizes
 `auto` to the container's cgroup CPU and memory limits
@@ -66,8 +80,8 @@ both suites:
 
 ```bash
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
-timeout -k 30 1800 uv run pytest -n auto --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)
-timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$logs-integration.log" 2>&1; rc=$?; tail -5 "$logs-integration.log"; echo "exit: $rc"; (exit $rc)
+uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -n auto --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)
+uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$logs-integration.log" 2>&1; rc=$?; tail -5 "$logs-integration.log"; echo "exit: $rc"; (exit $rc)
 ```
 
 Run the block as one shell command, so `logs` is set for each line. The
@@ -95,7 +109,8 @@ gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base> --pytest); rc=$?
 [ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
 ```
 
-The set always includes `test/architecture/` and `test/metadata/`.
+The printed command starts with `run-heavy.py`, so the gate takes a slot like
+the suites above. The set always includes `test/architecture/` and `test/metadata/`.
 `targeted-tests` escalates to the full suite itself (its `--pytest` output
 becomes `pytest -m ""`) only when the branch diff touches shared test
 infrastructure; an integration-bearing path is gated by its importers, and

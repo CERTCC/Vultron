@@ -79,6 +79,9 @@ class MirrorCheck:
     needs_pr: bool = False
     #: Runs after every other check, by itself: it writes into the tree others read.
     alone: bool = False
+    #: Starts many processes or uses much memory, so it takes one of the host's
+    #: heavy-check slots, shared with this mirror's other heavy checks (#5947).
+    heavy: bool = False
     #: Step env values naming a GitHub expression that run without it locally,
     #: each with why; parity refuses an expression neither here nor in ``env``.
     drops_env: Mapping[str, str] = field(default_factory=dict)
@@ -130,6 +133,10 @@ GUARD_TESTS = (
     "test/core/behaviors/test_btnd07_structure.py",
     "test/metadata/test_agents_md_size_ratchet.py",
     "test/metadata/test_adr_back_edges.py",
+    # Reads the skills' Markdown, which no CI pytest path filter lists, so a
+    # skill-only PR that drops a gate's ceiling or heavy-check slot reaches
+    # CI's suite only on a later PR (#5947).
+    "test/metadata/test_gate_ceiling.py",
     "test/metadata/test_no_decision_record_part_citations.py",
     "test/metadata/test_msm_occasions.py",
     "test/metadata/docs/test_page_frontmatter.py",
@@ -153,10 +160,14 @@ def markdownlint_command(context: CheckContext) -> list[str] | None:
     return [*base, *files] if files else None
 
 
+#: The memo wrapper of :func:`_memoized`, relative to the repository root.
+RUN_IF_CHANGED = ".agents/skills/shared/run-if-changed.sh"
+
+
 def _memoized(tool: str, *inputs: str) -> tuple[str, ...]:
     return (
         "bash",
-        ".agents/skills/shared/run-if-changed.sh",
+        RUN_IF_CHANGED,
         tool,
         *inputs,
         "--",
@@ -189,6 +200,7 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
             "pyright", "vultron/", "test/", "pyrightconfig.json", "uv.lock"
         ),
         note=_MEMOIZED_NOTE,
+        heavy=True,
     ),
     MirrorCheck(
         "package-build",
@@ -209,6 +221,7 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
             *("uv", "run", "pytest", "-m", "", "-n", "auto", "--tb=short"),
             *GUARD_TESTS,
         ),
+        heavy=True,
         note=(
             "CI runs these inside the full suite, which the mirror leaves to "
             "create-pr and CI; the #5580 audit traced CI failures to each"
@@ -223,6 +236,7 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
             "--tb=short",
         ),
         note="adds -n auto; the serial run is several times slower locally",
+        heavy=True,
     ),
     MirrorCheck(
         "story-page-shape",
@@ -316,6 +330,7 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
             paths=SITE_PATHS,
             narrowed=_SITE_NARROWED,
             group="site",
+            heavy=check_id == "site-build",
         )
         for check_id, label in (
             ("site-build", _DOCS + "Build Site > Build Site"),
