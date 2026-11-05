@@ -338,8 +338,9 @@ linked file before touching that area. New pitfalls MUST be routed per
 Ask the user anything per
 [`.agents/skills/shared/asking-the-user.md`](.agents/skills/shared/asking-the-user.md),
 in every session and when skills compose (`learn` → `grill-me`). The core rules: one
-question at a time; ask about the behavior behind a spec rule, not its wording; plain
-language with every cited ID summarized; and run the guide's pre-ask check first.
+question at a time; problem before decision, with your recommendation; ask about the
+behavior behind a spec rule, not its wording; plain language with every cited ID
+summarized; and run the guide's pre-ask check first.
 
 ---
 

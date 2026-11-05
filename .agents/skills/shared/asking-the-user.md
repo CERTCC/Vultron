@@ -2,9 +2,9 @@
 
 How to present a question or decision to the user. Applies to every skill and
 every session, including interview skills (`grill-me`, `plan-issue`, `learn`,
-`decision-audit`, `spec-audit`) and any skill that stops to ask. The short
-version lives in `AGENTS.md` § "Skill Interaction Rules"; this file adds the
-reasoning and examples.
+`decision-audit`, `spec-audit`) and any skill that stops to ask. `AGENTS.md`
+§ "Skill Interaction Rules" points here and names the core rules; this file
+holds the full rules, reasoning and examples.
 
 The goal: the user can answer without asking "what do you mean?" first. Every
 round trip spent decoding a question wastes time and tokens.
@@ -60,9 +60,8 @@ yourself and let the user review it in the PR.
 - **Ask about wording only when it changes what gets built.** That is, when two
   phrasings would lead implementers to build different things. Say what each
   one would make them build, in plain domain language.
-- **Summarize every rule you cite.** "MV-10-002 (a case preview may appear only
-  in a case invitation)," not "per MV-10-002." Do not hand the user a list of
-  references to look up.
+- **Summarize every rule you cite** (§5): "MV-10-002 (a case preview may
+  appear only in a case invitation)," not "per MV-10-002."
 
 ## 4. Use plain technical and domain language
 
@@ -134,6 +133,9 @@ the user has to look anything up.
 
 Run this check on every question before it reaches the user:
 
+- Is it one question, not several (§1)?
+- Does it state the problem, why it matters, each option, and your
+  recommendation (§2)?
 - Is it about behavior or architecture, not wording (§3)?
 - If actors are involved, does it show who sends what to whom (§3)?
 - Does every rule, ADR, or issue it names say what that item is (§5)?
