@@ -21,12 +21,11 @@ and every row has such a route — exact set equality in both directions
 TRIG-08-003 and TRIG-08-004, which until the registry existed read
 "inspection confirms".
 
-The mounted routes are read from the OpenAPI document the app renders — the
-same document the golden snapshot freezes (TRIG-12-003) — built with the demo
-router mounted (``mode=PROTOTYPE``) so the demo-only rows are visible
-(TRIG-09-001).  Two ``GET`` routes also live under ``/demo/`` — the case-ledger
-read endpoints — and are not triggers; they are pinned by name, in a pinned
-exemption set rather than a ratchet (ARCH-18-005), so a third
+The mounted routes are read from the OpenAPI document the app renders, built
+with the demo router mounted (``mode=PROTOTYPE``) so the demo-only rows are
+visible (TRIG-09-001).  Two ``GET`` routes also live under ``/demo/`` — the
+case-ledger read endpoints — and are not triggers; they are pinned by name, in
+a pinned exemption set rather than a ratchet (ARCH-18-005), so a third
 non-trigger route under either prefix is noticed rather than silently excluded.
 """
 
@@ -40,11 +39,11 @@ from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from starlette.routing import BaseRoute
 
-from test.adapters.driving.fastapi.test_openapi_trigger_snapshot import (
+from test.support.trigger_routes import (
     DEMO_PATH_FRAGMENT,
     TRIGGER_PATH_FRAGMENT,
     build_prototype_app,
-    is_frozen_path,
+    is_trigger_family_path,
 )
 from vultron.trigger_registry import TriggerExposure, entries, lookup_entry
 
@@ -172,8 +171,8 @@ def _api_routes(routes: Iterable[BaseRoute]) -> Iterator[APIRoute]:
 
     ``include_router`` registers a wrapper that holds the original router, so
     the leaves are not on ``app.routes`` directly; this descends until it finds
-    them.  Paths come back without the mount prefix, which ``is_frozen_path``
-    does not need.
+    them.  Paths come back without the mount prefix, which
+    ``is_trigger_family_path`` does not need.
     """
     for route in routes:
         if isinstance(route, APIRoute):
@@ -191,7 +190,7 @@ def _trigger_api_routes(app: FastAPI) -> list[APIRoute]:
     return [
         r
         for r in _api_routes(app.routes)
-        if is_frozen_path(r.path) and "POST" in (r.methods or set())
+        if is_trigger_family_path(r.path) and "POST" in (r.methods or set())
     ]
 
 

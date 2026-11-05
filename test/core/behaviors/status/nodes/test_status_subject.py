@@ -16,6 +16,7 @@
 
 import pytest
 
+from test.support.participant_status import impossible_state_reasons
 from vultron.core.behaviors.status.nodes.status_subject import (
     on_behalf_status_roles,
     on_behalf_status_violations,
@@ -56,7 +57,19 @@ def _status(
 
 
 @pytest.mark.spec("RSH-08-007")
+@pytest.mark.spec("RSH-08-014")
+@pytest.mark.spec("CSB-17-001")
 def test_both_moves_together_are_one_on_behalf_assertion():
+    """RSH-08-014's "or both" passes the shape rule and no further.
+
+    The only status that carries both on-behalf moves is ``v→V`` plus ``d→D``,
+    which lands the target on the compound state ``VfD`` — a fix deployed
+    before it was ready, one of the combinations CSB-17-001 rules out.  So the
+    fixture is deliberately in an impossible state, and the test says so: the
+    shape rule admits it, and the entailment rule that PRM-06-008 requires
+    downstream refuses it.  Without the second assertion this test would read
+    as "both moves together are accepted", which is not what happens (#3046).
+    """
     status = _status(vf=CS_vf.Vf, d=CS_d.D)
 
     assert (
@@ -67,6 +80,10 @@ def test_both_moves_together_are_one_on_behalf_assertion():
         CVDRole.VENDOR,
         CVDRole.DEPLOYER,
     ]
+    assert impossible_state_reasons(status), (
+        "VfD must stay impossible; if it becomes legal, the shape rule's"
+        " 'or both' case is reachable end to end and needs its own test"
+    )
 
 
 @pytest.mark.spec("RSH-08-007")

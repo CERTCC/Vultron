@@ -60,12 +60,12 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
             "examples.case() genesis_hash must be non-empty (CLP-08-003)",
         )
 
-    def test_case_random_id_has_genesis_hash(self):
-        case = examples.case(random_id=True)
+    def test_case_fresh_id_has_genesis_hash(self):
+        case = examples.case(fresh_id=True)
         self.assertIsInstance(case, as_VulnerabilityCase)
         self.assertTrue(
             case.genesis_hash,
-            "examples.case(random_id=True) genesis_hash must be non-empty (CLP-08-003)",
+            "examples.case(fresh_id=True) genesis_hash must be non-empty (CLP-08-003)",
         )
 
     def test_create_case(self):
@@ -418,20 +418,20 @@ class TestCaseKwargsOverlapGuard(unittest.TestCase):
                 attributed_to="urn:uuid:00000000-0000-0000-0000-000000000000"
             )
 
-    def test_case_random_id_kwargs_overlap_name_raises_value_error(self):
+    def test_case_fresh_id_kwargs_overlap_name_raises_value_error(self):
         with self.assertRaises(ValueError):
-            examples.case(random_id=True, name="My Vuln")
+            examples.case(fresh_id=True, name="My Vuln")
 
-    def test_case_random_id_kwargs_overlap_id_raises_value_error(self):
+    def test_case_fresh_id_kwargs_overlap_id_raises_value_error(self):
         with self.assertRaises(ValueError):
-            examples.case(random_id=True, id_="custom-id")
+            examples.case(fresh_id=True, id_="custom-id")
 
-    def test_case_random_id_kwargs_overlap_attributed_to_raises_value_error(
+    def test_case_fresh_id_kwargs_overlap_attributed_to_raises_value_error(
         self,
     ):
         with self.assertRaises(ValueError):
             examples.case(
-                random_id=True,
+                fresh_id=True,
                 attributed_to="urn:uuid:00000000-0000-0000-0000-000000000000",
             )
 

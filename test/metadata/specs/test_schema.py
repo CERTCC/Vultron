@@ -577,40 +577,75 @@ def test_spec_file_requires_scope():
         )
 
 
+def _spec_file_kwargs() -> dict[str, object]:
+    """A ``SpecFile`` that validates, for a test that empties one field."""
+    return {
+        "id": "AB",
+        "title": "Test File",
+        "description": "A test file",
+        "scope": [Scope.PRODUCTION],
+        "tags": [SpecTag.TESTING],
+        "relationships": [
+            Relationship(rel_type=RelationType.REFINES, spec_id="AB-01-002")
+        ],
+        "groups": [
+            SpecGroup(
+                id="AB-01",
+                title="Group",
+                specs=[
+                    StatementSpec(
+                        id="AB-01-001",
+                        priority=RFC2119Priority.MUST,
+                        statement="AB-01-001 MUST work",
+                        rationale="Because testing.",
+                        kind=SpecKind.PROTOCOL,
+                    )
+                ],
+            )
+        ],
+    }
+
+
 def test_spec_file_empty_scope_rejected():
     with pytest.raises(ValidationError, match="must not be empty"):
-        SpecFile(
-            id="AB",
-            title="Test File",
-            description="A test file",
-            scope=[],
-            groups=[
-                SpecGroup(
-                    id="AB-01",
-                    title="Group",
-                    specs=[
-                        StatementSpec(
-                            id="AB-01-001",
-                            priority=RFC2119Priority.MUST,
-                            statement="AB-01-001 MUST work",
-                            rationale="Because testing.",
-                            kind=SpecKind.PROTOCOL,
-                        )
-                    ],
-                )
-            ],
-        )
+        SpecFile.model_validate({**_spec_file_kwargs(), "scope": []})
 
 
 def test_spec_file_empty_groups_rejected():
     with pytest.raises(ValidationError, match="must not be empty"):
-        SpecFile(
-            id="AB",
-            title="Test File",
-            description="A test file",
-            scope=[Scope.PRODUCTION],
-            groups=[],
-        )
+        SpecFile.model_validate({**_spec_file_kwargs(), "groups": []})
+
+
+@pytest.mark.parametrize(
+    ("field", "expected"),
+    [
+        ("tags", "tags must be non-empty if present"),
+        ("relationships", "relationships must be non-empty if present"),
+        ("scope", "scope must not be empty"),
+        ("groups", "groups must not be empty"),
+    ],
+)
+def test_an_empty_list_rejection_names_the_field(
+    field: str, expected: str
+) -> None:
+    """Every empty-list rejection names the field, not "list field".
+
+    Each optional-list validator carried its own copy of the rule, and the
+    ``SpecFile.tags``/``relationships`` copy lost the field name because it
+    never read it.  They now delegate to the one shared validator, so a
+    lint failure on a spec file with sixty keys says which key to look at.
+
+    Asserted on the message pydantic built, not on the whole
+    ``ValidationError`` string: that string already carries the field's
+    location on its own line, so ``match=field`` would pass against the old
+    wording and pin nothing.
+    """
+    with pytest.raises(ValidationError) as raised:
+        SpecFile.model_validate({**_spec_file_kwargs(), field: []})
+
+    assert [error["msg"] for error in raised.value.errors()] == [
+        f"Value error, {expected}"
+    ]
 
 
 # ---------------------------------------------------------------------------

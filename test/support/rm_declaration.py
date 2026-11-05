@@ -37,6 +37,10 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.participant_status import (
+    assert_possible_participant_status,
+    assert_recorded_states_possible,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.status.nodes.rm_rule import BB_RM_ANOMALY
 from vultron.core.models._helpers import _as_id
@@ -93,8 +97,15 @@ def current_status(
     vf_state: CS_vf | None,
     pxa_state: CS_pxa,
 ) -> as_ParticipantStatus:
-    """The sender's recorded status *before* the declaration arrives."""
-    return as_ParticipantStatus(
+    """The sender's recorded status *before* the declaration arrives.
+
+    Raises when the requested pair is one the CS invariants forbid — most often
+    a pre-acceptance ``rm_state`` with ``vf_state=CS_vf.VF``, which CSB-18-001
+    rules out.  This status stands for state the CASE_MANAGER has *already
+    recorded*, so it is never allowed to be impossible; the inbound status a
+    test expects to be refused is built by the test itself (#3046).
+    """
+    status = as_ParticipantStatus(
         id_=CURRENT_STATUS_ID,
         context=CASE_ID,
         rm=RmDimension(state=rm_state),
@@ -106,6 +117,8 @@ def current_status(
             pxa=PxaDimension(state=pxa_state),
         ),
     )
+    assert_possible_participant_status(status, "current_status()")
+    return status
 
 
 def seed_case(
@@ -117,6 +130,12 @@ def seed_case(
 
     The case is linked to :data:`REPORT_ID`, so the report-verdict handlers
     find it the same way the status path does.
+
+    *current* is checked against the CS invariants before it is recorded: the
+    callers outside the status package build it themselves rather than through
+    :func:`current_status`, so the check belongs here too (#3046).  *asserted*
+    is the inbound status under judgement and is deliberately not checked —
+    several tests exist precisely to show an impossible one being refused.
     """
     vendor = as_CaseParticipant(
         id_=PARTICIPANT_ID,
@@ -125,6 +144,7 @@ def seed_case(
         case_roles=[CVDRole.CASE_OWNER, CVDRole.VENDOR],
     )
     vendor.participant_statuses.append(current)
+    assert_recorded_states_possible(vendor, "seed_case() vendor")
     manager = as_CaseParticipant(
         id_=CM_PARTICIPANT_ID,
         context=CASE_ID,

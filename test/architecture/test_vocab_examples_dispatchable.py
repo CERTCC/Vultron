@@ -18,10 +18,10 @@ The ``vocab_examples`` functions are the wire examples rendered on
 ``docs/reference/messages/*.md`` and written to ``docs/reference/examples/*.json``.
 They are what an implementer copies.  Two existing gates check them and neither
 asks the question that matters: ``test_vocab_utils.py`` asserts each one executes
-and serializes, and ``test_vocab_examples_current.py`` asserts the committed
-artifact file list is current.  An example can therefore be well-formed,
-committed, rendered on a reference page — and undispatchable, because no
-``SEMANTIC_REGISTRY`` entry's pattern matches it.
+and serializes, and ``test_vocab_examples_current.py`` asserts each committed
+artifact is byte for byte what the generator writes.  An example can therefore
+be well-formed, committed, rendered on a reference page — and undispatchable,
+because no ``SEMANTIC_REGISTRY`` entry's pattern matches it.
 
 The match is counted against the registry's entries, not against every
 ``ActivityPattern`` in ``extractor/_instances.py``.  A pattern no entry uses

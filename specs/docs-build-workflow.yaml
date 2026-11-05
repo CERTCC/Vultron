@@ -196,6 +196,9 @@ groups:
           `test/ci/test_publication_gates_in_workflows.py` asserts every
           workflow running `mkdocs build` also runs `docs-withheld`, directly or
           through a local composite action, `deploy_site.yml` included.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-03-005
       - id: DOCBW-03-007
         priority: MUST
         kind: project
@@ -285,6 +288,8 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DOCBW-03-007
+          - rel_type: uses_definition
+            spec_id: DOCBW-03-006
       - id: DOCBW-03-008
         priority: MUST
         kind: project
@@ -308,6 +313,9 @@ groups:
           `.github/actions/check-site-publication`. Its logic is covered by
           `test/metadata/docs/test_legacy_urls.py` over synthetic built trees,
           including a redirect to an unbuilt page, a loop, and a withheld URL.
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-03-005
       - id: DOCBW-03-021
         priority: MUST
         kind: project
@@ -403,6 +411,8 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DOCBW-03-008
+          - rel_type: uses_definition
+            spec_id: DOCBW-03-006
       - id: DOCBW-03-009
         priority: MUST
         kind: project
@@ -432,6 +442,9 @@ groups:
         verification: >-
           `test/ci/test_docs_build_strict.py` asserts no workflow's
           `mkdocs build` command carries `--quiet` or `-q`.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-03-009
       - id: DOCBW-03-011
         priority: MUST
         kind: project
@@ -479,8 +492,10 @@ groups:
           build and cannot skip or swallow it, and that `deploy_site.yml` runs
           it before the Pages upload.
         relationships:
-          - rel_type: depends_on
+          - rel_type: uses_definition
             spec_id: DOCBW-03-008
+          - rel_type: uses_definition
+            spec_id: DOCBW-03-006
       - id: DOCBW-03-027
         priority: MUST
         kind: project
@@ -540,7 +555,7 @@ groups:
           the build and every built-site check, that nothing swallows its
           failure, and that every gate runs on `!cancelled()`.
         relationships:
-          - rel_type: depends_on
+          - rel_type: extends
             spec_id: DOCBW-03-013
       - id: DOCBW-03-015
         priority: MUST
@@ -560,7 +575,7 @@ groups:
           as DOCBW-03-013, on `.pre-commit-config.yaml` and on every
           `.github/workflows/*.yml` file.
         relationships:
-          - rel_type: depends_on
+          - rel_type: extends
             spec_id: DOCBW-03-013
 
   - id: DOCBW-05
@@ -578,6 +593,11 @@ groups:
           This workflow runs actions from outside the repository. A pin keeps that
           code fixed to a reviewed commit, as in every other workflow
           (CISEC-01-001).
+        relationships:
+          - rel_type: refines
+            spec_id: CISEC-01-001
+          - rel_type: refines
+            spec_id: CISEC-01-002
       - id: DOCBW-05-002
         priority: MUST
         kind: project
@@ -589,6 +609,9 @@ groups:
           The workflow reads the repository, builds the site and checks it. It writes
           nothing, so it needs no write access. A read-only token limits what a
           compromised step or action can change (CISEC-02-002).
+        relationships:
+          - rel_type: refines
+            spec_id: CISEC-02-002
 
   - id: DOCBW-06
     title: Site Publication
@@ -633,6 +656,14 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DOCBW-03-006
+          - rel_type: uses_definition
+            spec_id: DOCBW-03-005
+          - rel_type: uses_definition
+            spec_id: DOCBW-03-007
+          - rel_type: uses_definition
+            spec_id: DOCBW-03-008
+          - rel_type: uses_definition
+            spec_id: DOCBW-03-012
       - id: DOCBW-06-003
         priority: MUST
         kind: project
@@ -649,8 +680,12 @@ groups:
           a schedule, and `test_publication_workflow_qualifies` asserts
           `deploy_site.yml` is in that set.
         relationships:
-          - rel_type: implements
+          - rel_type: refines
             spec_id: CISEC-05-001
+          - rel_type: refines
+            spec_id: CISEC-05-002
+          - rel_type: refines
+            spec_id: CISEC-05-008
       - id: DOCBW-06-004
         priority: MUST
         kind: project
@@ -672,9 +707,6 @@ groups:
           step other than its checkout before the shared build, and when the
           action takes an input other than the commit to check out, or stops
           fixing the checkout, the dependency set or the single build.
-        relationships:
-          - rel_type: refines
-            spec_id: DOCBW-03-009
       - id: DOCBW-06-005
         priority: MAY
         kind: project
@@ -736,8 +768,10 @@ groups:
         adr:
           - ADR-0171
         relationships:
-          - rel_type: depends_on
+          - rel_type: uses_definition
             spec_id: CISEC-05-011
+          - rel_type: uses_definition
+            spec_id: DOCBW-06-009
       - id: DOCBW-06-009
         priority: MUST
         kind: project
@@ -1073,6 +1107,8 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: CISEC-02-002
+          - rel_type: uses_definition
+            spec_id: DOCBW-06-016
       - id: DOCBW-06-025
         priority: MUST
         kind: project
@@ -1180,7 +1216,7 @@ groups:
         adr:
           - ADR-0171
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: DOCBW-06-016
 
   - id: DOCBW-07
@@ -1249,6 +1285,8 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DOCBW-07-001
+          - rel_type: uses_definition
+            spec_id: DOCBW-07-013
       - id: DOCBW-07-002
         priority: MUST_NOT
         kind: project
@@ -1268,6 +1306,8 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DOCBW-07-001
+          - rel_type: uses_definition
+            spec_id: DOCBW-07-013
       - id: DOCBW-07-003
         priority: MUST_NOT
         kind: project
@@ -1364,7 +1404,7 @@ groups:
           - ADR-0171
         relationships:
           - rel_type: extends
-            spec_id: DOCBW-06-014
+            spec_id: DOCBW-07-006
       - id: DOCBW-07-007
         priority: MUST
         kind: project
@@ -1382,8 +1422,10 @@ groups:
           `test_unpublished_release_names_the_tag_and_never_deletes` and
           `test_release_tag_check_workflow` in `test/ci/test_release.py`.
         relationships:
-          - rel_type: implements
+          - rel_type: uses_definition
             spec_id: CISEC-05-008
+          - rel_type: uses_definition
+            spec_id: DOCBW-07-013
       - id: DOCBW-07-014
         priority: MUST_NOT
         kind: project
@@ -1419,6 +1461,9 @@ groups:
           `test_staleness_workflow` in `test/ci/test_release.py`.
         adr:
           - ADR-0171
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-07-013
       - id: DOCBW-07-015
         priority: MUST
         kind: project
@@ -1468,8 +1513,10 @@ groups:
           `test_a_rerun_after_a_failed_draft_reuses_the_tag` in
           `test/ci/test_release.py`.
         relationships:
-          - rel_type: extends
+          - rel_type: supersedes
             spec_id: DOCBW-07-001
+          - rel_type: supersedes
+            spec_id: DOCBW-07-016
       - id: DOCBW-07-016
         priority: MUST
         kind: project
@@ -1483,6 +1530,3 @@ groups:
         verification: >-
           `test_a_released_commit_is_not_promoted_again` in
           `test/ci/test_release.py`.
-        relationships:
-          - rel_type: extends
-            spec_id: DOCBW-07-010

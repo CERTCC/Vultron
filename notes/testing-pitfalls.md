@@ -13,9 +13,12 @@ description: >
   measuring effective markers rather than declarations,
   `filterwarnings` precedence, `nproc` in a worktree slot, `xdist_group` for
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
-  blackboard isolation, py_trees test patterns, CoreObject subclass isolation,
+  blackboard isolation, why a status fixture may not encode a state the CS
+  invariants forbid and where the guard for that reaches,
+  py_trees test patterns, CoreObject subclass isolation,
   assertion-quality traps (vacuous asserts, "falls back to" tests, bare
-  MagicMock), the three future-date idioms a sweep must tell apart before
+  MagicMock), driving a guard through its production entry point rather than by
+  direct call, the three future-date idioms a sweep must tell apart before
   replacing a literal, why turning nesting into sequence moves the skip nobody
   tests,
   test layout rules for module splits, why a two-sided count pin
@@ -32,6 +35,7 @@ related_specs:
   - specs/handler-protocol.yaml
   - specs/outbox.yaml
   - specs/case-ledger-processing.yaml
+  - specs/cs-behavior.yaml
 related_notes:
   - notes/flaky-tests.md
   - notes/configuration.md
@@ -272,6 +276,39 @@ that dead-letters a row.
 
 ## Fixture and Store Isolation
 
+### A Status Fixture May Not Encode a State the CS Invariants Forbid
+
+A participant status pairing a pre-acceptance RM state with the VFD F bit —
+`rm=VALID` with `vf=VF`, say — is a state CSB-18-001 says cannot exist, and a
+test standing on one passes for a reason other than the behaviour it names.
+When the matching invariant is finally enforced every such test breaks at once,
+so a real enforcement improvement reads as a regression (#2906, #3046). The
+same holds for `d=D` against a pre-acceptance RM, and for `Vf` with `d=D`, the
+`*fD*` compound CSB-17-001 rules out.
+
+`test/core/behaviors/status/conftest.py` installs an autouse guard that calls
+`composite_state_violations` on every participant record a test in that package
+writes to a store, and the shared `current_status()` and `seed_case()` builders
+in `test/support/rm_declaration.py` check the fixture they build. **Outside
+`test/core/behaviors/status/` there is no guard**: a status fixture under
+`sync/`, `report/` or `test/core/use_cases/` is the author's to get right. Ask
+`impossible_state_reasons()` (`test/support/participant_status.py`) before
+seeding one.
+
+Two properties of the guard's design are worth keeping if it moves:
+
+- It keys on the evaluator and on the DataLayer write, never on a fixture
+  builder's name, so a renamed or hand-rolled builder cannot slip past
+  (#5535). `save_many` takes a list and `UpdateObject` writes a
+  `StorableRecord` whose statuses are plain dicts, so both shapes are walked.
+- A BT node's `except Exception`, or the bridge's own handler, turns the
+  guard's raise into `Status.FAILURE` or an `internal_error` result, so the
+  raise alone does not report a tree write. Each violation is recorded as well,
+  and the installing fixture fails the test on a non-empty record.
+
+The inbound status under judgement is deliberately *not* checked: several
+received-side tests exist to show an impossible one refused.
+
 ### Delete `devlogs/` Before Running the Invariant Harness Locally
 
 `test/demo/test_rv_demo.py` runs the demo in-process and writes real ledger files
@@ -429,6 +466,21 @@ carrier: #5534's answer is a `StoryProp` the gate keeps and the dependent
 reads, so a failed gate leaves the artifact absent and the runner stops the
 story (`notes/demo-scenario-tree.md` § "Composition"). ADR-0135's "compose,
 never chain" rule for BT helpers is the same shape seen from the design side.
+
+### Drive a Guard Through Its Production Entry Point, Not by Direct Call
+
+A unit test that calls a private guard directly says nothing about whether the
+production path reaches it, so the guard can be dead while the test is green.
+That is worse than no coverage: the spec-coverage ratchet counts the
+requirement as covered, so nothing anywhere reports a problem (#3156). Write at
+least one case that reaches the guard through the node or use case that runs it;
+`test/core/behaviors/sync/nodes/test_chain_timestamp_guard.py` is the shape.
+
+The production half is structural and checked.
+`test/architecture/test_guards_run_in_production.py` fails on a private guard
+nothing under `vultron/` references, and on a parameter whose presence opens a
+refusal that no call site supplies. A caller alone is not enough: the witness
+had one, and it never passed the argument the check needed.
 
 ### A Future Date Is Three Idioms — Decide Which One Before Replacing It
 

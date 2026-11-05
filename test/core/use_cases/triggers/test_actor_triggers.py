@@ -639,13 +639,22 @@ class TestInviteRolesAndEmbargoEnrichment:
         assert result.reason is not None
 
     @pytest.mark.spec("CM-17-007")
+    @pytest.mark.spec("PCR-07-008")
     def test_invite_is_the_case_managers_attributed_to_the_owner(
         self, make_payload
     ):
+        """The Invite the owner asks for goes out under the CASE_MANAGER's id.
+
+        This is PCR-07-008's first half: ``actor`` is the CASE_MANAGER and
+        ``attributedTo`` the owner that asked, and the harness keeps those two
+        as distinct actors, so the wire form is read rather than the argument
+        the factory was handed.
+        """
         harness = _OwnerDirectInvite()
 
         _invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
 
+        assert harness.manager.id_ != harness.owner.id_
         assert wire["actor"] == harness.manager.id_
         assert wire.get("attributedTo") == harness.owner.id_
         assert wire.get("to") == [harness.invitee.id_]

@@ -40,7 +40,7 @@ groups:
       topic, so an agent must load both. A split at topic-cluster boundaries
       keeps each file narrowly focused on one "Load when" scenario.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: PD-01-002
   - id: PD-01-003
     priority: SHOULD
@@ -245,10 +245,8 @@ groups:
       the author wrote without a check. A `type:Concern` deferral still counts, because
       deferrals filed before PD-03-007 named a Task were Concerns.
     relationships:
-    - rel_type: depends_on
+    - rel_type: verifies
       spec_id: PD-03-007
-    - rel_type: depends_on
-      spec_id: PD-03-008
 - id: PD-04
   title: Documentation Build Validation
   specs:
@@ -318,7 +316,7 @@ groups:
       `touch` does nothing to a file that exists and creates a file that is missing.
       Thus one path covers both cases.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: PD-05-002
   - id: PD-05-003
     priority: MUST_NOT
@@ -373,6 +371,9 @@ groups:
       priority in an issue title is a second ranking, and nothing keeps it in
       agreement with the board. The two rankings then become different, and a reader
       cannot tell which one is correct.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: PAD-02-001
   - id: PD-06-005
     priority: SHOULD
     kind: process
@@ -549,7 +550,7 @@ groups:
     verification: >-
       `test/architecture/test_line_length_ratchet.py` holds the guards.
     relationships:
-    - rel_type: depends_on
+    - rel_type: verifies
       spec_id: PD-10-002
     tags:
     - documentation
@@ -567,7 +568,7 @@ groups:
       `test/metadata/specs/test_branch_checks.py::TestAddedYamlLines` covers the
       flag.
     relationships:
-    - rel_type: implements
+    - rel_type: verifies
       spec_id: PD-10-002
     tags:
     - documentation

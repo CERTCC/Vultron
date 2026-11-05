@@ -735,8 +735,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-10-010
-    - rel_type: implements
-      spec_id: HP-01-005
+    - rel_type: uses_definition
+      spec_id: HP-01-012
     adr:
     - ADR-0153
   - id: HP-01-036

@@ -468,7 +468,8 @@ def managed_case(dl, actor):
 
 class TestDemoSyncLogEntry:
     """The route runs ``SvcSyncLogEntryUseCase`` through the trigger
-    dispatcher; the response contract is unchanged (TRIG-12-003)."""
+    dispatcher; the response contract is pinned by
+    ``test_trigger_routes_contract.py`` (TRIG-12-002)."""
 
     @pytest.mark.spec("TRIG-10-004")
     @pytest.mark.spec("SYNC-02-002")

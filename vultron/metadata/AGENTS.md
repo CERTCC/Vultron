@@ -50,6 +50,7 @@ Shared helpers live in three places — `base.py`, `markdown_tables.py`, and
 | `iter_tree_texts()`, `markdown_files()` | `(path, text)` for each file matching a pattern under some directories, unreadable files skipped. The PD-10 spec YAML line guard (`line_length.py`, also at the package root; its Python doc-line guard runs ruff's `W505` instead) and the MS-10-010 test index read through it. `markdown_files()` is every sorted `*.md` under one directory, not descending what its predicate prunes: use it, not `sorted(rglob("*.md"))` plus a filter, since a repository-wide `rglob` walks all of `.git` and `.venv` first |
 | `gh_issue_state()`, `gh_issue_missing()`, `gh_lookup_failure()`, `GH_LOOKUP_ERRORS`, `issue_number()` | one issue's state through `gh issue view`, whether a failed lookup means "no such issue", the failure as text with `gh`'s stderr, and what a lookup can raise. The `verification_debt` owner check (`specs/verification/`) and the ratchet-baseline owner report (`ratchet_owners.py`, ARCH-18-004) both read owners through them; a lookup that raises is reported, never passed |
 | `nav_exclusion_fault()` | why a page that must stay out of the nav is misplaced (navved, or matched by no `not_in_nav` pattern), or `None`. The ADR check and the docs-frontmatter check share it (#3528) |
+| `check_nonempty_list()`, `check_required_list()`, `field_name()` | the one empty-list rejection behind every list `field_validator` in both metadata schemas, and the field name its message names. Hand-copied bodies across `specs/schema/` and `notes/` collapsed onto them in #3156, several having dropped the field name; the copy that nothing called is what the guard-reachability ratchet found (CS-22-001) |
 
 `markdown_tables.py` — the structural reader for every ratchet over
 hand-written markdown: `iter_sections()` (heading-scoped, so a rule can exempt a
@@ -58,10 +59,9 @@ line number), plus `fenced_lines()`, the one fence reader. It absorbs the
 hazards a hand-rolled regex gets wrong — fenced code at *any* indentation
 (admonitions and content tabs nest a fence at four spaces, which strict
 CommonMark would misread as indented code; #3685), closers that must match the
-opener's run length and character, delimiter rows, escaped pipes. Three
-consumers grew their own regex before #3451 and `landing_pages` kept a fourth
-until #3685; if you are about to write `re.compile(r"^\|")` or
-`re.compile(r"^\s*(```|~~~)")`, use this instead.
+opener's run length and character, delimiter rows, escaped pipes. Four
+consumers grew their own regex before #3451 and #3685; if you are about to
+write `re.compile(r"^\|")` or `re.compile(r"^\s*(```|~~~)")`, use this instead.
 
 `repo_root` had six near-identical copies before #3450. Five were private
 `_find_repo_root`; the sixth, `specs/registry.py:find_repo_root`, was public and
