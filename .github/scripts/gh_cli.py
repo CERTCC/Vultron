@@ -16,8 +16,16 @@ import sys
 import time
 
 # A hung call fails its step instead of holding the job to its cap, where it
-# would end as cancelled and go unreported (CISEC-05-006).
+# would end as cancelled and go unreported (CISEC-05-006). A workflow whose cap
+# is near this default lowers it with ``GH_CALL_TIMEOUT_SECONDS``.
 CALL_TIMEOUT_SECONDS = 300
+
+
+def call_timeout_seconds() -> float:
+    """The per-call timeout: ``GH_CALL_TIMEOUT_SECONDS``, else the default."""
+    return float(
+        os.environ.get("GH_CALL_TIMEOUT_SECONDS", str(CALL_TIMEOUT_SECONDS))
+    )
 
 
 def run(*argv: str) -> str:
@@ -28,7 +36,7 @@ def run(*argv: str) -> str:
             check=True,
             capture_output=True,
             text=True,
-            timeout=CALL_TIMEOUT_SECONDS,
+            timeout=call_timeout_seconds(),
         ).stdout
     except subprocess.CalledProcessError as exc:
         sys.stderr.write(exc.stderr or "")

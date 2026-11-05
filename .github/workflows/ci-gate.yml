@@ -49,8 +49,9 @@ jobs:
     # the 15 latest successful demo-integration runs (2026-11-05), whose jobs'
     # caps add to 30 min. The script ends itself red at 60 min with the
     # pending checks named. A poll near that deadline makes at most two `gh`
-    # calls, each at most two 300 s attempts (GH_RETRY_ATTEMPTS), so the cap
-    # sits 30 min above it and is never what ends the job (TB-14-006).
+    # calls, each at most two 300 s attempts (GH_RETRY_ATTEMPTS) and a 5 s
+    # back-off, so the cap sits 30 min above it and is never what ends the
+    # job (TB-14-006).
     timeout-minutes: 90
     env:
       GH_TOKEN: ${{ github.token }}

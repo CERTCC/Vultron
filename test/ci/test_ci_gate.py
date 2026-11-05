@@ -537,9 +537,16 @@ def test_its_deadline_ends_before_the_job_cap(
     (job,) = workflow["jobs"].values()
     deadline = int(job["env"]["GATE_DEADLINE_MINUTES"])
     assert deadline < job["timeout-minutes"]
-    # Two calls of at most two 300 s attempts each still end before the cap.
+    # The last poll's two calls, each every attempt at the per-call timeout
+    # plus the doubling back-off between them, still end before the cap.
+    gh_cli = sys.modules["gh_cli"]
     attempts = int(job["env"]["GH_RETRY_ATTEMPTS"])
-    assert deadline + 2 * attempts * 5 < job["timeout-minutes"]
+    timeout = float(
+        job["env"].get("GH_CALL_TIMEOUT_SECONDS", gh_cli.CALL_TIMEOUT_SECONDS)
+    )
+    backoff = sum(5 * 2**i for i in range(attempts - 1))
+    per_call = attempts * timeout + backoff
+    assert 60 * deadline + 2 * per_call < 60 * job["timeout-minutes"]
     script = [s for s in job["steps"] if "run" in s]
     assert [s["run"] for s in script] == [
         "python3 -I .github/scripts/ci_gate.py"
