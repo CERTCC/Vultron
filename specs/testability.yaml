@@ -249,9 +249,6 @@ groups:
       removes it: actor A's outbox write is immediately visible to actor B without going
       through any delivery mechanism, making the test a unit test of shared state rather
       than an integration test of the protocol.
-    relationships:
-    - rel_type: refines
-      spec_id: TB-06-001
   - id: TB-06-008
     priority: MUST
     kind: project
@@ -265,7 +262,7 @@ groups:
       constant gives each test the same one. Convention: name the constant
       `_always_succeed_factory` or `_always_fail_factory` at module level.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: TB-06-006
   - id: TB-06-009
     priority: MUST
@@ -279,7 +276,7 @@ groups:
       distribution may pass or fail depending on random outcomes. The deterministic
       factory ensures the test exercises a specific code path every time.
     relationships:
-    - rel_type: extends
+    - rel_type: depends_on
       spec_id: TB-06-008
 - id: TB-07
   title: Mocking and Stubbing
@@ -305,6 +302,9 @@ groups:
       a stub or an in-memory store, a failure points at the unit and not at a database
       deployment, and the test does not depend on database setup. `test/conftest.py`
       and `BTTestScenario` give unit tests a real in-memory `SqliteDataLayer`.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-06-002
   - id: TB-07-003
     priority: MAY
     kind: project
@@ -362,7 +362,7 @@ groups:
       A test with branches checks different things on different runs, and a reader
       cannot tell which branch ran.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: TB-09-001
   - id: TB-09-005
     priority: MUST_NOT
@@ -375,9 +375,6 @@ groups:
       A bare `try`/`except` can hide the error the test must report. `pytest.raises`
       asserts the one exception the scenario expects and lets every other error fail
       the test.
-    relationships:
-    - rel_type: extends
-      spec_id: TB-09-001
   - id: TB-09-002
     priority: SHOULD
     kind: project
@@ -418,11 +415,6 @@ groups:
       name and confirm zero matches; confirm `pyproject.toml` registers the new
       name; run `pytest -m "new_mark_name" --collect-only` and confirm non-zero
       test collection.
-    relationships:
-    - rel_type: refines
-      spec_id: TB-01-002
-      note: Mark consistency between source, config, and CI is part of test
-        infrastructure correctness
 - id: TB-10
   title: Architecture Boundary Tests
   specs:
@@ -439,7 +431,7 @@ groups:
       later change can then bring the same violation back, and the test still passes.
       An equality check fails as soon as a listed violation is fixed (ARCH-18-001).
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: ARCH-18-001
   - id: TB-10-003
     priority: MUST
@@ -469,9 +461,6 @@ groups:
       initialise, update and shutdown) with the acting actor's own DataLayer. A test
       that builds the blackboard by hand can give a node state that the real tree never
       gives it. Such a test can pass while the node fails in production.
-    relationships:
-    - rel_type: refines
-      spec_id: TB-03-001
   - id: TB-12-002
     priority: MUST
     kind: project
@@ -483,7 +472,7 @@ groups:
       second run of the same instance starts from that state, so it can pass because of
       what the first run left, and that accumulated state masks isolation failures.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: TB-12-001
   - id: TB-12-007
     priority: MUST
@@ -508,9 +497,6 @@ groups:
       per-test timeout tiers (TB-14-001) sit well above it so that load on a CI
       runner or dev box never trips them on honest work, which means no timeout
       enforces this budget.
-    relationships:
-    - rel_type: refines
-      spec_id: TB-12-001
   - id: TB-12-004
     priority: SHOULD
     kind: project
@@ -523,7 +509,7 @@ groups:
       children succeeded and which failed, so a test can pass with the wrong child
       failing. Leaf statuses show where the tree stopped.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: TB-12-001
   - id: TB-12-005
     priority: SHOULD
@@ -537,7 +523,7 @@ groups:
       Redesigning the test keeps the scenario small. A timeout tier that fires on
       honest work across many tests is a different problem, covered by TB-14-003.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: TB-12-003
 - id: TB-13
   title: Architecture Ratchet Corpus
@@ -572,7 +558,7 @@ groups:
       the name that the test looks for. A substring check first lets the test parse
       only the files that can match.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: TB-13-001
   - id: TB-13-003
     priority: MUST_NOT
@@ -607,7 +593,7 @@ groups:
       `test/architecture/test_ratchet_hygiene.py` is the meta-ratchet itself: it
       fails on a sibling file that holds either call outside `_corpus.py`.
     relationships:
-    - rel_type: implements
+    - rel_type: verifies
       spec_id: TB-13-003
   - id: TB-13-004
     priority: SHOULD
@@ -683,7 +669,7 @@ groups:
       and `test_explicit_marker_beats_the_tier_default` assert that a test's own
       marker wins over the tier.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: TB-14-001
   - id: TB-14-002
     priority: MUST
@@ -699,7 +685,7 @@ groups:
       and a passing one under the configured `timeout_method`, and checks that a
       trip leaves the BT global lock free.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: TB-14-001
   - id: TB-14-008
     priority: MUST
@@ -743,7 +729,7 @@ groups:
       runners and loaded dev boxes inflates honest tests far past their idle cost,
       and a too-tight tier reads as flakiness that is re-diagnosed again and again.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: TB-14-001
   - id: TB-14-004
     priority: MUST
@@ -836,10 +822,8 @@ groups:
       on any test that obtains its network other than by loading a named
       starting point.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: DEMOCI-11-014
-    - rel_type: depends_on
-      spec_id: DEMOCI-11-017
   - id: TB-15-002
     priority: MUST
     kind: project
@@ -854,7 +838,7 @@ groups:
       A harness test counts the tree runs while two tests load one starting point,
       and checks the point's steps ran once.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: TB-15-001
   - id: TB-15-003
     priority: MUST
@@ -871,7 +855,7 @@ groups:
       A harness test builds one starting point twice and checks that the two copies
       hold the same records, ids and timestamps included.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: TB-15-001
   - id: TB-15-004
     priority: MUST
@@ -886,7 +870,7 @@ groups:
       A harness test counts the rebuild replays of a starting point loaded by two
       tests, and checks it was replayed once.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: TB-15-002
   - id: TB-15-005
     priority: MUST
@@ -930,7 +914,7 @@ groups:
       A harness test loads one starting point into two tests and checks that a write
       in one is absent from the other.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: TB-15-001
 - id: TB-16
   title: Guard Reachability

@@ -32,12 +32,6 @@ groups:
           insights dilutes the signal and creates noise for `learn` to filter.
           Thus completion summaries, "what was done" narratives and status
           updates do not go in the queue (BW-01-002).
-        relationships:
-          - rel_type: depends_on
-            spec_id: HM-03-001
-            note: >-
-              Completion summaries belong in `append-history implementation`,
-              not in the incoming learnings queue.
         adr:
           - ADR-0054
       - id: BW-01-002
@@ -52,8 +46,8 @@ groups:
           hides the observations that `learn` must act on. Completion summaries have
           their own record (BW-01-005).
         relationships:
-          - rel_type: depends_on
-            spec_id: HM-05-001
+          - rel_type: derives_from
+            spec_id: BW-01-001
       - id: BW-01-005
         priority: MUST
         kind: process
@@ -67,7 +61,7 @@ groups:
           lost, or it goes into the learnings queue, which is not its location
           (BW-01-001).
         relationships:
-          - rel_type: implements
+          - rel_type: satisfies
             spec_id: HM-05-001
       - id: BW-01-003
         priority: MUST
@@ -96,7 +90,7 @@ groups:
           produce many learnings. A name from `source` gives all of them the same
           filename.
         relationships:
-          - rel_type: extends
+          - rel_type: uses_definition
             spec_id: BW-01-003
       - id: BW-01-009
         priority: MAY
@@ -120,8 +114,6 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: BW-01-003
-          - rel_type: derives_from
-            spec_id: BW-01-009
       - id: BW-01-006
         priority: MUST
         kind: process
@@ -135,9 +127,6 @@ groups:
           produced it. It goes into `main` when the change does. A learning that is
           committed separately can be lost when a branch is abandoned. It can also
           arrive before or after the work that it describes.
-        relationships:
-          - rel_type: refines
-            spec_id: BW-01-003
       - id: BW-01-004
         priority: MUST_NOT
         kind: process
@@ -186,8 +175,10 @@ groups:
           (`vultron/metadata/history/models.py`) is the enforcement point — `--from-file` validates the incoming
           file's frontmatter through it before archiving, so a file that violates this cannot be archived at all.
         relationships:
-          - rel_type: depends_on
+          - rel_type: uses_definition
             spec_id: HM-02-001
+          - rel_type: uses_definition
+            spec_id: BW-02-002
       - id: BW-02-002
         priority: MUST
         kind: process
@@ -206,7 +197,7 @@ groups:
           originating-identifier form defined by HM-02-001, and that `append-history --from-file` archives it to
           `plan/history/YYMM/<type>/<sanitised-source>.md`.
         relationships:
-          - rel_type: depends_on
+          - rel_type: uses_definition
             spec_id: HM-02-001
       - id: BW-02-003
         priority: MUST
@@ -223,8 +214,8 @@ groups:
         verification: Inspection of `plan/incoming/learnings/` confirms each file's `timestamp` field is a tz-aware
           ISO 8601 UTC value and is not a future timestamp or today's date substituted for a historical entry.
         relationships:
-          - rel_type: depends_on
-            spec_id: HM-06-001
+          - rel_type: extends
+            spec_id: BW-02-001
       - id: BW-02-004
         priority: MUST_NOT
         kind: process
@@ -250,10 +241,8 @@ groups:
           `test_tz_aware_string_timestamp_accepted` in
           `test/metadata/test_history_models.py`).
         relationships:
-          - rel_type: refines
+          - rel_type: derives_from
             spec_id: BW-02-001
-          - rel_type: depends_on
-            spec_id: HM-06-005
       - id: BW-02-005
         priority: MUST
         kind: process
@@ -276,8 +265,14 @@ groups:
           and `test/metadata/test_incoming_learnings.py::TestRealCorpus`
           asserts the committed corpus validates.
         relationships:
-          - rel_type: depends_on
+          - rel_type: verifies
             spec_id: BW-02-001
+          - rel_type: verifies
+            spec_id: BW-02-002
+          - rel_type: verifies
+            spec_id: BW-02-003
+          - rel_type: verifies
+            spec_id: BW-02-004
       - id: BW-02-006
         priority: MUST
         kind: project
@@ -292,7 +287,7 @@ groups:
           `test/metadata/test_incoming_learnings.py` asserts the line format and
           newest-first ordering.
         relationships:
-          - rel_type: depends_on
+          - rel_type: uses_definition
             spec_id: BW-02-001
       - id: BW-02-007
         priority: MUST
@@ -329,9 +324,6 @@ groups:
           The queue is a temporary location, not a durable one. If a learning is
           archived before its content goes into a spec, a note or `AGENTS.md`, the queue
           loses it and the project does not keep the lesson.
-        relationships:
-          - rel_type: depends_on
-            spec_id: HM-02-002
       - id: BW-03-002
         priority: MUST
         kind: process
@@ -345,9 +337,6 @@ groups:
           moves the file from `plan/incoming/learnings/` to
           `plan/history/YYMM/learning/` and deletes the source (BW-05-004), so no
           archived file stays in the queue.
-        relationships:
-          - rel_type: depends_on
-            spec_id: HM-01-002
       - id: BW-03-003
         priority: SHOULD
         kind: process
@@ -388,8 +377,8 @@ groups:
           method can type the frontmatter again incorrectly, or leave the file in the
           queue.
         relationships:
-          - rel_type: implements
-            spec_id: BW-04-001
+          - rel_type: refines
+            spec_id: BW-03-002
       - id: BW-04-002
         priority: MUST
         kind: project
@@ -403,7 +392,7 @@ groups:
           Indexes and `show-history` read all entries in the same way. A learning with a
           different format would break those readers, or need special handling.
         relationships:
-          - rel_type: depends_on
+          - rel_type: refines
             spec_id: HM-02-001
   - id: BW-05
     title: append-history --from-file Behaviour
@@ -480,6 +469,9 @@ groups:
           `--from-file` must not bypass the validation that all other entries get. The
           same future-date check applies, so a file that the normal path rejects cannot
           go into the archive by this path.
+        relationships:
+        - rel_type: refines
+          spec_id: HM-06-004
       - id: BW-05-006
         priority: MUST
         kind: project
@@ -495,8 +487,8 @@ groups:
           `test_file_with_missing_required_fields_exits_nonzero` in
           `test/metadata/test_append_history.py` assert a non-zero exit for each.
         relationships:
-          - rel_type: extends
-            spec_id: BW-05-003
+          - rel_type: uses_definition
+            spec_id: HM-02-001
   - id: BW-06
     title: Skill Documentation Updates
     specs:
@@ -666,8 +658,8 @@ groups:
           theme stays in the queue until the next `learn` run. The corroboration
           threshold would then cause the delay that it must prevent.
         relationships:
-          - rel_type: refines
-            spec_id: BW-07-005
+          - rel_type: supersedes
+            spec_id: BW-07-004
       - id: BW-07-007
         priority: SHOULD
         kind: process
@@ -683,7 +675,7 @@ groups:
           Archiving preserves the record without letting the queue grow
           without bound.
         relationships:
-          - rel_type: refines
+          - rel_type: uses_definition
             spec_id: BW-07-005
       - id: BW-07-008
         priority: MUST_NOT

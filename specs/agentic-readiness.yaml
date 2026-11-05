@@ -96,7 +96,7 @@ groups:
     scope:
     - production
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: EH-05-001
 - id: AR-03
   title: Stable Error Types
@@ -114,7 +114,7 @@ groups:
       `error` value, a code from the `VultronError` hierarchy (EH-05-001), stays the
       same when the message changes.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: EH-05-001
 - id: AR-04
   title: Long-Running Operations
@@ -254,12 +254,10 @@ groups:
     scope:
     - production
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
+      spec_id: AR-01-001
+    - rel_type: uses_definition
       spec_id: CM-07-001
-    - rel_type: depends_on
-      spec_id: CM-07-002
-    - rel_type: depends_on
-      spec_id: CM-07-003
 - id: AR-08
   title: CLI Interface
   specs:

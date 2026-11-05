@@ -53,6 +53,11 @@ groups:
       depend on the memory of each author and reviewer.
     adr:
     - ADR-0014
+    relationships:
+    - rel_type: verifies
+      spec_id: CISEC-01-001
+    - rel_type: verifies
+      spec_id: CISEC-01-002
 - id: CISEC-02
   title: Secrets Management
   specs:
@@ -78,7 +83,7 @@ groups:
       outside the repository files (CISEC-02-001). GitHub Secrets gives the value
       to the workflow and hides it in the job logs.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: CISEC-02-001
   - id: CISEC-02-002
     priority: MUST
@@ -179,6 +184,9 @@ groups:
       `test_qualifying_workflow_has_close_step` in
       `test/ci/test_workflow_failure_notification.py` asserts every qualifying
       workflow has a `./.github/actions/notify-failure` step in `close` mode.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CISEC-05-001
   - id: CISEC-05-009
     priority: MUST_NOT
     kind: process
@@ -198,7 +206,7 @@ groups:
       aggregate-keyed close step in a qualifying workflow requires the absence
       of `cancelled`.
     relationships:
-    - rel_type: extends
+    - rel_type: refines
       spec_id: CISEC-05-002
   - id: CISEC-05-010
     priority: MUST
@@ -246,7 +254,7 @@ groups:
       finds the one open tracker by its label pair, closes duplicates and never
       files a second issue.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: CISEC-05-003
   - id: CISEC-05-012
     priority: MUST
@@ -264,7 +272,7 @@ groups:
       `test/ci/test_workflow_failure_notification.py` asserts that each
       workflow-label has its notify and close steps in one job only.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CISEC-05-003
   - id: CISEC-05-013
     priority: MUST
@@ -282,7 +290,7 @@ groups:
       jobs can run in the same run, the reporting job is a final aggregate job
       that `needs:` all of them.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: CISEC-05-012
   - id: CISEC-05-004
     priority: SHOULD
@@ -391,7 +399,9 @@ groups:
       `test/ci/test_workflow_failure_notification.py` asserts the one artifact
       consumer skips on a cancelled producer.
     relationships:
-      - rel_type: extends
+      - rel_type: uses_definition
+        spec_id: CISEC-05-001
+      - rel_type: derives_from
         spec_id: CISEC-05-006
   - id: CISEC-05-007
     priority: MUST
@@ -408,7 +418,7 @@ groups:
       `Bug` type through `.github/scripts/ensure-issue-type.sh` on both the
       create and the comment-on-existing arm.
     relationships:
-      - rel_type: refines
+      - rel_type: extends
         spec_id: CISEC-05-001
   - id: CISEC-05-017
     priority: MUST
@@ -444,7 +454,7 @@ groups:
       `test/ci/test_workflow_failure_notification.py` asserts the create arm
       applies no `bug` label.
     relationships:
-      - rel_type: extends
+      - rel_type: constrains
         spec_id: CISEC-05-007
   - id: CISEC-05-018
     priority: MUST

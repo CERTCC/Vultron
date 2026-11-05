@@ -34,9 +34,6 @@ groups:
       tests have not run on the new version first, a release can claim a version that
       it does not work on. A user then finds the fault after the install, not CI before
       the merge.
-    relationships:
-    - rel_type: refines
-      spec_id: IMPLTS-01-001
   - id: IMPLTS-01-008
     priority: MUST
     kind: project
@@ -187,7 +184,7 @@ groups:
       A second HTTP client library would need its own timeout, retry and mock code,
       and the two clients could then act differently on the same request.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: IMPLTS-03-002
   - id: IMPLTS-03-003
     priority: MUST
@@ -321,9 +318,6 @@ groups:
       When CI uses it too, a contributor sees the same type errors in the editor as in
       CI. mypy (IMPLTS-07-003) reads some typing rules differently, so the project runs
       both.
-    relationships:
-    - rel_type: implements
-      spec_id: CS-11-001
   - id: IMPLTS-07-003
     priority: MUST
     kind: project
@@ -333,9 +327,6 @@ groups:
       mypy is the reference type checker for the Python typing rules. It reports some
       errors that pyright does not, and pyright reports some that mypy does not, so the
       project runs both (IMPLTS-07-002).
-    relationships:
-    - rel_type: implements
-      spec_id: CS-11-001
   - id: IMPLTS-07-008
     priority: MUST
     kind: project
@@ -404,7 +395,7 @@ groups:
       different scope. When CI runs pyright on pull requests and on pushes to `main`, a
       type error is found before or when it reaches `main`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: IMPLTS-07-002
   - id: IMPLTS-07-010
     priority: MUST
@@ -416,7 +407,7 @@ groups:
       errors as the limit, each new pyright error fails the check, and the contributor
       who caused it sees it at once.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: IMPLTS-07-002
   - id: IMPLTS-07-011
     priority: MUST
@@ -430,7 +421,7 @@ groups:
       different scope. When CI runs mypy on pull requests and on pushes to `main`, a
       type error is found before or when it reaches `main`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: IMPLTS-07-003
   - id: IMPLTS-07-012
     priority: MUST
@@ -442,7 +433,7 @@ groups:
       errors as the limit, each new mypy error fails the check, and the contributor who
       caused it sees it at once.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: IMPLTS-07-003
   - id: IMPLTS-07-016
     priority: MUST_NOT
@@ -457,7 +448,7 @@ groups:
       is clear. A warning left in place often becomes an error at the next dependency
       upgrade, when nobody remembers its cause.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: IMPLTS-07-006
   - id: IMPLTS-07-017
     priority: MUST
@@ -511,7 +502,7 @@ groups:
       `isort` are absent from the `dev` dependency group; and `.pre-commit-config.yaml`
       defines no black or flake8 hook.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: IMPLTS-07-017
   - id: IMPLTS-07-018
     priority: MUST
@@ -530,7 +521,7 @@ groups:
       the `build` job lists it in `needs`.
     relationships:
     - rel_type: refines
-      spec_id: IMPLTS-07-017
+      spec_id: IMPLTS-07-023
   - id: IMPLTS-07-026
     priority: MUST
     kind: project
@@ -566,7 +557,7 @@ groups:
       Every line of the `ignore` array in `[tool.ruff.lint]` is preceded by or carries a
       comment; a reviewer can state the reason for each exclusion without consulting history.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: IMPLTS-07-017
   - id: IMPLTS-07-027
     priority: MAY
@@ -580,7 +571,7 @@ groups:
       A provisional exclusion has no lasting reason yet. The tracking issue holds the
       plan to remove it, so the comment points there.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: IMPLTS-07-019
   - id: IMPLTS-07-020
     priority: MUST
@@ -600,7 +591,7 @@ groups:
     verification: >-
       Every `# noqa` added for baselining names a rule code and an issue number.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: IMPLTS-07-017
   - id: IMPLTS-07-025
     priority: MUST
@@ -644,7 +635,7 @@ groups:
       each tool and an aggregate `lint` target, and `CONTRIBUTING.md` is the invocation
       new contributors copy.
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: IMPLTS-07-017
     - rel_type: constrains
       spec_id: IMPLTS-07-005

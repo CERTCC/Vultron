@@ -102,7 +102,7 @@ groups:
       actors in one process and asserts a record in the Vendor's store is not visible
       in the Reporter's.
     relationships:
-    - rel_type: implements
+    - rel_type: derives_from
       spec_id: PCR-01-003
     adr:
     - ADR-0073
@@ -122,7 +122,7 @@ groups:
       two actors in one process and asserts the Reporter gets the case only through
       the outbox-to-inbox delivery path.
     relationships:
-    - rel_type: implements
+    - rel_type: derives_from
       spec_id: PCR-01-003
     adr:
     - ADR-0073

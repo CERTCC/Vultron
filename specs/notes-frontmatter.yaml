@@ -115,6 +115,9 @@ groups:
     rationale: >-
       Entries are package names only, so a tool can compare them with import paths
       mechanically.
+    relationships:
+    - rel_type: extends
+      spec_id: NF-01-013
 
   - id: NF-01-013
     priority: MUST
@@ -130,9 +133,6 @@ groups:
       `test_empty_list_fields_rejected` and `test_empty_package_name_rejected` in
       `test/metadata/test_notes_frontmatter.py` confirm that an empty list and an empty
       entry each fail validation.
-    relationships:
-    - rel_type: extends
-      spec_id: NF-01-008
   - id: NF-01-009
     priority: MUST
     kind: process
@@ -147,7 +147,7 @@ groups:
       Unit tests assert that a note without `kind`, or with a value outside the three, is
       rejected; the corpus test (NF-04-001) asserts every note declares one.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: NF-08-002
   - id: NF-01-010
     priority: MUST
@@ -215,8 +215,10 @@ groups:
       `test/metadata/test_notes_frontmatter.py` confirms that a `generated` note without
       the marker raises an error that names the file.
     relationships:
-    - rel_type: implements
+    - rel_type: verifies
       spec_id: NF-01-011
+    - rel_type: refines
+      spec_id: NF-03-006
 - id: NF-02
   title: Pydantic Schema Module
   specs:
@@ -332,11 +334,10 @@ groups:
       Unit tests assert that a notes file with an unparseable frontmatter block and one with an
       invalid `status` value each raise a `ValueError` naming that file.
     relationships:
-    - rel_type: implements
-      spec_id: MS-17-001
     - rel_type: refines
+      spec_id: MS-17-001
+    - rel_type: extends
       spec_id: NF-03-003
-      note: constrains the error NF-03-003 requires to name its file
 
   - id: NF-03-007
     priority: MUST
@@ -353,7 +354,7 @@ groups:
       module outside the helper, the notes loader included, re-raises a caught error as
       a path-prefixed `ValueError`.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: MS-17-003
 
   - id: NF-03-008
@@ -371,7 +372,7 @@ groups:
       that an unparseable frontmatter block in a notes file raises a `ValueError` that
       names the file.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: NF-03-003
 - id: NF-04
   title: Validation Enforcement
@@ -566,7 +567,7 @@ groups:
       apply it to every note, and PR review applies it to changed notes against the
       writing guide.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: NF-08-002
 
   - id: NF-08-008
@@ -601,7 +602,7 @@ groups:
       apply it to every note, and PR review applies it to changed notes against the
       writing guide.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: NF-08-005
   - id: NF-08-004
     priority: MUST
@@ -654,6 +655,9 @@ groups:
     verification: >-
       Unit tests of the pure report function cover an all-closed note, a note with a closed
       leaf under an open epic, an unknown reference, and a `guidance` note.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: NF-01-010
   - id: NF-09-002
     priority: MUST_NOT
     kind: project
@@ -669,5 +673,5 @@ groups:
       prints the finding, and leaves the note file unchanged; another asserts a failed
       issue lookup exits 2.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: NF-09-001
