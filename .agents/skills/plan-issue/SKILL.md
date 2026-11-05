@@ -53,13 +53,17 @@ gh issue list --repo CERTCC/Vultron --state open --limit 1000 \
   --jq '.[] | select(.issueType.name == "Idea" or .issueType.name == "Concern")
         | "#\(.number) [\(.issueType.name)]: \(.title)"'
 
-# Epics with needs-decomposition label only
+# Epics with the needs-planning label (set by the epic-needs-planning workflow)
 gh issue list --repo CERTCC/Vultron --state open --limit 1000 \
-  --label "needs-decomposition" \
+  --label "needs-planning" \
   --json number,title,issueType \
   --jq '.[] | select(.issueType.name == "Epic")
-        | "#\(.number) [Epic/needs-decomposition]: \(.title)"'
+        | "#\(.number) [Epic/needs-planning]: \(.title)"'
 ```
+
+The workflow also labels an Epic that has children but an open, unblocked
+Concern or Idea among them. That child is already in the first list: plan it
+there, and offer the Epic itself only when it has no sub-issues.
 
 Include a **"Create a new Idea"** option at the end. Wait for the user's
 selection before continuing.
@@ -377,7 +381,8 @@ See the loaded companion file for the type-specific completion step:
 
 - **Idea**: invoke `archive-history`, post resolution comment, close issue
 - **Concern**: invoke `archive-history`, post resolution comment, close issue
-- **Epic**: remove `needs-decomposition` label, post summary comment, leave open
+- **Epic**: post summary comment, leave open (the `epic-needs-planning` workflow
+  clears `needs-planning` once no open, unblocked Concern or Idea remains)
 
 ---
 

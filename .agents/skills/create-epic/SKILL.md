@@ -101,18 +101,12 @@ of the Epic. All wiring is idempotent — already-linked issues are skipped.
   --sub-issue <LEAF_3>
 ```
 
-### Step 4 — Apply `needs-decomposition` label
+### Step 4 — Leave the planning label to the workflow
 
-Every newly created Epic starts without sub-issues. Apply the label
-immediately so the project board and `build` can identify it:
-
-```bash
-gh issue edit "${EPIC_NUMBER}" --repo CERTCC/Vultron \
-  --add-label "needs-decomposition"
-```
-
-Skip this step if `LEAF_ISSUES` is non-empty (sub-issues were linked in
-Step 3, so the Epic is not empty).
+Do not label the Epic. The `epic-needs-planning` workflow adds `needs-planning`
+to an Epic with no sub-issues, or with an open, unblocked Concern or Idea child,
+and removes it otherwise (hourly and on issue events). A label set by hand is
+overwritten.
 
 ### Step 5 — Return Epic number
 
