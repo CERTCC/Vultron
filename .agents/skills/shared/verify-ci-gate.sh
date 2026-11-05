@@ -4,15 +4,19 @@
 #
 # Usage: verify-ci-gate.sh <pr-number> [--integration]
 #   --integration  pass it when execute.integration_tests_run is true: the
-#                  integration-bearing check must then have passed, not been
-#                  skipped or left out. That check is VERIFY_CI_INTEGRATION_CHECK
-#                  (default "Tests (pytest)", the python-app.yml job that runs
-#                  `pytest -m ""`).
+#                  integration-bearing checks must then have passed, not been
+#                  skipped or left out. They are every check whose name starts
+#                  with VERIFY_CI_INTEGRATION_CHECK (default "Tests (pytest)",
+#                  the python-app.yml job that runs `pytest -m ""`). That job
+#                  is a matrix, so each part reports as its own check, named
+#                  "Tests (pytest) <part>" — a prefix, not one exact name, or a
+#                  split suite reads as absent and every PR is ci-failing.
 #
 # Rules:
 #   wait-for-ci exit 1                         -> ci-failing
-#   wait-for-ci exit 0, --integration, and the
-#     integration check absent or not `pass`   -> ci-failing
+#   wait-for-ci exit 0, --integration, and no
+#     integration check, or any of them not
+#     `pass`                                   -> ci-failing
 #   wait-for-ci exit 0                         -> ci-green
 #   wait-for-ci exit 2 (timeout or gh error)   -> ci-pending
 #
@@ -21,11 +25,13 @@
 #   wait_exit=<0|1|2>
 #   failing_check=<name>  one per check in the fail or cancel bucket
 #   integration=<pass|missing|<bucket>>  (--integration only)
+#     `pass` only when every matching check passed; otherwise the first
+#     non-passing bucket among them, or `missing` when none matched.
 # Exit: 0 a verdict was printed; 2 usage error or jq missing.
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-check_name="${VERIFY_CI_INTEGRATION_CHECK:-Tests (pytest)}"
+check_prefix="${VERIFY_CI_INTEGRATION_CHECK:-Tests (pytest)}"
 
 usage() { echo "usage: $0 <pr-number> [--integration]" >&2; exit 2; }
 [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage
@@ -47,8 +53,11 @@ esac
 
 bucket=""
 if [ "${integration}" = true ] && [ "${wait_exit}" != 2 ]; then
-  bucket="$(printf '%s' "${json}" | jq -r --arg n "${check_name}" \
-    '[.checks[]? | select(.name == $n) | .bucket] | first // "missing"' 2>/dev/null)"
+  bucket="$(printf '%s' "${json}" | jq -r --arg n "${check_prefix}" \
+    '[.checks[]? | select(.name | startswith($n)) | .bucket]
+     | if length == 0 then "missing"
+       elif all(. == "pass") then "pass"
+       else map(select(. != "pass")) | first end' 2>/dev/null)"
   bucket="${bucket:-missing}"
   [ "${bucket}" = pass ] || verdict=ci-failing
 fi

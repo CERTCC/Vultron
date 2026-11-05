@@ -4,7 +4,8 @@ status: active
 kind: guidance
 description: >
   Pitfalls when writing or reading GitHub Actions workflows and the YAML that
-  drives them: PyYAML's bare `on:` key, matrix booleans coerced to strings,
+  drives them: PyYAML's bare `on:` key, why a split test job derives its last
+  part from the other parts' claims, matrix booleans coerced to strings,
   `actionlint` and block-scalar indentation, single-quoted apostrophes, the
   mandatory `notify-failure` wiring and its one-job-per-label rule, the
   `timeout-minutes` every job needs and the reusable-workflow exemption, why an
@@ -81,6 +82,24 @@ other steps, so a capped step still needs a job cap.
 A job that calls a reusable workflow (`uses: ./.github/workflows/...`) cannot
 carry `timeout-minutes`; GitHub rejects the key there. Cap the called
 workflow's jobs instead. `test/metadata/test_gate_ceiling.py` enforces both.
+
+## A Split Test Job Derives Its Last Part From the Others' Claims
+
+The `test` job of `python-app.yml` runs the suite as matrix parts, each over a
+slice of `test/`. Give each named part the paths it claims, and make the last
+part select `test` while ignoring exactly those paths — never a fourth list of
+directories (TB-11-002). Parts that each name their own paths drop a new test
+directory in silence: no part selects it, every part is green, and nothing ran
+it. `test/ci/test_python_app_test_parts.py` compares the ignores with the
+claims, so a claim without its ignore (the directory runs twice) and an ignore
+without its claim (it never runs) both fail.
+
+Keep the parts inside one matrix job: `build` and `notify` reach all of them
+through `needs: test`, while a part promoted to its own job id is one a
+`needs:` list can omit (TB-11-003). Set `fail-fast: false`, or the first red
+part cancels its siblings and a round reports one failure at a time. Rebalance
+the parts from the durations CI reports, not from collected test counts — a
+count is a first estimate, and the slowest part sets the round's length.
 
 ## A Find-or-File Lookup Must Not Use the Search Index
 

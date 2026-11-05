@@ -286,9 +286,13 @@ def test_ci_gate_maps_each_row(
         ((("Tests (pytest)", "pass"),), "ci-green", "pass"),
         ((("Tests (pytest)", "skipping"), ("Build", "pass")), "ci-failing", "skipping"),
         ((("Build", "pass"),), "ci-failing", "missing"),
+        # The job is a matrix, so each part reports under its own check name
+        # (TB-11-002). The gate matches the prefix and needs every part.
+        ((("Tests (pytest) core", "pass"), ("Tests (pytest) rest", "pass")), "ci-green", "pass"),
+        ((("Tests (pytest) core", "pass"), ("Tests (pytest) rest", "skipping")), "ci-failing", "skipping"),
     ],
 )  # fmt: skip
-def test_integration_needs_the_pytest_check_to_have_passed(
+def test_integration_needs_every_pytest_check_to_have_passed(
     tmp_path: Path,
     repo: Path,
     checks: tuple[tuple[str, str], ...],

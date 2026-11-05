@@ -116,6 +116,9 @@ _SITE_NARROWED = (
 #: Limit-enforcing tests the #5580 audit traced CI failures to.
 GUARD_TESTS = (
     "test/architecture/test_line_length_ratchet.py",
+    # A workflow-only diff names no Python symbol, so the targeted set selects
+    # nothing that reads `.github/workflows/` (TB-11-002).
+    "test/ci/test_python_app_test_parts.py",
     "test/architecture/test_spec_statement_guard.py",
     "test/architecture/test_spec_kind_ratchet.py",
     "test/architecture/test_vocab_examples_current.py",
@@ -351,10 +354,10 @@ EXCLUSIONS: Mapping[str, str] = {
     "pr-size-label.yml": (
         "labels the PR from GitHub's diff statistics; nothing to fail locally"
     ),
-    f"{_PY}::test::Run full pytest suite": (
+    f"{_PY}::test::Run this part of the pytest suite": (
         "the full suite runs once before the first push in create-pr "
         "(PAD-18-001); later pushes run the targeted set (PAD-18-002) and "
-        "guard-tests, and CI runs the rest"
+        "guard-tests, and CI runs the rest, one part per matrix leg"
     ),
     "verification-debt-owners.yml::open-owners": (
         "the job runs only off pull_request (its if: excludes the event)"
