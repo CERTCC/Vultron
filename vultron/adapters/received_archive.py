@@ -16,9 +16,9 @@
 """Load a received activity from the body the receiver archived (ADR-0149).
 
 A receiver holds a received activity as the body that arrived, as the parser
-sealed it, and nothing derived from it (CLP-10-036, VM-08-002): intake's
-``ReceivedActivityRecord``, or the ``DeferredInboxActivity`` that holds it
-while the inbox waits on its case.  Both are keyed by the receiver
+sealed it, and nothing derived from it (CLP-10-036, VM-08-002): one
+``ReceivedActivityRecord``, archived by intake or still held while the inbox
+waits on its case, keyed by the receiver
 (DL-06-006).  Every reader loads that body, through one of two loads:
 
 - :func:`load_received_view` is core's.  It runs the body through what the

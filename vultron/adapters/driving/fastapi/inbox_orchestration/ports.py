@@ -118,9 +118,11 @@ class FastAPIQueuePort:
         The activity is held whole with its staged inline objects, because
         the replay rebuilds it after this delivery's staging is gone, and the
         receiver keeps no copy under its id (DL-06-006).  It is held before
-        it is queued, so a failed hold queues nothing.
+        it is queued, so a failed hold queues nothing.  The hold is what
+        records the wait: the held record names *case_id* it waits on, and
+        the per-case record only opens the expiry window (ADR-0154).
         """
-        self._staging.hold_for_replay(activity_id)
+        self._staging.hold_for_replay(activity_id, awaiting_case_id=case_id)
         _queue_pending_case_activity(
             queue_dl=self._actor_dl,
             case_id=case_id,

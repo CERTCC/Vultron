@@ -5,6 +5,21 @@ Handles queuing, expiry, and replay of inbox activities that arrive
 before the local case replica exists (CBT-03-001, CBT-03-003, CBT-03-006).
 A dropped activity is not asked for again here: the CASE_MANAGER recovers an
 Invite its addressee never answered (ADR-0163).
+
+**Which activities wait is read from the activities, not from a list.**  Each
+waiting message names the case it waits on, on its own
+``ReceivedActivityRecord`` (``awaiting_case_id``, ADR-0154), so the queue is
+a read over those records in arrival order
+(``received_holding.records_awaiting_case``).  The retired
+``VultronPendingCaseInbox.activity_ids`` list held the same thing a second
+time, and a queued id whose body had been lost was a message lost silently.
+
+``VultronPendingCaseInbox`` stays for what is *not* per-message: the stub
+Invite's trust anchor, and ``queued_at``, the one clock per case that opens
+the CBT-03-001 window.  Keeping that clock per case preserves today's
+behaviour, including its restart when a record that held only an anchor
+takes its first waiting message, so an invitee's thinking time is not
+charged against the queue.
 """
 
 #  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
@@ -25,17 +40,32 @@ Invite its addressee never answered (ADR-0163).
 
 import logging
 from datetime import UTC
+from typing import cast
 
 from vultron.config import get_config
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.events import VultronEvent, resolve_case_context_id
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.services.received_holding import (
+    discard_holding,
+    records_awaiting_case,
+    stop_awaiting_case,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
+
+
+def _store(dl: DataLayer) -> CasePersistence:
+    """*dl* as the narrow core port the holding services take.
+
+    The full ``DataLayer`` satisfies ``CasePersistence`` structurally but is
+    not assignable to it, because ``clone_for_actor`` returns the wider type.
+    """
+    return cast(CasePersistence, dl)
 
 
 def _activity_context_id(
@@ -57,30 +87,36 @@ def _queue_pending_case_activity(
     activity_id: str,
     case_actor_id: str | None = None,
 ) -> None:
-    """Persist *activity_id* in the deferred queue for *case_id*.
+    """Open, or keep open, the expiry window for *case_id*'s waiting messages.
+
+    The activity itself already names the case it waits on: the caller held
+    it first (``hold_for_replay``, DL-06-006), which is what records the
+    wait.  This only maintains the per-case record that is not per-message.
 
     Records *case_actor_id*, the sender of the first activity queued, on the
     first write.  It admits no sender: only a stub Invite anchors trust in
     the same record (``invite_anchored``, PCR-03-004).
 
     The expiry window opens with the first activity queued (CBT-03-001).  A
-    record that holds no activity yet — a stub Invite's trust anchor, written
-    when the Invite was processed — restarts ``queued_at`` here, so the time
-    an invitee took to answer its Invite is not charged to the queue.
+    record with nothing waiting behind it yet — a stub Invite's trust anchor,
+    written when the Invite was processed — restarts ``queued_at`` here, so
+    the time an invitee took to answer its Invite is not charged to the queue.
     """
     pending_id = VultronPendingCaseInbox.build_id(case_id)
     pending = queue_dl.read(pending_id)
     if isinstance(pending, VultronPendingCaseInbox):
-        if activity_id in pending.activity_ids:
+        # The caller held this activity before queueing it, so it is already
+        # among the waiting; anything else waiting means the window is open.
+        others = [
+            record
+            for record in records_awaiting_case(_store(queue_dl), case_id)
+            if record.activity_id != activity_id
+        ]
+        if others:
             return
-        update: dict[str, object] = {
-            "activity_ids": [*pending.activity_ids, activity_id]
-        }
-        if not pending.activity_ids:
-            update["queued_at"] = now_utc()
         queue_dl.save(
             VultronPendingCaseInbox.model_validate(
-                {**pending.model_dump(), **update}
+                {**pending.model_dump(), "queued_at": now_utc()}
             )
         )
         return
@@ -88,7 +124,6 @@ def _queue_pending_case_activity(
     queue_dl.save(
         VultronPendingCaseInbox(
             case_id=case_id,
-            activity_ids=[activity_id],
             case_actor_id=case_actor_id,
         )
     )
@@ -139,7 +174,8 @@ def _expire_pending_case_activities(
     pending = queue_dl.read(pending_id)
     if not isinstance(pending, VultronPendingCaseInbox):
         return False
-    if not pending.activity_ids:
+    waiting = records_awaiting_case(_store(queue_dl), case_id)
+    if not waiting:
         return False
 
     now = now_utc()
@@ -150,36 +186,30 @@ def _expire_pending_case_activities(
     if age_seconds < timeout_seconds:
         return False
 
-    for activity_id in pending.activity_ids:
+    for record in waiting:
         logger.warning(
             "Dropping expired pre-bootstrap activity '%s' for case '%s' "
             "(age %.0fs > timeout %ds) — resend required after bootstrap "
             "(CBT-03-006)",
-            activity_id,
+            record.activity_id,
             case_id,
             age_seconds,
             timeout_seconds,
         )
-        # The record holding it for its replay goes with it (#3763, #4871).
-        queue_dl.delete(
-            "DeferredInboxActivity",
-            DeferredInboxActivity.build_id(activity_id),
-        )
-    if pending.invite_anchored:
-        # Keep the stub Invite's trust anchor; drop only what was queued.
-        queue_dl.save(
-            VultronPendingCaseInbox.model_validate(
-                {**pending.model_dump(), "activity_ids": []}
-            )
-        )
-    else:
+        # The replay it was held for is given up (#3763, #4871).  An archive
+        # intake wrote stays; a body held for nothing else goes (CLP-10-018).
+        discard_holding(_store(queue_dl), record.activity_id)
+    if not pending.invite_anchored:
         queue_dl.delete("PendingCaseInbox", pending_id)
+    # An anchored record stays as it is: the stub Invite's trust anchor is
+    # what admits the case's later Announce, and nothing per-message is left
+    # on it to clear.
     logger.warning(
         "Pre-bootstrap queue for case '%s' expired after %.0fs; "
         "%d activity ID(s) dropped",
         case_id,
         age_seconds,
-        len(pending.activity_ids),
+        len(waiting),
     )
 
     return True
@@ -212,24 +242,30 @@ def _replay_pending_case_activities(
     if not isinstance(pending, VultronPendingCaseInbox):
         return
 
+    waiting_before = len(records_awaiting_case(_store(queue_dl), case_id))
     if _expire_pending_case_activities(case_id=case_id, queue_dl=queue_dl):
         logger.warning(
             "Bootstrap arrived for case '%s' but pre-bootstrap queue had "
             "already expired; dropped %d activity ID(s) — a fresh "
             "re-delivery is required",
             case_id,
-            len(pending.activity_ids),
+            waiting_before,
         )
         # Expiry keeps a stub Invite's anchor, but the case is held now and
         # names its CASE_MANAGER itself, so the record has no use left.
         queue_dl.delete("PendingCaseInbox", pending_id)
         return
 
-    for activity_id in pending.activity_ids:
-        queue_dl.inbox_append(activity_id)
+    waiting = records_awaiting_case(_store(queue_dl), case_id)
+    for record in waiting:
+        queue_dl.inbox_append(record.activity_id)
+        # Queued, so no longer waiting on the case: the body stays held
+        # until the drain replays it, and a second bootstrap for this case
+        # does not queue it again.
+        stop_awaiting_case(_store(queue_dl), record.activity_id)
     queue_dl.delete("PendingCaseInbox", pending_id)
     logger.info(
         "Queued %d deferred inbox activities for case '%s' after replica sync",
-        len(pending.activity_ids),
+        len(waiting),
         case_id,
     )

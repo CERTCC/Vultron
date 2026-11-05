@@ -2,7 +2,8 @@
 
 :class:`InlineObjectStaging` stages a delivery's activity and inline objects
 in the scratch store, rebuilds the activity through the store's read pipeline,
-and holds a deferred activity for replay (IO-03-009).
+and holds a deferred activity for replay on the activity's one
+``ReceivedActivityRecord`` (IO-03-009, ADR-0154).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -33,13 +34,19 @@ from vultron.adapters.inbox_staging.store import (
     _StagingStore,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.core.services.carried_embargo import store_carried_embargo
+from vultron.core.services.received_activity import held_received_record
+from vultron.core.services.received_holding import (
+    held_for_replay,
+    hold_for_replay as hold_body_for_replay,
+    release_from_holding,
+)
 from vultron.errors import (
     VultronAlreadyExistsError,
     VultronNotFoundError,
@@ -171,9 +178,14 @@ class InlineObjectStaging:
 
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
+        # The holding services take the narrow core port; the full DataLayer
+        # satisfies it structurally but is not assignable to it, because
+        # ``clone_for_actor`` returns the wider type (the cast every adapter
+        # at this seam makes).
+        self._store = cast(CasePersistence, dl)
         self._staged: dict[str, _Staged] = {}
         self._routed_in_place: dict[str, as_Activity] = {}
-        self._released: dict[str, DeferredInboxActivity] = {}
+        self._released: dict[str, ReceivedActivityRecord] = {}
 
     def note_routed_in_place(self, activity: as_Activity) -> None:
         """Remember a parsed *activity* routed without a staged rebuild.
@@ -229,13 +241,19 @@ class InlineObjectStaging:
             return False
         return self.hold_for_replay(activity_id)
 
-    def held(self, activity_id: str) -> DeferredInboxActivity | None:
-        """The record holding *activity_id* for its replay, if any."""
-        record = self._dl.read(DeferredInboxActivity.build_id(activity_id))
-        return record if isinstance(record, DeferredInboxActivity) else None
+    def held(self, activity_id: str) -> ReceivedActivityRecord | None:
+        """The record owing a replay of *activity_id*, if one does.
+
+        Not every record holding the activity: only one whose replay the
+        inbox still owes (ADR-0154).  An archived record with nothing owed is
+        answered by :meth:`rehydrate_archived` instead, which is the
+        distinction that decides whether a routed copy carries received
+        evidence.
+        """
+        return held_for_replay(self._store, activity_id)
 
     def rehydrate_held(self, activity_id: str) -> as_Activity | None:
-        """Rebuild a held deferred activity, keeping the record.
+        """Rebuild a held activity, leaving the replay still owed.
 
         For a redelivery of an activity still waiting on its case: the held
         copy is routed (IE-10-001), with no received evidence, because the
@@ -259,8 +277,8 @@ class InlineObjectStaging:
         for a replay, should the copy be deferred, it keeps the same body.
         Returns ``None`` when nothing is archived under *activity_id*.
         """
-        record = self._dl.read(ReceivedActivityRecord.build_id(activity_id))
-        if not isinstance(record, ReceivedActivityRecord):
+        record = held_received_record(self._store, activity_id)
+        if record is None:
             return None
         archived = parse_received_body(record.received_body)
         evidence = archived.received_evidence_json
@@ -270,21 +288,22 @@ class InlineObjectStaging:
         return result
 
     def rehydrate_deferred(self, activity_id: str) -> as_Activity | None:
-        """Rebuild a deferred activity from its record, and release it.
+        """Rebuild a held activity from its record, and release it.
 
         The held received body is parsed again, so the replay carries the
-        evidence the first delivery did (VM-08-008).  The record is deleted
-        once read: a replay the queue defers again holds it afresh
+        evidence the first delivery did (VM-08-008).  The record stops owing
+        a replay once read -- and goes entirely if the receiver never
+        archived it — so a replay the queue defers again holds it afresh
         (:meth:`hold_for_replay`).
 
-        Returns ``None`` when nothing is held for *activity_id*: the receiver
-        keeps no other copy of a received activity (DL-06-006).
+        Returns ``None`` when no replay is owed for *activity_id*: the
+        receiver keeps no other copy of a received activity (DL-06-006).
         """
         pending = self.held(activity_id)
         if pending is None:
             logger.warning(
-                "No deferred record holds activity %s; nothing to replay"
-                " (DL-06-006).",
+                "No held record owes a replay of activity %s; nothing to"
+                " replay (DL-06-006).",
                 activity_id,
             )
             return None
@@ -299,21 +318,26 @@ class InlineObjectStaging:
         try:
             result, parsed = self._rebuild_from(pending)
         finally:
-            self._dl.delete(pending.type_, pending.id_)
+            release_from_holding(self._store, activity_id)
         if result is not None:
             evidence = parsed.received_evidence_json
             if evidence is not None:
                 result.seal_received_evidence(evidence)
         return result
 
-    def hold_for_replay(self, activity_id: str) -> bool:
+    def hold_for_replay(
+        self, activity_id: str, *, awaiting_case_id: str | None = None
+    ) -> bool:
         """Hold *activity_id* whole until its deferred replay.
 
-        Writes one :class:`DeferredInboxActivity` from what this run staged
-        for it: the sealed received body and the inline rows, and nothing
-        derived from them (ADR-0149).  A record already held is kept as it
-        is, so a redelivery of a deferred activity is not held again
-        (IE-10-001).
+        Marks the activity's one
+        :class:`~vultron.core.models.received_activity_record.ReceivedActivityRecord`
+        as owing a replay, from what this run staged for it: the sealed
+        received body and the inline rows, and nothing derived from them
+        (ADR-0149).  A record already owing a replay is kept as it is, so a
+        redelivery of a held activity is not held again (IE-10-001).
+        *awaiting_case_id* names the case the activity waits on, when that is
+        what it waits for (IO-03-009).
 
         An activity this staging rebuilt from its record and released
         (:meth:`rehydrate_deferred`) is held again as that record was, so a
@@ -332,7 +356,13 @@ class InlineObjectStaging:
         """
         released = self._released.pop(activity_id, None)
         if released is not None:
-            return self._create(released)
+            return hold_body_for_replay(
+                self._store,
+                activity_id,
+                released.received_body,
+                replay_rows_json=released.replay_rows_json,
+                awaiting_case_id=awaiting_case_id or released.awaiting_case_id,
+            )
         staged = self._staged.get(activity_id)
         if staged is None and activity_id in self._routed_in_place:
             self.rehydrate_parsed(self._routed_in_place.pop(activity_id))
@@ -353,31 +383,21 @@ class InlineObjectStaging:
                 " hold for its replay: only a parsed delivery can be deferred"
                 " (VM-08-002)"
             )
-        return self._create(
-            DeferredInboxActivity(
-                activity_id=activity_id,
-                received_body=staged.received_body,
-                rows_json=json.dumps(staged.inline_rows),
-            )
+        return hold_body_for_replay(
+            self._store,
+            activity_id,
+            staged.received_body,
+            replay_rows_json=json.dumps(staged.inline_rows),
+            awaiting_case_id=awaiting_case_id,
         )
 
-    def _create(self, record: DeferredInboxActivity) -> bool:
-        """Write *record* unless one is already held; return whether written."""
-        try:
-            self._dl.create(record)
-        except VultronAlreadyExistsError:
-            logger.debug(
-                "Deferred activity %s is already held; keeping the held copy.",
-                record.activity_id,
-            )
-            return False
-        return True
-
     def _rebuild_from(
-        self, pending: DeferredInboxActivity
+        self, pending: ReceivedActivityRecord
     ) -> tuple[as_Activity | None, as_Activity]:
         """Rebuild *pending*'s activity; also return the body's parse."""
-        inline_rows: list[dict[str, Any]] = json.loads(pending.rows_json)
+        inline_rows: list[dict[str, Any]] = json.loads(
+            pending.replay_rows_json
+        )
         parsed = parse_received_body(pending.received_body)
         activity_record = object_to_record(parsed)
 
