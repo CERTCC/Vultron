@@ -25,6 +25,7 @@ from datetime import UTC, datetime, timedelta, timezone
 import pytest
 from pydantic import ValidationError
 
+from test.support.future_dates import FAR_FUTURE
 from vultron.core.models.base import CoreObject
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.registry import CORE_VOCABULARY
@@ -89,7 +90,7 @@ class TestCoreEmbargoEventNoDefaultDuration:
         """The model bounds no duration: a 12-hour or 400-day end is the
         sender's claim (EP-04-007).  The bounded value is the protocol default
         alone, enforced on ``ActorConfig`` (EP-04-018, test_actor_config)."""
-        start = datetime(2030, 1, 1, tzinfo=UTC)
+        start = FAR_FUTURE  # far-future; tests duration, not the absolute date
         for delta in (timedelta(hours=12), timedelta(days=400)):
             e = EmbargoEvent(
                 context=_CONTEXT, start_time=start, end_time=start + delta

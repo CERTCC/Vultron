@@ -102,7 +102,7 @@ groups:
       actors in one process and asserts a record in the Vendor's store is not visible
       in the Reporter's.
     relationships:
-    - rel_type: implements
+    - rel_type: derives_from
       spec_id: PCR-01-003
     adr:
     - ADR-0073
@@ -122,7 +122,7 @@ groups:
       two actors in one process and asserts the Reporter gets the case only through
       the outbox-to-inbox delivery path.
     relationships:
-    - rel_type: implements
+    - rel_type: derives_from
       spec_id: PCR-01-003
     adr:
     - ADR-0073
@@ -1183,6 +1183,12 @@ groups:
       `test_a_copy_at_the_replicas_tail_replaces_its_case` in
       `test/core/behaviors/sync/test_divergence_recovery.py` assert that an admitted
       copy replaces the case the replica holds.
+      `test_an_updated_copy_overwrites_the_fields_the_replica_held` in
+      `test/core/use_cases/received/actor/test_announce.py` does the same through
+      the use case, over two fields that differ from the held copy, so an update
+      that drops either is caught. Its neighbour
+      `test_redelivery_of_the_same_announce_is_stable` carries identical data on
+      both sides by design and verifies idempotency, not updating.
   - id: PCR-07-003
     priority: MUST
     kind: project
@@ -1209,6 +1215,16 @@ groups:
       If the `context` field stops selecting the replica, activities apply to the
       wrong case or to none. A test of the routing finds that failure where it starts.
     verification: >-
+      `test_the_context_decides_which_replica_the_note_lands_on` in
+      `test/core/use_cases/received/test_note.py` delivers an `Add(Note)` to an
+      actor holding two replicas and asserts the note lands on the one its
+      `context` names while the other is untouched. Holding two replicas is
+      what makes that assertion mean something; it does not isolate `context`
+      from `target`, which a well-formed `Add(Note)` sets to the same case.
+      That `context` and not the inline object is what the resolver reads is
+      asserted separately, by `test_event_context_wins_over_wire_context` and
+      `test_non_bootstrap_ignores_inline_object_id` in
+      `test/core/models/events/test_case_context.py`.
       `test_subsequent_case_scoped_activity_routes_without_deferral` in
       `test/demo/test_pcr_bootstrap.py` asserts that an `Add(Note)` whose `context`
       names a case the actor holds is processed at once, not deferred.
@@ -1223,8 +1239,11 @@ groups:
       hold the activity, and drop it later without changing state. A failure in either
       part loses an activity or writes untrusted state, so each part needs a test.
     verification: >-
-      `test/core/behaviors/inbox/nodes/test_defer_check_node.py` asserts that
-      activities for an unknown case are deferred.
+      `test_non_bootstrap_case_semantic_is_still_deferred` and
+      `test_non_stub_activity_for_unknown_case_is_still_deferred` in
+      `test/core/behaviors/inbox/nodes/test_defer_check_node.py` assert that
+      activities for an unknown case are deferred, and pin the whole queued
+      tuple, so the entry is shown to be keyed on the resolved case context.
       `test_pending_case_queue_expires_drops_and_warns` and
       `test_pending_case_queue_expiry_sends_nothing` in
       `test/adapters/driving/fastapi/test_inbox_handler.py` assert that an expired
@@ -1279,10 +1298,21 @@ groups:
       messages keeps the invite exchange routed through the CASE_MANAGER (PCR-08-007,
       PCR-08-008).
     verification: >-
-      Inspection of `test/demo/test_invite_actor_demo.py` confirms a test case
-      asserts `RmInviteToCaseActivity` carries `actor` equal to the CASE_MANAGER's
-      ID and that the invitee's `RmAcceptInviteToCaseActivity` is handled by
-      the CASE_MANAGER.
+      `test_the_stub_invite_is_the_late_joiners_trust_anchor` in
+      `test/demo/test_pcr_late_joiner.py` is the integration-level check: over
+      three apps with their own stores it asserts the Invite the joiner
+      received names the case's CASE_MANAGER role-holder as `actor`, and that
+      the `Announce(VulnerabilityCase)` which follows the joiner's Accept comes
+      from that same actor, so the CASE_MANAGER processed the Accept
+      (CM-11-008). `test_invite_is_the_case_managers_attributed_to_the_owner`
+      in `test/core/use_cases/triggers/test_actor_triggers.py` reads the
+      emitted wire form and asserts `actor` is the CASE_MANAGER while
+      `attributedTo` is the distinct Case Owner that asked for it.
+      `test_the_accept_is_applied_at_the_case_manager` and
+      `test_the_accept_is_refused_at_the_case_owner` in
+      `test/core/use_cases/received/actor/test_invite.py` deliver the same
+      Accept to each of the two actors and assert it is applied at the
+      CASE_MANAGER and refused as unaddressed at the Case Owner (HP-01-005).
     relationships:
     - rel_type: verifies
       spec_id: PCR-08-007
@@ -1299,9 +1329,25 @@ groups:
       decision (PCR-08-010). The forgery passes every check that trusts the `actor`
       field, so only a test that looks for it can find it.
     verification: >-
-      Inspection of `test/demo/test_invite_actor_demo.py` confirms a test case
-      asserts no actor-spoofed RM state-change activity is emitted for the
-      invitee from the Case Owner's execution context.
+      `test_nothing_reaches_the_joiner_under_the_joiners_own_identity` in
+      `test/demo/test_pcr_late_joiner.py` is the integration-level check: it
+      runs the invite, Accept and Announce cascade across three apps and
+      asserts the senders of everything the joiner holds as received are
+      exactly the case's CASE_MANAGER. It is that set equality rather than
+      "none names the joiner" because every activity the joiner is sent is
+      addressed to the joiner individually, so no behaviour could put the
+      joiner's own id in that set and the scan would pass whatever ran; the
+      equality is falsified by any other sender, a forged identity among them.
+      The delivered set is asserted non-empty first, so it cannot pass on an
+      empty inbox.
+      `test_accept_invite_no_identity_spoofing` in
+      `test/core/use_cases/received/actor/test_invite.py` is the unit-level
+      check on the emitter: it reads every activity the Accept's run emitted,
+      from the processing actor's own outbox, and asserts the senders are
+      exactly that actor — the invitee being asserted distinct from it first,
+      so the equality rules the invitee out — and that none is a `Join`. It
+      counts the readable activities against the queued ids, so the check
+      cannot pass on an empty or unreadable outbox.
     relationships:
     - rel_type: verifies
       spec_id: PCR-08-014

@@ -2925,6 +2925,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CLP-07-013
+    - rel_type: constrains
+      spec_id: CM-28-015
     adr:
     - ADR-0135
   - id: CLP-10-049

@@ -52,6 +52,7 @@ import click
 import pytest
 from click.testing import CliRunner
 
+from test.demo_unit._scenario_imports import imported_names, names_a_scenario
 from vultron.demo import cli
 from vultron.demo.cli import scenario_commands
 from vultron.demo.helpers.actor_roles import ActorRole
@@ -262,18 +263,14 @@ def test_registry_is_the_only_source_of_scenario_subcommands() -> None:
     registry's — the silent-omission hazard DEMOCI-11-038 removes from
     discovery, reintroduced one layer up.
     """
-    imported: list[str] = []
-    for node in (n for _, tree in _cli_trees() for n in ast.walk(tree)):
-        if isinstance(node, ast.Import):
-            imported.extend(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            imported.append(node.module)
-
-    offenders = sorted(
-        name
-        for name in imported
-        if name.startswith("vultron.demo.scenario.") and name.endswith("_demo")
+    imported = imported_names(
+        node for _, tree in _cli_trees() for node in ast.walk(tree)
     )
+    assert imported, "the CLI sources import nothing, so nothing was checked"
+
+    # A package scenario's submodules count too (DEMOCI-11-003): the
+    # predicate is shared with the registry's own import-list ratchet.
+    offenders = sorted(name for name in imported if names_a_scenario(name))
     assert not offenders, (
         f"vultron.demo.cli imports scenario demo module(s) by name: "
         f"{offenders}. The scenario set comes from discover_scenarios(); a "

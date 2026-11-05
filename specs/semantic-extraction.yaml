@@ -142,9 +142,10 @@ groups:
       `ActivityPattern`'s type constraint on that field, except where SE-08-004 requires
       `strict=True`.
     rationale: >-
-      A case in `target` or `context` travels as its URI or a stub by rule (MV-10-001),
-      so a pattern that refused a bare case URI there would refuse well-formed
-      activities. Only the `object` names the thing the activity acts on.
+      A case in `target` or `context` travels as its URI by rule (MV-10-009). Only a
+      case invitation carries a stub, in its `target` (MV-10-002). A pattern that
+      refused a bare case URI there would refuse well-formed activities. Only the
+      `object` names the thing the activity acts on.
     verification: >-
       `test_bare_case_uri_in_target_or_context_satisfies_the_pattern` in
       `test/test_semantic_activity_patterns.py` matches activities whose `target` or

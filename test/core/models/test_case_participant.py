@@ -422,6 +422,10 @@ class TestCNARoleOnParticipant:
 
 _EMBARGO = "https://example.org/embargoes/em-001"
 _OTHER = "https://example.org/embargoes/em-002"
+# Kept as a literal: line below asserts that a naive datetime(2030, 1, 1)
+# coerces to this UTC value (CM-28-006), and replace(year=2031) below derives
+# a "later" deadline whose year differs, so the specific year is load-bearing.
+# rsvp_deadline has no future-date validator, so this is not a time-bomb.
 _DEADLINE = datetime(2030, 1, 1, tzinfo=UTC)
 
 S = EmbargoConsentState

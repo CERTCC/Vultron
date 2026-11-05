@@ -16,6 +16,12 @@ on:
       # Named explicitly in case ** does not descend into dot-directories.
       - '.agents/**/*.py'
       - pyproject.toml
+      # The committed vocab examples are an input to
+      # test/architecture/test_vocab_examples_current.py, which compares each
+      # one byte for byte with a fresh generation. Without them here, a pull
+      # request that hand-edits or half-regenerates an example and nothing
+      # else runs no test at all (#5776).
+      - docs/reference/examples/**
       # A Dependabot bump inside the existing version range touches only the
       # lockfile; demo-integration.yml skips Dependabot PRs on the premise that
       # this workflow still tests them (DEMOCI-02-004, #3610).
@@ -26,6 +32,21 @@ on:
       # fails (DOCBW-03-015). The glob includes this file.
       - '.github/workflows/*.yml'
       - .pre-commit-config.yaml
+      # test/ci/test_shell_script_portability.py reads every tracked shell
+      # script, so a change to one must run the suite that polices it: a
+      # `mapfile` added under .github/scripts/ would otherwise reach main with
+      # every check green (#5698, the #4506 shape).
+      - '**/*.sh'
+      # Named explicitly in case ** does not descend into dot-directories.
+      - '.agents/**/*.sh'
+      - '.github/**/*.sh'
+      - '.devcontainer/**/*.sh'
+      # test/ci also reads the composite actions the workflows call, and
+      # `actions-lint.yml` is the only other job a change to one triggers —
+      # it runs actionlint, not pytest. So the notify-failure assertions
+      # (CISEC-05-017, CISEC-05-018, CISEC-05-020) and the build-site step
+      # order never ran on a pull request that edited only an action.
+      - '.github/actions/**'
   pull_request:
     branches: [ "main" ]
     paths:
@@ -37,6 +58,9 @@ on:
       # Named explicitly in case ** does not descend into dot-directories.
       - '.agents/**/*.py'
       - pyproject.toml
+      # The committed vocab examples are an input to
+      # test/architecture/test_vocab_examples_current.py; see the push filter.
+      - docs/reference/examples/**
       - uv.lock
       - pyrightconfig.json
       # test/ci reads every workflow and the pre-commit config, so the pull
@@ -44,6 +68,21 @@ on:
       # fails (DOCBW-03-015). The glob includes this file.
       - '.github/workflows/*.yml'
       - .pre-commit-config.yaml
+      # test/ci/test_shell_script_portability.py reads every tracked shell
+      # script, so a change to one must run the suite that polices it: a
+      # `mapfile` added under .github/scripts/ would otherwise reach main with
+      # every check green (#5698, the #4506 shape).
+      - '**/*.sh'
+      # Named explicitly in case ** does not descend into dot-directories.
+      - '.agents/**/*.sh'
+      - '.github/**/*.sh'
+      - '.devcontainer/**/*.sh'
+      # test/ci also reads the composite actions the workflows call, and
+      # `actions-lint.yml` is the only other job a change to one triggers —
+      # it runs actionlint, not pytest. So the notify-failure assertions
+      # (CISEC-05-017, CISEC-05-018, CISEC-05-020) and the build-site step
+      # order never ran on a pull request that edited only an action.
+      - '.github/actions/**'
   workflow_dispatch:
 
 permissions:

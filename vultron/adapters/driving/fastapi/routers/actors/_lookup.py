@@ -30,6 +30,7 @@ from typing import Any, cast
 from fastapi import HTTPException, status
 
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+from vultron.adapters.utils import full_object_id
 from vultron.core.models.actor import (
     CoreActor,
     VultronApplication,
@@ -137,8 +138,9 @@ def _find_actor_record(
         if rec is not None:
             return rec
 
-    # Preserve DataLayer.read() fallback behavior (e.g., bare UUID -> urn:uuid:).
-    for probe in [*candidates, actor_id]:
+    # The segment itself may name the actor, a bare UUID by its ``urn:uuid:``
+    # id: the store keys only on full ids (OID-02-004).
+    for probe in [*candidates, full_object_id(actor_id)]:
         resolved = datalayer.read(probe)
         if resolved is None:
             continue
@@ -159,7 +161,7 @@ def _resolve_actor_or_404(actor_id: str, dl: DataLayer) -> CoreActor:
     names tried and why there is more than one.
     """
     actor_record = None
-    for probe in [*_candidate_ids(dl, actor_id), actor_id]:
+    for probe in [*_candidate_ids(dl, actor_id), full_object_id(actor_id)]:
         actor_record = dl.read(probe)
         if actor_record is not None:
             break

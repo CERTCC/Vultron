@@ -53,6 +53,7 @@ from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.errors import VultronWiringError
+from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -62,7 +63,6 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
     as_VulnerabilityCaseReference,
-    as_VulnerabilityCaseStub,
 )
 
 _SENDER_ID = "https://example.org/actors/sender-staging"
@@ -410,21 +410,21 @@ def test_stage_inline_object_stages_nothing_for_a_case_reference(
     assert persisted == []
 
 
-@pytest.mark.spec("MV-11-005")
-def test_stage_inline_object_stages_the_parsed_case_stub(datalayer, persisted):
-    """A case stub is stored as the ``as_VulnerabilityCaseStub`` parsed."""
-    activity = _parsed_announce(
-        {
-            "type": "VulnerabilityCaseStub",
-            "caseId": "urn:uuid:case-stub-001",
-            "summary": "Security issue — details shared after acceptance",
-        }
-    )
-    assert type(activity.object_) is as_VulnerabilityCaseStub
+@pytest.mark.spec("MV-10-002")
+def test_a_case_stub_never_reaches_staging_as_an_object():
+    """A case stub as an activity's ``object`` is refused before staging.
 
-    _stage_inline_object(datalayer, activity)
-
-    assert persisted == [activity.object_]
+    A stub sits only in a case invitation's ``target`` (MV-10-002), and
+    staging reads only ``object``, so no stub is ever staged (#5770).
+    """
+    with pytest.raises(VultronParseValidationError, match="MV-10-002"):
+        _parsed_announce(
+            {
+                "type": "VulnerabilityCaseStub",
+                "caseId": "urn:uuid:case-stub-001",
+                "summary": "Security issue — details shared after acceptance",
+            }
+        )
 
 
 @pytest.mark.spec("MV-11-005")

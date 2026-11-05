@@ -531,23 +531,33 @@ def test_to_case_manager_states_the_case_manager_at_a_participant() -> None:
 
 
 @pytest.mark.spec("PCR-03-001")
+@pytest.mark.spec("OID-01-006")
 @pytest.mark.parametrize(
-    ("sender", "admitted"),
-    [(MANAGER, True), (OWNER, False)],
-    ids=["case-manager", "case-owner"],
+    "sender", [MANAGER, OWNER], ids=["case-manager", "case-owner"]
 )
-def test_receiver_side_is_the_exact_case_manager_id(
-    sender: str, admitted: bool
+def test_the_receivers_side_does_not_turn_on_the_id_spelling(
+    sender: str,
 ) -> None:
-    """The receiver's side is read by exact id, as the effect gates read it.
+    """A trailing slash on the receiver's id leaves it on the manager side.
 
-    A receiver whose id differs from the CASE_MANAGER's only by a trailing
-    slash is a participant here, so only the CASE_MANAGER is admitted.  The
-    trees' CASE_MANAGER-gated effects compare the same way, so an owner
-    admitted at that receiver would have reached no effect either.
+    The side is read through the shared role predicate, which compares actor
+    ids tolerantly (OID-01-006, #5827), so the case's CASE_MANAGER is on the
+    manager side whichever spelling its own id carries, and the manager-side
+    senders — here the CASE_MANAGER and the CASE_OWNER — are admitted at
+    both spellings.  The trees' CASE_MANAGER-gated effects ask the same
+    predicate, so the admission and the effect still agree (ARCH-24-007).
+
+    The second assertion keeps the first from passing vacuously: at a
+    receiver that really is a plain participant the sides differ, so the
+    CASE_OWNER is refused there.  The canonical spelling is not run beside
+    the slashed one in the same test: an actor id is a store name, and the
+    two spellings share one store slug (DL-07-004), so seeding both in one
+    process collides.  Both directions of the comparison itself are pinned
+    in ``test/core/participants/test_role_predicate.py``.
     """
     rule = RemoveEmbargoEventFromCaseReceivedUseCase.sender_entitlement
-    assert _admits(rule, _embargo, f"{MANAGER}/", sender) is admitted
+    assert _admits(rule, _embargo, f"{MANAGER}/", sender) is True
+    assert _admits(rule, _embargo, REPLICA, sender) is (sender == MANAGER)
 
 
 _EMBARGO_RULES = [

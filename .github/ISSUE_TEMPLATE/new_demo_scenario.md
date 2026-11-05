@@ -26,7 +26,8 @@ checked against the registry, so update it by hand (DEMOCI-11-007). See
 
 ### Implementation
 
-- [ ] **Scenario script** — `vultron/demo/scenario/<scenario_name>_demo.py`
+- [ ] **Scenario script** — `vultron/demo/scenario/<scenario_name>_demo.py`, or a
+  `<scenario_name>_demo/` package once it outgrows one module (DEMOCI-11-003)
   - Module docstring describes actors, protocol flow, and CVD phases covered.
   - `@scenario(...)` on `main()`, plus `ROLES` and `CLI_HELP`. These generate
     the `vultron-demo <scenario-name>` sub-command and its options. Do not add

@@ -12,11 +12,17 @@ from typing import Annotated
 from pydantic import (
     BaseModel,
     StringConstraints,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
 
-from vultron.metadata.base import NonEmptyStr, NonEmptyStrList
+from vultron.metadata.base import (
+    NonEmptyStr,
+    NonEmptyStrList,
+    check_nonempty_list,
+    field_name,
+)
 
 IssueRef = Annotated[str, StringConstraints(pattern=r"^#[1-9][0-9]*$")]
 """A GitHub issue reference in ``#N`` form (NF-01-010)."""
@@ -71,11 +77,18 @@ class NotesFrontmatter(BaseModel):
         mode="before",
     )
     @classmethod
-    def non_empty_list_if_present(cls, v: object) -> object:
-        """Reject present-and-empty list fields (NF-01-006, -007, -010, -013)."""
-        if v is not None and isinstance(v, list) and len(v) == 0:
-            raise ValueError("list field must be non-empty if present")
-        return v
+    def non_empty_list_if_present(
+        cls, v: object, info: ValidationInfo
+    ) -> object:
+        """Reject present-and-empty list fields (NF-01-006, -007, -010, -013).
+
+        ``mode="before"`` sees raw YAML, so a non-list value is left for the
+        field's own type error; only a list reaches the shared check, which
+        names the field the way the spec schema's rejections do.
+        """
+        if not isinstance(v, list):
+            return v
+        return check_nonempty_list(v, field_name(info))
 
     @model_validator(mode="after")
     def superseded_by_required_when_superseded(self) -> NotesFrontmatter:

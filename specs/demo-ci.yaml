@@ -518,6 +518,28 @@ groups:
           `test/ci/test_python_app_path_filter.py` asserts `uv.lock` is in both
           path filters.
 
+      - id: DEMOCI-02-021
+        priority: MUST
+        kind: project
+        statement: >-
+          Both the push and pull_request triggers of
+          `.github/workflows/python-app.yml` MUST include
+          `docs/reference/examples/**` in their paths filter.
+        rationale: >-
+          The committed vocab examples under `docs/reference/examples/` are an input
+          to `test/architecture/test_vocab_examples_current.py`, which compares each
+          one byte for byte with a fresh generation. They are the only such input
+          that lives outside `vultron/` and `test/`, so without this entry a pull
+          request that hand-edits or half-regenerates an example and nothing else
+          matches no path filter and runs no test at all — the same failure mode
+          DEMOCI-02-016 exists to prevent for `uv.lock` (#4506, #5776).
+        verification: >-
+          `test/ci/test_python_app_path_filter.py::test_python_app_workflow_runs_on_a_committed_example_change`
+          asserts `docs/reference/examples/**` is in both path filters.
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-02-016
+
       - id: DEMOCI-02-017
         priority: MUST
         kind: process
@@ -1944,16 +1966,21 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Each demo scenario module under `vultron/demo/scenario/` MUST declare itself
-          to the scenario registry at import time.
+          Each demo scenario module or package under `vultron/demo/scenario/` MUST
+          declare itself to the scenario registry at import time.
         rationale: >-
           Only the demo module can know that the demo exists. A declaration in the
           module itself cannot be left out when a new module is written, and a module
-          that omits it shows as a scenario on disk that the registry lacks.
+          that omits it shows as a scenario on disk that the registry lacks. A
+          scenario that outgrows one file becomes a package, and the package is
+          still the one place that knows the scenario exists.
         verification: >-
           `test/demo_unit/test_scenario_registry.py::test_registry_matches_modules_on_disk`
-          asserts that the registered scenario set equals the set of `*_demo.py` modules
-          in `vultron/demo/scenario/`, so a module that omits the declaration fails.
+          asserts that the registered scenario set equals the set of `*_demo.py`
+          modules and `*_demo/` packages in `vultron/demo/scenario/`, so a module or
+          package that omits the declaration fails.
+          `test/demo_unit/test_scenario_registry_package.py::test_a_package_scenario_registers_end_to_end`
+          registers a package scenario whose `main()` is declared in a submodule.
         adr:
           - ADR-0098
 
@@ -2007,15 +2034,19 @@ groups:
         kind: project
         statement: >-
           Registry discovery MUST enumerate the scenario package with a `pkgutil`-style
-          walk of `vultron/demo/scenario/`.
+          walk of `vultron/demo/scenario/` that returns each `*_demo` module and each
+          `*_demo` package.
         rationale: >-
           Import-time registration observes only the modules that were imported. A walk
           of the package imports every module, so a new demo registers without any other
-          edit.
+          edit. A scenario can be a package, and a walk that skipped packages would hide
+          it.
         verification: >-
           `test/demo_unit/test_scenario_registry.py::test_discovery_walks_the_package`,
           and the set-equality test of DEMOCI-11-001, fail when discovery misses a
-          module.
+          module or a package.
+          `test/demo_unit/test_scenario_registry_package.py::test_a_package_scenario_registers_end_to_end`
+          fails when discovery skips a package.
         adr:
           - ADR-0098
         relationships:
@@ -2047,7 +2078,8 @@ groups:
         statement: >-
           The scenario registry MUST derive a scenario's demo script, invariant harness
           and narrative page paths from its registered name, and store none of them. The
-          paths are `vultron/demo/scenario/<name_>_demo.py`,
+          paths are `vultron/demo/scenario/<name_>_demo.py` or the package
+          `vultron/demo/scenario/<name_>_demo/`,
           `test/ci/invariants/test_<name_>_invariants.py` and
           `docs/topics/scenarios/<name>.md`, where `<name_>` replaces hyphens with
           underscores.
@@ -2056,10 +2088,16 @@ groups:
           or fails a check. Every registered scenario satisfies all three
           conventions, so no exception list is required, and introducing an
           override field would re-open the drift channel for every scenario
-          rather than one.
+          rather than one. A scenario longer than one module can hold (CS-18-001)
+          becomes a package of the same name, so its demo path is the module or the
+          package, whichever exists, and the name alone still finds it.
         verification: >-
-          A test asserts each registered scenario's three derived paths resolve
-          on disk.
+          `test/demo_unit/test_scenario_registry.py::test_derived_paths_resolve`
+          asserts each registered scenario's three derived paths resolve on disk.
+          `test/demo_unit/test_scenario_registry_package.py::test_a_package_scenario_registers_end_to_end`
+          asserts a package scenario's derived paths resolve, and
+          `test_both_forms_of_one_name_are_refused` fails when one name is both a
+          module and a package.
         adr:
           - ADR-0098
 

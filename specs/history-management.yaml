@@ -50,6 +50,9 @@ groups:
       Readers and tools find an entry by its month, its type and its source. One file
       per entry lets concurrent branches each add an entry without a merge conflict on a
       shared file.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: HM-02-002
   - id: HM-01-009
     priority: MUST
     kind: process
@@ -67,11 +70,11 @@ groups:
       `test/metadata/test_append_history.py` confirms that a second learning with the
       same source goes to the slug-suffixed path.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: BW-01-003
     - rel_type: depends_on
       spec_id: BW-01-010
-    - rel_type: extends
+    - rel_type: supersedes
       spec_id: HM-01-002
   - id: HM-01-010
     priority: MUST_NOT
@@ -92,6 +95,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HM-01-002
+    - rel_type: uses_definition
+      spec_id: HM-01-009
   - id: HM-01-003
     priority: MUST
     kind: process
@@ -152,9 +157,6 @@ groups:
     rationale: >-
       GitHub comment mode keeps implementation and idea records co-located with the
       issue they describe, avoiding file churn in plan/history/.
-    relationships:
-    - rel_type: refines
-      spec_id: HM-01-001
   - id: HM-01-008
     priority: MUST_NOT
     kind: process
@@ -166,8 +168,8 @@ groups:
       Writing these entries as files would duplicate content already posted as GitHub
       comments and pollute the plan/history/ directory with redundant records.
     relationships:
-    - rel_type: refines
-      spec_id: HM-01-001
+    - rel_type: extends
+      spec_id: HM-01-007
 - id: HM-02
   title: Entry File Format
   specs:
@@ -229,7 +231,7 @@ groups:
       `HistoryEntryFrontmatter` derive the accepted type set exclusively from
       `HistoryEntryType` members, with no hardcoded type lists elsewhere.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: HM-02-002
   - id: HM-02-003
     priority: MUST
@@ -259,6 +261,9 @@ groups:
       `test_readme_updated_after_second_append` in
       `test/metadata/test_append_history.py` confirm that each run writes the index and
       lists the entries of the month.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: HM-03-006
   - id: HM-02-007
     priority: MUST_NOT
     kind: process
@@ -271,7 +276,7 @@ groups:
       `test_hand_edit_replaced_on_next_run` in `test/metadata/test_append_history.py`
       confirms that the next run removes a hand edit to the index.
     relationships:
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: HM-02-004
 - id: HM-03
   title: append-history CLI Tool
@@ -285,6 +290,9 @@ groups:
     rationale: >-
       With one typed entry point, skills write history the same way each time, and the
       tool validates the type before it writes anything.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: HM-02-002
   - id: HM-03-009
     priority: MUST
     kind: project
@@ -295,7 +303,7 @@ groups:
       without a reason. A clear error and a non-zero exit stop the calling skill before
       it reports success.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: HM-03-001
   - id: HM-03-002
     priority: MUST
@@ -350,6 +358,9 @@ groups:
       break the regeneration.
     note: The scan is restricted to known HistoryEntryType subdirectories to avoid parsing non-standard frontmatter in other
       subdirs (e.g. report/). The gitignore constraint is specified in HM-01-003.
+    relationships:
+    - rel_type: implements
+      spec_id: HM-01-003
   - id: HM-03-007
     priority: MUST
     kind: project
@@ -390,9 +401,6 @@ groups:
     rationale: >-
       Entries from older history formats must go into the month that they record, not
       the month of the migration. Migration tooling thus needs a way to set the date.
-    relationships:
-    - rel_type: refines
-      spec_id: HM-03-004
   - id: HM-03-012
     priority: MUST
     kind: process
@@ -403,7 +411,7 @@ groups:
       Entries from concurrent sessions then go into the correct month. If each agent
       chose the month, some entries would go into the wrong directory.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: HM-03-004
   - id: HM-03-013
     priority: MUST_NOT
@@ -415,7 +423,7 @@ groups:
       derives the month from the clock. A rule that requires the choice would bring back
       the error that the tool prevents.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: HM-03-004
 - id: HM-04
   title: Agent Context Boundaries
@@ -549,7 +557,7 @@ groups:
       `test/metadata/test_history_models.py` confirm that an absent, naive or malformed
       `timestamp` raises `ValidationError`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: HM-06-002
   - id: HM-06-004
     priority: MUST
@@ -602,7 +610,7 @@ groups:
       with a non-UTC offset is normalised to UTC, and that sorting entries by `timestamp`
       produces correct chronological order.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: HM-06-005
   - id: HM-06-006
     priority: MUST
@@ -652,7 +660,7 @@ groups:
       model, and the entries fail validation later. The tool builds the frontmatter from
       validated arguments, so the frontmatter of each entry is correct by construction.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: HM-07-001
   - id: HM-07-002
     priority: MUST_NOT
@@ -665,7 +673,7 @@ groups:
       block conflicts with the block that the tool builds. When callers supply only body
       text, the tool is the only author of frontmatter.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: HM-07-005
   - id: HM-07-003
     priority: MUST
@@ -697,9 +705,9 @@ groups:
       The override sets the time. It does not skip validation. The same future-date
       check applies, so backfilled entries obey the same rules as all other entries.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: HM-07-003
-    - rel_type: implements
+    - rel_type: refines
       spec_id: HM-06-004
   - id: HM-07-004
     priority: MUST
@@ -750,6 +758,9 @@ groups:
     rationale: >-
       The comment URL is the only reference to the record. Callers such as
       `archive-history` need it to link the record from the work that they report.
+    relationships:
+    - rel_type: extends
+      spec_id: HM-08-001
   - id: HM-08-003
     priority: MUST
     kind: project
@@ -770,6 +781,9 @@ groups:
     rationale: >-
       In comment mode the tool writes no file. A `git add` and a commit would thus fail,
       or they would commit unrelated staged changes.
+    relationships:
+    - rel_type: derives_from
+      spec_id: HM-08-001
   - id: HM-08-005
     priority: MUST
     kind: project

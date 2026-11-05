@@ -4,7 +4,9 @@ status: active
 kind: guidance
 description: >
   Rules for the shared source/markdown corpus behind test/architecture/
-  ratchets, for ratchets that start from a live object, and for baselines:
+  ratchets, for ratchets that start from a live object, for applying the
+  prefilter per definition rather than per file, for stating whether each
+  loose reading can miss a violation or invent one, and for baselines:
   owner markers and the ratchet-versus-pinned-exemption-set split.
 related_specs:
   - specs/architecture.yaml
@@ -77,7 +79,11 @@ rather than from a file scan. Two rules keep them inside TB-13:
 - **Pause the collector around an AST-heavy derivation.** Each allocation
   threshold during a large parse triggers a collection that walks the whole
   pytest heap. `@_corpus.gc_paused()` on the derivation, plus a per-process
-  `functools.cache`, keeps each test under the TB-13-004 budget.
+  `functools.cache`, leaves every test after the first at nil cost. It does
+  not bring the first one under the TB-13-004 budget: a derivation that parses
+  a few hundred modules costs seconds, and the heaviest ratchets are already
+  over the SHOULD. State the measured figure in the module docstring rather
+  than implying the budget is met (`_guard_reachability.py`).
 
 To find the names that *may* reach a target without parsing, use
 `_corpus.names_reaching(seeds, under=...)`: a text-only fixed point that follows
@@ -87,6 +93,54 @@ every caller of the class match. Then parse only the candidate modules
 (`_corpus.paths_under`, `_corpus.tree_of`). Prefiltering files by *mentioning* a
 class name instead parses every module that imports one.
 `_ledger_commit_inventory.py` is the worked example.
+
+## Prefilter Per Definition, and Only for the Arm That Needs It
+
+TB-13-002's substring prefilter applies inside a file too. A ratchet that
+judges each function by walking its own scope pays that walk for every
+definition in every matched file, and most of them cannot match: testing the
+fragment against the definition's own source span first
+(`lineno`..`end_lineno`) measurably cut the guard-reachability derivation.
+The span includes any nested definition, so the prefilter only ever
+admits a candidate the walk then judges.
+
+Give each arm the prefilter it needs, not the strictest one. The same
+derivation's second arm looks for a parameter that gates a *delegated*
+refusal, so a `raise` fragment in the span is the wrong test — it skipped the
+only function the ratchet exists to catch. A `None` default read off the
+signature costs no walk and is the necessary condition there
+(`_guard_reachability.py`, #3156).
+
+## A Coverage-Shape Arm Keyed on Spec Markers Has No Subjects Here
+
+Do not re-propose this one without re-measuring. The guard-reachability
+ratchet was asked for a second shape: for a guard raising a spec-cited error,
+require one test reaching it *through* its production entry point rather than
+by direct call. Keyed on `@pytest.mark.spec` — a requirement whose markers all
+sit on test functions that name the private guard — it finds no subjects in
+this repo and costs tens of seconds, so it can only ever pass. Keyed on
+`names_reaching` instead, a class span carries every method, so the reacher set
+grows until every guard reads as covered. The rule is real and is recorded as a
+test-authoring rule in [testing-pitfalls](testing-pitfalls.md) § "Drive a Guard
+Through Its Production Entry Point"; what has no structural form is the check
+(#3156).
+
+## Say, Per Loose Reading, Whether It Can Miss or Invent
+
+A ratchet reading source by name rather than by binding is imprecise in both
+directions, and the two directions are not equally safe: a reading that **misses**
+a violation costs coverage, while one that **invents** one fails correct code and
+gets the ratchet switched off. List each loose reading in the module docstring
+with its direction, and narrow every reading that can invent. A docstring that
+claims one-sidedness for all of them stops anyone looking.
+
+Where a reading cannot be narrowed without resolving bindings or intent, say so
+rather than dropping it from the list, and say whether the package holds an
+instance today: a reader meeting a red arm needs to know which of its subjects
+were never the thing the arm names. Arm B of the guard-reachability derivation
+reads "refuses" more widely than "refuses the caller's input", and some of its
+live subjects are optional steps that raise for another reason
+(`_guard_reachability.py`, #3156).
 
 ## Key a Ratchet on the Act, Not on the Name of What Performs It
 

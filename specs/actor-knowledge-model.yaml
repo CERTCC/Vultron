@@ -782,7 +782,10 @@ groups:
       A sender may name a peer it knows only by URI (AKM-05-001), and a receiver routes
       `Offer(Actor)` and `Invite(Actor)` by the object's `type`, so the actor must
       travel inline with a `type` even when nothing else is known. Anything beyond the
-      id and type would be invented (AKM-02-006).
+      id and type would be invented (AKM-02-006). The reference only gets the activity
+      routed: a receiver that needs the actor's profile fetches it from the actor before
+      it processes the activity (AKM-05-007). MV-10-009 names this reference as its one
+      exception.
     verification: >-
       `test/wire/as2/factories/test_actor_references.py::test_an_actor_given_by_uri_travels_as_an_actor_reference`
       checks the actor in each such activity is exactly an `id` and a `type`.

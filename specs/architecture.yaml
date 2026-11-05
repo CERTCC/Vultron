@@ -2362,6 +2362,9 @@ groups:
       `test_every_wire_name_for_a_domain_type_is_its_core_class` in
       `test/architecture/test_hierarchy_invariants.py` asserts every `as_<Name>` the
       wire layer binds for a core domain class is that class itself.
+    relationships:
+    - rel_type: satisfies
+      spec_id: PRM-04-001
     adr:
     - ADR-0099
   - id: ARCH-25-015

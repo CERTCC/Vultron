@@ -32,6 +32,7 @@ from vultron.adapters.driving.fastapi.routers.datalayer.stored import (
     _received_offers,
     _serve_stored,
 )
+from vultron.adapters.utils import full_object_id
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
@@ -113,8 +114,10 @@ def get_object(
     # sees a two-segment path, so a path whose segment is not that row's type
     # is read whole as a key (#5529).  The type is checked before the key
     # read, so a key whose suffix also names a row is no longer shadowed by
-    # that row unless the key's first part is the row's type.
-    obj = datalayer.read(object_id)
+    # that row unless the key's first part is the row's type.  A bare-UUID
+    # segment names its ``urn:uuid:`` id, which the store alone keys on
+    # (OID-02-004).
+    obj = datalayer.read(full_object_id(object_id))
     if obj is None or obj.type_ != object_type:
         obj = datalayer.read(f"{object_type}/{object_id}")
 
@@ -149,7 +152,7 @@ def get_report(
 ) -> AS2JSONResponse:
     # Served as stored (#5510): ``VulnerabilityReport`` is its own AS2 class
     # (ADR-0099), so a rebuild from its dump would add nothing.
-    obj = datalayer.read(id)
+    obj = datalayer.read(full_object_id(id))
     if not isinstance(obj, as_VulnerabilityReport):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     return AS2JSONResponse(obj)
@@ -343,7 +346,8 @@ def get_objects(
     operation_id="datalayer_get_by_key",
 )
 def get_object_by_key(key: str, datalayer: DataLayer = Depends(get_actor_dl)):
-    obj = datalayer.read(key)
+    # A bare-UUID key names its ``urn:uuid:`` id (OID-02-004).
+    obj = datalayer.read(full_object_id(key))
 
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)

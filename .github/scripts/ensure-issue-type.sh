@@ -44,11 +44,28 @@ if [ -z "$type_id" ]; then
   exit 1
 fi
 
-mapfile -t issue_fields < <(gh issue view "$num" \
+# Read with `read`, not `mapfile`: `mapfile` is bash 4+ and macOS ships bash
+# 3.2, so the helper exited 127 for a macOS contributor while passing on the
+# Linux runners (#5698).  `test/ci/` runs this script with the first `bash` on
+# PATH, so a construct the host's bash lacks turns a correct change into a red
+# local gate.  A command substitution, not a process substitution, so a failing
+# `gh` aborts under `set -e` instead of reaching the mutation with an empty node
+# ID (CISEC-05-019).  `$(...)` strips the trailing newline, so the second `read`
+# hits end-of-input exactly when the issue carries no type — the untyped case
+# this helper exists to repair (CISEC-05-018), not an error.
+issue_fields=$(gh issue view "$num" \
   --repo "$repo" --json id,issueType \
   --jq '.id, (.issueType.name // "")')
-issue_node_id="${issue_fields[0]}"
-current_type="${issue_fields[1]:-}"
+{
+  IFS= read -r issue_node_id || issue_node_id=""
+  IFS= read -r current_type || current_type=""
+} <<< "$issue_fields"
+# `${issue_fields[0]}` on an empty array was itself an error under `set -u`, so
+# keep the loud failure rather than letting an empty ID reach the mutation.
+if [ -z "$issue_node_id" ]; then
+  echo "::error::No node ID read for issue #$num in $repo; it is untyped." >&2
+  exit 1
+fi
 if [ -n "$current_type" ]; then
   echo "Issue #$num already has type '$current_type'"
   exit 0

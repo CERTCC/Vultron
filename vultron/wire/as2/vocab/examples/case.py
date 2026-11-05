@@ -75,7 +75,7 @@ def create_case() -> as_Create:
         name=_VENDOR.name,
     )
     _case = case(
-        random_id=True,
+        fresh_id=True,
         vulnerability_reports=[_REPORT],
         case_participants=[participant],
     )

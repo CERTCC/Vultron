@@ -59,6 +59,7 @@ import py_trees
 import pytest
 
 from test.architecture import _corpus
+from test.support.future_dates import FAR_FUTURE
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 
 # Exempt files: may contain direct calls (definition site only).
@@ -629,15 +630,13 @@ class TestEarlyCommitDetector:
 
     @staticmethod
     def _end_time_decision() -> py_trees.behaviour.Behaviour:
-        from datetime import UTC, datetime
-
         from vultron.core.behaviors.embargo.end_time_tree import (
             end_time_clock_decision,
         )
 
         return end_time_clock_decision(
             case_id="https://example.org/cases/c",
-            now=datetime(2030, 1, 1, tzinfo=UTC),
+            now=FAR_FUTURE,  # far-future; any valid datetime serves for the structural test
         )
 
     def test_a_termination_decision_inside_the_stage_is_allowed(

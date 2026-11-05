@@ -65,13 +65,20 @@ _HELPER_MODULES = sorted(
 _REPORTERS = frozenset({"reach_step"})
 
 
-def _reported_steps(module_name: str) -> Counter[tuple[str, str]]:
-    """Every literal ``(branch point, choice)`` the module reports."""
-    return _steps_in(
-        _corpus.tree_of(
-            _corpus.REPO_ROOT / (module_name.replace(".", "/") + ".py")
-        )
-    )
+def _scenario_trees(spec: ScenarioSpec) -> list[ast.AST]:
+    """The parse of every source file of *spec*: one module, or a package's
+    every submodule, so a mark placed in a package scenario's ``cli.py`` or
+    ``story.py`` is read as well as its ``__init__``."""
+    trees = [
+        _corpus.tree_of(path) for path in _corpus.in_repo(spec.source_files)
+    ]
+    assert trees, f"{spec.demo_path} has no source file to scan"
+    return trees
+
+
+def _reported_steps(spec: ScenarioSpec) -> Counter[tuple[str, str]]:
+    """Every literal ``(branch point, choice)`` the scenario reports."""
+    return sum((_steps_in(tree) for tree in _scenario_trees(spec)), Counter())
 
 
 def _reporter_calls(tree: ast.AST) -> int:
@@ -283,7 +290,7 @@ def test_a_scenario_places_no_reach_step_by_hand(
     fragment or in a helper a fragment calls is where the double-mark defect
     would be introduced, and a scan of ``scenario/`` alone would pass over it.
     """
-    reported = _reported_steps(spec.module_name) + _helper_steps()
+    reported = _reported_steps(spec) + _helper_steps()
     assert reported == Counter(), (
         f"{spec.demo_path} or a demo helper places {dict(reported)} by hand, "
         "but a story's choose(...) items already declare its steps and "
@@ -292,10 +299,8 @@ def test_a_scenario_places_no_reach_step_by_hand(
     )
     # Asserted as a count too, so a call whose pair is computed or splatted —
     # which the literal scan reads as no step at all — is caught as well.
-    scenario_calls = _reporter_calls(
-        _corpus.tree_of(
-            _corpus.REPO_ROOT / (spec.module_name.replace(".", "/") + ".py")
-        )
+    scenario_calls = sum(
+        _reporter_calls(tree) for tree in _scenario_trees(spec)
     )
     offenders = _helper_reporter_calls()
     assert scenario_calls == 0 and not offenders, (
