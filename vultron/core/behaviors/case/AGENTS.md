@@ -22,8 +22,8 @@ Selector(
     children=[
         Sequence(
             children=[
-                CheckIsCaseManagerNode(case_id=case_id),
-                CommitCaseLedgerEntryNode(case_id=case_id),
+                with_case_id(CheckIsCaseManagerNode(), case_id),
+                with_case_id(CommitCaseLedgerEntryNode(), case_id),
             ]
         ),
         py_trees.behaviours.Success(
@@ -32,6 +32,10 @@ Selector(
     ],
 )
 ```
+
+Both nodes read `case_id` only from their `/case_id` port, which
+`with_case_id` (`vultron/core/behaviors/case_id_scope.py`) seeds for the
+node's own tick (BTND-01-006).
 
 `CheckIsCaseManagerNode` resolves the case's `CVDRole.CASE_MANAGER`
 participant and compares it against the *actor active for this invocation* —
@@ -69,7 +73,7 @@ Selector(
         Sequence(
             name="CaseManagerGuardedAction",
             children=[
-                CheckIsCaseManagerNode(case_id=case_id),
+                with_case_id(CheckIsCaseManagerNode(), case_id),
                 ActionNode(case_id=case_id),
             ],
         ),

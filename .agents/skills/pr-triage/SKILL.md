@@ -381,3 +381,13 @@ branch), is covered by the same `.claude/pr-*.json` pattern.
 Triage never edits files, never commits, never creates issues. Any finding
 that could be resolved right now is recorded with `decision_outcome: fix-now`
 so execute can act on it. Triage just observes.
+
+**That includes never undoing a change.** `git restore`, `git checkout --`,
+`git stash` and `git clean` are edits: they remove work. In pre-push mode the
+author is still working in that worktree, so an uncommitted change you did not
+expect is most likely the author's current edit — on one measured run a
+reviewer restored two files the user had just asked for, and only a patch it
+happened to save kept the work. Leave the working tree exactly as found, and
+report what you saw as a finding: name the files and say they were uncommitted
+at review time. The author decides what the change was for; you cannot tell
+from the diff alone.

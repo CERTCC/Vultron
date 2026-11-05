@@ -254,8 +254,8 @@ list.
 `case_id` is the worked example. Six nodes declare it as an output port
 (`CaseLookupNode`, the two `proposal_case_resolution` resolvers, the replay node
 and the case-creation nodes), while `ReceivedPathNode` and
-`CheckIsCaseManagerNode` both fall back to `/case_id` after their constructor
-argument and before the activity (`activity_case_id`). An unscoped `/case_id`
+`CheckIsCaseManagerNode` read `/case_id` before the activity's case
+(`activity_case_id`). An unscoped `/case_id`
 therefore let one delivery's case decide a *later* delivery's path: a
 `Read(Offer(VulnerabilityReport))`, whose tree names no case and declares the
 no-case path alone, resolved a leaked case the reporter held a replica of and
@@ -470,14 +470,33 @@ enforced by `test/architecture/test_participant_status_validation.py`.
 
 ## A Tick-Time `case_id` Comes Only Through the Port
 
-A node that some tree hands its case only at tick time reads `case_id` from its
-declared input port in every tree, never also from a constructor argument
-(BTND-01-006, BTND-01-007): a constructor value with a port fallback is the dual
-channel that let a stale `/case_id` decide a later delivery above. Build-time
-callers seed the port with `execute_with_setup(node, case_id=...)`; a value every
-tree knows at build time stays a constructor argument (BTND-01-004).
-`ReceivedPathNode`, `CheckIsCaseManagerNode` and four other nodes still take both
-until #5907.
+A node that declares a `case_id` input port reads it from that port in every
+tree, never also from a constructor argument (BTND-01-006, BTND-01-007): a
+constructor value with a port fallback is the dual channel that let a stale
+`/case_id` decide a later delivery above. A value every tree knows at build time
+stays a constructor argument, and then the node declares no port (BTND-01-004).
+Ratchet: `test/architecture/test_case_id_one_channel.py`.
+
+A tree that knows the case at build time seeds the port, two ways:
+
+- **Inside a tree**, wrap the node: `with_case_id(node, case_id)`
+  (`vultron/core/behaviors/case_id_scope.py`). The `CaseIdScope` it returns
+  writes `/case_id` for the node's own tick and restores the key's previous
+  state on every outcome, so a later sibling still reads what an earlier node
+  published and nothing outlives the execution (#5803, BT-09). Seeding the key
+  for the whole tree instead would hand every other `/case_id` reader the
+  build-time case in place of the one a resolver publishes.
+- **A node run alone**, as in a test or a nested call, takes
+  `execute_with_setup(node, case_id=...)`, which scopes the key per execution.
+
+`with_case_id(node, None)` returns the node unwrapped, so a tree that names no
+case leaves the port to an earlier node of the same execution. Only
+`ReceivedPathNode` and `CheckIsCaseManagerNode` then fall back to the case the
+activity names (`activity_case_id`), as their documented resolution step.
+
+A seeded node sits one level below where it used to. Code that reads a tree's
+shape sees through the scope with `unscoped(node)`, and reads the seeded case
+with `seeded_case_id(node)`; never re-add a `_case_id` attribute for it.
 
 `CreateParticipantStatusNode` is the worked case: `case_id` comes only through
 `CaseIdInputPortMixin`, and the subject actor is an explicit constructor argument,

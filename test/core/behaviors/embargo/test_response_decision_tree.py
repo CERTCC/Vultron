@@ -38,6 +38,7 @@ from vultron.core.behaviors.call_out.bundles.embargo import (
     EmbargoCallOutBundle,
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
+from vultron.core.behaviors.case_id_scope import unscoped
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
 )
@@ -164,7 +165,7 @@ class TestAcceptArm:
         """EMB-15-002: gospel-bypass guard is SenderIsCaseOwnerNode."""
         tree = _make_tree()
         auth = tree.children[0].children[0]
-        assert isinstance(auth.children[0], SenderIsCaseOwnerNode)
+        assert isinstance(unscoped(auth.children[0]), SenderIsCaseOwnerNode)
 
     def test_authorize_first_child_name(self):
         tree = _make_tree()

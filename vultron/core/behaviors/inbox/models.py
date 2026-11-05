@@ -40,7 +40,7 @@ class InboxOutcomeStatus(StrEnum):
 
     - ``PROCESSED`` — dispatched, and the handler applied or correctly skipped it.
     - ``DEFERRED`` — held for replay: by ``DeferCheckNode`` before dispatch
-      (missing case context), or by the handler after it (UCORG-05-011).
+      (missing case context), or by the handler after it (IO-01-006).
     - ``REJECTED`` — refused, unparseable, undispatchable, or the dispatch
       raised.
 
@@ -167,5 +167,33 @@ class PendingCaseQueuePort(Protocol):
 
         Which they are is read from the waiting records themselves, in the
         order they arrived (ADR-0154).
+        """
+        ...  # pragma: no cover
+
+
+@runtime_checkable
+class ReceivedOutcomePort(Protocol):
+    """Port: move a received record to its final outcome stage (ADR-0154).
+
+    Only a refusal changes what the receiver keeps, so that is the only
+    method: an applied or skipped message keeps the sealed body it already
+    holds, a deferred one stays in holding, and an internal error leaves the
+    record untouched for the re-run (CLP-10-017, CLP-10-018).
+    """
+
+    def refuse(self, activity_id: str, *, sender_id: str, reason: str) -> None:
+        """Give up *activity_id*'s body for a receipt stub.
+
+        The stub records *sender_id*, the activity id, the time of receipt,
+        *reason* and the digest of the body (CLP-10-018).  Idempotent: a
+        second refusal of the same activity leaves the first reason standing.
+
+        A body still owed to a replay is left as it is: the replay is the
+        held message's own outcome (CLP-10-076).
+
+        Raises:
+            Exception: Whatever the store raises, and a wiring error when
+                nothing is held for *activity_id*.  ``update()`` in the
+                calling node is what catches it (BT-HELPER-01).
         """
         ...  # pragma: no cover

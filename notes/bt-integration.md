@@ -257,7 +257,10 @@ answer, clock decisions, guards, commit, effects.
    actor lets a sender squat an id we derive for our own records. Readers load
    the archive (`read_received_activity`), never parse it themselves. Intake
    decides nothing, ledgers nothing, and writes nothing else (CLP-10-038); it
-   runs first so a refusal still leaves the archive (CLP-10-018). An object
+   runs first so the body is there for every stage that reads it, the refusal
+   notice included. What the receiver *keeps* is decided after the tree, by the
+   inbox's outcome stage: applied or skipped keeps the body, refused leaves a
+   bodiless receipt stub (CLP-10-018, CLP-10-073). An object
    carried inline (case, note, status, embargo) is a message shaped like that
    object; the record core keeps is written by an effect node after the guards,
    because a stored case row *is* the replica (PCR-03-004, CBT-01-005).
@@ -508,7 +511,7 @@ answer, clock decisions, guards, commit, effects.
    own before the received tree.
 4. **Guards** — read-only precondition checks that return FAILURE to refuse and
    write nothing. A refusal goes to the process log and, where the protocol
-   calls for an answer, back to the sender — never to the ledger (CLP-05-002).
+   calls for an answer, back to the sender — never to the ledger (CLP-04-007).
    The factory adds that answer, the refusal notice, to every tree that commits
    to a case and has precondition guards, unless the tree names a registered
    `RefusalNoticeExemption`; a tree passes only further feedback (the RSH-06-004

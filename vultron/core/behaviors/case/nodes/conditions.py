@@ -161,8 +161,8 @@ class CheckCaseExistsForReport(DataLayerConditionWithPorts):
 def activity_case_id(activity: object | None) -> str | None:
     """The case id the received *activity* names, or ``None``.
 
-    The third step of the case-id resolution order a received-side condition
-    node follows (constructor argument, blackboard ``/case_id``, then the
+    The second step of the case-id resolution order a received-side
+    condition node follows (the ``/case_id`` input port, then the
     activity): a ledger activity names its case on its ``log_entry``, every
     other one on its ``object_``.  Shared by
     :class:`CheckIsCaseManagerNode` and the path stage's
@@ -192,9 +192,12 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
     output port for downstream nodes that need the resolved manager id.
 
     ``case_id`` resolution priority:
-    1. Constructor arg ``case_id``.
-    2. Blackboard key ``/case_id``.
-    3. ``activity.log_entry.case_id`` (or ``activity.object_.case_id``).
+    1. The ``/case_id`` input port.  A tree that names the case at build
+       time seeds it with
+       :func:`~vultron.core.behaviors.case_id_scope.with_case_id`; the node
+       takes no ``case_id`` constructor argument (BTND-01-006).
+    2. ``activity.log_entry.case_id`` (or ``activity.object_.case_id``), the
+       documented resolution step for a tree that names no case.
 
     A case missing from the executing actor's store is a Regime 1 anomaly by
     default and fails at ``error`` level (ADR-0087).  Pass
@@ -212,13 +215,11 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
 
     def __init__(
         self,
-        case_id: str | None = None,
         name: str | None = None,
         case_may_be_absent: bool = False,
         own_activity_needs_case: bool = False,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
         self._case_may_be_absent = case_may_be_absent
         self._own_activity_needs_case = own_activity_needs_case
 
@@ -259,9 +260,7 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case_id = self._case_id or self._case_id_bb
-        if not case_id:
-            case_id = activity_case_id(self._activity)
+        case_id = self._case_id_bb or activity_case_id(self._activity)
 
         if not case_id:
             self.logger.debug(

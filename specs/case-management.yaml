@@ -1551,16 +1551,29 @@ groups:
       the stub is joining the case and, unless the row is `DECLINED`, consenting
       to the active embargo. It is not a judgement of the case.
     rationale: >-
-      The invitee has seen only the stub. Its judgement of the case comes after
-      it has received the case and its history, as its reply to the full-case
-      Invite (CM-11-010).
+      The invitee has seen only the stub. It judges the case later, in its replies
+      to the full-case Invite (CM-11-010, CM-11-011), so the record of the
+      CASE_MANAGER shows no decision that the invitee has not made. To join under an
+      active embargo is to take part under it. Thus no participant becomes active
+      without a recorded answer to the embargo, and the delivery gate of MV-10-005
+      relies on this.
     verification: Tests confirm that `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`
       leaves the participant at `RM.RECEIVED`, sets VF `V` for a vendor, and
       marks its consent row for the active embargo `AGREED` when an embargo is active,
       and that it leaves a `DECLINED` row for that embargo unchanged.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-03-008
+    - rel_type: extends
+      spec_id: BT-10-005
     adr:
     - ADR-0114
+    - ADR-0121
     stories:
+    - story_2022_013
+    - story_2022_023
+    - story_2022_026
+    - story_2022_052
     - story_2022_054
     - story_2026_043
   - id: CM-11-002
@@ -3848,7 +3861,7 @@ groups:
       or by an ID that the invitee can ask the inviter to resolve.
     rationale: >-
       The invite-accept cycle is the only consent signal for a late joiner. An Accept
-      without the embargo terms is not informed consent (MV-10-006). The invitee has
+      without the embargo terms is not informed consent (CM-11-001). The invitee has
       only the invitation, so the invitation must let it learn the terms before it
       accepts: inline in the stub, or by the ID that the stub names.
       CM-17-011 says which form this prototype sends. In EM `REVISE`, the prior
@@ -3865,7 +3878,7 @@ groups:
     - rel_type: extends
       spec_id: CM-17-001
     - rel_type: derives_from
-      spec_id: MV-10-006
+      spec_id: CM-11-001
     stories:
     - story_2022_023
     - story_2026_097
@@ -8434,7 +8447,7 @@ groups:
       additional or reduced delivery tier applies.
     rationale: >-
       An Observer that accepts the stub Invite consents to the active embargo
-      (MV-10-006). The absence of a remediation function does not change what
+      (CM-11-001). The absence of a remediation function does not change what
       the Observer is entitled to receive once it is active. Introducing a separate
       reduced delivery tier for Observers is deferred: `notes/selective-disclosure.md`
       describes the potential future mechanism but it is not yet implemented.

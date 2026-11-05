@@ -56,7 +56,7 @@ def refusal_notice() -> as_Reject:
 
     The refused ``Add(ParticipantStatus)`` is carried inline, ``inReplyTo``
     names it, and ``summary`` gives the guard's reason (CLP-05-001).  Nothing
-    is ledgered for the refusal (CLP-05-002).
+    is ledgered for the refusal (CLP-04-007).
     """
     refused = add_fix_readiness_to_participant()
     assert isinstance(refused.actor, str)

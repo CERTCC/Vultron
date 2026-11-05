@@ -109,8 +109,10 @@ Deferring" and "The Two Gates".
 **`fix-now-file`** (an "also" excursion you fix now):
 
 1. File a GitHub issue via `create-issue` capturing the finding, with reason
-   `opened-as excursion`. It picks the theme, routes the issue to a
-   same-theme Epic, and adds it to Project #24.
+   `opened-as excursion`. Tell it this PR also closes the issue, and suggest
+   the worked issue's Epic as parent: PAD-02-041 exempts it from the Focus
+   and Now drop. It picks the theme, routes the issue to a same-theme Epic,
+   and adds it to Project #24.
 2. **Fix it in this PR** (fold into the Phase 2 batch). Add `- Closes #N` to the
    PR body and a one-line "why" in the Changes section (see `pr-body-guide.md`).
 3. Record `outcome: fixed` with the `issue_number`.
@@ -243,7 +245,10 @@ iterations:
 4. **Rerun exception.** A failed check may be re-run once only if it is already
    tracked by an open `flaky-test` issue with a reproduction (see
    [REFERENCE.md](REFERENCE.md) § "Flaky Test Dedup"); cite that issue in
-   `skip_reason`. A rerun that passes with no such issue is not evidence —
+   `skip_reason`. Re-run the `CI gate` job after it as well: the gate judges
+   once per pull-request event and stays red over a re-run that passed
+   (`notes/ci-workflow-authoring.md`). A rerun that passes with no such issue
+   is not evidence —
    file the issue with the reproduction (`create-issue`, `opened-as
    separate-defect`) and
    leave the PR held.

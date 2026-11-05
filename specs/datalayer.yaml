@@ -984,9 +984,10 @@ groups:
       by the id the sender chose for it, at any stage: not at inbox ingress, not for a
       deferred replay, and not in a received-side tree. A received activity is held only
       under one key the receiver derives from the activity id,
-      `ReceivedActivityRecord.build_id`, whichever stage the record is in: archived, or
-      held for a replay the inbox still owes (IO-03-009). A record of an activity type
-      stored under its own id is then always one the receiver authored.
+      `ReceivedActivityRecord.build_id`, whichever stage the record is in: archived,
+      held for a replay the inbox still owes (IO-03-009), or reduced to the receipt stub
+      a refusal left (CLP-10-018). A record of an activity type stored under its own id
+      is then always one the receiver authored.
     rationale: >-
       An actor scans the type tables of its sent activities to answer "did I already
       send this?". For example, it checks whether it announced a case or which stub
@@ -1013,6 +1014,11 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: IO-03-009
+    see_also:
+    - spec_id: CLP-10-018
+      reason: >-
+        names the third stage a record can be in; what a refusal leaves is not a
+        narrower case of keeping a received activity off the sender's id
     tags:
     - persistence
 - id: DL-07

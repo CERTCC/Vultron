@@ -44,6 +44,7 @@ from vultron.core.behaviors.inbox import (
 from vultron.core.behaviors.inbox.models import (
     DispatchAdapter,
     PendingCaseQueuePort,
+    ReceivedOutcomePort,
 )
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.use_case_result import HandlerResult
@@ -365,6 +366,7 @@ def drain_inbox_queue(
     actor_config: ActorConfig | None,
     max_attempts: int,
     dereference: ObjectDereferencePort | None = None,
+    received_outcome: ReceivedOutcomePort | None = None,
 ) -> None:
     """Replay every item queued in *actor_dl*'s inbox, with bounded retry.
 
@@ -400,6 +402,9 @@ def drain_inbox_queue(
         max_attempts: ``AppConfig.max_inbox_retry_attempts``.
         dereference: The fetch-and-defer port; a replayed item that still
             waits on a fetch is deferred again (AKM-05-007).
+        received_outcome: The received-outcome port; a replay the receiver refuses
+            gives its body up for a receipt stub, exactly as a live delivery
+            does (CLP-10-018).
     """
     attempt = ReplayAttempt()
     ingress = StoredActivityIngressAdapter(
@@ -428,6 +433,7 @@ def drain_inbox_queue(
                 queue,
                 actor_config=actor_config,
                 dereference_port=dereference,
+                received_outcome_port=received_outcome,
             )
             logger.debug(
                 "run_inbox_pipeline: replayed status=%s context_id=%s",

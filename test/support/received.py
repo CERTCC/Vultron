@@ -66,6 +66,7 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.received_activity import sealed_body_of
 from vultron.core.sync_helpers import ledger_tail_position
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
@@ -390,7 +391,7 @@ def received_activities(dl: CasePersistence) -> list[Any]:
     arrive naming *this* actor as its sender" — rather than about one type.
     """
     return [
-        parse_received_body(record.received_body)
+        parse_received_body(sealed_body_of(record))
         for record in dl.list_objects(ReceivedActivityRecord.__name__)
         if isinstance(record, ReceivedActivityRecord)
         # Archived only: one record holds a message at every stage

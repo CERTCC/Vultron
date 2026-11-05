@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 import py_trees
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.errors import VultronBTInternalError
 
 if TYPE_CHECKING:
@@ -58,8 +59,8 @@ def create_commit_log_entry_tree(
     """
     freshness: list[py_trees.behaviour.Behaviour] = (
         [
-            CheckLedgerFreshnessNode(
-                case_id=case_id, name="CheckLedgerFreshness"
+            with_case_id(
+                CheckLedgerFreshnessNode(name="CheckLedgerFreshness"), case_id
             )
         ]
         if check_freshness

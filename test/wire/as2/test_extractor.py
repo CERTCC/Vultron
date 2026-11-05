@@ -23,7 +23,6 @@ from vultron.wire.as2.extractor import (
 )
 
 
-@pytest.mark.spec("SE-02-003")
 @pytest.mark.spec("VAM-01-007")
 def test_find_matching_semantics_returns_unknown_for_unmatched_activity():
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (

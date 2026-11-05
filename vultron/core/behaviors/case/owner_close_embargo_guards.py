@@ -28,6 +28,7 @@ two sides cannot drift apart.
 
 import py_trees
 
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes import (
     IsCloseBlockedByActiveEmbargoNode,
     ReadEmStateNode,
@@ -63,10 +64,12 @@ def owner_close_blocked_by_embargo_guards(
         The guard nodes, in order, for the caller to compose in a Sequence.
     """
     return [
-        SenderIsCaseOwnerNode(
-            sender_actor_id=closing_actor_id,
-            case_id=case_id,
-            name="CheckIsCaseOwnerForClose",
+        with_case_id(
+            SenderIsCaseOwnerNode(
+                sender_actor_id=closing_actor_id,
+                name="CheckIsCaseOwnerForClose",
+            ),
+            case_id,
         ),
         ReadEmStateNode(
             case_id=case_id,

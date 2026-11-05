@@ -41,7 +41,7 @@ class TriggerExposure(StrEnum):
     ``DEMO_ONLY`` — exists only so a demo script can puppeteer an actor
     through a step its own BT would take autonomously; mounted under
     ``/actors/{actor_id}/demo/`` and absent in ``RunMode.PROD``
-    (TRIG-08-004, TRIG-09-002).
+    (TRIG-09-001, TRIG-09-002).
     """
 
     GENERAL_PURPOSE = "general-purpose"

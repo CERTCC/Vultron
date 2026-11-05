@@ -43,7 +43,10 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.held_ledger_announce import HeldLedgerAnnounce
 from vultron.core.models.received_activity_record import ReceivedStage
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.services.received_activity import held_received_record
+from vultron.core.services.received_activity import (
+    held_received_record,
+    sealed_body_of,
+)
 from vultron.core.services.received_holding import (
     discard_holding,
     hold_for_replay,
@@ -121,7 +124,7 @@ def _received_body(dl: CasePersistence, activity_id: str) -> str:
             " there is no received body to hold for its replay (CLP-10-017,"
             " SYNC-14-001)"
         )
-    return record.received_body
+    return sealed_body_of(record)
 
 
 def _make_room(

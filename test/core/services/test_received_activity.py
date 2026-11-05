@@ -23,13 +23,19 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+    ReceivedStage,
+)
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.services.received_activity import (
-    archived_received_body,
+    held_received_body,
+    held_received_record,
     holds_activity,
     holds_received_activity,
     read_held_activity,
     read_received_activity,
+    sealed_body_of,
 )
 from vultron.errors import (
     VultronNotFoundError,
@@ -204,18 +210,48 @@ def test_the_archived_body_is_handed_out_decoded(dl) -> None:
     invite = _invite(_PEER, _ME)
     record = archive_received(dl, invite)
 
-    assert archived_received_body(dl, invite.id_) == json.loads(
-        record.received_body
+    assert held_received_body(dl, invite.id_) == json.loads(
+        sealed_body_of(record)
+    )
+
+
+@pytest.mark.spec("CLP-10-017")
+def test_a_body_still_held_for_a_replay_is_handed_out_too(dl) -> None:
+    """A reader in the run reads the holding record, whatever stage it is in.
+
+    The message is the same message whether intake archived it or a wait
+    still holds it, so the reader does not ask which (ADR-0154).
+    """
+    deferred = _deferred_add(dl)
+    record = held_received_record(dl, deferred.id_)
+    assert record is not None
+    assert record.stage is ReceivedStage.HELD
+
+    assert held_received_body(dl, deferred.id_) == json.loads(
+        sealed_body_of(record)
     )
 
 
 @pytest.mark.spec("ARCH-15-001")
-def test_an_unarchived_body_is_a_wiring_fault(dl) -> None:
-    """The refusal notice and the late-Accept acknowledgement run after
-    intake, so a body they cannot find means the tree is miswired."""
-    deferred = _deferred_add(dl)
+def test_a_body_this_receiver_does_not_hold_is_a_wiring_fault(dl) -> None:
+    """The refusal notice runs inside the run, so a body it cannot find
+    means the tree is miswired."""
+    with pytest.raises(VultronWiringError, match="not held by this receiver"):
+        held_received_body(dl, "urn:uuid:never-held")
 
-    with pytest.raises(VultronWiringError, match="not archived"):
-        archived_received_body(dl, deferred.id_)
-    with pytest.raises(VultronWiringError, match="not archived"):
-        archived_received_body(dl, "urn:uuid:never-held")
+
+@pytest.mark.spec("CLP-10-018")
+def test_a_receipt_stub_has_no_body_to_hand_out(dl) -> None:
+    """All a refusal left is the receipt; there is no message to embed."""
+    dl.create(
+        ReceivedActivityRecord(
+            activity_id="urn:uuid:refused-one",
+            stage=ReceivedStage.REFUSED,
+            sender_id=_PEER,
+            refusal_reason="not a to recipient",
+            body_hash="abc123",
+        )
+    )
+
+    with pytest.raises(VultronWiringError, match="receipt stub"):
+        held_received_body(dl, "urn:uuid:refused-one")

@@ -180,12 +180,12 @@ def _disqualifier(candidate: Candidate, tier: str | None) -> str | None:
         return f"below tier (Schedule={tier})"
     if candidate.unbundlable:
         # Refused outright rather than weighted. A weight says "fits alongside
-        # something smaller", and this band exists precisely because a PR that
-        # size already exhausts the review budget on its own — findings per
-        # 1000 diff lines fall by half above it.
+        # something smaller", and a PR this size is already past the point
+        # where its CI-fix rate doubles (PAD-05-009); a bundle would only make
+        # that one PR bigger.
         return (
-            f"{candidate.size_label} is at the review ceiling on its own — "
-            "work it alone, or decompose it first"
+            f"{candidate.size_label} is past the bundle size ceiling on its "
+            "own — work it alone, or decompose it first"
         )
     return None
 

@@ -142,8 +142,8 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
 
     Resolves the case the same way
     :class:`~vultron.core.behaviors.case.nodes.conditions.CheckIsCaseManagerNode`
-    does — the constructor's ``case_id``, else the blackboard's, else the one
-    the activity names — then asks
+    does — the ``/case_id`` input port, else the case the activity names —
+    then asks
     :func:`~vultron.core.participants.role_predicate.has_role` once.
 
     Returns:
@@ -160,10 +160,15 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
     ADR-0087 anomaly: telling the three paths apart is this node's whole job,
     so an absent replica is an answer rather than a fault.
 
+    The case comes only through the ``/case_id`` port (BTND-01-006): a tree
+    that names its case at build time seeds the port with
+    :func:`~vultron.core.behaviors.case_id_scope.with_case_id`, and a tree
+    that names none leaves the port to an earlier node of the same execution,
+    falling back to :func:`activity_case_id` as the documented resolution
+    step.
+
     Args:
         declared: The paths the message type handles.
-        case_id: The case whose roster is read; ``None`` resolves it at run
-            time.
         label: Names the tree in log lines; the factory passes the tree's own
             name.
     """
@@ -171,14 +176,12 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
     def __init__(
         self,
         declared: frozenset[ReceivedPath],
-        case_id: str | None = None,
         label: str = "",
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.declared = declared
         self.label = label
-        self._case_id = case_id
         self._case_id_bb: str | None = None
         self._activity: object | None = None
         self.resolved_path: ReceivedPath | None = None
@@ -249,11 +252,7 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
-        case_id = (
-            self._case_id
-            or self._case_id_bb
-            or activity_case_id(self._activity)
-        )
+        case_id = self._case_id_bb or activity_case_id(self._activity)
         self.resolved_case_id = case_id
         path = self._path(case_id)
         self.resolved_path = path

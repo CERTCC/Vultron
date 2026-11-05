@@ -41,7 +41,10 @@ from vultron.core.models.received_activity_record import (
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.core.services.carried_embargo import store_carried_embargo
-from vultron.core.services.received_activity import held_received_record
+from vultron.core.services.received_activity import (
+    held_received_record,
+    sealed_body_of,
+)
 from vultron.core.services.received_holding import (
     held_for_replay,
     hold_for_replay as hold_body_for_replay,
@@ -283,9 +286,11 @@ class InlineObjectStaging:
         the same answer here.
         """
         record = held_received_record(self._store, activity_id)
-        if record is None:
+        if record is None or record.is_receipt_stub:
+            # A receipt stub holds no body to rebuild: a refusal gave it up
+            # (CLP-10-018).
             return None
-        archived = parse_received_body(record.received_body)
+        archived = parse_received_body(sealed_body_of(record))
         evidence = archived.received_evidence_json
         result = self._rehydrate_with(archived, received_body=evidence)
         if result is not None and evidence is not None:
@@ -364,7 +369,7 @@ class InlineObjectStaging:
             return hold_body_for_replay(
                 self._store,
                 activity_id,
-                released.received_body,
+                sealed_body_of(released),
                 replay_rows_json=released.replay_rows_json,
                 awaiting_case_id=awaiting_case_id or released.awaiting_case_id,
             )
@@ -403,7 +408,8 @@ class InlineObjectStaging:
         inline_rows: list[dict[str, Any]] = json.loads(
             pending.replay_rows_json
         )
-        parsed = parse_received_body(pending.received_body)
+        body = sealed_body_of(pending)
+        parsed = parse_received_body(body)
         activity_record = object_to_record(parsed)
 
         def _restage(store: DataLayer) -> None:
@@ -414,7 +420,7 @@ class InlineObjectStaging:
         result = self._rehydrate(
             pending.activity_id,
             _restage,
-            received_body=pending.received_body,
+            received_body=body,
         )
         return result, parsed
 

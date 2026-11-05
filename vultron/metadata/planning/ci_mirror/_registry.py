@@ -22,10 +22,13 @@ local command cannot drift from CI's. A check with a ``command`` says in
 ``note`` why it differs. A check with ``paths`` runs on a narrower diff than
 its workflow's filter and says why in ``narrowed``.
 
-The :data:`GUARD_TESTS` are limit-enforcing pytest files that CI runs inside
-the full suite. They are the ones the #5580 audit found failing CI after a
-push the local gate let through: each sits outside the targeted set of some
-diff that breaks it, or runs on a docs-typed PR, which runs no pytest at all.
+The :data:`GUARD_TESTS` are pytest files that CI runs inside the full suite
+and the local targeted set reaches too late or not at all. Most are the
+limit-enforcing ones the #5580 audit found failing CI after a push the local
+gate let through: each sits outside the targeted set of some diff that breaks
+it, or runs on a docs-typed PR, which runs no pytest at all. The rest read
+only files that name no Python symbol, such as a workflow, so no diff over
+them selects the test that checks them.
 """
 
 from __future__ import annotations
@@ -116,12 +119,17 @@ _SITE_NARROWED = (
     "audit did"
 )
 
-#: Limit-enforcing tests the #5580 audit traced CI failures to.
+#: Tests the targeted set reaches too late or not at all: the limit-enforcing
+#: ones the #5580 audit traced CI failures to, plus any whose only inputs are
+#: files no changed Python symbol selects — a workflow or config file.
 GUARD_TESTS = (
     "test/architecture/test_line_length_ratchet.py",
     "test/architecture/test_spec_statement_guard.py",
     "test/architecture/test_spec_kind_ratchet.py",
     "test/architecture/test_vocab_examples_current.py",
+    # Reads `.github/workflows/`, so a workflow-only diff names no Python
+    # symbol and the targeted set selects nothing that checks it (PAD-18-023).
+    "test/ci/test_python_app_test_parts.py",
     "test/core/behaviors/test_btnd07_structure.py",
     "test/metadata/test_agents_md_size_ratchet.py",
     "test/metadata/test_adr_back_edges.py",
@@ -363,13 +371,17 @@ EXCLUSIONS: Mapping[str, str] = {
     "demo-integration.yml": (
         "container demos need Docker and take many minutes; they stay CI's"
     ),
+    "ci-gate.yml": (
+        "waits on GitHub for the other checks on the PR's head commit and "
+        "judges them; locally there are no checks to wait for"
+    ),
     "pr-size-label.yml": (
         "labels the PR from GitHub's diff statistics; nothing to fail locally"
     ),
-    f"{_PY}::test::Run full pytest suite": (
+    f"{_PY}::test::Run this part of the pytest suite": (
         "the full suite runs once before the first push in create-pr "
         "(PAD-18-001); later pushes run the targeted set (PAD-18-002) and "
-        "guard-tests, and CI runs the rest"
+        "guard-tests, and CI runs the rest, one part per matrix leg"
     ),
     "verification-debt-owners.yml::open-owners": (
         "the job runs only off pull_request (its if: excludes the event)"

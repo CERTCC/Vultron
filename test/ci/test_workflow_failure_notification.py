@@ -26,7 +26,12 @@ import pytest
 import yaml
 
 from test.ci._fake_gh import FakeGh, install_fake_gh
-from test.ci._workflows import WORKFLOWS_DIR, triggers, workflow_files
+from test.ci._workflows import (
+    WORKFLOWS_DIR,
+    job_needs,
+    triggers,
+    workflow_files,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 NOTIFY_FAILURE_USES = "./.github/actions/notify-failure"
@@ -195,11 +200,6 @@ NOTIFY_MODES = ("notify", "close")
 _EVENT_GUARD = re.compile(r"github\.event_name\s*(==|!=)\s*'([a-z_]+)'")
 
 
-def _job_needs(job: dict[str, Any]) -> set[str]:
-    needs = job.get("needs", [])
-    return {needs} if isinstance(needs, str) else set(needs)
-
-
 def _event_exclusive(guard_a: str, guard_b: str) -> bool:
     """Return True when two job ``if:`` guards admit disjoint events.
 
@@ -262,7 +262,7 @@ def _aggregate_job_violations(
     }
     if not concurrent:
         return problems
-    missing = sorted(concurrent - _job_needs(job))
+    missing = sorted(concurrent - job_needs(job))
     if missing:
         problems.append(
             f"{label}: reporting job {owner!r} does not `needs:` {missing}"

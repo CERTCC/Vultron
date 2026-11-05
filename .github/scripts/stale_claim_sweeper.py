@@ -34,6 +34,10 @@ import subprocess
 import sys
 from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from gh_cli import gh as _gh, paginated as _paginated  # sibling; see gh_cli
 
 LABEL = "stale-claim"
 EPIC_TYPE = "Epic"
@@ -102,21 +106,6 @@ def is_stale_epic_claim(
     return not any(a is not None and a >= cutoff for a in child_activity)
 
 
-def _gh(*args: str) -> str:
-    return subprocess.run(  # noqa: S603 - fixed argv, no shell
-        ["gh", *args],  # noqa: S607
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-
-
-def _paginated(endpoint: str) -> list[dict[str, object]]:
-    """All items of a REST list endpoint (``--slurp`` yields one list per page)."""
-    pages = json.loads(_gh("api", "--paginate", "--slurp", endpoint))
-    return [item for page in pages for item in page]
-
-
 def _values(items: object, key: str) -> list[str]:
     """``item[key]`` for each dict in a REST list (``login``, ``name``)."""
     if not isinstance(items, list):
@@ -175,11 +164,14 @@ class Sweeper:
     def _last_commit(self, sha: str) -> str | None:
         try:
             return (
+                # Not retried: a deleted branch's commit answers 404 here,
+                # which is an expected answer, not a flake.
                 _gh(
                     "api",
                     f"repos/{self.repo}/commits/{sha}",
                     "--jq",
                     ".commit.committer.date",
+                    retry=False,
                 ).strip()
                 or None
             )
@@ -254,6 +246,8 @@ class Sweeper:
                 f"({SWEEPER_URL.format(repo=self.repo)}) workflow.*",
             ]
         )
+        # Not retried: a retried comment whose first attempt landed posts
+        # twice. The label edit above is idempotent, so it is retried.
         _gh(
             "issue",
             "comment",
@@ -262,6 +256,7 @@ class Sweeper:
             self.repo,
             "--body",
             body,
+            retry=False,
         )
 
     def sweep_issue_claims(self) -> None:

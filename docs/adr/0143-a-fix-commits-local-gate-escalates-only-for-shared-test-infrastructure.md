@@ -12,6 +12,8 @@ informed: []
 stakeholder_type: [project-contributor]
 partially_supersedes:
   - 0126-ci-is-the-full-suite-authority-after-the-first-push.md
+partially_superseded_by:
+  - 0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md
 ---
 
 # A Fix Commit's Local Gate Escalates Only for Shared Test Infrastructure

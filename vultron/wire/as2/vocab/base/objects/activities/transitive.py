@@ -19,6 +19,7 @@ from pydantic import Field, field_validator, model_validator
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.models.ledger_position import EMPTY_LEDGER_LOG_INDEX
+from vultron.core.models.sender_sequence import SenderSequence
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.enums import as_TransitiveActivityType as TA_type
 from vultron.wire.as2.vocab.base.base import VULTRON_PROPERTY_EXTRA
@@ -418,6 +419,18 @@ class as_Reject(as_TransitiveActivity):
     )
     object_: as_ObjectRequiredRef | None = Field(  # type: ignore[assignment]
         default=None, validation_alias="object", serialization_alias="object"
+    )
+    # SYNC-21-015 (ADR-0178): a refusal notice for an activity's
+    # ``senderSequence`` names the number the CASE_MANAGER expects next from
+    # that sender, as the Vultron property ``expectedSenderSequence``, so
+    # the sender resumes at or above it (SYNC-21-007).  Declared on the
+    # base for the reason ``as_Remove`` declares ``termination_cause``: an
+    # inbound notice is reconstructed as a bare ``as_Reject``.
+    expected_sender_sequence: SenderSequence | None = Field(
+        default=None,
+        validation_alias="expectedSenderSequence",
+        serialization_alias="expectedSenderSequence",
+        json_schema_extra=VULTRON_PROPERTY_EXTRA,
     )
 
     @property

@@ -123,3 +123,10 @@ def test_workflow_runs_the_reconcile_script() -> None:
     assert any(
         ".github/scripts/reconcile_needs_planning.py" in r for r in runs
     )
+
+
+def test_a_hung_gh_call_ends_well_before_the_job_cap() -> None:
+    """A hung call fails the job red; the cap would cancel it unreported."""
+    (job,) = load_workflow(_WORKFLOW)["jobs"].values()
+    timeout = float(job["env"]["GH_CALL_TIMEOUT_SECONDS"])
+    assert 2 * timeout <= 60 * job["timeout-minutes"]

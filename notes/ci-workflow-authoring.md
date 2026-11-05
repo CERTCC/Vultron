@@ -4,7 +4,8 @@ status: active
 kind: guidance
 description: >
   Pitfalls when writing or reading GitHub Actions workflows and the YAML that
-  drives them: PyYAML's bare `on:` key, matrix booleans coerced to strings,
+  drives them: PyYAML's bare `on:` key, why a split test job derives its last
+  part from the other parts' claims, matrix booleans coerced to strings,
   `actionlint` and block-scalar indentation, single-quoted apostrophes, the
   mandatory `notify-failure` wiring and its one-job-per-label rule, the
   `timeout-minutes` every job needs and the reusable-workflow exemption, why an
@@ -13,9 +14,11 @@ description: >
   must use the spellings macOS's bash 3.2 understands, why a bot-filed issue
   gets a theme but no Epic parent, why an artifact name needs the run attempt,
   why a GitHub write is retried and a label swap is split, how to read a red CI
-  job correctly, and why a new pull-request step must be mirrored locally or
-  excluded with a reason.
+  job correctly, why a new pull-request step must be mirrored locally or
+  excluded with a reason, and why the `CI gate` must be re-run after a re-run
+  check.
 related_notes:
+  - notes/testing-pitfalls.md
   - notes/demo-ci-invariants.md
   - notes/demo-ci-scenario-coverage.md
   - notes/demo-ci-diagnostics.md
@@ -51,6 +54,27 @@ expression. Or add an `EXCLUSIONS` entry saying why it cannot run locally.
 Without that entry the mirror would silently fall behind CI, the gap it closes
 (PAD-18-022, ADR-0173).
 
+## The `CI gate` Judges Every Other Check, Once
+
+`ci-gate.yml` has no `paths` filter, so its `CI gate` job is the one check a
+ruleset can require (#5942). A path-filtered job never starts on a pull request
+outside its paths, and a ruleset requiring it would wait forever. The gate
+waits for the newest run of every other workflow on the head commit, and passes
+only when each passed or was skipped. So a new pull-request workflow needs no
+ruleset change: the gate judges it.
+
+It is unrelated to the publish workflow's "CI gate" (`deploy_site.yml`,
+ADR-0171), which checks that `main`'s CI is green before a site publish.
+
+An empty set never passes: two workflows run on every pull request, so no
+other check means GitHub has not started them, and the gate ends red at its
+deadline.
+
+The gate judges once per pull-request event, so a re-run or a dispatched run
+on the head commit after it finished is never judged. After any such run,
+re-run the `CI gate` job too before merging. Otherwise a flaky check re-run
+green leaves the gate red, and a green check re-run red leaves it green.
+
 ## Push-to-`main` and Scheduled Workflows MUST Wire `notify-failure`
 
 Any workflow that triggers on `push: branches: [main]` or on `schedule:` MUST end
@@ -81,6 +105,32 @@ other steps, so a capped step still needs a job cap.
 A job that calls a reusable workflow (`uses: ./.github/workflows/...`) cannot
 carry `timeout-minutes`; GitHub rejects the key there. Cap the called
 workflow's jobs instead. `test/metadata/test_gate_ceiling.py` enforces both.
+
+## A Split Test Job Derives Its Last Part From the Others' Claims
+
+The `test` job of `python-app.yml` runs the suite as matrix parts, each over a
+slice of `test/`. Give each named part the paths it claims, and make the last
+part select `test` while ignoring exactly those paths — never a fourth list of
+directories (TB-11-002). Parts that each name their own paths drop a new test
+directory in silence: no part selects it, every part is green, and nothing ran
+it. `test/ci/test_python_app_test_parts.py` compares the ignores with the
+claims, so a claim without its ignore (the directory runs twice) and an ignore
+without its claim (it never runs) both fail.
+
+Keep the parts inside one matrix job: `build` and `notify` reach all of them
+through `needs: test`, while a part promoted to its own job id is one a
+`needs:` list can omit (TB-11-003). Set `fail-fast: false`, or the first red
+part cancels its siblings and a round reports one failure at a time. Rebalance
+the parts from the durations CI reports, not from collected test counts — a
+count is a first estimate, and the slowest part sets the round's length.
+
+Two consequences land outside the workflow. A merge gate that looks for the
+test result by name must match the **prefix** and require every declared part
+(`verify-ci-gate.sh`): an exact name finds nothing, and a prefix with no count
+reads one green part as a whole suite. And no test may assert over the whole
+collection, because each part is its own session —
+[testing-pitfalls](testing-pitfalls.md) § "A Test MUST Not Assert Over the
+Whole Collection".
 
 ## A Find-or-File Lookup Must Not Use the Search Index
 

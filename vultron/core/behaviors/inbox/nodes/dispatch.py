@@ -2,7 +2,7 @@
 """Inbox pipeline dispatch-stage nodes: dispatch and the processed outcome.
 
 :class:`DispatchNode` is the one place a handler's ``HandlerResult`` becomes
-an inbox outcome (HP-01-004, UCORG-05-011); :class:`BuildOutcomeNode` records
+an inbox outcome (HP-01-004, IO-01-006); :class:`BuildOutcomeNode` records
 ``processed`` when every preceding step succeeded. The shared blackboard keys
 and node base class live in :mod:`~vultron.core.behaviors.inbox.nodes.pipeline`.
 
@@ -34,6 +34,7 @@ from vultron.core.behaviors.inbox.models import (
 from vultron.core.behaviors.inbox.nodes.pipeline import (
     KEY_CONTEXT_ID,
     KEY_DISPATCH,
+    KEY_DISPOSITION,
     KEY_EVENT,
     KEY_OUTCOME_STATUS,
     KEY_QUEUE,
@@ -54,7 +55,7 @@ from vultron.core.models.use_case_result import (
 )
 
 # The only place a handler's verdict becomes an inbox outcome (HP-01-004,
-# UCORG-05-011). Many-to-one: a correct no-op is still ``processed``.
+# IO-01-006). Many-to-one: a correct no-op is still ``processed``.
 _OUTCOME_FOR_DISPOSITION: dict[HandlerDisposition, InboxOutcomeStatus] = {
     HandlerDisposition.APPLIED: InboxOutcomeStatus.PROCESSED,
     HandlerDisposition.SKIPPED: InboxOutcomeStatus.PROCESSED,
@@ -77,7 +78,7 @@ def answers_with_internal_error_fault(event: VultronEvent) -> bool:
 class DispatchNode(_InboxNodeWithPorts):
     """Step 6: dispatch the domain event and map the handler's verdict.
 
-    The returned ``HandlerResult`` decides the outcome (UCORG-05-011), not the
+    The returned ``HandlerResult`` decides the outcome (IO-01-006), not the
     absence of an exception: ``APPLIED``/``SKIPPED`` return SUCCESS so
     :class:`BuildOutcomeNode` records ``processed``; ``DEFERRED`` records
     ``deferred`` and ``REFUSED`` records ``rejected`` with the handler's
@@ -102,6 +103,7 @@ class DispatchNode(_InboxNodeWithPorts):
     OUTPUT_PORTS: dict[str, PortInformation] = {
         **_InboxNodeWithPorts.OUTPUT_PORTS,
         KEY_UNHANDLED: PortInformation(data_type=bool, required=False),
+        KEY_DISPOSITION: PortInformation(data_type=object, required=False),
     }
 
     @classmethod
@@ -112,6 +114,7 @@ class DispatchNode(_InboxNodeWithPorts):
             KEY_CONTEXT_ID: f"/{KEY_CONTEXT_ID}",
             KEY_QUEUE: f"/{KEY_QUEUE}",
             KEY_UNHANDLED: f"/{KEY_UNHANDLED}",
+            KEY_DISPOSITION: f"/{KEY_DISPOSITION}",
         }
 
     def _replay_after_bootstrap(self, event: VultronEvent) -> None:
@@ -233,6 +236,15 @@ class DispatchNode(_InboxNodeWithPorts):
             event.activity_id,
             result.disposition,
         )
+
+        # The verdict itself, for the outcome stage that maps it onto the
+        # record's final stage (ADR-0154).  Published here because the
+        # ``HandlerResult`` is the only channel from the handler
+        # (UCORG-05-010), and only this node reads it: no stage reaches back
+        # into another's memory for it.  Nothing is published when the
+        # dispatch raised or returned no verdict, which is how the outcome
+        # stage tells an internal error from a refusal.
+        self._set_output(KEY_DISPOSITION, result.disposition)
 
         status = _OUTCOME_FOR_DISPOSITION[result.disposition]
         if status is InboxOutcomeStatus.REJECTED:

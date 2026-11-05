@@ -36,6 +36,7 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.services.received_activity import sealed_body_of
 
 
 def archived_redelivery(
@@ -54,7 +55,7 @@ def archived_redelivery(
         f"intake archived no {activity_id!r}"
     )
     ingress = FastAPIIngressAdapter(dl)
-    parsed = ingress.parse(json.loads(record.received_body))
+    parsed = ingress.parse(json.loads(sealed_body_of(record)))
     assert parsed is not None, f"{activity_id!r} could not be parsed"
     event = cast(
         AnyReceivedEvent, prepare_for_dispatch(ingress.rehydrate(parsed))
