@@ -19,8 +19,11 @@ description: >
   test layout rules for module splits, why a two-sided count pin
   races concurrent PRs (keep a per-item record and a PR-only growth guard
   instead), why a schema change that the merge base fails breaks every growth
-  guard, when to delete a migration check, and why a child Python process
-  must get its environment from `child_env()`.
+  guard, when to delete a migration check, why a child Python process
+  must get its environment from `child_env()`, why a test that spawns children
+  sizes its fan-out from the cgroup rather than the host's cores, and why a
+  harness that fails for the environment — a filesystem that refuses the
+  fixture, a bash the construct needs — hides real failures.
   `test/AGENTS.md` keeps the short index and the rules you need on every run.
 related_specs:
   - specs/testability.yaml
@@ -310,6 +313,47 @@ the script's directory, so the other checkout's `vultron` wins and a module it
 lacks fails to import (#5456). A devcontainer built before #5571 exports
 `PYTHONPATH=/app` ([devcontainer-tooling](devcontainer-tooling.md) § "The Image
 Exports No `PYTHONPATH`; Rebuild if `$PYTHONPATH` Is `/app`").
+
+### A Test That Spawns Children Sizes Them From The Cgroup, Not The Host
+
+A test that runs several child processes at once MUST take its fan-out from
+`child_process_budget()` (`test/support/xdist_workers.py`), not from
+`os.cpu_count()`. The budget is the memory one xdist worker is given
+(`WORKER_MEMORY_BYTES / CHILD_MEMORY_BYTES`), capped by `worker_count()` — the
+same cgroup reading `-n auto` is sized from (§ "`nproc` in a Worktree Slot").
+Sizing from the core count puts as many children in the container as the *host*
+has cores however little of it the slot allows, beside workers already sized to
+the slot; the OOM killer then takes a worker, which xdist reports as a crash of
+whatever test that worker happened to hold (#5184).
+
+A per-test `xdist_group` is not the lever here: it co-locates tests on one
+worker, it does not stop the other workers spending the container at the same
+time. When the symptom is a wall-clock trip rather than a crash, look for a
+*serial* bottleneck inside the test before widening its ceiling — one
+brand-new interpreter at a time cost `test_every_module_imports_fresh.py` 88 of
+its 110 seconds, and batching that route under the same bound took the whole
+test to 47s.
+
+### A Harness That Fails For The Environment Hides Real Failures
+
+A gate that is red for a reason the diff cannot cause trains a contributor to
+read past red, so the next real failure is read past too. Two shapes of it:
+
+- **A fixture the filesystem refuses.** Attempt the write and `pytest.skip` on
+  `OSError`; do not skip on `sys.platform`. APFS rejects a file name that is
+  not valid UTF-8, so `test_changed_files_keeps_a_non_utf8_name` errored in
+  setup on macOS (#5449). The property under test belongs to the filesystem, so
+  the refusal is the condition: a Linux host on a UTF-8-enforcing mount skips
+  for the same reason, and a filesystem that later accepts the name is still
+  covered. Exercise the skip arm with a refusal every host raises (a missing
+  parent directory), or CI never runs it.
+- **A shell construct the host's bash lacks.** macOS ships bash 3.2, so a
+  bash 4 builtin exits 127 there while passing on the Linux runners —
+  `ensure-issue-type.sh` used `mapfile` and failed three `test/ci/` tests
+  (#5698). `test/ci/test_shell_script_portability.py` scans every tracked
+  `*.sh` for the constructs that have bitten;
+  [ci-workflow-authoring](ci-workflow-authoring.md) § "A Script Runs On The
+  Host's bash, Which May Be 3.2" carries the portable spellings.
 
 ### Store Scoping
 
