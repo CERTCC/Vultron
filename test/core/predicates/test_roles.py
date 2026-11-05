@@ -18,7 +18,6 @@
 import pytest
 
 from vultron.core.predicates.roles import (
-    has_case_manager_role,
     has_case_owner_role,
     has_cna_role,
     has_deployer_role,
@@ -86,23 +85,6 @@ class TestHasCaseOwnerRole:
 
     def test_empty_list(self):
         assert has_case_owner_role([]) is False
-
-
-class TestHasCaseManagerRole:
-    def test_case_manager_only(self):
-        assert has_case_manager_role([CVDRole.CASE_MANAGER]) is True
-
-    def test_case_manager_plus_vendor(self):
-        assert (
-            has_case_manager_role([CVDRole.CASE_MANAGER, CVDRole.VENDOR])
-            is True
-        )
-
-    def test_vendor_only(self):
-        assert has_case_manager_role([CVDRole.VENDOR]) is False
-
-    def test_empty_list(self):
-        assert has_case_manager_role([]) is False
 
 
 class TestHasCnaRole:

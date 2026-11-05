@@ -35,6 +35,9 @@ stakeholder_type: [project-contributor]
 | pathspec | >=0.12.1 | Glob matching for docs page-schema and What's New tooling | `vultron/metadata/docs/page_schema/working_record.py`, `vultron/metadata/docs/whats_new.py` |
 | isodate | >=0.7.2 | ISO 8601 duration/date parsing | `pyproject.toml` |
 | click | >=8.4.2 | CLI entry points | `vultron/demo/cli/` |
+| cryptography | >=50.0.2 | Ed25519 signing and verification of object integrity proofs (ADR-0164); imported only by the signing module | `vultron/wire/as2/signing.py` |
+| rfc8785 | >=0.1.4 | RFC 8785 JSON canonicalization for `eddsa-jcs-2022` proofs | `vultron/wire/as2/signing.py` |
+| base58 | >=2.1.1 | Multibase base58btc for `Multikey` values and `proofValue` | `vultron/wire/as2/signing.py` |
 | httpx2 | unpinned (`uv.lock` resolves the version) | Async HTTP client for outbound delivery, imported as `httpx` | `vultron/adapters/driven/http_delivery.py` |
 | mkdocs + mkdocs-material | >=1.6.1 / >=9.7.7 | Documentation site generation | `pyproject.toml`, `mkdocs.yml` |
 | mkdocs plugins | `mkdocstrings`, `mkdocstrings-python`, `griffelib`, `mkdocs-autorefs`, `mkdocs-include-markdown-plugin`, `mkdocs-redirects`, `mkdocs-print-site-plugin`, `mkdocs-material-extensions`, `markdown-exec` | API docs, include fragments, redirects, executable blocks | `pyproject.toml`, `mkdocs.yml` |

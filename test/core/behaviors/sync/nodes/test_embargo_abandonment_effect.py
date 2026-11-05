@@ -245,6 +245,64 @@ def test_a_reject_is_the_abandonment_only_from_the_case_manager(
     )
 
 
+@pytest.mark.spec("MSM-07-016")
+@pytest.mark.spec("OID-01-006")
+def test_a_reject_is_the_abandonment_on_a_slash_spelled_roster(
+    bridge, datalayer
+):
+    """The manager's own Reject is its abandonment however the roster spells it.
+
+    ``CaseParticipant.attributed_to`` is an id a peer wrote *inside* an
+    activity, which the extractor does not normalise, and the field is a plain
+    ``NonEmptyString``, so a trailing-slash spelling reaches the store
+    (OID-01-007).  The payload's ``actor`` arrives normalised
+    (:func:`~vultron.core.predicates.addressing.snapshot_actor_id`), so the
+    two spellings meet here and only a tolerant comparison matches them.
+
+    Asking the shared predicate rather than comparing the resolved id is what
+    admits it (ARCH-24-008): the exact comparison this replaced read the
+    roster's spelling literally, sent the manager's own abandonment to the
+    rejection slot, and recorded one participant's DECLINED consent in place
+    of cancelling the proposal (HP-01-005).
+    """
+    for embargo_id in (FIRST_ID, SECOND_ID):
+        datalayer.create(
+            EmbargoEvent(
+                id_=embargo_id,
+                context=CASE_ID,
+                end_time=now_utc() + timedelta(days=30),
+            )
+        )
+    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    propose(case, FIRST_ID, SECOND_ID)
+    _participant(
+        datalayer,
+        case,
+        f"{MANAGER_ACTOR_ID}/",
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    datalayer.save(case)
+
+    assert (
+        _matches(
+            bridge,
+            IsEmbargoAbandonmentEventNode(name="IsAbandonment"),
+            _REJECT,
+            MANAGER_ACTOR_ID,
+        )
+        is Status.SUCCESS
+    )
+    assert (
+        _matches(
+            bridge,
+            IsRejectEmbargoInviteEventNode(name="IsRejection"),
+            _REJECT,
+            MANAGER_ACTOR_ID,
+        )
+        is Status.FAILURE
+    )
+
+
 def test_the_undo_slot_matches_only_an_undo(bridge, datalayer, proposed_case):
     node = IsUndoEmbargoInviteEventNode
     assert _matches(bridge, node(name="a"), _UNDO, MANAGER_ACTOR_ID) is (

@@ -20,6 +20,17 @@ independently testable with in-memory objects.  BT nodes and service methods
 that need to enforce a role-membership rule MUST call one of these functions
 rather than writing the check inline.
 
+There is no predicate here for ``CVDRole.CASE_MANAGER``.  Whether an actor is
+a case's authority is answered only by
+:func:`~vultron.core.participants.role_predicate.has_role`, which takes that
+one role from the single role-authority resolver (ARCH-24-008).  A role-list
+predicate cannot: a list says "this record holds the role", while authority
+is one answer per case, so on a roster that records the role twice — the
+window a role delegation opens (CM-33) — the two disagree and a tree admitted
+on one answer skips the effect gated on the other (HP-01-005).  The
+``has_case_manager_role`` that used to sit beside its siblings is deleted for
+that reason, not merely unused (#5921).
+
 Import constraints
 ------------------
 - This module MAY import from ``vultron.core.states`` (state-value types).
@@ -96,18 +107,6 @@ def has_case_owner_role(roles: list[CVDRole]) -> bool:
         ``True`` if ``CVDRole.CASE_OWNER`` is in *roles*; ``False`` otherwise.
     """
     return CVDRole.CASE_OWNER in roles
-
-
-def has_case_manager_role(roles: list[CVDRole]) -> bool:
-    """Return ``True`` when ``CVDRole.CASE_MANAGER`` is present in *roles*.
-
-    Args:
-        roles: The participant's current role list.
-
-    Returns:
-        ``True`` if ``CVDRole.CASE_MANAGER`` is in *roles*; ``False`` otherwise.
-    """
-    return CVDRole.CASE_MANAGER in roles
 
 
 def has_cna_role(roles: list[CVDRole]) -> bool:
@@ -200,7 +199,6 @@ __all__ = [
     "has_vendor_role",
     "has_deployer_role",
     "has_case_owner_role",
-    "has_case_manager_role",
     "has_cna_role",
     "is_sole_observer",
     "vendor_vf_state_is_valid",
