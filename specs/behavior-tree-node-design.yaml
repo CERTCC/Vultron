@@ -59,7 +59,8 @@ groups:
       A constructor parameter makes each such value an explicit input. The caller that
       builds the tree then decides the value, so one node class serves every actor and
       every case. A constructor cannot carry a value that does not exist when the tree
-      is built, such as the case that a received tree finds from its report.
+      is built, such as a case that an earlier node in the same tick creates or
+      resolves from the activity.
     relationships:
     - rel_type: implements
       spec_id: BTND-01-001
@@ -82,13 +83,16 @@ groups:
     verification_debt: '#2574'
     statement: >-
       Some trees find a node's input value only at tick time. Such a node MUST read
-      that value from a declared blackboard input port in every tree that uses it.
+      that value from a declared blackboard input port in every tree that uses it,
+      and MUST NOT also take it as a constructor parameter.
     rationale: >-
       A declared port keeps the input visible to the tree and its tests, as
       BTND-01-005 requires. One channel per node keeps every tree that uses the node
       alike: a tree that knows the value at build time seeds the port, and a tree
-      that finds it at tick time publishes it from an earlier node. BTND-10-005
-      applies this rule to the ParticipantStatus write node.
+      that finds it at tick time publishes it from an earlier node. A node that
+      takes the value from its constructor and falls back to the port lets a stale
+      port value from one execution decide another. BTND-10-005 applies this rule to
+      the ParticipantStatus write node.
     relationships:
     - rel_type: refines
       spec_id: BTND-01-005

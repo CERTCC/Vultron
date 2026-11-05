@@ -468,11 +468,18 @@ the result. Pre-build the sub-node in `__init__` and run it via
 `BTBridge.execute_with_setup(self._status_node, **context)` (BTND-10-004);
 enforced by `test/architecture/test_participant_status_validation.py`.
 
-## `CreateParticipantStatusNode` Accepts No `case_id` Constructor Argument
+## A Tick-Time `case_id` Comes Only Through the Port
 
-The case id comes only through `CaseIdInputPortMixin`: build-time callers seed it
-with `execute_with_setup(node, case_id=...)`, received trees let the node read
-`/case_id` at tick time. The subject actor is an explicit constructor argument,
+A node that some tree hands its case only at tick time reads `case_id` from its
+declared input port in every tree, never also from a constructor argument
+(BTND-01-006): a constructor value with a port fallback is the dual channel that
+let a stale `/case_id` decide a later delivery above. Build-time callers seed the
+port with `execute_with_setup(node, case_id=...)`; a value every tree knows at
+build time stays a constructor argument (BTND-01-004). `ReceivedPathNode`,
+`CheckIsCaseManagerNode` and four other nodes still take both until #5907.
+
+`CreateParticipantStatusNode` is the worked case: `case_id` comes only through
+`CaseIdInputPortMixin`, and the subject actor is an explicit constructor argument,
 never a fallback to the blackboard `actor_id`, which is the executing actor
 (BTND-10-005, ADR-0089). Both are enforced by
 `test/architecture/test_participant_status_validation.py`.
