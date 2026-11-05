@@ -94,6 +94,9 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: MV-01-005
+    see_also:
+    - spec_id: MV-01-001
+      reason: 'context for the reader'
   - id: MV-01-007
     priority: MUST_NOT
     kind: project
@@ -344,6 +347,9 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: AKM-05-003
+    see_also:
+    - spec_id: AKM-05-004
+      reason: 'context for the reader'
   - id: MV-09-002
     priority: MUST
     kind: project
@@ -718,6 +724,11 @@ groups:
     adr:
     - ADR-0099
     - ADR-0175
+    see_also:
+    - spec_id: CS-14-001
+      reason: 'context for the reader'
+    - spec_id: CS-14-002
+      reason: 'context for the reader'
   - id: MV-11-007
     priority: MUST_NOT
     kind: project
@@ -833,6 +844,9 @@ groups:
       spec_id: MV-11-003
     adr:
     - ADR-0099
+    see_also:
+    - spec_id: VM-08-002
+      reason: 'context for the reader'
   - id: MV-11-004
     priority: MUST_NOT
     kind: architecture

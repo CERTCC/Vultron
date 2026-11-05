@@ -122,6 +122,9 @@ groups:
       sub-group. Derives from ADR-0009 (hexagonal).
     adr:
     - ADR-0009
+    see_also:
+    - spec_id: DC-01-001
+      reason: 'context for the reader'
   - id: ARCH-01-009
     priority: MUST
     kind: project
@@ -386,6 +389,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-25-004
+    see_also:
+    - spec_id: ARCH-25-003
+      reason: 'context for the reader'
   - id: ARCH-12-002
     priority: MUST
     kind: project
@@ -1495,6 +1501,9 @@ groups:
       spec_id: DL-05-001
     adr:
     - ADR-0099
+    see_also:
+    - spec_id: VM-06-007
+      reason: 'context for the reader'
 - id: ARCH-21
   title: Post-Construction Mutation Safety
   description: >-
@@ -1575,6 +1584,9 @@ groups:
       The `RecursionError` then hides every real type failure.
     adr:
     - ADR-0064
+    see_also:
+    - spec_id: ARCH-21-003
+      reason: 'context for the reader'
   - id: ARCH-21-006
     priority: MUST
     kind: project

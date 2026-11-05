@@ -447,6 +447,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: AKM-03-001
+    see_also:
+    - spec_id: AKM-03-002
+      reason: 'context for the reader'
 - id: OX-08
   title: Outbox Addressing
   specs:

@@ -741,6 +741,9 @@ groups:
     rationale: >-
       Extracting repeated patterns into a shared subtree reduces duplication and ensures fixes
       and improvements apply consistently across all use sites.
+    see_also:
+    - spec_id: BTND-02-001
+      reason: 'context for the reader'
 - id: BTND-07
   title: BT Node Module Organization
   specs:

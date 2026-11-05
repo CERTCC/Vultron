@@ -183,6 +183,9 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: SR-01-007
+    see_also:
+    - spec_id: HP-01-001
+      reason: 'an example ID'
 - id: SR-02
   title: Pydantic Schema
   specs:
@@ -379,6 +382,11 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: SR-01-003
+    see_also:
+    - spec_id: SR-02-022
+      reason: >-
+        the "so that" clause explains why the omission works; not declaring `version`
+        needs nothing from SR-02-022
   - id: SR-02-014
     priority: MUST
     kind: project
@@ -843,6 +851,9 @@ groups:
       coverage report and the coverage guard read this marker. The test configuration
       changes warnings into errors, so an unregistered marker causes a collection error
       for each test module that uses it.
+    see_also:
+    - spec_id: SR-01-001
+      reason: 'an example marker argument'
   - id: SR-05-002
     priority: MUST
     kind: project
@@ -2779,6 +2790,19 @@ groups:
       spec_id: SR-13-016
     tags:
     - tooling
+    see_also:
+    - spec_id: SR-13-001
+      reason: >-
+        an end of the range the test compares against; the duty to have the test does
+        not change when a definition does
+    - spec_id: SR-13-011
+      reason: >-
+        an end of the range the test compares against; the duty to have the test does
+        not change when a definition does
+    - spec_id: SR-13-017
+      reason: >-
+        the last definition the test compares against; the duty to have the test does
+        not change when a definition does
   - id: SR-13-017
     priority: MUST
     kind: process

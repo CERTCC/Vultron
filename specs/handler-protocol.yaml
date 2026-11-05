@@ -248,6 +248,13 @@ groups:
       spec_id: HP-01-010
     - rel_type: constrains
       spec_id: HP-10-001
+    see_also:
+    - spec_id: HP-09-001
+      reason: 'context for the reader'
+    - spec_id: HP-09-002
+      reason: 'context for the reader'
+    - spec_id: OX-08-001
+      reason: 'context for the reader'
   - id: HP-01-017
     priority: MUST_NOT
     kind: project
@@ -300,6 +307,9 @@ groups:
       spec_id: HP-00-001
     adr:
     - ADR-0115
+    see_also:
+    - spec_id: BT-17-001
+      reason: 'context for the reader'
   - id: HP-01-018
     priority: MUST
     kind: protocol
@@ -1307,6 +1317,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: CLP-10-005
+    see_also:
+    - spec_id: BT-15-001
+      reason: 'context for the reader'
   - id: HP-08-003
     priority: MUST_NOT
     kind: project

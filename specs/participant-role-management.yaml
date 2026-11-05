@@ -206,6 +206,9 @@ groups:
       constructs successfully and `participant.roles` returns the initial role list.
     tags:
     - protocol
+    see_also:
+    - spec_id: PRM-03-001
+      reason: 'context for the reader'
   - id: PRM-03-003
     priority: MUST_NOT
     kind: project
@@ -357,6 +360,9 @@ groups:
     - protocol
     stories:
     - story_2022_062
+    see_also:
+    - spec_id: CM-11-006
+      reason: 'context for the reader'
   - id: PRM-06-002
     priority: MUST_NOT
     kind: protocol
@@ -391,6 +397,11 @@ groups:
     - protocol
     stories:
     - story_2022_062
+    see_also:
+    - spec_id: CM-11-006
+      reason: 'context for the reader'
+    - spec_id: CM-11-009
+      reason: 'context for the reader'
   - id: PRM-06-003
     priority: MAY
     kind: protocol

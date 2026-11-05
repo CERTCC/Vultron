@@ -767,6 +767,9 @@ groups:
       the RK exception reaches the reporter alone once a case exists.
     stories:
     - story_2026_059
+    see_also:
+    - spec_id: RMB-08-005
+      reason: 'context for the reader'
   - id: PCR-08-002
     priority: MUST_NOT
     kind: protocol
@@ -830,6 +833,9 @@ groups:
       The ledger records what the CASE_MANAGER processed. An entry that a script or
       client creates directly records no processed activity, skips the CASE_MANAGER's
       checks, and lets a demo pass when the protocol path it shows does not work.
+    see_also:
+    - spec_id: TRIG-10-004
+      reason: 'context for the reader'
   - id: PCR-08-013
     priority: MUST
     kind: protocol
