@@ -319,13 +319,15 @@ commit every fix from Phases 3 and 3b first.
 
 ```bash
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
-timeout -k 30 3600 uv run prepush-ci-mirror --base main > "$logs-mirror.txt" 2>&1; rc=$?; cat "$logs-mirror.txt"; echo "exit: $rc"; (exit $rc)
+timeout -k 30 5400 uv run prepush-ci-mirror --base main > "$logs-mirror.txt" 2>&1; rc=$?; cat "$logs-mirror.txt"; echo "exit: $rc"; (exit $rc)
 ```
 
 Do not wrap the mirror in `run-heavy.py`. Its heavy checks (pyright, the two
-pytest sets, the site build) each take a per-host heavy-check slot themselves,
-and wait while every slot is busy; the 3600-second ceiling leaves room for that
-wait (#5947).
+pytest sets, the site build) each take a per-host heavy-check slot themselves:
+each waits up to 1200 s for a slot, then runs under its own `--timeout`
+(1200 s). The 5400-second ceiling is a backstop above that, for a mirror whose
+heavy checks all queue; a SIGTERM from it stops every running check, so none
+keeps its slot (#5947).
 
 Read the `exit:` line. `0` lets the push go. `1` means a `FAIL`, `NO-VERDICT`
 or `UNAVAILABLE` line: fix each `FAIL` (its `log:` path holds the output), commit,

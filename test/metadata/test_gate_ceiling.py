@@ -233,6 +233,15 @@ def test_discovery_finds_the_skills_with_heavy_commands() -> None:
     } <= found
 
 
+@pytest.mark.parametrize("skill", ["build-docs", "run-linters", "pr-execute"])
+def test_the_heavy_command_scan_sees_each_skills_heavy_commands(
+    skill: str,
+) -> None:
+    # A code form _code_lines missed would pass the scan having read nothing.
+    text = (_REPO_ROOT / ".agents/skills" / skill / "SKILL.md").read_text()
+    assert any(_HEAVY_COMMAND.search(line) for line in _code_lines(text))
+
+
 @pytest.mark.parametrize(
     "rel_path",
     [str(p.relative_to(_REPO_ROOT)) for p in _skill_files()],

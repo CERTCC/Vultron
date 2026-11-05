@@ -59,7 +59,10 @@ WAIT_EXPIRED = 75
 USAGE_ERROR = 2
 
 POLL_SECONDS = 0.5
-_FORWARDED = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
+#: Signals passed on to the command. SIGINT is not among them: a terminal's
+#: Ctrl-C already reaches the command, in the same process group, so the
+#: wrapper only waits for it to end.
+_FORWARDED = (signal.SIGTERM, signal.SIGHUP)
 
 USAGE = "usage: run-heavy.py [--wait SECONDS] [--] COMMAND..."
 
@@ -102,17 +105,31 @@ def _slot_path(lock_dir: Path, index: int) -> Path:
 
 
 def try_acquire(lock_dir: Path, slots: int) -> tuple[int, int] | None:
-    """Lock the first free slot: ``(fd, index)``, or ``None`` when all are taken."""
+    """Lock the first free slot: ``(fd, index)``, or ``None`` when all are taken.
+
+    A slot file that cannot be opened (left root-owned by a ``sudo`` run, say)
+    is skipped; only when none can be opened is the directory unusable, and
+    the last error is raised.
+    """
+    error: OSError | None = None
+    opened = 0
     for index in range(slots):
-        fd = os.open(
-            _slot_path(lock_dir, index), os.O_RDWR | os.O_CREAT, 0o666
-        )
+        try:
+            fd = os.open(
+                _slot_path(lock_dir, index), os.O_RDWR | os.O_CREAT, 0o666
+            )
+        except OSError as exc:
+            error = exc
+            continue
+        opened += 1
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             os.close(fd)
             continue
         return fd, index
+    if not opened and error is not None:
+        raise error
     return None
 
 
@@ -165,19 +182,35 @@ def _record_holder(lock_dir: Path, index: int, command: Sequence[str]) -> None:
 
 
 def run(command: Sequence[str], env: dict[str, str]) -> int:
-    """Run *command*, forwarding termination signals; its shell-style status."""
-    try:
-        proc = subprocess.Popen(list(command), env=env)
-    except FileNotFoundError:
-        _say(f"command not found: {command[0]}")
-        return 127
+    """Run *command*, forwarding termination signals; its shell-style status.
+
+    The handlers go in before the command starts, so a signal that arrives
+    while it is starting is held and passed on once it exists, rather than
+    killing the wrapper and leaving the command running without a slot.
+    """
+    pending: list[int] = []
+    procs: list[subprocess.Popen[bytes]] = []
 
     def forward(signum: int, _frame: FrameType | None) -> None:
-        proc.send_signal(signum)
+        if procs:
+            procs[0].send_signal(signum)
+        else:
+            pending.append(signum)
 
     for signum in _FORWARDED:
         signal.signal(signum, forward)
-    code = proc.wait()
+    signal.signal(signal.SIGINT, lambda _signum, _frame: None)
+    try:
+        procs.append(subprocess.Popen(list(command), env=env))
+    except FileNotFoundError:
+        _say(f"command not found: {command[0]}")
+        return 127
+    except PermissionError:
+        _say(f"command not executable: {command[0]}")
+        return 126
+    for signum in pending:
+        procs[0].send_signal(signum)
+    code = procs[0].wait()
     return 128 - code if code < 0 else code
 
 

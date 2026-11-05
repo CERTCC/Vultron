@@ -484,7 +484,7 @@ committed tree, with the PR number so the checks that read the PR run too:
 
 ```bash
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
-timeout -k 30 3600 uv run prepush-ci-mirror --base <base_ref> --pr <number> > "$logs-mirror.txt" 2>&1; rc=$?; cat "$logs-mirror.txt"; echo "exit: $rc"; (exit $rc)
+timeout -k 30 5400 uv run prepush-ci-mirror --base <base_ref> --pr <number> > "$logs-mirror.txt" 2>&1; rc=$?; cat "$logs-mirror.txt"; echo "exit: $rc"; (exit $rc)
 ```
 
 Act on the `exit:` line exactly as `create-pr` Phase 3c describes. A `FAIL`

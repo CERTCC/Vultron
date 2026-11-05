@@ -253,7 +253,7 @@ the artifact is written.
    - Required fields: `title`, `status`
    - If `status: superseded`, `superseded_by` must be a non-empty scalar
 3. **Docs link integrity**: If any `docs/` file was modified, flag need to run
-   `uv run mkdocs build --strict`.
+   the `build-docs` skill.
 4. **Silent contradiction**: If the PR's behavior change conflicts with an
    `active` note without updating it: **FAIL**.
 5. **Docs currency (PD-03-009)** — for every implementation or bug-fix PR,

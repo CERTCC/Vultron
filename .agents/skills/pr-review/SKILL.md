@@ -160,7 +160,7 @@ against the branch diff to surface bugs, logic errors, and security issues.
    - If `status: superseded`, `superseded_by` must be a non-empty scalar
    - If status is `superseded`, file should have been moved to `archived_notes/`
 3. **Docs link integrity**: If any `docs/` file was modified, flag the need
-   to run `uv run mkdocs build --strict` (or confirm CI did so).
+   to run the `build-docs` skill (or confirm CI did so).
 4. **Silent contradiction**: If the PR's behavior change conflicts with an
    `active` note's guidance without updating that note: **FAIL**.
 5. **Docs currency (PD-03-009)**: whether or not the diff touches `docs/`,

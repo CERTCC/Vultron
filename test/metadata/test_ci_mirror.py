@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import fcntl
 import os
+import shutil
+import signal
 import subprocess
 import tempfile
 import threading
 import time
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -35,6 +36,7 @@ from vultron.metadata.planning.ci_mirror._run import (
     STEP_SHELL,
     CheckStatus,
     PlannedCheck,
+    heavy_ceiling,
     locked,
     plan,
     run_checks,
@@ -667,6 +669,37 @@ def test_logs_go_to_the_given_directory(tmp_path: Path):
 _LOCK_PREFIX = (*HEAVY_LOCK, "--wait", str(LOCK_WAIT), "--")
 
 
+def _with_timeout(seconds: int) -> tuple[str, ...]:
+    return ("timeout", "-k", "30", str(seconds))
+
+
+def _found(tool: str) -> str | None:
+    return "/usr/bin/" + tool
+
+
+def _missing(_tool: str) -> str | None:
+    return None
+
+
+@pytest.fixture(autouse=True)
+def _mirror_not_stopping():
+    # stop_running() sets a process-wide flag; no test may leak it.
+    _run._STOPPING.clear()
+    yield
+    _run._STOPPING.clear()
+
+
+@pytest.fixture
+def slots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A private slot directory with one slot, so no test takes a real one."""
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    (locks / "slots").write_text("1\n")
+    monkeypatch.setenv("VULTRON_HEAVY_LOCK_DIR", str(locks))
+    monkeypatch.delenv("VULTRON_HEAVY_LOCK_HELD", raising=False)
+    return locks
+
+
 def test_the_heavy_checks_are_the_ones_that_load_the_container():
     # Named, not counted: each starts many processes or uses much memory.
     heavy = {c.id for c in MIRROR_CHECKS if c.heavy}
@@ -674,69 +707,71 @@ def test_the_heavy_checks_are_the_ones_that_load_the_container():
     assert heavy == {"pyright", "guard-tests", "spec-corpus", "site-build"}
 
 
-def test_a_heavy_check_runs_under_the_lock():
-    check = MirrorCheck("big", _KEY, heavy=True)
+def test_a_heavy_check_takes_a_slot_then_its_own_timeout():
+    argv = (*STEP_SHELL, "make lint")
 
-    planned = _plan(check)
+    assert locked(argv, 900, which=_found) == (
+        *_LOCK_PREFIX,
+        *_with_timeout(900),
+        *argv,
+    )
 
-    assert planned.argv == (*_LOCK_PREFIX, *STEP_SHELL, "make lint")
+
+def test_without_a_timeout_binary_only_the_backstop_bounds_the_run():
+    assert locked(("uv", "run", "pytest"), 900, which=_missing) == (
+        *_LOCK_PREFIX,
+        *("uv", "run", "pytest"),
+    )
 
 
-def test_a_light_check_takes_no_lock():
+def test_a_light_check_plans_no_slot():
     planned = _plan(MirrorCheck("lint", _KEY))
 
     assert planned.argv is not None
     assert HEAVY_LOCK_SCRIPT not in planned.argv
 
 
-def test_a_memoized_heavy_check_takes_the_lock_inside_its_memo():
+def test_a_memoized_heavy_check_takes_its_slot_inside_its_memo():
     # A memo hit skips without waiting behind another slot's suite.
     [pyright] = [c for c in MIRROR_CHECKS if c.id == "pyright"]
-    context = CheckContext(
-        {"base": "main", "pr": ""}, ("src/a.py",), Path(".")
-    )
+    assert not callable(pyright.command) and pyright.command is not None
 
-    # Without its CI step, so the plan reads the registry command alone.
-    [planned] = plan(
-        [replace(pyright, step=None)], {}, {}, context, base="main"
-    )
+    argv = locked(pyright.command, 900, which=_found)
 
-    assert planned.argv is not None
-    cut = planned.argv.index("--") + 1
-    assert planned.argv[:2] == ("bash", RUN_IF_CHANGED)
-    assert planned.argv[cut:] == (*_LOCK_PREFIX, "uv", "run", "pyright")
-
-
-def test_locking_a_command_with_no_memo_wraps_all_of_it():
-    assert locked(("uv", "run", "pytest")) == (
+    cut = argv.index("--") + 1
+    assert argv[:2] == ("bash", RUN_IF_CHANGED)
+    assert argv[cut:] == (
         *_LOCK_PREFIX,
-        *("uv", "run", "pytest"),
+        *_with_timeout(900),
+        *("uv", "run", "pyright"),
     )
 
 
-def _heavy(check_id: str, argv: tuple[str, ...]) -> PlannedCheck:
-    check = MirrorCheck(check_id, None, command=("x",), note="n", heavy=True)
+def test_the_backstop_covers_the_wait_and_the_run():
+    assert heavy_ceiling(900) > LOCK_WAIT + 900
+
+
+def _heavy(
+    check_id: str, argv: tuple[str, ...], group: str | None = None
+) -> PlannedCheck:
+    check = MirrorCheck(
+        check_id, None, command=("x",), note="n", heavy=True, group=group
+    )
     return PlannedCheck(check, argv, None, {}, None)
 
 
 def test_a_heavy_check_that_never_gets_a_slot_has_no_verdict(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, slots: Path, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setattr(_run, "LOCK_WAIT", 1)
-    locks = tmp_path / "locks"
-    locks.mkdir()
-    (locks / "slots").write_text("1\n")
     marker = tmp_path / "ran"
-    env = {**os.environ, "VULTRON_HEAVY_LOCK_DIR": str(locks)}
-    env.pop("VULTRON_HEAVY_LOCK_HELD", None)
 
-    with (locks / "heavy-0.lock").open("a") as held:
+    with (slots / "heavy-0.lock").open("a") as held:
         fcntl.flock(held, fcntl.LOCK_EX)
         [result] = run_checks(
-            [_heavy("big", locked(("touch", str(marker))))],
+            [_heavy("big", ("touch", str(marker)))],
             REPO_ROOT,
             jobs=1,
-            env=env,
             log_dir=tmp_path / "logs",
         )
 
@@ -757,20 +792,45 @@ def test_a_check_that_exits_75_by_itself_is_a_finding(tmp_path: Path):
     assert (status, reason) == (CheckStatus.FAILED, "exit 75")
 
 
-def test_a_heavy_checks_ceiling_leaves_room_for_the_queue(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.skipif(shutil.which("timeout") is None, reason="needs timeout")
+def test_a_heavy_check_over_its_own_timeout_has_no_verdict(
+    tmp_path: Path, slots: Path
 ):
-    # The run gets its own timeout after waiting up to LOCK_WAIT for a slot.
-    monkeypatch.setattr(_run, "LOCK_WAIT", 2)
-
+    # --timeout bounds the run itself, once the check holds its slot.
     [result] = run_checks(
-        [_heavy("big", (*STEP_SHELL, "sleep 1.5"))],
-        tmp_path,
+        [_heavy("big", (*STEP_SHELL, "sleep 10"))],
+        REPO_ROOT,
         jobs=1,
         timeout=1,
+        log_dir=tmp_path / "logs",
     )
 
-    assert result.status is CheckStatus.PASSED
+    assert result.status is CheckStatus.NO_VERDICT
+    assert result.reason.startswith("timed out (1s)")
+
+
+def test_a_lane_behind_a_check_with_no_verdict_has_no_verdict(
+    tmp_path: Path, slots: Path, monkeypatch: pytest.MonkeyPatch
+):
+    # #5735: the site build getting no slot must not turn its readers into
+    # findings.
+    monkeypatch.setattr(_run, "LOCK_WAIT", 1)
+    reader = _runnable("read", "true", group="site")
+
+    with (slots / "heavy-0.lock").open("a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX)
+        build, read = run_checks(
+            [_heavy("build", ("true",), group="site"), reader],
+            REPO_ROOT,
+            jobs=1,
+            log_dir=tmp_path / "logs",
+        )
+
+    assert build.status is CheckStatus.NO_VERDICT
+    assert (read.status, read.reason) == (
+        CheckStatus.NO_VERDICT,
+        "not run: build had no verdict",
+    )
 
 
 def test_stopping_the_mirror_kills_its_running_checks(tmp_path: Path):
@@ -820,3 +880,42 @@ def test_sigterm_stops_the_checks_and_exits_143(
 
     assert raised.value.code == ci_mirror.SIGTERM_EXIT == 143
     assert stopped == [True]
+
+
+def test_no_check_starts_once_the_mirror_is_stopping(tmp_path: Path):
+    # A lane must not start its next member after SIGTERM killed the last.
+    marker = tmp_path / "ran"
+    stop_running()
+
+    with pytest.raises(_run.MirrorStopped):
+        run_checks([_runnable("late", f"touch {marker}")], tmp_path, jobs=1)
+
+    assert not marker.exists()
+
+
+def test_main_stops_the_checks_on_sigterm_and_restores_the_handler(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    stopped: list[bool] = []
+    monkeypatch.setattr(
+        ci_mirror, "stop_running", lambda: stopped.append(True)
+    )
+    monkeypatch.setattr(ci_mirror, "_setup", lambda _a: (Path("."), None))
+    monkeypatch.setattr(ci_mirror, "plan", lambda *_a, **_k: [])
+    monkeypatch.setattr(ci_mirror, "pull_request_steps", lambda *_a: {})
+    monkeypatch.setattr(ci_mirror, "pull_request_workflows", lambda *_a: {})
+
+    def terminated(*_args, **_kwargs):
+        os.kill(os.getpid(), signal.SIGTERM)
+        time.sleep(5)  # The handler raises before this ends.
+        return []
+
+    monkeypatch.setattr(ci_mirror, "run_checks", terminated)
+    before = signal.getsignal(signal.SIGTERM)
+
+    with pytest.raises(SystemExit) as raised:
+        ci_mirror.main([])
+
+    assert raised.value.code == 143
+    assert stopped == [True]
+    assert signal.getsignal(signal.SIGTERM) is before

@@ -321,6 +321,10 @@ def _function(name: str) -> str:
         ("20", "6", "5", "5"),
         ("20", "6", "x", "3"),
         ("20", "6", "0", "3"),
+        ("20", "6", "00", "3"),
+        ("20", "6", "08", "8"),
+        ("20", "0", "", "20"),
+        ("20", "00", "", "20"),
         ("unknown", "6", "", "1"),
     ],
 )
@@ -329,7 +333,8 @@ def test_start_dev_derives_the_slot_count(
 ):
     script = (
         f"_vm_cpus='{vm_cpus}'; SLOT_CPUS='{slot_cpus}'; "
-        f"HEAVY_SLOTS='{heavy_slots}'\n{_function('_heavy_slots')}_heavy_slots\n"
+        f"HEAVY_SLOTS='{heavy_slots}'\n{_function('_heavy_slots_invalid')}"
+        f"{_function('_heavy_slots')}_heavy_slots\n"
     )
     result = subprocess.run(
         [BASH, "-c", script],
@@ -339,6 +344,8 @@ def test_start_dev_derives_the_slot_count(
     )
 
     assert result.stdout == f"{expected}\n"
+    warned = heavy_slots in ("x", "0", "00")
+    assert ("is not a positive whole number" in result.stderr) is warned
 
 
 def test_start_dev_writes_the_slot_count_on_create_and_on_attach():
@@ -351,6 +358,59 @@ def test_start_dev_writes_the_slot_count_on_create_and_on_attach():
     ]
     create = text[text.index('docker run -d "${DOCKER_ARGS[@]}"') :]
 
-    assert "/home/vscode/.data/locks/slots" in writer
+    assert (
+        '"$dir/slots"' in writer and "dir=/home/vscode/.data/locks" in writer
+    )
+    # Each writer has its own temp file in the shared directory.
+    assert 'mktemp "$dir/slots.XXXXXX"' in writer
     assert "_write_heavy_slots" in attach
     assert "_write_heavy_slots" in create.split("_exec_shell")[0]
+
+
+def test_an_unopenable_slot_file_is_skipped(
+    lock_dir: Path, env: dict[str, str]
+):
+    # A slot file the wrapper cannot open does not switch the limit off.
+    (lock_dir / "heavy-0.lock").mkdir()
+
+    result = _run(env, BASH, "-c", "exit 4")
+
+    assert result.returncode == 4
+    assert result.stderr == ""
+    assert (lock_dir / "heavy-1.holder").exists()
+
+
+def test_no_openable_slot_file_runs_without_a_slot(
+    lock_dir: Path, env: dict[str, str]
+):
+    (lock_dir / "heavy-0.lock").mkdir()
+    (lock_dir / "heavy-1.lock").mkdir()
+
+    result = _run(env, BASH, "-c", "exit 4")
+
+    assert result.returncode == 4
+    assert "running without a slot" in result.stderr
+
+
+def test_a_command_that_is_not_executable_exits_126(
+    tmp_path: Path, env: dict[str, str]
+):
+    script = tmp_path / "not-executable"
+    script.write_text("#!/bin/sh\nexit 0\n")
+    script.chmod(0o644)
+
+    result = _run(env, str(script))
+
+    assert result.returncode == 126
+    assert f"command not executable: {script}" in result.stderr
+
+
+def test_a_holder_record_that_cannot_be_written_still_runs(
+    lock_dir: Path, env: dict[str, str]
+):
+    # The record only names the holder in a wait line; losing it is harmless.
+    (lock_dir / "heavy-0.holder").mkdir()
+
+    result = _run(env, BASH, "-c", "exit 8")
+
+    assert (result.returncode, result.stderr) == (8, "")

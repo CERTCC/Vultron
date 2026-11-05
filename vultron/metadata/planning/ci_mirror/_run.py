@@ -52,9 +52,17 @@ STEP_SHELL = ("bash", "--noprofile", "--norc", "-eo", "pipefail", "-c")
 DEFAULT_TIMEOUT = 1200
 
 #: How long a heavy check waits for a per-host heavy-check slot before it is
-#: reported unrun. Its ceiling is its timeout plus this, so time spent waiting
-#: behind another slot's suite does not end its own run early (#5947).
+#: reported unrun (#5947). Its run gets its own ``timeout`` once it holds the
+#: slot, so waiting behind another slot's suite does not shorten it.
 LOCK_WAIT = DEFAULT_TIMEOUT
+
+#: The ``timeout -k`` grace, and the slack the backstop ceiling allows over
+#: the wait and the run.
+_KILL_GRACE = 30
+_BACKSTOP_SLACK = 60
+
+#: ``timeout``'s exit status when the command ran out of time.
+_TIMED_OUT = 124
 
 #: What the wrapper prints when ``--wait`` runs out, so a check that exits
 #: :data:`WAIT_EXPIRED` on its own is not mistaken for one that never ran.
@@ -145,18 +153,32 @@ def _trigger_reason(
     return None
 
 
-def locked(argv: Sequence[str]) -> tuple[str, ...]:
-    """*argv* in a heavy-check slot, waiting at most :data:`LOCK_WAIT` for one.
+def locked(
+    argv: Sequence[str],
+    timeout: int,
+    which: Callable[[str], str | None] = shutil.which,
+) -> tuple[str, ...]:
+    """*argv* in a heavy-check slot, then under its own *timeout*.
 
-    A memoized command takes the lock inside its memo, so a check whose
-    inputs are unchanged skips without waiting behind another slot.
+    It waits at most :data:`LOCK_WAIT` for a slot, and ``timeout`` starts
+    only once it holds one, so ``--timeout`` bounds the run alone. A memoized
+    command takes the slot inside its memo, so a check whose inputs are
+    unchanged skips without waiting. Without a ``timeout`` binary (stock
+    macOS) the session's backstop ceiling is the only bound.
     """
     command = tuple(argv)
+    memo: tuple[str, ...] = ()
     if command[:2] == ("bash", RUN_IF_CHANGED) and "--" in command:
         cut = command.index("--") + 1
-        memo, tool = command[:cut], command[cut:]
-        return (*memo, *under_heavy_lock(tool, wait=LOCK_WAIT))
-    return under_heavy_lock(command, wait=LOCK_WAIT)
+        memo, command = command[:cut], command[cut:]
+    if which("timeout") is not None:
+        command = ("timeout", "-k", str(_KILL_GRACE), str(timeout), *command)
+    return (*memo, *under_heavy_lock(command, wait=LOCK_WAIT))
+
+
+def heavy_ceiling(timeout: int) -> int:
+    """The session backstop for a heavy check: its slot wait, run and grace."""
+    return LOCK_WAIT + timeout + _KILL_GRACE + _BACKSTOP_SLACK
 
 
 def _argv(
@@ -178,7 +200,7 @@ def _argv(
         if raw is None:
             return None
         argv = tuple(_substitute(arg, context.placeholders) for arg in raw)
-    return locked(argv) if check.heavy else argv
+    return argv
 
 
 def plan(
@@ -255,11 +277,23 @@ def log_tail(path: Path | str | None, lines: int = 15) -> str:
 #: them: a heavy check left running would hold its host slot to the end.
 _RUNNING: set[subprocess.Popen[bytes]] = set()
 _RUNNING_GUARD = threading.Lock()
+#: Set by :func:`stop_running`; no check starts once it is set.
+_STOPPING = threading.Event()
+
+
+class MirrorStopped(RuntimeError):
+    """The mirror is stopping, so a check that was about to start does not."""
 
 
 def stop_running() -> None:
-    """Kill every process group the mirror started that is still running."""
+    """Kill every process group the mirror started, and start no more.
+
+    The flag and the snapshot share the guard that :func:`run_in_session`
+    holds from ``Popen`` to registering the process, so no check can start
+    unseen between them.
+    """
     with _RUNNING_GUARD:
+        _STOPPING.set()
         running = list(_RUNNING)
     for proc in running:
         try:
@@ -281,15 +315,17 @@ def run_in_session(
     On a timeout the whole group is killed, so a grandchild (an xdist worker,
     a site build) cannot keep running past it.
     """
-    proc = subprocess.Popen(  # nosec B603 - argv from the registry
-        list(argv),
-        cwd=cwd,
-        env=dict(env),
-        stdout=out,
-        stderr=subprocess.STDOUT,
-        start_new_session=True,
-    )
     with _RUNNING_GUARD:
+        if _STOPPING.is_set():
+            raise MirrorStopped("the mirror is stopping")
+        proc = subprocess.Popen(  # nosec B603 - argv from the registry
+            list(argv),
+            cwd=cwd,
+            env=dict(env),
+            stdout=out,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
         _RUNNING.add(proc)
     try:
         return proc.wait(timeout=timeout)
@@ -317,10 +353,11 @@ def _run_one(
     log = log_dir / f"{item.check.id}.log"
     started = time.monotonic()
     cwd = root / item.cwd if item.cwd else root
-    ceiling = timeout + LOCK_WAIT if item.check.heavy else timeout
+    argv = locked(item.argv, timeout) if item.check.heavy else item.argv
+    ceiling = heavy_ceiling(timeout) if item.check.heavy else timeout
     with log.open("w", encoding="utf-8") as out:
         code = run_in_session(
-            item.argv,
+            argv,
             cwd=cwd,
             env={**base_env, **item.env},
             out=out,
@@ -329,6 +366,8 @@ def _run_one(
         if code is None:
             out.write(f"\n[ci-mirror] timed out after {ceiling}s\n")
     seconds = time.monotonic() - started
+    if item.check.heavy and code == _TIMED_OUT and "timeout" in argv:
+        code, ceiling = None, timeout  # its own ceiling, inside the slot
     status, reason = verdict(item.check, code, ceiling, log)
     return CheckResult(item.check.id, status, reason, seconds, str(log), code)
 
@@ -397,6 +436,21 @@ def _groups(planned: Sequence[PlannedCheck]) -> list[list[PlannedCheck]]:
     return lanes
 
 
+def _not_run_after(item: PlannedCheck, first: CheckResult) -> CheckResult:
+    """A lane member skipped because the member it reads did not pass.
+
+    It inherits that member's kind of block: behind a ``NO-VERDICT`` it has no
+    verdict either, and is not a finding (#5735).
+    """
+    if first.status is CheckStatus.NO_VERDICT:
+        status, why = CheckStatus.NO_VERDICT, "had no verdict"
+    else:
+        status, why = CheckStatus.FAILED, "failed first"
+    return CheckResult(
+        item.check.id, status, f"not run: {first.id} {why}", 0.0, None, None
+    )
+
+
 def _run_lane(
     lane: Sequence[PlannedCheck],
     root: Path,
@@ -413,17 +467,7 @@ def _run_lane(
     results: list[CheckResult] = []
     for item in lane:
         if results and results[0].status.blocks:
-            failed = results[0].id
-            results.append(
-                CheckResult(
-                    item.check.id,
-                    CheckStatus.FAILED,
-                    f"not run: {failed} failed first",
-                    0.0,
-                    None,
-                    None,
-                )
-            )
+            results.append(_not_run_after(item, results[0]))
             continue
         results.append(_run_one(item, root, base_env, timeout, log_dir))
     return results
