@@ -2,32 +2,52 @@
 
 from __future__ import annotations
 
-import re
 import subprocess
 
+from vultron.metadata.base import (
+    GH_LOOKUP_ERRORS,
+    gh_issue_missing,
+    gh_issue_view,
+    gh_lookup_failure,
+)
+from vultron.metadata.history.cli.source import SourceRefusedError
 from vultron.metadata.history.types import (
     HistoryEntryType,
 )
 
-_ISSUE_NUMBER_RE = re.compile(r"^(?:ISSUE-)?(\d+)$", re.IGNORECASE)
+#: The repository whose issues receive history comments (HM-08-001).
+_REPO = "CERTCC/Vultron"
 
 
-_GITHUB_COMMENT_TYPES = frozenset(
-    {HistoryEntryType.implementation, HistoryEntryType.idea}
-)
+def _confirm_issue(n: int) -> int:
+    """Return *n* when GitHub has issue *n* in CERTCC/Vultron (HM-08-001).
 
+    ``gh issue view`` answers for a pull request too, so the lookup reads the
+    URL and refuses a ``/pull/`` one.
 
-def _resolve_issue_number(source: str) -> int | None:
-    """Return a GitHub issue number if *source* resolves to one, else None.
-
-    Accepts ``ISSUE-N`` (case-insensitive) or a bare positive integer.
-    Returns ``None`` for all other formats (HM-08-001, HM-08-003).
+    Raises:
+        SourceRefusedError: *n* names no issue, or names a pull request
+            (HM-08-009). Nothing is written in either case.
+        RuntimeError: ``gh`` could not answer (missing, unauthenticated,
+            offline), so the tool cannot tell whether the issue exists and
+            stops (HM-08-007).
     """
-    m = _ISSUE_NUMBER_RE.match(source.strip())
-    if m is None:
-        return None
-    n = int(m.group(1))
-    return n if n > 0 else None
+    try:
+        url = str(gh_issue_view(f"#{n}", ["url"], repo=_REPO)["url"])
+    except GH_LOOKUP_ERRORS as exc:
+        if gh_issue_missing(exc):
+            raise SourceRefusedError(
+                f"--source ISSUE-{n}: {_REPO} has no issue #{n}"
+            ) from exc
+        raise RuntimeError(
+            f"cannot tell whether --source ISSUE-{n} names an issue in "
+            f"{_REPO}: {gh_lookup_failure(exc)}"
+        ) from exc
+    if "/pull/" in url:
+        raise SourceRefusedError(
+            f"--source ISSUE-{n}: #{n} is a pull request, not an issue"
+        )
+    return n
 
 
 def _post_github_comment(
@@ -62,7 +82,7 @@ def _post_github_comment(
             "comment",
             str(issue_number),
             "--repo",
-            "CERTCC/Vultron",
+            _REPO,
             "--body",
             comment_body,
         ],

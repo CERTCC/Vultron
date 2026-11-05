@@ -2,7 +2,7 @@
 
 import json
 import subprocess
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import Annotated
 
@@ -72,25 +72,50 @@ def issue_number(ref: str) -> int:
     return int(ref.removeprefix("#"))
 
 
-def gh_issue_state(ref: str) -> str:
-    """The GitHub state (``OPEN``/``CLOSED``) of issue *ref* (``#N``).
+def gh_issue_view(
+    ref: str, fields: Sequence[str], *, repo: str | None = None
+) -> dict[str, object]:
+    """The JSON *fields* that ``gh issue view`` gives for issue *ref* (``#N``).
 
-    Uses the ``gh`` CLI against the current repository, so it needs ``gh`` on
-    ``PATH`` and a token (``GH_TOKEN`` in CI). Raises one of
+    Uses the ``gh`` CLI against *repo* (``OWNER/NAME``), or the current
+    repository when *repo* is ``None``, so it needs ``gh`` on ``PATH`` and a
+    token (``GH_TOKEN`` in CI). ``gh issue view`` also answers for a pull
+    request number; its ``url`` field then contains ``/pull/``. Raises one of
     :data:`GH_LOOKUP_ERRORS` when the lookup cannot be made;
     :func:`gh_issue_missing` tells a number that names no issue apart.
     """
+    repo_args = ["--repo", repo] if repo is not None else []
     result = subprocess.run(
-        ["gh", "issue", "view", str(issue_number(ref)), "--json", "state"],
+        [
+            "gh",
+            "issue",
+            "view",
+            str(issue_number(ref)),
+            *repo_args,
+            "--json",
+            ",".join(fields),
+        ],
         capture_output=True,
         text=True,
         check=True,
     )
-    return str(json.loads(result.stdout)["state"])
+    data = json.loads(result.stdout)
+    if not isinstance(data, dict):
+        raise TypeError(f"gh issue view {ref} printed {type(data).__name__}")
+    return {str(k): v for k, v in data.items()}
+
+
+def gh_issue_state(ref: str) -> str:
+    """The GitHub state (``OPEN``/``CLOSED``) of issue *ref* (``#N``).
+
+    Reads the current repository through :func:`gh_issue_view`, so it raises
+    what that raises.
+    """
+    return str(gh_issue_view(ref, ["state"])["state"])
 
 
 def gh_issue_missing(exc: Exception) -> bool:
-    """Whether *exc*, raised by :func:`gh_issue_state`, says no such issue."""
+    """Whether *exc*, raised by :func:`gh_issue_view`, says no such issue."""
     stderr = getattr(exc, "stderr", None)
     return isinstance(stderr, str) and _GH_NOT_FOUND in stderr
 

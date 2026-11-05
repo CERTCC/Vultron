@@ -412,7 +412,7 @@ See the loaded companion file for the type-specific completion step:
 ## Conventions
 
 - **Branch name**: `plan/<N>-<slug>` (always created via `claim-issue.sh` in Phase 1b)
-- **History source**: `IDEA-<N>` for Ideas; `CONCERN-<N>` for Concerns (not used for Epics)
+- **History source**: `ISSUE-<N>` for Ideas; `CONCERN-<N>` for Concerns (not used for Epics)
 - **History type**: `idea` for Ideas; `learning` for Concerns (not used for Epics)
 - **Spec file names**: lowercase hyphenated `.yaml` in `specs/`
 - **Notes file names**: same base name as spec, `.md` in `notes/`

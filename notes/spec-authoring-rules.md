@@ -526,9 +526,10 @@ A removed requirement is removed, not deprecated (MS-09-001), and its ID is
 never reused (MS-09-004): CM-11-005 was reused with the opposite force, so every
 citation pointed at a rule it never meant. Retire with
 `uv run spec-retire <ID> --why ... --by '#N' [--replacement <ID>]` (MS-09-006):
-it parks the text in `plan/retired-specs/<ID>.md` (MS-09-005), outside agent
-context (MS-09-009), writes the history entry (MS-09-010), and lists the
-citations to repoint (MS-09-003, MS-09-011). The archive takes the block at the
+it parks the text in `plan/retired-specs/<ID>.md` (MS-09-005, MS-09-006),
+outside agent context (MS-09-009), and lists the citations to repoint
+(MS-09-003, MS-09-011). That file is the record of the removal (MS-09-002), so
+no `plan/history/` entry is written. The archive takes the block at the
 merge base with `origin/$GITHUB_BASE_REF`, else `origin/main` (or `--base`), not
 the working tree, so editing a requirement and retiring it in one branch archives its
 published text; an ID absent at the base is refused — delete it instead
