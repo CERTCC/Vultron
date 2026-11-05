@@ -183,6 +183,9 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: SR-01-007
+    see_also:
+    - spec_id: HP-01-001
+      reason: 'an example ID'
 - id: SR-02
   title: Pydantic Schema
   specs:
@@ -277,6 +280,9 @@ groups:
       prose, so tools can find and resolve citations (SR-04-008). The suffix lets a
       split requirement keep the address of its parent, so existing citations stay
       valid.
+    see_also:
+    - spec_id: LST-05-002b
+      reason: 'an example of a sub-requirement ID'
   - id: SR-02-009
     priority: MUST
     kind: project
@@ -379,6 +385,11 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: SR-01-003
+    see_also:
+    - spec_id: SR-02-022
+      reason: >-
+        the "so that" clause explains why the omission works; not declaring `version`
+        needs nothing from SR-02-022
   - id: SR-02-014
     priority: MUST
     kind: project
@@ -503,7 +514,7 @@ groups:
     statement: >-
       `StatementSpec` MUST support these optional fields beyond the core set, and
       `BehavioralSpec` inherits them: `verification`, `note`, `tracking_issue`,
-      `verification_debt`, `references`, `exceptions` and `trigger`. The
+      `verification_debt`, `references`, `exceptions`, `trigger` and `see_also`. The
       `verification` field (NonEmptyStr) is a machine-executable or human-reviewable
       check that confirms the requirement is met. The `note` field (NonEmptyStr) is a
       correction notice or clarifying annotation. The `tracking_issue` field (str)
@@ -513,14 +524,17 @@ groups:
       field (list[str]) holds file paths or URIs to supporting documents. The
       `exceptions` field (list[NonEmptyStr]) lists permitted exceptions to the rule
       that the requirement states. The `trigger` field (Trigger) is the activating
-      event of a behavioral spec item.
+      event of a behavioral spec item. The `see_also` field (list[SeeAlso], empty by
+      default) lists each requirement the statement cites that no relationship links,
+      as a `spec_id` (`SpecIdStr`) and a `reason` (NonEmptyStr) saying why no
+      relationship type fits.
     rationale: >-
       Without these fields in the schema, the loader would reject (SR-02-022) or ignore
       annotations that requirements need. These annotations tell how a requirement is
-      checked, who owns its missing check, its exceptions, its trigger and its
-      supporting references. Typed fields let tooling validate each one. The list has
-      no lifecycle field: a superseded requirement is removed and archived, not marked
-      in place (MS-04-005, MS-09-001).
+      checked, who owns its missing check, its exceptions, its trigger, its supporting
+      references and the citations it leaves unlinked. Typed fields let tooling
+      validate each one. The list has no lifecycle field: a superseded requirement is
+      removed and archived, not marked in place (MS-04-005, MS-09-001).
     verification: >-
       `test/metadata/specs/test_schema.py::test_statement_spec_optional_field_set`
       asserts that both models declare each listed field as optional and declare
@@ -536,9 +550,9 @@ groups:
     verification_debt: '#2574'
     statement: >-
       Every Pydantic model in `vultron/metadata/specs/schema/models.py` (`Relationship`,
-      `Trigger`,
-      `Precondition`, `BehaviorStep`, `Postcondition`, `StatementSpec`, `BehavioralSpec`,
-      `SpecGroup`, `SpecFile`) MUST declare `model_config = ConfigDict(extra="forbid")`.
+      `SeeAlso`, `Trigger`, `Precondition`, `BehaviorStep`, `Postcondition`,
+      `StatementSpec`, `BehavioralSpec`, `SpecGroup`, `SpecFile`) MUST declare
+      `model_config = ConfigDict(extra="forbid")`.
     rationale: >-
       Without `extra="forbid"`, the loader silently ignores an unrecognized YAML key. A
       misspelled field, or a field that the schema does not define, then loses its
@@ -841,6 +855,9 @@ groups:
       coverage report and the coverage guard read this marker. The test configuration
       changes warnings into errors, so an unregistered marker causes a collection error
       for each test module that uses it.
+    see_also:
+    - spec_id: SR-01-001
+      reason: 'an example marker argument'
   - id: SR-05-002
     priority: MUST
     kind: project
@@ -2777,6 +2794,19 @@ groups:
       spec_id: SR-13-016
     tags:
     - tooling
+    see_also:
+    - spec_id: SR-13-001
+      reason: >-
+        an end of the range the test compares against; the duty to have the test does
+        not change when a definition does
+    - spec_id: SR-13-011
+      reason: >-
+        an end of the range the test compares against; the duty to have the test does
+        not change when a definition does
+    - spec_id: SR-13-017
+      reason: >-
+        the last definition the test compares against; the duty to have the test does
+        not change when a definition does
   - id: SR-13-017
     priority: MUST
     kind: process
@@ -2808,10 +2838,81 @@ groups:
     rationale: >-
       A link that asserts nothing true gives a false answer to the question "what does a
       change to this requirement affect?". If the link is not there, the worst result is
-      a missed answer. The prose of the statement still cites the other requirement
-      where a reader needs it. Usually this error is a `refines` or `depends_on` link
-      between siblings or unrelated requirements, used as a loose "related to".
+      a missed answer. A see-also mention asserts nothing about what a change affects,
+      so it is not a relationship: the statement still cites the other requirement
+      where a reader needs it, and the citing requirement lists it in `see_also` with
+      the reason no type fits (SR-13-022). Usually this error is a `refines` or
+      `depends_on` link between siblings or unrelated requirements, used as a loose
+      "related to".
     adr:
     - ADR-0160
     tags:
     - documentation
+  - id: SR-13-022
+    priority: MUST
+    kind: process
+    statement: >-
+      Every requirement ID that a statement writes out, other than its own, MUST be
+      linked to the citing requirement by a relationship recorded at either end, or be
+      listed in the citing requirement's `see_also` field with the reason no
+      relationship type fits.
+    rationale: >-
+      A citation is judged when it is written, not found by the next audit. Most
+      citations fit a relationship type, and the link lets the impact walk find the
+      cited requirement. A citation that fits no type, such as a rationale, a scope
+      boundary, an example or a link that would close a loop, must not get a link. The
+      `see_also` entry records that this was decided, and why, without a false claim in
+      the graph.
+    adr:
+    - ADR-0177
+    verification: >-
+      `test/metadata/specs/test_relation_graph.py::test_real_specs_link_or_list_every_cited_requirement`
+      fails when a statement in `specs/` cites a requirement that is neither linked nor
+      listed in `see_also`.
+    tags:
+    - documentation
+  - id: SR-13-023
+    priority: MUST
+    kind: project
+    statement: >-
+      spec-lint MUST report as a hard error, naming both requirements, each requirement
+      ID that a statement writes out with no relationship to the citing requirement and
+      no entry in its `see_also`.
+    rationale: >-
+      Without the check, a new citation lands unjudged and the audit has to be done
+      again. Naming both requirements tells the author which pair to judge.
+    adr:
+    - ADR-0177
+    verification: >-
+      `test/metadata/specs/lint/test_structure.py::test_lint_fails_on_an_unlinked_statement_citation`
+      asserts spec-lint exits 1 naming both requirements, and
+      `test/metadata/specs/test_relation_graph.py` asserts one error for an unlinked
+      citation and none for a citation linked at either end or listed.
+    relationships:
+    - rel_type: verifies
+      spec_id: SR-13-022
+    - rel_type: extends
+      spec_id: SR-04-002
+    tags:
+    - tooling
+  - id: SR-13-024
+    priority: MUST
+    kind: project
+    statement: >-
+      spec-lint MUST report as a hard error each `see_also` entry whose ID the statement
+      does not write out, that a relationship already links, that names no
+      requirement or the citing requirement itself, or that repeats an earlier entry.
+    rationale: >-
+      A `see_also` reason that outlives its citation, or that sits beside a link, tells
+      the reader something false about the two requirements. Checking each entry keeps
+      the list as current as the statement it explains.
+    adr:
+    - ADR-0177
+    verification: >-
+      `test/metadata/specs/test_relation_graph.py::test_stale_see_also_entry_is_reported`
+      asserts one error for each kind of stale entry.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-13-023
+    tags:
+    - tooling

@@ -671,7 +671,17 @@ groups:
   - id: HM-07-002
     priority: MUST_NOT
     kind: project
-    verification_debt: '#2575'
+    verification: >-
+      TestBodyFrontmatterRejection in test/metadata/test_append_history.py:
+      test_stdin_with_frontmatter_exits_nonzero and
+      test_file_mode_with_frontmatter_exits_nonzero assert exit non-zero;
+      test_stdin_with_frontmatter_names_hm_07_002 and
+      test_file_mode_with_frontmatter_names_hm_07_002 assert HM-07-002 in stderr;
+      test_stdin_with_leading_blank_lines_then_frontmatter_refused and
+      test_stdin_with_malformed_frontmatter_refused assert a block after blank
+      lines, or one that is malformed YAML, is refused;
+      test_body_with_yaml_list_block_is_accepted asserts a non-mapping block passes;
+      test_from_file_mode_with_frontmatter_unchanged asserts --from-file is exempt.
     statement: Callers of `append-history` MUST NOT include a YAML frontmatter block in the content they supply via stdin
       or `--file`.
     rationale: >-
@@ -870,6 +880,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: HM-08-001
+    - rel_type: uses_definition
+      spec_id: HM-08-003
   - id: HM-08-009
     priority: MUST
     kind: project

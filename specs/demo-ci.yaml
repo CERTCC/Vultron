@@ -482,6 +482,9 @@ groups:
           encodes push-to-main throttling logic.
         adr:
           - ADR-0052
+        see_also:
+          - spec_id: DEMOCI-02-014
+            reason: 'context for the reader'
 
       - id: DEMOCI-02-012
         priority: MUST
@@ -609,6 +612,9 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-001
+        see_also:
+          - spec_id: DEMOCI-11-004
+            reason: 'context for the reader'
 
       - id: DEMOCI-03-003
         priority: SHOULD
@@ -876,6 +882,11 @@ groups:
             spec_id: DEMOCI-04-011
           - rel_type: refines
             spec_id: CISEC-05-016
+        see_also:
+          - spec_id: DEMOCI-02-004
+            reason: 'a "because" rationale'
+          - spec_id: DEMOCI-06-008
+            reason: 'a "because" rationale'
 
       - id: DEMOCI-04-008
         priority: MUST
@@ -1210,6 +1221,9 @@ groups:
             spec_id: DEMOCI-11-001
           - rel_type: uses_definition
             spec_id: DEMOCI-11-021
+        see_also:
+          - spec_id: DEMOCI-11-004
+            reason: 'context for the reader'
 
       - id: DEMOCI-07-004
         priority: MUST
@@ -1269,6 +1283,9 @@ groups:
             spec_id: DEMOCI-11-001
           - rel_type: uses_definition
             spec_id: DEMOCI-11-021
+        see_also:
+          - spec_id: DEMOCI-11-004
+            reason: 'context for the reader'
 
       - id: DEMOCI-07-006
         priority: MUST
@@ -1340,6 +1357,11 @@ groups:
           The analysis findings must be propagated to all three documents so
           that the coverage matrix, minimum PR set, and full scenario suite
           list remain mutually consistent.
+        see_also:
+          - spec_id: DEMOCI-06-002
+            reason: 'context for the reader'
+          - spec_id: DEMOCI-06-003
+            reason: 'context for the reader'
 
       - id: DEMOCI-07-009
         priority: SHOULD
@@ -1372,6 +1394,9 @@ groups:
           DEMOCI-06-003 names the full scenario suite explicitly; once the
           embargo scenarios are wired in, the list must be updated so the
           post-merge validation run is complete.
+        see_also:
+          - spec_id: DEMOCI-06-003
+            reason: 'context for the reader'
 
   - id: DEMOCI-08
     title: Workflow Static Analysis (actionlint)
@@ -2266,6 +2291,11 @@ groups:
           scenario narrative page.
         adr:
           - ADR-0098
+        see_also:
+          - spec_id: DEMOCI-06-002
+            reason: 'context for the reader'
+          - spec_id: DEMOCI-06-003
+            reason: 'context for the reader'
 
       - id: DEMOCI-11-008
         priority: MUST_NOT
@@ -2468,6 +2498,9 @@ groups:
         relationships:
           - rel_type: uses_definition
             spec_id: DEMOCI-11-003
+        see_also:
+          - spec_id: DF-09-007
+            reason: 'context for the reader'
 
       - id: DEMOCI-11-013
         priority: MUST

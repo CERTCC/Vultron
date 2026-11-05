@@ -50,6 +50,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
+    ReceivedStage,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.dispatcher import ActivityDispatcher
@@ -148,18 +149,26 @@ def _assert_archive_is_what_was_delivered(
 ) -> None:
     """Intake archived each delivered body once, as it arrived, and nothing
     else: no record of an Announce nobody sent (CLP-10-017, VM-08-002)."""
-    archived = {
-        record.activity_id: record.received_body
+    records = [
+        record
         for record in dl.list_objects("ReceivedActivityRecord")
         if isinstance(record, ReceivedActivityRecord)
+    ]
+    archived = {
+        record.activity_id: record.received_body
+        for record in records
+        if record.stage is ReceivedStage.ARCHIVED
     }
     expected = {
         body["id"]: parse_activity(body).received_evidence_json
         for body in delivered
     }
     assert archived == expected
-    # Every held body was consumed by its replay (IO-03-009).
-    assert dl.list_objects("DeferredInboxActivity") == []
+    # Every held body was consumed by its replay (IO-03-009): the archive
+    # intake wrote stays, with no replay owed from it (CLP-10-018).
+    assert [
+        record.activity_id for record in records if record.replay_owed
+    ] == []
     assert held_ledger_announces(dl, _CASE_ID) == []
 
 

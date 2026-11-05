@@ -62,6 +62,9 @@ groups:
       `ActivityStreamRequiredRef[as_VulnerabilityReport]`, enforcing an inline report and rejecting bare URI references.
     adr:
     - ADR-0023
+    see_also:
+    - spec_id: AKM-03-003
+      reason: 'context for the reader'
   - id: CP-01-005
     priority: MUST
     kind: project
@@ -230,6 +233,9 @@ groups:
     - ADR-0096
     stories:
     - story_2026_098
+    see_also:
+    - spec_id: AKM-05-004
+      reason: 'context for the reader'
   - id: CP-01-010
     priority: MUST
     kind: project
@@ -413,6 +419,11 @@ groups:
       spec_id: CP-01-011
     - rel_type: uses_definition
       spec_id: CFG-07-002
+    see_also:
+    - spec_id: CP-09-007
+      reason: >-
+        the sender's source of roles is not how the CASE_MANAGER seats only the stated
+        roles
 - id: CP-02
   title: MessageSemantics Values
   specs:
@@ -827,6 +838,9 @@ groups:
     - story_2022_012
     adr:
     - ADR-0080
+    see_also:
+    - spec_id: CP-05-006
+      reason: 'context for the reader'
   - id: CP-05-006
     priority: MUST
     kind: protocol
@@ -1156,6 +1170,9 @@ groups:
       spec_id: HP-01-006
     adr:
     - ADR-0115
+    see_also:
+    - spec_id: CP-05-002
+      reason: 'context for the reader'
   - id: CP-05-022
     priority: MUST
     kind: protocol

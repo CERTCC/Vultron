@@ -28,7 +28,11 @@ from test.demo._helpers import (
     mock_case,
     story_state,
 )
-from test.demo.coordinated_story._support import CAST, JOINER
+from test.demo.coordinated_story._support import (
+    CAST,
+    JOINER,
+    patched_rejection_polls,
+)
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.coordinated_story import (
     COORDINATOR,
@@ -291,24 +295,21 @@ class TestVendorRejectsInvite:
 
         with (
             patch.object(ActorSession, "reject_case_invite"),
-            patch.object(
-                coordinated_continuations, "wait_for_semantic_type_in_ledger"
-            ) as ledger,
-            patch.object(
-                coordinated_continuations, "wait_for_case_participants"
-            ) as roster,
-            patch.object(
-                coordinated_continuations, "wait_for_participant_rm_state"
-            ) as rm_wait,
-            patch.object(
-                coordinated_continuations, "_check_participant_rm_state_in"
-            ) as rm_check,
+            patched_rejection_polls() as polls,
         ):
             vendor_rejects_invite(state)
 
-        assert ledger.call_args.kwargs["client"] is state.case_actor_client
         assert (
-            roster.call_args.kwargs["vendor_client"] is state.case_actor_client
+            polls.ledger.call_args.kwargs["client"] is state.case_actor_client
         )
-        assert rm_wait.call_args.kwargs["client"] is state.case_actor_client
-        assert rm_check.call_args.kwargs["client"] is state.case_actor_client
+        assert (
+            polls.roster.call_args.kwargs["vendor_client"]
+            is state.case_actor_client
+        )
+        assert (
+            polls.rm_wait.call_args.kwargs["client"] is state.case_actor_client
+        )
+        assert (
+            polls.rm_check.call_args.kwargs["client"]
+            is state.case_actor_client
+        )

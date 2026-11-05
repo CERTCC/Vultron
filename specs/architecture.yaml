@@ -122,6 +122,9 @@ groups:
       sub-group. Derives from ADR-0009 (hexagonal).
     adr:
     - ADR-0009
+    see_also:
+    - spec_id: DC-01-001
+      reason: 'context for the reader'
   - id: ARCH-01-009
     priority: MUST
     kind: project
@@ -386,6 +389,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-25-004
+    see_also:
+    - spec_id: ARCH-25-003
+      reason: 'context for the reader'
   - id: ARCH-12-002
     priority: MUST
     kind: project
@@ -437,6 +443,8 @@ groups:
       spec_id: ARCH-23-005
       note: ARCH-23-005 supplies the round-trip cleanups (computed-field stripping, wire-name keys) without which `extra="forbid"`
         rejects the project's own serialised output.
+    - rel_type: implements
+      spec_id: ARCH-25-025
     adr:
     - ADR-0082
     - ADR-0099
@@ -460,6 +468,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-25-002
+    - rel_type: refines
+      spec_id: ARCH-25-013
     adr:
     - ADR-0063
     - ADR-0099
@@ -531,6 +541,15 @@ groups:
       later step works on it (ADR-0032). A proposer that claims the CASE_MANAGER role
       (CP-01-012) or a Reject that names no object (SYNC-16-028) is malformed whatever
       the receiver holds.
+    see_also:
+    - spec_id: CM-11-011
+      reason: 'an example of a protocol rule a message''s own form can break'
+    - spec_id: CP-01-012
+      reason: 'an example of a protocol rule a message''s own form can break'
+    - spec_id: EMB-13-004
+      reason: 'an example of a protocol rule a message''s own form can break'
+    - spec_id: SYNC-16-028
+      reason: 'an example of a protocol rule a message''s own form can break'
   - id: ARCH-12-008
     priority: MUST
     kind: project
@@ -575,6 +594,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: ARCH-12-010
+    - rel_type: derives_from
+      spec_id: VM-06-008
   - id: ARCH-12-011
     priority: MUST_NOT
     kind: project
@@ -617,6 +638,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: ARCH-12-006
+    - rel_type: refines
+      spec_id: AKM-02-006
   - id: ARCH-12-018
     priority: MUST_NOT
     kind: project
@@ -1264,6 +1287,11 @@ groups:
     adr:
     - ADR-0063
     - ADR-0099
+    see_also:
+    - spec_id: ARCH-12-013
+      reason: >-
+        explanation: the inherited alias generator is the mechanism behind the port, not
+        a licence to dump
   - id: ARCH-20-002
     priority: MUST
     kind: project
@@ -1495,6 +1523,9 @@ groups:
       spec_id: DL-05-001
     adr:
     - ADR-0099
+    see_also:
+    - spec_id: VM-06-007
+      reason: 'context for the reader'
 - id: ARCH-21
   title: Post-Construction Mutation Safety
   description: >-
@@ -1575,6 +1606,9 @@ groups:
       The `RecursionError` then hides every real type failure.
     adr:
     - ADR-0064
+    see_also:
+    - spec_id: ARCH-21-003
+      reason: 'context for the reader'
   - id: ARCH-21-006
     priority: MUST
     kind: project
@@ -1907,6 +1941,9 @@ groups:
     adr:
     - ADR-0056
     - ADR-0099
+    see_also:
+    - spec_id: CM-31-014
+      reason: 'a cited rationale ("because CM-31-014 forbids storing it")'
   - id: ARCH-23-010
     priority: MUST
     kind: project
@@ -2211,6 +2248,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: ARCH-24-008
+    - rel_type: uses_definition
+      spec_id: ARCH-24-001
     adr:
     - ADR-0088
   - id: ARCH-24-004
@@ -2880,6 +2919,11 @@ groups:
       spec_id: ARCH-25-029
     adr:
     - ADR-0099
+    see_also:
+    - spec_id: VM-06-004
+      reason: 'a pointer to where the outcome for that slot is stated'
+    - spec_id: VM-06-007
+      reason: 'a pointer to where the outcome for that slot is stated'
   - id: ARCH-25-031
     priority: MUST_NOT
     kind: project

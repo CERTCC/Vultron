@@ -486,6 +486,9 @@ groups:
       spec_id: MSM-02-005
     - rel_type: uses_definition
       spec_id: MSM-02-006
+    see_also:
+    - spec_id: EMB-16-001
+      reason: 'context for the reader'
 - id: MSM-03
   title: CS Protocol Message Shorthands
   description: 'Normative shorthand-to-semantic mappings for CVD Case State (CS) protocol messages, covering CV, CF, CD, CP,
@@ -611,6 +614,9 @@ groups:
     stories:
     - story_2022_069
     - story_2022_081
+    see_also:
+    - spec_id: RSH-04-005
+      reason: 'context for the reader'
   - id: MSM-03-005
     priority: MUST
     kind: protocol
@@ -647,6 +653,9 @@ groups:
     stories:
     - story_2022_018
     - story_2022_081
+    see_also:
+    - spec_id: RSH-04-005
+      reason: 'context for the reader'
   - id: MSM-03-006
     priority: MUST
     kind: protocol
@@ -683,6 +692,9 @@ groups:
     stories:
     - story_2022_019
     - story_2022_081
+    see_also:
+    - spec_id: RSH-04-005
+      reason: 'context for the reader'
   - id: MSM-03-007
     priority: MUST
     kind: project
@@ -757,6 +769,10 @@ groups:
       spec_id: VAM-07-002
     - rel_type: uses_definition
       spec_id: VAM-07-003
+    see_also:
+    - spec_id: VAM-01-019
+      reason: >-
+        scope boundary: the `Create(Note)` clause; realizing GI does not follow from it
   - id: MSM-04-002
     priority: MUST
     kind: project
@@ -1204,6 +1220,17 @@ groups:
       spec_id: CM-18-003
     stories:
     - story_2026_011
+    see_also:
+    - spec_id: CLP-07-013
+      reason: 'context for the reader'
+    - spec_id: MSM-07-002
+      reason: 'context for the reader'
+    - spec_id: MSM-07-005
+      reason: 'context for the reader'
+    - spec_id: MSM-07-007
+      reason: 'context for the reader'
+    - spec_id: MSM-07-008
+      reason: 'context for the reader'
   - id: MSM-07-002
     priority: MUST
     kind: protocol
@@ -1275,6 +1302,9 @@ groups:
     - ADR-0122
     stories:
     - story_2026_001
+    see_also:
+    - spec_id: MSM-07-008
+      reason: 'context for the reader'
   - id: MSM-07-004
     priority: MUST
     kind: protocol
@@ -1499,6 +1529,9 @@ groups:
     - ADR-0124
     stories:
     - story_2026_089
+    see_also:
+    - spec_id: CLP-07-013
+      reason: 'context for the reader'
   - id: MSM-07-006
     priority: MUST
     kind: protocol
@@ -1552,6 +1585,9 @@ groups:
     - ADR-0122
     stories:
     - story_2026_095
+    see_also:
+    - spec_id: EMB-17-004
+      reason: 'context for the reader'
   - id: MSM-07-007
     priority: MUST
     kind: protocol
@@ -1937,6 +1973,9 @@ groups:
     - ADR-0122
     stories:
     - story_2026_090
+    see_also:
+    - spec_id: CM-02-005
+      reason: 'context for the reader'
   - id: MSM-07-011
     priority: MUST_NOT
     kind: protocol
@@ -2034,6 +2073,9 @@ groups:
     - ADR-0122
     stories:
     - story_2026_090
+    see_also:
+    - spec_id: MSM-07-010
+      reason: 'context for the reader'
   - id: MSM-07-015
     priority: MUST
     kind: protocol
@@ -2115,6 +2157,9 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: VAM-05-015
+    see_also:
+    - spec_id: EP-09-002
+      reason: 'context for the reader'
   - id: MSM-07-018
     priority: MUST_NOT
     kind: protocol

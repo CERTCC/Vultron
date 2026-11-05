@@ -13,7 +13,8 @@ description: >
   where each relationship is recorded (SR-13); how to pick a `rel_type` by its
   definition, including `uses_definition`, `satisfies` only when A alone meets
   B, `supersedes` on a named exception, no `extends` from a MAY, and recording
-  no link when no type fits (SR-13-017, SR-13-018); `adr:`
+  no link when no type fits but listing the citation in `see_also` (SR-13-017,
+  SR-13-018, SR-13-022); `adr:`
   versus `references:`; reading the item format off its fields (ADR-0101); the
   PR-only marker-coverage guard and the strict-xfail pattern; priority tiers
   (MS-02-003/004); the `verification_debt` ratchet and its growth guard
@@ -220,7 +221,8 @@ Record a link once, on the end SR-13-012 names, never at both ends. A second
 copy written with an opposite verb closes a loop that spec-lint rejects
 (SR-13-014, SR-13-015).
 `spec-dump` and the docs "Related" column show only the links a requirement
-records. To find the links that name a requirement, filter
+records, then its `see_also` entries with their reasons. To find the links that
+name a requirement, filter
 `relation_graph.recorded_relationships()` on their target. To find what a change
 to it affects, walk its predecessors in `relation_graph.upstream_graph()`; that
 graph turns each `constrains` arc to point at its recorder and has no arc for
@@ -231,7 +233,8 @@ narrower requirement, never `constrains` on the general one (SR-13-013).
 no link (SR-13-018): do not fall back to `depends_on`, which then becomes the new
 catch-all. A false link gives the impact walk a wrong answer; a missing one costs
 at most a missed answer, and the statement's prose still cites the other
-requirement (ADR-0160). Pick the type by its definition, not by habit:
+requirement, listed in `see_also` (ADR-0160, ADR-0177). Pick the type by its
+definition, not by habit:
 
 - `refines` only when meeting A in A's case meets B. A sibling in the same group
   that adds a duty is `extends`; one that states how B is met is `implements`.
@@ -239,6 +242,13 @@ requirement (ADR-0160). Pick the type by its definition, not by habit:
   alternative path or a scope boundary is no link.
 - `uses_definition` when A uses a term B defines ("an active participant
   (CM-10-004)"); a "see also" citation is no link.
+- A citation in a statement needs a link, or a `see_also` entry when no type
+  fits: `see_also: [{spec_id: B, reason: ...}]` on the citing requirement, the
+  reason saying why (a rationale, a scope boundary, an example, a link that
+  would close a loop). spec-lint fails on a cited ID in neither place, and on a
+  `see_also` entry the statement no longer cites or a link now covers
+  (SR-13-022 to SR-13-024, ADR-0177). A range writes only its ends; IDs between
+  them are not citations.
 - `satisfies` only when meeting A alone meets all of B. A rule that is one case
   of B is `refines`; one that uses a shorthand or message B defines is
   `uses_definition` (the EMB transitions on the MSM-02 mappings, #5209).

@@ -138,7 +138,7 @@ class SyncLogEntryTriggerRequest(
 
     Commits a canonical ``CaseLedgerEntry`` for ``case_id`` through the BT
     commit path as the case's CASE_MANAGER and fans it out to every
-    participant (SYNC-02-002, SYNC-02-003; TRIG-10-004).
+    participant (SYNC-02-001, SYNC-02-003; TRIG-10-004).
     """
 
 

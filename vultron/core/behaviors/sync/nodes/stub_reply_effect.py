@@ -36,7 +36,7 @@ only on a replica that holds no copy of the case (Regime 2, ADR-0087).  No id is
 made and no clock is read: ``updated`` is the reply's ``published`` as received.
 A stale entry replayed over a seed that is ahead changes nothing.
 
-Per CM-11-006, CM-31-012, CM-31-037, SYNC-02-002, SYNC-12-001, RSH-08-004.
+Per CM-11-006, CM-31-012, CM-31-037, SYNC-02-001, SYNC-12-001, RSH-08-004.
 """
 
 from __future__ import annotations
@@ -119,7 +119,7 @@ class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
             self.datalayer.save(changed)
             self.logger.info(
                 "%s: applied the reply of '%s' to its participant record in"
-                " case '%s' (SYNC-02-002)",
+                " case '%s' (SYNC-02-001)",
                 self.name,
                 actor_id,
                 entry.case_id,

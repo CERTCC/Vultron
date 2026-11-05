@@ -75,6 +75,9 @@ groups:
     - ADR-0108
     stories:
     - story_2026_041
+    see_also:
+    - spec_id: RSH-04-009
+      reason: 'context for the reader'
   - id: RSH-01-005
     priority: MUST
     kind: protocol
@@ -258,6 +261,9 @@ groups:
       spec_id: RSH-03-001
     stories:
     - story_2022_081
+    see_also:
+    - spec_id: EP-09-007
+      reason: 'context for the reader'
 - id: RSH-04
   title: CaseStatus Emission Authority and Outbound Emit Invariant
   description: >
@@ -336,6 +342,9 @@ groups:
     - ADR-0046
     stories:
     - story_2026_041
+    see_also:
+    - spec_id: RSH-08-004
+      reason: 'context for the reader'
   - id: RSH-04-003
     priority: MUST
     kind: protocol
@@ -461,6 +470,11 @@ groups:
       spec_id: RSH-01-003
     - rel_type: implements
       spec_id: RSH-04-004
+    see_also:
+    - spec_id: RSH-04-002
+      reason: 'context for the reader'
+    - spec_id: RSH-04-003
+      reason: 'context for the reader'
   - id: RSH-04-010
     priority: MUST
     kind: project
@@ -612,6 +626,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: RSH-09-003
+    see_also:
+    - spec_id: RSH-09-001
+      reason: 'context for the reader'
   - id: RSH-06-003
     priority: MUST
     kind: project
@@ -692,7 +709,8 @@ groups:
     statement: >-
       The CASE_MANAGER MUST NOT send the RSH-06-004 note to the sender as a direct
       `Add(Note)`, which a participant refuses (HP-01-005). The sender learns of the
-      note from the entry's `Announce(CaseLedgerEntry)` fan-out (SYNC-02-003).
+      note from the entry's `Announce(CaseLedgerEntry)` fan-out (SYNC-02-001,
+      SYNC-02-003).
     rationale: >-
       The note is a case act of the CASE_MANAGER, so it goes to the sender through the
       ledger. A participant refuses a direct `Add(Note)` (HP-01-005), so a direct send
@@ -709,6 +727,13 @@ groups:
     stories:
     - story_2022_074
     - story_2022_077
+    see_also:
+    - spec_id: HP-01-005
+      reason: 'context for the reader'
+    - spec_id: SYNC-02-001
+      reason: 'context for the reader'
+    - spec_id: SYNC-02-003
+      reason: 'context for the reader'
   - id: RSH-06-005
     priority: MUST
     kind: protocol
@@ -784,6 +809,11 @@ groups:
       spec_id: RSH-06-004
     - rel_type: uses_definition
       spec_id: RSH-06-005
+    see_also:
+    - spec_id: CM-23-018
+      reason: 'context for the reader'
+    - spec_id: CM-23-019
+      reason: 'context for the reader'
 - id: RSH-07
   title: Conservative Default Authorization Policy for Status Gates
   description: >
@@ -962,6 +992,15 @@ groups:
     - ADR-0114
     stories:
     - story_2022_062
+    see_also:
+    - spec_id: BT-10-005
+      reason: 'context for the reader'
+    - spec_id: CM-11-006
+      reason: 'context for the reader'
+    - spec_id: CM-16-006
+      reason: 'context for the reader'
+    - spec_id: CM-17-018
+      reason: 'context for the reader'
   - id: RSH-08-008
     priority: MUST
     kind: protocol
@@ -987,6 +1026,9 @@ groups:
     stories:
     - story_2022_062
     - story_2026_037
+    see_also:
+    - spec_id: CM-23-002
+      reason: 'context for the reader'
   - id: RSH-08-005
     priority: MUST
     kind: project
@@ -1081,6 +1123,9 @@ groups:
     adr:
     - ADR-0108
     - ADR-0116
+    see_also:
+    - spec_id: BT-17-001
+      reason: 'context for the reader'
   - id: RSH-08-010
     priority: MUST
     kind: project
@@ -1103,6 +1148,9 @@ groups:
       tree opens with the intake node that archives the received activity.
     adr:
     - ADR-0108
+    see_also:
+    - spec_id: PCR-03-001
+      reason: 'context for the reader'
   - id: RSH-08-004
     priority: MUST
     kind: project
@@ -1680,3 +1728,6 @@ groups:
     - story_2022_018
     - story_2022_019
     - story_2022_081
+    see_also:
+    - spec_id: RSH-01-003
+      reason: 'context for the reader'

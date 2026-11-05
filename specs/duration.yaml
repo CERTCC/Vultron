@@ -375,6 +375,10 @@ groups:
       (`test_initialization_is_logged_at_info`) confirms that initializing the
       creation-time embargo, the path that applies the default duration, logs the
       creation service's INFO record naming the embargo and the case.
+    see_also:
+    - spec_id: DUR-07-003
+      reason: >-
+        names the event; logging it does not state how the ACTIVE state is reached
   - id: DUR-07-004
     priority: MUST
     kind: protocol

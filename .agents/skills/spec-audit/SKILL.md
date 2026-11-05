@@ -264,8 +264,9 @@ If there are any QUESTION findings, offer to work through them interactively:
 through them now? I'll ask them one at a time and record your answers."
 
 If the user agrees, ask each elicitation prompt one at a time, per
-`.agents/skills/shared/asking-the-user.md` (`ask_user` for discrete choices,
-plain text for open-ended prompts). After all answers are collected:
+`.agents/skills/shared/asking-the-user.md` and its pre-ask check: ask what
+behavior the requirement should require, not how to word it (`ask_user` for
+discrete choices, plain text for open-ended prompts). After all answers are collected:
 
 1. Propose YAML edits that incorporate the answers (same before/after format
    as Step B).

@@ -290,6 +290,9 @@ groups:
     relationships:
     - rel_type: satisfies
       spec_id: SR-01-013
+    see_also:
+    - spec_id: HP-01-001
+      reason: 'an example of an ID inside its group'
 - id: MS-05
   title: Writing Rules
   specs:
@@ -1797,6 +1800,11 @@ groups:
     tags:
     - documentation
     - tooling
+    see_also:
+    - spec_id: SR-11-003
+      reason: >-
+        a scope phrase ("whether or not SR-11-003 would fire"); the guard bounds the
+        SR-11-007 opt-out, not the error
   - id: MS-12-016
     priority: MUST_NOT
     kind: process
@@ -3013,6 +3021,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: MS-16-002
+    see_also:
+    - spec_id: DEMOMA-16-001
+      reason: 'an example of an authoritative enumeration'
   - id: MS-16-002
     priority: MUST
     kind: process
@@ -3198,6 +3209,9 @@ groups:
       spec_id: MS-17-004
     tags:
     - tooling
+    see_also:
+    - spec_id: EH-01-002
+      reason: 'scope boundary: EH-01-002 excludes `vultron/metadata/`'
 - id: MS-18
   title: One Wire Form per Protocol Act
   description: >-

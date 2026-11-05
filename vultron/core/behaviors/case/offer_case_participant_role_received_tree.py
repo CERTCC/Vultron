@@ -98,7 +98,7 @@ def create_offer_case_participant_role_received_tree(
     send-then-commit order binds nothing here.  The commit and the forward
     are one act (CLP-07-015): a forward that fails keeps no entry, so its
     redelivery is a new Offer, and a redelivery of a recorded Offer sends
-    nothing (HP-01-003).  At a
+    nothing (HP-01-014).  At a
     participant replica only the target answers (CM-33-004, BT-17-008).
 
     Args:

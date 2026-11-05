@@ -22,7 +22,7 @@ attaches it to the case replica when an invited actor processes the canonical
 It creates no ``VultronOfferRecord``: the invited actor was never sent the
 ``Offer(VulnerabilityReport)`` and does not answer it (CM-11-020, ADR-0121).
 
-Per SYNC-02-002, ISSUE-2134.
+Per SYNC-02-001, ISSUE-2134.
 """
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ class ApplyOfferReportFromLedgerNode(
     from there.
 
     Lenient on missing data — an incomplete snapshot returns SUCCESS to avoid
-    blocking the ``Announce`` processing flow.  SYNC-02-002, ISSUE-2134.
+    blocking the ``Announce`` processing flow.  SYNC-02-001, ISSUE-2134.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -130,7 +130,7 @@ class ApplyOfferReportFromLedgerNode(
         case.vulnerability_reports.append(report_id)
         self.datalayer.save(case)
         self.logger.info(
-            "%s: attached report '%s' to case '%s' replica (SYNC-02-002)",
+            "%s: attached report '%s' to case '%s' replica (SYNC-02-001)",
             self.name,
             report_id,
             case_id,

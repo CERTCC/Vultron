@@ -88,9 +88,10 @@ def _collect_violations() -> frozenset[str]:
 # owner: #1906
 KNOWN_VIOLATIONS: frozenset[str] = frozenset(
     [
-        # Remaining violations import helpers other than _as_id /
-        # _report_phase_status_id (fixed by #1428) — tracked for future
-        # migration.
+        # These two import helpers other than _as_id and
+        # _report_phase_status_id, so neither was covered by the earlier
+        # round of migrations.  Migrating them is the remaining work, owned
+        # by the marker above.
         "vultron/core/behaviors/embargo/nodes/emit.py",
         "vultron/core/behaviors/sender/nodes/actions.py",
     ]

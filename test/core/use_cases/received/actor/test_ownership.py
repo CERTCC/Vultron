@@ -110,7 +110,7 @@ class TestOwnershipTransferUseCases:
         assert_held_only_as_received(dl, activity.id_)
         assert result.disposition == HandlerDisposition.APPLIED
 
-        # HP-01-003: a redelivered Offer stores nothing new.
+        # HP-01-014: a redelivered Offer stores nothing new.
         again = OfferCaseOwnershipTransferReceivedUseCase(
             dl,
             event,

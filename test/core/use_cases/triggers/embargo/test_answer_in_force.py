@@ -29,7 +29,11 @@ from typing import cast
 
 import pytest
 
-from test.support.received import archive_received, hold_deferred
+from test.support.received import (
+    archive_received,
+    hold_deferred,
+    received_record,
+)
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -42,6 +46,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.received_activity_record import ReceivedStage
 from vultron.core.models.use_case_result import ActivityResult
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -140,10 +145,10 @@ def _store_received_invite(
     """Store a relayed ``Invite(EmbargoEvent)`` as the invitee received it.
 
     Intake archives its body as a ``ReceivedActivityRecord``, and nothing holds it
-    under the id its sender chose (DL-06-006).  With *deferred*, it is held
-    instead as the inbox holds an Invite it defers until the case is known
-    (``DeferredInboxActivity``), with no archive yet.  *to* overrides the
-    single-invitee addressing.
+    under the id its sender chose (DL-06-006).  With *deferred*, the same
+    record is in the ``HELD`` stage instead, as the inbox holds an Invite it
+    defers until the case is known (ADR-0154), not yet archived.  *to*
+    overrides the single-invitee addressing.
     """
     invite = em_propose_embargo_activity(
         embargo,
@@ -415,8 +420,10 @@ def test_an_invite_the_inbox_still_defers_is_answered(
 ) -> None:
     """An Invite held only by the inbox, waiting on its case, still answers.
 
-    The inbox holds its received body in a ``DeferredInboxActivity``, never
-    under the Invite's own id (DL-06-006), and the answer loads that body.
+    The inbox holds its received body on the Invite's one
+    ``ReceivedActivityRecord``, in the ``HELD`` stage and owing a replay
+    (ADR-0154), never under the Invite's own id (DL-06-006), and the answer
+    loads that body.
     """
     embargo_id = in_force.case.active_embargo_id
     assert embargo_id is not None
@@ -430,6 +437,10 @@ def test_an_invite_the_inbox_still_defers_is_answered(
         deferred=True,
     )
     assert in_force.dl.read(deferred_invite) is None
+    held = received_record(in_force.dl, deferred_invite)
+    assert held is not None
+    assert held.stage is ReceivedStage.HELD
+    assert held.replay_owed is True
 
     result = answer(
         in_force.dl, in_force.finder_id, in_force.case.id_, deferred_invite

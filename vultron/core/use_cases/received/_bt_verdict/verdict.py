@@ -101,7 +101,7 @@ def intake_verdict(
 
     Intake archives what arrived, so a run that archived the activity is
     ``APPLIED`` and a run that found it already archived is the benign no-op
-    of a redelivery, ``SKIPPED`` (HP-01-003).  A tree may also carry effect
+    of a redelivery, ``SKIPPED`` (HP-01-014).  A tree may also carry effect
     nodes, but only ones that are idempotent on a redelivery — a narrative
     log line, or a write that keeps an existing record (the invitee's trust
     anchor) — because they run again and the verdict still reads

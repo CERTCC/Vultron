@@ -37,6 +37,10 @@ from vultron.core.behaviors.case.nodes.invite_received import (
     RecordInviteTrustAnchorNode,
 )
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.services.received_holding import (
+    hold_for_replay,
+    records_awaiting_case,
+)
 
 CASE_ID = "https://example.org/cases/anchor-tests-1"
 INVITEE_ID = "https://example.org/actors/invitee"
@@ -45,6 +49,26 @@ OTHER_CASE_ACTOR_ID = "https://example.org/actors/other-case-manager"
 TRANSPORT_SENDER_ID = (
     "https://example.org/actors/relay"  # different from actor field
 )
+QUEUED_ACTIVITY_ID = "https://example.org/activities/a1"
+
+
+def _queue_an_activity(scenario: BTTestScenario) -> None:
+    """Hold one activity waiting on ``CASE_ID``, as the inbox queue does.
+
+    What waits for a case is read from the waiting messages themselves, each
+    naming the case on its own ``ReceivedActivityRecord`` (ADR-0154).
+    """
+    assert hold_for_replay(
+        scenario.dl,
+        QUEUED_ACTIVITY_ID,
+        f'{{"id": "{QUEUED_ACTIVITY_ID}", "type": "Announce"}}',
+        awaiting_case_id=CASE_ID,
+    )
+
+
+def _ids_awaiting_the_case(scenario: BTTestScenario) -> list[str]:
+    """The activity ids still waiting on ``CASE_ID`` in *scenario*'s store."""
+    return [r.activity_id for r in records_awaiting_case(scenario.dl, CASE_ID)]
 
 
 def _invite_id(case_actor_id: str, n: int = 1) -> str:
@@ -373,15 +397,15 @@ class TestRecordInviteTrustAnchorNodeMarksTheAnchor:
         scenario.dl.create(
             VultronPendingCaseInbox(
                 case_id=CASE_ID,
-                activity_ids=["https://example.org/activities/a1"],
                 case_actor_id=CASE_ACTOR_ID,
             )
         )
+        _queue_an_activity(scenario)
         scenario.assert_success(scenario.run(_anchor_node()))
         record = scenario.dl.read(VultronPendingCaseInbox.build_id(CASE_ID))
         assert isinstance(record, VultronPendingCaseInbox)
         assert record.invite_anchored
-        assert record.activity_ids == ["https://example.org/activities/a1"]
+        assert _ids_awaiting_the_case(scenario) == [QUEUED_ACTIVITY_ID]
         assert any(
             r.levelno == logging.INFO
             and "confirmed as trust anchor" in r.message
@@ -419,10 +443,10 @@ class TestRecordInviteTrustAnchorNodeOverQueueRecordedSender:
         scenario.dl.create(
             VultronPendingCaseInbox(
                 case_id=CASE_ID,
-                activity_ids=["https://example.org/activities/a1"],
                 case_actor_id=OTHER_CASE_ACTOR_ID,
             )
         )
+        _queue_an_activity(scenario)
         return scenario
 
     def test_stub_invite_anchors_over_queue_recorded_sender(self):
@@ -436,6 +460,4 @@ class TestRecordInviteTrustAnchorNodeOverQueueRecordedSender:
     def test_the_queued_activities_are_kept(self):
         scenario = self._scenario_with_queued_sender()
         scenario.run(_anchor_node())
-        record = scenario.dl.read(VultronPendingCaseInbox.build_id(CASE_ID))
-        assert isinstance(record, VultronPendingCaseInbox)
-        assert record.activity_ids == ["https://example.org/activities/a1"]
+        assert _ids_awaiting_the_case(scenario) == [QUEUED_ACTIVITY_ID]

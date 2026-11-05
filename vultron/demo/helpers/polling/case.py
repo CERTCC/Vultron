@@ -21,8 +21,8 @@ from collections.abc import Sequence
 
 import httpx2 as httpx
 
-from vultron.core.models.pending_case_inbox import (
-    VultronPendingCaseInbox,
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
 )
 from vultron.demo.helpers.polling._poll import (
     CROSS_CONTAINER_TIMEOUT,
@@ -32,7 +32,6 @@ from vultron.demo.helpers.polling._poll import (
     _client_in,
     _poll_until,
 )
-from vultron.demo.helpers.seeding.actors import dl_key
 from vultron.demo.utils import (
     DataLayerClient,
     case_actor_id_for_report,
@@ -408,12 +407,13 @@ def wait_for_pending_inbox_quiescent(
     timeout_seconds: float = CROSS_CONTAINER_TIMEOUT,
     poll_interval: float = 0.5,
 ) -> None:
-    """Poll until the ``VultronPendingCaseInbox`` for *case_id* is empty or absent.
+    """Poll until nothing is waiting on *case_id* in the recipient's store.
 
-    ``VultronPendingCaseInbox`` holds deferred activity IDs for a case that has
-    not yet been seeded in the recipient's DataLayer (ADR-0059).  This gate
-    confirms that the pending inbox has been drained — i.e. the case seed has
-    arrived and all buffered activities were processed.
+    A message that arrives for a case the recipient has not been seeded with
+    waits on its own record, which names the case it waits on (ADR-0059,
+    ADR-0154).  This gate confirms that nothing waits on *case_id* any
+    more — i.e. the case seed has arrived and all buffered activities were
+    processed.
 
     A held out-of-order ``Announce(CaseLedgerEntry)`` (``HeldLedgerAnnounce``,
     SYNC-14) is intentionally excluded: it waits on a ledger predecessor, not
@@ -426,31 +426,37 @@ def wait_for_pending_inbox_quiescent(
         poll_interval: Seconds between DataLayer poll attempts.
 
     Raises:
-        AssertionError: If the pending inbox is still non-empty within
+        AssertionError: If something is still waiting within
             *timeout_seconds*.
 
     Spec: EDF-06-001.
     """
-    pending_id = VultronPendingCaseInbox.build_id(case_id)
 
     def _check() -> bool:
         try:
-            data = client.get(client.dl_path(dl_key(pending_id)))
-            if not data:
-                return True
-            activity_ids = data.get("activity_ids", [])
-            return len(activity_ids) == 0
+            # The by-type route answers a mapping of id to stored row, and a
+            # ``CoreRecord`` is stored under its own field names (no AS2
+            # spelling), so the waited-on case reads as ``awaiting_case_id``.
+            rows = client.get(
+                client.dl_path(f"{ReceivedActivityRecord.__name__}s/")
+            )
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code == 404:
-                # Row absent means the pending inbox has already been drained.
+                # No table means nothing has been received, so nothing waits.
                 return True
             raise
+        if not isinstance(rows, dict):
+            return True
+        return not any(
+            isinstance(row, dict) and row.get("awaiting_case_id") == case_id
+            for row in rows.values()
+        )
 
     _poll_until(
         _check,
         timeout_seconds,
         poll_interval,
-        f"Timed out waiting for PendingCaseInbox for case {case_id!r} to drain"
+        f"Timed out waiting for activities awaiting case {case_id!r} to drain"
         f" on container {client.base_url}",
         swallow_exceptions=False,
     )

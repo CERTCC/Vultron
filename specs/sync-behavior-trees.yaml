@@ -17,7 +17,7 @@ relationships:
       BT-06-001 requires all protocol-significant behavior in BTs; these
       specs define the sync-specific BTs that fulfill that requirement.
   - rel_type: implements
-    spec_id: SYNC-02-002
+    spec_id: SYNC-02-003
     note: CommitLogEntryBT fan-out replaces procedural _fan_out_log_entry()
   - rel_type: implements
     spec_id: SYNC-03-001
@@ -83,6 +83,11 @@ groups:
           message type, each flow is small enough to read and test alone. Also, the
           dispatcher continues to route each semantic type to exactly one use case and
           one tree.
+        see_also:
+          - spec_id: SYNC-17-002
+            reason: 'context for the reader'
+          - spec_id: SYNC-17-007
+            reason: 'context for the reader'
 
       - id: SBT-01-003
         priority: MUST

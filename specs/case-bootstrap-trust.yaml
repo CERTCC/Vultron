@@ -428,6 +428,11 @@ groups:
     stories:
     - story_2022_090
     - story_2026_030
+    see_also:
+    - spec_id: CBT-03-001
+      reason: 'context for the reader'
+    - spec_id: CBT-03-002
+      reason: 'context for the reader'
   - id: CBT-01-011
     priority: MUST
     kind: protocol
@@ -454,6 +459,9 @@ groups:
     - story_2022_035
     - story_2022_089
     - story_2022_090
+    see_also:
+    - spec_id: CBT-01-017
+      reason: 'context for the reader'
 - id: CBT-02
   title: Post-Bootstrap Update Authority
   specs:
@@ -592,6 +600,9 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CBT-03-001
+    see_also:
+    - spec_id: CBT-03-003
+      reason: 'the default timeout value is not how the drop is done'
   - id: CBT-03-006
     priority: MUST
     kind: project

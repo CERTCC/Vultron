@@ -337,13 +337,10 @@ linked file before touching that area. New pitfalls MUST be routed per
 
 Ask the user anything per
 [`.agents/skills/shared/asking-the-user.md`](.agents/skills/shared/asking-the-user.md),
-in every session and when skills compose (`learn` → `grill-me`): **one question at a
-time**; **problem before decision** (the problem, why it matters, each option spelled
-out, your recommendation and why); **plain language**, no metaphor jargon or coined
-terms; **no bare IDs** ("#3512 (the docs navigation reorganization)," not "#3512");
-**restate, don't point** by number; **short**, no walls of text ending in "do you
-agree?" Use `ask_user` for short, discrete choices, with a recommended answer; use
-plain text when a longer reply is likely.
+in every session and when skills compose (`learn` → `grill-me`). The core rules: one
+question at a time; problem before decision, with your recommendation; ask about the
+behavior behind a spec rule, not its wording; plain language with every cited ID
+summarized; and run the guide's pre-ask check first.
 
 ---
 

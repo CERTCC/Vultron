@@ -324,6 +324,11 @@ groups:
     stories:
     - story_2022_062
     - story_2022_107
+    see_also:
+    - spec_id: PCR-08-001
+      reason: 'context for the reader'
+    - spec_id: VP-18-002
+      reason: 'context for the reader'
   - id: VP-02-021
     priority: SHOULD
     kind: protocol
@@ -622,6 +627,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ASK-07-001
+    see_also:
+    - spec_id: MSM-05-001
+      reason: 'context for the reader'
   - id: VP-03-009
     priority: SHOULD
     kind: protocol
@@ -663,6 +671,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ASK-07-001
+    see_also:
+    - spec_id: MSM-05-001
+      reason: 'context for the reader'
   - id: VP-03-011
     priority: SHOULD
     kind: protocol
@@ -676,6 +687,11 @@ groups:
       (VP-03-009).
     stories:
     - story_2022_077
+    see_also:
+    - spec_id: MSM-05-001
+      reason: 'context for the reader'
+    - spec_id: VP-03-009
+      reason: 'context for the reader'
   - id: VP-03-012
     priority: SHOULD
     kind: protocol
@@ -703,6 +719,11 @@ groups:
     - story_2022_098
     - story_2022_107
     - story_2022_109
+    see_also:
+    - spec_id: PCR-08-001
+      reason: 'context for the reader'
+    - spec_id: VP-18-002
+      reason: 'context for the reader'
   - id: VP-03-013
     priority: MAY
     kind: protocol
@@ -2105,6 +2126,9 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: EP-09-009
+    see_also:
+    - spec_id: MSM-05-001
+      reason: 'context for the reader'
   - id: VP-11-006
     priority: MUST
     kind: protocol
@@ -2204,6 +2228,9 @@ groups:
       spec_id: VP-11-002
     - rel_type: extends
       spec_id: VP-11-006
+    see_also:
+    - spec_id: EMB-19-001
+      reason: 'context for the reader'
   - id: VP-11-012
     priority: MUST_NOT
     kind: protocol
@@ -2225,6 +2252,13 @@ groups:
       P/X/A it answers a revision with ER and never emits ET.
     stories:
     - story_2022_018
+    see_also:
+    - spec_id: VP-11-003
+      reason: 'context for the reader'
+    - spec_id: VP-11-007
+      reason: 'context for the reader'
+    - spec_id: VP-13-017
+      reason: 'context for the reader'
 - id: VP-12
   title: CVD Case State (CS) Messaging
   specs:
@@ -2518,6 +2552,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-02-005
+    see_also:
+    - spec_id: EMB-19-001
+      reason: 'context for the reader'
 - id: VP-14
   title: RM-EM-CS Interactions
   specs:
@@ -2575,6 +2612,11 @@ groups:
     - compound_statement
     stories:
     - story_2022_025
+    see_also:
+    - spec_id: VP-06-008b
+      reason: >-
+        names the bound on the exception; the exception itself is VP-06-008, which
+        records `supersedes`
   - id: VP-14-008
     priority: SHOULD
     kind: protocol

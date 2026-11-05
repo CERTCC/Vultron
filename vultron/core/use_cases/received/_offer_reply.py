@@ -87,7 +87,7 @@ def run_offer_reply_tree(
             CASE_MANAGER refusal (HP-01-005).
         subject: The Offer, as a log names it, e.g. ``"role offer"``.
         refine: Reads what the tree's guards say beyond success or failure,
-            such as a redelivery reported ``SKIPPED`` (HP-01-003).
+            such as a redelivery reported ``SKIPPED`` (HP-01-014).
         sync_port: Delivers the entries the tree commits.
         wire_render_port: Renders the activities the tree builds.
         trigger_activity: Builds the CASE_MANAGER's own entries for the

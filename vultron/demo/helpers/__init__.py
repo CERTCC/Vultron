@@ -157,6 +157,7 @@ from vultron.demo.helpers.notes import (
 from vultron.demo.helpers.polling import (
     BACKFILL_PROGRESS_CEILING,
     CROSS_CONTAINER_TIMEOUT,
+    EM_TRANSITION_TIMEOUT,
     LATE_JOINER_COVERAGE_TIMEOUT,
     LATE_JOINER_REPLICA_TIMEOUT,
     LATE_JOINER_TIMEOUT,

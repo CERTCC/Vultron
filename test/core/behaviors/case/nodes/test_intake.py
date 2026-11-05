@@ -58,6 +58,7 @@ from vultron.core.models.note import VultronNote
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
+    ReceivedStage,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
@@ -119,7 +120,17 @@ def _archived(dl: SqliteDataLayer, activity_id: str) -> bool:
 
 
 def _archive_count(dl: SqliteDataLayer) -> int:
-    return len(dl.by_type("ReceivedActivityRecord"))
+    """How many received records intake has *archived*.
+
+    One record holds a received message at every stage (ADR-0154), so the
+    table also holds a body the inbox is still holding for a replay.  Only an
+    archived row is something intake wrote.
+    """
+    return sum(
+        1
+        for row in dl.by_type("ReceivedActivityRecord").values()
+        if row.get("stage") == ReceivedStage.ARCHIVED.value
+    )
 
 
 @pytest.fixture
