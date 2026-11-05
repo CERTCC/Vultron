@@ -155,9 +155,10 @@ def test_lint_passes_a_citation_listed_in_see_also(tmp_path, capsys):
         ),
     )
 
-    lint(tmp_path)
+    result = lint(tmp_path)
 
-    assert "SR-13-022" not in capsys.readouterr().err
+    assert "SR-13-02" not in capsys.readouterr().err
+    assert result == 0
 
 
 def test_lint_prefix_mismatch(tmp_path, capsys):

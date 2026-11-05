@@ -131,6 +131,7 @@ def _linked_pairs(
 
 
 def _see_also_problem(
+    spec_id: str,
     target: str,
     cited: set[str],
     listed: set[str],
@@ -138,6 +139,8 @@ def _see_also_problem(
     rels: list[RecordedRelationship],
 ) -> str | None:
     """Say why a ``see_also`` entry naming *target* is stale, or ``None``."""
+    if target == spec_id:
+        return "but that is its own ID"
     if target in listed:
         return "a second time"
     if target not in known:
@@ -176,8 +179,8 @@ def check_statement_citations(registry: SpecRegistry) -> list[str]:
     relationship recorded on either end (SR-13-012), or be listed in its
     ``see_also`` with a reason. A ``see_also`` entry is stale, and an error,
     when the statement does not cite the ID, when a relationship links the
-    two, when the ID names no requirement, or when the entry repeats one
-    already listed. A cited ID that names no requirement is reported too: it
+    two, when the ID names no requirement or the citing requirement itself, or
+    when the entry repeats one already listed. A cited ID that names no requirement is reported too: it
     can be neither linked nor listed.
     """
     known = registry.all_specs
@@ -189,8 +192,13 @@ def check_statement_citations(registry: SpecRegistry) -> list[str]:
         for entry in spec.see_also:
             target = entry.spec_id
             rels = linked.get(frozenset((spec_id, target)), [])
-            problem = _see_also_problem(target, cited, listed, known, rels)
-            listed.add(target)
+            problem = _see_also_problem(
+                spec_id, target, cited, listed, known, rels
+            )
+            # An unknown ID stays uncovered, so a cited one is reported as a
+            # bad citation too, not only as a stale entry.
+            if target in known:
+                listed.add(target)
             if problem is not None:
                 errors.append(
                     f"{spec_id} lists {target} in `see_also` {problem}. "

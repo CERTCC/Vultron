@@ -2901,7 +2901,7 @@ groups:
     statement: >-
       spec-lint MUST report as a hard error each `see_also` entry whose ID the statement
       does not write out, that a relationship already links, that names no
-      requirement, or that repeats an earlier entry.
+      requirement or the citing requirement itself, or that repeats an earlier entry.
     rationale: >-
       A `see_also` reason that outlives its citation, or that sits beside a link, tells
       the reader something false about the two requirements. Checking each entry keeps

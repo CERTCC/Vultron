@@ -84,15 +84,20 @@ def written_spec_ids(text: str) -> set[str]:
     """Every requirement ID *text* writes out, sub-item letter kept.
 
     A slash list ``PREFIX-NN-AAA/BBB`` writes ``PREFIX-NN-BBB`` beside
-    ``PREFIX-NN-AAA``. A range writes only its ends: unlike
-    :func:`cited_spec_ids`, ``CM-10-001 through CM-10-005`` yields no ID
-    between them. These are the IDs a statement cites for SR-13-022, each one
+    ``PREFIX-NN-AAA``. A range writes only its ends, a short end such as the
+    ``003`` of ``CM-10-001–003`` included: unlike :func:`cited_spec_ids`,
+    ``CM-10-001 through CM-10-005`` yields no ID between them. These are the IDs a statement cites for SR-13-022, each one
     a reader can see and an author can link or list in ``see_also``.
     """
     found = set(_CITED_ID_RE.findall(text))
     for match in _SPEC_ID_SLASH_RE.finditer(text):
         stem, tail = match.groups()
         found.update(stem + index for index in tail.split("/")[1:])
+    for match in _SPEC_ID_RANGE_RE.finditer(text):
+        if match["dash_index"] is None or match["dash_prefix"] is not None:
+            continue
+        group = match["dash_group"] or match["group"]
+        found.add(f"{match['prefix']}-{group}-{match['dash_index']}")
     return found
 
 

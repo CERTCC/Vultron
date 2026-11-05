@@ -269,6 +269,32 @@ def test_range_interior_is_not_a_citation():
 
 
 @pytest.mark.spec("SR-13-023")
+@pytest.mark.parametrize("mark", ["–", ".."], ids=["en-dash", "dots"])
+def test_short_range_end_is_a_citation(mark):
+    # A range writes its ends; "TST-01-001–003" writes TST-01-003.
+    registry = _citing_registry(f"{A} MUST hold for {A}{mark}003.")
+
+    errors = relation_graph.check_statement_citations(registry)
+
+    assert len(errors) == 1
+    assert f"{A}'s statement cites {C}" in errors[0]
+
+
+@pytest.mark.spec("SR-13-023")
+@pytest.mark.spec("SR-13-024")
+def test_listing_an_unknown_cited_id_reports_both_faults():
+    registry = _citing_registry(
+        f"{A} MUST follow TST-01-009.", see_also=[_see("TST-01-009")]
+    )
+
+    errors = relation_graph.check_statement_citations(registry)
+
+    assert len(errors) == 2
+    assert any("cites TST-01-009, but no requirement" in e for e in errors)
+    assert any("lists TST-01-009 in `see_also` but no" in e for e in errors)
+
+
+@pytest.mark.spec("SR-13-023")
 def test_cited_id_naming_no_requirement_is_reported():
     registry = _citing_registry(f"{A} MUST follow TST-01-009.")
 
@@ -314,6 +340,12 @@ def test_cited_id_naming_no_requirement_is_reported():
             (),
             "a second time",
         ),
+        (
+            f"{A} MUST do the thing.",
+            [A],
+            (),
+            "but that is its own ID",
+        ),
     ],
     ids=[
         "not-cited",
@@ -321,6 +353,7 @@ def test_cited_id_naming_no_requirement_is_reported():
         "linked-on-the-cited",
         "unknown-id",
         "repeated",
+        "own-id",
     ],
 )
 def test_stale_see_also_entry_is_reported(statement, see_also, links, problem):
