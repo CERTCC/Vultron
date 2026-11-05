@@ -61,6 +61,9 @@ from vultron.core.models.received_activity_record import (
     ReceivedStage,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.received_activity import sealed_body_of
+from vultron.core.services.received_outcome import write_receipt_stub
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.status import (
     AddParticipantStatusToParticipantReceivedUseCase,
@@ -163,7 +166,7 @@ def test_intake_archives_the_received_activity(scenario):
     # The archive is the body the event carries, verbatim, and nothing
     # derived from it (ADR-0149).
     assert record.received_body == event.received_evidence
-    body = json.loads(record.received_body)
+    body = json.loads(sealed_body_of(record))
     assert body["type"] == "Add"
     assert body["actor"] == SENDER
     assert body["object"]["id"] == NOTE_ID
@@ -197,7 +200,7 @@ def test_the_archive_is_the_body_the_parser_sealed(scenario):
         json.loads(request_bytes), ensure_ascii=False
     )
     # Keys the vocabulary does not name survive in the archive.
-    assert json.loads(record.received_body)["fooBar"] == [1, 2]
+    assert json.loads(sealed_body_of(record))["fooBar"] == [1, 2]
 
 
 @pytest.mark.spec("CLP-10-038")
@@ -436,14 +439,19 @@ def test_shared_factory_runs_intake_first_even_when_a_guard_refuses(scenario):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("CLP-10-018")
+@pytest.mark.spec("CLP-10-017")
+@pytest.mark.spec("CLP-10-073")
 def test_refused_participant_status_leaves_the_archive_readable():
     """``Add(ParticipantStatus)`` from a stranger is REFUSED by the sender guard.
 
     The receiver is not the CASE_MANAGER, so the guard takes the update from
     the CASE_MANAGER alone (PCR-03-001); the case names none, so the sender
     is refused.  Intake ran first, so the activity is archived in the
-    receiver's store afterwards.
+    receiver's store when the tree ends -- which is what lets the refusal
+    notice embed it and the outcome stage digest it (CLP-10-073).  Reducing it
+    to a receipt stub is that stage's, after the tree, and this handler runs
+    without it (CLP-10-018,
+    ``test/adapters/driving/fastapi/test_received_outcome_stage.py``).
     """
     receiver = "https://example.org/users/vendor-intake"
     stranger = "https://example.org/users/stranger-intake"
@@ -486,4 +494,48 @@ def test_refused_participant_status_leaves_the_archive_readable():
     ).execute()
 
     assert result.disposition == HandlerDisposition.REFUSED
-    assert _archived(dl, activity.id_), "archive lost on refusal"
+    assert _archived(dl, activity.id_), "archive lost before the tree ended"
+
+
+# ---------------------------------------------------------------------------
+# A later delivery of a refused activity: the stub is not a body (CLP-10-018)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CLP-10-017")
+@pytest.mark.spec("CLP-10-018")
+def test_intake_archives_over_a_receipt_stub(scenario):
+    """A resend after a refusal finds a stub, which is no body to keep.
+
+    The tree about to run may apply this delivery, so the archive CLP-10-017
+    promises has to exist.  The activity is still one this receiver has seen,
+    so it stays in ``found_ids`` and an intake-only tree still reports
+    SKIPPED (HP-01-003).
+    """
+    event = _note_event(_rich_note())
+    scenario.assert_success(
+        scenario.run(IntakeReceivedActivityNode(), activity=event)
+    )
+    archived = scenario.dl.read(ReceivedActivityRecord.build_id(ACTIVITY_ID))
+    assert isinstance(archived, ReceivedActivityRecord)
+    stub = write_receipt_stub(
+        cast(CasePersistence, scenario.dl),
+        ACTIVITY_ID,
+        sender_id="https://example.org/users/stranger-intake",
+        reason="refused earlier",
+    )
+    assert stub.received_body is None
+
+    second = IntakeReceivedActivityNode()
+    scenario.assert_success(scenario.run(second, activity=event))
+
+    record = scenario.dl.read(ReceivedActivityRecord.build_id(ACTIVITY_ID))
+    assert isinstance(record, ReceivedActivityRecord)
+    assert record.stage is ReceivedStage.ARCHIVED
+    assert record.received_body == archived.received_body
+    assert record.refusal_reason is None
+    assert record.received_at == archived.received_at
+    # Seen before, so the tree's redelivery readings still answer the same.
+    assert second.found_ids == [ACTIVITY_ID]
+    assert second.stored_ids == []
+    assert _archive_count(scenario.dl) == 1

@@ -44,7 +44,7 @@ Blackboard contract (BTND-03-003):
 
 - ``activity`` (READ, ``/activity``): the received
   :class:`~vultron.core.models.events.base.VultronEvent`.  The refused
-  activity is the body intake archived for it, embedded verbatim
+  activity is the body this receiver holds for it, embedded verbatim
   (CLP-10-017, ADR-0149); the event's sender is the asserter.
 """
 
@@ -73,7 +73,7 @@ from vultron.core.models.pending_assertion import (
     PendingAssertion,
     get_pending_assertion_store,
 )
-from vultron.core.services.received_activity import archived_received_body
+from vultron.core.services.received_activity import held_received_body
 from vultron.core.sync_helpers import resume_sender_sequence_at
 from vultron.errors import VultronWiringError
 from vultron.primitives import NonEmptyString
@@ -229,9 +229,11 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
         return self.trigger_activity_factory.refusal_notice(
             case_id=self._case_id,
             actor=self.actor_id,
-            # The body intake archived, embedded as the asserter sent it
-            # (CLP-05-001, DL-06-004, ADR-0149).
-            refused_activity=archived_received_body(
+            # The body this receiver holds, embedded as the asserter sent
+            # it (CLP-05-001, DL-06-004, ADR-0149).  The notice runs inside
+            # the run, before the outcome stage gives that body up for a
+            # receipt stub, so there is still a body to embed (CLP-10-018).
+            refused_activity=held_received_body(
                 self.datalayer, event.activity_id
             ),
             asserter=event.actor_id,

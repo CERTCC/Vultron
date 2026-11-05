@@ -41,6 +41,7 @@ from vultron.core.services.received_holding import (
     release_from_holding,
     stop_awaiting_case,
 )
+from vultron.core.services.received_outcome import write_receipt_stub
 from vultron.errors import VultronWiringError
 
 SENDER = "https://example.org/actors/reporter"
@@ -149,6 +150,44 @@ def test_discarding_a_never_archived_record_deletes_it(dl):
 
     discard_holding(dl, activity_id)
     assert _absent(dl, activity_id)
+
+
+@pytest.mark.spec("CLP-10-018")
+@pytest.mark.spec("IO-03-009")
+def test_holding_over_a_receipt_stub_holds_the_body_again(dl):
+    """A resend of a refused message that waits before intake runs.
+
+    The stub has no body to replay, so the hold writes a whole ``HELD``
+    record over it, one the stage/body invariant accepts, and keeps the
+    stub's time of receipt.  A copy of the stub that only gained the replay
+    flag would owe a replay of a body that is not there.
+    """
+    activity_id = _aid("refused-1")
+    _archive(dl, activity_id)
+    stub = write_receipt_stub(
+        dl, activity_id, sender_id=SENDER, reason="refused for this test"
+    )
+
+    assert (
+        hold_for_replay(
+            dl, activity_id, _body(activity_id), awaiting_case_id=CASE_ID
+        )
+        is True
+    )
+
+    record = _stored(dl, activity_id)
+    ReceivedActivityRecord.model_validate(record.model_dump())
+    assert record.stage is ReceivedStage.HELD
+    assert not record.is_receipt_stub
+    assert record.received_body == _body(activity_id)
+    assert record.replay_owed is True
+    assert record.awaiting_case_id == CASE_ID
+    assert record.received_at == stub.received_at
+    assert (record.sender_id, record.refusal_reason, record.body_hash) == (
+        None,
+        None,
+        None,
+    )
 
 
 # --------------------------------------------------------------------------

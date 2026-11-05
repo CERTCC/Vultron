@@ -35,7 +35,6 @@ from typing import Any
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
-    ReceivedStage,
 )
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.ports.case_persistence import CasePersistence
@@ -64,29 +63,54 @@ def holds_received_activity(dl: CasePersistence, activity_id: str) -> bool:
     return held_received_record(dl, activity_id) is not None
 
 
-def archived_received_body(
-    dl: CasePersistence, activity_id: str
-) -> dict[str, Any]:
-    """The body intake archived for the received *activity_id*, decoded.
+def sealed_body_of(record: ReceivedActivityRecord) -> str:
+    """The sealed received body *record* holds, as the parser sealed it.
 
-    For a node that hands the received activity to the reply seam unread, to
-    be embedded as it arrived (DL-06-004, ADR-0149): the refusal notice, the
-    late-Accept acknowledgement.
+    The one guard for every caller that already has a record and needs the
+    body off it, so a receipt stub is refused in one place rather than at
+    each of them (CS-22-001).
 
     Raises:
-        VultronWiringError: When nothing is archived for *activity_id*.  The
-            callers run after intake, which archives every received activity
-            before any guard (CLP-10-017), so the tree is miswired.  A record
-            still only held for a replay has not been archived, and these
-            callers never run on one.
+        VultronWiringError: *record* is a receipt stub, which gave the body
+            up when the message was refused (CLP-10-018).  Every caller holds
+            a record it archived or put in holding, so a stub there is a
+            miswiring, not a sender's doing (ARCH-15-001).
+    """
+    if record.received_body is None:
+        raise VultronWiringError(
+            f"received activity '{record.activity_id}' is held only as a"
+            f" receipt stub ({record.stage}), which keeps no body"
+            " (CLP-10-018)"
+        )
+    return record.received_body
+
+
+def held_received_body(
+    dl: CasePersistence, activity_id: str
+) -> dict[str, Any]:
+    """The sealed body this receiver holds for *activity_id*, decoded.
+
+    For a node in the run that hands the received activity to the reply seam
+    unread, to be embedded as it arrived (DL-06-004, ADR-0149): the refusal
+    notice.  Readers in the run read the holding record, whichever
+    body-bearing stage it is in -- archived by intake, or still held for a
+    replay -- because the message is the same message either way
+    (ADR-0154).
+
+    Raises:
+        VultronWiringError: When this receiver holds nothing for
+            *activity_id*, or holds only a receipt stub, which gave the body
+            up when the message was refused (CLP-10-018).  Either is a
+            miswiring: these callers run inside the run, before the outcome
+            stage, on a record intake holds (CLP-10-017).
     """
     record = held_received_record(dl, activity_id)
-    if record is None or record.stage is not ReceivedStage.ARCHIVED:
+    if record is None:
         raise VultronWiringError(
-            f"activity '{activity_id}' is not archived, so there is no"
-            " received body to embed (CLP-10-017)"
+            f"activity '{activity_id}' is not held by this receiver, so"
+            " there is no received body to embed (CLP-10-017)"
         )
-    body: dict[str, Any] = json.loads(record.received_body)
+    body: dict[str, Any] = json.loads(sealed_body_of(record))
     return body
 
 
@@ -169,10 +193,11 @@ def read_held_activity(
 
 
 __all__ = [
-    "archived_received_body",
+    "held_received_body",
     "held_received_record",
     "holds_activity",
     "holds_received_activity",
     "read_held_activity",
     "read_received_activity",
+    "sealed_body_of",
 ]

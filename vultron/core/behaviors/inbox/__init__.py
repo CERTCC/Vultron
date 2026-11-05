@@ -12,6 +12,7 @@ types are exported; intermediate BT nodes are not public API):
     IngressPayloadAdapter — Protocol: raw input → as_Activity
     DispatchAdapter       — Protocol: VultronEvent → HandlerResult
     PendingCaseQueuePort  — Protocol: pending-case queue operations
+    ReceivedOutcomePort   — Protocol: the received record's final stage
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -36,4 +37,5 @@ from vultron.core.behaviors.inbox.models import (
     InboxOutcomeStatus,
     IngressPayloadAdapter,
     PendingCaseQueuePort,
+    ReceivedOutcomePort,
 )

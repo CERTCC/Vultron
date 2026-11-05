@@ -57,6 +57,7 @@ from vultron.core.models.events.actor import (
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.ownership_offer import ownership_offer_id
+from vultron.core.services.received_activity import sealed_body_of
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
@@ -3034,7 +3035,9 @@ def test_a_slash_spelled_attribution_is_taken_and_filed_as_received(
     record = received_record(dl, offer.id_)
     assert record is not None
     # Filed as received: the archived body keeps the sender's spelling.
-    assert json.loads(record.received_body)["attributedTo"] == _VENDOR_ID + "/"
+    assert (
+        json.loads(sealed_body_of(record))["attributedTo"] == _VENDOR_ID + "/"
+    )
     assert _owner(dl, case_id) == _VENDOR_ID
 
 

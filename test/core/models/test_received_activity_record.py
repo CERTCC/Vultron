@@ -19,6 +19,7 @@ The record holds the body that arrived and nothing derived from it (ADR-0149).
 """
 
 import json
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -26,9 +27,11 @@ from pydantic import ValidationError
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
+    BODY_BEARING_STAGES,
     ReceivedActivityRecord,
     ReceivedStage,
 )
+from vultron.core.models.received_body import received_body_digest
 from vultron.errors import VultronAlreadyExistsError
 
 SENDER = "https://example.org/actors/reporter"
@@ -254,3 +257,126 @@ def test_the_replay_rows_round_trip_through_the_datalayer(dl):
     stored = dl.read(ReceivedActivityRecord.build_id(ACTIVITY_ID))
     assert stored.replay_rows_json == rows
     assert json.loads(stored.replay_rows_json)[0]["id_"] == NOTE_ID
+
+
+# --------------------------------------------------------------------------
+# The stage/body invariant: a receipt stub keeps the receipt, not the message
+# (CLP-10-018, ADR-0154)
+#
+# ``received_body`` and the stub's three fields are each required in one
+# stage and forbidden in another, so the record is ``X | None`` against
+# ARCH-10-001's fail-fast rule.  That is paid for by checking the pairing at
+# construction, in both directions, which is what these tests pin.  Disable
+# ``_a_stub_keeps_no_body`` and every one of them fails.
+# --------------------------------------------------------------------------
+
+_DIGEST = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+
+def _stub(**overrides: Any) -> ReceivedActivityRecord:
+    """A whole receipt stub, as the outcome stage writes one."""
+    fields: dict[str, Any] = {
+        "activity_id": ACTIVITY_ID,
+        "stage": ReceivedStage.REFUSED,
+        "sender_id": SENDER,
+        "refusal_reason": "not a to recipient (HP-01-005)",
+        "body_hash": _DIGEST,
+    }
+    fields.update(overrides)
+    return ReceivedActivityRecord(**fields)
+
+
+@pytest.mark.spec("CLP-10-018")
+def test_a_whole_receipt_stub_is_accepted_and_keeps_no_body():
+    stub = _stub()
+
+    assert stub.stage is ReceivedStage.REFUSED
+    assert stub.is_receipt_stub
+    assert stub.received_body is None
+    assert stub.sender_id == SENDER
+    assert stub.body_hash == _DIGEST
+    assert "HP-01-005" in (stub.refusal_reason or "")
+    # Still the receiver's own key, so the seen-before question stays one
+    # read of one row (DL-06-006).
+    assert stub.id_ == ReceivedActivityRecord.build_id(ACTIVITY_ID)
+
+
+@pytest.mark.spec("CLP-10-018")
+def test_a_stub_is_the_digest_of_the_body_it_gave_up():
+    """The digest is the one definition both sides use (IE-10-002)."""
+    stub = _stub(body_hash=received_body_digest(_body()))
+
+    assert stub.body_hash == received_body_digest(_body())
+    assert stub.body_hash != received_body_digest(_body() + " ")
+
+
+@pytest.mark.spec("CLP-10-018")
+@pytest.mark.parametrize("stage", sorted(BODY_BEARING_STAGES))
+def test_a_body_bearing_stage_with_no_body_is_refused(stage):
+    with pytest.raises(ValidationError) as caught:
+        ReceivedActivityRecord(
+            activity_id=ACTIVITY_ID,
+            stage=stage,
+            replay_owed=stage is ReceivedStage.HELD,
+        )
+    assert "no received body" in str(caught.value)
+
+
+@pytest.mark.spec("CLP-10-017")
+@pytest.mark.parametrize("field", ["sender_id", "refusal_reason", "body_hash"])
+def test_a_body_bearing_record_carrying_a_stubs_field_is_refused(field):
+    """Nothing derived from the body is stored beside it (ADR-0149)."""
+    carried: dict[str, Any] = {field: SENDER if field == "sender_id" else "x"}
+    with pytest.raises(ValidationError) as caught:
+        ReceivedActivityRecord(
+            activity_id=ACTIVITY_ID, received_body=_body(), **carried
+        )
+    assert field in str(caught.value)
+    assert "only a receipt stub keeps" in str(caught.value)
+
+
+@pytest.mark.spec("CLP-10-018")
+def test_a_stub_that_kept_the_body_is_refused():
+    """The refusal did not take effect if the message is still there."""
+    with pytest.raises(ValidationError) as caught:
+        _stub(received_body=_body())
+    assert "still holds its received body" in str(caught.value)
+
+
+@pytest.mark.spec("CLP-10-018")
+@pytest.mark.parametrize("field", ["sender_id", "refusal_reason", "body_hash"])
+def test_a_stub_missing_any_of_its_three_is_refused(field):
+    with pytest.raises(ValidationError) as caught:
+        _stub(**{field: None})
+    assert f"missing {field}" in str(caught.value)
+
+
+@pytest.mark.spec("CLP-10-018")
+def test_a_stub_owing_a_replay_is_refused():
+    """The replay would route a body that is no longer there."""
+    with pytest.raises(ValidationError) as caught:
+        _stub(replay_owed=True)
+    assert "owes a replay" in str(caught.value)
+
+
+@pytest.mark.spec("CLP-10-018")
+def test_the_stub_invariant_survives_assignment():
+    """``validate_assignment`` applies it after construction too."""
+    stub = _stub()
+    with pytest.raises(ValidationError):
+        stub.stage = ReceivedStage.ARCHIVED
+    record = _record()
+    with pytest.raises(ValidationError):
+        record.refusal_reason = "refused"
+
+
+@pytest.mark.spec("CLP-10-018")
+def test_a_receipt_stub_round_trips_through_the_datalayer(dl):
+    dl.create(_stub())
+
+    stored = dl.read(ReceivedActivityRecord.build_id(ACTIVITY_ID))
+    assert isinstance(stored, ReceivedActivityRecord)
+    assert stored.is_receipt_stub
+    assert stored.received_body is None
+    assert stored.sender_id == SENDER
+    assert stored.body_hash == _DIGEST

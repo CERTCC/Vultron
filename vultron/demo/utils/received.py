@@ -38,6 +38,20 @@ logger = logging.getLogger(__package__)
 RECEIVED_ACTIVITY_RECORD_TYPE = ReceivedActivityRecord.__name__
 
 
+def received_activity_or_none(record: dict) -> dict | None:
+    """The activity a served record holds, or ``None`` for a receipt stub.
+
+    A refused message leaves a stub with no body (CLP-10-018), so there is no
+    activity in it to read.  Use this where a sweep or a predicate runs over
+    every one of an actor's received records; use
+    :func:`received_activity_in` where the record is known to hold a body and
+    its absence is a fault.
+    """
+    if not isinstance(record.get("received_body"), str):
+        return None
+    return received_activity_in(record)
+
+
 def received_activity_in(record: dict) -> dict:
     """The activity a served ``ReceivedActivityRecord`` *record* archives.
 
@@ -108,7 +122,10 @@ def read_received_activity(
     )
     if not isinstance(record, dict):
         return None
-    return received_activity_in(record)
+    # A receipt stub is what the actor kept of a message it refused: it holds
+    # no activity, so the actor received none that a reader can have
+    # (CLP-10-018).
+    return received_activity_or_none(record)
 
 
 def not_received_error(
@@ -167,11 +184,15 @@ def read_received_activities(
         AssertionError: when a record found wraps no activity.
     """
     activities = (
-        received_activity_in(record)
+        received_activity_or_none(record)
         for record in _received_activity_records(client, actor_id).values()
         if isinstance(record, dict)
     )
-    return [a for a in activities if a.get("type") == activity_type]
+    return [
+        a
+        for a in activities
+        if a is not None and a.get("type") == activity_type
+    ]
 
 
 def verify_received_activity_stored(

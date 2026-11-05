@@ -55,6 +55,7 @@ from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
     ReceivedStage,
 )
+from vultron.core.services.received_activity import sealed_body_of
 from vultron.errors import VultronWiringError
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import add_note_to_case_activity
@@ -137,7 +138,7 @@ def test_deferred_activity_replays_with_its_inline_object(dl):
     assert held.stage is ReceivedStage.HELD
     assert held.replay_owed
     assert held.awaiting_case_id == _CASE_ID
-    assert json.loads(held.received_body) == body, "held as it arrived"
+    assert json.loads(sealed_body_of(held)) == body, "held as it arrived"
     assert dl.read(routed.id_) is None, "never under the sender's id"
 
     dl.create(
@@ -665,7 +666,7 @@ def test_a_redelivery_of_a_deferred_activity_is_not_held_again(dl):
     held = staging.held(routed.id_)
     assert held == held_before
     assert held is not None
-    assert json.loads(held.received_body) == first
+    assert json.loads(sealed_body_of(held)) == first
 
 
 @pytest.mark.spec("IO-03-004", "CBT-03-003")
@@ -683,7 +684,7 @@ def test_a_released_activity_queued_again_is_held_as_first_held(dl):
 
     held = replaying.held(routed.id_)
     assert held is not None
-    assert json.loads(held.received_body) == body
+    assert json.loads(sealed_body_of(held)) == body
 
 
 @pytest.mark.spec("VM-08-002", "DL-06-006", "ARCH-15-001")
