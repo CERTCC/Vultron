@@ -89,6 +89,11 @@ It Can Miss or Invent"):
   it can **miss** one. ARCH-24-001's twin-resolver scan
   (``test_exactly_one_resolver_module``) covers a definition; a *call* with
   the authority role as its argument has no instance in the scan today.
+- A call matches on the callee's bare name, so ``mod.resolve_case_manager_id``
+  is seen but an ``import ... as`` alias is not: that can **miss** a
+  comparison, and resolving import aliases is the alternative. The same
+  reading applies to the predicate, where an alias instead costs the
+  *compliant-asker* control a module, which fails loudly rather than quietly.
 """
 
 import ast
