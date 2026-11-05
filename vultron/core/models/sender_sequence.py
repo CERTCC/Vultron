@@ -33,21 +33,13 @@ from __future__ import annotations
 import urllib.parse
 from typing import Annotated, Any, Literal
 
-from pydantic import (
-    Field,
-    StrictInt,
-    TypeAdapter,
-    ValidationError,
-    model_validator,
-)
+from pydantic import Field, StrictInt, model_validator
 
 from vultron.core.models.base import CoreRecord, UriString, with_record_id
 from vultron.primitives import normalise_actor_id
 
 #: A ``senderSequence`` or ``expectedSenderSequence``: a positive integer.
 SenderSequence = Annotated[StrictInt, Field(gt=0)]
-
-_SENDER_SEQUENCE: TypeAdapter[int] = TypeAdapter(SenderSequence)
 
 
 def is_sender_sequence(value: object) -> bool:
@@ -56,11 +48,7 @@ def is_sender_sequence(value: object) -> bool:
     A positive integer, strictly: a boolean or a numeral spelled as text is
     no number.
     """
-    try:
-        _SENDER_SEQUENCE.validate_python(value)
-    except ValidationError:
-        return False
-    return True
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
 class SenderSequenceCounter(CoreRecord):
