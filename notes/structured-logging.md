@@ -9,9 +9,10 @@ description: >
   not per-call `extra=`), narrative log template (SL-04-006), infrastructure
   demotion list (SL-04-007), why a Selector arm a sibling can overrule logs at
   DEBUG (SL-03-002) with the refusal wording kept to the refusal (SL-03-003),
-  why a check read as a standing takes that rule from the same placement,
-  which lines are not refusal reasons and stay off that rule, and where new
-  narrative lines go so INFO logs read as a CVD protocol story.
+  why a check read as a standing takes that rule and so needs a placement the
+  walk reads as a branch, which lines are not refusal reasons and stay off that
+  rule, and where new narrative lines go so INFO logs read as a CVD protocol
+  story.
 related_specs:
   - specs/structured-logging.yaml
 related_notes:
@@ -247,20 +248,35 @@ a base method of that name in silence: mypy does not check override parameter na
 and pyright at `typeCheckingMode: basic` reports nothing either, so routing such a
 check through the rule would look done and do nothing (#5786).
 
-**A check read as a *standing* takes the same rule, from the same placement.**
-`SenderIsCaseOwnerNode` is both a sender door and a branch read: the
-suggest-actor, Leave, status and embargo trees tick it to pick an arm. Every one
-of those placements sits under a Selector with a later sibling or under an
-`Inverter`, so the walk already answers `False` and the branch choice is DEBUG —
-a kind check needs no second rule to be read as a standing, because the
-placement says which it is (#5845). One placement is neither: the CM-23-011
-decline arm, last child of `CloseOrDecline`, ticks only once the close arm has
-failed, so the tree refuses the Leave whatever the arm answers and the WARNING
-states a real outcome — but it cites HP-01-006 for a door that admitted the
-sender, so moving that read is tracked as #5903.
-`test/core/behaviors/test_sender_guard.py` records, per placement, which ones
-the walk calls the tree's answer, so a new standing read that lands in a
-WARNING position has to be decided rather than discovered.
+**A check read as a *standing* takes the same rule, so its placement has to be
+one the walk reads as a branch.** `SenderIsCaseOwnerNode` is both a sender door
+and a branch read: the suggest-actor, Leave, status and embargo trees tick it to
+pick an arm, and so does the closed-sender door. The rule reads the placement
+and nothing else, so a standing read that sits where the walk calls its FAILURE
+the tree's answer logs a sender refusal the guard never made. Put such a read
+under a Selector with a later sibling, or under an `Inverter` (#5845).
+
+Two placements got that wrong when the node joined the rule, and the second is
+why the first is worth stating as a rule rather than a fix. The closed-sender
+door composed the read as the *last* arm of its Selector, after the closure
+check — so a closed non-owner's repeated `Leave` logged `REFUSED (HP-01-006)` at
+WARNING on a run the handler reports `SKIPPED`, never `REFUSED`, because that
+door's act closes the case (CM-23-049, ID-05-003). Not a mis-levelled refusal: a
+refusal line on a run that refused nothing. #5917 put the read ahead of the
+closure check, which is also the right order for the reason the handler reports —
+the arm that speaks last is the one `closed_sender_turned_away` reads. The other
+is the CM-23-011 decline arm, last child of `CloseOrDecline`, which ticks only
+once the close arm has failed: the tree does refuse the Leave there, so the
+WARNING states a real outcome, but it cites HP-01-006 for a door that admitted
+the sender while the reported reason is the close arm's CM-23-010 one. Moving it
+is a tree change, tracked as #5903.
+
+`test/core/behaviors/test_sender_guard.py` records, per placement, which ones the
+walk calls the tree's answer, so a new standing read that lands in a WARNING
+position has to be decided rather than discovered. Read it from the built trees:
+the corpus pins each factory's `sender_rule` to `CASE_MANAGER`, so a door
+composed from a use case's declared rule is not in it, and the census speaks only
+for the placements a tree hard-codes.
 
 **A line that is not a refusal reason stays off the rule, and says so where it is
 logged.** The placement rule picks the level of a *refusal reason*.
@@ -272,11 +288,11 @@ unreadable ledger entry) is an anomaly, so it takes its level from SL-03-001 and
 records no refusal reason at all — WARNING at every such site but one, where
 `SenderIsCaseManagerNode` logs ERROR for a ledger entry it cannot read (#5862).
 That reason stands on its own, and no longer on a neighbour's silence: at the
-closed-sender door that lets a closing Case Owner through, the closure check is
-the Selector's first arm and `SenderIsCaseOwnerNode` is the arm after it, and
-that arm now takes the placement rule too, so the door's refusal does reach
-WARNING (#5845). The closure line keeps INFO because its verdict is the
-handler's, not to cover for a quiet neighbour.
+closed-sender door that lets a closing Case Owner through, the `CASE_OWNER` read
+is now the Selector's first arm and this check is the one the run ends on, so its
+INFO line is the door's own statement and the reason the handler reports
+(#5917). The closure line keeps INFO because its verdict is the handler's — a
+repeat is `SKIPPED` — not to cover for a quiet neighbour.
 
 **Keep the refusal wording to the refusal (SL-03-003).** `— REFUSED (IDs)` is the
 token the demo tests' `expect_no_sender_refusals` matches, so the DEBUG line states

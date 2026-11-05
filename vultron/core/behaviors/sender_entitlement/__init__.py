@@ -113,11 +113,16 @@ at every such site but one, ERROR where ``SenderIsCaseManagerNode`` cannot read
 the ledger entry (#5862) — and records no refusal reason.
 
 ``SenderIsCaseOwnerNode`` is also read as a standing rather than as a door, by
-the suggest-actor, Leave, status and embargo trees, and it takes this rule all
-the same (#5845): every one of those placements sits under a Selector with a
-later sibling or under an ``Inverter``, so the walk answers ``False`` there and
-the branch choice is DEBUG.  A kind check needs no second rule to be read as a
-standing — the placement already says which it is.
+the suggest-actor, Leave, status and embargo trees and by the closed-sender
+door's first arm, and it takes this rule all the same (#5845): each of those
+placements sits under a Selector with a later sibling or under an ``Inverter``,
+so the walk answers ``False`` there and the branch choice is DEBUG.  A kind
+check needs no second rule to be read as a standing — but it does need its
+placement to be one the walk reads as a branch, because the rule reads nothing
+else.  A standing read the walk calls the tree's answer logs a sender refusal
+the guard never made: that is why #5917 moved the closed-sender door's read
+ahead of its closure check, and why the CM-23-011 decline arm is still open as
+#5903.
 
 Nodes
 -----

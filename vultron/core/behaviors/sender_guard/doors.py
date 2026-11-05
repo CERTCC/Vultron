@@ -59,6 +59,19 @@ def closed_sender_door(
     *check* lets the Case Owner complete the case's closure and the sender
     is its Case Owner (CM-23-002).  :func:`closed_sender_turned_away` reads
     whether a run ended there.
+
+    The ``CASE_OWNER`` read is the Selector's **first** arm and the closure
+    check its last, so the arm that speaks last is the one whose reason the
+    handler reports.  The order is a log-level decision, not a behavioural
+    one: the door is the disjunction either way, but as the last arm the
+    owner read's FAILURE would be the tree's whole answer
+    (:func:`~vultron.core.behaviors.sender_entitlement.failure_is_the_refusal`),
+    so it would log a sender refusal at WARNING for a run the handler
+    reports ``SKIPPED`` — this door's act closes the case, so a closed
+    sender's repeat changes nothing (CM-23-049, ID-05-003).  First, its
+    FAILURE picks a branch the closure check can still admit, which is what
+    it is, and the line is DEBUG with no refusal wording (SL-03-002,
+    SL-03-003, #5917).
     """
     guard = closed_sender_guard(case_id, check.sender_id)
     door: py_trees.behaviour.Behaviour = guard
@@ -66,7 +79,7 @@ def closed_sender_door(
         door = py_trees.composites.Selector(
             name="SenderOpenOrClosingCaseOwner",
             memory=False,
-            children=[guard, case_owner_guard(case_id, check.sender_id)],
+            children=[case_owner_guard(case_id, check.sender_id), guard],
         )
     setattr(door, _CLOSED_SENDER_MARK, guard)
     return door
@@ -98,12 +111,13 @@ def closed_sender_turned_away(
 def case_owner_guard(
     case_id: str, sender_id: str
 ) -> py_trees.behaviour.Behaviour:
-    """The ``CASE_OWNER`` check the closed-sender door asks as its fallback.
+    """The ``CASE_OWNER`` read the closed-sender door asks first.
 
     Built here, beside the kinds' guards, so no handler names a sender node
-    itself (HP-01-007).  It admits no one: :func:`closed_sender_door` asks it
-    to tell a Case Owner's redelivered ``Leave``, whose case closure may
+    itself (HP-01-007).  It refuses no one: :func:`closed_sender_door` asks
+    it to tell a Case Owner's redelivered ``Leave``, whose case closure may
     still be incomplete, from a repeat that changes nothing (CM-23-002,
-    CM-23-018).
+    CM-23-018).  Being a read rather than a door is why it is placed ahead
+    of the closure check — see :func:`closed_sender_door` (#5917).
     """
     return SenderIsCaseOwnerNode(sender_actor_id=sender_id, case_id=case_id)

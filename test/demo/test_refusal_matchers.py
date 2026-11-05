@@ -78,10 +78,12 @@ def test_sender_matcher_catches_any_group_citing_hp_01_006(caplog, message):
         "Sender 'a' is not an active participant of case 'c', or has left it",
         "Sender 'a' is not a participant of case 'c'",
         "No case in this store to check sender 'a' against",
-        # The CASE_OWNER arm of an any-of side, overruled by a later kind:
-        # the group is gone, so the arm claims no refusal (SL-03-003, #5845).
-        "Sender 'a' is not the Case Owner of case 'c'; a later arm of the"
-        " any-of side may still admit it",
+        # The CASE_OWNER read of an any-of arm or of a branch a later arm
+        # can still admit — the closed-sender door's first arm among them:
+        # the group is gone, so it claims no refusal (SL-03-003, #5845,
+        # #5917).
+        "Sender 'a' is not the Case Owner of case 'c'; a later branch may"
+        " still admit the sender",
     ],
 )
 def test_sender_matcher_ignores_groups_without_hp_01_006(caplog, message):

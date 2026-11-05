@@ -99,11 +99,19 @@ def refuse_by_placement(
     ``BTBridge.get_failure_reason`` reports (BT-13-001), so it arrives
     already carrying its own ``— REFUSED (IDs)`` group.  The log level
     follows the tree: WARNING when this node's FAILURE is the guard's
-    refusal, DEBUG when a later arm of an any-of side still gets to admit
-    the sender (:func:`failure_is_the_refusal`).  A line a receiver that
+    refusal, DEBUG when a later branch still gets to admit the sender
+    (:func:`failure_is_the_refusal`).  A line a receiver that
     then admits the activity would emit is branch selection, not a refusal,
     so it belongs at DEBUG (SL-03-002), and it drops the ``REFUSED``
     wording with it (SL-03-003).
+
+    The DEBUG line says "a later branch", not "a later arm of the any-of
+    side", because an any-of side is only one of the shapes that answers
+    ``False``: a kind check is also read as a *standing* to pick a branch —
+    the ``CASE_OWNER`` check in the suggest-actor, Leave, status and
+    embargo trees, and the closed-sender door's first arm — and naming a
+    side those placements are not in would be a line stating something
+    untrue (#5845, #5917).
 
     A free function, not only a method of
     :class:`SenderEntitlementConditionNode`, because one check the factory
@@ -122,7 +130,7 @@ def refuse_by_placement(
         logger.warning("%s: %s", node.name, reason)
     else:
         logger.debug(
-            "%s: %s; a later arm of the any-of side may still admit it",
+            "%s: %s; a later branch may still admit the sender",
             node.name,
             _without_refusal_wording(reason),
         )

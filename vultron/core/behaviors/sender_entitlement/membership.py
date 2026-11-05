@@ -308,8 +308,8 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
     a repeat sent under a new id does not share.  Read-only.
 
     Its line stays at INFO, and does not take the placement rule the kinds'
-    checks take (:func:`refuse_by_placement`, SL-03-002).  Three reasons,
-    and the third is why DEBUG would cost something (#5786):
+    checks take (:func:`refuse_by_placement`, SL-03-002).  Two reasons, and
+    the first is the ground SL-03-002 itself states:
 
     - Its FAILURE is not a refusal.  The handler decides the verdict from
       the act: a repeat of an act that would close the sender again is
@@ -318,13 +318,14 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
       line reports a recorded state, which is INFO under SL-03-001.
     - It carries no ``REFUSED`` wording, so no reader and no matcher takes
       it as the tree's answer (SL-03-003 is met as it stands).
-    - At the closed-sender door that lets a closing Case Owner through
-      (:func:`vultron.core.behaviors.sender_guard.closed_sender_door` with
-      ``case_owner_completes``) this check is the Selector's first arm, so
-      the placement rule would read DEBUG — while the arm after it,
-      :class:`~vultron.core.behaviors.sender_entitlement.case_owner.SenderIsCaseOwnerNode`,
-      records its reason without logging it at all (#5845).  The door's
-      refusal would then have no line above DEBUG anywhere.
+
+    At the closed-sender door that lets a closing Case Owner through
+    (:func:`vultron.core.behaviors.sender_guard.closed_sender_door` with
+    ``case_owner_completes``) this check is the Selector's **last** arm, and
+    the ``CASE_OWNER`` read ahead of it is the branch choice (#5917).  So
+    this line is the one the door's run ends on and the one the handler
+    reports — which is the whole reason the read was placed first, and why
+    nothing here rests on that read being quiet.
 
     Spec: CM-23-018, ID-05-003, HP-01-007, SL-03-001.
     """

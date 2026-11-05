@@ -83,10 +83,12 @@ from vultron.core.behaviors.sender_guard import (
     AuthoredObject,
     AuthoredParticipantRecord,
     CaseProposalRequest,
+    ClosedSenderCheck,
     LedgerActivityContext,
     OwnershipOfferRequest,
     ReportOfferRequest,
     SenderCheckContext,
+    closed_sender_door,
     compose_sender_guard,
     sender_guard_refused,
 )
@@ -1038,21 +1040,28 @@ def test_factory_rejects_a_context_without_a_rule() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _close_owner(scenario: BTTestScenario) -> BTTestScenario:
-    """Record the Case Owner's closure (RM ``CLOSED``) on the open case."""
+def _close_participant(
+    scenario: BTTestScenario, actor_id: str
+) -> BTTestScenario:
+    """Record *actor_id*'s closure (RM ``CLOSED``) on the open case."""
     case = scenario.dl.read(CASE_ID)
     assert isinstance(case, as_VulnerabilityCase)
-    record = scenario.dl.read(case.actor_participant_index[OWNER])
+    record = scenario.dl.read(case.actor_participant_index[actor_id])
     assert isinstance(record, CaseParticipant)
     record.participant_statuses.append(
         ParticipantStatus(
             context=CASE_ID,
-            attributed_to=OWNER,
+            attributed_to=actor_id,
             rm=RmDimension(state=RM.CLOSED),
         )
     )
     scenario.dl.save(record)
     return scenario
+
+
+def _close_owner(scenario: BTTestScenario) -> BTTestScenario:
+    """Record the Case Owner's closure (RM ``CLOSED``) on the open case."""
+    return _close_participant(scenario, OWNER)
 
 
 #: Every shape of ``CASE_OWNER`` check the factory composes on a case.
@@ -1859,7 +1868,7 @@ def test_an_overruled_case_owner_arm_logs_debug_without_refusal_wording(
 
 
 def _owner_check_placements() -> dict[tuple[str, str, str], bool]:
-    """Every built placement of ``SenderIsCaseOwnerNode``, and the walk's answer.
+    """Each tree-placed ``SenderIsCaseOwnerNode``, and the walk's answer.
 
     Read from the built trees, so a placement a helper or a nested factory
     makes is seen exactly as it runs, and keyed by (factory, parent, node
@@ -1867,6 +1876,15 @@ def _owner_check_placements() -> dict[tuple[str, str, str], bool]:
     rather than being lost to a tally (#3984, #5535).  The Leave trigger tree
     is built beside the received corpus because it reuses the same close
     guards on the trigger side, where no received tree would reach them.
+
+    Not *every* built placement: ``built_received_trees`` synthesizes each
+    factory's ``sender_rule`` as ``SenderRule.in_case(CASE_MANAGER)``, so a
+    ``CASE_OWNER`` door the factory would compose from a use case's declared
+    rule is never built here — including all fourteen lone-``CASE_OWNER``
+    sides.  Those are doors, and a door's FAILURE *is* the tree's refusal by
+    design (``test_sender_guard_failure_is_the_tree_refusal.py`` pins that).
+    What this census is for is the other kind: a placement a tree hard-codes
+    to read the standing and pick a branch.
     """
     trees: dict[str, py_trees.behaviour.Behaviour] = {
         f"{module.rsplit('/', 1)[-1]}:{factory}": tree
@@ -1891,25 +1909,26 @@ def _owner_check_placements() -> dict[tuple[str, str, str], bool]:
     return found
 
 
-#: The built placements of ``SenderIsCaseOwnerNode`` whose FAILURE the walk
+#: The tree-placed ``SenderIsCaseOwnerNode`` reads whose FAILURE the walk
 #: reads as the tree's whole answer, so the check logs it at WARNING.  Every
 #: other placement is a standing read that picks an arm, and sits under a
 #: Selector with a later sibling or under an ``Inverter``, so its branch
 #: choice is DEBUG — which is why routing this node onto the shared rule
 #: (#5845) did not have to give the standing reads a rule of their own.
+#:
+#: An entry here is a standing read logging ``REFUSED`` at WARNING for a
+#: branch it merely did not take, so each one needs a ground.  One qualifies
+#: today.  The closed-sender door's read was the other until #5917 placed it
+#: ahead of the closure check it shares the door with; the door itself is
+#: still the refusal, which is what
+#: ``test_sender_guard_failure_is_the_tree_refusal.py`` pins.
 _OWNER_CHECK_IS_THE_REFUSAL = {
-    # The composed CASE_OWNER door of the Leave's sender guard: the refusal
-    # the fix exists to make visible.
-    (
-        "factory.py:create_close_case_received_tree",
-        "SenderOpenOrClosingCaseOwner",
-        "SenderIsCaseOwnerNode",
-    ),
     # The CM-23-011 decline arm, last child of ``CloseOrDecline``.  Its
     # FAILURE picks no branch that can rescue the delivery: the arm ticks
     # only once the close arm has already failed, so the tree refuses the
     # Leave whatever this check answers, and a WARNING states a real
-    # outcome even though the standing it names is not the whole cause.
+    # outcome even though the standing it names is not the whole cause —
+    # the reason the handler reports is the close arm's CM-23-010 one.
     # Moving it is a tree change, outside this check's package: #5903.
     (
         "factory.py:create_close_case_received_tree",
@@ -1942,6 +1961,91 @@ def test_every_case_owner_standing_read_is_placed_below_the_refusal() -> None:
     assert {
         site for site, is_refusal in placements.items() if not is_refusal
     }, "every CASE_OWNER placement is a door, so no standing read is pinned"
+
+
+# ---------------------------------------------------------------------------
+# The closed-sender door's CASE_OWNER read refuses no one (#5917)
+# ---------------------------------------------------------------------------
+
+
+def _closed_sender_door() -> py_trees.behaviour.Behaviour:
+    """The real door, under the root Sequence the factory places it in.
+
+    The walk climbs to the root, so the door has to be a child of one for
+    ``failure_is_the_refusal`` to answer what it answers in production
+    (HP-01-025).
+    """
+    door = closed_sender_door(
+        CASE_ID,
+        ClosedSenderCheck(sender_id=VENDOR, case_owner_completes=True),
+    )
+    py_trees.composites.Sequence(
+        name="CloseCaseBT", memory=True, children=[door]
+    )
+    return door
+
+
+@pytest.mark.spec("SL-03-002", "SL-03-003", "CM-23-018", "ID-05-003")
+def test_the_closed_sender_doors_owner_read_claims_no_refusal(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A closed non-owner's repeat draws no line claiming a sender refusal.
+
+    The door's act closes the case, so the handler reports a closed
+    sender's repeat ``SKIPPED``, never ``REFUSED`` (CM-23-049, ID-05-003) —
+    ``case_owner_completes`` is set by the Leave tree alone, whose use case
+    passes ``closes=True``.  Until #5917 the ``CASE_OWNER`` read was the
+    Selector's **last** arm, so the walk called its FAILURE the tree's whole
+    answer and it logged ``REFUSED (HP-01-006)`` at WARNING on exactly that
+    run: a refusal line on a run that refused nothing, which is the line
+    #5460 and #5786 removed.  Placed first, its FAILURE picks a branch the
+    closure check can still admit, so the line is DEBUG with the refusal
+    wording stripped, and the arm that speaks last is the one
+    ``closed_sender_turned_away`` reports.
+    """
+    door = _closed_sender_door()
+    read, closure = door.children
+    assert isinstance(read, SenderIsCaseOwnerNode)
+    assert isinstance(closure, SenderClosureNotRecordedNode)
+    assert failure_is_the_refusal(door) is True
+    assert failure_is_the_refusal(read) is False
+
+    with caplog.at_level(logging.DEBUG):
+        result = _close_participant(_store(MANAGER), VENDOR).run(
+            door, activity=SimpleNamespace(actor_id=VENDOR)
+        )
+
+    assert not result.internal_error, result.feedback_message
+    assert result.status == Status.FAILURE
+    # The door's own reason, the one the handler reports — not the read's.
+    assert "already closed" in BTBridge.get_failure_reason(door)
+    lines = _refusal_lines(caplog, SenderIsCaseOwnerNode)
+    assert [record.levelno for record in lines] == [logging.DEBUG]
+    assert "REFUSED" not in lines[0].getMessage()
+    # Nothing a reader or ``expect_no_sender_refusals`` takes as a refusal.
+    assert _refusals_logged(caplog) == []
+
+
+@pytest.mark.spec("CM-23-002", "CM-23-018")
+def test_the_closed_sender_door_still_admits_a_closing_case_owner() -> None:
+    """Reading the standing first did not change what the door answers.
+
+    The door is the same disjunction either way (CM-23-002): a Case Owner
+    whose own closure the case records may still complete it, and the read
+    now says so before the closure check is asked.
+    """
+    door = closed_sender_door(
+        CASE_ID,
+        ClosedSenderCheck(sender_id=OWNER, case_owner_completes=True),
+    )
+    py_trees.composites.Sequence(
+        name="CloseCaseBT", memory=True, children=[door]
+    )
+    result = _close_participant(_store(MANAGER), OWNER).run(
+        door, activity=SimpleNamespace(actor_id=OWNER)
+    )
+    assert not result.internal_error, result.feedback_message
+    assert result.status == Status.SUCCESS
 
 
 class _Leaf(py_trees.behaviour.Behaviour):
