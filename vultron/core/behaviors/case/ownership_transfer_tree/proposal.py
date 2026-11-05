@@ -94,7 +94,7 @@ def create_propose_ownership_transfer_tree(
     and makes no Offer.  The effect makes the Offer, queues it and
     commits it as the ``offer_case_ownership_transfer`` entry (SYNC-09-002).
     An Offer already made from this proposal is a redelivery, ``SKIPPED``
-    (HP-01-003).
+    (HP-01-014).
 
     Args:
         case_id: URI of the case the proposal names (its ``context``);

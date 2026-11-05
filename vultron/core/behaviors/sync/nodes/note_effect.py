@@ -18,7 +18,7 @@
 A note is attached by an ``add_note_to_case`` entry only
 (see ``IsAddNoteEventNode``, RSH-08-004).
 
-Per specs/sync-ledger-replication.yaml SYNC-02-002 and ADR-0022.
+Per specs/sync-ledger-replication.yaml SYNC-02-001 and ADR-0022.
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
     This is the canonical mechanism by which non-CaseActor participants
     learn about note additions — they must NOT update ``notes`` directly from
     ``Add(Note)[target=VulnerabilityCase]`` messages; only the CASE_MANAGER does that (ADR-0022,
-    SYNC-02-002).
+    SYNC-02-001).
 
     The note **object** is persisted alongside the reference, from the same
     ``payload_snapshot["object"]``.  Appending the id alone left the recipient
@@ -110,7 +110,7 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
 
         attach_note(self.datalayer, case, note_id)
         self.logger.info(
-            "%s: applied ledger note attachment '%s' to case '%s' (SYNC-02-002)",
+            "%s: applied ledger note attachment '%s' to case '%s' (SYNC-02-001)",
             self.name,
             note_id,
             case_id,
@@ -172,7 +172,7 @@ class ApplyRemoveNoteFromLedgerNode(_LedgerEffectNode):
     cannot wedge replication.  The note record itself is left in the store: the
     case no longer references it, and other records may.
 
-    Spec: SYNC-02-002, SYNC-12-001, RSH-08-004.
+    Spec: SYNC-02-001, SYNC-12-001, RSH-08-004.
     """
 
     def update(self) -> Status:
@@ -208,7 +208,7 @@ class ApplyRemoveNoteFromLedgerNode(_LedgerEffectNode):
         self.datalayer.save(case)
         self.logger.info(
             "%s: applied ledger note removal '%s' from case '%s'"
-            " (SYNC-02-002)",
+            " (SYNC-02-001)",
             self.name,
             note_id,
             case_id,

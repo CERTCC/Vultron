@@ -585,9 +585,9 @@ groups:
       guard).
       (2) It updates the participant status record.
       (3) It propagates the update with Announce(CaseLedgerEntry) fan-out (ADR-0019,
-      SYNC-02-002), never a re-broadcast of a direct raw Add(ParticipantStatus). It
-      sends it to the other participants that receive case content (CM-10-004,
-      CM-23-004).
+      SYNC-02-001, SYNC-02-003), never a re-broadcast of a direct raw
+      Add(ParticipantStatus). It sends it to the other participants that receive case
+      content (CM-10-004, CM-23-004).
       (4) If the Case Owner newly sets CS.P, it triggers embargo teardown
       automatically.
       (5) If all participants are RM.CLOSED, it closes the case automatically.
@@ -630,7 +630,7 @@ groups:
         to the case's content recipients (CM-10-004, CM-23-004)
       expected: >-
         Every active peer not at RM.CLOSED receives the status update via the
-        canonical log path (ADR-0019, SYNC-02-002), and so does a closed
+        canonical log path (ADR-0019, SYNC-02-003), and so does a closed
         participant the entry records the closure of; no other closed
         participant receives it, and no raw Add(ParticipantStatus) re-broadcast
         is emitted
@@ -2214,7 +2214,8 @@ groups:
       fan-out after the Coordinator triggers CS.P.
     rationale: >-
       Announce(CaseLedgerEntry) is the sole canonical propagation path for status
-      updates to peers (SYNC-02-002); this invariant confirms the fan-out fired.
+      updates to peers (SYNC-02-001, SYNC-02-003); this invariant confirms the fan-out
+      fired.
   - id: DEMOMA-12-017
     priority: MUST
     kind: project

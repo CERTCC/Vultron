@@ -246,7 +246,8 @@ into the Phase 3 grill-me interview as a combined agenda.
 
 ### Phase 3 — Interview with Grill-Me
 
-Invoke the `grill-me` skill, following `.agents/skills/shared/asking-the-user.md`.
+Invoke the `grill-me` skill, following `.agents/skills/shared/asking-the-user.md`
+and its pre-ask check: ask what behavior a rule should require, not how to word it.
 Resolve one question at a time (`ask_user` for discrete choices)
 with a recommended answer before writing anything:
 

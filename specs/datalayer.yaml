@@ -983,9 +983,9 @@ groups:
       A receiver MUST NOT hold a received activity in its DataLayer as a record readable
       by the id the sender chose for it, at any stage: not at inbox ingress, not for a
       deferred replay, and not in a received-side tree. A received activity is held only
-      under a key the receiver derives from the activity id: its
-      `ReceivedActivityRecord.build_id`, or the opaque deferred record that holds it for
-      replay (`DeferredInboxActivity.build_id`, IO-03-009). A record of an activity type
+      under one key the receiver derives from the activity id,
+      `ReceivedActivityRecord.build_id`, whichever stage the record is in: archived, or
+      held for a replay the inbox still owes (IO-03-009). A record of an activity type
       stored under its own id is then always one the receiver authored.
     rationale: >-
       An actor scans the type tables of its sent activities to answer "did I already
@@ -1002,8 +1002,8 @@ groups:
       the receiver), asserting `case_is_announced`, `announced_case_id`,
       `find_case_create_sent_by` and `recorded_stub_invites` do not count it; all pass.
       `test/adapters/driving/fastapi/test_inbox_staging.py` asserts a deferred
-      activity is held only in its `DeferredInboxActivity` and that no row under the
-      sender's id is replayed. For the received-side trees, the
+      activity is held only in its own `ReceivedActivityRecord` and that no row under
+      the sender's id is replayed. For the received-side trees, the
       `Invite(EmbargoEvent)`, `Offer(VulnerabilityReport)` and ownership-transfer
       `Offer` tests in `test/core/use_cases/received/` (marked DL-06-006) run each tree
       on a store with no ingress row and assert, through `assert_held_only_as_received`

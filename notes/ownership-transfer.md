@@ -151,7 +151,7 @@ before the Offer's state is read (#4437).
   leaves no entry and no Offer. A
   redelivery is recognised by the Offer derived from the proposal, whose
   `attributedTo` must be the sender, not by the role: the sender may have handed
-  ownership on since (`SenderIsOfferingCaseOwnerNode`, HP-01-003).
+  ownership on since (`SenderIsOfferingCaseOwnerNode`, HP-01-014).
 - **No sender is admitted for `Offer(VulnerabilityCase)` at the CASE_MANAGER**: it
   makes that Offer itself; a participant takes it from the CASE_MANAGER alone
   (CM-21-019, PCR-03-001).

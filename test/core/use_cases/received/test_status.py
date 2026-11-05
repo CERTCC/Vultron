@@ -1076,7 +1076,7 @@ class TestParticipantStatusLogEntryCascade:
             "add_participant_status_to_participant"
         )
 
-    @pytest.mark.spec("SYNC-02-002")
+    @pytest.mark.spec("SYNC-02-003")
     @pytest.mark.spec("BT-14-001")
     def test_status_without_sync_port_raises_as_wiring_fault(
         self, make_payload

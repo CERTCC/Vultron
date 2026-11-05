@@ -709,7 +709,8 @@ groups:
     statement: >-
       The CASE_MANAGER MUST NOT send the RSH-06-004 note to the sender as a direct
       `Add(Note)`, which a participant refuses (HP-01-005). The sender learns of the
-      note from the entry's `Announce(CaseLedgerEntry)` fan-out (SYNC-02-003).
+      note from the entry's `Announce(CaseLedgerEntry)` fan-out (SYNC-02-001,
+      SYNC-02-003).
     rationale: >-
       The note is a case act of the CASE_MANAGER, so it goes to the sender through the
       ledger. A participant refuses a direct `Add(Note)` (HP-01-005), so a direct send

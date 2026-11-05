@@ -193,7 +193,7 @@ class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
     closing the Offer is a duplicate, not a new withdrawal: its standing was
     established when it was admitted, and ownership may since have moved on
     through a later Offer.  The role is not re-checked for it, so the
-    open-Offer guard reports it ``SKIPPED`` (HP-01-003).
+    open-Offer guard reports it ``SKIPPED`` (HP-01-014).
 
     Spec: CM-21-015, PCR-03-001, HP-01-003, HP-01-006.
     """
@@ -242,7 +242,7 @@ class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
         assert self.datalayer is not None and self._case is not None
         assert self._offer is not None
         if self._offer.answer_id == self._reply_id:
-            return  # the admitted withdrawal, redelivered (HP-01-003)
+            return  # the admitted withdrawal, redelivered (HP-01-014)
         sender = self.sender_actor_id
         if not _holds_case_owner_role(self.datalayer, self._case, sender):
             raise NoStandingError(
@@ -263,7 +263,7 @@ class SenderIsOfferingCaseOwnerNode(SenderEntitlementConditionNode):
     on this sender's behalf, is a duplicate, not a new proposal: its standing
     was established when it was admitted, and the sender may since have
     handed ownership on, so the role is not re-checked and the open-Offer
-    guard reports it ``SKIPPED`` (HP-01-003).  The same proposal id from any
+    guard reports it ``SKIPPED`` (HP-01-014).  The same proposal id from any
     other sender is judged as a new proposal: the Offer id is derived from
     the proposer too
     (:func:`~vultron.core.participants.ownership_offer.ownership_offer_id`).
@@ -318,7 +318,7 @@ class SenderIsOfferingCaseOwnerNode(SenderEntitlementConditionNode):
         if offerer is not None and same_actor_id(offerer, sender):
             self.logger.debug(
                 "%s: proposal '%s' was made into Offer '%s' for '%s'"
-                " — redelivery (HP-01-003)",
+                " — redelivery (HP-01-014)",
                 self.name,
                 self._proposal_id,
                 made.offer_id if made is not None else None,

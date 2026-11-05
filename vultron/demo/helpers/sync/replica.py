@@ -100,7 +100,7 @@ def verify_replica_state(
             error — which is the whole point of this function: it reports
             replica divergence in the demo's own terms.
 
-    Spec: SYNC-02-002, D5-7-DEMOREPLCHECK-1.
+    Spec: SYNC-00-009, SYNC-19-002, D5-7-DEMOREPLCHECK-1.
     """
     auth_case_data = _case_or_none(auth_client, case_id)
     assert auth_case_data, f"Authoritative case {case_id!r} not found"

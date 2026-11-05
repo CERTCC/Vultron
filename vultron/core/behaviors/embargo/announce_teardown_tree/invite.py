@@ -136,7 +136,7 @@ def invite_to_embargo_on_case_tree(
     delivered again while its proposal is open
     (``pending_embargo_proposal_index`` already maps the embargo to this
     Invite's id) commits nothing and the handler reports it as a repeat
-    (CLP-13-001, HP-01-003).  The index holds no decided proposal
+    (CLP-13-001, HP-01-014).  The index holds no decided proposal
     (EP-08-003), so on the participant path a second guard,
     :class:`~vultron.core.behaviors.embargo.nodes.relay_guards.EmbargoInviteNotYetAnsweredNode`,
     skips an Invite the invitee has already answered, however its proposal

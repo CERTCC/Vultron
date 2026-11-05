@@ -48,6 +48,7 @@ from vultron.core.models.received_activity_record import (
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.services.received_holding import hold_for_replay
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
@@ -490,9 +491,17 @@ class TestAnnounceFirstContactTrustGap:
         dl.save(
             VultronPendingCaseInbox(
                 case_id=_CASE_ID,
-                activity_ids=["https://example.org/activities/queued"],
                 case_actor_id=_CASE_ACTOR_ID,
             )
+        )
+        # What waits for the case names it on its own record (ADR-0154); the
+        # queue's record only opens the expiry window.
+        queued_id = "https://example.org/activities/queued"
+        assert hold_for_replay(
+            dl,
+            queued_id,
+            f'{{"id": "{queued_id}", "type": "Announce"}}',
+            awaiting_case_id=_CASE_ID,
         )
 
         result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()

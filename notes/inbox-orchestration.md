@@ -6,10 +6,12 @@ description: >
   Rules for the core BT-backed inbox orchestration module: orchestration
   belongs in core/, the narrow route-level guard exception, the two-adapter
   seam and verdict mapping, the path from receipt to permanent storage (ingress
-  writes nothing; a deferred activity is held whole), redelivery detection and
-  the reused-id refusal, the internal-error fault for a raised dispatch,
-  the queue replay's bounded retry and held fault, the planned staged-record
-  and path-stage replacement of intake-first (ADR-0153, ADR-0154),
+  writes nothing; one staged record per message holds a deferred activity),
+  redelivery detection and the reused-id refusal, which evidence a routed copy
+  carries, when the per-case expiry window restarts,
+  the internal-error fault for a raised dispatch,
+  the queue replay's bounded retry and held fault, what is left of the
+  staged-record replacement of intake-first (ADR-0153, ADR-0154),
   pending-queue port injection, and the test surface.
 related_specs:
   - specs/inbox-orchestration.yaml
@@ -124,16 +126,57 @@ the last one writes what it carries:
 
 A reader that needs a received activity later loads its body: core through
 `read_received_activity` (a read-only view), a reply through
-`vultron/adapters/received_archive.py`; never under the sender's id. An activity
-deferred until its case is known is held whole in one `DeferredInboxActivity`
-(IO-03-009): the sealed received body and its staged inline rows, nothing derived
-from them (ADR-0149). Its replay parses the body again, so it carries the first
-delivery's evidence (VM-08-008); the replay, or the queue's expiry, deletes the
-record. A held out-of-order `Announce(CaseLedgerEntry)` (SYNC-14-001) is held the
-same way, as the body that arrived, and its replay (SYNC-14-009) deletes the record.
-**Hold before you queue**:
-the record is the activity's only copy, so an id queued with nothing held behind it
-is lost, and `hold_for_replay` raises rather than queue one (DL-06-006).
+`vultron/adapters/received_archive.py`; never under the sender's id.
+
+**One message, one record** (ADR-0154). An activity the inbox defers is held on its
+own `ReceivedActivityRecord`, the same row intake archives to, under the key the
+receiver derives. `DeferredInboxActivity` and the `VultronPendingCaseInbox` activity
+list are retired into it. The record carries two facts, and both combinations of
+them are reachable, so neither can be read off the other:
+
+- `stage` — `HELD` for a body the receiver has not archived, `ARCHIVED` once intake
+  archived it (CLP-10-017);
+- `replay_owed` — whether a replay is still owed from the held body, because the
+  delivery that carried it ended without routing it. It waits on its case
+  (`awaiting_case_id`), on a ledger gap (SYNC-14-001), on an object fetch
+  (AKM-05-007), or on a retry.
+
+A buffered `Announce(CaseLedgerEntry)` is the pairing that catches people out: intake
+archived it and the handler then held it, so it is `ARCHIVED` **and** owes a replay.
+Releasing or discarding that hold therefore clears the replay and leaves the archive
+standing (CLP-10-018); only a record the receiver never archived goes with its
+release. Go through `vultron/core/services/received_holding.py` for every one of
+those transitions — it is the one place the pairing is kept straight.
+
+`replay_owed` is also what decides whether a routed copy carries received evidence,
+which is why the decision reads the record and not a record type: a replay routes the
+held body **with** its evidence, because the copy routed is the delivery held
+(VM-08-008); a *new* delivery answered by a record that still owes a replay routes
+the held copy **without** evidence, because that copy is not this delivery and will
+carry the evidence when it is replayed (VM-08-010); and a new delivery answered by an
+archived record owing nothing routes the archived body **with** its evidence, because
+that body is the first delivery's (VM-08-009).
+
+**What waits for a case is read from the waiting messages**, each naming its case in
+`awaiting_case_id`, in arrival order (`received_at`); `records_awaiting_case` is the
+read. `VultronPendingCaseInbox` keeps only what is per case: the stub Invite's trust
+anchor, and `queued_at`, the one clock that opens the CBT-03-001 window. Keeping that
+clock per case preserves its restart when an anchor-only record takes its first
+waiting message, so an invitee's thinking time is not charged to the queue.
+
+**Read "was anything already waiting?" before the hold, never after.** The hold is
+what makes an activity one of the waiting, so a reading taken afterwards always
+finds at least this activity and cannot tell a first arrival from a redelivery of
+the only waiter — which is what decides whether `queued_at` restarts
+(`_case_window_is_open`, CBT-03-001). Taking it after reopened the expiry window on
+every redelivery, so a sender redelivering inside the window held the pre-bootstrap
+queue open for ever, against CBT-03-003's bound. The retired `activity_ids` list hid
+this by answering membership directly; a list replaced by a derived read loses that,
+and any "is this the first one?" question over such a read has the same trap.
+
+**Hold before you queue**: the record is the activity's only copy, so an id queued
+with nothing held behind it is lost, and `hold_for_replay` raises rather than queue
+one (DL-06-006).
 
 **A redelivery is detected from the receiver's own key** (IE-10-001): a deferred
 record routes the held copy, without received evidence, and keeps it for the
@@ -187,13 +230,15 @@ that caught its own raise, such as extraction) is retried like a raise, or the i
 lost; a handler's verdict is final. A dead-lettered item stays held for the operator, so
 a resend of it routes the held copy as a redelivery (IE-10-001) and does not release it.
 
-**The intake-first order above is being replaced; don't build on it.** Two proposed
-records reorder a received message's questions so an early answer ends the run before
-anything is stored: one role check per message picks the received path (ADR-0153),
-and each message becomes one staged record, archived only when applied, with a refused
-one leaving a receipt stub (ADR-0154). Until #5041–#5047 land, the steps above still
-describe the code, but new work should not add another receiver-role gate or another
-reader of intake's archive of a refused message: both are what the migration removes.
+**The intake-first order above is being replaced; don't build on it.** One role check
+per message now picks the received path (ADR-0153), and a received message is now one
+staged record (ADR-0154, above). What is still to come is the rest of ADR-0154: the
+doors run before the archive, an applied message goes to the archive and a refused one
+leaves a receipt stub with no body, and a resend is answered from what was recorded.
+Until those land, intake still archives every arrival, so `ARCHIVED` here means
+"intake kept it", not "the receiver applied it". New work should not add another
+receiver-role gate or another reader of intake's archive of a refused message: both
+are what the migration removes.
 
 ---
 
