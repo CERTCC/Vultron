@@ -281,6 +281,15 @@ def test_short_range_end_is_a_citation(mark):
 
 
 @pytest.mark.spec("SR-13-023")
+def test_backward_short_range_end_is_not_a_citation():
+    registry = _citing_registry(
+        f"{A} MUST hold for {C}–002.", see_also=[_see(C)]
+    )
+
+    assert relation_graph.check_statement_citations(registry) == []
+
+
+@pytest.mark.spec("SR-13-023")
 @pytest.mark.spec("SR-13-024")
 def test_listing_an_unknown_cited_id_reports_both_faults():
     registry = _citing_registry(

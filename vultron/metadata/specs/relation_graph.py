@@ -180,8 +180,8 @@ def check_statement_citations(registry: SpecRegistry) -> list[str]:
     ``see_also`` with a reason. A ``see_also`` entry is stale, and an error,
     when the statement does not cite the ID, when a relationship links the
     two, when the ID names no requirement or the citing requirement itself, or
-    when the entry repeats one already listed. A cited ID that names no requirement is reported too: it
-    can be neither linked nor listed.
+    when the entry repeats one already listed. A cited ID that names no
+    requirement is reported too: it can be neither linked nor listed.
     """
     known = registry.all_specs
     linked = _linked_pairs(registry)
