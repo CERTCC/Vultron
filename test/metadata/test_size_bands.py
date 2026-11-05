@@ -3,11 +3,11 @@
 Pure: no network, no git, no filesystem except the one CLI test that measures a
 real diff, which is skipped when ``origin/main`` is not fetched.
 
-The point of most of these is not that 100 and 400 and 1200 are the right
-numbers — they are a review-budget policy and the module docstring argues for
-them. The point is that the numbers exist *once*, so the tests pin the
-**derivation** (weights come from the table, floors come from the ceiling above
-them, the top band has no weight) rather than re-typing the table and creating
+The point of most of these is not that 200 and 1000 and 2500 are the right
+numbers — the PAD-05-011 rationale holds the survey that argues for them. The
+point is that the numbers exist *once*, so the tests pin the **derivation**
+(weights come from the table, floors come from the ceiling above them, the top
+band has no weight) rather than re-typing the table and creating
 the ninth copy of it.
 """
 
@@ -20,12 +20,15 @@ import subprocess
 import pytest
 
 from vultron.metadata.planning.size_bands import (
+    DECOMPOSE,
+    DECOMPOSE_EXIT,
     LABEL_COLORS,
     SIZE_BANDS,
     SIZE_LABELS,
     SIZE_WEIGHTS,
     UNBUNDLABLE_LABELS,
     UNSIZED_WEIGHT,
+    DecompositionRequired,
     _diff_lines,
     band_for_acs,
     band_for_diff,
@@ -33,6 +36,9 @@ from vultron.metadata.planning.size_bands import (
     markdown_table,
     weight_of,
 )
+
+_ESTIMATE_BANDS = tuple(b for b in SIZE_BANDS if not b.measured_only)
+_LAST_AC_CEILING: int = _ESTIMATE_BANDS[-1].max_acs or 0
 
 
 class TestTableShape:
@@ -46,17 +52,18 @@ class TestTableShape:
         unbounded = [b for b in SIZE_BANDS if b.max_lines is None]
         assert unbounded == [SIZE_BANDS[-1]]
 
-    def test_the_estimate_domain_is_unbounded_only_at_its_end(self):
-        """`band_for_acs` relies on this, and only ``max_lines`` was checked.
-
-        Give ``size:L`` a finite ``max_acs`` and the loop falls through to a
-        ``# pragma: no cover`` ``AssertionError`` for every count above it,
-        which coverage cannot flag — and the parametrized boundary test starts
-        silently comparing against the ``measured_only`` band instead.
-        """
+    def test_every_estimate_band_has_a_finite_ac_ceiling(self):
+        """`band_for_acs` relies on this: past the last ceiling is
+        "decompose" (PAD-05-013), so an unbounded estimate band would make
+        that answer unreachable and label a 50-AC Issue as if it fit."""
         estimable = [b for b in SIZE_BANDS if not b.measured_only]
-        unbounded = [b for b in estimable if b.max_acs is None]
-        assert unbounded == [estimable[-1]]
+        ceilings = [b.max_acs for b in estimable if b.max_acs is not None]
+        assert len(ceilings) == len(estimable)
+        assert ceilings == sorted(ceilings)
+        assert len(set(ceilings)) == len(ceilings)
+
+    def test_a_measured_only_band_has_no_ac_ceiling(self):
+        assert all(b.max_acs is None for b in SIZE_BANDS if b.measured_only)
 
     def test_every_band_has_a_colour(self):
         assert set(LABEL_COLORS) == set(SIZE_LABELS)
@@ -70,19 +77,20 @@ class TestCalibratedValues:
 
     Every other test here reads its threshold out of ``SIZE_BANDS``, which pins
     the *derivation* but cannot fail on a wrong number — change ``max_lines`` to
-    1000 and the rest of this file stays green while PAD-05-008 and PAD-05-009
-    are both violated. Seven spec requirements state these numbers normatively
+    1200 and the rest of this file stays green while PAD-05-008 and PAD-05-009
+    are both violated. Eight spec requirements state these numbers normatively
     and name this file as their verification, so the numbers are asserted here
     once, against the spec, and nowhere else.
     """
 
     def test_the_line_thresholds_are_the_surveyed_ones(self):
-        # PAD-05-006/007/008/009: ≤100 / 101-400 / 401-1200 / 1201+.
-        assert [b.max_lines for b in SIZE_BANDS] == [100, 400, 1200, None]
+        # PAD-05-006/007/008/009: ≤200 / 201-1000 / 1001-2500 / 2501+.
+        assert [b.max_lines for b in SIZE_BANDS] == [200, 1000, 2500, None]
 
     def test_the_ac_thresholds_are_the_surveyed_ones(self):
-        # PAD-05-001/004/005: ≤2 / 3-6 / 7+, and XL is unreachable (PAD-05-012).
-        assert [b.max_acs for b in SIZE_BANDS] == [2, 6, None, None]
+        # PAD-05-001/004/005: ≤1 / 2-3 / 4-8; 9+ decomposes (PAD-05-013) and
+        # XL is unreachable (PAD-05-012).
+        assert [b.max_acs for b in SIZE_BANDS] == [1, 3, 8, None]
 
     def test_the_bundle_weights_are_one_two_three_then_never(self):
         # PAD-15-005/PAD-15-011. `size:M` = 2 is pinned nowhere else: the
@@ -153,19 +161,39 @@ class TestBandForDiff:
 class TestBandForAcs:
     """The estimate domain, which the top band is deliberately outside of."""
 
-    @pytest.mark.parametrize("band", SIZE_BANDS)
+    @pytest.mark.parametrize("band", _ESTIMATE_BANDS[:-1])
     def test_each_ceiling_and_the_one_after_it_land_correctly(self, band):
-        if band.measured_only or band.max_acs is None:
-            pytest.skip("no AC ceiling to probe")
+        assert band.max_acs is not None
         index = SIZE_BANDS.index(band)
         assert band_for_acs(band.max_acs) is band
         assert band_for_acs(band.max_acs + 1) is SIZE_BANDS[index + 1]
 
+    def test_the_last_ceiling_is_inclusive_and_one_past_it_decomposes(self):
+        last = _ESTIMATE_BANDS[-1]
+        assert last.max_acs is not None
+        assert band_for_acs(last.max_acs) is last
+        with pytest.raises(DecompositionRequired) as raised:
+            band_for_acs(last.max_acs + 1)
+        assert raised.value.count == last.max_acs + 1
+        assert raised.value.ceiling is last
+        assert last.label in str(raised.value)
+
+    def test_zero_acs_is_the_smallest_band(self):
+        assert band_for_acs(0) is SIZE_BANDS[0]
+
     def test_no_ac_count_can_reach_a_measured_only_band(self):
         """An Issue predicted that large should be decomposed, not labelled XL.
         XL is reachable only by measuring a PR that already grew too big."""
-        for count in (0, 1, 7, 50, 10_000):
+        for count in range(_LAST_AC_CEILING + 1):
             assert not band_for_acs(count).measured_only
+        for count in (_LAST_AC_CEILING + 1, 50, 10_000):
+            with pytest.raises(DecompositionRequired):
+                band_for_acs(count)
+
+    def test_decomposition_is_not_a_value_error(self):
+        """The CLI reports a ``ValueError`` as bad input (exit 2); a large
+        count is valid input with a planning answer, so it must not be one."""
+        assert not issubclass(DecompositionRequired, ValueError)
 
     def test_a_negative_ac_count_is_rejected_by_name(self):
         with pytest.raises(ValueError, match="cannot be negative"):
@@ -200,7 +228,7 @@ class TestDescriptions:
             assert band.lines_range in band.description
 
     def test_the_measured_only_band_says_why_it_exists(self):
-        assert "review quality degrades" in SIZE_BANDS[-1].description
+        assert "CI-fix rate doubles" in SIZE_BANDS[-1].description
 
     def test_the_table_has_one_row_per_band(self):
         rows = markdown_table().splitlines()
@@ -213,18 +241,34 @@ class TestCLI:
     """Error messages are the product (vultron/metadata/AGENTS.md)."""
 
     def test_lines_reports_the_band_and_the_measurement(self, capsys):
-        assert main(["--lines", "700"]) == 0
+        assert main(["--lines", "1700"]) == 0
         out = capsys.readouterr().out
-        assert "size:L" in out and "700 diff lines" in out
+        assert "size:L" in out and "1700 diff lines" in out
 
     def test_quiet_prints_only_the_label_for_shell_capture(self, capsys):
         assert main(["--lines", "42", "--quiet"]) == 0
         assert capsys.readouterr().out.strip() == "size:S"
 
     def test_acs_reports_the_estimate(self, capsys):
-        assert main(["--acs", "4"]) == 0
+        assert main(["--acs", "2"]) == 0
         out = capsys.readouterr().out
         assert "size:M" in out and "estimate" in out
+
+    def test_acs_past_the_ceiling_reports_decompose_and_no_label(self, capsys):
+        past = _LAST_AC_CEILING + 1
+        assert main(["--acs", str(past)]) == DECOMPOSE_EXIT
+        out = capsys.readouterr().out
+        assert out.startswith(DECOMPOSE)
+        assert f"{past} acceptance criteria" in out
+        assert not any(label in out.split("—")[0] for label in SIZE_LABELS)
+
+    def test_quiet_decompose_prints_only_decompose(self, capsys):
+        past = _LAST_AC_CEILING + 1
+        assert main(["--acs", str(past), "--quiet"]) == DECOMPOSE_EXIT
+        assert capsys.readouterr().out.strip() == DECOMPOSE
+
+    def test_decompose_exit_is_neither_success_nor_bad_input(self):
+        assert DECOMPOSE_EXIT not in (0, 2)
 
     def test_an_oversized_diff_explains_itself(self, capsys):
         assert main(["--lines", "5000"]) == 0

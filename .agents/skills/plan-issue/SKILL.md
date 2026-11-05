@@ -335,7 +335,8 @@ of the Epic itself, not blocked-by it.
 Repeat for each additional impl issue. Set `size:` from the AC count with
 `PYTHONPATH= uv run pr-size --acs <N> --quiet` — an **estimate**, per
 `.agents/skills/shared/sizing.md`. Never `size:XL`: an issue that large is a
-decomposition signal, and the band is measurement-only (PAD-05-012).
+decomposition signal, and the band is measurement-only (PAD-05-012). When the
+tool prints `decompose` (exit 3), apply no label and split the issue (PAD-05-013).
 
 **The impl issue is already on the epic forest.** `create-issue` adds it to
 Project #24 under a same-theme Epic, so it inherits that Epic's Schedule tier —

@@ -44,7 +44,7 @@ external agentic tools is `specs/agentic-readiness.yaml`, a different topic.
 | Where does ship-pipeline progress live? | On the PR, as the `Ship stage` field | One bundle PR closes several issues (PAD-17) |
 | When does an Epic close? | Automatically, when its last sub-issue closes | Later work belongs to a new Epic (PAD-01-008) |
 | Stale-claim threshold | 3 days since the last branch commit | Recovery stays manual: stale claims are rare |
-| Where do the `size:` bands live? | One table in `vultron/metadata/planning/size_bands.py` (`pr-size --table`) | A threshold restated in prose drifts; the module docstring gives the calibration rationale |
+| Where do the `size:` bands live? | One table in `vultron/metadata/planning/size_bands.py` (`pr-size --table`) | A threshold restated in prose drifts; the PAD-05-011 rationale holds the dated survey behind it |
 | Who applies the measured `size:` label? | The `pr-size-label` workflow, not an agent | A rule kept only in skill prose was skipped on a large share of PRs (PAD-05-002) |
 | Is a bundle one PR or several? | One PR closing every member | One context load, one branch, one review (PAD-15) |
 | Is thematic coherence scored? | No; the agent states it in one sentence | Cutting by surface theme rather than design grain produces wrong work units (`calve-epics`) |
@@ -67,7 +67,7 @@ Subtasks.
 | Label | Applied by | Meaning |
 |---|---|---|
 | `size:S` / `size:M` / `size:L` | Agent at issue creation (AC estimate); `pr-size-label` CI on the PR (measured diff) | Bands: `pr-size --table`; semantics: `.agents/skills/shared/sizing.md` |
-| `size:XL` | `pr-size-label` CI only | **Measurement-only**: a PR too big for review to cover. An issue that large is decomposed instead (PAD-05-012) |
+| `size:XL` | `pr-size-label` CI only | **Measurement-only**: a PR past the size where the CI-fix rate doubles. An issue that large is decomposed instead (PAD-05-012, PAD-05-013) |
 | *(no `size:` label)* | — | **Unmeasured, not small.** Bundle selection weights it as the largest bundlable size (PAD-15-005); `size:XL` is refused outright (PAD-15-011) |
 | `stale-claim` | Stale-claim sweeper (GH Actions) | Orphaned claim; skip until a human clears it |
 | `needs-info` | Anyone | **The only hold**: waiting on a person or decision; keeps the issue out of `Ready` (PAD-16-004/005) |
