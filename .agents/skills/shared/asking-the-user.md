@@ -44,7 +44,7 @@ to the log first."
 
 A spec rule that looks wrong almost always hides a behavior or architecture
 problem. Ask about that problem; once the user decides it, write the wording
-yourself and let the user review it in the PR.
+yourself and let the user review it in the diff or PR.
 
 - **Ask what should happen, not how to phrase it.** "How should MV-10-002 be
   reworded?" asks the user to wordsmith. "When a participant accepts a case
