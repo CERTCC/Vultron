@@ -303,11 +303,13 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 # wrote it.  A later delivery whose own tree names no case —
                 # ``create_ack_report_received_tree`` is one — then resolves
                 # that stale id: ``ReceivedPathNode`` and
-                # ``CheckIsCaseManagerNode`` both read ``/case_id`` after
-                # their constructor argument (``activity_case_id``), so the
-                # path stage refused an RK as a replica of a case the RK
-                # never named.  In a single-process run the writer can even
-                # be a different actor's execution (BT-09).
+                # ``CheckIsCaseManagerNode`` read ``/case_id`` before the
+                # activity's case (``activity_case_id``), so the path stage
+                # refused an RK as a replica of a case the RK never named.
+                # A tree that names its case seeds the port per node with
+                # ``with_case_id``, which restores the key itself.  In a
+                # single-process run the writer can even be a different
+                # actor's execution (BT-09).
                 "case_id",
                 # The CASE_MANAGER actor for the case a trigger acts on.
                 # ``ResolveCaseManagerNode`` publishes it, ``None`` on each of

@@ -88,6 +88,7 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
     create_recommend_actor_to_case_received_tree,
     create_reject_actor_recommendation_received_tree,
 )
+from vultron.core.behaviors.case_id_scope import unscoped
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
@@ -1124,7 +1125,7 @@ class TestDuplicateDetectionTreeStructure:
         reinvite = self._duplicate_selector().children[0]
         assert isinstance(reinvite, py_trees.composites.Sequence)
         assert reinvite.name == "OwnerReinvite"
-        assert [type(c) for c in reinvite.children] == [
+        assert [type(unscoped(c)) for c in reinvite.children] == [
             SenderIsCaseOwnerNode,
             ReinviteAwaitingNode,
             EvaluateDefaultRolesNode,
@@ -1184,13 +1185,13 @@ class TestDuplicateDetectionTreeStructure:
         owner = self._duplicate_selector().children[4]
         assert isinstance(owner, py_trees.composites.Sequence)
         assert owner.name == "OwnerDirectInvite"
-        assert [type(c) for c in owner.children] == [
+        assert [type(unscoped(c)) for c in owner.children] == [
             SenderIsCaseOwnerNode,
             EvaluateDefaultRolesNode,
             EmitInviteActorToCaseNode,
             CreateInertInviteeParticipantNode,
         ]
-        check = owner.children[0]
+        check = unscoped(owner.children[0])
         assert isinstance(check, SenderIsCaseOwnerNode)
         assert check._sender_actor_id == _RECOMMENDER
         emit = owner.children[2]
@@ -1205,7 +1206,7 @@ class TestDuplicateDetectionTreeStructure:
         child_types = [type(c) for c in fresh.children]
         guard = fresh.children[0]
         assert isinstance(guard, py_trees.decorators.Inverter)
-        assert isinstance(guard.decorated, SenderIsCaseOwnerNode)
+        assert isinstance(unscoped(guard.decorated), SenderIsCaseOwnerNode)
         assert EvaluateDefaultRolesNode in child_types
         assert EmitOfferCaseParticipantToOwnerNode in child_types
 
@@ -1520,7 +1521,9 @@ def test_sender_guard_follows_intake_and_precedes_the_commit(
         for i, c in enumerate(children)
         if isinstance(c, ActivityAddressedToReceiverNode)
     )
-    path_stages = sum(1 for c in children if isinstance(c, ReceivedPathNode))
+    path_stages = sum(
+        1 for c in children if isinstance(unscoped(c), ReceivedPathNode)
+    )
     assert guard_index == addressee_index + 1 + path_stages, (
         "the sender guard must come right after intake, the post-close"
         " guard (CM-23-013), the addressee door (HP-01-005) and, in a tree"

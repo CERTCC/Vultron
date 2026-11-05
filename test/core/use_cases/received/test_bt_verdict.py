@@ -320,7 +320,7 @@ def _gated_run(gate_status: Status) -> py_trees.behaviour.Behaviour:
         CheckIsCaseManagerNode,
     )
 
-    check = CheckIsCaseManagerNode(case_id=_CASE_ID)
+    check = CheckIsCaseManagerNode()
     check.status = gate_status
     root = py_trees.composites.Selector(name="Root", memory=False)
     root.add_children(

@@ -97,6 +97,7 @@ from vultron.core.behaviors.case.nodes.received_path import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
@@ -288,10 +289,12 @@ def add_participant_status_tree(
         name="StatusAdoptionGate",
         memory=False,
         children=[
-            SenderIsCaseOwnerNode(
-                sender_actor_id=actor_id,
-                case_id=tree_case_id,
-                name="SenderIsCaseOwner",
+            with_case_id(
+                SenderIsCaseOwnerNode(
+                    sender_actor_id=actor_id,
+                    name="SenderIsCaseOwner",
+                ),
+                tree_case_id,
             ),
             call_out.status_adoption_gate_factory(
                 "CaseOwnerApprovesStatusUpdate"

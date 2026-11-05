@@ -37,6 +37,7 @@ import pytest
 from vultron.core.behaviors.case.nodes.role_gates import (
     CheckIsCaseManagerNode,
 )
+from vultron.core.behaviors.case_id_scope import unscoped
 from vultron.core.behaviors.embargo import trigger_tree
 from vultron.core.behaviors.embargo.nodes.activation_commit import (
     CommitAndApplyEmbargoActivationNode,
@@ -187,7 +188,7 @@ def _is_case_manager_gate(node: py_trees.behaviour.Behaviour) -> bool:
         return False
     inverter = skip.children[0]
     return isinstance(inverter, py_trees.decorators.Inverter) and isinstance(
-        inverter.decorated, CheckIsCaseManagerNode
+        unscoped(inverter.decorated), CheckIsCaseManagerNode
     )
 
 

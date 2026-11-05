@@ -59,6 +59,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.case.receive_stages.tree import (
     ReceivedActivityTree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.replica_emit_exemptions import (
     EMBARGO_INVITE_FAULT,
@@ -197,7 +198,9 @@ class TestFactoryChecks:
                 Diversion(
                     name="D",
                     condition=_Counted("C"),
-                    effects=(CommitCaseLedgerEntryNode(case_id=_CASE),),
+                    effects=(
+                        with_case_id(CommitCaseLedgerEntryNode(), _CASE),
+                    ),
                 )
             )
 
@@ -367,7 +370,8 @@ class TestManagerOnlyDeclarationReachesItsDiversion:
         probe = self._build(CASE_MANAGER_ACTOR)
         order = [id(node) for node in probe.tree.iterate()]
 
-        assert probe.path_stage in probe.tree.door_guards
+        # The stage sits under the scope that seeds its /case_id port.
+        assert probe.path_stage.parent in probe.tree.door_guards
         assert order.index(id(probe.path_stage)) < order.index(id(probe.stage))
 
     @staticmethod
@@ -375,8 +379,10 @@ class TestManagerOnlyDeclarationReachesItsDiversion:
         probe = TestManagerOnlyDeclarationReachesItsDiversion._build(
             store_actor
         )
+        door = probe.path_stage.parent
+        assert door is not None
         BTBridge(datalayer=probe.datalayer).execute_with_setup(
-            tree=probe.path_stage, actor_id=store_actor
+            tree=door, actor_id=store_actor
         )
         if probe.path_stage.status is Status.SUCCESS:
             BTBridge(datalayer=probe.datalayer).execute_with_setup(

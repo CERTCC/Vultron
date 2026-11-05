@@ -9,6 +9,7 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case_id_scope import unscoped
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -114,7 +115,7 @@ def test_create_commit_log_entry_tree_guards_the_mint():
     assert mint.name == "MintAndFanOutLogEntry"
     port_guard, freshness_node = mint.children[:2]
     assert isinstance(port_guard, RequireSyncPortNode)
-    assert isinstance(freshness_node, CheckLedgerFreshnessNode)
+    assert isinstance(unscoped(freshness_node), CheckLedgerFreshnessNode)
     assert len(mint.children) == 6
 
 

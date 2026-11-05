@@ -67,6 +67,7 @@ from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
     EmbargoCallOutBundle,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseOwnerNode,
 )
@@ -143,10 +144,12 @@ def create_embargo_response_decision_tree(
         name="AuthorizeSelector",
         memory=False,
         children=[
-            SenderIsCaseOwnerNode(
-                sender_actor_id=deciding_actor_id,
-                case_id=case_id,
-                name="CheckIsCaseOwner",
+            with_case_id(
+                SenderIsCaseOwnerNode(
+                    sender_actor_id=deciding_actor_id,
+                    name="CheckIsCaseOwner",
+                ),
+                case_id,
             ),
             call_out.case_owner_approves_embargo_response_factory(
                 "CaseOwnerApprovesEmbargoResponse"
