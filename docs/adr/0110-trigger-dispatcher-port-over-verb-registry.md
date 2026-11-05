@@ -226,6 +226,11 @@ The gating step is the golden OpenAPI snapshot test at `test/adapters/driving/fa
 The additive step (#3831) landed behind it with the snapshot unchanged: `TriggerResult` and its subtypes exist in `vultron/core/models/use_case_result.py`, every trigger `execute()` returns one, and the two request families are one (`request_bodies.py` owns the bodies, `requests.py` derives the generic `TriggerRequest[ResultT_co]` requests from them).
 The third step (#3832) landed the registry and the port: `vultron/trigger_registry/` (one row per verb, a lookup and an enumeration, no per-verb behavior), `TriggerDispatcher` in `vultron/core/ports/trigger_dispatcher.py` with `RegistryTriggerDispatcher` in `vultron/core/trigger_dispatcher.py`, the shared `run_trigger(...)` route body in `vultron/adapters/driving/fastapi/trigger_runner.py`, and the first two routes on it — the new `add-on-behalf-status` and the demo `sync-log-entry`, whose inline commit became `SvcSyncLogEntryUseCase` so the use-case-to-row bijection could hold.
 The cutover (#3833) moved the other 28 routes onto `run_trigger(...)`, gave every route a `response_model`, regenerated the snapshot once for exactly that change, and deleted `TriggerServicePort`, `TriggerService`, `get_trigger_service`, the adapter re-export module `trigger_models.py` and the `EvaluateEmbargo*` aliases.
+
+Annotated 2026-11-05 (#4190): the snapshot gate described above was removed after the cutover, and TRIG-12-003 and TRIG-12-006 were retired with it.
+The snapshot was scaffolding for this migration — evidence that the client-visible contract survived a change that touched every trigger route at once — and that evidence was given once.
+The route-to-registry bijection and the exact-response-key test listed below carry the contract from here on.
+
 Realized:
 
 - `test/architecture/test_use_case_execute_returns_result.py` scans `triggers/` with no exclusion.

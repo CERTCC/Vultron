@@ -38,7 +38,7 @@ groups:
       task needs. A group that mixes areas makes a reader load rules that do not
       apply, or miss the ones that do.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: MS-01-002
     tags:
     - documentation
@@ -83,7 +83,7 @@ groups:
       excludes the negative form and says why. Code gates are checked mechanically under
       MS-02-004.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: MS-02-002
     tags:
     - documentation
@@ -107,7 +107,7 @@ groups:
       against individual `RFC2119Priority` members or priority strings instead of the
       shared definition, with no allowlisted exception.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: MS-02-003
     tags:
     - documentation
@@ -254,7 +254,7 @@ groups:
     tags:
     - documentation
     relationships:
-    - rel_type: implements
+    - rel_type: satisfies
       spec_id: SR-01-006
   - id: MS-04-003
     priority: MUST
@@ -277,9 +277,6 @@ groups:
       as retired in place.
     tags:
     - documentation
-    relationships:
-    - rel_type: refines
-      spec_id: MS-04-003
   - id: MS-04-004
     priority: MUST
     kind: process
@@ -291,7 +288,7 @@ groups:
     tags:
     - documentation
     relationships:
-    - rel_type: implements
+    - rel_type: satisfies
       spec_id: SR-01-013
 - id: MS-05
   title: Writing Rules
@@ -432,7 +429,7 @@ groups:
     tags:
     - documentation
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: SR-01-001
   - id: MS-08-002
     priority: MUST
@@ -443,9 +440,6 @@ groups:
       The README is the index of the spec corpus that a person reads first, and
       Markdown renders on the code host. The spec loaders read only YAML files, so a
       Markdown README stays outside the corpus they load.
-    relationships:
-    - rel_type: extends
-      spec_id: MS-08-001
     tags:
     - documentation
 - id: MS-09
@@ -498,7 +492,7 @@ groups:
       the reuse of CM-11-005 with the opposite force (found in the 2026-10-02 audit) did exactly
       that. A new ID costs nothing; a stale citation that still resolves is undetectable.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: MS-09-001
     tags:
     - documentation
@@ -515,10 +509,8 @@ groups:
       obligation, but git history is a poor place to look up what a cited ID used to say. One file
       per ID gives a citation something to resolve to.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: MS-09-001
-    - rel_type: depends_on
-      spec_id: MS-09-002
     tags:
     - documentation
   - id: MS-09-009
@@ -573,6 +565,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: MS-09-006
+    - rel_type: uses_definition
+      spec_id: MS-09-003
     tags:
     - documentation
     - tooling
@@ -613,8 +607,10 @@ groups:
       re-declared archived ID and expects exit 1; `test_live_specs_do_not_reuse_or_deprecate`
       holds the real corpus to the same rule.
     relationships:
-    - rel_type: implements
+    - rel_type: verifies
       spec_id: MS-09-004
+    - rel_type: verifies
+      spec_id: MS-09-001
     tags:
     - documentation
     - tooling
@@ -724,11 +720,7 @@ groups:
       `test/metadata/specs/test_verification.py`, check one line per kind with the
       correct per-owner tally.
     relationships:
-    - rel_type: implements
-      spec_id: MS-05-003
-    - rel_type: implements
-      spec_id: MS-10-003
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: MS-10-006
     - rel_type: uses_definition
       spec_id: MS-10-021
@@ -804,9 +796,9 @@ groups:
       `test_live_corpus_has_no_per_item_verification_failure` in
       `test/metadata/specs/test_verification.py` holds the live corpus to the rule.
     relationships:
-    - rel_type: implements
+    - rel_type: supersedes
       spec_id: MS-10-003
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: MS-02-003
     tags:
     - documentation
@@ -945,7 +937,7 @@ groups:
       an owner no marker names fails while the table still lists it.
     tracking_issue: '#3612'
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: MS-10-006
     - rel_type: uses_definition
       spec_id: MS-10-021
@@ -969,7 +961,7 @@ groups:
       `test_idle_owners_lists_every_unnamed_owner_in_issue_order` in
       `test/metadata/specs/test_verification.py` check the report.
     relationships:
-    - rel_type: extends
+    - rel_type: verifies
       spec_id: MS-10-007
     tags:
     - documentation
@@ -998,8 +990,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: MS-10-022
-    - rel_type: implements
-      spec_id: MS-10-003
     tags:
     - documentation
     - tooling
@@ -1025,7 +1015,7 @@ groups:
       rejects.
     relationships:
     - rel_type: refines
-      spec_id: MS-10-006
+      spec_id: MS-10-003
     tags:
     - documentation
     - tooling
@@ -1058,8 +1048,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: MS-10-003
-    - rel_type: depends_on
-      spec_id: MS-15-001
     tags:
     - documentation
     - tooling
@@ -1072,6 +1060,9 @@ groups:
     rationale: Requiring optional fields on every entry creates boilerplate that discourages keeping specs current.
     tags:
     - documentation
+    relationships:
+    - rel_type: uses_definition
+      spec_id: MS-10-012
   - id: MS-10-018
     priority: SHOULD
     kind: process
@@ -1107,10 +1098,8 @@ groups:
       `test/metadata/specs/test_real_specs.py::test_real_specs_lint_no_hard_errors`
       holds the live corpus to none.
     relationships:
-    - rel_type: refines
+    - rel_type: verifies
       spec_id: MS-10-009
-    - rel_type: depends_on
-      spec_id: MS-15-001
     tags:
     - documentation
     - tooling
@@ -1127,9 +1116,7 @@ groups:
     verification: >-
       `test/metadata/specs/test_verification_refs.py::TestNamedTestsLackMarker`.
     relationships:
-    - rel_type: refines
-      spec_id: MS-10-009
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: SR-05-004
     tags:
     - documentation
@@ -1188,9 +1175,6 @@ groups:
       and `test_statement_spec_rationale_none_rejected` check that the schema
       refuses a requirement with no rationale (SR-02-009), so a spec file that
       holds one fails to load.
-    relationships:
-    - rel_type: refines
-      spec_id: SR-02-009
     tags:
     - documentation
     - tooling
@@ -1210,7 +1194,7 @@ groups:
       stale with every later edit, while a stated reason stays true for as long as
       the requirement does.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: MS-10-012
     tags:
     - documentation
@@ -1232,12 +1216,10 @@ groups:
       `test/metadata/specs/test_rationale.py` covers both reports, the per-file
       filter, and the `spec-rationale` command line exiting 0.
     relationships:
-    - rel_type: derives_from
-      spec_id: MS-10-012
-    - rel_type: derives_from
+    - rel_type: verifies
       spec_id: MS-10-013
-    - rel_type: derives_from
-      spec_id: MS-11-004
+    - rel_type: verifies
+      spec_id: SR-02-020
     tags:
     - documentation
     - tooling
@@ -1272,14 +1254,12 @@ groups:
       verified, unmarked or newly marked parent, an existing ID that gains a link, a
       split child of an unmarked parent that names its own check and so adds no
       marker, and a skipped run with no base ref that logs its reason.
-    relationships:
-    - rel_type: refines
-      spec_id: MS-10-007
-    - rel_type: refines
-      spec_id: MS-10-008
     tags:
     - documentation
     - tooling
+    relationships:
+    - rel_type: constrains
+      spec_id: MS-10-006
   - id: MS-10-017
     priority: SHOULD
     kind: process
@@ -1296,7 +1276,7 @@ groups:
       STE swap gives a second word for the concept and breaks that link, so the
       glossary term or spec term stays: "create a case", not "make a case".
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: MS-10-012
     tags:
     - documentation
@@ -1465,9 +1445,6 @@ groups:
       `test/metadata/test_routine_context_skips_adr_bodies.py` reads
       `.agents/skills/deepen-context/SKILL.md` and asserts its Step 2 names
       `docs/adr/index.md`, `spec-dump --adr` and the prose-only grep.
-    relationships:
-    - rel_type: refines
-      spec_id: MS-11-007
     adr:
     - ADR-0127
     tags:
@@ -1602,9 +1579,6 @@ groups:
       `project` branch is a classification judgement that no automated check
       inspects.
     relationships:
-    - rel_type: depends_on
-      spec_id: MS-12-005
-      note: applies only when MS-12-001 did not already match
     - rel_type: uses_definition
       spec_id: MS-12-002
     adr:
@@ -1670,6 +1644,17 @@ groups:
     - ADR-0134
     tags:
     - documentation
+    relationships:
+    - rel_type: uses_definition
+      spec_id: MS-12-001
+    - rel_type: uses_definition
+      spec_id: MS-12-012
+    - rel_type: uses_definition
+      spec_id: MS-12-009
+    - rel_type: uses_definition
+      spec_id: MS-12-003
+    - rel_type: uses_definition
+      spec_id: MS-12-004
   - id: MS-12-013
     priority: MUST
     kind: process
@@ -1688,6 +1673,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: MS-12-005
+    - rel_type: uses_definition
+      spec_id: MS-12-010
     adr:
     - ADR-0134
     tags:
@@ -1725,9 +1712,6 @@ groups:
     relationships:
     - rel_type: verifies
       spec_id: MS-12-002
-    - rel_type: depends_on
-      spec_id: SR-11-003
-      note: shares the story-traceability population; the absence of stories gates both
     adr:
     - ADR-0038
     - ADR-0134
@@ -1774,9 +1758,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: MS-12-006
-    - rel_type: verifies
-      spec_id: MS-12-005
-      note: the error message advises reword or split rather than naming a single branch
+    - rel_type: uses_definition
+      spec_id: MS-12-010
     adr:
     - ADR-0134
     tags:
@@ -1803,12 +1786,12 @@ groups:
       for an added and unchanged suppression, a relabel in and out, and the
       logged skip when no base ref is available.
     relationships:
-    - rel_type: depends_on
-      spec_id: SR-11-003
-      note: guards the suppression escape hatch SR-11-003 provides against growth
-    - rel_type: depends_on
-      spec_id: SR-11-004
-      note: the same suppression code silences this advisory, so dead suppressions are in scope
+    - rel_type: constrains
+      spec_id: SR-11-007
+      note: bounds the lint_suppress opt-out SR-11-007 allows for the hard error
+    - rel_type: constrains
+      spec_id: SR-11-008
+      note: the same suppression code silences the SR-11-004 advisory through SR-11-008
     adr:
     - ADR-0038
     tags:
@@ -1877,10 +1860,7 @@ groups:
       `test/architecture/test_spec_kind_ratchet.py::test_no_spec_carries_protocol_kind_with_code_reference`
       loads the live corpus and fails, naming each carrier, when any spec carries the code.
     relationships:
-    - rel_type: refines
-      spec_id: MS-12-007
-      note: closes MS-12-006's suppression code alongside the code MS-12-007 guards
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: MS-12-014
       note: holds the suppression escape hatch MS-12-014 provides at no carrier
     adr:
@@ -1905,10 +1885,6 @@ groups:
     verification: >-
       Review: the reviewer applies the decision tree (MS-12-005) at spec review. The
       classification is a judgement that no automated check inspects.
-    relationships:
-    - rel_type: depends_on
-      spec_id: MS-12-005
-      note: applies only when MS-12-001 and MS-12-012 did not already match
     adr:
     - ADR-0134
     tags:
@@ -1972,10 +1948,6 @@ groups:
       default-embargo creation. The protocol half says other participants never
       observe the intermediate Proposed state; the project half says this codebase
       applies PROPOSE and ACCEPT atomically in one behavior tree node.
-    relationships:
-    - rel_type: refines
-      spec_id: MS-12-013
-      note: states how the split that comes before the decision tree is made
     adr:
     - ADR-0134
     tags:
@@ -1992,7 +1964,7 @@ groups:
       citations where implementers look, so the PR-only growth guards (SR-05-005, MS-12-007) see
       no new uncovered protocol spec and no new suppression.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: MS-12-010
     adr:
     - ADR-0134
@@ -2010,7 +1982,7 @@ groups:
       view. The link to the original ID lets a reader find the protocol rule that
       this codebase meets.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: MS-12-010
     adr:
     - ADR-0134
@@ -2036,7 +2008,7 @@ groups:
       deleted while another test still marks the spec is not detected; that part is checked in
       review.
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: MS-12-005
       note: constrains how the kind the decision tree assigns is applied
     adr:
@@ -2130,10 +2102,6 @@ groups:
       ADR-0024 shipped with a blank status; this rule prevents recurrence.
       AdrStatus is the fixed vocabulary (SR-02-002) the linter typechecks
       against. Enforced by spec-lint. See ADR-0043 and notes/specs-vs-adrs.md.
-    relationships:
-    - rel_type: derives_from
-      spec_id: MS-11-004
-      note: extends ADR/spec cross-referencing with a status-confidence rule
     adr:
     - ADR-0043
     - ADR-0024
@@ -2242,6 +2210,9 @@ groups:
     - tooling
     adr:
     - ADR-0043
+    relationships:
+    - rel_type: uses_definition
+      spec_id: MS-14-004
   - id: MS-14-005
     priority: MUST
     kind: project
@@ -2307,9 +2278,6 @@ groups:
       Decision records are project working record, which stays out of the
       reader-facing nav (DF-11-003), and the generated index is their routing page
       (DF-11-006).
-    relationships:
-    - rel_type: extends
-      spec_id: MS-14-006
     adr:
     - ADR-0043
     tags:
@@ -2326,8 +2294,8 @@ groups:
       An ADR in neither the nav nor not_in_nav breaks mkdocs --strict on an
       omitted-file warning, so the check requires the pattern match too.
     relationships:
-    - rel_type: extends
-      spec_id: MS-14-006
+    - rel_type: derives_from
+      spec_id: MS-14-017
     adr:
     - ADR-0043
     tags:
@@ -2358,7 +2326,7 @@ groups:
       that a test-verified dependent ends epoch 1 and is counted on the pull
       request's head.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: MS-14-001
     adr:
     - ADR-0120
@@ -2386,7 +2354,7 @@ groups:
       `test/metadata/test_adr_lifecycle.py` check that a material edit and a new ADR
       must match their epoch or carry an override.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: MS-14-007
     adr:
     - ADR-0120
@@ -2463,7 +2431,7 @@ groups:
       `test/ci/test_adr_lifecycle_workflows.py` check that `adr-status-drift.yml`
       reports at least hourly and never fails the build.
     relationships:
-    - rel_type: depends_on
+    - rel_type: verifies
       spec_id: MS-14-007
     adr:
     - ADR-0120
@@ -2485,7 +2453,7 @@ groups:
       changes; `date` was rewritten by editorial edits and cannot serve. `created` is the immutable
       birth date and `revision` counts how many times the decision has changed.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: MS-14-005
     adr:
     - ADR-0120
@@ -2507,7 +2475,7 @@ groups:
       `test/metadata/test_adr_frontmatter.py` loads the real ADR registry, so an
       ADR that was not migrated fails.
     relationships:
-    - rel_type: extends
+    - rel_type: refines
       spec_id: MS-14-008
     adr:
     - ADR-0120
@@ -2530,7 +2498,7 @@ groups:
       `test/metadata/test_adr_lifecycle.py` checks each refused and each permitted
       edit of a decision section.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: MS-14-007
     adr:
     - ADR-0120
@@ -2601,7 +2569,7 @@ groups:
       `test/metadata/test_adr_lifecycle.py` checks that the dependents are found, and
       that one adding a dependent of an ADR already past epoch 1 passes.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: MS-14-007
     adr:
     - ADR-0120
@@ -2652,7 +2620,7 @@ groups:
       with every pair matched, and `test/metadata/test_adr_index_gen.py` checks that
       the generated index shows the successor side.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: MS-14-005
     adr:
     - ADR-0043
@@ -2724,8 +2692,12 @@ groups:
       carried on the base passes both the edit check and the drift report, and that
       a status moved back fails with or without an override.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: MS-14-007
+    - rel_type: uses_definition
+      spec_id: MS-14-019
+    - rel_type: uses_definition
+      spec_id: MS-14-024
     adr:
     - ADR-0120
     tags:
@@ -2799,10 +2771,6 @@ groups:
       precondition, and postcondition fields are scanned in addition to statement
       and verification because they are equally normative. `rationale` legitimately
       cites gone paths and is excluded.
-    relationships:
-    - rel_type: derives_from
-      spec_id: MS-04-001
-      note: extends spec-authoring rules with a path-existence guarantee
     tags:
     - documentation
     - tooling
@@ -2817,7 +2785,7 @@ groups:
       Absolute paths and parent-traversal segments are deployment-specific and will
       not resolve correctly in the repo-relative context used by spec-lint.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: MS-15-001
     tags:
     - documentation
@@ -2838,7 +2806,7 @@ groups:
       `test/metadata/specs/lint/test_phantom_paths.py` confirm
       both opt-out forms clear the hard error.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: MS-15-001
     tags:
     - documentation
@@ -2868,7 +2836,7 @@ groups:
       `_existing_symbol_passes` and `_resolves_from_test_tree` cases confirm a live
       symbol in either tree is accepted.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: MS-15-001
       note: extends the phantom-reference guarantee from paths to code symbols
     tags:
@@ -2891,7 +2859,7 @@ groups:
       `test_lint_phantom_symbol_suppress` in `test/metadata/specs/lint/test_phantom_symbols.py`
       confirms the opt-out clears the hard error.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: MS-15-004
     tags:
     - documentation
@@ -2926,10 +2894,10 @@ groups:
       resolves passes, that a code change alone never fails it, and that each
       symbol shape the spec-corpus check misses is read.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: MS-15-001
       note: extends the phantom-reference guarantee to references an edit adds to an ADR
-    - rel_type: refines
+    - rel_type: extends
       spec_id: MS-15-004
     adr:
     - ADR-0127
@@ -3001,7 +2969,7 @@ groups:
       `test/metadata/test_adr_added_refs.py` confirm each opt-out clears its own
       kind of reference and no other.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: MS-15-006
     adr:
     - ADR-0127
@@ -3038,14 +3006,13 @@ groups:
       as "there are 4 unimplemented nodes" or "15 xfails". These snapshots will be wrong
       when a person reads them later. Decision-record bodies are out of scope, because a
       dated count in a record stays true on its date (ADR-0127).
-    relationships:
-    - rel_type: derives_from
-      spec_id: MS-04-001
-      note: extends spec-authoring rules with a count-drift prohibition
     tags:
     - documentation
     adr:
     - ADR-0127
+    relationships:
+    - rel_type: refines
+      spec_id: MS-16-002
   - id: MS-16-002
     priority: MUST
     kind: process
@@ -3067,10 +3034,6 @@ groups:
       become wrong.
       Decision-record bodies are out of scope, because readers read them as dated
       history (ADR-0127).
-    relationships:
-    - rel_type: derives_from
-      spec_id: MS-16-001
-      note: generalises the count-drift prohibition to any unverifiable, drift-prone fact
     tags:
     - documentation
     adr:
@@ -3188,6 +3151,13 @@ groups:
       test passes with all of the duplication still in place.
     tags:
     - tooling
+    relationships:
+    - rel_type: implements
+      spec_id: MS-17-001
+    - rel_type: implements
+      spec_id: MS-17-002
+    - rel_type: implements
+      spec_id: MS-17-005
   - id: MS-17-004
     priority: MUST
     kind: project

@@ -20,7 +20,7 @@
 - Every core request derives from its verb's body model, which owns the
   fields; ``actor_id`` is the one field the core adds (TRIG-06-001).
 - The body models are the OpenAPI component schemas the routers import by
-  name (TRIG-12-003), and ``CaseTriggerRequest`` is one class.
+  name, and ``CaseTriggerRequest`` is one class.
 - The ``end_time`` rule is declared once and covers both the initial proposal
   and the revision (CS-22-001); the revision copy had no test before #3831.
 """

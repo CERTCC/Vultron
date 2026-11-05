@@ -1,7 +1,7 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Add",
-  "id": "urn:uuid:f30232a8-b6b3-4c20-90d6-d89887b2d09b",
+  "id": "urn:uuid:6d39485c-15bf-477d-b817-c526c51506c9",
   "name": "https://vultron.example/organizations/vendor Add ACCEPTED Vf NONE pxa to https://vultron.example/cases/1/participants/vendor",
   "actor": "https://vultron.example/organizations/vendor",
   "target": "https://vultron.example/cases/1/participants/vendor",
@@ -9,7 +9,7 @@
     "id": "https://vultron.example/cases/1/participants/vendor/status/2",
     "type": "ParticipantStatus",
     "name": "ACCEPTED Vf NONE pxa",
-    "context": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
+    "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "attributedTo": "https://vultron.example/organizations/vendor",

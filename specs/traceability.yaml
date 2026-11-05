@@ -32,11 +32,6 @@ groups:
       Without one map from stories to requirement IDs, nobody can tell which user needs
       the specs cover. Nobody can tell which stories a requirement change affects. The
       map is in the docs tree, so it is published next to the stories that it describes.
-    relationships:
-    - rel_type: depends_on
-      spec_id: TRACE-03-003
-      note: >-
-        The entries hold what the registry says because they are generated from it.
   - id: TRACE-01-002
     priority: MUST
     kind: project
@@ -120,10 +115,11 @@ groups:
       true, a citation that resolves to no page is always a mistake, so there is nothing
       for a suppression to express.
     relationships:
-    - rel_type: extends
-      spec_id: SR-11-002
+    - rel_type: uses_definition
+      spec_id: SR-11-001
       note: >-
-        SR-11-002 checks the shape of the ID; this adds that it must resolve.
+        Checks the `stories:` field SR-11-001 defines; SR-11-002 checks the shape of the
+        ID, this checks that it resolves.
   - id: TRACE-03-002
     priority: MUST_NOT
     kind: project
@@ -162,10 +158,8 @@ groups:
       v0.4.0, which no check could keep true and which nine of the eleven out-of-scope
       stories already contradicted.
     relationships:
-    - rel_type: depends_on
-      spec_id: TRACE-03-001
-      note: >-
-        A citation that resolves to no page cannot be rendered as an entry.
+    - rel_type: implements
+      spec_id: TRACE-01-001
   - id: TRACE-03-004
     priority: MUST
     kind: project

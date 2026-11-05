@@ -847,25 +847,6 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: TRIG-12-004
-  - id: TRIG-12-003
-    priority: MUST_NOT
-    kind: project
-    statement: >-
-      The trigger API contract MUST NOT change without a deliberate update to a
-      committed golden OpenAPI snapshot. The contract is the paths, `operation_id`s,
-      status codes, summaries, descriptions and request schemas.
-    rationale: >-
-      Some changes touch all trigger routes at one time, for example a new
-      `response_model` on each route. Such a change needs mechanical evidence that the
-      contract that clients see did not change. Only a snapshot taken before the routes
-      change gives this evidence. A snapshot taken after the change records the change
-      as the baseline.
-    verification: >-
-      `test/adapters/driving/fastapi/test_openapi_trigger_snapshot.py::test_trigger_openapi_contract_matches_committed_snapshot`
-      compares `app.openapi()` for the trigger and demo paths against the committed
-      snapshot and fails on any difference.
-    adr:
-    - ADR-0110
   - id: TRIG-12-004
     priority: MUST
     kind: project
@@ -903,26 +884,6 @@ groups:
       asserts that a response whose `activity` is `null` still carries the key.
     adr:
     - ADR-0110
-  - id: TRIG-12-006
-    priority: MUST
-    kind: project
-    statement: >-
-      This codebase MUST capture the golden OpenAPI snapshot (TRIG-12-003) before it
-      rewrites any trigger route.
-    rationale: >-
-      Only a snapshot taken before the routes change shows that the contract did not
-      change. A snapshot taken after a rewrite records whatever the rewrite emitted
-      as the baseline.
-    verification: >-
-      The snapshot's commit predates the first route change in history;
-      `test/adapters/driving/fastapi/test_openapi_trigger_snapshot.py::test_committed_snapshot_is_canonical`
-      pins the committed bytes, so a regenerated snapshot cannot replace it
-      unseen.
-    adr:
-    - ADR-0110
-    relationships:
-    - rel_type: uses_definition
-      spec_id: TRIG-12-003
   - id: TRIG-12-007
     priority: MUST
     kind: project

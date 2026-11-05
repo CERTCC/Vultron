@@ -68,6 +68,31 @@ def seeded(dl: SqliteDataLayer) -> SqliteDataLayer:
     return dl
 
 
+@pytest.fixture
+def slashed(dl: SqliteDataLayer) -> SqliteDataLayer:
+    """The same roster, written with a trailing slash on every actor id.
+
+    The shape a replica ends up in when a peer spelled the ids that way
+    inside the activity the roster was built from (OID-01-006).
+    """
+    manager = _participant("manager", f"{MANAGER_ID}/", CVDRole.CASE_MANAGER)
+    vendor = _participant("vendor", f"{VENDOR_ID}/", CVDRole.VENDOR)
+    case = VulnerabilityCase(
+        id_=CASE_ID,
+        name="ROLE-PREDICATE",
+        attributed_to=OWNER_ID,
+        case_participants=[manager.id_, vendor.id_],
+        actor_participant_index={
+            f"{MANAGER_ID}/": manager.id_,
+            f"{VENDOR_ID}/": vendor.id_,
+        },
+    )
+    dl.create(manager)
+    dl.create(vendor)
+    dl.create(case)
+    return dl
+
+
 @pytest.mark.spec("CM-02-011")
 def test_the_role_holder_holds_the_role(seeded: SqliteDataLayer) -> None:
     assert has_role(MANAGER_ID, CASE_ID, CVDRole.CASE_MANAGER, seeded) is True
@@ -95,6 +120,34 @@ def test_a_case_the_store_does_not_hold_answers_false(
 ) -> None:
     """No replica means no role in it: False, never a raise (ADR-0153)."""
     assert has_role(MANAGER_ID, CASE_ID, CVDRole.CASE_MANAGER, dl) is False
+
+
+@pytest.mark.spec("ARCH-24-001")
+def test_a_roster_with_no_manager_answers_false(dl: SqliteDataLayer) -> None:
+    """The resolver naming no manager is ``False``, not a comparison.
+
+    A replica whose roster records the role on nobody — a bootstrap window
+    before the CASE_MANAGER participant is seeded — makes
+    :func:`resolve_case_manager_id` answer ``None``, and no actor id may be
+    compared against that (CM-24-006 is about the roster, not about this
+    read).
+    """
+    vendor = _participant("vendor", VENDOR_ID, CVDRole.VENDOR)
+    case = VulnerabilityCase(
+        id_=CASE_ID,
+        name="ROLE-PREDICATE",
+        attributed_to=OWNER_ID,
+        case_participants=[vendor.id_],
+        actor_participant_index={VENDOR_ID: vendor.id_},
+    )
+    dl.create(vendor)
+    dl.create(case)
+
+    stored = dl.read_case(CASE_ID)
+    assert stored is not None
+    assert resolve_case_manager_id(stored, dl) is None
+    assert has_role(MANAGER_ID, CASE_ID, CVDRole.CASE_MANAGER, dl) is False
+    assert has_role(VENDOR_ID, CASE_ID, CVDRole.CASE_MANAGER, dl) is False
 
 
 @pytest.mark.spec("CM-02-011")
@@ -147,22 +200,85 @@ def test_the_case_manager_role_follows_a_delegation_mid_case(
     assert has_role(MANAGER_ID, CASE_ID, CVDRole.CASE_MANAGER, seeded) is False
 
 
-@pytest.mark.spec("OID-01-007")
-def test_an_unnormalised_actor_id_names_no_participant(
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CLP-10-021")
+def test_a_queried_id_spelled_with_a_trailing_slash_still_holds_the_role(
     seeded: SqliteDataLayer,
 ) -> None:
-    """An id is compared exactly, as every other role check compares it.
+    """The queried id answers the same in either spelling.
 
-    Ids are normalised where they are extracted (OID-01-006, OID-01-007), so
-    one carrying a trailing slash is an upstream defect; absorbing it here
-    would make this predicate more lenient than the ``CheckIsCaseManagerNode``
-    gates it has to agree with.
+    The comparison is trailing-slash tolerant in both directions because it
+    is symmetric: whichever of the two ids carries the slash, they name one
+    actor (OID-01-006, CLP-10-021).  The ``CheckIsCaseManagerNode`` gates
+    this predicate has to agree with ask it rather than comparing ids
+    themselves, so there is no stricter comparison left to diverge from
+    (ARCH-24-007).
     """
     assert (
         has_role(f"{MANAGER_ID}/", CASE_ID, CVDRole.CASE_MANAGER, seeded)
+        is True
+    )
+    assert has_role(f"{VENDOR_ID}/", CASE_ID, CVDRole.VENDOR, seeded) is True
+    # Tolerance is for the spelling, not for the actor: a different actor is
+    # still a different actor, slash or no slash.
+    assert (
+        has_role(f"{STRANGER_ID}/", CASE_ID, CVDRole.CASE_MANAGER, seeded)
         is False
     )
-    assert has_role(f"{VENDOR_ID}/", CASE_ID, CVDRole.VENDOR, seeded) is False
+    assert has_role(f"{MANAGER_ID}/", CASE_ID, CVDRole.VENDOR, seeded) is False
+
+
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CLP-10-021")
+def test_a_roster_record_spelled_with_a_trailing_slash_names_its_actor(
+    slashed: SqliteDataLayer,
+) -> None:
+    """A roster record's own spelling does not decide who holds the role.
+
+    ``attributed_to`` is an id the sender wrote inside the activity, not the
+    sender id the extractor normalises, so it reaches the store in whatever
+    spelling it arrived in (OID-01-006, OID-01-007).  Comparing it exactly
+    answered "holds no role" for the case's actual CASE_MANAGER, which sends
+    a correctly addressed delivery down the participant-replica or no-case
+    path and refuses it with a reason untrue of its receiver (HP-01-037,
+    HP-01-039).  Both branches of the predicate are covered: the authority
+    role, through the single resolver, and a roster-scanned role.
+    """
+    assert has_role(MANAGER_ID, CASE_ID, CVDRole.CASE_MANAGER, slashed) is True
+    assert has_role(VENDOR_ID, CASE_ID, CVDRole.VENDOR, slashed) is True
+    # Same answers when the query carries the slash the record carries, and
+    # still no answer for an actor the roster does not record.
+    assert (
+        has_role(f"{MANAGER_ID}/", CASE_ID, CVDRole.CASE_MANAGER, slashed)
+        is True
+    )
+    assert has_role(f"{VENDOR_ID}/", CASE_ID, CVDRole.VENDOR, slashed) is True
+    assert (
+        has_role(STRANGER_ID, CASE_ID, CVDRole.CASE_MANAGER, slashed) is False
+    )
+    assert has_role(VENDOR_ID, CASE_ID, CVDRole.CASE_MANAGER, slashed) is False
+
+
+@pytest.mark.spec("OID-01-006")
+def test_a_roster_record_keeps_the_spelling_it_was_given(
+    slashed: SqliteDataLayer,
+) -> None:
+    """The premise of the tolerance: the field is not normalised on the way in.
+
+    ``CaseParticipant.attributed_to`` is a ``NonEmptyString``, not a
+    ``NormalisedActorId``, so a trailing slash is stored rather than refused
+    at construction, and the resolver reports it as it stands.  If that ever
+    changes — the field is retyped and the records are migrated — the
+    tolerance in :func:`has_role` becomes unreachable rather than wrong, and
+    this test is what says so.
+    """
+    manager = slashed.read(f"{CASE_ID}/participants/manager")
+    assert isinstance(manager, CaseParticipant)
+    assert manager.attributed_to == f"{MANAGER_ID}/"
+
+    case = slashed.read_case(CASE_ID)
+    assert case is not None
+    assert resolve_case_manager_id(case, slashed) == f"{MANAGER_ID}/"
 
 
 @pytest.mark.spec("CM-26-001")

@@ -43,6 +43,7 @@ from vultron.core.participants._lookup import iter_case_participants
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import CVDRole
+from vultron.primitives import same_actor_id
 
 __all__ = ["has_role"]
 
@@ -67,6 +68,20 @@ def has_role(
     an actor that does not hold the case holds no role in it.  Role stacking
     is a union over the actor's participant records (CM-26-001), so any
     record of *actor_id* that holds *role* answers ``True``.
+
+    Ids are compared with
+    :func:`~vultron.primitives.same_actor_id`, which absorbs a trailing
+    slash, in both branches below (OID-01-006, CLP-10-021).  The roster's
+    ``attributed_to`` is an id a peer wrote *inside* an activity, not the
+    sender id the extractor normalises (OID-01-007), and
+    ``CaseParticipant.attributed_to`` is a plain ``NonEmptyString``, so the
+    other spelling reaches the store rather than being refused on the way in.
+    An exact comparison therefore answered "holds no role" for the case's
+    own CASE_MANAGER, and the path stage sent a correctly addressed delivery
+    down the participant-replica or no-case path to be refused with a reason
+    untrue of its receiver (HP-01-037, HP-01-039, #5827).  Tolerance is for
+    the spelling only: two ids that differ by more than a trailing slash name
+    two actors, and the lookup still misses on purpose.
 
     ``CVDRole.CASE_MANAGER`` is answered by
     :func:`~vultron.core.participants.authority.resolve_case_manager_id`, the
@@ -94,10 +109,11 @@ def has_role(
     if case is None:
         return False
     if role is CVDRole.CASE_MANAGER:
-        return resolve_case_manager_id(case, dl) == actor_id
+        manager_id = resolve_case_manager_id(case, dl)
+        return manager_id is not None and same_actor_id(manager_id, actor_id)
     for participant in iter_case_participants(case, dl):
         attributed = _as_id(getattr(participant, "attributed_to", None))
-        if not attributed or attributed != actor_id:
+        if not attributed or not same_actor_id(attributed, actor_id):
             continue
         if participant.has_role(role):
             return True

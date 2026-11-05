@@ -193,17 +193,23 @@ class TestDeferCheckNodeBootstrapNeverDeferred:
         """
         assert MessageSemantics.CREATE_CASE in CASE_BOOTSTRAP_SEMANTICS
 
+    @pytest.mark.spec("PCR-06-002", "PCR-07-005")
     def test_non_bootstrap_case_semantic_is_still_deferred(self):
-        """Semantics that presuppose the case are still deferred."""
+        """Semantics that presuppose the case are still deferred.
+
+        The whole queued tuple is pinned, so the entry is shown to be keyed on
+        the resolved case context rather than merely to exist.
+        """
+        unknown_case = "https://example.org/cases/not-yet-known"
         queue = _StubQueuePort(case_known=False)
         status = _run_node(
-            "https://example.org/cases/not-yet-known",
+            unknown_case,
             queue,
             semantic_type=MessageSemantics.ENGAGE_CASE,
         )
 
         assert status == Status.FAILURE
-        assert len(queue.queued) == 1
+        assert queue.queued == [(ACTIVITY_ID, unknown_case, ACTOR_ID)]
 
 
 class TestDeferCheckNodeStubInviteProcessedOnArrival:
@@ -227,7 +233,7 @@ class TestDeferCheckNodeStubInviteProcessedOnArrival:
         assert status == Status.SUCCESS
         assert queue.queued == [], "the stub Invite must not be deferred"
 
-    @pytest.mark.spec("PCR-06-002", "PCR-06-005")
+    @pytest.mark.spec("PCR-06-002", "PCR-06-005", "PCR-07-005")
     @pytest.mark.parametrize(
         "semantic_type",
         [
@@ -239,12 +245,16 @@ class TestDeferCheckNodeStubInviteProcessedOnArrival:
     def test_non_stub_activity_for_unknown_case_is_still_deferred(
         self, semantic_type
     ):
+        unknown_case = "https://example.org/cases/not-yet-known"
         queue = _StubQueuePort(case_known=False)
         status = _run_node(
-            "https://example.org/cases/not-yet-known",
+            unknown_case,
             queue,
             semantic_type=semantic_type,
         )
 
         assert status == Status.FAILURE
-        assert len(queue.queued) == 1, f"{semantic_type} must be deferred"
+        assert queue.queued == [(ACTIVITY_ID, unknown_case, ACTOR_ID)], (
+            f"{semantic_type} must be deferred, and the entry keyed on the"
+            " resolved case context"
+        )

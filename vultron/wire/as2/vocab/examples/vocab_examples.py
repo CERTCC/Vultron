@@ -13,8 +13,14 @@ To regenerate from the repo root::
 
     uv run python vultron/wire/as2/vocab/examples/vocab_examples.py
 
-The test ``test/architecture/test_vocab_examples_current.py`` fails when the committed
-JSON file list drifts from what this generator produces.
+The generator is deterministic: every id it derives and every timestamp it
+stamps comes from a fixed name or from ``EXAMPLE_TIMESTAMP``, so two runs over
+an unchanged tree write identical bytes and a change to one example rewrites
+only that example's file (``_example_scope``, #5776).
+
+The test ``test/architecture/test_vocab_examples_current.py`` fails when the
+committed files drift from what this generator produces, in their file list or
+in their values.
 """
 
 #  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
@@ -30,8 +36,8 @@ JSON file list drifts from what this generator produces.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import cast
 
 from pydantic import BaseModel
 
@@ -40,6 +46,7 @@ from vultron.wire.as2.vocab.examples._base import (  # noqa: F401
     _CASE_ACTOR,
     _COORDINATOR,
     ACTOR_FUNCS,
+    _example_scope,
     case,
     case_actor,
     coordinator,
@@ -173,6 +180,227 @@ from vultron.wire.as2.vocab.examples.sync import (
     reject_case_ledger_entry,
 )
 
+#: Every example the generator writes, in the order it writes them, as
+#: ``(builder, filename)``.  A filename of ``None`` means the builder's own
+#: name with a ``.json`` suffix, which is the usual case; the few entries that
+#: name a file do so because the docs page refers to it under that name.
+#:
+#: One table rather than sixty copies of "build it, write it" (CS-22-001): a
+#: new example is one row, and :func:`check_tables` refuses two rows that
+#: would claim one filename — ``rm_invite_to_case`` and ``invite_to_case``
+#: both wrote ``invite_to_case.json``, so the first of them was generated and
+#: thrown away on every run.
+EXAMPLES: tuple[tuple[Callable[[], BaseModel], str | None], ...] = (
+    # the actors, and the report and case every other example refers to
+    (finder, None),
+    (vendor, None),
+    (coordinator, None),
+    (gen_report, "vulnerability_report.json"),
+    # the report workflow
+    (create_report, None),
+    (submit_report, None),
+    (read_report, None),
+    (validate_report, None),
+    (invalidate_report, None),
+    (close_report, None),
+    # the case workflow
+    (create_case, None),
+    (add_report_to_case, None),
+    (add_vendor_participant_to_case, None),
+    (add_finder_participant_to_case, None),
+    (engage_case, None),
+    (close_case, None),
+    (defer_case, None),
+    (reengage_case, None),
+    (update_case, None),
+    (add_note_to_case, None),
+    (remove_note_from_case, None),
+    # case ownership transfer
+    (propose_case_ownership_transfer, None),
+    (offer_case_ownership_transfer, None),
+    (accept_case_ownership_transfer, None),
+    (reject_case_ownership_transfer, None),
+    (undo_case_ownership_transfer, None),
+    # actor recommendation (the GI actor-suggestion handshake)
+    (recommend_actor, None),
+    (accept_actor_recommendation, None),
+    (reject_actor_recommendation, None),
+    (request_invite_actor_to_case, None),
+    # participants and invitations
+    (create_participant, None),
+    (update_participant, None),
+    (case_participant, None),
+    (invite_to_case, None),
+    (accept_invite_to_case, None),
+    (reject_invite_to_case, None),
+    (invite_to_full_case, None),
+    (accept_full_case_invite, None),
+    (tentative_reject_full_case_invite, None),
+    (reject_full_case_invite, None),
+    (remove_participant_from_case, None),
+    # case and participant status
+    (case_status, None),
+    (add_status_to_case, None),
+    (participant_status, None),
+    (add_status_to_participant, None),
+    # embargo lifecycle
+    (embargo_event, None),
+    (create_embargo_event, None),
+    (propose_embargo, None),
+    (relay_embargo_proposal, None),
+    (accept_embargo, None),
+    (reject_embargo, None),
+    (reject_embargo_proposal, None),
+    (abandon_embargo_proposal, None),
+    (activate_embargo, None),
+    (announce_embargo, None),
+    (withdraw_from_embargo, None),
+    (remove_embargo, None),
+    (undo_embargo_invite, None),
+    (create_embargo_consent, None),
+    (update_embargo_consent, None),
+    (propose_embargo_revision, None),
+    (accept_embargo_revision, None),
+    (reject_embargo_revision, None),
+    (reject_embargo_revision_proposal, None),
+    (activate_embargo_revision, None),
+    (notify_embargo_termination, None),
+    (announce_embargo_termination, None),
+    # case announcement (ANNOUNCE_VULNERABILITY_CASE — after Accept(Invite))
+    (announce_case, None),
+    # role delegation (ADR-0039) — distinct from the actor-suggestion handshake
+    (offer_case_participant_role, None),
+    (forward_case_participant_role, None),
+    (accept_case_participant_role, None),
+    (reject_case_participant_role, None),
+    # case proposal (pre-case bootstrap, ADR-0023)
+    (create_case_proposal, None),
+    (accept_case_proposal, None),
+    (reject_case_proposal, None),
+    # ledger replication (SYNC substrate, ADR-0077)
+    (announce_case_ledger_entry, None),
+    (reject_case_ledger_entry, None),
+    (read_case_ledger_entry, None),
+    # one example per occasion (MSM-08-003, ADR-0128): each collapsed
+    # occasion shows its own distinguishing value
+    (add_vendor_awareness_to_participant, None),
+    (add_fix_readiness_to_participant, None),
+    (add_fix_deployment_to_participant, None),
+    (add_public_awareness_to_participant, None),
+    (add_exploit_public_to_participant, None),
+    (add_attacks_observed_to_participant, None),
+    (add_public_awareness_to_case, None),
+    (add_exploit_public_to_case, None),
+    (add_attacks_observed_to_case, None),
+    # fault reporting
+    (create_processing_fault, None),
+    (refusal_notice, None),
+)
+
+#: The inline objects written as files of their own, as
+#: ``(activity example, attribute, filename)``.  The docs show a case and a
+#: participant record on their own pages, and each must be the very object the
+#: activity carried, so it is read off that activity's one built instance —
+#: :func:`build_examples` builds each row of :data:`EXAMPLES` once and these
+#: rows read from the result, never from a second call.  Every builder named
+#: here is therefore also a row of :data:`EXAMPLES`, which
+#: :func:`check_tables` pins.
+INLINE_OBJECTS: tuple[tuple[Callable[[], BaseModel], str, str], ...] = (
+    (create_case, "object_", "vulnerability_case.json"),
+    (add_vendor_participant_to_case, "object_", "vendor_participant.json"),
+    (add_finder_participant_to_case, "object_", "finder_participant.json"),
+)
+
+
+def example_filename(
+    builder: Callable[[], BaseModel], filename: str | None
+) -> str:
+    """The file a row of :data:`EXAMPLES` is written to."""
+    return filename or f"{builder.__name__}.json"
+
+
+def check_tables() -> None:
+    """Refuse a table that would write one file twice, before any write.
+
+    The defect this guards is the one #5776 found: ``rm_invite_to_case`` and
+    ``invite_to_case`` both wrote ``invite_to_case.json``, so whichever ran
+    first was generated and thrown away on every run, and no gate could see
+    it — the generated *file set* stayed correct, so the currency check's
+    file-set comparison passed.
+
+    Also pins what :data:`INLINE_OBJECTS` rests on: each of its builders is a
+    row of :data:`EXAMPLES`, so the inline object is read off that row's one
+    built instance rather than from a second call.
+    """
+    names = [
+        example_filename(builder, filename) for builder, filename in EXAMPLES
+    ]
+    names += [filename for _, _, filename in INLINE_OBJECTS]
+    repeated = sorted({name for name in names if names.count(name) > 1})
+    if repeated:
+        raise ValueError(
+            "two example rows write one file, so one of them would be "
+            f"generated and overwritten: {repeated}"
+        )
+    scopes = [builder.__name__ for builder, _ in EXAMPLES]
+    repeated_scopes = sorted(
+        {scope for scope in scopes if scopes.count(scope) > 1}
+    )
+    if repeated_scopes:
+        raise ValueError(
+            "two example rows share an id scope, so their ids would "
+            f"collide: {repeated_scopes}"
+        )
+    known = set(scopes)
+    orphans = sorted(
+        builder.__name__
+        for builder, _, _ in INLINE_OBJECTS
+        if builder.__name__ not in known
+    )
+    if orphans:
+        raise ValueError(
+            "an INLINE_OBJECTS row names a builder that EXAMPLES does not, "
+            f"so its object cannot be read off a built activity: {orphans}"
+        )
+
+
+def _build(builder: Callable[[], BaseModel]) -> BaseModel:
+    """Build one example inside an id scope named for it.
+
+    Every id the example mints and every stamp it reads is derived from the
+    builder's name, so two runs of the generator write the same bytes and a
+    change to one example leaves the other files alone (#5776).
+    """
+    with _example_scope(builder.__name__):
+        return builder()
+
+
+def build_examples() -> dict[str, BaseModel]:
+    """Every example to write, keyed by filename, built before anything is.
+
+    Building first and writing after is what makes a regeneration
+    all-or-nothing: a builder that raises leaves the committed tree as it
+    was, instead of a tree half-rewritten at whichever row failed, where the
+    currency check then reports the rows that did change rather than the
+    cause.
+    """
+    check_tables()
+    built: dict[str, BaseModel] = {}
+    by_builder: dict[str, BaseModel] = {}
+    for builder, filename in EXAMPLES:
+        example = _build(builder)
+        by_builder[builder.__name__] = example
+        built[example_filename(builder, filename)] = example
+    for builder, attribute, filename in INLINE_OBJECTS:
+        inline = getattr(by_builder[builder.__name__], attribute)
+        if not isinstance(inline, BaseModel):
+            raise TypeError(
+                f"{builder.__name__}().{attribute} is not a model, so "
+                f"{filename} cannot be written from it: {inline!r}"
+            )
+        built[filename] = inline
+    return built
+
 
 def main(outdir=None):
     if outdir is None:
@@ -181,284 +409,13 @@ def main(outdir=None):
         outdir = Path(outdir)
     print(f"Generating examples to: {outdir}")
 
+    examples = build_examples()
+
     # ensure the output directory exists
     outdir.mkdir(parents=True, exist_ok=True)
 
-    # create a finder (Person) object
-    _finder = finder()
-    obj_to_file(_finder, f"{outdir}/finder.json")
-
-    # create a vendor (Organization) object
-    _vendor = vendor()
-    obj_to_file(_vendor, f"{outdir}/vendor.json")
-
-    # create a vulnerability _report
-    _report = gen_report()
-    obj_to_file(_report, f"{outdir}/vulnerability_report.json")
-
-    # activity: finder creates _report
-    activity = create_report()
-    obj_to_file(activity, f"{outdir}/create_report.json")
-
-    # activity: finder submits _report to vendor
-    activity = submit_report()
-    obj_to_file(activity, f"{outdir}/submit_report.json")
-
-    # activity: vendor reads _report
-    activity = read_report()
-    obj_to_file(activity, f"{outdir}/read_report.json")
-
-    # activity: vendor validates _report
-    activity = validate_report()
-    obj_to_file(activity, f"{outdir}/validate_report.json")
-
-    # activity: vendor invalidates _report
-    activity = invalidate_report()
-    obj_to_file(activity, f"{outdir}/invalidate_report.json")
-
-    # activity: vendor closes _report
-    activity = close_report()
-    obj_to_file(activity, f"{outdir}/close_report.json")
-
-    # activity: vendor creates case from _report (also yields the case object)
-    activity = create_case()
-    obj_to_file(activity, f"{outdir}/create_case.json")
-
-    # case object — extracted from create_case activity for coherence
-    _case = cast(BaseModel, activity.object_)
-    obj_to_file(_case, f"{outdir}/vulnerability_case.json")
-
-    # activity: vendor adds _report to case
-    activity = add_report_to_case()
-    obj_to_file(activity, f"{outdir}/add_report_to_case.json")
-
-    # activity: vendor adds self as participant to case
-    activity = add_vendor_participant_to_case()
-
-    participant = activity.object_
-    if isinstance(participant, BaseModel):
-        obj_to_file(participant, f"{outdir}/vendor_participant.json")
-    obj_to_file(activity, f"{outdir}/add_vendor_participant_to_case.json")
-
-    # activity: vendor adds finder as participant to case
-    activity = add_finder_participant_to_case()
-    participant = activity.object_
-    if isinstance(participant, BaseModel):
-        obj_to_file(participant, f"{outdir}/finder_participant.json")
-    obj_to_file(activity, f"{outdir}/add_finder_participant_to_case.json")
-
-    # activity: vendor engages case
-    activity = engage_case()
-    obj_to_file(activity, f"{outdir}/engage_case.json")
-
-    # activity: vendor closes case
-    activity = close_case()
-    obj_to_file(activity, f"{outdir}/close_case.json")
-
-    # activity: vendor defers case
-    activity = defer_case()
-    obj_to_file(activity, f"{outdir}/defer_case.json")
-
-    # activity: vendor reengages case
-    activity = reengage_case()
-    obj_to_file(activity, f"{outdir}/reengage_case.json")
-
-    # activity: add note to case
-    activity = add_note_to_case()
-    obj_to_file(activity, f"{outdir}/add_note_to_case.json")
-
-    _coordinator = _COORDINATOR
-    obj_to_file(_coordinator, f"{outdir}/coordinator.json")
-
-    # activity: propose case ownership transfer
-    activity = propose_case_ownership_transfer()
-    obj_to_file(activity, f"{outdir}/propose_case_ownership_transfer.json")
-
-    # activity: offer case ownership transfer
-    activity = offer_case_ownership_transfer()
-    obj_to_file(activity, f"{outdir}/offer_case_ownership_transfer.json")
-
-    # activity: accept case ownership transfer
-    activity = accept_case_ownership_transfer()
-    obj_to_file(activity, f"{outdir}/accept_case_ownership_transfer.json")
-
-    # activity: reject case ownership transfer
-    activity = reject_case_ownership_transfer()
-    obj_to_file(activity, f"{outdir}/reject_case_ownership_transfer.json")
-
-    # activity: undo (withdraw) case ownership transfer
-    activity = undo_case_ownership_transfer()
-    obj_to_file(activity, f"{outdir}/undo_case_ownership_transfer.json")
-
-    # activity: update case
-    activity = update_case()
-    obj_to_file(activity, f"{outdir}/update_case.json")
-
-    # recommend actor
-    activity = recommend_actor()
-    obj_to_file(activity, f"{outdir}/recommend_actor.json")
-
-    # accept actor recommendation
-    activity = accept_actor_recommendation()
-    obj_to_file(activity, f"{outdir}/accept_actor_recommendation.json")
-
-    # reject actor recommendation
-    activity = reject_actor_recommendation()
-    obj_to_file(activity, f"{outdir}/reject_actor_recommendation.json")
-
-    # rm_invite_to_case
-    activity = rm_invite_to_case()
-    obj_to_file(activity, f"{outdir}/invite_to_case.json")
-
-    # rm_accept_invite_to_case
-    activity = accept_invite_to_case()
-    obj_to_file(activity, f"{outdir}/accept_invite_to_case.json")
-
-    # rm_reject_invite_to_case
-    activity = reject_invite_to_case()
-    obj_to_file(activity, f"{outdir}/reject_invite_to_case.json")
-
-    # create participant
-    activity = create_participant()
-    obj_to_file(activity, f"{outdir}/create_participant.json")
-
-    _case_status = case_status()
-    obj_to_file(_case_status, f"{outdir}/case_status.json")
-
-    _add_status_to_case = add_status_to_case()
-    obj_to_file(_add_status_to_case, f"{outdir}/add_status_to_case.json")
-
-    _participant_status = participant_status()
-    obj_to_file(_participant_status, f"{outdir}/participant_status.json")
-
-    _case_participant = case_participant()
-    obj_to_file(_case_participant, f"{outdir}/case_participant.json")
-
-    _embargo_event = embargo_event()
-    obj_to_file(_embargo_event, f"{outdir}/embargo_event.json")
-
-    _invite_to_case = invite_to_case()
-    obj_to_file(_invite_to_case, f"{outdir}/invite_to_case.json")
-
-    _add_status_to_participant = add_status_to_participant()
-    obj_to_file(
-        _add_status_to_participant, f"{outdir}/add_status_to_participant.json"
-    )
-
-    _remove_participant_from_case = remove_participant_from_case()
-    obj_to_file(
-        _remove_participant_from_case,
-        f"{outdir}/remove_participant_from_case.json",
-    )
-
-    _propose_embargo = propose_embargo()
-    obj_to_file(_propose_embargo, f"{outdir}/propose_embargo.json")
-
-    _accept_embargo = accept_embargo()
-    obj_to_file(_accept_embargo, f"{outdir}/accept_embargo.json")
-
-    _reject_embargo = reject_embargo()
-    obj_to_file(_reject_embargo, f"{outdir}/reject_embargo.json")
-
-    _activate_embargo = activate_embargo()
-    obj_to_file(_activate_embargo, f"{outdir}/activate_embargo.json")
-
-    _reject_embargo_proposal = reject_embargo_proposal()
-    obj_to_file(
-        _reject_embargo_proposal, f"{outdir}/reject_embargo_proposal.json"
-    )
-
-    _withdraw_from_embargo = withdraw_from_embargo()
-    obj_to_file(_withdraw_from_embargo, f"{outdir}/withdraw_from_embargo.json")
-
-    _announce_embargo = announce_embargo()
-    obj_to_file(_announce_embargo, f"{outdir}/announce_embargo.json")
-
-    _remove_embargo = remove_embargo()
-    obj_to_file(_remove_embargo, f"{outdir}/remove_embargo.json")
-
-    # announce case (ANNOUNCE_VULNERABILITY_CASE — sent after Accept(Invite))
-    _announce_case = announce_case()
-    obj_to_file(_announce_case, f"{outdir}/announce_case.json")
-
-    # role delegation flow (ADR-0039) — distinct from the GI actor-suggestion
-    # handshake that offer_case_participant covers
-    _offer_role = offer_case_participant_role()
-    obj_to_file(_offer_role, f"{outdir}/offer_case_participant_role.json")
-    _forward_role = forward_case_participant_role()
-    obj_to_file(_forward_role, f"{outdir}/forward_case_participant_role.json")
-    _accept_role = accept_case_participant_role()
-    obj_to_file(_accept_role, f"{outdir}/accept_case_participant_role.json")
-    _reject_role = reject_case_participant_role()
-    obj_to_file(_reject_role, f"{outdir}/reject_case_participant_role.json")
-
-    # case proposal flow (pre-case bootstrap, ADR-0023)
-    _create_case_proposal = create_case_proposal()
-    obj_to_file(_create_case_proposal, f"{outdir}/create_case_proposal.json")
-
-    _accept_case_proposal = accept_case_proposal()
-    obj_to_file(_accept_case_proposal, f"{outdir}/accept_case_proposal.json")
-
-    _reject_case_proposal = reject_case_proposal()
-    obj_to_file(_reject_case_proposal, f"{outdir}/reject_case_proposal.json")
-
-    # ledger replication flow (SYNC substrate, ADR-0077)
-    _announce_case_ledger_entry = announce_case_ledger_entry()
-    obj_to_file(
-        _announce_case_ledger_entry,
-        f"{outdir}/announce_case_ledger_entry.json",
-    )
-
-    _reject_case_ledger_entry = reject_case_ledger_entry()
-    obj_to_file(
-        _reject_case_ledger_entry,
-        f"{outdir}/reject_case_ledger_entry.json",
-    )
-
-    _read_case_ledger_entry = read_case_ledger_entry()
-    obj_to_file(
-        _read_case_ledger_entry,
-        f"{outdir}/read_case_ledger_entry.json",
-    )
-
-    # one example per occasion (MSM-08-003, ADR-0128): each collapsed
-    # occasion shows its own distinguishing value
-    for occasion_example in (
-        add_vendor_awareness_to_participant,
-        add_fix_readiness_to_participant,
-        add_fix_deployment_to_participant,
-        add_public_awareness_to_participant,
-        add_exploit_public_to_participant,
-        add_attacks_observed_to_participant,
-        add_public_awareness_to_case,
-        add_exploit_public_to_case,
-        add_attacks_observed_to_case,
-        propose_embargo_revision,
-        request_invite_actor_to_case,
-        relay_embargo_proposal,
-        undo_embargo_invite,
-        create_embargo_event,
-        create_embargo_consent,
-        update_embargo_consent,
-        update_participant,
-        notify_embargo_termination,
-        announce_embargo_termination,
-        accept_embargo_revision,
-        reject_embargo_revision,
-        activate_embargo_revision,
-        reject_embargo_revision_proposal,
-        abandon_embargo_proposal,
-        remove_note_from_case,
-        invite_to_full_case,
-        accept_full_case_invite,
-        tentative_reject_full_case_invite,
-        reject_full_case_invite,
-        create_processing_fault,
-        refusal_notice,
-    ):
-        obj_to_file(
-            occasion_example(), f"{outdir}/{occasion_example.__name__}.json"
-        )
+    for filename, example in examples.items():
+        obj_to_file(example, str(outdir / filename))
 
 
 if __name__ == "__main__":

@@ -12,13 +12,22 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The unit-test workflow runs on a lockfile-only change.
+"""The unit-test workflow runs on a change to an input no Python file names.
 
-The demo workflow skips Dependabot PRs on the premise that ``python-app.yml``
-still tests them (DEMOCI-02-004), which DEMOCI-02-016 secures. A Dependabot bump inside an existing
-version range touches only ``uv.lock``, so without ``uv.lock`` in the path
-filter no test runs at all — which is how the py_trees 2.6.0 bump reached
-``main`` untested (#3610).
+Two kinds of pull request change only a non-Python file that a test reads, so
+each needs its own path-filter entry or no test runs at all:
+
+- A Dependabot bump inside an existing version range touches only ``uv.lock``.
+  The demo workflow skips Dependabot PRs on the premise that
+  ``python-app.yml`` still tests them (DEMOCI-02-004), which DEMOCI-02-016
+  secures; without ``uv.lock`` in the filter the py_trees 2.6.0 bump reached
+  ``main`` untested (#3610).
+- A hand edit or a half-finished regeneration of a committed vocab example
+  touches only ``docs/reference/examples/``, which
+  ``test/architecture/test_vocab_examples_current.py`` compares byte for byte
+  against a fresh generation (#5776). A gate whose input is in no trigger list
+  is installed but unreachable on the pull-request shape it exists to police
+  (#4506).
 """
 
 from pathlib import Path
@@ -44,3 +53,11 @@ def _triggers() -> dict[str, Any]:
 @pytest.mark.parametrize("event", ["push", "pull_request"])
 def test_python_app_workflow_runs_on_lockfile_change(event: str) -> None:
     assert "uv.lock" in _triggers()[event]["paths"]
+
+
+@pytest.mark.spec("DEMOCI-02-021")
+@pytest.mark.parametrize("event", ["push", "pull_request"])
+def test_python_app_workflow_runs_on_a_committed_example_change(
+    event: str,
+) -> None:
+    assert "docs/reference/examples/**" in _triggers()[event]["paths"]

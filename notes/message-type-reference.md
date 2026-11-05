@@ -161,10 +161,13 @@ how-to tree.
   examples. Tables are committed `include-markdown`
   fragments instead (ADR-0128, § Occasions), because MkDocs does not rewrite links
   printed from an exec block; an example carries no link, so it stays an exec block.
-- A new example function needs a matching `obj_to_file` call in
-  `vocab_examples.main()`, or `test/architecture/test_vocab_examples_current.py`
-  fails. The generator randomizes IDs and timestamps, so generate into a temp
-  directory and copy across only the files you added.
+- A new example function needs a row in `vocab_examples.EXAMPLES`, or
+  `test/architecture/test_vocab_examples_current.py` fails. Re-run the
+  generator over the whole tree and commit the result: it derives every id
+  and stamps every timestamp from a fixed moment, so a regeneration rewrites
+  only the examples that changed (#5776). Do not generate into a temp
+  directory and copy files across — that workaround existed because the
+  generator used to randomize ids and timestamps, and it no longer does.
 - **An example must be dispatchable.** Set every discriminator field its
   `ActivityPattern` requires (`object_`, `target_`, `context_`); there is no
   `origin_` field, so `origin` never affects dispatch.

@@ -19,7 +19,8 @@
 a deterministic demo run replaces ``clock.datetime`` to control the clock.
 """
 
-from datetime import UTC, datetime, timedelta
+import threading
+from datetime import UTC, datetime, timedelta, timezone
 from typing import (
     overload,
 )
@@ -30,6 +31,42 @@ from typing import (
 # break isinstance() calls in parse_published, so we capture the real class here
 # before any patch can replace the module-level name.
 _datetime_type = datetime
+
+
+class SteppingClock:
+    """A ``datetime`` stand-in whose ``now()`` advances *step* on every call.
+
+    Lives beside the clock it replaces because replacing ``clock.datetime`` is
+    the documented way to control time (module docstring), and one stand-in
+    serves every caller that does so: the deterministic demo recordings
+    (``vultron.demo.determinism``, which re-exports this class), the docs
+    example generator, and the tests that pin a stamp.
+
+    The first call returns ``start + step``; ``step=timedelta(0)`` freezes the
+    clock at *start*.  *start* must be timezone-aware, as ``now_utc()``
+    promises its callers (CS-13-001).
+
+    Only ``now()`` is provided.  This module keeps a private reference to the
+    real class for its ``isinstance`` guards, so any other attribute a patched
+    path reaches for raises ``AttributeError`` instead of returning a wrong
+    time.  Reads are serialized, because in-process deliveries run on worker
+    threads.
+    """
+
+    def __init__(
+        self, start: datetime, step: timedelta = timedelta(seconds=1)
+    ) -> None:
+        if start.tzinfo is None:
+            raise ValueError("SteppingClock start must be timezone-aware")
+        self._t = start
+        self._step = step
+        self._lock = threading.Lock()
+
+    def now(self, tz: timezone | None = None) -> datetime:
+        with self._lock:
+            self._t += self._step
+            current = self._t
+        return current.astimezone(tz) if tz is not None else current
 
 
 def now_utc() -> datetime:
