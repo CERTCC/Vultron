@@ -15,11 +15,12 @@
 
 ``coordinated_story``, ``vendor_story``, ``story`` and
 ``owner_decision_story`` are packages whose ``__init__`` only re-exports
-names (CS-18-003), and so is the ``rcvcv_demo`` scenario package (#5825).  A fragment looks each collaborator up in
-the globals of the submodule that defines it, so a ``patch.object`` against
-the package replaces a name no fragment reads: the test runs the real
-collaborator, against a ``MagicMock`` client, and may still pass.  This area
-has lost a patch that way three times (#5534, #5536).
+names (CS-18-003), and so is the ``rcvcv_demo`` scenario package (#5825).
+A fragment looks each collaborator up in the globals of the submodule that
+defines it, so a ``patch.object`` against the package replaces a name no
+fragment reads: the test runs the real collaborator, against a ``MagicMock``
+client, and may still pass.  This area has lost a patch that way three times
+(#5534, #5536).
 
 Two guards close it:
 
