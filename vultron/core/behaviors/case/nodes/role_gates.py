@@ -48,6 +48,7 @@ from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
 from vultron.core.behaviors.case.nodes.path_branch import wrap_children
+from vultron.core.behaviors.case_id_scope import with_case_id
 
 __all__ = [
     "CaseManagerGate",
@@ -139,9 +140,11 @@ def create_case_manager_gated_tree(
                 children=[
                     py_trees.decorators.Inverter(
                         name="InvertIsNotCaseManager",
-                        child=CheckIsCaseManagerNode(
-                            case_id=case_id,
-                            case_may_be_absent=case_may_be_absent,
+                        child=with_case_id(
+                            CheckIsCaseManagerNode(
+                                case_may_be_absent=case_may_be_absent,
+                            ),
+                            case_id,
                         ),
                     ),
                 ],

@@ -149,6 +149,7 @@ from vultron.core.behaviors.case.receive_stages.tree import (
     create_guarded_commit_case_ledger_entry_tree,
     received_stages,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.replica_emit_exemptions import (
     ReplicaEmitExemption,
 )
@@ -551,14 +552,17 @@ def create_receive_activity_tree(
         )
     )
     children.extend(addressee_stage(name, addressee_exemption))
+    stage_case_id = path_stage_case_id(
+        case_id, manager_case_id, sender_context
+    )
     path_stage = received_path_stage(
         name,
-        path_stage_case_id(case_id, manager_case_id, sender_context),
+        stage_case_id,
         paths,
         case_resolved_at_run_time=bool(case_resolution),
     )
     if path_stage is not None:
-        children.append(path_stage)
+        children.append(with_case_id(path_stage, stage_case_id))
     # Every path branch the tree declared, built from the stage's answer
     # before anything checks what the branches hold (HP-01-038).
     replica = resolve_path_branches(where, replica_effects or [], path_stage)

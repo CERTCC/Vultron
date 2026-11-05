@@ -97,7 +97,9 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
     a CASE_OWNER's status reports are authoritative ("gospel") and do not
     require approval by the ``CaseOwnerApprovesStatusUpdate`` call-out.
 
-    Reads ``case_id`` from constructor or from the blackboard input port.
+    Reads ``case_id`` only from the ``/case_id`` input port (BTND-01-006); a
+    tree that names the case at build time seeds the port with
+    :func:`~vultron.core.behaviors.case_id_scope.with_case_id`.
 
     Merged from ``CheckIsCaseOwnerNode`` (ADR-0115, AC-2).
 
@@ -111,12 +113,10 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
     def __init__(
         self,
         sender_actor_id: str,
-        case_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._sender_actor_id = sender_actor_id
-        self._case_id = case_id
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
@@ -140,7 +140,7 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
             return f
         assert self.datalayer is not None
 
-        case_id = self._case_id or self._case_id_bb
+        case_id = self._case_id_bb
 
         case, failure = self._require_case(case_id)
         if failure is not None:

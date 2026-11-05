@@ -19,6 +19,7 @@
 
 import py_trees
 
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sender_check_context import (
     AuthoredCaseProposal,
     AuthoredNote,
@@ -188,8 +189,8 @@ def _case_owner_role_node(
             proposal_id=ctx.ownership_proposal_id,
             sender_actor_id=ctx.sender_id,
         )
-    return SenderIsCaseOwnerNode(
-        sender_actor_id=ctx.sender_id, case_id=ctx.case_id
+    return with_case_id(
+        SenderIsCaseOwnerNode(sender_actor_id=ctx.sender_id), ctx.case_id
     )
 
 

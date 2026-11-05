@@ -45,6 +45,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     ungated_emitters,
     ungated_nodes,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
@@ -127,13 +128,14 @@ def _run_branch(
     """
     stage = ReceivedPathNode(
         declared=frozenset(declared),
-        case_id=CASE_ID,
         label="PathBranchProofBT",
     )
     branch = path_branch_stage("proof", declaration, stage)
     _run(
         py_trees.composites.Sequence(
-            name="StageThenBranch", memory=False, children=[stage, branch]
+            name="StageThenBranch",
+            memory=False,
+            children=[with_case_id(stage, CASE_ID), branch],
         ),
         actor_id,
     )

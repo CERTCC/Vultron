@@ -36,6 +36,7 @@ from vultron.core.behaviors.case.nodes.refusal_notice import (
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 
 
 def create_guarded_commit_case_ledger_entry_tree(
@@ -58,7 +59,7 @@ def create_guarded_commit_case_ledger_entry_tree(
     return create_case_manager_gated_tree(
         name="GuardedCommitCaseLedgerEntryBT",
         case_id=case_id,
-        children=[CommitCaseLedgerEntryNode(case_id=case_id)],
+        children=[with_case_id(CommitCaseLedgerEntryNode(), case_id)],
         case_may_be_absent=case_may_be_absent,
     )
 

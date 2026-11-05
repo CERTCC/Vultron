@@ -52,6 +52,7 @@ from typing import cast
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EmbargoActivityBuilder,
@@ -234,8 +235,11 @@ def end_time_clock_decision(
                     # the termination commits anything: its commit nodes
                     # raise on a failed commit, which would end the tree the
                     # decision runs in as an internal error (CLP-10-060).
-                    CheckLedgerFreshnessNode(
-                        case_id=case_id, name=END_TIME_LEDGER_FRESH_NODE_NAME
+                    with_case_id(
+                        CheckLedgerFreshnessNode(
+                            name=END_TIME_LEDGER_FRESH_NODE_NAME
+                        ),
+                        case_id,
                     ),
                     end_embargo_at_end_time_bt(
                         case_id=case_id, result_out=result_out, now=now

@@ -28,6 +28,7 @@ from vultron.core.behaviors.case.nodes.leave import (
     CommitRMClosureEntriesNode,
     ExpirePendingInvitesOnCloseNode,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseOwnerNode,
 )
@@ -136,10 +137,12 @@ def owner_or_non_owner_effects(
                 children=[
                     py_trees.decorators.Inverter(
                         name="SenderIsNotCaseOwner",
-                        child=SenderIsCaseOwnerNode(
-                            sender_actor_id=sender_actor_id,
-                            case_id=case_id,
-                            name="CheckIsCaseOwnerForLeave",
+                        child=with_case_id(
+                            SenderIsCaseOwnerNode(
+                                sender_actor_id=sender_actor_id,
+                                name="CheckIsCaseOwnerForLeave",
+                            ),
+                            case_id,
                         ),
                     ),
                     py_trees.composites.Sequence(
@@ -153,10 +156,12 @@ def owner_or_non_owner_effects(
                 name="NonOwnerLeaveArm",
                 memory=False,
                 children=[
-                    SenderIsCaseOwnerNode(
-                        sender_actor_id=sender_actor_id,
-                        case_id=case_id,
-                        name="CheckIsCaseOwnerForNonOwnerLeave",
+                    with_case_id(
+                        SenderIsCaseOwnerNode(
+                            sender_actor_id=sender_actor_id,
+                            name="CheckIsCaseOwnerForNonOwnerLeave",
+                        ),
+                        case_id,
                     ),
                     py_trees.composites.Sequence(
                         name="NonOwnerLeaveSeq",

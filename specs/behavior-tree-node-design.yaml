@@ -84,7 +84,11 @@ groups:
   - id: BTND-01-006
     priority: MUST
     kind: project
-    verification_debt: '#2574'
+    verification: >-
+      `test_no_node_reads_case_id_from_both_a_port_and_its_constructor` in
+      `test/architecture/test_case_id_one_channel.py` imports every BT node class
+      under `vultron/core/behaviors/` and fails when a class that declares a
+      `case_id` input port also accepts a `case_id` constructor parameter.
     statement: >-
       Some trees find a node's input value only at tick time. Such a node MUST read
       that value from a declared blackboard input port in every tree that uses it.

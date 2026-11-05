@@ -95,21 +95,21 @@ class TestCommitCaseLedgerEntryNodeFailFast:
         mock_bridge.assert_not_called()
 
     def test_none_case_id_returns_failure(self, bridge):
-        """case_id resolves to None → FAILURE (not SUCCESS no-op)."""
-        node = CommitCaseLedgerEntryNode(case_id=None)
+        """The /case_id port holds None → FAILURE (not SUCCESS no-op)."""
+        node = CommitCaseLedgerEntryNode()
         with patch(_FACTORY_PATH) as mock_factory:
             result = bridge.execute_with_setup(
-                tree=node, actor_id=ACTOR_ID, activity=None
+                tree=node, actor_id=ACTOR_ID, activity=None, case_id=None
             )
         assert result.status == Status.FAILURE
         mock_factory.assert_not_called()
 
     def test_empty_string_case_id_returns_failure(self, bridge):
         """Empty string case_id → FAILURE (falsy value treated as absent)."""
-        node = CommitCaseLedgerEntryNode(case_id="")
+        node = CommitCaseLedgerEntryNode()
         with patch(_FACTORY_PATH) as mock_factory:
             result = bridge.execute_with_setup(
-                tree=node, actor_id=ACTOR_ID, activity=None
+                tree=node, actor_id=ACTOR_ID, activity=None, case_id=""
             )
         assert result.status == Status.FAILURE
         mock_factory.assert_not_called()
