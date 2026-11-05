@@ -276,7 +276,9 @@ the failure (#4113) was a real fan-out bug.
   `notes/devcontainer-tooling.md`.
 - **The one rerun exception:** a check that is *already tracked* as flaky, by an
   open `flaky-test` issue that holds a reproduction, may be re-run **once**. The
-  PR body or verdict names that issue. A pass on rerun with no such issue is never
+  PR body or verdict names that issue. Re-run the `CI gate` job after it too: the
+  gate judges once per pull-request event, so it stays red over a green rerun
+  (`notes/ci-workflow-authoring.md`). A pass on rerun with no such issue is never
   evidence of flakiness: file the issue with the reproduction first, and the PR
   stays held until the check is green on its own or the issue's cause is fixed.
 

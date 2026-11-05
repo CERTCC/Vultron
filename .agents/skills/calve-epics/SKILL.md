@@ -139,6 +139,13 @@ runs this mode for every new issue before it is created.
    design idea this issue advances. A protocol-correctness bug belongs with
    protocol correctness even if its title mentions a demo scenario; a prod-only
    concern belongs with productionization even if it surfaced during demo work.
+   An issue opened during other work (any `opened-as` reason) that does not
+   block the issue being worked, and that the PR working that issue does not
+   also close, goes under a Focus or Now epic only when that epic's title claim
+   stays false while the issue is open (PAD-02-041). Otherwise route it among
+   the theme's Next, Later and Someday epics, even when the Focus epic's design
+   idea matches it better. An issue the same PR closes may go under the worked
+   issue's epic whatever its tier.
 
 4. **Decide autonomy by ambiguity:**
    - **Exactly one clearly-matching epic** → parent it there automatically via
@@ -211,10 +218,11 @@ failing because the right home does not exist yet.
 7. **On confirmation, delegate the mechanics.** Invoke `create-epic` with the
    agreed title, theme, body (the `Theme:` line, then the `Design idea:`
    line), leaf issue numbers, and Schedule. `create-epic` owns epic-type
-   creation, sub-issue wiring, board placement, and the `needs-decomposition`
-   label — do not reimplement any of that here. Its gate refuses a title with
-   an ID or an `Epic:` label and a body without a `Design idea:` line or with
-   one that restates the title or the `Theme:` outcome.
+   creation, sub-issue wiring, and board placement (the `epic-needs-planning`
+   workflow manages `needs-planning`) — do not reimplement any of that here. Its
+   gate refuses a title with an ID or an `Epic:` label and a body without a
+   `Design idea:` line or with one that restates the title or the `Theme:`
+   outcome.
 
 ## Mode 3 — Recrystallize a muddled forest (human-gated)
 
@@ -398,7 +406,7 @@ To read an issue's current parent and an epic's open children, use the
 - **This skill decides.** It never contains epic-creation or sub-issue-wiring
   mechanics of its own.
 - `create-epic` — creates the Epic (correct issue type), wires leaves, places
-  on the board, applies `needs-decomposition`. Call it in Modes 2 and 3.
+  on the board. Call it in Modes 2 and 3.
 - `manage-github-issue` — idempotent parent/sub-issue wiring for existing
   issues. Call it for all routing and re-parenting.
 - Callers (`update-plan`, `plan-issue`, `review-priorities`) invoke *this*

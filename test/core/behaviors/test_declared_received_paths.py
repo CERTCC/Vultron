@@ -63,6 +63,7 @@ from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPathNode,
     undeclared_path_reason,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
@@ -825,10 +826,8 @@ def _stage_at(
             },
         ),
     )
-    stage = ReceivedPathNode(
-        declared=declared, case_id=case_id, label="DeclaredPathsBT"
-    )
-    scenario.run(stage, actor_id=actor_id)
+    stage = ReceivedPathNode(declared=declared, label="DeclaredPathsBT")
+    scenario.run(with_case_id(stage, case_id), actor_id=actor_id)
     return stage
 
 

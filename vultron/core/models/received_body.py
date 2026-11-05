@@ -19,8 +19,16 @@ The parser seals the decoded body of an activity, which is always a JSON
 object, as JSON text.  Every core model that carries that text (the event's
 received evidence, the receiver's archive of it) refuses anything else with
 :func:`require_json_object_text`, from a field validator.
+
+:func:`received_body_digest` is the one definition of a sealed body's
+fingerprint, used both where two deliveries under one id are compared
+(IE-10-002) and where a refused message's body is given up for a receipt
+stub that keeps only the fingerprint (ADR-0154).  Two callers of one
+function, so a stub's hash and a delivery's digest are the same value and
+can be compared without either side re-deriving it (CS-22-001).
 """
 
+import hashlib
 import json
 
 
@@ -42,3 +50,15 @@ def require_json_object_text(value: str, field: str) -> str:
             f"{field} is not the text of a JSON object (VM-08-002)"
         )
     return value
+
+
+def received_body_digest(sealed_text: str) -> str:
+    """The SHA-256 digest of a sealed received body's text.
+
+    Taken over the text exactly as the parser sealed it, with no
+    normalisation: a body re-serialized with another key order has another
+    digest, which is what lets a reused id be told from a redelivery
+    (IE-10-002), and what a receipt stub keeps in place of the body it gave
+    up (ADR-0154).
+    """
+    return hashlib.sha256(sealed_text.encode("utf-8")).hexdigest()

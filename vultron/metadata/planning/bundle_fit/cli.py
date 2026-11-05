@@ -19,7 +19,6 @@ from vultron.metadata.planning.bundle_fit.model import (
 )
 from vultron.metadata.planning.bundle_fit.parse import (
     epic_assignees,
-    graphql_errors,
     parse_graphql,
 )
 from vultron.metadata.planning.bundle_fit.render import _render
@@ -27,6 +26,7 @@ from vultron.metadata.planning.bundle_fit.select import (
     effective_schedule,
     select_bundle,
 )
+from vultron.metadata.planning.gh import graphql_errors
 
 
 def main(argv: list[str] | None = None) -> int:

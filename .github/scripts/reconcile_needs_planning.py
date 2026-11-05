@@ -21,11 +21,13 @@ Usage: reconcile_needs_planning.py [--dry-run] [--repo OWNER/NAME]
 from __future__ import annotations
 
 import argparse
-import json
 import os
-import subprocess
 import sys
 from collections.abc import Iterable
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from gh_cli import gh as _gh, paginated as _paginated  # sibling; see gh_cli
 
 LABEL = "needs-planning"
 EPIC_TYPE = "Epic"
@@ -51,21 +53,6 @@ def wanted_label_change(
     if not needs and has_label:
         return "remove"
     return None
-
-
-def _gh(*args: str) -> str:
-    return subprocess.run(  # noqa: S603 - fixed argv, no shell
-        ["gh", *args],  # noqa: S607
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-
-
-def _paginated(endpoint: str) -> list[dict[str, object]]:
-    """All items of a REST list endpoint (``--slurp`` yields one list per page)."""
-    pages = json.loads(_gh("api", "--paginate", "--slurp", endpoint))
-    return [item for page in pages for item in page]
 
 
 def _type_name(issue: dict[str, object]) -> str:

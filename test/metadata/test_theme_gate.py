@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 
+from test.metadata._fake_runner import FakeRunner
 from test.metadata.specs._helpers import write_yaml
 from vultron.metadata.file_loading import MetadataLoadErrors
 from vultron.metadata.planning.gh import GhError
@@ -98,7 +99,7 @@ class TestLeaf:
             ["size:M", "theme:alpha"],
             _ALPHA_BODY,
             catalog,
-            parent=_parent("theme:alpha", "needs-decomposition"),
+            parent=_parent("theme:alpha", "needs-planning"),
         )
         assert found == []
 
@@ -596,16 +597,6 @@ def test_split_labels_accepts_comma_lists() -> None:
     ]
 
 
-class _FakeGh:
-    def __init__(self, reply: str) -> None:
-        self.reply = reply
-        self.calls: list[list[str]] = []
-
-    def __call__(self, args: Sequence[str]) -> str:
-        self.calls.append(list(args))
-        return self.reply
-
-
 def _view(state: str, *labels: str) -> str:
     return json.dumps(
         {"state": state, "labels": [{"name": label} for label in labels]}
@@ -614,7 +605,7 @@ def _view(state: str, *labels: str) -> str:
 
 class TestFetchParent:
     def test_reads_state_and_labels(self) -> None:
-        fake = _FakeGh(_view("OPEN", "theme:alpha"))
+        fake = FakeRunner(_view("OPEN", "theme:alpha"))
         parent = fetch_parent(7, "o/r", fake)
         assert parent == ParentIssue(7, True, frozenset({"theme:alpha"}))
         assert fake.calls == [
@@ -624,7 +615,7 @@ class TestFetchParent:
     @pytest.mark.parametrize("reply", ["not json", "{}", '{"state": 1}'])
     def test_unreadable_reply_raises(self, reply: str) -> None:
         with pytest.raises(GhError):
-            fetch_parent(7, "o/r", _FakeGh(reply))
+            fetch_parent(7, "o/r", FakeRunner(reply))
 
 
 class TestMain:
@@ -652,7 +643,7 @@ class TestMain:
         ]
 
     def test_passing_issue_exits_0(self, note: Path, body: Path) -> None:
-        fake = _FakeGh(_view("OPEN", "theme:alpha"))
+        fake = FakeRunner(_view("OPEN", "theme:alpha"))
         args = self._args(
             note, body, "--label", "theme:alpha", "--parent", "7"
         )
@@ -661,7 +652,7 @@ class TestMain:
     def test_refused_issue_exits_1_and_names_the_rule(
         self, note: Path, body: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        fake = _FakeGh(_view("OPEN", "theme:beta"))
+        fake = FakeRunner(_view("OPEN", "theme:beta"))
         args = self._args(
             note, body, "--label", "theme:alpha", "--parent", "7"
         )
@@ -669,7 +660,7 @@ class TestMain:
         assert "PAD-02-017" in capsys.readouterr().err
 
     def test_no_parent_makes_no_gh_call(self, note: Path, body: Path) -> None:
-        fake = _FakeGh("")
+        fake = FakeRunner("")
         assert (
             main(self._args(note, body, "--label", "theme:alpha"), fake) == 0
         )
@@ -689,7 +680,7 @@ class TestMain:
         args = self._args(
             note, body, "--epic", "--title", _ALPHA_TITLE, "--label", "x"
         )
-        assert main(args, run=_FakeGh("")) == 2
+        assert main(args, run=FakeRunner("")) == 2
         assert "spec file(s) failed" in capsys.readouterr().err
 
     def test_gh_failure_exits_2(self, note: Path, body: Path) -> None:
@@ -705,13 +696,13 @@ class TestMain:
         args = self._args(
             tmp_path / "absent.md", body, "--label", "theme:alpha"
         )
-        assert main(args, run=_FakeGh("")) == 2
+        assert main(args, run=FakeRunner("")) == 2
 
     def test_unreadable_body_exits_2(self, note: Path, tmp_path: Path) -> None:
         args = self._args(
             note, tmp_path / "absent.md", "--label", "theme:alpha"
         )
-        assert main(args, run=_FakeGh("")) == 2
+        assert main(args, run=FakeRunner("")) == 2
 
     @pytest.mark.parametrize(
         "title", [None, "", "  "], ids=["absent", "empty", "blank"]
@@ -723,7 +714,7 @@ class TestMain:
         if title is not None:
             args += ["--title", title]
         with pytest.raises(SystemExit) as exc:
-            main(args, run=_FakeGh(""))
+            main(args, run=FakeRunner(""))
         assert exc.value.code == 2
 
     @pytest.mark.spec("PAD-02-032")
@@ -733,8 +724,8 @@ class TestMain:
         body = tmp_path / "epic.md"
         body.write_text(_ALPHA_EPIC_BODY, encoding="utf-8")
         args = self._args(note, body, "--label", "theme:alpha", "--epic")
-        assert main([*args, "--title", "Alpha (SYNC-19)"], _FakeGh("")) == 1
-        assert main([*args, "--title", "Alpha (UTF-16)"], _FakeGh("")) == 0
+        assert main([*args, "--title", "Alpha (SYNC-19)"], FakeRunner("")) == 1
+        assert main([*args, "--title", "Alpha (UTF-16)"], FakeRunner("")) == 0
 
     @pytest.mark.spec("PAD-02-032")
     def test_epic_title_is_checked(
@@ -746,8 +737,10 @@ class TestMain:
         body = tmp_path / "epic.md"
         body.write_text(_ALPHA_EPIC_BODY, encoding="utf-8")
         base = self._args(note, body, "--label", "theme:alpha", "--epic")
-        assert main([*base, "--title", _ALPHA_TITLE], run=_FakeGh("")) == 0
-        assert main([*base, "--title", "Alpha (ADR-0001)"], _FakeGh("")) == 1
+        assert main([*base, "--title", _ALPHA_TITLE], run=FakeRunner("")) == 0
+        assert (
+            main([*base, "--title", "Alpha (ADR-0001)"], FakeRunner("")) == 1
+        )
         assert "PAD-02-032" in capsys.readouterr().err
 
 

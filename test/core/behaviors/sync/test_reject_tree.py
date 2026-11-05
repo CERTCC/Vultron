@@ -19,6 +19,7 @@ from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPathNode,
 )
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
+from vultron.core.behaviors.case_id_scope import unscoped
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     MAX_REPLAY_COOLDOWN_SECONDS,
@@ -197,7 +198,7 @@ def test_create_reject_log_entry_tree_returns_sequence():
         "FindCaseActor",
         "AnswerRejectIfCaseManager",
     ]
-    stage = tree.children[2]
+    stage = unscoped(tree.children[2])
     assert isinstance(stage, ReceivedPathNode)
     assert stage.declared == frozenset({ReceivedPath.CASE_MANAGER})
     assert isinstance(tree.children[-1], CaseManagerGate)

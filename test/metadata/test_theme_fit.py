@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from test.metadata._fake_runner import FakeRunner
 from vultron.metadata.planning import gh as gh_module
 from vultron.metadata.planning.gh import GhError
 from vultron.metadata.planning.theme_fit import (
@@ -1105,28 +1106,9 @@ class TestParse:
             parse_pages(pages)
 
 
-class _FakeGh:
-    """Records ``gh`` calls; answers with *pages* as JSON."""
-
-    def __init__(self, pages: object, fail: bool = False) -> None:
-        self.pages = pages
-        self.fail = fail
-        self.calls: list[list[str]] = []
-
-    def __call__(self, args: Sequence[str]) -> str:
-        self.calls.append(list(args))
-        if self.fail:
-            raise subprocess.CalledProcessError(1, ["gh"], stderr="boom")
-        return (
-            self.pages
-            if isinstance(self.pages, str)
-            else json.dumps(self.pages)
-        )
-
-
 class TestFetch:
     def test_query_is_read_only_and_paginated(self) -> None:
-        fake = _FakeGh([_page(_node(1, kind="Epic"))])
+        fake = FakeRunner([_page(_node(1, kind="Epic"))])
         (issue,) = fetch_open_issues("o/r", run=fake)
         assert issue.number == 1
         (call,) = fake.calls
@@ -1139,7 +1121,7 @@ class TestFetch:
         assert "repository { nameWithOwner }" in query
 
     def test_query_reads_the_schedule_by_default(self) -> None:
-        fake = _FakeGh([_page(_node(1, kind="Epic", schedule="Now"))])
+        fake = FakeRunner([_page(_node(1, kind="Epic", schedule="Now"))])
         (issue,) = fetch_open_issues("o/r", run=fake)
         query = next(a for a in fake.calls[0] if a.startswith("query="))
         assert "projectItems" in query
@@ -1147,7 +1129,7 @@ class TestFetch:
 
     def test_no_schedule_query_skips_project_items(self) -> None:
         """A ``GITHUB_TOKEN`` cannot read Project #24 (#5331)."""
-        fake = _FakeGh([_page(_node(1, kind="Epic"))])
+        fake = FakeRunner([_page(_node(1, kind="Epic"))])
         (issue,) = fetch_open_issues("o/r", run=fake, read_schedule=False)
         query = next(a for a in fake.calls[0] if a.startswith("query="))
         assert "projectItems" not in query
@@ -1161,11 +1143,11 @@ class TestFetch:
     @pytest.mark.parametrize("repo", ["noslash", "/r", "o/", "o/r/x"])
     def test_malformed_repo_raises(self, repo: str) -> None:
         with pytest.raises(GhError, match="OWNER/NAME"):
-            fetch_open_issues(repo, run=_FakeGh([]))
+            fetch_open_issues(repo, run=FakeRunner([]))
 
     def test_non_json_raises(self) -> None:
         with pytest.raises(GhError, match="could not read"):
-            fetch_open_issues("o/r", run=_FakeGh("not json"))
+            fetch_open_issues("o/r", run=FakeRunner("not json"))
 
     def test_gh_not_installed_raises(
         self, monkeypatch: pytest.MonkeyPatch
@@ -1212,14 +1194,14 @@ class TestMain:
     def test_clean_exits_zero(
         self, note: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        fake = _FakeGh(_CLEAN_PAGES)
+        fake = FakeRunner(_CLEAN_PAGES)
         assert main(["--catalog", str(note), "--repo", "o/r"], run=fake) == 0
         out = capsys.readouterr().out
         assert out.startswith("# Theme fit report\n")
         assert "| Now | 1 | 1 | 1 | 100% |" in out
 
     def test_findings_exit_one(self, note: Path) -> None:
-        fake = _FakeGh([_page(_node(2))])
+        fake = FakeRunner([_page(_node(2))])
         assert main(["--catalog", str(note)], run=fake) == 1
 
     @pytest.mark.spec("PAD-02-028")
@@ -1233,14 +1215,14 @@ class TestMain:
             labels=["theme:alpha", "ci:main-failure"],
             body="Theme: theme:alpha — gets CI green again.",
         )
-        fake = _FakeGh([_page(node)])
+        fake = FakeRunner([_page(node)])
         assert main(["--catalog", str(note)], run=fake) == 0
         assert "- #2 Issue 2 — `theme:alpha`" in capsys.readouterr().out
 
     def test_json(
         self, note: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        main(["--catalog", str(note), "--json"], run=_FakeGh(_CLEAN_PAGES))
+        main(["--catalog", str(note), "--json"], run=FakeRunner(_CLEAN_PAGES))
         data = json.loads(capsys.readouterr().out)
         assert data["clean"] is True
         assert data["coherence"][0]["tier"] == "Now"
@@ -1252,7 +1234,7 @@ class TestMain:
         pages = json.loads(json.dumps(_CLEAN_PAGES))
         for node in pages[0]["data"]["repository"]["issues"]["nodes"]:
             del node["projectItems"]
-        fake = _FakeGh(pages)
+        fake = FakeRunner(pages)
         args = ["--catalog", str(note), "--no-schedule"]
         assert main(args, run=fake) == 0
         query = next(a for a in fake.calls[0] if a.startswith("query="))
@@ -1268,16 +1250,17 @@ class TestMain:
         self, note: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         args = ["--catalog", str(note), "--json", "--no-schedule"]
-        main(args, run=_FakeGh(_CLEAN_PAGES))
+        main(args, run=FakeRunner(_CLEAN_PAGES))
         assert json.loads(capsys.readouterr().out)["schedule_read"] is False
-        main(["--catalog", str(note), "--json"], run=_FakeGh(_CLEAN_PAGES))
+        main(["--catalog", str(note), "--json"], run=FakeRunner(_CLEAN_PAGES))
         assert json.loads(capsys.readouterr().out)["schedule_read"] is True
 
     def test_coherence_only(
         self, note: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         main(
-            ["--catalog", str(note), "--coherence"], run=_FakeGh(_CLEAN_PAGES)
+            ["--catalog", str(note), "--coherence"],
+            run=FakeRunner(_CLEAN_PAGES),
         )
         out = capsys.readouterr().out
         assert out.startswith("| Tier |")
@@ -1287,11 +1270,11 @@ class TestMain:
         self, note: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         pages = [_page(*(_node(n) for n in range(1, 30)))]
-        main(["--catalog", str(note)], run=_FakeGh(pages))
+        main(["--catalog", str(note)], run=FakeRunner(pages))
         full = capsys.readouterr().out
         limit = len(full) - 200
         args = ["--catalog", str(note), "--max-chars", str(limit)]
-        assert main(args, run=_FakeGh(pages)) == 1
+        assert main(args, run=FakeRunner(pages)) == 1
         out = capsys.readouterr().out
         assert len(out) <= limit
         assert "more; run" in out
@@ -1300,31 +1283,42 @@ class TestMain:
         self, note: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         args = ["--catalog", str(note), "--max-chars", "10"]
-        assert main(args, run=_FakeGh(_CLEAN_PAGES)) == 2
+        assert main(args, run=FakeRunner(_CLEAN_PAGES)) == 2
         assert "fixed parts alone" in capsys.readouterr().err
 
     def test_max_chars_must_be_positive(self, note: Path) -> None:
         with pytest.raises(SystemExit) as exc:
-            main(["--catalog", str(note), "--max-chars", "0"], run=_FakeGh([]))
+            main(
+                ["--catalog", str(note), "--max-chars", "0"],
+                run=FakeRunner([]),
+            )
         assert exc.value.code == 2
 
     def test_gh_failure_exits_two(
         self, note: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        assert main(["--catalog", str(note)], run=_FakeGh([], fail=True)) == 2
+        assert (
+            main(
+                ["--catalog", str(note)],
+                run=FakeRunner(
+                    subprocess.CalledProcessError(1, ["gh"], stderr="boom")
+                ),
+            )
+            == 2
+        )
         assert "gh failed: boom" in capsys.readouterr().err
 
     def test_query_error_exits_two(
         self, note: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        fake = _FakeGh([{"errors": [{"message": "no read:project scope"}]}])
+        fake = FakeRunner([{"errors": [{"message": "no read:project scope"}]}])
         assert main(["--catalog", str(note)], run=fake) == 2
         assert "read:project" in capsys.readouterr().err
 
     def test_missing_catalog_exits_two(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        fake = _FakeGh(_CLEAN_PAGES)
+        fake = FakeRunner(_CLEAN_PAGES)
         code = main(["--catalog", str(tmp_path / "nope.md")], run=fake)
         assert code == 2
         assert fake.calls == []
@@ -1332,7 +1326,7 @@ class TestMain:
     def test_bad_catalog_exits_two(self, tmp_path: Path) -> None:
         bad = tmp_path / "bad.md"
         bad.write_text("# no markers\n", encoding="utf-8")
-        assert main(["--catalog", str(bad)], run=_FakeGh(_CLEAN_PAGES)) == 2
+        assert main(["--catalog", str(bad)], run=FakeRunner(_CLEAN_PAGES)) == 2
 
 
 class TestRepositoryCatalog:

@@ -207,7 +207,8 @@ failing check, and no step runs `git commit --no-verify` or `SKIP=<hook>`
 `notes/devcontainer-tooling.md`). Only verify's `READY-TO-MERGE` permits a merge, and
 verify emits it only on green CI. The sole exception is one re-run of a check
 already tracked by an open `flaky-test` issue with a reproduction, named in the
-verdict; "it passed on re-run" without that issue is never evidence
+verdict, followed by a re-run of the `CI gate` job, which judges once per
+pull-request event; "it passed on re-run" without that issue is never evidence
 (`completeness-doctrine.md` § "Never Merge on Red").
 
 **Report verify's verdict verbatim — never upgrade it.** In particular, never

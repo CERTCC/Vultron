@@ -31,9 +31,7 @@ from fastapi import (
 )
 
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driven.ledger_position_stamp import (
-    with_sender_ledger_position,
-)
+from vultron.adapters.driven.sender_sequence_stamp import with_outbound_stamps
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
 )
@@ -209,14 +207,18 @@ def post_actor_outbox(
 
     # No clone: the injected DataLayer already is this actor's store.
     actor_dl = cast(Any, dl)
-    # A case activity states this actor's ledger tail, as one its own
-    # adapter builds does (SYNC-18-001); one that states a position keeps it.
-    activity = with_sender_ledger_position(actor_dl, activity)
-    actor_dl.create(object_to_record(activity))
-    # Seal what was posted: the outbox delivers this body, not a re-read of
-    # the record (VM-08-003).
-    seal_outbound_body(actor_dl, activity)
-    actor_dl.outbox_append(activity.id_)
+    with actor_dl.transaction():
+        # A case activity states this actor's ledger tail and, sent to the
+        # CASE_MANAGER, its next sender sequence, as one its own adapter
+        # builds does (SYNC-18-001, SYNC-21-001); one that states them keeps
+        # them.  One transaction, so the number is used exactly when the
+        # body carrying it is sealed and queued (SYNC-21-003).
+        activity = with_outbound_stamps(actor_dl, activity)
+        actor_dl.create(object_to_record(activity))
+        # Seal what was posted: the outbox delivers this body, not a re-read
+        # of the record (VM-08-003).
+        seal_outbound_body(actor_dl, activity)
+        actor_dl.outbox_append(activity.id_)
 
     emitter = getattr(request.app.state, "emitter", None)
     # Keyword, not positional: `outbox_handler`'s third parameter used to be a

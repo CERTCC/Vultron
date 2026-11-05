@@ -47,6 +47,10 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     ungated_emitters,
     ungated_nodes,
 )
+from vultron.core.behaviors.case_id_scope import (
+    seeded_case_id,
+    with_case_id,
+)
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.replica_emit_exemptions import (
     EMBARGO_INVITE_FAULT,
@@ -307,7 +311,7 @@ class TestStageOrder:
         checks = [
             n for n in gate.iterate() if isinstance(n, CheckIsCaseManagerNode)
         ]
-        assert [c._case_id for c in checks] == [CASE_ID]
+        assert [seeded_case_id(c) for c in checks] == [CASE_ID]
 
     def test_manager_effects_without_a_case_to_gate_on_are_refused(
         self,
@@ -502,8 +506,8 @@ def test_ungated_nodes_walks_the_replica_gate_but_not_the_manager_gate() -> (
             name="ReplicaGate",
             memory=False,
             children=[
-                CheckIsCaseManagerNode(
-                    case_id=CASE_ID, name="SkipIfCaseManager"
+                with_case_id(
+                    CheckIsCaseManagerNode(name="SkipIfCaseManager"), CASE_ID
                 ),
                 replica,
             ],
@@ -588,9 +592,9 @@ class TestRefusalEffects:
         checks = [
             n for n in stage.iterate() if isinstance(n, CheckIsCaseManagerNode)
         ]
-        assert [(c._case_id, c._case_may_be_absent) for c in checks] == [
-            (CASE_ID, True)
-        ]
+        assert [
+            (seeded_case_id(c), c._case_may_be_absent) for c in checks
+        ] == [(CASE_ID, True)]
 
     @pytest.mark.spec("CLP-10-022")
     @pytest.mark.spec("CLP-10-047")
@@ -1042,9 +1046,9 @@ class TestClockDecisionStage:
             for n in gate.children[0].iterate()
             if isinstance(n, CheckIsCaseManagerNode)
         ]
-        assert [(c._case_id, c._case_may_be_absent) for c in checks] == [
-            (CASE_ID, True)
-        ]
+        assert [
+            (seeded_case_id(c), c._case_may_be_absent) for c in checks
+        ] == [(CASE_ID, True)]
 
     @pytest.mark.spec("CLP-10-025")
     def test_the_gate_takes_the_manager_case_when_the_commit_is_omitted(
@@ -1071,7 +1075,7 @@ class TestClockDecisionStage:
             for n in gate.children[0].iterate()
             if isinstance(n, CheckIsCaseManagerNode)
         ]
-        assert [c._case_id for c in checks] == [CASE_ID]
+        assert [seeded_case_id(c) for c in checks] == [CASE_ID]
 
     @pytest.mark.spec("HP-01-025")
     def test_a_tree_with_no_commit_checks_its_sender_on_the_manager_case(

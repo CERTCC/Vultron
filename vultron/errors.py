@@ -213,6 +213,35 @@ class VultronNotAnEmbargoError(VultronValidationError):
         )
 
 
+class VultronProofVerificationError(VultronError):
+    """Raised when a document's ``proof`` is missing or does not verify.
+
+    The error category for a sender-authentication failure (EH-03-005).  The
+    receiver cannot tell who wrote the document, so it refuses it
+    (SIG-03-002).  ``translate_domain_errors`` maps it to 422 with
+    ``ProofVerificationError`` as the error name, the answer the inbox gives
+    once it verifies proofs (#5386).  The proof is part of the content, not an
+    HTTP credential, so 401 (which asks for a ``WWW-Authenticate`` challenge)
+    does not fit.  403 does not arise at the inbox either: a verified sender's
+    entitlement is decided in core and answered with a ``Reject`` (HP-01-006,
+    HP-01-007).  The distinct name keeps a failed proof apart from a field
+    error (:exc:`VultronValidationError`) for senders and in logs.  The
+    authorization half of EH-03-005 is :exc:`VultronNotACaseParticipantError`.
+
+    This class deliberately does not inherit ``ValueError``.  A forged body is
+    not malformed input that a validator may absorb as one failed union branch.
+    It also carries no ``activity_id``: an unverified document's id is the
+    forger's claim.
+
+    The signing module raises the wire subclass
+    :exc:`~vultron.wire.as2.errors.VultronProofInvalidError`.  Its other two
+    errors are outside this category and stay unmapped:
+    ``VultronMultikeyError`` (the author's published key is malformed) and
+    ``VultronUnsignableJsonError`` (the body cannot be canonicalized).  How
+    ingress answers them is #5386's to decide.
+    """
+
+
 class VultronCanonicalEntryError(VultronError):
     """Raised when a case-ledger entry violates canonical entry criteria."""
 

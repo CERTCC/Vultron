@@ -44,7 +44,10 @@ from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
-from vultron.core.services.received_activity import held_received_record
+from vultron.core.services.received_activity import (
+    held_received_record,
+    sealed_body_of,
+)
 from vultron.errors import VultronNotFoundError
 from vultron.semantic_registry import extract_received_activity
 from vultron.wire.as2.parser import parse_received_body
@@ -60,9 +63,11 @@ __all__ = [
 def _parsed(dl: CasePersistence, activity_id: str) -> as_Activity | None:
     """The held received *activity_id* as its body parses, if held."""
     record = held_received_record(dl, activity_id)
-    if record is None:
+    if record is None or record.is_receipt_stub:
+        # A receipt stub is all a refusal left, and it keeps no body to
+        # parse: this receiver holds no such activity any more (CLP-10-018).
         return None
-    return parse_received_body(record.received_body)
+    return parse_received_body(sealed_body_of(record))
 
 
 def load_received_view(
@@ -76,10 +81,10 @@ def load_received_view(
     nothing a reader does to one reaches the next.
     """
     record = held_received_record(dl, activity_id)
-    if record is None:
+    if record is None or record.is_receipt_stub:
         return None
     staging = InlineObjectStaging(cast(DataLayer, dl))
-    parsed = parse_received_body(record.received_body)
+    parsed = parse_received_body(sealed_body_of(record))
     routed = staging.rehydrate_parsed(parsed) or parsed
     return ReceivedActivityView(extract_received_activity(routed))
 

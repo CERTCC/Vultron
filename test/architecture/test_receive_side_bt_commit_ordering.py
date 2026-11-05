@@ -61,6 +61,7 @@ import pytest
 from test.architecture import _corpus
 from test.support.future_dates import FAR_FUTURE
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
+from vultron.core.behaviors.case_id_scope import with_case_id
 
 # Exempt files: may contain direct calls (definition site only).
 EXEMPT_FILES = {
@@ -675,7 +676,9 @@ class TestEarlyCommitDetector:
         stage = ClockDecisionStage(
             name="ClockDecisions",
             decisions=[
-                CommitCaseLedgerEntryNode(case_id="https://example.org/c")
+                with_case_id(
+                    CommitCaseLedgerEntryNode(), "https://example.org/c"
+                )
             ],
         )
 

@@ -24,6 +24,7 @@ from pydantic import Field
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.sender_sequence import SenderSequence
 
 
 class VultronActivity(CoreObject):
@@ -76,6 +77,12 @@ class VultronActivity(CoreObject):
     # Read(CaseLedgerEntry) states it as the entry it names (SYNC-17-001).
     # The wire dump carries it as ``ledgerPosition``.
     ledger_position: LedgerPosition | None = None
+    # The sender's number for a case activity to the CASE_MANAGER
+    # (SYNC-21-001), and the number a refusal notice says the CASE_MANAGER
+    # expects next (SYNC-21-015).  The wire dump carries them as
+    # ``senderSequence`` and ``expectedSenderSequence``.
+    sender_sequence: SenderSequence | None = None
+    expected_sender_sequence: SenderSequence | None = None
     # ``Question`` fields (AS2 §4.1).  Vultron sends no ``Question``, but a
     # received one is stored as this model, so every key its wire class dumps
     # must be a field here (ARCH-25-008).

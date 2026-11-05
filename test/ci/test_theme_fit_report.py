@@ -506,9 +506,15 @@ def test_a_hung_gh_call_times_out_without_a_retry(
     monkeypatch.setattr(_script.subprocess, "run", hang)
     monkeypatch.setattr(_gh_cli.time, "sleep", lambda _s: None)
     monkeypatch.delenv("GH_RETRY_ATTEMPTS", raising=False)
+    monkeypatch.delenv("GH_CALL_TIMEOUT_SECONDS", raising=False)
     with pytest.raises(_script.subprocess.TimeoutExpired):
         _script._gh("issue", "edit", "12")
     assert [call["timeout"] for call in seen] == [_gh_cli.CALL_TIMEOUT_SECONDS]
+    # A workflow whose cap is near the default lowers it.
+    monkeypatch.setenv("GH_CALL_TIMEOUT_SECONDS", "45")
+    with pytest.raises(_script.subprocess.TimeoutExpired):
+        _script._gh("issue", "edit", "12")
+    assert seen[-1]["timeout"] == 45.0
 
 
 def test_findings_still_return_the_report(

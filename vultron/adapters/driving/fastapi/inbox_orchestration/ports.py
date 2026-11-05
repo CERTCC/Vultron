@@ -1,7 +1,8 @@
-"""Inbox dispatch and queue adapters.
+"""Inbox dispatch, queue and outcome adapters.
 
 - :class:`FastAPIDispatchAdapter` — wraps the dispatcher port
 - :class:`FastAPIQueuePort` — wraps pending-case queue helpers
+- :class:`FastAPIReceivedOutcomePort` — wraps the received-outcome service
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -35,8 +36,10 @@ from vultron.adapters.inbox_staging import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
+from vultron.core.services.received_outcome import write_receipt_stub
 
 
 class FastAPIDispatchAdapter:
@@ -147,4 +150,28 @@ class FastAPIQueuePort:
             case_id=case_id,
             dl=self._dl,
             queue_dl=self._actor_dl,
+        )
+
+
+class FastAPIReceivedOutcomePort:
+    """Received-outcome port over the receiving actor's own store.
+
+    The one write a final outcome makes: a refused delivery's body is given
+    up for a receipt stub (:func:`~vultron.core.services.received_outcome
+    .write_receipt_stub`, CLP-10-018).  An applied, skipped or deferred
+    delivery keeps what its record holds, so the port is never called for
+    one.
+
+    Args:
+        actor_dl: The receiving actor's DataLayer — the store that holds its
+            received records (DL-06-006).
+    """
+
+    def __init__(self, actor_dl: DataLayer) -> None:
+        self._dl = cast(CasePersistence, actor_dl)
+
+    def refuse(self, activity_id: str, *, sender_id: str, reason: str) -> None:
+        """Replace what is held for *activity_id* with a receipt stub."""
+        write_receipt_stub(
+            self._dl, activity_id, sender_id=sender_id, reason=reason
         )

@@ -27,6 +27,7 @@ from vultron.core.behaviors.case.nodes.received_path import (
     CheckReceivedPathNode,
     ReceivedPathNode,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sender_check_context import (
     LedgerActivityContext,
     SenderContext,
@@ -191,7 +192,9 @@ def _at_case_manager(
     """
     if path_stage is not None:
         return CheckReceivedPathNode.on_manager_path(path_stage)
-    return CheckIsCaseManagerNode(case_id=case_id, case_may_be_absent=True)
+    return with_case_id(
+        CheckIsCaseManagerNode(case_may_be_absent=True), case_id
+    )
 
 
 def _compose(

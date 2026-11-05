@@ -26,6 +26,7 @@ from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
@@ -83,7 +84,7 @@ def test_returns_success_when_actor_is_case_manager(
     bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
 ) -> None:
     result = bt_scenario.run(
-        CheckIsCaseManagerNode(case_id=case_with_manager.id_),
+        with_case_id(CheckIsCaseManagerNode(), case_with_manager.id_),
         actor_id=MANAGER_ACTOR_ID,
     )
     assert result.status == Status.SUCCESS
@@ -93,7 +94,7 @@ def test_returns_failure_when_actor_is_not_case_manager(
     bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
 ) -> None:
     result = bt_scenario.run(
-        CheckIsCaseManagerNode(case_id=case_with_manager.id_),
+        with_case_id(CheckIsCaseManagerNode(), case_with_manager.id_),
         actor_id=NON_MANAGER_ACTOR_ID,
     )
     assert result.status == Status.FAILURE
@@ -104,7 +105,7 @@ def test_returns_failure_when_case_is_missing(
     bt_scenario: BTTestScenario,
 ) -> None:
     result = bt_scenario.run(
-        CheckIsCaseManagerNode(case_id=CASE_ID),
+        with_case_id(CheckIsCaseManagerNode(), CASE_ID),
         actor_id=MANAGER_ACTOR_ID,
     )
     assert result.status == Status.FAILURE
@@ -126,7 +127,7 @@ def test_returns_failure_when_case_has_no_case_manager(
     bt_scenario.seed(vendor_participant, case)
 
     result = bt_scenario.run(
-        CheckIsCaseManagerNode(case_id=case.id_),
+        with_case_id(CheckIsCaseManagerNode(), case.id_),
         actor_id=MANAGER_ACTOR_ID,
     )
     assert result.status == Status.FAILURE
@@ -140,7 +141,7 @@ def test_sets_case_actor_id_output_on_success(
     and does not outlive it (#5803).
     """
     _, published = bt_scenario.run_capturing(
-        CheckIsCaseManagerNode(case_id=case_with_manager.id_),
+        with_case_id(CheckIsCaseManagerNode(), case_with_manager.id_),
         "case_actor_id",
         actor_id=MANAGER_ACTOR_ID,
     )

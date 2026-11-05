@@ -59,13 +59,15 @@ class ActorHoldsRoleInCaseNode(DataLayerConditionWithPorts):
     The role is read per message rather than fixed at startup, because a
     role granted or removed mid-case changes the answer (CM-02-011).
 
+    The case comes only from the ``/case_id`` input port (BTND-01-006); a
+    tree that names it at build time seeds the port with
+    :func:`~vultron.core.behaviors.case_id_scope.with_case_id`.
+
     Args:
         actor_id: The actor whose role is in question.  Read from the
             message, never from the receiving store (ADR-0022).
         role: The role asked about.  ``CVDRole.CASE_MANAGER`` is refused:
             authority has one asker (ARCH-24-003, HP-01-037).
-        case_id: The case the role belongs to; ``None`` reads it from the
-            blackboard's ``/case_id``.
         name: Node name; defaults to the class name.
 
     Raises:
@@ -76,7 +78,6 @@ class ActorHoldsRoleInCaseNode(DataLayerConditionWithPorts):
         self,
         actor_id: str,
         role: CVDRole,
-        case_id: str | None = None,
         name: str | None = None,
     ) -> None:
         if role is CVDRole.CASE_MANAGER:
@@ -89,7 +90,6 @@ class ActorHoldsRoleInCaseNode(DataLayerConditionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._actor_id = actor_id
         self._role = role
-        self._case_id = case_id
         self._case_id_bb: str | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -113,7 +113,7 @@ class ActorHoldsRoleInCaseNode(DataLayerConditionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        case_id = self._case_id or self._case_id_bb
+        case_id = self._case_id_bb
         if not case_id:
             self.feedback_message = (
                 f"{self.name}: no case to read '{self._actor_id}'s"

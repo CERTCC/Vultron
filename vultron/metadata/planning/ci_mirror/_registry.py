@@ -356,6 +356,10 @@ EXCLUSIONS: Mapping[str, str] = {
     "demo-integration.yml": (
         "container demos need Docker and take many minutes; they stay CI's"
     ),
+    "ci-gate.yml": (
+        "waits on GitHub for the other checks on the PR's head commit and "
+        "judges them; locally there are no checks to wait for"
+    ),
     "pr-size-label.yml": (
         "labels the PR from GitHub's diff statistics; nothing to fail locally"
     ),

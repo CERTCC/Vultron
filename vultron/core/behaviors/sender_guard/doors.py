@@ -20,6 +20,7 @@ CM-23-002), and the checks it is built from.
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sender_check_context import (
     ClosedSenderCheck,
 )
@@ -106,4 +107,6 @@ def case_owner_guard(
     still be incomplete, from a repeat that changes nothing (CM-23-002,
     CM-23-018).
     """
-    return SenderIsCaseOwnerNode(sender_actor_id=sender_id, case_id=case_id)
+    return with_case_id(
+        SenderIsCaseOwnerNode(sender_actor_id=sender_id), case_id
+    )
