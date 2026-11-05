@@ -450,9 +450,10 @@ groups:
       to its own job id is one a `needs:` list can omit, and its failure would
       then neither fail the run nor reach that aggregate.
     verification: >-
-      `test/ci/test_python_app_test_parts.py::test_the_downstream_jobs_wait_for_every_part`
-      asserts that both the `build` and `notify` jobs name the matrix test job
-      in `needs:`.
+      `test/ci/test_python_app_test_parts.py::test_the_downstream_jobs_wait_for_every_pytest_job`
+      asserts that the `build` and `notify` jobs each name every job in the
+      workflow that runs `pytest` in `needs:`, so a part promoted to its own
+      job id fails until both wait for it.
     relationships:
     - rel_type: refines
       spec_id: CISEC-05-013

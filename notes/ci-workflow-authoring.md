@@ -17,6 +17,7 @@ description: >
   job correctly, and why a new pull-request step must be mirrored locally or
   excluded with a reason.
 related_notes:
+  - notes/testing-pitfalls.md
   - notes/demo-ci-invariants.md
   - notes/demo-ci-scenario-coverage.md
   - notes/demo-ci-diagnostics.md
@@ -100,6 +101,14 @@ through `needs: test`, while a part promoted to its own job id is one a
 part cancels its siblings and a round reports one failure at a time. Rebalance
 the parts from the durations CI reports, not from collected test counts — a
 count is a first estimate, and the slowest part sets the round's length.
+
+Two consequences land outside the workflow. A merge gate that looks for the
+test result by name must match the **prefix** and require every declared part
+(`verify-ci-gate.sh`): an exact name finds nothing, and a prefix with no count
+reads one green part as a whole suite. And no test may assert over the whole
+collection, because each part is its own session —
+[testing-pitfalls](testing-pitfalls.md) § "A Test MUST Not Assert Over the
+Whole Collection".
 
 ## A Find-or-File Lookup Must Not Use the Search Index
 

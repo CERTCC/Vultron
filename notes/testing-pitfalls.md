@@ -22,6 +22,8 @@ description: >
   direct call, the three future-date idioms a sweep must tell apart before
   replacing a literal, why turning nesting into sequence moves the skip nobody
   tests,
+  why no test may assert over the whole collection now that CI runs the suite
+  as partitioned sessions,
   test layout rules for module splits, why a two-sided count pin
   races concurrent PRs (keep a per-item record and a PR-only growth guard
   instead), why a schema change that the merge base fails breaks every growth
@@ -56,6 +58,7 @@ related_notes:
   - notes/outbox-delivery-reliability.md
   - notes/sync-ledger-replication.md
   - notes/devcontainer-tooling.md
+  - notes/ci-workflow-authoring.md
 relevant_packages:
   - pytest
   - pytest-xdist
@@ -670,6 +673,18 @@ so it cannot drift out of the branch. See
   the per-node configuration fix is tracked in #4541.
 
 ## Test Layout and Markers
+
+### A Test MUST Not Assert Over the Whole Collection
+
+CI runs the suite as four partitioned pytest sessions, one per matrix part of
+`python-app.yml`'s `test` job, so no session sees every test (TB-11-002). A
+test that reads `request.session.items`, pins a collected-test count, or
+compares against a full-collection snapshot passes locally under one `pytest`
+and is vacuous or red in CI, where its session holds one slice. Ask the
+question of the **filesystem** instead — walk `test/` and parse, as
+`test/test_pytest_collection_hygiene.py` does — or probe a collection in a
+subprocess you launch with the paths you mean, as
+`test/test_integration_timeout_tier.py` does for `test/demo`.
 
 ### Module-Split Test Layout Rules (NODES-SPLIT-883)
 

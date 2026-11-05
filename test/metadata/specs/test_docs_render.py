@@ -1224,6 +1224,14 @@ def _dangling_links(
     return dangling
 
 
+# Why this test, and not the tier (TB-14-003 prefers raising the tier): it
+# renders every callout once per page that includes it and costs ~15s on an
+# idle machine, about five times the next slowest test in this file, so
+# contention on a loaded box takes it past the 30s unit tier on honest work.
+# It is one outlier, and the tier is a hang detector for ~29k other tests;
+# raising it for this test alone would double how long every hang holds a
+# worker. An explicit marker wins over the tier (`pyproject.toml`).
+@pytest.mark.timeout(90)
 def test_docs_callouts_link_existing_rows():
     """Every requirement callout in ``docs/`` renders, and every link it
     prints lands on an id its target page defines, on every page that

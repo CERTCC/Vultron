@@ -249,10 +249,21 @@ def _checks(*checks: tuple[str, str]) -> list[dict]:
 
 
 def _ci(
-    tmp_path: Path, repo: Path, rules: list[dict], *args: str
+    tmp_path: Path,
+    repo: Path,
+    rules: list[dict],
+    *args: str,
+    parts: int = 1,
 ) -> tuple[int, dict[str, list[str]]]:
+    """Run the gate, telling it how many test parts to expect.
+
+    ``parts`` is pinned per case rather than read off `python-app.yml`: the
+    matrix is rebalanced from measured durations, and a table that inherited
+    its length would fail on a rebalance that broke nothing.
+    """
+    env = {**_ONE_POLL, "VERIFY_CI_INTEGRATION_PARTS": str(parts)}
     result = run_script(
-        tmp_path, CI, "7", *args, cwd=repo, rules=rules, env=_ONE_POLL
+        tmp_path, CI, "7", *args, cwd=repo, rules=rules, env=env
     )
     return result.returncode, fields(result)
 
@@ -281,25 +292,34 @@ def test_ci_gate_maps_each_row(
 
 
 @pytest.mark.parametrize(
-    ("checks", "verdict", "bucket"),
+    ("checks", "parts", "verdict", "bucket"),
     [
-        ((("Tests (pytest)", "pass"),), "ci-green", "pass"),
-        ((("Tests (pytest)", "skipping"), ("Build", "pass")), "ci-failing", "skipping"),
-        ((("Build", "pass"),), "ci-failing", "missing"),
+        ((("Tests (pytest)", "pass"),), 1, "ci-green", "pass"),
+        ((("Tests (pytest)", "skipping"), ("Build", "pass")), 1, "ci-failing", "skipping"),
+        ((("Build", "pass"),), 1, "ci-failing", "missing"),
         # The job is a matrix, so each part reports under its own check name
         # (TB-11-002). The gate matches the prefix and needs every part.
-        ((("Tests (pytest) core", "pass"), ("Tests (pytest) rest", "pass")), "ci-green", "pass"),
-        ((("Tests (pytest) core", "pass"), ("Tests (pytest) rest", "skipping")), "ci-failing", "skipping"),
+        ((("Tests (pytest) core", "pass"), ("Tests (pytest) rest", "pass")), 2, "ci-green", "pass"),
+        ((("Tests (pytest) core", "pass"), ("Tests (pytest) rest", "skipping")), 2, "ci-failing", "skipping"),
+        # One green part out of four is not a suite that ran: a prefix match
+        # with no count would read `all(. == "pass")` over it as a pass.
+        ((("Tests (pytest) core", "pass"),), 4, "ci-failing", "incomplete"),
+        # A check with no name must not make the match raise, and a check with
+        # no bucket must not print `null` as its verdict.
+        (((None, "pass"), ("Tests (pytest) core", None)), 1, "ci-failing", "unknown"),
     ],
 )  # fmt: skip
 def test_integration_needs_every_pytest_check_to_have_passed(
     tmp_path: Path,
     repo: Path,
     checks: tuple[tuple[str, str], ...],
+    parts: int,
     verdict: str,
     bucket: str,
 ) -> None:
-    _, out = _ci(tmp_path, repo, _checks(*checks), "--integration")
+    _, out = _ci(
+        tmp_path, repo, _checks(*checks), "--integration", parts=parts
+    )
     assert out["verdict"] == [verdict]
     assert out["integration"] == [bucket]
 
