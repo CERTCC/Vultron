@@ -232,6 +232,7 @@ def remove_embargo_from_case_tree(
                 termination=termination,
                 terminated_at=terminated_at,
                 embargo_id=embargo_id,
+                embargo=embargo,
             ),
         ],
         # RSH-08-003/CM-31-010: an active replica takes the teardown from the

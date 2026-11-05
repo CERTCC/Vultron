@@ -27,6 +27,9 @@ from vultron.core.behaviors.embargo.copy_commit import (
 )
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
+from vultron.core.behaviors.embargo.nodes.ending_notice_replica import (
+    adopted_revision_timing_violations,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -47,6 +50,7 @@ from vultron.core.models.embargo_apply import (
     RegisterStepKind,
     apply_embargo_change,
 )
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -117,6 +121,11 @@ class TerminationIsTimelyNode(DataLayerConditionWithPorts):
     ``TERMINATE`` step is also trial-applied through the one apply function
     (ADR-0124): a step it refuses refuses the act before the guarded commit of its
     entry, so no entry is ledgered for a change that cannot be applied.
+
+    At a paused signatory's replica (CM-31-010), a named revision it has not
+    activated is adopted ahead of the teardown (CM-31-042), so the claim is
+    judged against that revision's own end time: the stored record, else
+    *embargo*, the ``Remove``'s inline copy (EMB-18-003).
     """
 
     def __init__(
@@ -126,15 +135,28 @@ class TerminationIsTimelyNode(DataLayerConditionWithPorts):
         terminated_at: datetime | None,
         name: str | None = None,
         embargo_id: str | None = None,
+        embargo: EmbargoEvent | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self._termination = termination
         self._terminated_at = terminated_at
         self._embargo_id = embargo_id
+        self._embargo = embargo
 
     def _violations(self, case: VulnerabilityCase) -> list[str]:
         dl = cast(CasePersistence, self.datalayer)
+        adopted = adopted_revision_timing_violations(
+            dl,
+            case,
+            self.actor_id,
+            self._embargo_id,
+            self._embargo,
+            self._termination,
+            self._terminated_at,
+        )
+        if adopted is not None:
+            return adopted
         if (
             self._embargo_id is None
             or case.active_embargo_id != self._embargo_id
