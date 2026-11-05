@@ -278,8 +278,8 @@ def run(command: Sequence[str], env: dict[str, str]) -> int:
     except PermissionError:
         _say(f"command not executable: {command[0]}")
         return 126
-    for signum in pending:
-        procs[0].send_signal(signum)
+    for held in pending:
+        procs[0].send_signal(held)
     code = procs[0].wait()
     return 128 - code if code < 0 else code
 
