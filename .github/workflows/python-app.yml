@@ -16,6 +16,12 @@ on:
       # Named explicitly in case ** does not descend into dot-directories.
       - '.agents/**/*.py'
       - pyproject.toml
+      # The committed vocab examples are an input to
+      # test/architecture/test_vocab_examples_current.py, which compares each
+      # one byte for byte with a fresh generation. Without them here, a pull
+      # request that hand-edits or half-regenerates an example and nothing
+      # else runs no test at all (#5776).
+      - docs/reference/examples/**
       # A Dependabot bump inside the existing version range touches only the
       # lockfile; demo-integration.yml skips Dependabot PRs on the premise that
       # this workflow still tests them (DEMOCI-02-004, #3610).
@@ -52,6 +58,9 @@ on:
       # Named explicitly in case ** does not descend into dot-directories.
       - '.agents/**/*.py'
       - pyproject.toml
+      # The committed vocab examples are an input to
+      # test/architecture/test_vocab_examples_current.py; see the push filter.
+      - docs/reference/examples/**
       - uv.lock
       - pyrightconfig.json
       # test/ci reads every workflow and the pre-commit config, so the pull

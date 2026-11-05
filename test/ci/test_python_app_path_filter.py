@@ -24,6 +24,10 @@ defect that found it, each with the file the suite reads through it:
   bump inside an existing version range touches only the lockfile, so without
   it no test ran at all — which is how the py_trees 2.6.0 bump reached ``main``
   untested (#3610).
+- Committed vocab examples. A hand edit or a half-finished regeneration of one
+  touches only ``docs/reference/examples/``, which
+  ``test/architecture/test_vocab_examples_current.py`` compares byte for byte
+  against a fresh generation (DEMOCI-02-021, #5776).
 - Shell scripts. ``test_shell_script_portability.py`` reads every tracked
   ``*.sh``, and a `mapfile` added under ``.github/scripts/`` would otherwise
   have reached ``main`` with every check green (#5698).
@@ -59,6 +63,14 @@ def _triggers() -> dict[str, Any]:
 @pytest.mark.parametrize("event", ["push", "pull_request"])
 def test_python_app_workflow_runs_on_lockfile_change(event: str) -> None:
     assert "uv.lock" in _triggers()[event]["paths"]
+
+
+@pytest.mark.spec("DEMOCI-02-021")
+@pytest.mark.parametrize("event", ["push", "pull_request"])
+def test_python_app_workflow_runs_on_a_committed_example_change(
+    event: str,
+) -> None:
+    assert "docs/reference/examples/**" in _triggers()[event]["paths"]
 
 
 @pytest.mark.parametrize("event", ["push", "pull_request"])

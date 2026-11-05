@@ -28,7 +28,20 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 # Rendering helpers and the CLI entry point, not vocabulary examples. Only
 # ``main`` is load-bearing here: the other three take a required argument, so
 # ``_requires_arguments`` would exclude them anyway.
-_NOT_EXAMPLES = frozenset({"main", "json2md", "obj_to_file", "print_obj"})
+#: Module plumbing reachable from ``vocab_examples`` that is not an example
+#: factory: the generator's entry point and table helpers, and the writers.
+_NOT_EXAMPLES = frozenset(
+    {
+        "main",
+        "json2md",
+        "obj_to_file",
+        "print_obj",
+        "build_examples",
+        "check_tables",
+        "example_filename",
+        "example_uuid",
+    }
+)
 
 
 def _candidate_example_funcs() -> list:

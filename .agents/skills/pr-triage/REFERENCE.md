@@ -144,9 +144,17 @@ changed classes, functions, messages, and CLI commands.
 | Dev tooling, `metadata/`, `.agents/skills/` | — | `docs/developer/` (draft docs) |
 
 Spec pages under `docs/reference/specs/`, the Requirements Catalog rows under
-`docs/reference/vultron-spec/requirements/`, the mkdocstrings `:::` API pages,
-and `docs/reference/examples/*.json` regenerate at build time. A change whose
-only described surface is one of these has no docs impact.
+`docs/reference/vultron-spec/requirements/`, and the mkdocstrings `:::` API
+pages regenerate at build time. A change whose only described surface is one of
+these has no docs impact.
+
+`docs/reference/examples/*.json` is **not** in that set: those files are
+committed artifacts written by `uv run python
+vultron/wire/as2/vocab/examples/vocab_examples.py`, and
+`test/architecture/test_vocab_examples_current.py` compares each one byte for
+byte with a fresh generation. A diff that touches the example builders without
+re-running the generator, or that hand-edits one of these files, is a
+finding.
 
 ### Check procedure
 

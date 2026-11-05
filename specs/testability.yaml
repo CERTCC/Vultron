@@ -932,3 +932,42 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: TB-15-001
+- id: TB-16
+  title: Guard Reachability
+  specs:
+  - id: TB-16-001
+    priority: MUST
+    kind: project
+    statement: >-
+      A private guard under `vultron/` — an undecorated, single-underscore,
+      non-dunder definition that raises in its own scope — MUST be referenced from
+      production code under `vultron/`.
+    rationale: >-
+      A guard nothing names cannot run, so no test of it can fail for a real reason.
+      Unlike missing coverage, which a coverage report shows as a gap, a green
+      direct-call test reports the requirement as covered: the spec-coverage ratchet
+      counted CLP-14-002, CLP-14-003 and CLP-14-006 as covered while the guard
+      implementing them had never executed.
+    verification: >-
+      `test_every_private_guard_has_a_production_caller` in
+      `test/architecture/test_guards_run_in_production.py` compares the derived set
+      against an empty `KNOWN_UNREACHED_GUARDS` baseline and reports a two-sided
+      diff. The synthetic detector tests in the same module drive the judgement over
+      inline source, including the case that must be reported.
+  - id: TB-16-002
+    priority: MUST
+    kind: project
+    statement: >-
+      Where a parameter defaulting to `None` gates a refusal, some call site under
+      `vultron/` MUST supply that parameter.
+    rationale: >-
+      A caller alone is not enough. `_validate_canonical_entry` had a production
+      caller; what it did not have was a caller that passed `case_published`, and the
+      CLP-14-013 check sat behind `if case_published is not None:`. A gate no caller
+      opens is a check that never runs, however many tests call the guard directly.
+    verification: >-
+      `test_every_gated_refusal_is_opened_by_some_caller` in
+      `test/architecture/test_guards_run_in_production.py` compares the derived set
+      against an empty `KNOWN_UNSUPPLIED_GATES` baseline.
+      `test_detector_catches_the_witness_gate` proves the check fires, against the
+      pre-fix shape reconstructed inline.
