@@ -1015,9 +1015,9 @@ groups:
           recalibration replaces them here (re-run with `pr-size --calibrate`).
           Survey of 2026-11-03, PRs merged 2026-09-22..2026-11-03: under the previous
           bands and AC rule, 22% of estimates matched the measured band and 76% were
-          too small. The current AC
-          rule scored 42% exact, 95% within one band and 23% too small on held-out
-          Issues, against 14% / 62% / 83% for the previous rule. The current diff
+          too small. The current AC rule scored 42% exact, 95% within one band and
+          23% too small on held-out Issues, against 14% / 62% / 83% for the
+          previous rule. The current diff
           ceilings sit near the p23 / p61 / p87 quantiles the previous bands were cut
           at, recomputed on those PRs. Later bug fixes per 1,000 diff lines are flat
           from 200 to 3,500 lines (0.4–0.7, overlapping intervals), so no size marks a
@@ -1998,7 +1998,7 @@ groups:
           a `Someday` Concern and two `size:L` Tasks as equal members of one bundle.
         verification: >-
           In `test/metadata/test_bundle_fit.py`, `TestWorkflowPartition`,
-          `TestScheduleTier`, `TestSizeBudget`, `TestReviewCeiling` and
+          `TestScheduleTier`, `TestSizeBudget`, `TestBundleSizeCeiling` and
           `TestCoherenceHints` cover the fit rules applied after eligibility.
         relationships:
         - rel_type: derives_from
@@ -2132,7 +2132,7 @@ groups:
           is precisely what this band rules out, and a raised `--budget` could
           then reopen it.
         verification: >-
-          `test/metadata/test_bundle_fit.py::TestReviewCeiling` asserts the
+          `test/metadata/test_bundle_fit.py::TestBundleSizeCeiling` asserts the
           refusal is categorical, survives a raised budget, does not end the
           scan, and names the band rather than a weight.
       - id: PAD-15-006

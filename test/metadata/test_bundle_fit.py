@@ -341,7 +341,7 @@ class TestSizeBudget:
         assert [c.number for c in bundle.members] == [1, 3]
 
 
-class TestReviewCeiling:
+class TestBundleSizeCeiling:
     """The top band is refused, not weighted.
 
     A weight says "fits alongside something smaller". A PR in this band is
