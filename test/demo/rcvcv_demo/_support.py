@@ -14,40 +14,35 @@
 
 """The five-party stand-in story the RCVCV tests share.
 
-``test_rcvcv_demo.py`` drives the scenario module and ``test_rcvcv_story.py``
-the fragments in :mod:`vultron.demo.helpers.rcvcv_story`; both seat the same
-cast, so it is defined once here (CS-22-001).
+``test_story.py`` drives the scenario's story and ``test_fragments.py`` the
+fragments in :mod:`vultron.demo.scenario.rcvcv_demo.fragments`; both seat the
+same cast, so it is defined once here (CS-22-001).
 """
 
 import contextlib
 from collections.abc import Iterator
 
 from test.demo._helpers import mock_case, no_demo_banners, story_state
-from vultron.demo.helpers import (
-    coordinated_story,
-    owner_decision_story,
-    rcvcv_story,
-)
+from vultron.demo.helpers import coordinated_story, owner_decision_story
 from vultron.demo.helpers.coordinated_story import REPORTER
 from vultron.demo.helpers.story import StoryState
 from vultron.demo.scenario import rcvcv_demo
+from vultron.demo.scenario.rcvcv_demo import fragments
 
 #: The scenario's five cast names, in ``ROLES`` order.
 CAST = (
     REPORTER,
-    rcvcv_story.C1,
-    rcvcv_story.V1,
-    rcvcv_story.C2,
-    rcvcv_story.V2,
+    rcvcv_demo.C1,
+    rcvcv_demo.V1,
+    rcvcv_demo.C2,
+    rcvcv_demo.V2,
 )
 
 
 @contextlib.contextmanager
 def no_banners() -> Iterator[None]:
     """Every module a fragment of this scenario reaches, patched once."""
-    with no_demo_banners(
-        rcvcv_demo, rcvcv_story, coordinated_story, owner_decision_story
-    ):
+    with no_demo_banners(rcvcv_demo, coordinated_story, owner_decision_story):
         yield
 
 
@@ -59,5 +54,5 @@ def five_party_state(joined: bool = True) -> StoryState:
     """
     state = story_state(*CAST, case=mock_case())
     if joined:
-        state.keep(rcvcv_story.C2_JOINED, str(state.case.id_))
+        state.keep(fragments.C2_JOINED, str(state.case.id_))
     return state

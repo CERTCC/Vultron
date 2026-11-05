@@ -155,19 +155,21 @@ autouse leak guard and its function-scope-only limitation:
 
 Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
 
-- **A `filterwarnings` exemption listed *before* `"error"` is a no-op** (SR-05-015) —
-  later entries win, so the warning becomes a session-aborting exception. Verify
-  behaviourally in a `pytester` sub-session (SR-05-016); `pytest.warns`/`catch_warnings`
-  replace the ini filters and cannot see the escalation.
+- **A `filterwarnings` exemption listed *before* `"error"` is a no-op**
+  (SR-05-015) — later entries win. Verify behaviourally in a `pytester`
+  sub-session (SR-05-016); `pytest.warns` cannot see the escalation.
 - **Vacuous assertions** — broadcast guards need a third participant; hash-chain
-  comparisons need presence checks before equality (`"" == ""` passes); `MagicMock`
-  needs `spec=` wherever code uses `isinstance()`; the genesis-hash path needs a stored
-  case (CLP-08-004); `call_args.args` over `call_args[0]`; and "falls back to" a value
-  for *malformed* input asserts a bug — absent and unreadable input differ.
-- **A FAILURE test must prove its named reason is reachable** — the scenario always
-  injects a datalayer and a trigger-activity adapter, so "failure when X absent" for
-  either is unreachable; assert the reason (`assert_failure(result, reason=...)`), not
-  just the status, and note that `allow_internal=True` requires a `reason`.
+  comparisons need presence checks before equality (`"" == ""` passes);
+  `MagicMock` needs `spec=` wherever code uses `isinstance()`; the genesis-hash
+  path needs a stored case (CLP-08-004); and "falls back to" a value for
+  *malformed* input asserts a bug — absent and unreadable input differ.
+- **Drive a guard through its production entry point** — a direct call proves
+  nothing about the path that runs it and still reports the requirement covered;
+  `test_guards_run_in_production.py` holds the production half (#3156).
+- **A FAILURE test must prove the harness can produce its named reason** — the
+  scenario always injects a datalayer and a trigger-activity adapter, so
+  "failure when X absent" for either is unreachable; assert the reason
+  (`assert_failure(result, reason=...)`), not just the status.
 - **Process-global state** — reset only in root `test/conftest.py` (blackboard,
   per-actor registries; no per-directory copy, #3996); define test BT subclasses at
   module level; test-local `CoreObject`/`CoreRecord` subclasses pollute
@@ -190,9 +192,8 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
   `thread` killed the session or xdist worker, `signal` fails one test (#3603); a dead
   worker fails the run, and gate exit 124 means it hung (#4809).
 - **A marker sweep that counts declarations misses a directory hook** — grepping
-  `pytestmark` calls `test/demo/` non-compliant when its hook marks it 100%; ask what
-  collected items carry via a probe; the tier is asserted over the real collection
-  (#3604).
+  `pytestmark` calls `test/demo/` non-compliant when its hook marks it 100%; the
+  tier is asserted over the real collection, probed (#3604).
 - **SYNC replication test setup** — `notes/sync-ledger-replication.md` § "SYNC
   Replication Test Patterns". A `LedgerNetwork` is rebuilt from its ledger at teardown;
   direct CASE_MANAGER setup writes call `bypass_ledger()`

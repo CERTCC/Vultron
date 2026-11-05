@@ -177,6 +177,8 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 - **Object and target:** the `object` is the actor being invited, and the `target` is the case stub, of type `VulnerabilityCaseStub`.
   The stub carries the case identifier in its `caseId` and a required `summary` field: the owner-chosen description the invitee reads before deciding whether to accept ([CM-11-013](../vultron-spec/requirements/case-management.md#cm-11-013), [CM-17-010](../vultron-spec/requirements/case-management.md#cm-17-010), [MV-10-001](../vultron-spec/requirements/messages.md#mv-10-001)).
   The factory raises `VultronActivityConstructionError` when `VulnerabilityCase.stub_summary` is not set, and the receiver refuses a stub with an absent or blank `summary`.
+  This `target` is the only place a stub may appear, wherever the Invite travels inline: in its `Accept` or `Reject`, or in a refusal notice that quotes such a reply ([MV-10-002](../vultron-spec/requirements/messages.md#mv-10-002)).
+  The receiver refuses an activity that carries a stub anywhere else, an embargo Invite included.
   The Invite names at least one CVD role for the invitee, and the CASE_MANAGER refuses to send one with an empty role list ([CM-11-019](../vultron-spec/requirements/case-management.md#cm-11-019), [CM-11-048](../vultron-spec/requirements/case-management.md#cm-11-048)).
   The Invite carries its reply deadline in `endTime`.
   The CASE_MANAGER sets that deadline the same way it sets an embargo Invite's deadline.

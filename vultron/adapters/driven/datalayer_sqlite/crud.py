@@ -25,7 +25,6 @@ from vultron.adapters.driven.db_record import (
     Record,
     object_to_record,
 )
-from vultron.adapters.utils import id_lookup_candidates
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.errors import VultronAlreadyExistsError
@@ -96,41 +95,38 @@ def read(
     object_id: str,
     raise_on_missing: bool = False,
 ) -> PersistableModel | None:
-    """Read an object by ID across all actor-scoped rows.
+    """Read the object stored under *object_id*.
 
-    Supports bare-UUID lookup compatibility (retries with the
-    ``urn:uuid:`` prefix when a plain UUID is supplied).
+    *object_id* is the full id the object is stored under, never a bare
+    UUID: a lookup keys only on full ids (OID-02-004).  A driving adapter
+    that names an object by its UUID maps it to the full id first
+    (:func:`vultron.adapters.utils.full_object_id`).
 
     Args:
         dl: The SqliteDataLayer instance.
-        object_id: Full or bare-UUID identifier of the object.
+        object_id: Full identifier of the object.
         raise_on_missing: If ``True`` raises ``KeyError`` when the
             object is not found.
 
     Returns:
         Reconstituted domain object or ``None``.
     """
-    candidates = id_lookup_candidates(object_id)
-
     with dl._session() as session:
-        for candidate in candidates:
-            stmt = select(VultronObjectRecord).where(
-                VultronObjectRecord.id_ == candidate
-            )
-            row = session.exec(stmt).first()
-            if row is not None:
-                if row.type_ == "CaseParticipant":
-                    summary = participant_status_summary(row.data)
-                    logger.debug(
-                        "DataLayer read CaseParticipant '%s' from "
-                        "actor '%s' store: %s",
-                        row.id_,
-                        dl._actor_id,
-                        summary,
-                    )
-                obj = dl._from_row(row)
-                if obj is not None:
-                    return cast(PersistableModel | None, obj)
+        # A primary-key get: one id means no ``select`` to compile per read.
+        row = session.get(VultronObjectRecord, object_id)
+        if row is not None:
+            if row.type_ == "CaseParticipant":
+                summary = participant_status_summary(row.data)
+                logger.debug(
+                    "DataLayer read CaseParticipant '%s' from "
+                    "actor '%s' store: %s",
+                    row.id_,
+                    dl._actor_id,
+                    summary,
+                )
+            obj = dl._from_row(row)
+            if obj is not None:
+                return cast(PersistableModel | None, obj)
 
     if raise_on_missing:
         raise KeyError(f"Object with id {object_id!r} not found in datalayer")

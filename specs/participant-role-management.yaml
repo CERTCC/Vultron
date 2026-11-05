@@ -230,9 +230,6 @@ groups:
       resets with no signal. `validate_assignment` cannot stop this, because `append` is
       not an attribute assignment. Only the canonical mutators can check the shape. This
       rule applies PRM-03-001 to `participant_statuses`.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-21-001
     adr:
     - ADR-0064
     tags:
@@ -331,7 +328,7 @@ groups:
       `test/architecture/test_participant_case_roles.py` times the PRM-05-004 scan and
       fails when it takes one second or more.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: PRM-05-004
     tags:
     - testing
@@ -460,6 +457,9 @@ groups:
       the case has evidence of it. A narrow, rare exception path covers this. The
       on-behalf limit keeps it from becoming a general proxy capability. A deployer
       that did not join is not in the case, so the case has nothing to record about it.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: PRM-06-003
     adr:
     - ADR-0121
     tags:
@@ -510,6 +510,11 @@ groups:
       participant is refused and leaves the case's roster unchanged.
       ``CheckOnBehalfTargetIsParticipantNode`` enforces it as a read-only
       guard ahead of the only write in the on-behalf tree.
+    relationships:
+    - rel_type: constrains
+      spec_id: PRM-06-003
+    - rel_type: constrains
+      spec_id: PRM-06-004
     adr:
     - ADR-0121
     tags:

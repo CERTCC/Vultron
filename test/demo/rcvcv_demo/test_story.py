@@ -11,36 +11,37 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for the RCVCV five-party CVD demo (DEMOMA-19, #5534).
+
+"""Tests of :mod:`vultron.demo.scenario.rcvcv_demo.story` (DEMOMA-19, #5534).
 
 ``rcvcv`` is written as composition (ADR-0098,
 :mod:`vultron.demo.helpers.story`): its opening is the shared
 ``REPORTER_ASKS_THE_VENDOR`` prefix of the Reporter → Coordinator → Vendor
 family, and its own story is the continuation after C1 decides to invite a
-second Coordinator.  The checks here sit on two things:
+second Coordinator.  The checks here sit on the **story's shape** — the path
+read off its choices, the identity of the stretch it shares with ``rcv``, the
+order of its own fragments, and the seating of the character actors after the
+branch point — and on the run that plays it, including the ledger dump.
 
-* the **story's shape** — the path read off its choices, the identity of the
-  stretch it shares with ``rcv``, the order of its own fragments, and the
-  seating of the character actors after the branch point;
-* the **surfaces around the story** — the CLI option set, the registry entry
-  and the devlogs names the invariant harness reads (DEMOMA-19-018).
-
-Each of its own fragments lives in :mod:`vultron.demo.helpers.rcvcv_story`
-and is tested in the mirroring ``test_rcvcv_story.py`` (CS-18-004), against
-the stand-in cast in ``test/demo/_rcvcv_support.py`` that both files share.
+Each of its own fragments lives in
+:mod:`vultron.demo.scenario.rcvcv_demo.fragments` and is tested in the
+mirroring ``test_fragments.py`` (CS-18-004), against the stand-in cast in
+``_support.py``.  The CLI surface and the registry entry are in
+``test_cli.py``.
 
 What the shared opening does is not re-tested here; it is one copy of the code
 and ``test/demo/coordinated_story/`` owns it.  Every test patches the
 collaborators out, so no HTTP happens; ``demo_gate`` / ``demo_check`` /
 ``demo_step`` stay real wherever the test is about control flow and are
 stubbed to ``nullcontext`` only where it is about call shape
-(``test_demo_context_managers.py`` owns their behaviour).
+(``test_demo_context_managers.py`` owns their behaviour).  Each patch names
+the submodule that looks the patched name up, never the package
+(``test/demo_unit/test_story_patch_targets.py``).
 """
 
 from unittest.mock import MagicMock, patch
 
 import pytest
-from click.testing import CliRunner
 
 import vultron.demo.scenario.rcvcv_demo as demo
 from test.demo._helpers import (
@@ -50,23 +51,20 @@ from test.demo._helpers import (
     mock_client,
     story_state,
 )
-from test.demo._rcvcv_support import CAST, five_party_state, no_banners
-from vultron.demo.cli import main as cli_main
-from vultron.demo.helpers import (
-    coordinated_story,
-    rcvcv_story,
-    story_cast,
-)
+from test.demo.rcvcv_demo._support import CAST, five_party_state, no_banners
+from vultron.demo.helpers import coordinated_story, story_cast
 from vultron.demo.helpers.coordinated_story import (
     COORDINATOR,
     REPORTER,
     REPORTER_ASKS_THE_VENDOR,
-    VENDOR,
     cast as coordinated_cast,
 )
 from vultron.demo.helpers.story import Choose, UnseatedContainer, choose
 from vultron.demo.scenario import rcv_demo
-from vultron.demo.scenario.registry import registered_scenarios
+from vultron.demo.scenario.rcvcv_demo import (
+    fragments,
+    story as scenario_story,
+)
 from vultron.errors import DemoStoryError
 
 #: Clear the process-global failure accumulator around every test.
@@ -157,28 +155,17 @@ class TestRcvcvStoryShape:
             choose(
                 "coordinator-after-answer", "invite-coordinator", by=demo.C1
             ),
-            demo.replicas_drain_before_the_second_coordinator,
-            demo.seed_the_second_coordinator_and_vendor,
-            demo.c1_invites_the_second_coordinator,
-            demo.required_participants_are_present,
-            demo.c2_suggests_the_vendor_deployer,
-            demo.every_replica_converges,
-            demo.the_joiners_add_their_notes,
-            demo.both_vendors_run_the_fix_lifecycle,
-            demo.v1_publishes_then_the_others,
-            demo.all_five_close_the_case,
+            fragments.replicas_drain_before_the_second_coordinator,
+            fragments.seed_the_second_coordinator_and_vendor,
+            fragments.c1_invites_the_second_coordinator,
+            fragments.required_participants_are_present,
+            fragments.c2_suggests_the_vendor_deployer,
+            fragments.every_replica_converges,
+            fragments.the_joiners_add_their_notes,
+            fragments.both_vendors_run_the_fix_lifecycle,
+            fragments.v1_publishes_then_the_others,
+            fragments.all_five_close_the_case,
         )
-
-    def test_c1_and_v1_are_seated_under_the_family_role_names(self):
-        """One copy of the opening serves ``rcv`` and ``rcvcv`` alike."""
-        assert demo.C1 == COORDINATOR
-        assert demo.V1 == VENDOR
-        # The devlogs and the CLI keep the scenario's own names (DEMOMA-19-018).
-        assert [role.name for role in demo.ROLES][:3] == [
-            "reporter",
-            "c1",
-            "v1",
-        ]
 
 
 # ---------------------------------------------------------------------------
@@ -204,7 +191,7 @@ class TestCharacterActorsSeededAfterTheBranchPoint:
         captured: dict[str, object] = {}
 
         with (
-            patch.object(demo, "run_story") as run_story,
+            patch.object(scenario_story, "run_story") as run_story,
             patch.object(
                 story_cast,
                 "reset_datalayer",
@@ -221,7 +208,7 @@ class TestCharacterActorsSeededAfterTheBranchPoint:
             patch.object(
                 story_cast, "get_actor_by_id", side_effect=list(seeded)
             ),
-            patch.object(rcvcv_story, "seed_containers_rcvcv") as seed_five,
+            patch.object(fragments, "seed_containers_rcvcv") as seed_five,
         ):
             demo.run_rcvcv_demo(
                 reporter_client=clients[REPORTER],
@@ -272,13 +259,17 @@ class TestCharacterActorsSeededAfterTheBranchPoint:
         assert state.container(demo.V2).actor_id == "urn:test:v2"
 
     def test_the_character_fragment_is_the_only_caller_of_the_seeding(self):
-        """Nothing else in the module may seed the five containers.
+        """Nothing else in the scenario may seed the five containers.
 
         A second call site — in particular one reachable from the shared
         opening — is how the recording would drift from ``rcv``'s again.
         """
-        assert functions_referencing(demo, "seed_containers_rcvcv") == []
-        assert functions_referencing(rcvcv_story, "seed_containers_rcvcv") == [
+        # Read across every submodule of the package, so a call added to the
+        # story, the cast or the CLI is caught as well as one in a fragment.
+        assert functions_referencing(demo, "seed_containers_rcvcv") == [
+            "seed_the_second_coordinator_and_vendor"
+        ]
+        assert functions_referencing(fragments, "seed_containers_rcvcv") == [
             "seed_the_second_coordinator_and_vendor"
         ]
 
@@ -290,7 +281,7 @@ class TestCharacterActorsSeededAfterTheBranchPoint:
                 "coordinator-after-answer", "invite-coordinator", by=demo.C1
             )
         )
-        seeding = items.index(demo.seed_the_second_coordinator_and_vendor)
+        seeding = items.index(fragments.seed_the_second_coordinator_and_vendor)
         assert branch < seeding, (
             "seed_the_second_coordinator_and_vendor must run after C1's"
             " choice: every record it writes before the case opens moves the"
@@ -315,7 +306,7 @@ class TestCharacterActorsSeededAfterTheBranchPoint:
 
         with (
             patch.object(
-                rcvcv_story, "seed_containers_rcvcv", return_value=seeded
+                fragments, "seed_containers_rcvcv", return_value=seeded
             ) as seed,
             patch.object(
                 coordinated_cast,
@@ -324,7 +315,7 @@ class TestCharacterActorsSeededAfterTheBranchPoint:
             ) as lookup,
             no_banners(),
         ):
-            demo.seed_the_second_coordinator_and_vendor(state)
+            fragments.seed_the_second_coordinator_and_vendor(state)
 
         kwargs = seed.call_args.kwargs
         assert kwargs["reporter_client"] is state.client(REPORTER)
@@ -352,7 +343,7 @@ class TestCharacterActorsSeededAfterTheBranchPoint:
         state = story_state(*CAST[:3], unseated=(demo.C2,))
         with (
             patch.object(
-                rcvcv_story,
+                fragments,
                 "seed_containers_rcvcv",
                 return_value=tuple(
                     mock_actor(f"urn:test:{name}") for name in CAST
@@ -362,7 +353,7 @@ class TestCharacterActorsSeededAfterTheBranchPoint:
             no_banners(),
             pytest.raises(DemoStoryError, match="no container waiting"),
         ):
-            demo.seed_the_second_coordinator_and_vendor(state)
+            fragments.seed_the_second_coordinator_and_vendor(state)
 
 
 # ---------------------------------------------------------------------------
@@ -374,20 +365,6 @@ class TestCharacterActorsSeededAfterTheBranchPoint:
 class TestRcvcvLedgerDump:
     """Each replica is dumped under this scenario's own name for it."""
 
-    def test_the_devlog_names_are_the_scenario_role_names(self):
-        """``reporter``, ``c1``, ``v1``, ``c2``, ``v2`` — not cast names.
-
-        C1 and V1 are seated under the family's role names, so the dump has
-        to translate them back: the harness loads ``devlogs/rcvcv/c1``.
-        """
-        assert demo.DEVLOG_REPLICAS == (
-            ("reporter", REPORTER),
-            ("c1", demo.C1),
-            ("v1", demo.V1),
-            ("c2", demo.C2),
-            ("v2", demo.V2),
-        )
-
     def _dump(self, state):
         for name in state.cast:
             state.client(name).actor_id = f"https://example.org/actors/{name}"
@@ -395,7 +372,7 @@ class TestRcvcvLedgerDump:
             "https://example.org/actors/case-actor"
         )
         with patch.object(story_cast, "dump_case_ledgers") as dump:
-            demo._dump_ledgers(state)
+            scenario_story._dump_ledgers(state)
         return dump.call_args.kwargs["targets"]
 
     def test_every_seated_replica_is_dumped_plus_the_canonical_ledger(self):
@@ -432,130 +409,6 @@ class TestRcvcvLedgerDump:
 
 
 # ---------------------------------------------------------------------------
-# The CLI sub-command and the registry entry (DEMOCI-11-011, DEMOCI-11-019)
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def help_text() -> str:
-    """``vultron-demo rcvcv --help`` as the generated sub-command renders it."""
-    result = CliRunner().invoke(cli_main, ["rcvcv", "--help"])
-    assert result.exit_code == 0, result.output
-    return result.output
-
-
-class TestRcvcvCliCommand:
-    """The generated ``rcvcv`` sub-command offers one option per container."""
-
-    @pytest.mark.parametrize(
-        "option",
-        [
-            "--skip-health-check",
-            "--reporter-url",
-            "--c1-url",
-            "--v1-url",
-            "--c2-url",
-            "--v2-url",
-            "--case-actor-url",
-            "--reporter-id",
-            "--c1-id",
-            "--v1-id",
-            "--c2-id",
-            "--v2-id",
-        ],
-    )
-    def test_the_option_is_offered(self, help_text: str, option: str):
-        """One URL and one id option per container, plus the health skip."""
-        assert option in help_text
-
-    def test_main_builds_one_client_per_container_and_runs_the_story(self):
-        """``main()`` names its containers and passes their clients on."""
-        clients = {
-            name: MagicMock(name=name, base_url=f"http://{name}:7999/api/v2")
-            for name in ("reporter", "c1", "v1", "c2", "v2", "case-actor")
-        }
-
-        with (
-            patch.object(demo, "story_clients", return_value=clients) as built,
-            patch.object(demo, "run_rcvcv_demo") as run,
-        ):
-            demo.main(
-                skip_health_check=True,
-                c1_url="http://elsewhere:7999/api/v2",
-                reporter_id="urn:test:reporter",
-                c1_id="urn:test:c1",
-                v1_id="urn:test:v1",
-                c2_id="urn:test:c2",
-                v2_id="urn:test:v2",
-            )
-
-        members = built.call_args.args[1]
-        assert [(m.role, m.label) for m in members] == [
-            ("reporter", "Reporter"),
-            ("c1", "C1"),
-            ("v1", "V1"),
-            ("c2", "C2"),
-            ("v2", "V2"),
-        ]
-        assert [m.url for m in members] == [
-            None,
-            "http://elsewhere:7999/api/v2",
-            None,
-            None,
-            None,
-        ]
-        assert built.call_args.kwargs["skip_health_check"] is True
-
-        kwargs = run.call_args.kwargs
-        assert kwargs["reporter_client"] is clients["reporter"]
-        assert kwargs["c1_client"] is clients["c1"]
-        assert kwargs["v1_client"] is clients["v1"]
-        assert kwargs["c2_client"] is clients["c2"]
-        assert kwargs["v2_client"] is clients["v2"]
-        assert kwargs["case_actor_client"] is clients["case-actor"]
-        assert kwargs["c2_id"] == "urn:test:c2"
-
-
-@pytest.fixture
-def spec():
-    """The one registry entry named ``rcvcv``."""
-    entries = [s for s in registered_scenarios() if s.name == "rcvcv"]
-    assert len(entries) == 1, entries
-    return entries[0]
-
-
-class TestRcvcvRegistryEntry:
-    """The registry is the sole declaration that ``rcvcv`` exists."""
-
-    def test_the_entry_describes_the_five_party_suggestion_scenario(
-        self, spec
-    ):
-        """Every field is rendered into the generated scenario tables."""
-        assert spec.label == "RCVCV"
-        assert spec.participants == "Reporter + C1 + V1 + C2 + V2"
-        assert spec.feature == "Actor-suggestion flow (ADR-0026)"
-        assert spec.in_pr_set is True
-
-    def test_the_path_is_read_off_the_story(self, spec):
-        """The registry holds the path this scenario's story chooses.
-
-        Compared against the story object rather than against a literal, which
-        this module's path test pins separately: together they say the
-        registered path is both derived and the intended one.
-        """
-        assert spec.path == demo.STORY.path
-
-    def test_the_derived_paths_point_at_this_module_and_its_harness(
-        self, spec
-    ):
-        """Every artifact path derives from the name (DEMOCI-11-003)."""
-        assert spec.demo_path == "vultron/demo/scenario/rcvcv_demo.py"
-        assert (
-            spec.harness_path == "test/ci/invariants/test_rcvcv_invariants.py"
-        )
-
-
-# ---------------------------------------------------------------------------
 # The unseated containers the scenario declares (DEMOCI-11-018)
 # ---------------------------------------------------------------------------
 
@@ -572,7 +425,7 @@ class TestRcvcvUnseatedContainers:
         writing the closure out, so a patch on this module would not reach it.
         """
         with (
-            patch.object(demo, "run_story") as run_story,
+            patch.object(scenario_story, "run_story") as run_story,
             patch.object(
                 coordinated_cast, "open_coordinated_cast"
             ) as open_coordinated_cast,

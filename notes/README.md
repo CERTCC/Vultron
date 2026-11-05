@@ -32,6 +32,9 @@ Update this index in the same change that adds, archives, or re-scopes a note
 
 These describe unbuilt work. Each one ends when the issues it tracks close.
 
+- **`act-instant.md`** · `plan`
+  Migrating to one clock read per act: tree-run instant, no clock in core (ADR-0176).
+  **Load when**: adding or changing code that reads the clock or stamps a time.
 - **`call-out-simulation-plan.md`** · `plan`
   Personality bundles, a config surface for backends, and fuzzed multi-actor runs.
   **Load when**: designing a backend bundle, a backend config surface, or a fuzz demo.

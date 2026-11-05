@@ -23,6 +23,7 @@ a stub had the same shape.  The stub now names itself
 """
 
 import json
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -42,6 +43,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     case_stub_id,
 )
 
+_EXAMPLES = Path(__file__).resolve().parents[3] / "docs/reference/examples"
 _CASE_ID = "https://example.org/cases/case-stub"
 _STUB_ID = f"{_CASE_ID}/stub"
 _ACTOR = "https://example.org/actors/coordinator"
@@ -152,6 +154,28 @@ def test_a_case_reference_as_a_target_is_refused_at_parse():
     body["target"] = dict(_REFERENCE)
     with pytest.raises(VultronParseValidationError, match="target"):
         parse_activity(body)
+
+
+@pytest.mark.spec("AKM-03-004")
+def test_a_misplaced_case_reference_is_named_by_its_wire_key():
+    """The refusal names the key the sender wrote, not the Python field."""
+    body = _body("Join", dict(_REFERENCE))
+    body["inReplyTo"] = dict(_REFERENCE)
+    with pytest.raises(VultronParseValidationError) as exc:
+        parse_activity(body)
+    assert " inReplyTo" in str(exc.value)
+    assert "in_reply_to" not in str(exc.value)
+
+
+@pytest.mark.spec("AKM-03-004")
+def test_a_case_reference_inside_an_inline_report_is_refused():
+    """The walk reaches into an inline core object, here a report."""
+    body = json.loads((_EXAMPLES / "create_report.json").read_text())
+    body.setdefault("published", "2026-01-01T00:00:00Z")
+    body["object"]["context"] = dict(_REFERENCE)
+    with pytest.raises(VultronParseValidationError, match="AKM-03-004") as exc:
+        parse_activity(body)
+    assert "object.context" in str(exc.value)
 
 
 @pytest.mark.spec("CM-11-038")
