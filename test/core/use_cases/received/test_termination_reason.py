@@ -226,6 +226,40 @@ def test_case_manager_refuses_an_end_time_remove_before_the_end_time(
     assert _ledger(dl, case.id_) == []
 
 
+@pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("CM-31-042")
+def test_case_manager_judges_an_end_time_remove_by_the_embargo_in_force(
+    make_payload,
+) -> None:
+    """At the CASE_MANAGER, an expired embargo that is not in force does not
+    make an ``END_TIME_REACHED`` timely: only a paused replica adopts the
+    revision a ``Remove`` names, so only it judges by that revision (#5900).
+    """
+    dl, case, _embargo = _case_with_embargo(
+        "https://example.org/cases/tr-not-in-force", ended=False
+    )
+    expired = as_EmbargoEvent(
+        id_=f"{case.id_}/embargo_events/expired",
+        context=case.id_,
+        end_time=now_utc() - timedelta(hours=1),
+    )
+    activity = remove_embargo_from_case_activity(
+        expired,
+        origin=case.id_,
+        actor=OWNER,
+        reason=TerminationReason.END_TIME_REACHED,
+    )
+
+    result = _receive(
+        dl, make_payload(activity, receiving_actor_id=OWNER, at=dl)
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    kept = cast(VulnerabilityCase, dl.read(case.id_))
+    assert kept.em_state is EM.ACTIVE
+    assert _ledger(dl, case.id_) == []
+
+
 # ---------------------------------------------------------------------------
 # AC-2: a replica's replay learns the what
 # ---------------------------------------------------------------------------

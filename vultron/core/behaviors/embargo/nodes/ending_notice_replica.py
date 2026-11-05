@@ -56,6 +56,23 @@ from vultron.core.states.embargo_register import FINAL_REGISTER_STATUSES
 from vultron.errors import INTERNAL_FAULTS, VultronError
 
 
+def names_unadopted_revision(case: VulnerabilityCase, embargo_id: str) -> bool:
+    """Whether a paused replica would adopt *embargo_id* before its teardown.
+
+    True when *case* has an embargo in force other than *embargo_id*, and
+    the register holds *embargo_id* at no status an activation leaves
+    (``SUPERSEDED``, ``TERMINATED``, ``REJECTED``, ``CANCELLED``): the
+    ``Remove`` names a revision that replaced the replica's embargo, which
+    :class:`AdoptRemovedEmbargoRevisionNode` activates first (CM-31-042,
+    SYNC-19-001).  False otherwise, a stale ``Remove`` included (ADR-0122).
+    """
+    current = case.active_embargo_id
+    if current is None or current == embargo_id:
+        return False
+    entry = case.embargo_register_entry(embargo_id)
+    return entry is None or entry.status not in FINAL_REGISTER_STATUSES
+
+
 class AwaitsEmbargoEndingNoticeNode(DataLayerConditionWithPorts):
     """Condition: the executing actor can be owed a CM-31-009 notice.
 
@@ -262,6 +279,19 @@ class AdoptRemovedEmbargoRevisionNode(_ObservedRevisionActivationNode):
     case, or that cannot be read, fails the node.
     """
 
+    def _nothing_to_adopt(self, case: VulnerabilityCase) -> str:
+        current = case.active_embargo_id
+        entry = case.embargo_register_entry(self.embargo_id)
+        if current in (None, self.embargo_id) or entry is None:
+            return (
+                f"Case '{self.case_id}' has {current!r} in force — nothing to"
+                f" adopt before removing '{self.embargo_id}'"
+            )
+        return (
+            f"Embargo '{self.embargo_id}' is {entry.status} on case"
+            f" '{self.case_id}' — a stale Remove changes nothing"
+        )
+
     def update(self) -> Status:
         self.applied = False
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -271,17 +301,10 @@ class AdoptRemovedEmbargoRevisionNode(_ObservedRevisionActivationNode):
         if failure is not None:
             return failure
         current = case.active_embargo_id
-        if current is None or current == self.embargo_id:
-            return self._no_change(
-                f"Case '{self.case_id}' has {current!r} in force — nothing to"
-                f" adopt before removing '{self.embargo_id}'"
-            )
-        entry = case.embargo_register_entry(self.embargo_id)
-        if entry is not None and entry.status in FINAL_REGISTER_STATUSES:
-            return self._no_change(
-                f"Embargo '{self.embargo_id}' is {entry.status} on case"
-                f" '{self.case_id}' — a stale Remove changes nothing"
-            )
+        if current is None or not names_unadopted_revision(
+            case, self.embargo_id
+        ):
+            return self._no_change(self._nothing_to_adopt(case))
         try:
             self._hold_announced_embargo(datalayer, case)
         except INTERNAL_FAULTS:
@@ -300,4 +323,5 @@ __all__ = [
     "AdoptRemovedEmbargoRevisionNode",
     "ApplyAnnouncedEmbargoRevisionNode",
     "AwaitsEmbargoEndingNoticeNode",
+    "names_unadopted_revision",
 ]

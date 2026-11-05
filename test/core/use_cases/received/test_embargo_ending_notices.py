@@ -1015,6 +1015,72 @@ def test_paused_replica_ends_a_longer_revision_it_was_not_told_of() -> None:
     assert replica.embargo_state() == after
 
 
+def _removed_revision(
+    reason: TerminationReason, *, end_in_days: int, to: str = REMOVED
+) -> Any:
+    """The CASE_MANAGER's ``Remove`` of a revision ending in *end_in_days*."""
+    revision = as_EmbargoEvent(
+        id_=REVISION_ID,
+        context=CASE_ID,
+        end_time=days_from_now_utc(end_in_days),
+    )
+    return remove_embargo_from_case_activity(
+        revision,
+        origin=CASE_ID,
+        context=CASE_ID,
+        actor=MANAGER,
+        to=[to],
+        reason=reason,
+    )
+
+
+@pytest.mark.spec("CM-31-042")
+@pytest.mark.spec("EMB-18-003")
+@pytest.mark.spec("SYNC-19-001")
+@pytest.mark.parametrize(
+    "reason",
+    [TerminationReason.EARLY, TerminationReason.END_TIME_REACHED],
+)
+def test_paused_replica_ends_an_expired_revision_it_has_not_activated(
+    reason: TerminationReason,
+) -> None:
+    """An expiry ``Remove`` of an unseen, expired revision ends it (#5900).
+
+    The replica's own embargo (60 days out) has not reached its end time,
+    but the revision the ``Remove`` names has: the claim is judged against
+    the revision's own end time, so either reason ends the same.
+    """
+    replica = _Replica(REMOVED)
+
+    result = replica.receive(_removed_revision(reason, end_in_days=-1))
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    case = replica.case()
+    assert case.active_embargo_id is None
+    assert case.current_status.em.state == EM.EXITED
+    assert [(e.embargo_id, e.status) for e in case.embargo_register] == [
+        (EMBARGO_ID, EmbargoRegisterStatus.SUPERSEDED),
+        (REVISION_ID, EmbargoRegisterStatus.TERMINATED),
+    ]
+    assert case.embargo_termination is not None
+    assert case.embargo_termination.reason is reason
+
+
+@pytest.mark.spec("CM-31-042")
+@pytest.mark.spec("EMB-13-003")
+def test_paused_replica_refuses_an_early_expiry_remove_of_a_revision() -> None:
+    """An ``END_TIME_REACHED`` before the revision's own end time is refused."""
+    replica = _Replica(REMOVED)
+    before = replica.embargo_state()
+
+    result = replica.receive(
+        _removed_revision(TerminationReason.END_TIME_REACHED, end_in_days=30)
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert replica.embargo_state() == before
+
+
 @pytest.mark.spec("CM-31-042")
 @pytest.mark.spec("EMB-18-004")
 def test_paused_replica_refuses_a_removed_revision_of_another_case() -> None:
