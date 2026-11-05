@@ -35,6 +35,7 @@ test; the duplicate test uses the production dispatcher end to end.
 """
 
 import json
+import logging
 from typing import Any, cast
 
 import pytest
@@ -153,6 +154,30 @@ class _DefersAndHolds:
         return HandlerResult.deferred("awaiting entry 3")
 
 
+class _HoldsThenRefuses(_DefersAndHolds):
+    """A handler that holds the body for a replay, then refuses.
+
+    The record still owes that replay when the outcome stage runs, so the
+    body is the replay's to route and is not given up (CLP-10-076).
+    """
+
+    def execute(self) -> HandlerResult:
+        super().execute()
+        return HandlerResult.refused(_REASON)
+
+
+class _SpyOutcomePort(FastAPIReceivedOutcomePort):
+    """The production port, recording every refusal that reaches it."""
+
+    def __init__(self, dl: SqliteDataLayer) -> None:
+        super().__init__(dl)
+        self.refused: list[str] = []
+
+    def refuse(self, activity_id: str, *, sender_id: str, reason: str) -> None:
+        self.refused.append(activity_id)
+        super().refuse(activity_id, sender_id=sender_id, reason=reason)
+
+
 class _Raises:
     """A handler whose dispatch raises: an internal error, not a verdict."""
 
@@ -178,6 +203,7 @@ def _deliver(
     dl: SqliteDataLayer,
     body: dict[str, Any],
     dispatcher: ActivityDispatcher,
+    outcome_port: FastAPIReceivedOutcomePort | None = None,
 ) -> InboxOutcome:
     """One delivery through the real inbox tree, outcome port wired."""
     return process_payload(
@@ -186,7 +212,7 @@ def _deliver(
         FastAPIDispatchAdapter(
             dl=dl, actor_id=_RECEIVER_ID, dispatcher=dispatcher
         ),
-        received_outcome_port=FastAPIReceivedOutcomePort(dl),
+        received_outcome_port=outcome_port or FastAPIReceivedOutcomePort(dl),
     )
 
 
@@ -304,15 +330,44 @@ def test_a_deferred_message_stays_in_holding_with_its_body(dl, activity, body):
     stored = archive_received(dl, activity)
     sealed = stored.received_body
     assert sealed is not None
+    port = _SpyOutcomePort(dl)
 
-    outcome = _deliver(dl, body, _dispatcher_for(_DefersAndHolds))
+    outcome = _deliver(dl, body, _dispatcher_for(_DefersAndHolds), port)
 
     assert outcome.status is InboxOutcomeStatus.DEFERRED
+    # Deferred is not a refusal: the port is never asked for a stub.
+    assert port.refused == []
     record = held_received_record(dl, activity.id_)
     assert record is not None
     assert record.received_body == sealed
     assert record.replay_owed is True
     assert not record.is_receipt_stub
+
+
+@pytest.mark.spec("CLP-10-076")
+def test_a_refusal_of_a_body_still_owed_to_a_replay_leaves_it_held(
+    dl, activity, body, caplog
+):
+    """The replay routes that body, so the refusal gives nothing up.
+
+    Not a fault either: nothing is logged at ERROR (the held message
+    reaches its own outcome when the replay runs).
+    """
+    stored = archive_received(dl, activity)
+    sealed = stored.received_body
+    port = _SpyOutcomePort(dl)
+
+    with caplog.at_level(logging.INFO):
+        outcome = _deliver(dl, body, _dispatcher_for(_HoldsThenRefuses), port)
+
+    assert outcome.status is InboxOutcomeStatus.REJECTED
+    assert port.refused == [activity.id_]
+    record = held_received_record(dl, activity.id_)
+    assert record is not None
+    assert not record.is_receipt_stub
+    assert record.received_body == sealed
+    assert record.replay_owed is True
+    assert [r for r in caplog.records if r.levelno >= logging.ERROR] == []
 
 
 # ---------------------------------------------------------------------------

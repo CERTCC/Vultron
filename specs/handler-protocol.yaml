@@ -720,7 +720,8 @@ groups:
       not a pinned exemption;
       `test/adapters/driving/fastapi/test_unaddressed_copy_sweep.py` delivers every
       example activity to a store it was not addressed to and asserts it is refused,
-      archived, and acts on nothing.
+      that what remains of it is a receipt stub with no body that names the sender, a
+      reason and the body's digest, and that it acts on nothing.
     relationships:
     - rel_type: implements
       spec_id: HP-01-005

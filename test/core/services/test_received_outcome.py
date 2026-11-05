@@ -128,25 +128,24 @@ def test_refusing_an_activity_this_receiver_does_not_hold_raises(dl):
 
 
 @pytest.mark.spec("IO-03-009")
+@pytest.mark.spec("CLP-10-076")
 def test_a_body_still_owed_to_a_replay_is_not_given_up(dl):
-    """The replay would route a body the stub had dropped (CLP-10-018)."""
-    hold_for_replay(dl, ACTIVITY_ID, _body(), awaiting_case_id=CASE_ID)
+    """The replay would route a body the stub had dropped (CLP-10-018).
 
-    with pytest.raises(VultronWiringError, match="still owes a replay"):
-        write_receipt_stub(dl, ACTIVITY_ID, sender_id=SENDER, reason=REASON)
+    Not a fault: the held message reaches its own outcome when the replay
+    runs, so the call returns the record unchanged and raises nothing.
+    """
+    hold_for_replay(dl, ACTIVITY_ID, _body(), awaiting_case_id=CASE_ID)
+    before = held_received_record(dl, ACTIVITY_ID)
+
+    returned = write_receipt_stub(
+        dl, ACTIVITY_ID, sender_id=SENDER, reason=REASON
+    )
 
     held = held_received_record(dl, ACTIVITY_ID)
     assert held is not None
+    assert held == before
+    assert returned == before
     assert held.received_body == _body()
     assert held.replay_owed is True
-
-
-@pytest.mark.spec("IE-10-002")
-def test_the_digest_tells_the_same_body_from_a_different_one(dl):
-    """What the stub keeps is enough to answer a resend (CLP-10-018)."""
-    _archive(dl, _body("first"))
-
-    stub = write_receipt_stub(dl, ACTIVITY_ID, sender_id=SENDER, reason=REASON)
-
-    assert stub.body_hash == received_body_digest(_body("first"))
-    assert stub.body_hash != received_body_digest(_body("second"))
+    assert not held.is_receipt_stub

@@ -3716,7 +3716,7 @@ groups:
       then is there a body to give up.
     verification: >-
       `test/core/services/test_received_outcome.py` asserts a held body that still owes
-      a replay is left as it is, and the attempt raises.
+      a replay is left as it is, and that the attempt raises nothing.
     relationships:
     - rel_type: refines
       spec_id: CLP-10-018
@@ -3728,12 +3728,15 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A second refusal of an activity already reduced to a receipt stub MUST leave the
-      reason the first refusal recorded.
+      When the outcome stage records a refusal for a record that is already a receipt
+      stub, it MUST leave the reason the first refusal recorded.
     rationale: >-
       A refusal is whole and final for that activity, so the record of why it was
-      refused is the first verdict's; a later delivery that is refused again for some
-      other reason would otherwise rewrite history (ADR-0154).
+      refused is the first verdict's; a later refusal would otherwise rewrite history
+      (ADR-0154). While the doors still run after intake, a resend of a refused message
+      is archived over its stub before the tree judges it again, so its refusal meets
+      an archive, not a stub, and records its own reason. The seen-before door, which
+      answers that resend from the stub, removes that path.
     verification: >-
       `test/core/services/test_received_outcome.py` refuses the same activity twice with
       different reasons and asserts the first stands.

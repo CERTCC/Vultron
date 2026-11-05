@@ -58,7 +58,8 @@ INTAKE_FLAG_READER_EXEMPTIONS: dict[str, str] = {
     ),
     # Both inside one received tree: the refusal effects and the
     # ledger-position answer are skipped on a redelivery (CLP-10-044,
-    # SYNC-18-002).  The seen-before door retires both readings (#5046).
+    # SYNC-18-002).  The seen-before door, #5045's third part, retires both
+    # readings.
     "vultron/core/behaviors/case/nodes/refusal_stage.py": (
         "a redelivery's refusal effects are skipped in the same tree"
         " (CLP-10-044)"
@@ -75,15 +76,27 @@ def _reads_an_intake_flag(tree: ast.AST) -> set[str]:
 
     An attribute load, not a store: ``node.found_ids`` read somewhere else is
     a stage trusting intake's memory, while ``self.found_ids = []`` inside the
-    node is the node keeping its own.
+    node is the node keeping its own.  A flag named as ``getattr``'s
+    attribute is the same read spelled another way, so it counts too.
     """
-    return {
-        node.attr
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Attribute)
-        and node.attr in _INTAKE_FLAGS
-        and isinstance(node.ctx, ast.Load)
-    }
+    reads: set[str] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Attribute)
+            and node.attr in _INTAKE_FLAGS
+            and isinstance(node.ctx, ast.Load)
+        ):
+            reads.add(node.attr)
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "getattr"
+            and len(node.args) >= 2
+            and isinstance(node.args[1], ast.Constant)
+            and node.args[1].value in _INTAKE_FLAGS
+        ):
+            reads.add(str(node.args[1].value))
+    return reads
 
 
 @pytest.mark.spec("ARCH-18-003")

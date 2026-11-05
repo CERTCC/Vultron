@@ -31,8 +31,8 @@ A reader loads the body: core through the ``ReceivedActivityLoader`` port,
 which parses and extracts it into a read-only view, and a reply through the
 wire seam that parses it and embeds it as received (DL-06-004).
 
-Why three fields are optional, against the fail-fast rule
----------------------------------------------------------
+Why four fields are optional, against the fail-fast rule
+--------------------------------------------------------
 
 ARCH-10-001 asks that a required field validate at construction and that a
 subtype-required field not be ``X | None``.  Four fields here are

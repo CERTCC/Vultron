@@ -188,10 +188,12 @@ class ReceivedOutcomePort(Protocol):
         *reason* and the digest of the body (CLP-10-018).  Idempotent: a
         second refusal of the same activity leaves the first reason standing.
 
+        A body still owed to a replay is left as it is: the replay is the
+        held message's own outcome (CLP-10-076).
+
         Raises:
             Exception: Whatever the store raises, and a wiring error when
-                nothing is held for *activity_id* or its body is still owed
-                to a replay.  ``update()`` in the calling node is what
-                catches it (BT-HELPER-01).
+                nothing is held for *activity_id*.  ``update()`` in the
+                calling node is what catches it (BT-HELPER-01).
         """
         ...  # pragma: no cover

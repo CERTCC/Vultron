@@ -211,7 +211,8 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
 
         This runs only while the doors still follow intake.  Once the
         seen-before door runs first, a resend of a refused message is
-        answered from its stub and never reaches intake (#5046, #5047).
+        answered from its stub and never reaches intake (#5045's third
+        part).
         """
         assert self.datalayer is not None
         record = held_received_record(self.datalayer, activity_id)

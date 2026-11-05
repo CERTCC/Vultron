@@ -54,6 +54,7 @@ from vultron.core.models.received_activity_record import (
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.services.received_activity import sealed_body_of
+from vultron.core.services.received_outcome import write_receipt_stub
 from vultron.errors import VultronReusedActivityIdError, VultronWiringError
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
@@ -392,6 +393,66 @@ def test_a_different_body_under_an_archived_id_is_refused(
     _assert_refused_through_the_inbox(dl, second, ACTOR, caplog)
 
     assert dl.read(ReceivedActivityRecord.build_id(first["id"])) == record
+
+
+def _refuse_and_stub(
+    dl: SqliteDataLayer, body: dict[str, Any]
+) -> tuple[ReceivedActivityRecord, dict[str, Any]]:
+    """Archive *body*, then reduce it to the receipt stub a refusal leaves.
+
+    Returns the stub and the body exactly as it was sealed, which is what a
+    same-body resend delivers.
+    """
+    record = archive_received(dl, parse_activity(copy.deepcopy(body)))
+    sealed = json.loads(sealed_body_of(record))
+    stub = write_receipt_stub(
+        dl, body["id"], sender_id=ACTOR, reason="refused for this test"
+    )
+    return stub, sealed
+
+
+@pytest.mark.spec("IE-10-002")
+@pytest.mark.spec("CLP-10-018")
+def test_a_different_body_under_a_refused_id_is_refused(
+    dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
+):
+    """The stub keeps the digest of the body it gave up, so a reused id is
+    still refused after a refusal; the stub is left exactly as it was."""
+    first = _offer_of_stored_report(dl)
+    first["summary"] = "first"
+    stub, _ = _refuse_and_stub(dl, first)
+    second = {**copy.deepcopy(first), "summary": "second"}
+
+    _assert_refused_through_the_inbox(dl, second, ACTOR, caplog)
+
+    assert dl.read(ReceivedActivityRecord.build_id(first["id"])) == stub
+
+
+@pytest.mark.spec("IE-10-001")
+@pytest.mark.spec("CLP-10-018")
+def test_the_same_body_under_a_refused_id_is_judged_again(
+    dl: SqliteDataLayer,
+):
+    """A stub holds no copy to route, so the same body goes on, on its own.
+
+    Answering it from the stub instead is the seen-before door's.
+    """
+    first = _offer_of_stored_report(dl)
+    _, sealed = _refuse_and_stub(dl, first)
+    staging = InlineObjectStaging(dl)
+    dispatch_adp = _RecordingDispatch()
+
+    outcome = process_payload(
+        sealed,
+        FastAPIIngressAdapter(dl=dl, staging=staging),
+        dispatch_adp,
+        FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
+    )
+
+    assert outcome.status is InboxOutcomeStatus.PROCESSED
+    assert [event.activity_id for event in dispatch_adp.dispatched] == [
+        first["id"]
+    ]
 
 
 @pytest.mark.spec("IE-10-002")

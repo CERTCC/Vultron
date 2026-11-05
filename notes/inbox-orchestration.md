@@ -155,10 +155,12 @@ tells them apart by the disposition `DispatchNode` publishes, which is written o
 when a verdict came back.
 
 **Until the doors move, a resend of a refused message runs again.** The seen-before
-door that answers it from the stub is still to come (#5046, #5047), so ingress finds no
-body held, intake archives the new body over the stub, and the tree judges it a second
-time. Intake keeps the activity in `found_ids` for that delivery, which is what still
-suppresses the second refusal notice (CLP-10-044).
+door that answers it from the stub is #5045's third part. Until then, ingress compares
+the resend with the stub's `body_hash` and refuses a different body as a reused id
+(IE-10-002). A same body finds no held copy to route, so intake archives it over the
+stub, or a wait holds it over the stub as a whole `HELD` record, and the tree judges it
+a second time. Intake keeps the activity in `found_ids` for that delivery, which is what
+still suppresses the second refusal notice (CLP-10-044).
 
 **One message, one record** (ADR-0154). An activity the inbox defers is held on its
 own `ReceivedActivityRecord`, the same row intake archives to, under the key the

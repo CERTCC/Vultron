@@ -34,6 +34,7 @@ from py_trees.common import Status
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.blackboard_scope import (
     KeyState,
+    key_aliases,
     restore_keys,
     snapshot_keys,
 )
@@ -52,6 +53,7 @@ from vultron.core.behaviors.inbox.nodes import (
     KEY_CONTEXT_ID,
     KEY_DEREFERENCE,
     KEY_DISPATCH,
+    KEY_DISPOSITION,
     KEY_EVENT,
     KEY_FAILURE_REASON,
     KEY_INGRESS,
@@ -244,6 +246,14 @@ def process_payload(
     with _BT_GLOBAL_LOCK:
         storage = py_trees.blackboard.Blackboard.storage
         saved = _save_inbox_keys(storage)
+        # Every run starts with no handler verdict.  A nested run (the replay
+        # a case bootstrap triggers runs inside the outer dispatch, after it
+        # published its verdict) would otherwise inherit the outer run's, and
+        # a dispatch of its own that raised would be settled by another
+        # delivery's verdict instead of leaving its record alone
+        # (CLP-10-074).  The snapshot above restores it on the way out.
+        for alias in key_aliases(KEY_DISPOSITION):
+            storage.pop(alias, None)
 
         try:
             _write_inbox_inputs(

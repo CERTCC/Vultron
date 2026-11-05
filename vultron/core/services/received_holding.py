@@ -76,6 +76,16 @@ def hold_for_replay(
     replay flag without losing its archive.  With neither, one ``HELD``
     record is created.
 
+    A receipt stub, all an earlier refusal left (CLP-10-018), holds no body
+    to replay, so a delivery that brings the body again replaces the stub
+    with a ``HELD`` record for it, keeping the stub's time of receipt.  This
+    is the same overwrite intake makes over a stub, and it lasts only while
+    the doors follow intake: once the seen-before door runs first, a resend
+    of a refused message is answered from its stub and never reaches a hold
+    (#5045's third part).  The overwrite writes a whole new record rather
+    than copying the stub, so the record's stage/body invariant is checked
+    at construction.
+
     *awaiting_case_id* is recorded even on a record that already owed a
     replay, because the wait and the body are different facts: a body held
     for one wait (a retry, a fetch) and then deferred on its case must still
@@ -106,6 +116,24 @@ def hold_for_replay(
                 awaiting_case_id=awaiting_case_id,
                 replay_rows_json=replay_rows_json,
             )
+        )
+        return True
+    if existing.is_receipt_stub:
+        dl.save(
+            ReceivedActivityRecord(
+                activity_id=activity_id,
+                received_body=received_body,
+                stage=ReceivedStage.HELD,
+                replay_owed=True,
+                awaiting_case_id=awaiting_case_id,
+                replay_rows_json=replay_rows_json,
+                received_at=existing.received_at,
+            )
+        )
+        logger.info(
+            "Received activity %s was a receipt stub; its body is held again"
+            " for a replay (CLP-10-018, IO-03-009).",
+            activity_id,
         )
         return True
     if existing.replay_owed:

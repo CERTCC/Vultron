@@ -65,16 +65,25 @@ def write_receipt_stub(
     read of one row (DL-06-006).
 
     Idempotent: a stub already written is returned as it stands, so the
-    reason recorded is the first refusal's and a resend does not rewrite it.
+    reason recorded is the first refusal's (CLP-10-077).  That holds for a
+    record that is still a stub when this is called.  Until the seen-before
+    door runs ahead of intake, a resend of a refused message is archived over
+    its stub first and judged again, so its own refusal writes a fresh stub
+    with its own reason; #5045's third part answers that resend from the stub
+    instead.
 
-    Returns the stub.
+    A record that still owes a replay is returned unchanged: the body is the
+    replay's to route (IO-03-009), and the held message reaches its own
+    outcome when that replay runs (CLP-10-076).  This is not a fault, so it
+    is logged at INFO and nothing is raised.
+
+    Returns the stub, or the record as it stands when nothing is written.
 
     Raises:
         VultronWiringError: When nothing is held for *activity_id*, so there
-            is no receipt to reduce; when the record still owes a replay, so
-            the body the replay would route is not this stage's to drop
-            (IO-03-009); or when a body-bearing record holds no body, which
-            the record's own invariant already refuses at the write.
+            is no receipt to reduce, or when a body-bearing record holds no
+            body, which the record's own invariant already refuses at the
+            write.
     """
     record = held_received_record(dl, activity_id)
     if record is None:
@@ -91,11 +100,13 @@ def write_receipt_stub(
         )
         return record
     if record.replay_owed:
-        raise VultronWiringError(
-            f"refused activity '{activity_id}' still owes a replay, so its"
-            " body is not the outcome stage's to give up: release the hold"
-            " first (IO-03-009, CLP-10-018)"
+        logger.info(
+            "Refused delivery of activity '%s' leaves its held body: a replay"
+            " is still owed from it, and that replay reaches its own outcome"
+            " (IO-03-009, CLP-10-076).",
+            activity_id,
         )
+        return record
     body = record.received_body
     if body is None:
         raise VultronWiringError(

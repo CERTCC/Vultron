@@ -25,15 +25,21 @@ store is driven in
 
 from typing import Any
 
+import py_trees
 import pytest
 
 from test.support.received import stamped
+from vultron.core.behaviors.blackboard_scope import key_aliases
 from vultron.core.behaviors.inbox import (
     InboxOutcomeStatus,
     process_payload,
 )
+from vultron.core.behaviors.inbox.nodes.pipeline import KEY_DISPOSITION
 from vultron.core.models.events import VultronEvent
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.wire.as2.factories import rm_create_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -151,6 +157,36 @@ def test_a_dispatch_that_raised_reaches_the_port_with_nothing(activity):
 
     assert outcome.status is InboxOutcomeStatus.REJECTED
     assert port.refused == []
+
+
+@pytest.mark.spec("CLP-10-074")
+def test_a_nested_run_does_not_inherit_the_enclosing_runs_verdict(activity):
+    """A run inside another starts with no verdict of its own.
+
+    The replay a case bootstrap triggers runs inside the outer dispatch,
+    after that dispatch published its verdict.  Were that verdict still on
+    the blackboard, an inner dispatch that raised would be settled by it.
+    """
+    storage = py_trees.blackboard.Blackboard.storage
+    aliases = key_aliases(KEY_DISPOSITION)
+    saved = {
+        alias: storage.get(alias) for alias in aliases if alias in storage
+    }
+    for alias in aliases:
+        storage[alias] = HandlerDisposition.REFUSED
+    port = _RecordingOutcomePort()
+    try:
+        outcome = _run(activity, _StubDispatch(raises=True), port)
+        restored = {alias: storage.get(alias) for alias in aliases}
+    finally:
+        for alias in aliases:
+            storage.pop(alias, None)
+        storage.update(saved)
+
+    assert outcome.status is InboxOutcomeStatus.REJECTED
+    assert port.refused == []
+    # The enclosing run's verdict is back once the inner run returns.
+    assert restored == dict.fromkeys(aliases, HandlerDisposition.REFUSED)
 
 
 @pytest.mark.spec("CLP-10-079")
