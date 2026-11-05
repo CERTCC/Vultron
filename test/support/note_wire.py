@@ -62,7 +62,7 @@ def assert_case_manager_note_recorded(
     The note is the CASE_MANAGER's own ``add_note_to_case`` entry, an
     ``Add(Note)`` carrying the note inline and addressed to nobody; the note
     is attached to the case, and no ``Add(Note)`` is queued for delivery:
-    the ledger fan-out is its delivery (CLP-10-001, SYNC-02-002).  Returns
+    the ledger fan-out is its delivery (CLP-10-001, SYNC-02-001, SYNC-02-003).  Returns
     the inline note.
     """
     entries = [

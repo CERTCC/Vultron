@@ -290,13 +290,13 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 )
             return refusal
         if node_failed(tree, EmbargoProposalNotYetRecordedNode):
-            # The same Invite, delivered again (CLP-13-001, HP-01-003).
+            # The same Invite, delivered again (CLP-13-001, HP-01-014).
             return HandlerResult.skipped(
                 f"invite '{invite_id}' was already applied on case '{case_id}'"
             )
         if node_failed(tree, EmbargoInviteNotYetAnsweredNode):
             # An Invite this invitee already answered, delivered again
-            # after its proposal left the index (ID-04-004, HP-01-003).
+            # after its proposal left the index (ID-04-004, HP-01-014).
             return HandlerResult.skipped(
                 f"invite '{invite_id}' was already answered on case"
                 f" '{case_id}'"

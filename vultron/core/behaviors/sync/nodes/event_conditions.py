@@ -133,7 +133,7 @@ class IsAddNoteEventNode(_SingleSemanticTypeNode):
     ApplyNoteFromLedgerNode fails, both branches of the Selector fail and
     the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-004).
 
-    Per BTND-08-001, BTND-08-002, SYNC-02-002, SYNC-12-001.
+    Per BTND-08-001, BTND-08-002, SYNC-02-001, SYNC-12-001.
     """
 
     matched_semantic_type = _ADD_NOTE_TO_CASE_EVENT
@@ -145,7 +145,7 @@ class IsRemoveNoteEventNode(_SingleSemanticTypeNode):
     Precondition of the ``RemoveNoteEffects`` slot, in the same
     ``Selector(Seq(Is, Apply), Inverter(Is))`` shape as the add-note slot.
 
-    Per BTND-08-001, BTND-08-002, SYNC-02-002, SYNC-12-001, RSH-08-004.
+    Per BTND-08-001, BTND-08-002, SYNC-02-001, SYNC-12-001, RSH-08-004.
     """
 
     matched_semantic_type = _REMOVE_NOTE_FROM_CASE_EVENT
@@ -221,7 +221,7 @@ class IsSubmitReportEventNode(_SingleSemanticTypeNode):
     ApplyOfferReportFromLedgerNode fails, both branches of the Selector fail
     and the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-004).
 
-    Per BTND-08-001, BTND-08-002, SYNC-02-002, ISSUE-2134.
+    Per BTND-08-001, BTND-08-002, SYNC-02-001, ISSUE-2134.
     """
 
     matched_semantic_type = _ADD_REPORT_TO_CASE_EVENT
@@ -250,7 +250,7 @@ class IsOwnershipTransferEventNode(_SingleSemanticTypeNode):
     fail and the FAILURE propagates to block PersistReceivedLogEntry
     (SYNC-12-001).
 
-    Per BTND-08-001, BTND-08-002, CM-21-007, SYNC-02-002, SYNC-12-001.
+    Per BTND-08-001, BTND-08-002, CM-21-007, SYNC-02-001, SYNC-12-001.
     """
 
     matched_semantic_type = UPDATE_CASE_OWNER_SEMANTIC_TYPE

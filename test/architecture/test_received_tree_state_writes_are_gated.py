@@ -112,7 +112,7 @@ _STATE_WRITE_METHODS = frozenset(
 # ---------------------------------------------------------------------------
 _REPLAY = (
     "the ledger replay is how a replica takes case state from the"
-    " CASE_MANAGER (PCR-03-001, RSH-08-003, SYNC-02-002)"
+    " CASE_MANAGER (PCR-03-001, RSH-08-003, SYNC-02-001, SYNC-02-003)"
 )
 _SEED = (
     "seeds a replica from the CASE_MANAGER's own case snapshot before the"

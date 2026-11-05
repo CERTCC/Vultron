@@ -84,7 +84,7 @@ class OwnershipOfferRequest:
         offer_id: The Offer the reply names; ``None`` when it names none,
             which refuses.
         reply_id: The reply's own id, so the offerer check recognises a
-            redelivery of the withdrawal that closed the Offer (HP-01-003).
+            redelivery of the withdrawal that closed the Offer (HP-01-014).
     """
 
     offer_id: str | None

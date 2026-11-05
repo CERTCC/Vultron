@@ -16,7 +16,7 @@
 """The CASE_MANAGER's repeat guard for an answer to an embargo Invite (#4597).
 
 An answer is idempotent per participant and invitation (CM-13-005,
-HP-01-003): a second ``Accept`` or ``Reject`` of the same embargo Invite by
+HP-01-014): a second ``Accept`` or ``Reject`` of the same embargo Invite by
 the same actor, whatever its activity id, changes no state, adds no ledger
 entry and sends no message.  The consent row is the durable evidence of the
 first answer, so the guard reads it.  A *different* answer is a consent change,
@@ -65,7 +65,7 @@ class EmbargoAnswerNotRecordedNode(
     FAILURE with :attr:`is_repeat` set when the row already holds *answer*:
     the sender answered this invitation this way before, so the commit would
     add an entry that records no change and the effects would re-announce it
-    (CM-13-005, HP-01-003).  The handler reports the run as ``SKIPPED``.
+    (CM-13-005, HP-01-014).  The handler reports the run as ``SKIPPED``.
 
     Keyed on the identity of the answer being adjudicated — the sender and the
     embargo its Invite proposed, the same key the effect writes — never on the
@@ -128,7 +128,7 @@ class EmbargoAnswerNotRecordedNode(
         self.feedback_message = (
             f"'{self.answering_actor_id}' already {verb} embargo"
             f" '{self.embargo_id}' on case '{self.case_id}' — repeat,"
-            " nothing to apply (CM-13-005, HP-01-003)"
+            " nothing to apply (CM-13-005, HP-01-014)"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE

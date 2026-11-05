@@ -17,7 +17,7 @@ The received-side twin of ``RecordParticipantAcceptanceNode``: it records a
 participant's Reject through ``EmbargoLifecycle.record_embargo_rejection`` and
 reports the outcomes the handler maps to dispositions — SUCCESS on a recorded
 or no-op answer, FAILURE plus an already-``DECLINED`` record for a repeat
-(→ SKIPPED, HP-01-003), FAILURE for an unknown embargo or a missing case
+(→ SKIPPED, HP-01-014), FAILURE for an unknown embargo or a missing case
 (→ REFUSED).  The consent rule itself is pinned in
 ``test/core/services/embargo_lifecycle/test_consent.py``.
 """

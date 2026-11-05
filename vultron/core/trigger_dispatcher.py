@@ -51,7 +51,7 @@ class RegistryTriggerDispatcher:
         wire_render_port: The port a BT-backed tree renders ledger payload
             snapshots through (ARCH-20-001); given to every ``bt_backed`` row.
         sync_port: The port a BT-backed commit fans a ledger entry out through
-            (SYNC-02-002); given to every ``bt_backed`` row.
+            (SYNC-02-003); given to every ``bt_backed`` row.
 
     Port injection is keyed on the row's ``bt_backed`` flag, never on its
     verb: a BT-backed use case is built with the whole BT port bundle, and the

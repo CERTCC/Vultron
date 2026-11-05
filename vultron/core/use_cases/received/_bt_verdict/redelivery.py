@@ -17,7 +17,7 @@
 
 A guard that fails because the delivery is a redelivery, a repeated answer
 or a stale copy ends the run with nothing applied; the handler reports
-``SKIPPED``, not the default ``REFUSED`` (HP-01-003).
+``SKIPPED``, not the default ``REFUSED`` (HP-01-003, HP-01-014).
 """
 
 import py_trees
@@ -219,7 +219,7 @@ def ownership_offer_verdict(
     fails with ``is_redelivery`` set when the CASE_MANAGER's ledger already
     records the Offer it made from the proposal, so the proposal is neither
     judged against a newer open Offer nor committed or made into an Offer
-    again (HP-01-003, CM-21-014).
+    again (HP-01-014, CM-21-014).
     """
     return _redelivery_verdict(
         tree,
@@ -237,7 +237,7 @@ def role_offer_verdict(
 
     :class:`~vultron.core.behaviors.case.nodes.role_offer_guard.RoleOfferAdmissibleNode`
     sets ``is_redelivery`` and fails when the CASE_MANAGER's ledger already
-    records the Offer, so nothing runs (HP-01-003).
+    records the Offer, so nothing runs (HP-01-014).
     """
     return _redelivery_verdict(
         tree, RoleOfferAdmissibleNode, verdict, "role Offer redelivered"
@@ -252,7 +252,7 @@ def role_offer_answer_verdict(
 
     :class:`~vultron.core.behaviors.case.nodes.role_offer_guard.RoleOfferOpenNode`
     sets ``is_redelivery`` when the answer is the one already ledgered as
-    closing its Offer, and fails, so nothing runs (HP-01-003, CM-33-018).
+    closing its Offer, and fails, so nothing runs (HP-01-014, CM-33-018).
     """
     return _redelivery_verdict(
         tree, RoleOfferOpenNode, verdict, "role Offer answer redelivered"

@@ -18,7 +18,7 @@ Case lifecycle action nodes for case behavior trees.
 
 Provides the CommitCaseLedgerEntryNode for hash-chained case ledger replication.
 
-Per specs/sync-ledger-replication.yaml SYNC-02-002, SYNC-02-003.
+Per specs/sync-ledger-replication.yaml SYNC-02-001, SYNC-02-003.
 """
 
 import logging
@@ -122,7 +122,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
     blackboard key (the inbound :class:`~vultron.core.models.events.base.VultronEvent`
     placed there by :class:`~vultron.core.behaviors.bridge.BTBridge`).
 
-    Per specs/sync-ledger-replication.yaml SYNC-02-002, SYNC-02-003.
+    Per specs/sync-ledger-replication.yaml SYNC-02-001, SYNC-02-003.
     """
 
     def __init__(

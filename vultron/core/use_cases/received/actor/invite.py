@@ -61,7 +61,7 @@ class InviteActorToCaseReceivedUseCase:
     (MV-10-003).
 
     A redelivered Invite that intake finds already archived is the benign
-    no-op, ``SKIPPED`` (HP-01-003).
+    no-op, ``SKIPPED`` (HP-01-014).
 
     The sender must be the case's CASE_MANAGER, which alone issues the
     Invite (CM-17-006, PCR-03-001); any other sender is ``REFUSED`` with
@@ -71,7 +71,7 @@ class InviteActorToCaseReceivedUseCase:
 
     The ``sync_port`` kwarg is injected for every received use case by
     ``with_received_baseline_ports`` so ``CommitCaseLedgerEntryNode`` can fan
-    out via ``sync_port`` (SYNC-02-002, #4113).
+    out via ``sync_port`` (SYNC-02-003, #4113).
     """
 
     # The CASE_MANAGER issues every Invite (CM-17-006, PCR-03-001).
