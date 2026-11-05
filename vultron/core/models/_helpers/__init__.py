@@ -27,6 +27,7 @@ Grouped by concern (CS-18-005):
 # shared id reader, imported from ``vultron.core.models._helpers`` by modules in
 # every layer, including ones other open changes own (CS-18-003).
 from vultron.core.models._helpers.clock import (
+    SteppingClock,
     days_from_now_utc,
     from_now_utc,
     now_utc,
@@ -63,6 +64,7 @@ __all__ = [
     "INBOUND_CONTEXT_KEY",
     "MissingClaimedTimeError",
     "STORED_CONTEXT_KEY",
+    "SteppingClock",
     "URN_UUID_PREFIX",
     "absent_times_as_none",
     "as_utc",

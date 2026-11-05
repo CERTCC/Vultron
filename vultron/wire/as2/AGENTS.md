@@ -131,8 +131,8 @@ forbids. Known exceptions live in its `_KNOWN_UNDISPATCHABLE` map as strict
 `xfail`s, each naming the issue that owns the fix (#3433, #3439); closing one of
 those issues must also delete its entry. Two older gates check these examples and
 neither asks this question — `test_vocab_utils.py` asks only whether an example
-executes, and `test_vocab_examples_current.py` only whether its filename is
-committed. Full write-up: `notes/message-type-reference.md`.
+executes, and `test_vocab_examples_current.py` only whether its committed file
+is what the generator writes. Full write-up: `notes/message-type-reference.md`.
 
 ### Extraction Port Return Type — Return the Discriminated Union, Not the Base
 

@@ -270,26 +270,17 @@ def coordinator_participant() -> as_CaseParticipant:
     return _participant_for(_COORDINATOR, [CVDRole.COORDINATOR])
 
 
-def invite_to_case():
-    _case = case(
-        stub_summary=(
-            "A memory-corruption vulnerability in widget"
-            " — details shared after acceptance."
-        )
-    )
-    _coordinator = _COORDINATOR
-    _vendor = vendor()
+def invite_to_case() -> as_Invite:
+    """The RM ``Invite``, under the name the docs page and the generator use.
 
-    activity = rm_invite_to_case_activity(
-        _coordinator,
-        id_=f"{_case.id_}/invitation/1",
-        actor=_vendor.id_,
-        target=_case,
-        to=_coordinator.id_,
-        content=f"We're inviting you to participate in case {_case.name}.",
-        **_example_stamp(),
-    )
-    return activity
+    One body, not two: this held a near-copy of :func:`rm_invite_to_case`,
+    differing only in its ``content`` string (CS-22-001), and the generator
+    wrote both functions to ``invite_to_case.json``, so whichever ran first
+    was generated and overwritten on every run (#5776).  The surviving
+    wording is ``rm_invite_to_case``'s, which drops the redundant "in case
+    ... Case #" of the copy.
+    """
+    return rm_invite_to_case()
 
 
 def remove_participant_from_case():
