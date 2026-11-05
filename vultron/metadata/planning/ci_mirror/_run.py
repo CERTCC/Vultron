@@ -63,6 +63,22 @@ _BACKSTOP_SLACK = 60
 
 #: ``timeout``'s exit status when the command ran out of time.
 _TIMED_OUT = 124
+#: ``timeout``'s exit status when the command ignored SIGTERM and was killed
+#: after the ``-k`` grace (128 + SIGKILL).
+_KILLED_AFTER_GRACE = 137
+
+
+def _ran_out(code: int | None, seconds: float, timeout: int) -> bool:
+    """Whether a heavy check's own ``timeout`` ended it.
+
+    124 is a command that stopped on SIGTERM. A command that ignored it is
+    killed after the grace and reads 137, which counts only once the run
+    reached its *timeout*: earlier, a 137 is some other kill.
+    """
+    return code == _TIMED_OUT or (
+        code == _KILLED_AFTER_GRACE and seconds >= timeout
+    )
+
 
 #: What the wrapper prints when ``--wait`` runs out, so a check that exits
 #: :data:`WAIT_EXPIRED` on its own is not mistaken for one that never ran.
@@ -285,8 +301,42 @@ class MirrorStopped(RuntimeError):
     """The mirror is stopping, so a check that was about to start does not."""
 
 
+#: How long a stopped check's process group has to end after SIGTERM before
+#: it is killed. Shorter than the outer ``timeout -k 30`` on the mirror, so the
+#: mirror ends its checks before that kills it.
+_STOP_GRACE = 10
+
+
+def _signal_group(proc: subprocess.Popen[bytes], signum: int) -> None:
+    try:
+        os.killpg(proc.pid, signum)
+    except ProcessLookupError:
+        pass  # The group already ended.
+
+
+def _end_groups(procs: Sequence[subprocess.Popen[bytes]]) -> None:
+    """End each check's process group: SIGTERM, then SIGKILL after a grace.
+
+    SIGTERM comes first because SIGKILL to the group would miss a heavy
+    check's command: GNU ``timeout`` puts itself in a process group of its
+    own, so only a signal the slot wrapper forwards reaches it, and
+    ``timeout`` relays that signal to its own group (#5947).
+    """
+    for proc in procs:
+        _signal_group(proc, signal.SIGTERM)
+    deadline = time.monotonic() + _STOP_GRACE
+    while time.monotonic() < deadline and any(
+        proc.poll() is None for proc in procs
+    ):
+        time.sleep(0.05)
+    for proc in procs:
+        if proc.poll() is None:
+            _signal_group(proc, signal.SIGKILL)
+        proc.wait()
+
+
 def stop_running() -> None:
-    """Kill every process group the mirror started, and start no more.
+    """End every process group the mirror started, and start no more.
 
     The flag and the snapshot share the guard that :func:`run_in_session`
     holds from ``Popen`` to registering the process, so no check can start
@@ -295,11 +345,7 @@ def stop_running() -> None:
     with _RUNNING_GUARD:
         _STOPPING.set()
         running = list(_RUNNING)
-    for proc in running:
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass  # It ended between the snapshot and the kill.
+    _end_groups(running)
 
 
 def run_in_session(
@@ -312,8 +358,8 @@ def run_in_session(
 ) -> int | None:
     """Run *argv* in its own process group; ``None`` when it timed out.
 
-    On a timeout the whole group is killed, so a grandchild (an xdist worker,
-    a site build) cannot keep running past it.
+    On a timeout the whole group is ended (:func:`_end_groups`), so a
+    grandchild (an xdist worker, a site build) cannot keep running past it.
     """
     with _RUNNING_GUARD:
         if _STOPPING.is_set():
@@ -330,12 +376,10 @@ def run_in_session(
     try:
         return proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGKILL)
-        proc.wait()
+        _end_groups([proc])
         return None
     except BaseException:
-        os.killpg(proc.pid, signal.SIGKILL)
-        proc.wait()
+        _end_groups([proc])
         raise
     finally:
         with _RUNNING_GUARD:
@@ -366,7 +410,11 @@ def _run_one(
         if code is None:
             out.write(f"\n[ci-mirror] timed out after {ceiling}s\n")
     seconds = time.monotonic() - started
-    if item.check.heavy and code == _TIMED_OUT and "timeout" in argv:
+    if (
+        item.check.heavy
+        and "timeout" in argv
+        and _ran_out(code, seconds, timeout)
+    ):
         code, ceiling = None, timeout  # its own ceiling, inside the slot
     status, reason = verdict(item.check, code, ceiling, log)
     return CheckResult(item.check.id, status, reason, seconds, str(log), code)

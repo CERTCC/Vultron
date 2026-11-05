@@ -861,10 +861,81 @@ def test_stopping_the_mirror_kills_its_running_checks(tmp_path: Path):
     stop_running()
     worker.join(timeout=20)
 
-    assert finished == [-9]
+    assert len(finished) == 1 and finished[0] is not None and finished[0] < 0
     assert not _run._RUNNING
     time.sleep(3.5)
     assert not marker.exists()
+
+
+@pytest.mark.skipif(shutil.which("timeout") is None, reason="needs timeout")
+def test_stopping_the_mirror_ends_a_heavy_checks_command(
+    tmp_path: Path, slots: Path
+):
+    # The real heavy argv: GNU timeout sits in a process group of its own
+    # under the slot wrapper, so a kill of the session's group alone would
+    # leave the command running without its slot.
+    started, marker = tmp_path / "started", tmp_path / "survived"
+    argv = locked(
+        ("bash", "-c", f"touch {started}; sleep 3; touch {marker}"), 300
+    )
+    finished: list[int | None] = []
+
+    def run() -> None:
+        with (tmp_path / "out.log").open("w") as out:
+            finished.append(
+                run_in_session(
+                    argv,
+                    cwd=REPO_ROOT,
+                    env=dict(os.environ),
+                    out=out,
+                    timeout=120,
+                )
+            )
+
+    worker = threading.Thread(target=run)
+    worker.start()
+    deadline = time.monotonic() + 60
+    while not started.exists():
+        assert time.monotonic() < deadline, "the check never started"
+        time.sleep(0.05)
+
+    stop_running()
+    worker.join(timeout=60)
+
+    assert len(finished) == 1 and finished[0] != 0
+    time.sleep(4)
+    assert not marker.exists(), "the command outlived the stopped mirror"
+
+
+@pytest.mark.skipif(shutil.which("timeout") is None, reason="needs timeout")
+def test_a_heavy_check_killed_after_its_grace_has_no_verdict(
+    tmp_path: Path, slots: Path, monkeypatch: pytest.MonkeyPatch
+):
+    # A command that ignores SIGTERM is killed after the -k grace, and
+    # timeout exits 137, not 124; it still ran out of time (#5735).
+    monkeypatch.setattr(_run, "_KILL_GRACE", 1)
+    script = "echo progress; trap '' TERM; sleep 30"
+    [result] = run_checks(
+        [_heavy("stuck", (*STEP_SHELL, script))],
+        REPO_ROOT,
+        jobs=1,
+        timeout=1,
+        log_dir=tmp_path / "logs",
+    )
+
+    assert result.returncode is None
+    assert result.status is CheckStatus.NO_VERDICT
+    assert result.reason.startswith("timed out (1s)")
+
+
+@pytest.mark.parametrize(
+    ("code", "seconds", "expected"),
+    [(124, 0.5, True), (137, 5.0, True), (137, 0.5, False), (1, 5.0, False)],
+)
+def test_only_the_checks_own_timeout_reads_as_running_out(
+    code: int, seconds: float, expected: bool
+):
+    assert _run._ran_out(code, seconds, 2) is expected
 
 
 def test_sigterm_stops_the_checks_and_exits_143(

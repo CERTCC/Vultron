@@ -24,8 +24,10 @@ Put the wrapper outside a wall-clock ceiling (``run-heavy.py timeout -k 30
 not inherit the slot's file descriptor, so the slot frees when this process
 ends, whether the command ended or this process was killed. A command already
 running in a slot (it sees ``VULTRON_HEAVY_LOCK_HELD``) runs a nested heavy
-check directly, without taking a second slot. The exit status is the
-command's own, or 128 + the signal that ended it.
+check directly, without taking a second slot. SIGTERM and SIGHUP are passed on
+to the command, and so is SIGINT when the command is not in the wrapper's
+process group (GNU ``timeout`` makes its own), so Ctrl-C still stops it. The
+exit status is the command's own, or 128 + the signal that ended it.
 
 Standard library only, so it runs the same on Linux and macOS.
 """
@@ -59,9 +61,7 @@ WAIT_EXPIRED = 75
 USAGE_ERROR = 2
 
 POLL_SECONDS = 0.5
-#: Signals passed on to the command. SIGINT is not among them: a terminal's
-#: Ctrl-C already reaches the command, in the same process group, so the
-#: wrapper only waits for it to end.
+#: Signals always passed on to the command.
 _FORWARDED = (signal.SIGTERM, signal.SIGHUP)
 
 USAGE = "usage: run-heavy.py [--wait SECONDS] [--] COMMAND..."
@@ -181,6 +181,14 @@ def _record_holder(lock_dir: Path, index: int, command: Sequence[str]) -> None:
         pass  # The record only names the holder in a wait line.
 
 
+def _shares_group(pid: int) -> bool:
+    """Whether *pid* is in this process's group (an ended one counts as so)."""
+    try:
+        return os.getpgid(pid) == os.getpgrp()
+    except ProcessLookupError:
+        return True
+
+
 def run(command: Sequence[str], env: dict[str, str]) -> int:
     """Run *command*, forwarding termination signals; its shell-style status.
 
@@ -197,9 +205,18 @@ def run(command: Sequence[str], env: dict[str, str]) -> int:
         else:
             pending.append(signum)
 
+    def interrupt(signum: int, frame: FrameType | None) -> None:
+        # A terminal's Ctrl-C reaches every process in its process group. A
+        # command still in the wrapper's group has it already; one that left
+        # it (GNU ``timeout`` makes a group of its own) gets it from here.
+        if procs and not _shares_group(procs[0].pid):
+            procs[0].send_signal(signum)
+        elif not procs:
+            forward(signum, frame)
+
     for signum in _FORWARDED:
         signal.signal(signum, forward)
-    signal.signal(signal.SIGINT, lambda _signum, _frame: None)
+    signal.signal(signal.SIGINT, interrupt)
     try:
         procs.append(subprocess.Popen(list(command), env=env))
     except FileNotFoundError:

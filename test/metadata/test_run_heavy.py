@@ -172,6 +172,37 @@ def test_a_terminated_wrapper_stops_its_command_first(
     assert not survived.exists()
 
 
+@pytest.mark.skipif(shutil.which("timeout") is None, reason="needs timeout")
+def test_ctrl_c_stops_a_command_in_a_process_group_of_its_own(
+    lock_dir: Path, env: dict[str, str]
+):
+    # GNU timeout leaves the wrapper's group, so a terminal's Ctrl-C (SIGINT
+    # to the wrapper's group) reaches it only through the wrapper.
+    started = lock_dir.parent / "started"
+    holder = _start(
+        env, "timeout", "60", BASH, "-c", f"touch {started}; sleep 60"
+    )
+    _await(started)
+    began = time.monotonic()
+
+    os.killpg(holder.pid, signal.SIGINT)
+    result = _finish(holder)
+
+    assert result.returncode == 128 + signal.SIGINT
+    assert time.monotonic() - began < 30
+
+
+def test_a_command_in_the_wrappers_group_shares_it():
+    assert run_heavy._shares_group(os.getpid())
+
+
+def test_an_ended_command_counts_as_sharing_the_group():
+    proc = subprocess.Popen(["true"])
+    proc.wait()
+
+    assert run_heavy._shares_group(proc.pid)
+
+
 def test_a_waiting_check_runs_when_a_slot_frees_in_time(
     lock_dir: Path, env: dict[str, str]
 ):
@@ -183,8 +214,10 @@ def test_a_waiting_check_runs_when_a_slot_frees_in_time(
     waiter = _start(env, BASH, "-c", "exit 6", wait=30)
     time.sleep(1.0)
     (where / "go").touch()
+    waited = _finish(waiter)
 
-    assert _finish(waiter).returncode == 6
+    assert waited.returncode == 6
+    assert WAIT_LINE in waited.stderr
     assert _finish(holder).returncode == 0
 
 
