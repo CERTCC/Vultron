@@ -2541,8 +2541,8 @@ groups:
         kind: process
         statement: >-
           Before an implementation Pull Request's first push, `create-pr` MUST
-          gate it with the linters and the branch diff's targeted test set,
-          and push only when both pass.
+          gate it with the linters and the branch diff's targeted test set.
+          It pushes only when both pass.
         rationale: >-
           The full local suites took a median of 11.6 minutes, longer than CI
           takes to run both. The linters and the targeted set keep an obviously
@@ -2565,10 +2565,11 @@ groups:
           `create-pr` MUST gate it with the linters and `prepush-ci-mirror`.
           That gate runs no unit or integration suite.
         rationale: >-
-          A docs-only branch has nothing for the suites to catch. CI's guards
-          still read its Markdown and specs, though: AGENTS.md ceilings, ADR
-          back-edges, line limits. Three of the #5580 audit's failures came
-          from docs-typed PRs that ran no local check at all.
+          A docs-only branch has nothing for the suites to catch. The mirror's
+          cheap checks still read its Markdown and specs: generated-file sync,
+          front matter, the ADR index, spec-lint and Markdown lint. Three of
+          the #5580 audit's failures came from docs-typed PRs that ran no local
+          check at all.
         verification: >-
           Inspection: `create-pr` Phase 3 runs only the linters on its
           docs-PR path, and Phase 3c runs `prepush-ci-mirror` on every PR
@@ -2651,12 +2652,12 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          When the paths a local test gate selects from include shared test
-          infrastructure, the gate MUST run the targeted set of its other
-          paths and the directories PAD-18-002 always selects. That
-          infrastructure is `conftest.py`, `pyproject.toml`, `uv.lock`,
-          `vultron/__init__.py`, and test fixtures, factories, helpers or data
-          files outside those directories.
+          When a local test gate's paths include shared test infrastructure,
+          it MUST run the targeted set it can select and the always-selected
+          directories of PAD-18-002. Shared test infrastructure is
+          `conftest.py`, `pyproject.toml`, `uv.lock`, `vultron/__init__.py`,
+          and the test fixtures, factories, helpers and data files outside
+          those directories.
         rationale: >-
           The import index cannot see the tests that reach a change through
           fixtures or configuration, so no targeted set bounds such a path.
@@ -2665,10 +2666,10 @@ groups:
           the rest.
         verification: >-
           Inspection: when `targeted-tests` reports `full`, the gate in
-          `create-pr` and `pr-execute` runs the targeted set of the remaining
-          paths with `test/architecture/` and `test/metadata/`.
+          `create-pr` and `pr-execute` runs the importers and mirror tests it
+          can still select, with `test/architecture/` and `test/metadata/`.
         relationships:
-        - rel_type: constrains
+        - rel_type: refines
           spec_id: PAD-18-003
         - rel_type: uses_definition
           spec_id: PAD-18-002
@@ -2707,8 +2708,8 @@ groups:
           CI already tests the merge of the PR into its base at each push, and no
           repository rule requires branches to be up to date. A conflict is the only
           sync that needs an agent, because someone must resolve it. GitHub can make
-          every clean merge, and CI tests it. A merge on file overlap alone would send
-          most merges to a full local suite run for paths that the merge did not
+          every clean merge, and CI tests it. A merge on file overlap alone would add
+          a local merge and a local test run for paths that the merge did not
           change.
         verification: >-
           Test: `test/metadata/test_sync_decision_script.py` runs
@@ -2887,9 +2888,9 @@ groups:
           A skill that hands off to `create-pr` MUST NOT run the unit or
           integration suites itself.
         rationale: >-
-          With the gate in `create-pr` only, the gate runs immediately before the push
-          that it guards. That position is the only thing that makes the gate worth its
-          cost.
+          CI runs both suites on the push, and GitHub requires that run. A suite
+          run in a skill before `create-pr` repeats it more slowly, before the
+          gate that guards the push has even run.
         verification: >-
           Inspection: `build` Phase 6 runs the linters but no `pytest`
           invocation.
@@ -2908,9 +2909,9 @@ groups:
           The base that the Pull Request lands on is known only at the time of the
           merge.
         verification: >-
-          Inspection: `work-epic-tasks` step 4 runs the merge-state and
-          `git merge-tree` checks, and finds the overlap, on the Pull Request
-          about to merge.
+          Inspection: `work-epic-tasks` step 4 runs the merge-state,
+          `git merge-tree`, and `targeted-tests --overlap` checks on the Pull
+          Request about to merge. None of them runs a test.
       - id: PAD-18-018
         adr:
         - ADR-0138
@@ -3023,14 +3024,16 @@ groups:
         priority: MUST_NOT
         kind: process
         statement: >-
-          `prepush-ci-mirror` MUST NOT run pyright, the spec-corpus suite, the
-          limit-enforcing guard tests, the site build, or a check that reads
-          the built site.
+          `prepush-ci-mirror` MUST NOT run pyright, the spec-corpus suite, its
+          separate guard-test check, the site build, or a check that reads the
+          built site.
         rationale: >-
           These checks took most of the mirror's median 824 seconds on each
           push, and CI's spec and docs jobs answer them in about two to three
           minutes. The mirror keeps the cheap checks, which find the most
-          frequent push failures in a few minutes.
+          frequent push failures in a few minutes. Most guard tests sit in
+          `test/architecture/` and `test/metadata/`, which every targeted gate
+          still runs.
         verification: >-
           Inspection: `vultron/metadata/planning/ci_mirror/_registry.py` lists
           each of these checks in its exclusions, with a reason that names CI
@@ -3045,15 +3048,15 @@ groups:
         priority: MUST_NOT
         kind: process
         statement: >-
-          An agent MUST NOT run tests on a merge of a Pull Request with its
-          base.
+          An agent MUST NOT run tests on a scratch merge of a Pull Request with
+          its base. A scratch merge is one the agent does not commit.
         rationale: >-
           CI on `pull_request` tests the merge of the branch into its base on
           every push, and GitHub requires that run to pass. A local run on a
           scratch merge repeats it, more slowly.
         verification: >-
           Inspection: no step of `pr-execute` or `work-epic-tasks` runs
-          `merged-tree-tests` or another test run on a merged tree.
+          `merged-tree-tests` or another test run on a scratch merge.
       - id: PAD-18-025
         adr:
         - ADR-0173
@@ -3061,8 +3064,8 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          An agent that checks a Pull Request for a conflict with its base
-          MUST use a trial merge that moves no branch and writes no worktree.
+          A conflict check of a Pull Request against its base MUST use a trial
+          merge that moves no branch and writes no worktree.
         rationale: >-
           The check decides whether a merge into the branch is needed, so it
           must leave no trace in the branch. `.git` is shared across host and
@@ -3071,22 +3074,25 @@ groups:
           live worktrees.
         verification: >-
           Inspection: `sync-decision.sh` and `work-epic-tasks` step 4 find a
-          conflict with `git merge-tree`.
+          conflict with `git merge-tree`, and neither runs `git worktree add`.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-18-004
       - id: PAD-18-026
         adr:
         - ADR-0179
         priority: MUST
         kind: process
         statement: >-
-          A local gate's linter step MUST run ruff's lint and format checks
-          and mypy.
+          A local gate's linter step MUST run ruff's linter and formatter, and
+          mypy.
         rationale: >-
           These checks find most type and style failures in seconds, before CI
           would. mypy keeps a cache, so a run on a small change takes about
           eight seconds.
         verification: >-
-          Inspection: the `run-linters` skill runs `ruff check`,
-          `ruff format --check` and `mypy`.
+          Inspection: the `run-linters` skill runs `ruff check`, `ruff format`
+          and `mypy`.
       - id: PAD-18-027
         adr:
         - ADR-0179
@@ -3126,14 +3132,15 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          An agent MUST mark a draft Pull Request ready for review only after
-          CI's first run on it passes.
+          An agent MUST mark a draft Pull Request ready for review only when
+          CI's latest run on its head has passed.
         rationale: >-
-          CI's first run is the first full-suite run on the branch. Until it
-          passes, the branch is not known to work.
+          No full suite runs locally, so a CI run is the first proof that the
+          branch works. A failed run leaves the Pull Request a draft until a fix
+          passes, never for good.
         verification: >-
-          Inspection: `pr-ship` runs `gh pr ready` only after CI's first run on
-          the Pull Request reports success.
+          Inspection: `pr-ship` runs `gh pr ready` only after CI's run on the
+          current head reports success.
         relationships:
         - rel_type: depends_on
           spec_id: PAD-18-028
@@ -3161,16 +3168,17 @@ groups:
         priority: MUST_NOT
         kind: process
         statement: >-
-          An agent MUST NOT leave a check to CI alone unless GitHub refuses a
-          merge into the base while that check is red or has not run.
+          A local gate MUST NOT drop one of its checks in favor of CI unless
+          GitHub requires that check. GitHub requires a check when it refuses a
+          merge into the base while the check is red or has not run.
         rationale: >-
           Never merge on red holds only for a check that something enforces.
-          A check that runs in CI alone, and that GitHub does not require, can
-          be merged past unseen.
+          A check moved to CI that GitHub does not require can be merged past
+          unseen.
         verification: >-
-          Inspection: the active ruleset `main-3 Require CI gate` on `main`
-          requires the `CI gate` check, which fails when any CI job fails, and
-          has no bypass actors.
+          Inspection: each pull request that removes a check from a local gate
+          cites a ruleset on `main` that requires that check with no bypass
+          actors, such as `main-3 Require CI gate` (#5945).
   - id: PAD-19
     title: Epic Claim for an Epic Run
     description: >-

@@ -12,6 +12,7 @@ informed: []
 stakeholder_type: [project-contributor]
 partially_supersedes:
   - 0126-ci-is-the-full-suite-authority-after-the-first-push.md
+  - 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md
   - 0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md
   - 0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md
 ---
@@ -43,7 +44,7 @@ The question this record settles: once GitHub refuses a merge without a green CI
 
 ## Decision Drivers
 
-- Never merge on red is non-negotiable (`.agents/skills/shared/completeness-doctrine.md`). Only a check GitHub enforces may be left to CI alone.
+- Never merge on red is non-negotiable. Only a check GitHub enforces may be left to CI alone.
 - A local check is worth its cost only when it answers before CI would. That is the test ADR-0126 and ADR-0173 already applied, with old numbers.
 - Parallel agents share one host. A heavy local run slows every other agent on it, and a CI run slows none of them.
 - A CI round still costs a push, a wait and a review of the fix. A cheap local check that finds the most frequent push failures in seconds keeps that saving.
@@ -64,9 +65,9 @@ Until then, the gates of ADR-0126, ADR-0143 and ADR-0173 stand.
 
 With the required CI gate in place, these checks run in CI only:
 
-- The full unit and integration suites, at every point in the pipeline. This includes the run before the first push (ADR-0126) and the escalation for shared test infrastructure (ADR-0143). A gate whose diff touches shared test infrastructure runs the tests it can still select, and CI's full run covers the rest.
+- The full unit and integration suites, at every point in the pipeline. This includes the run before the first push (ADR-0126), the escalation for shared test infrastructure (ADR-0143), and the escalation after a conflict merge (ADR-0138). A gate whose diff touches shared test infrastructure runs the tests it can still select, and CI's full run covers the rest.
 - pyright.
-- The heavy mirror checks: the spec-corpus suite, the limit-enforcing guard tests, the site build, and the checks that read the built site (ADR-0173).
+- The heavy mirror checks: the spec-corpus suite, the mirror's separate run of the limit-enforcing guard tests, the site build, and the checks that read the built site (ADR-0173). Most guard tests sit in the architecture and metadata test directories, which every targeted gate still runs.
 - The tests on a merge of the branch with its base (ADR-0173). CI already tests that merge. The fast conflict check on a trial merge, which runs no tests, stays local.
 
 These checks stay local, before every push:
@@ -76,16 +77,18 @@ These checks stay local, before every push:
 - The cheap mirror checks: generated-file sync, front matter, the decision-record index, spec lint, and Markdown lint on the changed files. These find the most frequent push failures in a few minutes.
 
 A Pull Request now meets the full suite for the first time in CI, so its first push opens it as a draft.
-It is marked ready for review only after CI's first run on it passes.
+It is marked ready for review once a CI run on its current head passes, so a failed first run keeps it a draft only until a fix passes.
 That first run does not count against the limit on CI rounds for fixes, because it is the full-suite run the local gate no longer makes.
 
 The CI checks that each classification depends on can change.
 The specs that cite this record hold the current lists.
 The principle and the precondition above are what this record fixes.
 
-This partly supersedes three records.
+This partly supersedes four records.
 From ADR-0126, it replaces the full local run before the first push.
 CI stays the full-suite authority after the push, and the targeted gate for fix commits stands.
+From ADR-0138, it replaces the full local run after a conflict merge that touches shared test configuration.
+The rest of ADR-0138 stands: a pushed branch is merged locally only on a conflict, and the conflict gate covers the conflicted files.
 From ADR-0143, it replaces the full local run for shared test infrastructure.
 The targeted set, and the directories it always selects, stand.
 From ADR-0173, it replaces the heavy mirror checks and the scratch-merge test run.
@@ -97,7 +100,7 @@ The mirror of the cheap checks, and the rule that each CI step is either mirrore
 - Good, because a Pull Request reaches CI's full run about 14 minutes sooner, and that run tests the merge with the base.
 - Good, because the dev container no longer runs the jobs that caused most memory kills and timeouts.
 - Bad, because a broken change that the targeted set misses costs a CI round to discover, where a local full run would have found it first. The targeted set and the always-selected directories are where nearly every red local run failed (ADR-0143), so this case is rare.
-- Bad, because a type error that only pyright finds, or a guard-test failure, is found in CI, one round later.
+- Bad, because a type error that only pyright finds, or a failure in a guard test outside the always-selected directories, is found in CI, one round later.
 - Neutral, because a semantic conflict between files the two sides do not share is still found only by CI, as ADR-0126 accepted.
 
 ## Validation
@@ -133,4 +136,4 @@ A rise in failed runs on `main` would mean the required gate is not holding, whi
 The measurements are in the local report behind Epic #5944, which tracks the work this record governs.
 The precondition is the ruleset that requires the CI gate check before a merge into `main` (#5945).
 
-Generated spec requirements: `specs/parallel-development.yaml` PAD-18-001, PAD-18-003, PAD-18-008, PAD-18-012, PAD-18-015, PAD-18-016, PAD-18-023 to PAD-18-031.
+Generated spec requirements: `specs/parallel-development.yaml` PAD-18-026 and PAD-18-031, and the PAD-18 amendments that take effect with the required CI gate.
