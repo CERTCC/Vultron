@@ -13,9 +13,10 @@
 """A participant numbers its case activities, and the CASE_MANAGER judges
 each sender's activities in that order (SYNC-21, ADR-0178).
 
-The counter is not built yet, so every test here but one is a strict
-``xfail``: it asserts the decided behaviour, fails today, and fails loudly
-once the behaviour lands, when its marker is removed.  Two tests pass today:
+The sender's counter is built; the CASE_MANAGER's ordering is not, so every
+test of it is a strict ``xfail``: it asserts the decided behaviour, fails
+today, and fails loudly once the behaviour lands, when its marker is
+removed.  The sender's numbering tests pass, and so do two others:
 the ledger entry keeping the number (SYNC-21-005), which already holds because
 an entry keeps the body as received (CLP-07-011), and a closed sender's late
 number drawing no notice (SYNC-21-023), which holds because the closed-sender
@@ -64,7 +65,8 @@ DEFAULT_WAIT = timedelta(seconds=120)
 DEFAULT_CAP = 16
 
 _NOT_BUILT = (
-    "SYNC-21: the sender sequence counter is not built yet (ADR-0178)."
+    "SYNC-21: the CASE_MANAGER side of the sender sequence is not built yet"
+    " (ADR-0178)."
 )
 
 
@@ -167,7 +169,6 @@ def _consent(net: LedgerNetwork, actor: str, embargo_id: str) -> Any:
 # ---------------------------------------------------------------------------
 
 
-@_xfail("SYNC-21-001", "a participant's case activity carries no number")
 @pytest.mark.spec("SYNC-21-004")
 @pytest.mark.spec("SYNC-21-002")
 @pytest.mark.spec("SYNC-21-001")
@@ -205,7 +206,6 @@ def test_each_activity_to_the_case_manager_is_numbered_one_up() -> None:
     assert "senderSequence" not in from_manager
 
 
-@_xfail("SYNC-21-003", "a rebuilt activity carries no number")
 @pytest.mark.spec("SYNC-21-003")
 def test_a_rebuilt_activity_keeps_its_number() -> None:
     net = _network("rebuilt")
@@ -232,7 +232,6 @@ def test_the_entry_records_the_received_number() -> None:
     assert entry.payload_snapshot["senderSequence"] == 1
 
 
-@_xfail("SYNC-21-006", "a rebuilt sender does not resume from its ledger")
 @pytest.mark.spec("SYNC-21-006")
 def test_a_sender_rebuilt_from_the_ledger_resumes_past_its_own_numbers() -> (
     None
@@ -262,7 +261,11 @@ def test_a_sender_rebuilt_from_the_ledger_resumes_past_its_own_numbers() -> (
     assert body["senderSequence"] == 3
 
 
-@_xfail("SYNC-21-007", "a sender does not resume from a refusal notice")
+@_xfail(
+    "SYNC-21-014",
+    "the CASE_MANAGER sends no sequence refusal notice yet; the participant's"
+    " resume on one is covered in test_sender_sequence_stamp.py",
+)
 @pytest.mark.spec("SYNC-21-019")
 @pytest.mark.spec("SYNC-21-007")
 def test_a_refused_sender_resumes_at_the_expected_number(
@@ -604,7 +607,7 @@ def test_a_repeat_is_found_by_id_before_its_number() -> None:
         )
 
 
-@_xfail("SYNC-21-020", "no sequence state is stored")
+@_xfail("SYNC-21-020", "the CASE_MANAGER stores no expected numbers")
 @pytest.mark.spec("SYNC-21-020")
 def test_sequence_state_lives_in_the_datalayer() -> None:
     net = _network("stored")
