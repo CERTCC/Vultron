@@ -102,7 +102,10 @@ def demo_activate_then_terminate(
 
     case = setup_two_participant_case(client, reporter, vendor, coordinator)
 
-    embargo = proposal = None
+    # Steps 3, 4 and 6 act on the EmbargoEvent step 2 made, so they nest
+    # inside it rather than reading a None sentinel after it (ADR-0058,
+    # #3038).  Steps 5 and 7 verify their effects and must stay in sequence
+    # between and after them, so they nest with them.
     with demo_step("Step 2: Coordinator proposes embargo"):
         embargo = make_embargo_event(case, days=90, seq=1)
         proposal = em_propose_embargo_activity(
@@ -116,66 +119,68 @@ def demo_activate_then_terminate(
         logger.info("Sending embargo proposal: %s", logfmt(proposal))
         post_to_inbox_and_wait(client, vendor.id_, proposal)
 
-    with demo_step("Step 3: Vendor, as case owner, activates the embargo"):
-        # The owner's decision for the case goes to the CASE_MANAGER — here
-        # the vendor itself (ADR-0122).
-        owner_activates_embargo(client, vendor, vendor.id_, case, embargo)
+        with demo_step("Step 3: Vendor, as case owner, activates the embargo"):
+            # The owner's decision for the case goes to the CASE_MANAGER —
+            # here the vendor itself (ADR-0122).
+            owner_activates_embargo(client, vendor, vendor.id_, case, embargo)
 
-    with demo_step("Step 4: Vendor announces embargo to participants"):
-        announce = announce_embargo_activity(
-            embargo,
-            actor=vendor.id_,
-            context=case.id_,
-            to=f"{case.id_}/participants",
-            summary=f"Embargo for {case.name} is now active.",
-        )
-        logger.info("Announcing embargo: %s", logfmt(announce))
-        post_to_inbox_and_wait(client, vendor.id_, announce)
-
-    with demo_step("Step 5: Verify case has active embargo"):
-        with demo_check("Case has active_embargo set"):
-            mid_case = log_case_state(
-                client, case.id_, "after embargo activation"
+        with demo_step("Step 4: Vendor announces embargo to participants"):
+            announce = announce_embargo_activity(
+                embargo,
+                actor=vendor.id_,
+                context=case.id_,
+                to=f"{case.id_}/participants",
+                summary=f"Embargo for {case.name} is now active.",
             )
-            if mid_case is None:
-                raise ValueError(
-                    "Could not retrieve case after embargo activation"
-                )
-            if not is_em_embargo_active(mid_case.em_state):
-                raise ValueError(
-                    f"Expected case '{case.id_}' to have an active embargo, "
-                    f"but active_embargo is None."
-                )
+            logger.info("Announcing embargo: %s", logfmt(announce))
+            post_to_inbox_and_wait(client, vendor.id_, announce)
 
-    with demo_step("Step 6: Vendor terminates (removes) the active embargo"):
-        remove = remove_embargo_from_case_activity(
-            embargo,
-            actor=vendor.id_,
-            origin=case.id_,
-            reason=TerminationReason.EARLY,
-            to=f"{case.id_}/participants",
-            summary=f"Terminating embargo for {case.name}.",
-        )
-        logger.info("Removing embargo from case: %s", logfmt(remove))
-        post_to_inbox_and_wait(client, vendor.id_, remove)
+        with demo_step("Step 5: Verify case has active embargo"):
+            with demo_check("Case has active_embargo set"):
+                mid_case = log_case_state(
+                    client, case.id_, "after embargo activation"
+                )
+                if mid_case is None:
+                    raise ValueError(
+                        "Could not retrieve case after embargo activation"
+                    )
+                if not is_em_embargo_active(mid_case.em_state):
+                    raise ValueError(
+                        f"Expected case '{case.id_}' to have an active"
+                        " embargo, but active_embargo is None."
+                    )
 
-    with demo_step(
-        "Step 7: Verify case has no active embargo after termination"
-    ):
-        with demo_check("Case active_embargo is None after termination"):
-            final_case = log_case_state(
-                client, case.id_, "after embargo termination"
+        with demo_step(
+            "Step 6: Vendor terminates (removes) the active embargo"
+        ):
+            remove = remove_embargo_from_case_activity(
+                embargo,
+                actor=vendor.id_,
+                origin=case.id_,
+                reason=TerminationReason.EARLY,
+                to=f"{case.id_}/participants",
+                summary=f"Terminating embargo for {case.name}.",
             )
-            if final_case is None:
-                raise ValueError(
-                    "Could not retrieve case after embargo termination"
+            logger.info("Removing embargo from case: %s", logfmt(remove))
+            post_to_inbox_and_wait(client, vendor.id_, remove)
+
+        with demo_step(
+            "Step 7: Verify case has no active embargo after termination"
+        ):
+            with demo_check("Case active_embargo is None after termination"):
+                final_case = log_case_state(
+                    client, case.id_, "after embargo termination"
                 )
-            if is_em_embargo_active(final_case.em_state):
-                raise ValueError(
-                    f"Expected case '{case.id_}' to have no active embargo "
-                    f"after termination, but active_embargo = "
-                    f"{final_case.active_embargo}"
-                )
+                if final_case is None:
+                    raise ValueError(
+                        "Could not retrieve case after embargo termination"
+                    )
+                if is_em_embargo_active(final_case.em_state):
+                    raise ValueError(
+                        f"Expected case '{case.id_}' to have no active embargo"
+                        " after termination, but active_embargo ="
+                        f" {final_case.active_embargo}"
+                    )
 
     logger.info(
         "✅ DEMO COMPLETE (activate/terminate path): "
@@ -212,7 +217,10 @@ def demo_reject_then_repropose(
 
     case = setup_two_participant_case(client, reporter, vendor, coordinator)
 
-    embargo_v1 = proposal_v1 = None
+    # Each decision acts on the EmbargoEvent its proposal step made, so it
+    # nests inside that step rather than reading a None sentinel after it
+    # (ADR-0058, #3038); the verification that follows each decision must stay
+    # in sequence after it, so it nests with it.
     with demo_step("Step 2: Coordinator proposes first embargo (45-day)"):
         embargo_v1 = make_embargo_event(case, days=45, seq=1)
         proposal_v1 = em_propose_embargo_activity(
@@ -226,30 +234,29 @@ def demo_reject_then_repropose(
         logger.info("Sending first embargo proposal: %s", logfmt(proposal_v1))
         post_to_inbox_and_wait(client, vendor.id_, proposal_v1)
 
-    with demo_step("Step 3: Vendor, as case owner, rejects the proposal"):
-        owner_rejects_embargo_proposal(
-            client, vendor, vendor.id_, case, embargo_v1
-        )
-
-    with demo_step(
-        "Step 4: Verify case has no active embargo after rejection"
-    ):
-        with demo_check("Case active_embargo is None after rejection"):
-            mid_case = log_case_state(
-                client, case.id_, "after first embargo rejection"
+        with demo_step("Step 3: Vendor, as case owner, rejects the proposal"):
+            owner_rejects_embargo_proposal(
+                client, vendor, vendor.id_, case, embargo_v1
             )
-            if mid_case is None:
-                raise ValueError(
-                    "Could not retrieve case after embargo rejection"
-                )
-            if is_em_embargo_active(mid_case.em_state):
-                raise ValueError(
-                    f"Expected case '{case.id_}' to have no active embargo "
-                    f"after rejection, but active_embargo = "
-                    f"{mid_case.active_embargo}"
-                )
 
-    embargo_v2 = proposal_v2 = None
+        with demo_step(
+            "Step 4: Verify case has no active embargo after rejection"
+        ):
+            with demo_check("Case active_embargo is None after rejection"):
+                mid_case = log_case_state(
+                    client, case.id_, "after first embargo rejection"
+                )
+                if mid_case is None:
+                    raise ValueError(
+                        "Could not retrieve case after embargo rejection"
+                    )
+                if is_em_embargo_active(mid_case.em_state):
+                    raise ValueError(
+                        f"Expected case '{case.id_}' to have no active embargo"
+                        " after rejection, but active_embargo ="
+                        f" {mid_case.active_embargo}"
+                    )
+
     with demo_step("Step 5: Coordinator proposes revised embargo (90-day)"):
         embargo_v2 = make_embargo_event(case, days=90, seq=2)
         proposal_v2 = em_propose_embargo_activity(
@@ -265,23 +272,29 @@ def demo_reject_then_repropose(
         )
         post_to_inbox_and_wait(client, vendor.id_, proposal_v2)
 
-    with demo_step("Step 6: Vendor, as case owner, activates the revision"):
-        owner_activates_embargo(client, vendor, vendor.id_, case, embargo_v2)
-
-    with demo_step("Step 7: Verify case has active revised embargo"):
-        with demo_check("Case has active_embargo set after re-proposal"):
-            final_case = log_case_state(
-                client, case.id_, "after revised embargo activation"
+        with demo_step(
+            "Step 6: Vendor, as case owner, activates the revision"
+        ):
+            owner_activates_embargo(
+                client, vendor, vendor.id_, case, embargo_v2
             )
-            if final_case is None:
-                raise ValueError(
-                    "Could not retrieve case after revised embargo activation"
+
+        with demo_step("Step 7: Verify case has active revised embargo"):
+            with demo_check("Case has active_embargo set after re-proposal"):
+                final_case = log_case_state(
+                    client, case.id_, "after revised embargo activation"
                 )
-            if not is_em_embargo_active(final_case.em_state):
-                raise ValueError(
-                    f"Expected case '{case.id_}' to have an active embargo "
-                    f"after re-proposal and acceptance, but active_embargo is None."
-                )
+                if final_case is None:
+                    raise ValueError(
+                        "Could not retrieve case after revised embargo"
+                        " activation"
+                    )
+                if not is_em_embargo_active(final_case.em_state):
+                    raise ValueError(
+                        f"Expected case '{case.id_}' to have an active embargo"
+                        " after re-proposal and acceptance, but"
+                        " active_embargo is None."
+                    )
 
     logger.info(
         "✅ DEMO COMPLETE (reject/repropose path): "
