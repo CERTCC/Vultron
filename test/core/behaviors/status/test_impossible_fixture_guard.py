@@ -247,9 +247,10 @@ class TestTheGuardIsLiveInThisPackage:
     def test_a_participant_with_no_recorded_status_is_written(self, store_for):
         """An empty history asserts nothing, so there is nothing to refuse.
 
-        This is the skip the guard takes before it reads any dimension; without
-        a test, a change that made it skip *every* participant would look the
-        same as a clean run.
+        This pins the skip the guard takes before it reads any dimension: a
+        participant with no recorded status round-trips rather than tripping
+        the guard on an absent dimension. What catches a guard that skipped
+        *every* participant is the refusal tests above, not this one.
         """
         dl = store_for(CASE_MANAGER_ID)
 
@@ -278,6 +279,36 @@ class TestTheGuardIsLiveInThisPackage:
             dl.update(PARTICIPANT_ID, _impossible_record())
 
         expect_recorded_violation("DataLayer.update")
+
+    @pytest.mark.spec("CSB-18-001")
+    def test_a_record_shaped_case_with_an_inline_roster_is_refused(
+        self, store_for
+    ):
+        """``UpdateObject`` builds a record for whatever type it updates.
+
+        A *case* record carries its roster as plain dicts inside ``data_``, so
+        neither the attribute walk (a record has no ``case_participants``) nor
+        the participant-record branch (a case record has no
+        ``participant_statuses``) can see it. Without this the guard had a
+        write shape that bypassed it entirely.
+        """
+        dl = store_for(CASE_MANAGER_ID)
+        case = VulnerabilityCase(
+            id_=CASE_ID,
+            name="Guard case",
+            attributed_to=CASE_MANAGER_ID,
+            case_participants=[_participant(_impossible_status())],
+        )
+        record = StorableRecord(
+            id_=CASE_ID,
+            type_="VulnerabilityCase",
+            data_=case.model_dump(mode="json"),
+        )
+
+        with pytest.raises(AssertionError, match="#3046"):
+            dl.update(CASE_ID, record)
+
+        expect_recorded_violation("participant_statuses[0]")
 
     @pytest.mark.spec("CSB-18-001")
     def test_an_unreadable_entry_is_skipped_and_its_sibling_still_refused(

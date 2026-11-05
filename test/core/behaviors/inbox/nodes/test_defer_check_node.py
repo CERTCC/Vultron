@@ -245,12 +245,16 @@ class TestDeferCheckNodeStubInviteProcessedOnArrival:
     def test_non_stub_activity_for_unknown_case_is_still_deferred(
         self, semantic_type
     ):
+        unknown_case = "https://example.org/cases/not-yet-known"
         queue = _StubQueuePort(case_known=False)
         status = _run_node(
-            "https://example.org/cases/not-yet-known",
+            unknown_case,
             queue,
             semantic_type=semantic_type,
         )
 
         assert status == Status.FAILURE
-        assert len(queue.queued) == 1, f"{semantic_type} must be deferred"
+        assert queue.queued == [(ACTIVITY_ID, unknown_case, ACTOR_ID)], (
+            f"{semantic_type} must be deferred, and the entry keyed on the"
+            " resolved case context"
+        )

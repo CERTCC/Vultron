@@ -296,6 +296,14 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
             }
         )
         dl.create(held)
+        # The test is named for what it *overwrites*, so the held values have
+        # to be shown present at the id the use case reads. Without this the
+        # test degenerates into "creates the case when absent" the moment the
+        # seeding stops landing there, and still passes green.
+        stored = cast(Any, dl.read(_CASE_ID))
+        assert stored is not None
+        assert stored.name == "the name the replica held"
+        assert [_as_id(r) for r in stored.vulnerability_reports] == []
 
         announced = _owned(case).model_copy(
             update={

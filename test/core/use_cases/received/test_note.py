@@ -58,18 +58,28 @@ class TestNoteUseCases:
     """Tests for note management handlers."""
 
     def _setup_case_with_case_manager(
-        self, dl: "SqliteDataLayer", case_id: str, case_actor_id: str
+        self,
+        dl: "SqliteDataLayer",
+        case_id: str,
+        case_actor_id: str,
+        *,
+        create_case_actor: bool = True,
     ) -> "as_VulnerabilityCase":
-        """Create a as_VulnerabilityCase with a CaseActor holding CASE_MANAGER."""
+        """Create a as_VulnerabilityCase with a CaseActor holding CASE_MANAGER.
+
+        Pass ``create_case_actor=False`` to seed a *second* case onto a
+        CaseActor this helper already created: one CaseActor manages several
+        cases through one inbox, routing on ``context`` (PCR-04-003), so the
+        ``Service`` is reused rather than re-created. The flag is explicit
+        rather than an ``if`` on what is already in the store, so the call
+        site says which case is the first (TB-09-004).
+        """
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
 
-        if dl.read(case_actor_id) is None:
-            # One CaseActor manages several cases, so a test seeding a second
-            # case reuses the Service rather than re-creating it
-            # (PCR-04-003: one actor, one inbox, routing on ``context``).
+        if create_case_actor:
             dl.create(
                 VultronService(
                     id_=case_actor_id,
@@ -170,7 +180,10 @@ class TestNoteUseCases:
             dl, "https://example.org/cases/case_n1r_other", case_actor_id
         )
         addressed = self._setup_case_with_case_manager(
-            dl, "https://example.org/cases/case_n1r", case_actor_id
+            dl,
+            "https://example.org/cases/case_n1r",
+            case_actor_id,
+            create_case_actor=False,
         )
         note = as_Note(
             id_="https://example.org/notes/note-routed",

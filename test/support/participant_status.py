@@ -239,7 +239,7 @@ def assert_recorded_states_possible(
     statuses = _status_entries(participant)
     if not statuses:
         return
-    label = where or str(getattr(participant, "id_", participant))
+    label = where or str(_record_id(participant))
     for index, entry in enumerate(statuses):
         status = _readable_status(entry)
         if status is None:
@@ -250,13 +250,16 @@ def assert_recorded_states_possible(
 
 
 def _status_entries(value: object) -> list[Any]:
-    """The participant-status list *value* carries, in either shape.
+    """The participant-status list *value* carries, in any of its shapes.
 
     A domain object exposes ``participant_statuses``; a ``StorableRecord``
     carries the same list inside its ``data_`` dict, which is how
-    ``UpdateObject`` writes a participant.  Reading only the attribute left the
-    record shape unchecked.
+    ``UpdateObject`` writes a participant; and a participant held inline on a
+    *case record* is itself a plain dict with the same key.  Reading only the
+    attribute left the latter two unchecked.
     """
+    if isinstance(value, dict):
+        return list(value.get("participant_statuses") or ())
     statuses = getattr(value, "participant_statuses", None)
     if statuses:
         return list(statuses)
@@ -266,16 +269,42 @@ def _status_entries(value: object) -> list[Any]:
     return []
 
 
+def _inline_roster(value: object) -> list[Any]:
+    """The participants *value* holds inline, in either shape.
+
+    A case object exposes ``case_participants``; a case written as a
+    ``StorableRecord`` carries the same roster as plain dicts inside ``data_``.
+    """
+    roster = getattr(value, "case_participants", None)
+    if roster:
+        return list(roster)
+    data = getattr(value, "data_", None)
+    if isinstance(data, dict):
+        return list(data.get("case_participants") or ())
+    return []
+
+
+def _record_id(value: object) -> object:
+    """The id *value* carries, for the failure label, in either shape."""
+    if isinstance(value, dict):
+        return value.get("id_", value)
+    return getattr(value, "id_", value)
+
+
 def _participant_records(value: object) -> Iterator[object]:
     """Yield every participant record reachable from a persisted *value*.
 
-    Four shapes reach a store and all four are walked:
+    Five shapes reach a store and all five are walked:
 
     * a participant seeded on its own (``dl.create(vendor)``);
     * a participant held inline on a case (``case.case_participants``) —
       ``_dehydrate_data`` keeps the inline snapshot;
     * a ``StorableRecord`` whose ``data_`` dict holds the statuses, which is
-      what ``UpdateObject`` writes;
+      what ``UpdateObject`` writes for a participant;
+    * a ``StorableRecord`` for a *case*, whose ``data_`` holds the roster as
+      plain dicts — ``UpdateObject`` builds one for whatever type it is
+      updating, so a case with an inline roster takes this path and neither
+      the attribute walk nor the participant-record branch can see it;
     * a list or tuple of any of those, which is what ``save_many`` takes —
       ownership transfer and embargo staging both write participants that way.
 
@@ -289,7 +318,7 @@ def _participant_records(value: object) -> Iterator[object]:
         return
     if _status_entries(value):
         yield value
-    for participant in getattr(value, "case_participants", None) or ():
+    for participant in _inline_roster(value):
         if _status_entries(participant):
             yield participant
 
@@ -301,7 +330,7 @@ def _guarded_write(
     def _wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
         for value in (*args, *kwargs.values()):
             for candidate in _participant_records(value):
-                record_id = getattr(candidate, "id_", candidate)
+                record_id = _record_id(candidate)
                 assert_recorded_states_possible(
                     candidate, f"DataLayer.{name}({record_id})"
                 )

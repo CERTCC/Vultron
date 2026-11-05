@@ -679,14 +679,15 @@ class TestLateJoinerSequence:
         """PCR-07-009: the joiner's own moves are the joiner's own to send.
 
         The owner's app hosts both the Case Owner and the CASE_MANAGER
-        role-holder, and together they emit the whole join cascade, so the
-        joiner's inbox is where an activity forged under the joiner's identity
-        would land.  Every activity the joiner holds as received must name some
-        other actor as its sender.
+        role-holder, and together they emit the whole join cascade, so what
+        the joiner holds as received is the integration-level record of who
+        spoke for whom.  Every one of those activities must name the case's
+        CASE_MANAGER as its sender — not the Case Owner that asked, and not
+        the joiner itself.
 
         The delivered set is asserted non-empty first: the cascade does deliver
-        (CM-11-008, CM-11-010), so "none names the joiner" is a statement about
-        real activities rather than about an empty list.
+        (CM-11-008, CM-11-010), so the sender set is a statement about real
+        activities rather than about an empty list.
         """
         (
             owner_iso,
@@ -719,14 +720,23 @@ class TestLateJoinerSequence:
             "the joiner must have received the Invite and the Announce"
             " cascade; with nothing delivered there is no sender to check"
         )
-        spoofed = [
-            (activity.type_, _as_id(activity.actor))
-            for activity in delivered
-            if _as_id(getattr(activity, "actor", None)) == lj_actor_id
-        ]
-        assert spoofed == [], (
-            "PCR-07-009: no activity may be emitted under the joiner's own"
-            f" identity from the Case Owner's context; found {spoofed!r}"
+        # Asserted as a positive set equality, not as "none names the joiner".
+        # Everything the joiner is sent is addressed to the joiner
+        # individually, so a bare `actor != joiner` scan over this set has no
+        # behaviour that could put the joiner in it — it would pass whatever
+        # the run emitted, which is the defect this PR exists to remove. The
+        # set equality is red for any other sender, the forged identity among
+        # them, and also pins PCR-08-007's routing.
+        case_actor_id = _find_case_actor_id(lj_dl, case_id)
+        assert case_actor_id != lj_actor_id, (
+            "the joiner and the CASE_MANAGER must be distinct actors, or"
+            " naming the CASE_MANAGER would not rule out naming the joiner"
+        )
+        senders = {_as_id(activity.actor) for activity in delivered}
+        assert senders == {case_actor_id}, (
+            "PCR-07-009/PCR-08-007: everything the joiner holds as received is"
+            " sent by the case's CASE_MANAGER — never under the joiner's own"
+            f" identity, and never direct from the Case Owner; got {senders!r}"
         )
 
     def test_late_joiner_appears_as_participant(self, three_app_setup):

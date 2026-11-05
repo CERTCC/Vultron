@@ -1332,18 +1332,22 @@ groups:
       `test_nothing_reaches_the_joiner_under_the_joiners_own_identity` in
       `test/demo/test_pcr_late_joiner.py` is the integration-level check: it
       runs the invite, Accept and Announce cascade across three apps and
-      asserts no activity the joiner holds as received names the joiner itself
-      as sender. The delivered set is asserted non-empty first, so it cannot
-      pass on an empty inbox.
+      asserts the senders of everything the joiner holds as received are
+      exactly the case's CASE_MANAGER. It is that set equality rather than
+      "none names the joiner" because every activity the joiner is sent is
+      addressed to the joiner individually, so no behaviour could put the
+      joiner's own id in that set and the scan would pass whatever ran; the
+      equality is falsified by any other sender, a forged identity among them.
+      The delivered set is asserted non-empty first, so it cannot pass on an
+      empty inbox.
       `test_accept_invite_no_identity_spoofing` in
-      `test/core/use_cases/received/actor/test_invite.py` reads every activity
-      the Accept's run emitted, from the processing actor's own outbox, and
-      asserts each names that actor, none names the invitee, and none is a
-      `Join`; it counts the readable activities against the queued ids, so the
-      check cannot pass on an empty or unreadable outbox.
-      `test_the_accept_is_refused_at_the_case_owner` in the same file covers
-      the requirement's own condition — from the Case Owner's context — by
-      asserting that store emits nothing at all.
+      `test/core/use_cases/received/actor/test_invite.py` is the unit-level
+      check on the emitter: it reads every activity the Accept's run emitted,
+      from the processing actor's own outbox, and asserts the senders are
+      exactly that actor — the invitee being asserted distinct from it first,
+      so the equality rules the invitee out — and that none is a `Join`. It
+      counts the readable activities against the queued ids, so the check
+      cannot pass on an empty or unreadable outbox.
     relationships:
     - rel_type: verifies
       spec_id: PCR-08-014

@@ -1167,7 +1167,6 @@ class TestInviteActorUseCases:
         )
 
     @pytest.mark.spec("PCR-07-008")
-    @pytest.mark.spec("PCR-07-009")
     @pytest.mark.spec("HP-01-005")
     def test_the_accept_is_refused_at_the_case_owner(self, make_payload):
         """The Case Owner is not the Accept's addressee, so it applies nothing.
@@ -1176,9 +1175,13 @@ class TestInviteActorUseCases:
         the Accept is addressed to the CASE_MANAGER the Invite named, which is
         the mechanism PCR-07-008 is about (HP-01-005).
 
-        The empty outbox is PCR-07-009's own condition — "from the Case Owner's
-        context" — which the sibling spoofing test below cannot show, because
-        there the processing actor *is* the CASE_MANAGER.
+        There is deliberately no "and the outbox is empty" assertion here. The
+        receive tree runs ``doors`` before ``effects``, so a refusal at the
+        addressee door means no emit stage ran at all: an empty outbox is
+        entailed by the reason asserted above and could never be the failing
+        line. What the Case Owner does with a copy it *is* addressed on is a
+        different question, and ``_accept_invite(..., also_to=...)`` is the
+        helper for asking it.
         """
         dl, accept = _seed_pcr708_exchange(receiver_id=_PCR708_OWNER)
 
@@ -1186,10 +1189,6 @@ class TestInviteActorUseCases:
 
         assert result.disposition is HandlerDisposition.REFUSED, result.reason
         assert "neither the sender nor a recipient" in (result.reason or "")
-        assert dl.outbox_list() == [], (
-            "nothing is emitted from the Case Owner's context, so nothing"
-            " can be emitted under the invitee's identity (PCR-07-009)"
-        )
 
     @pytest.mark.spec("PCR-07-009")
     @pytest.mark.spec("PCR-08-010")
@@ -1289,14 +1288,20 @@ class TestInviteActorUseCases:
             f" every queued activity must be readable; {len(emitted)} of"
             f" {len(queued)} read back"
         )
+        # The precondition, not a second assertion: "every sender is the
+        # processing actor" only excludes the invitee while the two are
+        # distinct actors, and both are fixture literals.  Asserting
+        # `invitee_id not in senders` after the set equality below could never
+        # be the failing line, which is the shape this PR exists to remove.
+        assert invitee_id != dl.actor_id, (
+            "the fixture must keep the invitee and the processing actor"
+            " distinct, or naming the processing actor would not rule out"
+            " naming the invitee (PCR-07-009)"
+        )
         senders = {_as_id(a.actor) for a in emitted}
         assert senders == {dl.actor_id}, (
-            "PCR-08-010: every activity emitted while processing names the"
-            f" processing actor; got {senders!r}"
-        )
-        assert invitee_id not in senders, (
-            f"PCR-07-009 violation: an activity emitted with"
-            f" actor={invitee_id!r} — identity spoofing"
+            "PCR-07-009/PCR-08-010: every activity emitted while processing"
+            f" names the processing actor, never the invitee; got {senders!r}"
         )
         assert "Join" not in {str(a.type_) for a in emitted}, (
             "the invitee's own Join is the invitee's to send (PCR-08-010)"
