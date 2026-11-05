@@ -27,6 +27,9 @@ Never write a file under `plan/history/` by hand. Run
 `uv run append-history <type> --title <title> --source <id>` with the body on
 stdin or `--file <path>`; the tool builds the frontmatter, stamps the UTC time
 and picks the `YYMM` directory (HM-07-004). Entries are write-once (HM-01-005).
+Supply only body text via stdin or `--file`; the tool refuses a body whose first
+non-blank content is a `---`-delimited YAML mapping, exiting non-zero and citing
+HM-07-002 (enforced since #2133).
 
 `implementation` and `idea` entries take a fixed `--source` vocabulary, because
 other numberings (`ADR-0041`, `VCR-005`, `BUG-2505`) would otherwise land on

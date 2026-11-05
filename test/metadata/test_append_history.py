@@ -1385,6 +1385,24 @@ class TestBodyFrontmatterRejection:
         )
         assert result.returncode == 0
 
+    def test_body_with_yaml_list_block_is_accepted(
+        self, fake_repo: Path
+    ) -> None:
+        """A body whose --- block holds a YAML list is not frontmatter; accepted.
+
+        _check_body_has_no_frontmatter suppresses MetadataLoadError (raised when
+        the --- block is not a YAML mapping) and lets the normal build proceed.
+        """
+        list_block_body = "---\n- item1\n- item2\n---\nActual body text.\n"
+        result = _run_append(
+            "idea",
+            body=list_block_body,
+            title="T",
+            source="IDEA-26110004",
+            cwd=fake_repo,
+        )
+        assert result.returncode == 0
+
     def test_from_file_mode_with_frontmatter_unchanged(
         self, fake_repo: Path, tmp_path: Path
     ) -> None:
