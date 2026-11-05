@@ -29,13 +29,15 @@ COMMENT_TYPES = frozenset(
     {HistoryEntryType.implementation, HistoryEntryType.idea}
 )
 
-_ISSUE_RE = re.compile(r"^ISSUE-([1-9][0-9]*)$", re.ASCII)
+#: Apply each pattern with ``fullmatch``: a ``$`` anchor would also admit a
+#: trailing newline, such as ``ISSUE-42\n``.
+_ISSUE_RE = re.compile(r"ISSUE-([1-9][0-9]*)", re.ASCII)
 _ISSUE_SLUG_RE = re.compile(
-    r"^ISSUE-[1-9][0-9]*-[a-z0-9]+(?:-[a-z0-9]+)*$", re.ASCII
+    r"ISSUE-[1-9][0-9]*-[a-z0-9]+(?:-[a-z0-9]+)*", re.ASCII
 )
-_IDEA_DATE_RE = re.compile(r"^IDEA-[0-9]{8}$", re.ASCII)
+_IDEA_DATE_RE = re.compile(r"IDEA-[0-9]{8}", re.ASCII)
 #: A number in some other form, to suggest the ``ISSUE-N`` spelling of it.
-_OTHER_NUMBER_RE = re.compile(r"^(?:[A-Za-z]+-)?0*([1-9][0-9]*)$", re.ASCII)
+_OTHER_NUMBER_RE = re.compile(r"(?:[A-Za-z]+-)?0*([1-9][0-9]*)", re.ASCII)
 
 _FILE_FORMS: dict[HistoryEntryType, tuple[re.Pattern[str], str]] = {
     HistoryEntryType.implementation: (_ISSUE_SLUG_RE, "ISSUE-N-<slug>"),
@@ -68,15 +70,15 @@ def classify_source(entry_type: HistoryEntryType, source: str) -> int | None:
     """
     if entry_type not in COMMENT_TYPES:
         return None
-    if (m := _ISSUE_RE.match(source)) is not None:
+    if (m := _ISSUE_RE.fullmatch(source)) is not None:
         return int(m.group(1))
     file_re, _ = _FILE_FORMS[entry_type]
-    if file_re.match(source):
+    if file_re.fullmatch(source):
         return None
     message = (
         f"append-history {entry_type.value} does not accept --source "
         f"{source!r}: use {accepted_forms(entry_type)}"
     )
-    if (m := _OTHER_NUMBER_RE.match(source)) is not None:
+    if (m := _OTHER_NUMBER_RE.fullmatch(source)) is not None:
         message += f"; if it names issue {m.group(1)}, use ISSUE-{m.group(1)}"
     raise SourceRefusedError(message)

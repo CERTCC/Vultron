@@ -985,9 +985,12 @@ class TestClassifySource:
             ("implementation", "ISSUE-0", None),
             ("implementation", "ISSUE-12-Upper", None),
             ("implementation", "ISSUE-\u0664\u0662", None),
+            ("implementation", "ISSUE-42\n", None),
+            ("implementation", "ISSUE-42-detail\n", None),
             ("idea", "IDEA-2066", "ISSUE-2066"),
             ("idea", "ISSUE-4646-detail", None),
             ("idea", "IDEA-TEST-001", None),
+            ("idea", "IDEA-26042702\n", None),
             ("idea", "BUG-2505", "ISSUE-2505"),
         ],
     )
@@ -1131,7 +1134,7 @@ class TestGitHubCommentMode:
             ("idea", "ISSUE-42", "42"),
         ],
     )
-    @pytest.mark.spec("HM-08-001")
+    @pytest.mark.spec("HM-08-001", "HM-01-007", "HM-01-008")
     def test_issue_source_posts_comment(
         self,
         fake_repo: Path,

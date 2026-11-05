@@ -147,26 +147,30 @@ groups:
   - id: HM-01-007
     priority: MUST
     kind: process
-    verification_debt: '#2571'
     statement: >-
       History entries for `implementation` and `idea` types whose `--source` is
       `ISSUE-N` MUST be posted as a comment on GitHub issue N (see HM-08).
     rationale: >-
       GitHub comment mode keeps implementation and idea records co-located with the
       issue they describe, avoiding file churn in plan/history/.
+    verification: >-
+      `test_issue_source_posts_comment` in `test/metadata/test_append_history.py`
+      stubs `gh` and checks that an `ISSUE-N` entry is posted on issue N.
     relationships:
     - rel_type: refines
       spec_id: HM-01-001
   - id: HM-01-008
     priority: MUST_NOT
     kind: process
-    verification_debt: '#2571'
     statement: >-
       History entries for `implementation` and `idea` types whose `--source` is
       `ISSUE-N` MUST NOT be written as files under `plan/history/`.
     rationale: >-
       Writing these entries as files would duplicate content already posted as GitHub
       comments and pollute the plan/history/ directory with redundant records.
+    verification: >-
+      `test_issue_source_posts_comment` in `test/metadata/test_append_history.py`
+      checks that an `ISSUE-N` entry writes no file under `plan/history/`.
     relationships:
     - rel_type: refines
       spec_id: HM-01-001
@@ -775,10 +779,11 @@ groups:
       `plan/history/` gives each a record, in the archive that the other entry types
       already use.
     verification: >-
-      `test_file_form_writes_file_without_asking_github` and
-      `TestClassifySource.test_accepted_forms` in
-      `test/metadata/test_append_history.py` check that both file forms write a file,
-      post no comment and make no `gh` lookup.
+      `test_file_form_writes_file_without_asking_github` in
+      `test/metadata/test_append_history.py` checks that both file forms write a
+      file, post no comment and make no `gh` lookup;
+      `TestClassifySource.test_accepted_forms` checks that both are classified as
+      file forms.
   - id: HM-08-004
     priority: MUST_NOT
     kind: project
