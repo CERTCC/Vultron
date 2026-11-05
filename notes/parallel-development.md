@@ -12,6 +12,7 @@ description: >
 related_specs:
   - specs/parallel-development.yaml
 related_notes:
+  - notes/planning-rules.md
   - notes/agentic-workflow.md
   - notes/ci-workflow-authoring.md
   - notes/agents-md-structure.md

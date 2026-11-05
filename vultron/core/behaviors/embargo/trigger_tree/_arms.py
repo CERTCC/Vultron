@@ -29,6 +29,7 @@ from vultron.core.behaviors.case.nodes.path_branch import wrap_children
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
@@ -98,7 +99,9 @@ def _skip_at_case_manager(
         name=name,
         memory=False,
         children=[
-            CheckIsCaseManagerNode(case_id=case_id, name="SkipIfCaseManager"),
+            with_case_id(
+                CheckIsCaseManagerNode(name="SkipIfCaseManager"), case_id
+            ),
             wrap_children(name, children),
         ],
     )

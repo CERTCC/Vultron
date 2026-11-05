@@ -26,6 +26,7 @@ from py_trees.common import Status
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
@@ -90,15 +91,12 @@ def _received(
 # ---------------------------------------------------------------------------
 
 
-def test_node_instantiates_with_case_id():
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
-    assert node is not None
-    assert node.name == "CommitCaseLedgerEntryNode"
-
-
-def test_node_instantiates_without_case_id():
+def test_node_takes_no_case_id_constructor_argument():
+    """The case comes only through the ``/case_id`` port (BTND-01-006)."""
+    with pytest.raises(TypeError):
+        CommitCaseLedgerEntryNode(case_id=CASE_ID)  # type: ignore[call-arg]
     node = CommitCaseLedgerEntryNode()
-    assert node is not None
+    assert node.name == "CommitCaseLedgerEntryNode"
 
 
 # ---------------------------------------------------------------------------
@@ -121,10 +119,10 @@ def test_no_case_id_returns_failure_without_building_inner_tree(bridge):
     mock_bridge.assert_not_called()
 
 
-def test_constructor_case_id_builds_inner_commit_tree(bridge):
-    """Node composes CommitLogEntryBT when case_id is given at build."""
+def test_seeded_case_id_builds_inner_commit_tree(bridge):
+    """Node composes CommitLogEntryBT when the tree seeds its case port."""
     activity = _received()
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with (
         patch(_FACTORY_PATH) as mock_factory,
         patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
@@ -197,7 +195,7 @@ def test_activity_on_blackboard_semantics_become_the_entry_semantic_type(
 ):
     """The entry's semantic_type is derived from activity.semantic_type.value."""
     activity = _received()
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with (
         patch(_FACTORY_PATH) as mock_factory,
         patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
@@ -232,7 +230,7 @@ def test_received_body_is_forwarded_as_payload_snapshot_unchanged(bridge):
         "object": "https://example.org/notes/held",
         "unknownExtension": {"kept": True},
     }
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with (
         patch(_FACTORY_PATH) as mock_factory,
         patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
@@ -265,7 +263,7 @@ def test_an_unrecorded_event_without_evidence_is_refused_not_recorded(bridge):
         activity_id=ACTIVITY_ID,
         actor_id=ACTOR_ID,
     )
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with patch(_FACTORY_PATH) as mock_factory:
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, activity=event
@@ -304,7 +302,7 @@ def test_a_recorded_resend_without_evidence_reuses_its_first_entry(
         activity_id=ACTIVITY_ID,
         actor_id=ACTOR_ID,
     )
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with patch(_FACTORY_PATH) as mock_factory:
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, activity=resend
@@ -337,7 +335,7 @@ def test_a_recorded_activity_with_its_body_commits_no_second_entry(
             log_index=0,
         )
     )
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with patch(_FACTORY_PATH) as mock_factory:
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, activity=_received()
@@ -375,7 +373,7 @@ def test_a_resend_whose_id_is_recorded_as_another_activity_is_refused(
         activity_id=ACTIVITY_ID,
         actor_id=ACTOR_ID,
     )
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with patch(_FACTORY_PATH) as mock_factory:
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, activity=resend
@@ -395,7 +393,7 @@ def test_blackboard_activity_that_is_not_an_event_is_a_wiring_fault(bridge):
         activity_id = ACTIVITY_ID
         semantic_type = MessageSemantics.CREATE_CASE
 
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with patch(_FACTORY_PATH) as mock_factory:
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, activity=_NotAnEvent()
@@ -409,7 +407,7 @@ def test_blackboard_activity_that_is_not_an_event_is_a_wiring_fault(bridge):
 
 def test_no_activity_returns_failure(bridge):
     """When no activity on blackboard, node returns FAILURE with a warning log."""
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with (
         patch(_FACTORY_PATH) as mock_factory,
         patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
@@ -425,7 +423,7 @@ def test_no_activity_returns_failure(bridge):
 
 
 def test_inner_commit_bt_failure_propagates(bridge):
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with (
         patch(_FACTORY_PATH) as mock_factory,
         patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
@@ -484,7 +482,7 @@ def test_actor_identity_mismatch_returns_failure(bridge):
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
         actor_id=ACTOR_ID,
     )
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID_CLP)
     with patch(_FACTORY_PATH) as mock_factory, patch(_INNER_BRIDGE_PATH):
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, activity=activity
@@ -516,7 +514,7 @@ def test_case_manager_as_participant_commits_without_error(bridge):
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
         actor_id=CASE_MANAGER_ID,
     )
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID_CLP)
     with (
         patch(_FACTORY_PATH) as mock_factory,
         patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
@@ -556,7 +554,7 @@ def test_slash_spelled_snapshot_actor_commits(bridge):
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
         actor_id=ACTOR_ID,
     )
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID_CLP)
     with (
         patch(_FACTORY_PATH) as mock_factory,
         patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
@@ -580,7 +578,7 @@ def test_slash_spelled_different_actor_still_refused(bridge):
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
         actor_id=ACTOR_ID,
     )
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID_CLP)
     with patch(_FACTORY_PATH) as mock_factory, patch(_INNER_BRIDGE_PATH):
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, activity=activity
@@ -605,7 +603,7 @@ def test_inline_slash_spelled_snapshot_actor_passes_the_identity_check(
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
         actor_id=ACTOR_ID,
     )
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID_CLP)
     with (
         patch(_FACTORY_PATH) as mock_factory,
         patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
@@ -632,7 +630,7 @@ def test_snapshot_actor_naming_no_id_is_refused(bridge):
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
         actor_id=ACTOR_ID,
     )
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID_CLP)
     with patch(_FACTORY_PATH) as mock_factory, patch(_INNER_BRIDGE_PATH):
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, activity=activity
@@ -695,7 +693,7 @@ def test_the_node_refuses_an_unlabelled_event_as_an_internal_error(
         actor_id=ACTOR_ID,
         received_evidence=json.dumps(_CREATE_BODY),
     )
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with patch(_FACTORY_PATH) as mock_factory:
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, activity=activity

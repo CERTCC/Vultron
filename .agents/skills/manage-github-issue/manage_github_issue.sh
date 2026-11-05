@@ -13,8 +13,8 @@
 #   --label LABEL           Label to apply (repeatable)
 #   --issue-type-id ID      GraphQL node ID for the issue type
 #   --parent N              Set this issue as sub-issue of parent #N (required on create)
-#   --milestone N           Milestone number to assign (optional, e.g. a release
-#                           milestone)
+#   --milestone N           Milestone number to assign (optional: a release
+#                           milestone, or an Epic's quarter objective milestone)
 #   --blocked-by N          This issue is blocked by #N (repeatable, idempotent)
 #   --blocks N              This issue blocks #N (repeatable, idempotent)
 #   --sub-issue N           Add #N as sub-issue of this issue (repeatable, idempotent)

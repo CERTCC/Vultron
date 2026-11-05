@@ -255,6 +255,26 @@ external. Design work belongs to Agentic Participants (#2450).
 
 ---
 
+## Outside Systems
+
+**VINCE shadow**:
+Vultron running in shadow mode beside VINCE. It reads VINCE cases, keeps a local copy of
+each as CERT/CC's Case Manager, runs its own case logic on that copy, and prompts a human
+toward action at its call-out points. It never writes back to VINCE, and it sends nothing
+to the case's other participants. A Sentinel carries VINCE changes into Vultron.
+*Avoid*: VINCE observer (Observer is a CVD role), VINCE mirror (a shadow prompts; a mirror
+only copies)
+
+**VINCE gateway**:
+A component in front of VINCE that speaks Vultron wire activities, such as
+`Offer(VulnerabilityReport)`, on one side and the VINCE API on the other, so VINCE takes
+part in cases as a protocol peer. It is two-way, unlike the VINCE shadow.
+*Avoid*: VINCE bridge (clashes with the behavior-tree bridge), VINCE integration, VINCE
+connector (a connector is any plugin to an outside system, and integration does not say
+which direction)
+
+---
+
 ## SSVC
 
 **SSVC (Stakeholder-Specific Vulnerability Categorization)**:

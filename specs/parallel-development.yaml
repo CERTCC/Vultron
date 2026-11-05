@@ -3079,6 +3079,39 @@ groups:
         relationships:
         - rel_type: extends
           spec_id: PAD-18-024
+      - id: PAD-18-026
+        adr:
+        - ADR-0179
+        priority: MUST
+        kind: process
+        statement: >-
+          A local gate's linter step MUST run ruff's linter and formatter, and
+          mypy.
+        rationale: >-
+          These checks find most type and style failures in seconds, before CI
+          would. mypy keeps a cache, so a run on a small change takes
+          seconds.
+        verification: >-
+          Inspection: the `run-linters` skill runs `ruff check`, `ruff format`
+          and `mypy`.
+      - id: PAD-18-031
+        adr:
+        - ADR-0179
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          A local gate MUST NOT drop one of its checks in favor of CI unless
+          GitHub requires that check. GitHub requires a check when it refuses a
+          merge into the base while the check is red or has not run.
+        rationale: >-
+          Never merge on red holds only for a check that something enforces.
+          A check moved to CI that GitHub does not require can be merged past
+          unseen.
+        verification: >-
+          Inspection: for each check a pull request removes from a local gate,
+          an active ruleset on `main` (`gh api repos/CERTCC/Vultron/rulesets`)
+          lists that check as a required status check, with no bypass actors,
+          such as `main-3 Require CI gate` (#5945).
 
   - id: PAD-19
     title: Epic Claim for an Epic Run

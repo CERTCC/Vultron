@@ -28,6 +28,7 @@ from typing import ClassVar
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.case_id_scope import CaseIdScope
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
@@ -63,6 +64,11 @@ def failure_is_the_refusal(node: py_trees.behaviour.Behaviour) -> bool:
     child: py_trees.behaviour.Behaviour = node
     parent = child.parent
     while parent is not None:
+        if isinstance(parent, CaseIdScope):
+            # Seeds the child's /case_id port and passes its status through
+            # unchanged, so it changes nothing about what the FAILURE means.
+            child, parent = parent, parent.parent
+            continue
         if isinstance(parent, py_trees.decorators.Decorator):
             # A decorator is there to change what its child's status means
             # (an Inverter turns FAILURE into SUCCESS), so this FAILURE is

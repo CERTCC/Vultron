@@ -37,6 +37,7 @@ from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.embargo_clock_decisions import (
     embargo_clock_decisions,
 )
@@ -294,11 +295,13 @@ def invite_to_embargo_on_case_tree(
                             name="OwnerHoldsAnswer",
                             memory=False,
                             children=[
-                                ActorHoldsRoleInCaseNode(
-                                    actor_id=invitee_id,
-                                    role=CVDRole.CASE_OWNER,
-                                    case_id=case_id,
-                                    name="InviteeIsCaseOwner",
+                                with_case_id(
+                                    ActorHoldsRoleInCaseNode(
+                                        actor_id=invitee_id,
+                                        role=CVDRole.CASE_OWNER,
+                                        name="InviteeIsCaseOwner",
+                                    ),
+                                    case_id,
                                 ),
                                 py_trees.decorators.Inverter(
                                     name="AutoAcceptNotAllowed",
@@ -316,11 +319,13 @@ def invite_to_embargo_on_case_tree(
                             name="OwnerDecides",
                             memory=False,
                             children=[
-                                ActorHoldsRoleInCaseNode(
-                                    actor_id=invitee_id,
-                                    role=CVDRole.CASE_OWNER,
-                                    case_id=case_id,
-                                    name="InviteeIsOwner",
+                                with_case_id(
+                                    ActorHoldsRoleInCaseNode(
+                                        actor_id=invitee_id,
+                                        role=CVDRole.CASE_OWNER,
+                                        name="InviteeIsOwner",
+                                    ),
+                                    case_id,
                                 ),
                                 create_embargo_response_decision_tree(
                                     case_id=case_id,

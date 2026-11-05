@@ -26,6 +26,7 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -69,8 +70,11 @@ def _run(
 @pytest.mark.spec("CM-02-011")
 def test_the_role_holder_is_admitted() -> None:
     node = _run(
-        ActorHoldsRoleInCaseNode(
-            actor_id=OWNER_ID, role=CVDRole.CASE_OWNER, case_id=CASE_ID
+        with_case_id(
+            ActorHoldsRoleInCaseNode(
+                actor_id=OWNER_ID, role=CVDRole.CASE_OWNER
+            ),
+            CASE_ID,
         ),
         _store(),
     )
@@ -82,8 +86,11 @@ def test_the_role_holder_is_admitted() -> None:
 def test_an_actor_without_the_role_is_refused() -> None:
     """The subject holds a participant record, but not this role."""
     node = _run(
-        ActorHoldsRoleInCaseNode(
-            actor_id=VENDOR_ID, role=CVDRole.CASE_OWNER, case_id=CASE_ID
+        with_case_id(
+            ActorHoldsRoleInCaseNode(
+                actor_id=VENDOR_ID, role=CVDRole.CASE_OWNER
+            ),
+            CASE_ID,
         ),
         _store(),
     )
@@ -96,8 +103,11 @@ def test_an_actor_without_the_role_is_refused() -> None:
 def test_a_case_the_store_does_not_hold_is_a_failure_not_an_error() -> None:
     """An actor holds no role in a case this store has no replica of."""
     node = _run(
-        ActorHoldsRoleInCaseNode(
-            actor_id=OWNER_ID, role=CVDRole.CASE_OWNER, case_id=CASE_ID
+        with_case_id(
+            ActorHoldsRoleInCaseNode(
+                actor_id=OWNER_ID, role=CVDRole.CASE_OWNER
+            ),
+            CASE_ID,
         ),
         _store(with_case=False),
     )
@@ -142,5 +152,4 @@ def test_the_authority_role_is_refused_at_construction() -> None:
         ActorHoldsRoleInCaseNode(
             actor_id=OWNER_ID,
             role=CVDRole.CASE_MANAGER,
-            case_id=CASE_ID,
         )

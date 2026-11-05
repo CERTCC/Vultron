@@ -100,7 +100,13 @@ groups:
   - id: BTND-01-007
     priority: MUST
     kind: project
-    verification_debt: '#2574'
+    verification: >-
+      For `case_id`, the value every current BTND-01-006 node reads at tick time:
+      `test_no_node_reads_case_id_from_both_a_port_and_its_constructor` in
+      `test/architecture/test_case_id_one_channel.py` imports every `PortsMixin`
+      class under `vultron/core/behaviors/` and fails when a class that declares a
+      `case_id` input port also accepts a `case_id` constructor parameter or
+      `**kwargs`.
     statement: >-
       A node that reads an input value from a blackboard input port under
       BTND-01-006 MUST NOT also take that value as a constructor parameter.

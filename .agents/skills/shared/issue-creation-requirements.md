@@ -15,8 +15,10 @@ causes the script to exit non-zero. Task and Bug bodies also need a
 | **Theme** | `--label theme:<name>` | Exactly one active theme from the catalog in `notes/epic-themes.md`, judged from the issue's own outcome (PAD-02-014, PAD-02-016). |
 | **`Theme:` line** | in `--body` | `Theme: theme:<name> — <what this issue delivers>`, naming the label (PAD-02-018). |
 
-A milestone is **not** required. Pass `--milestone N` only when the work belongs to a
-specific release milestone (e.g. "Release 2026.10" for publish-readiness work).
+A milestone is **not** required on a leaf issue. Pass `--milestone N` when the work
+belongs to a specific release milestone (e.g. `release-2026.11.0`), or, for an Epic
+scheduled Focus, Now or Next, its current-quarter objective milestone
+(`notes/planning-rules.md` § "Tiers Need Milestones").
 
 ## Why the issue exists (`--opened-as` or `--planned`)
 
