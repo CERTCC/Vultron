@@ -37,7 +37,7 @@ import argparse
 import json
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 
 from vultron.metadata.base import repo_root
@@ -50,8 +50,13 @@ from vultron.metadata.planning.gh import (
 )
 from vultron.metadata.planning.size_calibration import (
     BandScheme,
+    GitError,
+    GitRunner,
+    complete_commits,
     fetch_window,
     render_report,
+    run_git,
+    trace_fixes,
 )
 
 
@@ -332,19 +337,39 @@ def calibrate(
     run: Runner = run_gh,
     now: datetime | None = None,
     repo: str = DEFAULT_REPO,
+    git: GitRunner = run_git,
 ) -> str:
     """The calibration report for PRs merged in the last ``days`` days.
+
+    Each bug-fix PR in the window is traced through ``git`` in this clone, so
+    the clone needs the base branch fetched up to the window's end.
 
     Raises:
         ValueError: If ``days`` is not positive.
         GhError: If a ``gh`` response cannot be read.
         subprocess.CalledProcessError: If ``gh`` exits non-zero.
+        GitError: If a bug fix cannot be traced.
     """
     if days < 1:
         raise ValueError(f"--days must be at least 1, got {days}")
     until = now or datetime.now(UTC)
     data = fetch_window(repo, until - timedelta(days=days), until, run)
+    prs = complete_commits(data.prs, git)
+    data = replace(data, prs=prs, fix_traces=trace_fixes(prs, git))
     return render_report(data, calibration_scheme())
+
+
+def _print_calibration(days: int) -> int:
+    """Print the ``--calibrate`` report; exit 1 when ``gh`` or ``git`` fails."""
+    try:
+        print(calibrate(days))
+    except GH_FAILURES as exc:
+        print(f"❌ {gh_failure_detail(exc)}", file=sys.stderr)
+        return 1
+    except GitError as exc:
+        print(f"❌ {exc}", file=sys.stderr)
+        return 1
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -384,8 +409,9 @@ def main(argv: list[str] | None = None) -> int:
         "--calibrate",
         action="store_true",
         help=(
-            "survey recent merged PRs against the band table and the AC rule "
-            "(reads GitHub through gh) and exit"
+            "survey recent merged PRs against the band table, the AC rule, "
+            "later bug fixes and heavy review (reads GitHub through gh and "
+            "traces bug fixes with git blame in this clone) and exit"
         ),
     )
     parser.add_argument(
@@ -409,13 +435,9 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"--days must be at least 1, got {args.days}")
 
     if args.calibrate:
-        days = DEFAULT_CALIBRATION_DAYS if args.days is None else args.days
-        try:
-            print(calibrate(days))
-        except GH_FAILURES as exc:
-            print(f"❌ {gh_failure_detail(exc)}", file=sys.stderr)
-            return 1
-        return 0
+        return _print_calibration(
+            DEFAULT_CALIBRATION_DAYS if args.days is None else args.days
+        )
 
     if args.table:
         print(markdown_table())

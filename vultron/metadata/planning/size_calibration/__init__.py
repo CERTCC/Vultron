@@ -16,14 +16,23 @@ Requirements: PAD-05-011 (one band table, applied through ``pr-size``).
 
 The bands were cut at quantiles of a one-off survey of merged PRs. This package
 recomputes those numbers for any window: each band's share, the diff size at
-each cut quantile, how often Issue estimates matched the measured band, and the
-median diff per acceptance-criteria count. :mod:`.measures` does the
-arithmetic as pure functions, :mod:`.report` lays it out one section per
-measure, and :mod:`.fetch` is the thin ``gh`` read. ``size_bands`` wires them
-into its CLI and passes its own table in as a :class:`.model.BandScheme`, so
-this package never imports it.
+each cut quantile, how often Issue estimates matched the measured band, the
+median diff per acceptance-criteria count, and two quality measures per band:
+how often a later bug fix rewrote a PR's lines, and how often a PR needed heavy
+review. :mod:`.measures` does the arithmetic as pure functions, :mod:`.report`
+lays it out one section per measure, :mod:`.fetch` is the thin ``gh`` read,
+and :mod:`.blame` the thin ``git`` trace of each bug fix. ``size_bands`` wires
+them into its CLI and passes its own table in as a :class:`.model.BandScheme`,
+so this package never imports it.
 """
 
+from vultron.metadata.planning.size_calibration.blame import (
+    GitError,
+    GitRunner,
+    complete_commits,
+    run_git,
+    trace_fixes,
+)
 from vultron.metadata.planning.size_calibration.fetch import (
     fetch_window,
     parse_search_pages,
@@ -32,6 +41,7 @@ from vultron.metadata.planning.size_calibration.model import (
     BandScheme,
     CalibrationData,
     ClosedIssue,
+    FixTrace,
     IssuePair,
     MergedPr,
 )
@@ -47,11 +57,17 @@ __all__ = [
     "BandScheme",
     "CalibrationData",
     "ClosedIssue",
+    "FixTrace",
+    "GitError",
+    "GitRunner",
     "IssuePair",
     "MergedPr",
     "Section",
     "SectionBuilder",
+    "complete_commits",
     "fetch_window",
     "parse_search_pages",
     "render_report",
+    "run_git",
+    "trace_fixes",
 ]

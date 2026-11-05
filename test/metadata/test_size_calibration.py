@@ -15,7 +15,12 @@ import pytest
 from test.metadata._fake_runner import FakeRunner
 from vultron.metadata.planning import size_bands
 from vultron.metadata.planning.gh import GhError
-from vultron.metadata.planning.size_calibration import fetch, measures, report
+from vultron.metadata.planning.size_calibration import (
+    GitError,
+    fetch,
+    measures,
+    report,
+)
 from vultron.metadata.planning.size_calibration.model import (
     BandScheme,
     CalibrationData,
@@ -354,13 +359,21 @@ def _node(
     additions: int = 7,
     deletions: int = 3,
     issue_total: int | None = None,
+    **fields: object,
 ) -> dict:
     return {
         "number": number,
         "additions": additions,
         "deletions": deletions,
         "mergedAt": _stamp(merged),
+        "createdAt": _stamp(merged - timedelta(hours=2)),
+        "headRefName": f"task/{number}-x",
+        "mergeCommit": {"oid": f"m{number}"},
+        "commits": _connection([{"commit": {"oid": f"c{number}"}}]),
+        "reviews": _connection([]),
+        "comments": _connection([]),
         "closingIssuesReferences": _connection(issues, issue_total),
+        **fields,
     }
 
 
@@ -412,7 +425,20 @@ class TestParseSearchPages:
         result = fetch.parse_search_pages(
             [_page([_node(10, issues=[_issue_node(1, [(10, True)])])])]
         )
-        assert result.prs == (MergedPr(10, IN_WINDOW, 10, (1,)),)
+        assert result.prs == (
+            MergedPr(
+                10,
+                IN_WINDOW,
+                10,
+                (1,),
+                head_ref="task/10-x",
+                open_for=timedelta(hours=2),
+                commit_count=1,
+                commits=("c10",),
+                merge_commit="m10",
+                triage_findings=None,
+            ),
+        )
         assert result.issues == (
             ClosedIssue(1, True, ("size:S",), 2, (10,), True),
         )
@@ -515,11 +541,11 @@ class TestFetchWindow:
         )
         assert [p.number for p in window.prs] == [10, 11]
         first = (
-            "q=repo:o/n is:pr is:merged "
+            "q=repo:o/n is:pr is:merged base:main "
             "merged:2026-09-06T00:00:00Z..2026-10-06T00:00:00Z"
         )
         second = (
-            "q=repo:o/n is:pr is:merged "
+            "q=repo:o/n is:pr is:merged base:main "
             "merged:2026-10-06T00:00:00Z..2026-11-05T00:00:00Z"
         )
         terms = [_query_term(call) for call in gh.calls]
@@ -622,7 +648,9 @@ class TestFetchWindow:
 class TestCli:
     def test_calibrate_reads_the_window_ending_now(self):
         gh = FakeRunner(*_slice([_node(10, additions=40, deletions=2)]))
-        text = size_bands.calibrate(7, run=gh, now=NOW)
+        git = FakeRunner("unused")
+        text = size_bands.calibrate(7, run=gh, now=NOW, git=git)
+        assert git.calls == []  # no bug fix, no short commit list: no git
         assert text.startswith("pr-size --calibrate: 2026-10-29 to 2026-11-05")
         assert "Band shares — 1 PRs merged" in text
 
@@ -670,13 +698,14 @@ class TestCli:
         ("failure", "detail"),
         [
             (GhError("gh is not installed"), "gh is not installed"),
+            (GitError("merge commit m9 is not in this clone"), "m9 is not"),
             (
                 subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 502"),
                 "HTTP 502",
             ),
         ],
     )
-    def test_a_gh_failure_exits_one_with_its_detail(
+    def test_a_gh_or_git_failure_exits_one_with_its_detail(
         self, monkeypatch, capsys, failure, detail
     ):
         def boom(days: int) -> str:
@@ -694,5 +723,5 @@ class TestCli:
             subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 502"),
         )
         with pytest.raises(subprocess.CalledProcessError):
-            size_bands.calibrate(60, run=gh, now=NOW)
+            size_bands.calibrate(60, run=gh, now=NOW, git=FakeRunner(""))
         assert capsys.readouterr().out == ""

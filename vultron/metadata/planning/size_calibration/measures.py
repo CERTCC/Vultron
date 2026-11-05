@@ -23,10 +23,12 @@ import re
 import statistics
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import timedelta
 from itertools import pairwise
 
 from vultron.metadata.planning.size_calibration.model import (
     CALIBRATION_PERCENTILES,
+    FOLLOW_UP,
     BandScheme,
     CalibrationData,
     ClosedIssue,
@@ -244,3 +246,224 @@ def median_lines_per_ac(pairs: Sequence[IssuePair]) -> float | None:
         if pair.issue.ac_count
     ]
     return statistics.median(ratios) if ratios else None
+
+
+_TRIAGE_RECORD = re.compile(
+    r"\A\s*##\s+(?:PR[ -]Triage|Pre-push review)\b", re.I
+)
+_FINDING_ID = re.compile(r"\bphase\d+-[a-z0-9]+(?:-[a-z0-9]+)*-\d+\b")
+_SEVERITY_COUNT = re.compile(r"(\d+)\s+(FAIL|IMPROVE|NEW-ISSUE)\b")
+
+
+def _stated_count(body: str) -> int:
+    """The findings a record states in words, for one that lists no ids.
+
+    The ``**Total**:`` line wins when there is one; otherwise the first line
+    that counts any severity. Each severity's first number on that line is
+    summed, so ``2 FAIL, 10 IMPROVE, 1 NEW-ISSUE`` is 13.
+    """
+    lines = body.splitlines()
+    totals = [line for line in lines if line.lstrip().startswith("**Total**")]
+    for line in (*totals, *lines):
+        counts: dict[str, int] = {}
+        for number, severity in _SEVERITY_COUNT.findall(line):
+            counts.setdefault(severity, int(number))
+        if counts:
+            return sum(counts.values())
+    return 0
+
+
+def count_triage_findings(bodies: Sequence[str]) -> int | None:
+    """The review findings a PR's triage records raise, or ``None`` if none.
+
+    A triage record is a review or comment whose heading opens with
+    ``## PR Triage`` or ``## Pre-push review`` (any case); the comments
+    ``pr-triage`` posts and the pre-push review ``build`` posts both do. A
+    record's findings are the distinct finding ids (``phase8-slug-0``) it names,
+    and the ids are pooled across records, so a finding carried forward from
+    the pre-push review into the post-push triage counts once. A record that
+    names no ids counts what it states in words (:func:`_stated_count`).
+    ``None`` means the PR carries no triage record, which is not the same as
+    a triage that found nothing.
+    """
+    records = [body for body in bodies if _TRIAGE_RECORD.match(body)]
+    if not records:
+        return None
+    ids: set[str] = set()
+    stated = 0
+    for body in records:
+        found = set(_FINDING_ID.findall(body))
+        if found:
+            ids |= found
+        else:
+            stated += _stated_count(body)
+    return len(ids) + stated
+
+
+def commit_owners(prs: Sequence[MergedPr]) -> dict[str, int]:
+    """Each commit on a window PR, mapped to the PR that landed it.
+
+    A commit can sit on two PRs, as when one branch is stacked on another;
+    it belongs to the one that merged first, since that merge is what put it on
+    the base branch. A PR's merge commit is its own.
+    """
+    owners: dict[str, int] = {}
+    for pr in sorted(prs, key=lambda pr: (pr.merged_at, pr.number)):
+        merge = () if pr.merge_commit is None else (pr.merge_commit,)
+        for commit in (*pr.commits, *merge):
+            owners.setdefault(commit, pr.number)
+    return owners
+
+
+def later_fixes(data: CalibrationData) -> dict[int, frozenset[int]]:
+    """The bug-fix PRs that rewrote each window PR's lines within the follow-up.
+
+    A fix counts against a PR when its traced lines blame to one of the PR's
+    commits and it merged after the PR, within :data:`.model.FOLLOW_UP` of
+    the PR's merge. Each fix counts once per PR however many of its lines
+    blame there. A blamed commit no window PR carries, and a trace of a PR
+    outside the window, are ignored. PRs no fix rewrote are absent.
+    """
+    by_number = {pr.number: pr for pr in data.prs}
+    owners = commit_owners(data.prs)
+    fixes: dict[int, set[int]] = {}
+    for trace in data.fix_traces:
+        fix = by_number.get(trace.fix)
+        if fix is None:
+            continue
+        for commit in trace.blamed:
+            owner = owners.get(commit)
+            if owner is None or owner == fix.number:
+                continue
+            gap = fix.merged_at - by_number[owner].merged_at
+            if timedelta(0) < gap <= FOLLOW_UP:
+                fixes.setdefault(owner, set()).add(fix.number)
+    return {number: frozenset(found) for number, found in fixes.items()}
+
+
+def followed_up(data: CalibrationData) -> tuple[MergedPr, ...]:
+    """The window PRs merged at least :data:`.model.FOLLOW_UP` before its end."""
+    return tuple(
+        pr for pr in data.prs if pr.merged_at + FOLLOW_UP <= data.until
+    )
+
+
+@dataclass(frozen=True)
+class BandFixRate:
+    """One band's later bug fixes, over the PRs with a full follow-up.
+
+    ``fixes`` sums, over the band's PRs, the distinct fix PRs that rewrote
+    each one, so a fix that rewrote two PRs counts once for each.
+    """
+
+    label: str
+    prs: int
+    lines: int
+    fixes: int
+
+    @property
+    def per_pr(self) -> float | None:
+        """Later fixes per PR; ``None`` for a band with no PRs."""
+        return self.fixes / self.prs if self.prs else None
+
+    @property
+    def per_kloc(self) -> float | None:
+        """Later fixes per 1,000 diff lines; ``None`` with no lines."""
+        return 1000 * self.fixes / self.lines if self.lines else None
+
+
+def fix_rates(
+    data: CalibrationData, scheme: BandScheme
+) -> tuple[BandFixRate, ...]:
+    """Each band's later-fix rate over the window PRs with a full follow-up.
+
+    Every band appears, smallest first, including empty ones.
+    """
+    fixes = later_fixes(data)
+    tally = {label: [0, 0, 0] for label in scheme.labels}
+    for pr in followed_up(data):
+        row = tally[scheme.classify(pr.diff_lines).label]
+        row[0] += 1
+        row[1] += pr.diff_lines
+        row[2] += len(fixes.get(pr.number, ()))
+    return tuple(
+        BandFixRate(label, prs, lines, found)
+        for label, (prs, lines, found) in tally.items()
+    )
+
+
+HEAVY_FINDINGS = 8
+"""Triage findings at or above which a PR counts as heavily reviewed."""
+
+HEAVY_COMMITS = 7
+"""Commits at or above which a PR counts as heavily reviewed."""
+
+HEAVY_OPEN = timedelta(days=1)
+"""Time open at or above which a PR counts as heavily reviewed."""
+
+
+@dataclass(frozen=True)
+class HeavyReview:
+    """Which of the three heavy-review tests one PR meets."""
+
+    findings: bool
+    commits: bool
+    open_long: bool
+
+    @property
+    def heavy(self) -> bool:
+        """Whether the PR meets any of the three."""
+        return self.findings or self.commits or self.open_long
+
+
+def heavy_review(pr: MergedPr) -> HeavyReview:
+    """Test ``pr`` against each heavy-review threshold.
+
+    A PR with no triage record meets the findings test only if it has
+    findings, so it never does.
+    """
+    return HeavyReview(
+        findings=(pr.triage_findings or 0) >= HEAVY_FINDINGS,
+        commits=pr.commit_count >= HEAVY_COMMITS,
+        open_long=pr.open_for >= HEAVY_OPEN,
+    )
+
+
+@dataclass(frozen=True)
+class BandReviewLoad:
+    """One band's heavy-review count, and how many PRs met each test.
+
+    A PR meeting two tests counts under both, so the three test counts may
+    sum past ``heavy``.
+    """
+
+    label: str
+    prs: int
+    heavy: int
+    by_findings: int
+    by_commits: int
+    by_open: int
+
+
+def review_loads(
+    prs: Sequence[MergedPr], scheme: BandScheme
+) -> tuple[BandReviewLoad, ...]:
+    """Each band's heavy-review share of ``prs``, smallest band first.
+
+    Every band appears, including empty ones.
+    """
+    tally = {label: [0, 0, 0, 0, 0] for label in scheme.labels}
+    for pr in prs:
+        row = tally[scheme.classify(pr.diff_lines).label]
+        verdict = heavy_review(pr)
+        for index, met in enumerate(
+            (
+                True,
+                verdict.heavy,
+                verdict.findings,
+                verdict.commits,
+                verdict.open_long,
+            )
+        ):
+            row[index] += met
+    return tuple(BandReviewLoad(label, *row) for label, row in tally.items())

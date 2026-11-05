@@ -34,7 +34,10 @@ from vultron.metadata.planning.gh import (
     graphql_errors,
     run_gh,
 )
-from vultron.metadata.planning.size_calibration.measures import count_acs
+from vultron.metadata.planning.size_calibration.measures import (
+    count_acs,
+    count_triage_findings,
+)
 from vultron.metadata.planning.size_calibration.model import (
     CalibrationData,
     ClosedIssue,
@@ -56,6 +59,28 @@ MIN_SLICE = timedelta(hours=1)
 NESTED_LIMIT = 50
 """How many closing Issues, labels and linked PRs the query reads per node."""
 
+COMMIT_LIMIT = 100
+"""How many commit ids the query reads per PR.
+
+A PR with more keeps its full ``commit_count``;
+:func:`.blame.complete_commits` reads the rest from the local clone.
+"""
+
+COMMENT_LIMIT = 100
+"""How many reviews, and how many comments, the query reads per PR.
+
+A PR with more is read as far as this, not refused: the triage records come
+first in a PR's history, and a PR with that much review already counts as
+heavily reviewed by its commits or its time open.
+"""
+
+BASE_BRANCH = "main"
+"""The base branch whose merged PRs the survey reads.
+
+A release PR into another branch (``publish``) carries every commit since the
+last release, which is not one change of any size.
+"""
+
 QUERY = f"""
 query($q: String!, $pageSize: Int!, $endCursor: String) {{
   search(query: $q, type: ISSUE, first: $pageSize, after: $endCursor) {{
@@ -63,7 +88,14 @@ query($q: String!, $pageSize: Int!, $endCursor: String) {{
     pageInfo {{ hasNextPage endCursor }}
     nodes {{
       ... on PullRequest {{
-        number additions deletions mergedAt
+        number additions deletions mergedAt createdAt headRefName
+        mergeCommit {{ oid }}
+        commits(first: {COMMIT_LIMIT}) {{
+          totalCount
+          nodes {{ commit {{ oid }} }}
+        }}
+        reviews(first: {COMMENT_LIMIT}) {{ totalCount nodes {{ body }} }}
+        comments(first: {COMMENT_LIMIT}) {{ totalCount nodes {{ body }} }}
         closingIssuesReferences(first: {NESTED_LIMIT}) {{
           totalCount
           nodes {{
@@ -177,6 +209,14 @@ def _parse_issue(node: JsonObject) -> ClosedIssue:
     )
 
 
+def _merge_commit(node: JsonObject, where: str) -> str | None:
+    merge = node.get("mergeCommit")
+    if merge is None:
+        return None
+    oid = _object(merge, f"{where} mergeCommit").get("oid")
+    return _str(oid, f"{where} mergeCommit oid")
+
+
 def _parse_pr(node: JsonObject) -> tuple[MergedPr, tuple[ClosedIssue, ...]]:
     number = _int(node.get("number"), "PR number")
     where = f"PR #{number}"
@@ -188,12 +228,36 @@ def _parse_pr(node: JsonObject) -> tuple[MergedPr, tuple[ClosedIssue, ...]]:
             f"{_WHAT}: {where} closes more than {NESTED_LIMIT} Issues"
         )
     issues = tuple(_parse_issue(issue) for issue in issue_nodes)
+    commit_nodes, _ = _connection(node, "commits", where)
+    commits = tuple(
+        _str(
+            _object(entry.get("commit"), f"{where} commit").get("oid"),
+            f"{where} commit oid",
+        )
+        for entry in commit_nodes
+    )
+    bodies = tuple(
+        _str(entry.get("body"), f"{where} {key} body")
+        for key in ("reviews", "comments")
+        for entry in _connection(node, key, where)[0]
+    )
+    merged_at = _timestamp(node.get("mergedAt"), f"{where} mergedAt")
     pr = MergedPr(
         number=number,
-        merged_at=_timestamp(node.get("mergedAt"), f"{where} mergedAt"),
+        merged_at=merged_at,
         diff_lines=_int(node.get("additions"), f"{where} additions")
         + _int(node.get("deletions"), f"{where} deletions"),
         closes=tuple(issue.number for issue in issues),
+        head_ref=_str(node.get("headRefName"), f"{where} headRefName"),
+        open_for=merged_at
+        - _timestamp(node.get("createdAt"), f"{where} createdAt"),
+        commit_count=_int(
+            _object(node.get("commits"), f"{where}.commits").get("totalCount"),
+            f"{where}.commits.totalCount",
+        ),
+        commits=commits,
+        merge_commit=_merge_commit(node, where),
+        triage_findings=count_triage_findings(bodies),
     )
     return pr, issues
 
@@ -238,7 +302,7 @@ def parse_search_pages(pages: object) -> SliceResult:
 def _search_term(repo: str, start: datetime, end: datetime) -> str:
     stamp = "%Y-%m-%dT%H:%M:%SZ"
     return (
-        f"repo:{repo} is:pr is:merged "
+        f"repo:{repo} is:pr is:merged base:{BASE_BRANCH} "
         f"merged:{start.strftime(stamp)}..{end.strftime(stamp)}"
     )
 
