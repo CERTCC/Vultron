@@ -185,3 +185,33 @@ def test_resolve_actor_or_404_raises_http_404_when_missing(datalayer):
     with pytest.raises(HTTPException) as exc_info:
         _resolve_actor_or_404("https://example.org/nobody", datalayer)
     assert exc_info.value.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# A bare-UUID path segment names the urn:uuid actor (OID-02-004, #5737)
+#
+# The store keys only on full ids, so the route maps the segment to its
+# ``urn:uuid:`` form before it reads; the store itself resolves no bare UUID.
+# ---------------------------------------------------------------------------
+
+_URN_ACTOR_UUID = "5a1f0c3e-2b4d-4e6f-8a9b-0c1d2e3f4a5b"
+_URN_ACTOR_ID = f"urn:uuid:{_URN_ACTOR_UUID}"
+
+
+@pytest.mark.spec("OID-02-004")
+def test_find_actor_record_maps_a_bare_uuid_segment_to_the_urn_actor(
+    datalayer,
+):
+    datalayer.create(object_to_record(as_Person(id_=_URN_ACTOR_ID)))
+    result = _find_actor_record(datalayer, _URN_ACTOR_UUID)
+    assert result is not None
+    assert result.get("id_") == _URN_ACTOR_ID
+
+
+@pytest.mark.spec("OID-02-004")
+def test_resolve_actor_or_404_maps_a_bare_uuid_segment_to_the_urn_actor(
+    datalayer,
+):
+    datalayer.create(as_Person(id_=_URN_ACTOR_ID))
+    resolved = _resolve_actor_or_404(_URN_ACTOR_UUID, datalayer)
+    assert resolved.id_ == _URN_ACTOR_ID

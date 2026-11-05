@@ -687,6 +687,36 @@ def test_get_action_rules_actor_not_in_case_returns_404(
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
+@pytest.mark.spec("OID-02-004")
+def test_get_action_rules_maps_a_bare_uuid_segment_to_the_urn_actor(
+    client_actors,
+):
+    """A bare-UUID actor segment is read as its ``urn:uuid:`` actor (#5737).
+
+    The actor is in no participant of the case, so only the route's
+    ``full_object_id`` read can name it: without that mapping the route asks
+    for the segment's canonical URL instead, and the 404 names that.
+    """
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+    from vultron.wire.as2.vocab.base.objects.actors import as_Person
+
+    bare = "bbbbbbbb-0000-0000-0000-000000000005"
+    urn_actor_id = f"{URN_UUID_PREFIX}{bare}"
+    store = get_datalayer(
+        canonical_actor_uri(bare), db_url="sqlite:///:memory:"
+    )
+    store.create(as_Person(id_=urn_actor_id))
+    _seed_action_rules_data(store)
+
+    resp = client_actors.get(
+        f"/actors/{bare}/cases/{_route_key(_URN_CASE_ID)}/action-rules"
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    assert (
+        resp.json()["detail"] == f"CaseParticipant '{urn_actor_id}' not found."
+    )
+
+
 # ---------------------------------------------------------------------------
 # POST /actors/ — actor creation (D5-1-G2)
 # ---------------------------------------------------------------------------
