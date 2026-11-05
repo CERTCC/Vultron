@@ -54,26 +54,39 @@ groups:
     - story_2022_035
     - story_2022_089
   - id: ENC-01-004
-    priority: MUST_NOT
+    priority: MUST
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      An implementation MUST store each private key securely, and MUST NOT write one
-      to a log or include it in an API response.
-    lint_suppress:
-    # compound_statement: no private key exists in the code yet, so the "never log
-    # or expose" child would have nothing to test, and the marker-coverage guard
-    # (SR-05-005) fails a new protocol ID with no test. The split lands with #5380,
-    # the seeded-key signing helper, where private keys first exist.
-    - compound_statement
+      An implementation MUST store each private key securely.
     rationale: >-
       Anyone who obtains an actor's private key can read messages encrypted to it,
-      including embargoed vul details, and can forge activities in its name. Logs and
-      API responses are copied and retained widely, so a key that appears in them must
-      be treated as disclosed.
+      including embargoed vul details, and can forge activities in its name.
     scope:
     - production
     tracking_issue: '#1184'
+    stories:
+    - story_2022_091
+  - id: ENC-01-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An implementation MUST NOT write a private key to a log or include one in an
+      API response.
+    rationale: >-
+      Logs and API responses are copied and retained widely, so a key that appears in
+      them must be treated as disclosed. A prototype's seeded key makes no security
+      claim, but code that leaks it would leak a production key the same way.
+    verification: >-
+      `test/wire/as2/test_signing_key_disclosure.py::test_a_seeded_private_key_reaches_no_log_and_no_api_response`
+      searches log records and API responses for a seeded private key in each
+      encoding it could be written in.
+    scope:
+    - prototype
+    - production
+    relationships:
+    - rel_type: extends
+      spec_id: ENC-01-004
     stories:
     - story_2022_091
   - id: ENC-01-005

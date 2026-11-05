@@ -43,6 +43,9 @@ PUBLISHED = "2026-03-04T05:06:07+00:00"
 ACTIVITY_ID = "https://example.org/activities/1"
 SENDER = "https://example.org/actors/alice"
 FOREIGN_KEY = "fooBar"
+# A case invitation carries its invitee inline, as an actor reference
+# (AKM-05-017); only then may its target be a case stub (MV-10-002).
+INVITEE = {"type": "Person", "id": "https://example.org/actors/bob"}
 
 
 def _envelope(**extra: Any) -> dict[str, Any]:
@@ -673,9 +676,7 @@ def test_embargoed_invite_stub_is_judged_as_the_stub(
     )
     target = stub.model_dump(by_alias=True, mode="json", exclude_none=True)
     target[FOREIGN_KEY] = 1
-    body = _envelope(
-        type="Invite", object="https://example.org/actors/bob", target=target
-    )
+    body = _envelope(type="Invite", object=INVITEE, target=target)
     caplog.set_level(logging.INFO)
 
     activity = parse_activity(body)
@@ -700,7 +701,7 @@ def test_near_miss_of_a_stub_key_is_refused(misspelled: str) -> None:
     """
     body = _envelope(
         type="Invite",
-        object="https://example.org/actors/bob",
+        object=INVITEE,
         target={
             "type": "VulnerabilityCaseStub",
             "caseId": "https://example.org/cases/1",
@@ -824,9 +825,7 @@ def test_a_stub_without_a_summary_is_refused(summary: str | None) -> None:
     }
     if summary is not None:
         target["summary"] = summary
-    body = _envelope(
-        type="Invite", object="https://example.org/actors/bob", target=target
-    )
+    body = _envelope(type="Invite", object=INVITEE, target=target)
     with pytest.raises(VultronParseValidationError, match="summary"):
         parse_activity(body)
 

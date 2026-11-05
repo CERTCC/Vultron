@@ -63,7 +63,7 @@ import pytest
 from test.demo.conftest import (
     submit_report_through_reporter,
 )
-from test.support.received import received_of_type
+from test.support.received import received_activities, received_of_type
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import _find_case_actor_id
@@ -608,6 +608,7 @@ class TestLateJoinerSequence:
         )
 
     @pytest.mark.spec("CBT-04-001", "CBT-04-002", "CBT-04-003", "CBT-05-004")
+    @pytest.mark.spec("PCR-07-008")
     def test_the_stub_invite_is_the_late_joiners_trust_anchor(
         self, three_app_setup
     ):
@@ -616,6 +617,13 @@ class TestLateJoinerSequence:
         The Invite names the case and the CASE_MANAGER, the actor whose
         ``Announce(VulnerabilityCase)`` later seeds the joiner's replica, and
         the joiner receives no ``Create(VulnerabilityCase)`` on the way.
+
+        Those two assertions are also PCR-07-008 at the integration level the
+        requirement asks for: the Invite's ``actor`` is the CASE_MANAGER
+        role-holder rather than the Case Owner that asked for it, and the
+        ``Announce`` that follows the joiner's Accept comes from that same
+        actor — so the CASE_MANAGER, not the Case Owner, processed the Accept
+        (CM-11-008).
         """
         (
             owner_iso,
@@ -662,6 +670,74 @@ class TestLateJoinerSequence:
             for create in received_of_type(lj_dl, "Create")
             if _object_type(create) == "VulnerabilityCase"
         ] == []
+
+    @pytest.mark.spec("PCR-07-009")
+    @pytest.mark.spec("PCR-08-010")
+    def test_nothing_reaches_the_joiner_under_the_joiners_own_identity(
+        self, three_app_setup
+    ):
+        """PCR-07-009: the joiner's own moves are the joiner's own to send.
+
+        The owner's app hosts both the Case Owner and the CASE_MANAGER
+        role-holder, and together they emit the whole join cascade, so what
+        the joiner holds as received is the integration-level record of who
+        spoke for whom.  Every one of those activities must name the case's
+        CASE_MANAGER as its sender — not the Case Owner that asked, and not
+        the joiner itself.
+
+        The delivered set is asserted non-empty first: the cascade does deliver
+        (CM-11-008, CM-11-010), so the sender set is a statement about real
+        activities rather than about an empty list.
+        """
+        (
+            owner_iso,
+            reporter_iso,
+            late_joiner_iso,
+            owner_tc,
+            reporter_tc,
+            late_joiner_tc,
+        ) = three_app_setup
+
+        case_id, lj_actor_id = _run_late_joiner_sequence(
+            owner_iso,
+            reporter_iso,
+            late_joiner_iso,
+            owner_tc,
+            reporter_tc,
+            late_joiner_tc,
+            owner_slug="owner-pcr-007-009",
+            reporter_slug="reporter-pcr-007-009",
+            lj_slug="late-joiner-pcr-007-009",
+        )
+        lj_dl = late_joiner_iso.store_for(lj_actor_id)
+        assert lj_dl.read(case_id) is not None, (
+            "the sequence must have seeded the joiner's replica before this"
+            " says anything about what reached it"
+        )
+
+        delivered = received_activities(lj_dl)
+        assert delivered, (
+            "the joiner must have received the Invite and the Announce"
+            " cascade; with nothing delivered there is no sender to check"
+        )
+        # Asserted as a positive set equality, not as "none names the joiner".
+        # Everything the joiner is sent is addressed to the joiner
+        # individually, so a bare `actor != joiner` scan over this set has no
+        # behaviour that could put the joiner in it — it would pass whatever
+        # the run emitted, which is the defect this PR exists to remove. The
+        # set equality is red for any other sender, the forged identity among
+        # them, and also pins PCR-08-007's routing.
+        case_actor_id = _find_case_actor_id(lj_dl, case_id)
+        assert case_actor_id != lj_actor_id, (
+            "the joiner and the CASE_MANAGER must be distinct actors, or"
+            " naming the CASE_MANAGER would not rule out naming the joiner"
+        )
+        senders = {_as_id(activity.actor) for activity in delivered}
+        assert senders == {case_actor_id}, (
+            "PCR-07-009/PCR-08-007: everything the joiner holds as received is"
+            " sent by the case's CASE_MANAGER — never under the joiner's own"
+            f" identity, and never direct from the Case Owner; got {senders!r}"
+        )
 
     def test_late_joiner_appears_as_participant(self, three_app_setup):
         """AC-2: Late-joiner appears as participant in their case replica.

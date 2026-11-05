@@ -150,16 +150,15 @@ groups:
       decision through the behavior tree of the actor. That tree applies the role checks
       and the addressing checks.
   - id: TRIG-02-006
-    priority: MUST_NOT
+    priority: MUST
     kind: project
     verification: >-
-      Inspection of the router mounting confirms add-note-to-case and
-      sync-log-entry are mounted only under `/demo/` and only when demo mode is enabled.
+      `test_demo_shortcut_verbs_are_classified_demo_only` in
+      `test/test_trigger_registry.py` asserts that the registry rows for
+      add-note-to-case and sync-log-entry declare demo-only exposure.
     statement: >-
-      The following behaviors exist only to support demo and prototype scenarios.
-      They are exposed under the `/demo/` URL prefix (see TRIG-09-001) and MUST NOT
-      be mounted in production mode (see TRIG-09-002): add-note-to-case,
-      sync-log-entry
+      The add-note-to-case and sync-log-entry triggers MUST be classified demo-only
+      (TRIG-08-002).
     rationale: >-
       Production needs neither verb. A correct implementation commits a SYNC entry each
       time the state changes. Thus sync-log-entry only lets a demo script insert entries
@@ -167,6 +166,9 @@ groups:
       which already adds a Note (TRIG-10-003). Leaving a case is an actor decision, not
       a demo step that a script controls. Thus it is the general-purpose leave-case
       trigger (TRIG-13-001), not a demo verb (ADR-0145).
+    relationships:
+    - rel_type: uses_definition
+      spec_id: TRIG-08-002
     adr:
     - ADR-0145
   - id: TRIG-02-007
@@ -416,18 +418,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: TRIG-01-001
-  - id: TRIG-08-004
-    priority: MUST
-    kind: project
-    statement: Demo-only triggers MUST be exposed under the path prefix `/actors/{actor_id}/demo/{behavior-name}` (see TRIG-09-001)
-    rationale: >-
-      A separate prefix lets the server mount or omit the demo routes as one group
-      (TRIG-09-002). It also shows a demo call in its URL.
-    verification: >-
-      Every row of the trigger registry (TRIG-12-004) declares its exposure; the
-      route-to-registry test asserts that each demo-only row is mounted under
-      `/actors/{actor_id}/demo/` and that no route under that prefix lacks a
-      demo-only row.
   - id: TRIG-08-005
     priority: MUST
     kind: project
@@ -452,13 +442,16 @@ groups:
     kind: project
     statement: Demo-only trigger endpoints MUST use the URL path pattern `POST /actors/{actor_id}/demo/{behavior-name}`
     rationale: >-
-      Demo routes and general-purpose routes are different only in one path segment.
-      Thus demo scripts and clients use the same call shape for both, and that segment
-      alone shows the kind of call.
+      Demo routes and general-purpose routes (TRIG-08-003) are different only in one
+      path segment. Thus demo scripts and clients use the same call shape for both, and
+      that segment alone shows the kind of call. The separate prefix also lets the
+      server mount or omit the demo routes as one group (TRIG-09-002).
     verification: >-
-      Inspection of `vultron/adapters/driving/fastapi/` confirms that the demo
-      router registers all demo-only endpoints under the
-      `POST /actors/{actor_id}/demo/{behavior-name}` path pattern.
+      Every row of the trigger registry (TRIG-12-004) declares its exposure; the
+      route-to-registry test
+      (`test/adapters/driving/fastapi/test_trigger_registry_routes.py`) asserts that
+      each demo-only row is mounted under `/actors/{actor_id}/demo/` and that no
+      route under that prefix lacks a demo-only row.
   - id: TRIG-09-002
     priority: MUST
     kind: project
@@ -575,7 +568,7 @@ groups:
       checks of the first path. Only demo scripts use the note shortcut, so the shortcut
       is in the demo layer.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: TRIG-02-006
   - id: TRIG-10-004
     priority: MUST_NOT
@@ -592,7 +585,7 @@ groups:
       recovery operation would require a protocol-level mechanism for a peer to advertise its current log tail hash before
       entries are replayed (SYNC-17-001, SYNC-18-001)
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: TRIG-02-006
   - id: TRIG-10-005
     priority: MUST
@@ -786,6 +779,9 @@ groups:
       spec_id: TRIG-11-001
     stories:
     - story_2022_050
+    see_also:
+    - spec_id: CM-21-015
+      reason: 'emitting the Undo is not a case of the CASE_MANAGER''s withdrawal commit'
   - id: TRIG-11-007
     priority: MUST
     kind: project
@@ -974,6 +970,11 @@ groups:
       spec_id: TRIG-02-004
     adr:
     - ADR-0145
+    see_also:
+    - spec_id: CM-23-002
+      reason: 'context for the reader'
+    - spec_id: CM-23-003
+      reason: 'context for the reader'
   - id: TRIG-13-002
     priority: MUST
     kind: project

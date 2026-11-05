@@ -324,6 +324,17 @@ def test_cited_spec_ids_keep_an_unknown_literal_and_expand_only_known_ids():
     ) == {"ZZZ-01-001", "CCC-01-001", "CCC-01-002", "CCC-01-009"}
 
 
+def test_cited_spec_ids_keep_a_written_short_end_and_skip_spaced_prose():
+    known = ["CCC-01-001", "CCC-01-002", "CCC-01-050"]
+
+    assert cited_spec_ids("CCC-01-001–009.", known) == {
+        "CCC-01-001",
+        "CCC-01-002",
+        "CCC-01-009",
+    }
+    assert cited_spec_ids("CCC-01-001 — 100 actors.", known) == {"CCC-01-001"}
+
+
 # --- per-file reports and the command line ----------------------------------
 
 

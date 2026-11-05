@@ -111,3 +111,13 @@ class RefusalNoticeReceivedEvent(LedgerPositionedEvent):
     def reason(self) -> str | None:
         """The refusing guard's reason, as the notice's ``summary`` gives it."""
         return self.activity.summary
+
+    @property
+    def expected_sender_sequence(self) -> int | None:
+        """The number the CASE_MANAGER expects next from the participant.
+
+        A refusal for the refused activity's ``senderSequence`` names it as
+        ``expectedSenderSequence`` (SYNC-21-015); any other notice names
+        none.
+        """
+        return self.activity.expected_sender_sequence

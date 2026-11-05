@@ -36,7 +36,7 @@ class ReportsIdempotentRepeat(Protocol):
 
     ``failed_as_repeat`` is ``True`` only when the guard's last run failed
     because the activity repeats one whose effect is already in place, so
-    the handler reports it ``SKIPPED`` (HP-01-003, ID-05-003).  A repeat was
+    the handler reports it ``SKIPPED`` (HP-01-014, ID-05-003).  A repeat was
     not refused, so the refusal stage runs no refusal effect for it: a
     ``Reject`` of it would contradict the effect already in place
     (CLP-10-042, CLP-05-006).

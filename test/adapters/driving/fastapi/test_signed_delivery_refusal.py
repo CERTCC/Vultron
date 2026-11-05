@@ -116,8 +116,8 @@ def test_an_activity_without_a_valid_proof_is_refused_and_stores_nothing(
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "SIG-01-003: nothing signs or verifies yet. Tracked by #5380 "
-        "(proof form) and #5386 (refusal)."
+        "SIG-01-003: nothing signs or verifies a delivery yet. Tracked by "
+        "#5386."
     ),
 )
 @pytest.mark.spec("SIG-01-003")

@@ -25,9 +25,9 @@ the sender guard admits it only from the CASE_MANAGER the receiver already
 knows (PCR-03-001, PCR-03-004), so the receiver is a participant replica, not
 the manager the commit stage is gated on (a manager's self-Announce would only
 duplicate the entry it already holds).  A replica learns of case state from
-the ledger fan-out (SYNC-02-002).  The commit gate here could only ever skip,
-and the effect node cannot move ahead of a commit as a guard: seeding the
-case is itself the write.
+the ledger fan-out (SYNC-02-001, SYNC-02-003).  The commit gate here could
+only ever skip, and the effect node cannot move ahead of a commit as a guard:
+seeding the case is itself the write.
 """
 
 import logging
@@ -133,7 +133,7 @@ def create_announce_vulnerability_case_received_tree(
         case_id=None,
         # The Announce is how a participant learns the case exists, so the
         # first one lands on the no-case path and seeds the replica
-        # (HP-01-041, SYNC-02-002); a later one updates the copy it seeded.
+        # (HP-01-041, PCR-02-003); a later one updates the copy it seeded.
         # The CASE_MANAGER receives its own broadcast as one of the case's
         # participants, where the copy's source is its own case and so
         # changes nothing (SYNC-16-006, ADR-0124): that is a path this type

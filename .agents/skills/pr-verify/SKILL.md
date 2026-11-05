@@ -153,7 +153,9 @@ cannot be ready to merge no matter what those checks find.
    for `main`; this PR waits for it to land, then re-runs CI, which tests the
    PR merged into the fixed base (no rebase, PAD-11-006). The only exception is one
    re-run of a check already tracked by an open `flaky-test` issue holding a
-   reproduction: name that issue in the verdict comment. A pass on re-run with no
+   reproduction: name that issue in the verdict comment, and expect the `CI gate`
+   job to have been re-run after it, since the gate judges once per pull-request
+   event (`notes/ci-workflow-authoring.md`). A pass on re-run with no
    such issue is not evidence — the verdict stays `GAPS-FOUND`.
 
    A `ci-pending` verdict is a fallback for a genuine race condition (CI

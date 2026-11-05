@@ -54,7 +54,6 @@ from vultron.adapters.received_archive import (
     read_received_as_received,
 )
 from vultron.core.models.base import CoreObject
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.events import AnyReceivedEvent
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.ledger_position import (
@@ -63,6 +62,7 @@ from vultron.core.models.ledger_position import (
 )
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
+    ReceivedStage,
 )
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.ports.case_persistence import CasePersistence
@@ -342,19 +342,22 @@ def archive_delivered(
     return record
 
 
-def hold_deferred(dl: Any, activity: Any) -> DeferredInboxActivity:
+def hold_deferred(
+    dl: Any, activity: Any, *, awaiting_case_id: str | None = None
+) -> ReceivedActivityRecord:
     """Hold *activity* in *dl* as the inbox holds one it defers.
 
-    An activity waiting on its case has not reached intake, so it has no
-    ``ReceivedActivityRecord``; the inbox holds it whole in a
-    ``DeferredInboxActivity`` under the receiver's key (DL-06-006,
-    IO-03-009).  *activity* is delivered as a sender would send it: its body
-    is parsed, staged and held through the inbox's own staging.
+    An activity waiting on its case has not reached intake, so its one
+    ``ReceivedActivityRecord`` is in the ``HELD`` stage and owes a replay,
+    under the receiver's key (DL-06-006, IO-03-009, ADR-0154).  *activity* is
+    delivered as a sender would send it: its body is parsed, staged and held
+    through the inbox's own staging.  *awaiting_case_id* names the case it
+    waits on, when the test needs the wait to be findable by case.
     """
     parsed = parse_activity(delivered_body(activity))
     staging = InlineObjectStaging(dl)
     staging.rehydrate_parsed(parsed)
-    staging.hold_for_replay(parsed.id_)
+    staging.hold_for_replay(parsed.id_, awaiting_case_id=awaiting_case_id)
     held = staging.held(parsed.id_)
     if held is None:
         raise AssertionError(f"{parsed.id_!r} was not held for replay")
@@ -376,19 +379,35 @@ def received_activity(dl: Any, activity_id: str) -> Any:
     return read_received_as_received(dl, activity_id)
 
 
-def received_of_type(dl: CasePersistence, activity_type: str) -> list[Any]:
-    """Every *activity_type* activity *dl* holds as received, as received.
+def received_activities(dl: CasePersistence) -> list[Any]:
+    """Every activity *dl* holds as received, whatever its type.
 
     A receiver keeps a received activity only in its ``ReceivedActivityRecord``
     (DL-06-006), so a per-type table scan never finds one.  Each is parsed
     from the body the record holds.
+
+    Use this when the question is about the whole delivered set — "did anything
+    arrive naming *this* actor as its sender" — rather than about one type.
     """
-    parsed = (
+    return [
         parse_received_body(record.received_body)
         for record in dl.list_objects(ReceivedActivityRecord.__name__)
         if isinstance(record, ReceivedActivityRecord)
-    )
-    return [activity for activity in parsed if activity.type_ == activity_type]
+        # Archived only: one record holds a message at every stage
+        # (ADR-0154), so the table also holds a body the inbox is still
+        # holding for a replay, which has not been received into this
+        # actor's records yet.
+        and record.stage is ReceivedStage.ARCHIVED
+    ]
+
+
+def received_of_type(dl: CasePersistence, activity_type: str) -> list[Any]:
+    """Every *activity_type* activity *dl* holds as received, as received."""
+    return [
+        activity
+        for activity in received_activities(dl)
+        if activity.type_ == activity_type
+    ]
 
 
 def received_record(
@@ -414,6 +433,8 @@ def assert_held_only_as_received(
     assert dl.read(activity_id) is None, (
         f"{activity_id!r} is held under the id its sender chose (DL-06-006)"
     )
-    assert received_record(dl, activity_id) is not None, (
-        f"{activity_id!r} has no ReceivedActivityRecord"
+    record = received_record(dl, activity_id)
+    assert record is not None, f"{activity_id!r} has no ReceivedActivityRecord"
+    assert record.stage is ReceivedStage.ARCHIVED, (
+        f"{activity_id!r} is held but not archived: {record.stage}"
     )

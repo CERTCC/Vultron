@@ -225,7 +225,7 @@ class OwnershipOfferOpenNode(
             self.feedback_message = (
                 f"Reply '{self._reply_id}' already closed ownership-transfer"
                 f" Offer '{offer.offer_id}' — redelivery, nothing to apply"
-                " (HP-01-003)"
+                " (HP-01-014)"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -256,7 +256,7 @@ class OwnershipTransfereeActiveNode(DataLayerConditionWithPorts):
     check has already established they are the same.  Runs after
     :class:`OwnershipOfferOpenNode`, so a redelivery of the Accept that
     closed the Offer stays ``SKIPPED`` whatever the transferee's standing now
-    (HP-01-003).  Only the Accept runs it: CM-21-022 governs the answer that
+    (HP-01-014).  Only the Accept runs it: CM-21-022 governs the answer that
     moves ownership, and a Reject moves nothing.
 
     Spec: CM-21-022, CM-10-004.

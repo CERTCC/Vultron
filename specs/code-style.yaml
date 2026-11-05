@@ -184,6 +184,9 @@ groups:
     verification: With `PLC0415` (`import-outside-top-level`) selected in `[tool.ruff.lint]` of `pyproject.toml`, every
       function-local import in production code is either absent or carries a marker per CS-05-005; the count of markers
       is the size of the remaining cycle backlog.
+    see_also:
+    - spec_id: CS-05-003
+      reason: 'context for the reader'
   - id: CS-05-005
     priority: MUST
     kind: project
@@ -727,6 +730,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CS-18-001
+    - rel_type: refines
+      spec_id: CS-18-005
   - id: CS-18-003
     priority: MUST
     kind: project
@@ -745,10 +750,21 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      The test suite for a subpackage created by splitting a flat module SHOULD mirror the subpackage
-      structure: a `test/…/nodes/` (or equivalent) directory with one `test_<submodule>.py` per submodule.
-    rationale: A monolithic test file grows in parallel with the flat module and inherits the same blast-radius problem. Mirrored
-      test files scope failures to the affected concern and make it easier to add focused per-unit tests.
+      Each subpackage split from a flat module, and each BT `nodes/` subpackage
+      (BTND-07-001), SHOULD have mirrored tests: one `test_<submodule>.py` per
+      submodule.
+    rationale: >-
+      A monolithic test file grows in parallel with the flat module and inherits the
+      same blast-radius problem. Mirrored test files scope failures to the affected
+      concern, keep each concern's tests together and runnable alone, and make it
+      easier to add focused per-unit tests.
+    verification: >-
+      For each subpackage split from a flat module and each BT `nodes/` subpackage
+      (BTND-07-001), inspection confirms a matching test directory with one test
+      file per submodule.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-07-001
 - id: CS-20
   title: Protocol and Type-Guard Hygiene
   specs:

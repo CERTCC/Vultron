@@ -55,11 +55,14 @@ parser, which is why the refusal exists.
 
 ## Receiving a Stub
 
-A stub is accepted only as the `target` of an `Invite` whose `object` is an actor,
-wherever that `Invite` is carried inline: in its `Accept` or `Reject`, or in a
-refusal notice quoting such a reply. The parser refuses it anywhere else, an embargo
-invitation included, because only the case invitation asks the question the stub
-answers (MV-10-002, `refuse_misplaced_case_stub`).
+A stub is accepted only as the `target` of an `Invite` whose `object` is an inline
+actor (its profile or an actor reference, AKM-05-017), wherever that `Invite` is
+carried inline: in its `Accept` or `Reject`, or in a refusal notice quoting such a
+reply. The parser refuses it anywhere else, an embargo invitation included, because
+only the case invitation asks the question the stub answers (MV-10-002,
+`refuse_misplaced_case_stub`). A bare URI or `Link` object does not qualify: it may
+name an embargo's terms (ADR-0123), which rehydration resolves only after the parse
+edge has run (#5895).
 
 Look the full object up in the local DataLayer by `id`; if absent, the stub is a
 placeholder until the full case is shared. A stub never overwrites a full object

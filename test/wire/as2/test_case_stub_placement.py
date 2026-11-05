@@ -17,10 +17,10 @@
 
 The stub exists so an invitee can decide whether to join a case before it is
 entitled to the case (ADR-0114).  Its one place is the ``target`` of the
-``Invite`` that invites an actor to the case, wherever that ``Invite`` is
-carried inline: in its ``Accept`` or ``Reject``, or in a refusal notice
-quoting such a reply.  Anywhere else the parser
-refuses the activity and names the slot (#5770).
+``Invite`` whose ``object`` is the inline actor it invites, wherever that
+``Invite`` is carried inline: in its ``Accept`` or ``Reject``, or in a refusal
+notice quoting such a reply.  Anywhere else the parser refuses the activity
+and names the slot (#5770).
 """
 
 import copy
@@ -207,6 +207,7 @@ def test_a_case_uri_or_link_is_accepted_where_a_stub_is_refused(
 
 
 @pytest.mark.spec("MV-10-002")
+@pytest.mark.spec("AKM-05-017")
 @pytest.mark.parametrize(
     "invitee",
     [
@@ -214,8 +215,62 @@ def test_a_case_uri_or_link_is_accepted_where_a_stub_is_refused(
         {"type": "Link", "href": "https://example.org/actors/bob"},
     ],
 )
-def test_a_case_invitation_naming_its_invitee_by_reference_keeps_its_stub(
+def test_an_invite_naming_its_object_by_uri_or_link_loses_its_stub(
     invitee: Any,
 ) -> None:
-    """An invitee named by URI or ``Link`` is still a case invitation."""
+    """An Invite whose object is a bare URI or ``Link`` is no case invitation.
+
+    An invitee travels inline, as its profile or an actor reference
+    (AKM-05-017); a bare object may be an embargo's terms (#5895).
+    """
+    with pytest.raises(VultronParseValidationError, match="MV-10-002") as exc:
+        parse_activity(_activity("Invite", object=invitee, target=_stub()))
+    assert "VulnerabilityCaseStub at target;" in str(exc.value)
+
+
+@pytest.mark.spec("MV-10-002")
+@pytest.mark.spec("AKM-05-017")
+def test_a_case_invitation_naming_its_invitee_by_actor_reference_keeps_its_stub() -> (
+    None
+):
+    """An actor reference is an inline actor, so its Invite keeps the stub."""
+    invitee = {"type": "Person", "id": "https://example.org/actors/bob"}
     parse_activity(_activity("Invite", object=invitee, target=_stub()))
+
+
+def _embargo_invite_naming_its_terms(form: str) -> dict[str, Any]:
+    """The relayed embargo Invite, its ``EmbargoEvent`` named by *form*."""
+    body = _example("relay_embargo_proposal")
+    terms_id = body["object"]["id"]
+    body["object"] = (
+        terms_id if form == "uri" else {"type": "Link", "href": terms_id}
+    )
+    return body
+
+
+@pytest.mark.spec("MV-10-002")
+@pytest.mark.spec("SE-01-006")
+@pytest.mark.parametrize("form", ["uri", "link"])
+def test_an_embargo_invitation_naming_its_terms_by_reference_keeps_no_stub(
+    form: str,
+) -> None:
+    """A stub cannot ride an embargo Invite whose terms are not inline.
+
+    Rehydration resolves such terms from the receiver's own store after the
+    parse edge has run (SE-01-006), so a stub the parser let through would
+    reach the embargo invitation's use case (#5895).
+    """
+    body = _embargo_invite_naming_its_terms(form)
+    body["target"] = _stub()
+    with pytest.raises(VultronParseValidationError, match="MV-10-002") as exc:
+        parse_activity(body)
+    assert "VulnerabilityCaseStub at target;" in str(exc.value)
+
+
+@pytest.mark.spec("MV-10-002")
+@pytest.mark.parametrize("form", ["uri", "link"])
+def test_an_embargo_invitation_naming_its_terms_by_reference_still_parses(
+    form: str,
+) -> None:
+    """Without a stub, terms named by URI or ``Link`` still parse (ADR-0123)."""
+    parse_activity(_embargo_invite_naming_its_terms(form))

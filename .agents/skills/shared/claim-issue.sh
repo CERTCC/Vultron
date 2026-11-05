@@ -108,10 +108,19 @@ fi
 # From here the branch exists, so a failure mid-bundle must say exactly which
 # members were already claimed and drop the branch so a retry is possible.
 CLAIMED=()
+# The member being announced when a step failed: announce-claim.sh assigns and
+# comments before it sets Status, so a failed Status write leaves this member
+# assigned and commented too, and a blind retry comments on it again.
+ANNOUNCING=""
 rollback() {
   echo "❌ Claim failed partway through." >&2
   if [[ ${#CLAIMED[@]} -gt 0 ]]; then
     echo "   Already assigned and commented: ${CLAIMED[*]/#/#}" >&2
+  fi
+  if [[ -n "${ANNOUNCING}" ]]; then
+    echo "   May already be assigned and commented: #${ANNOUNCING}" >&2
+  fi
+  if [[ ${#CLAIMED[@]} -gt 0 || -n "${ANNOUNCING}" ]]; then
     echo "   Un-assign those and delete their claim comments before retrying." >&2
   fi
   echo "   Deleting branch ${BRANCH} so the claim can be retried." >&2
@@ -128,8 +137,10 @@ git switch -c "${BRANCH}" "origin/${BRANCH}"
 # member (plan-issue planning it) is commented on but not assigned: see
 # announce-claim.sh.
 claim() {
+  ANNOUNCING="$1"
   bash "${SHARED}/announce-claim.sh" "$1" "Claimed on branch \`${BRANCH}\`.$2"
   CLAIMED+=("$1")
+  ANNOUNCING=""
 }
 
 claim "${ISSUE_NUMBER}" ""

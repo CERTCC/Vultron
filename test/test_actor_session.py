@@ -16,12 +16,12 @@
 """Unit tests for :class:`vultron.demo.actor_session.ActorSession`."""
 
 import dataclasses
-from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.future_dates import FAR_FUTURE
 from vultron.demo.actor_session import (
     ActorSession,
     WireActivityResult,
@@ -201,7 +201,7 @@ def test_optional_note_omitted_from_body_when_absent():
 
 # -- embargo verbs -------------------------------------------------------
 
-_END = datetime(2030, 1, 2, 3, 4, 5, tzinfo=UTC)
+_END = FAR_FUTURE  # far-future; tests that end_time flows to the trigger, not a specific date
 _EMBARGO_ID = f"{_CASE_ID}/embargo_events/90d"
 #: What a proposal trigger answers: the proposer's own Invite(EmbargoEvent).
 _PROPOSAL = {

@@ -206,6 +206,9 @@ groups:
       constructs successfully and `participant.roles` returns the initial role list.
     tags:
     - protocol
+    see_also:
+    - spec_id: PRM-03-001
+      reason: 'context for the reader'
   - id: PRM-03-003
     priority: MUST_NOT
     kind: project
@@ -357,6 +360,9 @@ groups:
     - protocol
     stories:
     - story_2022_062
+    see_also:
+    - spec_id: CM-11-006
+      reason: 'context for the reader'
   - id: PRM-06-002
     priority: MUST_NOT
     kind: protocol
@@ -391,6 +397,11 @@ groups:
     - protocol
     stories:
     - story_2022_062
+    see_also:
+    - spec_id: CM-11-006
+      reason: 'context for the reader'
+    - spec_id: CM-11-009
+      reason: 'context for the reader'
   - id: PRM-06-003
     priority: MAY
     kind: protocol
@@ -400,14 +411,16 @@ groups:
       acknowledgement, including
       ``Read(Invite(Actor)[target=VulnerabilityCaseStub])``, is evidence. The target is
       typically an inert invitee that has not yet replied, and it must already be a
-      participant (PRM-06-006).
+      participant (PRM-06-006). This move is the whole of what the status asserts: it
+      cannot be asserted in the same status as the ``d→D`` of PRM-06-004.
     rationale: >-
       Without this path, the case cannot record that an invited vendor is aware until
-      the vendor replies to the Invite. A vendor acknowledgement, such as
-      `Read(Invite(Actor)[target=VulnerabilityCaseStub])`, already shows that the
-      vendor is aware. The stub Invite creates the participant record (ADR-0114), so
-      the assertion has a target, and no new participant is necessary. RM stays the
-      same, so the assertion does not speak for the report decisions of the vendor.
+      the vendor replies to the Invite. A vendor acknowledgement already shows that the
+      vendor is aware. The stub Invite creates the record (ADR-0114), so the assertion
+      has a target. RM stays the same, so the assertion does not speak for the report
+      decisions of the vendor. The pair with `d→D` is excluded: together they are
+      `VfD`, which CSB-17-001 does not enumerate, and PRM-06-008 already has the
+      entailments refuse it.
     verification: >-
       ``SvcAddOnBehalfStatusUseCase`` implements this path; the asserting
       actor's CASE_MANAGER or CASE_OWNER role is verified by
@@ -450,13 +463,21 @@ groups:
     statement: >-
       A CASE_MANAGER or Case Owner MAY assert ``d→D`` (``D``) on behalf of a
       Deployer-role participant, under the same externally-evidenced pattern as
-      PRM-06-003. The target must already be a participant (PRM-06-006).
+      PRM-06-003. The target must already be a participant (PRM-06-006). This move is
+      the whole of what the status asserts: it cannot be asserted in the same status as
+      the ``v→V`` of PRM-06-003.
     rationale: >-
       Usually the deployer reports its own deployment. But a deployer that joined and
-      has since gone quiet can leave the case unable to record a deployment, although
-      the case has evidence of it. A narrow, rare exception path covers this. The
-      on-behalf limit keeps it from becoming a general proxy capability. A deployer
-      that did not join is not in the case, so the case has nothing to record about it.
+      has since gone quiet can leave the case unable to record a deployment the case
+      has evidence of. The on-behalf limit keeps this narrow exception from becoming a
+      general proxy capability, and a deployer that did not join is not in the case at
+      all. The pair with `v→V` is excluded: together they are `VfD`, which CSB-17-001
+      does not enumerate, and PRM-06-008 already has the entailments refuse it.
+    verification: >-
+      ``test_target_holding_both_roles_passes_guard_then_entailment_refuses`` in
+      ``test/core/use_cases/triggers/case/test_add_on_behalf_status.py`` asserts a
+      request carrying both moves reaches the write and is refused by CSB-17-001,
+      storing nothing.
     relationships:
     - rel_type: uses_definition
       spec_id: PRM-06-003

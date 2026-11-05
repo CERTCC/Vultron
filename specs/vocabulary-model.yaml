@@ -281,6 +281,11 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: VM-01-014
+    see_also:
+    - spec_id: VM-01-004
+      reason: 'context for the reader'
+    - spec_id: VM-01-016
+      reason: 'context for the reader'
 - id: VM-02
   title: Base Model Configuration
   specs:
@@ -753,6 +758,7 @@ groups:
       spec_id: MV-04-004
     adr:
     - ADR-0090
+    - ADR-0099
   - id: VM-06-013
     priority: MUST
     kind: project

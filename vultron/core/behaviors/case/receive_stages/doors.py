@@ -168,6 +168,11 @@ def received_path_stage(
     refused there, with the reason the stage composes from the resolved path
     and the declaration (HP-01-005, HP-01-039).
 
+    The node takes no case: the caller seeds its ``/case_id`` port with
+    *case_id* (:func:`~vultron.core.behaviors.case_id_scope.with_case_id`,
+    BTND-01-006) where it places the stage, and *case_id* is read here only
+    to refuse a tree whose case nothing ahead of the stage could name.
+
     ``None`` for a tree that has not declared its paths yet; the migration
     onto the declaration is tracked by the ratchet in
     ``test/architecture/test_received_path_role_question.py``.
@@ -196,7 +201,7 @@ def received_path_stage(
             " receiver's role in; name the case at build time or declare no"
             " paths yet (ADR-0153, HP-01-025)"
         )
-    return ReceivedPathNode(declared=declared, case_id=case_id, label=name)
+    return ReceivedPathNode(declared=declared, label=name)
 
 
 def closed_sender_stage(

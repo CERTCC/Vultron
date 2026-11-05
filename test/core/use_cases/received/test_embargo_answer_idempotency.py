@@ -14,7 +14,7 @@
 
 A repeated ``Accept`` or ``Reject`` of the same embargo Invite by the same
 actor, under a new activity id, changes no state at the CASE_MANAGER, adds no
-ledger entry and sends no message (CM-13-005, HP-01-003).  A *changed* answer
+ledger entry and sends no message (CM-13-005, HP-01-014).  A *changed* answer
 by the same actor is a consent change, not a repeat, and still flows; an
 answer by a different participant is its own consent.
 

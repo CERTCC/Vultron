@@ -36,6 +36,7 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.behaviors.case.nodes.case_copy import (
     StateSeededLedgerPositionNode,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -47,6 +48,7 @@ from vultron.core.models.received_activity_record import (
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.services.received_holding import hold_for_replay
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
@@ -152,6 +154,8 @@ def event(make_payload, announce_activity):
 class TestAnnounceVulnerabilityCaseReceivedUseCase:
     """AnnounceVulnerabilityCaseReceivedUseCase seeds the invitee's DataLayer."""
 
+    @pytest.mark.spec("PCR-02-003")
+    @pytest.mark.spec("PCR-07-001")
     def test_creates_case_when_absent(self, dl, event, case):
         """MV-10-003: Announce seeding creates the case in the invitee's DL."""
         _anchor_expected_authority(dl)
@@ -271,6 +275,62 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         assert second.name == first.name
         assert second.id_ == first.id_
 
+    @pytest.mark.spec("PCR-02-004")
+    @pytest.mark.spec("PCR-07-002")
+    def test_an_updated_copy_overwrites_the_fields_the_replica_held(
+        self, dl, make_payload, case
+    ):
+        """PCR-07-002: the announced values replace the ones held, field by field.
+
+        The stability test above delivers the *same* copy twice, which is the
+        right shape for idempotency and the wrong one for "updates the local
+        replica": with both sides carrying identical data, a handler that
+        stored nothing at all would pass it.  This one holds an older copy
+        first and names two fields that differ, so an update that drops either
+        is visible.
+        """
+        _anchor_expected_authority(dl)
+        held = _owned(case).model_copy(
+            update={
+                "name": "the name the replica held",
+                "vulnerability_reports": [],
+            }
+        )
+        dl.create(held)
+        # The test is named for what it *overwrites*, so the held values have
+        # to be shown present at the id the use case reads. Without this the
+        # test degenerates into "creates the case when absent" the moment the
+        # seeding stops landing there, and still passes green.
+        stored = cast(Any, dl.read(_CASE_ID))
+        assert stored is not None
+        assert stored.name == "the name the replica held"
+        assert [_as_id(r) for r in stored.vulnerability_reports] == []
+
+        announced = _owned(case).model_copy(
+            update={
+                "name": "the name the CASE_MANAGER announced",
+                "vulnerability_reports": [_REPORT_ID],
+            }
+        )
+        event = make_payload(
+            announce_vulnerability_case_activity(
+                announced,
+                actor=_CASE_ACTOR_ID,
+                to=[_RECEIVER_ID],
+                context=_CASE_ID,
+            ),
+            at=dl,
+        )
+
+        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED, result.reason
+        updated = cast(Any, dl.read(_CASE_ID))
+        assert updated.name == "the name the CASE_MANAGER announced"
+        assert [_as_id(r) for r in updated.vulnerability_reports] == [
+            _REPORT_ID
+        ]
+
     def test_missing_activity_skips_gracefully(self, dl, event):
         """No-op (with a warning log) when event.activity is None."""
         event = event.model_copy(update={"activity": None})
@@ -314,6 +374,8 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         # CLP-10-018: the refused Announce is still archived.
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
+    @pytest.mark.spec("PCR-03-001")
+    @pytest.mark.spec("PCR-07-003")
     def test_rejects_announce_from_non_case_actor(
         self, dl, case, make_payload, caplog
     ):
@@ -429,9 +491,17 @@ class TestAnnounceFirstContactTrustGap:
         dl.save(
             VultronPendingCaseInbox(
                 case_id=_CASE_ID,
-                activity_ids=["https://example.org/activities/queued"],
                 case_actor_id=_CASE_ACTOR_ID,
             )
+        )
+        # What waits for the case names it on its own record (ADR-0154); the
+        # queue's record only opens the expiry window.
+        queued_id = "https://example.org/activities/queued"
+        assert hold_for_replay(
+            dl,
+            queued_id,
+            f'{{"id": "{queued_id}", "type": "Announce"}}',
+            awaiting_case_id=_CASE_ID,
         )
 
         result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()

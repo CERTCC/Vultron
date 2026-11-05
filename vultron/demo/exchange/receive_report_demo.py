@@ -136,7 +136,8 @@ def demo_validate_report(
     logger.info("DEMO 1: Validate Report and Create Case")
     logger.info("=" * 80)
 
-    report = report_offer = None
+    # Steps 2 and 3 act on the report and Offer step 1 produced, so they nest
+    # inside it rather than reading a None sentinel after it (ADR-0058, #3038).
     with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
         # Through the reporter's own submit-report trigger, which writes the
         # anchor the vendor's case introduction is checked against
@@ -151,35 +152,38 @@ def demo_validate_report(
         )
         logger.info("Submitted report: %s", logfmt(report))
 
-    with demo_step("Step 2: Vendor validates report"):
-        # Through the vendor's validate-report trigger, which sends the Report
-        # Valid to the CASE_MANAGER of the case opened on receipt (#5438).
-        receiver_validates_report(
-            client,
-            vendor,
-            report_offer.id_,
-            note="Validating the report as legitimate.",
-        )
-        check_report_answer_recorded(
-            client, reporter, vendor, report_offer.id_, {RM.VALID}
-        )
-
-    with demo_step(
-        "Step 3: Vendor creates case and introduces it to reporter"
-    ):
-        # A causal precondition (DEMOCI-01-007): without the case there is
-        # no introduction to check, so a missing case is one recorded
-        # failure and the dependent check is skipped (#3852).
-        with demo_gate("Case created for report"):
-            case_data = find_case_by_report(client, report.id_)
-            if not case_data:
-                raise ValueError("Could not find case related to this report.")
-            # The vendor's own Create(VulnerabilityCase) introduces the case
-            # to the reporter (CBT-01-001); the demo builds and posts none
-            # (#4675).
-            verify_reporter_trusts_introduction(
-                client, reporter, vendor, report, case_id=case_data.id_
+        with demo_step("Step 2: Vendor validates report"):
+            # Through the vendor's validate-report trigger, which sends the
+            # Report Valid to the CASE_MANAGER of the case opened on receipt
+            # (#5438).
+            receiver_validates_report(
+                client,
+                vendor,
+                report_offer.id_,
+                note="Validating the report as legitimate.",
             )
+            check_report_answer_recorded(
+                client, reporter, vendor, report_offer.id_, {RM.VALID}
+            )
+
+        with demo_step(
+            "Step 3: Vendor creates case and introduces it to reporter"
+        ):
+            # A causal precondition (DEMOCI-01-007): without the case there is
+            # no introduction to check, so a missing case is one recorded
+            # failure and the dependent check is skipped (#3852).
+            with demo_gate("Case created for report"):
+                case_data = find_case_by_report(client, report.id_)
+                if not case_data:
+                    raise ValueError(
+                        "Could not find case related to this report."
+                    )
+                # The vendor's own Create(VulnerabilityCase) introduces the
+                # case to the reporter (CBT-01-001); the demo builds and posts
+                # none (#4675).
+                verify_reporter_trusts_introduction(
+                    client, reporter, vendor, report, case_id=case_data.id_
+                )
 
     logger.info(
         "✅ DEMO 1 COMPLETE: Report validated, case created, and introduced to the reporter."
@@ -206,7 +210,9 @@ def demo_invalidate_report(
     logger.info("DEMO 2: Invalidate Report (Hold for Reconsideration)")
     logger.info("=" * 80)
 
-    report = report_offer = None
+    # Everything after step 1 acts on the report and Offer it produced, so it
+    # nests inside that step rather than reading a None sentinel after it
+    # (ADR-0058, #3038).
     with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
         # Through the reporter's own submit-report trigger, which writes the
         # anchor the vendor's case introduction is checked against
@@ -221,29 +227,32 @@ def demo_invalidate_report(
         )
         logger.info("Submitted report: %s", logfmt(report))
 
-    with demo_step(
-        "Step 2: Vendor invalidates report (holds for reconsideration)"
-    ):
-        # Through the vendor's invalidate-report trigger, which sends the
-        # Report Invalid to the CASE_MANAGER of the case opened on receipt
-        # (#5438).
-        receiver_invalidates_report(
-            client,
-            vendor,
-            report_offer.id_,
-            note="Needs more investigation before accepting.",
-        )
+        with demo_step(
+            "Step 2: Vendor invalidates report (holds for reconsideration)"
+        ):
+            # Through the vendor's invalidate-report trigger, which sends the
+            # Report Invalid to the CASE_MANAGER of the case opened on receipt
+            # (#5438).
+            receiver_invalidates_report(
+                client,
+                vendor,
+                report_offer.id_,
+                note="Needs more investigation before accepting.",
+            )
 
-    with demo_step("Step 3: Reporter learns of the invalidation"):
-        # The CASE_MANAGER records the Report Invalid and the ledger carries
-        # it to the reporter's replica; nothing is posted to its inbox.
-        check_report_answer_recorded(
-            client, reporter, vendor, report_offer.id_, {RM.INVALID}
-        )
+        with demo_step("Step 3: Reporter learns of the invalidation"):
+            # The CASE_MANAGER records the Report Invalid and the ledger
+            # carries it to the reporter's replica; nothing is posted to its
+            # inbox.
+            check_report_answer_recorded(
+                client, reporter, vendor, report_offer.id_, {RM.INVALID}
+            )
 
-    # The vendor created the case on receipt (auto_create_case), so its
-    # introduction reaches the reporter whatever the RM outcome (CBT-01-001).
-    verify_reporter_trusts_introduction(client, reporter, vendor, report)
+        # The vendor created the case on receipt (auto_create_case), so its
+        # introduction reaches the reporter whatever the RM outcome
+        # (CBT-01-001).  The helper is itself a demo_check, so it names and
+        # records its own failure — do not wrap it in another one.
+        verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
         "✅ DEMO 2 COMPLETE: Report invalidated and the reporter's replica records it."
@@ -274,7 +283,9 @@ def demo_invalidate_and_close_report(
     logger.info("DEMO 3: Invalidate and Close Report")
     logger.info("=" * 80)
 
-    report = report_offer = None
+    # Everything after step 1 acts on the report and Offer it produced, so it
+    # nests inside that step rather than reading a None sentinel after it
+    # (ADR-0058, #3038).
     with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
         # Through the reporter's own submit-report trigger, which writes the
         # anchor the vendor's case introduction is checked against
@@ -289,20 +300,22 @@ def demo_invalidate_and_close_report(
         )
         logger.info("Submitted report: %s", logfmt(report))
 
-    with demo_step(
-        "Step 2: Vendor invalidates the report and closes the case"
-    ):
-        receiver_invalidates_and_closes(
-            client,
-            reporter,
-            vendor,
-            report_offer.id_,
-            note="This is a false positive.",
-        )
+        with demo_step(
+            "Step 2: Vendor invalidates the report and closes the case"
+        ):
+            receiver_invalidates_and_closes(
+                client,
+                reporter,
+                vendor,
+                report_offer.id_,
+                note="This is a false positive.",
+            )
 
-    # The vendor created the case on receipt (auto_create_case), so its
-    # introduction reaches the reporter whatever the RM outcome (CBT-01-001).
-    verify_reporter_trusts_introduction(client, reporter, vendor, report)
+        # The vendor created the case on receipt (auto_create_case), so its
+        # introduction reaches the reporter whatever the RM outcome
+        # (CBT-01-001).  The helper is itself a demo_check, so it names and
+        # records its own failure — do not wrap it in another one.
+        verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
         "✅ DEMO 3 COMPLETE: Report invalidated, case left, and the reporter's replica records it."

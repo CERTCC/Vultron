@@ -114,17 +114,54 @@ class TestBuildInventory:
         spec_only = build_inventory(kinds=("spec",))
         assert all(c.kind == "spec-group" for c in spec_only)
 
-    @pytest.mark.xfail(
-        reason="CM-22 derives-from-non-accepted-adr signal not yet firing. "
-        "Tracked in #1993."
-    )
     def test_known_landmine_surfaces(self, inventory):
-        """CM-22 derives from superseded ADR-0015 — the moved-premise signal
-        must fire (the ISSUE-1272 class of defect)."""
+        """CM-22's derivation reaches an ADR that is not accepted.
+
+        The moved-premise signal has to fire for it — the ISSUE-1272 class of
+        defect, a group resting on a decision the project has not settled.
+        This was a goal-state ``xfail`` for #1993 while the signal was silent;
+        it now fires (on ``ADR-0132=accepted-provisional``), so the marker is
+        gone and this is a permanent regression guard (#3934 item 2).
+
+        Deliberately not pinned to one ADR: the invariant is that *some*
+        unsettled decision in the chain is reported, not which.  That CM-22
+        also cites superseded ADR-0015 is the sibling test's subject.
+
+        Today ``ADR-0132=accepted-provisional`` is the chain's only unsettled
+        link, so promoting that one ADR to ``accepted`` would turn this red —
+        honestly, the landmine being gone rather than the detector broken.
+        Retarget the guard at another group with an unsettled ADR then, rather
+        than weakening the assertion or restoring the marker (#1993).  That
+        the signal fires *at all* is the next method's subject, so a retarget
+        cannot leave the detector itself unguarded in the meantime.
+        """
         cm22 = next((c for c in inventory if c.id == "CM-22"), None)
         assert cm22 is not None
         assert any(
             s.startswith("derives-from-non-accepted-adr") for s in cm22.signals
+        )
+
+    def test_derives_from_non_accepted_adr_signal_fires(self, inventory):
+        """The moved-premise signal is emitted by some candidate.
+
+        The sibling above pins it on CM-22, which is #1993's subject but also
+        rests on one ADR's provisional status.  This one asks only that the
+        signal is live code rather than dead config, so retargeting or
+        retiring the CM-22 guard cannot silently leave the detector itself
+        unchecked — the shape #3934 is about.
+        """
+        emitting = [
+            c
+            for c in inventory
+            if any(
+                s.startswith("derives-from-non-accepted-adr")
+                for s in c.signals
+            )
+        ]
+        assert emitting, (
+            "derives-from-non-accepted-adr never fired for any candidate: the"
+            " signal is declared and weighted but dead (the ISSUE-1272 class"
+            " of defect is no longer detectable at all)"
         )
 
     def test_cites_superseded_signal_fires(self, inventory):

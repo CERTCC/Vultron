@@ -395,7 +395,7 @@ class SyncActivityAdapter:
         every recipient in *to* is already pending in this outbox
         (SYNC-15-012); ``True`` when a row was queued.
 
-        Spec: SYNC-02-002, SYNC-03-002, SYNC-15-012.
+        Spec: SYNC-02-001, SYNC-02-002, SYNC-03-002, SYNC-15-012.
         """
         pending = self._pending_announce_index().get(entry.id_, set())
         if to and all(recipient in pending for recipient in to):

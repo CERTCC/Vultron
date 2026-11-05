@@ -136,7 +136,7 @@ Only admitted assertions enter the ledger; there is no disposition field.
   diagnostic: Python `logging` only.
 - A case-resolvable message refused by a precondition guard gets a `Reject` sent
   to the asserting participant alone (CLP-05-001) plus a log event. Nothing enters
-  the hash chain (CLP-05-002). Other participants need canonical history, not
+  the hash chain (CLP-04-007). Other participants need canonical history, not
   failed attempts.
 - The `Reject` wraps the refused activity inline, `inReplyTo` its id, with the
   guard's reason in `summary` (ADR-0141). `create_receive_activity_tree` adds

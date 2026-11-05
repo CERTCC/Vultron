@@ -58,21 +58,28 @@ _TABLE_HEADER = (
 )
 
 
+def _linked_id(spec_id: str, href: RequirementHref) -> str:
+    """Return *spec_id* as a link to its row, or bare when it has none."""
+    target_href = href(spec_id)
+    return spec_id if target_href is None else f"[{spec_id}]({target_href})"
+
+
 def _render_relationships_cell(spec: Spec, href: RequirementHref) -> str:
-    """Return the Related cell content for a spec table row."""
-    if not spec.relationships:
-        return ""
+    """Return the Related cell content for a spec table row.
+
+    The cell lists the relationships the requirement records, then each
+    ``see_also`` citation with its reason (SR-13-022), so a reader of a cited
+    ID with no link sees why it has none.
+    """
     parts = []
-    for rel in spec.relationships:
+    for rel in spec.relationships or []:
         label = _REL_LABEL.get(rel.rel_type, rel.rel_type.value)
-        target_href = href(rel.spec_id)
-        target = (
-            rel.spec_id
-            if target_href is None
-            else f"[{rel.spec_id}]({target_href})"
-        )
         note = f" — {rel.note}" if rel.note else ""
-        parts.append(f"*{label}*: {target}{note}")
+        parts.append(f"*{label}*: {_linked_id(rel.spec_id, href)}{note}")
+    for entry in spec.see_also:
+        parts.append(
+            f"*See also*: {_linked_id(entry.spec_id, href)} — {entry.reason}"
+        )
     return "<br>".join(parts)
 
 

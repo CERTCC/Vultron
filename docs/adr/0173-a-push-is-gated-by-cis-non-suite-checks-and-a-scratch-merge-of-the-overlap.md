@@ -12,6 +12,8 @@ informed: []
 stakeholder_type: [project-contributor]
 partially_supersedes:
   - 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md
+partially_superseded_by:
+  - 0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md
 ---
 
 # A Push Is Gated by CI's Non-Suite Checks and a Scratch Merge of the Overlap

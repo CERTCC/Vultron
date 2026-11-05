@@ -9,11 +9,13 @@ description: >
   mandatory `notify-failure` wiring and its one-job-per-label rule, the
   `timeout-minutes` every job needs and the reusable-workflow exemption, why an
   automated find-or-file lookup must not go through the search index, why a
-  `GITHUB_TOKEN`-raised event never triggers another workflow, why a bot-filed
-  issue gets a theme but no Epic parent, why an artifact name needs the run
-  attempt, why a GitHub write is retried and a label swap is
-  split, how to read a red CI job correctly, and why a new pull-request step
-  must be mirrored locally or excluded with a reason.
+  `GITHUB_TOKEN`-raised event never triggers another workflow, why a script
+  must use the spellings macOS's bash 3.2 understands, why a bot-filed issue
+  gets a theme but no Epic parent, why an artifact name needs the run attempt,
+  why a GitHub write is retried and a label swap is split, how to read a red CI
+  job correctly, why a new pull-request step must be mirrored locally or
+  excluded with a reason, and why the `CI gate` must be re-run after a re-run
+  check.
 related_notes:
   - notes/demo-ci-invariants.md
   - notes/demo-ci-scenario-coverage.md
@@ -49,6 +51,27 @@ entry in `vultron/metadata/planning/ci_mirror/_registry.py`. Add a
 expression. Or add an `EXCLUSIONS` entry saying why it cannot run locally.
 Without that entry the mirror would silently fall behind CI, the gap it closes
 (PAD-18-022, ADR-0173).
+
+## The `CI gate` Judges Every Other Check, Once
+
+`ci-gate.yml` has no `paths` filter, so its `CI gate` job is the one check a
+ruleset can require (#5942). A path-filtered job never starts on a pull request
+outside its paths, and a ruleset requiring it would wait forever. The gate
+waits for the newest run of every other workflow on the head commit, and passes
+only when each passed or was skipped. So a new pull-request workflow needs no
+ruleset change: the gate judges it.
+
+It is unrelated to the publish workflow's "CI gate" (`deploy_site.yml`,
+ADR-0171), which checks that `main`'s CI is green before a site publish.
+
+An empty set never passes: two workflows run on every pull request, so no
+other check means GitHub has not started them, and the gate ends red at its
+deadline.
+
+The gate judges once per pull-request event, so a re-run or a dispatched run
+on the head commit after it finished is never judged. After any such run,
+re-run the `CI gate` job too before merging. Otherwise a flaky check re-run
+green leaves the gate red, and a green check re-run red leaves it green.
 
 ## Push-to-`main` and Scheduled Workflows MUST Wire `notify-failure`
 
@@ -103,6 +126,31 @@ and update arms. The script resolves the type by name, applies it with
 `updateIssue`, leaves a typed issue alone, and fails the step when the type does
 not exist (CISEC-05-017 to CISEC-05-019). `notify-failure` and
 `demo-recordings.yml` use it; never copy its body into a workflow.
+
+## A Script Runs On The Host's bash, Which May Be 3.2
+
+A `.github/scripts/*.sh` or `.agents/skills/**/*.sh` runs with the first `bash`
+on `PATH`, and macOS still ships bash 3.2, so a bash 4 builtin exits 127 on a
+contributor's host while the Linux runners stay green — the gate is then red
+for a reason the diff cannot cause, which is how a real failure gets read past
+([testing-pitfalls](testing-pitfalls.md) § "A Harness That Fails For The
+Environment Hides Real Failures", #5698). Write the 3.2 spelling:
+
+| Instead of | Write |
+|---|---|
+| `mapfile -t a < <(cmd)` | `out=$(cmd)`, then one `IFS= read -r` per field |
+| `declare -A m` on numeric keys | `declare -a m` — an indexed array is sparse |
+| `declare -A m` on text keys | parallel arrays, or a `case` lookup |
+| `"${a[@]}"` on a maybe-empty array | `${a[@]+"${a[@]}"}` (`set -u`, pre-4.4) |
+| `${v^^}` | `tr '[:lower:]' '[:upper:]'` |
+| `[[ -v name ]]` | `[ -n "${name+set}" ]` |
+
+The command-substitution form is also the one `set -e` can see: a process
+substitution swallows the failure of the command inside it (§ "A Find-or-File
+Lookup Must Not Use the Search Index", CISEC-05-011).
+`test/ci/test_shell_script_portability.py` scans every tracked `*.sh`; it
+cannot see the empty-array case, which is a question about the script's logic
+rather than a construct.
 
 ## A Bot-Filed Issue Gets a Theme From the Filer, and No Parent
 

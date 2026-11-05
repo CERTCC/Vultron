@@ -57,7 +57,7 @@ HTTP POST /actors/{actor_id}/inbox  (wire: AS2 JSON)
      (BT work runs in a worker thread via asyncio.to_thread, IE-06-007)
   -> rehydrate() via staging       `vultron/adapters/inbox_staging/staging.py`, `vultron/wire/as2/rehydration/`
      (activity and inline objects staged in a throwaway store; ingress writes nothing, DL-06-006, IO-03-004;
-      a deferred activity is held whole in a `DeferredInboxActivity` for its replay)
+      a deferred activity is held whole on its own `ReceivedActivityRecord`, marked as owing a replay)
   -> semantic extraction           `vultron/wire/as2/extractor/`
      (AS2 pattern -> MessageSemantics + VultronEvent)
   -> dispatcher                    `vultron/core/dispatcher.py` (port: `vultron/core/ports/dispatcher.py`)
@@ -129,8 +129,8 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 - **Process-global py_trees blackboard**: BT executions share `py_trees.blackboard.Blackboard.storage`.
   `BTBridge` serializes executions with a module-level `RLock`, and `blackboard_scope.py` snapshots and restores execution-scoped keys, but any key outside those managed sets can leak between trees.
 - **Core modules over the CS-18 size cap**: several core files exceed the 500-line threshold of CS-18-001, the largest being `vultron/core/behaviors/case/receive_activity_tree.py` (see `CONCERNS.md`).
-- **Content signing decided but not built**: ADR-0164 (`accepted-provisional`) chooses object-level proofs inside each activity (FEP-8b32, `eddsa-jcs-2022`) from seeded keys, with strict verification and no switch.
-  Nothing signs or verifies yet; the inbox accepts any well-formed body, and the expected behavior is pinned by strict-`xfail` tests (`test/adapters/driving/fastapi/test_signed_delivery_refusal.py`, `test/core/use_cases/received/test_signed_ledger_entries.py`).
+- **Content signing decided, partly built**: ADR-0164 (`accepted-provisional`) chooses object-level proofs inside each activity (FEP-8b32, `eddsa-jcs-2022`) from seeded keys, with strict verification and no switch.
+  The one signing module, `vultron/wire/as2/signing.py`, creates and verifies proofs, but nothing calls it yet: no delivery is signed, the inbox accepts any well-formed body, and the expected behavior is pinned by strict-`xfail` tests (`test/adapters/driving/fastapi/test_signed_delivery_refusal.py`, `test/core/use_cases/received/test_signed_ledger_entries.py`).
 - **Demo layer mixed into `vultron/demo/`**: demo code imports from adapters, which is appropriate, but the boundary between "demo" and "production use case" is not always clear.
 
 ### 6) Evidence

@@ -53,7 +53,9 @@ from vultron.core.models.object_fetch import (
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import may_act_on_case
+from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronNotACaseParticipantError,
     VultronNotFoundError,
@@ -96,7 +98,9 @@ def _case_host_of(
     if case is None:
         return None
     manager_id = resolve_case_manager_id(case, dl)
-    if manager_id is None or same_actor_id(manager_id, receiving_actor_id):
+    if manager_id is None:
+        return None
+    if has_role(receiving_actor_id, case_id, CVDRole.CASE_MANAGER, dl):
         return None
     return case, manager_id
 
@@ -293,8 +297,7 @@ def case_object_for_participant(
     case = dl.read_case(case_id)
     if case is None:
         raise VultronNotFoundError("VulnerabilityCase", case_id)
-    manager_id = resolve_case_manager_id(case, dl)
-    if manager_id is None or not same_actor_id(manager_id, host_actor_id):
+    if not has_role(host_actor_id, case_id, CVDRole.CASE_MANAGER, dl):
         raise VultronNotFoundError("VulnerabilityCase", case_id)
     requester = normalise_actor_id(requester_id)
     if not may_act_on_case(case, dl, requester):

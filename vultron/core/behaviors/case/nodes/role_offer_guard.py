@@ -44,10 +44,8 @@ from vultron.core.participants.role_offer import (
     entry_names_role_offer,
     recorded_role_offer,
 )
-from vultron.core.predicates.addressing import (
-    participant_id_for_actor,
-    same_actor_id,
-)
+from vultron.core.participants.role_predicate import has_role
+from vultron.core.predicates.addressing import participant_id_for_actor
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError, VultronNotFoundError
 
@@ -135,7 +133,7 @@ class RoleOfferAdmissibleNode(
         self.feedback_message = (
             f"role Offer '{self.offer_id}' is already recorded and forwarded"
             f" for case '{self.case_id}' — redelivery, nothing to apply"
-            " (HP-01-003)"
+            " (HP-01-014)"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
@@ -172,9 +170,11 @@ class RoleOfferAdmissibleNode(
                 f"names '{self.target_actor_id}', which is not a participant"
                 f" in case '{self.case_id}'"
             )
-        case_manager_id = resolve_case_manager_id(case, self.datalayer)
-        if case_manager_id is not None and same_actor_id(
-            case_manager_id, self.target_actor_id
+        if has_role(
+            self.target_actor_id,
+            self.case_id,
+            CVDRole.CASE_MANAGER,
+            self.datalayer,
         ):
             return self._refuse(
                 f"names the case's CASE_MANAGER '{self.target_actor_id}',"
@@ -295,7 +295,7 @@ class RoleOfferOpenNode(FlaggedRepeatGuardMixin, DataLayerConditionWithPorts):
         self.feedback_message = (
             f"answer '{self.reply_id}' already closed role Offer"
             f" '{offer.offer_id}' — redelivery, nothing to apply"
-            " (HP-01-003)"
+            " (HP-01-014)"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE

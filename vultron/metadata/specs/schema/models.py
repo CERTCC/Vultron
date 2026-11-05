@@ -60,6 +60,21 @@ class Relationship(BaseModel):
     note: str | None = None
 
 
+class SeeAlso(BaseModel):
+    """A requirement a statement cites that no relationship links (SR-13-022).
+
+    A relationship asserts that a change to its target affects its source; a
+    see-also citation asserts nothing, so it is a field, not a relationship
+    type (ADR-0177). ``reason`` says why no SR-13 type fits: a rationale, a
+    scope boundary, an example, a link that would close a loop.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    spec_id: SpecIdStr
+    reason: NonEmptyStr
+
+
 #: Keys a requirement once used to stay in place after it was superseded.
 #: The schema declares neither: a superseded requirement is removed and
 #: archived instead (MS-04-005, MS-09-001).
@@ -115,6 +130,10 @@ class StatementSpec(BaseModel):
     references: list[str] | None = None
     exceptions: list[NonEmptyStr] | None = None
     relationships: list[Relationship] | None = None
+    #: Cited requirements with no relationship, each with its reason
+    #: (SR-13-022). Empty, not ``None``: no entry and an absent field mean
+    #: the same thing.
+    see_also: list[SeeAlso] = []
     adr: list[AdrIdStr] | None = None
     lint_suppress: list[LintWarningCode] | None = None
     stories: list[StoryIdStr] | None = None

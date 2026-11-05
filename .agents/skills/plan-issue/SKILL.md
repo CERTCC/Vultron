@@ -188,7 +188,8 @@ from the discussion rather than being asked as structured questions.
    which lines are wrong; this is not a new round of questions.
 
 Every question follows `.agents/skills/shared/asking-the-user.md` (one at a
-time, problem before decision, plain language, no bare IDs).
+time, problem before decision, behavior not wording, plain language, no bare
+IDs), and passes the guide's pre-ask check before it is sent.
 
 **Type-specific opening and conversation guidance:** see the loaded
 companion file.
@@ -417,7 +418,7 @@ See the loaded companion file for the type-specific completion step:
 ## Conventions
 
 - **Branch name**: `plan/<N>-<slug>` (always created via `claim-issue.sh` in Phase 1b)
-- **History source**: `IDEA-<N>` for Ideas; `CONCERN-<N>` for Concerns (not used for Epics)
+- **History source**: `ISSUE-<N>` for Ideas; `CONCERN-<N>` for Concerns (not used for Epics)
 - **History type**: `idea` for Ideas; `learning` for Concerns (not used for Epics)
 - **Spec file names**: lowercase hyphenated `.yaml` in `specs/`
 - **Notes file names**: same base name as spec, `.md` in `notes/`

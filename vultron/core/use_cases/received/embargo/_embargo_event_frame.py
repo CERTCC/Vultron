@@ -53,7 +53,7 @@ class _EmbargoEventReceivedUseCase:
     composes into the sender guard (HP-01-008), and name their tree in
     :meth:`_build_tree`, so the ledger-commit inventory sees which received
     tree each one runs.  :meth:`_refine_verdict` lets a subclass read a
-    guard's benign no-op as ``SKIPPED`` (HP-01-003).
+    guard's benign no-op as ``SKIPPED`` (HP-01-014).
     """
 
     sender_entitlement: ClassVar[SenderRule]

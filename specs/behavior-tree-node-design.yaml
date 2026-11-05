@@ -51,15 +51,23 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >-
-      A BT node MUST take each value that varies by usage site as a constructor
-      parameter. Such values include an actor identity, a CVD role and a case ID.
+      Some values vary by usage site, and every tree that uses the node knows them at
+      build time. A BT node MUST take each such value as a constructor parameter.
+      Such values include an actor identity, a CVD role and a case ID. BTND-01-006
+      covers the other values.
     rationale: >-
       A constructor parameter makes each such value an explicit input. The caller that
       builds the tree then decides the value, so one node class serves every actor and
-      every case.
+      every case. A constructor cannot carry a value that does not exist when the tree
+      is built, such as a case that an earlier node in the same tick creates or
+      resolves from the activity.
     relationships:
     - rel_type: implements
       spec_id: BTND-01-001
+    see_also:
+    - spec_id: BTND-01-006
+      reason: >-
+        scope boundary: BTND-01-006 covers the values a tree finds only at tick time
   - id: BTND-01-005
     priority: MUST
     kind: project
@@ -73,6 +81,43 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: BTND-01-002
+  - id: BTND-01-006
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      Some trees find a node's input value only at tick time. Such a node MUST read
+      that value from a declared blackboard input port in every tree that uses it.
+    rationale: >-
+      A declared port keeps the input visible to the tree and its tests, as
+      BTND-01-005 requires. One channel per node keeps every tree that uses the node
+      alike: a tree that knows the value at build time seeds the port, and a tree
+      that finds it at tick time publishes it from an earlier node. BTND-10-005
+      applies this rule to the ParticipantStatus write node.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-01-005
+  - id: BTND-01-007
+    priority: MUST
+    kind: project
+    verification: >-
+      For `case_id`, the value every current BTND-01-006 node reads at tick time:
+      `test_no_node_reads_case_id_from_both_a_port_and_its_constructor` in
+      `test/architecture/test_case_id_one_channel.py` imports every `PortsMixin`
+      class under `vultron/core/behaviors/` and fails when a class that declares a
+      `case_id` input port also accepts a `case_id` constructor parameter or
+      `**kwargs`.
+    statement: >-
+      A node that reads an input value from a blackboard input port under
+      BTND-01-006 MUST NOT also take that value as a constructor parameter.
+    rationale: >-
+      A node that takes the value from its constructor and falls back to the port
+      reads the port only when a tree passes no value. A stale port value left by
+      one execution then decides another execution's result, as the shared case ID
+      did before execution-scoped keys. One channel removes that fallback.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-01-006
 - id: BTND-02
   title: Composability and Reuse
   specs:
@@ -706,6 +751,9 @@ groups:
     rationale: >-
       Extracting repeated patterns into a shared subtree reduces duplication and ensures fixes
       and improvements apply consistently across all use sites.
+    see_also:
+    - spec_id: BTND-02-001
+      reason: 'context for the reader'
 - id: BTND-07
   title: BT Node Module Organization
   specs:
@@ -745,23 +793,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: BTND-07-001
-  - id: BTND-07-002
-    priority: SHOULD
-    kind: project
-    statement: >-
-      The test suite for a `nodes/` subpackage SHOULD mirror the subpackage structure: a `test/…/nodes/`
-      directory with one `test_<submodule>.py` per submodule, so that each concern's tests are co-located and independently
-      runnable.
-    rationale: A monolithic `test_nodes.py` grows in parallel with the flat `nodes.py` and inherits the same blast-radius
-      problem. Mirrored test files scope test failures to the affected concern and make it easier to add focused per-node
-      unit tests.
-    relationships:
-    - rel_type: extends
-      spec_id: BTND-07-001
-    - rel_type: refines
-      spec_id: CS-18-004
-    verification: For any `nodes/` subpackage, confirm that a matching `test/…/nodes/` directory exists with per-submodule
-      test files.
   - id: BTND-07-003
     priority: MUST
     kind: project
@@ -1112,6 +1143,10 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: BTND-10-004
+    - rel_type: refines
+      spec_id: BTND-01-006
+    - rel_type: refines
+      spec_id: BTND-01-007
     adr:
     - ADR-0089
     testable: true

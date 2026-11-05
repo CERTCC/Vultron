@@ -28,12 +28,15 @@ class _RefusalNoticeActivity(as_Reject):
     Sent to the asserting participant alone when a precondition guard at the
     CASE_MANAGER refuses its assertion, so the participant learns the
     assertion had no effect (CLP-02-005, CLP-05-001, ADR-0141).  Nothing is
-    ledgered for it (CLP-05-002).
+    ledgered for it (CLP-04-007).
 
     object_: The refused activity, inline.
     in_reply_to: The refused activity's id.
     summary: The refusing guard's reason.
     context: The case the refused activity concerns, when it names one.
+    expected_sender_sequence: The number the CASE_MANAGER expects next from
+        the asserter, when it refused the activity for its
+        ``senderSequence`` (SYNC-21-015).
     """
 
     object_: as_Activity = Field(

@@ -495,32 +495,6 @@ class TestCoreTypeMapHierarchy:
 class TestCoreObjectModelConfig:
     """Tests for CoreObject model_config invariants."""
 
-    def test_core_vocabulary_does_not_reference_as2_namespace_directly(
-        self,
-    ) -> None:
-        """CoreObject classes must not reference the AS2 namespace string.
-
-        The AS2 namespace (@context = https://www.w3.org/ns/activitystreams)
-        is a wire-layer concern. Core domain objects must not encode or
-        reference wire-format constants. The wire projection layer supplies
-        the namespace at serialization time.
-
-        This test scans source code for direct references to the AS2 namespace
-        URI string. Legitimate uses (wire layer only) are expected; core-layer
-        references are violations.
-        """
-        # For now, this test passes by construction because core models are
-        # defined in vultron/core/models/ and wire constants live in
-        # vultron/wire/as2/. A future check could scan source code or
-        # bytecode for string literals; this serves as a documentation and
-        # regression placeholder.
-
-        # Note: if a new core model is added with a direct AS2 namespace
-        # reference, add a specific assertion here or extend the search logic.
-        assert True, (
-            "Placeholder for future bytecode scanning (no violations found)"
-        )
-
     def test_core_object_derives_as2_spellings_and_accepts_field_names(
         self,
     ) -> None:

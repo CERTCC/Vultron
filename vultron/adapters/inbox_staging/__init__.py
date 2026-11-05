@@ -20,12 +20,14 @@ receiver already holds is always the one routing sees.  The rebuild reads the
 activity from it, and nothing staged reaches the receiver's store.
 
 An activity deferred until its case is known is replayed later, by id, after
-the staging store has been emptied.  It is held for that replay in one
-:class:`~vultron.core.models.deferred_inbox_activity.DeferredInboxActivity`
-record (:meth:`InlineObjectStaging.hold_for_replay`), keyed by the receiver:
-the received body the parser sealed, beside the staged inline rows
-(IO-03-009).  The replay parses that body again, stages it with the held rows
-and deletes the record (:meth:`InlineObjectStaging.rehydrate_deferred`).
+the staging store has been emptied.  It is held for that replay on the
+activity's one
+:class:`~vultron.core.models.received_activity_record.ReceivedActivityRecord`
+(:meth:`InlineObjectStaging.hold_for_replay`), keyed by the receiver: the
+received body the parser sealed, beside the staged inline rows, with the
+record marked as owing a replay (IO-03-009, ADR-0154).  The replay parses
+that body again, stages it with the held rows and releases the record
+(:meth:`InlineObjectStaging.rehydrate_deferred`).
 
 The package keeps the scratch store in ``store`` and the staging that uses it
 in ``staging`` (CS-18-005).

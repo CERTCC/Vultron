@@ -170,8 +170,10 @@ step, and a plain reply in the normal prompt wraps where the `ask_user` notes
 field does not. With no question box open, nothing hides the briefing.
 
 Write it per `.agents/skills/shared/asking-the-user.md`: plain language, no
-bare IDs, every option spelled out. Cover each item from Phase 2 with concrete
-evidence, in whatever order reads best:
+bare IDs, every option spelled out, and run its pre-ask check. When the bug is
+a spec-vs-code conflict, ask which behavior is right, not which text to change.
+Cover each item from Phase 2 with concrete evidence, in whatever order reads
+best:
 
 - **What's broken** — the symptom, and where you reproduced it (`file:line`
   plus a few words on what that code does).

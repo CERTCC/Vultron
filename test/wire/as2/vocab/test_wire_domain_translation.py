@@ -15,12 +15,11 @@
 
 """Wire/core translation tests for WIRE-TRANS-03 and WIRE-TRANS-04."""
 
-from datetime import UTC, datetime
-
 import pytest
 from pydantic import ValidationError
 
 from test.support.embargo_register import register
+from test.support.future_dates import FAR_FUTURE
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -150,7 +149,7 @@ def test_case_participant_round_trips_between_core_and_wire():
             EmbargoConsent(
                 embargo_id="https://example.org/embargoes/2",
                 state=EmbargoConsentState.INVITED,
-                rsvp_deadline=datetime(2030, 1, 2, 3, 4, 5, tzinfo=UTC),
+                rsvp_deadline=FAR_FUTURE,  # far-future; tests round-trip, not specific value
             ),
         ],
         participant_case_name="Vendor Case Name",
@@ -169,9 +168,11 @@ def test_case_participant_round_trips_between_core_and_wire():
     assert wire_dump["embargoConsents"][0]["embargoId"] == (
         "https://example.org/embargoes/1"
     )
-    # The invitation's RSVP deadline travels on its INVITED row (CM-28-013).
+    # The invitation's RSVP deadline travels on its INVITED row (CM-28-013),
+    # written in the fixed six-digit form rather than bare isoformat: a whole
+    # second is padded to ``.000000`` (CS-13-007).
     assert wire_dump["embargoConsents"][1]["rsvpDeadline"] == (
-        "2030-01-02T03:04:05.000000+00:00"
+        FAR_FUTURE.isoformat(timespec="microseconds")
     )
     assert round_tripped.participant_statuses[0].rm.state == RM.ACCEPTED
 

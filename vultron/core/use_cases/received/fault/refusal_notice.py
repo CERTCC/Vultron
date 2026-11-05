@@ -22,6 +22,7 @@ from typing import ClassVar
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.refusal_notice import (
     ClearRefusedAssertionNode,
+    ResumeOutboundSequenceNode,
 )
 from vultron.core.behaviors.case.refusal_notice_received_tree import (
     refusal_notice_received_tree,
@@ -89,6 +90,7 @@ class RefusalNoticeReceivedUseCase:
             reason=request.reason,
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
+            expected_sender_sequence=request.expected_sender_sequence,
         )
         result = BTBridge(
             datalayer=self._dl,
@@ -110,7 +112,10 @@ class RefusalNoticeReceivedUseCase:
         clear = find_node(tree, ClearRefusedAssertionNode)
         if clear is not None and clear.cleared:
             return verdict
+        resume = find_node(tree, ResumeOutboundSequenceNode)
+        if resume is not None and resume.moved:
+            return verdict
         return HandlerResult.skipped(
             f"refusal notice for '{request.refused_activity_id}': no pending"
-            " assertion to close"
+            " assertion to close and no sender sequence to resume"
         )

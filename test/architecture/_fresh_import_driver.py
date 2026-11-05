@@ -34,6 +34,19 @@ checks for exactly that, and imports such a component's members in brand-new
 interpreters instead, so a missed edge costs time, never coverage.
 It does the same once a module has started a thread, since forking a
 multi-threaded process is unsafe.
+
+How many children at once
+-------------------------
+Both child routes run in batches of at most ``sys.argv[1]`` children, which
+the caller sizes from the memory one xdist worker is budgeted
+(``test.support.xdist_workers.child_process_budget``).  The bound is the
+caller's because only the caller knows it is one of several workers spending
+the same container; the driver's own default, used when it is run by hand, is
+one child per CPU.  Sizing it here from ``os.cpu_count()`` ran as many children
+as the host had cores no matter how little of the host this process could use,
+and the brand-new-interpreter route ran strictly one at a time, which together
+left the test both the heaviest process in the container and near its own
+wall-clock ceiling (#5184).
 """
 
 import json
@@ -91,13 +104,23 @@ def _import(module: str) -> str | None:
     return None
 
 
-def _forked_imports(members: list[str]) -> dict[str, str]:
+def max_children(argv: list[str]) -> int:
+    """How many children to run at once: the caller's bound, else one per CPU.
+
+    The default is only for a hand run of the script; the test always states a
+    bound (see "How many children at once" above, #5184).
+    """
+    if len(argv) > 1:
+        return max(1, int(argv[1]))
+    return os.cpu_count() or 1
+
+
+def _forked_imports(members: list[str], at_once: int) -> dict[str, str]:
     """Import each member first, each in a child forked from this process."""
     failures: dict[str, str] = {}
-    max_children = os.cpu_count() or 1
-    for start in range(0, len(members), max_children):
+    for start in range(0, len(members), at_once):
         children: list[tuple[str, int, int]] = []
-        for module in members[start : start + max_children]:
+        for module in members[start : start + at_once]:
             read_fd, write_fd = os.pipe()
             pid = os.fork()
             if pid == 0:  # child
@@ -125,18 +148,37 @@ def _forked_imports(members: list[str]) -> dict[str, str]:
     return failures
 
 
-def _fresh_imports(members: list[str]) -> dict[str, str]:
-    """Import each member first, each in a brand-new interpreter."""
+def _fresh_imports(members: list[str], at_once: int) -> dict[str, str]:
+    """Import each member first, each in a brand-new interpreter.
+
+    Batched like the forked route, rather than one at a time: a brand-new
+    interpreter re-imports pydantic and fastapi before it reaches the module,
+    so this route cost ~2.7s per member and dominated the test's runtime at a
+    third of its members, leaving almost no headroom under its own timeout
+    (#5184).  Only ``at_once`` of them exist at any moment, so the bound this
+    route gains is the same one the forked route loses.
+    """
     failures: dict[str, str] = {}
-    for module in members:
-        proc = subprocess.run(
-            [sys.executable, "-c", f"import {module}"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if proc.returncode != 0:
-            failures[module] = proc.stderr
+    for start in range(0, len(members), at_once):
+        batch = [
+            (
+                module,
+                subprocess.Popen(
+                    [sys.executable, "-c", f"import {module}"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                ),
+            )
+            for module in members[start : start + at_once]
+        ]
+        # One ``communicate`` per child, in order.  A later child could in
+        # principle fill its stderr pipe and block while an earlier one is
+        # still being read, but the only thing written there is one traceback.
+        for module, proc in batch:
+            _, errors = proc.communicate()
+            if proc.returncode != 0:
+                failures[module] = errors
     return failures
 
 
@@ -147,6 +189,7 @@ def main() -> int:
     # chain can be as deep as the package has modules.  Raised here, in the
     # driver's own process, never in a caller's: the limit is process-global.
     sys.setrecursionlimit(max(sys.getrecursionlimit(), 4 * len(graph) + 100))
+    at_once = max_children(sys.argv)
     for name in _PRELOAD:
         try:
             __import__(name)
@@ -162,9 +205,9 @@ def main() -> int:
             if threading.active_count() > 1 or any(
                 m in sys.modules for m in component
             ):
-                failures.update(_fresh_imports(component))
+                failures.update(_fresh_imports(component, at_once))
             else:
-                failures.update(_forked_imports(component))
+                failures.update(_forked_imports(component, at_once))
         for module in component:
             if module not in failures and (error := _import(module)):
                 failures[module] = error

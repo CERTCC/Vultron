@@ -2,7 +2,7 @@
 """Tests for ApplyNoteFromLedgerNode.
 
 Covers add_note_to_case ledger event application to the local case replica.
-Per SYNC-02-002, ADR-0022.
+Per SYNC-02-001, ADR-0022.
 """
 
 import pytest
@@ -135,7 +135,7 @@ def _run_remove(bridge, case_actor):
     )
 
 
-@pytest.mark.spec("SYNC-02-002")
+@pytest.mark.spec("SYNC-12-001")
 @pytest.mark.spec("RSH-08-004")
 def test_apply_remove_note_detaches_from_case(
     bridge, datalayer, case_actor, case_with_notes

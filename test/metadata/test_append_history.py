@@ -15,7 +15,7 @@ import io
 import subprocess
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -26,9 +26,16 @@ _IDEA_BODY = "This is a test idea body.\n"
 _IMPL_BODY = "Completed a test task.\n"
 
 _DEFAULT_TITLE = "Test Idea"
-_DEFAULT_SOURCE = "IDEA-TEST-001"
+_DEFAULT_SOURCE = "IDEA-26043001"
 _IMPL_TITLE = "Test Implementation Task"
-_IMPL_SOURCE = "TASK-TEST-001"
+_IMPL_SOURCE = "ISSUE-1-test-task"
+#: A source each type writes to a file with (HM-08-003 for idea/implementation).
+_VALID_SOURCE = {
+    "idea": "IDEA-26043002",
+    "implementation": "ISSUE-1-detail",
+    "learning": "SRC-LEARNING",
+    "priority": "SRC-PRIORITY",
+}
 
 
 @pytest.fixture()
@@ -38,6 +45,76 @@ def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (tmp_path / "plan").mkdir()
     monkeypatch.chdir(tmp_path)
     return tmp_path
+
+
+@pytest.fixture(autouse=True)
+def _no_real_gh(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No test asks the real GitHub whether an issue exists.
+
+    An unstubbed ``ISSUE-N`` run would look up, and could comment on, a real
+    issue. Tests that need an answer stub ``gh_issue_view`` themselves.
+    """
+
+    def refuse(
+        ref: str, fields: list[str], *, repo: str | None = None
+    ) -> dict[str, object]:
+        raise AssertionError(f"unstubbed gh lookup of {ref} in {repo}")
+
+    monkeypatch.setattr(
+        "vultron.metadata.history.cli.github.gh_issue_view", refuse
+    )
+
+
+def _gh_not_found(n: int) -> subprocess.CalledProcessError:
+    """The error ``gh issue view N`` raises when N names no issue."""
+    return subprocess.CalledProcessError(
+        1,
+        ["gh", "issue", "view", str(n)],
+        stderr="GraphQL: Could not resolve to an issue or pull request with"
+        f" the number of {n}. (repository.issue)\n",
+    )
+
+
+def _stub_issues(
+    monkeypatch: pytest.MonkeyPatch,
+    existing: set[int],
+    pulls: frozenset[int] = frozenset(),
+) -> list[tuple[str, str | None]]:
+    """Answer lookups: *existing* are issues, *pulls* are pull requests.
+
+    Returns the ``(ref, repo)`` of each lookup made.
+    """
+    lookups: list[tuple[str, str | None]] = []
+
+    def fake_view(
+        ref: str, fields: list[str], *, repo: str | None = None
+    ) -> dict[str, object]:
+        lookups.append((ref, repo))
+        n = int(ref.removeprefix("#"))
+        base = "https://github.com/CERTCC/Vultron"
+        if n in pulls:
+            return {"url": f"{base}/pull/{n}"}
+        if n not in existing:
+            raise _gh_not_found(n)
+        return {"url": f"{base}/issues/{n}"}
+
+    monkeypatch.setattr(
+        "vultron.metadata.history.cli.github.gh_issue_view", fake_view
+    )
+    return lookups
+
+
+def _fail_lookups(monkeypatch: pytest.MonkeyPatch, error: Exception) -> None:
+    """Make every issue lookup raise *error*, as a broken ``gh`` would."""
+
+    def fail(
+        ref: str, fields: list[str], *, repo: str | None = None
+    ) -> dict[str, object]:
+        raise error
+
+    monkeypatch.setattr(
+        "vultron.metadata.history.cli.github.gh_issue_view", fail
+    )
 
 
 @dataclasses.dataclass
@@ -97,15 +174,15 @@ class TestAppendHistoryEntryCreation:
         assert result.returncode == 0
         written_path = Path(result.stdout.strip())
         assert written_path.exists()
-        # Path should be plan/history/YYMM/idea/IDEA-TEST-001.md
+        # Path should be plan/history/YYMM/idea/IDEA-26043001.md
         assert written_path.parent.name == "idea"
-        assert written_path.stem == "IDEA-TEST-001"
+        assert written_path.stem == "IDEA-26043001"
 
     def test_written_path_printed_to_stdout(self, fake_repo: Path) -> None:
         result = _run_append("idea", cwd=fake_repo)
         assert result.returncode == 0
         printed = result.stdout.strip()
-        assert "IDEA-TEST-001" in printed
+        assert "IDEA-26043001" in printed
 
     def test_entry_body_preserved(self, fake_repo: Path) -> None:
         result = _run_append("idea", body=_IDEA_BODY, cwd=fake_repo)
@@ -185,7 +262,7 @@ class TestAppendHistoryReadmeRegeneration:
         written_path = Path(result.stdout.strip())
         month_dir = written_path.parent.parent
         readme_text = (month_dir / "README.md").read_text()
-        assert "IDEA-TEST-001" in readme_text
+        assert "IDEA-26043001" in readme_text
         assert "Test Idea" in readme_text
 
     def test_readme_has_time_utc_column(self, fake_repo: Path) -> None:
@@ -203,7 +280,7 @@ class TestAppendHistoryReadmeRegeneration:
             "implementation",
             body=_IMPL_BODY,
             title=_IMPL_TITLE,
-            source="TASK-DATED",
+            source="ISSUE-1-dated",
             extra_args=["--timestamp", "2025-12-15T09:30:45+00:00"],
             cwd=fake_repo,
         )
@@ -213,7 +290,9 @@ class TestAppendHistoryReadmeRegeneration:
         ).read_text()
         assert "| Date | Time (UTC) |" in readme_text
         row = next(
-            line for line in readme_text.splitlines() if "TASK-DATED" in line
+            line
+            for line in readme_text.splitlines()
+            if "ISSUE-1-dated" in line
         )
         cells = [cell.strip() for cell in row.strip("|").split("|")]
         assert "2025-12-15" in cells
@@ -223,9 +302,9 @@ class TestAppendHistoryReadmeRegeneration:
     def test_readme_sorted_newest_first(self, fake_repo: Path) -> None:
         """The index lists the newest entry first, whatever the write order."""
         for source, stamp in (
-            ("TASK-OLDER", "2025-12-01T08:00:00+00:00"),
-            ("TASK-NEWER", "2025-12-15T09:30:00+00:00"),
-            ("TASK-MIDDLE", "2025-12-10T12:00:00+00:00"),
+            ("ISSUE-1-older", "2025-12-01T08:00:00+00:00"),
+            ("ISSUE-1-newer", "2025-12-15T09:30:00+00:00"),
+            ("ISSUE-1-middle", "2025-12-10T12:00:00+00:00"),
         ):
             result = _run_append(
                 "implementation",
@@ -241,7 +320,7 @@ class TestAppendHistoryReadmeRegeneration:
         ).read_text()
         positions = [
             readme_text.index(source)
-            for source in ("TASK-NEWER", "TASK-MIDDLE", "TASK-OLDER")
+            for source in ("ISSUE-1-newer", "ISSUE-1-middle", "ISSUE-1-older")
         ]
         assert positions == sorted(positions)
 
@@ -275,8 +354,8 @@ class TestAppendHistoryReadmeRegeneration:
         written_path = Path(result.stdout.strip())
         month_dir = written_path.parent.parent
         readme_text = (month_dir / "README.md").read_text()
-        assert "IDEA-TEST-001" in readme_text
-        assert "TASK-TEST-001" in readme_text
+        assert "IDEA-26043001" in readme_text
+        assert "ISSUE-1-test-task" in readme_text
 
 
 class TestAppendHistoryTypeValidation:
@@ -301,7 +380,7 @@ class TestAppendHistoryTypeValidation:
             valid_type,
             body="Body.\n",
             title="T",
-            source=f"SRC-{valid_type.upper()}",
+            source=_VALID_SOURCE[valid_type],
             cwd=fake_repo,
         )
         assert result.returncode == 0
@@ -538,12 +617,12 @@ class TestReadmeGenValidation:
             "implementation",
             body=_IMPL_BODY,
             title=_IMPL_TITLE,
-            source="NEW-ENTRY",
+            source="ISSUE-1-new-entry",
             cwd=fake_repo,
         )
 
         assert result.returncode != 0
-        new_file = impl_dir / "NEW-ENTRY.md"
+        new_file = impl_dir / "ISSUE-1-new-entry.md"
         assert not new_file.exists(), "new entry file should be rolled back"
 
 
@@ -596,6 +675,40 @@ def _run_from_file(
 
 class TestFromFileMode:
     """append-history --from-file: move a pre-formatted incoming learning file."""
+
+    @pytest.mark.parametrize(
+        ("entry_type", "source", "accepted"),
+        [
+            ("implementation", "ISSUE-4646", False),
+            ("implementation", "TASK-4646", False),
+            ("implementation", "ISSUE-4646-detail", True),
+            ("idea", "IDEA-26042702", True),
+            ("idea", "IDEA-2066", False),
+        ],
+    )
+    @pytest.mark.spec("HM-08-008")
+    def test_implementation_and_idea_files_follow_the_vocabulary(
+        self,
+        fake_repo: Path,
+        tmp_path: Path,
+        entry_type: str,
+        source: str,
+        accepted: bool,
+    ) -> None:
+        """Only a file form is archived; ISSUE-N belongs on the issue and any
+        other source is refused, with the source file left in place."""
+        src = _make_incoming_file(
+            tmp_path,
+            content=(
+                f"---\ntitle: T\ntype: {entry_type}\n"
+                "timestamp: '2026-06-22T10:00:00+00:00'\n"
+                f"source: {source}\n---\n\nBody.\n"
+            ),
+            filename=f"{source}.md",
+        )
+        result = _run_from_file(src)
+        assert (result.returncode == 0) is accepted, result.stderr
+        assert src.exists() is not accepted
 
     def test_archives_file_to_history(
         self, fake_repo: Path, tmp_path: Path
@@ -836,57 +949,153 @@ class TestSignalFlag:
         assert "signal: spec-gap" in content
 
 
-class TestResolveIssueNumber:
-    """Unit tests for _resolve_issue_number (HM-08-001, HM-08-003)."""
+class TestClassifySource:
+    """The implementation and idea source vocabulary (HM-08-001/003/008)."""
 
-    def test_issue_prefix_resolves(self) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
+    @pytest.mark.parametrize(
+        ("entry_type", "source", "expected"),
+        [
+            ("implementation", "ISSUE-2159", 2159),
+            ("idea", "ISSUE-42", 42),
+            ("implementation", "ISSUE-4646-detail", None),
+            ("implementation", "ISSUE-12-pr-body-record", None),
+            ("idea", "IDEA-26042702", None),
+        ],
+    )
+    def test_accepted_forms(
+        self, entry_type: str, source: str, expected: int | None
+    ) -> None:
+        from vultron.metadata.history.cli.source import classify_source
+        from vultron.metadata.history.types import HistoryEntryType
 
-        assert _resolve_issue_number("ISSUE-2159") == 2159
+        assert (
+            classify_source(HistoryEntryType(entry_type), source) == expected
+        )
 
-    def test_issue_prefix_case_insensitive(self) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
+    @pytest.mark.parametrize(
+        ("entry_type", "source", "suggestion"),
+        [
+            ("implementation", "TASK-4646", "ISSUE-4646"),
+            ("implementation", "ADR-0041", "ISSUE-41"),
+            ("implementation", "4646", "ISSUE-4646"),
+            ("implementation", "issue-42", "ISSUE-42"),
+            ("implementation", "ISSUE-042", "ISSUE-42"),
+            ("implementation", "IDEA-26042702", None),
+            ("implementation", "TASK-BTND5", None),
+            ("implementation", "ISSUE-0", None),
+            ("implementation", "ISSUE-12-Upper", None),
+            ("implementation", "ISSUE-\u0664\u0662", None),
+            ("implementation", "ISSUE-42\n", None),
+            ("implementation", "ISSUE-42-detail\n", None),
+            ("idea", "IDEA-2066", "ISSUE-2066"),
+            ("idea", "ISSUE-4646-detail", None),
+            ("idea", "IDEA-TEST-001", None),
+            ("idea", "IDEA-26042702\n", None),
+            ("idea", "BUG-2505", "ISSUE-2505"),
+        ],
+    )
+    @pytest.mark.spec("HM-08-008")
+    def test_other_forms_are_refused_naming_the_accepted_ones(
+        self, entry_type: str, source: str, suggestion: str | None
+    ) -> None:
+        from vultron.metadata.history.cli.source import (
+            SourceRefusedError,
+            classify_source,
+        )
+        from vultron.metadata.history.types import HistoryEntryType
 
-        assert _resolve_issue_number("issue-42") == 42
+        with pytest.raises(SourceRefusedError) as info:
+            classify_source(HistoryEntryType(entry_type), source)
+        message = str(info.value)
+        assert "ISSUE-N" in message
+        file_form = (
+            "ISSUE-N-<slug>"
+            if entry_type == "implementation"
+            else "IDEA-YYMMDDNN"
+        )
+        assert file_form in message
+        if suggestion is not None:
+            assert f"use {suggestion}" in message
 
-    def test_bare_integer_resolves(self) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
+    @pytest.mark.parametrize("entry_type", ["learning", "note", "priority"])
+    def test_other_types_are_free_form(self, entry_type: str) -> None:
+        from vultron.metadata.history.cli.source import classify_source
+        from vultron.metadata.history.types import HistoryEntryType
 
-        assert _resolve_issue_number("123") == 123
+        for source in ("TASK-4646", "ISSUE-12", "anything"):
+            assert (
+                classify_source(HistoryEntryType(entry_type), source) is None
+            )
 
-    def test_idea_source_returns_none(self) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
 
-        assert _resolve_issue_number("IDEA-26042702") is None
+class TestConfirmIssue:
+    """``ISSUE-N`` posts only when N is an issue (HM-08-001, -007, -009)."""
 
-    def test_task_source_returns_none(self) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
+    @pytest.mark.spec("HM-08-001")
+    def test_existing_issue_is_confirmed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from vultron.metadata.history.cli.github import _confirm_issue
 
-        assert _resolve_issue_number("TASK-BTND5") is None
+        lookups = _stub_issues(monkeypatch, {4646})
+        assert _confirm_issue(4646) == 4646
+        assert lookups == [("#4646", "CERTCC/Vultron")]
 
-    def test_zero_returns_none(self) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
+    @pytest.mark.spec("HM-08-009")
+    def test_missing_issue_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from vultron.metadata.history.cli.github import _confirm_issue
+        from vultron.metadata.history.cli.source import SourceRefusedError
 
-        assert _resolve_issue_number("0") is None
+        _stub_issues(monkeypatch, {4646})
+        with pytest.raises(SourceRefusedError, match="no issue #99999"):
+            _confirm_issue(99999)
 
-    def test_negative_returns_none(self) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
+    @pytest.mark.spec("HM-08-009")
+    def test_pull_request_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from vultron.metadata.history.cli.github import _confirm_issue
+        from vultron.metadata.history.cli.source import SourceRefusedError
 
-        assert _resolve_issue_number("-1") is None
+        _stub_issues(monkeypatch, set(), pulls=frozenset({5837}))
+        with pytest.raises(SourceRefusedError, match="pull request"):
+            _confirm_issue(5837)
 
-    def test_empty_string_returns_none(self) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
+    @pytest.mark.parametrize(
+        "error",
+        [
+            subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 401\n"),
+            FileNotFoundError("gh"),
+        ],
+    )
+    @pytest.mark.spec("HM-08-007")
+    def test_lookup_that_cannot_answer_raises(
+        self, monkeypatch: pytest.MonkeyPatch, error: Exception
+    ) -> None:
+        """No answer is not "no such issue": the tool stops, never guesses."""
+        from vultron.metadata.history.cli.github import _confirm_issue
 
-        assert _resolve_issue_number("") is None
+        _fail_lookups(monkeypatch, error)
+        with pytest.raises(RuntimeError, match="ISSUE-4646"):
+            _confirm_issue(4646)
 
-    def test_alphanumeric_source_returns_none(self) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
 
-        assert _resolve_issue_number("CONCERN-507") is None
+_COMMENT_URL = (
+    "https://github.com/CERTCC/Vultron/issues/2159#issuecomment-9999"
+)
 
 
 class TestGitHubCommentMode:
-    """HM-08-001 through HM-08-005: GitHub comment output mode."""
+    """HM-08: the CLI's comment mode, file forms and refusals."""
+
+    @pytest.fixture()
+    def existing(self, monkeypatch: pytest.MonkeyPatch) -> set[int]:
+        """Issues that exist; #5837 is a pull request."""
+        issues: set[int] = {42, 2159, 4646}
+        _stub_issues(monkeypatch, issues, pulls=frozenset({5837}))
+        return issues
 
     def _run_with_mock_gh(
         self,
@@ -895,12 +1104,10 @@ class TestGitHubCommentMode:
         body: str = "Entry body.\n",
         title: str = "Test Title",
         gh_returncode: int = 0,
-        gh_stdout: str = "https://github.com/CERTCC/Vultron/issues/2159#issuecomment-9999",
+        gh_stdout: str = _COMMENT_URL,
         gh_stderr: str = "",
-    ) -> _RunResult:
-        """Run append-history with a mocked ``gh`` subprocess call."""
-        from unittest.mock import MagicMock
-
+    ) -> tuple[_RunResult, MagicMock]:
+        """Run append-history with ``gh issue comment`` mocked."""
         mock_result = MagicMock()
         mock_result.returncode = gh_returncode
         mock_result.stdout = gh_stdout
@@ -909,124 +1116,334 @@ class TestGitHubCommentMode:
         with patch(
             "vultron.metadata.history.cli.github.subprocess.run",
             return_value=mock_result,
-        ):
-            return _run_append(
+        ) as mock_run:
+            result = _run_append(
                 entry_type, body=body, title=title, source=source
             )
+        return result, mock_run
 
-    def test_implementation_issue_source_posts_comment(
-        self, fake_repo: Path
+    @staticmethod
+    def _history_files(repo: Path) -> list[Path]:
+        history_dir = repo / "plan" / "history"
+        return list(history_dir.rglob("*.md")) if history_dir.exists() else []
+
+    @pytest.mark.parametrize(
+        ("entry_type", "source", "issue"),
+        [
+            ("implementation", "ISSUE-2159", "2159"),
+            ("idea", "ISSUE-42", "42"),
+        ],
+    )
+    @pytest.mark.spec("HM-08-001", "HM-01-007", "HM-01-008")
+    def test_issue_source_posts_comment(
+        self,
+        fake_repo: Path,
+        existing: set[int],
+        entry_type: str,
+        source: str,
+        issue: str,
     ) -> None:
-        """implementation + ISSUE-N source posts a comment (HM-08-001)."""
-        result = self._run_with_mock_gh("implementation", "ISSUE-2159")
-        assert result.returncode == 0
+        """ISSUE-N naming an existing issue posts on issue N (HM-08-001)."""
+        result, mock_run = self._run_with_mock_gh(entry_type, source)
+        assert result.returncode == 0, result.stderr
+        argv = mock_run.call_args[0][0]
+        assert argv[:4] == ["gh", "issue", "comment", issue]
+        assert argv[argv.index("--repo") + 1] == "CERTCC/Vultron"
+        assert not self._history_files(fake_repo)
 
-    def test_idea_issue_source_posts_comment(self, fake_repo: Path) -> None:
-        """idea + ISSUE-N source posts a comment (HM-08-001)."""
-        result = self._run_with_mock_gh("idea", "ISSUE-42")
-        assert result.returncode == 0
-
-    def test_prints_comment_url_to_stdout(self, fake_repo: Path) -> None:
+    def test_prints_comment_url_to_stdout(
+        self, fake_repo: Path, existing: set[int]
+    ) -> None:
         """Comment URL is printed to stdout (HM-08-002)."""
-        url = "https://github.com/CERTCC/Vultron/issues/2159#issuecomment-9999"
-        result = self._run_with_mock_gh(
-            "implementation", "ISSUE-2159", gh_stdout=url
-        )
+        result, _ = self._run_with_mock_gh("implementation", "ISSUE-2159")
         assert result.returncode == 0
-        assert result.stdout.strip() == url
+        assert result.stdout.strip() == _COMMENT_URL
 
-    def test_bare_integer_source_posts_comment(self, fake_repo: Path) -> None:
-        """Bare integer source is treated as an issue number (HM-08-001)."""
-        result = self._run_with_mock_gh("implementation", "2159")
-        assert result.returncode == 0
-
-    def test_non_issue_source_writes_file(self, fake_repo: Path) -> None:
-        """Non-ISSUE-N source falls back to file mode (HM-08-003)."""
-        result = _run_append(
-            "implementation",
-            body=_IMPL_BODY,
-            title=_IMPL_TITLE,
-            source="TASK-BTND5",
-        )
-        assert result.returncode == 0
+    @pytest.mark.parametrize(
+        ("entry_type", "source"),
+        [
+            ("implementation", "ISSUE-4646-detail"),
+            ("idea", "IDEA-26042702"),
+        ],
+    )
+    @pytest.mark.spec("HM-08-003")
+    def test_file_form_writes_file_without_asking_github(
+        self,
+        fake_repo: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        entry_type: str,
+        source: str,
+    ) -> None:
+        """ISSUE-N-<slug> and IDEA-YYMMDDNN write a file; gh is never asked."""
+        lookups = _stub_issues(monkeypatch, {4646})
+        result, mock_run = self._run_with_mock_gh(entry_type, source)
+        assert result.returncode == 0, result.stderr
         written = Path(result.stdout.strip())
         assert written.exists()
-        assert written.suffix == ".md"
+        assert f"source: {source}" in written.read_text()
+        assert not mock_run.called
+        assert lookups == []
 
-    def test_idea_non_issue_source_writes_file(self, fake_repo: Path) -> None:
-        """idea + non-ISSUE source falls back to file mode (HM-08-003)."""
-        result = _run_append(
-            "idea",
-            body=_IDEA_BODY,
-            title=_DEFAULT_TITLE,
-            source="IDEA-26042702",
-        )
-        assert result.returncode == 0
-        assert Path(result.stdout.strip()).exists()
+    @pytest.mark.parametrize(
+        ("entry_type", "source"),
+        [
+            ("implementation", "TASK-4646"),
+            ("implementation", "ADR-0041"),
+            ("implementation", "4646"),
+            ("idea", "IDEA-2066"),
+            ("idea", "ISSUE-4646-detail"),
+        ],
+    )
+    @pytest.mark.spec("HM-08-008")
+    def test_other_source_is_refused_and_writes_nothing(
+        self,
+        fake_repo: Path,
+        existing: set[int],
+        entry_type: str,
+        source: str,
+    ) -> None:
+        """A source outside the vocabulary exits 1 and writes nothing."""
+        result, mock_run = self._run_with_mock_gh(entry_type, source)
+        assert result.returncode != 0
+        assert "ISSUE-N" in result.stderr
+        assert not mock_run.called
+        assert not self._history_files(fake_repo)
 
-    def test_learning_issue_source_writes_file(self, fake_repo: Path) -> None:
+    @pytest.mark.parametrize("source", ["ISSUE-99999", "ISSUE-5837"])
+    @pytest.mark.spec("HM-08-009")
+    def test_issue_source_naming_no_issue_is_refused(
+        self, fake_repo: Path, existing: set[int], source: str
+    ) -> None:
+        """ISSUE-N for a missing issue or a pull request is refused, not
+        filed (HM-08-009)."""
+        result, mock_run = self._run_with_mock_gh("implementation", source)
+        assert result.returncode != 0
+        assert not mock_run.called
+        assert not self._history_files(fake_repo)
+
+    def test_learning_issue_source_writes_file(
+        self, fake_repo: Path, existing: set[int]
+    ) -> None:
         """learning type always writes a file regardless of source (HM-08-001)."""
         result = _run_append(
             "learning",
             body=_IDEA_BODY,
             title="Learning entry",
-            source="ISSUE-123",
+            source="ISSUE-2159",
         )
         assert result.returncode == 0
         written = Path(result.stdout.strip())
         assert written.exists()
         assert written.suffix == ".md"
 
-    def test_comment_body_has_heading(self, fake_repo: Path) -> None:
+    def test_comment_body_has_heading(
+        self, fake_repo: Path, existing: set[int]
+    ) -> None:
         """Comment body is prefixed with **History: <type> — <title>** (HM-08-005)."""
-        from unittest.mock import MagicMock
-
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = (
-            "https://github.com/CERTCC/Vultron/issues/2159#issuecomment-9999"
+        _, mock_run = self._run_with_mock_gh(
+            "implementation",
+            "ISSUE-2159",
+            body="My implementation summary.\n",
+            title="Fix demo config cache leak",
         )
-        mock_result.stderr = ""
-
-        with patch(
-            "vultron.metadata.history.cli.github.subprocess.run",
-            return_value=mock_result,
-        ) as mock_run:
-            _run_append(
-                "implementation",
-                body="My implementation summary.\n",
-                title="Fix demo config cache leak",
-                source="ISSUE-2159",
-            )
 
         assert mock_run.called
-        _, _kwargs = mock_run.call_args
         args_passed = mock_run.call_args[0][0]
-        body_idx = args_passed.index("--body") + 1
-        posted_body = args_passed[body_idx]
+        posted_body = args_passed[args_passed.index("--body") + 1]
         assert posted_body.startswith(
             "**History: implementation — Fix demo config cache leak**"
         )
         assert "My implementation summary." in posted_body
 
-    def test_gh_failure_exits_nonzero(self, fake_repo: Path) -> None:
+    def test_gh_comment_failure_exits_nonzero(
+        self, fake_repo: Path, existing: set[int]
+    ) -> None:
         """A non-zero exit from gh causes append-history to exit non-zero."""
-        result = self._run_with_mock_gh(
+        result, _ = self._run_with_mock_gh(
             "implementation",
             "ISSUE-2159",
             gh_returncode=1,
             gh_stderr="authentication required",
         )
         assert result.returncode != 0
+        assert not self._history_files(fake_repo)
 
-    def test_no_file_written_on_comment_mode(self, fake_repo: Path) -> None:
-        """GitHub comment mode must NOT write a file under plan/history/."""
-        self._run_with_mock_gh("implementation", "ISSUE-2159")
-        history_dir = fake_repo / "plan" / "history"
-        md_files = (
-            list(history_dir.rglob("*.md")) if history_dir.exists() else []
+    @pytest.mark.spec("HM-08-007")
+    def test_lookup_failure_exits_nonzero_and_writes_nothing(
+        self, fake_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When gh cannot say whether the issue exists, no file and no
+        comment is written (HM-08-007)."""
+        _fail_lookups(
+            monkeypatch,
+            subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 401\n"),
         )
-        assert not md_files, "No files should be written in comment mode"
+        result, mock_run = self._run_with_mock_gh(
+            "implementation", "ISSUE-4646"
+        )
+        assert result.returncode != 0
+        assert "HTTP 401" in result.stderr
+        assert not mock_run.called
+        assert not self._history_files(fake_repo)
+
+    def test_blank_title_is_refused_before_any_comment(
+        self, fake_repo: Path, existing: set[int]
+    ) -> None:
+        """Comment mode validates the entry as file mode does."""
+        result, mock_run = self._run_with_mock_gh(
+            "implementation", "ISSUE-2159", title="   "
+        )
+        assert result.returncode != 0
+        assert not mock_run.called
+
+
+@pytest.mark.spec("HM-07-002")
+class TestBodyFrontmatterRejection:
+    """HM-07-002: stdin and --file mode refuse body that opens with frontmatter.
+
+    --from-file mode moves a complete pre-formatted entry and is exempt.
+    """
+
+    _FM_BODY = (
+        "---\n"
+        "title: Hand-written title\n"
+        "type: idea\n"
+        "timestamp: '2026-06-22T10:00:00+00:00'\n"
+        "source: IDEA-26062201\n"
+        "---\n\n"
+        "Body text.\n"
+    )
+
+    def test_stdin_with_frontmatter_exits_nonzero(
+        self, fake_repo: Path
+    ) -> None:
+        """stdin body that opens with a YAML mapping block is refused (HM-07-002)."""
+        result = _run_append(
+            "idea",
+            body=self._FM_BODY,
+            title="T",
+            source="IDEA-26110001",
+            cwd=fake_repo,
+        )
+        assert result.returncode != 0
+
+    def test_stdin_with_frontmatter_names_hm_07_002(
+        self, fake_repo: Path
+    ) -> None:
+        """Error message cites HM-07-002 so the caller knows the rule."""
+        result = _run_append(
+            "idea",
+            body=self._FM_BODY,
+            title="T",
+            source="IDEA-26110001",
+            cwd=fake_repo,
+        )
+        assert "HM-07-002" in result.stderr
+
+    def test_file_mode_with_frontmatter_exits_nonzero(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        """--file body that opens with a YAML mapping block is refused (HM-07-002)."""
+        body_file = tmp_path / "body-with-fm.md"
+        body_file.write_text(self._FM_BODY)
+        result = _run_append(
+            "idea",
+            body="",
+            title="T",
+            source="IDEA-26110002",
+            extra_args=["--file", str(body_file)],
+            cwd=fake_repo,
+        )
+        assert result.returncode != 0
+
+    def test_file_mode_with_frontmatter_names_hm_07_002(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        """--file error message cites HM-07-002."""
+        body_file = tmp_path / "body-with-fm.md"
+        body_file.write_text(self._FM_BODY)
+        result = _run_append(
+            "idea",
+            body="",
+            title="T",
+            source="IDEA-26110002",
+            extra_args=["--file", str(body_file)],
+            cwd=fake_repo,
+        )
+        assert "HM-07-002" in result.stderr
+
+    def test_stdin_with_leading_blank_lines_then_frontmatter_refused(
+        self, fake_repo: Path
+    ) -> None:
+        """Blank lines before the block do not hide it: the first non-blank
+        line is what counts (HM-07-002)."""
+        result = _run_append(
+            "idea",
+            body="\n\n" + self._FM_BODY,
+            title="T",
+            source="IDEA-26110005",
+            cwd=fake_repo,
+        )
+        assert result.returncode != 0
+        assert "HM-07-002" in result.stderr
+
+    def test_stdin_with_malformed_frontmatter_refused(
+        self, fake_repo: Path
+    ) -> None:
+        """Hand-written frontmatter with a YAML typo is still refused.
+
+        An unquoted ``: `` in a title makes the block malformed YAML; letting
+        it through would write a second block into a write-once entry.
+        """
+        result = _run_append(
+            "idea",
+            body="---\ntitle: Fix: a thing\nsource: X\n---\n\nBody.\n",
+            title="T",
+            source="IDEA-26110006",
+            cwd=fake_repo,
+        )
+        assert result.returncode != 0
+        assert "HM-07-002" in result.stderr
+        assert "malformed" in result.stderr
+
+    def test_body_without_frontmatter_is_accepted(
+        self, fake_repo: Path
+    ) -> None:
+        """A plain body (no --- block) still succeeds (regression guard)."""
+        result = _run_append(
+            "idea",
+            body=_IDEA_BODY,
+            title="T",
+            source="IDEA-26110003",
+            cwd=fake_repo,
+        )
+        assert result.returncode == 0
+
+    def test_body_with_yaml_list_block_is_accepted(
+        self, fake_repo: Path
+    ) -> None:
+        """A body whose --- block holds a YAML list is not frontmatter; accepted.
+
+        _check_body_has_no_frontmatter suppresses MetadataLoadError (raised when
+        the --- block is not a YAML mapping) and lets the normal build proceed.
+        """
+        list_block_body = "---\n- item1\n- item2\n---\nActual body text.\n"
+        result = _run_append(
+            "idea",
+            body=list_block_body,
+            title="T",
+            source="IDEA-26110004",
+            cwd=fake_repo,
+        )
+        assert result.returncode == 0
+
+    def test_from_file_mode_with_frontmatter_unchanged(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        """--from-file is exempt: it moves a complete pre-formatted entry."""
+        src = _make_incoming_file(tmp_path, content=_LEARNING_CONTENT)
+        result = _run_from_file(src)
+        assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.spec("HM-01-011")

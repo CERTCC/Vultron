@@ -30,6 +30,7 @@ CASE_MANAGER at a replica is the use case's sender guard (ADR-0115,
 PCR-03-001).
 """
 
+from datetime import datetime
 from typing import cast
 
 from py_trees.common import Status
@@ -45,15 +46,86 @@ from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    end_time_violations,
+)
 from vultron.core.participants.recipients import awaits_embargo_ending_notice
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.services.carried_embargo import hold_embargo_for_case
+from vultron.core.services.carried_embargo import (
+    embargo_for_case,
+    hold_embargo_for_case,
+)
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.core.states.embargo_register import FINAL_REGISTER_STATUSES
+from vultron.core.states.embargo_register import (
+    FINAL_REGISTER_STATUSES,
+    TerminationReason,
+)
 from vultron.errors import INTERNAL_FAULTS, VultronError
+
+
+def names_unadopted_revision(case: VulnerabilityCase, embargo_id: str) -> bool:
+    """Whether a paused replica would adopt *embargo_id* before its teardown.
+
+    True when *case* has an embargo in force other than *embargo_id*, and
+    the register holds *embargo_id* at no status an activation leaves
+    (``SUPERSEDED``, ``TERMINATED``, ``REJECTED``, ``CANCELLED``): the
+    ``Remove`` names a revision that replaced the replica's embargo, which
+    :class:`AdoptRemovedEmbargoRevisionNode` activates first (CM-31-042,
+    SYNC-19-001).  False otherwise, a stale ``Remove`` included (ADR-0122).
+    """
+    current = case.active_embargo_id
+    if current is None or current == embargo_id:
+        return False
+    entry = case.embargo_register_entry(embargo_id)
+    return entry is None or entry.status not in FINAL_REGISTER_STATUSES
+
+
+def adopted_revision_timing_violations(
+    datalayer: CasePersistence,
+    case: VulnerabilityCase,
+    actor_id: str | None,
+    embargo_id: str | None,
+    embargo: EmbargoEvent | None,
+    termination: EmbargoTermination,
+    at: datetime | None,
+) -> list[str] | None:
+    """Judge a termination by the revision a paused replica adopts first.
+
+    ``None`` unless *termination* is ``END_TIME_REACHED``, *actor_id* is a
+    paused signatory (CM-31-010) and the ``Remove`` names a revision it
+    would adopt (:func:`names_unadopted_revision`, CM-31-042).  Otherwise
+    the reasons *termination*, claimed at *at*, may not end that revision,
+    judged by its own end time: the stored record, else the ``Remove``'s
+    inline copy (EMB-18-003), checked as the adoption checks it
+    (EMB-18-004).  An ``EARLY`` termination has no time rule, so it reads
+    nothing here and the adoption alone judges the named revision.
+
+    The guard calling this runs on every path, while the adoption runs only
+    off the CASE_MANAGER's; the two still agree, because the CASE_MANAGER is
+    never a paused signatory of an embargo in force: it is never removed
+    (CM-24-006), and it reaches RM ``CLOSED`` only on an owner close that an
+    embargo in force blocks (CM-23-002, CM-23-011).
+
+    Raises:
+        VultronNotFoundError: the revision cannot be read.
+        VultronValidationError: the revision belongs to another case.
+    """
+    if (
+        termination.reason != TerminationReason.END_TIME_REACHED
+        or embargo_id is None
+        or actor_id is None
+        or not names_unadopted_revision(case, embargo_id)
+        or not awaits_embargo_ending_notice(case, datalayer, actor_id)
+    ):
+        return None
+    named = embargo_for_case(
+        datalayer, case, embargo if embargo is not None else embargo_id
+    )
+    return end_time_violations(termination, end_time=named.end_time, at=at)
 
 
 class AwaitsEmbargoEndingNoticeNode(DataLayerConditionWithPorts):
@@ -262,6 +334,19 @@ class AdoptRemovedEmbargoRevisionNode(_ObservedRevisionActivationNode):
     case, or that cannot be read, fails the node.
     """
 
+    def _nothing_to_adopt(self, case: VulnerabilityCase) -> str:
+        current = case.active_embargo_id
+        entry = case.embargo_register_entry(self.embargo_id)
+        if current in (None, self.embargo_id) or entry is None:
+            return (
+                f"Case '{self.case_id}' has {current!r} in force — nothing to"
+                f" adopt before removing '{self.embargo_id}'"
+            )
+        return (
+            f"Embargo '{self.embargo_id}' is {entry.status} on case"
+            f" '{self.case_id}' — a stale Remove changes nothing"
+        )
+
     def update(self) -> Status:
         self.applied = False
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -271,17 +356,10 @@ class AdoptRemovedEmbargoRevisionNode(_ObservedRevisionActivationNode):
         if failure is not None:
             return failure
         current = case.active_embargo_id
-        if current is None or current == self.embargo_id:
-            return self._no_change(
-                f"Case '{self.case_id}' has {current!r} in force — nothing to"
-                f" adopt before removing '{self.embargo_id}'"
-            )
-        entry = case.embargo_register_entry(self.embargo_id)
-        if entry is not None and entry.status in FINAL_REGISTER_STATUSES:
-            return self._no_change(
-                f"Embargo '{self.embargo_id}' is {entry.status} on case"
-                f" '{self.case_id}' — a stale Remove changes nothing"
-            )
+        if current is None or not names_unadopted_revision(
+            case, self.embargo_id
+        ):
+            return self._no_change(self._nothing_to_adopt(case))
         try:
             self._hold_announced_embargo(datalayer, case)
         except INTERNAL_FAULTS:
@@ -300,4 +378,6 @@ __all__ = [
     "AdoptRemovedEmbargoRevisionNode",
     "ApplyAnnouncedEmbargoRevisionNode",
     "AwaitsEmbargoEndingNoticeNode",
+    "adopted_revision_timing_violations",
+    "names_unadopted_revision",
 ]

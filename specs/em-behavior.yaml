@@ -133,6 +133,19 @@ groups:
       note: 'EP shorthand wire-type mapping'
     stories:
     - story_2026_033
+    see_also:
+    - spec_id: AKM-05-007
+      reason: 'context for the reader'
+    - spec_id: AKM-05-015
+      reason: 'context for the reader'
+    - spec_id: HP-01-005
+      reason: 'context for the reader'
+    - spec_id: HP-01-012
+      reason: 'context for the reader'
+    - spec_id: HP-01-014
+      reason: 'context for the reader'
+    - spec_id: SE-01-006
+      reason: 'context for the reader'
 
   - id: EMB-01-003
     priority: MUST
@@ -181,6 +194,9 @@ groups:
 
     stories:
     - story_2026_086
+    see_also:
+    - spec_id: MSM-02-009
+      reason: 'context for the reader'
   - id: EMB-01-004
     priority: SHOULD_NOT
     kind: protocol
@@ -255,6 +271,9 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: EMB-01-002
+    see_also:
+    - spec_id: ID-04-005
+      reason: 'context for the reader'
   - id: EMB-01-007
     priority: MUST
     kind: project
@@ -273,6 +292,11 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: EMB-01-006
+    see_also:
+    - spec_id: EMB-01-002
+      reason: 'reached through the link to EMB-01-006'
+    - spec_id: ID-04-005
+      reason: 'context for the reader'
 - id: EMB-02
   title: Receive EA (Embargo Accepted)
   description: Behaviors triggered when a participant receives an EA (Embargo Accepted) message, transitioning EM state to Active and acknowledging receipt.
@@ -342,6 +366,9 @@ groups:
     stories:
     - story_2026_086
     - story_2022_023
+    see_also:
+    - spec_id: MSM-02-009
+      reason: 'context for the reader'
   - id: EMB-02-002
     priority: MUST_NOT
     kind: protocol
@@ -386,6 +413,9 @@ groups:
       note: 'EA shorthand wire-type mapping'
     stories:
     - story_2026_033
+    see_also:
+    - spec_id: MSM-07-008
+      reason: 'context for the reader'
 
   - id: EMB-02-003
     priority: SHOULD_NOT
@@ -532,6 +562,9 @@ groups:
 
     stories:
     - story_2026_086
+    see_also:
+    - spec_id: MSM-02-009
+      reason: 'context for the reader'
   - id: EMB-03-002
     priority: MUST
     kind: protocol
@@ -577,6 +610,9 @@ groups:
 
     stories:
     - story_2026_086
+    see_also:
+    - spec_id: MSM-02-009
+      reason: 'context for the reader'
   - id: EMB-03-003
     priority: MUST_NOT
     kind: protocol
@@ -648,6 +684,9 @@ groups:
     stories:
     - story_2022_023
     - story_2022_080
+    see_also:
+    - spec_id: EP-09-008
+      reason: 'context for the reader'
   - id: EMB-03-004
     priority: MUST
     kind: protocol
@@ -704,6 +743,11 @@ groups:
     stories:
     - story_2022_023
     - story_2022_080
+    see_also:
+    - spec_id: EMB-01-002
+      reason: >-
+        an analogy ("requires the same answer"); a revision Invite is not EMB-01-002's
+        new proposal
 - id: EMB-04
   title: Receive EJ (Embargo Revision Rejected)
   description: Behaviors triggered when a participant receives an EJ (Embargo Revision Rejected) message, reverting EM state from Revise to Active and acknowledging receipt.
@@ -764,6 +808,9 @@ groups:
       spec_id: EP-09-009
     stories:
     - story_2026_086
+    see_also:
+    - spec_id: MSM-02-009
+      reason: 'context for the reader'
   - id: EMB-04-003
     priority: MUST
     kind: protocol
@@ -927,6 +974,9 @@ groups:
       spec_id: EP-09-009
     stories:
     - story_2026_086
+    see_also:
+    - spec_id: MSM-02-009
+      reason: 'context for the reader'
   - id: EMB-05-003
     priority: MUST
     kind: protocol
@@ -1082,6 +1132,9 @@ groups:
 
     stories:
     - story_2026_086
+    see_also:
+    - spec_id: MSM-02-009
+      reason: 'context for the reader'
 - id: EMB-07
   title: Receive ET (Embargo Terminated)
   description: Behaviors triggered when a participant receives an ET (Embargo Terminated) message, transitioning EM state to Terminated and acknowledging receipt.
@@ -1133,6 +1186,9 @@ groups:
     stories:
     - story_2026_086
     - story_2022_023
+    see_also:
+    - spec_id: MSM-02-009
+      reason: 'context for the reader'
   - id: EMB-07-002
     priority: MUST
     kind: protocol
@@ -1179,6 +1235,9 @@ groups:
     stories:
     - story_2026_086
     - story_2022_023
+    see_also:
+    - spec_id: MSM-02-009
+      reason: 'context for the reader'
   - id: EMB-07-003
     priority: MUST
     kind: protocol
@@ -1214,6 +1273,9 @@ groups:
 
     stories:
     - story_2026_014
+    see_also:
+    - spec_id: MSM-02-009
+      reason: 'context for the reader'
 - id: EMB-08
   title: Receive EE (Embargo Error)
   description: Behaviors triggered when a participant receives an EE (Embargo Management Error) signal, which has no dedicated semantic dispatch value and is handled outside the standard AS2 pattern-matching pipeline.
@@ -1256,6 +1318,9 @@ groups:
       spec_id: EP-09-009
     stories:
     - story_2022_039
+    see_also:
+    - spec_id: MSM-05-001
+      reason: 'context for the reader'
 
 - id: EMB-09
   title: Receive EK (Embargo Acknowledgment)
@@ -1421,6 +1486,9 @@ groups:
       note: SHOULD NOT publish information when there is an active embargo
     stories:
     - story_2022_023
+    see_also:
+    - spec_id: EMB-13-003
+      reason: 'context for the reader'
 
   - id: EMB-11-003
     priority: MUST_NOT
@@ -1632,6 +1700,9 @@ groups:
     - description: No active embargo and no signatory; EM state is terminal EXITED
     stories:
     - story_2026_001
+    see_also:
+    - spec_id: MSM-07-025
+      reason: 'context for the reader'
 
   - id: EMB-13-003
     priority: MUST
@@ -1753,8 +1824,13 @@ groups:
       (`test_sentinel_request_before_the_end_time_is_refused`) and
       `test/core/use_cases/received/test_termination_reason.py`
       (`test_case_manager_refuses_an_end_time_remove_before_the_end_time`,
+      `test_case_manager_judges_an_end_time_remove_by_the_embargo_in_force`,
       `test_replica_replay_refuses_an_end_time_entry_before_the_end_time`) confirm
-      the refusal at the CASE_MANAGER and at a replica.
+      the refusal at the CASE_MANAGER and at a replica;
+      `test/core/use_cases/received/test_embargo_ending_notices.py`
+      (`test_paused_replica_refuses_an_early_expiry_remove_of_a_revision`,
+      `test_paused_replica_refuses_expiry_of_a_longer_revision`) confirms it at a
+      paused replica, judged by the revision the `Remove` names.
     testable: true
     lint_suppress:
     - testable_without_steps
@@ -1858,6 +1934,9 @@ groups:
     stories:
     - story_2022_080
     - story_2022_026
+    see_also:
+    - spec_id: VP-09-007
+      reason: 'context for the reader'
   - id: EMB-13-011
     priority: MUST_NOT
     kind: protocol
@@ -2020,6 +2099,9 @@ groups:
     stories:
     - story_2022_080
     - story_2022_026
+    see_also:
+    - spec_id: EMB-13-014
+      reason: 'context for the reader'
   - id: EMB-13-016
     priority: MUST
     kind: protocol
@@ -2260,6 +2342,9 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: EMB-14-004
+    see_also:
+    - spec_id: EMB-14-003
+      reason: 'context for the reader'
   - id: EMB-14-002
     priority: MUST
     kind: project
@@ -2648,6 +2733,9 @@ groups:
       spec_id: MSM-07-009
     - rel_type: uses_definition
       spec_id: MSM-07-004
+    see_also:
+    - spec_id: MSM-07-015
+      reason: 'context for the reader'
   - id: EMB-15-009
     priority: MAY
     kind: protocol
@@ -3035,6 +3123,13 @@ groups:
     stories:
     - story_2022_013
     - story_2026_093
+    see_also:
+    - spec_id: EMB-17-002
+      reason: 'context for the reader'
+    - spec_id: EMB-17-003
+      reason: 'context for the reader'
+    - spec_id: EMB-17-004
+      reason: 'context for the reader'
   - id: EMB-17-002
     priority: MUST
     kind: protocol
@@ -3311,6 +3406,9 @@ groups:
     stories:
     - story_2022_013
     - story_2026_064
+    see_also:
+    - spec_id: HP-01-003
+      reason: 'context for the reader'
   - id: EMB-17-015
     priority: MUST_NOT
     kind: protocol
@@ -3463,6 +3561,9 @@ groups:
     stories:
     - story_2022_013
     - story_2026_093
+    see_also:
+    - spec_id: RSH-08-004
+      reason: 'replica coverage is not a precondition of the commit'
   - id: EMB-17-018
     priority: MUST_NOT
     kind: protocol
@@ -3489,6 +3590,9 @@ groups:
     stories:
     - story_2022_013
     - story_2026_093
+    see_also:
+    - spec_id: EMB-17-002
+      reason: 'context for the reader'
 
 - id: EMB-18
   title: EM Write-Boundary Consolidation
@@ -3523,6 +3627,9 @@ groups:
     adr:
     - ADR-0122
     - ADR-0124
+    see_also:
+    - spec_id: CM-23-016
+      reason: 'context for the reader'
   - id: EMB-18-008
     priority: MUST_NOT
     kind: architecture
@@ -3669,6 +3776,9 @@ groups:
     - ADR-0107
     stories:
     - story_2026_098
+    see_also:
+    - spec_id: AKM-05-015
+      reason: 'context for the reader'
   - id: EMB-18-004
     priority: MUST
     kind: protocol
