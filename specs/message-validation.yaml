@@ -486,9 +486,10 @@ groups:
     rationale: >-
       Only a case has a stub form (MV-10-008). A partial inline object of another type
       claims to be the object while it lacks fields, so the receiver cannot tell what
-      the sender left out. An actor reference is the one partial object allowed: its
-      `type` lets a receiver route the activity, and the receiver fetches the actor's
-      profile before it processes the activity (AKM-05-007).
+      the sender left out. An actor reference is the one partial inline object of
+      another type that is allowed. It claims only the `id` and `type` the sender
+      knows, and its `type` lets a receiver route the activity. A receiver that needs
+      the actor's profile fetches it from the actor (AKM-05-007).
     verification: >-
       `test_parse_activity_refuses_malformed_nested_object_of_known_type` in
       `test/wire/as2/test_parser.py` confirms that an inline object of another
@@ -496,6 +497,10 @@ groups:
       degraded. `test_a_case_uri_or_link_is_accepted_where_a_stub_is_refused` in
       `test/wire/as2/test_case_stub_placement.py` confirms that a bare URI or a `Link`
       naming the case is accepted in `target`, `context`, `origin` and `object`.
+      `test_an_actor_given_by_uri_travels_as_an_actor_reference` in
+      `test/wire/as2/factories/test_actor_references.py` confirms that the exception
+      stays narrow: each actor-naming factory carries a URI-only actor as exactly its
+      `id` and `type`.
     relationships:
     - rel_type: derives_from
       spec_id: MV-10-008
