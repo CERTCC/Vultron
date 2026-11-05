@@ -8,7 +8,8 @@ description: >
   seam and verdict mapping, the path from receipt to permanent storage (ingress
   writes nothing; one staged record per message holds a deferred activity),
   redelivery detection and the reused-id refusal, which evidence a routed copy
-  carries, the internal-error fault for a raised dispatch,
+  carries, when the per-case expiry window restarts,
+  the internal-error fault for a raised dispatch,
   the queue replay's bounded retry and held fault, what is left of the
   staged-record replacement of intake-first (ADR-0153, ADR-0154),
   pending-queue port injection, and the test surface.
@@ -162,6 +163,16 @@ read. `VultronPendingCaseInbox` keeps only what is per case: the stub Invite's t
 anchor, and `queued_at`, the one clock that opens the CBT-03-001 window. Keeping that
 clock per case preserves its restart when an anchor-only record takes its first
 waiting message, so an invitee's thinking time is not charged to the queue.
+
+**Read "was anything already waiting?" before the hold, never after.** The hold is
+what makes an activity one of the waiting, so a reading taken afterwards always
+finds at least this activity and cannot tell a first arrival from a redelivery of
+the only waiter — which is what decides whether `queued_at` restarts
+(`_case_window_is_open`, CBT-03-001). Taking it after reopened the expiry window on
+every redelivery, so a sender redelivering inside the window held the pre-bootstrap
+queue open for ever, against CBT-03-003's bound. The retired `activity_ids` list hid
+this by answering membership directly; a list replaced by a derived read loses that,
+and any "is this the first one?" question over such a read has the same trap.
 
 **Hold before you queue**: the record is the activity's only copy, so an id queued
 with nothing held behind it is lost, and `hold_for_replay` raises rather than queue

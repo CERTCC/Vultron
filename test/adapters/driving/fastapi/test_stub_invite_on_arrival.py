@@ -320,6 +320,32 @@ def test_the_expiry_window_opens_with_the_first_activity_queued(
     assert datetime.now(UTC) - pending.queued_at < timedelta(minutes=5)
 
 
+@pytest.mark.spec("CBT-03-001", "CBT-03-003")
+def test_a_redelivery_of_the_only_waiter_does_not_restart_the_window(
+    invitee_dl,
+):
+    """The window runs from the first delivery, not the latest one.
+
+    A redelivery is answered from the record already holding the activity
+    (IE-10-001), so it adds nothing to the queue and must not reopen its
+    expiry window: a sender redelivering inside the window would otherwise
+    hold the pre-bootstrap queue open for ever (CBT-03-003).
+    """
+    body = _note_body("https://example.org/notes/n-resend")
+    assert _deliver(invitee_dl, body).status is InboxOutcomeStatus.DEFERRED
+    opened_at = _pending(invitee_dl).queued_at
+
+    # The same activity arrives again while it is still the only waiter.
+    assert (
+        _deliver(invitee_dl, dict(body)).status is InboxOutcomeStatus.DEFERRED
+    )
+
+    assert _awaiting(invitee_dl) == [body["id"]], "still the only waiter"
+    assert _pending(invitee_dl).queued_at == opened_at, (
+        "a redelivery restarted the expiry window"
+    )
+
+
 @pytest.mark.spec("CBT-03-003", "PCR-03-004")
 def test_announce_after_queue_expiry_is_admitted_from_the_anchored_sender(
     case_actor_dl, invitee_dl

@@ -24,6 +24,7 @@ from vultron.adapters.driving.fastapi.inbox_handler import (
 )
 from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _activity_context_id,
+    _case_window_is_open,
     _expire_pending_case_activities,
     _queue_pending_case_activity,
     _replay_pending_case_activities,
@@ -216,6 +217,11 @@ class InboxPipeline:
                     case_id=case_id, queue_dl=queue_dl
                 ):
                     return None
+                # Read before the hold: the hold is what makes this activity
+                # one of the waiting, so only a reading taken first tells a
+                # first arrival from a redelivery of the only waiter
+                # (CBT-03-003).
+                window_already_open = _case_window_is_open(queue_dl, case_id)
                 # Held before it is queued: the record is its only copy, and
                 # the hold is what records the wait, so it must name the case
                 # or nothing will ever replay it (IO-03-009, ADR-0154).
@@ -237,8 +243,8 @@ class InboxPipeline:
                 _queue_pending_case_activity(
                     queue_dl=queue_dl,
                     case_id=case_id,
-                    activity_id=event.activity_id,
                     case_actor_id=event.actor_id,
+                    window_already_open=window_already_open,
                 )
                 return None
 

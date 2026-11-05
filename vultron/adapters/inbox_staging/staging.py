@@ -275,7 +275,12 @@ class InlineObjectStaging:
         a resend of exactly that body gets here; ingress refuses a different
         body under the same id before any copy is rebuilt (IE-10-002).  Held
         for a replay, should the copy be deferred, it keeps the same body.
-        Returns ``None`` when nothing is archived under *activity_id*.
+        Returns ``None`` when the receiver holds nothing under
+        *activity_id*.  It reads the one record whatever stage that record is
+        in, because the only caller reaches this branch when no replay is
+        owed, and a record owing none is archived (the ``HELD`` stage always
+        owes one, ADR-0154) -- so "holds nothing" and "archived nothing" are
+        the same answer here.
         """
         record = held_received_record(self._store, activity_id)
         if record is None:

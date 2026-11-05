@@ -81,38 +81,56 @@ def _activity_context_id(
     )
 
 
+def _case_window_is_open(queue_dl: DataLayer, case_id: str) -> bool:
+    """Whether anything already waits on *case_id*, so its window is running.
+
+    Read this **before** holding the activity being queued: the hold is what
+    makes it one of the waiting (ADR-0154), so a reading taken afterwards
+    cannot tell a first arrival from a redelivery of the only waiter.
+    """
+    return bool(records_awaiting_case(_store(queue_dl), case_id))
+
+
 def _queue_pending_case_activity(
     queue_dl: DataLayer,
     case_id: str,
-    activity_id: str,
     case_actor_id: str | None = None,
+    *,
+    window_already_open: bool,
 ) -> None:
     """Open, or keep open, the expiry window for *case_id*'s waiting messages.
 
-    The activity itself already names the case it waits on: the caller held
-    it first (``hold_for_replay``, DL-06-006), which is what records the
-    wait.  This only maintains the per-case record that is not per-message.
+    The activity being queued is not named here, because nothing per-message
+    is kept on this record: the activity already names the case it waits on,
+    the caller having held it first (``hold_for_replay``, DL-06-006), which
+    is what records the wait.  This only maintains the per-case record.
 
     Records *case_actor_id*, the sender of the first activity queued, on the
     first write.  It admits no sender: only a stub Invite anchors trust in
     the same record (``invite_anchored``, PCR-03-004).
 
-    The expiry window opens with the first activity queued (CBT-03-001).  A
-    record with nothing waiting behind it yet — a stub Invite's trust anchor,
-    written when the Invite was processed — restarts ``queued_at`` here, so
-    the time an invitee took to answer its Invite is not charged to the queue.
+    The expiry window opens with the first activity queued and runs from
+    there (CBT-03-001, CBT-03-003).  *window_already_open* says whether
+    anything was waiting on *case_id* **before** the caller held this
+    activity, which is the only thing that decides it:
+
+    - nothing was waiting, so this activity opens the window and
+      ``queued_at`` restarts.  A record with only a stub Invite's trust
+      anchor behind it is this case, so the time an invitee took to answer
+      its Invite is not charged to the queue;
+    - something was waiting, so the window is already running and is left
+      alone.  A *redelivery* of an activity that is itself the only one
+      waiting is this case too: it must not restart the clock, or a sender
+      redelivering inside the window would hold the queue open for ever
+      (CBT-03-003).
+
+    The caller must read this before holding the activity, because the hold
+    is what makes it one of the waiting (ADR-0154).
     """
     pending_id = VultronPendingCaseInbox.build_id(case_id)
     pending = queue_dl.read(pending_id)
     if isinstance(pending, VultronPendingCaseInbox):
-        # The caller held this activity before queueing it, so it is already
-        # among the waiting; anything else waiting means the window is open.
-        others = [
-            record
-            for record in records_awaiting_case(_store(queue_dl), case_id)
-            if record.activity_id != activity_id
-        ]
-        if others:
+        if window_already_open:
             return
         queue_dl.save(
             VultronPendingCaseInbox.model_validate(
