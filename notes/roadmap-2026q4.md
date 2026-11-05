@@ -1,0 +1,117 @@
+---
+title: Roadmap 2026Q4 — Year Goal and This Quarter's Objectives
+status: active
+kind: plan
+tracks:
+  - "#1156"
+  - "#5911"
+  - "#1147"
+  - "#5676"
+  - "#5677"
+  - "#5624"
+  - "#5912"
+  - "#5354"
+  - "#5226"
+  - "#5674"
+  - "#5913"
+  - "#5068"
+  - "#5193"
+  - "#5396"
+  - "#5829"
+  - "#5830"
+  - "#5683"
+  - "#2619"
+description: >
+  The year goal (Vultron piloted on CERT/CC's own case work and available for
+  others to try) and the 2026Q4 objectives with their finish lines: Interconnect,
+  Self-serve start, Spec Draft 1 and Measuring CVD, plus the Health budget. Each
+  objective is a `2026Q4 · <name>` milestone; which Epics serve it are listed
+  here, and their order is the Now tier's position on Project #24.
+related_notes:
+  - notes/planning-rules.md
+---
+
+# Roadmap 2026Q4 — Year Goal and This Quarter's Objectives
+
+How these objectives become milestones and how the next Focus Epic is chosen:
+`notes/planning-rules.md`. **The order of work is the Now tier's position on
+Project #24**, not this note.
+
+## Year Goal (through about 2027Q3)
+
+The Vultron reference implementation has been **piloted on CERT/CC's own case
+work** and is **available for others to try**. The protocol specification stands
+on its own, so others can implement it.
+
+A direction, not a commitment:
+
+1. Vultron accepts the documents CVD tools already exchange (CSAF) and verifies who
+   sent them.
+2. The **VINCE shadow** reads live VINCE cases and prompts a human, without writing
+   back (`CONTEXT.md` § Outside Systems).
+3. The **VINCE gateway** lets VINCE take part in cases as a protocol peer.
+4. Beyond the year: an independent second implementation.
+
+Out of scope this year unless the gateway pulls a piece in: high availability, a
+distributed ledger, production key handling, end-to-end encryption.
+
+## Objectives (milestones due 2026-12-31)
+
+### Interconnect
+
+Vultron exchanges case data with outside systems. Deliverables, in this order:
+
+1. **A receiver accepts a report whose content is a CSAF 2.1 vulnerability report**
+   (#5911). The CSAF document is the report's content in
+   `Offer(VulnerabilityReport)`, with no new wire activity. Planning #5131 comes
+   first, and it waits on the Offer(Report) receive tree rewrite (#5045, #5046).
+2. **That offer carries a seeded-key proof that is verified** (#1156). A missing
+   or failing proof gets 422 with its own error name (#5763), not 401: a proof is
+   content, not an HTTP credential.
+3. **The VINCE shadow reads a real VINCE case and prompts a human.** It runs
+   Vultron's own case logic on a local copy, held as CERT/CC's Case Manager, and
+   raises prompts at call-out points. A Sentinel carries VINCE changes in. Its path
+   starts with the call-out shapes (#1147); the shadow itself has no Epic yet, and
+   it needs VINCE API access.
+
+The VINCE gateway is 2027. Replay of historical VINCE cases moved to the shadow:
+reading live cases through the API covers what a data dump was for.
+
+### Self-serve start
+
+Someone outside the team succeeds alone: the site matches `main`, and a newcomer
+gets from clone to a multi-party case using the docs alone.
+
+- Deterministic demo recordings (#5676), scenario drift failing its PR (#5677), and
+  the demo UI reading today's ledger (#5624).
+- The site accuracy audit and the newcomer run (#5912). The colleague who does the
+  run needs booking early: their availability likely sets the finish date.
+
+### Spec Draft 1
+
+The Protocol Specification is a draft a reader can cite:
+
+- it carries a draft label, a version and a revision log (#5913);
+- no published statement contradicts `main` (#5354, #5226, #5674);
+- the known-gaps page is current when Draft 1 is tagged.
+
+Interconnect's findings go into Draft 2, so Draft 1 does not wait on them. An
+outside review of Draft 1 is the first item for 2027Q1.
+
+### Measuring CVD
+
+The ledger-to-event-history translation exists, and the CVD measures run on the
+recorded demo ledgers (#5068). VINCE has parallel work on measuring CVD from its
+cases: name Vultron's events so they line up with VINCE's, so that the shadow can
+later measure one real case both ways and compare.
+
+### Health (budget)
+
+The receive pipeline's checks (#5193), order independence (#5396), `plan/history`
+cleanup (#5829), size estimates that predict PR size (#5830), AS2-only fields
+(#5683) and tests that check what they claim (#2619).
+
+Among the Health Epics in Now, #5830 comes first: its recalibrated estimates feed
+the staggering rule's "closest to done" judgment. #5683's child #5168 (outbound
+`@context`) blocks the signing work in #1156 (#5382), so it lands ahead of its
+Epic.
