@@ -460,7 +460,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | EMB — Embargo Management Behavioral Requirements | [EMB-08-001](../vultron-spec/requirements/state-behavior.md#emb-08-001) |
 | HTTP — HTTP Protocol Requirements | [HTTP-01-003](../vultron-spec/requirements/foundation.md#http-01-003) |
 | IE — Inbox Endpoint | [IE-11-001](../vultron-spec/requirements/transport-security.md#ie-11-001), [IE-11-004](../vultron-spec/requirements/transport-security.md#ie-11-004) |
-| MV — Message Validation | [MV-09-001](../vultron-spec/requirements/messages.md#mv-09-001), [MV-10-001](../vultron-spec/requirements/messages.md#mv-10-001), [MV-10-007](../vultron-spec/requirements/messages.md#mv-10-007), [MV-10-008](../vultron-spec/requirements/messages.md#mv-10-008), [MV-10-009](../vultron-spec/requirements/messages.md#mv-10-009), [MV-10-010](../vultron-spec/requirements/messages.md#mv-10-010) |
+| MV — Message Validation | [MV-09-001](../vultron-spec/requirements/messages.md#mv-09-001), [MV-10-001](../vultron-spec/requirements/messages.md#mv-10-001), [MV-10-007](../vultron-spec/requirements/messages.md#mv-10-007), [MV-10-008](../vultron-spec/requirements/messages.md#mv-10-008), [MV-10-009](../vultron-spec/requirements/messages.md#mv-10-009) |
 | PCR — Participant Case Replica | [PCR-08-005](../vultron-spec/requirements/ledger-replication.md#pcr-08-005), [PCR-08-011](../specs/project.md#pcr-08-011) |
 | RF — Response Format | [RF-01-001](../vultron-spec/requirements/foundation.md#rf-01-001), [RF-06-001](../vultron-spec/requirements/foundation.md#rf-06-001) |
 | RMB — Report Management Behavioral Requirements | [RMB-07-001](../vultron-spec/requirements/state-behavior.md#rmb-07-001) |
