@@ -134,16 +134,23 @@ jobs:
       # `needs.test.result` aggregate reads `failure` either way.
       fail-fast: false
       matrix:
-        # `select` is the part's pytest path arguments. The grouping balances
-        # collected test counts; rebalance it from the part durations CI
-        # reports, not from the counts, which are only a first estimate.
+        # `select` is the part's pytest path arguments. Group by cost, not by
+        # collected test count: a count-balanced first attempt put
+        # `test/architecture` and `test/metadata` in one part, and it took
+        # 12m59s against 1m26s to 4m04s for the others, because those two
+        # directories hold nearly every test that spawns a subprocess (a fresh
+        # interpreter per module, a scratch git repository, a site build).
+        # Spread across 29k tests by one `-n auto` session they were diluted;
+        # alone on one runner they compete for the same cores. So keep those
+        # two apart and give each lighter company, and rebalance from the
+        # durations CI reports rather than from counts.
         include:
           - part: core
             select: test/core
+          - part: arch
+            select: test/architecture test/bt test/fuzzer test/support test/wire
           - part: meta
-            select: test/architecture test/ci test/metadata
-          - part: wire
-            select: test/adapters test/bt test/fuzzer test/support test/wire
+            select: test/adapters test/metadata
           # The catch-all. Its ignores are exactly the paths the parts above
           # claim, so everything else in `test/` — including a directory added
           # tomorrow and the test modules at the root of `test/` — runs here.
@@ -153,7 +160,6 @@ jobs:
               --ignore=test/adapters
               --ignore=test/architecture
               --ignore=test/bt
-              --ignore=test/ci
               --ignore=test/core
               --ignore=test/fuzzer
               --ignore=test/metadata
