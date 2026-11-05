@@ -6,8 +6,10 @@ description: >
   Rules for the shared source/markdown corpus behind test/architecture/
   ratchets, for ratchets that start from a live object, for applying the
   prefilter per definition rather than per file, for stating whether each
-  loose reading can miss a violation or invent one, and for baselines:
-  owner markers and the ratchet-versus-pinned-exemption-set split.
+  loose reading can miss a violation or invent one, for the two meta-ratchets
+  that police the gates themselves — one corpus, and every `xfail` strict —
+  and for baselines: owner markers and the
+  ratchet-versus-pinned-exemption-set split.
 related_specs:
   - specs/architecture.yaml
   - specs/testability.yaml
@@ -36,14 +38,30 @@ module import time. A module-level corpus is therefore exempt from the per-test
 timeout; a session-scoped fixture is not, and a cold parse of the whole tree in
 one would recreate the margin problem the corpus exists to fix.
 
-## Meta-Ratchet
+## Meta-Ratchets
 
-`test/architecture/test_ratchet_hygiene.py` fails when any sibling file contains
-`ast.parse(` or `.rglob(` outside `_corpus.py` (TB-13-003, TB-13-009), so every
-ratchet routes discovery through the one cache. When a new ratchet needs a file set the
-corpus does not offer, extend the corpus rather than reaching for a spelling the
+`test/architecture/test_ratchet_hygiene.py` holds the checks that police the
+other gates. Two live there.
+
+**One corpus.** It fails when any sibling file contains `ast.parse(` or
+`.rglob(` outside `_corpus.py` (TB-13-003, TB-13-009), so every ratchet routes
+discovery through the one cache. When a new ratchet needs a file set the corpus
+does not offer, extend the corpus rather than reaching for a spelling the
 hygiene check does not pattern-match: the rule is about one cache, not the
 literal substring.
+
+**Every `xfail` is strict.** TB-17-001 is the rule and
+`test_every_xfail_is_strict` is its check: it fails on any `xfail` under
+`test/` that omits or disables `strict`, generalising ARCH-21-008 from a
+backlog's companion goal test to every marker. A non-strict goal xfail keeps
+passing after the work lands, so the marker outlives its defect and the
+assertion it guards stops being checked — the gate goes inert (#3934). A
+genuine exception goes in `_NON_STRICT_XFAIL_EXEMPTIONS` with its reason — a
+pinned exemption set, named `_EXEMPTIONS` so that a later entry is a baseline
+`test_ratchet_baselines_name_an_owner.py` can see. The matcher keys on the
+marker, so it covers a `pytest.param(marks=…)` entry, loses no subjects to a
+rename (#5535), and counts a bare `@pytest.mark.xfail` as lax, that being the
+laxest spelling of all and the one a call-keyed matcher misses.
 
 ## The Markdown Tier
 
@@ -165,6 +183,18 @@ migration has emptied one, **that shape is found no more** — which is what
 arms, every scenario being written as composition (#5536). Flipping the arm
 beats deleting it: the scan still covers the shape, so one written again is
 reported rather than silently exempt.
+
+Flipping is for an arm whose act is still forbidden. When a rule change
+abolishes the property a name-keyed baseline measured, delete that baseline and
+let the shape scan that replaced it carry the coverage: an inverted set asserts
+the old property still holds, which the new rule has made false.
+`KNOWN_SECOND_AUTHORITY_ASKERS` listed the classes that answered "is this actor
+the case authority" besides the one sanctioned node, so inverting it would have
+asserted that no other class asks — while ARCH-24-008 makes several of them
+correct askers and the replacement's own compliant-asker control requires them
+to exist (#5784, #5921). What must survive the deletion is the act's coverage in
+both polarities: a shape scan with a control per shape, a permanently non-empty
+subject scan, and a permanently non-empty set of compliant callers.
 
 ## Check a Ratchet's Goal State Against the Spec Corpus Before Adding the `xfail`
 

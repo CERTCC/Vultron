@@ -51,7 +51,7 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_sent_proof_names_the_cryptosuite_and_the_authors_key`
       checks the proof on a participant's sealed body.
-    tracking_issue: '#5380 (proof form); #5382 (outbox signs)'
+    tracking_issue: '#5382'
     relationships:
     - rel_type: extends
       spec_id: SIG-01-001
@@ -72,7 +72,7 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_a_body_changed_after_signing_is_refused`
       posts a signed body whose nested object was changed afterwards.
-    tracking_issue: '#5380 (proof form); #5386 (refusal)'
+    tracking_issue: '#5386'
     adr:
     - ADR-0164
     stories:
@@ -246,7 +246,7 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/routers/test_actor_profile_key.py::test_an_actors_key_is_the_same_in_every_store`
       compares the key two independent stores publish for one actor id.
-    tracking_issue: '#5380 (seeded keys); #5381 (profile)'
+    tracking_issue: '#5381'
     adr:
     - ADR-0164
   - id: SIG-05-002
@@ -283,6 +283,5 @@ groups:
       `test/architecture/test_signing_helper_module.py::test_one_module_calls_the_signing_primitives`
       lists the modules under `vultron/` and `test/` that import the Ed25519 or JCS
       primitives.
-    tracking_issue: '#5380'
     adr:
     - ADR-0164

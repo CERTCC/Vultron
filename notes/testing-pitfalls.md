@@ -5,7 +5,8 @@ kind: guidance
 description: >
   Full write-ups for pytest pitfalls in this repo: reading a killed run, a dead
   xdist worker hanging the run, the two-tier timeout guardrail and why the
-  timeout *method* matters more than the ceiling, profiling a near-ceiling test
+  timeout *method* matters more than the ceiling, reading `configfile:` before
+  concluding a ceiling is inert, profiling a near-ceiling test
   before re-tiering it, sizing the integration tier from measured load, the
   ledger-rebuild teardown error a timeout trip leaves behind, proving off-loop
   work without a wall-clock window, an in-process pass that hides what each node
@@ -150,6 +151,16 @@ stretch it meets, not from the typical test. The exchange demos are CPU-bound
 (wall time equals CPU time), so host load stretches them in proportion (#5188).
 `test/test_integration_timeout_tier.py` records the measured inputs and pins
 their product as the tier's floor.
+
+Before concluding a ceiling does not fire, read the `rootdir:`/`configfile:`
+lines in the pytest header. A ceiling lives in `pyproject.toml`, so a control
+test placed outside the repo gets no `configfile` at all and sleeps past it
+untouched — which looks exactly like an inert ceiling and is really an unread
+config (#5597). Run the control from inside the tree, and under both `-n 0` and
+`-n auto`, because a worker is its own process and the `signal` method has to
+reach that worker's main thread. `TestTheUnitCeilingIsLive` in
+`test/test_integration_timeout_tier.py` pins both, by asking `pytest_timeout`
+what it resolved for the running test rather than trusting the ini.
 
 A demo test that trips its timeout also fails at teardown with a ledger-rebuild
 error (`… rebuilt from its ledger differs …`, or a case naming a `log_index`

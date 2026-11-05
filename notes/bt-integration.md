@@ -10,7 +10,8 @@ description: >
   why a delivery's trees are composed and never chained, the received-side
   stages including the path stage that asks the receiver's role once, declares
   the paths a message type handles and composes the refusal an undeclared path
-  gets, and how to translate a simulator tree.
+  gets, why the authority boolean has one source and the two ingredient
+  spellings that are forbidden, and how to translate a simulator tree.
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/handler-protocol.yaml
@@ -415,9 +416,36 @@ answer, clock decisions, guards, commit, effects.
    `CASE_BOOTSTRAP_SEMANTICS` in `core/models/events/case_context.py`).
    Every received-side site that still asks the role question another way is
    listed in `test/architecture/test_received_path_role_question.py`, and
-   every node class that still answers the authority question in
+   every site that still derives the authority *boolean* from an ingredient in
    `test/architecture/test_role_authority_resolver.py`; both sets only shrink
-   (ARCH-18-001, ARCH-24-003).
+   (ARCH-18-001, ARCH-24-009).
+
+   Two questions, two functions, and only the second is bounded.
+   `resolve_case_manager_id` answers *who* the authority is and returns an id
+   that addressing needs; most of its call sites want exactly that and are not
+   in scope. `has_role(actor_id, case_id, CVDRole.CASE_MANAGER, dl)` answers
+   *whether this actor* is the authority and is the only source of that
+   boolean (ARCH-24-008) — for any actor, not only the receiver: the sender,
+   an Offer's target and a stored act's author all go through it. Two
+   spellings are forbidden because each answers differently from the
+   predicate in a case that happens (ARCH-24-009):
+
+   - **comparing the resolver's returned id** against another actor id, in
+     any spelling including `same_actor_id`. It is exact on the id, so an id
+     differing only by a trailing slash fails its own authority test
+     (OID-01-006). Comparing against `None` is not this: "does the case name
+     an authority at all" is a fact about the case and stays legal.
+   - **testing a participant's role list** for `CVDRole.CASE_MANAGER`,
+     directly or through a helper over a role list. A list says "this record
+     holds the role" while the resolver names the first holder in roster
+     order, so on a roster recording the role twice (CM-33) a tree admits on
+     one answer and skips the effect gated on the other (HP-01-005). That is
+     why `vultron/core/predicates/roles.py` has no `CASE_MANAGER` sibling to
+     its `has_vendor_role`: the helper hid the one site the old name-keyed
+     check could not see (#5921).
+
+   The check is on the call, so it needs no list of sanctioned classes and a
+   renamed node cannot drop out of its scope (#5535).
 
    A tree whose sender may already be closed on the case and whose answer must
    be told apart (a `Leave`, a stub or full-case Invite reply) passes
