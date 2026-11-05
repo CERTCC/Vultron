@@ -2,14 +2,14 @@
 
 ## Reject case participant offer { #reject-case-participant-offer }
 
-Rejects the proposed participant record. The Case Manager tells the recommender.
+Rejects the proposed participant record. The CASE_MANAGER tells the recommender.
 
 === "Details"
 
     - **When…** the Case Owner declines a suggested actor
     - **Send:** `Reject(Offer(CaseParticipant)[target=VulnerabilityCase])`
-    - **Send to:** the case manager
-    - **Sent by:** the case owner
+    - **Send to:** the CASE_MANAGER
+    - **Sent by:** the Case Owner
     - **Seen in:** [How to Suggest an Actor for a Case](../../../../howto/activitypub/activities/suggest_actor.md)
     - **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)
     - **Mapping status:** [expansion](../../index.md#mapping-status)

@@ -2,14 +2,14 @@
 
 ## Abandon embargo proposal { #abandon-embargo-proposal }
 
-Cancels the proposal for the case. The Case Manager then withdraws each Invite it relayed for the proposal. This Reject is not the Case Manager's consent.
+Cancels the proposal for the case. The CASE_MANAGER then withdraws each Invite it relayed for the proposal. This Reject is not the CASE_MANAGER's consent.
 
 === "Details"
 
-    - **When…** the Case Manager abandons an open embargo proposal it received once the case is public, an exploit is public or attacks are observed
+    - **When…** the CASE_MANAGER abandons an open embargo proposal it received once the case is public, an exploit is public or attacks are observed
     - **Send:** `Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])`
     - **Send to:** a participant
-    - **Sent by:** the case manager
+    - **Sent by:** the CASE_MANAGER
     - **Formal definition:** [Embargo Proposal Rejection (ER)](../../../formal_protocol/messages.md#em-message-types)
     - **Mapping status:** [expansion](../../index.md#mapping-status)
 
