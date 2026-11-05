@@ -3,9 +3,10 @@ status: proposed
 status_override: >-
   Decided by the maintainer in planning (#5202, #5203). The SYNC-21 tests are
   strict xfails written before the counter is built, so they verify no built
-  behaviour; SYNC-21-005 holds only because an entry keeps the received body.
-  The record stays proposed until the counter is built and its open questions
-  are decided.
+  behaviour; SYNC-21-005 holds only because an entry keeps the received body,
+  and SYNC-21-023 only because the closed-sender door refuses before any
+  sequence check exists. The record stays proposed until the counter is built
+  and its open question is decided.
 date: 2026-11-05
 created: 2026-11-05
 updated: 2026-11-05
@@ -75,7 +76,8 @@ Chosen option: "A per-(sender, case) counter on each activity, applied in counte
 
 "Judge" here means the received processing that admits or refuses the activity on its merits, as today.
 
-- For each (sender, case) the CASE_MANAGER keeps a next expected number: one more than the highest number from that sender it has judged or skipped, and 1 before any.
+- For each (sender, case) the CASE_MANAGER keeps a next expected number: one more than the highest number from that sender it has judged or skipped.
+  Before it has judged any, the next expected number is one more than the highest number of that sender in the case ledger it holds, and 1 when the ledger holds none.
 - An activity whose number is the next expected one is judged on arrival.
 - An activity whose number is higher waits in a hold, as the body that arrived, until the missing numbers arrive.
   When they do, the CASE_MANAGER judges them and then the held activities, in number order.
@@ -84,15 +86,39 @@ Chosen option: "A per-(sender, case) counter on each activity, applied in counte
 - **Fast-forward.**
   When a hold ends with numbers still missing, the CASE_MANAGER skips them, judges what it holds in number order, and moves the next expected number past the highest one it judged.
   So a lost activity delays its sender's later activities for at most the wait, and never blocks them.
-- The CASE_MANAGER never refuses an activity for its number, except the late case below.
+- The CASE_MANAGER never refuses an activity for its number, except in the late case and the missing case below.
 
 ### A late number is refused with a notice
 
 - An activity whose number is below the next expected one arrived after its gap was skipped, or comes from a sender that lost its counter.
+  So does one whose number equals that of an activity the CASE_MANAGER holds.
   The CASE_MANAGER refuses it and writes nothing.
+- A late activity is never applied, however it arrives: as a late first delivery, a replay or a redelivery.
+  The sender's later activity, already judged, has countermanded it.
+  For example, a sender's #2 is "yes" and its #3 is "no"; #2 is lost, the gap is skipped and #3 is applied, so when #2 arrives it decides nothing.
+- The case ledger is append-only.
+  It is never reordered or rewritten to pick up a missed transient state, so a late activity changes no case state and is never inserted into the ledger's history.
 - It sends the sender a refusal notice (CLP-05-001) that names the next expected number as `expectedSenderSequence`.
   So the refusal is never silent.
+  The notice only reports; it changes nothing.
 - The sender may assert the content again as a new activity, with a new id and a fresh number.
+  It does so only as its own deliberate act, never automatically on the notice: CLP-05-008 forbids an automatic resend, and one could undo the sender's later intent, as when a skipped `Accept` sent again after a later `Reject` was judged would reverse the participant's final answer.
+
+### A missing number is refused with a notice
+
+- An activity that must carry a number (see "Which activities carry the number" below) but carries none, or one that is not a positive integer, is refused, and the CASE_MANAGER writes nothing.
+  This is how a missing `ledgerPosition` is refused (SYNC-18-015).
+- The CASE_MANAGER sends the sender the same refusal notice as for a late number, naming `expectedSenderSequence`, so the sender learns where to start.
+- The maintainer chose refusal over judging the activity on arrival because the project supports only clients built from current `main` and makes no backwards-compatibility commitment at this time.
+  A sender that does not number gains nothing from a lenient CASE_MANAGER, and leniency would leave its activities open to the arrival-order failures this record removes.
+
+### A new CASE_MANAGER starts from the ledger
+
+- When the CASE_MANAGER role for a case moves to another actor, the new CASE_MANAGER holds no next expected numbers of its own.
+  It starts each participant's next expected number at one more than that participant's highest number in the case ledger it holds, and at 1 when the ledger holds none.
+- So a sender already past 1 is not held for a wait, or refused, merely because the role moved.
+- A number the old CASE_MANAGER judged and refused on its merits, or skipped, is not in the ledger.
+  A sender whose last numbers were such is held once, for at most one wait, before the fast-forward lets its next activity through.
 
 ### A sender that lost its counter resumes
 
@@ -113,12 +139,16 @@ The maintainer approved this persistence change.
 The counter is predictable, and that is acceptable.
 Forgery is prevented by the object-level signature of ADR-0164, which covers the whole activity body, the number included.
 Until signing is built, anyone can already forge any activity, so a predictable number adds no new weakness.
-The bounded wait and the cap limit what a forged high number can do: it delays one sender's own activities for at most one wait.
+The bounded wait and the cap limit what a forged high number can do.
+While it is held, it delays only the forged sender's activities after the gap, for at most one wait.
+When the hold ends, the next expected number moves past the forged number, so the genuine sender's next activity is refused as late.
+The genuine sender gets the refusal notice, resumes at the number it names, and may assert the refused content again, so the forgery costs one refused activity and is never silent.
 
 ### Choices the maintainer left open
 
 The maintainer left the points below open.
 Each states this record's recommendation, labelled as such, and the specification adopts it.
+The maintainer later decided three points this record first left open: a missing number, a new CASE_MANAGER, and resending refused content, each recorded above.
 
 - **Which activities carry the number.**
   *Recommendation:* every activity a participant sends to the CASE_MANAGER that carries a `ledgerPosition` (SYNC-18-001), except `Read(CaseLedgerEntry)` and `Reject(CaseLedgerEntry)`.
@@ -126,13 +156,10 @@ Each states this record's recommendation, labelled as such, and the specificatio
   The two ledger requests are excluded because they are about the ledger itself, not case events (CLP-02-013), and a lost activity is often the reason for one: holding a request for a missed entry behind the gap it reports would delay the repair.
   The CASE_MANAGER's own activities carry no number.
   Its case events are ordered by the ledger itself (CLP-14-001), and its messages outside the ledger are governed by SYNC-19-004.
-- **An activity with no number.**
-  *Recommendation:* the CASE_MANAGER judges it when it arrives, as it judges every activity today, and neither holds it nor refuses it for the missing number.
-  This is the robustness principle: a sender that does not number gets today's behaviour and today's arrival-order risk, and a sender that numbers is protected.
-  It differs from `ledgerPosition`, whose absence is refused (SYNC-18-015), because the position is evidence the ledger keeps for every act, while the number protects only its own sender's order.
 - **Default wait and cap.**
   *Recommendation:* a wait of 120 seconds and a cap of 16 held activities per sender and case, both configurable.
-  The wait covers one delivery attempt that times out (30 seconds by default) and the retries after it (backoff up to 30 seconds), which is when a reordered activity is still on its way.
+  By default a delivery is tried up to four times, each attempt timing out after 30 seconds, with a backoff of 0.5 seconds that doubles between attempts (SYNC-05-004).
+  So the wait covers three attempts that time out and their backoff, about 94 seconds, which is when a reordered activity is still on its way.
   It is shorter than the default pending-assertion timeout of 180 seconds (SYNC-11-005), so a hold has ended, and the sender has had any notice, before the sender gives up on the activity.
   The cap bounds the storage one sender can take, and one sender seldom has 16 activities in flight to one case.
 - **Repeats and idempotency.**
@@ -146,11 +173,12 @@ Each states this record's recommendation, labelled as such, and the specificatio
   An activity delayed past the wait is treated as lost.
   Its fate then depends on timing, but the outcome is still one ledger entry or one notice, and the sender is told.
   SYNC-19-002 still holds, because replicas follow the ledger.
-- **Resending refused content.**
-  *Recommendation:* asserting the content again is a new act of the sender, never an automatic resend on the notice, which CLP-05-008 forbids.
-  An automatic resend could undo the sender's later intent: a skipped `Accept` sent again after a later `Reject` was judged would reverse the participant's final answer.
 - **Where the hold sits.**
-  *Recommendation:* the hold runs at the CASE_MANAGER's inbox, after the parse edge and the repeat check and before the activity's received tree, so the tree judges each activity unchanged and in order.
+  *Recommendation:* the hold runs at the CASE_MANAGER's inbox, after the parse edge, the repeat check, the door guards and the sender guard, and before the rest of the activity's received tree, so the tree judges each activity unchanged and in order.
+  So the hold and the refusals for a number see only an activity from an active participant, addressed to the CASE_MANAGER of an open case.
+  An activity those guards refuse is refused there as today, with no notice (CLP-02-005, CLP-05-006), and is neither held nor counted.
+  This also bounds the hold's storage by the case's participants, since a stranger cannot fill a hold.
+  The guards run again when a held activity is judged, so a sender's earlier `Leave` still closes the door on its later activities.
   A held activity is kept as the body that arrived (VM-08-002), so its eventual ledger entry is that body (CLP-07-011).
   When it is released it is judged as a delivery of its own, as a held ledger entry is replayed (SYNC-14-009).
 - **How #5202 and #5203 resolve.**
@@ -171,24 +199,22 @@ Each states this record's recommendation, labelled as such, and the specificatio
 - Bad, because every numbered case activity gains a field, and the CASE_MANAGER keeps new stored state per sender.
 - Bad, because an activity delayed past the wait is refused even though it was sent in time; the sender must decide whether to assert it again.
 - Bad, because a gap delays the sender's later activities by up to the wait.
-- Neutral, because a sender that does not number keeps today's arrival-order behaviour.
+- Bad, because a sender that does not number has its case activities refused; the project makes no backwards-compatibility commitment, so this costs no supported client.
+- Bad, because after a handover a sender whose last numbers were refused or skipped at the old CASE_MANAGER is held once, for at most one wait.
 
 ### Open questions
 
-- **A new CASE_MANAGER.**
-  When the CASE_MANAGER role moves to another actor, the new one holds no next expected numbers, so it expects 1 from every sender.
-  A sender already past 1 is then held for one wait before the fast-forward lets it through.
-  The new CASE_MANAGER could instead start from the highest number of each sender in its ledger.
-  This record does not decide that; the specification uses the simpler rule until the maintainer chooses.
-- **Requiring the number.**
-  Once every sender numbers, the CASE_MANAGER could refuse an activity with no number, as it refuses one with no position.
-  This record keeps the robustness principle for now.
+- **Activities held at a handover.**
+  When the CASE_MANAGER role moves while the old CASE_MANAGER holds activities, those activities are neither judged nor refused, and their senders are not told.
+  Whether the old CASE_MANAGER judges or refuses its held activities before it hands over, or the new one asks for them, is not decided.
 
 ## Validation
 
 The SYNC-21 requirements in `specs/sync-ledger-replication.yaml` implement this record.
 Until the counter is built, each protocol requirement is marked by a strict `xfail` test in `test/core/use_cases/received/test_sender_sequence.py`, which fails loudly once the behaviour lands.
-The one exception is SYNC-21-005, which already holds: a ledger entry keeps the body as received, so it keeps a number the body carries.
+Two tests pass today.
+SYNC-21-005 holds because a ledger entry keeps the body as received, so it keeps a number the body carries.
+SYNC-21-023 holds because the closed-sender door refuses a closed sender's activity before any sequence check exists.
 The two arrival-order tests in `test/core/use_cases/received/test_arrival_order.py` that reproduce #5202 and #5203 are reworked to the decided outcomes when the counter is built.
 
 ## Pros and Cons of the Options

@@ -15,9 +15,11 @@ each sender's activities in that order (SYNC-21, ADR-0177).
 
 The counter is not built yet, so every test here but one is a strict
 ``xfail``: it asserts the decided behaviour, fails today, and fails loudly
-once the behaviour lands, when its marker is removed.  The exception is the
-ledger entry keeping the number (SYNC-21-005), which already holds because
-an entry keeps the body as received (CLP-07-011).  The implementation may need to
+once the behaviour lands, when its marker is removed.  Two tests pass today:
+the ledger entry keeping the number (SYNC-21-005), which already holds because
+an entry keeps the body as received (CLP-07-011), and a closed sender's late
+number drawing no notice (SYNC-21-023), which holds because the closed-sender
+door refuses it before any sequence check exists.  The implementation may need to
 adjust a test's set-up to the API it builds (for example how a released hold
 is replayed); the asserted outcome is the requirement.
 
@@ -130,6 +132,18 @@ def _expire_holds(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def _forget_sequence_state(net: LedgerNetwork, actor: str) -> None:
+    """Stand in for a handover: *actor* keeps the ledger but no sequence state.
+
+    A new CASE_MANAGER holds the case ledger it inherited and none of the old
+    one's next expected numbers or holds (ADR-0177).  No sequence state exists
+    before the counter is built, so this does nothing yet; the implementation
+    makes it delete the records it keeps (SYNC-21-020), so the test reaches
+    the ledger-derived start.
+    """
+    del net, actor
+
+
 def _consent(net: LedgerNetwork, actor: str, embargo_id: str) -> Any:
     case = net.case(MANAGER)
     participant = net.stores[MANAGER].read(case.actor_participant_index[actor])
@@ -158,12 +172,20 @@ def test_each_activity_to_the_case_manager_is_numbered_one_up() -> None:
     [read] = net.queued(OWNER, to=MANAGER, type_="Read")
     read_body = read_sealed_body_dict(dl, read.id_)
     assert read_body is not None
+    replica_entry = ledger_entries(dl, net.case_id)[-1]
+    SyncActivityAdapter(dl).send_reject_log_entry(
+        replica_entry, replica_entry.entry_hash, OWNER, [MANAGER]
+    )
+    [reject] = net.queued(OWNER, to=MANAGER, type_="Reject")
+    reject_body = read_sealed_body_dict(dl, reject.id_)
+    assert reject_body is not None
 
     second = _note_body(net, "second")
     from_manager = _note_body(net, "manager", actor=MANAGER, to=OWNER)
 
-    # The Read is about the ledger, so it uses no number.
+    # The Read and the Reject are about the ledger, so they use no number.
     assert "senderSequence" not in read_body
+    assert "senderSequence" not in reject_body
     assert (first.get("senderSequence"), second.get("senderSequence")) == (
         1,
         2,
@@ -349,8 +371,8 @@ def test_a_hold_ends_when_its_wait_passes(
     # OWNER sends nothing more; another sender's activity arrives.
     net.receive(MANAGER, _note_body(net, "other", actor=BYSTANDER))
 
-    committed = _committed_notes(net)
-    assert committed[:2] == [_note_of(b) for b in held]
+    owner_notes = [n for n in _committed_notes(net) if "/notes/other" not in n]
+    assert owner_notes == [_note_of(b) for b in held]
     for body in held:
         assert_no_refusal_notice(
             net.stores[MANAGER], manager=MANAGER, refused_id=body["id"]
@@ -419,19 +441,119 @@ def test_a_late_or_reused_number_is_refused_with_a_notice(
     assert owner_notes == [_note_of(held)]
 
 
-@_xfail("SYNC-21-017", "a numbered activity past a gap is not held")
+@_xfail("SYNC-21-017", "an unnumbered activity is judged on arrival")
+@pytest.mark.spec("SYNC-21-015")
 @pytest.mark.spec("SYNC-21-017")
-def test_an_unnumbered_activity_is_judged_on_arrival() -> None:
+def test_an_unnumbered_activity_is_refused_with_a_notice() -> None:
     net = _network("unnumbered")
-    held = _numbered(_note_body(net, "held"), 2)
     unnumbered = _note_body(net, "unnumbered")
     unnumbered.pop("senderSequence", None)
+    malformed = {**_note_body(net, "malformed"), "senderSequence": "two"}
 
-    net.receive(MANAGER, held)
-    net.receive(MANAGER, unnumbered)
+    for body in (unnumbered, malformed):
+        net.receive(MANAGER, body)
 
-    # The unnumbered note is judged at once; the held one still waits.
-    assert _committed_notes(net) == [_note_of(unnumbered)]
+    assert _committed_notes(net) == []
+    for body in (unnumbered, malformed):
+        notice = assert_refusal_notice(
+            net.stores[MANAGER],
+            manager=MANAGER,
+            refused_id=body["id"],
+            asserter=OWNER,
+            reason="",
+            case_id=net.case_id,
+        )
+        assert notice["expectedSenderSequence"] == 1
+
+
+@pytest.mark.spec("SYNC-21-023")
+def test_a_closed_senders_late_number_draws_no_notice() -> None:
+    net = _network("closed-late")
+    dl = net.stores[BYSTANDER]
+    note = _numbered(_note_body(net, "after-leave", actor=BYSTANDER), 1)
+    _leave_id, leave_text = TriggerActivityAdapter(dl).close_case(
+        case_id=net.case_id, actor=BYSTANDER, to=[MANAGER]
+    )
+    net.receive(MANAGER, _numbered(json.loads(leave_text), 1))
+
+    # The note reuses the judged Leave's number, but its sender has left, so
+    # the closed-sender door refuses it first, with no notice (CLP-02-005).
+    net.receive(MANAGER, note)
+
+    assert _committed_notes(net) == []
+    assert_no_refusal_notice(
+        net.stores[MANAGER], manager=MANAGER, refused_id=note["id"]
+    )
+
+
+@_xfail("SYNC-21-024", "a late answer is applied after the later one")
+@pytest.mark.spec("SYNC-21-024")
+@pytest.mark.spec("SYNC-21-015")
+@pytest.mark.spec("SYNC-21-014")
+def test_a_late_answer_never_overrides_the_later_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    net = _network("late-answer")
+    embargo_id, invite_id = _invited(net, BYSTANDER, "late-answer")
+    first = _numbered(_note_body(net, "first", actor=BYSTANDER), 1)
+    accept = _numbered(
+        _answer_body(net, BYSTANDER, invite_id, accept=True, tag="late-a"), 2
+    )
+    reject = _numbered(
+        _answer_body(net, BYSTANDER, invite_id, accept=False, tag="late-r"), 3
+    )
+    net.receive(MANAGER, first)
+
+    # The Accept (#2) is lost; the Reject (#3) waits, then the gap is skipped.
+    net.receive(MANAGER, reject)
+    _expire_holds(monkeypatch)
+    net.receive(MANAGER, _note_body(net, "other"))
+    assert _consent(net, BYSTANDER, embargo_id) is EmbargoConsentState.DECLINED
+    entries_before = len(ledger_entries(net.stores[MANAGER], net.case_id))
+
+    # The Accept arrives late: the later Reject has countermanded it.
+    net.receive(MANAGER, accept)
+
+    assert _consent(net, BYSTANDER, embargo_id) is EmbargoConsentState.DECLINED
+    assert (
+        len(ledger_entries(net.stores[MANAGER], net.case_id)) == entries_before
+    )
+    notice = assert_refusal_notice(
+        net.stores[MANAGER],
+        manager=MANAGER,
+        refused_id=accept["id"],
+        asserter=BYSTANDER,
+        reason="",
+        case_id=net.case_id,
+    )
+    assert notice["expectedSenderSequence"] == 4
+
+
+@_xfail("SYNC-21-009", "a CASE_MANAGER keeps no next expected number")
+@pytest.mark.spec("SYNC-21-009")
+def test_a_new_case_manager_starts_from_the_ledger() -> None:
+    net = _network("handover")
+    earlier = [_numbered(_note_body(net, f"earlier-{n}"), n) for n in (1, 2)]
+    for body in earlier:
+        net.receive(MANAGER, body)
+    _forget_sequence_state(net, MANAGER)
+    third = _numbered(_note_body(net, "third"), 3)
+    reused = _numbered(_note_body(net, "reused"), 2)
+
+    # The ledger records numbers 1 and 2, so 3 is judged on arrival.
+    net.receive(MANAGER, third)
+    assert _committed_notes(net) == [_note_of(b) for b in (*earlier, third)]
+
+    net.receive(MANAGER, reused)
+    notice = assert_refusal_notice(
+        net.stores[MANAGER],
+        manager=MANAGER,
+        refused_id=reused["id"],
+        asserter=OWNER,
+        reason="",
+        case_id=net.case_id,
+    )
+    assert notice["expectedSenderSequence"] == 4
 
 
 @_xfail("SYNC-21-018", "a held activity's repeat is judged on arrival")
@@ -456,12 +578,12 @@ def test_a_repeat_is_found_by_id_before_its_number() -> None:
 def test_sequence_state_lives_in_the_datalayer() -> None:
     net = _network("stored")
     first = _note_body(net, "first")
-    net.stores[OWNER] = net.stores[OWNER].clone_for_actor(OWNER)
+    net.reopen(OWNER)
     second = _note_body(net, "second")
     assert (first["senderSequence"], second["senderSequence"]) == (1, 2)
 
     net.receive(MANAGER, second)
-    net.stores[MANAGER] = net.stores[MANAGER].clone_for_actor(MANAGER)
+    net.reopen(MANAGER)
     net.receive(MANAGER, first)
 
     assert _committed_notes(net) == [_note_of(first), _note_of(second)]

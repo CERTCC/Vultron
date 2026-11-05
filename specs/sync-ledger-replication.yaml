@@ -4309,9 +4309,10 @@ groups:
     order, and their `ledgerPosition` cannot tell them apart when the first is not yet
     committed. So each participant numbers its case activities per case, and the
     CASE_MANAGER judges each sender's activities in that order. An activity past a gap
-    waits in a bounded hold; when the hold ends, the gap is skipped, and a number that
-    arrives after its gap was skipped is refused with a notice. This is how the
-    CASE_MANAGER meets SYNC-19-001 for one sender's assertions. Rationale: ADR-0177.
+    waits in a bounded hold; when the hold ends, the gap is skipped. A number that
+    arrives after its gap was skipped is never applied, and it and a missing number are
+    refused with a notice. This is how the CASE_MANAGER meets SYNC-19-001 for one
+    sender's assertions. Rationale: ADR-0177.
   specs:
   - id: SYNC-21-001
     priority: MUST
@@ -4319,14 +4320,16 @@ groups:
     statement: >-
       A participant MUST put a `senderSequence` on each activity it sends the
       CASE_MANAGER that carries a `ledgerPosition` (SYNC-18-001), except
-      `Read(CaseLedgerEntry)` and `Reject(CaseLedgerEntry)`.
+      `Read(CaseLedgerEntry)` and `Reject(CaseLedgerEntry)`. The CASE_MANAGER puts no
+      `senderSequence` on the activities it sends.
     rationale: >-
       The CASE_MANAGER cannot see the order in which one sender sent its activities,
       because the transport keeps no order (SYNC-19-003) and two activities sent before
       the first is committed state the same position. The number states that order.
       The two ledger requests are excluded because they ask about the ledger and are
       not case events (CLP-02-013), and a request for a missed entry must not wait
-      behind the gap it reports.
+      behind the gap it reports. The CASE_MANAGER's own case events are ordered by its
+      ledger (CLP-14-001).
     relationships:
     - rel_type: uses_definition
       spec_id: SYNC-18-001
@@ -4336,8 +4339,8 @@ groups:
       `test_each_activity_to_the_case_manager_is_numbered_one_up` in
       `test/core/use_cases/received/test_sender_sequence.py` asserts that a
       participant's notes to the CASE_MANAGER carry `senderSequence`, that its
-      `Read(CaseLedgerEntry)` carries none and uses no number, and that the
-      CASE_MANAGER's own note carries none.
+      `Read(CaseLedgerEntry)` and `Reject(CaseLedgerEntry)` carry none and use no
+      number, and that the CASE_MANAGER's own note carries none.
     stories:
     - story_2026_059
   - id: SYNC-21-002
@@ -4375,9 +4378,9 @@ groups:
     verification: >-
       `test_a_rebuilt_activity_keeps_its_number` in
       `test/core/use_cases/received/test_sender_sequence.py` asserts that building an
-      activity again after its sender sent another hands back the number it was first
-      sealed with. The resend itself holds through the outbox's sealed-body relay
-      (OX-07-001), which its own tests cover.
+      activity again after its sender sent another hands back its sealed body, with
+      the number it was first sealed with. The resend itself holds through the outbox's
+      sealed-body relay (OX-07-001), which its own tests cover.
     stories:
     - story_2026_059
   - id: SYNC-21-004
@@ -4453,7 +4456,8 @@ groups:
     rationale: >-
       The notice is how a sender whose counter fell behind learns where the
       CASE_MANAGER is. A sender that kept its old count would have each next activity
-      refused as late.
+      refused as late. The count is the sender's own sequence state, not case state, so
+      raising it is not a write that CLP-05-008 forbids.
     relationships:
     - rel_type: uses_definition
       spec_id: SYNC-21-015
@@ -4500,12 +4504,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER's next expected number per sender and case MUST exceed by one
-      the highest `senderSequence` it judged or skipped for them, or be 1.
+      The CASE_MANAGER's next expected number per sender and case MUST be one more than
+      the highest `senderSequence` it judged or skipped for them. Before it judges any,
+      the number is one more than the highest its case ledger records for them, or 1.
     rationale: >-
       Judging an activity, whether it is admitted or refused on its merits, puts it in
       the order, and so does skipping its number when a hold ends. The next expected
-      number is what decides whether an arriving activity is judged, held or late.
+      number is what decides whether an arriving activity is judged, held or late. A
+      CASE_MANAGER that took the role from another actor holds the ledger but none of
+      the old one's expected numbers; starting from the ledger keeps a sender already
+      past 1 from being held or refused because the role moved.
     adr:
     - ADR-0177
     verification: >-
@@ -4513,7 +4521,10 @@ groups:
       `test/core/use_cases/received/test_sender_sequence.py` asserts a sender's first
       number is judged on arrival and its second is held until the first comes;
       `test_a_late_or_reused_number_is_refused_with_a_notice` asserts the expected
-      number a notice names after a skip.
+      number a notice names after a skip; and
+      `test_a_new_case_manager_starts_from_the_ledger` asserts that a CASE_MANAGER
+      holding a ledger with a sender's numbers 1 and 2, and no sequence state, judges
+      that sender's 3 on arrival and refuses a new 2.
     stories:
     - story_2026_059
   - id: SYNC-21-010
@@ -4541,8 +4552,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST end a hold whose wait has passed, without waiting for its
-      sender's next activity.
+      The CASE_MANAGER MUST end a hold once its wait has passed, whether or not any
+      further activity arrives.
     rationale: >-
       A lost activity would otherwise stop every later activity of its sender for good.
       Ending the hold on time bounds that delay, and a sender that sends nothing more
@@ -4553,7 +4564,9 @@ groups:
       `test_a_hold_ends_when_its_wait_passes` in
       `test/core/use_cases/received/test_sender_sequence.py` holds a note past a lost
       one, moves the clock past the wait, has another sender's activity arrive, and
-      asserts the held note is committed.
+      asserts the held notes are committed. The other sender's activity stands in for
+      the timer the implementation builds, which replaces that step; the asserted
+      outcome stands.
     stories:
     - story_2026_059
   - id: SYNC-21-012
@@ -4606,8 +4619,8 @@ groups:
     rationale: >-
       A number below the next expected one arrived after its gap was skipped, or comes
       from a sender that lost its count. Judging it now would put it after acts its
-      sender made later. One number cannot mean two activities, so the first to arrive
-      keeps its place.
+      sender made later (SYNC-21-024). One number cannot mean two activities, so the
+      first to arrive keeps its place.
     relationships:
     - rel_type: uses_definition
       spec_id: SYNC-21-009
@@ -4624,24 +4637,28 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      For each refusal under SYNC-21-014, the CASE_MANAGER MUST send the sender a
-      refusal notice (CLP-05-001) carrying its next expected number as
+      For each refusal under SYNC-21-014 or SYNC-21-017, the CASE_MANAGER MUST send
+      the sender a refusal notice (CLP-05-001) carrying its next expected number as
       `expectedSenderSequence`.
     rationale: >-
       Without a notice the activity would be lost silently, as the note in #5203 was.
-      The expected number tells a sender that lost its count where to resume
-      (SYNC-21-007).
+      The expected number tells a sender that lost its count, or never numbered, where
+      to resume (SYNC-21-007). The notice only reports: it changes no case state.
     relationships:
     - rel_type: uses_definition
       spec_id: CLP-05-001
     - rel_type: uses_definition
       spec_id: SYNC-21-014
+    - rel_type: uses_definition
+      spec_id: SYNC-21-017
     adr:
     - ADR-0177
     verification: >-
-      `test_a_late_or_reused_number_is_refused_with_a_notice` in
-      `test/core/use_cases/received/test_sender_sequence.py` asserts a `Reject` of each
-      refused note is queued to its sender with the next expected number.
+      `test_a_late_or_reused_number_is_refused_with_a_notice`,
+      `test_a_late_answer_never_overrides_the_later_one` and
+      `test_an_unnumbered_activity_is_refused_with_a_notice` in
+      `test/core/use_cases/received/test_sender_sequence.py` assert a `Reject` of each
+      refused activity is queued to its sender with the next expected number.
     stories:
     - story_2026_059
   - id: SYNC-21-016
@@ -4649,7 +4666,7 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST NOT refuse an activity for its `senderSequence` except under
-      SYNC-21-014.
+      SYNC-21-014 or SYNC-21-017.
     rationale: >-
       The number orders a sender's activities; it is not a reason to doubt them. A gap
       delays an activity for at most the wait and never refuses it, so a lost activity
@@ -4657,6 +4674,8 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: SYNC-21-014
+    - rel_type: uses_definition
+      spec_id: SYNC-21-017
     adr:
     - ADR-0177
     verification: >-
@@ -4670,18 +4689,25 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST judge an activity that carries no `senderSequence` when it
-      arrives, neither holding it nor refusing it for the missing number.
+      The CASE_MANAGER MUST refuse, writing nothing, an activity SYNC-21-001 requires
+      to be numbered whose `senderSequence` is missing or not a positive integer.
     rationale: >-
-      A sender that does not number its activities keeps the behaviour it has today, by
-      the robustness principle. The number protects only its own sender's order, so its
-      absence harms no other sender.
+      An unnumbered activity could not be put in its sender's order, so judging it on
+      arrival would leave it open to the arrival-order failures this group removes. A
+      missing `ledgerPosition` is refused the same way (SYNC-18-015). The project
+      supports only clients built from current `main` and makes no
+      backwards-compatibility commitment at this time, so no supported sender is
+      refused by this rule (ADR-0177).
+    relationships:
+    - rel_type: uses_definition
+      spec_id: SYNC-21-001
     adr:
     - ADR-0177
     verification: >-
-      `test_an_unnumbered_activity_is_judged_on_arrival` in
-      `test/core/use_cases/received/test_sender_sequence.py` asserts that a note with no
-      number is committed on arrival while its sender has a numbered note held.
+      `test_an_unnumbered_activity_is_refused_with_a_notice` in
+      `test/core/use_cases/received/test_sender_sequence.py` delivers a note with no
+      number and one whose number is not an integer, and asserts neither is committed
+      and each draws a refusal notice naming the expected number.
     stories:
     - story_2026_059
   - id: SYNC-21-018
@@ -4710,8 +4736,8 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      A participant MAY assert the content of an activity refused under SYNC-21-014
-      again, as a new act with a new id and `senderSequence`.
+      A participant MAY assert a refused activity's content again (SYNC-21-014) as its
+      own deliberate new act, with a new id and a higher `senderSequence`.
     rationale: >-
       The refused activity was sent in good time, so its content may still stand. It is
       a new act of the sender, never an automatic resend on the notice (CLP-05-008):
@@ -4784,3 +4810,59 @@ groups:
       spec_id: SYNC-21-013
     adr:
     - ADR-0177
+  - id: SYNC-21-023
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST hold an activity (SYNC-21-010) or refuse it for its number
+      (SYNC-21-014, SYNC-21-017) only after the door and sender guards admit it. One
+      they refuse is refused there with no refusal notice (CLP-02-005), and is neither
+      held nor counted.
+    rationale: >-
+      A door or sender-guard refusal gets no notice (CLP-05-006), and a sequence check
+      run first would send one to a closed sender, a stranger or a misaddressed copy.
+      Checking the guards first also keeps a stranger from filling a hold, so the hold's
+      storage is bounded by the case's participants. The guards run again when a held
+      activity is judged, so a sender's earlier `Leave` still closes the door on its
+      later activities.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CLP-02-005
+    - rel_type: refines
+      spec_id: SYNC-21-014
+    adr:
+    - ADR-0177
+    verification: >-
+      `test_a_closed_senders_late_number_draws_no_notice` in
+      `test/core/use_cases/received/test_sender_sequence.py` has a sender's `Leave`
+      numbered 1 judged, then delivers its note reusing 1, and asserts the note is not
+      committed and draws no refusal notice. It holds before the counter is built,
+      because the closed-sender door refuses the note first.
+    stories:
+    - story_2026_059
+  - id: SYNC-21-024
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An activity refused under SYNC-21-014 MUST NOT change case state or enter the
+      case ledger's history, whether it arrives late, replayed or redelivered.
+    rationale: >-
+      Its sender's later activity, already judged, has countermanded it. If an `Accept`
+      numbered 2 is lost and the `Reject` numbered 3 is applied after the skip, the
+      `Accept` that then arrives decides nothing. The ledger is append-only and is never
+      reordered or rewritten to pick up a missed transient state. The refusal notice
+      (SYNC-21-015) only reports; a deliberate re-assertion is a new activity with a
+      higher number (SYNC-21-019).
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-21-014
+    adr:
+    - ADR-0177
+    verification: >-
+      `test_a_late_answer_never_overrides_the_later_one` in
+      `test/core/use_cases/received/test_sender_sequence.py` loses an `Accept` numbered
+      2, has the `Reject` numbered 3 applied after the skip, then delivers the `Accept`,
+      and asserts the consent stays `DECLINED`, no ledger entry is added and the notice
+      names 4.
+    stories:
+    - story_2026_059
