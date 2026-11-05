@@ -55,7 +55,7 @@ def test_python_app_workflow_runs_on_lockfile_change(event: str) -> None:
     assert "uv.lock" in _triggers()[event]["paths"]
 
 
-@pytest.mark.spec("CS-13-002")
+@pytest.mark.spec("DEMOCI-02-021")
 @pytest.mark.parametrize("event", ["push", "pull_request"])
 def test_python_app_workflow_runs_on_a_committed_example_change(
     event: str,

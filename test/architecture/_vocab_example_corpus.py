@@ -39,7 +39,7 @@ from vultron.wire.as2.vocab.examples import (
 #
 # ``main`` is load-bearing here, not belt-and-braces: its only parameter is
 # ``outdir=None``, so under the "no *required* parameters" rule it is callable, and
-# calling it writes all 60 artifacts into the repo's ``docs/reference/examples/``.
+# calling it rewrites the whole committed corpus in ``docs/reference/examples/``.
 _NOT_EXAMPLES = frozenset(
     {
         "main",

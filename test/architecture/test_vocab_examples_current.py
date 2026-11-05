@@ -141,7 +141,6 @@ def _reported_diff(committed: str, generated: str, filename: str) -> str:
     )
 
 
-@pytest.mark.spec("CS-13-002")
 def test_committed_examples_are_byte_identical_to_generated(
     generated_dir, generated_files, committed_files
 ):
@@ -163,8 +162,13 @@ def test_committed_examples_are_byte_identical_to_generated(
 
     Fix: re-run the generator and commit ``docs/reference/examples/``.
     """
+    compared = sorted(generated_files & committed_files)
+    assert compared, (
+        "no example was compared, so this check proved nothing: the generator "
+        "wrote nothing, or no committed example shares its name"
+    )
     drifted: list[str] = []
-    for filename in sorted(generated_files & committed_files):
+    for filename in compared:
         committed = (_COMMITTED_DIR / filename).read_bytes()
         generated = (generated_dir / filename).read_bytes()
         if committed != generated:
