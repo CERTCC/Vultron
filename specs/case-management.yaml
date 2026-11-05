@@ -367,10 +367,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A `VulnerabilityCase` MUST have both a `CVDRole.CASE_OWNER` participant and a
-      `CVDRole.CASE_MANAGER` participant from the moment of creation onward. Neither
-      slot may be left empty or deferred to a later operation. Role delegation transfers
-      the CASE_MANAGER role without a gap.
+      A `VulnerabilityCase` MUST have both a `CASE_OWNER` participant and a
+      `CASE_MANAGER` participant from the moment of creation onward. Neither slot may be
+      left empty or deferred to a later operation. Role delegation transfers the
+      CASE_MANAGER role without a gap.
     rationale: >-
       An empty `CASE_OWNER` or `CASE_MANAGER` slot leaves every role check without an
       answer from the moment the case exists, and a case created without either has no
