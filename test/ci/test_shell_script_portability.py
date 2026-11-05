@@ -34,6 +34,10 @@ one that bites is ``"${empty[@]}"`` under ``set -u``, an unbound variable
 before bash 4.4 — too ambiguous to spot in a text scan, since whether the
 array can be empty is a question about the script's logic.  Expand such an
 array as ``${a[@]+"${a[@]}"}``, as ``sync-epic-schedules.sh`` does.
+
+That this scan runs at all is a separate question, and a separate test:
+``test_python_app_path_filter.py`` pins the ``paths:`` that bring a shell
+script change to the suite.
 """
 
 from __future__ import annotations
@@ -42,11 +46,7 @@ import re
 import subprocess
 from pathlib import Path
 
-import pytest
-
-from test.ci._workflows import REPO_ROOT, load_workflow, triggers
-
-PYTHON_APP_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "python-app.yml"
+from test.ci._workflows import REPO_ROOT
 
 #: Scripts that MUST be in the scanned set.  A floor stated as named paths
 #: rather than a count: a count races concurrent PRs that add a script (#3984),
@@ -182,30 +182,6 @@ def _tracked_scripts() -> list[Path]:
         check=True,
     ).stdout
     return [Path(name) for name in listed.split("\0") if name]
-
-
-@pytest.mark.parametrize("event", ["push", "pull_request"])
-def test_the_suite_runs_when_a_shell_script_changes(event: str) -> None:
-    """The gate's own trigger list reaches it (DOCBW-03-015).
-
-    A check is only installed if the workflow that runs it fires on the change
-    it polices.  ``python-app.yml`` listed Python, YAML and the lockfile, so a
-    pull request touching only ``.github/scripts/*.sh`` ran no suite at all and
-    this scan would never have seen it — the #4506 shape.
-    """
-    paths = triggers(load_workflow(PYTHON_APP_WORKFLOW))[event]["paths"]
-    assert "**/*.sh" in paths, (
-        f"python-app.yml's {event} paths must include '**/*.sh', or a shell "
-        "script can change without the suite that reads it running:\n"
-        + "\n".join(f"  {pattern}" for pattern in paths)
-    )
-    # The dot-directories `**` may not descend into, named as `*.py` is.
-    for directory in (".agents", ".github", ".devcontainer"):
-        assert f"{directory}/**/*.sh" in paths, (
-            f"python-app.yml's {event} paths must name "
-            f"'{directory}/**/*.sh' explicitly: a leading-dot directory is "
-            "not reliably matched by '**'."
-        )
 
 
 def test_the_scan_recognizes_every_construct() -> None:

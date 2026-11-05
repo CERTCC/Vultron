@@ -12,13 +12,28 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The unit-test workflow runs on a lockfile-only change.
+"""``python-app.yml`` fires on each path the suite it runs actually reads.
 
-The demo workflow skips Dependabot PRs on the premise that ``python-app.yml``
-still tests them (DEMOCI-02-004), which DEMOCI-02-016 secures. A Dependabot bump inside an existing
-version range touches only ``uv.lock``, so without ``uv.lock`` in the path
-filter no test runs at all — which is how the py_trees 2.6.0 bump reached
-``main`` untested (#3610).
+A check is only installed if the workflow that runs it fires on the change it
+polices; one that is not is green on exactly the pull request it exists to
+catch (DOCBW-03-015, #4506). This module pins one entry of the filter per
+defect that found it, each with the file the suite reads through it:
+
+- ``uv.lock``. The demo workflow skips Dependabot PRs on the premise that this
+  workflow still tests them (DEMOCI-02-004), which DEMOCI-02-016 secures. A
+  bump inside an existing version range touches only the lockfile, so without
+  it no test ran at all — which is how the py_trees 2.6.0 bump reached ``main``
+  untested (#3610).
+- Shell scripts. ``test_shell_script_portability.py`` reads every tracked
+  ``*.sh``, and a `mapfile` added under ``.github/scripts/`` would otherwise
+  have reached ``main`` with every check green (#5698).
+- Composite actions. ``test_workflow_failure_notification.py`` asserts the
+  ``notify-failure`` action's steps (CISEC-05-017, CISEC-05-018, CISEC-05-020)
+  and ``test_site_build_shared_action.py`` its build-site step order, but the
+  only other job a change under ``.github/actions/`` triggers is
+  ``actions-lint.yml``, which runs actionlint rather than pytest.
+
+Markdown guarded by a pytest ratchet is the same gap, tracked by #5708.
 """
 
 from pathlib import Path
@@ -44,3 +59,33 @@ def _triggers() -> dict[str, Any]:
 @pytest.mark.parametrize("event", ["push", "pull_request"])
 def test_python_app_workflow_runs_on_lockfile_change(event: str) -> None:
     assert "uv.lock" in _triggers()[event]["paths"]
+
+
+@pytest.mark.parametrize("event", ["push", "pull_request"])
+def test_python_app_workflow_runs_on_a_shell_script_change(event: str) -> None:
+    """A tracked ``*.sh`` reaches the suite that reads it (#5698)."""
+    paths = _triggers()[event]["paths"]
+    assert "**/*.sh" in paths, (
+        f"The {event} paths must include '**/*.sh', or a shell script can "
+        "change without test_shell_script_portability.py running:\n"
+        + "\n".join(f"  {pattern}" for pattern in paths)
+    )
+    # The dot-directories `**` may not descend into, named as `*.py` is.
+    for directory in (".agents", ".github", ".devcontainer"):
+        assert f"{directory}/**/*.sh" in paths, (
+            f"The {event} paths must name '{directory}/**/*.sh' explicitly: a "
+            "leading-dot directory is not reliably matched by '**'."
+        )
+
+
+@pytest.mark.parametrize("event", ["push", "pull_request"])
+def test_python_app_workflow_runs_on_a_composite_action_change(
+    event: str,
+) -> None:
+    """A composite action reaches the suite that asserts its steps."""
+    paths = _triggers()[event]["paths"]
+    assert ".github/actions/**" in paths, (
+        f"The {event} paths must include '.github/actions/**', or an action "
+        "can change without the test/ci assertions that read it running:\n"
+        + "\n".join(f"  {pattern}" for pattern in paths)
+    )

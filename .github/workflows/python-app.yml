@@ -35,6 +35,12 @@ on:
       - '.agents/**/*.sh'
       - '.github/**/*.sh'
       - '.devcontainer/**/*.sh'
+      # test/ci also reads the composite actions the workflows call, and
+      # `actions-lint.yml` is the only other job a change to one triggers —
+      # it runs actionlint, not pytest. So the notify-failure assertions
+      # (CISEC-05-017, CISEC-05-018, CISEC-05-020) and the build-site step
+      # order never ran on a pull request that edited only an action.
+      - '.github/actions/**'
   pull_request:
     branches: [ "main" ]
     paths:
@@ -62,6 +68,12 @@ on:
       - '.agents/**/*.sh'
       - '.github/**/*.sh'
       - '.devcontainer/**/*.sh'
+      # test/ci also reads the composite actions the workflows call, and
+      # `actions-lint.yml` is the only other job a change to one triggers —
+      # it runs actionlint, not pytest. So the notify-failure assertions
+      # (CISEC-05-017, CISEC-05-018, CISEC-05-020) and the build-site step
+      # order never ran on a pull request that edited only an action.
+      - '.github/actions/**'
   workflow_dispatch:
 
 permissions:
