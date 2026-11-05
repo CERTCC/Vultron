@@ -673,10 +673,14 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-23-004
     see_also:
-    - spec_id: SYNC-02-002
+    - spec_id: SYNC-02-001
       reason: >-
-        provenance for the fan-out; SYNC-02-002 states message fields, which this step
-        neither narrows nor needs
+        provenance for the fan-out's envelope; the step names the Announce it sends and
+        neither narrows nor needs SYNC-02-001's rule
+    - spec_id: SYNC-02-003
+      reason: >-
+        provenance for the fan-out; its recipients come from CM-10-004 and CM-23-004,
+        which are linked
   - id: DEMOMA-07-007
     priority: MUST
     kind: project

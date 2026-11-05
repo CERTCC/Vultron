@@ -3718,6 +3718,8 @@ groups:
     see_also:
     - spec_id: HP-01-005
       reason: 'context for the reader'
+    - spec_id: SYNC-02-001
+      reason: 'context for the reader'
     - spec_id: SYNC-02-003
       reason: 'context for the reader'
   - id: CM-16-017

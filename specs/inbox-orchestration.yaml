@@ -441,6 +441,12 @@ groups:
       spec_id: SYNC-14-001
     - rel_type: uses_definition
       spec_id: SYNC-14-006
+    see_also:
+    - spec_id: CLP-10-018
+      reason: >-
+        precedent: CLP-10-018 keeps intake's archive when a message is refused, and
+        this keeps it when a hold is released; a release is not a refusal, so no type
+        fits
     tags:
     - tooling
     adr:
