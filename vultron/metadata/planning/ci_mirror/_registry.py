@@ -125,7 +125,7 @@ GUARD_TESTS = (
     "test/architecture/test_spec_kind_ratchet.py",
     "test/architecture/test_vocab_examples_current.py",
     # Reads `.github/workflows/`, so a workflow-only diff names no Python
-    # symbol and the targeted set selects nothing that checks it (TB-11-002).
+    # symbol and the targeted set selects nothing that checks it (PAD-18-023).
     "test/ci/test_python_app_test_parts.py",
     "test/core/behaviors/test_btnd07_structure.py",
     "test/metadata/test_agents_md_size_ratchet.py",
