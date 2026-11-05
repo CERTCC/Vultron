@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""One seam for read-only ``git`` calls, shared by the metadata tools.
+"""A shared seam for read-only ``git`` calls, for new metadata tools to reuse.
 
 ``spec-backstop`` (and the planning tools built on it) and
 ``pr-size --calibrate`` take a :data:`GitRunner` so their tests fake ``git``;

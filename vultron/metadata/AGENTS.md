@@ -35,7 +35,7 @@ are the product**.
 | `planning/` | an Epic's sub-issue GraphQL payload on stdin; a branch diff (`size_bands.py`, `targeted_tests/`); merged `base:main` PRs and the Issues they close, through `gh` search, and a `git blame` trace of each bug-fix PR in the local clone (`size_calibration/`, `pr-size --calibrate`); `.github/workflows/` and a branch diff, running CI's pull-request checks locally and the targeted set on a scratch merge with the base (`ci_mirror/`: `prepush-ci-mirror`, `merged-tree-tests`); a PR body file or `gh pr view` payload (`pr_body_lint/`); the theme catalog block in `notes/epic-themes.md` (`themes.py`) and `gh label list` (`theme_labels.py`, the `theme-labels` sync); every open Issue's labels, type, parents and Schedule (`theme_fit/`, the `theme-fit` check) | `ThemeCatalog` (selection rules: PAD-15; local test gate and CI mirror: PAD-18; PR body rules: PAD-20; themes: PAD-02-014–021) |
 
 Shared helpers live in `base.py`, `markdown_tables.py`, `git_runner.py` (`GitRunner`,
-the one `git` seam) and `file_loading.py` ([MS-17](#loader-failure-attribution-ms-17)).
+the `git` seam) and `file_loading.py` ([MS-17](#loader-failure-attribution-ms-17)).
 **Do not re-derive any of them** — see the `repo_root` history below for the cost.
 
 `base.py` — cross-subpackage primitives:

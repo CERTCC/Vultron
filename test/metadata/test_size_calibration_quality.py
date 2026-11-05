@@ -40,6 +40,25 @@ OLD = NOW - timedelta(days=45)
 """A merge time with a full follow-up before the window ends."""
 
 
+def lines_in(label: str) -> int:
+    """A diff size inside band *label*, whatever ceilings the band table has.
+
+    A bounded band's own ceiling, or one past the ceiling below an unbounded
+    one, so a re-cut of the bands (#5833) moves the fixtures with it.
+    """
+    floor = 1
+    for band in size_bands.SIZE_BANDS:
+        if band.label == label:
+            return floor if band.max_lines is None else band.max_lines
+        if band.max_lines is not None:
+            floor = band.max_lines + 1
+    raise KeyError(label)
+
+
+LARGE = lines_in("size:L")
+HUGE = lines_in("size:XL")
+
+
 def pr(
     number: int,
     lines: int = 50,
@@ -268,7 +287,7 @@ class TestFixRates:
         prs = [
             pr(10, 50),
             pr(11, 50),
-            pr(20, 1000),
+            pr(20, LARGE),
             fix(30, OLD + timedelta(days=1), lines=20),
             fix(31, OLD + timedelta(days=2), lines=20),
         ]
@@ -281,8 +300,9 @@ class TestFixRates:
         assert small.per_pr == pytest.approx(0.25)
         assert small.per_kloc == pytest.approx(1000 / 140)
         large = rates["size:L"]
-        assert (large.prs, large.lines, large.fixes) == (1, 1000, 2)
-        assert large.per_pr == 2.0 and large.per_kloc == 2.0
+        assert (large.prs, large.lines, large.fixes) == (1, LARGE, 2)
+        assert large.per_pr == 2.0
+        assert large.per_kloc == pytest.approx(2 * 1000 / LARGE)
 
     def test_prs_without_a_full_follow_up_are_left_out(self):
         recent = pr(10, merged=NOW - timedelta(days=5))
@@ -330,7 +350,7 @@ class TestHeavyReview:
             MergedPr(1, OLD, 50, triage_findings=9, commit_count=8),
             MergedPr(2, OLD, 60, open_for=timedelta(days=2)),
             MergedPr(3, OLD, 70),
-            MergedPr(4, OLD, 2000, commit_count=12),
+            MergedPr(4, OLD, HUGE, commit_count=12),
         ]
         loads = {r.label: r for r in measures.review_loads(prs, SCHEME)}
         small = loads["size:S"]
