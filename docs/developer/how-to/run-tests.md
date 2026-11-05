@@ -22,6 +22,8 @@ Set `PYTEST_XDIST_AUTO_NUM_WORKERS` to choose a different count.
 
 If a worker process dies, for example when the container runs out of memory, the run stops at once and reports `worker 'gwN' crashed while running <test>`.
 The named test is the one the worker was running, which is not always the cause.
+A test that starts child processes of its own adds to the same memory pressure.
+Such a test sizes how many it runs at once from the container's limits too, never from the host's core count.
 A test that runs past its per-test timeout fails on its own with `Failed: Timeout`, and the rest of the run goes on.
 
 ## Run a focused file while iterating
