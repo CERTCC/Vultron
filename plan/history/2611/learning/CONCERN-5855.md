@@ -43,6 +43,6 @@ New nodes split between the two patterns, and a reviewer cannot say which one is
 
 Decide whether a case ID may come from a declared blackboard port in general. Then either reword BTND-01-004 to allow a declared port (and drop its case-ID example), or record BTND-10-005 `supersedes` BTND-01-004 and say in BTND-10-005 why that node is the exception.
 
-**Resolved**: 2026-11-05 — decided as a spec rule; the code does not yet conform, tracked in #5907. A usage-site value that every tree using the node knows at build time is a constructor parameter (BTND-01-004, narrowed). A value some tree finds only at tick time comes from a declared blackboard input port in every tree, never also from the constructor (new BTND-01-006, refines BTND-01-005). BTND-10-005 now refines BTND-01-006.
+**Resolved**: 2026-11-05 — decided as a spec rule; the code does not yet conform, tracked in #5907. A usage-site value that every tree using the node knows at build time is a constructor parameter (BTND-01-004, narrowed). A value some tree finds only at tick time comes from a declared blackboard input port in every tree (new BTND-01-006, refines BTND-01-005), never also from the constructor (new BTND-01-007). BTND-10-005 now refines BTND-01-006.
 Docs PR: https://github.com/CERTCC/Vultron/pull/5902.
 Spec: `specs/behavior-tree-node-design.yaml`.

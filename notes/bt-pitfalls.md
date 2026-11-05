@@ -472,11 +472,12 @@ enforced by `test/architecture/test_participant_status_validation.py`.
 
 A node that some tree hands its case only at tick time reads `case_id` from its
 declared input port in every tree, never also from a constructor argument
-(BTND-01-006): a constructor value with a port fallback is the dual channel that
-let a stale `/case_id` decide a later delivery above. Build-time callers seed the
-port with `execute_with_setup(node, case_id=...)`; a value every tree knows at
-build time stays a constructor argument (BTND-01-004). `ReceivedPathNode`,
-`CheckIsCaseManagerNode` and four other nodes still take both until #5907.
+(BTND-01-006, BTND-01-007): a constructor value with a port fallback is the dual
+channel that let a stale `/case_id` decide a later delivery above. Build-time
+callers seed the port with `execute_with_setup(node, case_id=...)`; a value every
+tree knows at build time stays a constructor argument (BTND-01-004).
+`ReceivedPathNode`, `CheckIsCaseManagerNode` and four other nodes still take both
+until #5907.
 
 `CreateParticipantStatusNode` is the worked case: `case_id` comes only through
 `CaseIdInputPortMixin`, and the subject actor is an explicit constructor argument,
