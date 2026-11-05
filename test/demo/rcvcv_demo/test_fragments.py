@@ -12,16 +12,17 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-"""Unit tests for :mod:`vultron.demo.helpers.rcvcv_story` (DEMOMA-19, #5846).
+"""Tests of :mod:`vultron.demo.scenario.rcvcv_demo.fragments` (DEMOMA-19, #5846).
 
 The fragments only ``rcvcv`` tells after C1 decides to invite a second
 Coordinator, each driven against a :func:`~test.demo._helpers.story_state`
 stand-in cast, so a test observes what the fragment calls.  The story's
-shape, the seating of the character actors, the ledger dump, the CLI and the
-registry entry stay in ``test_rcvcv_demo.py``, beside the scenario module
-that owns them (CS-18-004).  The stand-in cast both files drive lives in
-``test/demo/_rcvcv_support.py``.  Each patch names the module that looks the
-patched name up (``test/demo_unit/test_story_patch_targets.py``).
+shape, the seating of the character actors and the ledger dump are in
+``test_story.py``, and the CLI and the registry entry in ``test_cli.py``,
+one test module per submodule of the scenario package (CS-18-004).  The
+stand-in cast they drive lives in ``_support.py``.  Each patch names the
+submodule that looks the patched name up
+(``test/demo_unit/test_story_patch_targets.py``).
 """
 
 from unittest.mock import patch
@@ -36,11 +37,10 @@ from test.demo._helpers import (
     sessions_of,
     stub_closure_gate,
 )
-from test.demo._rcvcv_support import CAST, five_party_state, no_banners
+from test.demo.rcvcv_demo._support import CAST, five_party_state, no_banners
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import rcvcv_story
 from vultron.demo.helpers.coordinated_story import (
     REPORTER,
     TIMELINE_ANSWER,
@@ -53,6 +53,7 @@ from vultron.demo.helpers.owner_decision_story import (
     parts as owner_decision_parts,
 )
 from vultron.demo.helpers.polling import LATE_JOINER_TIMEOUT
+from vultron.demo.scenario.rcvcv_demo import fragments
 from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
@@ -92,7 +93,7 @@ class TestC1InvitesTheSecondCoordinator:
             ) as replica_wait,
             no_banners(),
         ):
-            rcvcv_story.c1_invites_the_second_coordinator(state)
+            fragments.c1_invites_the_second_coordinator(state)
             then = chain.call_args.kwargs["then"]
             assert then is not None, (
                 "a non-triaging invitee's roster check runs as the chain's"
@@ -118,15 +119,15 @@ class TestC1InvitesTheSecondCoordinator:
 
         triage.assert_not_called()
         assert roster.call_args.kwargs["vendor_client"] is state.client(
-            rcvcv_story.C1
+            fragments.C1
         )
         assert roster.call_args.kwargs["expected_actor_ids"] == {
             state.actor_id(who)
             for who in (
                 REPORTER,
-                rcvcv_story.C1,
-                rcvcv_story.V1,
-                rcvcv_story.C2,
+                fragments.C1,
+                fragments.V1,
+                fragments.C2,
             )
         }
 
@@ -137,7 +138,7 @@ class TestC1InvitesTheSecondCoordinator:
 
         C2's join is the suggestion's causal precondition, and a flat story
         cannot nest the suggestion inside the roster's gate, so the gate keeps
-        :data:`~vultron.demo.helpers.rcvcv_story.C2_JOINED` and the shared
+        :data:`~vultron.demo.scenario.rcvcv_demo.fragments.C2_JOINED` and the shared
         continuation reads it.  Without it the story stops rather than posting
         a suggestion from an actor that is not in the case.
         """
@@ -145,7 +146,7 @@ class TestC1InvitesTheSecondCoordinator:
 
         self._invite_c2(state, run_then=True)
 
-        assert state.kept(rcvcv_story.C2_JOINED) == str(state.case.id_)
+        assert state.kept(fragments.C2_JOINED) == str(state.case.id_)
 
     def test_a_roster_that_never_arrives_keeps_no_join(self):
         """The gate records the timeout, so the suggestion stops the story."""
@@ -164,11 +165,11 @@ class TestC1InvitesTheSecondCoordinator:
                 coordinated_joining, "wait_for_case_on_container"
             ),
         ):
-            rcvcv_story.c1_invites_the_second_coordinator(state)
+            fragments.c1_invites_the_second_coordinator(state)
             chain.call_args.kwargs["then"]()
 
         with pytest.raises(DemoStoryError, match="no case C2 joined"):
-            state.kept(rcvcv_story.C2_JOINED)
+            state.kept(fragments.C2_JOINED)
 
     def test_the_invite_offers_the_coordinator_role_from_c1(self):
         """C1, the Case Owner, invites C2 as ``CVDRole.COORDINATOR``."""
@@ -176,10 +177,10 @@ class TestC1InvitesTheSecondCoordinator:
         chain, _, _, _ = self._invite_c2(state)
 
         kwargs = chain.call_args.kwargs
-        assert kwargs["invitee_name"] == rcvcv_story.C2_LABEL
-        assert kwargs["invitee_client"] is state.client(rcvcv_story.C2)
-        assert kwargs["invitee"] is state.actor(rcvcv_story.C2).actor
-        assert kwargs["inviter"].client is state.client(rcvcv_story.C1)
+        assert kwargs["invitee_name"] == fragments.C2_LABEL
+        assert kwargs["invitee_client"] is state.client(fragments.C2)
+        assert kwargs["invitee"] is state.actor(fragments.C2).actor
+        assert kwargs["inviter"].client is state.client(fragments.C1)
         assert kwargs["inviter"].role is CVDRole.COORDINATOR
         # The CASE_MANAGER's store is on the dedicated case-actor container
         # (DEMOMA-06-005): a C1 client cannot address it.
@@ -253,23 +254,21 @@ class TestC2SuggestsTheVendorDeployer:
             ),
             no_banners(),
         ):
-            rcvcv_story.c2_suggests_the_vendor_deployer(state)
+            fragments.c2_suggests_the_vendor_deployer(state)
 
         assert order == ["suggest", "approve", "invite-chain", "triage"]
 
         # Roles must be explicit, or EvaluateDefaultRolesNode falls back to
         # the hardcoded [VENDOR] default and V2 never reaches VFD (#1969).
         assert suggest.call_args.kwargs == {
-            "suggested_actor_id": state.actor_id(rcvcv_story.V2),
+            "suggested_actor_id": state.actor_id(fragments.V2),
             "roles": [CVDRole.VENDOR, CVDRole.DEPLOYER],
         }
         assert (
-            suggest.call_args.args[0].actor
-            is state.actor(rcvcv_story.C2).actor
+            suggest.call_args.args[0].actor is state.actor(fragments.C2).actor
         )
         assert (
-            approve.call_args.args[0].actor
-            is state.actor(rcvcv_story.C1).actor
+            approve.call_args.args[0].actor is state.actor(fragments.C1).actor
         )
         assert approve.call_args.kwargs == {
             "cp_offer_id": "urn:test:cp-offer",
@@ -277,7 +276,7 @@ class TestC2SuggestsTheVendorDeployer:
         }
         # The recommendation is polled for on C1's own container.
         assert cp_offer.call_args.kwargs["client"] is state.client(
-            rcvcv_story.C1
+            fragments.C1
         )
 
         # The CaseActor invites on its own, so the chain is given no inviter
@@ -285,28 +284,28 @@ class TestC2SuggestsTheVendorDeployer:
         kwargs = chain.call_args.kwargs
         assert "inviter" not in kwargs
         assert kwargs["ledger_client"] is state.case_actor_client
-        assert kwargs["invitee_client"] is state.client(rcvcv_story.V2)
-        assert kwargs["invitee"] is state.actor(rcvcv_story.V2).actor
+        assert kwargs["invitee_client"] is state.client(fragments.V2)
+        assert kwargs["invitee"] is state.actor(fragments.V2).actor
 
         # V2 arrives through four hops, so its waits get the multi-hop budget.
-        assert kwargs["invite_timeout"] == rcvcv_story.LATE_JOIN_TIMEOUT
-        assert kwargs["replica_timeout"] == rcvcv_story.LATE_JOIN_TIMEOUT
-        assert kwargs["reply_timeout"] == rcvcv_story.LATE_JOIN_TIMEOUT
+        assert kwargs["invite_timeout"] == fragments.LATE_JOIN_TIMEOUT
+        assert kwargs["replica_timeout"] == fragments.LATE_JOIN_TIMEOUT
+        assert kwargs["reply_timeout"] == fragments.LATE_JOIN_TIMEOUT
         # The roster the triage gates on is read from the Case Owner's own
         # replica, which is C1 here and the new owner in a story whose
         # ownership moved (#5535).
         assert triage.call_args.kwargs == {
             "seated": (
                 REPORTER,
-                rcvcv_story.C1,
-                rcvcv_story.V1,
-                rcvcv_story.C2,
-                rcvcv_story.V2,
+                fragments.C1,
+                fragments.V1,
+                fragments.C2,
+                fragments.V2,
             ),
-            "owner": rcvcv_story.C1,
-            "owner_label": rcvcv_story.C1_LABEL,
+            "owner": fragments.C1,
+            "owner_label": fragments.C1_LABEL,
             "join_timeout": LATE_JOINER_TIMEOUT,
-            "triage_timeout": rcvcv_story.LATE_JOIN_TIMEOUT,
+            "triage_timeout": fragments.LATE_JOIN_TIMEOUT,
         }
 
     def test_the_approval_is_skipped_when_the_recommendation_never_arrives(
@@ -347,7 +346,7 @@ class TestC2SuggestsTheVendorDeployer:
                 coordinated_joining, "wait_for_case_on_container"
             ),
         ):
-            rcvcv_story.c2_suggests_the_vendor_deployer(state)
+            fragments.c2_suggests_the_vendor_deployer(state)
 
         approve.assert_not_called()
         # The chain and the triage sit outside the gate, so the caller still
@@ -383,7 +382,7 @@ class TestC2SuggestsTheVendorDeployer:
                 coordinated_joining, "wait_for_case_on_container"
             ),
         ):
-            rcvcv_story.c2_suggests_the_vendor_deployer(state)
+            fragments.c2_suggests_the_vendor_deployer(state)
 
         approve.assert_not_called()
         assert any("route the Accept to" in f for f in gate_failures()), (
@@ -425,22 +424,22 @@ class TestC2SuggestsTheVendorDeployer:
                 coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
         ):
-            rcvcv_story.c2_suggests_the_vendor_deployer(state)
+            fragments.c2_suggests_the_vendor_deployer(state)
 
         assert find_invite.call_args.kwargs["client"] is state.client(
-            rcvcv_story.V2
+            fragments.V2
         )
         assert find_invite.call_args.kwargs["invitee_id"] == state.actor_id(
-            rcvcv_story.V2
+            fragments.V2
         )
         accept.assert_called_once()
-        assert accept.call_args.args[0].client is state.client(rcvcv_story.V2)
+        assert accept.call_args.args[0].client is state.client(fragments.V2)
         assert accept.call_args.kwargs == {"invite_id": "urn:test:v2-invite"}
         # The Accept seeds V2's case replica, which the chain then waits for.
         assert [
             c
             for c in replica_wait.call_args_list
-            if c.kwargs.get("client") is state.client(rcvcv_story.V2)
+            if c.kwargs.get("client") is state.client(fragments.V2)
         ]
 
     def test_v2_never_accepts_an_invite_that_was_not_delivered(self):
@@ -471,13 +470,13 @@ class TestC2SuggestsTheVendorDeployer:
                 coordinated_joining, "wait_for_case_on_container"
             ) as replica_wait,
         ):
-            rcvcv_story.c2_suggests_the_vendor_deployer(state)
+            fragments.c2_suggests_the_vendor_deployer(state)
 
         accept.assert_not_called()
         assert not [
             c
             for c in replica_wait.call_args_list
-            if c.kwargs.get("client") is state.client(rcvcv_story.V2)
+            if c.kwargs.get("client") is state.client(fragments.V2)
         ], (
             "V2's replica wait depends on the Accept, so the closed gate must"
             f" skip it: {replica_wait.call_args_list!r}"
@@ -520,7 +519,7 @@ class TestC2SuggestsTheVendorDeployer:
             ),
             no_banners(),
         ):
-            rcvcv_story.c2_suggests_the_vendor_deployer(state)
+            fragments.c2_suggests_the_vendor_deployer(state)
 
         assert "reporter_wait" in order, (
             "wait_for_case_on_container(reporter_client) was never called"
@@ -559,13 +558,13 @@ class TestC2SuggestsTheVendorDeployer:
             ),
             no_banners(),
         ):
-            rcvcv_story.c2_suggests_the_vendor_deployer(state)
+            fragments.c2_suggests_the_vendor_deployer(state)
 
         assert (
             triage.call_args.kwargs["auth_client"] is state.case_actor_client
         )
         assert triage.call_args.kwargs["invited_client"] is state.client(
-            rcvcv_story.V2
+            fragments.V2
         )
 
 
@@ -590,16 +589,16 @@ class TestReplicasDrainBeforeTheSecondCoordinator:
         state = five_party_state()
 
         with patch.object(
-            rcvcv_story, "wait_for_replica_ledger_coverage"
+            fragments, "wait_for_replica_ledger_coverage"
         ) as coverage:
-            rcvcv_story.replicas_drain_before_the_second_coordinator(state)
+            fragments.replicas_drain_before_the_second_coordinator(state)
 
         coverage.assert_called_once()
         kwargs = coverage.call_args.kwargs
-        assert kwargs["auth_client"] is state.client(rcvcv_story.C1)
+        assert kwargs["auth_client"] is state.client(fragments.C1)
         assert kwargs["replicas"] == [
             (state.client(REPORTER), "Reporter"),
-            (state.client(rcvcv_story.V1), "V1"),
+            (state.client(fragments.V1), "V1"),
         ]
         assert kwargs["case_id"] == state.case.id_
         assert kwargs["phase_label"] == "opening drain before C2 joins"
@@ -620,7 +619,7 @@ class TestReplicasDrainBeforeTheSecondCoordinator:
         import vultron.demo.helpers.sync.ledger as sync_ledger
 
         state = five_party_state()
-        state.client(rcvcv_story.C1).base_url = "http://c1.test/api/v2"
+        state.client(fragments.C1).base_url = "http://c1.test/api/v2"
 
         with (
             patch.object(
@@ -630,7 +629,7 @@ class TestReplicasDrainBeforeTheSecondCoordinator:
                 sync_ledger, "wait_for_contiguous_ledger_coverage"
             ) as per_replica,
         ):
-            rcvcv_story.replicas_drain_before_the_second_coordinator(state)
+            fragments.replicas_drain_before_the_second_coordinator(state)
 
         per_replica.assert_not_called()
         (failure,) = _demo_failures
@@ -649,29 +648,29 @@ class TestEveryReplicaConverges:
         """The helper declares no scenario facts; the fragment supplies them."""
         state = five_party_state()
 
-        with patch.object(rcvcv_story, "run_sync_verification_phase") as phase:
-            rcvcv_story.every_replica_converges(state)
+        with patch.object(fragments, "run_sync_verification_phase") as phase:
+            fragments.every_replica_converges(state)
 
         kwargs = phase.call_args.kwargs
-        assert kwargs["auth_client"] is state.client(rcvcv_story.C1)
+        assert kwargs["auth_client"] is state.client(fragments.C1)
         assert kwargs["auth_label"] == "C1"
-        assert kwargs["auth_actor_id"] == state.actor_id(rcvcv_story.C1)
+        assert kwargs["auth_actor_id"] == state.actor_id(fragments.C1)
         assert kwargs["reporter_client"] is state.client(REPORTER)
         assert kwargs["replicas"] == [
             (state.client(REPORTER), "Reporter"),
-            (state.client(rcvcv_story.V1), "V1"),
-            (state.client(rcvcv_story.C2), "C2"),
-            (state.client(rcvcv_story.V2), "V2"),
+            (state.client(fragments.V1), "V1"),
+            (state.client(fragments.C2), "C2"),
+            (state.client(fragments.V2), "V2"),
         ]
         assert kwargs["expected_participant_ids"] == {
             state.actor_id(who) for who in CAST
         }
         # V2 joined after the opening completed, so it catches up from genesis
         # and gets the late-joiner budget (#2852).
-        assert kwargs["late_joiners"] == (state.client(rcvcv_story.V2),)
+        assert kwargs["late_joiners"] == (state.client(fragments.V2),)
         assert kwargs["state_checks"] == [
             (state.client(REPORTER), "Reporter"),
-            (state.client(rcvcv_story.V2), "V2"),
+            (state.client(fragments.V2), "V2"),
         ]
 
 
@@ -684,16 +683,16 @@ class TestRequiredParticipantsArePresent:
         state = five_party_state()
 
         with (
-            patch.object(rcvcv_story, "verify_case_active") as milestone,
+            patch.object(fragments, "verify_case_active") as milestone,
             no_banners(),
         ):
-            rcvcv_story.required_participants_are_present(state)
+            fragments.required_participants_are_present(state)
 
         kwargs = milestone.call_args.kwargs
-        assert kwargs["receiver_client"] is state.client(rcvcv_story.C1)
+        assert kwargs["receiver_client"] is state.client(fragments.C1)
         assert kwargs["reporter_client"] is state.client(REPORTER)
         assert kwargs["case_id"] == state.case.id_
-        assert kwargs["receiver_actor_id"] == state.actor_id(rcvcv_story.C1)
+        assert kwargs["receiver_actor_id"] == state.actor_id(fragments.C1)
         assert kwargs["reporter_actor_id"] == state.actor_id(REPORTER)
 
 
@@ -722,21 +721,21 @@ class TestTheJoinersAddTheirNotes:
         answer = self._answer()
         state.keep(TIMELINE_ANSWER, answer)
 
-        with patch.object(rcvcv_story, "add_note_thread") as thread:
-            rcvcv_story.the_joiners_add_their_notes(state)
+        with patch.object(fragments, "add_note_thread") as thread:
+            fragments.the_joiners_add_their_notes(state)
 
         watching_client, case, posts = thread.call_args.args
-        assert watching_client is state.client(rcvcv_story.C1)
+        assert watching_client is state.client(fragments.C1)
         assert case is state.case
         assert thread.call_args.kwargs["in_reply_to"] is answer
         # Each joiner posts from its own container.
         assert [post.poster.client for post in posts] == [
-            state.client(rcvcv_story.C2),
-            state.client(rcvcv_story.V2),
+            state.client(fragments.C2),
+            state.client(fragments.V2),
         ]
         assert [post.poster.actor for post in posts] == [
-            state.actor(rcvcv_story.C2).actor,
-            state.actor(rcvcv_story.V2).actor,
+            state.actor(fragments.C2).actor,
+            state.actor(fragments.V2).actor,
         ]
 
     def test_an_unanswered_thread_stops_the_story_instead_of_posting(self):
@@ -749,10 +748,10 @@ class TestTheJoinersAddTheirNotes:
         state = five_party_state()
 
         with (
-            patch.object(rcvcv_story, "add_note_thread") as thread,
+            patch.object(fragments, "add_note_thread") as thread,
             pytest.raises(DemoStoryError, match="answered timeline note"),
         ):
-            rcvcv_story.the_joiners_add_their_notes(state)
+            fragments.the_joiners_add_their_notes(state)
 
         thread.assert_not_called()
 
@@ -797,10 +796,10 @@ class TestBothVendorsRunTheFixLifecycle:
             patch.object(
                 coordinated_continuations, "wait_for_participant_vf_state"
             ),
-            patch.object(rcvcv_story, "wait_for_participant_vf_state"),
-            patch.object(rcvcv_story, "wait_for_participant_d_state"),
-            patch.object(rcvcv_story, "verify_fix_ready") as fix_ready,
-            patch.object(rcvcv_story, "verify_fix_deployed") as fix_deployed,
+            patch.object(fragments, "wait_for_participant_vf_state"),
+            patch.object(fragments, "wait_for_participant_d_state"),
+            patch.object(fragments, "verify_fix_ready") as fix_ready,
+            patch.object(fragments, "verify_fix_deployed") as fix_deployed,
             patch.object(
                 ActorSession,
                 "notify_fix_ready",
@@ -819,7 +818,7 @@ class TestBothVendorsRunTheFixLifecycle:
             ) as notify_deployed,
             no_banners(),
         ):
-            rcvcv_story.both_vendors_run_the_fix_lifecycle(state)
+            fragments.both_vendors_run_the_fix_lifecycle(state)
         return {
             "order": order,
             "fix_ready": fix_ready,
@@ -834,11 +833,11 @@ class TestBothVendorsRunTheFixLifecycle:
         ran = self._run(state)
 
         assert sessions_of(ran["notify_ready"]) == [
-            state.actor_id(rcvcv_story.V1),
-            state.actor_id(rcvcv_story.V2),
+            state.actor_id(fragments.V1),
+            state.actor_id(fragments.V2),
         ]
         assert sessions_of(ran["notify_deployed"]) == [
-            state.actor_id(rcvcv_story.V2)
+            state.actor_id(fragments.V2)
         ], "V1 holds no DEPLOYER role, so it must never deploy (CSB-15-002)"
 
     def test_the_deploy_report_follows_both_fix_ready_reports(self):
@@ -867,11 +866,11 @@ class TestBothVendorsRunTheFixLifecycle:
             for c in ran["fix_deployed"].call_args_list
         }
         assert ready_actors == {
-            state.actor_id(rcvcv_story.V1),
-            state.actor_id(rcvcv_story.V2),
+            state.actor_id(fragments.V1),
+            state.actor_id(fragments.V2),
         }
-        assert deployed_actors == {state.actor_id(rcvcv_story.V2)}
-        assert state.actor_id(rcvcv_story.V1) not in deployed_actors, (
+        assert deployed_actors == {state.actor_id(fragments.V2)}
+        assert state.actor_id(fragments.V1) not in deployed_actors, (
             "verify_fix_deployed must not be called with a VENDOR-only actor"
         )
 
@@ -888,14 +887,14 @@ class TestBothVendorsRunTheFixLifecycle:
         self._run(state, order=order, rm_wait=_rm_wait)
 
         assert [c["actor_id"] for c in rm_calls] == [
-            state.actor_id(rcvcv_story.V1),
-            state.actor_id(rcvcv_story.V2),
+            state.actor_id(fragments.V1),
+            state.actor_id(fragments.V2),
         ]
         assert all(
             c["expected_states"] == {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
             for c in rm_calls
         ), rm_calls
-        for name in (rcvcv_story.V1, rcvcv_story.V2):
+        for name in (fragments.V1, fragments.V2):
             actor_id = state.actor_id(name)
             assert f"rm_wait:{actor_id}" in order, order
             assert f"ready:{actor_id}" in order, order
@@ -920,25 +919,23 @@ class TestBothVendorsRunTheFixLifecycle:
                 coordinated_continuations, "wait_for_participant_vf_state"
             ),
             patch.object(
-                rcvcv_story, "wait_for_participant_vf_state"
+                fragments, "wait_for_participant_vf_state"
             ) as vf_wait,
-            patch.object(
-                rcvcv_story, "wait_for_participant_d_state"
-            ) as d_wait,
-            patch.object(rcvcv_story, "verify_fix_ready"),
-            patch.object(rcvcv_story, "verify_fix_deployed"),
+            patch.object(fragments, "wait_for_participant_d_state") as d_wait,
+            patch.object(fragments, "verify_fix_ready"),
+            patch.object(fragments, "verify_fix_deployed"),
             patch.object(ActorSession, "notify_fix_ready"),
             patch.object(ActorSession, "notify_fix_deployed"),
             no_banners(),
         ):
-            rcvcv_story.both_vendors_run_the_fix_lifecycle(state)
+            fragments.both_vendors_run_the_fix_lifecycle(state)
 
         watched_vf = {
             (c.kwargs["client"], c.kwargs["actor_id"])
             for c in vf_wait.call_args_list
         }
-        for watcher in (rcvcv_story.C1, REPORTER):
-            for name in (rcvcv_story.V1, rcvcv_story.V2):
+        for watcher in (fragments.C1, REPORTER):
+            for name in (fragments.V1, fragments.V2):
                 assert (
                     state.client(watcher),
                     state.actor_id(name),
@@ -951,10 +948,10 @@ class TestBothVendorsRunTheFixLifecycle:
             (c.kwargs["client"], c.kwargs["actor_id"])
             for c in d_wait.call_args_list
         }
-        for watcher in (rcvcv_story.C1, REPORTER):
+        for watcher in (fragments.C1, REPORTER):
             assert (
                 state.client(watcher),
-                state.actor_id(rcvcv_story.V2),
+                state.actor_id(fragments.V2),
             ) in watched_d
         assert all(
             c.kwargs["expected_states"] == {CS_d.D}
@@ -963,7 +960,7 @@ class TestBothVendorsRunTheFixLifecycle:
         assert not [
             c
             for c in d_wait.call_args_list
-            if c.kwargs["actor_id"] == state.actor_id(rcvcv_story.V1)
+            if c.kwargs["actor_id"] == state.actor_id(fragments.V1)
         ], "V1's d state is never waited on: it has no DEPLOYER role"
 
 
@@ -990,17 +987,15 @@ class TestV1PublishesThenTheOthers:
 
         with (
             patch.object(
-                rcvcv_story,
+                fragments,
                 "wait_for_case_em_terminated",
                 side_effect=lambda client, case_id: order.append(
                     f"em_exited:{name_of(client)}"
                 ),
             ),
-            patch.object(rcvcv_story, "wait_for_participant_vf_state"),
-            patch.object(rcvcv_story, "wait_for_participant_d_state"),
-            patch.object(
-                rcvcv_story, "verify_publicly_disclosed"
-            ) as disclosed,
+            patch.object(fragments, "wait_for_participant_vf_state"),
+            patch.object(fragments, "wait_for_participant_d_state"),
+            patch.object(fragments, "verify_publicly_disclosed") as disclosed,
             patch.object(
                 ActorSession,
                 "notify_published",
@@ -1011,7 +1006,7 @@ class TestV1PublishesThenTheOthers:
             ),
             no_banners(),
         ):
-            rcvcv_story.v1_publishes_then_the_others(state)
+            fragments.v1_publishes_then_the_others(state)
         return order, disclosed
 
     def test_v1_publishes_first_with_the_teardown_awaited_before_v2(self):
@@ -1020,11 +1015,11 @@ class TestV1PublishesThenTheOthers:
         order, _ = self._run(state)
 
         assert order == [
-            f"published:{state.actor_id(rcvcv_story.V1)}",
+            f"published:{state.actor_id(fragments.V1)}",
             "em_exited:v1",
-            f"published:{state.actor_id(rcvcv_story.V2)}",
-            f"published:{state.actor_id(rcvcv_story.C2)}",
-            f"published:{state.actor_id(rcvcv_story.C1)}",
+            f"published:{state.actor_id(fragments.V2)}",
+            f"published:{state.actor_id(fragments.C2)}",
+            f"published:{state.actor_id(fragments.C1)}",
             "em_exited:reporter",
             f"published:{state.actor_id(REPORTER)}",
             "em_exited:reporter",
@@ -1035,38 +1030,32 @@ class TestV1PublishesThenTheOthers:
         state = five_party_state()
 
         with (
-            patch.object(rcvcv_story, "wait_for_case_em_terminated"),
+            patch.object(fragments, "wait_for_case_em_terminated"),
             patch.object(
-                rcvcv_story, "wait_for_participant_vf_state"
+                fragments, "wait_for_participant_vf_state"
             ) as vf_wait,
-            patch.object(
-                rcvcv_story, "wait_for_participant_d_state"
-            ) as d_wait,
-            patch.object(
-                rcvcv_story, "verify_publicly_disclosed"
-            ) as disclosed,
+            patch.object(fragments, "wait_for_participant_d_state") as d_wait,
+            patch.object(fragments, "verify_publicly_disclosed") as disclosed,
             patch.object(ActorSession, "notify_published"),
             no_banners(),
         ):
-            rcvcv_story.v1_publishes_then_the_others(state)
+            fragments.v1_publishes_then_the_others(state)
 
-        assert vf_wait.call_args.kwargs["client"] is state.client(
-            rcvcv_story.C1
-        )
+        assert vf_wait.call_args.kwargs["client"] is state.client(fragments.C1)
         assert vf_wait.call_args.kwargs["actor_id"] == state.actor_id(
-            rcvcv_story.V1
+            fragments.V1
         )
         assert vf_wait.call_args.kwargs["expected_states"] == {CS_vf.VF}
         assert d_wait.call_args.kwargs["actor_id"] == state.actor_id(
-            rcvcv_story.V2
+            fragments.V2
         )
         assert d_wait.call_args.kwargs["expected_states"] == {CS_d.D}
         assert disclosed.call_args.kwargs["receiver_client"] is state.client(
-            rcvcv_story.C1
+            fragments.C1
         )
         assert disclosed.call_args.kwargs[
             "receiver_actor_id"
-        ] == state.actor_id(rcvcv_story.C1)
+        ] == state.actor_id(fragments.C1)
 
 
 # ---------------------------------------------------------------------------
@@ -1095,16 +1084,16 @@ class TestAllFiveCloseTheCase:
                 coordinated_continuations, "close_case_owner_last"
             ) as closure,
         ):
-            rcvcv_story.all_five_close_the_case(state)
+            fragments.all_five_close_the_case(state)
 
         kwargs = closure.call_args.kwargs
         assert kwargs["milestone"] == "M8"
         assert kwargs["authority_client"] is state.case_actor_client
         assert [leaver.client for leaver in kwargs["others"]] == [
-            state.client(rcvcv_story.V1),
-            state.client(rcvcv_story.V2),
-            state.client(rcvcv_story.C2),
+            state.client(fragments.V1),
+            state.client(fragments.V2),
+            state.client(fragments.C2),
             state.client(REPORTER),
         ]
-        assert kwargs["owner"].client is state.client(rcvcv_story.C1)
-        assert kwargs["owner"].actor is state.actor(rcvcv_story.C1).actor
+        assert kwargs["owner"].client is state.client(fragments.C1)
+        assert kwargs["owner"].actor is state.actor(fragments.C1).actor

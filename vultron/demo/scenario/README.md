@@ -43,7 +43,7 @@ declare. Then run `uv run demo-scenarios --write`.
 | `rcv` | `rcv_demo.py` | Reporter + Coordinator + Vendor | Coordinator-mediated report and vendor onboarding |
 | `rcv-embargo` | `rcv_embargo_demo.py` | Reporter + Coordinator + Vendor | Embargo revision after submission and deliberate termination |
 | `rcv-reject` | `rcv_reject_demo.py` | Reporter + Coordinator + Vendor (Vendor rejects) | Invite rejection path |
-| `rcvcv` | `rcvcv_demo.py` | Reporter + C1 + V1 + C2 + V2 | Actor-suggestion flow (ADR-0026) |
+| `rcvcv` | `rcvcv_demo/` | Reporter + C1 + V1 + C2 + V2 | Actor-suggestion flow (ADR-0026) |
 | `rcvv-embargo` | `rcvv_embargo_demo.py` | Reporter + Coordinator + Vendor1 + Vendor2 | Embargo revision cycle, late second vendor, and accidental collapse |
 | `rv` | `rv_demo.py` | Reporter + Vendor | Baseline two-actor CVD |
 | `rvcv-extension` | `rvcv_extension_demo.py` | Reporter + Vendor1 + Coordinator + Vendor2 | Coordinator-suggested second vendor |
