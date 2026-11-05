@@ -22,9 +22,11 @@ writes N to the ``slots`` file there; a missing or unreadable file means 2.
 Put the wrapper outside a wall-clock ceiling (``run-heavy.py timeout -k 30
 1800 ...``), so time spent waiting is not charged to the run. The command does
 not inherit the slot's file descriptor, so the slot frees when this process
-ends, whether the command ended or this process was killed. A command already
-running in a slot (it sees ``VULTRON_HEAVY_LOCK_HELD``) runs a nested heavy
-check directly, without taking a second slot. SIGTERM and SIGHUP are passed on
+ends, whether the command ended or this process was killed. On Linux a
+command whose wrapper was killed gets SIGTERM, so it does not run on beside
+the next slot holder. A command already running in a slot (it sees
+``VULTRON_HEAVY_LOCK_HELD``) runs a nested heavy check directly, without
+taking a second slot. SIGTERM and SIGHUP are passed on
 to the command, and so is SIGINT when the command is not in the wrapper's
 process group (GNU ``timeout`` makes its own), so Ctrl-C still stops it. The
 exit status is the command's own, or 128 + the signal that ended it.
@@ -34,14 +36,16 @@ Standard library only, so it runs the same on Linux and macOS.
 
 from __future__ import annotations
 
+import ctypes
 import fcntl
 import os
+import random
 import signal
 import socket
 import subprocess
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from types import FrameType
 
@@ -145,11 +149,27 @@ def holders(lock_dir: Path, slots: int) -> str:
     return "; ".join(seen)
 
 
+def _pause(remaining: float) -> float:
+    """A jittered pause between tries, never past the deadline *remaining* away.
+
+    Uniform over 0.5 to 1.5 times :data:`POLL_SECONDS`.
+    """
+    # Not for secrecy: the draw only spreads waiters' polls apart.
+    low, high = 0.5 * POLL_SECONDS, 1.5 * POLL_SECONDS
+    jittered = random.uniform(low, high)  # noqa: S311  # nosec B311
+    return min(jittered, remaining)
+
+
 def acquire(lock_dir: Path, wait: int) -> tuple[int, int] | None:
     """Wait for a slot; ``None`` when *wait* seconds passed without one.
 
     N is re-read on every try, so a slot count ``start-dev.sh`` rewrites
     reaches a check that is already waiting.
+
+    The lock is not FIFO: a freed slot goes to whichever waiter tries next.
+    Each pause between tries is jittered (:func:`_pause`), so waiters that
+    started together (the mirror's heavy checks) do not poll in lockstep and
+    each freed slot is a fair draw.
     """
     deadline = time.monotonic() + wait
     announced = False
@@ -164,9 +184,10 @@ def acquire(lock_dir: Path, wait: int) -> tuple[int, int] | None:
                 f"waiting ({holders(lock_dir, slots)})"
             )
             announced = True
-        if time.monotonic() >= deadline:
+        now = time.monotonic()
+        if now >= deadline:
             return None
-        time.sleep(POLL_SECONDS)
+        time.sleep(_pause(deadline - now))
 
 
 def _record_holder(lock_dir: Path, index: int, command: Sequence[str]) -> None:
@@ -179,6 +200,31 @@ def _record_holder(lock_dir: Path, index: int, command: Sequence[str]) -> None:
         holder.write_text(text, encoding="utf-8")
     except OSError:
         pass  # The record only names the holder in a wait line.
+
+
+#: Linux ``prctl`` option: the signal a process gets when its parent dies.
+_PR_SET_PDEATHSIG = 1
+
+
+def _die_with_wrapper(wrapper: int) -> Callable[[], None] | None:
+    """A ``preexec_fn`` that ends the command if the wrapper dies, on Linux.
+
+    A wrapper killed with SIGKILL frees its slot at once, so a command that
+    outlived it would run beside the next slot holder. The command gets
+    SIGTERM, not SIGKILL, so a GNU ``timeout`` passes it on to the group it
+    made and still enforces its own ``-k`` grace. Elsewhere (macOS) there is
+    no such call, and this is ``None``.
+    """
+    if not sys.platform.startswith("linux"):
+        return None
+
+    def preexec() -> None:
+        libc = ctypes.CDLL(None, use_errno=True)
+        libc.prctl(_PR_SET_PDEATHSIG, int(signal.SIGTERM), 0, 0, 0)
+        if os.getppid() != wrapper:  # The wrapper died before the call.
+            os.kill(os.getpid(), signal.SIGTERM)
+
+    return preexec
 
 
 def _shares_group(pid: int) -> bool:
@@ -218,7 +264,14 @@ def run(command: Sequence[str], env: dict[str, str]) -> int:
         signal.signal(signum, forward)
     signal.signal(signal.SIGINT, interrupt)
     try:
-        procs.append(subprocess.Popen(list(command), env=env))
+        procs.append(
+            subprocess.Popen(
+                list(command),
+                env=env,
+                # The wrapper runs no threads, so preexec_fn is safe here.
+                preexec_fn=_die_with_wrapper(os.getpid()),  # noqa: PLW1509
+            )
+        )
     except FileNotFoundError:
         _say(f"command not found: {command[0]}")
         return 127

@@ -147,12 +147,112 @@ def test_a_killed_holder_frees_its_slot(lock_dir: Path, env: dict[str, str]):
     os.kill(holder.pid, signal.SIGKILL)
     holder.wait(timeout=60)
     try:
-        # The command outlives the killed wrapper, and holds no slot.
+        # Whatever is left of the command holds no slot.
         waiter = _run(env, "true", wait=10)
     finally:
         os.killpg(holder.pid, signal.SIGKILL)
 
     assert waiter.returncode == 0
+
+
+def _gone(pid: int, seconds: float = 20.0) -> bool:
+    """Whether *pid* ends (or is only a zombie) within *seconds*."""
+    stat = Path(f"/proc/{pid}/stat")
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        try:
+            state = stat.read_text().rsplit(")", 1)[1].split()[0]
+        except (OSError, IndexError):
+            return True
+        if state in ("Z", "X"):
+            return True
+        time.sleep(0.05)
+    return False
+
+
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"), reason="PR_SET_PDEATHSIG is Linux"
+)
+@pytest.mark.parametrize("ceiling", [(), ("timeout", "60")])
+def test_a_command_ends_when_its_wrapper_is_killed(
+    lock_dir: Path, env: dict[str, str], ceiling: tuple[str, ...]
+):
+    # A SIGKILLed wrapper frees its slot at once, so the command must not
+    # run on beside the next holder; under GNU timeout (a group of its own)
+    # the SIGTERM is passed on to the command.
+    if ceiling and shutil.which("timeout") is None:
+        pytest.skip("needs timeout")
+    pid_file = lock_dir.parent / "pid"
+    script = f"echo $$ > {pid_file}.tmp; mv {pid_file}.tmp {pid_file}; exec sleep 60"
+    holder = _start(env, *ceiling, "sh", "-c", script, capture=False)
+    _await(pid_file)
+    pid = int(pid_file.read_text())
+
+    os.kill(holder.pid, signal.SIGKILL)
+    holder.wait(timeout=60)
+
+    try:
+        assert _gone(pid), "the command outlived its SIGKILLed wrapper"
+    finally:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
+@pytest.mark.parametrize("draw", ["low", "high"])
+def test_a_waiters_pause_is_jittered_within_bounds(
+    monkeypatch: pytest.MonkeyPatch, draw: str
+):
+    def uniform(low: float, high: float) -> float:
+        assert (low, high) == (
+            0.5 * run_heavy.POLL_SECONDS,
+            1.5 * run_heavy.POLL_SECONDS,
+        )
+        return low if draw == "low" else high
+
+    monkeypatch.setattr(run_heavy.random, "uniform", uniform)
+
+    expected = (0.5 if draw == "low" else 1.5) * run_heavy.POLL_SECONDS
+    assert run_heavy._pause(60.0) == expected
+
+
+def test_a_waiters_pause_never_passes_the_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(run_heavy.random, "uniform", lambda _lo, hi: hi)
+
+    assert run_heavy._pause(0.1) == 0.1
+
+
+def test_a_waiter_sleeps_only_until_its_deadline(
+    lock_dir: Path, monkeypatch: pytest.MonkeyPatch
+):
+    # A fake clock: every slot is taken, and each pause is the longest draw.
+    clock = [100.0]
+    pauses: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        pauses.append(seconds)
+        clock[0] += seconds
+
+    monkeypatch.setattr(run_heavy, "try_acquire", lambda _d, _n: None)
+    monkeypatch.setattr(run_heavy.random, "uniform", lambda _lo, hi: hi)
+    monkeypatch.setattr(run_heavy.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(run_heavy.time, "sleep", sleep)
+
+    assert run_heavy.acquire(lock_dir, 2) is None
+    assert clock[0] == 102.0
+    assert pauses[:-1] == [0.75, 0.75]
+    assert pauses[-1] == pytest.approx(0.5)
+
+
+def test_off_linux_the_command_gets_no_death_signal(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(run_heavy.sys, "platform", "darwin")
+
+    assert run_heavy._die_with_wrapper(os.getpid()) is None
 
 
 def test_a_terminated_wrapper_stops_its_command_first(
