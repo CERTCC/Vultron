@@ -180,6 +180,9 @@ groups:
     tags:
     - documentation
     - tooling
+    relationships:
+    - rel_type: extends
+      spec_id: SR-01-007
 - id: SR-02
   title: Pydantic Schema
   specs:
@@ -293,6 +296,9 @@ groups:
       `test_statement_spec_empty_rationale_rejected`), the optional defaults
       (`test_statement_spec_absent_fields`) and the full field set
       (`test_statement_spec_full`).
+    relationships:
+    - rel_type: implements
+      spec_id: MS-10-012
   - id: SR-02-010
     priority: MUST
     kind: project
@@ -402,8 +408,8 @@ groups:
       A reader cannot see an inherited tier at the item. Such a tier can put a
       requirement under the wrong checks.
     relationships:
-    - rel_type: extends
-      spec_id: SR-02-014
+    - rel_type: refines
+      spec_id: SR-01-009
   - id: SR-02-015
     priority: SHOULD
     kind: project
@@ -520,8 +526,10 @@ groups:
       asserts that both models declare each listed field as optional and declare
       no `deprecated` or `superseded_by` field.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SR-02-009
+    - rel_type: uses_definition
+      spec_id: MS-10-006
   - id: SR-02-022
     priority: MUST
     kind: project
@@ -537,7 +545,7 @@ groups:
       content with no error. A failure on unknown keys changes that silent data loss
       into a validation error, and each new field must go through the schema.
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: SR-02-009
 - id: SR-03
   title: Registry Loader
@@ -624,7 +632,7 @@ groups:
       Unit tests corrupt a temporary spec directory two ways — a YAML syntax fault and
       an invalid enum value — and assert each raised error names the offending file.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: MS-17-001
   - id: SR-03-010
     priority: MUST
@@ -641,7 +649,7 @@ groups:
       fails on a private attribution wrapper in any module under `vultron/metadata/`,
       `load_registry` included.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: MS-17-003
   - id: SR-03-009
     priority: MUST
@@ -660,7 +668,7 @@ groups:
       A unit test corrupts two files in a temporary spec directory and asserts that both
       names appear in the single raised error.
     relationships:
-    - rel_type: derives_from
+    - rel_type: refines
       spec_id: EH-07-001
       note: applies the report-every-violation rule to a file-walking loader
   - id: SR-03-011
@@ -728,7 +736,7 @@ groups:
       Users and the pre-commit hook run different forms of the same check. If the
       outputs were different, one form could pass a corpus that the other form rejects.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SR-04-003
   - id: SR-04-010
     priority: MUST
@@ -741,7 +749,7 @@ groups:
       `specs/` is the corpus. A default directory keeps the usual command short. It does
       not hide which directory the linter checked.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SR-04-003
   - id: SR-04-004
     priority: MUST
@@ -817,6 +825,9 @@ groups:
       file and line, on any `TB-NN-NNN` token under `vultron/`, and fails when an
       `Implements:` ID under `vultron/adapters/driving/fastapi/routers/` is absent
       from the registry.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-04-008
 - id: SR-05
   title: Pytest Integration
   specs:
@@ -843,6 +854,9 @@ groups:
       bad ID. The warning class is under `vultron/metadata/specs/`. Thus
       `filterwarnings` can select it by a stable path, and production code does not
       import pytest.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SR-05-007
   - id: SR-05-003
     priority: SHOULD
     kind: project
@@ -950,7 +964,7 @@ groups:
       session. Each case needs its own response, so the hook must tell them apart
       (SR-05-011, SR-05-012, SR-05-013).
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SR-05-002
       note: >-
         SR-05-002 specifies the marker check; SR-05-006 specifies what happens when the
@@ -1020,11 +1034,11 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: SR-05-013
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CS-23-002
       note: >-
-        applies the narrow-catch rule to the pytest collection hook, which sits outside
-        CS-23-002's `vultron/` scope
+        uses CS-23-002's narrowest-concrete-type notion for the pytest collection hook,
+        which sits outside CS-23-002's `vultron/` scope, so it is no case of it
   - id: SR-05-007
     priority: MUST
     kind: project
@@ -1036,10 +1050,6 @@ groups:
       The `"error"` entry of `filterwarnings` turns every other warning into a failure.
       Without an exemption, a non-blocking warning would change into a collection
       abort.
-    relationships:
-    - rel_type: refines
-      spec_id: SR-05-002
-      note: supplies the "non-blocking" mechanism SR-05-002 and SR-05-006 both depend on
   - id: SR-05-015
     priority: MUST
     kind: project
@@ -1438,7 +1448,7 @@ groups:
       by two records, the union with `--ids` and `--deps`, JSON and `--text` output, and
       `--adr` alone satisfying `--text`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SR-07-008
     adr:
     - ADR-0127
@@ -1547,6 +1557,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: SR-09-001
+    - rel_type: uses_definition
+      spec_id: DF-12-001
     adr:
     - ADR-0147
     tags:
@@ -1569,6 +1581,9 @@ groups:
     tags:
     - documentation
     - tooling
+    relationships:
+    - rel_type: uses_definition
+      spec_id: DF-12-001
   - id: SR-09-005
     priority: MUST
     kind: project
@@ -1584,6 +1599,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: SR-09-002
+    - rel_type: uses_definition
+      spec_id: DF-12-001
     adr:
     - ADR-0147
     tags:
@@ -1666,7 +1683,7 @@ groups:
       If the Markdown files are deleted while a skill still points at them, that skill
       loads nothing. No error shows that the requirements are missing.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: SR-08-005
   - id: SR-08-007
     priority: SHOULD
@@ -1705,7 +1722,7 @@ groups:
       issue tracker. If a migration produces a lasting architectural rule, that rule,
       not the migration instruction, belongs in the spec.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: SR-10-001
     tags:
     - documentation
@@ -1724,7 +1741,7 @@ groups:
     tags:
     - documentation
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: SR-10-001
   - id: SR-10-004
     priority: MUST_NOT
@@ -1742,8 +1759,8 @@ groups:
     tags:
     - documentation
     relationships:
-    - rel_type: refines
-      spec_id: SR-10-002
+    - rel_type: derives_from
+      spec_id: SR-10-005
   - id: SR-10-003
     priority: SHOULD
     kind: process
@@ -1757,7 +1774,7 @@ groups:
     tags:
     - documentation
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: SR-10-001
   - id: SR-10-006
     priority: SHOULD
@@ -1809,7 +1826,7 @@ groups:
       validator rejects that list at load time, so a present field always names a
       story.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: SR-11-001
     tags:
     - documentation
@@ -1877,7 +1894,7 @@ groups:
     - ADR-0072
     - ADR-0134
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: SR-11-001
     - rel_type: refines
       spec_id: MS-02-003
@@ -1901,7 +1918,7 @@ groups:
     adr:
     - ADR-0072
     relationships:
-    - rel_type: extends
+    - rel_type: supersedes
       spec_id: SR-11-003
     tags:
     - documentation
@@ -1926,8 +1943,8 @@ groups:
       `::test_protocol_may_no_stories_is_advisory` cover the three priorities;
       `::test_protocol_should_with_stories_no_story_warn` covers the pass.
     relationships:
-    - rel_type: refines
-      spec_id: SR-11-003
+    - rel_type: uses_definition
+      spec_id: SR-11-001
     - rel_type: refines
       spec_id: MS-02-003
       note: SHOULD_NOT is the SHOULD tier
@@ -1949,7 +1966,7 @@ groups:
     adr:
     - ADR-0072
     relationships:
-    - rel_type: extends
+    - rel_type: supersedes
       spec_id: SR-11-004
     tags:
     - documentation
@@ -1981,7 +1998,7 @@ groups:
     adr:
     - ADR-0072
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: SR-11-001
     tags:
     - documentation
@@ -2184,7 +2201,7 @@ groups:
       (`test_unresolved_groups`) and the exit codes through the CLI
       (`test_cli_manifest_exit_codes`).
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: SR-12-006
     tags:
     - tooling
@@ -2232,7 +2249,7 @@ groups:
       `test/metadata/specs/test_backstop.py` asserts the demotion above the threshold,
       no demotion at it, and the `--hub-threshold` flag.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: SR-12-003
     tags:
     - tooling
@@ -2288,8 +2305,8 @@ groups:
       a group with one MUST among SHOULDs stays in MUST, and the advisory evidence
       wording.
     relationships:
-    - rel_type: refines
-      spec_id: SR-12-004
+    - rel_type: supersedes
+      spec_id: SR-12-003
     tags:
     - tooling
   - id: SR-12-011
@@ -2306,7 +2323,7 @@ groups:
       `test/metadata/specs/test_backstop.py` asserts the marker demotion above the span,
       and that a file at the span still promotes.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: SR-12-003
     tags:
     - tooling
@@ -2323,7 +2340,7 @@ groups:
       `test/metadata/specs/test_backstop.py::test_logger_is_not_a_changed_symbol`
       asserts that `logger` is not a changed symbol.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: SR-12-002
     tags:
     - tooling
@@ -2354,7 +2371,7 @@ groups:
       `test/metadata/specs/test_backstop.py` asserts git mode finds the same changes
       under `diff.mnemonicPrefix` and `diff.noprefix`.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: SR-12-001
     tags:
     - tooling
@@ -2648,7 +2665,7 @@ groups:
       `test/metadata/specs/test_relation_graph.py::test_mirror_image_double_recording_is_reported`
       fails when `A refines B` and `B constrains A` pass spec-lint together.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: SR-13-012
     tags:
     - documentation
@@ -2676,9 +2693,7 @@ groups:
       recorded the wrong way closes a loop, and that
       `test_real_specs_have_no_relationship_loops` finds none in `specs/`.
     relationships:
-    - rel_type: depends_on
-      spec_id: SR-13-012
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SR-04-002
     tags:
     - tooling
@@ -2718,9 +2733,9 @@ groups:
       `test_both_ends_recorded_is_reported` and `test_real_specs_record_each_link_once`
       assert the error text and that `specs/` has no such pair.
     relationships:
-    - rel_type: depends_on
+    - rel_type: verifies
       spec_id: SR-13-012
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SR-04-002
     tags:
     - tooling
@@ -2739,7 +2754,7 @@ groups:
       `test/metadata/specs/test_schema.py::test_relation_type_docstring_lists_every_definition`
       fails on a docstring that misses a definition.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: SR-02-004
     tags:
     - tooling
