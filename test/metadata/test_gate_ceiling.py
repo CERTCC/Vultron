@@ -118,7 +118,8 @@ def test_ci_test_job_has_a_timeout() -> None:
     assert isinstance(job, dict)
     minutes = job.get("timeout-minutes")
     assert isinstance(minutes, int) and minutes > 0, (
-        "The `Tests (pytest)` job needs `timeout-minutes` (TB-14-005)."
+        "The `test` job that runs pytest needs `timeout-minutes`; the cap is "
+        "on the job, so every matrix part carries it (TB-14-005)."
     )
 
 

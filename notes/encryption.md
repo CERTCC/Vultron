@@ -19,6 +19,7 @@ related_specs:
   - specs/encryption.yaml
   - specs/message-validation.yaml
   - specs/actor-knowledge-model.yaml
+  - specs/error-handling.yaml
 related_notes:
   - archived_notes/federation_ideas.md
   - notes/case-ledger-genesis-hardening.md
@@ -99,6 +100,12 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   JSON-shape checks and before the parser (SIG-03-003). The pre-parsed
   `as_Activity` ingress path has no body to verify and goes when verification
   lands (#5386).
+- **A failed proof raises `VultronProofVerificationError`** (EH-03-005), which
+  `translate_domain_errors` answers 422 as `ProofVerificationError`, not 401:
+  the proof is content, not an HTTP credential. `signing.verify` raises its
+  subclass `VultronProofInvalidError`. Decide in #5386 whether a malformed
+  published key (`VultronMultikeyError`) or an uncanonicalizable body
+  (`VultronUnsignableJsonError`) is also refused 422; both are unmapped today.
 - **Strict from the start, with no switch** (SIG-03-002). The order of the
   Tasks is the ratchet: everything signs first, then every test delivery signs
   through the shared helper, then verification turns on. Verification cannot

@@ -81,11 +81,21 @@ guidance for shaping work, not a gate — nothing rejects a PR for being small.
 ## Recalibrating
 
 The bands were cut at quantiles of a survey of merged PRs. `pr-size --calibrate
-[--days N]` re-runs that survey over the PRs merged in the last N days (default
-60) and the Issues they close: each band's share against its target share, the
-diff size at each quantile the ceilings were cut at, how often the Issue
-estimate matched the measured band, and the median diff per AC count. It reads
-GitHub through `gh` and takes a minute or two.
+[--days N]` re-runs that survey over the PRs merged into `main` in the last N days
+(default 60) and the Issues they close: each band's share against its target
+share, the diff size at each quantile the ceilings were cut at, how often the
+Issue estimate matched the measured band, and the median diff per AC count. It
+also reports two quality measures per band:
+
+- **Later bug fixes**, per PR and per 1,000 diff lines, over the PRs merged at
+  least 30 days before the window ends. A later fix is a `bug/` or `fix/` PR,
+  merged within 30 days, whose changed `vultron/` lines `git blame` traces to
+  the PR's commits.
+- **Heavy-review share**: the PRs with 8+ triage findings, 7+ commits, or open a
+  day or more.
+
+It reads GitHub through `gh` and blames in the local clone, so fetch `main`
+first. It takes a few minutes.
 
 Run it **quarterly**, and **after any workflow change** that could move PR size
 (a new review stage, a bundling rule, a change to how Tasks are cut).

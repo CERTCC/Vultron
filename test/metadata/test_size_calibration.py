@@ -13,9 +13,14 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from test.metadata._fake_runner import FakeRunner
+from vultron.metadata.git_runner import GitError
 from vultron.metadata.planning import size_bands
 from vultron.metadata.planning.gh import GhError
-from vultron.metadata.planning.size_calibration import fetch, measures, report
+from vultron.metadata.planning.size_calibration import (
+    fetch,
+    measures,
+    report,
+)
 from vultron.metadata.planning.size_calibration.model import (
     BandScheme,
     CalibrationData,
@@ -343,6 +348,16 @@ def _stamp(moment: datetime) -> str:
     return moment.isoformat().replace("+00:00", "Z")
 
 
+def _merge(number: int) -> str:
+    """PR ``number``'s fixture merge commit id: 40 hex digits."""
+    return f"a{number:039d}"
+
+
+def _commit(number: int) -> str:
+    """PR ``number``'s one fixture commit id."""
+    return f"c{number:039d}"
+
+
 def _connection(nodes: Sequence[dict], total: int | None = None) -> dict:
     return {
         "totalCount": len(nodes) if total is None else total,
@@ -357,13 +372,21 @@ def _node(
     additions: int = 7,
     deletions: int = 3,
     issue_total: int | None = None,
+    **fields: object,
 ) -> dict:
     return {
         "number": number,
         "additions": additions,
         "deletions": deletions,
         "mergedAt": _stamp(merged),
+        "createdAt": _stamp(merged - timedelta(hours=2)),
+        "headRefName": f"task/{number}-x",
+        "mergeCommit": {"oid": _merge(number)},
+        "commits": _connection([{"commit": {"oid": _commit(number)}}]),
+        "reviews": _connection([]),
+        "comments": _connection([]),
         "closingIssuesReferences": _connection(issues, issue_total),
+        **fields,
     }
 
 
@@ -415,11 +438,49 @@ class TestParseSearchPages:
         result = fetch.parse_search_pages(
             [_page([_node(10, issues=[_issue_node(1, [(10, True)])])])]
         )
-        assert result.prs == (MergedPr(10, IN_WINDOW, 10, (1,)),)
+        assert result.prs == (
+            MergedPr(
+                10,
+                IN_WINDOW,
+                10,
+                (1,),
+                head_ref="task/10-x",
+                open_for=timedelta(hours=2),
+                commit_count=1,
+                commits=(_commit(10),),
+                merge_commit=_merge(10),
+                triage_findings=None,
+            ),
+        )
         assert result.issues == (
             ClosedIssue(1, True, ("size:S",), 2, (10,), True),
         )
         assert result.issue_count == 1
+
+    def test_review_and_comment_bodies_give_the_triage_findings(self):
+        triage = {"body": "## PR Triage: #10\n| phase8-a-0 |\n| phase9-b-0 |"}
+        prepush = {"body": "## Pre-push review\n**Total**: 1 FAIL · 2 IMPROVE"}
+        node = _node(
+            10,
+            reviews=_connection([triage, {"body": ""}]),
+            comments=_connection([prepush]),
+        )
+        (read,) = fetch.parse_search_pages([_page([node])]).prs
+        assert read.triage_findings == 5
+
+    def test_a_commit_list_cut_short_keeps_the_full_count(self):
+        commits = _connection([{"commit": {"oid": _commit(1)}}], total=140)
+        (read,) = fetch.parse_search_pages(
+            [_page([_node(10, commits=commits)])]
+        ).prs
+        assert (read.commit_count, read.commits) == (140, (_commit(1),))
+        assert read.commits_complete is False
+
+    def test_a_missing_merge_commit_reads_as_none(self):
+        (read,) = fetch.parse_search_pages(
+            [_page([_node(10, mergeCommit=None)])]
+        ).prs
+        assert read.merge_commit is None
 
     def test_pages_are_concatenated(self):
         result = fetch.parse_search_pages(
@@ -464,6 +525,22 @@ class TestParseSearchPages:
             [_page([{"number": "10"}])],
             [_page([{**_node(10), "mergedAt": "yesterday"}])],
             [_page([{**_node(10), "additions": True}])],
+            [_page([_node(10, headRefName=None)])],
+            [_page([_node(10, createdAt="soon")])],
+            [_page([_node(10, mergeCommit={"oid": 7})])],
+            [_page([_node(10, mergeCommit={"oid": "m10; rm -rf"})])],
+            [
+                _page(
+                    [
+                        _node(
+                            10,
+                            commits=_connection([{"commit": {"oid": "-p"}}]),
+                        )
+                    ]
+                )
+            ],
+            [_page([_node(10, commits=_connection([{"commit": None}]))])],
+            [_page([_node(10, reviews=_connection([{"body": None}]))])],
             [_page([_node(10, issues=[_issue_with(body=None)])])],
             [
                 _page(
@@ -518,11 +595,11 @@ class TestFetchWindow:
         )
         assert [p.number for p in window.prs] == [10, 11]
         first = (
-            "q=repo:o/n is:pr is:merged "
+            "q=repo:o/n is:pr is:merged base:main "
             "merged:2026-09-06T00:00:00Z..2026-10-06T00:00:00Z"
         )
         second = (
-            "q=repo:o/n is:pr is:merged "
+            "q=repo:o/n is:pr is:merged base:main "
             "merged:2026-10-06T00:00:00Z..2026-11-05T00:00:00Z"
         )
         terms = [_query_term(call) for call in gh.calls]
@@ -625,9 +702,35 @@ class TestFetchWindow:
 class TestCli:
     def test_calibrate_reads_the_window_ending_now(self):
         gh = FakeRunner(*_slice([_node(10, additions=40, deletions=2)]))
-        text = size_bands.calibrate(7, run=gh, now=NOW)
+        git = FakeRunner("unused")
+        text = size_bands.calibrate(7, run=gh, now=NOW, git=git)
+        assert git.calls == []  # no bug fix, no short commit list: no git
         assert text.startswith("pr-size --calibrate: 2026-10-29 to 2026-11-05")
         assert "Band shares — 1 PRs merged" in text
+
+    def test_calibrate_traces_each_bug_fix_in_this_clone(self):
+        node = _node(10, headRefName="bug/10-x")
+        git = FakeRunner("", "")
+        text = size_bands.calibrate(
+            7, run=FakeRunner(*_slice([node])), now=NOW, git=git
+        )
+        assert git.calls[0] == ["cat-file", "-e", f"{_merge(10)}^1^{{commit}}"]
+        assert "1 bug-fix PRs (bug/ and fix/ branches) traced" in text
+
+    def test_calibrate_reads_a_short_commit_list_from_this_clone(self):
+        commits = _connection([{"commit": {"oid": _commit(10)}}], total=101)
+        git = FakeRunner("", f"{_merge(10)}\n{_commit(10)}\n")
+        text = size_bands.calibrate(
+            7,
+            run=FakeRunner(*_slice([_node(10, commits=commits)])),
+            now=NOW,
+            git=git,
+        )
+        assert git.calls[-1] == [
+            "rev-list",
+            f"{_merge(10)}^1..{_merge(10)}",
+        ]
+        assert "Heavy review" in text
 
     def test_calibrate_refuses_a_non_positive_window(self):
         with pytest.raises(ValueError, match="at least 1"):
@@ -673,13 +776,14 @@ class TestCli:
         ("failure", "detail"),
         [
             (GhError("gh is not installed"), "gh is not installed"),
+            (GitError("merge commit m9 is not in this clone"), "m9 is not"),
             (
                 subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 502"),
                 "HTTP 502",
             ),
         ],
     )
-    def test_a_gh_failure_exits_one_with_its_detail(
+    def test_a_gh_or_git_failure_exits_one_with_its_detail(
         self, monkeypatch, capsys, failure, detail
     ):
         def boom(days: int) -> str:
@@ -697,5 +801,5 @@ class TestCli:
             subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 502"),
         )
         with pytest.raises(subprocess.CalledProcessError):
-            size_bands.calibrate(60, run=gh, now=NOW)
+            size_bands.calibrate(60, run=gh, now=NOW, git=FakeRunner(""))
         assert capsys.readouterr().out == ""
