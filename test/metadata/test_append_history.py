@@ -1297,6 +1297,155 @@ class TestGitHubCommentMode:
         assert not mock_run.called
 
 
+@pytest.mark.spec("HM-07-002")
+class TestBodyFrontmatterRejection:
+    """HM-07-002: stdin and --file mode refuse body that opens with frontmatter.
+
+    --from-file mode moves a complete pre-formatted entry and is exempt.
+    """
+
+    _FM_BODY = (
+        "---\n"
+        "title: Hand-written title\n"
+        "type: idea\n"
+        "timestamp: '2026-06-22T10:00:00+00:00'\n"
+        "source: IDEA-26062201\n"
+        "---\n\n"
+        "Body text.\n"
+    )
+
+    def test_stdin_with_frontmatter_exits_nonzero(
+        self, fake_repo: Path
+    ) -> None:
+        """stdin body that opens with a YAML mapping block is refused (HM-07-002)."""
+        result = _run_append(
+            "idea",
+            body=self._FM_BODY,
+            title="T",
+            source="IDEA-26110001",
+            cwd=fake_repo,
+        )
+        assert result.returncode != 0
+
+    def test_stdin_with_frontmatter_names_hm_07_002(
+        self, fake_repo: Path
+    ) -> None:
+        """Error message cites HM-07-002 so the caller knows the rule."""
+        result = _run_append(
+            "idea",
+            body=self._FM_BODY,
+            title="T",
+            source="IDEA-26110001",
+            cwd=fake_repo,
+        )
+        assert "HM-07-002" in result.stderr
+
+    def test_file_mode_with_frontmatter_exits_nonzero(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        """--file body that opens with a YAML mapping block is refused (HM-07-002)."""
+        body_file = tmp_path / "body-with-fm.md"
+        body_file.write_text(self._FM_BODY)
+        result = _run_append(
+            "idea",
+            body="",
+            title="T",
+            source="IDEA-26110002",
+            extra_args=["--file", str(body_file)],
+            cwd=fake_repo,
+        )
+        assert result.returncode != 0
+
+    def test_file_mode_with_frontmatter_names_hm_07_002(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        """--file error message cites HM-07-002."""
+        body_file = tmp_path / "body-with-fm.md"
+        body_file.write_text(self._FM_BODY)
+        result = _run_append(
+            "idea",
+            body="",
+            title="T",
+            source="IDEA-26110002",
+            extra_args=["--file", str(body_file)],
+            cwd=fake_repo,
+        )
+        assert "HM-07-002" in result.stderr
+
+    def test_stdin_with_leading_blank_lines_then_frontmatter_refused(
+        self, fake_repo: Path
+    ) -> None:
+        """Blank lines before the block do not hide it: the first non-blank
+        line is what counts (HM-07-002)."""
+        result = _run_append(
+            "idea",
+            body="\n\n" + self._FM_BODY,
+            title="T",
+            source="IDEA-26110005",
+            cwd=fake_repo,
+        )
+        assert result.returncode != 0
+        assert "HM-07-002" in result.stderr
+
+    def test_stdin_with_malformed_frontmatter_refused(
+        self, fake_repo: Path
+    ) -> None:
+        """Hand-written frontmatter with a YAML typo is still refused.
+
+        An unquoted ``: `` in a title makes the block malformed YAML; letting
+        it through would write a second block into a write-once entry.
+        """
+        result = _run_append(
+            "idea",
+            body="---\ntitle: Fix: a thing\nsource: X\n---\n\nBody.\n",
+            title="T",
+            source="IDEA-26110006",
+            cwd=fake_repo,
+        )
+        assert result.returncode != 0
+        assert "HM-07-002" in result.stderr
+        assert "malformed" in result.stderr
+
+    def test_body_without_frontmatter_is_accepted(
+        self, fake_repo: Path
+    ) -> None:
+        """A plain body (no --- block) still succeeds (regression guard)."""
+        result = _run_append(
+            "idea",
+            body=_IDEA_BODY,
+            title="T",
+            source="IDEA-26110003",
+            cwd=fake_repo,
+        )
+        assert result.returncode == 0
+
+    def test_body_with_yaml_list_block_is_accepted(
+        self, fake_repo: Path
+    ) -> None:
+        """A body whose --- block holds a YAML list is not frontmatter; accepted.
+
+        _check_body_has_no_frontmatter suppresses MetadataLoadError (raised when
+        the --- block is not a YAML mapping) and lets the normal build proceed.
+        """
+        list_block_body = "---\n- item1\n- item2\n---\nActual body text.\n"
+        result = _run_append(
+            "idea",
+            body=list_block_body,
+            title="T",
+            source="IDEA-26110004",
+            cwd=fake_repo,
+        )
+        assert result.returncode == 0
+
+    def test_from_file_mode_with_frontmatter_unchanged(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        """--from-file is exempt: it moves a complete pre-formatted entry."""
+        src = _make_incoming_file(tmp_path, content=_LEARNING_CONTENT)
+        result = _run_from_file(src)
+        assert result.returncode == 0, result.stderr
+
+
 @pytest.mark.spec("HM-01-011")
 def test_monthly_readme_is_gitignored() -> None:
     """Git ignores every monthly index, so none can be committed (HM-01-011)."""
