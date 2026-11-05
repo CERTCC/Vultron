@@ -151,7 +151,7 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
 
         # A repeat of a Reject already recorded is refused by the tree's
         # repeat guard before the commit, and reported SKIPPED (CM-13-005,
-        # HP-01-003).
+        # HP-01-014).
         verdict = embargo_answer_repeat_verdict(
             tree,
             verdict_from_bt(tree, result, label="RejectInviteToEmbargoBT"),

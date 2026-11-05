@@ -147,7 +147,7 @@ class EmbargoInviteNotYetRefusedNode(
     """Idempotency guard: this actor has not yet refused this Invite.
 
     FAILURE means the ``Reject`` was already sent; the handler reads it as a
-    re-delivery (CLP-13-001, HP-01-003).  The ``Reject`` is sealed before
+    re-delivery (CLP-13-001, HP-01-014).  The ``Reject`` is sealed before
     it is queued, so one sealed but no longer pending is queued again under its
     own id rather than taken as delivered (EMB-01-007, ID-04-005).  A missing
     trigger-activity port sends nothing, so there is nothing to repeat.

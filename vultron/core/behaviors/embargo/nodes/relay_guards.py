@@ -49,7 +49,7 @@ class EmbargoProposalNotYetRecordedNode(
     inbox — would otherwise re-run the counter-proposal branch and relay a
     second round of Invites.  A precondition guard, so the duplicate commits
     no ledger entry (CLP-13-001); the handler reads its FAILURE as SKIPPED
-    (HP-01-003).  A case this store does not hold cannot have recorded
+    (HP-01-014).  A case this store does not hold cannot have recorded
     anything, so that is SUCCESS, not a refusal.
 
     The index holds only undecided proposals (EP-08-003), so it catches a

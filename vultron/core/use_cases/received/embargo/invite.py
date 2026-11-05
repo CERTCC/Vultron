@@ -290,7 +290,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 )
             return refusal
         if node_failed(tree, EmbargoProposalNotYetRecordedNode):
-            # The same Invite, delivered again (CLP-13-001, HP-01-003).
+            # The same Invite, delivered again (CLP-13-001, HP-01-014).
             return HandlerResult.skipped(
                 f"invite '{invite_id}' was already applied on case '{case_id}'"
             )

@@ -292,7 +292,7 @@ def offer_made_from_proposal(
 
     ``None`` when the ledger records no such Offer, or the case is not held
     or names no CASE_MANAGER: the proposal is then a new one.  A proposal
-    whose Offer the ledger records is a redelivery (HP-01-003); its standing
+    whose Offer the ledger records is a redelivery (HP-01-014); its standing
     is that Offer's offerer (CM-21-019).
     """
     case = dl.read_case(case_id)
