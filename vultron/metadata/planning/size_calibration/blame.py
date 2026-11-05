@@ -53,8 +53,12 @@ class GitError(Exception):
 def run_git(args: Sequence[str]) -> str:
     """Run ``git`` in the repository root and return its standard output.
 
+    Output is read as UTF-8, with any undecodable byte replaced: blame
+    carries file content, which need not be valid UTF-8, and only the commit
+    ids in it are read.
+
     Raises:
-        GitError: If ``git`` is not installed or exits non-zero; the message
+        GitError: If ``git`` cannot be run or exits non-zero; the message
             carries its stderr.
     """
     try:
@@ -62,11 +66,15 @@ def run_git(args: Sequence[str]) -> str:
             ["git", *args],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd=repo_root(),
             check=False,
         )
     except FileNotFoundError as exc:
         raise GitError("git is not installed or not on PATH") from exc
+    except OSError as exc:
+        raise GitError(f"cannot run git: {exc}") from exc
     if result.returncode != 0:
         raise GitError(
             f"`git {' '.join(args)}` failed: {result.stderr.strip()}"
@@ -83,7 +91,10 @@ def old_ranges(diff: str) -> dict[str, tuple[tuple[int, int], ...]]:
 
     Keyed by the file's path before the change, so a renamed file is blamed
     under the name it had. A hunk that only adds lines has no old side and is
-    left out, as is a file the diff creates.
+    left out, as is a file the diff creates. File headers are read only
+    between a ``diff --git`` line and the file's first hunk, so a deleted line
+    whose text opens with ``-- `` is not taken for one. The diff must carry
+    the ``a/`` prefix (:func:`_trace` asks for it).
 
     Raises:
         GitError: If a path is quoted (git quotes unusual characters), since
@@ -91,15 +102,19 @@ def old_ranges(diff: str) -> dict[str, tuple[tuple[int, int], ...]]:
     """
     ranges: dict[str, list[tuple[int, int]]] = {}
     path: str | None = None
+    in_header = False
     for line in diff.splitlines():
         if line.startswith("diff --git "):
-            path = None
-        elif line.startswith("--- "):
+            path, in_header = None, True
+        elif in_header and line.startswith("--- "):
             name = line[4:].rstrip("\t")
             if name.startswith('"'):
                 raise GitError(f"cannot blame a quoted path: {name}")
             path = name[2:] if name.startswith("a/") else None
-        elif path is not None and (hunk := _HUNK.match(line)):
+        elif hunk := _HUNK.match(line):
+            in_header = False
+            if path is None:
+                continue
             start = int(hunk.group(1))
             count = 1 if hunk.group(2) is None else int(hunk.group(2))
             if count:
@@ -122,16 +137,21 @@ def blamed_commits(porcelain: str) -> frozenset[str]:
 
 
 def _merge_of(pr: MergedPr, git: GitRunner) -> str:
-    """The PR's merge commit, refused when unknown or not in this clone."""
+    """The PR's merge commit, refused when it or its first parent is missing.
+
+    Checking the first parent, not just the merge, also catches a shallow
+    clone, where the merge is present but what it merged onto is not.
+    """
     merge = pr.merge_commit
     if merge is None:
         raise GitError(f"PR #{pr.number} has no merge commit to trace")
     try:
-        git(["cat-file", "-e", f"{merge}^{{commit}}"])
+        git(["cat-file", "-e", f"{merge}^1^{{commit}}"])
     except GitError as exc:
         raise GitError(
-            f"PR #{pr.number}'s merge commit {merge} is not in this clone; "
-            "fetch the base branch (`git fetch origin main`) and re-run"
+            f"PR #{pr.number}'s merge commit {merge}, or its first parent, is "
+            "not in this clone; fetch the base branch (`git fetch origin "
+            "main`, and `git fetch --unshallow` in a shallow clone) and re-run"
         ) from exc
     return merge
 
@@ -172,6 +192,8 @@ def _trace(pr: MergedPr, git: GitRunner) -> FixTrace:
             "--no-color",
             "--no-ext-diff",
             "--find-renames",
+            "--src-prefix=a/",
+            "--dst-prefix=b/",
             parent,
             merge,
             "--",

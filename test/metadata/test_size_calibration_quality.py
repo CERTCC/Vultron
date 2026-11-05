@@ -133,6 +133,15 @@ class TestCountTriageFindings:
                 1,
             ),
             ("## PR Triage: #1\nnothing to report", 0),
+            (
+                "## Pre-push review\nThe review raised 16 findings, all fixed",
+                16,
+            ),
+            (
+                "## PR Triage: #1\n**Total**: see below\n4 pre-push findings",
+                4,
+            ),
+            ("## PR Triage: #1\n**Total**: 3 findings\n1 FAIL", 3),
         ],
     )
     def test_a_record_without_ids_counts_what_it_states(self, body, expected):
@@ -142,6 +151,39 @@ class TestCountTriageFindings:
         with_ids = "## PR Triage: #1\n| phase8-a-0 |\n| phase8-b-0 |"
         stated = "## Pre-push review\n**Total**: 2 FAIL · 3 IMPROVE"
         assert measures.count_triage_findings([with_ids, stated]) == 7
+
+    @pytest.mark.parametrize(
+        "heading",
+        [
+            "## PR Triage: #1 — t",
+            "## PR triage (delta mode) — #1",
+            "## Pre-push review (fresh agent)",
+            "**Pre-push review (fresh agent)**: 1 finding",
+            "## pr-ship review (triage, execute, verify): PR #1",
+            "## Fresh review — PR #1 (triage + execute)",
+            "## 🔍 pr-triage",
+            "### Post-push review (fresh agent, full mode)",
+        ],
+    )
+    def test_triage_and_review_headings_are_records(self, heading):
+        assert measures.is_triage_record(f"\n{heading}\n| phase8-a-0 |")
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "## PR Verify: #1 — READY-TO-MERGE",
+            "## PR Execute: #1",
+            "## pr-execute: fixed all 3 triage findings",
+            "## Post-push verify (fresh review agent)",
+            "## Review verdict — READY-TO-MERGE",
+            "## pr-ship verdict — verification",
+            "## Addendum",
+            "Thanks for the review",
+            "",
+        ],
+    )
+    def test_other_comments_are_not_records(self, body):
+        assert not measures.is_triage_record(body)
 
     def test_the_heading_must_open_the_body(self):
         quoted = "> ## PR Triage: #1\n| phase8-a-0 |"
@@ -406,6 +448,33 @@ class TestOldRanges:
     def test_an_empty_diff_has_no_ranges(self):
         assert blame.old_ranges("") == {}
 
+    def test_a_deleted_line_that_looks_like_a_header_is_not_one(self):
+        diff = (
+            "diff --git a/vultron/a.py b/vultron/a.py\n"
+            "--- a/vultron/a.py\n+++ b/vultron/a.py\n"
+            "@@ -3,2 +3,0 @@\n"
+            "-- a/elsewhere.py\n"
+            '-- "quoted"\n'
+            "@@ -9 +7 @@\n-x\n+y\n"
+        )
+        assert blame.old_ranges(diff) == {"vultron/a.py": ((3, 2), (9, 1))}
+
+    def test_a_trailing_tab_after_the_path_is_dropped(self):
+        diff = (
+            "diff --git a/vultron/a b.py b/vultron/a b.py\n"
+            "--- a/vultron/a b.py\t\n+++ b/vultron/a b.py\t\n"
+            "@@ -1 +1 @@\n-x\n+y\n"
+        )
+        assert blame.old_ranges(diff) == {"vultron/a b.py": ((1, 1),)}
+
+    def test_a_header_path_without_the_a_prefix_is_not_traced(self):
+        diff = (
+            "diff --git vultron/a.py vultron/a.py\n"
+            "--- vultron/a.py\n+++ vultron/a.py\n"
+            "@@ -1 +1 @@\n-x\n+y\n"
+        )
+        assert blame.old_ranges(diff) == {}
+
     def test_a_quoted_path_is_refused(self):
         quoted = 'diff --git "a/vultron/\\tx" "b/vultron/\\tx"\n--- "a/vultron/\\tx"\n'
         with pytest.raises(GitError, match="quoted path"):
@@ -428,9 +497,10 @@ class TestTraceFixes:
         traces = blame.trace_fixes([pr(1), fix(2, OLD)], git)
         assert traces == (FixTrace(2, frozenset({SHA_A, SHA_B})),)
         cat, diff, first, second = git.calls
-        assert cat == ["cat-file", "-e", "m2^{commit}"]
+        assert cat == ["cat-file", "-e", "m2^1^{commit}"]
         assert diff[-4:] == ["m2^1", "m2", "--", "vultron/"]
         assert "--unified=0" in diff
+        assert {"--src-prefix=a/", "--dst-prefix=b/"} <= set(diff)
         assert first == [
             "blame",
             "--porcelain",
@@ -459,7 +529,8 @@ class TestTraceFixes:
     def test_a_merge_commit_missing_from_the_clone_names_the_fix(self):
         git = FakeRunner(GitError("fatal: Not a valid object name"))
         with pytest.raises(
-            GitError, match="PR #2's merge commit m2 is not in"
+            GitError,
+            match=r"PR #2's merge commit m2, or its first parent, is not in.*--unshallow",
         ):
             blame.trace_fixes([fix(2, OLD)], git)
 
@@ -510,6 +581,25 @@ class TestRunGit:
         assert blame.run_git(["status"]) == "out\n"
         assert seen["args"] == ["git", "status"]
         assert seen["cwd"] == repo_root()
+
+    def test_output_is_decoded_leniently(self, monkeypatch):
+        seen: dict[str, object] = {}
+
+        def ran(args, **kwargs):
+            seen.update(kwargs)
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        monkeypatch.setattr(blame.subprocess, "run", ran)
+        blame.run_git(["status"])
+        assert (seen["encoding"], seen["errors"]) == ("utf-8", "replace")
+
+    def test_an_os_error_is_a_git_error(self, monkeypatch):
+        def denied(args, **kwargs):
+            raise PermissionError("denied")
+
+        monkeypatch.setattr(blame.subprocess, "run", denied)
+        with pytest.raises(GitError, match="cannot run git: denied"):
+            blame.run_git(["status"])
 
     def test_a_missing_git_is_a_git_error(self, monkeypatch):
         def missing(args, **kwargs):

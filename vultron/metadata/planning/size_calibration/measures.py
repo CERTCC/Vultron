@@ -248,45 +248,81 @@ def median_lines_per_ac(pairs: Sequence[IssuePair]) -> float | None:
     return statistics.median(ratios) if ratios else None
 
 
-_TRIAGE_RECORD = re.compile(
-    r"\A\s*##\s+(?:PR[ -]Triage|Pre-push review)\b", re.I
+_HEADING_LINE = re.compile(r"\A\s*(?:#{1,6}\s|\*\*)")
+_ROLE_WORD = re.compile(
+    r"\b(?:pre-push review|triage|review|verify|execute|verdict)\b", re.I
 )
 _FINDING_ID = re.compile(r"\bphase\d+-[a-z0-9]+(?:-[a-z0-9]+)*-\d+\b")
 _SEVERITY_COUNT = re.compile(r"(\d+)\s+(FAIL|IMPROVE|NEW-ISSUE)\b")
+_FINDINGS_COUNT = re.compile(r"(\d+)\s+(?:[\w-]+\s+){0,2}findings?\b", re.I)
+
+
+def is_triage_record(body: str) -> bool:
+    """Whether a review or comment body is a triage record.
+
+    Its first non-blank line must be a heading, either a markdown ``#``
+    heading or a line opening in bold, so the name it carries is the
+    comment's own. A heading naming a ``verdict`` is a verification report,
+    not a review. Otherwise the first of the words triage, review, verify and
+    execute in the heading decides: triage or review makes it a record. That
+    takes in ``## PR Triage``, ``**Pre-push review**``, ``## pr-ship review
+    (triage, execute, verify)`` and ``## 🔍 pr-triage``, and leaves out ``## PR
+    Verify``, ``## PR Execute`` and ``## pr-execute: fixed all 3 triage
+    findings``, whose findings the triage record already counted.
+    """
+    heading = next((line for line in body.splitlines() if line.strip()), "")
+    if not _HEADING_LINE.match(heading):
+        return False
+    words = [word.lower() for word in _ROLE_WORD.findall(heading)]
+    if not words or "verdict" in words:
+        return False
+    return words[0] in {"pre-push review", "triage", "review"}
+
+
+def _line_count(line: str) -> int | None:
+    """The findings one line states, or ``None`` when it states none.
+
+    Each severity's first number on the line is summed, so ``2 FAIL, 10
+    IMPROVE, 1 NEW-ISSUE`` is 13. A line naming no severity may still state a
+    total, as ``16 findings`` or ``16 pre-push findings``.
+    """
+    counts: dict[str, int] = {}
+    for number, severity in _SEVERITY_COUNT.findall(line):
+        counts.setdefault(severity, int(number))
+    if counts:
+        return sum(counts.values())
+    total = _FINDINGS_COUNT.search(line)
+    return None if total is None else int(total.group(1))
 
 
 def _stated_count(body: str) -> int:
     """The findings a record states in words, for one that lists no ids.
 
-    The ``**Total**:`` line wins when there is one; otherwise the first line
-    that counts any severity. Each severity's first number on that line is
-    summed, so ``2 FAIL, 10 IMPROVE, 1 NEW-ISSUE`` is 13.
+    A ``**Total**`` line that states a count wins; otherwise the first line
+    that states one (:func:`_line_count`). A record stating none counts 0.
     """
     lines = body.splitlines()
     totals = [line for line in lines if line.lstrip().startswith("**Total**")]
     for line in (*totals, *lines):
-        counts: dict[str, int] = {}
-        for number, severity in _SEVERITY_COUNT.findall(line):
-            counts.setdefault(severity, int(number))
-        if counts:
-            return sum(counts.values())
+        count = _line_count(line)
+        if count is not None:
+            return count
     return 0
 
 
 def count_triage_findings(bodies: Sequence[str]) -> int | None:
     """The review findings a PR's triage records raise, or ``None`` if none.
 
-    A triage record is a review or comment whose heading opens with
-    ``## PR Triage`` or ``## Pre-push review`` (any case); the comments
-    ``pr-triage`` posts and the pre-push review ``build`` posts both do. A
-    record's findings are the distinct finding ids (``phase8-slug-0``) it names,
-    and the ids are pooled across records, so a finding carried forward from
-    the pre-push review into the post-push triage counts once. A record that
-    names no ids counts what it states in words (:func:`_stated_count`).
-    ``None`` means the PR carries no triage record, which is not the same as
-    a triage that found nothing.
+    A triage record is a review or comment :func:`is_triage_record` accepts:
+    the comments ``pr-triage`` and ``pr-ship`` post and the pre-push review
+    ``build`` posts. A record's findings are the distinct finding ids
+    (``phase8-slug-0``) it names, and the ids are pooled across records, so a
+    finding carried forward from the pre-push review into the post-push
+    triage counts once. A record that names no ids counts what it states in
+    words (:func:`_stated_count`). ``None`` means the PR carries no triage
+    record, which is not the same as a triage that found nothing.
     """
-    records = [body for body in bodies if _TRIAGE_RECORD.match(body)]
+    records = [body for body in bodies if is_triage_record(body)]
     if not records:
         return None
     ids: set[str] = set()

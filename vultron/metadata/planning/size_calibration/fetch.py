@@ -25,6 +25,7 @@ only loops :data:`~vultron.metadata.planning.gh.Runner` calls over it.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -209,12 +210,23 @@ def _parse_issue(node: JsonObject) -> ClosedIssue:
     )
 
 
+_OID = re.compile(r"[0-9a-f]{40}")
+
+
+def _oid(value: object, where: str) -> str:
+    """A full commit id, checked before it reaches a ``git`` command line."""
+    text = _str(value, where)
+    if not _OID.fullmatch(text):
+        raise GhError(f"{_WHAT}: {where} is not a commit id")
+    return text
+
+
 def _merge_commit(node: JsonObject, where: str) -> str | None:
     merge = node.get("mergeCommit")
     if merge is None:
         return None
     oid = _object(merge, f"{where} mergeCommit").get("oid")
-    return _str(oid, f"{where} mergeCommit oid")
+    return _oid(oid, f"{where} mergeCommit oid")
 
 
 def _parse_pr(node: JsonObject) -> tuple[MergedPr, tuple[ClosedIssue, ...]]:
@@ -230,7 +242,7 @@ def _parse_pr(node: JsonObject) -> tuple[MergedPr, tuple[ClosedIssue, ...]]:
     issues = tuple(_parse_issue(issue) for issue in issue_nodes)
     commit_nodes, _ = _connection(node, "commits", where)
     commits = tuple(
-        _str(
+        _oid(
             _object(entry.get("commit"), f"{where} commit").get("oid"),
             f"{where} commit oid",
         )

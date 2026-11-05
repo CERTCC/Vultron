@@ -345,6 +345,16 @@ def _stamp(moment: datetime) -> str:
     return moment.isoformat().replace("+00:00", "Z")
 
 
+def _merge(number: int) -> str:
+    """PR ``number``'s fixture merge commit id: 40 hex digits."""
+    return f"a{number:039d}"
+
+
+def _commit(number: int) -> str:
+    """PR ``number``'s one fixture commit id."""
+    return f"c{number:039d}"
+
+
 def _connection(nodes: Sequence[dict], total: int | None = None) -> dict:
     return {
         "totalCount": len(nodes) if total is None else total,
@@ -368,8 +378,8 @@ def _node(
         "mergedAt": _stamp(merged),
         "createdAt": _stamp(merged - timedelta(hours=2)),
         "headRefName": f"task/{number}-x",
-        "mergeCommit": {"oid": f"m{number}"},
-        "commits": _connection([{"commit": {"oid": f"c{number}"}}]),
+        "mergeCommit": {"oid": _merge(number)},
+        "commits": _connection([{"commit": {"oid": _commit(number)}}]),
         "reviews": _connection([]),
         "comments": _connection([]),
         "closingIssuesReferences": _connection(issues, issue_total),
@@ -434,8 +444,8 @@ class TestParseSearchPages:
                 head_ref="task/10-x",
                 open_for=timedelta(hours=2),
                 commit_count=1,
-                commits=("c10",),
-                merge_commit="m10",
+                commits=(_commit(10),),
+                merge_commit=_merge(10),
                 triage_findings=None,
             ),
         )
@@ -456,11 +466,11 @@ class TestParseSearchPages:
         assert read.triage_findings == 5
 
     def test_a_commit_list_cut_short_keeps_the_full_count(self):
-        commits = _connection([{"commit": {"oid": "c1"}}], total=140)
+        commits = _connection([{"commit": {"oid": _commit(1)}}], total=140)
         (read,) = fetch.parse_search_pages(
             [_page([_node(10, commits=commits)])]
         ).prs
-        assert (read.commit_count, read.commits) == (140, ("c1",))
+        assert (read.commit_count, read.commits) == (140, (_commit(1),))
         assert read.commits_complete is False
 
     def test_a_missing_merge_commit_reads_as_none(self):
@@ -515,6 +525,17 @@ class TestParseSearchPages:
             [_page([_node(10, headRefName=None)])],
             [_page([_node(10, createdAt="soon")])],
             [_page([_node(10, mergeCommit={"oid": 7})])],
+            [_page([_node(10, mergeCommit={"oid": "m10; rm -rf"})])],
+            [
+                _page(
+                    [
+                        _node(
+                            10,
+                            commits=_connection([{"commit": {"oid": "-p"}}]),
+                        )
+                    ]
+                )
+            ],
             [_page([_node(10, commits=_connection([{"commit": None}]))])],
             [_page([_node(10, reviews=_connection([{"body": None}]))])],
             [_page([_node(10, issues=[_issue_with(body=None)])])],
@@ -690,19 +711,22 @@ class TestCli:
         text = size_bands.calibrate(
             7, run=FakeRunner(*_slice([node])), now=NOW, git=git
         )
-        assert git.calls[0] == ["cat-file", "-e", "m10^{commit}"]
+        assert git.calls[0] == ["cat-file", "-e", f"{_merge(10)}^1^{{commit}}"]
         assert "1 bug-fix PRs (bug/ and fix/ branches) traced" in text
 
     def test_calibrate_reads_a_short_commit_list_from_this_clone(self):
-        commits = _connection([{"commit": {"oid": "c10"}}], total=101)
-        git = FakeRunner("", "m10\nc10\n")
+        commits = _connection([{"commit": {"oid": _commit(10)}}], total=101)
+        git = FakeRunner("", f"{_merge(10)}\n{_commit(10)}\n")
         text = size_bands.calibrate(
             7,
             run=FakeRunner(*_slice([_node(10, commits=commits)])),
             now=NOW,
             git=git,
         )
-        assert git.calls[-1] == ["rev-list", "m10^1..m10"]
+        assert git.calls[-1] == [
+            "rev-list",
+            f"{_merge(10)}^1..{_merge(10)}",
+        ]
         assert "Heavy review" in text
 
     def test_calibrate_refuses_a_non_positive_window(self):
