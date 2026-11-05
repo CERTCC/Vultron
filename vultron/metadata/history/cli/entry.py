@@ -26,6 +26,12 @@ from vultron.metadata.history.types import (
 
 _UTC = datetime.UTC
 
+_FRONTMATTER_REFUSAL = (
+    "body must not include a YAML frontmatter block (HM-07-002): "
+    "append-history builds frontmatter from --title and --source; "
+    "supply only the body text"
+)
+
 
 def _check_body_has_no_frontmatter(body: str) -> None:
     """Raise ValueError if *body* opens with a YAML mapping frontmatter block.
@@ -33,7 +39,10 @@ def _check_body_has_no_frontmatter(body: str) -> None:
     In stdin or ``--file`` mode the caller supplies body text only; the tool
     builds frontmatter from ``--title`` and ``--source`` (HM-07-005).
     A body whose first non-blank content is a ``---``-delimited YAML mapping
-    violates HM-07-002.
+    violates HM-07-002. So does a ``---`` block that fails to parse as YAML:
+    hand-written frontmatter with a typo (an unquoted ``: `` in a title) is
+    still frontmatter, and an entry cannot be fixed once written (HM-01-005).
+    A block that parses to a list or a scalar is not a mapping, so it passes.
 
     ``--from-file`` mode is exempt: that path calls :func:`_validate_frontmatter`,
     which *requires* a mapping block.
@@ -42,21 +51,23 @@ def _check_body_has_no_frontmatter(body: str) -> None:
         body: Raw body text from stdin or ``--file``.
 
     Raises:
-        ValueError: If *body* contains a YAML mapping frontmatter block
-            (HM-07-002).
+        ValueError: If *body* opens with a YAML mapping frontmatter block, or
+            with a ``---`` block that is malformed YAML (HM-07-002).
     """
     try:
         post = loads_frontmatter(body)
-    except MetadataLoadError:
-        # The ``---`` block exists but is not a YAML mapping (e.g. a list).
-        # That is not a frontmatter mapping; let the normal build proceed.
-        return
-    if post.metadata:
+    except MetadataLoadError as exc:
+        malformed_yaml = isinstance(exc.__cause__, yaml.YAMLError)
+        if not malformed_yaml:
+            # The block parsed, but to a list or a scalar: not a mapping, so
+            # not frontmatter. Let the normal build proceed.
+            return
         raise ValueError(
-            "body must not include a YAML frontmatter block (HM-07-002): "
-            "append-history builds frontmatter from --title and --source; "
-            "supply only the body text"
-        )
+            f"{_FRONTMATTER_REFUSAL}; the block is also malformed "
+            f"({exc.detail})"
+        ) from exc
+    if post.metadata:
+        raise ValueError(_FRONTMATTER_REFUSAL)
 
 
 def _validate_frontmatter(content: str) -> HistoryEntryFrontmatter:

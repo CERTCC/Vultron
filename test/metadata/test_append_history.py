@@ -1372,6 +1372,40 @@ class TestBodyFrontmatterRejection:
         )
         assert "HM-07-002" in result.stderr
 
+    def test_stdin_with_leading_blank_lines_then_frontmatter_refused(
+        self, fake_repo: Path
+    ) -> None:
+        """Blank lines before the block do not hide it: the first non-blank
+        line is what counts (HM-07-002)."""
+        result = _run_append(
+            "idea",
+            body="\n\n" + self._FM_BODY,
+            title="T",
+            source="IDEA-26110005",
+            cwd=fake_repo,
+        )
+        assert result.returncode != 0
+        assert "HM-07-002" in result.stderr
+
+    def test_stdin_with_malformed_frontmatter_refused(
+        self, fake_repo: Path
+    ) -> None:
+        """Hand-written frontmatter with a YAML typo is still refused.
+
+        An unquoted ``: `` in a title makes the block malformed YAML; letting
+        it through would write a second block into a write-once entry.
+        """
+        result = _run_append(
+            "idea",
+            body="---\ntitle: Fix: a thing\nsource: X\n---\n\nBody.\n",
+            title="T",
+            source="IDEA-26110006",
+            cwd=fake_repo,
+        )
+        assert result.returncode != 0
+        assert "HM-07-002" in result.stderr
+        assert "malformed" in result.stderr
+
     def test_body_without_frontmatter_is_accepted(
         self, fake_repo: Path
     ) -> None:
