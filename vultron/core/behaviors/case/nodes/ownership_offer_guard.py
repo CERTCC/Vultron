@@ -227,7 +227,7 @@ class NoOpenOwnershipOfferNode(
                 f"ownership-transfer proposal '{self.proposal_id}' was"
                 f" already made into Offer '{made.offer_id}' for case"
                 f" '{self.case_id}' — redelivery, nothing to apply"
-                " (HP-01-003)"
+                " (HP-01-014)"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

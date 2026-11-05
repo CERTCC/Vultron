@@ -37,7 +37,7 @@ from vultron.core.models.case import VulnerabilityCase
 #     absence mid-coordination is an anomaly, so ``require_case`` reports one
 #     canonical FAILURE at ``error`` level.
 #   Regime 2 — Replica-apply of a remote ledger entry.  ``resolve_case_replica``
-#     treats a missing *local* case as normal (partial replica, SYNC-02-001 /
+#     treats a missing *local* case as normal (partial replica,
 #     ADR-0073) and lets the caller SUCCESS-skip.
 #   Regime 3 — Case-under-construction (proposal / offer-received flows).
 #     Absence precedes a create and is handled inline by those nodes; they use
@@ -82,7 +82,7 @@ def require_case(
 
     Two disposition regimes deliberately do NOT use this helper (ADR-0087):
     replica-apply of remote ledger entries (:func:`resolve_case_replica`,
-    SYNC-02-001 / ADR-0073) and case-under-construction flows where absence
+    ADR-0073) and case-under-construction flows where absence
     legitimately precedes a create.
     """
     log = node_logger(node)
@@ -110,7 +110,7 @@ def resolve_case_replica(
     """Resolve a case for replica-apply of a remote ledger entry (Regime 2).
 
     Apply-from-ledger nodes run against a *partial* local replica whose case
-    row may legitimately be absent (SYNC-02-001, ADR-0073 per-actor storage):
+    row may legitimately be absent (ADR-0073 per-actor storage):
     the local store simply does not mirror that case yet.  Absence here is NOT
     an error — the caller returns ``Status.SUCCESS`` and skips the apply so the
     surrounding Announce processing is never blocked.  This logs at ``debug``
@@ -130,7 +130,7 @@ def resolve_case_replica(
         log = node_logger(node)
         log.debug(
             "%s: case '%s' not present in local replica;"
-            " skipping apply (SYNC-02-001)",
+            " skipping apply (ADR-0073)",
             node.name,
             case_id,
         )

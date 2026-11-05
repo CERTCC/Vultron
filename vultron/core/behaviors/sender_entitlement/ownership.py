@@ -242,7 +242,7 @@ class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
         assert self.datalayer is not None and self._case is not None
         assert self._offer is not None
         if self._offer.answer_id == self._reply_id:
-            return  # the admitted withdrawal, redelivered (HP-01-003)
+            return  # the admitted withdrawal, redelivered (HP-01-014)
         sender = self.sender_actor_id
         if not _holds_case_owner_role(self.datalayer, self._case, sender):
             raise NoStandingError(
@@ -318,7 +318,7 @@ class SenderIsOfferingCaseOwnerNode(SenderEntitlementConditionNode):
         if offerer is not None and same_actor_id(offerer, sender):
             self.logger.debug(
                 "%s: proposal '%s' was made into Offer '%s' for '%s'"
-                " — redelivery (HP-01-003)",
+                " — redelivery (HP-01-014)",
                 self.name,
                 self._proposal_id,
                 made.offer_id if made is not None else None,

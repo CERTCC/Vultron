@@ -815,7 +815,7 @@ class TestNoteUseCases:
 
         result = self._remove(dl, make_payload, _OWNER, note, case)
 
-        # HP-01-003: an idempotent re-removal is a no-op.
+        # HP-01-014: an idempotent re-removal is a no-op.
         assert result.disposition == HandlerDisposition.SKIPPED
         assert dl.list_objects("CaseLedgerEntry") == []
 

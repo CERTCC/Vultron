@@ -225,7 +225,7 @@ class OwnershipOfferOpenNode(
             self.feedback_message = (
                 f"Reply '{self._reply_id}' already closed ownership-transfer"
                 f" Offer '{offer.offer_id}' — redelivery, nothing to apply"
-                " (HP-01-003)"
+                " (HP-01-014)"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

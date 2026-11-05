@@ -60,7 +60,7 @@ fails too (the call count exceeds the one sanctioned); and an allowlist entry
 whose call no longer appears also fails (remove it).
 
 Spec: ADR-0087 (``docs/adr/0087-case-resolution-disposition-policy.md``).
-Related: #3101, #2701, SYNC-02-001, ADR-0073.
+Related: #3101, #2701, ADR-0073.
 """
 
 import ast

@@ -172,7 +172,7 @@ class IsWithdrawableEmbargoNode(
             self.is_redelivery = True
             self.feedback_message = (
                 f"Leave '{self.activity_id}' is already recorded for case"
-                f" '{self.case_id}' — redelivery, nothing to apply (HP-01-003)"
+                f" '{self.case_id}' — redelivery, nothing to apply (HP-01-014)"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

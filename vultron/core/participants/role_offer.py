@@ -73,7 +73,7 @@ def recorded_role_offer(
     """The entry that records the role Offer *offer_id*, or ``None``.
 
     A role Offer the ledger already records is a redelivery, not a new Offer
-    (HP-01-003), when the entry names the same role and target
+    (HP-01-014), when the entry names the same role and target
     (:func:`entry_names_role_offer`).
     """
     return next(

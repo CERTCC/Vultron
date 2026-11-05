@@ -65,7 +65,7 @@ def withdraw_from_embargo_on_case_tree(
         ├─ <sender guard>                        # composed from sender_rule
         ├─ ClockDecisionsIfCaseManager           # overdue invites (CM-28-015)
         ├─ IsWithdrawableEmbargoNode             # read-only guard (CLP-10-009)
-        │                                        # and redelivery (HP-01-003)
+        │                                        # and redelivery (HP-01-014)
         ├─ EmbargoWithdrawalApplies              # staged decision
         └─ WithdrawFromEmbargoOnCaseBTAct (ActTransaction)  # one act (ADR-0151)
            ├─ GuardedCommitCaseLedgerEntryBT        # the Leave's own entry
