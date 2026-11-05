@@ -192,7 +192,10 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   (`EmbargoTermsNotHeldNode`, EP-09-032): its end time equals a pending
   proposal's, or, with no revision pending, the embargo in force's. Keep the
   in-force end time during a revision admissible, because it is the
-  counter-proposal to keep the current terms (EP-09-020).
+  counter-proposal to keep the current terms (EP-09-020). The CASE_MANAGER's
+  own propose and revise triggers compose the same node, given `result_out`, so
+  there the repeat refuses the whole request instead: a trigger admits only
+  valid steps (RSH-09, #5899).
 
 ## TransitionMode and the P/X/A Guards
 
