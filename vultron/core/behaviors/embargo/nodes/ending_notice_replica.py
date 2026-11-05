@@ -30,6 +30,7 @@ CASE_MANAGER at a replica is the use case's sender guard (ADR-0115,
 PCR-03-001).
 """
 
+from datetime import datetime
 from typing import cast
 
 from py_trees.common import Status
@@ -45,9 +46,16 @@ from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    end_time_violations,
+)
 from vultron.core.participants.recipients import awaits_embargo_ending_notice
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.services.carried_embargo import hold_embargo_for_case
+from vultron.core.services.carried_embargo import (
+    embargo_for_case,
+    hold_embargo_for_case,
+)
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -71,6 +79,39 @@ def names_unadopted_revision(case: VulnerabilityCase, embargo_id: str) -> bool:
         return False
     entry = case.embargo_register_entry(embargo_id)
     return entry is None or entry.status not in FINAL_REGISTER_STATUSES
+
+
+def adopted_revision_timing_violations(
+    datalayer: CasePersistence,
+    case: VulnerabilityCase,
+    actor_id: str | None,
+    embargo_id: str | None,
+    embargo: EmbargoEvent | None,
+    termination: EmbargoTermination,
+    at: datetime | None,
+) -> list[str] | None:
+    """Judge a termination by the revision a paused replica adopts first.
+
+    ``None`` unless *actor_id* is a paused signatory (CM-31-010) and the
+    ``Remove`` names a revision it would adopt
+    (:func:`names_unadopted_revision`, CM-31-042).  Otherwise the reasons
+    *termination*, claimed at *at*, may not end that revision, judged by its
+    own end time: the stored record, else the ``Remove``'s inline copy
+    (EMB-18-003), checked as the adoption checks it (EMB-18-004).
+
+    Raises:
+        VultronNotFoundError: the revision cannot be read.
+        VultronValidationError: the revision belongs to another case.
+    """
+    if (
+        embargo_id is None
+        or actor_id is None
+        or not names_unadopted_revision(case, embargo_id)
+        or not awaits_embargo_ending_notice(case, datalayer, actor_id)
+    ):
+        return None
+    named = embargo_for_case(datalayer, case, embargo or embargo_id)
+    return end_time_violations(termination, end_time=named.end_time, at=at)
 
 
 class AwaitsEmbargoEndingNoticeNode(DataLayerConditionWithPorts):
@@ -323,5 +364,6 @@ __all__ = [
     "AdoptRemovedEmbargoRevisionNode",
     "ApplyAnnouncedEmbargoRevisionNode",
     "AwaitsEmbargoEndingNoticeNode",
+    "adopted_revision_timing_violations",
     "names_unadopted_revision",
 ]
