@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import subprocess
 
 from vultron.metadata.base import (
@@ -11,6 +10,7 @@ from vultron.metadata.base import (
     gh_issue_view,
     gh_lookup_failure,
 )
+from vultron.metadata.history.cli.source import SourceRefusedError
 from vultron.metadata.history.types import (
     HistoryEntryType,
 )
@@ -18,58 +18,36 @@ from vultron.metadata.history.types import (
 #: The repository whose issues receive history comments (HM-08-001).
 _REPO = "CERTCC/Vultron"
 
-#: A source that may name an issue: ``<PREFIX>-N`` (a run of letters, a
-#: hyphen, then digits), such as ``ISSUE-N``, ``TASK-N`` or ``BUG-N``, or a
-#: bare number. ``TASK-BTND5`` and ``ISSUE-4646-detail`` do not match.
-_ISSUE_SOURCE_RE = re.compile(r"^(?:[A-Za-z]+-)?(\d+)$", re.ASCII)
 
+def _confirm_issue(n: int) -> int:
+    """Return *n* when GitHub has issue *n* in CERTCC/Vultron (HM-08-001).
 
-_GITHUB_COMMENT_TYPES = frozenset(
-    {HistoryEntryType.implementation, HistoryEntryType.idea}
-)
-
-
-def _parse_issue_number(source: str) -> int | None:
-    """Return the N of a ``<PREFIX>-N`` or bare-number *source*, else None.
-
-    Only the form is checked here; :func:`_resolve_issue_number` asks GitHub
-    whether issue N exists. Zero is no issue number.
-    """
-    m = _ISSUE_SOURCE_RE.match(source.strip())
-    if m is None:
-        return None
-    n = int(m.group(1))
-    return n if n > 0 else None
-
-
-def _resolve_issue_number(source: str) -> int | None:
-    """Return the existing issue that *source* names, else None.
-
-    *source* names issue N when it has the ``<PREFIX>-N`` or bare-number form
-    (:func:`_parse_issue_number`) and ``gh issue view N`` finds N in
-    CERTCC/Vultron as an issue (HM-08-001). A number GitHub has no issue for,
-    such as the date in ``IDEA-26042702``, returns None, and so does a pull
-    request number and any other form (HM-08-003).
+    ``gh issue view`` answers for a pull request too, so the lookup reads the
+    URL and refuses a ``/pull/`` one.
 
     Raises:
+        SourceRefusedError: *n* names no issue, or names a pull request
+            (HM-08-009). Nothing is written in either case.
         RuntimeError: ``gh`` could not answer (missing, unauthenticated,
-            offline). The tool then cannot tell a comment from a file, so it
-            stops rather than guess.
+            offline), so the tool cannot tell whether the issue exists and
+            stops (HM-08-007).
     """
-    n = _parse_issue_number(source)
-    if n is None:
-        return None
     try:
         url = str(gh_issue_view(f"#{n}", ["url"], repo=_REPO)["url"])
     except GH_LOOKUP_ERRORS as exc:
         if gh_issue_missing(exc):
-            return None
+            raise SourceRefusedError(
+                f"--source ISSUE-{n}: {_REPO} has no issue #{n}"
+            ) from exc
         raise RuntimeError(
-            f"cannot tell whether --source {source!r} names an issue in "
+            f"cannot tell whether --source ISSUE-{n} names an issue in "
             f"{_REPO}: {gh_lookup_failure(exc)}"
         ) from exc
-    # ``gh issue view`` answers for a pull request too; that is no issue.
-    return None if "/pull/" in url else n
+    if "/pull/" in url:
+        raise SourceRefusedError(
+            f"--source ISSUE-{n}: #{n} is a pull request, not an issue"
+        )
+    return n
 
 
 def _post_github_comment(

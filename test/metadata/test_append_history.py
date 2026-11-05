@@ -26,9 +26,16 @@ _IDEA_BODY = "This is a test idea body.\n"
 _IMPL_BODY = "Completed a test task.\n"
 
 _DEFAULT_TITLE = "Test Idea"
-_DEFAULT_SOURCE = "IDEA-TEST-001"
+_DEFAULT_SOURCE = "IDEA-26043001"
 _IMPL_TITLE = "Test Implementation Task"
-_IMPL_SOURCE = "TASK-TEST-001"
+_IMPL_SOURCE = "ISSUE-1-test-task"
+#: A source each type writes to a file with (HM-08-003 for idea/implementation).
+_VALID_SOURCE = {
+    "idea": "IDEA-26043002",
+    "implementation": "ISSUE-1-detail",
+    "learning": "SRC-LEARNING",
+    "priority": "SRC-PRIORITY",
+}
 
 
 @pytest.fixture()
@@ -44,9 +51,8 @@ def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def _no_real_gh(monkeypatch: pytest.MonkeyPatch) -> None:
     """No test asks the real GitHub whether an issue exists.
 
-    A source such as ``SRC-1`` has the ``<PREFIX>-N`` form, so an unstubbed
-    run would look up, and could comment on, a real issue. Tests that need an
-    answer stub ``gh_issue_view`` themselves.
+    An unstubbed ``ISSUE-N`` run would look up, and could comment on, a real
+    issue. Tests that need an answer stub ``gh_issue_view`` themselves.
     """
 
     def refuse(
@@ -168,15 +174,15 @@ class TestAppendHistoryEntryCreation:
         assert result.returncode == 0
         written_path = Path(result.stdout.strip())
         assert written_path.exists()
-        # Path should be plan/history/YYMM/idea/IDEA-TEST-001.md
+        # Path should be plan/history/YYMM/idea/IDEA-26043001.md
         assert written_path.parent.name == "idea"
-        assert written_path.stem == "IDEA-TEST-001"
+        assert written_path.stem == "IDEA-26043001"
 
     def test_written_path_printed_to_stdout(self, fake_repo: Path) -> None:
         result = _run_append("idea", cwd=fake_repo)
         assert result.returncode == 0
         printed = result.stdout.strip()
-        assert "IDEA-TEST-001" in printed
+        assert "IDEA-26043001" in printed
 
     def test_entry_body_preserved(self, fake_repo: Path) -> None:
         result = _run_append("idea", body=_IDEA_BODY, cwd=fake_repo)
@@ -256,7 +262,7 @@ class TestAppendHistoryReadmeRegeneration:
         written_path = Path(result.stdout.strip())
         month_dir = written_path.parent.parent
         readme_text = (month_dir / "README.md").read_text()
-        assert "IDEA-TEST-001" in readme_text
+        assert "IDEA-26043001" in readme_text
         assert "Test Idea" in readme_text
 
     def test_readme_has_time_utc_column(self, fake_repo: Path) -> None:
@@ -274,7 +280,7 @@ class TestAppendHistoryReadmeRegeneration:
             "implementation",
             body=_IMPL_BODY,
             title=_IMPL_TITLE,
-            source="TASK-DATED",
+            source="ISSUE-1-dated",
             extra_args=["--timestamp", "2025-12-15T09:30:45+00:00"],
             cwd=fake_repo,
         )
@@ -284,7 +290,9 @@ class TestAppendHistoryReadmeRegeneration:
         ).read_text()
         assert "| Date | Time (UTC) |" in readme_text
         row = next(
-            line for line in readme_text.splitlines() if "TASK-DATED" in line
+            line
+            for line in readme_text.splitlines()
+            if "ISSUE-1-dated" in line
         )
         cells = [cell.strip() for cell in row.strip("|").split("|")]
         assert "2025-12-15" in cells
@@ -294,9 +302,9 @@ class TestAppendHistoryReadmeRegeneration:
     def test_readme_sorted_newest_first(self, fake_repo: Path) -> None:
         """The index lists the newest entry first, whatever the write order."""
         for source, stamp in (
-            ("TASK-OLDER", "2025-12-01T08:00:00+00:00"),
-            ("TASK-NEWER", "2025-12-15T09:30:00+00:00"),
-            ("TASK-MIDDLE", "2025-12-10T12:00:00+00:00"),
+            ("ISSUE-1-older", "2025-12-01T08:00:00+00:00"),
+            ("ISSUE-1-newer", "2025-12-15T09:30:00+00:00"),
+            ("ISSUE-1-middle", "2025-12-10T12:00:00+00:00"),
         ):
             result = _run_append(
                 "implementation",
@@ -312,7 +320,7 @@ class TestAppendHistoryReadmeRegeneration:
         ).read_text()
         positions = [
             readme_text.index(source)
-            for source in ("TASK-NEWER", "TASK-MIDDLE", "TASK-OLDER")
+            for source in ("ISSUE-1-newer", "ISSUE-1-middle", "ISSUE-1-older")
         ]
         assert positions == sorted(positions)
 
@@ -346,8 +354,8 @@ class TestAppendHistoryReadmeRegeneration:
         written_path = Path(result.stdout.strip())
         month_dir = written_path.parent.parent
         readme_text = (month_dir / "README.md").read_text()
-        assert "IDEA-TEST-001" in readme_text
-        assert "TASK-TEST-001" in readme_text
+        assert "IDEA-26043001" in readme_text
+        assert "ISSUE-1-test-task" in readme_text
 
 
 class TestAppendHistoryTypeValidation:
@@ -372,7 +380,7 @@ class TestAppendHistoryTypeValidation:
             valid_type,
             body="Body.\n",
             title="T",
-            source=f"SRC-{valid_type.upper()}",
+            source=_VALID_SOURCE[valid_type],
             cwd=fake_repo,
         )
         assert result.returncode == 0
@@ -609,12 +617,12 @@ class TestReadmeGenValidation:
             "implementation",
             body=_IMPL_BODY,
             title=_IMPL_TITLE,
-            source="NEW-ENTRY",
+            source="ISSUE-1-new-entry",
             cwd=fake_repo,
         )
 
         assert result.returncode != 0
-        new_file = impl_dir / "NEW-ENTRY.md"
+        new_file = impl_dir / "ISSUE-1-new-entry.md"
         assert not new_file.exists(), "new entry file should be rolled back"
 
 
@@ -667,6 +675,40 @@ def _run_from_file(
 
 class TestFromFileMode:
     """append-history --from-file: move a pre-formatted incoming learning file."""
+
+    @pytest.mark.parametrize(
+        ("entry_type", "source", "accepted"),
+        [
+            ("implementation", "ISSUE-4646", False),
+            ("implementation", "TASK-4646", False),
+            ("implementation", "ISSUE-4646-detail", True),
+            ("idea", "IDEA-26042702", True),
+            ("idea", "IDEA-2066", False),
+        ],
+    )
+    @pytest.mark.spec("HM-08-008")
+    def test_implementation_and_idea_files_follow_the_vocabulary(
+        self,
+        fake_repo: Path,
+        tmp_path: Path,
+        entry_type: str,
+        source: str,
+        accepted: bool,
+    ) -> None:
+        """Only a file form is archived; ISSUE-N belongs on the issue and any
+        other source is refused, with the source file left in place."""
+        src = _make_incoming_file(
+            tmp_path,
+            content=(
+                f"---\ntitle: T\ntype: {entry_type}\n"
+                "timestamp: '2026-06-22T10:00:00+00:00'\n"
+                f"source: {source}\n---\n\nBody.\n"
+            ),
+            filename=f"{source}.md",
+        )
+        result = _run_from_file(src)
+        assert (result.returncode == 0) is accepted, result.stderr
+        assert src.exists() is not accepted
 
     def test_archives_file_to_history(
         self, fake_repo: Path, tmp_path: Path
@@ -907,91 +949,116 @@ class TestSignalFlag:
         assert "signal: spec-gap" in content
 
 
-class TestParseIssueNumber:
-    """The source forms that may name an issue (HM-08-001, HM-08-003)."""
+class TestClassifySource:
+    """The implementation and idea source vocabulary (HM-08-001/003/008)."""
 
     @pytest.mark.parametrize(
-        ("source", "expected"),
+        ("entry_type", "source", "expected"),
         [
-            ("ISSUE-2159", 2159),
-            ("issue-42", 42),
-            ("123", 123),
-            ("TASK-4646", 4646),
-            ("BUG-17", 17),
-            ("CONCERN-507", 507),
-            ("IDEA-26042702", 26042702),
-            ("  TASK-9  ", 9),
+            ("implementation", "ISSUE-2159", 2159),
+            ("idea", "ISSUE-42", 42),
+            ("implementation", "ISSUE-4646-detail", None),
+            ("implementation", "ISSUE-12-pr-body-record", None),
+            ("idea", "IDEA-26042702", None),
         ],
     )
-    def test_prefix_dash_number_parses(
-        self, source: str, expected: int
+    def test_accepted_forms(
+        self, entry_type: str, source: str, expected: int | None
     ) -> None:
-        from vultron.metadata.history.cli.github import _parse_issue_number
+        from vultron.metadata.history.cli.source import classify_source
+        from vultron.metadata.history.types import HistoryEntryType
 
-        assert _parse_issue_number(source) == expected
+        assert (
+            classify_source(HistoryEntryType(entry_type), source) == expected
+        )
 
     @pytest.mark.parametrize(
-        "source",
+        ("entry_type", "source", "suggestion"),
         [
-            "TASK-BTND5",
-            "ISSUE-4646-detail",
-            "IDEA-TEST-001",
-            "TASK4646",
-            "-1",
-            "0",
-            "TASK-\u0664\u0662",
-            "ISSUE-0",
-            "",
-            "#12",
+            ("implementation", "TASK-4646", "ISSUE-4646"),
+            ("implementation", "ADR-0041", "ISSUE-41"),
+            ("implementation", "4646", "ISSUE-4646"),
+            ("implementation", "issue-42", "ISSUE-42"),
+            ("implementation", "ISSUE-042", "ISSUE-42"),
+            ("implementation", "IDEA-26042702", None),
+            ("implementation", "TASK-BTND5", None),
+            ("implementation", "ISSUE-0", None),
+            ("implementation", "ISSUE-12-Upper", None),
+            ("implementation", "ISSUE-\u0664\u0662", None),
+            ("idea", "IDEA-2066", "ISSUE-2066"),
+            ("idea", "ISSUE-4646-detail", None),
+            ("idea", "IDEA-TEST-001", None),
+            ("idea", "BUG-2505", "ISSUE-2505"),
         ],
     )
-    def test_other_forms_do_not_parse(self, source: str) -> None:
-        from vultron.metadata.history.cli.github import _parse_issue_number
+    @pytest.mark.spec("HM-08-008")
+    def test_other_forms_are_refused_naming_the_accepted_ones(
+        self, entry_type: str, source: str, suggestion: str | None
+    ) -> None:
+        from vultron.metadata.history.cli.source import (
+            SourceRefusedError,
+            classify_source,
+        )
+        from vultron.metadata.history.types import HistoryEntryType
 
-        assert _parse_issue_number(source) is None
+        with pytest.raises(SourceRefusedError) as info:
+            classify_source(HistoryEntryType(entry_type), source)
+        message = str(info.value)
+        assert "ISSUE-N" in message
+        file_form = (
+            "ISSUE-N-<slug>"
+            if entry_type == "implementation"
+            else "IDEA-YYMMDDNN"
+        )
+        assert file_form in message
+        if suggestion is not None:
+            assert f"use {suggestion}" in message
+
+    @pytest.mark.parametrize("entry_type", ["learning", "note", "priority"])
+    def test_other_types_are_free_form(self, entry_type: str) -> None:
+        from vultron.metadata.history.cli.source import classify_source
+        from vultron.metadata.history.types import HistoryEntryType
+
+        for source in ("TASK-4646", "ISSUE-12", "anything"):
+            assert (
+                classify_source(HistoryEntryType(entry_type), source) is None
+            )
 
 
-class TestResolveIssueNumber:
-    """A parsed number counts only if GitHub has the issue (HM-08-001/003)."""
+class TestConfirmIssue:
+    """``ISSUE-N`` posts only when N is an issue (HM-08-001, -007, -009)."""
 
     @pytest.mark.spec("HM-08-001")
-    def test_prefixed_source_naming_an_existing_issue_resolves(
+    def test_existing_issue_is_confirmed(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
+        from vultron.metadata.history.cli.github import _confirm_issue
 
         lookups = _stub_issues(monkeypatch, {4646})
-        assert _resolve_issue_number("TASK-4646") == 4646
+        assert _confirm_issue(4646) == 4646
         assert lookups == [("#4646", "CERTCC/Vultron")]
 
-    @pytest.mark.spec("HM-08-003")
-    def test_prefixed_source_naming_no_issue_returns_none(
+    @pytest.mark.spec("HM-08-009")
+    def test_missing_issue_is_refused(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
+        from vultron.metadata.history.cli.github import _confirm_issue
+        from vultron.metadata.history.cli.source import SourceRefusedError
 
         _stub_issues(monkeypatch, {4646})
-        assert _resolve_issue_number("BUG-99999") is None
-        assert _resolve_issue_number("IDEA-26042702") is None
+        with pytest.raises(SourceRefusedError, match="no issue #99999"):
+            _confirm_issue(99999)
 
-    @pytest.mark.spec("HM-08-003")
-    def test_pull_request_number_returns_none(
+    @pytest.mark.spec("HM-08-009")
+    def test_pull_request_is_refused(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """``gh issue view`` answers for a PR too; a PR is not an issue."""
-        from vultron.metadata.history.cli.github import _resolve_issue_number
+        from vultron.metadata.history.cli.github import _confirm_issue
+        from vultron.metadata.history.cli.source import SourceRefusedError
 
         _stub_issues(monkeypatch, set(), pulls=frozenset({5837}))
-        assert _resolve_issue_number("TASK-5837") is None
-
-    def test_unparsed_source_asks_github_nothing(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        from vultron.metadata.history.cli.github import _resolve_issue_number
-
-        lookups = _stub_issues(monkeypatch, {5})
-        assert _resolve_issue_number("TASK-BTND5") is None
-        assert lookups == []
+        with pytest.raises(SourceRefusedError, match="pull request"):
+            _confirm_issue(5837)
 
     @pytest.mark.parametrize(
         "error",
@@ -1005,11 +1072,11 @@ class TestResolveIssueNumber:
         self, monkeypatch: pytest.MonkeyPatch, error: Exception
     ) -> None:
         """No answer is not "no such issue": the tool stops, never guesses."""
-        from vultron.metadata.history.cli.github import _resolve_issue_number
+        from vultron.metadata.history.cli.github import _confirm_issue
 
         _fail_lookups(monkeypatch, error)
-        with pytest.raises(RuntimeError, match="TASK-4646"):
-            _resolve_issue_number("TASK-4646")
+        with pytest.raises(RuntimeError, match="ISSUE-4646"):
+            _confirm_issue(4646)
 
 
 _COMMENT_URL = (
@@ -1018,13 +1085,13 @@ _COMMENT_URL = (
 
 
 class TestGitHubCommentMode:
-    """HM-08-001 through HM-08-005: GitHub comment output mode."""
+    """HM-08: the CLI's comment mode, file forms and refusals."""
 
     @pytest.fixture()
     def existing(self, monkeypatch: pytest.MonkeyPatch) -> set[int]:
-        """Issues that exist; tests add to the set before running."""
+        """Issues that exist; #5837 is a pull request."""
         issues: set[int] = {42, 2159, 4646}
-        _stub_issues(monkeypatch, issues)
+        _stub_issues(monkeypatch, issues, pulls=frozenset({5837}))
         return issues
 
     def _run_with_mock_gh(
@@ -1062,13 +1129,10 @@ class TestGitHubCommentMode:
         [
             ("implementation", "ISSUE-2159", "2159"),
             ("idea", "ISSUE-42", "42"),
-            ("implementation", "2159", "2159"),
-            ("implementation", "TASK-4646", "4646"),
-            ("idea", "BUG-42", "42"),
         ],
     )
     @pytest.mark.spec("HM-08-001")
-    def test_source_naming_an_existing_issue_posts_comment(
+    def test_issue_source_posts_comment(
         self,
         fake_repo: Path,
         existing: set[int],
@@ -1076,7 +1140,7 @@ class TestGitHubCommentMode:
         source: str,
         issue: str,
     ) -> None:
-        """ISSUE-N, bare N and any <PREFIX>-N post on issue N (HM-08-001)."""
+        """ISSUE-N naming an existing issue posts on issue N (HM-08-001)."""
         result, mock_run = self._run_with_mock_gh(entry_type, source)
         assert result.returncode == 0, result.stderr
         argv = mock_run.call_args[0][0]
@@ -1095,29 +1159,64 @@ class TestGitHubCommentMode:
     @pytest.mark.parametrize(
         ("entry_type", "source"),
         [
-            ("implementation", "TASK-99999"),
-            ("implementation", "ISSUE-99999"),
+            ("implementation", "ISSUE-4646-detail"),
             ("idea", "IDEA-26042702"),
-            ("implementation", "TASK-BTND5"),
         ],
     )
     @pytest.mark.spec("HM-08-003")
-    def test_source_naming_no_issue_writes_file(
+    def test_file_form_writes_file_without_asking_github(
+        self,
+        fake_repo: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        entry_type: str,
+        source: str,
+    ) -> None:
+        """ISSUE-N-<slug> and IDEA-YYMMDDNN write a file; gh is never asked."""
+        lookups = _stub_issues(monkeypatch, {4646})
+        result, mock_run = self._run_with_mock_gh(entry_type, source)
+        assert result.returncode == 0, result.stderr
+        written = Path(result.stdout.strip())
+        assert written.exists()
+        assert f"source: {source}" in written.read_text()
+        assert not mock_run.called
+        assert lookups == []
+
+    @pytest.mark.parametrize(
+        ("entry_type", "source"),
+        [
+            ("implementation", "TASK-4646"),
+            ("implementation", "ADR-0041"),
+            ("implementation", "4646"),
+            ("idea", "IDEA-2066"),
+            ("idea", "ISSUE-4646-detail"),
+        ],
+    )
+    @pytest.mark.spec("HM-08-008")
+    def test_other_source_is_refused_and_writes_nothing(
         self,
         fake_repo: Path,
         existing: set[int],
         entry_type: str,
         source: str,
     ) -> None:
-        """A prefixed number with no issue, a date ID or another form writes a
-        file and posts nothing (HM-08-003)."""
+        """A source outside the vocabulary exits 1 and writes nothing."""
         result, mock_run = self._run_with_mock_gh(entry_type, source)
-        assert result.returncode == 0, result.stderr
-        written = Path(result.stdout.strip())
-        assert written.exists()
-        assert written.suffix == ".md"
-        assert f"source: {source}" in written.read_text()
+        assert result.returncode != 0
+        assert "ISSUE-N" in result.stderr
         assert not mock_run.called
+        assert not self._history_files(fake_repo)
+
+    @pytest.mark.parametrize("source", ["ISSUE-99999", "ISSUE-5837"])
+    @pytest.mark.spec("HM-08-009")
+    def test_issue_source_naming_no_issue_is_refused(
+        self, fake_repo: Path, existing: set[int], source: str
+    ) -> None:
+        """ISSUE-N for a missing issue or a pull request is refused, not
+        filed (HM-08-009)."""
+        result, mock_run = self._run_with_mock_gh("implementation", source)
+        assert result.returncode != 0
+        assert not mock_run.called
+        assert not self._history_files(fake_repo)
 
     def test_learning_issue_source_writes_file(
         self, fake_repo: Path, existing: set[int]
@@ -1176,30 +1275,13 @@ class TestGitHubCommentMode:
             monkeypatch,
             subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 401\n"),
         )
-        with patch(
-            "vultron.metadata.history.cli.github.subprocess.run"
-        ) as mock_run:
-            result = _run_append(
-                "implementation",
-                body=_IMPL_BODY,
-                title="T",
-                source="TASK-4646",
-            )
+        result, mock_run = self._run_with_mock_gh(
+            "implementation", "ISSUE-4646"
+        )
         assert result.returncode != 0
         assert "HTTP 401" in result.stderr
         assert not mock_run.called
         assert not self._history_files(fake_repo)
-
-    @pytest.mark.spec("HM-08-003")
-    def test_pull_request_source_writes_file(
-        self, fake_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """A source naming a pull request takes file mode, posts nothing."""
-        _stub_issues(monkeypatch, set(), pulls=frozenset({5837}))
-        result, mock_run = self._run_with_mock_gh("implementation", "PR-5837")
-        assert result.returncode == 0, result.stderr
-        assert Path(result.stdout.strip()).exists()
-        assert not mock_run.called
 
     def test_blank_title_is_refused_before_any_comment(
         self, fake_repo: Path, existing: set[int]
