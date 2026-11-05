@@ -248,6 +248,13 @@ groups:
       spec_id: HP-01-010
     - rel_type: constrains
       spec_id: HP-10-001
+    see_also:
+    - spec_id: HP-09-001
+      reason: 'context for the reader'
+    - spec_id: HP-09-002
+      reason: 'context for the reader'
+    - spec_id: OX-08-001
+      reason: 'context for the reader'
   - id: HP-01-017
     priority: MUST_NOT
     kind: project
@@ -300,6 +307,9 @@ groups:
       spec_id: HP-00-001
     adr:
     - ADR-0115
+    see_also:
+    - spec_id: BT-17-001
+      reason: 'context for the reader'
   - id: HP-01-018
     priority: MUST
     kind: protocol
@@ -444,6 +454,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: HP-01-008
+    - rel_type: uses_definition
+      spec_id: HP-01-009
     adr:
     - ADR-0129
   - id: HP-01-023
@@ -862,6 +874,8 @@ groups:
       spec_id: HP-01-005
     - rel_type: depends_on
       spec_id: HP-01-038
+    - rel_type: uses_definition
+      spec_id: HP-01-035
     adr:
     - ADR-0153
   - id: HP-01-040
@@ -917,6 +931,9 @@ groups:
       spec_id: HP-01-038
     adr:
     - ADR-0153
+    see_also:
+    - spec_id: HP-01-035
+      reason: 'a rationale: the refusal the declaration keeps a case-scoped type from'
   - id: HP-01-042
     priority: MUST
     kind: architecture
@@ -960,8 +977,17 @@ groups:
       spec_id: HP-01-038
     - rel_type: depends_on
       spec_id: HP-01-036
+    - rel_type: uses_definition
+      spec_id: HP-01-035
     adr:
     - ADR-0153
+    see_also:
+    - spec_id: BT-17-008
+      reason: >-
+        scope statement: which branches already count as the guard BT-17-008 asks for
+    - spec_id: RSH-08-003
+      reason: >-
+        scope statement: which branches already count as the gate RSH-08-003 asks for
   - id: HP-01-043
     priority: MUST_NOT
     kind: architecture
@@ -980,6 +1006,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: HP-01-042
+    - rel_type: uses_definition
+      spec_id: HP-01-038
     adr:
     - ADR-0153
   - id: HP-01-032
@@ -1307,6 +1335,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: CLP-10-005
+    see_also:
+    - spec_id: BT-15-001
+      reason: 'context for the reader'
   - id: HP-08-003
     priority: MUST_NOT
     kind: project
@@ -1486,6 +1517,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: HP-08-006
+    - rel_type: supersedes
+      spec_id: HP-08-010
   - id: HP-08-012
     priority: MUST_NOT
     kind: project
@@ -1522,6 +1555,9 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: HP-08-008
+    see_also:
+    - spec_id: HP-08-007
+      reason: 'an analogy: the same refusal for another object type'
   - id: HP-08-014
     priority: MUST
     kind: project

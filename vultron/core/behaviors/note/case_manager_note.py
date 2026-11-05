@@ -27,7 +27,7 @@ it already holds (HP-08-006).  It records the note as its own act instead
 addressed to nobody, commits its sealed blob as an ``add_note_to_case``
 entry, then attaches the note to its case.  The ``Announce(CaseLedgerEntry)``
 fan-out is the delivery, and each replica attaches the note from the entry
-(``ApplyNoteFromLedgerNode``, SYNC-02-002).
+(``ApplyNoteFromLedgerNode``, SYNC-02-001, SYNC-02-003).
 
 Every active participant sees such a note, not only the one it is for.  A
 private message outside the case record is not implemented (#4885).

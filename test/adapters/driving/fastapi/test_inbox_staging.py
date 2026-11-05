@@ -49,9 +49,12 @@ from vultron.adapters.inbox_staging.staging import _stage_inline_object
 from vultron.adapters.inbox_staging.store import _StagingStore
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+    ReceivedStage,
+)
 from vultron.errors import VultronWiringError
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import add_note_to_case_activity
@@ -129,9 +132,11 @@ def test_deferred_activity_replays_with_its_inline_object(dl):
     body = _add_note_body()
     routed = _routed(dl, body, staging=staging)
     queue.queue(activity_id=routed.id_, case_id=_CASE_ID)
-    held = dl.read(DeferredInboxActivity.build_id(routed.id_))
-    assert isinstance(held, DeferredInboxActivity)
-    assert held.received_body is not None
+    held = dl.read(ReceivedActivityRecord.build_id(routed.id_))
+    assert isinstance(held, ReceivedActivityRecord)
+    assert held.stage is ReceivedStage.HELD
+    assert held.replay_owed
+    assert held.awaiting_case_id == _CASE_ID
     assert json.loads(held.received_body) == body, "held as it arrived"
     assert dl.read(routed.id_) is None, "never under the sender's id"
 
@@ -153,7 +158,9 @@ def test_deferred_activity_replays_with_its_inline_object(dl):
     )
     assert replayed.received_evidence == body, "the first delivery's evidence"
     assert dl.read(_NOTE_ID) is None
-    assert dl.read(DeferredInboxActivity.build_id(routed.id_)) is None
+    # Never archived, so the record the replay released goes entirely
+    # (CLP-10-018).
+    assert dl.read(ReceivedActivityRecord.build_id(routed.id_)) is None
 
 
 @pytest.mark.spec("IO-03-004", "CBT-03-003")
@@ -178,7 +185,7 @@ def test_expired_queue_drops_the_inline_objects_held_for_replay(dl):
     )
 
     assert expired is True
-    assert dl.read(DeferredInboxActivity.build_id(routed.id_)) is None
+    assert dl.read(ReceivedActivityRecord.build_id(routed.id_)) is None
 
 
 @pytest.mark.spec("IO-03-004")
@@ -230,7 +237,7 @@ def test_held_rows_are_released_when_the_replay_rebuild_raises(
     queue = FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging)
     routed = _routed(dl, _add_note_body(), staging=staging)
     queue.queue(activity_id=routed.id_, case_id=_CASE_ID)
-    held_id = DeferredInboxActivity.build_id(routed.id_)
+    held_id = ReceivedActivityRecord.build_id(routed.id_)
     assert dl.read(held_id) is not None
 
     def _fail(*_args: Any, **_kwargs: Any) -> None:
@@ -607,9 +614,10 @@ def test_deferring_an_activity_with_no_inline_object_holds_it_alone(dl):
 
     queue.queue(activity_id=routed.id_, case_id=_CASE_ID)
 
-    held = dl.read(DeferredInboxActivity.build_id(routed.id_))
-    assert isinstance(held, DeferredInboxActivity)
-    assert json.loads(held.rows_json) == []
+    held = dl.read(ReceivedActivityRecord.build_id(routed.id_))
+    assert isinstance(held, ReceivedActivityRecord)
+    assert held.replay_owed
+    assert json.loads(held.replay_rows_json) == []
     replayed = StoredActivityIngressAdapter(dl=dl, staging=staging).parse(
         routed.id_
     )
@@ -656,7 +664,7 @@ def test_a_redelivery_of_a_deferred_activity_is_not_held_again(dl):
     assert again.hold_for_replay(routed.id_) is False
     held = staging.held(routed.id_)
     assert held == held_before
-    assert held is not None and held.received_body is not None
+    assert held is not None
     assert json.loads(held.received_body) == first
 
 
@@ -674,7 +682,7 @@ def test_a_released_activity_queued_again_is_held_as_first_held(dl):
     assert replaying.hold_for_replay(routed.id_)
 
     held = replaying.held(routed.id_)
-    assert held is not None and held.received_body is not None
+    assert held is not None
     assert json.loads(held.received_body) == body
 
 

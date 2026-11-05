@@ -224,7 +224,7 @@ class ParticipantNotYetRemovedNode(
     """Idempotency guard: the named participant does not carry the removal fact.
 
     A removal of an already-removed participant is a legitimate no-op
-    (CM-31-004, HP-01-003): this guard fails silently before the guarded
+    (CM-31-004, HP-01-014): this guard fails silently before the guarded
     commit, so the repeat commits no ledger entry (CLP-13-001), and the
     handler reads its ``FAILURE`` as ``SKIPPED``.  The first removal stands;
     the participant is not sent a second notice.

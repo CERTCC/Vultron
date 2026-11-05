@@ -94,6 +94,9 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: MV-01-005
+    see_also:
+    - spec_id: MV-01-001
+      reason: 'context for the reader'
   - id: MV-01-007
     priority: MUST_NOT
     kind: project
@@ -344,6 +347,9 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: AKM-05-003
+    see_also:
+    - spec_id: AKM-05-004
+      reason: 'context for the reader'
   - id: MV-09-002
     priority: MUST
     kind: project
@@ -526,17 +532,24 @@ groups:
       would stand in for a case the activity needs whole, or show case context to a
       party that was not asked to join. An embargo invitation names its case by URI as
       well.
+    note: >-
+      The invited actor travels inline, as its profile or an actor reference
+      (AKM-05-017). An `Invite` whose `object` is a bare URI or `Link` is no case
+      invitation: it may name an embargo invitation's terms (ADR-0123), which
+      rehydration resolves only after the parser has checked the stub.
     verification: >-
       `test/wire/as2/test_case_stub_placement.py`:
       `test_a_stub_as_the_target_of_a_case_invitation_is_accepted` parses the case
       invitation and its `Accept` and `Reject`, and
-      `test_a_case_invitation_naming_its_invitee_by_reference_keeps_its_stub` one that
-      names its invitee by URI or `Link`, and
+      `test_a_case_invitation_naming_its_invitee_by_actor_reference_keeps_its_stub` one
+      that names its invitee by an actor reference, and
       `test_a_refusal_notice_quoting_a_reply_to_a_case_invitation_is_accepted` a
       refusal notice that quotes the `Accept` or `Reject`;
       `test_a_stub_outside_a_case_invitation_target_is_refused`,
       `test_a_stub_as_the_target_of_another_activity_is_refused`,
       `test_a_stub_in_an_embargo_invitation_is_refused`,
+      `test_an_invite_naming_its_object_by_uri_or_link_loses_its_stub`,
+      `test_an_embargo_invitation_naming_its_terms_by_reference_keeps_no_stub`,
       `test_a_stub_nested_outside_the_invite_target_is_refused` and
       `test_a_stub_inside_an_inline_domain_object_is_refused` assert that a stub in
       every other position is refused with the position named; and
@@ -718,6 +731,11 @@ groups:
     adr:
     - ADR-0099
     - ADR-0175
+    see_also:
+    - spec_id: CS-14-001
+      reason: 'context for the reader'
+    - spec_id: CS-14-002
+      reason: 'context for the reader'
   - id: MV-11-007
     priority: MUST_NOT
     kind: project
@@ -833,6 +851,9 @@ groups:
       spec_id: MV-11-003
     adr:
     - ADR-0099
+    see_also:
+    - spec_id: VM-08-002
+      reason: 'context for the reader'
   - id: MV-11-004
     priority: MUST_NOT
     kind: architecture

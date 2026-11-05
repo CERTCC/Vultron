@@ -24,6 +24,7 @@ from vultron.adapters.driving.fastapi.inbox_handler import (
     emit_processing_fault,
 )
 from vultron.adapters.driving.fastapi.inbox_pending_queue import (
+    _case_window_is_open,
     _expire_pending_case_activities,
     _queue_pending_case_activity,
     _replay_pending_case_activities,
@@ -118,14 +119,20 @@ class FastAPIQueuePort:
         The activity is held whole with its staged inline objects, because
         the replay rebuilds it after this delivery's staging is gone, and the
         receiver keeps no copy under its id (DL-06-006).  It is held before
-        it is queued, so a failed hold queues nothing.
+        it is queued, so a failed hold queues nothing.  The hold is what
+        records the wait: the held record names *case_id* it waits on, and
+        the per-case record only opens the expiry window (ADR-0154).
         """
-        self._staging.hold_for_replay(activity_id)
+        # Read before the hold: the hold is what makes this activity one of
+        # the waiting, so only a reading taken first tells a first arrival
+        # from a redelivery of the only waiter (CBT-03-003).
+        window_already_open = _case_window_is_open(self._actor_dl, case_id)
+        self._staging.hold_for_replay(activity_id, awaiting_case_id=case_id)
         _queue_pending_case_activity(
             queue_dl=self._actor_dl,
             case_id=case_id,
-            activity_id=activity_id,
             case_actor_id=case_actor_id,
+            window_already_open=window_already_open,
         )
 
     def check_and_expire(self, case_id: str) -> bool:

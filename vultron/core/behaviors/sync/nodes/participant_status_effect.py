@@ -27,7 +27,7 @@ node returns FAILURE.  The two nodes are wired in a Selector in ``announce_tree/
 to guarantee that either the status is applied successfully or a fault is emitted.
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
-specs/sync-ledger-replication.yaml SYNC-02-002, and
+specs/sync-ledger-replication.yaml SYNC-02-001, and
 specs/received-status-handling.yaml RSH-09-006.
 """
 
@@ -95,7 +95,7 @@ class ApplyParticipantStatusFromLedgerNode(
     impossible composite state yields FAILURE (RSH-09-006).
 
     Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
-    specs/sync-ledger-replication.yaml SYNC-02-002.
+    specs/sync-ledger-replication.yaml SYNC-02-001.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {

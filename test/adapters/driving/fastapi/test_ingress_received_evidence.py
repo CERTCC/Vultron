@@ -47,9 +47,9 @@ from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
 from vultron.core.behaviors.inbox import InboxOutcomeStatus, process_payload
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
+    ReceivedStage,
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerResult
@@ -298,16 +298,17 @@ def test_a_different_body_under_a_deferred_id_is_refused(
     first = _offer_of_stored_report(dl)
     first["summary"] = "first"
     _defer(dl, first)
-    held_before = dl.read(DeferredInboxActivity.build_id(first["id"]))
-    assert isinstance(held_before, DeferredInboxActivity)
+    held_before = dl.read(ReceivedActivityRecord.build_id(first["id"]))
+    assert isinstance(held_before, ReceivedActivityRecord)
+    assert held_before.stage is ReceivedStage.HELD
+    assert held_before.replay_owed
     second = {**copy.deepcopy(first), "summary": "second"}
 
     _assert_refused_through_the_inbox(dl, second, ACTOR, caplog)
 
-    held = dl.read(DeferredInboxActivity.build_id(first["id"]))
-    assert isinstance(held, DeferredInboxActivity)
+    held = dl.read(ReceivedActivityRecord.build_id(first["id"]))
+    assert isinstance(held, ReceivedActivityRecord)
     assert held == held_before
-    assert held.received_body is not None
     assert json.loads(held.received_body) == first
 
 
@@ -537,17 +538,18 @@ def test_in_place_hydration_carries_the_evidence(
 
 @pytest.mark.spec("IE-10-001")
 @pytest.mark.spec("ARCH-15-001")
-@pytest.mark.parametrize("kind", ["deferred", "archived"])
+@pytest.mark.parametrize("kind", ["awaiting_replay", "archived"])
 def test_a_resend_whose_held_copy_does_not_rebuild_is_a_wiring_fault(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch, kind: str
 ):
     """The held copy is the resend's own text, so if it does not rebuild,
     neither would this body: ingress raises rather than route either."""
     first = _offer_of_stored_report(dl)
-    if kind == "deferred":
+    if kind == "awaiting_replay":
         _defer(dl, first)
-        held = dl.read(DeferredInboxActivity.build_id(first["id"]))
-        assert isinstance(held, DeferredInboxActivity)
+        held = dl.read(ReceivedActivityRecord.build_id(first["id"]))
+        assert isinstance(held, ReceivedActivityRecord)
+        assert held.replay_owed
         resend = held.received_body
         monkeypatch.setattr(
             InlineObjectStaging, "rehydrate_held", lambda *_args: None
@@ -559,7 +561,6 @@ def test_a_resend_whose_held_copy_does_not_rebuild_is_a_wiring_fault(
         monkeypatch.setattr(
             InlineObjectStaging, "rehydrate_archived", lambda *_args: None
         )
-    assert resend is not None
     adapter = FastAPIIngressAdapter(dl=dl)
     artifact = adapter.parse(json.loads(resend))
     assert artifact is not None
@@ -584,10 +585,11 @@ def test_an_archived_resend_deferred_again_is_held_with_the_archived_body(
 
     assert staging.hold_for_replay(first["id"])
 
-    held = dl.read(DeferredInboxActivity.build_id(first["id"]))
-    assert isinstance(held, DeferredInboxActivity)
+    held = dl.read(ReceivedActivityRecord.build_id(first["id"]))
+    assert isinstance(held, ReceivedActivityRecord)
+    assert held.stage is ReceivedStage.ARCHIVED, "the archive is kept"
+    assert held.replay_owed
     archived = json.loads(record.received_body)
-    assert held.received_body is not None
     assert json.loads(held.received_body) == archived
     replayed = StoredActivityIngressAdapter(dl=dl).parse(first["id"])
     assert replayed is not None

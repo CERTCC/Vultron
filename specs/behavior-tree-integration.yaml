@@ -1705,6 +1705,9 @@ groups:
         BT-18-012 makes the typed-port declaration the authority for every
         capability contract; BT-18-010 states what that declaration contains for
         a binary-result Retriever — the empty set, declared rather than omitted.
+    see_also:
+    - spec_id: BT-18-001
+      reason: 'context for the reader'
   - id: BT-18-007
     priority: MUST
     kind: project
@@ -1851,6 +1854,9 @@ groups:
     adr:
     - ADR-0097
     - ADR-0044
+    see_also:
+    - spec_id: BT-16-001
+      reason: 'context for the reader'
   - id: BT-18-013
     priority: MUST_NOT
     kind: project
@@ -2647,6 +2653,11 @@ groups:
       from `vultron/demo/` (per BT-16-001 and ARCH-01-001).
     rationale: Pre-built singletons avoid non-DRY construction in every demo script and test fixture. Defaulting to
       the core DETERMINISTIC singleton ensures the tree builder has no simulation-layer import dependency.
+    see_also:
+    - spec_id: ARCH-01-001
+      reason: 'context for the reader'
+    - spec_id: BT-16-001
+      reason: 'context for the reader'
   - id: BT-23-004
     priority: MUST
     kind: project

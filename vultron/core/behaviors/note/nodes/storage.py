@@ -93,7 +93,7 @@ class NoteIdNotTakenNode(FlaggedRepeatGuardMixin, DataLayerConditionWithPorts):
     A **redelivery** of the ``Add`` the case's ledger already records (the
     same *activity_id*) is not a refusal (HP-01-003): the guard sets
     :attr:`is_redelivery` and fails, so nothing downstream runs, and the
-    handler reports the run as ``SKIPPED``.  Read-only, so it runs before
+    handler reports the run as ``SKIPPED`` (HP-01-014).  Read-only, so it runs before
     the guarded commit (CLP-10-006).
     """
 
@@ -128,7 +128,7 @@ class NoteIdNotTakenNode(FlaggedRepeatGuardMixin, DataLayerConditionWithPorts):
             self.is_redelivery = True
             self.feedback_message = (
                 f"Add(Note) '{self.activity_id}' is already recorded for case"
-                f" '{self.case_id}' — redelivery, nothing to apply (HP-01-003)"
+                f" '{self.case_id}' — redelivery, nothing to apply (HP-01-014)"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

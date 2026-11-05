@@ -593,6 +593,11 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: IMPLTS-07-017
+    see_also:
+    - spec_id: IMPLTS-07-019
+      reason: >-
+        scope boundary: a rule excluded project-wide under IMPLTS-07-019 is not such a
+        finding
   - id: IMPLTS-07-025
     priority: MUST
     kind: process

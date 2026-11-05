@@ -133,6 +133,9 @@ groups:
     stories:
     - story_2022_048
     - story_2022_050
+    see_also:
+    - spec_id: CM-02-006
+      reason: 'context for the reader'
   - id: CM-02-006
     priority: MUST
     kind: protocol
@@ -656,6 +659,9 @@ groups:
     stories:
     - story_2026_087
     - story_2022_023
+    see_also:
+    - spec_id: RSH-08-003
+      reason: 'context for the reader'
   - id: CM-04-004
     priority: MUST
     kind: protocol
@@ -682,6 +688,9 @@ groups:
     - story_2022_018
     - story_2022_019
     - story_2022_069
+    see_also:
+    - spec_id: RSH-08-003
+      reason: 'context for the reader'
   - id: CM-04-005
     priority: MUST
     kind: protocol
@@ -1195,6 +1204,9 @@ groups:
       spec_id: CM-08-001
     adr:
     - ADR-0082
+    see_also:
+    - spec_id: ARCH-20-001
+      reason: 'context for the reader'
   - id: CM-08-003
     priority: MUST_NOT
     kind: project
@@ -1247,6 +1259,9 @@ groups:
     stories:
     - story_2022_033
     - story_2022_024
+    see_also:
+    - spec_id: CM-11-013
+      reason: 'context for the reader'
   - id: CM-09-003
     priority: MUST
     kind: protocol
@@ -1313,6 +1328,15 @@ groups:
     stories:
     - story_2026_001
     - story_2022_023
+    see_also:
+    - spec_id: CM-14-003
+      reason: 'context for the reader'
+    - spec_id: CM-14-005
+      reason: 'context for the reader'
+    - spec_id: CM-28-013
+      reason: 'context for the reader'
+    - spec_id: EP-05-001
+      reason: 'context for the reader'
   - id: CM-10-002
     priority: MUST
     kind: protocol
@@ -1451,6 +1475,9 @@ groups:
     stories:
     - story_2022_023
     - story_2022_025
+    see_also:
+    - spec_id: CM-31-011
+      reason: 'context for the reader'
   - id: CM-10-007
     priority: MUST
     kind: architecture
@@ -1474,6 +1501,11 @@ groups:
     adr:
     - ADR-0114
     - ADR-0116
+    see_also:
+    - spec_id: CM-31-009
+      reason: 'scope boundary: the notice is not case content'
+    - spec_id: CM-31-030
+      reason: 'context for the reader'
   - id: CM-10-009
     priority: MUST
     kind: architecture
@@ -1494,6 +1526,9 @@ groups:
       spec_id: CM-10-007
     adr:
     - ADR-0114
+    see_also:
+    - spec_id: CM-31-013
+      reason: 'context for the reader'
 - id: CM-11
   title: Joining a Case — Stub Invite, Inert Participant, Full-Case Invite
   description: >-
@@ -1550,6 +1585,9 @@ groups:
     - ADR-0121
     stories:
     - story_2022_006
+    see_also:
+    - spec_id: CM-11-011
+      reason: 'context for the reader'
   - id: CM-11-022
     priority: SHOULD
     kind: protocol
@@ -1754,6 +1792,9 @@ groups:
     stories:
     - story_2022_052
     - story_2022_006
+    see_also:
+    - spec_id: CM-11-001
+      reason: 'context for the reader'
   - id: CM-11-027
     priority: MUST
     kind: protocol
@@ -2651,6 +2692,9 @@ groups:
     - ADR-0121
     stories:
     - story_2022_006
+    see_also:
+    - spec_id: CM-11-011
+      reason: 'context for the reader'
 - id: CM-12
   title: Case Creation Timing
   specs:
@@ -2686,6 +2730,9 @@ groups:
     stories:
     - story_2022_012
     - story_2022_038
+    see_also:
+    - spec_id: CM-22-001
+      reason: 'context for the reader'
   - id: CM-12-002
     priority: MUST
     kind: protocol
@@ -3270,6 +3317,11 @@ groups:
       `SubmitReportReceivedUseCase.execute()` reaches a store helper.
     adr:
     - ADR-0111
+    see_also:
+    - spec_id: CLP-10-019
+      reason: 'context for the reader'
+    - spec_id: CM-15-002
+      reason: 'context for the reader'
   - id: CM-15-006
     priority: SHOULD
     kind: project
@@ -3370,6 +3422,9 @@ groups:
       a more sophisticated role-inference implementation in future. The non-empty invariant is enforced at write time so the
       downstream consumer never needs to treat an empty list as a sentinel. See CM-16-011 and CM-16-012 for the recommended
       and permitted default values.'
+    see_also:
+    - spec_id: CM-11-019
+      reason: 'context for the reader'
   - id: CM-16-011
     priority: SHOULD
     kind: project
@@ -3390,6 +3445,9 @@ groups:
       An actor that fits no CVD role must also see the case. `CVDRole.OBSERVER` lets the
       actor see the case without the obligations or the authority of a role such as
       VENDOR. Thus a wrong guess gives nothing that the Case Owner must then remove.
+    see_also:
+    - spec_id: CM-25-001
+      reason: 'context for the reader'
   - id: CM-16-013
     priority: MAY
     kind: project
@@ -3477,6 +3535,9 @@ groups:
     stories:
     - story_2022_054
     - story_2022_052
+    see_also:
+    - spec_id: CM-11-013
+      reason: 'context for the reader'
   - id: CM-16-021
     priority: MUST
     kind: protocol
@@ -3635,8 +3696,8 @@ groups:
       including the Case Owner's identity, the second recommender's identity and any
       `content` from the Offer. The note is the CASE_MANAGER's own `add_note_to_case`
       entry, attached to the case, and reaches the Case Owner's inbox as that entry's
-      `Announce(CaseLedgerEntry)` (SYNC-02-003); a direct `Add(Note)` to the Case Owner
-      is refused there (HP-01-005).
+      `Announce(CaseLedgerEntry)` (SYNC-02-001, SYNC-02-003); a direct `Add(Note)` to
+      the Case Owner is refused there (HP-01-005).
     rationale: >-
       A note about reinforcing suggestions gives the Case Owner more context for the
       pending decision, without a second offer workflow (CM-16-017). Participants send
@@ -3654,6 +3715,13 @@ groups:
     stories:
     - story_2022_053
     - story_2022_046
+    see_also:
+    - spec_id: HP-01-005
+      reason: 'context for the reader'
+    - spec_id: SYNC-02-001
+      reason: 'context for the reader'
+    - spec_id: SYNC-02-003
+      reason: 'context for the reader'
   - id: CM-16-017
     priority: MUST_NOT
     kind: protocol
@@ -3842,6 +3910,9 @@ groups:
       spec_id: CM-17-002
     stories:
     - story_2026_097
+    see_also:
+    - spec_id: EP-09-011
+      reason: 'context for the reader'
   - id: CM-17-003
     priority: MUST
     kind: project
@@ -3923,6 +3994,9 @@ groups:
     - ADR-0114
     stories:
     - story_2022_023
+    see_also:
+    - spec_id: CM-11-006
+      reason: 'context for the reader'
   - id: CM-17-006
     priority: MUST
     kind: project
@@ -4050,6 +4124,9 @@ groups:
       spec_id: CM-16-004
     adr:
     - ADR-0109
+    see_also:
+    - spec_id: CM-16-003
+      reason: 'context for the reader'
   - id: CM-17-019
     priority: MUST
     kind: project
@@ -4094,6 +4171,11 @@ groups:
       spec_id: CM-11-006
     adr:
     - ADR-0114
+    see_also:
+    - spec_id: CM-16-003
+      reason: 'context for the reader'
+    - spec_id: CM-16-006
+      reason: 'context for the reader'
   - id: CM-17-009
     priority: MUST
     kind: protocol
@@ -4493,6 +4575,11 @@ groups:
     stories:
     - story_2022_027
     - story_2026_092
+    see_also:
+    - spec_id: CM-18-016
+      reason: 'context for the reader'
+    - spec_id: CM-28-013
+      reason: 'context for the reader'
   - id: CM-18-022
     priority: MAY
     kind: protocol
@@ -4689,6 +4776,9 @@ groups:
       spec_id: CM-18-005
     adr:
     - ADR-0124
+    see_also:
+    - spec_id: CM-23-016
+      reason: 'a citation #5887 is to repoint; context for the reader until then'
   - id: CM-18-026
     priority: MUST_NOT
     kind: project
@@ -4811,6 +4901,9 @@ groups:
       spec_id: CM-18-001
     adr:
     - ADR-0122
+    see_also:
+    - spec_id: EP-05-003
+      reason: 'context for the reader'
 - id: CM-19
   title: Participant Index Discipline
   specs:
@@ -5034,6 +5127,9 @@ groups:
       is authorized to write.'
     stories:
     - story_2026_023
+    see_also:
+    - spec_id: CBT-01-003
+      reason: 'a citation #5887 is to repoint; context for the reader until then'
 - id: CM-21
   title: Ownership Transfer Protocol Effects
   specs:
@@ -5531,6 +5627,9 @@ groups:
     - ADR-0053
     stories:
     - story_2022_050
+    see_also:
+    - spec_id: CM-21-007
+      reason: 'context for the reader'
   - id: CM-21-032
     priority: MUST
     kind: protocol
@@ -5627,6 +5726,9 @@ groups:
     - ADR-0148
     stories:
     - story_2022_050
+    see_also:
+    - spec_id: CM-21-007
+      reason: 'context for the reader'
   - id: CM-21-034
     priority: MUST
     kind: protocol
@@ -5672,6 +5774,9 @@ groups:
     - ADR-0148
     stories:
     - story_2022_050
+    see_also:
+    - spec_id: HP-01-014
+      reason: 'context for the reader'
   - id: CM-21-015
     priority: MUST
     kind: protocol
@@ -5899,6 +6004,11 @@ groups:
     - ADR-0152
     stories:
     - story_2022_050
+    see_also:
+    - spec_id: CM-21-035
+      reason: 'context for the reader'
+    - spec_id: CM-21-039
+      reason: 'context for the reader'
   - id: CM-21-043
     priority: MUST_NOT
     kind: protocol
@@ -5957,6 +6067,9 @@ groups:
     - ADR-0148
     stories:
     - story_2022_050
+    see_also:
+    - spec_id: HP-01-014
+      reason: 'context for the reader'
   - id: CM-21-044
     priority: MUST
     kind: protocol
@@ -6123,6 +6236,9 @@ groups:
     - story_2022_046
     lint_suppress:
     - dangling_adr_ref
+    see_also:
+    - spec_id: CM-02-008
+      reason: 'context for the reader'
   - id: CM-22-005
     priority: MUST
     kind: protocol
@@ -6169,6 +6285,9 @@ groups:
     stories:
     - story_2022_012
     - story_2022_046
+    see_also:
+    - spec_id: CBT-01-001
+      reason: 'context for the reader'
   - id: CM-22-002
     priority: MUST
     kind: protocol
@@ -6357,6 +6476,9 @@ groups:
     stories:
     - story_2022_066
     - story_2022_067
+    see_also:
+    - spec_id: CM-23-038
+      reason: 'context for the reader'
   - id: CM-23-023
     priority: MUST
     kind: protocol
@@ -6516,6 +6638,11 @@ groups:
     stories:
     - story_2022_066
     - story_2022_067
+    see_also:
+    - spec_id: CLP-10-006
+      reason: 'context for the reader'
+    - spec_id: CM-23-022
+      reason: 'context for the reader'
   - id: CM-23-027
     priority: MUST_NOT
     kind: protocol
@@ -6606,6 +6733,17 @@ groups:
     stories:
     - story_2022_066
     - story_2022_067
+    see_also:
+    - spec_id: CLP-10-006
+      reason: 'context for the reader'
+    - spec_id: CM-23-013
+      reason: >-
+        scope boundary: CM-23-003 covers an open case, CM-23-013 the post-close write
+        boundary
+    - spec_id: CM-23-021
+      reason: 'context for the reader'
+    - spec_id: CM-23-022
+      reason: 'context for the reader'
   - id: CM-23-030
     priority: MUST
     kind: protocol
@@ -6962,6 +7100,9 @@ groups:
     - ADR-0085
     stories:
     - story_2022_066
+    see_also:
+    - spec_id: CM-23-011
+      reason: 'context for the reader'
   - id: CM-23-036
     priority: MUST
     kind: protocol
@@ -7143,6 +7284,9 @@ groups:
     - ADR-0050
     stories:
     - story_2022_066
+    see_also:
+    - spec_id: CM-23-012
+      reason: 'context for the reader'
   - id: CM-23-040
     priority: MAY
     kind: protocol
@@ -7457,6 +7601,11 @@ groups:
     adr:
     - ADR-0131
     - ADR-0085
+    see_also:
+    - spec_id: CP-05-014
+      reason: 'context for the reader'
+    - spec_id: CP-05-018
+      reason: 'context for the reader'
   - id: CM-23-046
     priority: MUST
     kind: project
@@ -7531,6 +7680,9 @@ groups:
     - ADR-0115
     stories:
     - story_2022_066
+    see_also:
+    - spec_id: CLP-05-001
+      reason: 'context for the reader'
   - id: CM-23-048
     priority: MUST
     kind: protocol
@@ -7562,6 +7714,9 @@ groups:
     - ADR-0114
     stories:
     - story_2022_066
+    see_also:
+    - spec_id: CM-23-020
+      reason: 'context for the reader'
   - id: CM-23-049
     priority: MUST
     kind: protocol
@@ -7594,6 +7749,9 @@ groups:
     - ADR-0085
     stories:
     - story_2022_066
+    see_also:
+    - spec_id: CM-23-019
+      reason: 'context for the reader'
   - id: CM-23-050
     priority: MUST
     kind: protocol
@@ -7662,6 +7820,9 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-23-020
+    see_also:
+    - spec_id: HP-01-007
+      reason: 'context for the reader'
   - id: CM-23-055
     priority: MUST_NOT
     kind: project
@@ -7714,6 +7875,9 @@ groups:
     stories:
     - story_2022_066
     - story_2022_067
+    see_also:
+    - spec_id: CM-23-002
+      reason: 'context for the reader'
   - id: CM-23-051
     priority: MUST
     kind: protocol
@@ -7743,6 +7907,9 @@ groups:
     stories:
     - story_2022_066
     - story_2022_067
+    see_also:
+    - spec_id: CLP-02-005
+      reason: 'context for the reader'
   - id: CM-23-052
     priority: MUST_NOT
     kind: protocol
@@ -8018,6 +8185,9 @@ groups:
     - ADR-0109
     stories:
     - story_2022_106
+    see_also:
+    - spec_id: CM-02-015
+      reason: 'context for the reader'
   - id: CM-24-014
     priority: MUST
     kind: protocol
@@ -8196,6 +8366,9 @@ groups:
     stories:
     - story_2022_050
     - story_2022_035
+    see_also:
+    - spec_id: CM-24-007
+      reason: 'context for the reader'
 
 - id: CM-25
   title: Observer Participant Semantics
@@ -8373,6 +8546,9 @@ groups:
     - ADR-0114
     stories:
     - story_2022_063
+    see_also:
+    - spec_id: CM-16-003
+      reason: 'context for the reader'
 
 - id: CM-26
   title: Role Stacking — Union of Permissions
@@ -9007,6 +9183,9 @@ groups:
     stories:
     - story_2026_092
     - story_2022_027
+    see_also:
+    - spec_id: CM-28-003
+      reason: 'context for the reader'
   - id: CM-28-016
     priority: MUST
     kind: project
@@ -9211,6 +9390,9 @@ groups:
     stories:
     - story_2026_092
     - story_2022_027
+    see_also:
+    - spec_id: EP-09-008
+      reason: 'context for the reader'
 
 - id: CM-27
   title: Case Collection Mutation Discipline
@@ -9286,6 +9468,9 @@ groups:
       spec_id: CM-27-001
     adr:
     - ADR-0064
+    see_also:
+    - spec_id: CM-31-001
+      reason: 'context for the reader'
 - id: CM-29
   title: Case Status Recency Resolution
   description: Rules for determining which CaseStatus snapshot is current when
@@ -9770,6 +9955,9 @@ groups:
     - ADR-0116
     stories:
     - story_2022_023
+    see_also:
+    - spec_id: ARCH-23-005
+      reason: 'context for the reader'
   - id: CM-31-014
     priority: MUST
     kind: project
@@ -9873,6 +10061,11 @@ groups:
     stories:
     - story_2022_023
     - story_2022_052
+    see_also:
+    - spec_id: CLP-10-006
+      reason: >-
+        a pointer for "on receipt"; committing the received Remove does not need the
+        receive-tree commit ordering
   - id: CM-31-024
     priority: MUST
     kind: protocol
@@ -10198,6 +10391,11 @@ groups:
     - ADR-0116
     stories:
     - story_2026_096
+    see_also:
+    - spec_id: CM-31-009
+      reason: 'context for the reader'
+    - spec_id: CM-31-030
+      reason: 'context for the reader'
   - id: CM-31-033
     priority: MUST
     kind: protocol
@@ -10219,6 +10417,11 @@ groups:
     - ADR-0116
     stories:
     - story_2026_096
+    see_also:
+    - spec_id: CM-31-009
+      reason: 'context for the reader'
+    - spec_id: CM-31-030
+      reason: 'context for the reader'
   - id: CM-31-042
     priority: MUST
     kind: protocol
@@ -10255,6 +10458,9 @@ groups:
     - ADR-0161
     stories:
     - story_2026_096
+    see_also:
+    - spec_id: CM-31-009
+      reason: 'context for the reader'
   - id: CM-31-011
     priority: MUST
     kind: protocol
@@ -10492,6 +10698,11 @@ groups:
     - ADR-0116
     stories:
     - story_2022_023
+    see_also:
+    - spec_id: CM-31-009
+      reason: 'context for the reader'
+    - spec_id: CM-31-030
+      reason: 'context for the reader'
   - id: CM-31-040
     priority: MUST
     kind: protocol
@@ -10952,6 +11163,9 @@ groups:
       spec_id: CM-14-010
     adr:
     - ADR-0125
+    see_also:
+    - spec_id: EP-04-012
+      reason: 'context for the reader'
   - id: CM-32-009
     priority: MUST_NOT
     kind: protocol
@@ -11089,6 +11303,9 @@ groups:
     adr:
     - ADR-0125
     - ADR-0114
+    see_also:
+    - spec_id: CM-14-010
+      reason: 'context for the reader'
   - id: CM-32-034
     priority: MUST
     kind: protocol
@@ -11542,6 +11759,9 @@ groups:
       spec_id: CM-33-001
     adr:
     - ADR-0039
+    see_also:
+    - spec_id: CM-02-016
+      reason: 'context for the reader'
   - id: CM-33-002
     priority: MUST
     kind: protocol

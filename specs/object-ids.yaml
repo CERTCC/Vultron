@@ -48,6 +48,9 @@ groups:
     - story_2022_030
     tags:
     - activitypub
+    see_also:
+    - spec_id: OID-01-001
+      reason: 'context for the reader'
   - id: OID-01-003
     priority: MUST
     kind: project

@@ -26,8 +26,9 @@ the slots an act may put it in:
   reach core naming a case with no owner and no position.
 - A ``VulnerabilityCaseStub`` is what an invitee decides on before it may see
   the case (ADR-0114), so its one slot is the ``target`` of the ``Invite``
-  that invites an actor to the case, at any depth: the ``Accept`` and
-  ``Reject`` of that ``Invite`` carry it inline (MV-10-002).
+  whose ``object`` is the inline actor it invites to the case, at any depth:
+  the ``Accept`` and ``Reject`` of that ``Invite`` carry it inline
+  (MV-10-002).
 
 The parser refuses either form where it arrives, as it refused the sparse
 case before references existed: an inline object that is not what its slot
@@ -43,7 +44,6 @@ from pydantic import BaseModel
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case_naming import CASE_NAMING_ACTIVITY_TYPES
 from vultron.wire.as2.errors import VultronParseValidationError
-from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -92,16 +92,20 @@ def _names_case_by_reference(parent: BaseModel, field_name: str) -> bool:
 def _is_case_invitation_target(parent: BaseModel, field_name: str) -> bool:
     """The ``target`` of an ``Invite`` of an actor (MV-10-002).
 
-    The invitee is the ``Invite``'s ``object``: an inline actor, or a URI or
-    ``Link`` naming one.  An ``Invite`` whose inline object is anything else,
-    such as an embargo invitation's ``EmbargoEvent``, is no case invitation.
+    The invitee is the ``Invite``'s ``object``, an inline actor: its profile,
+    or an actor reference carrying exactly its ``id`` and ``type``
+    (AKM-05-017).  An ``Invite`` whose object is anything else is no case
+    invitation.  That includes an embargo invitation's ``EmbargoEvent``, and
+    a bare URI or ``Link``, which may name the terms of an embargo
+    invitation (ADR-0123): rehydration can resolve it to an ``EmbargoEvent``
+    after this check has run, so it never makes a stub's place (#5895).
     """
     if field_name != "target" or not isinstance(parent, as_Activity):
         return False
     if str(parent.type_) != "Invite":
         return False
     invitee = getattr(parent, "object_", None)
-    return isinstance(invitee, str | as_Link | as_Actor | CoreActor)
+    return isinstance(invitee, as_Actor | CoreActor)
 
 
 def refuse_misplaced_case_reference(activity: as_Activity) -> None:
@@ -146,9 +150,9 @@ def refuse_misplaced_case_stub(activity: as_Activity) -> None:
         raise VultronParseValidationError(
             f"activity {activity.id_!r}: a VulnerabilityCaseStub at"
             f" {', '.join(misplaced)}; a case stub is permitted only as the"
-            " target of an Invite that invites an actor to the case, or of"
-            " that Invite carried inline in its Accept or Reject; anywhere"
-            " else name the case by its URI (MV-10-002)"
+            " target of an Invite whose object is the inline actor it invites"
+            " to the case, or of that Invite carried inline in its Accept or"
+            " Reject; anywhere else name the case by its URI (MV-10-002)"
         )
 
 

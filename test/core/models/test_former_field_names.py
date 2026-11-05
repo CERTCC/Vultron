@@ -32,7 +32,7 @@ from vultron.core.models.case_proposal_admission import (
     CaseProposalAdmissionRecord,
 )
 from vultron.core.models.case_proposal_decline import CaseProposalDeclineRecord
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
@@ -71,15 +71,24 @@ _FORMER: list[tuple[type[BaseModel], dict[str, Any], str]] = [
         {"activity_id": f"{_URI}/a-1", "received_body": "{}"},
         "activity",
     ),
+    # ``DeferredInboxActivity`` was retired into ``ReceivedActivityRecord``
+    # (ADR-0154), so the fields it carried under its own names are former
+    # names of the record that absorbed it, ``rows_json`` among them.
     (
-        DeferredInboxActivity,
-        {"activity_id": _URI, "received_body": "{}"},
-        "activity",
+        ReceivedActivityRecord,
+        {"activity_id": f"{_URI}/a-1", "received_body": "{}"},
+        "rows_json",
     ),
     (
-        DeferredInboxActivity,
-        {"activity_id": _URI, "received_body": "{}"},
+        ReceivedActivityRecord,
+        {"activity_id": f"{_URI}/a-1", "received_body": "{}"},
         "activity_row_json",
+    ),
+    # The per-message wait replaced the per-case list (ADR-0154).
+    (
+        VultronPendingCaseInbox,
+        {"case_id": f"{_URI}/case"},
+        "activity_ids",
     ),
     (
         CaseProposalAdmissionRecord,

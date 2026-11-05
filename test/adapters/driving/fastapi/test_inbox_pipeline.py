@@ -15,6 +15,7 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.services.received_holding import records_awaiting_case
 from vultron.core.use_cases.received.actor import (
     AnnounceVulnerabilityCaseReceivedUseCase,
     InviteActorToCaseReceivedUseCase,
@@ -308,7 +309,10 @@ def test_process_defers_unknown_case_activity(test_pipeline):
     queue_dl = dl.clone_for_actor(RECEIVER_ID)
     pending = queue_dl.read(VultronPendingCaseInbox.build_id(UNKNOWN_CASE_ID))
     assert isinstance(pending, VultronPendingCaseInbox)
-    assert activity.id_ in pending.activity_ids
+    assert [
+        record.activity_id
+        for record in records_awaiting_case(queue_dl, UNKNOWN_CASE_ID)
+    ] == [activity.id_]
 
 
 @pytest.mark.spec("PCR-06-005")

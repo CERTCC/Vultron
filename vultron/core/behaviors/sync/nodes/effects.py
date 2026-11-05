@@ -29,7 +29,7 @@ below. Effect classes live in their own modules (BTND-07-004):
   :class:`~vultron.core.behaviors.sync.nodes.participant_status_effect.ApplyParticipantStatusFromLedgerNode`
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
-specs/sync-ledger-replication.yaml SYNC-02-002.
+specs/sync-ledger-replication.yaml SYNC-02-001.
 """
 
 from __future__ import annotations

@@ -53,7 +53,7 @@ def wait_for_reporter_log_entry(
     Raises:
         AssertionError: If the entry does not appear within *timeout_seconds*.
 
-    Spec: SYNC-02-002.
+    Spec: SYNC-02-001.
     """
 
     def _check_with_log() -> bool:

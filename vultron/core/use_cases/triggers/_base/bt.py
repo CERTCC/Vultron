@@ -113,7 +113,7 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         # (ARCH-20-001, CLP-07-009).
         self._wire_render_port = wire_render_port
         # A tree that commits a ledger entry fans it out through this port
-        # (SYNC-02-002): the ``sync-log-entry`` verb's tree, and every
+        # (SYNC-02-003): the ``sync-log-entry`` verb's tree, and every
         # embargo trigger the CASE_MANAGER runs (EP-09-008, #4085).
         self._sync_port = sync_port
 

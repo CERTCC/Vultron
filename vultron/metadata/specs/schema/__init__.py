@@ -23,6 +23,7 @@ from vultron.metadata.specs.schema.ids import (
     SpecIdStr,
     StoryIdStr,
     cited_spec_ids,
+    written_spec_ids,
 )
 from vultron.metadata.specs.schema.models import (
     BehavioralSpec,
@@ -30,6 +31,7 @@ from vultron.metadata.specs.schema.models import (
     Postcondition,
     Precondition,
     Relationship,
+    SeeAlso,
     Spec,
     SpecFile,
     SpecGroup,
@@ -74,6 +76,7 @@ __all__ = [
     "SPEC_ID_PATTERN",
     "STORY_ID_PATTERN",
     "Scope",
+    "SeeAlso",
     "Spec",
     "SpecFile",
     "SpecGroup",
@@ -85,4 +88,5 @@ __all__ = [
     "Trigger",
     "TriggerType",
     "cited_spec_ids",
+    "written_spec_ids",
 ]

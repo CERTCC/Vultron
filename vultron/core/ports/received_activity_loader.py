@@ -41,9 +41,9 @@ class ReceivedActivityLoader(Protocol):
     ) -> ReceivedActivityView | None:
         """The received activity *activity_id* as this actor holds it.
 
-        Loaded from intake's ``ReceivedActivityRecord``, or, while the inbox
-        defers it until its case is known, from the ``DeferredInboxActivity``
-        that holds it; both are keyed by the receiver (DL-06-006).  The body
+        Loaded from the activity's one ``ReceivedActivityRecord``, whichever
+        stage it is in -- archived by intake, or held while the inbox defers
+        it until its case is known -- keyed by the receiver (DL-06-006).  The body
         is parsed and extracted afresh on every call, so the view is what the
         delivery saw and nothing a caller does to it reaches the next load.
 

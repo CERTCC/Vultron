@@ -10,6 +10,7 @@ description: >
 related_specs:
   - specs/participant-role-management.yaml
   - specs/case-management.yaml
+  - specs/cs-behavior.yaml (CSB-17-001)
   - specs/message-validation.yaml (MV-11-012)
 related_notes:
   - notes/case-joining.md
@@ -67,6 +68,14 @@ narrow on-behalf exceptions exist:
   state is consistent with deployment (PRM-06-008).
 - **f→F** (`CS_vf.VF`) is always Vendor-only and cannot be asserted on behalf
   of another actor (PRM-06-005).
+
+The `v→V` and `d→D` exceptions are alternatives, not a pair: one status cannot
+assert both (PRM-06-003/004). `Vf` and `D` together are the compound state
+`VfD`, which CSB-17-001 does not enumerate, so the entailments refuse every
+such status. A vendor-deployer already at `VF` can still be moved to `D` on its
+behalf, because that status asserts the one move. The shape guards admit the
+pair by design and leave the refusal to the entailment, so a test of a guard
+alone can read as though the pair were allowed.
 
 The two on-behalf exceptions target an **existing** participant only. An
 on-behalf assertion for an actor that is not a participant is refused before
