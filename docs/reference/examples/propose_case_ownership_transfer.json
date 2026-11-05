@@ -1,10 +1,10 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Offer",
-  "id": "urn:uuid:ae8b640b-7cf4-4479-ac0a-2bbf56427f25",
-  "name": "https://vultron.example/organizations/vendorco Offer https://vultron.example/organizations/vendorco Offer urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454 to https://vultron.example/organizations/coordinator",
-  "context": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
-  "content": "Please offer ownership of case VendorCo Case #83288480 to the coordinator.",
+  "id": "urn:uuid:e37dd281-a585-542e-b817-23c07e556f20",
+  "name": "https://vultron.example/organizations/vendorco Offer https://vultron.example/organizations/vendorco Offer urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a to https://vultron.example/organizations/coordinator",
+  "context": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+  "content": "Please offer ownership of case VendorCo Case #20260601 to the coordinator.",
   "to": [
     "https://vultron.example/case-actors/vendorco-case-actor"
   ],
@@ -12,10 +12,10 @@
   "object": {
     "@context": "https://www.w3.org/ns/activitystreams",
     "type": "Offer",
-    "id": "urn:uuid:a24af308-895d-4a45-a723-cf97a2a52c9e",
-    "name": "https://vultron.example/organizations/vendorco Offer urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454 to https://vultron.example/organizations/coordinator",
-    "published": "2026-10-30T15:17:58.168549+00:00",
-    "updated": "2026-10-30T15:17:58.168551+00:00",
+    "id": "urn:uuid:fd771189-5fc9-5e89-b211-a949b8d301e9",
+    "name": "https://vultron.example/organizations/vendorco Offer urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a to https://vultron.example/organizations/coordinator",
+    "published": "2026-06-01T19:12:00.000000+00:00",
+    "updated": "2026-06-01T19:12:00.000000+00:00",
     "actor": "https://vultron.example/organizations/vendorco",
     "target": {
       "@context": "https://www.w3.org/ns/activitystreams",
@@ -25,7 +25,7 @@
     "object": {
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "VulnerabilityCase",
-      "id": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454"
+      "id": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a"
     }
   }
 }

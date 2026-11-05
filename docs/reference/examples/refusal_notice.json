@@ -1,10 +1,10 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Reject",
-  "id": "urn:uuid:26e5e5ae-a95f-40bf-a01b-35acf6a5f472",
+  "id": "urn:uuid:7bdceebd-59f8-5a2b-bfb7-322e3f51180d",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Reject https://vultron.example/organizations/vendor Add ACCEPTED VF NONE pxa to https://vultron.example/cases/1/participants/vendor",
   "context": "https://vultron.example/cases/1",
-  "inReplyTo": "urn:uuid:1dc06abf-7134-41cf-8c7a-58d59fa23b35",
+  "inReplyTo": "urn:uuid:2987701c-3c95-5077-8e97-5ce4c02fa016",
   "summary": "fix readiness (VF) asserted before vendor awareness (Vf) was recorded for the Vendor",
   "to": [
     "https://vultron.example/organizations/vendor"
@@ -13,17 +13,17 @@
   "object": {
     "@context": "https://www.w3.org/ns/activitystreams",
     "type": "Add",
-    "id": "urn:uuid:1dc06abf-7134-41cf-8c7a-58d59fa23b35",
+    "id": "urn:uuid:2987701c-3c95-5077-8e97-5ce4c02fa016",
     "name": "https://vultron.example/organizations/vendor Add ACCEPTED VF NONE pxa to https://vultron.example/cases/1/participants/vendor",
-    "published": "2026-10-30T15:17:58.201138+00:00",
-    "updated": "2026-10-30T15:17:58.201139+00:00",
+    "published": "2026-06-01T19:12:00.000000+00:00",
+    "updated": "2026-06-01T19:12:00.000000+00:00",
     "actor": "https://vultron.example/organizations/vendor",
     "target": "https://vultron.example/cases/1/participants/vendor",
     "object": {
       "id": "https://vultron.example/cases/1/participants/vendor/status/3",
       "type": "ParticipantStatus",
       "name": "ACCEPTED VF NONE pxa",
-      "context": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
+      "context": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
       "published": "2026-06-01T19:12:00.000000+00:00",
       "updated": "2026-06-01T19:12:00.000000+00:00",
       "attributedTo": "https://vultron.example/organizations/vendor",

@@ -1,9 +1,9 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Offer",
-  "id": "urn:uuid:89e44279-9dd5-4ee1-8297-7bb6ed4a578c",
-  "name": "https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454 to https://vultron.example/organizations/coordinator",
-  "content": "We're offering to transfer ownership of case VendorCo Case #83288480 to you.",
+  "id": "urn:uuid:872ceec7-0265-5ade-9a9c-b14b5b4fe4bc",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a to https://vultron.example/organizations/coordinator",
+  "content": "We're offering to transfer ownership of case VendorCo Case #20260601 to you.",
   "to": [
     "https://vultron.example/organizations/coordinator"
   ],
@@ -17,6 +17,6 @@
   "object": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "VulnerabilityCase",
-    "id": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454"
+    "id": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a"
   }
 }

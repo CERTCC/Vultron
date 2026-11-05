@@ -11,13 +11,20 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import random
-from datetime import UTC, datetime
+import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime, timezone
 from typing import TypedDict, get_args
+from unittest.mock import patch
 
 from pydantic import BaseModel
 
-from vultron.core.models._helpers import new_object_id
+from vultron.core.models._helpers import (
+    URN_UUID_PREFIX,
+    clock as helpers_clock,
+)
+from vultron.core.models.activity_ids import derived_object_id
 from vultron.core.models.actor import hosted_endpoints
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.actors import (
@@ -42,10 +49,23 @@ _EXAMPLE_BASE_URL = "https://demo.vultron.local/"
 #: precision for an embargo ``start_time`` (#4095).  So every object a test
 #: compares that way (the embargo, note, participant, participant and case
 #: status, invite and vendor-profile builders) is pinned to this moment.
-#: Outer activities still take their ``published`` stamp from the clock;
-#: tests compare those by ``id_`` only.  The date is fixed, so it is in the
-#: past.
+#: Inside :func:`_example_scope` the clock itself reads this moment, so an
+#: object that was not pinned by hand is stamped with it too.  The date is
+#: fixed, so it is in the past.
 EXAMPLE_TIMESTAMP: datetime = datetime(2026, 6, 1, 19, 12, tzinfo=UTC)
+
+#: The name every derived example id is drawn under, so no example id can
+#: collide with an id derived anywhere else in the codebase (#5776).
+_EXAMPLE_ID_SCOPE = "vultron-docs-example"
+
+#: The case number every example that names the shared case shows.  Fixed, not
+#: drawn: a regeneration must change only what the generator changed, and a
+#: fresh number per run rewrote all 92 committed examples (#5776).
+case_number = 20260601
+
+#: The case number of the case the bootstrap ``Create`` example mints, kept
+#: apart from :data:`case_number` so a reader can see the two are not one case.
+_FRESH_CASE_NUMBER = 20260602
 
 
 class _ExampleStamp(TypedDict):
@@ -67,8 +87,77 @@ def _example_stamp() -> _ExampleStamp:
 
 
 def _make_id(object_type: str) -> str:
-    """A new example id under the example base URL, minted by the shared minter."""
-    return new_object_id(prefix=f"{_EXAMPLE_BASE_URL}{object_type}")
+    """The example id of *object_type* under the example base URL.
+
+    Derived from a fixed name, not minted (``derived_object_id``, OID-01-004):
+    the same object type always carries the same id, so regenerating the
+    committed examples rewrites only what the generator changed (#5776).
+    """
+    derived = derived_object_id(_EXAMPLE_ID_SCOPE, object_type)
+    uuid_part = derived.removeprefix(URN_UUID_PREFIX)
+    return f"{_EXAMPLE_BASE_URL}{object_type}/{uuid_part}"
+
+
+class _PinnedClock:
+    """A ``datetime`` stand-in whose ``now()`` always reads the fixed moment.
+
+    Stands in for ``_helpers.clock.datetime`` inside :func:`_example_scope`, so
+    an object whose ``published``/``updated`` default factory reads the clock
+    is stamped with :data:`EXAMPLE_TIMESTAMP` without every builder having to
+    pass ``**_example_stamp()``.  Only ``now`` is provided: any other
+    attribute a patched path reaches for raises ``AttributeError`` rather than
+    returning a wrong time.
+    """
+
+    @staticmethod
+    def now(tz: timezone | None = None) -> datetime:
+        if tz is None:
+            return EXAMPLE_TIMESTAMP
+        return EXAMPLE_TIMESTAMP.astimezone(tz)
+
+
+class _ScopedIds:
+    """An id source that derives each draw from the example asking for it.
+
+    Stands in for ``uuid.uuid4`` inside :func:`_example_scope`, which is where
+    ``new_object_id`` draws its bits, so an object built without an explicit
+    ``id_`` still gets a stable one.  The draw is ``uuid5`` of the scope name
+    and the draw's position within that scope, so the ids one example carries
+    depend on that example alone: adding or regenerating another example moves
+    none of them.
+
+    Not thread-safe, and neither is the patch that installs it: the generator
+    builds one example at a time, in one thread.
+    """
+
+    def __init__(self, scope: str) -> None:
+        self._scope = scope
+        self._drawn = 0
+
+    def __call__(self) -> uuid.UUID:
+        self._drawn += 1
+        return uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"{_EXAMPLE_ID_SCOPE}/{self._scope}/{self._drawn}",
+        )
+
+
+@contextmanager
+def _example_scope(scope: str) -> Iterator[None]:
+    """Build one example's objects with derived ids and the fixed clock.
+
+    Two sources made the generator write different bytes on every run: the
+    minted object ids, and the wall clock behind every ``published`` and
+    ``updated`` default factory.  Inside this block both are replaced, keyed
+    on *scope* — the name of the example being written — so that running the
+    generator twice over an unchanged tree produces an unchanged tree, and a
+    change to one example rewrites only that example's file (#5776).
+    """
+    with (
+        patch.object(uuid, "uuid4", _ScopedIds(scope)),
+        patch.object(helpers_clock, "datetime", _PinnedClock),
+    ):
+        yield
 
 
 base_url = "https://vultron.example"
@@ -77,52 +166,63 @@ case_base_url = f"{base_url}/cases"
 organization_base_url = f"{base_url}/organizations"
 report_base_url = f"{base_url}/reports"
 
-# generated once per run so all examples in a single run share the same case number
-case_number = random.randint(10000000, 99999999)  # noqa: S311 — sample data
-
+# The shared objects every other example refers to are built once, when this
+# module is imported.  The whole block runs inside an ``_example_scope`` so
+# that their stamps, and the ids of the objects their constructors create
+# inline, are derived rather than drawn: an activity that carries one of them
+# shows the values it was built with, and a value that moved between runs
+# moved in all 92 committed files at once (#5776).
+#
 # Each example actor's profile is the one it publishes, so it states its own
 # endpoints (``hosted_endpoints``); an activity naming it carries it as held.
-_FINDER = as_Person.model_validate(
-    {
-        "id": f"{user_base_url}/finndervul",
-        "name": "Finn der Vul",
-        **hosted_endpoints(f"{user_base_url}/finndervul"),
-    }
-)
-_VENDOR = as_Organization.model_validate(
-    {
-        "id": f"{organization_base_url}/vendorco",
-        "name": "VendorCo",
-        **hosted_endpoints(f"{organization_base_url}/vendorco"),
-    }
-)
-_COORDINATOR = as_Organization.model_validate(
-    {
-        "id": f"{organization_base_url}/coordinator",
-        "name": "Coordinator LLC",
-        **hosted_endpoints(f"{organization_base_url}/coordinator"),
-    }
-)
+with _example_scope("_base"):
+    _FINDER = as_Person.model_validate(
+        {
+            "id": f"{user_base_url}/finndervul",
+            "name": "Finn der Vul",
+            **hosted_endpoints(f"{user_base_url}/finndervul"),
+        }
+    )
+    _VENDOR = as_Organization.model_validate(
+        {
+            "id": f"{organization_base_url}/vendorco",
+            "name": "VendorCo",
+            **hosted_endpoints(f"{organization_base_url}/vendorco"),
+        }
+    )
+    _COORDINATOR = as_Organization.model_validate(
+        {
+            "id": f"{organization_base_url}/coordinator",
+            "name": "Coordinator LLC",
+            **hosted_endpoints(f"{organization_base_url}/coordinator"),
+        }
+    )
 
-case_actor_base_url = f"{base_url}/case-actors"
-_CASE_ACTOR = as_Service.model_validate(
-    {
-        "id": f"{case_actor_base_url}/vendorco-case-actor",
-        "name": "VendorCo Case Actor",
-        **hosted_endpoints(f"{case_actor_base_url}/vendorco-case-actor"),
-    }
-)
+    case_actor_base_url = f"{base_url}/case-actors"
+    _CASE_ACTOR = as_Service.model_validate(
+        {
+            "id": f"{case_actor_base_url}/vendorco-case-actor",
+            "name": "VendorCo Case Actor",
+            **hosted_endpoints(f"{case_actor_base_url}/vendorco-case-actor"),
+        }
+    )
 
-_REPORT = as_VulnerabilityReport(
-    name="FDR-8675309",
-    id_=_make_id("VulnerabilityReport"),
-    content="I found a vulnerability!",
-    attributed_to=_FINDER.id_,
-)
-_CASE = as_VulnerabilityCase(
-    name=f"{_VENDOR.name} Case #{case_number}",
-    attributed_to=_VENDOR.id_,
-)
+    # The report and case id are derived by name rather than left to the
+    # scope's draw order, so inserting another shared object above moves
+    # neither of them.
+    _REPORT = as_VulnerabilityReport(
+        name="FDR-8675309",
+        id_=_make_id("VulnerabilityReport"),
+        content="I found a vulnerability!",
+        attributed_to=_FINDER.id_,
+        **_example_stamp(),
+    )
+    _CASE = as_VulnerabilityCase(
+        name=f"{_VENDOR.name} Case #{case_number}",
+        id_=derived_object_id(_EXAMPLE_ID_SCOPE, "shared-VulnerabilityCase"),
+        attributed_to=_VENDOR.id_,
+        **_example_stamp(),
+    )
 
 
 def finder() -> as_Person:
@@ -164,14 +264,15 @@ def case_actor() -> as_Service:
 _IDENTITY_KEYS = frozenset({"name", "id_", "attributed_to"})
 
 
-def case(random_id=False, **kwargs) -> as_VulnerabilityCase:
+def case(fresh_id=False, **kwargs) -> as_VulnerabilityCase:
     """The example case, optionally with extra fields populated.
 
     With no arguments this returns the shared `_CASE` singleton, whose id every
     other case-related example refers to. Any ``kwargs`` are applied on top of
     that same identity — id, name and attributor are preserved, so a populated
     case and the participants built against `case()` still agree on which case
-    they belong to. Pass ``random_id=True`` for a case with a fresh id instead.
+    they belong to. Pass ``fresh_id=True`` for a second case, under an id and
+    case number of its own, as the bootstrap ``Create`` example needs.
 
     ``kwargs`` must not include ``name``, ``id_``, or ``attributed_to`` — those
     identity fields are always supplied by this helper and cannot be overridden.
@@ -182,10 +283,9 @@ def case(random_id=False, **kwargs) -> as_VulnerabilityCase:
         raise ValueError(
             f"kwargs must not override identity fields: {sorted(overlap)!r}"
         )
-    if random_id:
-        _case_number = random.randint(10000000, 99999999)  # noqa: S311 — sample data
+    if fresh_id:
         return as_VulnerabilityCase(
-            name=f"{_VENDOR.name} Case #{_case_number}",
+            name=f"{_VENDOR.name} Case #{_FRESH_CASE_NUMBER}",
             id_=_make_id("VulnerabilityCase"),
             attributed_to=_VENDOR.id_,
             **kwargs,

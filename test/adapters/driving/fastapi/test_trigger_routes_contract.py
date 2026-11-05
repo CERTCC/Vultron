@@ -53,11 +53,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from test.adapters.driving.fastapi.test_openapi_trigger_snapshot import (
-    build_prototype_app,
-)
 from test.adapters.driving.fastapi.test_trigger_registry_routes import (
     trigger_routes,
+)
+from test.support.trigger_routes import (
+    build_prototype_app,
 )
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,

@@ -1,8 +1,8 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Create",
-  "id": "urn:uuid:f69da093-2f6f-4e79-950c-4f71e07eb610",
-  "name": "https://vultron.example/organizations/vendorco Create urn:uuid:1c14fdc2-3454-4304-8c6d-2b2cf10a83f3",
+  "id": "urn:uuid:70d177fc-03e5-537b-8000-a2033a628b2b",
+  "name": "https://vultron.example/organizations/vendorco Create urn:uuid:98e9762e-e9c4-5bf9-9bd1-83080b0675dc",
   "to": [
     "https://vultron.example/case-actors/vendorco-case-actor"
   ],
@@ -10,10 +10,10 @@
   "object": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "ProcessingFault",
-    "id": "urn:uuid:1c14fdc2-3454-4304-8c6d-2b2cf10a83f3",
+    "id": "urn:uuid:98e9762e-e9c4-5bf9-9bd1-83080b0675dc",
     "inReplyTo": "https://vultron.example/case-actors/vendorco-case-actor/announce/9",
-    "published": "2026-10-30T15:17:58.200591+00:00",
-    "updated": "2026-10-30T15:17:58.200592+00:00",
+    "published": "2026-06-01T19:12:00.000000+00:00",
+    "updated": "2026-06-01T19:12:00.000000+00:00",
     "failureClass": "https://certcc.github.io/Vultron/ns/errors/StatusAssertionRefused/ImpossibleState"
   }
 }

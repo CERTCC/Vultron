@@ -17,8 +17,8 @@
 
 Each class here is one trigger verb's request body: the fields a client sends,
 without ``actor_id``, which is the URL path parameter and never a body field
-(TRIG-06-001). The class names are OpenAPI component names and are frozen by
-the golden snapshot (TRIG-12-003), so a rename here is a contract change.
+(TRIG-06-001). The class names are the OpenAPI component names clients read,
+so a rename here is a contract change.
 
 The bodies live in core, not in the FastAPI adapter, because the core
 ``*TriggerRequest`` models in :mod:`vultron.core.use_cases.triggers.requests`

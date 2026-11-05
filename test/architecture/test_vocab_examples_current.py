@@ -2,13 +2,22 @@
 
 Fails when a new example function is added to ``vocab_examples.main()`` but
 the generator has not been re-run (or vice-versa, when a call is removed but
-the committed JSON file has not been cleaned up).
+the committed JSON file has not been cleaned up), and when a committed file's
+*contents* differ in any byte from what the generator writes now.
+
+The contents check is an equality, with no excluded value class.  It can be,
+because the generator is deterministic: every id it writes is derived from a
+fixed name and every timestamp from ``EXAMPLE_TIMESTAMP``
+(``vultron.wire.as2.vocab.examples._base._example_scope``).  Before that, ids,
+timestamps and the case number were drawn afresh on every run, so this module
+could only compare which keys appeared where — and a changed *value* passed
+unnoticed, which is the hole #5776 closed.
 
 To regenerate from the repo root::
 
     uv run python vultron/wire/as2/vocab/examples/vocab_examples.py
 
-AC-2, AC-3 of issue #3004.
+AC-2, AC-3 of issue #3004; AC-2 of issue #5776.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -24,6 +33,7 @@ AC-2, AC-3 of issue #3004.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import difflib
 import json
 import re
 from pathlib import Path
@@ -107,53 +117,45 @@ def test_all_committed_examples_are_valid_json(committed_files):
     )
 
 
-def _key_paths(value: object, prefix: str = "") -> set[str]:
-    """Return every dotted key path in *value*, merging list elements.
-
-    Ids, timestamps and case numbers are random on each generator run, so the
-    examples cannot be compared value-for-value; their *shape* — which keys
-    appear where — is deterministic, and that is what a wire-format change
-    moves.  Keys that are themselves URIs (map entries keyed by an id) are
-    collapsed to ``<uri>`` so random ids do not register as new keys.
-    """
-    paths: set[str] = set()
-    if isinstance(value, dict):
-        for key, child in value.items():
-            name = "<uri>" if ":" in key and key != "@context" else key
-            path = f"{prefix}.{name}" if prefix else name
-            paths.add(path)
-            paths |= _key_paths(child, path)
-    elif isinstance(value, list):
-        for child in value:
-            paths |= _key_paths(child, f"{prefix}[]")
-    return paths
+def _file_diff(committed: Path, generated: Path) -> list[str]:
+    """The unified diff from the committed file to the generated one."""
+    return list(
+        difflib.unified_diff(
+            committed.read_text().splitlines(),
+            generated.read_text().splitlines(),
+            fromfile=f"committed {committed.name}",
+            tofile=f"generated {generated.name}",
+            lineterm="",
+        )
+    )
 
 
-def test_committed_examples_have_the_same_wire_keys_as_generated(
+@pytest.mark.spec("CS-13-002")
+def test_committed_examples_are_byte_identical_to_generated(
     generated_dir, generated_files, committed_files
 ):
-    """Every committed example has the key shape the generator now emits.
+    """Every committed example is byte-for-byte what the generator writes.
 
-    Catches a serializer change (a renamed alias, a dropped or added field)
-    that left the committed examples describing the old wire format.  AC-3 of
-    issue #3487.
+    Catches both halves of going stale: a serializer change (a renamed alias,
+    a dropped or added field) that left the committed files describing the old
+    wire format, and a *value* change — a different id, timestamp, hash, state
+    or piece of content — that a key-shape comparison could not see (#5776).
+    No value class is excluded: the generator derives every id and stamps
+    every timestamp from a fixed moment, so a difference here is always a
+    committed file that has not been regenerated.
 
     Fix: re-run the generator and commit ``docs/reference/examples/``.
     """
-    drifted = []
+    drifted: list[str] = []
     for filename in sorted(generated_files & committed_files):
-        committed = _key_paths(
-            json.loads((_COMMITTED_DIR / filename).read_text())
-        )
-        generated = _key_paths(
-            json.loads((generated_dir / filename).read_text())
-        )
-        if committed != generated:
-            drifted.append(
-                f"{filename}: only committed {sorted(committed - generated)};"
-                f" only generated {sorted(generated - committed)}"
-            )
-    assert not drifted, "Examples out of date:\n  " + "\n  ".join(drifted)
+        diff = _file_diff(_COMMITTED_DIR / filename, generated_dir / filename)
+        if diff:
+            drifted.append("\n".join(diff))
+    assert not drifted, (
+        "Committed examples differ from the generator's output. Re-run\n"
+        "  uv run python vultron/wire/as2/vocab/examples/vocab_examples.py\n"
+        "and commit docs/reference/examples/.\n\n" + "\n\n".join(drifted)
+    )
 
 
 _TIME_KEYS = frozenset({"published", "updated", "startTime", "endTime"})

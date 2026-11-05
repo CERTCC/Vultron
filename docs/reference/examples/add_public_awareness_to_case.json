@@ -1,13 +1,13 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Add",
-  "id": "urn:uuid:0576bd72-8c7c-4e49-a093-ee921b7b66cb",
-  "name": "https://vultron.example/case-actors/vendorco-case-actor Add NONE Pxa to urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
+  "id": "urn:uuid:752d9d3f-fbec-5525-a22a-a5f3fa93500a",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Add NONE Pxa to urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
   "to": [
     "https://vultron.example/users/finndervul"
   ],
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
-  "target": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
+  "target": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
   "object": {
     "id": "https://vultron.example/cases/1/status/2",
     "type": "CaseStatus",
