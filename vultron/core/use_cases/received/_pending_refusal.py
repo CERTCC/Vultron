@@ -30,15 +30,15 @@ nothing.
 import logging
 from datetime import datetime
 
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.embargo import (
     RejectInviteToEmbargoOnCaseReceivedEvent,
 )
 from vultron.core.models.pending_assertion import get_pending_assertion_store
-from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +67,11 @@ def close_refused_embargo_ask(
     case_id, invite_id = request.case_id, request.invite_id
     if not case_id or not invite_id:
         return
-    case = dl.read(case_id)
-    if not isinstance(case, VulnerabilityCase):
-        return
-    if resolve_case_manager_id(case, dl) != request.actor_id:
+    # The one source of "is the sender the case's authority" (ARCH-24-008):
+    # ``False`` when this replica holds no such case, and tolerant of the
+    # roster spelling the manager with a trailing slash, which the sender id
+    # never carries (OID-01-006, OID-01-007).
+    if not has_role(request.actor_id, case_id, CVDRole.CASE_MANAGER, dl):
         return
     receiving_actor_id = resolve_receiving_actor_id(
         dl, request.receiving_actor_id

@@ -62,6 +62,7 @@ from vultron.core.models.embargo_termination import (
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
 )
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
@@ -73,6 +74,7 @@ from vultron.core.use_cases.received.embargo import (
     InviteToEmbargoOnCaseReceivedUseCase,
     resolve_proposer_id,
 )
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -1375,6 +1377,102 @@ def test_a_slash_spelled_relay_attribution_names_the_stored_proposer(
     assert (
         _consent_of(dl, case_id, PROPOSER, revision.id_)
         == EmbargoConsentState.AGREED
+    )
+
+
+def _respell_or_add_manager(
+    dl: SqliteDataLayer,
+    case_id: str,
+    *,
+    respell_manager_as: str | None = None,
+    second_holder: str | None = None,
+) -> None:
+    """Edit the stored roster the way a peer's activities can leave it.
+
+    *respell_manager_as* rewrites the manager record's ``attributed_to``: the
+    roster keeps the spelling a peer wrote inside an activity, which the
+    extractor does not normalise as it does a sender id (OID-01-007).
+    *second_holder* also grants ``CVDRole.CASE_MANAGER`` to that actor's
+    record, listed after the manager's — the window a role delegation opens
+    (CM-33).
+    """
+    if respell_manager_as is not None:
+        manager = _participant_of(dl, case_id, MANAGER)
+        manager.attributed_to = respell_manager_as
+        dl.save(manager)
+    if second_holder is not None:
+        holder = _participant_of(dl, case_id, second_holder)
+        holder.add_role(CVDRole.CASE_MANAGER)
+        dl.save(holder)
+
+
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("PCR-08-010")
+@pytest.mark.spec("ARCH-24-008")
+def test_a_relay_from_a_slash_spelled_manager_keeps_its_attribution(
+    make_payload,
+):
+    """The roster spells the manager with a trailing slash; its relay is
+    still a relay.
+
+    The sender id arrives normalised and the roster's ``attributed_to`` does
+    not, but the two name one actor (OID-01-006).  Taking the manager's relay
+    for a participant's spoof would record the manager's consent in the
+    proposer's place and invite the proposer to its own terms (#5924).
+    """
+    case_id = "https://example.org/cases/relay-slash-manager"
+    # No embargo in force, so no consent row binds the manager record to
+    # the spelling it is about to lose.
+    dl, revision = _active_case_with_revision(
+        case_id,
+        store_actor=OTHER_A,
+        participants=[PROPOSER, OTHER_A, OTHER_B],
+        active=False,
+    )
+    _respell_or_add_manager(dl, case_id, respell_manager_as=MANAGER + "/")
+    case = cast(VulnerabilityCase, dl.read_case(case_id))
+    assert resolve_case_manager_id(case, dl) == MANAGER + "/"
+    invite = _proposal(
+        revision, case_id, actor=MANAGER, attributed_to=PROPOSER
+    )
+
+    assert (
+        resolve_proposer_id(
+            make_payload(invite, receiving_actor_id=OTHER_A, at=dl), dl
+        )
+        == PROPOSER
+    )
+
+
+@pytest.mark.spec("PCR-08-010")
+@pytest.mark.spec("ARCH-24-008")
+@pytest.mark.parametrize(
+    ("sender", "proposer"),
+    [(MANAGER, PROPOSER), (OTHER_A, OTHER_A)],
+    ids=["resolved-manager-relays", "second-holder-does-not"],
+)
+def test_only_the_resolved_manager_may_attribute_a_proposal(
+    make_payload, sender: str, proposer: str
+):
+    """Two holders of the role on the roster: the resolver's answer is the
+    one authority whose ``attributedTo`` is honoured (ARCH-24-001,
+    ARCH-24-006); the other holder's Invite is its own proposal."""
+    case_id = "https://example.org/cases/relay-two-holders"
+    dl, revision = _active_case_with_revision(
+        case_id,
+        store_actor=OTHER_B,
+        participants=[PROPOSER, OTHER_A, OTHER_B],
+    )
+    _respell_or_add_manager(dl, case_id, second_holder=OTHER_A)
+    case = cast(VulnerabilityCase, dl.read_case(case_id))
+    assert resolve_case_manager_id(case, dl) == MANAGER
+    invite = _proposal(revision, case_id, actor=sender, attributed_to=PROPOSER)
+
+    assert (
+        resolve_proposer_id(
+            make_payload(invite, receiving_actor_id=OTHER_B, at=dl), dl
+        )
+        == proposer
     )
 
 

@@ -279,38 +279,15 @@ def test_exactly_one_authority_condition_node():
 # the answer is reported for what it does rather than for what it is called
 # (``_authority_question``, #5535).
 #
-# The ratchet's terminal value is empty.  What survives it is not a list but
-# the detector: a permanently non-empty scan of modules, a permanently
-# non-empty set of *compliant* askers, and one synthetic control per shape in
-# each direction, so a detector that has stopped seeing the act fails here
+# The ratchet has reached its terminal value: no site derives the boolean
+# from an ingredient (#5924), and the scan asserts that it stays so.  What
+# keeps that assertion from passing vacuously is not a list but the
+# detector: a permanently non-empty scan of modules, a permanently non-empty
+# set of *compliant* askers, and one synthetic control per shape in each
+# direction, so a detector that has stopped seeing the act fails here
 # instead of reporting a clean repo
 # (``notes/architecture-ratchet-corpus.md``).
 # ---------------------------------------------------------------------------
-
-#: Sites that still answer "is this actor the case authority" from an
-#: ingredient rather than from the shared predicate.  Terminal value: empty.
-#: Both entries sit in ``use_cases/received/``, which a concurrent run was
-#: declared to own when the rest were converted, so neither waits on a
-#: design question — each is a mechanical swap for the predicate.
-#: owner: #5924
-KNOWN_AUTHORITY_INGREDIENT_SITES: frozenset[
-    _authority_question.IngredientSite
-] = frozenset(
-    {
-        # Gates clearing the pending proposal slot on the rejecting *sender*
-        # being the CASE_MANAGER.
-        (
-            "vultron/core/use_cases/received/_pending_refusal.py",
-            _authority_question.COMPARISON,
-        ),
-        # Decides whether an Invite attributing its proposal to a third party
-        # is the CASE_MANAGER relaying it (PCR-08-010).
-        (
-            "vultron/core/use_cases/received/embargo/invite.py",
-            _authority_question.COMPARISON,
-        ),
-    }
-)
 
 
 def _ingredient_sites() -> frozenset[_authority_question.IngredientSite]:
@@ -318,61 +295,27 @@ def _ingredient_sites() -> frozenset[_authority_question.IngredientSite]:
 
 
 def test_the_authority_boolean_has_one_source():
-    """Only the listed sites derive the boolean without the predicate.
+    """No site derives the boolean without the predicate.
 
-    Held to equality in both directions (ARCH-18-001, ARCH-18-002), so a new
-    site fails here and a converted one fails until its entry goes.
+    The inverted arm of the ratchet that emptied with #5924: the scan still
+    covers both ingredient shapes, so one written again is reported rather
+    than silently exempt (ARCH-18-002).  Its subjects are pinned non-empty by
+    :func:`test_the_ingredient_scan_opens_modules` and
+    :func:`test_the_authority_question_is_asked_through_the_predicate`.
 
     Spec: ARCH-24-009
     """
     sites = _ingredient_sites()
-    new = sites - KNOWN_AUTHORITY_INGREDIENT_SITES
-    stale = KNOWN_AUTHORITY_INGREDIENT_SITES - sites
-    assert sites == KNOWN_AUTHORITY_INGREDIENT_SITES, "\n".join(
+    assert not sites, "\n".join(
         [
-            "The set of sites deriving 'is this actor the case authority'"
-            " from an ingredient changed (ARCH-24-009).",
-            *(
-                [
-                    "NEW site — ask"
-                    f" {_authority_question.PREDICATE_NAME}(actor_id, case_id,"
-                    f" {_authority_question.ROLE_ENUM_NAME}"
-                    f".{_authority_question.AUTHORITY_ROLE_NAME}, dl), which is"
-                    " the one source of that boolean (ARCH-24-008):",
-                    *(f"  + {entry}" for entry in sorted(new)),
-                ]
-                if new
-                else []
-            ),
-            *(
-                [
-                    "STALE entry — remove it in the same commit"
-                    " (ARCH-18-002):",
-                    *(f"  - {entry}" for entry in sorted(stale)),
-                ]
-                if stale
-                else []
-            ),
+            "A site derives 'is this actor the case authority' from an"
+            " ingredient (ARCH-24-009). Ask"
+            f" {_authority_question.PREDICATE_NAME}(actor_id, case_id,"
+            f" {_authority_question.ROLE_ENUM_NAME}"
+            f".{_authority_question.AUTHORITY_ROLE_NAME}, dl), which is the"
+            " one source of that boolean (ARCH-24-008):",
+            *(f"  + {entry}" for entry in sorted(sites)),
         ]
-    )
-
-
-def test_the_authority_ingredient_backlog_is_not_yet_empty():
-    """The ratchet is not at its terminal value.
-
-    When the last entry goes, invert this to assert the scan reports no site
-    and fold :data:`KNOWN_AUTHORITY_INGREDIENT_SITES` away rather than
-    deleting the scan: the detector keeps covering both shapes, so one
-    written again is reported instead of silently exempt
-    (``notes/architecture-ratchet-corpus.md``).
-
-    Spec: ARCH-18-002
-    """
-    assert KNOWN_AUTHORITY_INGREDIENT_SITES, (
-        "every site now takes the authority boolean from"
-        f" {_authority_question.PREDICATE_NAME}: replace this with an"
-        " assertion that the scan reports no site, and keep the synthetic"
-        " controls as the positive half"
     )
 
 

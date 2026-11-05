@@ -39,7 +39,7 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import normalise_actor_id
@@ -51,6 +51,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     pxa_refusal_verdict,
     verdict_from_bt,
 )
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronProtocolViolationError
 
 if TYPE_CHECKING:
@@ -126,7 +127,10 @@ def resolve_proposer_id(
             request.context_id,
         )
         return request.actor_id
-    if request.actor_id == resolve_case_manager_id(case, dl):
+    # The one source of "is the sender the case's authority" (ARCH-24-008),
+    # tolerant of the roster spelling the manager with a trailing slash,
+    # which the sender id never carries (OID-01-006, OID-01-007).
+    if has_role(request.actor_id, case.id_, CVDRole.CASE_MANAGER, dl):
         return attributed_to
     logger.warning(
         "invite_to_embargo_on_case: invite '%s' from '%s' attributes its"
