@@ -21,7 +21,7 @@ to. :func:`graphql_errors` is the shared reading of a failed GraphQL reply.
 from __future__ import annotations
 
 import subprocess
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 
 DEFAULT_REPO = "CERTCC/Vultron"
 """The repository the planning scripts read when ``--repo`` is not given."""
@@ -63,7 +63,7 @@ def gh_failure_detail(exc: GhError | subprocess.CalledProcessError) -> str:
     return str(exc)
 
 
-def graphql_errors(payload: dict) -> list[str]:
+def graphql_errors(payload: Mapping[str, object]) -> list[str]:
     """Messages from a GraphQL ``errors`` block, if the query failed.
 
     A failed GraphQL query still returns HTTP 200 with ``data`` null or partial,
@@ -72,8 +72,11 @@ def graphql_errors(payload: dict) -> list[str]:
     ``projectItems`` needs, and a rate limit alike. Error messages are the
     planning scripts' product, so the real cause is surfaced verbatim.
     """
+    errors = payload.get("errors")
+    if not isinstance(errors, list):
+        return []
     return [
         str(error.get("message") or error)
-        for error in payload.get("errors") or []
+        for error in errors
         if isinstance(error, dict)
     ]

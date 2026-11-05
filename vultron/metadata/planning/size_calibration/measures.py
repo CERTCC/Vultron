@@ -26,20 +26,13 @@ from dataclasses import dataclass
 from itertools import pairwise
 
 from vultron.metadata.planning.size_calibration.model import (
+    CALIBRATION_PERCENTILES,
     BandScheme,
     CalibrationData,
     ClosedIssue,
     IssuePair,
     MergedPr,
 )
-
-CALIBRATION_PERCENTILES: tuple[int, ...] = (23, 61, 87)
-"""The merged-PR diff-size quantiles each bounded band's ceiling was cut at.
-
-One per band with a ceiling, smallest first. A table in calibration puts each
-ceiling near its percentile, so each band holds the share between consecutive
-percentiles (:func:`target_shares`).
-"""
 
 _AC_ITEM = re.compile(r"^[ \t]*[-*+][ \t]+\[[ xX]\][ \t]+AC-\d+\b", re.M)
 _CHECKBOX = re.compile(r"^[ \t]*[-*+][ \t]+\[[ xX]\][ \t]+\S", re.M)

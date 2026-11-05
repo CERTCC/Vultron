@@ -84,6 +84,14 @@ query($q: String!, $pageSize: Int!, $endCursor: String) {{
 """
 """One page of merged PRs matching a search, and the Issues each closes."""
 
+COUNT_QUERY = """
+query($q: String!) {
+  search(query: $q, type: ISSUE, first: 0) { issueCount }
+}
+"""
+"""How many PRs a search matches, read before its pages so an oversize slice
+is halved without paging it."""
+
 _WHAT = "could not read the PR query"
 
 JsonObject = dict[str, object]
@@ -111,6 +119,12 @@ def _int(value: object, where: str) -> int:
 def _str(value: object, where: str) -> str:
     if not isinstance(value, str):
         raise GhError(f"{_WHAT}: {where} is not a string")
+    return value
+
+
+def _bool(value: object, where: str) -> bool:
+    if not isinstance(value, bool):
+        raise GhError(f"{_WHAT}: {where} is not a boolean")
     return value
 
 
@@ -149,16 +163,15 @@ def _parse_issue(node: JsonObject) -> ClosedIssue:
         node, "closedByPullRequestsReferences", where
     )
     names = [_str(label.get("name"), f"{where} label") for label in labels]
-    body = node.get("body")
     return ClosedIssue(
         number=number,
         closed=_str(node.get("state"), f"{where} state") == "CLOSED",
         size_labels=tuple(name for name in names if name.startswith("size:")),
-        ac_count=count_acs(body if isinstance(body, str) else ""),
+        ac_count=count_acs(_str(node.get("body"), f"{where} body")),
         merged_closing_prs=tuple(
             _int(pr.get("number"), f"{where} closer")
             for pr in closers
-            if pr.get("merged") is True
+            if _bool(pr.get("merged"), f"{where} closer merged")
         ),
         closers_complete=all_closers,
     )
@@ -230,6 +243,44 @@ def _search_term(repo: str, start: datetime, end: datetime) -> str:
     )
 
 
+def _load(raw: str) -> object:
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise GhError(f"{_WHAT}: {exc}") from exc
+
+
+def parse_count(reply: object) -> int:
+    """The match count from a :data:`COUNT_QUERY` reply.
+
+    Raises:
+        GhError: If the reply carries GraphQL errors or is not the expected
+            shape.
+    """
+    page = _object(reply, "the count reply")
+    errors = graphql_errors(page)
+    if errors:
+        raise GhError("the PR count query failed: " + "; ".join(errors))
+    search = _object(_object(page.get("data"), "data").get("search"), "search")
+    return _int(search.get("issueCount"), "search.issueCount")
+
+
+def _count_slice(
+    repo: str, start: datetime, end: datetime, run: Runner
+) -> int:
+    raw = run(
+        [
+            "api",
+            "graphql",
+            "-f",
+            f"query={COUNT_QUERY}",
+            "-f",
+            f"q={_search_term(repo, start, end)}",
+        ]
+    )
+    return parse_count(_load(raw))
+
+
 def _read_slice(
     repo: str, start: datetime, end: datetime, run: Runner
 ) -> SliceResult:
@@ -247,11 +298,7 @@ def _read_slice(
             f"pageSize={PAGE_SIZE}",
         ]
     )
-    try:
-        pages = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise GhError(f"{_WHAT}: {exc}") from exc
-    return parse_search_pages(pages)
+    return parse_search_pages(_load(raw))
 
 
 def _slices(
@@ -277,8 +324,11 @@ def fetch_window(
 ) -> CalibrationData:
     """Every PR on *repo* (``OWNER/NAME``) merged from ``since`` to ``until``.
 
-    Both ends are inclusive. Each slice of ``slice_span`` that matches more
-    than :data:`SEARCH_RESULT_CAP` PRs is halved until it fits.
+    Both ends are inclusive. Each slice of ``slice_span`` is counted first
+    (:data:`COUNT_QUERY`); one that matches more than
+    :data:`SEARCH_RESULT_CAP` PRs is halved until it fits, before any of its
+    pages are read. A slice that grows past the cap between its count and its
+    read is halved the same way.
 
     Raises:
         GhError: If *repo* is malformed, the window is empty or reversed, a
@@ -296,8 +346,10 @@ def fetch_window(
     issues: dict[int, ClosedIssue] = {}
     while pending:
         start, end = pending.pop(0)
-        result = _read_slice(repo, start, end, run)
-        if result.issue_count > SEARCH_RESULT_CAP:
+        result = None
+        if _count_slice(repo, start, end, run) <= SEARCH_RESULT_CAP:
+            result = _read_slice(repo, start, end, run)
+        if result is None or result.issue_count > SEARCH_RESULT_CAP:
             if end - start < MIN_SLICE:
                 raise GhError(
                     f"more than {SEARCH_RESULT_CAP} PRs merged between "

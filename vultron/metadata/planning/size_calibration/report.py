@@ -23,7 +23,6 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from vultron.metadata.planning.size_calibration.measures import (
-    CALIBRATION_PERCENTILES,
     band_shares,
     diff_percentiles,
     estimate_accuracy,
@@ -69,7 +68,7 @@ def band_share_section(data: CalibrationData, scheme: BandScheme) -> Section:
         for share, band, target in zip(
             band_shares(data.prs, scheme),
             scheme.bands,
-            target_shares(),
+            target_shares(scheme.percentiles),
             strict=True,
         )
     ]
@@ -88,7 +87,7 @@ def percentile_section(data: CalibrationData, scheme: BandScheme) -> Section:
     lines = [
         f"p{p:<3} {value:>8.0f} lines   {band.label} ceiling {band.max_lines}"
         for (p, value), band in zip(
-            diff_percentiles(data.prs, CALIBRATION_PERCENTILES),
+            diff_percentiles(data.prs, scheme.percentiles),
             bounded,
             strict=True,
         )

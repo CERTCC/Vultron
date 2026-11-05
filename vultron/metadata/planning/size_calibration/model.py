@@ -16,7 +16,7 @@
 already reduced to what the measures need; :class:`CalibrationData` is one
 window of them. :class:`BandScheme` carries the band table in, so this package
 never imports ``size_bands`` (which imports it for the CLI) and a test can
-calibrate against any table.
+calibrate against any table whose cut quantiles it also names.
 """
 
 from __future__ import annotations
@@ -24,23 +24,54 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from itertools import pairwise
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from vultron.metadata.planning.size_bands import SizeBand
 
 
+CALIBRATION_PERCENTILES: tuple[int, ...] = (23, 61, 87)
+"""The merged-PR diff-size quantiles each bounded band's ceiling was cut at.
+
+One per band with a ceiling, smallest first. A table in calibration puts each
+ceiling near its percentile, so each band holds the share between consecutive
+percentiles (:func:`.measures.target_shares`).
+"""
+
+
 @dataclass(frozen=True)
 class BandScheme:
-    """The band table to calibrate, and the classifier that applies it.
+    """The band table to calibrate, the classifier, and the quantiles it was cut at.
 
     ``bands`` is ordered smallest first, as ``SIZE_BANDS`` is; ``classify`` is
     ``band_for_diff``. They are passed together so the report ranks bands in the
-    same order the classifier assigns them.
+    same order the classifier assigns them. ``percentiles`` holds one cut
+    quantile per band with a line ceiling, smallest first; the report pairs
+    them with those bands and derives each band's target share from them.
+
+    Raises:
+        ValueError: If ``percentiles`` does not hold one strictly increasing
+            value inside 0-100 per bounded band.
     """
 
     bands: tuple[SizeBand, ...]
     classify: Callable[[int], SizeBand]
+    percentiles: tuple[int, ...] = CALIBRATION_PERCENTILES
+
+    def __post_init__(self) -> None:
+        bounded = sum(1 for band in self.bands if band.max_lines is not None)
+        if len(self.percentiles) != bounded:
+            raise ValueError(
+                f"a scheme with {bounded} bounded bands needs {bounded} cut "
+                f"percentiles, got {len(self.percentiles)}"
+            )
+        cuts = (0, *self.percentiles, 100)
+        if any(lower >= upper for lower, upper in pairwise(cuts)):
+            raise ValueError(
+                "cut percentiles must increase strictly inside 0-100, got "
+                f"{self.percentiles}"
+            )
 
     @property
     def labels(self) -> tuple[str, ...]:

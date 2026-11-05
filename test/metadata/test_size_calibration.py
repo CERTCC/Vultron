@@ -17,6 +17,7 @@ from vultron.metadata.planning import size_bands
 from vultron.metadata.planning.gh import GhError
 from vultron.metadata.planning.size_calibration import fetch, measures, report
 from vultron.metadata.planning.size_calibration.model import (
+    BandScheme,
     CalibrationData,
     ClosedIssue,
     IssuePair,
@@ -115,7 +116,44 @@ class TestTargetShares:
         percentile list would otherwise surface only when someone ran it.
         """
         bounded = [b for b in size_bands.SIZE_BANDS if b.max_lines is not None]
-        assert len(measures.CALIBRATION_PERCENTILES) == len(bounded)
+        assert len(SCHEME.percentiles) == len(bounded)
+
+
+def _three_bands() -> tuple[size_bands.SizeBand, ...]:
+    return (
+        size_bands.SizeBand("size:S", 100, 2, 1),
+        size_bands.SizeBand("size:M", 500, 5, 2),
+        size_bands.SizeBand("size:L", None, None, None),
+    )
+
+
+def _classify_three(lines: int) -> size_bands.SizeBand:
+    small, medium, large = _three_bands()
+    return small if lines <= 100 else medium if lines <= 500 else large
+
+
+class TestBandScheme:
+    def test_a_scheme_carries_its_own_cut_percentiles(self):
+        scheme = BandScheme(_three_bands(), _classify_three, (30, 80))
+        window = data([pr(1, 50), pr(2, 300), pr(3, 900)])
+        text = report.render_report(window, scheme)
+        assert "(target 30%)" in text
+        assert "(target 20%)" in text
+        assert "p80" in text and "size:M ceiling 500" in text
+
+    @pytest.mark.parametrize("percentiles", [(30,), (30, 60, 90)])
+    def test_a_percentile_count_off_the_bounded_bands_is_refused(
+        self, percentiles
+    ):
+        with pytest.raises(ValueError, match="2 bounded bands needs 2"):
+            BandScheme(_three_bands(), _classify_three, percentiles)
+
+    @pytest.mark.parametrize("percentiles", [(80, 30), (30, 30), (0, 50)])
+    def test_cuts_that_do_not_increase_inside_the_range_are_refused(
+        self, percentiles
+    ):
+        with pytest.raises(ValueError, match="increase strictly"):
+            BandScheme(_three_bands(), _classify_three, percentiles)
 
 
 class TestBandShares:
@@ -356,6 +394,19 @@ def _page(nodes: Sequence[dict], count: int | None = None) -> dict:
     }
 
 
+def _count(count: int) -> dict:
+    return {"data": {"search": {"issueCount": count}}}
+
+
+def _slice(nodes: Sequence[dict]) -> tuple[dict, list[dict]]:
+    """The two replies one slice takes: its count, then its slurped pages."""
+    return _count(len(nodes)), [_page(nodes)]
+
+
+def _issue_with(**fields: object) -> dict:
+    return {**_issue_node(1, [(10, True)]), **fields}
+
+
 class TestParseSearchPages:
     def test_a_pr_is_read_with_its_issues(self):
         result = fetch.parse_search_pages(
@@ -410,11 +461,45 @@ class TestParseSearchPages:
             [_page([{"number": "10"}])],
             [_page([{**_node(10), "mergedAt": "yesterday"}])],
             [_page([{**_node(10), "additions": True}])],
+            [_page([_node(10, issues=[_issue_with(body=None)])])],
+            [
+                _page(
+                    [
+                        _node(
+                            10,
+                            issues=[
+                                _issue_with(
+                                    closedByPullRequestsReferences=_connection(
+                                        [{"number": 10, "merged": "yes"}]
+                                    )
+                                )
+                            ],
+                        )
+                    ]
+                )
+            ],
         ],
     )
     def test_an_unexpected_shape_is_a_gh_error(self, pages):
         with pytest.raises(GhError, match="could not read the PR query"):
             fetch.parse_search_pages(pages)
+
+
+class TestParseCount:
+    def test_the_match_count_is_read(self):
+        assert fetch.parse_count(_count(42)) == 42
+
+    def test_graphql_errors_are_raised_verbatim(self):
+        with pytest.raises(GhError, match="count query failed: rate limited"):
+            fetch.parse_count({"errors": [{"message": "rate limited"}]})
+
+    @pytest.mark.parametrize(
+        "reply",
+        [[], {"data": None}, {"data": {"search": {"issueCount": "3"}}}],
+    )
+    def test_an_unexpected_shape_is_a_gh_error(self, reply):
+        with pytest.raises(GhError, match="could not read the PR query"):
+            fetch.parse_count(reply)
 
 
 def _query_term(call: list[str]) -> str:
@@ -424,23 +509,32 @@ def _query_term(call: list[str]) -> str:
 
 class TestFetchWindow:
     def test_the_window_is_read_in_merge_date_slices(self):
-        gh = FakeRunner([_page([_node(10)])], [_page([_node(11)])])
+        gh = FakeRunner(*_slice([_node(10)]), *_slice([_node(11)]))
         window = fetch.fetch_window(
             "o/n", SINCE, NOW, gh, slice_span=timedelta(days=30)
         )
         assert [p.number for p in window.prs] == [10, 11]
+        first = (
+            "q=repo:o/n is:pr is:merged "
+            "merged:2026-09-06T00:00:00Z..2026-10-06T00:00:00Z"
+        )
+        second = (
+            "q=repo:o/n is:pr is:merged "
+            "merged:2026-10-06T00:00:00Z..2026-11-05T00:00:00Z"
+        )
         terms = [_query_term(call) for call in gh.calls]
-        assert terms == [
-            "q=repo:o/n is:pr is:merged "
-            "merged:2026-09-06T00:00:00Z..2026-10-06T00:00:00Z",
-            "q=repo:o/n is:pr is:merged "
-            "merged:2026-10-06T00:00:00Z..2026-11-05T00:00:00Z",
+        assert terms == [first, first, second, second]
+        assert ["--paginate" in call for call in gh.calls] == [
+            False,
+            True,
+            False,
+            True,
         ]
 
     def test_a_pr_on_a_slice_boundary_is_counted_once(self):
         shared = _issue_node(1, [(10, True)])
         node = _node(10, issues=[shared])
-        gh = FakeRunner([_page([node])], [_page([node])])
+        gh = FakeRunner(*_slice([node]), *_slice([node]))
         window = fetch.fetch_window(
             "o/n", SINCE, NOW, gh, slice_span=timedelta(days=30)
         )
@@ -450,40 +544,64 @@ class TestFetchWindow:
     def test_a_pr_merged_outside_the_window_is_dropped(self):
         old = _node(9, merged=SINCE - timedelta(seconds=1))
         window = fetch.fetch_window(
-            "o/n", SINCE, NOW, FakeRunner([_page([old])])
+            "o/n",
+            SINCE,
+            NOW,
+            FakeRunner(*_slice([old])),
+            slice_span=timedelta(days=60),
         )
         assert window.prs == ()
 
-    def test_a_slice_over_the_search_cap_is_halved(self):
+    def test_a_slice_over_the_search_cap_is_halved_before_paging(self):
         gh = FakeRunner(
-            [_page([], count=fetch.SEARCH_RESULT_CAP + 1)],
-            [_page([_node(10)])],
-            [_page([_node(11)])],
+            _count(fetch.SEARCH_RESULT_CAP + 1),
+            *_slice([_node(10)]),
+            *_slice([_node(11)]),
         )
         window = fetch.fetch_window(
             "o/n", SINCE, NOW, gh, slice_span=timedelta(days=60)
         )
         assert [p.number for p in window.prs] == [10, 11]
+        assert "--paginate" not in gh.calls[0]
+        first = "merged:2026-09-06T00:00:00Z..2026-10-06T00:00:00Z"
+        second = "merged:2026-10-06T00:00:00Z..2026-11-05T00:00:00Z"
         assert [_query_term(call).split(" ")[-1] for call in gh.calls[1:]] == [
-            "merged:2026-09-06T00:00:00Z..2026-10-06T00:00:00Z",
-            "merged:2026-10-06T00:00:00Z..2026-11-05T00:00:00Z",
+            first,
+            first,
+            second,
+            second,
         ]
 
+    def test_a_slice_that_grows_past_the_cap_after_its_count_is_halved(
+        self,
+    ):
+        gh = FakeRunner(
+            _count(5),
+            [_page([], count=fetch.SEARCH_RESULT_CAP + 1)],
+            *_slice([_node(10)]),
+            *_slice([_node(11)]),
+        )
+        window = fetch.fetch_window(
+            "o/n", SINCE, NOW, gh, slice_span=timedelta(days=60)
+        )
+        assert [p.number for p in window.prs] == [10, 11]
+        assert len(gh.calls) == 6
+
     def test_a_tiny_slice_still_over_the_cap_is_refused(self):
-        gh = FakeRunner([_page([], count=fetch.SEARCH_RESULT_CAP + 1)])
+        gh = FakeRunner(_count(fetch.SEARCH_RESULT_CAP + 1))
         with pytest.raises(GhError, match="cannot list them"):
             fetch.fetch_window("o/n", NOW - timedelta(minutes=30), NOW, gh)
 
     def test_a_failure_on_a_later_slice_raises(self):
         gh = FakeRunner(
-            [_page([_node(10)])],
+            *_slice([_node(10)]),
             subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 502"),
         )
         with pytest.raises(subprocess.CalledProcessError):
             fetch.fetch_window(
                 "o/n", SINCE, NOW, gh, slice_span=timedelta(days=30)
             )
-        assert len(gh.calls) == 2
+        assert len(gh.calls) == 3
 
     @pytest.mark.parametrize("repo", ["", "owner", "o/", "/n", "o/n/x"])
     def test_a_malformed_repo_is_refused_before_calling_gh(self, repo):
@@ -503,7 +621,7 @@ class TestFetchWindow:
 
 class TestCli:
     def test_calibrate_reads_the_window_ending_now(self):
-        gh = FakeRunner([_page([_node(10, additions=40, deletions=2)])])
+        gh = FakeRunner(*_slice([_node(10, additions=40, deletions=2)]))
         text = size_bands.calibrate(7, run=gh, now=NOW)
         assert text.startswith("pr-size --calibrate: 2026-10-29 to 2026-11-05")
         assert "Band shares — 1 PRs merged" in text
@@ -572,7 +690,7 @@ class TestCli:
 
     def test_a_failure_partway_through_prints_no_partial_report(self, capsys):
         gh = FakeRunner(
-            [_page([_node(10)])],
+            *_slice([_node(10)]),
             subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 502"),
         )
         with pytest.raises(subprocess.CalledProcessError):
