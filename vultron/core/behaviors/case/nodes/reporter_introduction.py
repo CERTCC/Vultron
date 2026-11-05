@@ -34,9 +34,11 @@ from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import (
     reporter_introduction_recipients,
 )
+from vultron.core.participants.role_predicate import has_role
 from vultron.core.services.case_replica_seeding import (
     find_case_create_sent_by,
 )
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronError
 
 
@@ -120,9 +122,18 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
         # this skip is equivalent to the old "the manager is me" only while
         # the owner check above stands, so it re-reads the case rather than
         # the local the check used, and a reorder that moved it would fail
-        # here rather than silently widen the skip.
+        # here rather than silently widen the skip.  The boolean itself comes
+        # from the shared predicate, the one source of "is this actor the
+        # case authority" (ARCH-24-008): comparing the resolved id here read
+        # the roster's spelling exactly, so an owner id differing only by a
+        # trailing slash made the skip miss (OID-01-006).
         assert case.attributed_to == self.actor_id
-        if manager_id == owner_actor_id:
+        if has_role(
+            owner_actor_id,
+            self.case_id,
+            CVDRole.CASE_MANAGER,
+            self.datalayer,
+        ):
             return "the case owner is the CASE_MANAGER (CBT-02-001)"
         self._sent_id = find_case_create_sent_by(
             self.datalayer, self.actor_id, self.case_id

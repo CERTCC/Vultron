@@ -366,8 +366,14 @@ def test_the_detector_ignores_a_comparison_about_another_actor() -> None:
 
     ``sent_by_case_manager`` compares the resolved manager with the *ledger
     entry's* author, held in a local called ``actor_id``.  That is the
-    sender's role, which ADR-0153 leaves legal, so the detector must not
-    report it.
+    sender's role, not the receiver's, so it is not a subject of the ADR-0153
+    migration this ratchet counts and this detector must not report it.
+
+    "Not a subject here" is not "permitted".  ARCH-24-009 forbids the
+    comparison whichever actor it is about, and
+    ``test_the_authority_boolean_has_one_source`` is the arm that reports it;
+    the two readings share one set of shape predicates in
+    ``_authority_question.py``, this one restricted to the executing actor.
     """
     source = (
         f"def sent_by_case_manager(snapshot, case, dl):\n"

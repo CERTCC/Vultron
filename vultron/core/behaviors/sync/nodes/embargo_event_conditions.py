@@ -39,10 +39,11 @@ from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.wire_keys import wire_key
-from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
 
 # The revision relay's semantic types (EP-09-007, ADR-0113).  The proposal and
@@ -111,7 +112,7 @@ def is_relayed_embargo_invite(
         return False
     if case is None:
         return attributed_to != actor_id
-    if resolve_case_manager_id(case, dl) != actor_id:
+    if not has_role(actor_id, case.id_, CVDRole.CASE_MANAGER, dl):
         return False
     return attributed_to != actor_id or _proposes_nothing(snapshot, case)
 
@@ -132,7 +133,7 @@ def sent_by_case_manager(
     actor_id = snapshot_actor_id(snapshot.get("actor"))
     if not actor_id or case is None:
         return False
-    return resolve_case_manager_id(case, dl) == actor_id
+    return has_role(actor_id, case.id_, CVDRole.CASE_MANAGER, dl)
 
 
 class _EmbargoInviteEventNode(_ActivityEventNode):

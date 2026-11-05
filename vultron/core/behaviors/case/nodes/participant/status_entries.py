@@ -45,15 +45,15 @@ from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     participant_status_rm_state,
 )
+from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.predicates.roles import has_case_manager_role
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError, VultronWiringError
 
 #: ``semantic_type`` of the entry recording one participant status.
@@ -175,7 +175,7 @@ class CommitParticipantStatusEntriesNode(
                 f" '{self._subject_actor_id}' on case '{self._case_id}'"
             )
 
-        if not self._receiver_is_case_manager(case):
+        if not self._receiver_is_case_manager():
             # Authority gate (CLP-09-001, BT-17-005/006): a role-based check
             # at invocation time.  ``DeclineForeignLedgerCommitNode`` inside
             # the commit tree is a store-consistency check, not an authority
@@ -226,16 +226,26 @@ class CommitParticipantStatusEntriesNode(
             )
         return str(context)
 
-    def _receiver_is_case_manager(self, case: VulnerabilityCase) -> bool:
-        """Whether the receiving actor holds CASE_MANAGER on *case* now."""
+    def _receiver_is_case_manager(self) -> bool:
+        """Whether the receiving actor is the case's authority now.
+
+        The named reason for the gate below; the answer itself comes from
+        :func:`~vultron.core.participants.role_predicate.has_role`, the one
+        source of that boolean (ARCH-24-008).  Reading the roster here
+        instead answered ``True`` for *any* holder of the role, while the
+        single resolver names the first in roster order, so on a roster that
+        records the role twice — the window a role delegation opens (CM-33) —
+        this gate and the tree's path stage could disagree and the handler
+        would report ``APPLIED`` with its gated commit skipped (HP-01-005,
+        #5921).
+        """
         assert self.datalayer is not None
         assert self.actor_id is not None
-        participant_id = case.actor_participant_index.get(self.actor_id)
-        if participant_id is None:
-            return False
-        participant = self.datalayer.read(participant_id)
-        return isinstance(participant, CaseParticipant) and (
-            has_case_manager_role(list(participant.case_roles or []))
+        return has_role(
+            self.actor_id,
+            self._case_id,
+            CVDRole.CASE_MANAGER,
+            self.datalayer,
         )
 
     def _commit_status(

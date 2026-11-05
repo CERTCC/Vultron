@@ -32,8 +32,7 @@ from vultron.core.behaviors.note.add_note_trigger_tree import (
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.pending_assertion import ASSERTED_ACTIVITY_KEY
 from vultron.core.models.use_case_result import NoteResult
-from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.predicates.addressing import same_actor_id
+from vultron.core.participants.role_predicate import has_role
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
@@ -42,6 +41,7 @@ from vultron.core.use_cases.triggers._helpers import (
 from vultron.core.use_cases.triggers.requests import (
     AddNoteToCaseTriggerRequest,
 )
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -82,9 +82,8 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
         self._actor_id = actor.id_
         case = resolve_case(request.case_id, self._dl)
         self._case_id = case.id_
-        case_manager_id = resolve_case_manager_id(case, self._dl)
-        self._is_case_manager = case_manager_id is not None and same_actor_id(
-            case_manager_id, self._actor_id
+        self._is_case_manager = has_role(
+            self._actor_id, self._case_id, CVDRole.CASE_MANAGER, self._dl
         )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:

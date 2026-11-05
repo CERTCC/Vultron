@@ -19,10 +19,10 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerCondition
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.role_predicate import has_role
 from vultron.core.predicates.addressing import participant_id_for_actor
 from vultron.core.predicates.roles import has_case_owner_role
-from vultron.primitives import same_actor_id
+from vultron.enums.roles import CVDRole
 
 
 class CaseManagerLeavesOnlyAsCaseOwnerNode(DataLayerCondition):
@@ -60,9 +60,11 @@ class CaseManagerLeavesOnlyAsCaseOwnerNode(DataLayerCondition):
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure
-        manager_id = resolve_case_manager_id(case, self.datalayer)
-        if manager_id is None or not same_actor_id(
-            manager_id, self.sender_actor_id
+        if not has_role(
+            self.sender_actor_id,
+            self.case_id,
+            CVDRole.CASE_MANAGER,
+            self.datalayer,
         ):
             return Status.SUCCESS
         participant_id = participant_id_for_actor(
