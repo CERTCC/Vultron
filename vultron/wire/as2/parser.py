@@ -225,7 +225,8 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
             actor profile (CP-01-010), if a case reference sits anywhere but
             the object of a ``Join``, ``Ignore``, ``Leave`` or ``Offer``
             (AKM-03-004), if a case stub sits anywhere but the target of an
-            Invite that invites an actor to the case (MV-10-002),
+            Invite whose object is the inline actor it invites to the case
+            (MV-10-002),
             or if the body cannot be re-serialized as strict JSON to seal it
             as received evidence (VM-08-002).
     """
