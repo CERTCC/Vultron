@@ -824,9 +824,11 @@ groups:
       `timeout`.
     verification: >-
       `test/metadata/test_targeted_tests.py` checks that the printed gate command
-      starts with `GATE_CEILING`. `test/metadata/test_gate_ceiling.py` checks every
-      redirected pytest gate in agent-facing files for the ceiling, and the CI test
-      job for `timeout-minutes`.
+      runs under `GATE_CEILING`, after the heavy-check slot wrapper.
+      `test/metadata/test_gate_ceiling.py` checks every redirected pytest gate in
+      agent-facing files for the ceiling, and the CI test job for
+      `timeout-minutes`. The wrapper's own wait for a slot ends at its default
+      limit (`test/metadata/test_run_heavy.py`).
   - id: TB-14-006
     priority: MUST
     kind: project

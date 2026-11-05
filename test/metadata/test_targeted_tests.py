@@ -13,6 +13,7 @@ import pytest
 
 from test.support.git_repo import git, init_git_repo
 from vultron.metadata.planning import targeted_tests
+from vultron.metadata.planning.heavy_lock import under_heavy_lock
 from vultron.metadata.planning.targeted_tests import (
     ALWAYS_SELECTED,
     GATE_CEILING,
@@ -31,6 +32,9 @@ from vultron.metadata.specs.backstop import (
     index_test_file,
     module_name,
 )
+
+#: What every printed gate command starts with: the lock, then the ceiling.
+_GATE_PREFIX = under_heavy_lock(GATE_CEILING)
 
 SOURCE = """\
 def changed_fn():
@@ -435,8 +439,8 @@ def test_module_nothing_tests_is_unmapped():
 def test_pytest_argv_enables_the_integration_marker():
     selection = _select(["vultron/a/mod.py"], [_change()])
     argv = pytest_argv(selection)
-    ceiling = len(GATE_CEILING)
-    assert argv[ceiling : ceiling + 3] == ["uv", "run", "pytest"]
+    prefix = len(_GATE_PREFIX)
+    assert argv[prefix : prefix + 3] == ["uv", "run", "pytest"]
     marker = argv.index("-m")
     assert argv[marker + 1] == ""
     assert argv[-len(selection.tests) :] == selection.tests
@@ -544,9 +548,13 @@ def test_full_pytest_argv_has_no_paths():
 @pytest.mark.spec("TB-14-005")
 @pytest.mark.parametrize("changed", [["vultron/a/mod.py"], ["uv.lock"]])
 def test_pytest_argv_runs_under_the_wall_clock_ceiling(changed):
-    """A hung gate run ends with ``timeout``'s 124, not never (#4809)."""
+    """A hung gate run ends with ``timeout``'s 124, not never (#4809).
+
+    The heavy-check slot wrapper comes first, so a run waiting behind another
+    worktree's suite is not charged its wait (#5947).
+    """
     argv = pytest_argv(_select(changed, [_change()]))
-    assert argv[: len(GATE_CEILING)] == list(GATE_CEILING)
+    assert argv[: len(_GATE_PREFIX)] == list(_GATE_PREFIX)
 
 
 # ---------------------------------------------------------------------------
