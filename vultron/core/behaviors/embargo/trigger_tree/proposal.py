@@ -64,10 +64,11 @@ def _propose_arms(
     received side's own check (EP-09-032, #5899), collect the invitees
     before deciding (BT-19-001), decide ``STRICT`` on a staged store,
     commit the proposal — the ``Invite(EmbargoEvent)`` whose entry is the
-    ``PROPOSE`` step — then one ``Create(EmbargoConsent)`` per participant's new row (the
-    proposer's ``AGREED``, every other one ``UNINVITED``), apply them by
-    copying (ADR-0124, CLP-07-013), relay one ``Invite`` per participant,
-    and only then index the proposal the manager will answer (ID-04-005).
+    ``PROPOSE`` step — then one ``Create(EmbargoConsent)`` per
+    participant's new row (the proposer's ``AGREED``, every other one
+    ``UNINVITED``), apply them by copying (ADR-0124, CLP-07-013), relay one
+    ``Invite`` per participant, and only then index the proposal the
+    manager will answer (ID-04-005).
     The factory renders the stored ``EmbargoEvent``, the object and not case
     state (EP-09-003): in the manager arm ``CommitEmbargoProposalNode``
     stores it as it builds the proposal and takes it back out when the

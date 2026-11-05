@@ -62,17 +62,18 @@ class EmbargoTermsNotHeldNode(
 
     FAILURE with :attr:`is_repeat` set when the proposal's end time equals
     that of a ``PROPOSED`` register entry, or, when no entry is ``PROPOSED``,
-    that of the ``ACTIVE`` one (EP-09-032).  The handler reports the run as
-    ``SKIPPED``: the commit would add an entry that changes nothing and the
-    relay would ask every participant again about terms they already hold.
+    that of the ``ACTIVE`` one (EP-09-032).  On the received side the
+    handler reports the run as ``SKIPPED``: the commit would add an entry
+    that changes nothing and the relay would ask every participant again
+    about terms they already hold.
 
     SUCCESS when the end time is new, and when there is nothing to compare: the
     store holds no case, or the proposed terms do not resolve to a stored
     ``EmbargoEvent`` (``read_embargo_event`` raises a ``VultronError``).  A
     register entry that does not resolve is left out of the comparison with a
-    WARNING.  Any other error propagates.  A duplicate
-    is a no-op, never a refusal, so a guard that cannot prove one admits the
-    proposal and the effect path decides what it means.
+    WARNING.  Any other error propagates.  A guard that cannot prove a
+    duplicate admits the proposal, in either mode, and the effect path
+    decides what it means.
 
     Given *result_out*, as the CASE_MANAGER's own trigger tree gives it, a
     repeat also writes a ``VultronInvalidStateTransitionError`` to
@@ -84,8 +85,9 @@ class EmbargoTermsNotHeldNode(
     embargo id, which a repeat sent under new ids does not share.  The
     proposal's own register entry is left out: an Invite naming an embargo
     the register already holds repeats no other proposal's terms.  Read-only,
-    so it runs in ``precondition_guards`` ahead of the guarded commit
-    (CLP-10-006, CLP-10-009).
+    so it runs ahead of the guarded commit: in ``precondition_guards`` on the
+    received side (CLP-10-006, CLP-10-009), first in the CASE_MANAGER arm on
+    the trigger side.
     """
 
     _REPEAT_FLAG = "is_repeat"
@@ -104,8 +106,8 @@ class EmbargoTermsNotHeldNode(
         self.embargo = embargo
         self._result_out = result_out
         self.is_repeat = False
-        """``True`` when the last run found the terms already held: a benign
-        no-op, not a refusal."""
+        """``True`` when the last run found the terms already held: a
+        no-op on the received side, a refusal when *result_out* is given."""
 
     def _proposed_end_time(self) -> datetime:
         """The proposal's end time: the inline terms, else the stored ones.

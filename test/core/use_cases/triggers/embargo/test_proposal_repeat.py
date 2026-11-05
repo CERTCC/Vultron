@@ -186,20 +186,28 @@ def test_the_trigger_and_received_paths_share_one_terms_comparison() -> None:
     """Both paths compose ``EmbargoTermsNotHeldNode`` (AC-3, CS-22-001)."""
     case_id = "https://example.org/cases/c"
     embargo = EmbargoEvent(context=case_id, end_time=days_from_now_utc(30))
+    result_out: dict[str, object] = {}
     trigger = propose_embargo_trigger_bt(
         case_id=case_id,
         actor_id="https://example.org/actors/a",
         embargo=embargo,
-        result_out={},
+        result_out=result_out,
         activity_builder=lambda to: ("id", "{}"),
     )
     received = case_manager_admits_proposal_guard(
         case_id=case_id, embargo_id=embargo.id_, embargo=embargo
     )
 
-    assert any(
-        isinstance(n, EmbargoTermsNotHeldNode) for n in trigger.iterate()
-    )
-    assert any(
-        isinstance(n, EmbargoTermsNotHeldNode) for n in received.children
-    )
+    trigger_guards = [
+        n for n in trigger.iterate() if isinstance(n, EmbargoTermsNotHeldNode)
+    ]
+    received_guards = [
+        n for n in received.children if isinstance(n, EmbargoTermsNotHeldNode)
+    ]
+
+    assert len(trigger_guards) == 1
+    assert len(received_guards) == 1
+    # The trigger's copy refuses through the use case's result_out; the
+    # received one has none, so a repeat stays a SKIPPED no-op there.
+    assert trigger_guards[0]._result_out is result_out
+    assert received_guards[0]._result_out is None
