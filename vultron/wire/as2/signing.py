@@ -42,9 +42,10 @@ import copy
 import hashlib
 import json
 import logging
+import re
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Any
+from typing import Any, NoReturn
 
 import base58
 import rfc8785
@@ -76,8 +77,12 @@ KEY_FRAGMENT = "main-key"
 _ED25519_PUBLIC_PREFIX = b"\xed\x01"
 _ED25519_SECRET_PREFIX = b"\x80\x26"
 _ED25519_KEY_LENGTH = 32
+_ED25519_SIGNATURE_LENGTH = 64
 #: Multibase prefix for base58btc.
 _BASE58BTC = "z"
+#: The base58btc alphabet; a value with any other character, whitespace
+#: included, is not base58btc.
+_BASE58_TEXT = re.compile(r"[1-9A-HJ-NP-Za-km-z]+")
 #: Domain separation for seeds, versioned so a scheme change changes every key.
 _SEED_LABEL = b"vultron-prototype-seeded-key/v1\n"
 
@@ -117,7 +122,7 @@ class SigningKey:
 
     __str__ = __repr__
 
-    def __reduce__(self) -> Any:
+    def __reduce__(self) -> NoReturn:
         raise TypeError("a SigningKey cannot be pickled or copied out")
 
 
@@ -165,12 +170,9 @@ def _decode_multibase(value: str, prefix: bytes, what: str) -> bytes:
         raise VultronMultikeyError(
             f"an Ed25519 {what} must be multibase base58btc ('z' prefix)"
         )
-    try:
-        decoded = base58.b58decode(value[1:])
-    except ValueError as error:
-        raise VultronMultikeyError(
-            f"an Ed25519 {what} is not valid base58btc"
-        ) from error
+    decoded = _decode_base58btc(value)
+    if decoded is None:
+        raise VultronMultikeyError(f"an Ed25519 {what} is not valid base58btc")
     if not decoded.startswith(prefix):
         raise VultronMultikeyError(
             f"an Ed25519 {what} must carry the multicodec prefix "
@@ -185,6 +187,13 @@ def _decode_multibase(value: str, prefix: bytes, what: str) -> bytes:
     return raw
 
 
+def _decode_base58btc(value: str) -> bytes | None:
+    """The bytes of a ``z``-prefixed base58btc value, or ``None`` if invalid."""
+    if not _BASE58_TEXT.fullmatch(value[1:]):
+        return None
+    return base58.b58decode(value[1:])
+
+
 def load_json(text: str | bytes) -> Any:
     """Parse JSON text that is to be verified or signed.
 
@@ -195,8 +204,10 @@ def load_json(text: str | bytes) -> Any:
     canonicalized.
 
     Raises:
-        VultronUnsignableJsonError: the text is not JSON, or is JSON of one
-            of the refused kinds.
+        VultronUnsignableJsonError: the text is not JSON (including bytes
+            that are not UTF-8, an integer with too many digits to read and
+            nesting too deep to parse), or is JSON of one of the refused
+            kinds.
     """
     try:
         return json.loads(
@@ -205,7 +216,15 @@ def load_json(text: str | bytes) -> Any:
             parse_constant=_refuse_constant,
             parse_float=_finite_float,
         )
-    except json.JSONDecodeError as error:
+    except VultronUnsignableJsonError:
+        raise
+    except RecursionError as error:
+        raise VultronUnsignableJsonError(
+            "JSON is nested too deeply to parse"
+        ) from error
+    except ValueError as error:
+        # JSONDecodeError, UnicodeDecodeError and the int-digit limit are all
+        # ValueErrors.
         raise VultronUnsignableJsonError(f"not JSON: {error}") from error
 
 
@@ -245,6 +264,10 @@ def canonicalize(value: Any) -> bytes:
     """
     try:
         return rfc8785.dumps(value)
+    except RecursionError as error:
+        raise VultronUnsignableJsonError(
+            "value is nested too deeply to canonicalize"
+        ) from error
     except rfc8785.CanonicalizationError as error:
         raise VultronUnsignableJsonError(
             f"value cannot be canonicalized: {error}"
@@ -306,8 +329,10 @@ def sign(
         created = now_utc()
     if isinstance(created, datetime):
         created = format_timestamp(created)
-    if not created:
-        raise VultronUnsignableJsonError("a proof's created time is empty")
+    if not isinstance(created, str) or not created:
+        raise VultronUnsignableJsonError(
+            "a proof's created time must be a datetime or a non-empty string"
+        )
 
     unsecured = copy.deepcopy(dict(document))
     unsecured["@context"] = _with_data_integrity_context(
@@ -366,6 +391,16 @@ def _context_entries(context: Any) -> list[Any]:
     return list(context) if isinstance(context, list) else [context]
 
 
+def _is_timestamp(value: Any) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        datetime.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
 def verify(document: Mapping[str, Any], public_key_multibase: str) -> None:
     """Check *document*'s proof against the author's published key.
 
@@ -373,6 +408,13 @@ def verify(document: Mapping[str, Any], public_key_multibase: str) -> None:
     (SIG-02-001); this function never derives a key.  Parse received text
     with :func:`load_json` first, so a duplicate key is refused rather than
     resolved one way here and another way by the parser.
+
+    The signature covers the document's whole ``@context``.  W3C
+    ``eddsa-jcs-2022`` lets a verifier replace it with the proof's
+    ``@context`` once the prefix matches, which admits contexts appended
+    after signing.  This verifier does not: a proof must cover the whole
+    activity as sent (SIG-01-003), and an appended context can change what
+    its terms mean.  A body this module signs always has the two equal.
 
     Raises:
         VultronProofInvalidError: the proof is missing, is not an
@@ -402,7 +444,7 @@ def verify(document: Mapping[str, Any], public_key_multibase: str) -> None:
             "proofValue must be multibase base58btc ('z' prefix)"
         )
     created = proof.get("created")
-    if created is not None and (not isinstance(created, str) or not created):
+    if created is not None and not _is_timestamp(created):
         raise VultronProofInvalidError("proof created must be a timestamp")
 
     unsecured = {k: v for k, v in document.items() if k != "proof"}
@@ -416,12 +458,14 @@ def verify(document: Mapping[str, Any], public_key_multibase: str) -> None:
             )
 
     public_key = decode_public_key_multibase(public_key_multibase)
-    try:
-        signature = base58.b58decode(proof_value[1:])
-    except ValueError as error:
+    signature = _decode_base58btc(proof_value)
+    if signature is None:
+        raise VultronProofInvalidError("proofValue is not valid base58btc")
+    if len(signature) != _ED25519_SIGNATURE_LENGTH:
         raise VultronProofInvalidError(
-            "proofValue is not valid base58btc"
-        ) from error
+            f"proofValue must be a {_ED25519_SIGNATURE_LENGTH}-byte Ed25519 "
+            f"signature, not {len(signature)} bytes"
+        )
     try:
         public_key.verify(signature, _hash_data(proof_config, unsecured))
     except InvalidSignature as error:

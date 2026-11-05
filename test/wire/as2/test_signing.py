@@ -494,6 +494,8 @@ def _context_mismatch(doc: dict[str, Any]) -> None:
         (_proof_field("proofValue", "u" + "A" * 86), "proofValue"),
         (_proof_field("proofValue", "z0OIl"), "base58btc"),
         (_proof_field("created", 0), "created"),
+        (_proof_field("created", "not a time"), "created"),
+        (_proof_field("proofValue", "z" + "1" * 10), "64-byte"),
         (_context_mismatch, "@context"),
     ],
     ids=[
@@ -507,6 +509,8 @@ def _context_mismatch(doc: dict[str, Any]) -> None:
         "not-base58btc",
         "bad-base58",
         "created",
+        "created-not-a-time",
+        "short-signature",
         "context",
     ],
 )
@@ -596,3 +600,61 @@ def test_load_json_reads_a_signed_body():
 def test_load_json_refuses_what_parsers_disagree_on(text: str, message: str):
     with pytest.raises(VultronUnsignableJsonError, match=message):
         signing.load_json(text)
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ('{"count": ' + "1" * 5000 + "}", "not JSON"),
+        (b'{"name": "\xff"}', "not JSON"),
+        ("[" * 100_000 + "]" * 100_000, "nested too deeply"),
+    ],
+    ids=["too-many-digits", "not-utf8", "deep-nesting"],
+)
+def test_load_json_refuses_text_python_cannot_read(
+    text: str | bytes, message: str
+):
+    with pytest.raises(VultronUnsignableJsonError, match=message):
+        signing.load_json(text)
+
+
+def test_a_value_nested_too_deeply_cannot_be_canonicalized():
+    value: Any = []
+    for _ in range(100_000):
+        value = [value]
+
+    with pytest.raises(VultronUnsignableJsonError, match="nested too deeply"):
+        signing.canonicalize(value)
+
+
+def test_base58_with_whitespace_is_refused():
+    signed = _signed_note()
+    signed["proof"]["proofValue"] += " "
+
+    with pytest.raises(VultronMultikeyError, match="base58btc"):
+        signing.decode_public_key_multibase(VECTOR_PUBLIC_KEY + "\n")
+    with pytest.raises(VultronProofInvalidError, match="base58btc"):
+        signing.verify(
+            signed, signing.seeded_signing_key(ACTOR).public_key_multibase
+        )
+
+
+def test_a_created_time_that_is_not_a_time_is_refused_when_signing():
+    with pytest.raises(VultronUnsignableJsonError, match="created"):
+        signing.sign(
+            {"id": "urn:x:1"},
+            signing.seeded_signing_key(ACTOR),
+            created=5,  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.spec("SIG-01-003")
+def test_a_context_appended_after_signing_does_not_verify():
+    """Stricter than W3C eddsa-jcs-2022, which would admit it (SIG-01-003)."""
+    signed = _signed_note()
+    signed["@context"] = [*signed["@context"], {"content": "urn:x:other"}]
+
+    with pytest.raises(VultronProofInvalidError, match="does not verify"):
+        signing.verify(
+            signed, signing.seeded_signing_key(ACTOR).public_key_multibase
+        )

@@ -72,6 +72,10 @@ def test_a_signing_key_shows_only_its_public_half():
         pickle.dumps(key)
 
 
+def _fail_with(key: signing.SigningKey) -> None:
+    raise RuntimeError(f"signing failed for {key}")
+
+
 @pytest.fixture
 def served_actor(tmp_path) -> Iterator[tuple[str, object]]:
     actor_id = canonical_actor_uri(_SEGMENT)
@@ -101,9 +105,18 @@ def test_a_seeded_private_key_reaches_no_log_and_no_api_response(
         client.get("/api/v2/actors/"),
     ]
 
+    try:
+        _fail_with(key)
+    except RuntimeError:
+        logging.getLogger(__name__).exception("failed", extra={"key": key})
+
     assert caplog.records, "nothing was logged, so the check is vacuous"
+    formatter = logging.Formatter()
     for record in caplog.records:
-        _assert_discloses_nothing(record.getMessage(), actor_id)
+        # The formatted record carries exception text; vars() carries every
+        # extra= field, rendered as a handler that prints them would.
+        _assert_discloses_nothing(formatter.format(record), actor_id)
+        _assert_discloses_nothing(repr(vars(record)), actor_id)
     for response in responses:
         assert response.status_code == 200, response.text
         _assert_discloses_nothing(response.text, actor_id)
