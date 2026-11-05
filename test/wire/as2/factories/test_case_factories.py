@@ -34,6 +34,7 @@ from pydantic import BaseModel, ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
+from test.support.future_dates import FAR_FUTURE
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
@@ -547,7 +548,7 @@ def test_undo_ownership_transfer_plain_offer_raises(sample_offer):
 def test_proposal_nests_the_offer_the_case_manager_will_make(sample_case):
     """Offer(Offer(VulnerabilityCase)), context the case: the inner Offer names
     the case, the transferee and the deadline (ADR-0148)."""
-    deadline = datetime(2030, 1, 1, tzinfo=UTC)
+    deadline = FAR_FUTURE  # far-future; tests round-trip, not a specific value
     result = propose_case_ownership_transfer_activity(
         sample_case,
         target=_TARGET_URI,

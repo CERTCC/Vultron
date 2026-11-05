@@ -18,7 +18,9 @@ description: >
   py_trees test patterns, CoreObject subclass isolation,
   assertion-quality traps (vacuous asserts, "falls back to" tests, bare
   MagicMock), driving a guard through its production entry point rather than by
-  direct call, why turning nesting into sequence moves the skip nobody tests,
+  direct call, the three future-date idioms a sweep must tell apart before
+  replacing a literal, why turning nesting into sequence moves the skip nobody
+  tests,
   test layout rules for module splits, why a two-sided count pin
   races concurrent PRs (keep a per-item record and a PR-only growth guard
   instead), why a schema change that the merge base fails breaks every growth
@@ -479,6 +481,18 @@ The production half is structural and checked.
 nothing under `vultron/` references, and on a parameter whose presence opens a
 refusal that no call site supplies. A caller alone is not enough: the witness
 had one, and it never passed the argument the check needed.
+
+### A Future Date Is Three Idioms — Decide Which One Before Replacing It
+
+A test that names a future date is asking one of three questions, and a sweep
+that swaps the literals without sorting them turns an assertion green for the
+wrong reason. `FAR_FUTURE` from `test/support/future_dates.py` answers only the
+first — "some date plausibly ahead, expected to be accepted". An absolute
+`datetime(2099, ...)` usually means "implausibly far ahead, expected to be
+**refused**", and substituting a relative value can land it inside the very
+tolerance under test; a pinned instant means the value *is* the assertion. That
+module's docstring holds the rule, the witnesses, and why `FAR_FUTURE`
+truncates its microseconds (#2879).
 
 ### A Test That Says "Falls Back To" for Malformed Input Is Asserting a Bug
 

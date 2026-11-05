@@ -1,11 +1,10 @@
 """Tests for CoreObject base class and domain model inheritance."""
 
-from datetime import UTC, datetime
-
 import pytest
 from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.future_dates import FAR_FUTURE
 from vultron.core.models.activity import (
     VultronAccept,
     VultronActivity,
@@ -36,7 +35,7 @@ DOMAIN_OBJECT_CLASSES = [
     VultronCreateCaseActivity,
 ]
 
-_FUTURE_DT = datetime(2030, 1, 1, tzinfo=UTC)
+_FUTURE_DT = FAR_FUTURE  # far-future; relative so tests do not time-bomb
 
 REQUIRED_KWARGS: dict[type, dict] = {
     VultronNote: {"content": "test content"},
