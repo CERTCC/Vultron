@@ -7,7 +7,9 @@ description: >
   run under `uv run`, why the image exports no `PYTHONPATH` and what to do in
   a container built before that fix, the `UV_NO_SYNC=1`
   workaround for a root-owned venv, running `ruff` bare, why `pyright` and an
-  `-n auto` suite must not run together, the hanging
+  `-n auto` suite must not run together, why every heavy local check goes
+  through the per-host `run-heavy.py` lock and where its slots file lives, the
+  hanging
   `actionlint` hook, pushing to `origin`
   with `-u` rather than a token URL, the HTTP/2 push that never gets a reply,
   the `.claude/skills` symlink to `.agents/skills`, and the CodeQL name
@@ -77,7 +79,38 @@ Run the slow linters and the suites one at a time. A whole-tree `pyright` and an
 no output, and — the part that costs time — the suite's markdown-rendering and
 AST-scanning tests trip `pytest-timeout` and report as failures. A timeout trip
 with no assertion in its traceback, in a test that does not touch the diff, is
-the signature; re-run that test alone before believing it (#3156).
+the signature; re-run that test alone before believing it (#3156). The
+per-host lock (below) caps how many heavy runs share the host; it does not
+stop one agent running both at once, so still run them in turn.
+
+## Run Every Heavy Local Check Through the Per-Host Lock
+
+A command that starts many processes or uses much memory runs through
+`uv run python .agents/skills/shared/run-heavy.py`: `pytest -n auto`, `pyright`,
+the site build and `merged-tree-tests`. Every slot container on a host shares
+one Docker VM, and each such command sizes itself to its own container without
+seeing the others, so concurrent runs end in memory kills and per-test timeouts
+(#5947). The 6-CPU slot cap is a ceiling, not a reserved share (ADR-0143); the
+lock adds the missing limit on how many heavy checks run at once.
+
+- **Where it lives.** Slot lock files `heavy-<i>.lock` in
+  `/home/vscode/.data/locks/`, inside the `${MAIN_NAME}-data` named volume every
+  slot mounts. A named volume belongs to one Docker engine, so every slot on a
+  host shares the lock and each host has its own.
+- **How many slots.** `start-dev.sh` writes N to
+  `/home/vscode/.data/locks/slots` each time it creates or attaches to a slot:
+  the VM's CPUs divided by `SLOT_CPUS`, at least 1, or `HEAVY_SLOTS` when set.
+  It is a file rather than an environment variable so running slots see a new
+  value. With no readable file the wrapper uses 2.
+- **Placement.** Put it before `timeout -k 30 1800`, never inside it, so waiting
+  is not charged to the run; in a memoized command put it after
+  `run-if-changed.sh ... --`, so a skip never waits. The printed
+  `targeted-tests --pytest` command and the heavy `prepush-ci-mirror` checks
+  take a slot themselves. Do not wrap the mirror: a command already in a slot
+  runs its nested heavy checks without taking more.
+- **A new host** needs nothing beyond `start-dev.sh`. Check the Docker VM's CPU
+  allocation, since N is derived from it, and set `HEAVY_SLOTS` on the attach
+  if the default does not suit the host.
 
 ## The `actionlint` Hook Hangs: `SKIP=actionlint`
 

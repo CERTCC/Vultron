@@ -10,7 +10,7 @@ tags:
   - dev-workflow
 shell: "zsh"
 commands:
-  - ".github/scripts/mkdocs-build-strict.sh"
+  - "uv run python .agents/skills/shared/run-heavy.py .github/scripts/mkdocs-build-strict.sh"
   - "uv run docs-withheld"
   - "uv run docs-links"
   - "uv run docs-legacy-urls"
@@ -61,7 +61,7 @@ still reported and must be fixed.
 1. From the repository root, run the build script:
 
 ```bash
-.github/scripts/mkdocs-build-strict.sh
+uv run python .agents/skills/shared/run-heavy.py .github/scripts/mkdocs-build-strict.sh
 ```
 
 1. Inspect the output. Any broken links, missing anchors, or other real issues
@@ -132,7 +132,7 @@ PYTHONPATH='' uv run docs-links
 
 ```bash
 # Build docs in strict mode (required when docs/ changes)
-.github/scripts/mkdocs-build-strict.sh
+uv run python .agents/skills/shared/run-heavy.py .github/scripts/mkdocs-build-strict.sh
 ```
 
 ## Rationale

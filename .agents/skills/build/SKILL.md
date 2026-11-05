@@ -342,8 +342,10 @@ later) are separate decisions. Apply
 1. Run the linters:
 
    ```bash
+   G=.agents/skills/shared/run-if-changed.sh
    uv run ruff check --fix && uv run ruff format
-   uv run ruff check && uv run mypy && uv run pyright
+   uv run ruff check && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy \
+     && "$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run python .agents/skills/shared/run-heavy.py uv run pyright
    ```
 
    Do **not** run `pytest` here. The full local unit and integration suites run

@@ -8,34 +8,48 @@ throwaway repository.
 
 from __future__ import annotations
 
+import fcntl
+import os
 import subprocess
 import tempfile
+import threading
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from test.support.git_repo import git, init_git_repo
 from vultron.metadata.planning import ci_mirror
+from vultron.metadata.planning.ci_mirror import _run
 from vultron.metadata.planning.ci_mirror._registry import (
     MIRROR_CHECKS,
+    RUN_IF_CHANGED,
     CheckContext,
     MirrorCheck,
     markdownlint_command,
 )
 from vultron.metadata.planning.ci_mirror._run import (
+    DEFAULT_TIMEOUT,
+    LOCK_WAIT,
     STEP_SHELL,
     CheckStatus,
     PlannedCheck,
+    locked,
     plan,
     run_checks,
     run_in_session,
+    stop_running,
+    verdict,
 )
 from vultron.metadata.planning.ci_mirror._workflows import (
     PullRequestTrigger,
     WorkflowStep,
     matches_filter,
 )
+from vultron.metadata.planning.heavy_lock import HEAVY_LOCK, HEAVY_LOCK_SCRIPT
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture(autouse=True)
@@ -306,13 +320,73 @@ def test_a_check_that_runs_alone_waits_for_the_others(tmp_path: Path):
     ]
 
 
-def test_a_check_over_its_timeout_fails(tmp_path: Path):
+def test_a_check_over_its_timeout_has_no_verdict(tmp_path: Path):
+    # A ceiling trip is the environment, not a finding, and says what to do.
     [result] = run_checks(
         [_runnable("slow", "sleep 5")], tmp_path, jobs=1, timeout=1
     )
 
-    assert result.status is CheckStatus.FAILED
-    assert "timed out" in result.reason
+    assert result.status is CheckStatus.NO_VERDICT
+    assert result.status.blocks
+    assert result.reason.startswith("timed out (1s); rerun it with a longer")
+    assert "--timeout" in result.reason
+
+
+@pytest.mark.parametrize(
+    ("code", "output", "expected"),
+    [
+        (247, "", CheckStatus.NO_VERDICT),
+        (-9, "", CheckStatus.NO_VERDICT),
+        (137, "run-heavy: waiting for another heavy check to finish\n",
+         CheckStatus.NO_VERDICT),
+        (137, "Traceback: the real error\n", CheckStatus.FAILED),
+        (1, "", CheckStatus.FAILED),
+    ],
+)  # fmt: skip
+def test_a_silent_signal_death_has_no_verdict(
+    tmp_path: Path, code: int, output: str, expected: CheckStatus
+):
+    # #5735: pyright's out-of-memory kill left an empty log and exit 247. A
+    # silent exit 1 is still a finding: some checks fail without a word.
+    log = tmp_path / "c.log"
+    log.write_text(output)
+
+    status, reason = verdict(MirrorCheck("c", None), code, 60, log)
+
+    assert status is expected
+    if expected is CheckStatus.NO_VERDICT:
+        assert reason.startswith(f"exit {code} with no output")
+        assert "rerun it with nothing else running" in reason
+    else:
+        assert reason == f"exit {code}"
+
+
+def test_the_ceiling_defaults_and_can_be_raised(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    seen: list[int] = []
+    monkeypatch.setattr(ci_mirror, "_setup", lambda _a: (Path("."), None))
+    monkeypatch.setattr(ci_mirror, "plan", lambda *_a, **_k: [])
+    monkeypatch.setattr(ci_mirror, "pull_request_steps", lambda *_a: {})
+    monkeypatch.setattr(ci_mirror, "pull_request_workflows", lambda *_a: {})
+
+    def fake_run(_planned, _root, *, jobs, timeout, env):
+        seen.append(timeout)
+        return []
+
+    monkeypatch.setattr(ci_mirror, "run_checks", fake_run)
+
+    assert ci_mirror.main([]) == 0
+    assert ci_mirror.main(["--timeout", "2400"]) == 0
+    assert seen == [DEFAULT_TIMEOUT, 2400]
+
+
+@pytest.mark.parametrize("value", ["0", "-5", "soon"])
+def test_a_ceiling_that_is_not_a_positive_number_is_refused(value: str):
+    with pytest.raises(SystemExit) as raised:
+        ci_mirror.main(["--timeout", value])
+
+    assert raised.value.code == 2
 
 
 def test_unplanned_checks_keep_their_planned_verdict(tmp_path: Path):
@@ -465,7 +539,8 @@ def _result(status: CheckStatus, log: str | None = None):
 
 @pytest.mark.spec("PAD-18-021")
 @pytest.mark.parametrize(
-    "status", [CheckStatus.FAILED, CheckStatus.UNAVAILABLE]
+    "status",
+    [CheckStatus.FAILED, CheckStatus.NO_VERDICT, CheckStatus.UNAVAILABLE],
 )
 def test_a_blocking_result_exits_1(status: CheckStatus, capsys):
     assert (
@@ -541,7 +616,7 @@ def test_a_timeout_kills_the_whole_process_group(tmp_path: Path):
         [_runnable("slow", script)], tmp_path, jobs=1, timeout=1
     )
 
-    assert result.status is CheckStatus.FAILED
+    assert result.status is CheckStatus.NO_VERDICT
     time.sleep(2.5)
     assert not marker.exists()
 
@@ -583,3 +658,165 @@ def test_logs_go_to_the_given_directory(tmp_path: Path):
 
     assert result.log == str(logs / "ok.log")
     assert (logs / "ok.log").read_text() == "hi\n"
+
+
+# ---------------------------------------------------------------------------
+# The per-host heavy-check slots (#5947)
+# ---------------------------------------------------------------------------
+
+_LOCK_PREFIX = (*HEAVY_LOCK, "--wait", str(LOCK_WAIT), "--")
+
+
+def test_the_heavy_checks_are_the_ones_that_load_the_container():
+    # Named, not counted: each starts many processes or uses much memory.
+    heavy = {c.id for c in MIRROR_CHECKS if c.heavy}
+
+    assert heavy == {"pyright", "guard-tests", "spec-corpus", "site-build"}
+
+
+def test_a_heavy_check_runs_under_the_lock():
+    check = MirrorCheck("big", _KEY, heavy=True)
+
+    planned = _plan(check)
+
+    assert planned.argv == (*_LOCK_PREFIX, *STEP_SHELL, "make lint")
+
+
+def test_a_light_check_takes_no_lock():
+    planned = _plan(MirrorCheck("lint", _KEY))
+
+    assert planned.argv is not None
+    assert HEAVY_LOCK_SCRIPT not in planned.argv
+
+
+def test_a_memoized_heavy_check_takes_the_lock_inside_its_memo():
+    # A memo hit skips without waiting behind another slot's suite.
+    [pyright] = [c for c in MIRROR_CHECKS if c.id == "pyright"]
+    context = CheckContext(
+        {"base": "main", "pr": ""}, ("src/a.py",), Path(".")
+    )
+
+    # Without its CI step, so the plan reads the registry command alone.
+    [planned] = plan(
+        [replace(pyright, step=None)], {}, {}, context, base="main"
+    )
+
+    assert planned.argv is not None
+    cut = planned.argv.index("--") + 1
+    assert planned.argv[:2] == ("bash", RUN_IF_CHANGED)
+    assert planned.argv[cut:] == (*_LOCK_PREFIX, "uv", "run", "pyright")
+
+
+def test_locking_a_command_with_no_memo_wraps_all_of_it():
+    assert locked(("uv", "run", "pytest")) == (
+        *_LOCK_PREFIX,
+        *("uv", "run", "pytest"),
+    )
+
+
+def _heavy(check_id: str, argv: tuple[str, ...]) -> PlannedCheck:
+    check = MirrorCheck(check_id, None, command=("x",), note="n", heavy=True)
+    return PlannedCheck(check, argv, None, {}, None)
+
+
+def test_a_heavy_check_that_never_gets_a_slot_has_no_verdict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(_run, "LOCK_WAIT", 1)
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    (locks / "slots").write_text("1\n")
+    marker = tmp_path / "ran"
+    env = {**os.environ, "VULTRON_HEAVY_LOCK_DIR": str(locks)}
+    env.pop("VULTRON_HEAVY_LOCK_HELD", None)
+
+    with (locks / "heavy-0.lock").open("a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX)
+        [result] = run_checks(
+            [_heavy("big", locked(("touch", str(marker))))],
+            REPO_ROOT,
+            jobs=1,
+            env=env,
+            log_dir=tmp_path / "logs",
+        )
+
+    assert result.status is CheckStatus.NO_VERDICT
+    assert result.reason.startswith(
+        "not run: waited 1s for a heavy-check slot; rerun it"
+    )
+    assert not marker.exists()
+
+
+def test_a_check_that_exits_75_by_itself_is_a_finding(tmp_path: Path):
+    # Only the wrapper's own line marks a check that never got a slot.
+    log = tmp_path / "c.log"
+    log.write_text("the check's own complaint\n")
+
+    status, reason = verdict(MirrorCheck("c", None, heavy=True), 75, 60, log)
+
+    assert (status, reason) == (CheckStatus.FAILED, "exit 75")
+
+
+def test_a_heavy_checks_ceiling_leaves_room_for_the_queue(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    # The run gets its own timeout after waiting up to LOCK_WAIT for a slot.
+    monkeypatch.setattr(_run, "LOCK_WAIT", 2)
+
+    [result] = run_checks(
+        [_heavy("big", (*STEP_SHELL, "sleep 1.5"))],
+        tmp_path,
+        jobs=1,
+        timeout=1,
+    )
+
+    assert result.status is CheckStatus.PASSED
+
+
+def test_stopping_the_mirror_kills_its_running_checks(tmp_path: Path):
+    # A terminated mirror must not leave a heavy check holding its slot.
+    marker = tmp_path / "survived"
+    script = f"bash -c 'sleep 3 && touch {marker}' & wait"
+    finished: list[int | None] = []
+
+    def run() -> None:
+        with (tmp_path / "out.log").open("w") as out:
+            finished.append(
+                run_in_session(
+                    ["bash", "-c", script],
+                    cwd=tmp_path,
+                    env={},
+                    out=out,
+                    timeout=60,
+                )
+            )
+
+    worker = threading.Thread(target=run)
+    worker.start()
+    deadline = time.monotonic() + 20
+    while not _run._RUNNING:
+        assert time.monotonic() < deadline, "the check never started"
+        time.sleep(0.05)
+
+    stop_running()
+    worker.join(timeout=20)
+
+    assert finished == [-9]
+    assert not _run._RUNNING
+    time.sleep(3.5)
+    assert not marker.exists()
+
+
+def test_sigterm_stops_the_checks_and_exits_143(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    stopped: list[bool] = []
+    monkeypatch.setattr(
+        ci_mirror, "stop_running", lambda: stopped.append(True)
+    )
+
+    with pytest.raises(SystemExit) as raised:
+        ci_mirror._on_sigterm(15, None)
+
+    assert raised.value.code == ci_mirror.SIGTERM_EXIT == 143
+    assert stopped == [True]

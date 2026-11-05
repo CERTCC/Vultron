@@ -74,7 +74,7 @@ uv sync --dev
 uv run pytest --tb=short
 
 # Run ALL tests (unit + integration) on xdist workers — what CI's test job runs
-uv run pytest -m "" -n auto --tb=short
+uv run python .agents/skills/shared/run-heavy.py uv run pytest -m "" -n auto --tb=short
 
 # Format and lint (ruff takes no path arguments)
 uv run ruff format
@@ -82,7 +82,7 @@ uv run ruff check
 
 # Type-check
 uv run mypy
-uv run pyright
+uv run python .agents/skills/shared/run-heavy.py uv run pyright
 
 # Build package
 uv build

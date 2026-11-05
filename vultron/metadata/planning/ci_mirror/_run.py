@@ -19,6 +19,7 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import threading
 import time
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
@@ -28,6 +29,7 @@ from pathlib import Path
 from typing import IO
 
 from vultron.metadata.planning.ci_mirror._registry import (
+    RUN_IF_CHANGED,
     CheckContext,
     MirrorCheck,
 )
@@ -37,6 +39,10 @@ from vultron.metadata.planning.ci_mirror._workflows import (
     WorkflowStep,
     matches_filter,
 )
+from vultron.metadata.planning.heavy_lock import (
+    WAIT_EXPIRED,
+    under_heavy_lock,
+)
 
 #: GitHub's default shell for a ``run:`` step on a Linux runner.
 STEP_SHELL = ("bash", "--noprofile", "--norc", "-eo", "pipefail", "-c")
@@ -45,9 +51,23 @@ STEP_SHELL = ("bash", "--noprofile", "--norc", "-eo", "pipefail", "-c")
 #: six minutes locally.
 DEFAULT_TIMEOUT = 1200
 
+#: How long a heavy check waits for a per-host heavy-check slot before it is
+#: reported unrun. Its ceiling is its timeout plus this, so time spent waiting
+#: behind another slot's suite does not end its own run early (#5947).
+LOCK_WAIT = DEFAULT_TIMEOUT
+
+#: What the wrapper prints when ``--wait`` runs out, so a check that exits
+#: :data:`WAIT_EXPIRED` on its own is not mistaken for one that never ran.
+_WAIT_EXPIRED_LINE = "run-heavy: gave up after"
+
 
 class CheckStatus(StrEnum):
-    """A check's verdict. ``FAIL`` and ``UNAVAILABLE`` block the push.
+    """A check's verdict. ``FAIL``, ``NO-VERDICT`` and ``UNAVAILABLE`` block.
+
+    ``NO-VERDICT`` is a check its environment stopped before it could judge
+    the diff: a ceiling trip, a kill that left no output, or a heavy check
+    that never got the lock. It is not a finding, and its reason names the
+    remedy (#5735).
 
     ``PLAN`` is ``--list``'s word for a check that would run; it never reaches
     a real run's report.
@@ -56,6 +76,7 @@ class CheckStatus(StrEnum):
     PLANNED = "PLAN"
     PASSED = "PASS"
     FAILED = "FAIL"
+    NO_VERDICT = "NO-VERDICT"
     UNAVAILABLE = "UNAVAILABLE"
     NOT_TRIGGERED = "NOT-TRIGGERED"
     NOT_APPLICABLE = "N/A"
@@ -63,7 +84,11 @@ class CheckStatus(StrEnum):
 
     @property
     def blocks(self) -> bool:
-        return self in (CheckStatus.FAILED, CheckStatus.UNAVAILABLE)
+        return self in (
+            CheckStatus.FAILED,
+            CheckStatus.NO_VERDICT,
+            CheckStatus.UNAVAILABLE,
+        )
 
 
 @dataclass(frozen=True)
@@ -120,6 +145,20 @@ def _trigger_reason(
     return None
 
 
+def locked(argv: Sequence[str]) -> tuple[str, ...]:
+    """*argv* in a heavy-check slot, waiting at most :data:`LOCK_WAIT` for one.
+
+    A memoized command takes the lock inside its memo, so a check whose
+    inputs are unchanged skips without waiting behind another slot.
+    """
+    command = tuple(argv)
+    if command[:2] == ("bash", RUN_IF_CHANGED) and "--" in command:
+        cut = command.index("--") + 1
+        memo, tool = command[:cut], command[cut:]
+        return (*memo, *under_heavy_lock(tool, wait=LOCK_WAIT))
+    return under_heavy_lock(command, wait=LOCK_WAIT)
+
+
 def _argv(
     check: MirrorCheck,
     step: WorkflowStep | None,
@@ -129,11 +168,17 @@ def _argv(
     if check.command is None:
         if step is None or step.run is None:
             raise ValueError(f"{check.id}: no command and no run: script")
-        return (*STEP_SHELL, step.run)
-    raw = check.command(context) if callable(check.command) else check.command
-    if raw is None:
-        return None
-    return tuple(_substitute(arg, context.placeholders) for arg in raw)
+        argv: tuple[str, ...] = (*STEP_SHELL, step.run)
+    else:
+        raw = (
+            check.command(context)
+            if callable(check.command)
+            else check.command
+        )
+        if raw is None:
+            return None
+        argv = tuple(_substitute(arg, context.placeholders) for arg in raw)
+    return locked(argv) if check.heavy else argv
 
 
 def plan(
@@ -206,6 +251,23 @@ def log_tail(path: Path | str | None, lines: int = 15) -> str:
     return "\n".join(text.splitlines()[-lines:])
 
 
+#: The process groups the mirror has running, so a terminated mirror can stop
+#: them: a heavy check left running would hold its host slot to the end.
+_RUNNING: set[subprocess.Popen[bytes]] = set()
+_RUNNING_GUARD = threading.Lock()
+
+
+def stop_running() -> None:
+    """Kill every process group the mirror started that is still running."""
+    with _RUNNING_GUARD:
+        running = list(_RUNNING)
+    for proc in running:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass  # It ended between the snapshot and the kill.
+
+
 def run_in_session(
     argv: Sequence[str],
     *,
@@ -227,6 +289,8 @@ def run_in_session(
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
+    with _RUNNING_GUARD:
+        _RUNNING.add(proc)
     try:
         return proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -237,6 +301,9 @@ def run_in_session(
         os.killpg(proc.pid, signal.SIGKILL)
         proc.wait()
         raise
+    finally:
+        with _RUNNING_GUARD:
+            _RUNNING.discard(proc)
 
 
 def _run_one(
@@ -250,25 +317,68 @@ def _run_one(
     log = log_dir / f"{item.check.id}.log"
     started = time.monotonic()
     cwd = root / item.cwd if item.cwd else root
+    ceiling = timeout + LOCK_WAIT if item.check.heavy else timeout
     with log.open("w", encoding="utf-8") as out:
         code = run_in_session(
             item.argv,
             cwd=cwd,
             env={**base_env, **item.env},
             out=out,
-            timeout=timeout,
+            timeout=ceiling,
         )
         if code is None:
-            out.write(f"\n[ci-mirror] timed out after {timeout}s\n")
+            out.write(f"\n[ci-mirror] timed out after {ceiling}s\n")
     seconds = time.monotonic() - started
-    if code == 0:
-        return CheckResult(
-            item.check.id, CheckStatus.PASSED, "", seconds, str(log), 0
-        )
-    reason = f"exit {code}" if code is not None else f"timed out ({timeout}s)"
-    return CheckResult(
-        item.check.id, CheckStatus.FAILED, reason, seconds, str(log), code
+    status, reason = verdict(item.check, code, ceiling, log)
+    return CheckResult(item.check.id, status, reason, seconds, str(log), code)
+
+
+#: The lowest exit status a shell reports for a process a signal ended.
+_SIGNAL_EXIT = 128
+
+
+def _wrapper_gave_up(log: Path) -> bool:
+    text = log.read_text(encoding="utf-8", errors="replace")
+    return any(
+        line.startswith(_WAIT_EXPIRED_LINE) for line in text.splitlines()
     )
+
+
+def _said_nothing(log: Path) -> bool:
+    """Whether the check wrote no output of its own (the lock's lines aside)."""
+    text = log.read_text(encoding="utf-8", errors="replace")
+    return not any(
+        line.strip() and not line.startswith("run-heavy:")
+        for line in text.splitlines()
+    )
+
+
+def verdict(
+    check: MirrorCheck, code: int | None, ceiling: int, log: Path
+) -> tuple[CheckStatus, str]:
+    """The status and reason for a check that exited *code* (``None``: timed out).
+
+    A run its environment stopped is ``NO-VERDICT``, with the remedy in the
+    reason, so it never reads as a finding (#5735).
+    """
+    if code == 0:
+        return CheckStatus.PASSED, ""
+    if code is None:
+        return CheckStatus.NO_VERDICT, (
+            f"timed out ({ceiling}s); rerun it with a longer --timeout or "
+            "with nothing else running"
+        )
+    if code == WAIT_EXPIRED and _wrapper_gave_up(log):
+        return CheckStatus.NO_VERDICT, (
+            f"not run: waited {LOCK_WAIT}s for a heavy-check slot; rerun "
+            "it once the checks the log names end"
+        )
+    if (code < 0 or code >= _SIGNAL_EXIT) and _said_nothing(log):
+        return CheckStatus.NO_VERDICT, (
+            f"exit {code} with no output: a signal from its environment, such "
+            "as an out-of-memory kill; rerun it with nothing else running"
+        )
+    return CheckStatus.FAILED, f"exit {code}"
 
 
 def _groups(planned: Sequence[PlannedCheck]) -> list[list[PlannedCheck]]:
