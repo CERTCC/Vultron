@@ -25,6 +25,7 @@ from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.ledger_position import EMPTY_LEDGER_LOG_INDEX
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.sender_sequence import SenderSequenceCounter
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -60,12 +61,9 @@ def _post(dl: SqliteDataLayer, actor: as_Service, activity, monkeypatch):
     )
 
 
-@pytest.mark.spec("SYNC-21-001")
-@pytest.mark.spec("SYNC-21-002")
-def test_posted_activities_to_the_case_manager_are_numbered_one_up(
-    actor_dl, monkeypatch
-) -> None:
-    actor, dl = actor_dl
+def _case_with_manager(
+    dl: SqliteDataLayer, actor: as_Service
+) -> VulnerabilityCase:
     case = VulnerabilityCase(attributed_to=actor.id_)
     dl.create(case)
     # The address the case's CASE_MANAGER was reached at (CBT-01-006).
@@ -76,23 +74,90 @@ def test_posted_activities_to_the_case_manager_are_numbered_one_up(
             case_manager_id=_MANAGER,
         )
     )
-    numbers = []
-    for n in (1, 2):
-        note = add_note_to_case_activity(
-            as_Note(
-                id_=f"{case.id_}/notes/{n}", content="n", context=case.id_
-            ),
-            target=case.id_,
-            actor=actor.id_,
-            to=[_MANAGER],
+    return case
+
+
+def _note_to_manager(case: VulnerabilityCase, actor: as_Service, tag: str):
+    return add_note_to_case_activity(
+        as_Note(id_=f"{case.id_}/notes/{tag}", content=tag, context=case.id_),
+        target=case.id_,
+        actor=actor.id_,
+        to=[_MANAGER],
+    )
+
+
+def _posted_number(dl, actor, activity, monkeypatch) -> object:
+    response = _post(dl, actor, activity, monkeypatch)
+    assert response.status_code == 200, response.text
+    body = read_sealed_body_dict(dl, activity.id_)
+    assert body is not None
+    return body.get("senderSequence")
+
+
+@pytest.mark.spec("SYNC-21-001")
+@pytest.mark.spec("SYNC-21-002")
+def test_posted_activities_to_the_case_manager_are_numbered_one_up(
+    actor_dl, monkeypatch
+) -> None:
+    actor, dl = actor_dl
+    case = _case_with_manager(dl, actor)
+
+    numbers = [
+        _posted_number(
+            dl, actor, _note_to_manager(case, actor, n), monkeypatch
         )
-        response = _post(dl, actor, note, monkeypatch)
-        assert response.status_code == 200, response.text
-        body = read_sealed_body_dict(dl, note.id_)
-        assert body is not None
-        numbers.append(body.get("senderSequence"))
+        for n in ("1", "2")
+    ]
 
     assert numbers == [1, 2]
+
+
+@pytest.mark.spec("SYNC-21-002")
+def test_a_posted_number_is_kept_and_never_used_again(
+    actor_dl, monkeypatch
+) -> None:
+    actor, dl = actor_dl
+    case = _case_with_manager(dl, actor)
+    numbered = _note_to_manager(case, actor, "numbered").model_copy(
+        update={"sender_sequence": 5}
+    )
+
+    kept = _posted_number(dl, actor, numbered, monkeypatch)
+    after = _posted_number(
+        dl, actor, _note_to_manager(case, actor, "after"), monkeypatch
+    )
+
+    assert (kept, after) == (5, 6)
+
+
+class _QueueDown(Exception):
+    """The outbox append fails after the number is allocated."""
+
+
+@pytest.mark.spec("SYNC-21-003")
+def test_a_post_whose_outbox_append_fails_gives_its_number_back(
+    actor_dl, monkeypatch
+) -> None:
+    actor, dl = actor_dl
+    case = _case_with_manager(dl, actor)
+    lost = _note_to_manager(case, actor, "lost")
+
+    def _fail(_activity_id: str) -> None:
+        raise _QueueDown
+
+    with monkeypatch.context() as patch:
+        patch.setattr(dl, "outbox_append", _fail)
+        with pytest.raises(_QueueDown):
+            _post(dl, actor, lost, monkeypatch)
+
+    assert read_sealed_body_dict(dl, lost.id_) is None
+    assert dl.read(SenderSequenceCounter.build_id(case.id_, actor.id_)) is None
+    assert (
+        _posted_number(
+            dl, actor, _note_to_manager(case, actor, "next"), monkeypatch
+        )
+        == 1
+    )
 
 
 @pytest.mark.spec("SYNC-18-001")

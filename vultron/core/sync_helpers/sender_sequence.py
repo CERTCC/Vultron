@@ -37,7 +37,10 @@ import logging
 
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.sender_sequence import SenderSequenceCounter
+from vultron.core.models.sender_sequence import (
+    SenderSequenceCounter,
+    is_sender_sequence,
+)
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import snapshot_actor_id
@@ -53,9 +56,7 @@ SENDER_SEQUENCE_KEY = wire_key("sender_sequence", VultronActivity)
 def _stated_number(entry: CaseLedgerEntry) -> int | None:
     """The positive ``senderSequence`` *entry*'s received body states."""
     number = entry.payload_snapshot.get(SENDER_SEQUENCE_KEY)
-    if isinstance(number, bool) or not isinstance(number, int):
-        return None
-    return number if number > 0 else None
+    return number if is_sender_sequence(number) else None
 
 
 def highest_ledgered_sender_sequence(
@@ -105,24 +106,26 @@ def allocate_sender_sequence(
 
     One more than the higher of the stored counter and the sender's highest
     number in the ledger *dl* holds (SYNC-21-002, SYNC-21-006).  The counter
-    is saved at the number returned, so call this inside the transaction
-    that seals the numbered activity (SYNC-21-003, SYNC-21-020).
+    is saved at the number returned, in a transaction of its own; call this
+    inside the transaction that seals the numbered activity too, so a body
+    never sealed gives its number back (SYNC-21-003, SYNC-21-020).
     """
-    counter = _read_counter(dl, case_id, sender_id)
-    ledgered = highest_ledgered_sender_sequence(dl, case_id, sender_id)
-    if ledgered > counter.last_used:
-        logger.info(
-            "Sender '%s' resumes its sender sequence for case '%s' past %d,"
-            " the highest of its numbers the ledger records (its counter"
-            " was at %d) (SYNC-21-006)",
-            sender_id,
-            case_id,
-            ledgered,
-            counter.last_used,
-        )
-    number = max(counter.last_used, ledgered) + 1
-    _save_counter(dl, case_id, sender_id, number)
-    return number
+    with dl.transaction():
+        counter = _read_counter(dl, case_id, sender_id)
+        ledgered = highest_ledgered_sender_sequence(dl, case_id, sender_id)
+        if ledgered > counter.last_used:
+            logger.info(
+                "Sender '%s' resumes its sender sequence for case '%s' past %d,"
+                " the highest of its numbers the ledger records (its counter"
+                " was at %d) (SYNC-21-006)",
+                sender_id,
+                case_id,
+                ledgered,
+                counter.last_used,
+            )
+        number = max(counter.last_used, ledgered) + 1
+        _save_counter(dl, case_id, sender_id, number)
+        return number
 
 
 def resume_sender_sequence_at(
@@ -138,12 +141,15 @@ def resume_sender_sequence_at(
     Returns:
         Whether the counter moved.
     """
-    counter = _read_counter(dl, case_id, sender_id)
     floor = expected - 1
-    if counter.last_used >= floor:
-        return False
-    _save_counter(dl, case_id, sender_id, floor)
-    return True
+    # Read and save as one, so a number allocated meanwhile is never
+    # overwritten by a lower floor.
+    with dl.transaction():
+        counter = _read_counter(dl, case_id, sender_id)
+        if counter.last_used >= floor:
+            return False
+        _save_counter(dl, case_id, sender_id, floor)
+        return True
 
 
 __all__ = [

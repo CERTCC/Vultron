@@ -32,6 +32,8 @@ the number and stamps it here.
 from collections.abc import Iterator
 from typing import TypeVar
 
+from vultron.core.models.case_ledger_entry import ledger_entry_id
+from vultron.core.models.sender_sequence import is_sender_sequence
 from vultron.errors import VultronActivityConstructionError
 from vultron.wire.as2.factories._ledger_position import named_case_ids
 from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
@@ -46,6 +48,11 @@ _Activity = TypeVar("_Activity", bound=as_Activity)
 _LEDGER_ENTRY_TYPE = "CaseLedgerEntry"
 
 
+def _ledger_entry_prefix(case_id: str) -> str:
+    """The id prefix every entry of *case_id*'s ledger shares."""
+    return ledger_entry_id(case_id, 0).removesuffix("0")
+
+
 def _names_a_ledger_entry(activity: as_Activity) -> bool:
     """Whether *activity*'s object is a ledger entry, inline or by id.
 
@@ -56,7 +63,7 @@ def _names_a_ledger_entry(activity: as_Activity) -> bool:
     obj = getattr(activity, "object_", None)
     if isinstance(obj, str):
         return any(
-            obj.startswith(f"{case_id.rstrip('/')}/log/")
+            obj.startswith(_ledger_entry_prefix(case_id))
             for case_id in named_case_ids(activity)
         )
     type_ = getattr(obj, "type_", None)
@@ -83,13 +90,13 @@ def sender_sequence_case_ids(activity: as_Activity) -> Iterator[str]:
 
     The cases :func:`named_case_ids` yields, in the order its ledger
     position was found.  Nothing is yielded for an activity that takes no
-    number: one already numbered, one that states no ``ledgerPosition``
-    (SYNC-18-017), or a ledger request (:func:`is_ledger_request`).
+    number: one that states no ``ledgerPosition`` (SYNC-18-017), or a
+    ledger request (:func:`is_ledger_request`).  One already numbered
+    yields its cases too, so the caller can count the number it carries
+    as used.
     Whether the sender is a participant writing to the CASE_MANAGER is the
     caller's to check: the wire layer holds no roster.
     """
-    if activity.sender_sequence is not None:
-        return
     if activity.ledger_position is None or is_ledger_request(activity):
         return
     yield from named_case_ids(activity)
@@ -109,7 +116,7 @@ def stamp_sender_sequence(activity: _Activity, number: int) -> _Activity:
     """
     if activity.sender_sequence is not None:
         return activity
-    if isinstance(number, bool) or not isinstance(number, int) or number < 1:
+    if not is_sender_sequence(number):
         raise VultronActivityConstructionError(
             f"stamp_sender_sequence: {number!r} is not a positive integer"
             " (SYNC-21-002)"

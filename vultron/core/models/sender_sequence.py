@@ -33,12 +33,34 @@ from __future__ import annotations
 import urllib.parse
 from typing import Annotated, Any, Literal
 
-from pydantic import Field, StrictInt, model_validator
+from pydantic import (
+    Field,
+    StrictInt,
+    TypeAdapter,
+    ValidationError,
+    model_validator,
+)
 
 from vultron.core.models.base import CoreRecord, UriString, with_record_id
+from vultron.primitives import normalise_actor_id
 
 #: A ``senderSequence`` or ``expectedSenderSequence``: a positive integer.
 SenderSequence = Annotated[StrictInt, Field(gt=0)]
+
+_SENDER_SEQUENCE: TypeAdapter[int] = TypeAdapter(SenderSequence)
+
+
+def is_sender_sequence(value: object) -> bool:
+    """Whether *value* is a valid :data:`SenderSequence`.
+
+    A positive integer, strictly: a boolean or a numeral spelled as text is
+    no number.
+    """
+    try:
+        _SENDER_SEQUENCE.validate_python(value)
+    except ValidationError:
+        return False
+    return True
 
 
 class SenderSequenceCounter(CoreRecord):
@@ -63,9 +85,15 @@ class SenderSequenceCounter(CoreRecord):
 
     @classmethod
     def build_id(cls, case_id: str, sender_id: str) -> str:
-        """The record id of *sender_id*'s counter for *case_id*."""
+        """The record id of *sender_id*'s counter for *case_id*.
+
+        The sender is keyed by its canonical spelling, so ``…/vendor/`` and
+        ``…/vendor`` share one counter (OID-01-006).
+        """
         case_slug = urllib.parse.quote(case_id, safe="")
-        sender_slug = urllib.parse.quote(sender_id, safe="")
+        sender_slug = urllib.parse.quote(
+            normalise_actor_id(sender_id), safe=""
+        )
         return f"sender-sequence/{case_slug}/{sender_slug}"
 
     @model_validator(mode="before")
@@ -80,4 +108,4 @@ class SenderSequenceCounter(CoreRecord):
         return data
 
 
-__all__ = ["SenderSequence", "SenderSequenceCounter"]
+__all__ = ["SenderSequence", "SenderSequenceCounter", "is_sender_sequence"]

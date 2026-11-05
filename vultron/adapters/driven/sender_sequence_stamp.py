@@ -38,6 +38,7 @@ from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body
+from vultron.core.behaviors.case.nodes.addressee import named_in_to
 from vultron.core.models._helpers import _as_id
 from vultron.core.participants.authority import case_manager_address
 from vultron.core.participants.role_predicate import has_role
@@ -45,9 +46,9 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.sync_helpers import (
     allocate_sender_sequence,
     first_case_with_ledger,
+    resume_sender_sequence_at,
 )
 from vultron.enums.roles import CVDRole
-from vultron.primitives import same_actor_id
 from vultron.wire.as2.factories import (
     sender_sequence_case_ids,
     stamp_sender_sequence,
@@ -59,6 +60,14 @@ logger = logging.getLogger(__name__)
 _Model = TypeVar("_Model")
 
 
+def _recipient_ids(to: object) -> list[str]:
+    """*to* as a list of ids: AS2 allows one recipient or a list of them."""
+    if to is None:
+        return []
+    values = to if isinstance(to, list) else [to]
+    return [rid for rid in (_as_id(value) for value in values) if rid]
+
+
 def _goes_to_the_case_manager(
     dl: CasePersistence, activity: as_Activity, case_id: str, sender: str
 ) -> bool:
@@ -66,18 +75,16 @@ def _goes_to_the_case_manager(
 
     The CASE_MANAGER's own activities take no number: the ledger orders its
     case events (SYNC-21-001, CLP-14-001).  A participant's activity takes
-    one when the case's CASE_MANAGER is among its ``to`` recipients.
+    one when its ``to`` addresses the case's CASE_MANAGER by the rule the
+    CASE_MANAGER's own addressee door reads (:func:`named_in_to`): named
+    directly, or through a participants collection it belongs to.
     """
     if has_role(sender, case_id, CVDRole.CASE_MANAGER, dl):
         return False
     address = case_manager_address(dl, case_id)
     if address is None:
         return False
-    return any(
-        same_actor_id(recipient, address)
-        for recipient in (_as_id(r) for r in activity.to or [])
-        if recipient is not None
-    )
+    return named_in_to(dl, address, _recipient_ids(activity.to))
 
 
 def with_sender_sequence(dl: CasePersistence, activity: _Model) -> _Model:
@@ -90,6 +97,8 @@ def with_sender_sequence(dl: CasePersistence, activity: _Model) -> _Model:
     no case whose ledger *dl* holds, is the CASE_MANAGER's own or not
     addressed to it, or was already sealed under its id: a rebuild hands
     back the sealed body, so it must not use a second number (SYNC-21-003).
+    One that already carries a number (posted to the outbox numbered) keeps
+    it, and the counter moves up to it so the number is not used again.
     """
     if not isinstance(activity, as_Activity):
         return activity
@@ -104,6 +113,13 @@ def with_sender_sequence(dl: CasePersistence, activity: _Model) -> _Model:
     if sender is None or not _goes_to_the_case_manager(
         dl, activity, case_id, sender
     ):
+        return activity
+    if activity.sender_sequence is not None:
+        # Numbered by whoever posted it: keep its number, and count it as
+        # used, so no later activity is numbered with it again (SYNC-21-002).
+        resume_sender_sequence_at(
+            dl, case_id, sender, activity.sender_sequence + 1
+        )
         return activity
     number = allocate_sender_sequence(dl, case_id, sender)
     logger.debug(

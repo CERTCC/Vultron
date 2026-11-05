@@ -65,7 +65,8 @@ DEFAULT_WAIT = timedelta(seconds=120)
 DEFAULT_CAP = 16
 
 _NOT_BUILT = (
-    "SYNC-21: the sender sequence counter is not built yet (ADR-0178)."
+    "SYNC-21: the CASE_MANAGER side of the sender sequence is not built yet"
+    " (ADR-0178)."
 )
 
 
@@ -606,7 +607,7 @@ def test_a_repeat_is_found_by_id_before_its_number() -> None:
         )
 
 
-@_xfail("SYNC-21-020", "no sequence state is stored")
+@_xfail("SYNC-21-020", "the CASE_MANAGER stores no expected numbers")
 @pytest.mark.spec("SYNC-21-020")
 def test_sequence_state_lives_in_the_datalayer() -> None:
     net = _network("stored")

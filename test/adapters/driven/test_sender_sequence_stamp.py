@@ -36,6 +36,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.sender_sequence import SenderSequenceCounter
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.sync_helpers import (
     allocate_sender_sequence,
     resume_sender_sequence_at,
@@ -155,3 +156,110 @@ def test_a_stale_expected_number_never_moves_the_count_down() -> None:
 
     assert not resume_sender_sequence_at(dl, net.case_id, OWNER, 2)
     assert allocate_sender_sequence(dl, net.case_id, OWNER) == 4
+
+
+def _bare_note(net: LedgerNetwork, tag: str, *, to: object) -> Any:
+    return add_note_to_case_activity(
+        as_Note(id_=f"{net.case_id}/notes/{tag}", context=net.case_id),
+        target=net.case_id,
+        actor=OWNER,
+        to=[MANAGER],
+    ).model_copy(update={"to": to})
+
+
+@pytest.mark.spec("SYNC-21-001")
+def test_a_single_recipient_to_is_numbered() -> None:
+    net = _network("string-to")
+    dl = net.stores[OWNER]
+
+    with dl.transaction():
+        stamped = with_outbound_stamps(dl, _bare_note(net, "one", to=MANAGER))
+
+    assert stamped.sender_sequence == 1
+
+
+@pytest.mark.spec("SYNC-21-001")
+def test_an_activity_to_the_participants_collection_is_numbered() -> None:
+    net = _network("collection-to")
+    dl = net.stores[OWNER]
+    note = _bare_note(net, "all", to=[f"{net.case_id}/participants"])
+
+    with dl.transaction():
+        stamped = with_outbound_stamps(dl, note)
+
+    assert stamped.sender_sequence == 1
+
+
+@pytest.mark.spec("SYNC-21-003")
+def test_a_trigger_whose_seal_fails_gives_its_number_back(monkeypatch) -> None:
+    net = _network("seal-fails")
+
+    def _fail(*_args: object, **_kwargs: object) -> str:
+        raise _Abort
+
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            "vultron.adapters.driven.trigger_activity_adapter._base"
+            ".seal_outbound_body",
+            _fail,
+        )
+        with pytest.raises(_Abort):
+            _note_body(net, "lost")
+
+    stored = net.stores[OWNER].read(
+        SenderSequenceCounter.build_id(net.case_id, OWNER)
+    )
+    assert stored is None
+    assert _note_body(net, "sealed")["senderSequence"] == 1
+
+
+@pytest.mark.spec("SYNC-21-007")
+def test_a_resume_under_another_spelling_of_the_sender_is_the_same_count() -> (
+    None
+):
+    net = _network("spelling")
+    dl = net.stores[OWNER]
+
+    assert resume_sender_sequence_at(dl, net.case_id, f"{OWNER}/", 4)
+    assert allocate_sender_sequence(dl, net.case_id, OWNER) == 4
+
+
+def _notice_body(
+    net: LedgerNetwork, refused: dict[str, Any], expected: int
+) -> dict[str, Any]:
+    notice = refusal_notice_activity(
+        refused,
+        f"senderSequence is below the next expected number {expected}",
+        actor=MANAGER,
+        to=[OWNER],
+        id_=derived_activity_id("refusal-notice", MANAGER, refused["id"]),
+        context=net.case_id,
+        expected_sender_sequence=expected,
+    )
+    decoded: dict[str, Any] = json.loads(
+        notice.model_dump_json(by_alias=True, exclude_none=True)
+    )
+    return decoded
+
+
+@pytest.mark.spec("SYNC-21-007")
+def test_a_notice_that_only_moves_the_count_is_applied() -> None:
+    net = _network("notice-applied")
+    # An id with no pending assertion, so only the count can move.
+    refused = {**_note_body(net, "refused"), "id": f"{net.case_id}/unpending"}
+
+    result = net.receive(OWNER, _notice_body(net, refused, 7))
+
+    assert result.disposition is HandlerDisposition.APPLIED
+
+
+@pytest.mark.spec("SYNC-21-007")
+def test_a_stale_notice_with_nothing_to_close_is_skipped() -> None:
+    net = _network("notice-stale")
+    refused = {**_note_body(net, "refused"), "id": f"{net.case_id}/unpending"}
+    for _ in range(3):
+        allocate_sender_sequence(net.stores[OWNER], net.case_id, OWNER)
+
+    result = net.receive(OWNER, _notice_body(net, refused, 2))
+
+    assert result.disposition is HandlerDisposition.SKIPPED

@@ -19,6 +19,7 @@ import pytest
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.errors import VultronActivityConstructionError
+from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     is_ledger_request,
@@ -105,10 +106,12 @@ def test_an_activity_with_no_position_takes_no_number() -> None:
 
 
 @pytest.mark.spec("SYNC-21-001")
-def test_a_numbered_activity_takes_no_second_number() -> None:
+def test_a_numbered_activity_still_names_its_cases() -> None:
+    """The adapter counts a number it did not give as used (SYNC-21-002)."""
     numbered = stamp_sender_sequence(_note(), 1)
 
-    assert list(sender_sequence_case_ids(numbered)) == []
+    assert _CASE in list(sender_sequence_case_ids(numbered))
+    assert stamp_sender_sequence(numbered, 2).sender_sequence == 1
 
 
 @pytest.mark.spec("SYNC-21-001")
@@ -154,5 +157,5 @@ def test_an_inbound_number_that_is_no_positive_integer_is_refused(
     )
     body["senderSequence"] = number
 
-    with pytest.raises(Exception, match="senderSequence"):
+    with pytest.raises(VultronParseValidationError, match="senderSequence"):
         parse_activity(body)
