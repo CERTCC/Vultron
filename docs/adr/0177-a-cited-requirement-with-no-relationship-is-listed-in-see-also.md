@@ -74,4 +74,4 @@ A citation that a type fits still gets the link, and the stale-entry check keeps
 
 ## More Information
 
-Generated spec requirements: `spec-registry.yaml` SR-13-022 (the citation rule) and SR-02-021 (the `see_also` field).
+Generated spec requirements: `spec-registry.yaml` SR-13-022 (the citation rule), SR-13-023 and SR-13-024 (the spec-lint checks), and SR-02-021 (the `see_also` field).

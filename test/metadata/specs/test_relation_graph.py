@@ -280,7 +280,7 @@ def test_cited_id_naming_no_requirement_is_reported():
     ]
 
 
-@pytest.mark.spec("SR-13-023")
+@pytest.mark.spec("SR-13-024")
 @pytest.mark.parametrize(
     ("statement", "see_also", "links", "problem"),
     [
@@ -333,7 +333,7 @@ def test_stale_see_also_entry_is_reported(statement, see_also, links, problem):
     assert len(errors) == 1
     assert errors[0].startswith(f"{A} lists ")
     assert problem in errors[0]
-    assert errors[0].endswith("(SR-13-022)")
+    assert errors[0].endswith("(SR-13-024)")
 
 
 @pytest.mark.spec_corpus

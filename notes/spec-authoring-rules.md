@@ -245,7 +245,7 @@ requirement (ADR-0160). Pick the type by its definition, not by habit:
   reason saying why (a rationale, a scope boundary, an example, a link that
   would close a loop). spec-lint fails on a cited ID in neither place, and on a
   `see_also` entry the statement no longer cites or a link now covers
-  (SR-13-022, SR-13-023, ADR-0177). A range writes only its ends; IDs between
+  (SR-13-022 to SR-13-024, ADR-0177). A range writes only its ends; IDs between
   them are not citations.
 - `satisfies` only when meeting A alone meets all of B. A rule that is one case
   of B is `refines`; one that uses a shorthand or message B defines is

@@ -10,7 +10,7 @@ against the arrows. That walk is only meaningful when the graph has no loops,
 so spec-lint fails on a loop (SR-13-014) and on a link recorded at both ends
 (SR-13-015). It also fails on a statement that cites a requirement with neither
 a link nor a ``see_also`` entry, and on a ``see_also`` entry that has gone
-stale (SR-13-022, SR-13-023).
+stale (SR-13-022 to SR-13-024).
 """
 
 from __future__ import annotations
@@ -169,7 +169,7 @@ def _uncovered_citation_error(
 
 
 def check_statement_citations(registry: SpecRegistry) -> list[str]:
-    """Report each statement citation neither linked nor listed (SR-13-023).
+    """Report each uncovered citation and stale entry (SR-13-023, SR-13-024).
 
     Every requirement ID a statement writes out (:func:`written_spec_ids`),
     other than its own, must be linked to the citing requirement by a
@@ -195,7 +195,7 @@ def check_statement_citations(registry: SpecRegistry) -> list[str]:
                 errors.append(
                     f"{spec_id} lists {target} in `see_also` {problem}. "
                     f"Remove the entry: `see_also` holds only a cited "
-                    f"requirement no relationship links (SR-13-022)"
+                    f"requirement no relationship links (SR-13-024)"
                 )
         errors.extend(
             _uncovered_citation_error(spec_id, target, known)
