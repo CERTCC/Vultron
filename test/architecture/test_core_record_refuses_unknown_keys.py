@@ -103,6 +103,11 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "case_id": f"{_URI}/case",
         "sender_id": f"{_URI}/sender",
     },
+    "SenderSequenceOrder": {
+        "case_id": f"{_URI}/case",
+        "sender_id": f"{_URI}/sender",
+        "next_expected": 1,
+    },
     "VultronPendingCaseInbox": {"case_id": f"{_URI}/case"},
     "VultronReplicationState": {
         "case_id": f"{_URI}/case",

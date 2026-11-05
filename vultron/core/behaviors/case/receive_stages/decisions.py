@@ -52,6 +52,13 @@ from vultron.core.behaviors.sync.nodes.ledger_position import (
     LEDGER_POSITION_EXEMPTIONS,
     LedgerPositionExemption,
 )
+from vultron.core.behaviors.sync.nodes.sender_sequence import (
+    SENDER_SEQUENCE_EXEMPTIONS,
+    SenderSequenceExemption,
+)
+from vultron.core.behaviors.sync.sender_sequence_stage import (
+    create_sender_sequence_stage,
+)
 from vultron.errors import VultronWiringError
 
 
@@ -182,6 +189,50 @@ def ledger_position_stage(
         return []
     return [
         create_ledger_position_stage(
+            sender_context.case_id,
+            sender_context.sender_id,
+            is_redelivery=lambda: bool(intake.found_ids),
+        )
+    ]
+
+
+def sender_sequence_stage(
+    name: str,
+    intake: IntakeReceivedActivityNode,
+    sender_context: SenderContext | None,
+    exemption: SenderSequenceExemption | None,
+) -> list[py_trees.behaviour.Behaviour]:
+    """The CASE_MANAGER's judgment of the received ``senderSequence``.
+
+    Placed in every tree whose sender guard checks a named sender against a
+    named case, as the ledger position answer is, because the activities a
+    participant numbers are the ones that state a ``ledgerPosition``
+    (SYNC-21-001): it runs after the door guards, so only an admitted
+    activity is held or refused for its number (SYNC-21-023), and before
+    anything judges the act (SYNC-21-008).  A tree whose activity its
+    sender numbers not names a registered *exemption*.  *intake* tells a
+    redelivery of an activity already archived (SYNC-21-018).
+
+    Raises:
+        VultronWiringError: *exemption* is not registered in
+            ``SENDER_SEQUENCE_EXEMPTIONS``.
+    """
+    if exemption is not None:
+        require_registered(
+            exemption,
+            SENDER_SEQUENCE_EXEMPTIONS,
+            where=f"create_receive_activity_tree({name})",
+            kind="sender-sequence",
+            registry_name="SENDER_SEQUENCE_EXEMPTIONS",
+            spec_id="SYNC-21-001",
+        )
+        return []
+    if not isinstance(sender_context, SenderCheckContext):
+        return []
+    if sender_context.case_id is None:
+        return []
+    return [
+        create_sender_sequence_stage(
             sender_context.case_id,
             sender_context.sender_id,
             is_redelivery=lambda: bool(intake.found_ids),

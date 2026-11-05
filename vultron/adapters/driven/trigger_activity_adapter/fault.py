@@ -123,6 +123,7 @@ class _FaultMixin:
         refused_activity: dict[str, Any],
         asserter: str,
         reason: str,
+        expected_sender_sequence: int | None = None,
     ) -> tuple[str, str]:
         """Create and persist the CASE_MANAGER's refusal notice (CLP-05-001).
 
@@ -131,7 +132,10 @@ class _FaultMixin:
         ``summary`` and the case, when given, in ``context``.  The id is
         derived from the CASE_MANAGER and the refused activity, so a retry
         rebuilds the notice under the same id and the outbox queues it once
-        (ID-04-004, OX-06-002).
+        (ID-04-004, OX-06-002).  A refusal of the activity's
+        ``senderSequence`` names *expected_sender_sequence*, the number the
+        CASE_MANAGER expects next, as ``expectedSenderSequence``
+        (SYNC-21-015).
 
         Raises:
             VultronActivityConstructionError: *refused_activity* has no id or
@@ -145,6 +149,8 @@ class _FaultMixin:
         context: dict[str, Any] = (
             {} if case_id is None else {"context": case_id}
         )
+        if expected_sender_sequence is not None:
+            context["expected_sender_sequence"] = expected_sender_sequence
         activity = refusal_notice_activity(
             refused_activity,
             reason,

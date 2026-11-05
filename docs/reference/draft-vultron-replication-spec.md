@@ -535,6 +535,7 @@ A value of 5 seconds or less is insufficient under multi-actor load. (SYNC-05-00
 The interval defaults to off (`None`), because a periodic check costs traffic a deployment should choose. (SYNC-17-011)
 
 [I] The CASE_MANAGER's resend of an unanswered Invite waits `ledger.invite_resend_cooldown_seconds` (30 seconds by default) after the first resend, doubling with each further resend of the same Invite to the same participant up to `ledger.invite_resend_max_cooldown_seconds` (600 seconds by default). (SYNC-20-005, SYNC-20-006)
+[I] The CASE_MANAGER holds a participant's activity that arrives past a gap in the sender's `senderSequence` for `ledger.sender_sequence_hold_seconds` (120 seconds by default), and ends the hold sooner when the sender has `ledger.sender_sequence_hold_cap` activities (16 by default) held for the case. (SYNC-21-021)
 
 ---
 

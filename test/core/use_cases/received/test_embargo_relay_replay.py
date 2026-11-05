@@ -212,6 +212,8 @@ def test_a_participants_rejection_is_fanned_out_and_replayed():
     revision_id = _propose(net, "rejected", 90)
     net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
     (invite,) = net.queued(MANAGER, to=BYSTANDER, type_="Invite")
+    # Its default Accept stays undelivered, so the Reject takes its number.
+    net.withdraw_unsent_numbers(BYSTANDER)
 
     # The bystander answers Reject instead of its default Accept (EMB-15).
     _, sealed = TriggerActivityAdapter(net.stores[BYSTANDER]).reject_embargo(

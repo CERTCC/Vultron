@@ -97,6 +97,9 @@ from vultron.core.use_cases.received._bt_verdict.redelivery import (
     role_offer_verdict,
     stale_case_copy_verdict,
 )
+from vultron.core.use_cases.received._bt_verdict.sequence import (
+    sender_sequence_verdict,
+)
 from vultron.core.use_cases.received._bt_verdict.tree_lookup import (
     door_guards_admitted,
     failure_reason,
@@ -115,6 +118,7 @@ from vultron.core.use_cases.received._bt_verdict.verdict import (
 )
 
 __all__ = [
+    "sender_sequence_verdict",
     "add_note_redelivery_verdict",
     "addressee_refusal",
     "applied_or_raise",

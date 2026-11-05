@@ -181,6 +181,10 @@ SANCTIONED_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
         (f"{_C}/receive_stages/tree.py", GATE),
         (f"{_C}/nodes/clock_decision_stage.py", GATE),
         (f"{_B}/sync/ledger_position_stage.py", GATE),
+        # The sender sequence stage (SYNC-21-008): placed, gated, beside the
+        # ledger-position answer; it orders the sender's numbers, never the
+        # act, and only the CASE_MANAGER judges a number.
+        (f"{_B}/sync/sender_sequence_stage.py", GATE),
         # The trigger tree's role fork: a trigger runs on the actor's own
         # initiative, so no received path chooses it.  Both shapes: it calls
         # the CASE_MANAGER gate for one arm, and builds the complement arm's

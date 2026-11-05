@@ -35,6 +35,7 @@ Structure::
     ├── RoleOfferOpenNode               # open, not a redelivery (CM-33-005)
     ├── GuardedCommit                   # CASE_MANAGER only (CM-33-006)
     └── GrantRoleIfCaseManager          # Accept only (CM-02-016)
+        ├── DrainSequenceHoldsNode # CASE_MANAGER role only (SYNC-21-025)
         └── GrantCaseParticipantRoleNode
 
 Provides:
@@ -66,6 +67,9 @@ from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import (
     RoleOfferRequest,
     SenderCheckContext,
+)
+from vultron.core.behaviors.sync.nodes.sender_sequence_drain import (
+    DrainSequenceHoldsNode,
 )
 from vultron.enums.roles import CVDRole
 
@@ -148,11 +152,18 @@ def create_accept_case_participant_role_tree(
     # by that guard.
     grant: list[py_trees.behaviour.Behaviour] | None = (
         [
+            # Before the CASE_MANAGER role passes, the outgoing one judges
+            # everything it holds for the case (SYNC-21-025).
+            *(
+                [DrainSequenceHoldsNode(case_id=case_id)]
+                if carried_role is CVDRole.CASE_MANAGER
+                else []
+            ),
             GrantCaseParticipantRoleNode(
                 case_id=case_id,
                 role=carried_role,
                 target_actor_id=carried_target_id,
-            )
+            ),
         ]
         if carried_role is not None and carried_target_id
         else None

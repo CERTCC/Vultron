@@ -414,6 +414,13 @@ class InlineObjectStaging:
 
         def _restage(store: DataLayer) -> None:
             store.create(activity_record)
+            if not inline_rows:
+                # Held inside the tree, where no staged rows exist: a body
+                # the CASE_MANAGER holds for its sender's number
+                # (SYNC-21-010) or a held ledger Announce.  Its inline
+                # objects are staged from the body, as a first delivery's
+                # are, so the replay is routed as that delivery was.
+                _stage_inline_object(store, parsed)
             for row in inline_rows:
                 store.create(_row_record(row))
 

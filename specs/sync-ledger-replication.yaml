@@ -4606,10 +4606,8 @@ groups:
     verification: >-
       `test_a_hold_ends_when_its_wait_passes` in
       `test/core/use_cases/received/test_sender_sequence.py` holds a note past a lost
-      one, moves the clock past the wait, has another sender's activity arrive, and
-      asserts the held notes are committed. The other sender's activity stands in for
-      the timer the implementation builds, which replaces that step; the asserted
-      outcome stands.
+      one, moves the clock past the wait, ticks the CASE_MANAGER's hold timer once
+      with nothing else arriving, and asserts the held notes are committed.
     stories:
     - story_2026_059
   - id: SYNC-21-012
@@ -4750,7 +4748,9 @@ groups:
       `test_an_unnumbered_activity_is_refused_with_a_notice` in
       `test/core/use_cases/received/test_sender_sequence.py` delivers a note with no
       number and one whose number is not an integer, and asserts neither is committed
-      and each draws a refusal notice naming the expected number.
+      and each draws a refusal notice naming the expected number;
+      `test_a_number_that_is_not_a_positive_integer_draws_a_notice` does the same for
+      0, a negative number, a boolean, a fraction, a numeral as text, null and a list.
     stories:
     - story_2026_059
   - id: SYNC-21-018
@@ -4845,6 +4845,12 @@ groups:
         requirement constrains the other
     adr:
     - ADR-0178
+    verification: >-
+      `test_the_hold_defaults_are_the_documented_ones` in
+      `test/core/use_cases/received/test_sender_sequence.py` asserts the
+      `ledger.sender_sequence_hold_seconds` and `ledger.sender_sequence_hold_cap`
+      defaults; inspection confirms they are documented beside the retry defaults in
+      `docs/reference/draft-vultron-replication-spec.md`.
   - id: SYNC-21-022
     priority: SHOULD
     kind: project
@@ -4860,6 +4866,11 @@ groups:
       spec_id: SYNC-21-013
     adr:
     - ADR-0178
+    verification: >-
+      `test_each_skipped_number_is_logged_at_warning` in
+      `test/core/use_cases/received/test_sender_sequence.py` ends a hold past two
+      missing numbers and asserts one WARNING per skipped number, naming the sender
+      and the case.
   - id: SYNC-21-023
     priority: MUST
     kind: protocol
@@ -4943,9 +4954,10 @@ groups:
     verification: >-
       `test_an_outgoing_case_manager_drains_its_holds` in
       `test/core/use_cases/received/test_sender_sequence.py` holds two notes past a
-      lost one, hands the CASE_MANAGER role over, and asserts both notes are
-      committed, in number order, with no refusal notice. The hand-over step is a
-      stand-in the implementation replaces with the delegation commit it drains
-      before.
+      lost one, runs the outgoing CASE_MANAGER's drain, and asserts both notes are
+      committed, in number order, with no refusal notice;
+      `test_the_case_manager_role_grant_drains_first` asserts the tree that commits
+      the acceptance of a CASE_MANAGER role delegation drains before the grant
+      (CM-02-016).
     stories:
     - story_2026_059
