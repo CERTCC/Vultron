@@ -26,7 +26,7 @@ this package never imports it.
 
 from vultron.metadata.planning.size_calibration.fetch import (
     fetch_window,
-    parse_page,
+    parse_search_pages,
 )
 from vultron.metadata.planning.size_calibration.model import (
     BandScheme,
@@ -52,6 +52,6 @@ __all__ = [
     "Section",
     "SectionBuilder",
     "fetch_window",
-    "parse_page",
+    "parse_search_pages",
     "render_report",
 ]

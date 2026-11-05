@@ -79,6 +79,8 @@ class ClosedIssue:
     checkbox count, ``None`` when the body has no acceptance criteria.
     ``merged_closing_prs`` is every *merged* PR that closes it, inside the
     window or not, so a second PR outside the window still disqualifies it.
+    ``closers_complete`` is false when GitHub listed more linked PRs than the
+    query read, so a second merged closer may be among the unread ones.
     """
 
     number: int
@@ -86,6 +88,7 @@ class ClosedIssue:
     size_labels: tuple[str, ...]
     ac_count: int | None
     merged_closing_prs: tuple[int, ...]
+    closers_complete: bool = True
 
 
 @dataclass(frozen=True)

@@ -140,14 +140,15 @@ def paired_issues(data: CalibrationData) -> tuple[IssuePair, ...]:
     """Closed Issues whose single merged closing PR merged in the window.
 
     An Issue closed by two merged PRs has no one diff that measures it, so it
-    is left out, even when the other PR merged before the window. Ordered by
-    Issue number.
+    is left out, even when the other PR merged before the window, and so is an
+    Issue whose closer list the query could not read in full. Ordered by Issue
+    number.
     """
     in_window = {pr.number: pr for pr in data.prs}
     pairs: dict[int, IssuePair] = {}
     for issue in data.issues:
         closers = set(issue.merged_closing_prs)
-        if not issue.closed or len(closers) != 1:
+        if not (issue.closed and issue.closers_complete) or len(closers) != 1:
             continue
         pr = in_window.get(next(iter(closers)))
         if pr is not None:

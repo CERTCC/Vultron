@@ -6,13 +6,13 @@ GitHub or the clock.
 
 from __future__ import annotations
 
-import json
 import subprocess
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from test.metadata._fake_runner import FakeRunner
 from vultron.metadata.planning import size_bands
 from vultron.metadata.planning.gh import GhError
 from vultron.metadata.planning.size_calibration import fetch, measures, report
@@ -169,6 +169,10 @@ class TestPairedIssues:
         window = data([pr(10, 50)], [issue(1, (10, 10))])
         assert len(measures.paired_issues(window)) == 1
 
+    def test_an_incompletely_read_closer_list_leaves_it_out(self):
+        partial = ClosedIssue(1, True, ("size:M",), 3, (10,), False)
+        assert measures.paired_issues(data([pr(10, 50)], [partial])) == ()
+
     def test_a_closer_that_merged_before_the_window_is_left_out(self):
         window = data([pr(10, 50)], [issue(1, 3)])
         assert measures.paired_issues(window) == ()
@@ -294,155 +298,219 @@ class TestReport:
         assert text.endswith("Extra\n  4 PRs")
 
 
+def _stamp(moment: datetime) -> str:
+    return moment.isoformat().replace("+00:00", "Z")
+
+
+def _connection(nodes: Sequence[dict], total: int | None = None) -> dict:
+    return {
+        "totalCount": len(nodes) if total is None else total,
+        "nodes": list(nodes),
+    }
+
+
 def _node(
     number: int,
-    merged: datetime,
-    updated: datetime | None = None,
+    merged: datetime = IN_WINDOW,
     issues: Sequence[dict] = (),
     additions: int = 7,
     deletions: int = 3,
+    issue_total: int | None = None,
 ) -> dict:
     return {
         "number": number,
         "additions": additions,
         "deletions": deletions,
-        "mergedAt": merged.isoformat().replace("+00:00", "Z"),
-        "updatedAt": (updated or merged).isoformat().replace("+00:00", "Z"),
-        "closingIssuesReferences": {"nodes": list(issues)},
+        "mergedAt": _stamp(merged),
+        "closingIssuesReferences": _connection(issues, issue_total),
     }
 
 
-def _issue_node(number: int, closers: Sequence[tuple[int, bool]]) -> dict:
+def _issue_node(
+    number: int,
+    closers: Sequence[tuple[int, bool]],
+    closer_total: int | None = None,
+    label_total: int | None = None,
+) -> dict:
+    labels = [{"name": "size:S"}, {"name": "theme:x"}]
     return {
         "number": number,
         "state": "CLOSED",
         "body": "- [ ] AC-1: a\n- [ ] AC-2: b\n",
-        "labels": {"nodes": [{"name": "size:S"}, {"name": "theme:x"}]},
-        "closedByPullRequestsReferences": {
-            "nodes": [{"number": n, "merged": m} for n, m in closers]
-        },
+        "labels": _connection(labels, label_total),
+        "closedByPullRequestsReferences": _connection(
+            [{"number": n, "merged": m} for n, m in closers], closer_total
+        ),
     }
 
 
-def _page(nodes: Sequence[dict], cursor: str | None = None) -> dict:
+def _page(nodes: Sequence[dict], count: int | None = None) -> dict:
     return {
         "data": {
-            "repository": {
-                "pullRequests": {
-                    "pageInfo": {
-                        "hasNextPage": cursor is not None,
-                        "endCursor": cursor,
-                    },
-                    "nodes": list(nodes),
-                }
+            "search": {
+                "issueCount": len(nodes) if count is None else count,
+                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                "nodes": list(nodes),
             }
         }
     }
 
 
-class TestParsePage:
+class TestParseSearchPages:
     def test_a_pr_is_read_with_its_issues(self):
-        page = fetch.parse_page(
-            _page(
-                [_node(10, IN_WINDOW, issues=[_issue_node(1, [(10, True)])])]
-            ),
-            SINCE,
+        result = fetch.parse_search_pages(
+            [_page([_node(10, issues=[_issue_node(1, [(10, True)])])])]
         )
-        assert page.prs == (MergedPr(10, IN_WINDOW, 10, (1,)),)
-        assert page.issues == (ClosedIssue(1, True, ("size:S",), 2, (10,)),)
-        assert page.next_cursor is None
+        assert result.prs == (MergedPr(10, IN_WINDOW, 10, (1,)),)
+        assert result.issues == (
+            ClosedIssue(1, True, ("size:S",), 2, (10,), True),
+        )
+        assert result.issue_count == 1
+
+    def test_pages_are_concatenated(self):
+        result = fetch.parse_search_pages(
+            [_page([_node(10)], count=2), _page([_node(11)], count=2)]
+        )
+        assert [p.number for p in result.prs] == [10, 11]
 
     def test_an_unmerged_closer_is_not_a_closing_pr(self):
-        page = fetch.parse_page(
-            _page(
-                [
-                    _node(
-                        10,
-                        IN_WINDOW,
-                        issues=[_issue_node(1, [(10, True), (9, False)])],
-                    )
-                ]
-            ),
-            SINCE,
-        )
-        assert page.issues[0].merged_closing_prs == (10,)
+        node = _node(10, issues=[_issue_node(1, [(10, True), (9, False)])])
+        result = fetch.parse_search_pages([_page([node])])
+        assert result.issues[0].merged_closing_prs == (10,)
 
-    def test_a_pr_merged_before_the_window_is_dropped(self):
-        old = SINCE - timedelta(days=1)
-        page = fetch.parse_page(
-            _page([_node(10, old, updated=NOW)], "c"), SINCE
+    def test_a_truncated_closer_list_marks_the_issue_incomplete(self):
+        node = _node(
+            10, issues=[_issue_node(1, [(10, True)], closer_total=60)]
         )
-        assert page.prs == ()
-        assert page.next_cursor == "c"
+        (issue,) = fetch.parse_search_pages([_page([node])]).issues
+        assert issue.closers_complete is False
 
-    def test_reaching_a_pr_updated_before_the_window_stops_paging(self):
-        old = SINCE - timedelta(days=1)
-        page = fetch.parse_page(
-            _page([_node(10, IN_WINDOW), _node(9, old)], "c"), SINCE
-        )
-        assert [p.number for p in page.prs] == [10]
-        assert page.next_cursor is None
+    def test_truncated_labels_are_refused(self):
+        node = _node(10, issues=[_issue_node(1, [(10, True)], label_total=60)])
+        with pytest.raises(GhError, match="issue #1 has more than 50 labels"):
+            fetch.parse_search_pages([_page([node])])
+
+    def test_truncated_closing_issues_are_refused(self):
+        with pytest.raises(GhError, match="PR #10 closes more than 50"):
+            fetch.parse_search_pages([_page([_node(10, issue_total=60)])])
 
     def test_graphql_errors_are_raised_verbatim(self):
         with pytest.raises(GhError, match="rate limited"):
-            fetch.parse_page({"errors": [{"message": "rate limited"}]}, SINCE)
+            fetch.parse_search_pages(
+                [{"errors": [{"message": "rate limited"}]}]
+            )
 
-    @pytest.mark.parametrize("payload", [[], {"data": {}}, {"data": None}])
-    def test_an_unexpected_shape_is_a_gh_error(self, payload):
+    @pytest.mark.parametrize(
+        "pages",
+        [
+            {},
+            [[]],
+            [{"data": {}}],
+            [{"data": None}],
+            [_page([{"number": "10"}])],
+            [_page([{**_node(10), "mergedAt": "yesterday"}])],
+            [_page([{**_node(10), "additions": True}])],
+        ],
+    )
+    def test_an_unexpected_shape_is_a_gh_error(self, pages):
         with pytest.raises(GhError, match="could not read the PR query"):
-            fetch.parse_page(payload, SINCE)
+            fetch.parse_search_pages(pages)
 
 
-class FakeGh:
-    """A runner that answers each call with the next canned page."""
-
-    def __init__(self, *pages: object) -> None:
-        self.replies = [
-            p if isinstance(p, str) else json.dumps(p) for p in pages
-        ]
-        self.calls: list[list[str]] = []
-
-    def __call__(self, args: Sequence[str]) -> str:
-        self.calls.append(list(args))
-        return self.replies.pop(0)
+def _query_term(call: list[str]) -> str:
+    (term,) = [arg for arg in call if arg.startswith("q=")]
+    return term
 
 
 class TestFetchWindow:
-    def test_it_follows_the_cursor_and_merges_pages(self):
-        shared = _issue_node(1, [(10, True)])
-        gh = FakeGh(
-            _page([_node(11, IN_WINDOW, issues=[shared])], "c1"),
-            _page([_node(10, IN_WINDOW, issues=[shared])]),
+    def test_the_window_is_read_in_merge_date_slices(self):
+        gh = FakeRunner([_page([_node(10)])], [_page([_node(11)])])
+        window = fetch.fetch_window(
+            "o/n", SINCE, NOW, gh, slice_span=timedelta(days=30)
         )
-        window = fetch.fetch_window("o/n", SINCE, NOW, gh)
         assert [p.number for p in window.prs] == [10, 11]
+        terms = [_query_term(call) for call in gh.calls]
+        assert terms == [
+            "q=repo:o/n is:pr is:merged "
+            "merged:2026-09-06T00:00:00Z..2026-10-06T00:00:00Z",
+            "q=repo:o/n is:pr is:merged "
+            "merged:2026-10-06T00:00:00Z..2026-11-05T00:00:00Z",
+        ]
+
+    def test_a_pr_on_a_slice_boundary_is_counted_once(self):
+        shared = _issue_node(1, [(10, True)])
+        node = _node(10, issues=[shared])
+        gh = FakeRunner([_page([node])], [_page([node])])
+        window = fetch.fetch_window(
+            "o/n", SINCE, NOW, gh, slice_span=timedelta(days=30)
+        )
+        assert [p.number for p in window.prs] == [10]
         assert [i.number for i in window.issues] == [1]
-        assert "endCursor=c1" not in gh.calls[0]
-        assert "endCursor=c1" in gh.calls[1]
-        assert "owner=o" in gh.calls[0] and "name=n" in gh.calls[0]
+
+    def test_a_pr_merged_outside_the_window_is_dropped(self):
+        old = _node(9, merged=SINCE - timedelta(seconds=1))
+        window = fetch.fetch_window(
+            "o/n", SINCE, NOW, FakeRunner([_page([old])])
+        )
+        assert window.prs == ()
+
+    def test_a_slice_over_the_search_cap_is_halved(self):
+        gh = FakeRunner(
+            [_page([], count=fetch.SEARCH_RESULT_CAP + 1)],
+            [_page([_node(10)])],
+            [_page([_node(11)])],
+        )
+        window = fetch.fetch_window(
+            "o/n", SINCE, NOW, gh, slice_span=timedelta(days=60)
+        )
+        assert [p.number for p in window.prs] == [10, 11]
+        assert [_query_term(call).split(" ")[-1] for call in gh.calls[1:]] == [
+            "merged:2026-09-06T00:00:00Z..2026-10-06T00:00:00Z",
+            "merged:2026-10-06T00:00:00Z..2026-11-05T00:00:00Z",
+        ]
+
+    def test_a_tiny_slice_still_over_the_cap_is_refused(self):
+        gh = FakeRunner([_page([], count=fetch.SEARCH_RESULT_CAP + 1)])
+        with pytest.raises(GhError, match="cannot list them"):
+            fetch.fetch_window("o/n", NOW - timedelta(minutes=30), NOW, gh)
+
+    def test_a_failure_on_a_later_slice_raises(self):
+        gh = FakeRunner(
+            [_page([_node(10)])],
+            subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 502"),
+        )
+        with pytest.raises(subprocess.CalledProcessError):
+            fetch.fetch_window(
+                "o/n", SINCE, NOW, gh, slice_span=timedelta(days=30)
+            )
+        assert len(gh.calls) == 2
 
     @pytest.mark.parametrize("repo", ["", "owner", "o/", "/n", "o/n/x"])
     def test_a_malformed_repo_is_refused_before_calling_gh(self, repo):
-        gh = FakeGh()
+        gh = FakeRunner("unused")
         with pytest.raises(GhError, match="OWNER/NAME"):
             fetch.fetch_window(repo, SINCE, NOW, gh)
         assert gh.calls == []
 
+    def test_an_empty_window_is_refused(self):
+        with pytest.raises(GhError, match="cannot read the window"):
+            fetch.fetch_window("o/n", NOW, NOW, FakeRunner("unused"))
+
     def test_unparseable_output_is_a_gh_error(self):
         with pytest.raises(GhError, match="could not read"):
-            fetch.fetch_window("o/n", SINCE, NOW, FakeGh("not json"))
+            fetch.fetch_window("o/n", SINCE, NOW, FakeRunner("not json"))
 
 
 class TestCli:
     def test_calibrate_reads_the_window_ending_now(self):
-        gh = FakeGh(_page([_node(10, IN_WINDOW, additions=40, deletions=2)]))
+        gh = FakeRunner([_page([_node(10, additions=40, deletions=2)])])
         text = size_bands.calibrate(7, run=gh, now=NOW)
         assert text.startswith("pr-size --calibrate: 2026-10-29 to 2026-11-05")
         assert "Band shares — 1 PRs merged" in text
 
     def test_calibrate_refuses_a_non_positive_window(self):
         with pytest.raises(ValueError, match="at least 1"):
-            size_bands.calibrate(0, run=FakeGh())
+            size_bands.calibrate(0, run=FakeRunner("unused"))
 
     def test_main_defaults_to_sixty_days(self, monkeypatch, capsys):
         seen: list[int] = []
@@ -461,29 +529,52 @@ class TestCli:
         size_bands.main(["--calibrate", "--days", "14"])
         assert seen == [14]
 
-    def test_days_zero_is_reported_not_replaced_by_the_default(self, capsys):
-        assert size_bands.main(["--calibrate", "--days", "0"]) == 2
-        assert "at least 1" in capsys.readouterr().err
-
-    def test_days_without_calibrate_is_a_usage_error(self):
+    @pytest.mark.parametrize(
+        "argv", [["--calibrate", "--days", "0"], ["--days", "5"]]
+    )
+    def test_bad_days_is_a_usage_error(self, argv, capsys):
         with pytest.raises(SystemExit) as exc:
-            size_bands.main(["--days", "5"])
+            size_bands.main(argv)
         assert exc.value.code == 2
+        assert "--days" in capsys.readouterr().err
+
+    def test_an_internal_value_error_is_not_reported_as_usage(
+        self, monkeypatch
+    ):
+        def bug(days: int) -> str:
+            raise ValueError("a bug, not bad input")
+
+        monkeypatch.setattr(size_bands, "calibrate", bug)
+        with pytest.raises(ValueError, match="a bug"):
+            size_bands.main(["--calibrate"])
 
     @pytest.mark.parametrize(
-        "failure",
+        ("failure", "detail"),
         [
-            GhError("gh is not installed"),
-            subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 502"),
+            (GhError("gh is not installed"), "gh is not installed"),
+            (
+                subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 502"),
+                "HTTP 502",
+            ),
         ],
     )
     def test_a_gh_failure_exits_one_with_its_detail(
-        self, monkeypatch, capsys, failure
+        self, monkeypatch, capsys, failure, detail
     ):
         def boom(days: int) -> str:
             raise failure
 
         monkeypatch.setattr(size_bands, "calibrate", boom)
         assert size_bands.main(["--calibrate"]) == 1
-        err = capsys.readouterr().err
-        assert "gh is not installed" in err or "HTTP 502" in err
+        out = capsys.readouterr()
+        assert detail in out.err
+        assert out.out == ""
+
+    def test_a_failure_partway_through_prints_no_partial_report(self, capsys):
+        gh = FakeRunner(
+            [_page([_node(10)])],
+            subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 502"),
+        )
+        with pytest.raises(subprocess.CalledProcessError):
+            size_bands.calibrate(60, run=gh, now=NOW)
+        assert capsys.readouterr().out == ""

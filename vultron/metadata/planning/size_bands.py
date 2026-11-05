@@ -405,14 +405,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.days is not None and not args.calibrate:
         parser.error("--days applies only with --calibrate")
+    if args.days is not None and args.days < 1:
+        parser.error(f"--days must be at least 1, got {args.days}")
 
     if args.calibrate:
+        days = DEFAULT_CALIBRATION_DAYS if args.days is None else args.days
         try:
-            days = DEFAULT_CALIBRATION_DAYS if args.days is None else args.days
             print(calibrate(days))
-        except ValueError as exc:
-            print(f"❌ {exc}", file=sys.stderr)
-            return 2
         except GH_FAILURES as exc:
             print(f"❌ {gh_failure_detail(exc)}", file=sys.stderr)
             return 1
