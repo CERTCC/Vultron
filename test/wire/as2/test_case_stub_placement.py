@@ -18,10 +18,9 @@
 The stub exists so an invitee can decide whether to join a case before it is
 entitled to the case (ADR-0114).  Its one place is the ``target`` of the
 ``Invite`` whose ``object`` is the inline actor it invites, wherever that
-``Invite`` is
-carried inline: in its ``Accept`` or ``Reject``, or in a refusal notice
-quoting such a reply.  Anywhere else the parser
-refuses the activity and names the slot (#5770).
+``Invite`` is carried inline: in its ``Accept`` or ``Reject``, or in a refusal
+notice quoting such a reply.  Anywhere else the parser refuses the activity
+and names the slot (#5770).
 """
 
 import copy
