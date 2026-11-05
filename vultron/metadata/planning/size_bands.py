@@ -53,8 +53,8 @@ class SizeBand:
     Both ceilings are **inclusive**. ``max_lines=None`` means unbounded above,
     which only the last band is. Every estimate band has a finite ``max_acs``:
     past the last one an Issue is decomposed, not labelled, so a
-    ``measured_only`` band carries ``None`` there. ``weight`` is the PAD-15-005 bundle size-weight;
-    ``None`` means the band is never bundled at all.
+    ``measured_only`` band carries ``None`` there. ``weight`` is the PAD-15-005
+    bundle size-weight; ``None`` means the band is never bundled at all.
     """
 
     label: str
@@ -76,11 +76,9 @@ class SizeBand:
     @property
     def acs_range(self) -> str:
         """The AC-count range this band covers, for humans."""
-        if self.measured_only:
+        if self.measured_only or self.max_acs is None:
             return "—"
         floor = _AC_FLOORS[self.label]
-        if self.max_acs is None:
-            return f"{floor}+"
         if floor == 0:
             return f"≤{self.max_acs}"
         return f"{floor}-{self.max_acs}"
@@ -126,8 +124,8 @@ SIZE_WEIGHTS: dict[str, int] = {
     band.label: band.weight for band in SIZE_BANDS if band.weight is not None
 }
 
-# Bands past the review ceiling on their own. `select` refuses these outright
-# instead of weighting them, because a weight implies "fits alongside something
+# Bands too big to bundle on their own. `select` refuses these outright instead
+# of weighting them, because a weight implies "fits alongside something
 # smaller" and an XL PR does not.
 UNBUNDLABLE_LABELS: frozenset[str] = frozenset(
     band.label for band in SIZE_BANDS if band.weight is None

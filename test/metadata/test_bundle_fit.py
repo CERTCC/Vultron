@@ -344,9 +344,9 @@ class TestSizeBudget:
 class TestReviewCeiling:
     """The top band is refused, not weighted.
 
-    A weight says "fits alongside something smaller". Review findings per 1000
-    diff lines fall by half above this band's floor, so a PR that big already
-    exhausts the review budget on its own and must never carry a passenger.
+    A weight says "fits alongside something smaller". A PR in this band is
+    already past the size where its CI-fix rate doubles (PAD-05-009), so it
+    must never carry a passenger that makes it bigger still.
     """
 
     def test_an_unbundlable_candidate_is_refused_at_the_fit_stage(self):
@@ -355,7 +355,7 @@ class TestReviewCeiling:
         assert bundle.members == []
         rej = next(r for r in bundle.rejected if r.number == 1)
         assert rej.stage == "fit"
-        assert "review ceiling" in rej.reason
+        assert "size ceiling" in rej.reason
         assert xl in rej.reason
 
     def test_it_is_refused_even_when_the_budget_could_absorb_it(self):

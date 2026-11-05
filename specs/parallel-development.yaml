@@ -1062,7 +1062,7 @@ groups:
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           AC ceiling itself, and
-          `::TestBandForAcs::test_each_ceiling_and_the_one_after_it_land_correctly`
+          `::TestBandForAcs::test_the_last_ceiling_is_inclusive_and_one_past_it_decomposes`
           pins that the ceiling is inclusive.
       - id: PAD-05-006
         priority: MUST
@@ -2125,8 +2125,9 @@ groups:
         statement: >-
           An Issue labelled `size:XL` MUST NOT be proposed as a bundle member.
         rationale: >-
-          `size:XL` means a change that already exhausts the review budget on
-          its own (PAD-05-009), so it is refused outright rather than given a
+          `size:XL` means a change already past the size where its CI-fix rate
+          doubles (PAD-05-009), and a bundle is one PR, so adding members only
+          makes it bigger. It is refused outright rather than given a
           weight. A weight would say "fits alongside something smaller", which
           is precisely what this band rules out, and a raised `--budget` could
           then reopen it.
