@@ -20,6 +20,8 @@ violations of a multi-violation rejection reads ``details``; a caller that wants
 a human-readable summary keeps reading ``message``.  ISSUE-2112 named the old
 alternative — parsing ``message`` — as silently order-dependent.
 
+Also: the EH-03-005 proof-failure category and its 422 answer (#5763).
+
 Closes #3050 AC-8, AC-10.
 """
 
@@ -28,13 +30,22 @@ from typing import Any, cast
 import pytest
 from fastapi import HTTPException, status
 
-from vultron.adapters.driving.fastapi.errors import translate_domain_errors
+from vultron.adapters.driving.fastapi.errors import (
+    domain_error_translation,
+    translate_domain_errors,
+)
 from vultron.errors import (
     Violation,
     VultronError,
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
+    VultronProofVerificationError,
     VultronValidationError,
+)
+from vultron.wire.as2.errors import (
+    VultronMultikeyError,
+    VultronProofInvalidError,
+    VultronUnsignableJsonError,
 )
 
 
@@ -131,6 +142,87 @@ class TestValidationErrorWithoutViolations:
         )
         assert isinstance(exc, HTTPException)
         assert _as_body(exc)["activity_id"] == "urn:uuid:activity-1"
+
+
+class TestProofVerificationError:
+    """EH-03-005: a missing or failing proof is its own 422 category."""
+
+    @staticmethod
+    def _translate(exc: Exception) -> HTTPException:
+        translated = translate_domain_errors(exc)
+        assert isinstance(translated, HTTPException)
+        return translated
+
+    @pytest.mark.spec("EH-03-005")
+    def test_maps_to_422_under_its_own_error_name(self):
+        exc = self._translate(VultronProofVerificationError("bad proof"))
+        assert exc.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert _as_body(exc) == {
+            "status": 422,
+            "error": "ProofVerificationError",
+            "message": "bad proof",
+            "activity_id": None,
+        }
+
+    @pytest.mark.spec("EH-03-005")
+    def test_signing_module_error_maps_the_same_way(self):
+        """The error ``signing.verify`` raises is an instance of the category."""
+        exc = self._translate(
+            VultronProofInvalidError("proof does not verify")
+        )
+        assert exc.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert _as_body(exc) == {
+            "status": 422,
+            "error": "ProofVerificationError",
+            "message": "proof does not verify",
+            "activity_id": None,
+        }
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            VultronMultikeyError("not a base58btc Ed25519 key"),
+            VultronUnsignableJsonError("duplicate key"),
+        ],
+        ids=["multikey", "unsignable-json"],
+    )
+    def test_other_signing_errors_are_outside_the_category(
+        self, error: VultronError
+    ):
+        """Only a bad proof is in the category; how ingress answers a bad
+        published key or an uncanonicalizable body is #5386's decision."""
+        assert not isinstance(error, VultronProofVerificationError)
+        with pytest.raises(type(error)):
+            translate_domain_errors(error)
+
+    @pytest.mark.spec("EH-03-005")
+    @pytest.mark.parametrize(
+        "error_class",
+        [VultronProofVerificationError, VultronProofInvalidError],
+        ids=["core-category", "signing-subclass"],
+    )
+    def test_is_a_vultron_error_and_not_a_validation_error(
+        self, error_class: type[VultronError]
+    ):
+        """Pydantic must not absorb it, and no ``except ValueError`` catches it.
+
+        The signing subclass is checked too: it is the class ``signing.verify``
+        raises, and its second base could bring ``ValueError`` back in.
+        """
+        assert issubclass(error_class, VultronProofVerificationError)
+        assert issubclass(error_class, VultronError)
+        assert not issubclass(error_class, ValueError)
+        assert not issubclass(error_class, VultronValidationError)
+
+    @pytest.mark.spec("EH-05-001")
+    def test_context_manager_raises_the_422(self):
+        with pytest.raises(HTTPException) as caught:
+            with domain_error_translation():
+                raise VultronProofInvalidError("document carries no proof")
+        assert caught.value.status_code == 422
+        body = _as_body(caught.value)
+        assert body["error"] == "ProofVerificationError"
+        assert body["message"] == "document carries no proof"
 
 
 class TestOtherDomainErrorsUnaffected:
