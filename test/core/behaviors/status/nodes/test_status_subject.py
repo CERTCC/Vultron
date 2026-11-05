@@ -58,17 +58,18 @@ def _status(
 
 @pytest.mark.spec("RSH-08-007")
 @pytest.mark.spec("RSH-08-014")
+@pytest.mark.spec("PRM-06-008")
 @pytest.mark.spec("CSB-17-001")
-def test_both_moves_together_are_one_on_behalf_assertion():
-    """RSH-08-014's "or both" passes the shape rule and no further.
+def test_both_moves_in_one_status_are_refused_as_impossible():
+    """The two on-behalf moves cannot be asserted in one status.
 
-    The only status that carries both on-behalf moves is ``v→V`` plus ``d→D``,
-    which lands the target on the compound state ``VfD`` — a fix deployed
-    before it was ready, one of the combinations CSB-17-001 rules out.  So the
-    fixture is deliberately in an impossible state, and the test says so: the
-    shape rule admits it, and the entailment rule that PRM-06-008 requires
-    downstream refuses it.  Without the second assertion this test would read
-    as "both moves together are accepted", which is not what happens (#3046).
+    The shape rule asks only what the status asserts, so a status carrying
+    ``v→V`` plus ``d→D`` passes it — and goes no further.  It lands the target
+    on the compound state ``VfD``, a fix deployed before it was ready, one of
+    the combinations CSB-17-001 rules out, which the entailment rule that
+    PRM-06-008 requires downstream refuses.  So the fixture is deliberately in
+    an impossible state, and the test pins both layers: shape admits,
+    entailment refuses, and RSH-08-014 permits one move, never the pair.
     """
     status = _status(vf=CS_vf.Vf, d=CS_d.D)
 
@@ -81,8 +82,9 @@ def test_both_moves_together_are_one_on_behalf_assertion():
         CVDRole.DEPLOYER,
     ]
     assert impossible_state_reasons(status), (
-        "VfD must stay impossible; if it becomes legal, the shape rule's"
-        " 'or both' case is reachable end to end and needs its own test"
+        "VfD must stay impossible; if it becomes legal, a status carrying both"
+        " on-behalf moves is reachable end to end, and RSH-08-014 and"
+        " PRM-06-003/004 refuse it on a premise that no longer holds"
     )
 
 

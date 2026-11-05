@@ -468,7 +468,8 @@ class TestAddOnBehalfStatusDtoD:
 class TestAddOnBehalfStatusCombined:
     """v→V and d→D in one request: the target must hold both roles.
 
-    No combined request succeeds — D entails VF — but the guard still
+    The two moves cannot be asserted in one status (PRM-06-003, PRM-06-004),
+    so no combined request succeeds — D entails VF — but the guard still
     checks both roles before the write and names every missing one.
     """
 

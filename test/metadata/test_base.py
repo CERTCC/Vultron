@@ -27,6 +27,7 @@ from vultron.metadata.base import (
     GH_LOOKUP_ERRORS,
     gh_issue_missing,
     gh_issue_state,
+    gh_issue_view,
     gh_lookup_failure,
     issue_number,
     iter_tree_texts,
@@ -158,6 +159,37 @@ def test_gh_issue_state_asks_gh_for_the_issue_number(monkeypatch) -> None:
     monkeypatch.setattr(base_module.subprocess, "run", fake_run)
     assert gh_issue_state("#12") == "CLOSED"
     assert calls == [["gh", "issue", "view", "12", "--json", "state"]]
+
+
+def test_gh_issue_view_names_the_repository_and_fields(monkeypatch) -> None:
+    calls: list[list[str]] = []
+    answer = {
+        "url": "https://github.com/CERTCC/Vultron/issues/12",
+        "state": "OPEN",
+    }
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(
+            argv, 0, stdout=json.dumps(answer), stderr=""
+        )
+
+    monkeypatch.setattr(base_module.subprocess, "run", fake_run)
+    assert (
+        gh_issue_view("#12", ["url", "state"], repo="CERTCC/Vultron") == answer
+    )
+    assert calls == [
+        [
+            "gh",
+            "issue",
+            "view",
+            "12",
+            "--repo",
+            "CERTCC/Vultron",
+            "--json",
+            "url,state",
+        ]
+    ]
 
 
 @pytest.mark.parametrize("stdout", ["[]", "not json", "{}"])

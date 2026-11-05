@@ -19,10 +19,9 @@ when nothing was proposed.  The kwargs ratchet pins the spelling; this pins
 the presence rule and the wire form of the instant.  #3971.
 """
 
-from datetime import UTC, datetime, timedelta
-
 import pytest
 
+from test.support.future_dates import FAR_FUTURE
 from vultron.demo.actor_session import ActorSession, binding as session_module
 from vultron.demo.utils import DataLayerClient
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -62,7 +61,7 @@ def test_no_terms_sends_no_proposed_end_key(posted):
 
 
 def test_terms_are_sent_as_an_iso_instant(posted):
-    end = datetime(2030, 1, 2, 3, 4, 5, tzinfo=UTC) + timedelta(0)
+    end = FAR_FUTURE  # far-future; tests ISO-format round-trip, not a specific value
 
     _session().submit_report(
         report_name="n",

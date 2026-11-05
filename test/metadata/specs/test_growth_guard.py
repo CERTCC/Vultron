@@ -1120,10 +1120,38 @@ def test_changed_files_against_an_unknown_commit_is_an_unavailable_base(
         changed_files(files_repo, "0" * 40, ("d",))
 
 
+def _write_or_skip(path: Path, text: str) -> None:
+    """Write *text* to *path*, skipping when the filesystem refuses the name.
+
+    APFS rejects a file name that is not valid UTF-8 (``EILSEQ``), so a
+    non-UTF-8 fixture cannot be built on a macOS host at all and the test
+    errored in setup before it checked anything (#5449).  The skip is keyed on
+    the filesystem's own refusal rather than on ``sys.platform``, because the
+    property under test is the filesystem's, not the operating system's brand:
+    a Linux host on a UTF-8-enforcing mount skips for the same reason, and a
+    future macOS filesystem that accepts the name is still covered.
+    """
+    try:
+        path.write_text(text)
+    except OSError as exc:
+        pytest.skip(f"filesystem refuses the name {path.name!r}: {exc}")
+
+
+def test_write_or_skip_skips_when_the_filesystem_refuses_the_name(tmp_path):
+    """The helper's skip arm runs on a real refusal, on every host (#5449).
+
+    The non-UTF-8 name itself is accepted on Linux, so the arm is exercised
+    with another refusal every filesystem raises: a missing parent directory.
+    Without this, the arm would only ever run on macOS, where CI never looks.
+    """
+    with pytest.raises(pytest.skip.Exception, match="refuses the name"):
+        _write_or_skip(tmp_path / "no-such-dir" / "f", "new")
+
+
 def test_changed_files_keeps_a_non_utf8_name(files_repo):
     base = _git(files_repo, "rev-parse", "HEAD").strip()
     name = os.fsdecode(b"bad\xff")
-    (files_repo / "d" / name).write_text("new")
+    _write_or_skip(files_repo / "d" / name, "new")
     changed = changed_files(files_repo, base, ("d",))
     assert changed.at_head == (f"d/{name}",)
 

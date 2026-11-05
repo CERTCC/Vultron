@@ -1272,16 +1272,25 @@ groups:
     kind: protocol
     statement: >-
       A sender holding CASE_MANAGER or CASE_OWNER MAY assert v→V for a Vendor-role
-      participant, d→D for a Deployer-role participant, or both (PRM-06-003, PRM-06-004).
-      This holds only when the status changes nothing else: RM is as the target holds
-      it, and the status carries no case status.
+      participant, or d→D for a Deployer-role participant (PRM-06-003, PRM-06-004). The
+      two moves cannot be asserted in one status. This holds only when the status
+      changes nothing else: RM is as the target holds it, and the status carries no case
+      status.
     rationale: >-
       The on-behalf trigger sends only the PRM-06 moves, so the receive side admits
-      those moves and no others (ADR-0121).
+      those moves and no others (ADR-0121). The two moves cannot share one status: such
+      a status asserts `Vf` and `D` at once, the compound state `VfD` — a fix deployed
+      before it was ready — which is not among the 32 CSB-17-001 enumerates. PRM-06-008
+      already requires the entailments on an on-behalf d→D, so that status is refused,
+      and a permission for it would be one no sender can exercise.
     verification: >-
       `test_on_behalf_v_to_V_is_admitted` and `test_on_behalf_d_to_D_is_admitted` in
       `test/core/use_cases/received/test_status.py` confirm an on-behalf v→V, from the
       Case Owner and from the CASE_MANAGER, and an on-behalf d→D are admitted.
+      `test_both_moves_in_one_status_are_refused_as_impossible` in
+      `test/core/behaviors/status/nodes/test_status_subject.py` confirms a status
+      carrying both passes the shape rule and goes no further, the entailment refusing
+      the state it asserts.
     adr:
     - ADR-0121
     stories:

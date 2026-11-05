@@ -1753,8 +1753,13 @@ groups:
       (`test_sentinel_request_before_the_end_time_is_refused`) and
       `test/core/use_cases/received/test_termination_reason.py`
       (`test_case_manager_refuses_an_end_time_remove_before_the_end_time`,
+      `test_case_manager_judges_an_end_time_remove_by_the_embargo_in_force`,
       `test_replica_replay_refuses_an_end_time_entry_before_the_end_time`) confirm
-      the refusal at the CASE_MANAGER and at a replica.
+      the refusal at the CASE_MANAGER and at a replica;
+      `test/core/use_cases/received/test_embargo_ending_notices.py`
+      (`test_paused_replica_refuses_an_early_expiry_remove_of_a_revision`,
+      `test_paused_replica_refuses_expiry_of_a_longer_revision`) confirms it at a
+      paused replica, judged by the revision the `Remove` names.
     testable: true
     lint_suppress:
     - testable_without_steps

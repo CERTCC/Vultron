@@ -47,7 +47,7 @@ After implementation issues are created, archive and close the source Idea issue
 ```text
 TYPE    = idea
 TITLE   = <short idea title>
-SOURCE  = IDEA-<ISSUE_NUMBER>
+SOURCE  = ISSUE-<ISSUE_NUMBER>
 BODY    = Full original idea text
           + "**Processed**: YYYY-MM-DD — implementation tracked in #<IMPL_NUMBER>."
           + "Docs PR: <PR_URL>." (if docs PR was opened)
@@ -73,5 +73,5 @@ if [ -z "${PR_URL}" ]; then
 fi
 ```
 
-**History source**: `IDEA-<N>`
+**History source**: `ISSUE-<N>`
 **History type**: `idea`

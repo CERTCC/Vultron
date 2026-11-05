@@ -149,18 +149,21 @@ def demo_acknowledge_only(
     logger.info("DEMO 1: Acknowledge Only (RmReadReportActivity)")
     logger.info("=" * 80)
 
-    offer = None
+    # The acknowledgement is of the Offer step 1 produced, so it nests inside
+    # that step rather than reading a None sentinel after it (ADR-0058, #3038).
     with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
         offer = _reporter_submits_report(client, reporter, vendor)
 
-    with demo_step("Step 2: Vendor acknowledges the report to the reporter"):
-        _vendor_acknowledges_to_reporter(
-            client,
-            reporter,
-            vendor,
-            offer,
-            "We have received your report and will review it shortly.",
-        )
+        with demo_step(
+            "Step 2: Vendor acknowledges the report to the reporter"
+        ):
+            _vendor_acknowledges_to_reporter(
+                client,
+                reporter,
+                vendor,
+                offer,
+                "We have received your report and will review it shortly.",
+            )
 
     logger.info("✅ DEMO 1 COMPLETE: Report acknowledged (read-only).")
 
@@ -185,31 +188,42 @@ def demo_acknowledge_then_validate(
     logger.info("DEMO 2: Acknowledge then Validate")
     logger.info("=" * 80)
 
-    offer = None
+    # Every later step reads the Offer step 1 produced, so they all nest
+    # inside that step rather than reading a None sentinel after it
+    # (ADR-0058, #3038).
     with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
         offer = _reporter_submits_report(client, reporter, vendor)
 
-    with demo_step("Step 2: Vendor acknowledges the report to the reporter"):
-        _vendor_acknowledges_to_reporter(
-            client, reporter, vendor, offer, "Report received — under review."
-        )
+        with demo_step(
+            "Step 2: Vendor acknowledges the report to the reporter"
+        ):
+            _vendor_acknowledges_to_reporter(
+                client,
+                reporter,
+                vendor,
+                offer,
+                "Report received — under review.",
+            )
 
-    with demo_step("Step 3: Vendor validates the report (validate-report)"):
-        # Through the vendor's validate-report trigger, which sends the Report
-        # Valid to the CASE_MANAGER of the case opened on receipt (#5438).
-        receiver_validates_report(
-            client,
-            vendor,
-            offer.id_,
-            note="Confirmed SQL injection.",
-        )
+        with demo_step(
+            "Step 3: Vendor validates the report (validate-report)"
+        ):
+            # Through the vendor's validate-report trigger, which sends the
+            # Report Valid to the CASE_MANAGER of the case opened on receipt
+            # (#5438).
+            receiver_validates_report(
+                client,
+                vendor,
+                offer.id_,
+                note="Confirmed SQL injection.",
+            )
 
-    with demo_step("Step 4: Reporter learns of the validation"):
-        # The CASE_MANAGER records the Report Valid and the ledger carries it
-        # to the reporter's replica; nothing is posted to its inbox.
-        check_report_answer_recorded(
-            client, reporter, vendor, offer.id_, {RM.VALID}
-        )
+        with demo_step("Step 4: Reporter learns of the validation"):
+            # The CASE_MANAGER records the Report Valid and the ledger carries
+            # it to the reporter's replica; nothing is posted to its inbox.
+            check_report_answer_recorded(
+                client, reporter, vendor, offer.id_, {RM.VALID}
+            )
 
     logger.info(
         "✅ DEMO 2 COMPLETE: Report acknowledged then validated; the reporter's"
@@ -238,35 +252,43 @@ def demo_acknowledge_then_invalidate(
     logger.info("DEMO 3: Acknowledge then Invalidate")
     logger.info("=" * 80)
 
-    offer = None
+    # Every later step reads the Offer step 1 produced, so they all nest
+    # inside that step rather than reading a None sentinel after it
+    # (ADR-0058, #3038).
     with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
         offer = _reporter_submits_report(client, reporter, vendor)
 
-    with demo_step("Step 2: Vendor acknowledges the report to the reporter"):
-        _vendor_acknowledges_to_reporter(
-            client, reporter, vendor, offer, "Report received — under review."
-        )
+        with demo_step(
+            "Step 2: Vendor acknowledges the report to the reporter"
+        ):
+            _vendor_acknowledges_to_reporter(
+                client,
+                reporter,
+                vendor,
+                offer,
+                "Report received — under review.",
+            )
 
-    with demo_step(
-        "Step 3: Vendor invalidates the report (invalidate-report)"
-    ):
-        # Through the vendor's invalidate-report trigger, which sends the
-        # Report Invalid to the CASE_MANAGER of the case opened on receipt
-        # (#5438).
-        receiver_invalidates_report(
-            client,
-            vendor,
-            offer.id_,
-            note=(
-                "This is a UX defect, not a security vulnerability. "
-                "Holding for further review."
-            ),
-        )
+        with demo_step(
+            "Step 3: Vendor invalidates the report (invalidate-report)"
+        ):
+            # Through the vendor's invalidate-report trigger, which sends the
+            # Report Invalid to the CASE_MANAGER of the case opened on receipt
+            # (#5438).
+            receiver_invalidates_report(
+                client,
+                vendor,
+                offer.id_,
+                note=(
+                    "This is a UX defect, not a security vulnerability. "
+                    "Holding for further review."
+                ),
+            )
 
-    with demo_step("Step 4: Reporter learns of the invalidation"):
-        check_report_answer_recorded(
-            client, reporter, vendor, offer.id_, {RM.INVALID}
-        )
+        with demo_step("Step 4: Reporter learns of the invalidation"):
+            check_report_answer_recorded(
+                client, reporter, vendor, offer.id_, {RM.INVALID}
+            )
 
     logger.info(
         "✅ DEMO 3 COMPLETE: Report acknowledged then invalidated; the"
