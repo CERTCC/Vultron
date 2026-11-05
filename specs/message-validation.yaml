@@ -480,11 +480,15 @@ groups:
     statement: >-
       This rule covers an object type other than a case, when the sender does not inline
       the full object. The sender MUST reference the object by URI or by an
-      ActivityStreams `Link`, not by a partial inline object.
+      ActivityStreams `Link`, not by a partial inline object. The one exception is an
+      actor the sender knows only by URI, which travels as an actor reference
+      (AKM-05-017).
     rationale: >-
       Only a case has a stub form (MV-10-008). A partial inline object of another type
       claims to be the object while it lacks fields, so the receiver cannot tell what
-      the sender left out.
+      the sender left out. An actor reference is the one partial object allowed: its
+      `type` lets a receiver route the activity, and the receiver fetches the actor's
+      profile before it processes the activity (AKM-05-007).
     verification: >-
       `test_parse_activity_refuses_malformed_nested_object_of_known_type` in
       `test/wire/as2/test_parser.py` confirms that an inline object of another
@@ -497,29 +501,6 @@ groups:
       spec_id: MV-10-008
     adr:
     - ADR-0090
-    - ADR-0159
-    stories:
-    - story_2022_039
-  - id: MV-10-010
-    priority: MAY
-    kind: protocol
-    statement: >-
-      A sender MAY send an actor that it knows only by URI as an inline object that
-      carries exactly its `id` and `type` (AKM-05-017).
-    rationale: >-
-      The actor reference claims no field beyond the two that the sender knows, so it
-      is not a partial object under MV-10-009. It keeps the `type` that a receiver
-      routes `Offer(Actor)` and `Invite(Actor)` by (ADR-0159).
-    verification: >-
-      `test_an_actor_given_by_uri_travels_as_an_actor_reference` in
-      `test/wire/as2/factories/test_actor_references.py` asserts that each
-      actor-naming factory carries a URI-only actor as exactly its `id` and `type`.
-    relationships:
-    - rel_type: supersedes
-      spec_id: MV-10-009
-    - rel_type: derives_from
-      spec_id: AKM-05-017
-    adr:
     - ADR-0159
     stories:
     - story_2022_039
