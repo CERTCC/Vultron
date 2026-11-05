@@ -2,7 +2,7 @@
 """Inbox pipeline dispatch-stage nodes: dispatch and the processed outcome.
 
 :class:`DispatchNode` is the one place a handler's ``HandlerResult`` becomes
-an inbox outcome (HP-01-004, UCORG-05-011); :class:`BuildOutcomeNode` records
+an inbox outcome (HP-01-004, IO-01-006); :class:`BuildOutcomeNode` records
 ``processed`` when every preceding step succeeded. The shared blackboard keys
 and node base class live in :mod:`~vultron.core.behaviors.inbox.nodes.pipeline`.
 
@@ -54,7 +54,7 @@ from vultron.core.models.use_case_result import (
 )
 
 # The only place a handler's verdict becomes an inbox outcome (HP-01-004,
-# UCORG-05-011). Many-to-one: a correct no-op is still ``processed``.
+# IO-01-006). Many-to-one: a correct no-op is still ``processed``.
 _OUTCOME_FOR_DISPOSITION: dict[HandlerDisposition, InboxOutcomeStatus] = {
     HandlerDisposition.APPLIED: InboxOutcomeStatus.PROCESSED,
     HandlerDisposition.SKIPPED: InboxOutcomeStatus.PROCESSED,
@@ -77,7 +77,7 @@ def answers_with_internal_error_fault(event: VultronEvent) -> bool:
 class DispatchNode(_InboxNodeWithPorts):
     """Step 6: dispatch the domain event and map the handler's verdict.
 
-    The returned ``HandlerResult`` decides the outcome (UCORG-05-011), not the
+    The returned ``HandlerResult`` decides the outcome (IO-01-006), not the
     absence of an exception: ``APPLIED``/``SKIPPED`` return SUCCESS so
     :class:`BuildOutcomeNode` records ``processed``; ``DEFERRED`` records
     ``deferred`` and ``REFUSED`` records ``rejected`` with the handler's

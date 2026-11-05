@@ -10,6 +10,7 @@ drifts.
 PYTHONPATH= uv run pr-size --table     # the current bands
 PYTHONPATH= uv run pr-size --acs 4     # estimate an Issue from its AC count
 PYTHONPATH= uv run pr-size --base origin/main   # measure the current branch
+PYTHONPATH= uv run pr-size --calibrate          # re-run the survey (below)
 ```
 
 ## Estimate vs. measurement
@@ -76,3 +77,42 @@ pays the full fixed cost of review and CI for very little delivered change;
 above ~1000 detection quality degrades and elapsed time jumps an order of
 magnitude. This is guidance for shaping work, not a gate — nothing rejects a PR
 for being small.
+
+## Recalibrating
+
+The bands were cut at quantiles of a survey of merged PRs. `pr-size --calibrate
+[--days N]` re-runs that survey over the PRs merged in the last N days (default
+60) and the Issues they close: each band's share against its target share, the
+diff size at each quantile the ceilings were cut at, how often the Issue
+estimate matched the measured band, and the median diff per AC count. It reads
+GitHub through `gh` and takes a minute or two.
+
+Run it **quarterly**, and **after any workflow change** that could move PR size
+(a new review stage, a bundling rule, a change to how Tasks are cut).
+
+Recalibrate the bands when either drift appears:
+
+- **Median lines per AC moves more than about 1.5×** from the last recorded
+  figure (below), either way. The AC rule then estimates a different amount of work than
+  the diff bands measure, so estimates land in the wrong band.
+- **A band's share moves more than about 10 points** from its target share. Its
+  ceiling no longer sits at the quantile it was cut at.
+
+Smaller moves are window noise. Recalibrating means re-cutting the thresholds in
+`size_bands.py`, updating the survey figures that argue for them, and replacing
+the record below with the run the new cut came from.
+
+### Last recorded run
+
+2026-11-05, 60 days, 1075 merged PRs, against the bands in `size_bands.py` at
+that date:
+
+| Measure | Value |
+|---|---|
+| Band shares (S / M / L / XL) | 16% / 25% / 26% / 33% (targets 23 / 38 / 26 / 13) |
+| p23 / p61 / p87 diff lines | 154 / 962 / 2666 |
+| Estimate exact / within one band | 20% / 58% of 893 estimated Issues |
+| Median lines per AC | 262 |
+
+This run is the drift baseline. The bands have not been re-cut from it yet, though
+the M and XL shares already sit more than 10 points off target (#5833 re-cuts them).
