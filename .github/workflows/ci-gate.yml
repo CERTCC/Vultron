@@ -1,0 +1,67 @@
+# The one check a ruleset can require on main (#5942, Epic #5941).
+#
+# Every other CI workflow has `paths` filters, so a docs-only or spec-only pull
+# request never starts most of them, and a ruleset requiring one of their jobs
+# would leave it waiting for a status that never arrives. This workflow has no
+# `paths` filter: it runs on every pull request to main, waits for every other
+# check on the head commit, and passes only when all of them passed or were
+# skipped. The logic is in .github/scripts/ci_gate.py; its verdict rules are
+# those of .agents/skills/shared/wait-for-ci.sh.
+#
+# The gate judges once per pull-request event. A re-run or a dispatched run
+# on the head commit after it finished is not judged: re-run the `CI gate`
+# job too before merging, whichever way the re-run went.
+#
+# Unrelated to the publish workflow's "CI gate" (deploy_site.yml, ADR-0171),
+# which checks that main's CI is green before a site publish.
+#
+# CISEC-05 (notify-failure) does not apply: this workflow runs only on pull
+# requests, never on a push to main or a schedule. A red gate is the pull
+# request's own signal.
+#
+# Reference: specs/ci-security.yaml CISEC-02-002, CISEC-05-001;
+# specs/testability.yaml TB-14-006
+
+name: "CI gate"
+
+on:
+  pull_request:
+    branches: [main]
+    # `edited` re-judges after a body edit re-runs a workflow that reads the
+    # body (verification-debt-owners.yml), which a stale red gate would block.
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  actions: read # list the workflow runs on the head commit
+  checks: read # list the check runs on the head commit
+  contents: read # actions/checkout
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    # The ruleset (#5945) requires this exact context name.
+    name: CI gate
+    runs-on: ubuntu-latest
+    # The gate lasts as long as the slowest other workflow: up to 18 min over
+    # the 15 latest successful demo-integration runs (2026-11-05), whose jobs'
+    # caps add to 30 min. The script ends itself red at 60 min with the
+    # pending checks named. A poll near that deadline makes at most two `gh`
+    # calls, each at most two 300 s attempts (GH_RETRY_ATTEMPTS) and a 5 s
+    # back-off, so the cap sits 30 min above it and is never what ends the
+    # job (TB-14-006).
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      GATE_DEADLINE_MINUTES: "60"
+      GH_RETRY_ATTEMPTS: "2"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts
+      - name: Wait for every other check on the head commit
+        run: python3 -I .github/scripts/ci_gate.py
