@@ -36,7 +36,7 @@ when the target record names an actor other than the sender::
     OnBehalfStatusGuard (PathBranch)                      # the manager path
     ├─ SkipOffOnBehalfStatusGuard                         # any other path
     └─ OnBehalfAssertion (Sequence)                       # PRM-06-003/004
-        ├─ CheckOnBehalfStatusShapeNode        # v→V and/or d→D, nothing else
+        ├─ CheckOnBehalfStatusShapeNode            # v→V or d→D, nothing else
         └─ CheckOnBehalfTargetIsParticipantNode  # target holds the role
 
 Only the CASE_MANAGER judges the assertion, so the guard is declared on the
@@ -131,11 +131,15 @@ def on_behalf_status_violations(
 ) -> list[str]:
     """Every way *asserted* is more than an on-behalf v→V or d→D.
 
-    An on-behalf assertion moves the target's VF from ``vf`` to ``Vf``, its D
-    from ``d`` to ``D``, or both, and changes nothing else: RM stays as the
-    target holds it, and it carries no case status, so no P, X or A
-    (PRM-06-003/004, PRM-06-005).  Every violation is reported (EH-07-001);
-    an empty list admits the shape.
+    An on-behalf assertion moves the target's VF from ``vf`` to ``Vf``, or its
+    D from ``d`` to ``D``, and changes nothing else: RM stays as the target
+    holds it, and it carries no case status, so no P, X or A (PRM-06-003/004,
+    PRM-06-005).  Every violation is reported (EH-07-001); an empty list
+    admits the shape.
+
+    The two moves cannot be asserted in one status (RSH-08-014): together they
+    are ``VfD``, which CSB-17-001 rules out.  This is a check of shape alone,
+    so it admits that pair and the entailment PRM-06-008 requires refuses it.
     """
     violations: list[str] = []
     if asserted.rm.state != current_rm:
