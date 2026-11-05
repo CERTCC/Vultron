@@ -99,7 +99,7 @@ class TestLeaf:
             ["size:M", "theme:alpha"],
             _ALPHA_BODY,
             catalog,
-            parent=_parent("theme:alpha", "needs-decomposition"),
+            parent=_parent("theme:alpha", "needs-planning"),
         )
         assert found == []
 

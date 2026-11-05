@@ -34,6 +34,7 @@ from vultron.core.behaviors.inbox.models import (
 from vultron.core.behaviors.inbox.nodes.pipeline import (
     KEY_CONTEXT_ID,
     KEY_DISPATCH,
+    KEY_DISPOSITION,
     KEY_EVENT,
     KEY_OUTCOME_STATUS,
     KEY_QUEUE,
@@ -102,6 +103,7 @@ class DispatchNode(_InboxNodeWithPorts):
     OUTPUT_PORTS: dict[str, PortInformation] = {
         **_InboxNodeWithPorts.OUTPUT_PORTS,
         KEY_UNHANDLED: PortInformation(data_type=bool, required=False),
+        KEY_DISPOSITION: PortInformation(data_type=object, required=False),
     }
 
     @classmethod
@@ -112,6 +114,7 @@ class DispatchNode(_InboxNodeWithPorts):
             KEY_CONTEXT_ID: f"/{KEY_CONTEXT_ID}",
             KEY_QUEUE: f"/{KEY_QUEUE}",
             KEY_UNHANDLED: f"/{KEY_UNHANDLED}",
+            KEY_DISPOSITION: f"/{KEY_DISPOSITION}",
         }
 
     def _replay_after_bootstrap(self, event: VultronEvent) -> None:
@@ -233,6 +236,15 @@ class DispatchNode(_InboxNodeWithPorts):
             event.activity_id,
             result.disposition,
         )
+
+        # The verdict itself, for the outcome stage that maps it onto the
+        # record's final stage (ADR-0154).  Published here because the
+        # ``HandlerResult`` is the only channel from the handler
+        # (UCORG-05-010), and only this node reads it: no stage reaches back
+        # into another's memory for it.  Nothing is published when the
+        # dispatch raised or returned no verdict, which is how the outcome
+        # stage tells an internal error from a refusal.
+        self._set_output(KEY_DISPOSITION, result.disposition)
 
         status = _OUTCOME_FOR_DISPOSITION[result.disposition]
         if status is InboxOutcomeStatus.REJECTED:

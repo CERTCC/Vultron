@@ -19,7 +19,6 @@ body.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import hashlib
 import logging
 from dataclasses import dataclass
 from typing import Any, Literal, cast
@@ -27,6 +26,7 @@ from typing import Any, Literal, cast
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
+from vultron.core.models.received_body import received_body_digest
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.services.received_activity import held_received_record
@@ -83,6 +83,18 @@ class _HeldBody:
     body: str
 
 
+@dataclass(frozen=True)
+class _HeldStub:
+    """What a refusal left for an activity id: the digest of its body.
+
+    A receipt stub gives the body up (CLP-10-018) but keeps its digest, the
+    same :func:`received_body_digest` value a held body is compared by, so a
+    reused id is still refused against it (IE-10-002).
+    """
+
+    body_hash: str
+
+
 def _sender_id(activity: as_Activity) -> str | None:
     """The id of the actor *activity* names as its sender, if any."""
     actor = activity.actor
@@ -91,17 +103,16 @@ def _sender_id(activity: as_Activity) -> str | None:
     return str(getattr(actor, "id_", actor))
 
 
-def _body_digest(sealed_text: str) -> str:
-    """The SHA-256 digest of a sealed received text (IE-10-002)."""
-    return hashlib.sha256(sealed_text.encode("utf-8")).hexdigest()
-
-
-def _refuse_a_different_body(activity: as_Activity, held: _HeldBody) -> None:
-    """Refuse *activity* unless its sealed body is exactly *held*'s.
+def _refuse_a_different_body(
+    activity: as_Activity, held_digest: str, kind: str
+) -> None:
+    """Refuse *activity* unless its sealed body has the digest *held_digest*.
 
     The match is exact, digest against digest, with no normalisation
-    (IE-10-002).  A same-body delivery returns, to be routed as a
-    redelivery (IE-10-001).
+    (IE-10-002).  *held_digest* is the held body's digest, or the one a
+    receipt stub kept in place of its body; *kind* names which, for the
+    log.  A same-body delivery returns, to be routed as a redelivery
+    (IE-10-001).
 
     Raises:
         VultronWiringError: When *activity* carries no sealed body.  Every
@@ -117,7 +128,7 @@ def _refuse_a_different_body(activity: as_Activity, held: _HeldBody) -> None:
             " body, so it cannot be compared with the held one (VM-08-002,"
             " IE-10-002)"
         )
-    if _body_digest(evidence) == _body_digest(held.body):
+    if received_body_digest(evidence) == held_digest:
         return
     sender = _sender_id(activity)
     logger.warning(
@@ -126,7 +137,7 @@ def _refuse_a_different_body(activity: as_Activity, held: _HeldBody) -> None:
         " body is routed and nothing is written (IE-10-002 to IE-10-005).",
         activity.id_,
         sender,
-        held.kind,
+        kind,
     )
     raise VultronReusedActivityIdError(activity.id_, sender)
 
@@ -252,8 +263,16 @@ class FastAPIIngressAdapter:
         the read.
         """
         held = self._held_body(activity.id_)
-        if held is not None:
-            _refuse_a_different_body(activity, held)
+        if isinstance(held, _HeldStub):
+            # A refusal left only the digest.  A different body is a reused
+            # id (IE-10-002); the same body has no held copy to route in
+            # its place, so it is judged again (CLP-10-018).
+            _refuse_a_different_body(activity, held.body_hash, "refused")
+            held = None
+        elif held is not None:
+            _refuse_a_different_body(
+                activity, received_body_digest(held.body), held.kind
+            )
 
         if _is_inline_ledger_entry_announce(activity):
             # A repeat entry is the SYNC-12-003 already-stored gate's to
@@ -285,7 +304,7 @@ class FastAPIIngressAdapter:
         self._log_redelivery(activity, held.kind)
         return routed
 
-    def _held_body(self, activity_id: str) -> _HeldBody | None:
+    def _held_body(self, activity_id: str) -> _HeldBody | _HeldStub | None:
         """The body held for *activity_id* under the receiver's key, if any.
 
         One read of one record (ADR-0154).  What the record's stage decides
@@ -299,13 +318,25 @@ class FastAPIIngressAdapter:
           still awaiting its gap, and the replay it owes is the one that
           will route it (SYNC-14-009);
         - with no replay owed, the archived body is the first delivery's,
-          sealed at its parse, so the copy routed carries it (VM-08-009).
+          sealed at its parse, so the copy routed carries it (VM-08-009);
+        - a receipt stub holds no copy to route, only the digest of the body
+          a refusal gave up, which the delivery is compared with
+          (CLP-10-018, IE-10-002).
         """
         record = held_received_record(
             cast(CasePersistence, self._dl), activity_id
         )
         if record is None:
             return None
+        if record.received_body is None:
+            # A receipt stub: a refusal gave the body up (CLP-10-018), so
+            # there is no held copy to route in this delivery's place, only
+            # the digest to compare it with.  A same-body delivery is
+            # answered on its own and the tree judges it again; answering it
+            # from the stub instead is the seen-before door's, #5045's third
+            # part.
+            assert record.body_hash is not None  # the record's invariant
+            return _HeldStub(record.body_hash)
         kind: Literal["awaiting_replay", "archived"] = (
             "awaiting_replay" if record.replay_owed else "archived"
         )

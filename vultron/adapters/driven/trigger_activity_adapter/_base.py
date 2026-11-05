@@ -21,9 +21,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel
 
 from vultron.adapters.driven.db_record.ref_fields import _AS_LIST_REF_FIELDS
-from vultron.adapters.driven.ledger_position_stamp import (
-    with_sender_ledger_position,
-)
+from vultron.adapters.driven.sender_sequence_stamp import with_outbound_stamps
 from vultron.adapters.outbox_sealed_body import (
     outbound_activity_id,
     read_sealed_body,
@@ -312,22 +310,28 @@ def _seal(dl: CaseOutboxPersistence, activity: BaseModel) -> tuple[str, str]:
     Every adapter method that persists an outbound activity ends here, so the
     text handed back to core is the text the outbox delivers (VM-08-003).
     An activity not stamped yet is stamped with the sender's ledger tail
-    here (SYNC-18-001); one stored first is stamped before it is stored
-    (:func:`_create_and_seal`, :func:`_stamped`).
+    (SYNC-18-001) and, when a participant sends it to the CASE_MANAGER, its
+    sender sequence (SYNC-21-001) here; one stored first is stamped before
+    it is stored (:func:`_create_and_seal`, :func:`_stamped`).  The stamps
+    and the seal are one transaction, so a number is used exactly when the
+    body carrying it is sealed (SYNC-21-003).
     """
-    activity = _stamped(dl, activity)
-    body = seal_outbound_body(dl, activity)  # refuses an activity with no id_
+    with dl.transaction():
+        activity = _stamped(dl, activity)
+        # refuses an activity with no id_
+        body = seal_outbound_body(dl, activity)
     return outbound_activity_id(activity), body
 
 
 def _stamped(dl: CaseOutboxPersistence, activity: _BM) -> _BM:
-    """*activity* stating the sender's ledger tail, when it is a case activity.
+    """*activity* stating the sender's ledger tail and sequence, as it takes them.
 
-    See :func:`~vultron.adapters.driven.ledger_position_stamp.with_sender_ledger_position`.
+    See :func:`~vultron.adapters.driven.sender_sequence_stamp.with_outbound_stamps`.
     A method that stores an activity itself calls this before the store, so
-    the stored activity and its sealed body agree.
+    the stored activity and its sealed body agree; call it inside the
+    transaction the seal runs in, because numbering writes the counter.
     """
-    return with_sender_ledger_position(dl, activity)
+    return with_outbound_stamps(dl, activity)
 
 
 def _create_and_seal(
@@ -339,19 +343,20 @@ def _create_and_seal(
     build, so it is logged and sealed as it stands rather than refused:
     the sealed body is still the one the outbox delivers (VM-08-003).
     *label* names the calling adapter method in the log line.  The activity
-    is stamped with the sender's ledger tail before it is stored
-    (SYNC-18-001).
+    is stamped with the sender's ledger tail and sequence before it is
+    stored (SYNC-18-001, SYNC-21-001), in the transaction that seals it.
     """
-    activity = _stamped(dl, activity)
-    try:
-        dl.create(activity)
-    except VultronAlreadyExistsError:
-        logger.warning(
-            "%s: activity '%s' already exists — skipping",
-            label,
-            activity.id_,
-        )
-    return _seal(dl, activity)
+    with dl.transaction():
+        activity = _stamped(dl, activity)
+        try:
+            dl.create(activity)
+        except VultronAlreadyExistsError:
+            logger.warning(
+                "%s: activity '%s' already exists — skipping",
+                label,
+                activity.id_,
+            )
+        return _seal(dl, activity)
 
 
 def _addressing(

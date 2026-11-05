@@ -306,6 +306,11 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         " writes nothing"
     ),
     (f"{_B}.case.nodes.intake", "IntakeReceivedActivityNode"): _ARCHIVE,
+    (f"{_B}.case.nodes.refusal_notice", "ResumeOutboundSequenceNode"): (
+        "moves the receiver's own sender-sequence counter up to a refusal"
+        " notice's expected number, its outbound bookkeeping, never a record"
+        " of the case (SYNC-21-007, SYNC-21-020)"
+    ),
     (
         f"{_B}.case.nodes.invite_received",
         "RecordInviteTrustAnchorNode",

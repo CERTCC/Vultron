@@ -40,6 +40,13 @@ The position is part of the received body, so the ledger entry for the message r
 `Announce(CaseLedgerEntry)` and `Announce(VulnerabilityCase)` carry none, because the entry and the case state their own positions.
 `Create(ProcessingFault)` carries none either: any receiver sends one, about an activity it could not process.
 
+A participant also numbers each case message it sends the CASE_MANAGER that carries a `ledgerPosition`, in the activity's `senderSequence` (SYNC-21-001, [ADR-0178](../../adr/0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)).
+The number is 1 for its first message on the case and one more than the last for each next one (SYNC-21-002).
+A resend keeps its number, as it keeps its position (SYNC-21-003).
+`Read(CaseLedgerEntry)` and `Reject(CaseLedgerEntry)` carry no number, because they ask about the ledger rather than state a case event, and the CASE_MANAGER numbers none of its own messages.
+A participant that lost its count resumes past the highest of its own numbers in the ledger it holds (SYNC-21-006).
+A refusal notice that names an `expectedSenderSequence` moves the participant's count up, so its next message for the case is numbered no lower (SYNC-21-007).
+
 The CASE_MANAGER reads the position on every case message it receives.
 Apart from a reply to the full-case Invite, which must not be behind the Invite's own position (CM-11-012), the position never changes how it judges the message.
 A position behind its ledger tail is normal while entries are still on their way, so the CASE_MANAGER logs the lag at DEBUG and applies or refuses the message on its own merits (SYNC-18-004, SYNC-18-010).

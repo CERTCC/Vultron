@@ -128,6 +128,7 @@ A behavior tree is a hierarchy of nodes ticked from the root; each node returns 
 Vultron uses this structure because CVD activities compose the same way: validate a report, propose an embargo, publish an advisory — each is a small tree that slots into a larger one ([ADR-0002](../adr/0002-model-processes-with-behavior-trees.md)).
 
 On the received side, a tree first stores what arrived (intake), then runs guards, commits the ledger entry, and fires effects, in that order (CLP-10-006, [ADR-0111](../adr/0111-intake-is-the-first-received-side-stage.md)).
+What the receiver keeps of the message is decided once the tree has run: a message it applied or correctly skipped keeps the body that arrived, and a message it refused keeps only a receipt stub — who sent it, when, why it was refused, and a digest of the body — not the message itself (CLP-10-018, [ADR-0154](../adr/0154-a-received-message-is-one-staged-record-archived-only-when-applied.md)).
 A read or write of Report Management (RM), Embargo Management (EM), or Case State (CS) goes through a dedicated state node rather than touching state inline, which keeps every transition auditable.
 
 This page stays at the summary level by design.

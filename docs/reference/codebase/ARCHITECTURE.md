@@ -65,6 +65,9 @@ HTTP POST /actors/{actor_id}/inbox  (wire: AS2 JSON)
   -> *ReceivedUseCase.execute()    `vultron/core/use_cases/received/`
   -> BTBridge runs the received tree  `vultron/core/behaviors/bridge/`
      intake -> door guards -> [ledger-position answer] -> [clock decisions] -> precondition guards -> commit -> effects; nodes write through DataLayer
+  -> outcome stage                 `vultron/core/behaviors/inbox/nodes/outcome_stage.py`
+     (the handler's verdict becomes the record's final stage: applied or skipped keeps the sealed body,
+      refused leaves a bodiless receipt stub, deferred stays in holding, CLP-10-073, CLP-10-018)
   -> DataLayer                     `vultron/adapters/driven/datalayer_sqlite/` (one store per actor, ADR-0073)
   -> outbox handler + lanes        `vultron/adapters/driving/fastapi/outbox_handler/drain.py`, `outbox_lanes.py`
      (sealed body relayed as stored; per-recipient order, ADR-0112)

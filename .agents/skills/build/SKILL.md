@@ -97,12 +97,8 @@ Invoke the `orient-agent` skill.
 
    If `issueType.name == "Epic"` and `subIssues.totalCount == 0`:
 
-   1. Apply `needs-decomposition` label if not already present:
-
-      ```bash
-      gh issue edit <ISSUE_NUMBER> --repo CERTCC/Vultron \
-        --add-label "needs-decomposition"
-      ```
+   1. Leave labels alone: the `epic-needs-planning` workflow keeps
+      `needs-planning` on an Epic with no sub-issues.
 
    2. Post an actionable comment on the Epic:
 

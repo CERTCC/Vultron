@@ -4,6 +4,10 @@
 Creates the BT Sequence that enforces fixed pipeline ordering:
 parse → rehydrate → extract → defer-check → dispatch → outcome.
 
+The dispatch carries one decorator, the outcome stage, which maps the
+handler's verdict onto the received record's final stage whatever that
+verdict was (ADR-0154).
+
 Per specs/inbox-orchestration.yaml IO-02-002.
 """
 
@@ -31,6 +35,7 @@ from vultron.core.behaviors.inbox.nodes import (
     ExtractSemanticsNode,
     ParsePayloadNode,
     RehydrateActivityNode,
+    SettleReceivedOutcome,
 )
 
 
@@ -58,8 +63,14 @@ def create_inbox_bt(
           ├─ ExtractSemanticsNode
           ├─ DeferCheckNode
           ├─ DereferenceCheckNode
-          ├─ DispatchNode
+          ├─ SettleReceivedOutcome
+          │    └─ DispatchNode
           └─ BuildOutcomeNode
+
+    The outcome stage decorates the dispatch rather than following it,
+    because a refusal fails the dispatch and a ``Sequence``'s later children
+    then do not run.  The decorator runs on every path the dispatch can
+    take, and returns its status unchanged (ADR-0154).
     """
     return py_trees.composites.Sequence(
         name="InboxPipelineBT",
@@ -75,7 +86,7 @@ def create_inbox_bt(
             # no CASE_MANAGER to fetch from, so that activity waits on its
             # case first (AKM-05-007).
             DereferenceCheckNode(name="DereferenceCheck"),
-            DispatchNode(name="Dispatch"),
+            SettleReceivedOutcome(child=DispatchNode(name="Dispatch")),
             BuildOutcomeNode(name="BuildOutcome"),
         ],
     )

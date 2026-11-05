@@ -18,7 +18,9 @@
       "VulnerabilityCaseStub": "vultron:VulnerabilityCaseStub",
       "VulnerabilityRecord": "vultron:VulnerabilityRecord",
       "VulnerabilityReport": "vultron:VulnerabilityReport",
+      "expectedSenderSequence": "vultron:expectedSenderSequence",
       "ledgerPosition": "vultron:ledgerPosition",
+      "senderSequence": "vultron:senderSequence",
       "terminationCause": "vultron:terminationCause"
     }
   ]

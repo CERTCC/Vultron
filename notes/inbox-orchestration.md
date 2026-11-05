@@ -8,7 +8,8 @@ description: >
   seam and verdict mapping, the path from receipt to permanent storage (ingress
   writes nothing; one staged record per message holds a deferred activity),
   redelivery detection and the reused-id refusal, which evidence a routed copy
-  carries, when the per-case expiry window restarts,
+  carries, what each final outcome leaves (the archive, a receipt stub, the hold),
+  when the per-case expiry window restarts,
   the internal-error fault for a raised dispatch,
   the queue replay's bounded retry and held fault, what is left of the
   staged-record replacement of intake-first (ADR-0153, ADR-0154),
@@ -123,10 +124,43 @@ the last one writes what it carries:
    an effect node writes any record from the copy the event carries (the add-note
    tree's `StoreReceivedObjectNode`, `SeedCaseReplicaNode`). A refusal writes nothing
    past the archive, so nothing is left to remove.
+4. **The outcome stage decides what is kept** (CLP-10-073). It is a decorator on
+   `DispatchNode`, so it runs on every path the dispatch can take and returns the
+   dispatch's status unchanged: applied or skipped keeps the sealed body, and that is
+   the archive; refused gives the body up for a receipt stub; deferred leaves the
+   holding record. It is a decorator and not a sibling because the inbox pipeline is a
+   `Sequence`, whose later children do not run once a refusal fails the dispatch.
 
 A reader that needs a received activity later loads its body: core through
 `read_received_activity` (a read-only view), a reply through
-`vultron/adapters/received_archive.py`; never under the sender's id.
+`vultron/adapters/received_archive.py`; never under the sender's id. A reader *inside*
+the run that embeds the body of the message being handled — the refusal notice — reads
+it through `held_received_body`, from the holding record, whatever body-bearing stage
+it is in (CLP-10-073). None of them finds a body on a receipt stub.
+
+**A refusal keeps the receipt, not the message** (CLP-10-018). What is left of a
+refused delivery is a `REFUSED`-stage record with no body: the sender, the sender's
+activity id, the time of receipt the record already carried, the reason, and the
+digest of the body (`received_body_digest`, the one definition both this and the
+reused-id check at ingress use). Write it only through
+`vultron/core/services/received_outcome.py`. Two things it refuses: a delivery whose
+body is still owed to a replay, because that replay would route a body the stub had
+dropped; and a second refusal, which leaves the first reason standing.
+
+**No verdict is not an outcome** (CLP-10-074). A dispatch that raised, one that
+returned no `HandlerResult`, and a semantic type no use case handles each leave the
+record exactly as it is, with its body: the act rolled back keeping nothing (ADR-0151),
+so the resend or re-run must be able to run it again from that body. The outcome stage
+tells them apart by the disposition `DispatchNode` publishes, which is written only
+when a verdict came back.
+
+**Until the doors move, a resend of a refused message runs again.** The seen-before
+door that answers it from the stub is #5045's third part. Until then, ingress compares
+the resend with the stub's `body_hash` and refuses a different body as a reused id
+(IE-10-002). A same body finds no held copy to route, so intake archives it over the
+stub, or a wait holds it over the stub as a whole `HELD` record, and the tree judges it
+a second time. Intake keeps the activity in `found_ids` for that delivery, which is what
+still suppresses the second refusal notice (CLP-10-044).
 
 **One message, one record** (ADR-0154). An activity the inbox defers is held on its
 own `ReceivedActivityRecord`, the same row intake archives to, under the key the
@@ -135,7 +169,8 @@ list are retired into it. The record carries two facts, and both combinations of
 them are reachable, so neither can be read off the other:
 
 - `stage` — `HELD` for a body the receiver has not archived, `ARCHIVED` once intake
-  archived it (CLP-10-017);
+  archived it (CLP-10-017), `REFUSED` for a receipt stub, which keeps no body at all
+  (CLP-10-018);
 - `replay_owed` — whether a replay is still owed from the held body, because the
   delivery that carried it ended without routing it. It waits on its case
   (`awaiting_case_id`), on a ledger gap (SYNC-14-001), on an object fetch
@@ -163,6 +198,17 @@ read. `VultronPendingCaseInbox` keeps only what is per case: the stub Invite's t
 anchor, and `queued_at`, the one clock that opens the CBT-03-001 window. Keeping that
 clock per case preserves its restart when an anchor-only record takes its first
 waiting message, so an invitee's thinking time is not charged to the queue.
+
+**The record's optional fields are checked, not conventional.** `received_body` is
+required in every stage but `REFUSED`, and `sender_id`, `refusal_reason` and
+`body_hash` only in `REFUSED`, so four fields are `X | None` against ARCH-10-001's
+fail-fast rule. A discriminated union or a separate stub class would have typed them,
+but the seen-before door must be one read of one row, which a union makes two. The
+price is paid by `_a_stub_keeps_no_body`, a `mode="after"` validator that refuses a
+body-bearing stage with no body, a body-bearing record carrying any of the stub's
+three, a stub that kept its body, a stub missing any of its three, and a stub that
+owes a replay. Extend that validator rather than adding a second mechanism, and pin
+any new pairing in both directions.
 
 **Read "was anything already waiting?" before the hold, never after.** The hold is
 what makes an activity one of the waiting, so a reading taken afterwards always

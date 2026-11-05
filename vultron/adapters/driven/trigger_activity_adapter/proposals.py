@@ -318,15 +318,19 @@ class _ProposalsMixin:
             ),
             **extra,
         )
-        activity = _stamped(self._dl, activity)
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.info(
-                "accept_case_proposal: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        # One transaction: the sender sequence the stamp allocates is used
+        # only when the body carrying it is sealed (SYNC-21-003).
+        with self._dl.transaction():
+            activity = _stamped(self._dl, activity)
+            try:
+                self._dl.create(activity)
+            except VultronAlreadyExistsError:
+                logger.info(
+                    "accept_case_proposal: activity '%s' already exists"
+                    " — skipping",
+                    activity.id_,
+                )
+            return _seal(self._dl, activity)
 
     def emit_prepared_create_case(self, payload: dict) -> tuple[str, str]:
         """Persist and seal a ``Create(VulnerabilityCase)`` the node prepared.

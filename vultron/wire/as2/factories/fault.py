@@ -86,7 +86,10 @@ def refusal_notice_activity(
             (``as_Activity.inlined_as_received``).
         reason: Why the precondition guard refused it.
         **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``, ``to``, ``id_``, ``context``).
+            (e.g. ``actor``, ``to``, ``id_``, ``context``), and
+            ``expected_sender_sequence`` for a refusal of the activity's
+            ``senderSequence``: the number the CASE_MANAGER expects next
+            from the asserter (SYNC-21-015).
 
     Returns:
         An ``as_Reject`` whose ``object_`` is the refused activity.

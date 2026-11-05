@@ -118,18 +118,22 @@ class _InvitesMixin:
             embargo_obj=embargo_obj,
             **extra,
         )
-        activity = _stamped(self._dl, activity)
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            # A retry of the emit for the same request rebuilds the Invite
-            # under its derived id (OX-06-002): expected, not a fault.
-            logger.info(
-                "invite_actor_to_case: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        # One transaction: the sender sequence the stamp allocates is used
+        # only when the body carrying it is sealed (SYNC-21-003).
+        with self._dl.transaction():
+            activity = _stamped(self._dl, activity)
+            try:
+                self._dl.create(activity)
+            except VultronAlreadyExistsError:
+                # A retry of the emit for the same request rebuilds the
+                # Invite under its derived id (OX-06-002): expected, not a
+                # fault.
+                logger.info(
+                    "invite_actor_to_case: activity '%s' already exists"
+                    " — skipping",
+                    activity.id_,
+                )
+            return _seal(self._dl, activity)
 
     def accept_case_invite(
         self,

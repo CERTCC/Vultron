@@ -34,7 +34,7 @@ from vultron.demo.helpers.verification import (
 )
 from vultron.demo.utils import (
     DataLayerClient,
-    received_activity_in,
+    received_activity_or_none,
 )
 from vultron.enums.object_types import VultronObjectType
 
@@ -60,8 +60,8 @@ def _is_case_invite_for(
     Invite names the case by URI (AKM-02-003).  *full_case* selects which of the
     two is wanted: any case Invite by default, only a full-case one when true.
     """
-    invite = received_activity_in(obj_data)
-    if invite.get("type") != "Invite":
+    invite = received_activity_or_none(obj_data)
+    if invite is None or invite.get("type") != "Invite":
         return False
     target_raw = invite.get("target")
     is_stub = (
@@ -211,8 +211,8 @@ def _is_ownership_transfer_offer_for(
     the CaseActor, has no ``target`` and an Offer as its object, so it does
     NOT match this discriminator.
     """
-    offer = received_activity_in(obj_data)
-    if offer.get("type") != "Offer":
+    offer = received_activity_or_none(obj_data)
+    if offer is None or offer.get("type") != "Offer":
         return False
     target_id = _ref_id(offer.get("target"))
     if target_id != transferee_id:
@@ -284,8 +284,8 @@ def find_ownership_transfer_offer_for_actor(
 
 def _is_cp_offer_for_case(obj_data: dict, case_id: str) -> bool:
     """Return True if *obj_data* holds an Offer(CaseParticipant) for *case_id*."""
-    offer = received_activity_in(obj_data)
-    if offer.get("type") != "Offer":
+    offer = received_activity_or_none(obj_data)
+    if offer is None or offer.get("type") != "Offer":
         return False
     target_id = _ref_id(offer.get("target"))
     if target_id != case_id:
@@ -350,8 +350,8 @@ def _is_embargo_invite_for(
     The relayed Invite names its embargo in ``object`` (inline or by id) and its
     invitee as the sole ``to`` recipient (EP-09-010).
     """
-    invite = received_activity_in(obj_data)
-    if invite.get("type") != "Invite":
+    invite = received_activity_or_none(obj_data)
+    if invite is None or invite.get("type") != "Invite":
         return False
     inner_id = _ref_id(invite.get("object"))
     if inner_id != embargo_id:
