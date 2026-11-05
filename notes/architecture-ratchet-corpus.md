@@ -166,6 +166,18 @@ arms, every scenario being written as composition (#5536). Flipping the arm
 beats deleting it: the scan still covers the shape, so one written again is
 reported rather than silently exempt.
 
+Flipping is for an arm whose act is still forbidden. When a rule change
+abolishes the property a name-keyed baseline measured, delete that baseline and
+let the shape scan that replaced it carry the coverage: an inverted set asserts
+the old property still holds, which the new rule has made false.
+`KNOWN_SECOND_AUTHORITY_ASKERS` listed the classes that answered "is this actor
+the case authority" besides the one sanctioned node, so inverting it would have
+asserted that no other class asks — while ARCH-24-008 makes several of them
+correct askers and the replacement's own compliant-asker control requires them
+to exist (#5784, #5921). What must survive the deletion is the act's coverage in
+both polarities: a shape scan with a control per shape, a permanently non-empty
+subject scan, and a permanently non-empty set of compliant callers.
+
 ## Check a Ratchet's Goal State Against the Spec Corpus Before Adding the `xfail`
 
 A goal state that MUST-level requirements make impossible is a test that can

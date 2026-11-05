@@ -99,6 +99,12 @@ It Can Miss or Invent"):
   as the record method and **invent** a violation. Arity separates them
   (:data:`_RECORD_PREDICATE_ARITY`); a third ``has_role`` of the same arity as
   the record method would still be reported, which is the safe direction.
+- The validator exemption is the decorator, in every scanned module rather
+  than in a named one, so a validator that did decide authority rather than
+  refuse a claim would be exempt: it can **miss**. Narrowing it to the
+  modules that refuse a claimed role list would instead **invent** a violation
+  for the next model that refuses one, and no validator in the scan reads a
+  participant record.
 """
 
 import ast

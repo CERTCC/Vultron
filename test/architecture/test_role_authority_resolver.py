@@ -240,17 +240,28 @@ def test_removed_authority_nodes_are_not_defined():
     )
 
 
+def _authority_node_modules() -> list[str]:
+    """Repo-relative modules defining the authority condition node.
+
+    Found by the class definition rather than written down, so a module move
+    does not have to be mirrored in two places and cannot make a check here
+    pass or fail for the move rather than for the act (#5535).
+    """
+    return [
+        py_file.relative_to(_corpus.REPO_ROOT).as_posix()
+        for py_file, tree in _corpus.files_mentioning(
+            _AUTHORITY_NODE_NAME, under=_VULTRON_ROOT
+        )
+        if _defines_class(tree, _AUTHORITY_NODE_NAME)
+    ]
+
+
 def test_exactly_one_authority_condition_node():
     """ARCH-24-003: CheckIsCaseManagerNode is defined in exactly one module.
 
     Spec: ARCH-24-003
     """
-    defining: list[str] = []
-    for py_file, tree in _corpus.files_mentioning(
-        _AUTHORITY_NODE_NAME, under=_VULTRON_ROOT
-    ):
-        if _defines_class(tree, _AUTHORITY_NODE_NAME):
-            defining.append(py_file.relative_to(_corpus.REPO_ROOT).as_posix())
+    defining = _authority_node_modules()
     assert len(defining) == 1, (
         f"Expected exactly one definition of '{_AUTHORITY_NODE_NAME}'.\n"
         f"Actual: {sorted(defining)}"
@@ -401,10 +412,15 @@ def test_the_authority_question_is_asked_through_the_predicate():
         f".{_authority_question.AUTHORITY_ROLE_NAME}, ...); the detector in"
         " test/architecture/_authority_question.py has gone blind"
     )
-    condition_node_module = "vultron/core/behaviors/case/nodes/conditions.py"
-    assert condition_node_module in askers, (
+    condition_node_modules = _authority_node_modules()
+    assert condition_node_modules, (
+        f"no module defines {_AUTHORITY_NODE_NAME}, so this control has no"
+        " subject"
+    )
+    assert set(condition_node_modules) <= askers, (
         f"{_AUTHORITY_NODE_NAME}'s module no longer reads as an asker of the"
-        " authority question through the shared predicate (ARCH-24-006)"
+        " authority question through the shared predicate (ARCH-24-006);"
+        f" defined in {sorted(condition_node_modules)}"
     )
 
 
