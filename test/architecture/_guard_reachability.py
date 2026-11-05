@@ -58,20 +58,63 @@ most of its imprecision lets a violation through rather than inventing one:
   file prefilter would double the derivation's cost for a shape that has no
   instance in the package today.
 
-Two readings can go the other way and **invent** a gate, which is why each is
-narrowed rather than accepted:
+Some readings go the other way and **invent** a violation, which is the
+direction that fails correct code and gets a ratchet switched off
+(``notes/architecture-ratchet-corpus.md`` § "Say, Per Loose Reading, Whether
+It Can Miss or Invent").  Three are narrowed:
 
 * A parameter the body **rebinds** before testing it is no longer a gate on
   what the caller passed, so :func:`reassigned_names` drops it.
 * A **method**'s positional index must be read as the caller writes it, not
   as the signature declares it, because the receiver is implicit;
   :func:`receiver_offset` does that, and leaves a ``@staticmethod`` alone.
+* An **imported** name is a reference even where nothing else in the file
+  spells it, so :func:`_walk_module` collects ``import`` aliases as well as
+  loads.  Without that, a guard reached only through
+  ``from x import _guard as guard`` reads as unreached.
+
+The rest cannot be narrowed without resolving bindings or intent, so they are
+stated here instead.  Each would surface as a *failure*, so the first reader
+of a red arm needs to know they exist:
+
+* **"Refusing" is wider than "refuses the caller's input."** :func:`_refuses`
+  accepts any raise in the gated branch — an error translated in an
+  ``except``, a ``NotImplementedError`` stub, a per-entry check of the
+  optional payload — and any call to a name :func:`_refusing_names` collected.
+  Some of arm B's subjects today are that shape rather than gates: an
+  optional seeding step and a lookup whose value the branch returns, each a
+  subject only because the callee raises somewhere of its own. They pass
+  because a call site does supply the argument; were one removed, the arm
+  would fail code that refuses nothing. Narrowing to a spec-citing callee was
+  measured: it drops only some of them and costs over half the names
+  :func:`_refusing_names` collects, so the width is reported rather than
+  traded away (#5896).
+* **A name in** :func:`_refusing_names` **is matched across the whole
+  corpus.** A gated branch that calls some *other* binding of a name that a
+  spec-citing raiser elsewhere happens to share reads as refusing, which
+  invents a gate and, if no caller supplies the parameter, a violation.
+* **A gate opened through an indirect reference is not read.**
+  :func:`_call_sites` wants a literal call of the gate's own name, so
+  ``functools.partial(_check, limit=5)``, an alias assignment, or a dispatch
+  table supplies nothing as far as arm B can see — the opposite of the
+  benefit of the doubt a splat gets, and of arm A, which accepts a bare
+  reference.
+* **A guard reached only by a string** — ``getattr(self, "_guard")()`` — has
+  no name load to find, so it reads as unreached.  Collecting every string
+  constant instead would make a guard named in prose read as reached, which
+  the detector tests' prose case deliberately refuses.
+
+Only the first has an instance in the package today, and it is green; the
+other three have none — measured, not assumed, since both arms' baselines
+are empty.  All four are tracked for narrowing in #5896; read them before
+reading a red arm as a real dead guard.
 
 Where arm B's call-site scope is production only, that is not imprecision: a
 gate opened solely from ``test/`` is a check that never runs where it matters
 (:func:`_sites_for`).
 
-Spec: TB-13-001, TB-13-002, TB-13-003, TB-13-004 (``specs/testability.yaml``).
+Spec: TB-16-001, TB-16-002 (the rule); TB-13-001, TB-13-002, TB-13-003,
+TB-13-004 (the corpus) — ``specs/testability.yaml``.
 """
 
 import ast
@@ -507,7 +550,11 @@ class _FileScan:
     #: ``ClassDef`` body.  A function nested inside another function is not a
     #: method, whatever class the outer one sits in.
     methods: frozenset[int]
-    #: Every identifier loaded as a name or an attribute in the module.
+    #: Every identifier loaded as a name or an attribute in the module, plus
+    #: every name an ``import`` binds.  Importing a guard is a reference to
+    #: it even where the module then spells only the alias, so without the
+    #: import names a guard reached through ``from x import _g as g`` would
+    #: read as unreached.
     referenced: frozenset[str]
 
 
@@ -527,6 +574,10 @@ def _walk_module(path: str, source: str, tree: ast.AST) -> _FileScan:
             referenced.add(node.id)
         elif isinstance(node, ast.Attribute):
             referenced.add(node.attr)
+        elif isinstance(node, ast.alias):
+            referenced.add(node.name.rpartition(".")[2])
+            if node.asname is not None:
+                referenced.add(node.asname)
         elif isinstance(node, ast.ClassDef):
             methods.update(
                 id(member)
@@ -722,6 +773,46 @@ def _relative(path: Path) -> str:
     return path.relative_to(_corpus.REPO_ROOT).as_posix()
 
 
+def referenced_among(
+    wanted: frozenset[str], scans: Sequence[_FileScan]
+) -> frozenset[str]:
+    """Which of *wanted* any module under the package references.
+
+    A private guard is usually named in the module that defines it, so this
+    starts from what the corpus walk already collected and parses further
+    files only for the handful of names that leaves unaccounted for.
+
+    This is the one step :func:`findings_in_source` cannot drive — it reads a
+    single module's references directly — so it is tested here rather than
+    through a synthetic module.  Arm A covers the positive direction already:
+    guards clear only through the second pass, so an empty baseline means it
+    resolves.  What no other test would notice is this answering *yes* to
+    everything, which would make arm A pass vacuously while every test in the
+    ratchet stayed green (#5535), hence
+    ``test_the_reference_search_answers_no_for_a_name_nothing_mentions``.
+    """
+    referenced = wanted & frozenset().union(
+        *(scan.referenced for scan in scans), frozenset()
+    )
+    missing = wanted - referenced
+    if not missing:
+        return referenced
+    return referenced | (
+        wanted
+        & frozenset().union(
+            *(
+                _walk_module(
+                    _relative(path), _corpus.source_of(path), tree
+                ).referenced
+                for path, tree in _corpus.files_mentioning(
+                    *sorted(missing), under=PACKAGE
+                )
+            ),
+            frozenset(),
+        )
+    )
+
+
 @functools.cache
 @_corpus.gc_paused()
 def findings() -> Findings:
@@ -740,26 +831,9 @@ def findings() -> Findings:
     ]
     guards, gates = _subjects(scans)
 
-    # Arm A: a private guard is usually called in the module that defines
-    # it, so start from what the walk already collected and parse further
-    # files only for the handful of names that leaves unaccounted for.
-    wanted = frozenset(guard.name for guard in guards)
-    referenced = wanted & frozenset().union(
-        *(scan.referenced for scan in scans), frozenset()
+    referenced = referenced_among(
+        frozenset(guard.name for guard in guards), scans
     )
-    missing = wanted - referenced
-    if missing:
-        referenced |= frozenset().union(
-            *(
-                _walk_module(
-                    _relative(path), _corpus.source_of(path), tree
-                ).referenced
-                for path, tree in _corpus.files_mentioning(
-                    *sorted(missing), under=PACKAGE
-                )
-            ),
-            frozenset(),
-        )
 
     return Findings(
         guards=guards,

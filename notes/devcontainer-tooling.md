@@ -75,10 +75,9 @@ the slow linters (`mypy`, `pyright`) are not hooks and run through
 Run the slow linters and the suites one at a time. A whole-tree `pyright` and an
 `-n auto` suite together exhaust the container's memory: `pyright` exits 247 with
 no output, and — the part that costs time — the suite's markdown-rendering and
-AST-scanning tests trip `pytest-timeout` and report as failures. Three runs were
-spent chasing eight such "failures" that all passed when re-run alone (#3156).
-A timeout trip with no assertion in its traceback, in a test that does not touch
-the diff, is the signature.
+AST-scanning tests trip `pytest-timeout` and report as failures. A timeout trip
+with no assertion in its traceback, in a test that does not touch the diff, is
+the signature; re-run that test alone before believing it (#3156).
 
 ## The `actionlint` Hook Hangs: `SKIP=actionlint`
 

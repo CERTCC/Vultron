@@ -76,12 +76,14 @@ The first arm to run pays the derivation, about 2.9 s with a warm corpus,
 over TB-13-004's 0.5 s SHOULD and inside the 1–11 s band of the heaviest
 existing ratchets; the rest read the cache.
 
-Corpus: TB-13-001, TB-13-002, TB-13-003, TB-13-004
-(``specs/testability.yaml``).  Ratchet discipline: ARCH-18-001, ARCH-18-002
-(``specs/architecture.yaml``), TB-10-002, TB-10-003.
+Rule: TB-16-001, TB-16-002.  Corpus: TB-13-001, TB-13-002, TB-13-003,
+TB-13-004 (``specs/testability.yaml``).  Ratchet discipline: ARCH-18-001,
+ARCH-18-002 (``specs/architecture.yaml``), TB-10-002, TB-10-003.
 """
 
-from test.architecture import _guard_reachability as _reach
+import pytest
+
+from test.architecture import _corpus, _guard_reachability as _reach
 
 # ---------------------------------------------------------------------------
 # Known guards with no production reference (empty: every private guard under
@@ -102,7 +104,11 @@ KNOWN_UNREACHED_GUARDS: frozenset[str] = frozenset()
 # CLP-14/CLP-15 claimed-timestamp invariants unenforced for the whole life of
 # the guard that implements them (ISSUE-2824).  Remove an entry in the same
 # commit that supplies the argument or drops the gate (ARCH-18-002,
-# TB-10-003).
+# TB-10-003); a new entry needs its owning issue named beside it.
+#
+# Read `_guard_reachability`'s docstring before adding one: this arm reads
+# "refuses" more widely than "refuses the caller's input", so a red arm may
+# be naming an optional step that raises for some other reason.
 # ---------------------------------------------------------------------------
 KNOWN_UNSUPPLIED_GATES: frozenset[str] = frozenset()
 
@@ -152,6 +158,7 @@ def test_the_diff_names_a_resolved_violation_and_what_to_do() -> None:
 # ---------------------------------------------------------------------------
 # The two arms
 # ---------------------------------------------------------------------------
+@pytest.mark.spec("TB-16-001")
 def test_every_private_guard_has_a_production_caller() -> None:
     """A private guard nothing under ``vultron/`` names is dead code.
 
@@ -167,6 +174,7 @@ def test_every_private_guard_has_a_production_caller() -> None:
     )
 
 
+@pytest.mark.spec("TB-16-002")
 def test_every_gated_refusal_is_opened_by_some_caller() -> None:
     """A gate no caller opens is a check that never runs.
 
@@ -225,6 +233,28 @@ def test_the_scan_finds_parameter_gates_in_methods() -> None:
     assert [gate for gate in _reach.findings().gates if gate.in_class], (
         "no parameter gate in a method found under vultron/ — arm B now"
         " passes vacuously for that shape"
+    )
+
+
+def test_the_reference_search_answers_no_for_a_name_nothing_mentions() -> None:
+    """Arm A's reference search over the package can still report a negative.
+
+    The four guards above keep the *subject* sets honest.  This keeps the
+    answer honest: ``findings_in_source`` reads one module's references
+    directly, so the package scan's two-stage search is the one judgement the
+    synthetic detector tests cannot drive.  Were it ever to resolve every
+    name it was asked about, arm A would report nothing however dead a guard
+    became, and every other test here would stay green (#5535).
+
+    The positive direction needs no test of its own: guards under
+    ``vultron/`` clear only through the second pass, so arm A failing would
+    be the signal.
+    """
+    assert (
+        _reach.referenced_among(
+            frozenset({"_no_module_under_vultron_mentions_this_name"}), []
+        )
+        == frozenset()
     )
 
 
@@ -470,6 +500,33 @@ def validate(value):
     assert _reach.findings_in_source(source).unreached == {
         "inline.py:2 _check_nonempty_list()"
     }
+
+
+def test_detector_counts_an_import_alias_as_a_reference() -> None:
+    """Importing a guard reaches it, even under another name.
+
+    The reference pass collects ``import`` names as well as loads, so a
+    guard whose only caller spells the alias is not reported unreached.
+    Reading loads alone failed reachable code; the prose test above rules
+    out the cheaper fix of counting every string constant.
+    """
+    source = """
+from vultron.elsewhere import _refuse_empty as refuse_empty
+from vultron.other import _require_case_id
+
+
+def validate(value):
+    return refuse_empty(value) and _require_case_id(value)
+"""
+    referenced = _reach._walk_module(
+        "inline.py", source, _corpus.parse_inline(source, "inline.py")
+    ).referenced
+    assert "_refuse_empty" in referenced, (
+        "a guard reached only through an import alias reads as unreferenced,"
+        " so arm A would report reachable code"
+    )
+    assert {"refuse_empty", "_require_case_id"} <= referenced
+    assert "_never_imported_here" not in referenced
 
 
 def test_detector_does_not_require_a_caller_for_a_decorated_validator() -> (
