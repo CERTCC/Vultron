@@ -444,6 +444,31 @@ class TestParseSearchPages:
         )
         assert result.issue_count == 1
 
+    def test_review_and_comment_bodies_give_the_triage_findings(self):
+        triage = {"body": "## PR Triage: #10\n| phase8-a-0 |\n| phase9-b-0 |"}
+        prepush = {"body": "## Pre-push review\n**Total**: 1 FAIL · 2 IMPROVE"}
+        node = _node(
+            10,
+            reviews=_connection([triage, {"body": ""}]),
+            comments=_connection([prepush]),
+        )
+        (read,) = fetch.parse_search_pages([_page([node])]).prs
+        assert read.triage_findings == 5
+
+    def test_a_commit_list_cut_short_keeps_the_full_count(self):
+        commits = _connection([{"commit": {"oid": "c1"}}], total=140)
+        (read,) = fetch.parse_search_pages(
+            [_page([_node(10, commits=commits)])]
+        ).prs
+        assert (read.commit_count, read.commits) == (140, ("c1",))
+        assert read.commits_complete is False
+
+    def test_a_missing_merge_commit_reads_as_none(self):
+        (read,) = fetch.parse_search_pages(
+            [_page([_node(10, mergeCommit=None)])]
+        ).prs
+        assert read.merge_commit is None
+
     def test_pages_are_concatenated(self):
         result = fetch.parse_search_pages(
             [_page([_node(10)], count=2), _page([_node(11)], count=2)]
@@ -487,6 +512,11 @@ class TestParseSearchPages:
             [_page([{"number": "10"}])],
             [_page([{**_node(10), "mergedAt": "yesterday"}])],
             [_page([{**_node(10), "additions": True}])],
+            [_page([_node(10, headRefName=None)])],
+            [_page([_node(10, createdAt="soon")])],
+            [_page([_node(10, mergeCommit={"oid": 7})])],
+            [_page([_node(10, commits=_connection([{"commit": None}]))])],
+            [_page([_node(10, reviews=_connection([{"body": None}]))])],
             [_page([_node(10, issues=[_issue_with(body=None)])])],
             [
                 _page(
@@ -653,6 +683,27 @@ class TestCli:
         assert git.calls == []  # no bug fix, no short commit list: no git
         assert text.startswith("pr-size --calibrate: 2026-10-29 to 2026-11-05")
         assert "Band shares — 1 PRs merged" in text
+
+    def test_calibrate_traces_each_bug_fix_in_this_clone(self):
+        node = _node(10, headRefName="bug/10-x")
+        git = FakeRunner("", "")
+        text = size_bands.calibrate(
+            7, run=FakeRunner(*_slice([node])), now=NOW, git=git
+        )
+        assert git.calls[0] == ["cat-file", "-e", "m10^{commit}"]
+        assert "1 bug-fix PRs (bug/ and fix/ branches) traced" in text
+
+    def test_calibrate_reads_a_short_commit_list_from_this_clone(self):
+        commits = _connection([{"commit": {"oid": "c10"}}], total=101)
+        git = FakeRunner("", "m10\nc10\n")
+        text = size_bands.calibrate(
+            7,
+            run=FakeRunner(*_slice([_node(10, commits=commits)])),
+            now=NOW,
+            git=git,
+        )
+        assert git.calls[-1] == ["rev-list", "m10^1..m10"]
+        assert "Heavy review" in text
 
     def test_calibrate_refuses_a_non_positive_window(self):
         with pytest.raises(ValueError, match="at least 1"):

@@ -171,7 +171,8 @@ def later_fix_section(data: CalibrationData, scheme: BandScheme) -> Section:
     )
     if not eligible:
         return Section(
-            title, (f"no PR in the window has a full {days}-day follow-up",)
+            title,
+            (traced, f"no PR in the window has a full {days}-day follow-up"),
         )
     lines = [traced, "band       PRs   lines  fixes  per PR  per 1000 lines"]
     lines.extend(
