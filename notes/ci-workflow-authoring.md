@@ -13,8 +13,9 @@ description: >
   must use the spellings macOS's bash 3.2 understands, why a bot-filed issue
   gets a theme but no Epic parent, why an artifact name needs the run attempt,
   why a GitHub write is retried and a label swap is split, how to read a red CI
-  job correctly, and why a new pull-request step must be mirrored locally or
-  excluded with a reason.
+  job correctly, why a new pull-request step must be mirrored locally or
+  excluded with a reason, and why the `CI gate` must be re-run after a re-run
+  check.
 related_notes:
   - notes/demo-ci-invariants.md
   - notes/demo-ci-scenario-coverage.md
@@ -50,6 +51,19 @@ entry in `vultron/metadata/planning/ci_mirror/_registry.py`. Add a
 expression. Or add an `EXCLUSIONS` entry saying why it cannot run locally.
 Without that entry the mirror would silently fall behind CI, the gap it closes
 (PAD-18-022, ADR-0173).
+
+## The `CI gate` Judges Every Other Check, Once
+
+`ci-gate.yml` has no `paths` filter, so its `CI gate` job is the one check a
+ruleset can require (#5942). A path-filtered job never starts on a pull request
+outside its paths, and a ruleset requiring it would wait forever. The gate
+waits for the newest run of every other workflow on the head commit, and passes
+only when each passed or was skipped. So a new pull-request workflow needs no
+ruleset change: the gate judges it.
+
+The gate judges once per pull-request event. Re-running a red check does not
+re-run it, so re-run the `CI gate` job too once the re-run check is green, or
+it stays red over a green set.
 
 ## Push-to-`main` and Scheduled Workflows MUST Wire `notify-failure`
 
