@@ -150,7 +150,10 @@ def test_a_killed_holder_frees_its_slot(lock_dir: Path, env: dict[str, str]):
         # Whatever is left of the command holds no slot.
         waiter = _run(env, "true", wait=10)
     finally:
-        os.killpg(holder.pid, signal.SIGKILL)
+        try:
+            os.killpg(holder.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass  # On Linux the command ended with its wrapper.
 
     assert waiter.returncode == 0
 
