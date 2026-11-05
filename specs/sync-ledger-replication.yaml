@@ -4920,3 +4920,32 @@ groups:
       names 4.
     stories:
     - story_2026_059
+  - id: SYNC-21-025
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Before its role passes to another actor (CM-02-016), the CASE_MANAGER MUST judge
+      every activity it holds for the case, skipping gaps as an ended hold does
+      (SYNC-21-013).
+    rationale: >-
+      The new CASE_MANAGER holds none of the old one's held activities, so any left
+      held would be neither judged nor refused, and their senders never told.
+      Draining first loses nothing and needs no notice: the handover only ends the
+      waits early, and the drain keeps each sender's order. The new CASE_MANAGER then
+      starts each sender from its ledger (SYNC-21-009).
+    relationships:
+    - rel_type: constrains
+      spec_id: CM-02-016
+    - rel_type: uses_definition
+      spec_id: SYNC-21-013
+    adr:
+    - ADR-0178
+    verification: >-
+      `test_an_outgoing_case_manager_drains_its_holds` in
+      `test/core/use_cases/received/test_sender_sequence.py` holds two notes past a
+      lost one, hands the CASE_MANAGER role over, and asserts both notes are
+      committed, in number order, with no refusal notice. The hand-over step is a
+      stand-in the implementation replaces with the delegation commit it drains
+      before.
+    stories:
+    - story_2026_059

@@ -144,6 +144,17 @@ def _forget_sequence_state(net: LedgerNetwork, actor: str) -> None:
     del net, actor
 
 
+def _hand_over_case_manager(net: LedgerNetwork) -> None:
+    """Stand in for the CASE_MANAGER role passing to another actor.
+
+    The role passes when the CASE_MANAGER commits the acceptance of its
+    delegation (CM-02-016), which this network does not drive.  The
+    implementation replaces this with that commit, which drains the holds
+    first (SYNC-21-025); it does nothing yet.
+    """
+    del net
+
+
 def _consent(net: LedgerNetwork, actor: str, embargo_id: str) -> Any:
     case = net.case(MANAGER)
     participant = net.stores[MANAGER].read(case.actor_participant_index[actor])
@@ -554,6 +565,26 @@ def test_a_new_case_manager_starts_from_the_ledger() -> None:
         case_id=net.case_id,
     )
     assert notice["expectedSenderSequence"] == 4
+
+
+@_xfail("SYNC-21-025", "an outgoing CASE_MANAGER does not drain its holds")
+@pytest.mark.spec("SYNC-21-025")
+def test_an_outgoing_case_manager_drains_its_holds() -> None:
+    net = _network("drain")
+    _note_body(net, "lost")
+    held = [_numbered(_note_body(net, f"held-{n}"), n) for n in (2, 3)]
+    for body in reversed(held):
+        net.receive(MANAGER, body)
+    assert _committed_notes(net) == []
+
+    # The wait has not passed; the handover ends it early.
+    _hand_over_case_manager(net)
+
+    assert _committed_notes(net) == [_note_of(b) for b in held]
+    for body in held:
+        assert_no_refusal_notice(
+            net.stores[MANAGER], manager=MANAGER, refused_id=body["id"]
+        )
 
 
 @_xfail("SYNC-21-018", "a held activity's repeat is judged on arrival")

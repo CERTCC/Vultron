@@ -5,9 +5,8 @@ status_override: >-
   strict xfails written before the counter is built, so they verify no built
   behaviour; SYNC-21-005 holds only because an entry keeps the received body,
   and SYNC-21-023 only because the closed-sender door refuses before any
-  sequence check exists. The maintainer, deciding the open points on
-  2026-11-05, kept the record proposed until the counter is built and its
-  remaining open question is decided.
+  sequence check exists. The maintainer, deciding every open point on
+  2026-11-05, kept the record proposed until the counter is built.
 date: 2026-11-05
 created: 2026-11-05
 updated: 2026-11-05
@@ -110,15 +109,23 @@ Chosen option: "A per-(sender, case) counter on each activity, applied in counte
 - An activity that must carry a number (see "Which activities carry the number" below) but carries none, or one that is not a positive integer, is refused, and the CASE_MANAGER writes nothing.
   This is how a missing `ledgerPosition` is refused (SYNC-18-015).
 - The CASE_MANAGER sends the sender the same refusal notice as for a late number, naming `expectedSenderSequence`, so the sender learns where to start.
+  The maintainer decided that this notice carries `expectedSenderSequence` as the late-number notice does.
 - The maintainer chose refusal over judging the activity on arrival because the project supports only clients built from current `main` and makes no backwards-compatibility commitment at this time.
   A sender that does not number gains nothing from a lenient CASE_MANAGER, and leniency would leave its activities open to the arrival-order failures this record removes.
+
+### The outgoing CASE_MANAGER drains its holds
+
+- Before the CASE_MANAGER role passes to another actor, the outgoing CASE_MANAGER judges every activity it holds for the case at once.
+  It judges each sender's held activities in number order and skips the gaps, exactly as when a wait expires.
+- So nothing it holds is lost, and no notice is needed: the handover only ends the waits early.
+- The new CASE_MANAGER then holds nothing from before the handover, and its ledger records every activity the drain admitted.
 
 ### A new CASE_MANAGER starts from the ledger
 
 - When the CASE_MANAGER role for a case moves to another actor, the new CASE_MANAGER holds no next expected numbers of its own.
   It starts each participant's next expected number at one more than that participant's highest number in the case ledger it holds, and at 1 when the ledger holds none.
 - So a sender already past 1 is not held for a wait, or refused, merely because the role moved.
-- A number the old CASE_MANAGER judged and refused on its merits, or skipped, is not in the ledger.
+- A number the old CASE_MANAGER judged and refused on its merits, or skipped, including in its drain, is not in the ledger.
   A sender whose last numbers were such is held once, for at most one wait, before the fast-forward lets its next activity through.
 
 ### A sender that lost its counter resumes
@@ -149,7 +156,7 @@ The genuine sender gets the refusal notice, resumes at the number it names, and 
 
 The maintainer left the points below open.
 Each states this record's recommendation, labelled as such, and the specification adopts it.
-The maintainer later decided three points this record first left open: a missing number, a new CASE_MANAGER, and resending refused content, each recorded above.
+The maintainer later decided the points this record first left open: a missing number and its notice, a new CASE_MANAGER, activities held at a handover, and resending refused content, each recorded above.
 
 - **Which activities carry the number.**
   *Recommendation:* every activity a participant sends to the CASE_MANAGER that carries a `ledgerPosition` (SYNC-18-001), except `Read(CaseLedgerEntry)` and `Reject(CaseLedgerEntry)`.
@@ -202,13 +209,8 @@ The maintainer later decided three points this record first left open: a missing
 - Bad, because an activity delayed past the wait is refused even though it was sent in time; the sender must decide whether to assert it again.
 - Bad, because a gap delays the sender's later activities by up to the wait.
 - Bad, because a sender that does not number has its case activities refused; the project makes no backwards-compatibility commitment, so this costs no supported client.
-- Bad, because after a handover a sender whose last numbers were refused or skipped at the old CASE_MANAGER is held once, for at most one wait.
-
-### Open questions
-
-- **Activities held at a handover.**
-  When the CASE_MANAGER role moves while the old CASE_MANAGER holds activities, those activities are neither judged nor refused, and their senders are not told.
-  Whether the old CASE_MANAGER judges or refuses its held activities before it hands over, or the new one asks for them, is not decided.
+- Bad, because after a handover a sender whose last numbers were refused or skipped at the old CASE_MANAGER, in its drain or before, is held once, for at most one wait.
+- Good, because a handover loses no held activity: the outgoing CASE_MANAGER drains its holds first.
 
 ## Validation
 
