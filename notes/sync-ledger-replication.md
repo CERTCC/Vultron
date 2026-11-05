@@ -9,8 +9,9 @@ description: >
   never writing the ledger, the held out-of-order Announce, arrival-order
   independence (SYNC-19), divergence recovery,
   the sender's ledger position on every case activity, replay rate limiting, the
-  resend of unanswered Invites on a position statement (SYNC-20), and SYNC test
-  patterns.
+  resend of unanswered Invites on a position statement (SYNC-20), the sender
+  sequence that orders one participant's activities (SYNC-21, ADR-0177), and SYNC
+  test patterns.
 related_specs:
   - specs/sync-ledger-replication.yaml
   - specs/case-ledger-processing.yaml
@@ -393,10 +394,12 @@ outside the ledger".
   Invite), and `EmbargoInviteNotYetAnsweredNode` skips an Invite already answered
   (ID-04-004). A deliberate answer keeps a fresh id, so a changed answer is not
   dropped as a redelivery (CM-18-003, IE-10-001).
-- **One sender's back-to-back assertions are unordered.** The CASE_MANAGER cannot
-  see send order, and both assertions carry the same `ledgerPosition`. Two that
-  conflict are recorded in arrival order: an Accept and a Reject of one Invite
-  (#5202), or an assertion and the sender's own Leave (#5203).
+- **Order one sender's assertions by its `senderSequence`, never by arrival.** Both
+  assertions carry the same `ledgerPosition`, so only the sender's per-case number
+  tells the CASE_MANAGER which came first (SYNC-21, ADR-0177). Until it is built,
+  two that conflict are recorded in arrival order: an Accept and a Reject of one
+  Invite (#5202), or an assertion and the sender's own Leave (#5203). Do not fix
+  either with a sender-side gate; the record rejects that option.
 - **Expect the relayed Invite before its emission entry.** The CASE_MANAGER commits
   each emission after queueing it (SYNC-09-002), so the steady state delivers the
   Invite first; the replica arm must not need its emission entry.

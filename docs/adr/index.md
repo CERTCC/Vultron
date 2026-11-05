@@ -281,6 +281,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0172 An Active Participant Is Not Closed](0172-an-active-participant-is-not-closed.md) — partially supersedes 0114-joining-a-case-stub-invite-inert-participant.md, 0116-removing-a-participant-withdraws-entitlement-not-membership.md
 - [ADR-0174 CVD Measures Read a Case Ledger Through a Read-Only Event History, Derived by State Comparison](0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md)
 - [ADR-0176 An Act Reads the Clock Once, at Its Edge](0176-an-act-reads-the-clock-once-at-its-edge.md) *(revision 2)* — partially supersedes 0103-object-time-is-carried-never-minted.md
+- [ADR-0177 A Participant Numbers Its Case Activities, and the Case Manager Applies Each Sender's in That Order](0177-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)
 
 ## Rejected ADRs
 
