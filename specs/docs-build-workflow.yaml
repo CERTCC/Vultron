@@ -865,8 +865,7 @@ groups:
         kind: project
         statement: >-
           A scheduled run MUST skip a candidate commit that already has a
-          `publish-*` tag that the publication workflow made: an annotated tag
-          whose tagger is `github-actions[bot]`.
+          `publish-*` tag that the DOCBW-07-013 helper counts as a publish.
         rationale: >-
           The schedule then never publishes one commit twice, and never undoes a
           rollback by publishing again the commit it rolled back from. A manual
@@ -877,12 +876,15 @@ groups:
           `test/ci/test_publish_gate.py`, against real tags.
         adr:
           - ADR-0171
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-07-013
       - id: DOCBW-06-014
         priority: MUST_NOT
         kind: project
         statement: >-
-          A `publish-*` tag whose tagger is not `github-actions[bot]`, or a
-          lightweight `publish-*` tag, MUST NOT trigger the DOCBW-06-013 skip.
+          A `publish-*` tag that the DOCBW-07-013 helper does not count as a
+          publish MUST NOT trigger the DOCBW-06-013 skip.
         rationale: >-
           The tag ruleset restricts the update and deletion of a `publish-*`
           tag, not its creation (#5545), so any account that can push can create
@@ -899,6 +901,8 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DOCBW-06-013
+          - rel_type: uses_definition
+            spec_id: DOCBW-07-013
       - id: DOCBW-06-015
         priority: MUST
         kind: project

@@ -38,7 +38,7 @@ A Case Observer implementation maintains all five state machines — **RM, EM, P
 It holds a current value for each, and it drives the transitions that its roles authorize.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-03-001", "CM-03-002", "CM-03-005", "CM-03-008"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-03-001", "CM-03-002", "CM-03-005", "CM-10-001"))
 ```
 
 It also tracks the states of the other participants in the case, to inform its own decisions.

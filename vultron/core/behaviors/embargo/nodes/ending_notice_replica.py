@@ -107,7 +107,7 @@ def adopted_revision_timing_violations(
     The guard calling this runs on every path, while the adoption runs only
     off the CASE_MANAGER's; the two still agree, because the CASE_MANAGER is
     never a paused signatory of an embargo in force: it is never removed
-    (CM-24-006), and it reaches RM ``CLOSED`` only on an owner close that an
+    (CM-02-014), and it reaches RM ``CLOSED`` only on an owner close that an
     embargo in force blocks (CM-23-002, CM-23-011).
 
     Raises:

@@ -6,7 +6,7 @@ target of a role offer addresses to the case's CASE_MANAGER (CM-33-015).
 The CASE_MANAGER acts on an answer only from the target of an open role Offer
 it recorded (CM-33-005), commits it and broadcasts
 ``Announce(CaseLedgerEntry)``, and on an Accept grants the role on its own
-replica (CM-33-020, CM-02-016).
+replica (CM-02-016).
 See SE-08-003, ADR-0039.
 """
 

@@ -129,7 +129,7 @@ def test_a_roster_with_no_manager_answers_false(dl: SqliteDataLayer) -> None:
     A replica whose roster records the role on nobody — a bootstrap window
     before the CASE_MANAGER participant is seeded — makes
     :func:`resolve_case_manager_id` answer ``None``, and no actor id may be
-    compared against that (CM-24-006 is about the roster, not about this
+    compared against that (CM-02-014 is about the roster, not about this
     read).
     """
     vendor = _participant("vendor", VENDOR_ID, CVDRole.VENDOR)

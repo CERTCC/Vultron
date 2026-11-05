@@ -106,7 +106,7 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
         self._case = resolve_case(request.case_id, self._dl)
 
         # The Offer goes to the CASE_MANAGER or nowhere (CM-21-005,
-        # PCR-08-011).  A case always has a CASE_MANAGER (CM-24-006), so none
+        # PCR-08-011).  A case always has a CASE_MANAGER (CM-02-014), so none
         # is a fault, not a direct send to the transferee.
         case_manager_id = resolve_case_manager_id(self._case, self._dl)
         if case_manager_id is None:
@@ -326,7 +326,7 @@ class SvcWithdrawCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
         super()._prepare()
         # The withdrawal goes to the CASE_MANAGER or nowhere (CM-21-036,
         # PCR-08-011).  The offerer holds the case it offered, and a case
-        # always has a CASE_MANAGER (CM-24-006), so either missing is a
+        # always has a CASE_MANAGER (CM-02-014), so either missing is a
         # not-found, refused before any tree runs, as the offer trigger does.
         case = resolve_case(self._case_id, self._dl)
         if resolve_case_manager_id(case, self._dl) is None:

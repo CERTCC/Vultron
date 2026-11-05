@@ -224,7 +224,7 @@ def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
 
 
 def make_case_manager(case_id: str, actor_id: str, dl) -> None:
-    """Make *actor_id* the case's sole CASE_MANAGER (CM-24-006).
+    """Make *actor_id* the case's sole CASE_MANAGER (CM-02-014).
 
     A trigger writes shared EM state only as the role holder (EP-09-008), so
     a test of the state an endpoint writes runs as it; the fixtures' separate

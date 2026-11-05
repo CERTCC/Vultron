@@ -2332,7 +2332,7 @@ groups:
     note: >-
       Participant self-status (RM, `Add(ParticipantStatus)`) is the participant's own
       claim and keeps its local write (RSH-06-001). The rule covers the owner that still
-      holds the CASE_MANAGER role after creation (CM-24-006): it writes canonically
+      holds the CASE_MANAGER role after creation (CM-02-014): it writes canonically
       until it delegates.
     verification: >-
       `test/core/use_cases/triggers/embargo/test_trigger_write_gate.py`

@@ -156,7 +156,7 @@ def test_statement_spec_optional_field_set(model):
     """The SR-02-021 annotations are optional fields; no lifecycle field exists.
 
     A superseded requirement is removed and archived, so no field marks one
-    in place (MS-04-005, MS-09-001).
+    in place (MS-09-001).
     """
     optional = {
         "verification",

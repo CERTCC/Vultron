@@ -245,17 +245,6 @@ groups:
     rationale: Consistent format enables automated validation.
     tags:
     - documentation
-  - id: MS-04-002
-    priority: MUST
-    kind: process
-    verification_debt: '#2571'
-    statement: Requirement IDs MUST be globally unique across all spec files.
-    rationale: Uniqueness prevents ambiguous cross-references.
-    tags:
-    - documentation
-    relationships:
-    - rel_type: satisfies
-      spec_id: SR-01-006
   - id: MS-04-003
     priority: MUST
     kind: process
@@ -265,34 +254,6 @@ groups:
     rationale: Stable IDs preserve traceability in git history.
     tags:
     - documentation
-  - id: MS-04-005
-    priority: MUST
-    kind: process
-    verification_debt: '#2571'
-    statement: Superseded requirements MUST be removed entirely rather than left in place as deprecated.
-    rationale: >-
-      A deprecated requirement that stays in the file confuses agents and implementers.
-      The file does not tell them if the obligation still applies. The spec schema has
-      no `deprecated` or `superseded_by` field, so no annotation can mark a requirement
-      as retired in place.
-    tags:
-    - documentation
-  - id: MS-04-004
-    priority: MUST
-    kind: process
-    verification_debt: '#2571'
-    statement: >-
-      The group part of a requirement ID MUST match the ID of the group that holds
-      it, so that `HP-01-001` lives in group `HP-01`.
-    rationale: Mismatched prefixes break navigability and cross-reference accuracy.
-    tags:
-    - documentation
-    relationships:
-    - rel_type: satisfies
-      spec_id: SR-01-013
-    see_also:
-    - spec_id: HP-01-001
-      reason: 'an example of an ID inside its group'
 - id: MS-05
   title: Writing Rules
   specs:

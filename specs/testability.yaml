@@ -415,37 +415,6 @@ groups:
       name and confirm zero matches; confirm `pyproject.toml` registers the new
       name; run `pytest -m "new_mark_name" --collect-only` and confirm non-zero
       test collection.
-- id: TB-10
-  title: Architecture Boundary Tests
-  specs:
-  - id: TB-10-002
-    priority: MUST
-    kind: process
-    verification_debt: '#2571'
-    statement: >-
-      An architecture ratchet test MUST compare with equality, `assert
-      actual_violations == KNOWN_VIOLATIONS`, not with a subset check (`assert actual
-      ⊆ KNOWN`).
-    rationale: >-
-      With a subset check, a violation that is fixed can stay on the known list. A
-      later change can then bring the same violation back, and the test still passes.
-      An equality check fails as soon as a listed violation is fixed (ARCH-18-001).
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-18-001
-  - id: TB-10-003
-    priority: MUST
-    kind: process
-    verification_debt: '#2571'
-    statement: >-
-      When a change resolves a ratchet violation, it MUST remove the entry from
-      `KNOWN_VIOLATIONS` in the same commit.
-    rationale: >-
-      The equality check (TB-10-002) fails until the entry goes. Removing it in the
-      same commit keeps the list matched to the code at every commit.
-    relationships:
-    - rel_type: extends
-      spec_id: TB-10-002
 - id: TB-12
   title: BT Test Harness
   specs:

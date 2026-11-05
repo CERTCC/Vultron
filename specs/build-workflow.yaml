@@ -44,25 +44,10 @@ groups:
         rationale: >-
           A completion summary in the queue gives `learn` nothing to promote. It also
           hides the observations that `learn` must act on. Completion summaries have
-          their own record (BW-01-005).
+          their own record (HM-05-001).
         relationships:
           - rel_type: derives_from
             spec_id: BW-01-001
-      - id: BW-01-005
-        priority: MUST
-        kind: process
-        verification_debt: '#2571'
-        statement: >-
-          Completion summaries from the `build` and `bugfix` skills MUST be
-          archived exclusively via `uv run append-history implementation`.
-        rationale: >-
-          `append-history implementation` puts the summary where readers of the work
-          item find it, with validated frontmatter. A summary in a different location is
-          lost, or it goes into the learnings queue, which is not its location
-          (BW-01-001).
-        relationships:
-          - rel_type: satisfies
-            spec_id: HM-05-001
       - id: BW-01-003
         priority: MUST
         kind: process
@@ -332,7 +317,8 @@ groups:
           monthly history README, and enforces write-once semantics. The command
           moves the file from `plan/incoming/learnings/` to
           `plan/history/YYMM/learning/` and deletes the source (BW-05-004), so no
-          archived file stays in the queue.
+          archived file stays in the queue. It keeps the file's frontmatter as
+          written, where another method can type it again incorrectly.
       - id: BW-03-003
         priority: SHOULD
         kind: process
@@ -360,21 +346,6 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: HM-02-002
-      - id: BW-04-003
-        priority: MUST
-        kind: process
-        verification_debt: '#2571'
-        statement: >-
-          The `learn` skill MUST use `uv run append-history --from-file`
-          to archive each processed incoming learning file.
-        rationale: >-
-          The `--from-file` path moves the incoming file and its frontmatter into the
-          archive without change, and deletes the source file. A different archive
-          method can type the frontmatter again incorrectly, or leave the file in the
-          queue.
-        relationships:
-          - rel_type: refines
-            spec_id: BW-03-002
       - id: BW-04-002
         priority: MUST
         kind: project

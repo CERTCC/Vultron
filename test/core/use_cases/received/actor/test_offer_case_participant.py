@@ -1829,7 +1829,7 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
 
 
 class TestOfferCaseParticipantAtACaseWithNoManager:
-    """A case whose roster names no CASE_MANAGER refuses the Offer (CM-24-006).
+    """A case whose roster names no CASE_MANAGER refuses the Offer (CM-02-014).
 
     The path stage puts a receiver that holds the case without the role on
     the participant-replica path, which the Offer receipt declares, so the
@@ -1849,7 +1849,7 @@ class TestOfferCaseParticipantAtACaseWithNoManager:
         dl.create(case)
         return dl
 
-    @pytest.mark.spec("CM-24-006")
+    @pytest.mark.spec("CM-24-014")
     @pytest.mark.spec("HP-01-005")
     def test_offer_receipt_at_a_case_with_no_manager_is_refused(self):
         dl = self._seed_without_a_manager()
@@ -1880,7 +1880,7 @@ class TestOfferCaseParticipantAtACaseWithNoManager:
         thing about the receiver — it holds no replica — so the distinction
         survives the move without the handler inferring anything
         (HP-01-039).  A store that holds the case but no CASE_MANAGER keeps
-        its own, different reason, pinned by the test above (CM-24-006).
+        its own, different reason, pinned by the test above (CM-02-014).
         """
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_ACTOR_ID)
         dl.create(as_Service(id_=CASE_ACTOR_ID))

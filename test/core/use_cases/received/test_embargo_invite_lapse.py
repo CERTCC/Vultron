@@ -196,7 +196,7 @@ def _make_active_embargo_case(
     register holds no entry for it (EM NONE).
 
     ``_COORD`` holds the CASE_MANAGER role in every store, since the role is
-    never unfilled (CM-24-006) and only its holder evaluates lapse (CM-28-014).
+    never unfilled (CM-02-014) and only its holder evaluates lapse (CM-28-014).
 
     Returns (case, embargo, invitee_participant_id).
     """
@@ -442,7 +442,7 @@ class TestInviteReceiptStoresNoDeadline:
         )
         invitee_cp_core = invitee_cp
 
-        # The CASE_MANAGER role is never unfilled (CM-24-006); the invitee
+        # The CASE_MANAGER role is never unfilled (CM-02-014); the invitee
         # addresses its answer to the holder.
         coord_cp = WireCP(
             attributed_to=_COORD,
@@ -2361,7 +2361,7 @@ class TestLateAcceptHandling:
         assert _case_entries(dl, case_id) == entries_before
 
     @pytest.mark.spec("EMB-17-004")
-    @pytest.mark.spec("CM-28-004")
+    @pytest.mark.spec("CM-28-025")
     @pytest.mark.spec("EMB-17-017")
     def test_late_accept_with_no_embargo_leaves_the_invitee_row_frozen(
         self, make_payload
@@ -2517,7 +2517,7 @@ class TestLateAcceptHandling:
         )
         invitee_cp_core = invitee_cp
 
-        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+        # The receiver is the CASE_MANAGER (CM-02-014, BT-17-005).
         seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
         dl.create(embargo)
@@ -2577,7 +2577,7 @@ class TestLateAcceptHandling:
         invitee_cp_core = invitee_cp
         # No deadline set — the INVITED row carries none
 
-        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+        # The receiver is the CASE_MANAGER (CM-02-014, BT-17-005).
         seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
         dl.create(embargo)

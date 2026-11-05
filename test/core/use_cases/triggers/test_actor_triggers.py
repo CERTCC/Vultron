@@ -1518,7 +1518,7 @@ class TestSvcActorRecommendationAnswerUseCases:
 
 
 def _seed_managed_case(owner, dl, *peers, participant_ids=()):
-    """A case whose roster names a separate CASE_MANAGER (CM-24-006).
+    """A case whose roster names a separate CASE_MANAGER (CM-02-014).
 
     The owner's trigger runs in the owner's own store only (CM-24-011,
     ADR-0109); the CASE_MANAGER's store is seeded with the case too, so the

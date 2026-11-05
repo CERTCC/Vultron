@@ -153,7 +153,7 @@ from its role (CLP-09).
   Invite (CM-28-012). Expiry is read (`now >= end_time`, on the CASE_MANAGER's copy),
   never recorded: the Invite closes as an expired ask, the record stays inert at
   `RECEIVED`, consent stays `INVITED`, and no entry is written (CM-11-040). The
-  `TIMED_OUT` rule (CM-28-004) is for embargo Invites only. Expiry is *stale*
+  `TIMED_OUT` rule (CM-18-002) is for embargo Invites only. Expiry is *stale*
   (ASK-03-002): a late `Accept` still joins and a late `Reject` still closes.
   "All participants closed" counts only participants that joined.
 - **Duplicate Accept (CM-17-012).** A stub-Invite `Accept` from a participant whose

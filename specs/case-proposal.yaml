@@ -1536,16 +1536,16 @@ groups:
     kind: protocol
     statement: >-
       When the CASE_MANAGER accepts a `Create(CaseProposal)`, it MUST create the
-      `VulnerabilityCase` with `attributedTo` set to the proposing actor, never to its
-      own actor ID. The proposing actor is the report receiver, who becomes the
-      CASE_OWNER.
+      `VulnerabilityCase` in its own store, attributed to the proposing actor. Its
+      `attributedTo` never names the CASE_MANAGER's own actor ID. The proposing actor is
+      the report receiver, who becomes the CASE_OWNER.
     rationale: >-
-      `VulnerabilityCase.attributed_to` records the Case Owner (CM-02-008), and
-      ownership checks and ownership transfer read and write it as such (MSM-07-027,
-      CM-21-024). AS2's "I created this" is carried by the `actor` of `Create(X)`
-      (ADR-0023), not by the created object's `attributedTo`, so the CASE_MANAGER
-      creating the case and the report receiver owning it are both recorded without
-      conflict (ADR-0041).
+      The CASE_MANAGER is the case's authoritative creator, so the case starts in its
+      store (CP-09-005). `attributed_to` records the Case Owner (CM-02-008), which
+      ownership checks and ownership transfer read and write (MSM-07-027, CM-21-024).
+      AS2 carries "I created this" on the `actor` of `Create(X)` (ADR-0023), not on the
+      object's `attributedTo`, so the CASE_MANAGER's creation and the report receiver's
+      ownership are both recorded without conflict (ADR-0041).
     verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm the created
       `VulnerabilityCase` has `attributed_to` set to the proposing actor's URI.
     relationships:
@@ -1553,6 +1553,9 @@ groups:
       spec_id: CP-05-003
     - rel_type: refines
       spec_id: CM-02-008
+    - rel_type: supersedes
+      spec_id: CM-14-001
+      note: In multi-actor deployments, where the CASE_MANAGER creates the case (ADR-0041)
     adr:
     - ADR-0023
     - ADR-0041
@@ -1624,6 +1627,7 @@ groups:
     - rel_type: extends
       spec_id: CP-09-002
     stories:
+    - story_2022_012
     - story_2022_013
     - story_2026_055
     adr:
@@ -1675,7 +1679,10 @@ groups:
     rationale: >-
       Embargo state is protocol-significant.  Deferring initialization to the
       report receiver or to a later message would produce a window in which
-      embargo-gated operations are undefined (ADR-0041).
+      embargo-gated operations are undefined (ADR-0041).  The CASE_MANAGER is the
+      only actor that can initialize it authoritatively at case creation; the actor
+      default it applies is the CASE_OWNER's policy, carried on the proposal
+      (CP-01-009, CP-01-010).
     verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py::TestADR0041EmbargoInit::test_active_embargo_set`
       confirm the default embargo is initialized before `Create(VulnerabilityCase)` is emitted.
     adr:

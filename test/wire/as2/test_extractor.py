@@ -640,7 +640,7 @@ def test_extract_event_honours_custom_min_rsvp_window():
 
 
 @pytest.mark.spec("EP-07-006")
-@pytest.mark.spec("CM-28-011")
+@pytest.mark.spec("EP-07-011")
 def test_invite_on_day_28_of_30_day_embargo_gets_two_day_window(caplog):
     """The 7-day policy window and the 72 h minimum both yield to the end."""
     published = datetime.now(tz=UTC)

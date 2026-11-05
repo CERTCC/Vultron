@@ -20,7 +20,7 @@ with ``Accept`` or ``Reject`` (CM-33-004).  The CASE_MANAGER checks that the
 sender is the target of a role Offer it recorded and that the Offer is open
 (CM-33-005), commits the answer and broadcasts ``Announce(CaseLedgerEntry)``
 (CM-33-006, CM-33-019, CLP-02-012), and on an Accept grants the role on its
-own replica (CM-33-020)
+own replica
 (CM-02-016).  Every other participant learns the grant by replaying the
 entry (``ApplyCaseParticipantRoleGrantFromLedgerNode``, CM-02-020).
 

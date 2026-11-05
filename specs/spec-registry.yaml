@@ -534,7 +534,7 @@ groups:
       checked, who owns its missing check, its exceptions, its trigger, its supporting
       references and the citations it leaves unlinked. Typed fields let tooling
       validate each one. The list has no lifecycle field: a superseded requirement is
-      removed and archived, not marked in place (MS-04-005, MS-09-001).
+      removed and archived, not marked in place (MS-09-001).
     verification: >-
       `test/metadata/specs/test_schema.py::test_statement_spec_optional_field_set`
       asserts that both models declare each listed field as optional and declare

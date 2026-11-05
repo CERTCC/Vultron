@@ -156,7 +156,7 @@ def case_manager_absence_refusal(
     """The refusal owed when this store has no CASE_MANAGER to defer to.
 
     ``REFUSED`` for a case this store does not hold and for a case whose
-    roster names no CASE_MANAGER (CM-24-006); ``None`` when the case names
+    roster names no CASE_MANAGER (CM-02-014); ``None`` when the case names
     one.  A handler whose CASE_MANAGER gate turned this actor away calls it
     to tell those two cases from a replica that simply is not the
     CASE_MANAGER, which :func:`not_case_manager_refusal` refuses and some
