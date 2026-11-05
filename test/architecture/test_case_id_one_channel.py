@@ -70,9 +70,14 @@ def _case_id_port_classes() -> list[type]:
 
 
 def _takes_case_id(cls: type) -> bool:
-    """True when ``cls(...)`` accepts a ``case_id`` argument."""
+    """True when ``cls(...)`` may accept a ``case_id`` argument.
+
+    Fails closed: ``**kwargs`` could carry one, so it counts too.
+    """
     parameters = inspect.signature(cls).parameters
-    return _PORT in parameters
+    return _PORT in parameters or any(
+        p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values()
+    )
 
 
 @pytest.mark.spec("BTND-01-006")
@@ -91,6 +96,7 @@ def test_case_id_port_classes_are_discovered() -> None:
 
 
 @pytest.mark.spec("BTND-01-006")
+@pytest.mark.spec("BTND-01-007")
 @pytest.mark.spec("BTND-10-005")
 def test_no_node_reads_case_id_from_both_a_port_and_its_constructor() -> None:
     dual = [
@@ -100,7 +106,7 @@ def test_no_node_reads_case_id_from_both_a_port_and_its_constructor() -> None:
     ]
     assert dual == [], (
         "These nodes declare a case_id input port and also accept a case_id"
-        " constructor argument.  Read it from the port alone, and have"
+        " (or **kwargs) constructor argument.  Read it from the port alone, and have"
         " build-time callers seed the port with with_case_id(node, case_id)"
         " (BTND-01-006, BTND-10-005):\n" + "\n".join(f"  {d}" for d in dual)
     )
@@ -203,3 +209,96 @@ def test_the_scope_passes_the_nodes_status_and_reason_through() -> None:
 
     assert scope.status is py_trees.common.Status.FAILURE
     assert scope.feedback_message == "refused for a reason"
+
+
+@pytest.mark.spec("BTND-01-007")
+def test_a_kwargs_constructor_counts_as_taking_case_id() -> None:
+    """The check fails closed on a constructor that could forward one."""
+
+    class _Forwards:
+        def __init__(self, **kwargs: object) -> None:
+            pass
+
+    class _Named:
+        def __init__(self, name: str = "") -> None:
+            pass
+
+    assert _takes_case_id(_Forwards)
+    assert not _takes_case_id(_Named)
+
+
+class _Fixed(py_trees.behaviour.Behaviour):
+    """Returns *status* and records the ``/case_id`` it sees."""
+
+    def __init__(self, name: str, status: py_trees.common.Status) -> None:
+        super().__init__(name=name)
+        self._status = status
+        self.seen: list[object] = []
+
+    def update(self) -> py_trees.common.Status:
+        storage = py_trees.blackboard.Blackboard.storage
+        self.seen.append(storage.get("/case_id", "<absent>"))
+        return self._status
+
+
+@pytest.mark.spec("BTND-01-006")
+@pytest.mark.parametrize(
+    ("composite", "first_status"),
+    [
+        (py_trees.composites.Sequence, py_trees.common.Status.FAILURE),
+        (py_trees.composites.Selector, py_trees.common.Status.SUCCESS),
+    ],
+)
+def test_the_seed_is_restored_when_the_parent_stops_at_the_scoped_child(
+    composite: type[
+        py_trees.composites.Sequence | py_trees.composites.Selector
+    ],
+    first_status: py_trees.common.Status,
+) -> None:
+    """A Sequence that fails, or a Selector that succeeds, at its scoped first
+    child returns without resuming that child's tick.  The key is restored
+    anyway, so the next tick, and the next execution, see what was there."""
+    storage = py_trees.blackboard.Blackboard.storage
+    storage["/case_id"] = "https://example.org/c/published"
+    try:
+        first = _Fixed("First", first_status)
+        root = composite(
+            name="Root",
+            memory=False,
+            children=[
+                with_case_id(first, "https://example.org/c/seeded"),
+                _Fixed("Second", py_trees.common.Status.SUCCESS),
+            ],
+        )
+        _tick(root)
+
+        assert root.status is first_status
+        assert first.seen == ["https://example.org/c/seeded"]
+        assert storage["/case_id"] == "https://example.org/c/published"
+    finally:
+        storage.pop("/case_id", None)
+
+
+@pytest.mark.spec("BTND-01-006")
+def test_the_next_sibling_reads_the_restored_case() -> None:
+    """A Sequence that passes its scoped first child ticks the next one with
+    the case the earlier node published, not the seed."""
+    storage = py_trees.blackboard.Blackboard.storage
+    storage["/case_id"] = "https://example.org/c/published"
+    try:
+        first = _Fixed("First", py_trees.common.Status.SUCCESS)
+        second = _Fixed("Second", py_trees.common.Status.SUCCESS)
+        _tick(
+            py_trees.composites.Sequence(
+                name="Root",
+                memory=False,
+                children=[
+                    with_case_id(first, "https://example.org/c/seeded"),
+                    second,
+                ],
+            )
+        )
+        assert first.seen == ["https://example.org/c/seeded"]
+        assert second.seen == ["https://example.org/c/published"]
+    finally:
+        storage.pop("/case_id", None)

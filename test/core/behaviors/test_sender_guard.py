@@ -1833,3 +1833,34 @@ def test_failure_is_the_refusal_reads_the_shape_above_the_node(
             name="S", memory=False, children=[arm, _Leaf(name="Next")]
         )
     assert failure_is_the_refusal(node) is expected
+
+
+@pytest.mark.spec("HP-01-006", "SL-03-002", "BTND-01-006")
+def test_a_case_id_scope_does_not_change_whether_a_failure_is_the_refusal() -> (
+    None
+):
+    """The scope that seeds a check's /case_id port passes its status through,
+    so a check under it refuses exactly where it would without it."""
+    lone = SenderIsCaseManagerNode(sender_actor_id=OWNER)
+    scoped_lone = with_case_id(lone, CASE_ID)
+    py_trees.composites.Sequence(
+        name="Guard", memory=False, children=[scoped_lone]
+    )
+    assert failure_is_the_refusal(lone) is True
+
+    first = SenderIsCaseManagerNode(sender_actor_id=OWNER)
+    py_trees.composites.Selector(
+        name="AnyOf",
+        memory=False,
+        children=[
+            with_case_id(first, CASE_ID),
+            SenderIsCaseManagerNode(sender_actor_id=OWNER),
+        ],
+    )
+    assert failure_is_the_refusal(first) is False
+
+    inverted = SenderIsCaseManagerNode(sender_actor_id=OWNER)
+    py_trees.decorators.Inverter(
+        name="Not", child=with_case_id(inverted, CASE_ID)
+    )
+    assert failure_is_the_refusal(inverted) is False
