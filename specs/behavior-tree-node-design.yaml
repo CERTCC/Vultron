@@ -64,6 +64,10 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: BTND-01-001
+    see_also:
+    - spec_id: BTND-01-006
+      reason: >-
+        scope boundary: BTND-01-006 covers the values a tree finds only at tick time
   - id: BTND-01-005
     priority: MUST
     kind: project
