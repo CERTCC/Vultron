@@ -100,14 +100,71 @@ concurrency:
 
 jobs:
 
-  # ── Stage 1a: Tests ───────────────────────────────────────────────────────
+  # ── Stage 1a: Tests, in parallel parts ────────────────────────────────────
+  # A pull-request round is this repository's merge gate (ADR-0126), so its
+  # length sets how long every push waits. One runner ran the whole suite in
+  # 7.2-12.5 minutes; each part below runs a disjoint slice of `test/` on its
+  # own runner, so the round ends with the slowest part instead of the sum
+  # (#5943).
+  #
+  # The parts partition `test/`: each named part lists the paths it claims, and
+  # the `rest` part selects `test` while ignoring every claimed path. A new
+  # test directory therefore runs in `rest` with no workflow edit, and
+  # `test/ci/test_python_app_test_parts.py` fails when a claim and an ignore
+  # disagree — the two ways a part would run twice or not at all (TB-11-002).
+  # Keep every part inside this one matrix job: `build` and `notify` reach all
+  # of them through `needs: test`, and a part split into its own job id is one
+  # a `needs:` list can omit (TB-11-003).
+  #
+  # Do not gate a part with a job-level `if:` on `matrix`: that context does
+  # not exist before matrix expansion, and the workflow fails at startup with
+  # no jobs and no logs (DEMOCI-06-004).
   test:
-    name: Tests (pytest)
+    name: Tests (pytest) ${{ matrix.part }}
     runs-on: ubuntu-latest
     # A hang no per-test timeout can reach (a C call holding the GIL, a stuck
-    # xdist controller) ends here, not at GitHub's 6-hour default. The job
-    # takes ~6-9 minutes, including the 60s main-push debounce (#3603).
-    timeout-minutes: 30
+    # xdist controller) ends here, not at GitHub's 6-hour default. No part can
+    # take longer than the whole suite did on one runner (12.5 minutes at the
+    # worst observed, including the 60s main-push debounce), so 20 minutes is
+    # well above any honest part and still fails a hang in minutes (TB-14-006,
+    # #3603).
+    timeout-minutes: 20
+    strategy:
+      # Every part reports: one red part must not hide a second one, and the
+      # `needs.test.result` aggregate reads `failure` either way.
+      fail-fast: false
+      matrix:
+        # `select` is the part's pytest path arguments. Group by cost, not by
+        # collected test count: a count-balanced first attempt put
+        # `test/architecture` and `test/metadata` in one part, and it took
+        # 12m59s against 1m26s to 4m04s for the others, because those two
+        # directories hold nearly every test that spawns a subprocess (a fresh
+        # interpreter per module, a scratch git repository, a site build).
+        # Spread across 29k tests by one `-n auto` session they were diluted;
+        # alone on one runner they compete for the same cores. So keep those
+        # two apart and give each lighter company, and rebalance from the
+        # durations CI reports rather than from counts.
+        include:
+          - part: core
+            select: test/core
+          - part: arch
+            select: test/architecture test/bt test/fuzzer test/support test/wire
+          - part: meta
+            select: test/adapters test/metadata
+          # The catch-all. Its ignores are exactly the paths the parts above
+          # claim, so everything else in `test/` — including a directory added
+          # tomorrow and the test modules at the root of `test/` — runs here.
+          - part: rest
+            select: >-
+              test
+              --ignore=test/adapters
+              --ignore=test/architecture
+              --ignore=test/bt
+              --ignore=test/core
+              --ignore=test/fuzzer
+              --ignore=test/metadata
+              --ignore=test/support
+              --ignore=test/wire
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -119,10 +176,12 @@ jobs:
       - uses: ./.github/actions/debounce-main-push
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
-      - name: Run full pytest suite
+      - name: Run this part of the pytest suite
+        # -m "": unit and integration tiers both, so the parts together run
+        # every collected test (TB-11-002).
         # -n auto: one xdist worker per runner CPU, sized by test/conftest.py
         # from the cgroup limits (test/support/xdist_workers.py).
-        run: uv run pytest -m "" -n auto --tb=short
+        run: uv run pytest -m "" -n auto --tb=short ${{ matrix.select }}
 
   # ── Stage 1b: Linters (run in parallel with tests) ────────────────────────
 

@@ -415,6 +415,53 @@ groups:
       name and confirm zero matches; confirm `pyproject.toml` registers the new
       name; run `pytest -m "new_mark_name" --collect-only` and confirm non-zero
       test collection.
+  - id: TB-11-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The test job of `.github/workflows/python-app.yml` MUST run the suite as
+      parallel parts that together collect each test exactly once. Each named
+      part claims paths under `test/`, and one catch-all part selects `test`
+      while ignoring every claimed path.
+    rationale: >-
+      Parts that each list their own paths drop a new test directory in
+      silence: no part selects it, every part reports green, and nothing ran
+      it. A path two parts select runs twice and spends a part's runner time
+      on a result the run already has. Deriving the catch-all from the other
+      parts' claims turns both states into a disagreement between the claims
+      and the ignores, which a check reads off the workflow without running a
+      test.
+    verification: >-
+      `test/ci/test_python_app_test_parts.py` compares the catch-all part's
+      ignores with the union of the named parts' claims, refuses a path more
+      than one part claims, refuses a claim nested inside another, refuses a
+      claimed path that does not exist or holds no test module, and refuses a
+      catch-all that names directories instead of the whole tree. It compares
+      paths with any trailing slash stripped, which would otherwise hide both
+      kinds of overlap. It also pins the part count the merge gate derives
+      from the workflow to the matrix's length, so a gate expecting fewer
+      parts cannot read a subset of green ones as the whole suite.
+  - id: TB-11-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The build job and the reporting job of
+      `.github/workflows/python-app.yml` MUST wait for every test part, so one
+      red part fails the run.
+    rationale: >-
+      Parts of one matrix job are reached through a single `needs:` entry, and
+      the `needs.*.result` aggregate reads `failure` when any part fails, so
+      the failure notification still files on a push to `main`. A part moved
+      to its own job id is one a `needs:` list can omit, and its failure would
+      then neither fail the run nor reach that aggregate.
+    verification: >-
+      `test/ci/test_python_app_test_parts.py::test_the_downstream_jobs_wait_for_every_pytest_job`
+      asserts that the `build` and `notify` jobs each name every job in the
+      workflow that runs `pytest` in `needs:`, so a part promoted to its own
+      job id fails until both wait for it.
+    relationships:
+    - rel_type: refines
+      spec_id: CISEC-05-013
 - id: TB-10
   title: Architecture Boundary Tests
   specs:
