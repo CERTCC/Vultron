@@ -173,13 +173,9 @@ def demo_validate_and_engage(
                             activity.get("type"),
                         )
 
-        with demo_check(
-            "The reporter accepted the case introduction on the"
-            " trusted route (CBT-01-001)"
-        ):
-            verify_reporter_trusts_introduction(
-                client, reporter, vendor, report
-            )
+        # The helper is itself a demo_check, so it names and records its own
+        # failure — do not wrap it in another one.
+        verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
         "✅ TRIGGER DEMO 1 COMPLETE: Report validated and case engaged "
@@ -297,14 +293,9 @@ def demo_invalidate_and_close(
                         )
 
         # The case was created on receipt, so the vendor still introduces it
-        # to the reporter (CBT-01-001).
-        with demo_check(
-            "The reporter accepted the case introduction on the"
-            " trusted route (CBT-01-001)"
-        ):
-            verify_reporter_trusts_introduction(
-                client, reporter, vendor, report
-            )
+        # to the reporter (CBT-01-001).  The helper is itself a demo_check, so
+        # it names and records its own failure — do not wrap it in another one.
+        verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
         "✅ TRIGGER DEMO 2 COMPLETE: Report invalidated and its case "

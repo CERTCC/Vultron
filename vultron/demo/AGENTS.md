@@ -113,11 +113,11 @@ sub-issues were this one defect in different scenarios.
    `demo_check`/`demo_gate` out with `contextlib.nullcontext` makes the assertion
    propagate and the test pass while proving nothing — exactly how the missing
    gate before `engage-case` escaped notice.
-9. **Nest the step that reads a value inside the block that produces it**, each
-   nested statement in its own `demo_check`/`demo_step`. A `None`/`""` pre-init
-   before the block is allowed only when every later read is guarded: it trades
-   `UnboundLocalError` for a placeholder the next step posts, failing for the
-   wrong reason (#3038, `test_demo_step_no_unbound_ratchet.py`).
+9. **Nest the step that reads a value inside the block that produces it.** A
+   `None`/`""` pre-init is allowed only when every later read is guarded — the
+   one part a check enforces (#3038, `test_demo_step_no_unbound_ratchet.py`).
+   Name each nested statement with its own `demo_check`/`demo_step` *unless the
+   callee opens one*: an outer block around a self-checking helper never fails.
 
 Full reasoning: EDF-06, DEMOMA-22, ADR-0058, and
 [`event-driven-control-flow`](../../notes/event-driven-control-flow.md) § "Temporal

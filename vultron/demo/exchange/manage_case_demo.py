@@ -330,14 +330,9 @@ def demo_invalidate_path(
 
         # The case was created on receipt (auto_create_case), so the vendor
         # still introduces it to the reporter (CBT-01-001); it is never
-        # engaged.
-        with demo_check(
-            "The reporter accepted the case introduction on the"
-            " trusted route (CBT-01-001)"
-        ):
-            verify_reporter_trusts_introduction(
-                client, reporter, vendor, report
-            )
+        # engaged.  The helper is itself a demo_check, so it names and records
+        # its own failure — do not wrap it in another one.
+        verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
         "✅ DEMO 3 COMPLETE: Report invalidated and closed (no case engaged)."
