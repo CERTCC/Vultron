@@ -31,4 +31,11 @@ from vultron.core.models._helpers.clock import days_from_now_utc
 #: (embargo ``end_time``, ownership-transfer deadline, RSVP deadline …) but
 #: does not care about the specific value.  Five years gives a wide margin
 #: while still being a finite, reviewable epoch (CS-13-004).
-FAR_FUTURE = days_from_now_utc(365 * 5)
+#:
+#: The microseconds are truncated on purpose.  A test that asserts how this
+#: instant was *serialized* is asserting the fixed six-digit form, which pads
+#: a whole second to ``.000000`` where :meth:`datetime.isoformat` writes no
+#: fraction at all (CS-13-007).  A clock-read microsecond would make the two
+#: forms coincide, so such an assertion would stop telling them apart — and
+#: would break outright on the one read in a million that lands on zero.
+FAR_FUTURE = days_from_now_utc(365 * 5).replace(microsecond=0)

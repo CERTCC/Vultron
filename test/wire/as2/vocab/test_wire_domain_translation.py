@@ -168,10 +168,11 @@ def test_case_participant_round_trips_between_core_and_wire():
     assert wire_dump["embargoConsents"][0]["embargoId"] == (
         "https://example.org/embargoes/1"
     )
-    # The invitation's RSVP deadline travels on its INVITED row (CM-28-013).
-    assert (
-        wire_dump["embargoConsents"][1]["rsvpDeadline"]
-        == FAR_FUTURE.isoformat()
+    # The invitation's RSVP deadline travels on its INVITED row (CM-28-013),
+    # written in the fixed six-digit form rather than bare isoformat: a whole
+    # second is padded to ``.000000`` (CS-13-007).
+    assert wire_dump["embargoConsents"][1]["rsvpDeadline"] == (
+        FAR_FUTURE.isoformat(timespec="microseconds")
     )
     assert round_tripped.participant_statuses[0].rm.state == RM.ACCEPTED
 

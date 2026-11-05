@@ -24,7 +24,7 @@ are normalised to full URIs before use.
 
 import json
 import logging
-from datetime import UTC
+from datetime import timedelta
 from typing import Any, cast
 from unittest.mock import MagicMock
 
@@ -229,14 +229,16 @@ def _open_revision(dl: SqliteDataLayer, case_id: str) -> str:
     The prior embargo stays in force and every signatory to it remains one
     (EP-05-002).  Returns the revision's id.
     """
-    from datetime import datetime
-
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
     revision = as_EmbargoEvent(
         id_=f"{case_id}/embargo/e2",
         content="Revised embargo",
-        end_time=datetime(2031, 1, 1, tzinfo=UTC),
+        # Derived from the end `_activate_embargo` gives the embargo in force,
+        # so the revision asks for a longer window than the one it revises —
+        # the relation the harness has always set up, stated rather than
+        # left to two independent literals.
+        end_time=FAR_FUTURE + timedelta(days=365),
         context=case_id,
     )
     dl.create(revision)

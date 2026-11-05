@@ -125,7 +125,11 @@ class TestCaseParticipantEmbargoConsents(unittest.TestCase):
                     "attributedTo": self.actor_id,
                     "embargoId": self.embargo_id_2,
                     "state": "INVITED",
-                    "rsvpDeadline": self.rsvp_deadline.isoformat(),
+                    # The fixed six-digit form, not bare isoformat: a whole
+                    # second is padded to ``.000000`` (CS-13-007).
+                    "rsvpDeadline": self.rsvp_deadline.isoformat(
+                        timespec="microseconds"
+                    ),
                 },
             ],
             [
