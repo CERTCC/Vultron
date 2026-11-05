@@ -10,12 +10,11 @@ description: >
   `timeout-minutes` every job needs and the reusable-workflow exemption, why an
   automated find-or-file lookup must not go through the search index, why a
   `GITHUB_TOKEN`-raised event never triggers another workflow, why a script
-  must use the spellings macOS's bash 3.2 understands,
-  why a bot-filed
-  issue gets a theme but no Epic parent, why an artifact name needs the run
-  attempt, why a GitHub write is retried and a label swap is
-  split, how to read a red CI job correctly, and why a new pull-request step
-  must be mirrored locally or excluded with a reason.
+  must use the spellings macOS's bash 3.2 understands, why a bot-filed issue
+  gets a theme but no Epic parent, why an artifact name needs the run attempt,
+  why a GitHub write is retried and a label swap is split, how to read a red CI
+  job correctly, and why a new pull-request step must be mirrored locally or
+  excluded with a reason.
 related_notes:
   - notes/demo-ci-invariants.md
   - notes/demo-ci-scenario-coverage.md
