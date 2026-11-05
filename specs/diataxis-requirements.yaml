@@ -26,6 +26,9 @@ groups:
       page itself, while the navigation is free to group pages by subject and reader
       (ADR-0136). Keeping Diátaxis as a per-page property preserves its authoring
       discipline (DF-01-002 through DF-01-004) without making it the site's top level.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: DF-11-018
   - id: DF-01-002
     priority: MUST
     kind: process
@@ -344,7 +347,7 @@ groups:
       covers the pair.
     relationships:
     - rel_type: refines
-      spec_id: DF-01-003
+      spec_id: DF-04-001
   - id: DF-04-011
     priority: MAY
     kind: process
@@ -365,7 +368,7 @@ groups:
       to follow. It answers the tutorial's question, so it belongs in the tutorial's
       content type.
     relationships:
-    - rel_type: extends
+    - rel_type: supersedes
       spec_id: DF-04-009
   - id: DF-04-010
     priority: SHOULD
@@ -380,7 +383,7 @@ groups:
       (DF-09-012).
     relationships:
     - rel_type: refines
-      spec_id: DF-04-009
+      spec_id: DF-10-002
   - id: DF-04-013
     priority: SHOULD
     kind: process
@@ -392,7 +395,7 @@ groups:
       competence comes from, so the how-to sits above it and may link down to it
       (DF-11-002).
     relationships:
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: DF-11-002
 - id: DF-05
   title: Reference
@@ -873,6 +876,9 @@ groups:
       each declares both keys with permitted values. Project working-record pages
       declare `[project-contributor]` and are confirmed to declare no `level` per
       DF-11-033.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: DF-11-003
   - id: DF-11-027
     priority: MUST
     kind: process
@@ -962,6 +968,9 @@ groups:
     verification: >-
       The frontmatter validator confirms each working-record page declares
       `[project-contributor]`.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: DF-11-003
   - id: DF-11-033
     priority: MUST_NOT
     kind: process
@@ -982,6 +991,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DF-11-012
+    - rel_type: uses_definition
+      spec_id: DF-11-003
   - id: DF-11-004
     priority: MUST_NOT
     kind: process
@@ -1049,7 +1060,7 @@ groups:
       `TestSiteSync::test_committed_generated_pages_are_the_decided_set` pins the
       committed set of generated, routing, and rendered indexes.
     relationships:
-    - rel_type: uses_definition
+    - rel_type: supersedes
       spec_id: DF-11-005
   - id: DF-11-029
     priority: MUST
@@ -1073,7 +1084,7 @@ groups:
       routing faults, and `TestSiteSync::test_committed_routing_pages_link_every_member`
       runs the check over the committed tree.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: DF-11-028
   - id: DF-11-006
     priority: SHOULD
@@ -1131,7 +1142,7 @@ groups:
       reader who did not read its predecessor. A change that replaces such a block with
       an include of a fragment carrying it is not a removal.
     relationships:
-    - rel_type: extends
+    - rel_type: refines
       spec_id: DF-11-007
   - id: DF-11-008
     priority: MUST
@@ -1166,7 +1177,7 @@ groups:
       committed matrix differs from what page frontmatter implies. Per DF-09-009 the
       check fails rather than passes when it resolves no targets.
     relationships:
-    - rel_type: extends
+    - rel_type: verifies
       spec_id: DF-11-008
   - id: DF-11-031
     priority: MUST_NOT
@@ -1174,7 +1185,7 @@ groups:
     adr:
       - ADR-0102
     statement: >-
-      The coverage matrix check (DF-11-008) MUST NOT fail because a cell is empty.
+      The coverage matrix check (DF-11-046) MUST NOT fail because a cell is empty.
     rationale: >-
       The check gates currency, not fullness. Requiring fullness would harden into
       "every type at every level", which the divergence-above-100 shape contradicts. An
@@ -1185,7 +1196,7 @@ groups:
       or more cells are empty.
     relationships:
     - rel_type: extends
-      spec_id: DF-11-008
+      spec_id: DF-11-046
   - id: DF-11-009
     priority: MUST_NOT
     kind: process
@@ -1205,6 +1216,11 @@ groups:
     verification: >-
       Inspection of rendered output and of `mkdocs.yml` confirms no page presents its own
       stakeholder type or a label derived from it.
+    relationships:
+    - rel_type: constrains
+      spec_id: DF-11-015
+    - rel_type: constrains
+      spec_id: DF-11-032
   - id: DF-11-032
     priority: MUST
     kind: process
@@ -1220,9 +1236,6 @@ groups:
     verification: >-
       Inspection of rendered output confirms that each generated routing page's title
       states a reader situation.
-    relationships:
-    - rel_type: extends
-      spec_id: DF-11-009
   - id: DF-11-010
     priority: MUST_NOT
     kind: process
@@ -1386,6 +1399,11 @@ groups:
       Unit tests cover each failure — a missing page, a working-record page, a duplicate
       member, and an empty set of threads — and the check runs as a pre-commit hook and
       in CI.
+    relationships:
+    - rel_type: refines
+      spec_id: DF-09-009
+    - rel_type: uses_definition
+      spec_id: DF-11-001
   - id: DF-11-018
     priority: MUST
     kind: process
@@ -1409,6 +1427,9 @@ groups:
       `TestCheck::test_reader_facing_page_without_a_page_type_fails` covers the
       check; `test_committed_tree_passes` runs it over the committed tree, and
       `docs-frontmatter` runs as a pre-commit hook and in CI.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: DF-11-001
   - id: DF-11-036
     priority: MUST_NOT
     kind: process
@@ -1431,6 +1452,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DF-11-018
+    - rel_type: uses_definition
+      spec_id: DF-11-003
   - id: DF-11-025
     priority: MUST
     kind: process
@@ -1455,6 +1478,9 @@ groups:
       `TestCheck::test_reader_facing_page_without_a_subject_fails` covers the
       check; `test_committed_tree_passes` runs it over the committed tree, and
       `docs-frontmatter` runs as a pre-commit hook and in CI.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: DF-11-001
   - id: DF-11-026
     priority: MUST_NOT
     kind: process
@@ -1473,6 +1499,11 @@ groups:
       `TestFragments::test_fragment_declaring_a_subject_is_reported` cover the
       check; `test_committed_tree_passes` runs it over the committed tree, and
       `docs-frontmatter` runs as a pre-commit hook and in CI.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-025
+    - rel_type: uses_definition
+      spec_id: DF-11-003
   - id: DF-11-019
     priority: MUST
     kind: process
@@ -1494,6 +1525,9 @@ groups:
       With `test/metadata/docs/test_page_frontmatter.py::test_committed_tree_passes`
       (every reader-facing page declares a valid `page_type`), a page that rendered
       the wrong badge or none would fail one of these.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: DF-11-018
   - id: DF-11-037
     priority: MUST_NOT
     kind: process
@@ -1525,7 +1559,7 @@ groups:
       `test/metadata/docs/test_page_type_badge.py::test_no_page_writes_a_badge_by_hand`
       fails on any `docs/` Markdown file that writes the badge markup by hand.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: DF-11-019
   - id: DF-11-020
     priority: MUST_NOT
@@ -1569,6 +1603,9 @@ groups:
       `TestCommittedLookupPage::test_home_and_every_start_page_link_the_lookup_page`
       confirms the links on the committed tree.
     tracking_issue: '#5150'
+    relationships:
+    - rel_type: uses_definition
+      spec_id: DF-11-018
   - id: DF-11-039
     priority: MUST_NOT
     kind: process
@@ -1582,10 +1619,12 @@ groups:
       does not fit one thread.
     verification: >-
       Inspection of `docs/lookup.md` confirms its frontmatter declares no `thread:`.
+    tracking_issue: '#5150'
     relationships:
     - rel_type: extends
       spec_id: DF-11-021
-    tracking_issue: '#5150'
+    - rel_type: uses_definition
+      spec_id: DF-11-013
   - id: DF-11-040
     priority: MUST
     kind: process
@@ -1624,10 +1663,12 @@ groups:
       `test/metadata/docs/test_lookup_page.py::TestOmittedPages` covers an omitted page
       placed beside its directory's index and one that cannot be placed, which
       `uv run docs-site --check` reports as a fault.
+    tracking_issue: '#5150'
     relationships:
     - rel_type: refines
       spec_id: DF-11-021
-    tracking_issue: '#5150'
+    - rel_type: extends
+      spec_id: DF-11-040
   - id: DF-11-042
     priority: MUST
     kind: process
@@ -1713,7 +1754,7 @@ groups:
       - ADR-0150
     statement: >-
       The author of a page with a section member (DF-11-022) MUST place that member's
-      box at the end of the section (DF-11-045).
+      box at the end of the section (DF-11-050).
     rationale: >-
       A box at the end of a long page is out of reach for a reader who followed the
       thread to one section of it. The end of the section is where that reader
@@ -1753,6 +1794,9 @@ groups:
       mode, stale-fragment deletion and `exclude_docs`).
     lint_suppress:
     - phantom_path_ref
+    relationships:
+    - rel_type: uses_definition
+      spec_id: DF-11-015
   - id: DF-11-052
     priority: MUST
     kind: process
@@ -1849,6 +1893,10 @@ groups:
     relationships:
     - rel_type: verifies
       spec_id: DF-11-043
+    - rel_type: extends
+      spec_id: DF-11-045
+    - rel_type: uses_definition
+      spec_id: DF-11-022
   - id: DF-11-051
     priority: MUST
     kind: process
@@ -1892,9 +1940,9 @@ groups:
       threads (DF-09-009) and runs as a pre-commit hook and in CI; unit tests cover a
       violation, a linked use, and a glossary-link use.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: DF-11-013
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: DF-11-002
 - id: DF-12
   title: Protocol Specification normative text rendered from the requirement tiers
@@ -2007,8 +2055,10 @@ groups:
       `test/metadata/docs/test_requirement_catalog.py`,
       `test_catalog_tiers_link_the_catalog_row` covers the link the renderer prints.
     relationships:
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: DF-12-002
+    - rel_type: uses_definition
+      spec_id: DF-12-003
   - id: DF-12-011
     priority: MUST
     kind: process
@@ -2122,10 +2172,12 @@ groups:
     verification: >-
       `test/metadata/docs/test_rfc2119_keywords.py::test_empty_target_set_fails` fails
       the check when it resolves no fragments.
+    tracking_issue: '#4895'
     relationships:
     - rel_type: refines
       spec_id: DF-09-009
-    tracking_issue: '#4895'
+    - rel_type: extends
+      spec_id: DF-12-013
   - id: DF-12-005
     priority: MUST
     kind: process
@@ -2243,7 +2295,7 @@ groups:
       `TestNormativeSet::test_missing_declared_page_fails` fails
       `docs-normative-banner` when a declared page is missing.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: DF-12-017
   - id: DF-12-007
     priority: SHOULD

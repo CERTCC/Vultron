@@ -34,7 +34,7 @@ from typing import Any
 
 import pytest
 
-from test.adapters.driving.fastapi.test_openapi_trigger_snapshot import (
+from test.support.trigger_routes import (
     DEMO_PATH_FRAGMENT,
     TRIGGER_PATH_FRAGMENT,
     build_prototype_app,

@@ -1,26 +1,26 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Reject",
-  "id": "urn:uuid:075e41cc-704c-4715-a28f-a41f2e0b824b",
-  "name": "https://vultron.example/organizations/vendorco Reject urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454/log/2",
-  "context": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
+  "id": "urn:uuid:fbc07321-bab2-436c-a6a8-835721b664bf",
+  "name": "https://vultron.example/organizations/vendorco Reject urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/2",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "actor": "https://vultron.example/organizations/vendorco",
   "ledgerPosition": {
     "logIndex": 0,
-    "entryHash": "1f07662d2e9d998445d7ffa2a4888dda4c6bc2eaff417a370c5b6b5fb3cfd6c7"
+    "entryHash": "a1c020aef39b15d839e36dc5f5563000c56d6f4e4fdbb669a807fab20c0736dd"
   },
   "object": {
-    "id": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454/log/2",
+    "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/2",
     "type": "CaseLedgerEntry",
     "published": "2024-01-01T12:00:00.000000+00:00",
-    "updated": "2026-10-30T15:17:58.187759+00:00",
-    "caseId": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
+    "updated": "2026-06-01T19:12:00.000000+00:00",
+    "caseId": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "logIndex": 2,
     "logObjectId": "https://vultron.example/activities/00000000-0000-0000-0000-000000000003",
     "semanticType": "engage_case",
     "payloadSnapshot": {},
-    "prevLogHash": "3cf6d017e00065fcad9c7fb6c307cc6141b21b845beb8d50b750e48057544058",
-    "entryHash": "6b7cdefa909e0b47a226f857ae431793759f9861f4526a944c312f66fd0dcd1c",
+    "prevLogHash": "67bc0404dc325f47fc23af06c78abf9369264c0402873628dff816ca198875bb",
+    "entryHash": "7ccc3adbe7043d8a31cb0022f126812fabe1b4ead409c2710cf8f63e4ae76e9d",
     "receivedAt": "2024-01-01T12:00:00.000000+00:00",
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }

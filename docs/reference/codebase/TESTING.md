@@ -37,7 +37,6 @@ timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&
   Files named `test_*_planned.py` hold strict-`xfail` tests for requirements whose implementation issue is still open.
 - **Architecture tests**: `test/architecture/` — boundary-enforcement and ratchet tests (import-graph checks, write-site ratchets, naming/hygiene ratchets).
   Beyond the core/wire/demo import-boundary tests it includes, e.g., `test_no_bare_register_key_datalayer_nodes.py` (BTND-03-009), `test_no_dl_mutations_in_execute.py` (CLP-10-020), `test_receive_side_intake_first.py` and `test_receive_side_bt_commit_ordering.py` (ADR-0111), `test_trigger_registry_ratchets.py` and `test_trigger_port_single_method.py` (ADR-0110), `test_vocab_examples_dispatchable.py`, `test_role_authority_resolver.py`, `test_spec_coverage_ratchet.py`, `test_spec_kind_ratchet.py`, `test_codebase_docs_paths.py` (validates path references in these very docs), and `test_ratchet_hygiene.py`.
-- **API contract snapshot**: `test/adapters/driving/fastapi/openapi_trigger_snapshot.json`, checked by `test_openapi_trigger_snapshot.py`, freezes the trigger and demo OpenAPI contract (TRIG-12-003); regenerate it deliberately when a request or response model changes.
 - **Demo tests**: `test/demo/` holds the integration-tier demo and scenario tests (marked `integration` by `test/demo/conftest.py`); `test/demo_unit/` holds unit-tier tests of demo code (scenario registry, CLI factory, actor roles, polling helpers).
 - **Demo recordings**: `test/demo_recordings/` smoke-tests the in-process recorder behind `export-demo-recordings` (`vultron/demo/recordings/`).
 - **CI tests**: `test/ci/` checks workflow files (SHA pinning, path filters, failure notification, publication gates).
@@ -56,7 +55,7 @@ timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&
 | Integration | Yes | Full HTTP stack with FastAPI + SQLite; demo scenarios in-process | Marked `@pytest.mark.integration`; excluded from default `uv run pytest`, included in CI's `-m ""` run |
 | Architecture boundary | Yes | Import graph enforcement, write-site and ordering ratchets | `test/architecture/` using AST/import scanning |
 | Spec compliance | Yes | Any test with `@pytest.mark.spec("ID")` | Spec IDs validated against `SpecRegistry` at collection |
-| API contract | Yes | Trigger/demo OpenAPI document | Golden snapshot (TRIG-12-003) |
+| API contract | Yes | Trigger/demo route set and response keys | `test/adapters/driving/fastapi/test_trigger_registry_routes.py` and `test_trigger_routes_contract.py` (TRIG-12-007, TRIG-12-001, TRIG-12-002) |
 | E2E (demo CI) | Yes | Multi-actor demo via Docker Compose | `.github/workflows/demo-integration.yml`, matrix from `.github/demo-scenarios.json`; separate from the pytest suite |
 | Demo UI (`ui/`) | Lint and build only | ESLint and `tsc -b && vite build` | `.github/workflows/ui.yml`; `ui/package.json` declares no test script |
 | Docker config | Yes | Compose file validity + env-var wiring | `test/docker/test_compose_env_vars.py`, `test/docker/test_docker_compose_config.sh`, `test/demo/test_multi_actor_compose.py` |
@@ -105,7 +104,7 @@ timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&
 - `test/architecture/test_core_no_adapter_imports.py`
 - `test/architecture/test_wire_core_import_allowlist.py`
 - `test/architecture/test_no_bare_register_key_datalayer_nodes.py`
-- `test/adapters/driving/fastapi/test_openapi_trigger_snapshot.py`
+- `test/adapters/driving/fastapi/test_trigger_registry_routes.py`
 - `test/adapters/driven/test_delivery_backoff.py`
 - `test/ci/invariants/common.py` (and per-scenario `test/ci/invariants/test_*_invariants.py`)
 - `test/ci/invariants/universal_harness.py`

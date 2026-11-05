@@ -126,7 +126,6 @@ GUARD_TESTS = (
     "test/metadata/test_msm_occasions.py",
     "test/metadata/docs/test_page_frontmatter.py",
     "test/metadata/docs/test_level_order.py",
-    "test/adapters/driving/fastapi/test_openapi_trigger_snapshot.py",
 )
 
 _MARKDOWN_CONFIGS = (".markdownlint-cli2.yaml", ".markdownlint-cli2.jsonc")
