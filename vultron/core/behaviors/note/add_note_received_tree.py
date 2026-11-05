@@ -17,7 +17,8 @@
 
 The canonical notification mechanism for note additions is
 ``Announce(CaseLedgerEntry)`` fan-out from the guarded-commit step
-(SYNC-02-002), **not** a direct ``AddNoteToCase`` broadcast to participants.
+(SYNC-02-001, SYNC-02-003), **not** a direct ``AddNoteToCase`` broadcast to
+participants.
 Only the CaseActor may update the canonical case replica; non-CaseActor
 participants must not modify their local replica directly from
 ``Add(Note)[target=VulnerabilityCase]`` messages.
@@ -30,6 +31,9 @@ import py_trees
 
 from vultron.core.behaviors.case.nodes.carried_object_case import (
     CarriedObjectInTargetCaseNode,
+)
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -63,13 +67,15 @@ def create_add_note_to_case_received_tree(
     ``sync_port``) notifies all participants.  Non-CaseActors MUST NOT update
     their case replica directly from ``Add(Note)[target=VulnerabilityCase]`` messages — they
     receive the note attachment notification exclusively via
-    ``Announce(CaseLedgerEntry)`` fan-out (SYNC-02-002).
+    ``Announce(CaseLedgerEntry)`` fan-out (SYNC-02-001, SYNC-02-003).
 
     Structure (the four CLP-10-010 stages)::
 
         GuardedAttachAndCommitBT (Sequence)
         ├── IntakeReceivedActivityNode                 # intake
         ├── CaseOpenToExternalWrites                   # post-close boundary
+        ├── ActivityAddressedToReceiverNode            # addressee door
+        ├── ReceivedPathNode                           # manager or replica
         ├── SenderRuleGuard (Sequence)                 # sender guard
         ├── CaseManagerGate[ClockDecisionStage]        # embargo end-time check
         ├── PreconditionGuards
@@ -109,7 +115,10 @@ def create_add_note_to_case_received_tree(
     The factory composes the sender guard from *sender_rule* (HP-01-025):
     at the CASE_MANAGER the sender must be an active participant whose
     closure the case does not record (CM-23-018), and a replica takes the
-    attachment from the CASE_MANAGER alone (PCR-03-001).
+    attachment from the CASE_MANAGER alone (PCR-03-001).  Those are the two
+    non-empty sides of the rule, so they are the two paths the tree declares
+    (HP-01-038); the path stage then answers the role question once and the
+    guard's arms read its answer rather than asking again (HP-01-036).
 
     Args:
         note_obj: The note the ``Add`` carries inline.
@@ -123,6 +132,18 @@ def create_add_note_to_case_received_tree(
     """
     return create_receive_activity_tree(
         name="GuardedAttachAndCommitBT",
+        # An active participant asks the CASE_MANAGER to attach the note, and
+        # a replica takes the attachment from the CASE_MANAGER alone
+        # (PCR-03-001, PCR-08-001): the two non-empty sides of the sender
+        # rule, so the two declared paths (HP-01-038).  The replica path
+        # carries no effect of its own — RSH-08-003 keeps every write at the
+        # CASE_MANAGER, so the note reaches a replica as the entry's Announce
+        # fan-out (SYNC-02-001, SYNC-02-003) and a direct Add(Note) there is
+        # refused (HP-01-005).  It is declared all the same: the act is the
+        # CASE_MANAGER's to relay (PCR-03-001), and naming fewer paths than
+        # the type works on would refuse at the door a delivery the sender
+        # guard admits (HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(

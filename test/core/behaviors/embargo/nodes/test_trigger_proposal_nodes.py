@@ -154,3 +154,30 @@ def test_index_received_proposal_tolerates_a_case_not_held():
         )
     )
     assert status == py_trees.common.Status.SUCCESS
+
+
+@pytest.mark.spec("EP-08-003")
+def test_index_received_proposal_succeeds_without_indexing_a_decided_one():
+    """An Invite for a decided proposal is stored, its proposal not indexed."""
+    from test.support.embargo_register import activate
+    from vultron.core.behaviors.embargo.nodes import (
+        IndexReceivedEmbargoProposalNode,
+    )
+
+    dl, case_id = _store_with_case("index-recv-decided", EM.NONE)
+    embargo_id = f"{case_id}/embargo_events/decided"
+    case = dl.read_case(case_id)
+    assert case is not None
+    activate(case, embargo_id)
+    dl.save(case)
+    node = IndexReceivedEmbargoProposalNode(
+        case_id=case_id, embargo_id=embargo_id, invite_id="urn:late-invite"
+    )
+
+    status = _tick(node)
+
+    assert status == py_trees.common.Status.SUCCESS
+    assert "not indexed" in (node.feedback_message or "")
+    stored = dl.read_case(case_id)
+    assert stored is not None
+    assert stored.pending_embargo_proposal_index == {}

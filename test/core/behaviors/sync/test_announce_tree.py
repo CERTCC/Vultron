@@ -30,7 +30,14 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.addressee import (
     ActivityAddressedToReceiverNode,
 )
+from vultron.core.behaviors.case.nodes.path_branch import PathBranch
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+    ReceivedPathNode,
+)
 from vultron.core.behaviors.sync.announce_tree import (
+    AT_CASE_MANAGER,
+    OFF_CASE_MANAGER,
     create_announce_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes import (
@@ -185,20 +192,40 @@ def _make_event(
     return event
 
 
-def test_create_announce_log_entry_tree_is_intake_then_role_selector():
+def test_create_announce_log_entry_tree_is_intake_then_path_branches():
     tree = create_announce_log_entry_tree(
         sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
     )
     assert tree.name == "AnnounceLogEntryReceivedBT"
     # Intake first (CLP-10-017), the post-close guard (CM-23-013), the
-    # addressee door (HP-01-005), the sender guard the factory composes
-    # (HP-01-008, #4696), then the CASE_MANAGER / participant arms.
+    # addressee door (HP-01-005), the path door stage that asks the one role
+    # question (HP-01-035, ADR-0153), the sender guard the factory composes
+    # (HP-01-008, #4696), then the two declared branches.
     assert tree.children[0].name == "IntakeReceivedActivityNode"
     assert tree.children[1].name == "CaseOpenToExternalWrites"
     assert isinstance(tree.children[2], ActivityAddressedToReceiverNode)
-    assert tree.children[3].name == "SenderIsCaseManagerNode"
-    assert len(tree.children) == 5
-    assert len(tree.children[4].children) == 2
+    assert isinstance(tree.children[3], ReceivedPathNode)
+    assert tree.children[3].declared == frozenset(
+        {
+            ReceivedPath.CASE_MANAGER,
+            ReceivedPath.PARTICIPANT_REPLICA,
+            ReceivedPath.NO_CASE,
+        }
+    )
+    assert tree.children[4].name == "SenderIsCaseManagerNode"
+    assert [child.name for child in tree.children[5:]] == [
+        AT_CASE_MANAGER,
+        OFF_CASE_MANAGER,
+    ]
+    # Neither branch asks the role again: each reads the stage's answer
+    # (HP-01-036).
+    manager, off_manager = tree.children[5], tree.children[6]
+    assert isinstance(manager, PathBranch)
+    assert manager.paths == frozenset({ReceivedPath.CASE_MANAGER})
+    assert isinstance(off_manager, PathBranch)
+    assert off_manager.paths == frozenset(
+        {ReceivedPath.PARTICIPANT_REPLICA, ReceivedPath.NO_CASE}
+    )
 
 
 def _archived(datalayer, event) -> bool:

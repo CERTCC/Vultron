@@ -21,6 +21,7 @@ related_specs:
   - specs/protocol-asks.yaml
   - specs/received-status-handling.yaml
   - specs/idempotency.yaml
+  - specs/embargo-policy.yaml
 related_notes:
   - notes/case-ledger-authority.md
   - notes/case-actor-cluster.md
@@ -371,7 +372,8 @@ outside the ledger".
   outside the ledger stores a record or closes a pending assertion; the replica
   takes its effect from the ledger entry (RSH-08-003). Reason: a message that
   writes case state races the entry that writes it too. The ending notices to a
-  paused signatory are the exception, and diverge when reversed (#5201).
+  paused signatory are the exception: a `Remove` naming a revision the replica
+  has not applied activates it first, so either order ends the same (CM-31-042).
 - **A replica's answer must not turn on its related entry.** A relayed message can
   arrive before or after the entry it relates to, so a guard reading the state that
   entry changes answers twice differently. Read the state with the related entry set
@@ -381,9 +383,16 @@ outside the ledger".
   `SUPERSEDED` one breaks a register invariant, and the decision is already made.
 - **A replica-local index must end where the ledger puts it.**
   `pending_embargo_proposal_index` is written by relayed Invites, by ledger apply and
-  by case copies, so the last writer wins; a late Invite leaves a decided proposal
-  open (#5200). Write such an index idempotently and prune it against the register,
+  by case copies, so every writer filters through
+  `VulnerabilityCase.undecided_proposals` and none records a decided proposal
+  (EP-08-003). Write such an index idempotently and prune it against the register,
   whichever writer arrives last.
+- **A pruned index is no replay latch.** Once an entry leaves the index, it no longer
+  marks the Invite as handled, so a redelivered Invite needs a latch that outlives
+  the decision. The invitee's automatic answer has an id derived from (actor,
+  Invite), and `EmbargoInviteNotYetAnsweredNode` skips an Invite already answered
+  (ID-04-004). A deliberate answer keeps a fresh id, so a changed answer is not
+  dropped as a redelivery (CM-18-003, IE-10-001).
 - **One sender's back-to-back assertions are unordered.** The CASE_MANAGER cannot
   see send order, and both assertions carry the same `ledgerPosition`. Two that
   conflict are recorded in arrival order: an Accept and a Reject of one Invite

@@ -26,17 +26,32 @@ sites:
    that asks the question another way.  Terminal value: empty, driven there
    by the Epic's migration waves: #5042 for the embargo trees, #5043 for the
    case, participant, report and status trees, #5044 for the sync, ledger
-   and actor-offer trees and the role-gate registries, #5046 for the
-   `Offer(VulnerabilityReport)` trees.  The last two entries go with the
-   waves rather than with a wave of their own: ``role_gates.py`` goes when
-   the last tree stops building a gate for itself, and ``sender_guard``'s
-   fallback read is taken only when a tree passes no path stage, so it goes
-   when the last tree declares.  #5044's AC-3 is what holds the set at empty
-   afterwards.
+   and actor-offer trees and the role-gate registries, #5785 for the note and
+   dead-letter trees, #5046 for the `Offer(VulnerabilityReport)` trees.
+
+   The last entry is not waiting for a wave at all, and #5044 established
+   that: ``sender_guard``'s fallback read is taken only when a tree passes a
+   two-sided sender rule and no path stage, and after #5044 no call site in
+   ``vultron/`` does — 62 sites, of which 52 pass both and 10 pass no sender
+   rule.  The conditional declaration in
+   ``report/received_report_trees/verdicts.py`` passes ``paths=None`` exactly
+   when its ``case_id`` is ``None``, which is exactly when ``_compose``
+   returns before the side split.  Built live, no composed sender guard in
+   any of the 58 received trees holds a ``CheckIsCaseManagerNode``.  What
+   keeps the entry is the 22 guard-composition test functions that compose a
+   guard with no stage and let the fallback derive the receiver's role from
+   their store fixture; retiring it means reworking them, which is #5876.
+
+   ``role_gates.py`` was the other such entry, and #5044 cleared it a
+   different way: that module held two gates, and only the
+   participant-replica one was ADR-0153's to retire.  With it gone the
+   module's one remaining role read is the CASE_MANAGER gate the record
+   keeps, so the entry moved into
+   :data:`SANCTIONED_ROLE_QUESTION_SITES` rather than disappearing.
 2. **Pinned exemption set** :data:`SANCTIONED_ROLE_QUESTION_SITES`: the
-   factory's own stage builders, whose CASE_MANAGER gate ADR-0153 keeps
-   (BT-17-001 still holds for the manager path), and the trigger-side trees
-   ADR-0153 does not govern.
+   factory's own stage builders and the gate they build, whose CASE_MANAGER
+   gate ADR-0153 keeps (BT-17-001 still holds for the manager path), and the
+   trigger-side trees ADR-0153 does not govern.
 
 Both are held to equality in both directions (ARCH-18-001, ARCH-18-002): a
 new site fails, and so does a stale entry.
@@ -75,7 +90,9 @@ from vultron.core.behaviors.case.nodes.conditions import (
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPathNode
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
-    create_participant_replica_gated_tree,
+)
+from vultron.core.behaviors.embargo.trigger_tree._arms import (
+    _skip_at_case_manager,
 )
 
 #: The act, in the three shapes the code still writes it in.  Each label
@@ -86,10 +103,14 @@ INLINE = "inline manager-is-me comparison"
 
 #: Every pattern is read from the live object, so a rename moves the
 #: detector with the code instead of blinding it.
+#: Both shapes stay in the detector although only the CASE_MANAGER one has
+#: callers on the received side: the complement gate moved to the trigger
+#: side rather than vanishing, and a received tree that wrote either again
+#: must be reported (``notes/architecture-ratchet-corpus.md``).
 _GATE_NAMES = frozenset(
     {
         create_case_manager_gated_tree.__name__,
-        create_participant_replica_gated_tree.__name__,
+        _skip_at_case_manager.__name__,
     }
 )
 _CONDITION_NAME = CheckIsCaseManagerNode.__name__
@@ -119,30 +140,18 @@ _E = f"{_B}/embargo"
 #    Terminal value: empty.  Each wave of Epic #5193 moves a family of trees
 #    onto the declaration and drops its entries in the same commit.
 # ---------------------------------------------------------------------------
-# owner: #5193
+# owner: #5876
 KNOWN_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
     {
-        # The gate composites' own role read.  ADR-0153 turns both
-        # composites into declared path branches (HP-01-038), so this module
-        # goes when the last tree declares its paths.
-        (f"{_C}/nodes/role_gates.py", CONDITION),
-        # The sender guard's own role read, for a tree that has not declared
-        # its paths: with a declaration the arms read the path stage's
-        # answer instead (HP-01-036).
+        # The sender guard's own role read, taken when a two-sided rule is
+        # composed with no path stage: with a declaration the arms read the
+        # stage's answer instead (HP-01-036).  No call site in ``vultron/``
+        # reaches it after #5044 — the module docstring has the count — so
+        # the entry is held open by the guard-composition tests that compose
+        # without a stage, not by any unmigrated tree.  Retiring it means
+        # making a two-sided rule without a declaration a wiring error and
+        # reworking those tests: #5876, not a declaring wave.
         (f"{_B}/sender_guard/compose.py", CONDITION),
-        # Gate-wrapped precondition guards a received tree passes.  The
-        # embargo guards (``answer_record``, ``answer_repeat``,
-        # ``relay_guards``) went with #5042: a manager-only declaration runs
-        # its guards bare, and a guard that belongs to one path of a
-        # two-path declaration is an ``OnPaths`` branch the factory builds
-        # (HP-01-038).
-        (f"{_C}/nodes/suggest_actor/conditions.py", GATE),
-        # Received trees that gate work themselves instead of declaring the
-        # path it belongs to.  The embargo Invite and Remove trees moved
-        # theirs into ``OnPaths`` branches in #5042, so the two entries
-        # #5766's split renamed to ``announce_teardown_tree/invite.py`` and
-        # ``.../teardown.py`` are gone rather than repointed.
-        (f"{_B}/sync/announce_tree/factory.py", CONDITION),
     }
 )
 
@@ -155,14 +164,30 @@ KNOWN_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
 # scope)
 SANCTIONED_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
     {
+        # The CASE_MANAGER gate's own role read.  ADR-0153 keeps the gate for
+        # the manager path, and the factory is the only thing that places it
+        # round a received tree's effects, so the read inside it is the
+        # factory's (BT-17-001).  Its retired sibling, the
+        # participant-replica gate, left this module in #5044.
+        #
+        # This classification is at module granularity, so a *second* role
+        # read added to this module would be exempt here.  What still catches
+        # one: ``test_received_tree_case_manager_gate.py`` pins that only
+        # ``create_case_manager_gated_tree`` constructs a ``CaseManagerGate``,
+        # and the GATE shape below reports any new caller module.
+        (f"{_C}/nodes/role_gates.py", CONDITION),
         (f"{_C}/receive_stages/effects.py", GATE),
         (f"{_C}/receive_stages/guards.py", GATE),
         (f"{_C}/receive_stages/tree.py", GATE),
         (f"{_C}/nodes/clock_decision_stage.py", GATE),
         (f"{_B}/sync/ledger_position_stage.py", GATE),
         # The trigger tree's role fork: a trigger runs on the actor's own
-        # initiative, so no received path chooses it.
+        # initiative, so no received path chooses it.  Both shapes: it calls
+        # the CASE_MANAGER gate for one arm, and builds the complement arm's
+        # condition itself, because there is no path stage whose answer that
+        # arm could read (#5044).
         (f"{_E}/trigger_tree/_arms.py", GATE),
+        (f"{_E}/trigger_tree/_arms.py", CONDITION),
     }
 )
 

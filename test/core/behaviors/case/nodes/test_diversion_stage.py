@@ -61,7 +61,7 @@ from vultron.core.behaviors.case.receive_stages.tree import (
 )
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.replica_emit_exemptions import (
-    EMBARGO_INVITE_REFUSAL,
+    EMBARGO_INVITE_FAULT,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes.chain import CreateLogEntryNode
@@ -100,11 +100,11 @@ class _Probe:
     datalayer: CasePersistence
 
 
-class _SendEmbargoProposalRefusalNode(_Counted, EmitCapable):
-    """Named like the emit the refusal exemption covers."""
+class _EmitEmbargoInviteFaultNode(_Counted, EmitCapable):
+    """Named like the emit the surviving exemption covers."""
 
 
-_SendEmbargoProposalRefusalNode.__name__ = "SendEmbargoProposalRefusalNode"
+_EmitEmbargoInviteFaultNode.__name__ = "EmitEmbargoInviteFaultNode"
 
 
 class _Writer(_Counted, StateWriteCapable):
@@ -255,8 +255,8 @@ class TestFactoryChecks:
             Diversion(
                 name="D",
                 condition=_Counted("C"),
-                effects=(_SendEmbargoProposalRefusalNode("E"),),
-                emit_exemption=EMBARGO_INVITE_REFUSAL,
+                effects=(_EmitEmbargoInviteFaultNode("E"),),
+                emit_exemption=EMBARGO_INVITE_FAULT,
             )
         )
         assert [
@@ -271,7 +271,7 @@ class TestFactoryChecks:
                 Diversion(
                     name="D",
                     condition=_Counted("C"),
-                    emit_exemption=EMBARGO_INVITE_REFUSAL,
+                    emit_exemption=EMBARGO_INVITE_FAULT,
                 ),
                 paths={ReceivedPath.CASE_MANAGER},
             )

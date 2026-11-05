@@ -134,6 +134,9 @@ groups:
     - ADR-0107
     stories:
     - story_2026_057
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CLP-07-011
   - id: CLP-02-004
     priority: MUST
     kind: protocol
@@ -151,6 +154,9 @@ groups:
       `reason_detail` field.
     stories:
     - story_2026_071
+    relationships:
+    - rel_type: derives_from
+      spec_id: CLP-04-007
   - id: CLP-02-005
     priority: MUST
     kind: protocol
@@ -185,6 +191,15 @@ groups:
     - ADR-0141
     stories:
     - story_2026_040
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-23-013
+    - rel_type: uses_definition
+      spec_id: HP-01-005
+    - rel_type: uses_definition
+      spec_id: CM-23-018
+    - rel_type: uses_definition
+      spec_id: HP-01-006
   - id: CLP-02-006
     priority: MUST
     kind: protocol
@@ -199,6 +214,9 @@ groups:
       it is populated on every committed entry.
     stories:
     - story_2022_074
+    relationships:
+    - rel_type: uses_definition
+      spec_id: SYNC-01-002
   - id: CLP-02-008
     priority: MUST
     kind: protocol
@@ -273,9 +291,6 @@ groups:
       `test/architecture/test_ledger_verdict_wording.py` scans the specs, notes, docs
       and code for the ledger verdict worded as accepted or rejected, and fails on each
       use outside the glossary entry that declares the phrases.
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-05-002
     stories:
     - story_2026_071
   - id: CLP-02-016
@@ -300,7 +315,7 @@ groups:
       `test/core/use_cases/received/actor/test_role_offer_routing.py` confirm the
       admitted `Reject` commits an entry.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CLP-02-012
     - rel_type: refines
       spec_id: CLP-02-001
@@ -346,6 +361,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-02-001
+    - rel_type: uses_definition
+      spec_id: CLP-05-001
+    - rel_type: uses_definition
+      spec_id: CLP-07-011
     adr:
     - ADR-0152
     - ADR-0157
@@ -386,9 +405,6 @@ groups:
       `test_entry_serializes_semantic_type_under_semantic_type_key` in
       `test/core/models/test_case_ledger_entry_semantic_type.py` confirms that a
       `CaseLedgerEntry` serializes its semantic type under `semanticType`.
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-02-001
     adr:
     - ADR-0140
     stories:
@@ -617,13 +633,11 @@ groups:
       `test/core/test_sync_helpers.py` confirms the two helpers over a ledger of
       canonical entries only.
     relationships:
-    - rel_type: implements
-      spec_id: CLP-04-007
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: SYNC-03-006
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: SYNC-16-002
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: SYNC-16-006
 - id: CLP-05
   title: Refusal Handling
@@ -665,6 +679,9 @@ groups:
     - ADR-0141
     stories:
     - story_2026_040
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-02-005
   - id: CLP-05-004
     priority: MUST
     kind: protocol
@@ -673,7 +690,7 @@ groups:
       refused activity's id.
     rationale: >-
       A derived id lets a redelivery of the refused activity find the notice already
-      sent, so the participant gets one notice, not one per delivery (HP-01-003).
+      sent, so the participant gets one notice, not one per delivery (HP-01-014).
     verification: >-
       `test_a_precondition_refusal_queues_one_refusal_notice` in
       `test/core/use_cases/received/test_refusal_notice.py` asserts the notice's id is
@@ -699,7 +716,7 @@ groups:
       `test/core/use_cases/received/test_refusal_notice.py` asserts one notice is queued
       to the asserting participant on a precondition refusal.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: CLP-02-005
     adr:
     - ADR-0141
@@ -723,13 +740,15 @@ groups:
       `test_a_redelivery_queues_no_second_notice` in
       `test/core/use_cases/received/test_refusal_notice.py` assert that no notice is
       queued in each case.
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-05-005
     adr:
     - ADR-0141
     stories:
     - story_2026_040
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-02-005
+    - rel_type: uses_definition
+      spec_id: HP-01-006
   - id: CLP-05-007
     priority: MUST
     kind: protocol
@@ -744,7 +763,7 @@ groups:
       `test/core/use_cases/received/test_refusal_notice.py` asserts the pending
       assertion is closed.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CLP-05-001
     adr:
     - ADR-0141
@@ -765,7 +784,7 @@ groups:
       `test/core/use_cases/received/test_refusal_notice.py` asserts the participant
       writes no case state and queues nothing.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CLP-05-001
     adr:
     - ADR-0141
@@ -788,9 +807,6 @@ groups:
       `test_case_managers_reject_closes_the_pending_proposal` in
       `test/core/use_cases/received/test_pending_refusal.py` asserts the CASE_MANAGER's
       `Reject(Invite(EmbargoEvent))` closes the proposer's pending entry.
-    relationships:
-    - rel_type: extends
-      spec_id: CLP-05-001
     adr:
     - ADR-0141
     stories:
@@ -957,6 +973,9 @@ groups:
       proposer's pending entry.
     adr:
     - ADR-0018
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CLP-05-001
 - id: CLP-07
   title: Canonical Entry Criteria and Ledger/Process-Log Separation
   specs:
@@ -1019,6 +1038,11 @@ groups:
     - ADR-0157
     stories:
     - story_2026_072
+    relationships:
+    - rel_type: uses_definition
+      spec_id: VM-08-002
+    - rel_type: refines
+      spec_id: VM-08-003
   - id: CLP-07-012
     priority: MUST_NOT
     kind: protocol
@@ -1098,8 +1122,10 @@ groups:
       register step and that one entry per other changed record (each consent row
       as its own `Create` or `Update`) follows it.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CLP-07-002
+    - rel_type: uses_definition
+      spec_id: SYNC-16-005
     adr:
     - ADR-0124
     - ADR-0152
@@ -1153,9 +1179,6 @@ groups:
       field is a field of `VulnerabilityCase`, and
       `test/core/models/test_actor_recommendation_record.py` asserts the recommendation
       record is not part of the case and has no wire rendering.
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-04-006
     adr:
     - ADR-0124
     stories:
@@ -1176,8 +1199,10 @@ groups:
       from the ledger alone, with no case bookkeeping, and asserts it equals the
       CASE_MANAGER's.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CLP-07-014
+    - rel_type: refines
+      spec_id: CLP-04-006
     adr:
     - ADR-0124
     stories:
@@ -1216,7 +1241,7 @@ groups:
       FastAPI inbox is processed afresh, as is a failed role-Offer forward's; tests fail
       a Leave's closure step and assert no close_case entry is kept.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CLP-07-013
     adr:
     - ADR-0146
@@ -1281,7 +1306,7 @@ groups:
       `test/architecture/test_embargo_consequences_in_one_act.py` holds the registered
       exemptions to equality with a pinned set in both directions.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: CLP-07-016
     adr:
     - ADR-0146
@@ -1354,7 +1379,7 @@ groups:
       `test_slash_spelled_snapshot_actor_commits` there that it commits when the two
       differ only by a trailing slash.
     relationships:
-    - rel_type: extends
+    - rel_type: refines
       spec_id: CLP-07-003
     adr:
     - ADR-0088
@@ -1396,6 +1421,15 @@ groups:
       signature makes the guard refuse a valid assertion.
     adr:
     - ADR-0019
+    relationships:
+    - rel_type: implements
+      spec_id: CLP-07-001
+    - rel_type: implements
+      spec_id: CLP-07-004
+    - rel_type: implements
+      spec_id: CLP-07-002
+    - rel_type: implements
+      spec_id: CLP-07-003
   - id: CLP-07-006
     priority: MUST
     kind: protocol
@@ -1447,7 +1481,7 @@ groups:
       at the top level or nested, and a bare reference nested in the object are
       accepted, and a bare `object` is refused.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: CLP-07-006
     adr:
     - ADR-0107
@@ -1491,7 +1525,7 @@ groups:
       and each inlined nested object revalidate through their wire vocabulary class
       via `model_validate`, with no key renaming applied first.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: CLP-07-011
     adr:
     - ADR-0063
@@ -1513,9 +1547,9 @@ groups:
       `test/adapters/driven/trigger_activity_adapter/test_ledger_records.py` fails on a
       camelCase key written into a dict in core.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: CLP-07-009
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: ARCH-20-001
     adr:
     - ADR-0063
@@ -1531,12 +1565,12 @@ groups:
       for exactly one type, leaving every other nested type unhandled.
     verification: No module under `vultron/core/` assigns a camelCase key into a snapshot
       dict.
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-07-009
     adr:
     - ADR-0063
     - ADR-0082
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-20-001
 - id: CLP-08
   title: Per-Case Genesis Hash Derivation and Origin Binding
   specs:
@@ -1655,7 +1689,7 @@ groups:
       whose position is the genesis hash, or a hash that names no recorded entry,
       replays the ledger from its first entry.
     relationships:
-    - rel_type: extends
+    - rel_type: refines
       spec_id: CLP-08-005
     stories:
     - story_2026_047
@@ -1709,6 +1743,9 @@ groups:
     stories:
     - story_2026_023
     - story_2022_046
+    relationships:
+    - rel_type: refines
+      spec_id: BT-10-004
   - id: CLP-09-002
     priority: MUST_NOT
     kind: project
@@ -1742,6 +1779,11 @@ groups:
     stories:
     - story_2026_069
     - story_2022_074
+    relationships:
+    - rel_type: uses_definition
+      spec_id: BT-06-001
+    - rel_type: derives_from
+      spec_id: CLP-07-013
   - id: CLP-09-005
     priority: MUST
     kind: project
@@ -1780,7 +1822,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CLP-09-005
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: CLP-02-013
     stories:
     - story_2026_069
@@ -1943,7 +1985,7 @@ groups:
       include `announce_case_ledger_entry` as a required semantic type for the case-actor
       replica.
     relationships:
-    - rel_type: implements
+    - rel_type: derives_from
       spec_id: CLP-10-004
   - id: CLP-10-005
     priority: MUST
@@ -2032,6 +2074,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-10-005
+    - rel_type: uses_definition
+      spec_id: CLP-10-025
     adr:
     - ADR-0135
   - id: CLP-10-030
@@ -2054,7 +2098,7 @@ groups:
       `test_no_dl_mutations_in_execute.py` fails on a DataLayer write reached from
       `execute()` (CLP-10-020).
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CLP-10-005
     adr:
     - ADR-0021
@@ -2074,7 +2118,7 @@ groups:
       the single tree-factory function and that no procedural domain logic appears
       directly in `execute()`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CLP-10-005
   - id: CLP-10-008
     priority: MUST
@@ -2141,6 +2185,15 @@ groups:
     - ADR-0111
     - ADR-0022
     - ADR-0135
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CLP-10-017
+    - rel_type: uses_definition
+      spec_id: CLP-10-025
+    - rel_type: uses_definition
+      spec_id: SYNC-18-007
+    - rel_type: uses_definition
+      spec_id: CLP-10-022
   - id: CLP-10-010
     priority: MUST
     kind: project
@@ -2182,6 +2235,23 @@ groups:
     - ADR-0111
     - ADR-0135
     - ADR-0153
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-23-013
+    - rel_type: uses_definition
+      spec_id: HP-01-005
+    - rel_type: uses_definition
+      spec_id: HP-01-006
+    - rel_type: uses_definition
+      spec_id: SYNC-18-004
+    - rel_type: uses_definition
+      spec_id: SYNC-18-005
+    - rel_type: uses_definition
+      spec_id: SYNC-18-007
+    - rel_type: uses_definition
+      spec_id: CLP-10-022
+    - rel_type: uses_definition
+      spec_id: CLP-10-025
   - id: CLP-10-011
     priority: MUST
     kind: project
@@ -2217,6 +2287,9 @@ groups:
       records. The CASE_MANAGER then holds an entry for a change it did not apply, and
       the replicas apply that change. A refusal must come before the commit to keep the
       ledger and the case file the same.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CLP-10-022
   - id: CLP-10-012
     priority: MUST_NOT
     kind: project
@@ -2250,9 +2323,6 @@ groups:
       activity leaves no entry.
     adr:
     - ADR-0111
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-10-006
   - id: CLP-10-033
     priority: MUST
     kind: project
@@ -2293,7 +2363,7 @@ groups:
       `Announce(VulnerabilityCase)` and bootstrap `Create(VulnerabilityCase)` trees have
       no commit child.
     relationships:
-    - rel_type: extends
+    - rel_type: supersedes
       spec_id: CLP-10-013
     adr:
     - ADR-0111
@@ -2313,11 +2383,6 @@ groups:
     - A store that cannot name its own actor — a test double, or any implementation
       that reports no `actor_id` — is never foreign, and such callers commit exactly
       as they did before per-actor storage.
-    relationships:
-    - rel_type: refines
-      spec_id: BT-05-008
-    - rel_type: refines
-      spec_id: CLP-10-001
     tags:
     - persistence
     - protocol
@@ -2368,9 +2433,6 @@ groups:
       `test/core/use_cases/received/test_embargo_invite_lapse.py` confirm that the
       resolved invitee is taken from the activity's addressees and not from the
       receiving actor when the two differ.
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-10-005
     tags:
     - protocol
     adr:
@@ -2396,7 +2458,7 @@ groups:
       invitee is taken from the activity's addressees and not from the receiving actor when
       the two differ.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: CLP-10-015
     adr:
     - ADR-0022
@@ -2422,10 +2484,8 @@ groups:
       asserts it is refused with nothing written, rather than resolved to
       either recipient.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CLP-10-015
-    - rel_type: depends_on
-      spec_id: EP-09-010
     tags:
     - protocol
     adr:
@@ -2450,9 +2510,6 @@ groups:
     adr:
     - ADR-0111
     - ADR-0149
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-10-005
   - id: CLP-10-036
     priority: MUST
     kind: project
@@ -2476,6 +2533,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CLP-10-017
+    - rel_type: uses_definition
+      spec_id: VM-08-002
     adr:
     - ADR-0111
     - ADR-0149
@@ -2494,6 +2553,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CLP-10-036
+    - rel_type: refines
+      spec_id: ARCH-15-001
     adr:
     - ADR-0149
   - id: CLP-10-038
@@ -2533,9 +2594,6 @@ groups:
       activity is readable from the receiver's DataLayer afterward.
     adr:
     - ADR-0111
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-01-001
   - id: CLP-10-019
     priority: MUST_NOT
     kind: project
@@ -2553,9 +2611,6 @@ groups:
       `KNOWN_VIOLATIONS`.'
     adr:
     - ADR-0111
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-10-005
   - id: CLP-10-039
     priority: MUST_NOT
     kind: project
@@ -2598,8 +2653,8 @@ groups:
     adr:
     - ADR-0111
     relationships:
-    - rel_type: refines
-      spec_id: CLP-10-005
+    - rel_type: verifies
+      spec_id: CLP-10-030
   - id: CLP-10-040
     priority: MUST
     kind: process
@@ -2639,9 +2694,6 @@ groups:
       an `Offer(VulnerabilityReport)` to the receiver with a trailing slash and
       asserts the case is created; `test/core/predicates/test_addressing.py` pins the
       comparison.
-    relationships:
-    - rel_type: refines
-      spec_id: HP-09-001
     tags:
     - protocol
   - id: CLP-10-022
@@ -2670,14 +2722,14 @@ groups:
       (`TestRefusalNotice`); `test/architecture/test_received_tree_refusal_notice.py`
       asserts every received tree that commits and has a precondition guard holds one
       notice or a registered exemption.
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-10-006
-    - rel_type: refines
-      spec_id: CLP-10-010
     adr:
     - ADR-0111
     - ADR-0141
+    relationships:
+    - rel_type: implements
+      spec_id: CLP-05-005
+    - rel_type: uses_definition
+      spec_id: CLP-05-001
   - id: CLP-10-041
     priority: MUST
     kind: project
@@ -2845,6 +2897,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CLP-10-022
+    - rel_type: uses_definition
+      spec_id: RSH-06-004
     adr:
     - ADR-0111
     - ADR-0141
@@ -2869,10 +2923,10 @@ groups:
       received embargo tree that names a case passes the invitation-expiry decision to
       the factory as a clock decision.
     relationships:
-    - rel_type: refines
-      spec_id: CLP-10-010
-    - rel_type: refines
+    - rel_type: implements
       spec_id: CLP-07-013
+    - rel_type: constrains
+      spec_id: CM-28-015
     adr:
     - ADR-0135
   - id: CLP-10-049
@@ -2892,6 +2946,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CLP-10-025
+    - rel_type: refines
+      spec_id: CLP-10-010
     adr:
     - ADR-0135
   - id: CLP-10-050
@@ -2910,6 +2966,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CLP-10-025
+    - rel_type: refines
+      spec_id: BT-17-001
     adr:
     - ADR-0135
   - id: CLP-10-051
@@ -2936,6 +2994,10 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CLP-10-025
+    - rel_type: uses_definition
+      spec_id: EMB-13-003
+    - rel_type: uses_definition
+      spec_id: HP-01-007
     adr:
     - ADR-0135
   - id: CLP-10-052
@@ -2983,6 +3045,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CLP-10-025
+    - rel_type: derives_from
+      spec_id: EP-08-004
     adr:
     - ADR-0135
     - ADR-0122
@@ -3018,9 +3082,6 @@ groups:
       `test_note_from_a_participant_ends_an_overdue_embargo` in
       `test/core/use_cases/received/test_note_and_announce_sender_rules.py` asserts that
       a participant's note prompts the end-time decision for its case.
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-10-054
     adr:
     - ADR-0135
   - id: CLP-10-056
@@ -3037,8 +3098,8 @@ groups:
       `test/core/use_cases/received/actor/test_ownership_deadline.py` asserts the
       claimed `published` time does not change the verdict.
     relationships:
-    - rel_type: refines
-      spec_id: CLP-10-054
+    - rel_type: uses_definition
+      spec_id: CLP-15-003
     adr:
     - ADR-0135
   - id: CLP-10-057
@@ -3135,7 +3196,7 @@ groups:
       tree, which the one-tree rule forbids (ADR-0135). These answers are not refusal
       effects. The late-Accept answer commits and writes consent. The P/X/A `Reject` of
       the Invite is owed by a participant too, and its derived id lets a redelivery
-      find it already sent (HP-01-003). A diversion keeps each answer in the one tree,
+      find it already sent (HP-01-014). A diversion keeps each answer in the one tree,
       where tests and readers can see it.
     verification: >-
       The embargo Accept and Invite handler tests, such as
@@ -3248,6 +3309,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CLP-10-026
+    - rel_type: refines
+      spec_id: BT-17-001
     adr:
     - ADR-0135
   - id: CLP-10-066
@@ -3299,14 +3362,11 @@ groups:
     rationale: >-
       The answer embeds or names the activity it answers. Storing it lets the answer be
       built from what arrived, and its derived id lets a redelivery find the answer
-      already sent (HP-01-003).
+      already sent (HP-01-014).
     verification: >-
       `test_a_receiver_diversion_with_a_covering_exemption_builds` in
       `test/core/behaviors/case/nodes/test_diversion_stage.py` builds a receiver
       diversion that answers from the activity it holds.
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-10-067
     adr:
     - ADR-0135
   - id: CLP-10-069
@@ -3326,6 +3386,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CLP-10-026
+    - rel_type: uses_definition
+      spec_id: BT-17-008
     adr:
     - ADR-0135
   - id: CLP-10-070
@@ -3346,6 +3408,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CLP-10-026
+    - rel_type: uses_definition
+      spec_id: CLP-10-022
     adr:
     - ADR-0135
   - id: CLP-10-027
@@ -3402,8 +3466,10 @@ groups:
       assert the owner's trigger queues its own activity and nothing as the
       CASE_MANAGER.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: CLP-10-001
+    - rel_type: refines
+      spec_id: CM-24-011
     adr:
     - ADR-0109
 - id: CLP-11
@@ -3597,7 +3663,7 @@ groups:
       redelivery from looking like a fault. Any other side effect would make the
       duplicate change state, which the guard exists to stop.
     relationships:
-    - rel_type: implements
+    - rel_type: extends
       spec_id: CLP-13-001
 - id: CLP-14
   title: CaseLedger Causal Ordering — CASE_MANAGER Timestamp Invariants
@@ -3622,9 +3688,7 @@ groups:
     adr:
     - ADR-0079
     relationships:
-    - rel_type: refines
-      spec_id: CLP-01-003
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SYNC-01-002
     stories:
     - story_2026_028
@@ -3691,7 +3755,7 @@ groups:
     adr:
     - ADR-0079
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CLP-14-001
     stories:
     - story_2026_028
@@ -3724,7 +3788,7 @@ groups:
       `test/core/models/test_clp_14_15_invariants.py` asserts another case's entry
       moves only that case's ledger.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: CLP-14-004
     adr:
     - ADR-0079
@@ -3742,7 +3806,7 @@ groups:
     adr:
     - ADR-0079
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: SYNC-01-002
     stories:
     - story_2026_028
@@ -3790,6 +3854,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CLP-14-006
+    - rel_type: uses_definition
+      spec_id: CLP-14-009
     adr:
     - ADR-0079
     stories:
@@ -3809,9 +3875,6 @@ groups:
       well-formed messages from participants whose clocks are slightly ahead.
     adr:
     - ADR-0079
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-14-001
     stories:
     - story_2026_023
   - id: CLP-14-014
@@ -3846,9 +3909,6 @@ groups:
       assertion can be inserted into the canonical ledger.
     adr:
     - ADR-0079
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-14-001
     stories:
     - story_2026_023
   - id: CLP-14-015
@@ -3874,7 +3934,7 @@ groups:
     kind: project
     statement: Implementations MAY expose the future tolerance (CLP-14-007), the
       staleness window (CLP-14-008) and the clock-skew tolerance applied to the
-      claimed-timestamp checks (CLP-14-006, CLP-15-003) as configurable parameters
+      claimed-timestamp checks (CLP-14-013, CLP-15-003) as configurable parameters
       so that deployments with known clock conditions can tune the thresholds.
     rationale: >-
       Each threshold compares a participant's clock with the CASE_MANAGER's clock. How
@@ -3886,6 +3946,11 @@ groups:
       `VULTRON_LEDGER__*` override actually binds and changes the outcome.'
     adr:
     - ADR-0079
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CLP-14-007
+    - rel_type: uses_definition
+      spec_id: CLP-14-008
   - id: CLP-14-010
     priority: MUST
     kind: protocol
@@ -3988,7 +4053,7 @@ groups:
     adr:
     - ADR-0079
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CLP-15-001
     stories:
     - story_2026_029
@@ -4006,6 +4071,9 @@ groups:
     - ADR-0079
     stories:
     - story_2026_029
+    relationships:
+    - rel_type: extends
+      spec_id: CLP-15-006
   - id: CLP-15-006
     priority: MUST
     kind: protocol
@@ -4023,9 +4091,6 @@ groups:
       activity class inherits.
     adr:
     - ADR-0079
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-15-004
     stories:
     - story_2026_029
   - id: CLP-15-008
@@ -4071,11 +4136,11 @@ groups:
       authority model.
     adr:
     - ADR-0079
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-01-003
     stories:
     - story_2026_028
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-14-001
   - id: CLP-15-007
     priority: MUST
     kind: protocol
@@ -4098,9 +4163,6 @@ groups:
     - ADR-0103
     - ADR-0079
     - ADR-0032
-    relationships:
-    - rel_type: refines
-      spec_id: CLP-15-006
     stories:
     - story_2026_029
   - id: CLP-15-009
@@ -4152,7 +4214,5 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-15-009
-    - rel_type: refines
-      spec_id: CM-29-001
     stories:
     - story_2022_075

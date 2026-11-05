@@ -43,6 +43,8 @@ from vultron.core.states.embargo_register import (
 from vultron.errors import VultronNotFoundError
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from vultron.core.models.base import NonEmptyString
 
 
@@ -92,18 +94,26 @@ class EmbargoRegisterMixin:
             if isinstance(participant, CaseParticipant):
                 participant.write_uninvited_rows(embargo_ids)
         self.embargo_register = register
-        if not all(
-            self.proposal_is_undecided(i)
-            for i in self.pending_embargo_proposal_index
-        ):
-            self.pending_embargo_proposal_index = {
-                embargo_id: invite_id
-                for embargo_id, invite_id in (
-                    self.pending_embargo_proposal_index.items()
-                )
-                if self.proposal_is_undecided(embargo_id)
-            }
+        undecided = self.undecided_proposals(
+            self.pending_embargo_proposal_index
+        )
+        if undecided != self.pending_embargo_proposal_index:
+            self.pending_embargo_proposal_index = undecided
         self._stamp_em()
+
+    def undecided_proposals(self, index: Mapping[str, str]) -> dict[str, str]:
+        """The entries of *index* whose embargo is still undecided here.
+
+        The one filter every writer of ``pending_embargo_proposal_index``
+        applies, so the record never holds a decided proposal whichever
+        order a register step, a relayed Invite or a case copy arrives in
+        (EP-08-003, SYNC-19-001).
+        """
+        return {
+            embargo_id: invite_id
+            for embargo_id, invite_id in index.items()
+            if self.proposal_is_undecided(embargo_id)
+        }
 
     def proposal_is_undecided(self, embargo_id: str) -> bool:
         """Whether *embargo_id* may still be answered as a proposal.

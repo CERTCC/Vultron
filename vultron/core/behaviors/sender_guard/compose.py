@@ -54,8 +54,17 @@ _ANY_OF = "AnyOfSenderKinds"
 _COMPOSED_GUARD_MARK = "_vultron_composed_sender_guard"
 
 
-def _is_composed_guard(node: py_trees.behaviour.Behaviour) -> bool:
-    """*node* is the guard :func:`compose_sender_guard` returned."""
+def is_composed_sender_guard(node: py_trees.behaviour.Behaviour) -> bool:
+    """*node* is the guard :func:`compose_sender_guard` returned.
+
+    Read from the mark the factory set, so the guard is known by its origin
+    and not by its name, its type, or the checks inside it.  That is what
+    the levels ratchet asks of a door: a composed guard reads the level of
+    every refusal inside it from its own placement (SL-03-002), whether or
+    not any check in it happens to be a
+    :class:`~vultron.core.behaviors.sender_entitlement.SenderEntitlementConditionNode`
+    (#5786).
+    """
     return getattr(node, _COMPOSED_GUARD_MARK, False) is True
 
 
@@ -71,7 +80,7 @@ def sender_guard_refused(root: py_trees.behaviour.Behaviour) -> bool:
     """
     for child in root.children:
         if child.status is Status.FAILURE:
-            return _is_composed_guard(child)
+            return is_composed_sender_guard(child)
     return False
 
 
@@ -134,7 +143,11 @@ def compose_sender_guard(
             then selected from the path that stage resolved, so the role
             question is asked once, ahead of this guard (HP-01-036).
             Without it the arms read the role themselves, as every tree did
-            before the path stage.  The ``outside_case`` side is still
+            before the path stage.  No received tree reaches that fallback
+            any more — every call site that passes a sender rule declares
+            its paths — so it survives for the tests that compose a guard in
+            isolation, and goes with them in #5876.  The ``outside_case``
+            side is still
             selected by the context naming no case, not by the no-case path
             HP-01-036 would map it onto: that side is chosen at
             composition time, and a tree whose context names a case the
@@ -170,6 +183,11 @@ def _at_case_manager(
     :class:`~vultron.core.behaviors.case.nodes.conditions.CheckIsCaseManagerNode`
     otherwise.  One helper, so both arms of the rule guard agree on which it
     is.
+
+    The second branch is the last entry in
+    ``test/architecture/test_received_path_role_question.py``'s
+    ``KNOWN_ROLE_QUESTION_SITES``.  No received tree reaches it; it is held
+    open by the guard-composition tests, and #5876 retires both together.
     """
     if path_stage is not None:
         return CheckReceivedPathNode.on_manager_path(path_stage)

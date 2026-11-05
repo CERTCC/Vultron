@@ -36,7 +36,7 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
     _actor_class_for_record,
     _find_actor_record,
 )
-from vultron.adapters.utils import strip_id_prefix
+from vultron.adapters.utils import full_object_id, strip_id_prefix
 from vultron.core.models.actor import (
     endpoint_uri,
     hosted_endpoints,
@@ -119,7 +119,7 @@ def get_action_rules(
     """Return valid CVD actions for an actor in a specific case."""
     try:
         canonical = actor_hosts.canonical_actor_uri(actor_id)
-        actor_obj = dl.read(canonical) or dl.read(actor_id)
+        actor_obj = dl.read(canonical) or dl.read(full_object_id(actor_id))
         case_obj = dl.read(case_id)
         if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
             case_obj = dl.find_case_by_short_id(case_id)

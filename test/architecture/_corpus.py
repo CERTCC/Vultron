@@ -24,7 +24,7 @@ import gc
 import inspect
 import os
 import re
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 #: Repository root (two levels above ``test/architecture/``).
@@ -146,6 +146,22 @@ def _get_tree(path: Path) -> ast.AST | None:
 def paths_under(under: Path) -> Iterator[Path]:
     """Cached ``.py`` paths at or below *under*, in sorted order, unparsed."""
     return _paths_under(under)
+
+
+def in_repo(paths: Iterable[Path]) -> tuple[Path, ...]:
+    """Return *paths*, asserting each lies under :data:`REPO_ROOT`.
+
+    For paths found through the import system, such as a scenario's
+    ``source_files``: an interpreter importing ``vultron`` from another
+    checkout would otherwise hand a ratchet files the corpus never cached.
+    """
+    found = tuple(paths)
+    outside = [path for path in found if not path.is_relative_to(REPO_ROOT)]
+    assert not outside, (
+        f"{outside[:3]} lie outside {REPO_ROOT}: vultron is imported from "
+        "another checkout; run the suite with PYTHONPATH= uv run pytest"
+    )
+    return found
 
 
 def tree_of(path: Path) -> ast.AST:

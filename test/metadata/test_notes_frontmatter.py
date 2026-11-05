@@ -81,8 +81,14 @@ class TestNotesFrontmatterSchema:
             )
 
     def test_empty_list_fields_rejected(self):
+        """Each rejection names its own field, not "list field".
+
+        Asserted on the message pydantic built rather than on the whole
+        ``ValidationError`` string, which already carries the field's
+        location on its own line and so would match either wording.
+        """
         for field in ("related_specs", "related_notes", "relevant_packages"):
-            with pytest.raises(ValidationError, match="non-empty"):
+            with pytest.raises(ValidationError) as raised:
                 NotesFrontmatter.model_validate(
                     {
                         "title": "A Note",
@@ -91,6 +97,9 @@ class TestNotesFrontmatterSchema:
                         field: [],
                     }
                 )
+            assert [error["msg"] for error in raised.value.errors()] == [
+                f"Value error, {field} must be non-empty if present"
+            ]
 
     @pytest.mark.spec("NF-01-012")
     def test_empty_superseded_by_rejected(self):
@@ -195,8 +204,19 @@ class TestNoteKind:
             NotesFrontmatter.model_validate(_note(kind=kind, tracks=None))
 
     def test_empty_tracks_rejected(self):
-        with pytest.raises(ValidationError, match="non-empty"):
+        """The rejection names ``tracks``, not "list field".
+
+        ``tracks`` is the one changed field the sibling
+        ``test_empty_list_fields_rejected`` cannot cover, because it needs
+        ``kind: plan`` rather than that test's ``guidance`` note.  Asserted
+        on the message pydantic built: ``match="non-empty"`` appears in both
+        wordings, so it pinned neither.
+        """
+        with pytest.raises(ValidationError) as raised:
             NotesFrontmatter.model_validate(_note(kind="plan", tracks=[]))
+        assert [error["msg"] for error in raised.value.errors()] == [
+            "Value error, tracks must be non-empty if present"
+        ]
 
     @pytest.mark.parametrize("ref", ["1156", "#0", "#12a", "GH-12", ""])
     def test_malformed_issue_ref_rejected(self, ref):

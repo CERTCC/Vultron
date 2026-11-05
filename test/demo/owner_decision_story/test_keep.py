@@ -23,6 +23,7 @@ from unittest.mock import patch
 import pytest
 
 from test.demo._helpers import (
+    gate_failures,
     patch_chain_shared,
 )
 from test.demo.owner_decision_story._support import (
@@ -31,7 +32,6 @@ from test.demo.owner_decision_story._support import (
     NEWCOMER,
     OWNER,
     SEATED,
-    gate_failures,
     neutral_state,
     no_banners,
 )
@@ -395,7 +395,6 @@ class TestTheOwnerApprovesASuggestedActor:
         )
 
         ran["approve"].assert_not_called()
-        assert any(
-            "GATE FAILED" in f and "no CaseActor participant" in f
-            for f in _demo_failures
-        ), _demo_failures
+        assert any("no CaseActor participant" in f for f in gate_failures()), (
+            _demo_failures
+        )

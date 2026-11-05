@@ -228,7 +228,7 @@ groups:
       claims an earlier `published`, and asserts that the envelope `published` is the
       commit clock.
     relationships:
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: CM-02-002
     - rel_type: uses_definition
       spec_id: CLP-14-002
@@ -268,9 +268,6 @@ groups:
     rationale: >-
       A deployment may enact both roles in one actor. An actor holding both roles
       still routes case traffic through its CASE_MANAGER role (CBT-01-014).
-    relationships:
-    - rel_type: depends_on
-      spec_id: CM-02-001
   - id: CM-02-019
     priority: MUST
     kind: project
@@ -288,7 +285,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-02-010
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: CM-01-001
   - id: CM-02-011
     priority: MUST
@@ -336,7 +333,7 @@ groups:
       entry even before any `Service` object carries `context`. Address-resolution window:
       `test/core/behaviors/sync/nodes/test_replay.py::TestFindCaseActorNode::test_resolves_without_any_service_object_carrying_context`.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-02-011
     adr:
     - ADR-0088
@@ -383,7 +380,7 @@ groups:
       `SvcCreateCaseUseCase` executes. The `Accept(CaseProposal)` path is covered by existing
       tests in `test/core/behaviors/case/test_case_proposal_received_tree.py`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-02-001
   - id: CM-02-015
     priority: MUST
@@ -429,9 +426,6 @@ groups:
       the role on its own copy when it commits the accept.
     adr:
     - ADR-0039
-    relationships:
-    - rel_type: refines
-      spec_id: CM-02-015
   - id: CM-02-020
     priority: MUST
     kind: project
@@ -455,6 +449,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-02-016
+    - rel_type: refines
+      spec_id: RSH-08-004
   - id: CM-02-021
     priority: MUST_NOT
     kind: project
@@ -490,13 +486,6 @@ groups:
       stay explicit and do not hide in one combined state.
     verification: Integration tests in `test/demo/` confirm that RM, EM, and CS state machines
       are each instantiated and advance independently.
-    relationships:
-    - rel_type: implements
-      spec_id: VP-01-001
-    - rel_type: implements
-      spec_id: VP-13-001
-    - rel_type: implements
-      spec_id: VP-06-001
     stories:
     - story_2022_107
   - id: CM-03-002
@@ -511,11 +500,6 @@ groups:
     verification: Inspection of `vultron/core/` confirms that RM state is stored on
       `ParticipantStatus.rm`, a per-participant field, not on a shared case-level
       structure.
-    relationships:
-    - rel_type: implements
-      spec_id: VP-01-002
-    - rel_type: implements
-      spec_id: VP-03-001
     stories:
     - story_2026_031
     - story_2022_075
@@ -535,10 +519,6 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VP-04-002
-    - rel_type: implements
-      spec_id: VP-13-009
-    - rel_type: implements
-      spec_id: VP-09-001
     stories:
     - story_2026_031
     - story_2022_023
@@ -555,8 +535,8 @@ groups:
     verification: Inspection of `vultron/core/` confirms that the consent rows (`embargo_consents`) are a
       per-participant field on `CaseParticipant`.
     relationships:
-    - rel_type: implements
-      spec_id: VP-04-002
+    - rel_type: uses_definition
+      spec_id: CM-18-001
     stories:
     - story_2022_023
     - story_2022_027
@@ -608,9 +588,6 @@ groups:
       a new forward transition
     verification: Static analysis (grep) confirms that no RM-reverse transition handler
       introduces an activity type outside the established protocol symbol set.
-    relationships:
-    - rel_type: implements
-      spec_id: VP-02-004
     stories:
     - story_2026_011
 - id: CM-04
@@ -634,11 +611,7 @@ groups:
     - rel_type: refines
       spec_id: SM-10-001
     - rel_type: implements
-      spec_id: VP-02-003
-    - rel_type: implements
-      spec_id: VP-03-001
-    - rel_type: implements
-      spec_id: VP-13-005
+      spec_id: VP-01-002
     stories:
     - story_2022_107
   - id: CM-04-002
@@ -680,15 +653,6 @@ groups:
     adr:
     - ADR-0108
     - ADR-0122
-    relationships:
-    - rel_type: implements
-      spec_id: VP-06-001
-    - rel_type: implements
-      spec_id: VP-09-001
-    - rel_type: implements
-      spec_id: VP-11-002
-    - rel_type: depends_on
-      spec_id: CM-03-008
     stories:
     - story_2026_087
     - story_2022_023
@@ -712,12 +676,8 @@ groups:
     adr:
     - ADR-0108
     relationships:
-    - rel_type: implements
-      spec_id: VP-03-002
-    - rel_type: implements
-      spec_id: VP-06-001
-    - rel_type: implements
-      spec_id: VP-14-004
+    - rel_type: refines
+      spec_id: SM-10-002
     stories:
     - story_2022_018
     - story_2022_019
@@ -751,10 +711,8 @@ groups:
       through CM-03-005). If an RM or VFD transition of one participant wrote across
       this boundary, it could change the shared embargo or public state.
     relationships:
-    - rel_type: implements
+    - rel_type: satisfies
       spec_id: VP-13-009
-    - rel_type: depends_on
-      spec_id: CM-03-008
     stories:
     - story_2026_031
   - id: CM-04-010
@@ -774,8 +732,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-04-006
-    - rel_type: depends_on
-      spec_id: CM-03-008
     stories:
     - story_2026_031
   - id: CM-04-007
@@ -863,7 +819,7 @@ groups:
       of each of the six types is refused with a validation error when parsed as any of
       the others.
     relationships:
-    - rel_type: extends
+    - rel_type: refines
       spec_id: CM-05-001
     stories:
     - story_2026_032
@@ -903,6 +859,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CM-05-015
+    - rel_type: uses_definition
+      spec_id: CM-05-013
   - id: CM-05-002
     priority: MUST_NOT
     kind: protocol
@@ -915,9 +873,6 @@ groups:
       no report has nothing to coordinate and gives participants nothing to act on.
       Also, a participant that joins later reads the report to learn what the case is
       about.
-    relationships:
-    - rel_type: implements
-      spec_id: VP-02-015
     stories:
     - story_2022_102
   - id: CM-05-003
@@ -944,7 +899,7 @@ groups:
       only what the case carries (MS-12-010). A log line is not something another
       participant can observe.
     relationships:
-    - rel_type: implements
+    - rel_type: verifies
       spec_id: CM-05-003
   - id: CM-05-004
     priority: MAY
@@ -987,9 +942,6 @@ groups:
     rationale: >-
       Several finders can report the same flaw. Then one case can coordinate the
       response to the related reports, and the same work does not divide across cases.
-    relationships:
-    - rel_type: extends
-      spec_id: CM-05-006
     stories:
     - story_2022_104
   - id: CM-05-007
@@ -1082,8 +1034,8 @@ groups:
       spec_id: VP-02-019
     - rel_type: implements
       spec_id: VP-03-012
-    - rel_type: implements
-      spec_id: VP-08-001
+    - rel_type: uses_definition
+      spec_id: CM-10-004
     adr:
     - ADR-0114
     stories:
@@ -1103,7 +1055,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that a state update message from a
       non-CASE_MANAGER participant is not treated as authoritative case state.
     relationships:
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: CM-02-002
     stories:
     - story_2026_030
@@ -1156,10 +1108,8 @@ groups:
       CASE_MANAGER to broadcast the note to every active participant except the note
       author.
     relationships:
-    - rel_type: depends_on
-      spec_id: OX-03-001
-    - rel_type: depends_on
-      spec_id: CM-02-001
+    - rel_type: uses_definition
+      spec_id: CM-10-004
     adr:
     - ADR-0114
     stories:
@@ -1181,8 +1131,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: AR-07-001
-    - rel_type: refines
-      spec_id: AR-07-002
     stories:
     - story_2022_031
     - story_2026_044
@@ -1242,6 +1190,9 @@ groups:
       The two branches stay distinct type hierarchies, so neither branch imports the
       other. The rendering port gives core a wire form without core code building it
       (`notes/wire-core-boundary.md`).
+    relationships:
+    - rel_type: refines
+      spec_id: CM-08-001
     adr:
     - ADR-0082
   - id: CM-08-003
@@ -1258,8 +1209,8 @@ groups:
       layer permitted to see both. A translation method on a wire class would make the
       wire branch import the core branch.
     relationships:
-    - rel_type: extends
-      spec_id: CM-08-002
+    - rel_type: refines
+      spec_id: CM-08-001
     adr:
     - ADR-0082
 - id: CM-09
@@ -1321,6 +1272,9 @@ groups:
       invitations work from start to end without the redacted view. The cost is that the
       invitee sees the full case ID. CM-09-002 forbids this only for a
       `RedactedVulnerabilityCase`.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-11-013
     adr:
     - ADR-0114
 - id: CM-10
@@ -1349,8 +1303,10 @@ groups:
       `CaseParticipant` carries `embargo_consents` rows and declares no scalar consent field and no
       `accepted_embargo_ids` or `invite_rsvp_deadline`.
     relationships:
-    - rel_type: implements
-      spec_id: VP-05-001
+    - rel_type: uses_definition
+      spec_id: CM-18-001
+    - rel_type: refines
+      spec_id: CM-03-008
     adr:
     - ADR-0093
     - ADR-0122
@@ -1367,9 +1323,7 @@ groups:
       timestamp is stored on embargo acceptance records, not the participant's claimed
       timestamp.
     relationships:
-    - rel_type: depends_on
-      spec_id: CM-02-002
-    - rel_type: implements
+    - rel_type: refines
       spec_id: CM-02-009
     stories:
     - story_2022_074
@@ -1400,6 +1354,13 @@ groups:
       case content, and that an active participant does, including one seated by
       case initialization that was never sent a stub. A test confirms a removed
       participant receives no case content whatever its embargo consent.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-14-001
+    - rel_type: uses_definition
+      spec_id: CM-18-001
+    - rel_type: uses_definition
+      spec_id: CM-31-001
     adr:
     - ADR-0114
     - ADR-0116
@@ -1432,6 +1393,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-10-004
+    - rel_type: uses_definition
+      spec_id: SYNC-03-002
     stories:
     - story_2022_023
     - story_2022_025
@@ -1481,10 +1444,10 @@ groups:
       while it was outside the gate, in log order and ahead of any later entry, and that none of those
       entries is re-sent to a participant that already had it.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: CM-10-005
-    - rel_type: depends_on
-      spec_id: SYNC-04-001
+    - rel_type: uses_definition
+      spec_id: CM-10-004
     stories:
     - story_2022_023
     - story_2022_025
@@ -1505,6 +1468,9 @@ groups:
     verification: >-
       An architecture test asserts every case-content send selects recipients
       through the shared active-participant selection.
+    relationships:
+    - rel_type: implements
+      spec_id: CM-10-004
     adr:
     - ADR-0114
     - ADR-0116
@@ -1557,11 +1523,6 @@ groups:
       leaves the participant at `RM.RECEIVED`, sets VF `V` for a vendor, and
       marks its consent row for the active embargo `AGREED` when an embargo is active,
       and that it leaves a `DECLINED` row for that embargo unchanged.
-    relationships:
-    - rel_type: implements
-      spec_id: VP-03-012
-    - rel_type: depends_on
-      spec_id: CM-03-001
     adr:
     - ADR-0114
     stories:
@@ -1581,10 +1542,10 @@ groups:
       records the RM decision of the participant itself, not a decision that the
       CASE_MANAGER infers from silence.
     relationships:
-    - rel_type: depends_on
-      spec_id: OX-02-001
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-11-001
+    - rel_type: uses_definition
+      spec_id: CM-11-010
     adr:
     - ADR-0121
     stories:
@@ -1623,7 +1584,7 @@ groups:
       participant at `RM.ACCEPTED` until it receives `Join(VulnerabilityCase)`
       from it.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-11-001
     stories:
     - story_2022_054
@@ -1664,6 +1625,9 @@ groups:
     verification: >-
       `test/core/use_cases/triggers/test_case_joining_trigger.py::test_stub_invite_creates_inert_invitee_participant`
       finds the invitee's record created when the Invite is sent.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-10-004
     adr:
     - ADR-0114
     stories:
@@ -1832,7 +1796,7 @@ groups:
       `test/wire/as2/test_case_joining_wire.py` finds that a `TentativeReject` of a
       stub Invite matches no semantic, so the receiver refuses it at the edge.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: CM-11-007
     adr:
     - ADR-0114
@@ -1855,6 +1819,9 @@ groups:
       a real gap is recovered by `Reject(CaseLedgerEntry)` and replay.
     verification: A test confirms that processing the Accept queues
       `Announce(VulnerabilityCase)` and the ledger replay to the participant.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-10-004
     adr:
     - ADR-0114
     stories:
@@ -1931,6 +1898,9 @@ groups:
       `test_stub_accept_sends_announce_then_replay_then_full_case_invite` in
       `test/core/use_cases/received/actor/test_full_case_invite.py` confirms the
       full-case Invite is queued after the last replayed ledger entry.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-11-008
     adr:
     - ADR-0121
     stories:
@@ -1977,7 +1947,7 @@ groups:
       full-case Invite from the CASE_MANAGER is accepted and one from any other
       actor is refused.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: PCR-03-004
     adr:
     - ADR-0121
@@ -2068,6 +2038,9 @@ groups:
       `test/core/use_cases/received/actor/test_case_joining_replies.py` confirm a
       reply behind the floor, or naming an entry the ledger does not hold, is
       refused.
+    relationships:
+    - rel_type: supersedes
+      spec_id: SYNC-18-004
     adr:
     - ADR-0121
     stories:
@@ -2263,6 +2236,8 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: CM-10-004
+    - rel_type: uses_definition
+      spec_id: CM-14-001
     adr:
     - ADR-0114
     stories:
@@ -2450,7 +2425,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: CM-11-001
     adr:
     - ADR-0115
@@ -2499,7 +2474,7 @@ groups:
     stories:
     - story_2022_052
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: CM-11-007
     adr:
     - ADR-0114
@@ -2527,7 +2502,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-11-017
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: CM-11-001
     adr:
     - ADR-0114
@@ -2570,9 +2545,6 @@ groups:
       and no Invite emitted.
     stories:
     - story_2022_052
-    relationships:
-    - rel_type: refines
-      spec_id: CM-11-006
     adr:
     - ADR-0114
   - id: CM-11-048
@@ -2706,6 +2678,11 @@ groups:
       Restated for #5358. The statement used to say, unconditionally, that the vendor
       creates the case. CM-15-003 and CM-22-001 already refused that, so the statement
       now carries both conditions.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-15-001
+    - rel_type: uses_definition
+      spec_id: CP-04-001
     stories:
     - story_2022_012
     - story_2022_038
@@ -2722,11 +2699,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that case creation produces exactly
       two initial `CaseParticipant` records ordered as defined by CM-14-001.
     relationships:
-    - rel_type: depends_on
-      spec_id: CM-03-001
-    - rel_type: depends_on
-      spec_id: CM-02-008
-    - rel_type: part_of
+    - rel_type: uses_definition
       spec_id: CM-14-001
     stories:
     - story_2022_012
@@ -2751,8 +2724,8 @@ groups:
       activity is queued for the reporter when a case is created from an
       `Offer(VulnerabilityReport)`.
     relationships:
-    - rel_type: depends_on
-      spec_id: OX-02-001
+    - rel_type: uses_definition
+      spec_id: CBT-01-001
     stories:
     - story_2022_012
     - story_2022_081
@@ -2782,7 +2755,7 @@ groups:
     - rel_type: refines
       spec_id: DUR-07-002
       note: which now applies at case receipt
-    - rel_type: part_of
+    - rel_type: uses_definition
       spec_id: CM-14-001
     - rel_type: depends_on
       spec_id: EP-04-005
@@ -2804,9 +2777,6 @@ groups:
     verification: Inspection of `vultron/core/` confirms that `InvalidateReportReceivedUseCase`,
       `CloseReportReceivedUseCase`, and `ValidateReportReceivedUseCase` each resolve the report
       ID to its associated case ID before delegating.
-    relationships:
-    - rel_type: depends_on
-      spec_id: CM-12-001
 - id: CM-13
   title: Embargo Acceptance Ownership
   specs:
@@ -2874,9 +2844,6 @@ groups:
     verification: Integration tests in `test/demo/` confirm that when a case is created
       with a default embargo, the Case Owner's consent row for it is marked `AGREED` in
       the same BT subtree that activates the embargo.
-    relationships:
-    - rel_type: depends_on
-      spec_id: CM-12-004
   - id: CM-13-007
     priority: MUST
     kind: project
@@ -2891,7 +2858,7 @@ groups:
       note of a different case would pass as a redelivery. The ledger shows that this
       case already took this `Add`.
     relationships:
-    - rel_type: depends_on
+    - rel_type: constrains
       spec_id: HP-08-006
     verification: >-
       `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_redelivered_add_note_is_skipped`
@@ -2943,9 +2910,6 @@ groups:
       CASE_MANAGER rather than the receiving actor; the receiving actor remains
       the case's `attributed_to` (CM-14-008, CP-09-001).  CM-14-001 applies only in
       single-actor deployments where the receiving actor IS the CASE_MANAGER.
-    relationships:
-    - rel_type: depends_on
-      spec_id: CM-12-001
     stories:
     - story_2022_012
     - story_2022_046
@@ -2961,7 +2925,7 @@ groups:
       `CaseParticipant` creation step precedes the default embargo initialization step in the
       initialization sequence.
     relationships:
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: CM-14-001
     stories:
     - story_2022_046
@@ -2979,10 +2943,12 @@ groups:
       seeded as a signatory on the default embargo immediately after it reaches
       `EM.ACTIVE` during case initialization.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-14-001
     - rel_type: refines
       spec_id: CM-13-006
+    - rel_type: refines
+      spec_id: CM-18-007
     stories:
     - story_2022_023
     - story_2026_080
@@ -3000,9 +2966,9 @@ groups:
       `Create(VulnerabilityCase)` outbox flush occurs before the reporter
       `CaseParticipant` record is created during case initialization.
     relationships:
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: CM-14-001
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-12-003
     stories:
     - story_2022_012
@@ -3020,7 +2986,7 @@ groups:
       a signatory on any active embargo when added as a `CaseParticipant` during case
       initialization.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-14-001
     stories:
     - story_2022_013
@@ -3047,12 +3013,12 @@ groups:
       ADR-0096; see `notes/embargo-default-semantics.md` § "Reporter Embargo Proposal
       Mechanism (EP-04-004)".
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-14-001
-    - rel_type: depends_on
-      spec_id: CM-12-004
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: EP-04-004
+    - rel_type: uses_definition
+      spec_id: EP-04-003
     adr:
     - ADR-0096
     stories:
@@ -3076,7 +3042,7 @@ groups:
       `test/core/behaviors/case/nodes/test_invite_inert_participant.py` asserts that
       the stub-Invite seating fails and records no invitee when the case is absent.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-14-001
     stories:
     - story_2022_052
@@ -3098,7 +3064,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-14-007
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-14-001
     stories:
     - story_2026_080
@@ -3112,6 +3078,9 @@ groups:
       initialization steps (participants, embargo, ledger) are attached.
     verification: Integration tests in `test/demo/` confirm that step 1 of case initialization
       creates the `VulnerabilityCase` with `attributed_to` set to the receiving actor.
+    relationships:
+    - rel_type: part_of
+      spec_id: CM-14-001
     stories:
     - story_2022_012
   - id: CM-14-009
@@ -3124,6 +3093,9 @@ groups:
       initialized, so that the embargo is always associated with an existing participant.
     verification: Integration tests in `test/demo/` confirm that step 2 creates the Case
       Owner's `CaseParticipant` with `RM.RECEIVED` and `CVDRole.CASE_OWNER`.
+    relationships:
+    - rel_type: part_of
+      spec_id: CM-14-001
     stories:
     - story_2022_046
   - id: CM-14-010
@@ -3146,6 +3118,8 @@ groups:
       default policy is configured and when none is, and that it is skipped when the
       case is not embargo-eligible.
     relationships:
+    - rel_type: part_of
+      spec_id: CM-14-001
     - rel_type: depends_on
       spec_id: EP-04-005
     adr:
@@ -3162,6 +3136,9 @@ groups:
       outbox.
     rationale: The reporter's system must receive and store the case object before any
       Announce(CaseLedgerEntry) fan-out that references it.
+    relationships:
+    - rel_type: part_of
+      spec_id: CM-14-001
     adr:
     - ADR-0119
     verification: Integration tests in `test/demo/` confirm that step 4 queues
@@ -3182,6 +3159,9 @@ groups:
     verification: Integration tests in `test/demo/` confirm that step 5 adds the reporter as a
       `CaseParticipant` with `RM.ACCEPTED` and seeds them as a signatory (an `AGREED` row)
       on any active embargo.
+    relationships:
+    - rel_type: part_of
+      spec_id: CM-14-001
     stories:
     - story_2022_013
     - story_2022_063
@@ -3195,6 +3175,9 @@ groups:
       protocol-significant event and notifies all participants atomically.
     verification: Integration tests in `test/demo/` confirm that step 6 commits a case ledger
       entry that triggers `Announce(CaseLedgerEntry)` fan-out to all participants.
+    relationships:
+    - rel_type: part_of
+      spec_id: CM-14-001
     stories:
     - story_2026_075
     - story_2022_041
@@ -3218,9 +3201,6 @@ groups:
       CM-22-001).
     verification: Inspection of `vultron/core/` confirms that `ActorConfig` declares an
       `auto_create_case` boolean field defaulting to `True`.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-12-001
     adr:
     - ADR-0015
     - ADR-0041
@@ -3316,6 +3296,9 @@ groups:
       `Reject(Offer(VulnerabilityReport))` is sent on a case, and the Leave tests in
       `test/core/use_cases/received/test_close_case_role_semantics.py` cover the
       closure path.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: TRIG-13-001
     adr:
     - ADR-0085
 - id: CM-16
@@ -3335,7 +3318,7 @@ groups:
       `Offer(Actor)[target=VulnerabilityCase]` is sent to the CASE_MANAGER's inbox, not
       directly to the Case Owner.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: PCR-08-001
     adr:
     - ADR-0021
@@ -3356,8 +3339,10 @@ groups:
       `CaseLedgerEntry` and fans it out to participants before taking any downstream action on a
       received `Offer(Actor)`.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: CLP-10-006
+    - rel_type: uses_definition
+      spec_id: CM-10-004
     adr:
     - ADR-0114
     stories:
@@ -3485,7 +3470,7 @@ groups:
       participant recommendation, the CASE_MANAGER commits a ledger entry, fans it out, sends
       `AcceptActorRecommendation`, and sends `Invite` to the suggested actor.
     relationships:
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: CM-17-001
     adr:
     - ADR-0114
@@ -3511,7 +3496,7 @@ groups:
       that an Accept naming an actor that has joined, or is at `RM.CLOSED`, is
       refused with nothing committed or sent.
     relationships:
-    - rel_type: extends
+    - rel_type: supersedes
       spec_id: CM-16-006
     adr:
     - ADR-0114
@@ -3650,7 +3635,7 @@ groups:
       including the Case Owner's identity, the second recommender's identity and any
       `content` from the Offer. The note is the CASE_MANAGER's own `add_note_to_case`
       entry, attached to the case, and reaches the Case Owner's inbox as that entry's
-      `Announce(CaseLedgerEntry)` (SYNC-02-002); a direct `Add(Note)` to the Case Owner
+      `Announce(CaseLedgerEntry)` (SYNC-02-003); a direct `Add(Note)` to the Case Owner
       is refused there (HP-01-005).
     rationale: >-
       A note about reinforcing suggestions gives the Case Owner more context for the
@@ -3705,7 +3690,7 @@ groups:
     adr:
     - ADR-0026
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: CM-16-006
     stories:
     - story_2022_053
@@ -3731,7 +3716,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: CM-16-006
     adr:
     - ADR-0115
@@ -3777,6 +3762,9 @@ groups:
       Integration tests in `test/demo/` confirm that the stub Invite emitted by the
       CASE_MANAGER names the invitee as its `object` and carries a
       `VulnerabilityCaseStub` as its `target`.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-11-013
     adr:
     - ADR-0114
     stories:
@@ -3806,7 +3794,9 @@ groups:
       `ACTIVE` and `REVISE`, and that a stub sent with no embargo in force (none
       yet, a proposal only, or an ended one) carries no embargo.
     relationships:
-    - rel_type: implements
+    - rel_type: extends
+      spec_id: CM-17-001
+    - rel_type: derives_from
       spec_id: MV-10-006
     stories:
     - story_2022_023
@@ -3866,6 +3856,9 @@ groups:
       request or from the suggest-actor round-trip.
     verification: Integration tests in `test/demo/` confirm that the `Invite` activity emitted
       for a new participant embeds a non-empty `case_roles` list for the invitee.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-17-001
     adr:
     - ADR-0114
   - id: CM-17-004
@@ -3897,14 +3890,14 @@ groups:
     - ADR-0114
     - ADR-0121
     relationships:
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: CM-11-001
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: CM-11-008
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: CM-11-010
-    - rel_type: implements
-      spec_id: PCR-08-010
+    - rel_type: uses_definition
+      spec_id: CM-10-004
     stories:
     - story_2022_054
     - story_2022_052
@@ -3923,6 +3916,9 @@ groups:
       that declines, so the participant list holds inert participants. Any consumer that
       reads membership as "accepted" would hand case content to an actor that has not
       consented.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-10-004
     adr:
     - ADR-0114
     stories:
@@ -3946,8 +3942,8 @@ groups:
       `test/core/use_cases/triggers/test_actor_triggers.py::TestInviteRetrySendsOnce` asserts a
       retry queues and commits the Invite once.
     relationships:
-    - rel_type: implements
-      spec_id: CLP-10-006
+    - rel_type: refines
+      spec_id: SYNC-09-002
     adr:
     - ADR-0109
     - ADR-0119
@@ -3981,7 +3977,7 @@ groups:
       The case-ledger invariant harness asserts a single entry per Invite activity id
       (CLP-07-002).
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: CM-17-006
     adr:
     - ADR-0109
@@ -4050,6 +4046,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-17-007
+    - rel_type: supersedes
+      spec_id: CM-16-004
     adr:
     - ADR-0109
   - id: CM-17-019
@@ -4069,6 +4067,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-17-018
+    - rel_type: refines
+      spec_id: CM-17-003
     adr:
     - ADR-0109
   - id: CM-17-008
@@ -4089,6 +4089,9 @@ groups:
       Integration tests in `test/demo/` confirm that in the suggest-actor path the
       invitee's `CaseParticipant.case_roles` equals the roles on the emitted stub
       Invite.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-11-006
     adr:
     - ADR-0114
   - id: CM-17-009
@@ -4118,10 +4121,10 @@ groups:
       `test/core/behaviors/case/test_accept_invite_tree.py::test_case_announce_and_backfill_precede_the_first_committing_effect`
       pins the effect order in the tree.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-17-004
-    - rel_type: depends_on
-      spec_id: SYNC-15-004
+    - rel_type: uses_definition
+      spec_id: CM-10-004
     adr:
     - ADR-0114
     stories:
@@ -4149,11 +4152,11 @@ groups:
       the same file asserts that a stub sent with an embargo in force adds only
       `activeEmbargo` and `caseStatus`.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-11-013
     - rel_type: refines
       spec_id: MV-10-001
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-17-002
     stories:
     - story_2022_023
@@ -4174,7 +4177,7 @@ groups:
       `test/wire/as2/factories/test_case_factories.py` confirms the factory takes
       the summary the sender set, and does not fall back to the case name.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CM-17-010
     stories:
     - story_2022_023
@@ -4211,7 +4214,7 @@ groups:
       `test/wire/as2/factories/test_case_factories.py` assert the stub carries no
       other case content.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: CM-17-010
     stories:
     - story_2022_023
@@ -4232,7 +4235,7 @@ groups:
       `test/wire/as2/factories/test_case_factories.py` asserts the case's
       `attributedTo` never travels in the stub.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: CM-17-010
     stories:
     - story_2022_023
@@ -4281,7 +4284,7 @@ groups:
       `test/adapters/driven/trigger_activity_adapter/test_actors.py` confirms the
       refusal when it is missing from the inviter's store.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: CM-17-011
   - id: CM-17-012
     priority: MUST
@@ -4317,10 +4320,12 @@ groups:
       The guard alone is
       `test/core/behaviors/case/nodes/test_idempotency_guards.py::TestCheckInviteeNotAlreadyParticipantNode`.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: CM-17-004
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: CLP-13-001
+    - rel_type: uses_definition
+      spec_id: CM-10-004
 - id: CM-18
   title: Participant Embargo Consent (per-embargo rows)
   specs:
@@ -4381,7 +4386,7 @@ groups:
       `test/core/services/embargo_lifecycle/test_proposals.py` asserts that a proposal
       writes an `UNINVITED` row on every current participant.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: CM-18-001
     adr:
     - ADR-0122
@@ -4404,7 +4409,7 @@ groups:
       `test/core/models/test_case_participant.py` assert that a new participant record
       gets one `UNINVITED` row for each register entry.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: CM-18-001
     adr:
     - ADR-0122
@@ -4477,6 +4482,9 @@ groups:
       deadline has passed, leaving a
       concurrent invitation with a later deadline `INVITED`, and that `propose_embargo()` and the
       owner's revision acceptance write no row to record a lapse.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-18-001
     adr:
     - ADR-0093
     - ADR-0118
@@ -4496,7 +4504,7 @@ groups:
       A participant that does not answer has made no decision, so the transition needs
       no act from it (ADR-0118).
     relationships:
-    - rel_type: extends
+    - rel_type: refines
       spec_id: CM-18-002
     adr:
     - ADR-0093
@@ -4577,7 +4585,7 @@ groups:
       trigger) pair and confirms each unlisted one raises, and another confirms that no trigger
       moves a row whose register entry is final.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-18-001
     adr:
     - ADR-0048
@@ -4602,7 +4610,7 @@ groups:
       participant by derivation — ADR-0093, ADR-0122) or the participant's own withdrawal (`DECLINE`)
       ends that position.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: CM-18-003
     adr:
     - ADR-0093
@@ -4635,7 +4643,7 @@ groups:
       `vultron/core/models/embargo_apply/apply.py`, or write the start rows through
       `CaseParticipant.write_uninvited_rows()`.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: CM-18-003
     adr:
     - ADR-0048
@@ -4694,7 +4702,7 @@ groups:
       Inspection of `vultron/core/` confirms that no site assigns `embargo_consents`
       outside `CaseParticipant`.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: CM-18-005
     adr:
     - ADR-0048
@@ -4715,9 +4723,6 @@ groups:
     verification: Integration tests in `test/demo/` confirm that, after an embargo Invite, Accept,
       Reject and expiry, the participant's consent rows on a replica equal those on the
       CASE_MANAGER.
-    relationships:
-    - rel_type: depends_on
-      spec_id: CM-18-005
     adr:
     - ADR-0048
     - ADR-0122
@@ -4740,11 +4745,6 @@ groups:
     verification: Integration tests in `test/demo/` confirm that the default embargo is
       established before each participant's consent row is written during case initialization, so
       each initial participant record carries the correct rows.
-    relationships:
-    - rel_type: depends_on
-      spec_id: CM-18-006
-    - rel_type: depends_on
-      spec_id: CM-14-003
     adr:
     - ADR-0048
     - ADR-0122
@@ -4758,7 +4758,7 @@ groups:
     verification: A unit test confirms that applying an unlisted PEC trigger raises
       `VultronInvalidStateTransitionError` rather than silently succeeding.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: CM-18-003
     adr:
     - ADR-0048
@@ -4792,7 +4792,7 @@ groups:
       proposal, the activation of a longer revision and the termination of the embargo
       change no row of a participant that has not itself been invited, has not itself
       answered, is not the Case Owner activating the embargo, or whose agreement is not
-      being carried over by containment (EP-05-001); a participant's lapsed or exited
+      being carried over by containment (EP-05-003); a participant's lapsed or exited
       position is read from its rows and the register (CM-18-001).
     rationale: >-
       A reader gets a lapse or an exit from the rows and the register (CM-18-001). A row
@@ -4845,7 +4845,7 @@ groups:
       `case_participants` through the canonical mutators also updates `actor_participant_index`
       atomically in the same call.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: CM-19-001
     stories:
     - story_2022_093
@@ -4862,7 +4862,7 @@ groups:
     verification: Inspection of `vultron/core/` confirms that actor-ID lookups read from
       `actor_participant_index`.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-19-001
     stories:
     - story_2022_093
@@ -4880,8 +4880,8 @@ groups:
     verification: Inspection of `vultron/core/` confirms that canonical iteration
       (broadcast, audit) reads from `case_participants`.
     relationships:
-    - rel_type: extends
-      spec_id: CM-19-003
+    - rel_type: uses_definition
+      spec_id: CM-19-001
     stories:
     - story_2022_093
 - id: CM-20
@@ -4902,9 +4902,6 @@ groups:
       nor `CASE_MANAGER`.'
     verification: Integration tests in `test/demo/` confirm that a Coordinator actor admitted to
       a case holds `CVDRole.COORDINATOR` in their `CaseParticipant.case_roles`.
-    relationships:
-    - rel_type: refines
-      spec_id: CBT-01-003
     stories:
     - story_2022_063
     - story_2022_052
@@ -4925,8 +4922,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-20-001
-    - rel_type: refines
-      spec_id: CM-16-004
     stories:
     - story_2022_053
     - story_2022_063
@@ -4942,7 +4937,7 @@ groups:
       Invitation and case ownership transfer are distinct protocol operations. An
       `Offer(Actor)[target=VulnerabilityCase]` invite adds a participant. It does not
       transfer `CASE_OWNER`
-      authority (CM-02-001) or the `CASE_MANAGER` single-writer authority (CM-20-001).
+      authority (CM-02-005) or the `CASE_MANAGER` single-writer authority (CM-02-011).
     verification: >-
       `test_an_approved_coordinator_is_invited_without_authority_roles` in
       `test/core/use_cases/received/actor/test_offer_case_participant.py`, a strict
@@ -4972,8 +4967,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-16-001
-    - rel_type: refines
-      spec_id: CM-20-001
     adr:
     - ADR-0026
     stories:
@@ -4985,10 +4978,10 @@ groups:
     statement: >-
       The Case Owner, not the Coordinator, MUST remain the sole decision-maker on
       approving or rejecting an invitation that a Coordinator participant suggests
-      (CM-02-001).
+      (CM-02-005).
     rationale: >-
       A Coordinator facilitates the case; it does not own it. Approving a new
-      participant is Case Owner authority (CM-02-001), and a suggestion transfers none
+      participant is Case Owner authority (CM-02-005), and a suggestion transfers none
       of that authority.
     verification: >-
       `test_a_coordinators_suggestion_is_left_to_the_case_owner` in
@@ -4998,6 +4991,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-20-003
+    - rel_type: refines
+      spec_id: CM-02-005
     adr:
     - ADR-0026
     stories:
@@ -5017,8 +5012,10 @@ groups:
       It MUST NOT be conferred on an organizational or human actor invited to the
       case as a regular facilitation participant.'
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-20-001
+    - rel_type: refines
+      spec_id: CM-20-005
     stories:
     - story_2026_023
   - id: CM-20-005
@@ -5035,9 +5032,6 @@ groups:
     rationale: '`CVDRole.CASE_MANAGER` grants single-writer authority over the canonical ledger (CLP-09). Conferring it on a
       participant invited for facilitation would let them author ledger entries that only the actor enacting `CVDRole.CASE_MANAGER`
       is authorized to write.'
-    relationships:
-    - rel_type: refines
-      spec_id: CM-20-004
     stories:
     - story_2026_023
 - id: CM-21
@@ -5057,11 +5051,6 @@ groups:
       be enforced at the data-layer level, not just assumed by convention.
     verification: Integration tests in `test/demo/` confirm that at no point does a case have
       more than one participant holding `CVDRole.CASE_OWNER`.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-02-004
-    - rel_type: refines
-      spec_id: CM-02-005
     stories:
     - story_2022_046
     - story_2022_050
@@ -5081,7 +5070,7 @@ groups:
       `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py` assert that a
       transfer leaves one `CASE_OWNER` and strips the role from the previous owner.
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: CM-21-001
     stories:
     - story_2022_046
@@ -5101,11 +5090,6 @@ groups:
       Integration tests in `test/demo/` confirm that processing
       `Accept(Offer(VulnerabilityCase))` adds `CVDRole.CASE_OWNER` to the accepting
       actor's `case_roles`.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-21-001
-    - rel_type: refines
-      spec_id: TRIG-11-002
     stories:
     - story_2022_050
     - story_2022_048
@@ -5147,10 +5131,8 @@ groups:
       `Accept(Offer(VulnerabilityCase))` removes `CVDRole.CASE_OWNER` from the previous owner's
       `CaseParticipant.case_roles`.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: CM-21-001
-    - rel_type: refines
-      spec_id: TRIG-11-002
     stories:
     - story_2022_050
     - story_2022_051
@@ -5175,13 +5157,13 @@ groups:
       the role-strip, `attributed_to` update, and role-grant as a single atomic transaction that
       either completes fully or is rolled back.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: CM-21-001
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-21-002
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-21-003
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-21-024
   - id: CM-21-005
     priority: MUST
@@ -5202,7 +5184,7 @@ groups:
       addressed to the CASE_MANAGER's inbox.
     relationships:
     - rel_type: refines
-      spec_id: CM-21-001
+      spec_id: PCR-08-001
     adr:
     - ADR-0053
     - ADR-0114
@@ -5226,6 +5208,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-21-005
+    - rel_type: uses_definition
+      spec_id: CM-21-016
     adr:
     - ADR-0148
     stories:
@@ -5249,6 +5233,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-21-005
+    - rel_type: uses_definition
+      spec_id: CM-21-021
     adr:
     - ADR-0148
     stories:
@@ -5292,6 +5278,10 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-21-005
+    - rel_type: refines
+      spec_id: CM-24-001
+    - rel_type: refines
+      spec_id: CM-24-002
     adr:
     - ADR-0148
     stories:
@@ -5313,6 +5303,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-21-028
+    - rel_type: refines
+      spec_id: SYNC-09-002
     adr:
     - ADR-0148
     stories:
@@ -5335,9 +5327,7 @@ groups:
       `Accept(Offer(VulnerabilityCase))` is addressed to the CASE_MANAGER's inbox.
     relationships:
     - rel_type: refines
-      spec_id: CM-21-001
-    - rel_type: refines
-      spec_id: CM-21-005
+      spec_id: PCR-08-001
     adr:
     - ADR-0053
     stories:
@@ -5359,10 +5349,12 @@ groups:
       `test/core/behaviors/case/nodes/test_accept_ownership_transfer_tree.py` assert
       that the CASE_MANAGER commits one entry for the completed transfer.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-21-002
-    - rel_type: refines
-      spec_id: CM-21-006
+    - rel_type: uses_definition
+      spec_id: CM-21-003
+    - rel_type: uses_definition
+      spec_id: CM-21-004
     adr:
     - ADR-0053
     stories:
@@ -5410,7 +5402,7 @@ groups:
       previous owner retains their non-`CASE_OWNER` roles (e.g., `CVDRole.COORDINATOR`) in their
       `CaseParticipant.case_roles`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-21-003
     stories:
     - story_2022_050
@@ -5428,7 +5420,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that after an ownership transfer the
       previous owner remains in the case participants list.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-21-003
     stories:
     - story_2022_050
@@ -5457,9 +5449,7 @@ groups:
       (`to: [case_actor_id]`), symmetric with the Accept path.
     relationships:
     - rel_type: refines
-      spec_id: CM-21-001
-    - rel_type: refines
-      spec_id: CM-21-006
+      spec_id: PCR-08-001
     adr:
     - ADR-0053
     stories:
@@ -5486,7 +5476,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: CM-21-002
     adr:
     - ADR-0115
@@ -5507,8 +5497,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-03-001
-    - rel_type: extends
-      spec_id: CM-21-011
     adr:
     - ADR-0115
     stories:
@@ -5533,10 +5521,12 @@ groups:
       `RejectCaseOwnershipTransferReceivedUseCase` reaches a canonical commit for the
       `reject_case_ownership_transfer` semantic type.
     relationships:
-    - rel_type: refines
-      spec_id: CM-21-010
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CLP-02-012
+    - rel_type: uses_definition
+      spec_id: CM-21-013
+    - rel_type: uses_definition
+      spec_id: CM-21-014
     adr:
     - ADR-0053
     stories:
@@ -5581,6 +5571,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-21-012
+    - rel_type: uses_definition
+      spec_id: CM-21-014
     adr:
     - ADR-0053
     stories:
@@ -5605,8 +5597,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
-    - rel_type: refines
-      spec_id: CM-21-011
+    - rel_type: uses_definition
+      spec_id: CM-21-014
     adr:
     - ADR-0115
     stories:
@@ -5628,12 +5620,8 @@ groups:
       A test marked `CM-21-014` delivers a second proposal for a case whose first
       Offer is open and asserts it is `REFUSED` with no Offer made.
     relationships:
-    - rel_type: refines
-      spec_id: CM-21-001
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-21-005
-    - rel_type: refines
-      spec_id: CLP-11-001
     adr:
     - ADR-0053
     - ADR-0148
@@ -5654,7 +5642,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-11-001
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CM-21-014
     adr:
     - ADR-0148
@@ -5668,7 +5656,7 @@ groups:
       new proposal for the case, to any transferee, with no waiting period. This
       includes the transferee that declined, and nothing has to be cleared first. A
       redelivered proposal whose Offer the ledger already records is not a new proposal:
-      it changes nothing (HP-01-003).
+      it changes nothing (HP-01-014).
     rationale: >-
       A decline does not bar a later offer, so no memory of who declined is needed. A
       closed Offer no longer blocks the case (CM-21-014), so the owner can try again at
@@ -5702,10 +5690,12 @@ groups:
       asserts the CASE_MANAGER ledgers the withdrawal, which closes the Offer it
       made from that proposal.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-21-014
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CLP-02-012
+    - rel_type: uses_definition
+      spec_id: CM-21-036
     adr:
     - ADR-0053
     - ADR-0148
@@ -5722,8 +5712,8 @@ groups:
       The owner names its own proposal, the one activity of the transfer it holds, so
       it needs nothing it learned from the ledger to withdraw (ADR-0148).
     relationships:
-    - rel_type: extends
-      spec_id: CM-21-015
+    - rel_type: uses_definition
+      spec_id: CM-21-014
     adr:
     - ADR-0148
     stories:
@@ -5743,6 +5733,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-21-015
+    - rel_type: uses_definition
+      spec_id: CM-21-028
     adr:
     - ADR-0148
     stories:
@@ -5809,9 +5801,9 @@ groups:
       A test marked `CM-21-016` delivers an Accept for an Offer whose `end_time`
       has passed and asserts it is `REFUSED` and the Case Owner is unchanged.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-21-011
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-21-013
     adr:
     - ADR-0053
@@ -5829,8 +5821,10 @@ groups:
       An owner may want the transfer settled by a date, or may leave it open. A deadline
       lets a transfer end without an answer (CM-21-017).
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CM-21-016
+    - rel_type: uses_definition
+      spec_id: CM-21-014
     adr:
     - ADR-0148
     stories:
@@ -5849,7 +5843,7 @@ groups:
       `end_time`.
     relationships:
     - rel_type: extends
-      spec_id: CM-21-016
+      spec_id: CM-21-028
     adr:
     - ADR-0148
     stories:
@@ -5869,8 +5863,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CS-13-001
-    - rel_type: extends
-      spec_id: CM-21-016
     - rel_type: refines
       spec_id: CS-13-009
     adr:
@@ -5896,10 +5888,12 @@ groups:
       late Accept, Reject or Undo of an expired Offer is refused, and that a replica
       never evaluates the Offer's deadline.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-21-014
-    - rel_type: refines
+    - rel_type: implements
       spec_id: CM-21-016
+    - rel_type: refines
+      spec_id: BT-17-001
     adr:
     - ADR-0053
     - ADR-0152
@@ -5938,7 +5932,7 @@ groups:
       processed. Writing nothing means no ledger commit, no Offer made, and the case's
       `attributed_to` and every `CASE_OWNER` role unchanged. A redelivered proposal the
       CASE_MANAGER already made its Offer from keeps the standing it was admitted with
-      (HP-01-003).
+      (HP-01-014).
     rationale: >-
       CM-21-011 admits an Accept from the transferee of a recorded Offer. Thus the actor
       that gets an Offer recorded chooses the next owner. Without a sender rule, any
@@ -5955,10 +5949,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-21-005
-    - rel_type: refines
-      spec_id: CM-21-011
     adr:
     - ADR-0115
     - ADR-0129
@@ -5981,8 +5973,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
-    - rel_type: extends
-      spec_id: CM-21-019
+    - rel_type: derives_from
+      spec_id: CM-21-028
     adr:
     - ADR-0115
     - ADR-0148
@@ -6003,10 +5995,8 @@ groups:
       proposal's type declares the manager path alone, so the path stage refuses
       the replica ahead of the sender guard (HP-01-038, HP-01-039).
     relationships:
-    - rel_type: refines
-      spec_id: HP-01-006
-    - rel_type: extends
-      spec_id: CM-21-019
+    - rel_type: uses_definition
+      spec_id: CM-21-005
     adr:
     - ADR-0115
     stories:
@@ -6029,8 +6019,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-03-001
-    - rel_type: extends
-      spec_id: CM-21-019
     adr:
     - ADR-0115
     - ADR-0148
@@ -6062,10 +6050,12 @@ groups:
       participant that is not a signatory to the active embargo and a closed
       participant, and assert each is `REFUSED` with no ledger entry and no Offer made.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-21-005
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-10-004
+    - rel_type: uses_definition
+      spec_id: CM-23-018
     adr:
     - ADR-0148
     stories:
@@ -6090,9 +6080,9 @@ groups:
       unchanged; a test asserts that no admitted Accept leaves the case with no
       participant holding `CASE_OWNER`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-21-011
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-21-021
     adr:
     - ADR-0148
@@ -6121,7 +6111,7 @@ groups:
       Integration tests in `test/demo/` confirm that the `VulnerabilityCase` created by
       the CASE_MANAGER has `attributed_to` equal to the proposing actor's ID.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: CP-09-001
     - rel_type: supersedes
       spec_id: CM-14-001
@@ -6193,9 +6183,9 @@ groups:
     verification: Integration tests in `test/demo/` confirm that the CASE_MANAGER writes
       `CaseParticipant` records for the report receiver and reporter to its DataLayer.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-22-001
-    - rel_type: implements
+    - rel_type: refines
       spec_id: CP-09-002
     stories:
     - story_2022_012
@@ -6243,7 +6233,7 @@ groups:
       are authored by the
       CASE_MANAGER, not the report receiver.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-22-001
     stories:
     - story_2026_023
@@ -6263,9 +6253,9 @@ groups:
     verification: Integration tests in `test/demo/` confirm that the CASE_MANAGER initializes the
       default embargo before emitting `Create(VulnerabilityCase)` to the report receiver.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-22-001
-    - rel_type: implements
+    - rel_type: refines
       spec_id: CP-09-003
     adr:
     - ADR-0041
@@ -6342,7 +6332,7 @@ groups:
     statement: >-
       After the close_case entry, the CASE_MANAGER MUST commit one
       add_participant_status_to_participant entry per RM transition it writes for the
-      leaver, in write order. A Leave from RM.VALID, recorded V → D → C (CM-23-012),
+      leaver, in write order. A Leave from RM.VALID, recorded V → D → C (CM-23-038),
       gives two entries.
     rationale: >-
       These status entries are the Leave's recorded consequence. The CASE_MANAGER writes
@@ -6393,6 +6383,10 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-23-022
+    - rel_type: uses_definition
+      spec_id: CM-23-004
+    - rel_type: refines
+      spec_id: CM-23-016
     adr:
     - ADR-0114
     - ADR-0124
@@ -6443,6 +6437,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-23-022
+    - rel_type: refines
+      spec_id: CLP-07-013
     adr:
     - ADR-0146
     stories:
@@ -6506,6 +6502,12 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-23-001
+    - rel_type: uses_definition
+      spec_id: CM-23-005
+    - rel_type: uses_definition
+      spec_id: CM-10-004
+    - rel_type: uses_definition
+      spec_id: CM-23-004
     adr:
     - ADR-0050
     - ADR-0051
@@ -6550,7 +6552,7 @@ groups:
       received-tree guard (`vultron/core/behaviors/case/nodes/post_close.py`) and the
       CI invariant (`test/ci/invariants/common.py`) both call it.
     relationships:
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: CM-23-002
     adr:
     - ADR-0085
@@ -6570,7 +6572,7 @@ groups:
       `test/ci/invariants/test_common.py` asserts that the post-close invariant accepts
       a CASE_MANAGER entry after the boundary.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CM-23-002
     adr:
     - ADR-0085
@@ -6659,12 +6661,8 @@ groups:
       later closure entries, and that the CASE_MANAGER's store holds every
       participant at RM.CLOSED.
     relationships:
-    - rel_type: refines
-      spec_id: CM-23-001
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-10-004
-    - rel_type: refines
-      spec_id: CM-31-009
     adr:
     - ADR-0114
     - ADR-0050
@@ -6696,10 +6694,14 @@ groups:
       including the one that reaches `RM.CLOSED`, and that an inert leaver receives
       none.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: CM-23-004
     - rel_type: uses_definition
       spec_id: CM-10-004
+    - rel_type: uses_definition
+      spec_id: CM-23-021
+    - rel_type: uses_definition
+      spec_id: CM-23-022
     adr:
     - ADR-0114
     - ADR-0050
@@ -6740,9 +6742,6 @@ groups:
       the ledger without special-casing the CASE_MANAGER.  See ADR-0051.
     verification: Inspection of `vultron/core/` confirms that the CASE_MANAGER holds its own
       `CaseParticipant` record that advances through RM states.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-23-002
     adr:
     - ADR-0051
     stories:
@@ -6813,8 +6812,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-23-005
-    - rel_type: refines
-      spec_id: CM-02-009
     adr:
     - ADR-0051
     stories:
@@ -6836,7 +6833,7 @@ groups:
       creation has begun.
     relationships:
     - rel_type: refines
-      spec_id: CM-23-006
+      spec_id: CM-23-005
     adr:
     - ADR-0051
     stories:
@@ -6856,7 +6853,7 @@ groups:
       is being coordinated.
     relationships:
     - rel_type: refines
-      spec_id: CM-23-006
+      spec_id: CM-23-005
     adr:
     - ADR-0051
     stories:
@@ -6878,7 +6875,7 @@ groups:
       there assert the CASE_MANAGER reaches `RM.CLOSED` only on the Case Owner's Leave.
     relationships:
     - rel_type: refines
-      spec_id: CM-23-006
+      spec_id: CM-23-005
     adr:
     - ADR-0051
 
@@ -6906,10 +6903,12 @@ groups:
       Case Owner `Leave(VulnerabilityCase)` on a case with an active embargo produces an
       `as:Reject` of the Leave, addressed to the owner.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: CM-23-002
     - rel_type: refines
       spec_id: VP-13-005
+    - rel_type: uses_definition
+      spec_id: MSM-05-001
     adr:
     - ADR-0085
     - ADR-0050
@@ -6934,6 +6933,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-23-011
+    - rel_type: uses_definition
+      spec_id: CM-23-002
     adr:
     - ADR-0085
     stories:
@@ -6977,7 +6978,7 @@ groups:
       after the embargo is terminated, the same close proceeds through the CM-23-002
       sequence.
     relationships:
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: CM-23-011
     adr:
     - ADR-0085
@@ -7033,7 +7034,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-23-001
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: CM-23-002
     adr:
     - ADR-0050
@@ -7066,8 +7067,8 @@ groups:
       (CM-23-022), and `test_replica_history_equals_the_case_managers` confirms that a
       replica applying those entries ends with the same per-actor status history.
     relationships:
-    - rel_type: extends
-      spec_id: CM-23-012
+    - rel_type: refines
+      spec_id: RMB-14-005
     adr:
     - ADR-0050
     - ADR-0121
@@ -7109,8 +7110,6 @@ groups:
       received-tree guard
       (`vultron/core/predicates/case_closure.py`).
     relationships:
-    - rel_type: refines
-      spec_id: CM-23-003
     - rel_type: refines
       spec_id: CM-23-002
     adr:
@@ -7159,9 +7158,9 @@ groups:
       `test/core/use_cases/received/test_close_case_role_semantics.py` asserts that the
       CASE_MANAGER either sends an `as:Reject` or sends nothing for a late Leave.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CM-23-013
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: MSM-05-001
     adr:
     - ADR-0085
@@ -7182,8 +7181,10 @@ groups:
       `test/core/use_cases/triggers/case/test_leave.py` asserts that the participant's
       `leave-case` trigger completes once its Leave is queued, with no reply awaited.
     relationships:
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: CM-23-040
+    - rel_type: uses_definition
+      spec_id: CM-23-013
     adr:
     - ADR-0085
     - ADR-0131
@@ -7203,7 +7204,7 @@ groups:
       `test/core/behaviors/case/test_receive_activity_tree.py::TestPostCloseStage`
       confirms that the resync tree is exempt from the post-close guard.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CM-23-013
     adr:
     - ADR-0085
@@ -7240,8 +7241,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-23-002
-    - rel_type: depends_on
-      spec_id: CM-28-009
     adr:
     - ADR-0118
     - ADR-0085
@@ -7266,8 +7265,10 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-23-014
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-28-014
+    - rel_type: uses_definition
+      spec_id: CM-28-009
     adr:
     - ADR-0118
     - ADR-0085
@@ -7298,9 +7299,7 @@ groups:
       owner's Leave on every other departure and that the closure milestone reports
       a departure recorded after the CASE_MANAGER's own RM.CLOSED status entry.
     relationships:
-    - rel_type: refines
-      spec_id: CM-23-002
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: CM-23-013
     adr:
     - ADR-0085
@@ -7326,9 +7325,6 @@ groups:
       `test_two_replicas_applying_one_ledger_hold_identical_case_files` in
       `test/core/models/test_embargo_apply.py` applies one ledger to two replicas and
       asserts they hold identical case files.
-    relationships:
-    - rel_type: extends
-      spec_id: CM-23-023
     adr:
     - ADR-0108
     - ADR-0124
@@ -7408,6 +7404,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-23-017
+    - rel_type: uses_definition
+      spec_id: CM-23-013
     adr:
     - ADR-0131
   - id: CM-23-057
@@ -7526,11 +7524,7 @@ groups:
       `Reject(Offer(VulnerabilityReport))` and asserts `REFUSED`.
     relationships:
     - rel_type: refines
-      spec_id: CM-23-004
-    - rel_type: refines
       spec_id: HP-01-006
-    - rel_type: refines
-      spec_id: CM-10-004
     adr:
     - ADR-0085
     - ADR-0114
@@ -7557,10 +7551,12 @@ groups:
       `test/core/behaviors/test_sender_guard.py` asserts the resync guard is the active
       check.
     relationships:
-    - rel_type: extends
+    - rel_type: supersedes
       spec_id: CM-23-018
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: SYNC-03-005
+    - rel_type: uses_definition
+      spec_id: CM-23-031
     adr:
     - ADR-0085
     - ADR-0114
@@ -7592,7 +7588,7 @@ groups:
       `test/core/use_cases/received/test_close_report_on_case.py` asserts a closed
       sender's `Reject(Offer(VulnerabilityReport))` is `REFUSED`.
     relationships:
-    - rel_type: extends
+    - rel_type: supersedes
       spec_id: CM-23-018
     adr:
     - ADR-0085
@@ -7616,8 +7612,10 @@ groups:
       `test_a_closed_case_owner_still_passes_the_leave_guard` in
       `test/core/behaviors/test_closed_case_owner_rules.py` asserts the guard admits it.
     relationships:
-    - rel_type: extends
+    - rel_type: supersedes
       spec_id: CM-23-018
+    - rel_type: uses_definition
+      spec_id: CM-23-002
     adr:
     - ADR-0085
     stories:
@@ -7640,8 +7638,10 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CM-23-018
-    - rel_type: refines
-      spec_id: HP-01-007
+    - rel_type: uses_definition
+      spec_id: HP-01-009
+    - rel_type: uses_definition
+      spec_id: CM-10-004
   - id: CM-23-054
     priority: MUST
     kind: project
@@ -7679,6 +7679,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-23-020
+    - rel_type: uses_definition
+      spec_id: SYNC-03-005
   - id: CM-23-019
     priority: MUST
     kind: protocol
@@ -7707,8 +7709,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-23-001
-    - rel_type: refines
-      spec_id: CM-23-018
     adr:
     - ADR-0144
     stories:
@@ -7736,6 +7736,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-23-019
+    - rel_type: refines
+      spec_id: HP-01-006
     adr:
     - ADR-0144
     stories:
@@ -7819,9 +7821,6 @@ groups:
     verification: Integration tests in `test/demo/` confirm that a delegated Activity emitted by
       the CASE_MANAGER on behalf of a participant carries the CASE_MANAGER's actor ID in the `actor`
       field.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-02-009
     stories:
     - story_2022_089
     - story_2022_036
@@ -7839,7 +7838,7 @@ groups:
     verification: Integration tests in `test/demo/` confirm that a delegated Activity carries
       the requesting participant's actor ID in the `attributed_to` field.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-24-001
     stories:
     - story_2022_089
@@ -7860,7 +7859,7 @@ groups:
       reaches the co-hosted CASE_MANAGER's store, so the Activity and the outbox entry naming it land
       together.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-24-001
     adr:
     - ADR-0073
@@ -7912,6 +7911,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-24-004
+    - rel_type: derives_from
+      spec_id: CM-24-011
     adr:
     - ADR-0109
   - id: CM-24-011
@@ -7929,9 +7930,6 @@ groups:
       `test_a_trigger_cannot_execute_as_a_foreign_authority` in
       `test/architecture/test_triggers_execute_only_as_hosted_actors.py` asserts that a
       trigger cannot execute as an actor its container does not host.
-    relationships:
-    - rel_type: depends_on
-      spec_id: CM-24-010
     adr:
     - ADR-0109
   - id: CM-24-005
@@ -7953,8 +7951,8 @@ groups:
       helper (`delegated_authorship()` in
       `vultron/core/behaviors/delegated_authorship.py`).
     relationships:
-    - rel_type: refines
-      spec_id: CM-24-004
+    - rel_type: uses_definition
+      spec_id: CM-24-010
   - id: CM-24-012
     priority: MUST
     kind: project
@@ -7995,7 +7993,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-24-005
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: BTND-04-003
   - id: CM-24-006
     priority: MUST
@@ -8015,11 +8013,6 @@ groups:
       `test_create_case_trigger_registers_owner_and_manager` in
       `test/core/use_cases/triggers/case/test_create.py`, assert a `CASE_MANAGER` holder
       exists in `actor_participant_index` after creation.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-24-001
-    - rel_type: depends_on
-      spec_id: CM-22-002
     adr:
     - ADR-0113
     - ADR-0109
@@ -8047,9 +8040,6 @@ groups:
       tracking issue. `test_delegated_trigger_fails_when_no_case_manager_holds_the_role`
       in `test/core/use_cases/triggers/test_case_manager_never_unfilled.py` asserts a
       delegated trigger fails when no participant holds the role.
-    relationships:
-    - rel_type: depends_on
-      spec_id: CM-24-006
     adr:
     - ADR-0113
     - ADR-0109
@@ -8111,10 +8101,8 @@ groups:
       queued (CM-21-028,
       CM-21-029, ADR-0148), so it is out of scope here.
     relationships:
-    - rel_type: refines
-      spec_id: CM-24-004
-    - rel_type: depends_on
-      spec_id: OX-06-002
+    - rel_type: uses_definition
+      spec_id: CM-33-008
     stories:
     - story_2022_050
     - story_2022_035
@@ -8138,8 +8126,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-24-007
-    - rel_type: depends_on
-      spec_id: CLP-10-006
+    - rel_type: refines
+      spec_id: CLP-07-015
     stories:
     - story_2022_050
     - story_2022_035
@@ -8159,6 +8147,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-24-016
+    - rel_type: refines
+      spec_id: HP-01-003
     stories:
     - story_2022_050
     - story_2022_035
@@ -8234,6 +8224,9 @@ groups:
     verification: Integration tests in `test/demo/` confirm that an Observer participant holds a
       `CaseParticipant` record, runs the standard RM lifecycle, and satisfies the
       embargo-consent gate before receiving case content.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: MV-10-005
     adr:
     - ADR-0057
     stories:
@@ -8252,11 +8245,6 @@ groups:
       Observer participant with no role — indistinguishable from a defect.
     verification: Integration tests in `test/demo/` confirm that an Observer is admitted to a
       case only via the standard `Invite`/`Accept` flow defined in CM-17.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-17-003
-    - rel_type: refines
-      spec_id: CM-16-003
     adr:
     - ADR-0057
     - ADR-0114
@@ -8281,12 +8269,8 @@ groups:
       Integration tests in `test/demo/` confirm that an active Observer receives full
       case content with no additional content restrictions.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-10-004
-    - rel_type: depends_on
-      spec_id: MV-10-005
-    - rel_type: depends_on
-      spec_id: MV-10-006
     adr:
     - ADR-0057
     - ADR-0114
@@ -8309,7 +8293,7 @@ groups:
       to RM.INVALID or RM.DEFERRED, not silently stay at RM.RECEIVED. This
       preserves the RM machine's semantics as a participation-intent signal.
     relationships:
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: CM-11-002
     adr:
     - ADR-0057
@@ -8338,9 +8322,6 @@ groups:
       An Observer joined the case to monitor it, not to own a fix path. Permitting
       VFD emissions from a role with no fix obligations would corrupt the VFD state
       machine for the case (e.g., a monitoring actor falsely claiming fix deployment).
-    relationships:
-    - rel_type: refines
-      spec_id: CM-03-005
     adr:
     - ADR-0057
     stories:
@@ -8360,8 +8341,10 @@ groups:
     verification: Integration tests in `test/demo/` confirm that the `Invite` activity for an
       Observer embeds `case_roles=[CVDRole.OBSERVER]`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-25-002
+    - rel_type: refines
+      spec_id: CM-17-003
     adr:
     - ADR-0057
     - ADR-0114
@@ -8383,7 +8366,7 @@ groups:
       on the stub Invite (CM-11-006), producing a participant record that violates the
       non-empty role invariant enforced by CM-16-003.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: CM-25-006
     adr:
     - ADR-0057
@@ -8421,9 +8404,6 @@ groups:
     verification: Integration tests in `test/demo/` confirm that a participant holding both
       `CVDRole.OBSERVER` and `CVDRole.DEPLOYER` is permitted to emit VFD transitions because the
       DEPLOYER obligation supersedes the OBSERVER restriction.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-25-005
     adr:
     - ADR-0057
     stories:
@@ -8484,7 +8464,7 @@ groups:
       `test/wire/as2/factories/test_embargo_factories.py` build an embargo Invite
       with and without its `end_time`.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CM-28-001
     adr:
     - ADR-0065
@@ -8539,9 +8519,9 @@ groups:
       overshoot
       it.
     relationships:
+    - rel_type: supersedes
+      spec_id: CM-18-023
     - rel_type: refines
-      spec_id: CM-18-002
-    - rel_type: depends_on
       spec_id: EP-07-006
     adr:
     - ADR-0065
@@ -8567,8 +8547,10 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-28-002
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: EP-07-006
+    - rel_type: uses_definition
+      spec_id: CM-18-023
     adr:
     - ADR-0065
     - ADR-0096
@@ -8590,8 +8572,8 @@ groups:
       (PCR-08) and the CASE_MANAGER's role as canonical ledger author (ADR-0019, ADR-0021).
       See ADR-0065.
     verification: Inspection of `vultron/core/` confirms that the CASE_MANAGER holding
-      `CVDRole.CASE_MANAGER` is the entity that records a PEC `DECLINED` transition when an
-      embargo invitation lapses.
+      `CVDRole.CASE_MANAGER` is the entity that records a PEC `TIMED_OUT` transition
+      when an embargo invitation lapses.
     adr:
     - ADR-0065
     stories:
@@ -8622,8 +8604,10 @@ groups:
       A unit test confirms that the CASE_MANAGER's expiry evaluation moves an `INVITED` participant
       past its deadline to `TIMED_OUT`, not `DECLINED`.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-18-003
+    - rel_type: refines
+      spec_id: CM-28-005
     adr:
     - ADR-0065
     - ADR-0118
@@ -8678,7 +8662,7 @@ groups:
     kind: project
     statement: >-
       This codebase MUST normalise an inbound `Invite.end_time` to UTC before it
-      compares the value with the current time (CS-13-001).
+      compares the value with the current time (CS-13-009).
     note: >-
       CS-13-001 governs datetimes the application *produces*; an inbound
       `end_time` is produced by a remote peer and may legitimately carry a
@@ -8698,7 +8682,7 @@ groups:
       in `test/core/models/test_case_participant.py` confirm that an inbound end time
       reaches core UTC-aware.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CS-13-009
     adr:
     - ADR-0065
@@ -8739,7 +8723,7 @@ groups:
     verification: Inspection of `vultron/core/` confirms that embargo invite expiry is evaluated
       lazily at read or process time from `(end_time, now)` rather than via a scheduled job.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-28-003
     adr:
     - ADR-0118
@@ -8759,8 +8743,8 @@ groups:
       conformance impossible without new infrastructure. The Sentinel is an optional
       accelerator only. See ADR-0065.
     relationships:
-    - rel_type: refines
-      spec_id: CM-28-003
+    - rel_type: derives_from
+      spec_id: CM-28-007
     adr:
     - ADR-0065
   - id: CM-28-009
@@ -8833,7 +8817,7 @@ groups:
       state — would be a second source of truth able to drift from the ledger. The canonical
       ledger is the sole record of provenance (ADR-0019). See ADR-0065.
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: CM-28-005
     adr:
     - ADR-0065
@@ -8852,11 +8836,13 @@ groups:
       EP-07-006 gives the general rule. This requirement applies it to the specific
       fallback path that CM-18-023 defines. See ADR-0096.
     verification: >-
-      A unit test confirms that when the CM-18-002 policy window would place the deadline
+      A unit test confirms that when the CM-18-023 policy window would place the deadline
       after the embargo's `end_time`, the embargo's `end_time` is used instead.
     relationships:
     - rel_type: refines
-      spec_id: CM-18-002
+      spec_id: EP-07-006
+    - rel_type: uses_definition
+      spec_id: CM-18-023
     adr:
     - ADR-0096
     stories:
@@ -8884,13 +8870,11 @@ groups:
       EP-07-011. Until the implementation lands the test is a strict `xfail`
       naming its tracking issue.
     relationships:
-    - rel_type: refines
-      spec_id: CM-28-002
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: EP-09-002
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: EP-07-002
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: EP-07-006
     adr:
     - ADR-0113
@@ -8921,8 +8905,10 @@ groups:
       (`test_a_fresh_invite_restamps_an_invited_rows_deadline`,
       `test_a_fresh_invite_without_a_deadline_drops_a_stale_one`).
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: CM-28-012
+    - rel_type: refines
+      spec_id: CLP-07-013
     adr:
     - ADR-0113
     - ADR-0065
@@ -8948,7 +8934,7 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-28-013
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: EP-09-007
     adr:
     - ADR-0113
@@ -8991,7 +8977,7 @@ groups:
       Only the CASE_MANAGER evaluates invite expiry (CM-28-003). Its
       `Update(EmbargoConsent)` carrying the invitee's `TIMED_OUT` row (CM-28-009) MUST
       be committed by the CASE_MANAGER before the row is written (ADR-0124, CLP-07-013),
-      and reaches replicas as that ledger entry (CM-28-016). A replica learns an expiry
+      and reaches replicas as that ledger entry (CM-28-030). A replica learns an expiry
       from that entry, copying the row, and never computes one.
     rationale: >-
       Only the CASE_MANAGER can write a ledger entry. Thus an expiry that another store
@@ -9009,12 +8995,10 @@ groups:
       `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
       and `test/core/use_cases/received/test_embargo_activation_copy.py::TestInviteTimeOut`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-28-009
-    - rel_type: depends_on
-      spec_id: RSH-08-004
-    - rel_type: depends_on
-      spec_id: BT-17-001
+    - rel_type: refines
+      spec_id: CLP-07-013
     adr:
     - ADR-0118
     - ADR-0113
@@ -9039,7 +9023,7 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CM-28-014
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: BT-17-001
   - id: CM-28-030
     priority: MUST
@@ -9058,7 +9042,7 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CM-28-014
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: RSH-08-004
   - id: CM-28-015
     priority: MUST
@@ -9088,12 +9072,12 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-28-007
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-28-009
-    - rel_type: depends_on
-      spec_id: CM-28-014
-    - rel_type: depends_on
-      spec_id: CLP-10-025
+    - rel_type: uses_definition
+      spec_id: MSM-07-008
+    - rel_type: uses_definition
+      spec_id: MSM-07-009
     adr:
     - ADR-0118
     - ADR-0135
@@ -9140,8 +9124,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-28-015
-    - rel_type: depends_on
-      spec_id: CLP-10-025
+    - rel_type: uses_definition
+      spec_id: HP-01-006
     adr:
     - ADR-0135
     stories:
@@ -9166,8 +9150,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-28-015
-    - rel_type: depends_on
-      spec_id: CLP-10-025
+    - rel_type: uses_definition
+      spec_id: MSM-07-008
     adr:
     - ADR-0135
     stories:
@@ -9259,9 +9243,6 @@ groups:
       prevent this, because `append` is not an assignment. Thus the only guard is to
       send every change through a mutator that validates. PRM-03-001 gives the same
       prohibition for `case_roles`.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-21-001
     adr:
     - ADR-0064
   - id: CM-27-002
@@ -9301,7 +9282,7 @@ groups:
     verification: Inspection of `vultron/core/models/case/` confirms that `VulnerabilityCase`
       exposes a canonical mutator method for appending a case status to `case_statuses`.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: CM-27-001
     adr:
     - ADR-0064
@@ -9330,7 +9311,7 @@ groups:
       and asserts the last appended one is current.
     relationships:
     - rel_type: refines
-      spec_id: CM-27-001
+      spec_id: SM-05-002
   - id: CM-29-004
     priority: MUST
     kind: protocol
@@ -9352,9 +9333,9 @@ groups:
     stories:
     - story_2022_075
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: CM-29-001
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: CLP-15-007
   - id: CM-29-005
     priority: MUST
@@ -9376,9 +9357,7 @@ groups:
     stories:
     - story_2022_075
     relationships:
-    - rel_type: refines
-      spec_id: CM-29-001
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: SM-05-003
   - id: CM-29-006
     priority: MUST
@@ -9396,9 +9375,6 @@ groups:
       `test/core/models/test_case_status.py` asserts that a status built here and
       one built by `append_case_status` carry no `updated` other than their
       `published`.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-29-005
   - id: CM-29-007
     priority: MUST_NOT
     kind: protocol
@@ -9417,11 +9393,6 @@ groups:
       is appended, is current, and a WARNING names both statuses.
     stories:
     - story_2022_075
-    relationships:
-    - rel_type: refines
-      spec_id: CM-29-005
-    - rel_type: refines
-      spec_id: CLP-15-005
   - id: CM-29-008
     priority: MUST
     kind: project
@@ -9436,7 +9407,7 @@ groups:
       `test_out_of_order_case_status_is_applied_and_warned` in
       `test/core/behaviors/sync/nodes/test_case_status_effect.py` asserts the WARNING.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-29-007
 - id: CM-30
   title: Sender Entitlement for Case Content Changes
@@ -9469,6 +9440,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
+    - rel_type: uses_definition
+      spec_id: CM-10-004
     adr:
     - ADR-0115
   - id: CM-30-003
@@ -9489,8 +9462,8 @@ groups:
     - story_2022_035
     - story_2026_030
     relationships:
-    - rel_type: extends
-      spec_id: CM-30-001
+    - rel_type: refines
+      spec_id: PCR-03-001
     adr:
     - ADR-0115
   - id: CM-30-004
@@ -9558,8 +9531,8 @@ groups:
     - story_2022_035
     - story_2026_030
     relationships:
-    - rel_type: extends
-      spec_id: CM-30-002
+    - rel_type: refines
+      spec_id: PCR-03-001
     adr:
     - ADR-0115
   - id: CM-30-006
@@ -9607,9 +9580,6 @@ groups:
       `test/core/use_cases/received/test_participant_removal.py` apply a Case
       Owner's `Remove(CaseParticipant)` at the CASE_MANAGER and assert the record
       carries the removal fact.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-10-004
     adr:
     - ADR-0116
     stories:
@@ -9697,8 +9667,8 @@ groups:
       Inspection confirms that the shared recipient selection (CM-10-007) calls the
       one case-level check.
     relationships:
-    - rel_type: refines
-      spec_id: CM-10-007
+    - rel_type: uses_definition
+      spec_id: CM-10-004
     adr:
     - ADR-0116
   - id: CM-31-018
@@ -9752,6 +9722,9 @@ groups:
       `test_active_participants_lists_the_active_records_in_roster_order` in
       `test/core/models/test_case_active_participant.py` asserts
       `activeParticipants` lists active participants only.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-31-002
     adr:
     - ADR-0116
     stories:
@@ -9815,8 +9788,6 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CM-31-003
-    - rel_type: constrains
-      spec_id: ARCH-23-005
   - id: CM-31-004
     priority: MUST
     kind: protocol
@@ -9834,9 +9805,6 @@ groups:
     verification: >-
       Received-side tests assert a removal from a non-owner, of the CASE_MANAGER, and of the Case
       Owner is refused, and a removal from the Case Owner is applied.
-    relationships:
-    - rel_type: depends_on
-      spec_id: PCR-03-006
     adr:
     - ADR-0116
     stories:
@@ -9900,9 +9868,6 @@ groups:
       `test/core/use_cases/received/test_participant_removal_planned.py` asserts
       that an accepted removal grows the ledger by an entry whose snapshot is the
       Case Owner's activity.
-    relationships:
-    - rel_type: depends_on
-      spec_id: CLP-10-006
     adr:
     - ADR-0116
     stories:
@@ -9966,7 +9931,7 @@ groups:
       CASE_MANAGER's outbox holds a `Remove(CaseParticipant)` addressed to the
       removed participant.
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: CM-31-005
     adr:
     - ADR-0116
@@ -10009,7 +9974,7 @@ groups:
       participant.
     relationships:
     - rel_type: extends
-      spec_id: CM-31-006
+      spec_id: CM-31-005
     adr:
     - ADR-0116
     stories:
@@ -10031,7 +9996,7 @@ groups:
       committed afterwards is not addressed to it, by fan-out or by replay.
     relationships:
     - rel_type: extends
-      spec_id: CM-31-006
+      spec_id: CM-31-005
     adr:
     - ADR-0116
     stories:
@@ -10049,9 +10014,6 @@ groups:
     verification: >-
       A test announces a removal entry to a replica and asserts the participant's record remains,
       carries the removal fact, and is not active on the replica.
-    relationships:
-    - rel_type: depends_on
-      spec_id: RSH-08-004
     adr:
     - ADR-0116
     stories:
@@ -10094,7 +10056,7 @@ groups:
       A received-side test removes a signatory and asserts its consent rows are unchanged.
     relationships:
     - rel_type: extends
-      spec_id: CM-18-005
+      spec_id: CM-31-001
     adr:
     - ADR-0116
     stories:
@@ -10121,8 +10083,10 @@ groups:
       assert each is sent the notice and no ledger entry; a declined or never-joined
       participant is sent nothing.
     relationships:
-    - rel_type: refines
-      spec_id: CM-10-007
+    - rel_type: uses_definition
+      spec_id: CM-31-001
+    - rel_type: supersedes
+      spec_id: CM-23-004
     adr:
     - ADR-0116
     - ADR-0093
@@ -10151,6 +10115,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-31-009
+    - rel_type: supersedes
+      spec_id: CM-23-004
     adr:
     - ADR-0116
     - ADR-0093
@@ -10173,6 +10139,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-31-009
+    - rel_type: extends
+      spec_id: CM-31-030
     adr:
     - ADR-0116
     stories:
@@ -10193,8 +10161,18 @@ groups:
       `test/core/use_cases/received/test_embargo_ending_notices.py` apply the notice
       at a removed participant's replica and assert the embargo ended or shortened.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: RSH-08-003
+    - rel_type: uses_definition
+      spec_id: CM-10-005
+    - rel_type: uses_definition
+      spec_id: CM-31-001
+    - rel_type: uses_definition
+      spec_id: CM-23-004
+    - rel_type: uses_definition
+      spec_id: CM-31-009
+    - rel_type: uses_definition
+      spec_id: CM-31-030
     adr:
     - ADR-0116
     stories:
@@ -10241,6 +10219,37 @@ groups:
     - ADR-0116
     stories:
     - story_2026_096
+  - id: CM-31-042
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A CM-31-010 paused replica can receive a CM-31-009 `Remove(EmbargoEvent)`
+      naming a revision it has not activated. When its register holds that revision
+      at no final status, the replica MUST activate the revision and then terminate
+      it.
+    rationale: >-
+      The CASE_MANAGER terminates only the embargo in force, so the named revision
+      replaced the replica's. Its CM-31-030 `Announce` was overtaken (SYNC-19-003),
+      or none was owed for a longer revision. Skipping the `Remove` leaves the
+      replica bound for good (SYNC-19-001). A named embargo at a final status is a
+      stale `Remove` and changes nothing (ADR-0122).
+    verification: >-
+      `test_paused_signatory_ending_notices_converge_in_either_order` in
+      `test/core/use_cases/received/test_arrival_order.py` delivers the revision's
+      `Announce` and `Remove` in both orders and asserts one EM state, register and
+      consent set; `test_paused_replica_ignores_a_remove_of_the_superseded_embargo` in
+      `test/core/use_cases/received/test_embargo_ending_notices.py` asserts a stale
+      `Remove` changes nothing and attempts no activation;
+      `test_paused_replica_ends_a_longer_revision_it_was_not_told_of` in the same
+      file asserts a `Remove` of a longer revision ends it.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-31-010
+    adr:
+    - ADR-0116
+    - ADR-0161
+    stories:
+    - story_2026_096
   - id: CM-31-011
     priority: MUST
     kind: protocol
@@ -10260,8 +10269,10 @@ groups:
       Case Owner's `Add` reinstates a removed participant with one entry and a
       delegated notice, and that a non-owner's `Add` is refused.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-31-004
+    - rel_type: uses_definition
+      spec_id: CM-31-007
     adr:
     - ADR-0116
     stories:
@@ -10348,7 +10359,7 @@ groups:
       `Add(CaseParticipant)` is enqueued and no `add_case_participant` entry is
       committed.
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: CM-17-004
     adr:
     - ADR-0116
@@ -10375,7 +10386,7 @@ groups:
       the backfill come first.
     relationships:
     - rel_type: extends
-      spec_id: CM-31-012
+      spec_id: CM-17-004
     - rel_type: refines
       spec_id: CM-11-009
     adr:
@@ -10403,7 +10414,7 @@ groups:
       `test_the_accept_entry_signs_consent_and_marks_joined` in
       `test/core/behaviors/sync/test_announce_tree.py` asserts the replica writes.
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CM-31-012
     adr:
     - ADR-0114
@@ -10426,8 +10437,8 @@ groups:
       `test/core/behaviors/sync/test_announce_tree.py` asserts that a stale Accept
       replayed over a seed that is ahead changes nothing.
     relationships:
-    - rel_type: extends
-      spec_id: CM-31-012
+    - rel_type: uses_definition
+      spec_id: CM-18-003
     adr:
     - ADR-0114
     - ADR-0124
@@ -10449,7 +10460,7 @@ groups:
       and stores nothing.
     relationships:
     - rel_type: extends
-      spec_id: CM-31-012
+      spec_id: CM-31-037
     adr:
     - ADR-0114
     - ADR-0124
@@ -10472,9 +10483,6 @@ groups:
       `test_removed_participant_is_not_invited_to_an_embargo_revision` in
       `test/core/use_cases/received/test_participant_removal_planned.py` assert the
       Invite recipient selection excludes a removed participant.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-10-007
     adr:
     - ADR-0116
     stories:
@@ -10496,8 +10504,6 @@ groups:
       Invite to it, and that with no active embargo none is sent.
     relationships:
     - rel_type: extends
-      spec_id: CM-31-013
-    - rel_type: depends_on
       spec_id: CM-31-011
     adr:
     - ADR-0116
@@ -10527,9 +10533,6 @@ groups:
     stories:
     - story_2022_104
     - story_2022_105
-    relationships:
-    - rel_type: refines
-      spec_id: CP-05-002
     adr:
     - ADR-0125
   - id: CM-32-017
@@ -10575,7 +10578,9 @@ groups:
     stories:
     - story_2022_104
     relationships:
-    - rel_type: depends_on
+    - rel_type: refines
+      spec_id: CP-05-002
+    - rel_type: extends
       spec_id: CP-05-003
     adr:
     - ADR-0125
@@ -10597,8 +10602,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-32-002
-    - rel_type: depends_on
-      spec_id: CP-05-006
+    - rel_type: refines
+      spec_id: CP-05-013
     adr:
     - ADR-0125
   - id: CM-32-003
@@ -10677,7 +10682,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-32-003
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: CLP-08-002
     adr:
     - ADR-0125
@@ -10731,9 +10736,6 @@ groups:
       entry naming the child, committed after the child's creation entry.
     stories:
     - story_2022_104
-    relationships:
-    - rel_type: depends_on
-      spec_id: CLP-02-001
     adr:
     - ADR-0125
     - ADR-0124
@@ -10797,11 +10799,6 @@ groups:
       second child and the grandchild.
     stories:
     - story_2022_104
-    relationships:
-    - rel_type: refines
-      spec_id: VP-10-002
-    - rel_type: refines
-      spec_id: VP-10-003
     adr:
     - ADR-0125
   - id: CM-32-025
@@ -10820,7 +10817,7 @@ groups:
     stories:
     - story_2022_104
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: CM-32-006
     adr:
     - ADR-0125
@@ -10845,6 +10842,8 @@ groups:
       spec_id: VP-10-005
     - rel_type: supersedes
       spec_id: CM-14-010
+    - rel_type: part_of
+      spec_id: CM-32-011
     adr:
     - ADR-0125
     - ADR-0122
@@ -10922,8 +10921,8 @@ groups:
     stories:
     - story_2022_105
     relationships:
-    - rel_type: refines
-      spec_id: VP-10-005
+    - rel_type: part_of
+      spec_id: CM-32-011
     adr:
     - ADR-0125
   - id: CM-32-029
@@ -11001,8 +11000,8 @@ groups:
     stories:
     - story_2022_104
     relationships:
-    - rel_type: depends_on
-      spec_id: CM-05-002
+    - rel_type: uses_definition
+      spec_id: CM-17-010
     adr:
     - ADR-0125
   - id: CM-32-031
@@ -11041,7 +11040,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-32-010
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-17-010
     adr:
     - ADR-0125
@@ -11126,8 +11125,10 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-32-011
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-10-004
+    - rel_type: refines
+      spec_id: CM-14-009
     adr:
     - ADR-0125
     - ADR-0114
@@ -11204,7 +11205,7 @@ groups:
     stories:
     - story_2022_104
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-10-007
     adr:
     - ADR-0125
@@ -11249,6 +11250,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VP-10-002
+    - rel_type: uses_definition
+      spec_id: CM-32-006
     adr:
     - ADR-0125
     - ADR-0113
@@ -11333,6 +11336,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VP-10-003
+    - rel_type: uses_definition
+      spec_id: CM-32-006
     adr:
     - ADR-0125
   - id: CM-32-015
@@ -11352,10 +11357,8 @@ groups:
     stories:
     - story_2022_105
     relationships:
-    - rel_type: implements
-      spec_id: VP-10-003
-    - rel_type: refines
-      spec_id: CM-10-004
+    - rel_type: constrains
+      spec_id: CM-32-014
     adr:
     - ADR-0125
   - id: CM-32-043
@@ -11462,7 +11465,7 @@ groups:
     - story_2022_035
     - story_2026_065
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: PCR-08-001
     adr:
     - ADR-0039
@@ -11509,7 +11512,9 @@ groups:
     - rel_type: extends
       spec_id: CM-33-001
     - rel_type: refines
-      spec_id: CM-24-005
+      spec_id: CM-24-001
+    - rel_type: refines
+      spec_id: CM-24-002
     adr:
     - ADR-0039
   - id: CM-33-009
@@ -11569,8 +11574,8 @@ groups:
     - story_2022_035
     - story_2026_065
     relationships:
-    - rel_type: extends
-      spec_id: CM-33-002
+    - rel_type: uses_definition
+      spec_id: CM-33-003
     adr:
     - ADR-0039
   - id: CM-33-011
@@ -11587,7 +11592,7 @@ groups:
     - story_2022_035
     - story_2026_065
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: CM-33-010
     adr:
     - ADR-0039
@@ -11617,8 +11622,6 @@ groups:
     relationships:
     - rel_type: constrains
       spec_id: CM-02-016
-    - rel_type: refines
-      spec_id: CM-02-001
     adr:
     - ADR-0039
   - id: CM-33-012
@@ -11721,7 +11724,7 @@ groups:
     - story_2022_035
     - story_2026_065
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: PCR-08-001
     - rel_type: extends
       spec_id: CM-33-004
@@ -11750,8 +11753,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
-    - rel_type: depends_on
-      spec_id: CM-33-001
+    - rel_type: refines
+      spec_id: CLP-11-001
     adr:
     - ADR-0039
     - ADR-0115
@@ -11802,7 +11805,7 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST report a redelivery of the answer that closed a role Offer
-      as `SKIPPED` (HP-01-003).
+      as `SKIPPED` (HP-01-014).
     rationale: >-
       A redelivery is the same answer again, not a new one. Reporting it `REFUSED` would
       tell the target its answer was declined after it was admitted.
@@ -11815,6 +11818,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-33-005
+    - rel_type: refines
+      spec_id: HP-01-014
     adr:
     - ADR-0039
   - id: CM-33-006
@@ -11835,11 +11840,11 @@ groups:
     - story_2022_035
     - story_2026_065
     relationships:
-    - rel_type: implements
+    - rel_type: uses_definition
       spec_id: CLP-02-012
-    - rel_type: implements
+    - rel_type: refines
       spec_id: PCR-08-003
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: CM-33-005
     adr:
     - ADR-0039
@@ -11882,6 +11887,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-33-006
+    - rel_type: refines
+      spec_id: CM-02-016
     adr:
     - ADR-0039
   - id: CM-33-021

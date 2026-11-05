@@ -66,6 +66,7 @@ from vultron.core.behaviors.embargo.nodes.ending_notice import (
     embargo_ending_notice_nodes,
 )
 from vultron.core.behaviors.embargo.nodes.ending_notice_replica import (
+    AdoptRemovedEmbargoRevisionNode,
     ApplyAnnouncedEmbargoRevisionNode,
     AwaitsEmbargoEndingNoticeNode,
 )
@@ -124,10 +125,12 @@ from vultron.core.behaviors.embargo.nodes.reject_proposed import (
 from vultron.core.behaviors.embargo.nodes.relay import (
     EMBARGO_INVITE_SEMANTIC_TYPE,
     CollectEmbargoInviteRecipientsNode,
+    EmbargoInviteNotYetAnsweredNode,
     EmbargoProposalNotYetRecordedNode,
     EmStateAdmitsProposalNode,
     RelayEmbargoInviteToEachNode,
     case_manager_admits_proposal_guard,
+    invitee_not_yet_answered_guard,
 )
 from vultron.core.behaviors.embargo.nodes.relay_effect import (
     ApplyCreatedEmbargoFromLedgerNode,
@@ -194,6 +197,7 @@ __all__ = [
     "RejectEmbargoProposalLifecycleNode",
     "SendOwnerEmbargoDecisionNode",
     # Embargo-ending notices to unreached signatories (CM-31-009, CM-31-010)
+    "AdoptRemovedEmbargoRevisionNode",
     "ApplyAnnouncedEmbargoRevisionNode",
     "CaptureActiveEmbargoNode",
     "AwaitsEmbargoEndingNoticeNode",
@@ -210,6 +214,7 @@ __all__ = [
     "EMBARGO_INVITE_SEMANTIC_TYPE",
     "CollectEmbargoInviteRecipientsNode",
     "EmStateAdmitsProposalNode",
+    "EmbargoInviteNotYetAnsweredNode",
     "EmbargoProposalNotYetRecordedNode",
     "ReinviteStaleAccepterNode",
     "RelayEmbargoInviteToEachNode",
@@ -240,6 +245,7 @@ __all__ = [
     "LeaveAbandonmentToCaseManagerNode",
     "ApplyEmbargoAbandonmentFromLedgerNode",
     "case_manager_admits_proposal_guard",
+    "invitee_not_yet_answered_guard",
     # Invite expiry: evaluation (CM-28-014, BT-17-001) and replay (ADR-0118)
     "EvaluateInviteExpiryNode",
     "CommitAndApplyInviteExpiryNode",

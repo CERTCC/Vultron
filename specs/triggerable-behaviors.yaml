@@ -32,9 +32,6 @@ groups:
       server can confirm only that it accepted the request, not that the behavior is
       complete. A 202 response states exactly this, and the inbox uses the same code
       (IE-05-001).
-    relationships:
-    - rel_type: depends_on
-      spec_id: IE-05-001
   - id: TRIG-01-003
     priority: MUST
     kind: project
@@ -47,7 +44,7 @@ groups:
       immediately. A 202 response would hide the failure in a background task that the
       caller cannot see.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: EH-05-001
   - id: TRIG-01-004
     priority: MUST_NOT
@@ -61,9 +58,6 @@ groups:
       for that time. A caller timeout would also look like a failed behavior. Thus the
       trigger sends the response first and runs the behavior after it, as the inbox does
       (IE-05-002).
-    relationships:
-    - rel_type: depends_on
-      spec_id: IE-05-002
   - id: TRIG-01-005
     priority: MUST
     kind: project
@@ -76,7 +70,7 @@ groups:
       outbox delivery finish. The server worker is then free, and a caller timeout
       does not look like a failed behavior (IE-05-002).
     relationships:
-    - rel_type: extends
+    - rel_type: implements
       spec_id: TRIG-01-004
 - id: TRIG-02
   title: Candidate RM Behaviors
@@ -127,6 +121,9 @@ groups:
     note: >-
       Only three of the five exist today, under `/demo/`; #4159 owns exposing all
       five.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: TRIG-08-003
   - id: TRIG-02-004
     priority: SHOULD
     kind: project
@@ -233,8 +230,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: TRIG-03-003
-    - rel_type: depends_on
-      spec_id: CS-08-001
   - id: TRIG-03-005
     priority: SHOULD
     kind: project
@@ -271,7 +266,7 @@ groups:
     scope:
     - production
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: AR-04-001
   - id: TRIG-04-003
     priority: MUST
@@ -292,9 +287,6 @@ groups:
       identified request is retrievable from the actor's outstanding-ask collection.
     adr:
     - ADR-0080
-    relationships:
-    - rel_type: depends_on
-      spec_id: ASK-04-009
 - id: TRIG-05
   title: BT Integration
   specs:
@@ -340,7 +332,7 @@ groups:
       endpoint resolves its DataLayer instance keyed on the `actor_id` path
       parameter.
     relationships:
-    - rel_type: depends_on
+    - rel_type: implements
       spec_id: CM-01-001
     stories:
     - story_2026_061
@@ -358,9 +350,6 @@ groups:
       Inspection of `vultron/adapters/driving/fastapi/` confirms that the DataLayer
       instance is injected via a FastAPI dependency rather than constructed inside
       the endpoint handler.
-    relationships:
-    - rel_type: depends_on
-      spec_id: CM-01-001
 - id: TRIG-07
   title: Outbox Activity
   specs:
@@ -376,9 +365,6 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that each successfully executed
       trigger adds a new activity to the actor's outbox.
-    relationships:
-    - rel_type: depends_on
-      spec_id: OX-02-001
     stories:
     - story_2022_039
     - story_2022_081
@@ -427,6 +413,9 @@ groups:
       route-to-registry test asserts that each general-purpose row is mounted
       under `/actors/{actor_id}/trigger/` and that no route under that prefix
       lacks a general-purpose row.
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-01-001
   - id: TRIG-08-004
     priority: MUST
     kind: project
@@ -455,9 +444,6 @@ groups:
       `test_defaults_mode` and `test_env_override_mode` in `test/test_config.py`
       confirm that `get_config().mode` defaults to `RunMode.PROTOTYPE` and that
       `VULTRON_MODE=prod` sets it to `RunMode.PROD`.
-    relationships:
-    - rel_type: depends_on
-      spec_id: CFG-04-001
 - id: TRIG-09
   title: Demo Trigger Endpoints
   specs:
@@ -502,7 +488,7 @@ groups:
       with `VULTRON_MODE=prod`, a demo path is not mounted and a request to it returns
       HTTP 404.
     relationships:
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: TRIG-09-002
   - id: TRIG-09-004
     priority: MUST
@@ -517,6 +503,11 @@ groups:
       Inspection of `vultron/adapters/driving/fastapi/` confirms that demo trigger
       endpoint handlers receive their DataLayer instance via the same FastAPI
       dependency as general-purpose triggers.
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-06-001
+    - rel_type: refines
+      spec_id: TRIG-06-002
   - id: TRIG-09-005
     priority: MUST
     kind: project
@@ -585,7 +576,7 @@ groups:
       is in the demo layer.
     relationships:
     - rel_type: refines
-      spec_id: TRIG-08-004
+      spec_id: TRIG-02-006
   - id: TRIG-10-004
     priority: MUST_NOT
     kind: project
@@ -602,7 +593,7 @@ groups:
       entries are replayed (SYNC-17-001, SYNC-18-001)
     relationships:
     - rel_type: refines
-      spec_id: TRIG-08-004
+      spec_id: TRIG-02-006
   - id: TRIG-10-005
     priority: MUST
     kind: project
@@ -679,8 +670,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: TRIG-01-001
-    - rel_type: refines
+    - rel_type: extends
       spec_id: TRIG-02-004
+    - rel_type: uses_definition
+      spec_id: CM-21-005
     stories:
     - story_2022_050
   - id: TRIG-11-002
@@ -698,7 +691,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: TRIG-01-001
-    - rel_type: refines
+    - rel_type: extends
       spec_id: TRIG-02-004
     - rel_type: refines
       spec_id: CM-21-006
@@ -715,7 +708,7 @@ groups:
       the parameter of the factory function, so it passes the text through and needs no
       mapping of its own.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: TRIG-11-001
   - id: TRIG-11-004
     priority: MUST
@@ -740,11 +733,11 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: TRIG-04-001
-    - rel_type: refines
+    - rel_type: extends
       spec_id: TRIG-11-001
-    - rel_type: refines
+    - rel_type: extends
       spec_id: TRIG-11-002
-    - rel_type: refines
+    - rel_type: extends
       spec_id: TRIG-11-005
   - id: TRIG-11-005
     priority: MUST
@@ -766,8 +759,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: TRIG-01-001
-    - rel_type: refines
-      spec_id: TRIG-11-002
     - rel_type: refines
       spec_id: CM-21-010
     stories:
@@ -791,8 +782,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: TRIG-01-001
-    - rel_type: refines
-      spec_id: CM-21-015
+    - rel_type: uses_definition
+      spec_id: TRIG-11-001
     stories:
     - story_2022_050
   - id: TRIG-11-007
@@ -811,9 +802,9 @@ groups:
       A test marked `TRIG-11-007` confirms the trigger's request model has an
       optional `end_time` field.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: TRIG-11-001
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: CM-21-016
     stories:
     - story_2022_050
@@ -853,6 +844,9 @@ groups:
       that adds or drops a key fails it.
     adr:
     - ADR-0110
+    relationships:
+    - rel_type: uses_definition
+      spec_id: TRIG-12-004
   - id: TRIG-12-003
     priority: MUST_NOT
     kind: project
@@ -891,11 +885,6 @@ groups:
       table is what every lookup reads;
       `test/adapters/driving/fastapi/test_trigger_routes_contract.py::test_dispatcher_receives_the_rows_request_over_the_addressed_store`
       asserts each route dispatches its row's request model.
-    relationships:
-    - rel_type: refines
-      spec_id: TRIG-08-003
-    - rel_type: refines
-      spec_id: TRIG-08-004
     adr:
     - ADR-0110
   - id: TRIG-12-005
@@ -914,9 +903,6 @@ groups:
       asserts that a response whose `activity` is `null` still carries the key.
     adr:
     - ADR-0110
-    relationships:
-    - rel_type: extends
-      spec_id: TRIG-12-002
   - id: TRIG-12-006
     priority: MUST
     kind: project
@@ -935,7 +921,7 @@ groups:
     adr:
     - ADR-0110
     relationships:
-    - rel_type: extends
+    - rel_type: uses_definition
       spec_id: TRIG-12-003
   - id: TRIG-12-007
     priority: MUST
@@ -1025,8 +1011,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: TRIG-02-004
-    - rel_type: depends_on
-      spec_id: CM-23-001
     adr:
     - ADR-0145
   - id: TRIG-13-002
@@ -1045,7 +1029,7 @@ groups:
       when the actor's replica applies its closure entry would put local policy into
       replica application, which CM-23-016 forbids (ADR-0145).
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: TRIG-13-001
     adr:
     - ADR-0145
@@ -1069,10 +1053,8 @@ groups:
       (CM-23-011). Checking first keeps the owner's own systems from acting on a
       close that would be declined (ADR-0145).
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: TRIG-13-002
-    - rel_type: depends_on
-      spec_id: CM-23-011
     adr:
     - ADR-0145
   - id: TRIG-13-004

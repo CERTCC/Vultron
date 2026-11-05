@@ -17,7 +17,8 @@
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
+from vultron.core.behaviors.case.nodes.path_branch import OnPaths
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -45,13 +46,19 @@ from vultron.core.behaviors.sync.nodes.case_copy_effect import (
 from vultron.core.behaviors.sync.nodes.ledger_entry_fault import (
     EmitLedgerEntryFaultNode,
 )
+from vultron.core.behaviors.sync.nodes.own_announce import (
+    AnnouncedEntryIsNotOwnEchoNode,
+)
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH,
 )
 
-#: The role check of the CASE_MANAGER arm: past the sender guard, an
-#: announcement it admits is the CASE_MANAGER's own, echoed back.
-AT_CASE_MANAGER = "CheckIsCaseManager"
+#: The branch the tree runs at the case's CASE_MANAGER: past the sender
+#: guard, an announcement it admits is the CASE_MANAGER's own, echoed back.
+AT_CASE_MANAGER = "ConfirmOwnEchoedAnnounce"
+
+#: The branch the tree runs at every other receiver it declares.
+OFF_CASE_MANAGER = "ProcessAnnouncedEntry"
 
 
 def create_announce_log_entry_tree(
@@ -61,34 +68,22 @@ def create_announce_log_entry_tree(
 
     The sender must be the CASE_MANAGER of the case the announced entry
     names (SYNC-13-006, HP-01-006).  The factory composes that guard from the
-    use case's declared rule, ahead of both role arms; its node reads the case
+    use case's declared rule, ahead of the branches; its node reads the case
     from the entry when the tree runs
     (:class:`~vultron.core.behaviors.sender_guard.LedgerActivityContext`).
     At the CASE_MANAGER an admitted announcement is therefore its own, echoed
-    back, and only confirms delivery; at a participant it is processed
-    against the local chain.
+    back, and only confirms delivery; off that path it is processed against
+    the local chain.
+
+    Which receiver this is comes from the tree's path declaration, asked once
+    at the path door stage (HP-01-036, HP-01-038): the tree declares all three
+    paths, because the pre-genesis window is a receiver that holds no replica
+    of the case yet, and the two branches are the stage's answer read back,
+    never a second role question (ADR-0153).
 
     Args:
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
-    # Both role checks read a case this actor does not hold as "not the
-    # CASE_MANAGER" (ADR-0087 Regime 3), so a participant in the pre-genesis
-    # window takes the participant arm, whose replay Reject repairs it
-    # (SYNC-15-001, #5513).  The CASE_MANAGER's own echoed Announce is the
-    # exception: its sender is the manager, so a case it does not hold is a
-    # Regime 1 anomaly and still fails at ERROR.
-    case_actor_subtree = py_trees.composites.Sequence(
-        name="CaseActorSubtree",
-        memory=False,
-        children=[
-            CheckIsCaseManagerNode(
-                name=AT_CASE_MANAGER,
-                case_may_be_absent=True,
-                own_activity_needs_case=True,
-            ),
-            LogDeliveryConfirmationNode(name="LogDeliveryConfirmation"),
-        ],
-    )
     log_entry_event_effects = create_log_entry_event_effects()
     # When the VulnerabilityCase is not yet seeded on this replica, chain tail
     # reconstruction fails and no tail_hash is available for the mismatch check.
@@ -197,41 +192,36 @@ def create_announce_log_entry_tree(
             process_and_store,
         ],
     )
-    participant_subtree = py_trees.composites.Sequence(
-        name="ParticipantGate",
-        memory=False,
-        children=[
-            py_trees.decorators.Inverter(
-                name="CheckIsNotCaseManager",
-                child=CheckIsCaseManagerNode(
-                    name="CheckIsCaseManagerInverse",
-                    case_may_be_absent=True,
-                    own_activity_needs_case=True,
+    # Off the manager path the entry is processed against the local chain.
+    off_case_manager = OnPaths.off_case_manager(
+        OFF_CASE_MANAGER,
+        # An Announce this store sent, at a store holding no replica of the
+        # case, is an anomaly rather than the pre-genesis window
+        # (SYNC-15-001, ADR-0087).
+        AnnouncedEntryIsNotOwnEchoNode(name="AnnouncedEntryIsNotOwnEcho"),
+        # An entry that fails its own hash is refused before it can be
+        # buffered, applied or stored, and before the already-stored
+        # shortcut could skip it unlogged (SYNC-03-006).  The refusal is
+        # reported to the CASE_MANAGER with its own fault, and the
+        # Selector still fails (SYNC-03-007).
+        py_trees.composites.Selector(
+            name="HashIntactOrFault",
+            memory=False,
+            children=[
+                CheckEntryHashIntactNode(name="CheckEntryHashIntact"),
+                EmitLedgerEntryFaultNode(
+                    VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH,
+                    name="EmitHashMismatchFault",
                 ),
-            ),
-            # An entry that fails its own hash is refused before it can be
-            # buffered, applied or stored, and before the already-stored
-            # shortcut could skip it unlogged (SYNC-03-006).  The refusal is
-            # reported to the CASE_MANAGER with its own fault, and the
-            # Selector still fails (SYNC-03-007).
-            py_trees.composites.Selector(
-                name="HashIntactOrFault",
-                memory=False,
-                children=[
-                    CheckEntryHashIntactNode(name="CheckEntryHashIntact"),
-                    EmitLedgerEntryFaultNode(
-                        VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH,
-                        name="EmitHashMismatchFault",
-                    ),
-                ],
-            ),
-            entry_processing,
-            # The entry this delivery stored (or found stored) may be the
-            # predecessor a held Announce waits on.  That Announce, as it was
-            # received, is replayed through this actor's inbox as its own
-            # delivery; its tree replays the next one (SYNC-14-009, ADR-0135).
-            ReplayHeldSuccessorNode(name="ReplayHeldSuccessor"),
-        ],
+            ],
+        ),
+        entry_processing,
+        # The entry this delivery stored (or found stored) may be the
+        # predecessor a held Announce waits on.  That Announce, as it was
+        # received, is replayed through this actor's inbox as its own
+        # delivery; its tree replays the next one (SYNC-14-009, ADR-0135).
+        ReplayHeldSuccessorNode(name="ReplayHeldSuccessor"),
+        body_name="ProcessAnnouncedEntryBody",
     )
     # The replication envelope is never itself a canonical entry (CLP-10-004),
     # so there is no commit stage (``case_id=None``); intake archives the
@@ -240,13 +230,24 @@ def create_announce_log_entry_tree(
         name="AnnounceLogEntryReceivedBT",
         case_id=None,
         precondition_guards=[],
+        # Three receivers, three branches (HP-01-038): the CASE_MANAGER gets
+        # its own announcement echoed back, a participant replica processes
+        # it against the local chain, and a store that holds no replica of
+        # the case is in the pre-genesis window and holds the entry until the
+        # genesis anchor arrives, which is why the no-case path is declared
+        # too (SYNC-15-001, SYNC-15-004, HP-01-041).
+        paths={
+            ReceivedPath.CASE_MANAGER,
+            ReceivedPath.PARTICIPANT_REPLICA,
+            ReceivedPath.NO_CASE,
+        },
         sender_rule=sender_rule,
         sender_context=LedgerActivityContext(),
         replica_effects=[
-            py_trees.composites.Selector(
-                name="AnnounceLogEntryRoles",
-                memory=False,
-                children=[case_actor_subtree, participant_subtree],
-            )
+            OnPaths.at_case_manager(
+                AT_CASE_MANAGER,
+                LogDeliveryConfirmationNode(name="LogDeliveryConfirmation"),
+            ),
+            off_case_manager,
         ],
     )

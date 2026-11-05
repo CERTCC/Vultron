@@ -15,7 +15,7 @@
 
 Submodules
 ----------
-- :mod:`.actors` — ``_dl_key``, ``get_actor_by_id``, ``seed_case_actor_peers``
+- :mod:`.actors` — ``dl_key``, ``get_actor_by_id``, ``seed_case_actor_peers``
   and the two-phase ``_seed_mesh`` every ``seed_containers*`` helper runs.
 - :mod:`.containers` — the per-scenario ``seed_containers*`` helpers.
 - :mod:`.reset` — ``reset_containers`` and ``seed_case_actor_identity``.

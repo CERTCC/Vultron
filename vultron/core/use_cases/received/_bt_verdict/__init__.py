@@ -48,8 +48,22 @@ A tree that declares its paths needs no such reading: its path door stage
 refuses the undeclared path itself, :func:`door_refusal` returns that refusal
 with the reason the stage composed from the resolved path and the declaration
 (HP-01-039), and the handler asks :func:`received_path` which of the three
-paths it is on.  :func:`not_case_manager` and
-:func:`not_case_manager_refusal` remain for the trees still to be migrated.
+paths it is on.
+
+:func:`not_case_manager` and :func:`not_case_manager_refusal` are not the
+migration's to retire, and a declaring tree reaches them too.  The predicate
+reads a failed ``CheckIsCaseManagerNode`` anywhere in the tree, and ADR-0153
+keeps the gate the *factory* wraps round ``manager_effects`` (BT-17-001), so
+every tree with manager effects holds one however it declares.  A tree that
+declares the manager path alone never fails that gate — the stage refuses the
+other receivers first — but a tree that declares the replica path beside it
+and does its protocol work at the manager does: the stage admits the replica,
+the gate skips, and this predicate is what turns that skip into the refusal
+HP-01-005 owes.  The note trees are the case in point
+(``test_remove_note_at_non_manager_is_refused``).  Deleting the predicate
+therefore needs those trees re-declared manager-only, or given an explicit
+replica refusal, across the ~20 handlers that call
+:func:`case_manager_verdict`.
 """
 
 from vultron.core.use_cases.received._bt_verdict.case_manager import (
@@ -72,6 +86,7 @@ from vultron.core.use_cases.received._bt_verdict.door import (
 from vultron.core.use_cases.received._bt_verdict.redelivery import (
     add_note_redelivery_verdict,
     embargo_answer_repeat_verdict,
+    embargo_terms_repeat_verdict,
     embargo_withdrawal_redelivery_verdict,
     ownership_answer_verdict,
     ownership_offer_verdict,
@@ -108,6 +123,7 @@ __all__ = [
     "door_guards_admitted",
     "door_refusal",
     "embargo_answer_repeat_verdict",
+    "embargo_terms_repeat_verdict",
     "embargo_withdrawal_redelivery_verdict",
     "failure_reason",
     "find_named",

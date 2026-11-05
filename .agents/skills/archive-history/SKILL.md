@@ -2,7 +2,7 @@
 name: archive-history
 description: >
   Archive a single completed work item to plan/history/ using the append-history
-  tool, then lint, stage, commit, and push the resulting files. Always call this
+  tool, then stage, commit, and push the resulting files. Always call this
   skill AFTER a PR has been created (so the PR URL can be included in the entry
   body). Caller constructs the entry body and passes it as a heredoc. Handles
   one entry at a time; callers that need to archive multiple items (e.g., learn)
@@ -12,8 +12,10 @@ description: >
 
 # Skill: Archive History
 
-Archive one completed work item to `plan/history/`, lint the new files, and
-commit + push them to the current branch.
+Archive one completed work item to `plan/history/` and commit + push it to the
+current branch.
+History entries are not markdown-linted: the root `.markdownlint-cli2.yaml`
+ignores `plan/history/**`, so `--fix` can never rewrite one (HM-01-005, #2952).
 
 **Always invoke this skill AFTER the PR is opened** — so the PR URL can be
 embedded in the entry body. History entries become immutable once merged into
@@ -77,7 +79,7 @@ are free-form.
 ```bash
 if [[ "$HISTORY_OUTPUT" == https://* ]]; then
     echo "Posted as GitHub comment: $HISTORY_OUTPUT"
-    # Skip Steps 3–5 (no file was written).
+    # Skip Steps 3–4 (no file was written).
     exit 0
 fi
 ```
@@ -85,23 +87,14 @@ fi
 If the output is a URL, the entry was posted as a GitHub comment — skip
 all `git` steps (HM-08-004). Record the URL for the caller's reference.
 
-### Step 3 — Lint the new history files
-
-Only reached when a file was written:
-
-```bash
-markdownlint-cli2 --fix --config .markdownlint-cli2.yaml \
-  "plan/history/$(date +%y%m)/**/*.md"
-```
-
-### Step 4 — Stage and commit
+### Step 3 — Stage and commit
 
 ```bash
 git add plan/history/
 git commit -m "history: archive <TYPE> <SOURCE> — <TITLE>"
 ```
 
-### Step 5 — Push
+### Step 4 — Push
 
 ```bash
 git push -u origin HEAD

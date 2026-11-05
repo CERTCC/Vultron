@@ -144,6 +144,8 @@ groups:
     relationships:
     - rel_type: supersedes
       spec_id: VAM-01-007
+    - rel_type: supersedes
+      spec_id: SE-02-003
   - id: VAM-01-012
     priority: MUST_NOT
     kind: project

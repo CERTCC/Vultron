@@ -36,6 +36,9 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
+from vultron.core.behaviors.speaks_for_executing_actor import (
+    SpeaksForExecutingActor,
+)
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes.role_grant_effect import (
     grant_role_to_target,
@@ -148,13 +151,20 @@ class ForwardRoleOfferToTargetNode(_EmitSingleActivityBase):
         )
 
 
-class IsRoleOfferTargetNode(DataLayerConditionWithPorts):
+class IsRoleOfferTargetNode(
+    SpeaksForExecutingActor, DataLayerConditionWithPorts
+):
     """Condition: the executing actor is the target the role Offer names.
 
     Only the target answers a role Offer (CM-33-004), so the answer speaks
     for the executing actor (BT-17-008).  Any other actor that holds the
     Offer, at the door already shown to be one it is addressed to, refuses it
     with no answer sent.
+
+    Carries
+    :class:`~vultron.core.behaviors.speaks_for_executing_actor.SpeaksForExecutingActor`:
+    it is BT-17-008's second arm, so the emit behind it needs no recorded
+    exemption.
     """
 
     def __init__(self, target_actor_id: str, name: str | None = None) -> None:

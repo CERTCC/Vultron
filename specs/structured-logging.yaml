@@ -86,7 +86,7 @@ groups:
       pre-built into a name and then passed (`msg = f"..."; logger.info(msg)`) is
       outside their reach and is a review finding, not a ruff one.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SL-01-004
 - id: SL-02
   title: Correlation IDs
@@ -144,9 +144,9 @@ groups:
       attributes; an AST scan of `vultron/` finds no log call passing `activity_id`
       or `actor_id` through `extra=`.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: SL-02-001
-    - rel_type: refines
+    - rel_type: implements
       spec_id: SL-02-002
   - id: SL-02-004
     priority: MUST
@@ -188,10 +188,12 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A behaviour-tree node whose FAILURE a sibling arm of an enclosing Selector
-      can still turn into an admission MUST log that non-match at DEBUG. Only the
-      node whose FAILURE every composite above it passes on — the branch that is
-      the tree's answer — logs at WARNING.
+      A behaviour-tree node whose FAILURE states a refusal, and which a sibling arm
+      of an enclosing Selector can still turn into an admission, MUST log that
+      non-match at DEBUG. Only the node whose FAILURE every composite above it
+      passes on — the branch that is the tree's answer — logs at WARNING. A node
+      whose FAILURE states no refusal, because the handler decides its verdict from
+      the act, is outside this rule and takes its level from SL-03-001.
     rationale: >-
       A Selector arm that fails so the next arm can run has decided nothing, so it
       is not the recoverable anomaly WARNING means in SL-03-001; it is diagnostic
@@ -201,13 +203,21 @@ groups:
       at WARNING that read as a refusal in every demo log of three passing runs.
       Deciding the level from the node's placement in the running tree, rather than
       from a flag its composer sets, is what keeps the level and the tree from
-      disagreeing (#5460).
+      disagreeing (#5460). The rule picks the level of a refusal reason, so a
+      FAILURE that is not one is scoped out rather than forced into the choice: the
+      closed-sender check reports a recorded state whose act may be a repeat the
+      handler reports SKIPPED, not REFUSED (CM-23-018, ID-05-003), and it carries no
+      REFUSED wording for a reader to misread (#5786).
     verification: >-
       `test/core/behaviors/test_sender_guard.py` ticks composed guards and asserts
       the overruled arm logs one DEBUG line while the arm that is the guard's own
-      answer logs WARNING, and walks `SEMANTIC_REGISTRY` asserting every declared
+      answer logs WARNING, walks `SEMANTIC_REGISTRY` asserting every declared
       side naming `CASE_MANAGER` composes the check where its own placement says
-      it belongs.
+      it belongs, and ticks every declared side naming more than one kind with a
+      sender none of its arms admits, asserting one WARNING — the last arm's,
+      naming every standing the side accepts — and DEBUG with no REFUSED wording
+      from each arm before it. It also pins the scoped-out closed-sender check at
+      INFO in both placements.
       `test/architecture/test_sender_guard_failure_is_the_tree_refusal.py` asserts
       the invariant the level is read from — that the factory places the composed
       sender door where its FAILURE is the whole tree's refusal — across every
@@ -235,7 +245,7 @@ groups:
       including the CASE_MANAGER it resolved, and that the arm that is the guard's
       answer still logs the full reason with its `REFUSED (IDs)` group.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: SL-03-002
 - id: SL-04
   title: State Transition Logging

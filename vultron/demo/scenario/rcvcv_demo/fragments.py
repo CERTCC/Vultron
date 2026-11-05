@@ -12,27 +12,24 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The story fragments only ``rcvcv`` tells, and the cast names they read.
+"""The story fragments only ``rcvcv`` tells.
 
 ``rcvcv`` shares its opening with ``rcv`` up to C1's decision
 (:data:`~vultron.demo.helpers.coordinated_story.REPORTER_ASKS_THE_VENDOR`)
 and then tells these fragments, in the order its story lists them
-(:mod:`vultron.demo.scenario.rcvcv_demo`): a second Coordinator joins,
+(:mod:`~vultron.demo.scenario.rcvcv_demo.story`): a second Coordinator joins,
 suggests a VendorDeployer through ADR-0026, and the five parties run the
-lifecycle to closure.  They live here rather than in the scenario module so
-that module holds only the story, the CLI surface and the client plumbing
-(CS-18-005, DEMOMA-19).
+lifecycle to closure.  The cast names they read are in
+:mod:`~vultron.demo.scenario.rcvcv_demo.cast` (CS-18-005, DEMOMA-19).
 """
 
 import logging
 
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.demo.helpers.coordinated_story import (
-    COORDINATOR,
     REPORTER,
     REPORTER_LABEL,
     TIMELINE_ANSWER,
-    VENDOR,
     close_the_case,
     invitee_joins_the_case,
     reports_published,
@@ -65,6 +62,16 @@ from vultron.demo.helpers.sync import (
     run_sync_verification_phase,
     wait_for_replica_ledger_coverage,
 )
+from vultron.demo.scenario.rcvcv_demo.cast import (
+    C1,
+    C1_LABEL,
+    C2,
+    C2_LABEL,
+    V1,
+    V1_LABEL,
+    V2,
+    V2_LABEL,
+)
 from vultron.demo.utils import (
     demo_check,
     demo_step,
@@ -73,20 +80,6 @@ from vultron.demo.utils import (
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
-
-
-#: This scenario's names for the family's Coordinator and Vendor.  C1 is the
-#: Coordinator that receives the report and holds CASE_OWNER, V1 the first
-#: Vendor; the story seats them under the family's role names, so one copy of
-#: the shared opening serves ``rcv`` and ``rcvcv`` alike (DEMOCI-11-018).
-C1 = COORDINATOR
-C1_LABEL = "C1"
-V1 = VENDOR
-V1_LABEL = "V1"
-C2 = "c2"
-C2_LABEL = "C2"
-V2 = "v2"
-V2_LABEL = "V2"
 
 
 #: Seconds a wait of this scenario's later, multi-hop joins may take: V2

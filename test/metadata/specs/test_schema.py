@@ -149,6 +149,82 @@ def test_statement_spec_extra_field_rejected():
         )
 
 
+@pytest.mark.spec("SR-02-021")
+@pytest.mark.parametrize("model", [StatementSpec, BehavioralSpec])
+def test_statement_spec_optional_field_set(model):
+    """The SR-02-021 annotations are optional fields; no lifecycle field exists.
+
+    A superseded requirement is removed and archived, so no field marks one
+    in place (MS-04-005, MS-09-001).
+    """
+    optional = {
+        "verification",
+        "note",
+        "tracking_issue",
+        "verification_debt",
+        "references",
+        "exceptions",
+        "trigger",
+    }
+    fields = model.model_fields
+    assert optional <= set(fields)
+    assert not any(fields[name].is_required() for name in optional)
+    assert not {"deprecated", "superseded_by"} & set(fields)
+
+
+_SPEC_ITEM = {
+    "id": "AB-01-001",
+    "priority": "MUST",
+    "statement": "AB-01-001 MUST do something",
+    "rationale": "Because testing.",
+    "kind": "protocol",
+}
+
+
+@pytest.mark.spec("MS-09-001")
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"deprecated": True},
+        {"superseded_by": "AB-01-002"},
+        {
+            "steps": [{"order": 1, "actor": "a", "action": "b"}],
+            "deprecated": True,
+        },
+    ],
+)
+def test_lifecycle_key_refused_once_with_retirement_pointer(extra):
+    """The refusal names the rule and the archive command, exactly once.
+
+    Statement and behavioral items alike; the check runs before the ``Spec``
+    union, so its two branches do not each repeat it.
+    """
+    with pytest.raises(ValidationError) as exc_info:
+        SpecGroup.model_validate(
+            {"id": "AB-01", "title": "T", "specs": [{**_SPEC_ITEM, **extra}]}
+        )
+    message = str(exc_info.value)
+    key = "superseded_by" if "superseded_by" in extra else "deprecated"
+    assert f"'{key}:'" in message
+    assert message.count("uv run spec-retire AB-01-001") == 1
+    assert "MS-09-001" in message
+
+
+@pytest.mark.parametrize("model", [StatementSpec, BehavioralSpec])
+def test_lifecycle_key_rejected_on_direct_model_construction(model):
+    """Outside a group, ``extra="forbid"`` still refuses the key (SR-02-022)."""
+    with pytest.raises(ValidationError):
+        model.model_validate({**_SPEC_ITEM, "deprecated": True})
+
+
+@pytest.mark.parametrize("specs", [["AB-01-001"], "AB-01-001"])
+def test_non_mapping_spec_input_gets_the_model_type_error(specs):
+    """A bare-string item or list fails as a type error, not as a refusal."""
+    with pytest.raises(ValidationError) as exc_info:
+        SpecGroup.model_validate({"id": "AB-01", "title": "T", "specs": specs})
+    assert "spec-retire" not in str(exc_info.value)
+
+
 def test_statement_spec_empty_statement_rejected():
     with pytest.raises(ValidationError):
         StatementSpec(
@@ -501,40 +577,75 @@ def test_spec_file_requires_scope():
         )
 
 
+def _spec_file_kwargs() -> dict[str, object]:
+    """A ``SpecFile`` that validates, for a test that empties one field."""
+    return {
+        "id": "AB",
+        "title": "Test File",
+        "description": "A test file",
+        "scope": [Scope.PRODUCTION],
+        "tags": [SpecTag.TESTING],
+        "relationships": [
+            Relationship(rel_type=RelationType.REFINES, spec_id="AB-01-002")
+        ],
+        "groups": [
+            SpecGroup(
+                id="AB-01",
+                title="Group",
+                specs=[
+                    StatementSpec(
+                        id="AB-01-001",
+                        priority=RFC2119Priority.MUST,
+                        statement="AB-01-001 MUST work",
+                        rationale="Because testing.",
+                        kind=SpecKind.PROTOCOL,
+                    )
+                ],
+            )
+        ],
+    }
+
+
 def test_spec_file_empty_scope_rejected():
     with pytest.raises(ValidationError, match="must not be empty"):
-        SpecFile(
-            id="AB",
-            title="Test File",
-            description="A test file",
-            scope=[],
-            groups=[
-                SpecGroup(
-                    id="AB-01",
-                    title="Group",
-                    specs=[
-                        StatementSpec(
-                            id="AB-01-001",
-                            priority=RFC2119Priority.MUST,
-                            statement="AB-01-001 MUST work",
-                            rationale="Because testing.",
-                            kind=SpecKind.PROTOCOL,
-                        )
-                    ],
-                )
-            ],
-        )
+        SpecFile.model_validate({**_spec_file_kwargs(), "scope": []})
 
 
 def test_spec_file_empty_groups_rejected():
     with pytest.raises(ValidationError, match="must not be empty"):
-        SpecFile(
-            id="AB",
-            title="Test File",
-            description="A test file",
-            scope=[Scope.PRODUCTION],
-            groups=[],
-        )
+        SpecFile.model_validate({**_spec_file_kwargs(), "groups": []})
+
+
+@pytest.mark.parametrize(
+    ("field", "expected"),
+    [
+        ("tags", "tags must be non-empty if present"),
+        ("relationships", "relationships must be non-empty if present"),
+        ("scope", "scope must not be empty"),
+        ("groups", "groups must not be empty"),
+    ],
+)
+def test_an_empty_list_rejection_names_the_field(
+    field: str, expected: str
+) -> None:
+    """Every empty-list rejection names the field, not "list field".
+
+    Each optional-list validator carried its own copy of the rule, and the
+    ``SpecFile.tags``/``relationships`` copy lost the field name because it
+    never read it.  They now delegate to the one shared validator, so a
+    lint failure on a spec file with sixty keys says which key to look at.
+
+    Asserted on the message pydantic built, not on the whole
+    ``ValidationError`` string: that string already carries the field's
+    location on its own line, so ``match=field`` would pass against the old
+    wording and pin nothing.
+    """
+    with pytest.raises(ValidationError) as raised:
+        SpecFile.model_validate({**_spec_file_kwargs(), field: []})
+
+    assert [error["msg"] for error in raised.value.errors()] == [
+        f"Value error, {expected}"
+    ]
 
 
 # ---------------------------------------------------------------------------

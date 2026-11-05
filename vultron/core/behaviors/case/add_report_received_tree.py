@@ -17,7 +17,7 @@
 Only the CASE_MANAGER attaches the report to ``case.vulnerability_reports`` and
 commits the canonical ledger entry; every other participant learns of the report
 from the entry's ``Announce`` fan-out, applied by
-``ApplyOfferReportFromLedgerNode`` (SYNC-02-002, RSH-08-004).  Sender
+``ApplyOfferReportFromLedgerNode`` (SYNC-02-001, SYNC-02-003, RSH-08-004).  Sender
 entitlement is the Case Owner at the manager and the CASE_MANAGER at a
 replica (CM-30-002, CM-30-005, PCR-03-001, ADR-0115).
 """
@@ -75,7 +75,11 @@ def create_add_report_to_case_received_tree(
         name="GuardedAttachReportAndCommitBT",
         # The Case Owner asks the CASE_MANAGER to attach the report, and the
         # CASE_MANAGER relays the attachment to a participant, which archives
-        # it and takes the fact from the ledger (RSH-08-003, HP-01-038).
+        # it and takes the fact from the ledger (PCR-03-001).  The replica
+        # path carries no effect — RSH-08-003 keeps every write at the
+        # CASE_MANAGER — and is declared because naming fewer paths than the
+        # type works on would refuse a receiver the type does act for
+        # (HP-01-038).
         paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         case_id=case_id,
         sender_rule=sender_rule,

@@ -13,57 +13,95 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Parse-edge refusal of a case reference outside the acts that name a case.
+"""Parse-edge refusal of a case reference or case stub where no act puts one.
 
-A ``VulnerabilityCase`` that carries only its ``id`` and ``type`` is the
-typed reference a participant's ``Join``, ``Ignore`` or ``Leave`` of a case,
-or an ownership-transfer ``Offer``, names its case by (AKM-03-004, ADR-0165).
-Anywhere else a case is carried whole, so a reference there is a malformed
-case: a ``Create(VulnerabilityCase)`` that carried one would reach core
-naming a case with no owner and no position.  The parser refuses it where it
-arrives, as it refused the sparse case before references existed: an inline
-case that fails the case's validation is never read as a less specific type,
-and its activity is refused as malformed (MV-04-003; ADR-0032, validate at
-the edge).
+Two inline forms stand for a case without carrying it whole, and each has
+the slots an act may put it in:
+
+- A ``VulnerabilityCase`` that carries only its ``id`` and ``type`` is the
+  typed reference a participant's ``Join``, ``Ignore`` or ``Leave`` of a case,
+  or an ownership-transfer ``Offer``, names its case by (AKM-03-004,
+  ADR-0165).  Anywhere else a case is carried whole, so a reference there is
+  a malformed case: a ``Create(VulnerabilityCase)`` that carried one would
+  reach core naming a case with no owner and no position.
+- A ``VulnerabilityCaseStub`` is what an invitee decides on before it may see
+  the case (ADR-0114), so its one slot is the ``target`` of the ``Invite``
+  that invites an actor to the case, at any depth: the ``Accept`` and
+  ``Reject`` of that ``Invite`` carry it inline (MV-10-002).
+
+The parser refuses either form where it arrives, as it refused the sparse
+case before references existed: an inline object that is not what its slot
+admits is never read as a less specific type, and its activity is refused as
+malformed (MV-04-003; ADR-0032, validate at the edge).  Each rule reports
+every misplaced slot at once (EH-07-001).
 """
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
+from pydantic import BaseModel
+
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.case_naming import CASE_NAMING_ACTIVITY_TYPES
 from vultron.wire.as2.errors import VultronParseValidationError
-from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseReference,
+    as_VulnerabilityCaseStub,
 )
 
+#: Whether *parent*'s field *field_name* is a slot the form may sit in.
+_SlotPredicate = Callable[[BaseModel, str], bool]
 
-def _misplaced_references(value: object, path: str) -> Iterator[str]:
-    """The paths below *path* that hold a case reference no act may carry."""
+
+def _misplaced(
+    value: object, path: str, form: type, admits: _SlotPredicate
+) -> Iterator[str]:
+    """The paths below *path* that hold *form* in a slot *admits* refuses."""
     if isinstance(value, list):
         for index, item in enumerate(value):
-            yield from _misplaced_references(item, f"{path}[{index}]")
+            yield from _misplaced(item, f"{path}[{index}]", form, admits)
         return
-    if isinstance(value, as_VulnerabilityCaseReference):
+    if isinstance(value, form):
         yield path
         return
-    if not isinstance(value, as_Base):
+    # Inline domain objects are core models, not ``as_Base`` (ARCH-25-004),
+    # and a misplaced form inside one is as misplaced as anywhere else.
+    if not isinstance(value, BaseModel):
         return
-    names_case = (
-        isinstance(value, as_Activity)
-        and str(value.type_) in CASE_NAMING_ACTIVITY_TYPES
-    )
-    for field_name in type(value).model_fields:
+    for field_name, info in type(value).model_fields.items():
         child = getattr(value, field_name, None)
-        if (
-            names_case
-            and field_name == "object_"
-            and isinstance(child, as_VulnerabilityCaseReference)
-        ):
+        if isinstance(child, form) and admits(value, field_name):
             continue
-        key = field_name.rstrip("_")
+        # The key the sender wrote, so the refusal names the slot it used.
+        key = info.serialization_alias or field_name.rstrip("_")
         child_path = f"{path}.{key}" if path else key
-        yield from _misplaced_references(child, child_path)
+        yield from _misplaced(child, child_path, form, admits)
+
+
+def _names_case_by_reference(parent: BaseModel, field_name: str) -> bool:
+    """The object of a ``Join``, ``Ignore``, ``Leave`` or ``Offer`` (AKM-03-004)."""
+    return (
+        field_name == "object_"
+        and isinstance(parent, as_Activity)
+        and str(parent.type_) in CASE_NAMING_ACTIVITY_TYPES
+    )
+
+
+def _is_case_invitation_target(parent: BaseModel, field_name: str) -> bool:
+    """The ``target`` of an ``Invite`` of an actor (MV-10-002).
+
+    The invitee is the ``Invite``'s ``object``: an inline actor, or a URI or
+    ``Link`` naming one.  An ``Invite`` whose inline object is anything else,
+    such as an embargo invitation's ``EmbargoEvent``, is no case invitation.
+    """
+    if field_name != "target" or not isinstance(parent, as_Activity):
+        return False
+    if str(parent.type_) != "Invite":
+        return False
+    invitee = getattr(parent, "object_", None)
+    return isinstance(invitee, str | as_Link | as_Actor | CoreActor)
 
 
 def refuse_misplaced_case_reference(activity: as_Activity) -> None:
@@ -72,7 +110,14 @@ def refuse_misplaced_case_reference(activity: as_Activity) -> None:
     Raises:
         VultronParseValidationError: Naming the activity and each slot.
     """
-    misplaced = list(_misplaced_references(activity, ""))
+    misplaced = list(
+        _misplaced(
+            activity,
+            "",
+            as_VulnerabilityCaseReference,
+            _names_case_by_reference,
+        )
+    )
     if misplaced:
         raise VultronParseValidationError(
             f"activity {activity.id_!r}: a VulnerabilityCase carrying only"
@@ -83,4 +128,28 @@ def refuse_misplaced_case_reference(activity: as_Activity) -> None:
         )
 
 
-__all__ = ["refuse_misplaced_case_reference"]
+def refuse_misplaced_case_stub(activity: as_Activity) -> None:
+    """Refuse *activity* when a case stub sits outside a case invitation.
+
+    Raises:
+        VultronParseValidationError: Naming the activity and each slot.
+    """
+    misplaced = list(
+        _misplaced(
+            activity,
+            "",
+            as_VulnerabilityCaseStub,
+            _is_case_invitation_target,
+        )
+    )
+    if misplaced:
+        raise VultronParseValidationError(
+            f"activity {activity.id_!r}: a VulnerabilityCaseStub at"
+            f" {', '.join(misplaced)}; a case stub is permitted only as the"
+            " target of an Invite that invites an actor to the case, or of"
+            " that Invite carried inline in its Accept or Reject; anywhere"
+            " else name the case by its URI (MV-10-002)"
+        )
+
+
+__all__ = ["refuse_misplaced_case_reference", "refuse_misplaced_case_stub"]

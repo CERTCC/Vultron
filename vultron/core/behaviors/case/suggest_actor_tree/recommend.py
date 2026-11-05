@@ -29,6 +29,8 @@ from vultron.core.behaviors.case.nodes.actor import (
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
 )
+from vultron.core.behaviors.case.nodes.path_branch import OnPaths
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
     ReinviteAwaitingNode,
     ReinviteNotToClosedParticipantNode,
@@ -334,6 +336,16 @@ def create_recommend_actor_to_case_received_tree(
     return create_receive_activity_tree(
         name="RecommendActorToCaseBT",
         case_id=case_id,
+        # The Offer reaches two stores: the recommending participant
+        # addresses it to the case's CASE_MANAGER, which admits it, commits
+        # it and forwards an Offer(CaseParticipant) to the Case Owner, and
+        # the CASE_MANAGER's copy reaches a participant replica, which takes
+        # it from the CASE_MANAGER alone and does nothing with it
+        # (CM-16-001, CM-16-002, PCR-03-001, HP-01-038, #4646).
+        paths={
+            ReceivedPath.CASE_MANAGER,
+            ReceivedPath.PARTICIPANT_REPLICA,
+        },
         sender_rule=sender_rule,
         # A replica takes the Offer from the CASE_MANAGER alone, so with no
         # CASE_MANAGER to check against it refuses (PCR-03-001, #4646).
@@ -343,8 +355,13 @@ def create_recommend_actor_to_case_received_tree(
             case_manager_required=True,
         ),
         precondition_guards=[
-            case_manager_admits_suggested_actor_guard(
-                recommended_id=recommended_id, case_id=case_id
+            # The admission check is the CASE_MANAGER's adjudication, so it
+            # is declared on that path rather than run at both (HP-01-038).
+            OnPaths.at_case_manager(
+                "SuggestedActorAdmitted",
+                case_manager_admits_suggested_actor_guard(
+                    recommended_id=recommended_id, case_id=case_id
+                ),
             )
         ],
         manager_effects=[

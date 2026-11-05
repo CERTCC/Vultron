@@ -163,18 +163,10 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
             "vultron/core/behaviors/sync/ledger_position_stage.py",
             "create_ledger_position_stage",
         ),
-        (
-            f"{_C}/nodes/suggest_actor/conditions.py",
-            "case_manager_admits_accepted_invitee_guard",
-        ),
-        (
-            f"{_C}/nodes/suggest_actor/conditions.py",
-            "case_manager_admits_suggested_actor_guard",
-        ),
-        (
-            f"{_C}/nodes/suggest_actor/conditions.py",
-            "case_manager_requires_recorded_rejection_guard",
-        ),
+        # The three ``case_manager_admits_*`` composites in
+        # ``suggest_actor/conditions.py`` left this set in #5044: each of
+        # their trees declares the CASE_MANAGER path alone, so the guards run
+        # bare and the path stage is the gate (HP-01-038).
         (f"{_E}/trigger_tree/_arms.py", "_by_role"),
     }
 )
@@ -285,35 +277,15 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
         # CASE_STATUS was retired by #4851: add_case_status runs only at a
         # participant replica, from the CASE_MANAGER (RSH-04-005), and has no
         # effects to exempt.
-        # The Invite tree's answer arm is the OnPaths.off_case_manager
-        # branch the factory builds (#5042, HP-01-038).  The branch says the
-        # receiver is not the CASE_MANAGER, which is not yet a statement that
-        # the Accept or Reject is that receiver's own to send, so the walk
-        # keeps descending and the decision stays recorded (BT-17-008).
-        (
-            "EMBARGO_INVITE_ANSWER",
-            f"{_E}/announce_teardown_tree/invite.py",
-            "invite_to_embargo_on_case_tree",
-        ),
+        # OFFER_ROLE, EMBARGO_INVITE_ANSWER and EMBARGO_INVITE_REFUSAL were
+        # retired by #5044: each sat behind a leaf that admits the executing
+        # actor alone, which is BT-17-008's second arm, and
+        # ``ungated_emitters`` now reads it, so the recorded waiver said
+        # nothing the tree did not already state.
         (
             "EMBARGO_INVITE_FAULT",
             f"{_E}/invite_received_tree.py",
             "embargo_invite_fault_tree",
-        ),
-        # The P/X/A diversion of the Invite tree (CLP-10-026), which
-        # declares both the manager and the participant-replica path, so the
-        # declaration alone does not bound its emit.  The Accept tree's
-        # refusal declares the CASE_MANAGER path alone and carries none
-        # (HP-01-038).
-        (
-            "EMBARGO_INVITE_REFUSAL",
-            f"{_E}/refusal_tree.py",
-            "pxa_invite_refusal",
-        ),
-        (
-            "OFFER_ROLE",
-            f"{_C}/offer_case_participant_role_received_tree.py",
-            "create_offer_case_participant_role_received_tree",
         ),
         (
             "REPORT_CASE_PROPOSAL",

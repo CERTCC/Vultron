@@ -65,7 +65,7 @@ groups:
       dispatcher reads routes from the registry, the two agree about which use case
       handles each message.
     relationships:
-    - rel_type: derives_from
+    - rel_type: implements
       spec_id: HP-03-001
   - id: DR-02-002
     priority: MUST
@@ -117,10 +117,10 @@ groups:
       asserts a `RuntimeError` raised inside a use case's `execute()` escapes
       `dispatch()` unchanged.
     relationships:
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: CS-23-001
-    - rel_type: depends_on
-      spec_id: HP-05-001
+    - rel_type: uses_definition
+      spec_id: SE-05-005
 - id: DR-04
   title: Async Dispatch Implementation
   specs:

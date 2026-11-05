@@ -24,14 +24,16 @@ each commit the invitee's PEC ``INVITE`` on its row for the embargo, where
 CM-18-003 allows it (EP-09-004), is committed as the CASE_MANAGER's own
 ``Update(EmbargoConsent)`` entry and written by copying it (ADR-0124).
 
-Two precondition guards (``relay_guards.py``, re-exported here) and three
+The precondition guards (``relay_guards.py``, re-exported here) and three
 leaf nodes, in the shape of the ledger fan-out (``sync/nodes/fanout.py``).  The collect node is a read-only routing
 guard the tree places *before* the EM write (BT-19-001), the relay node after
 it:
 
     precondition_guards
     ├─ EmbargoProposalNotYetRecordedNode    # idempotency: same Invite again
-    └─ case_manager_admits_proposal_guard   # EM admits PROPOSE (manager only)
+    ├─ EmbargoInviteNotYetAnsweredNode      # participant path: answered once
+    └─ case_manager_admits_proposal_guard   # EM admits PROPOSE and the terms
+                                            # are new (EP-09-032; manager only)
     AdjudicateEmbargoProposal (CASE_MANAGER-gated Sequence)
     ├─ CollectEmbargoInviteRecipientsNode   # routing guard; writes recipients
     ├─ ProposeEmbargoLifecycleNode          # EM write (EmbargoLifecycle)
@@ -56,9 +58,11 @@ from vultron.core.behaviors.embargo.decided_entries import (
     decide_commit_and_apply,
 )
 from vultron.core.behaviors.embargo.nodes.relay_guards import (
+    EmbargoInviteNotYetAnsweredNode,
     EmbargoProposalNotYetRecordedNode,
     EmStateAdmitsProposalNode,
     case_manager_admits_proposal_guard,
+    invitee_not_yet_answered_guard,
 )
 from vultron.core.behaviors.embargo.rsvp_stamp import (
     invite_rsvp_deadline,
@@ -436,7 +440,9 @@ __all__ = [
     "EMBARGO_INVITE_SEMANTIC_TYPE",
     "CollectEmbargoInviteRecipientsNode",
     "EmStateAdmitsProposalNode",
+    "EmbargoInviteNotYetAnsweredNode",
     "EmbargoProposalNotYetRecordedNode",
     "case_manager_admits_proposal_guard",
+    "invitee_not_yet_answered_guard",
     "RelayEmbargoInviteToEachNode",
 ]

@@ -22,6 +22,17 @@ one vendor) is the special case of that model, not a separate one.
 *Avoid*: coordinated disclosure (too generic when multiple vendors are involved);
 degenerate case (for two-party CVD — say special case)
 
+**Act**:
+One unit of work an actor does in response to one cause: a trigger invocation, the
+processing of one inbound delivery, or one scheduled sweep. An act decides and records
+as a whole.
+*Avoid*: request, job (an act is defined by its cause, not by how it was scheduled)
+
+**Act's instant**:
+The single time an act decides and records against. Every deadline the act checks
+and every time it records is measured from it, even if the act takes a while to run.
+*Avoid*: now, current time (inside an act, there is only the act's instant)
+
 **Case**:
 The unit of coordination in Vultron. A case captures all state and history for one MPCVD
 engagement: participants, embargo status, report management state, and the canonical ledger.

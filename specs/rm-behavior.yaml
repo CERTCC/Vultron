@@ -50,10 +50,7 @@ groups:
     postconditions:
     - description: Receiver RM state is RECEIVED; RK emitted to sender
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-03-009
-      note: RK acknowledgment of RS
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-001
       note: 'RS shorthand wire-type mapping'
 
@@ -104,13 +101,10 @@ groups:
     postconditions:
     - description: Receiver RM state is RECEIVED; CS is vendor-aware; CV and RK emitted
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-002
       note: Vendor MUST transition CS to Vfd on new RS
-    - rel_type: satisfies
-      spec_id: VP-03-009
-      note: RK acknowledgment of RS
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-001
       note: 'RS shorthand wire-type mapping'
 
@@ -158,13 +152,10 @@ groups:
     postconditions:
     - description: CS is vendor-aware; CV and RK emitted; receiver RM state unchanged
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-002
       note: Vendor MUST transition CS to Vfd on receiving RS for new vulnerability
-    - rel_type: satisfies
-      spec_id: VP-03-009
-      note: RK acknowledgment of RS
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-001
       note: 'RS shorthand wire-type mapping'
     stories:
@@ -197,10 +188,10 @@ groups:
     postconditions:
     - description: RK emitted; RM and CS states unchanged
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-009
       note: RK acknowledgment of RS
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-001
       note: 'RS shorthand wire-type mapping'
     stories:
@@ -229,12 +220,9 @@ groups:
         - CLOSED
       description: Participant is in RM Closed
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-013
       note: Recipients MAY ignore messages received on Closed cases
-    - rel_type: satisfies
-      spec_id: MSM-01-001
-      note: 'RS shorthand wire-type mapping'
     stories:
     - story_2022_068
 
@@ -273,10 +261,7 @@ groups:
     - description: >-
         Receiver RM state unchanged; sender's recorded RM state is INVALID
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-02-019
-      note: Shared awareness of sender RM state change
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-002
       note: 'RI shorthand wire-type mapping'
     stories:
@@ -308,10 +293,10 @@ groups:
     postconditions:
     - description: ProcessingFault emitted; receiver RM state unchanged (START)
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-010
       note: Processing fault when R* received while in RM Start
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-002
       note: 'RI shorthand wire-type mapping'
     stories:
@@ -351,10 +336,7 @@ groups:
     - description: >-
         Receiver RM state unchanged; sender's recorded RM state is VALID
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-02-019
-      note: Shared awareness of sender RM state change
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-003
       note: 'RV shorthand wire-type mapping'
     stories:
@@ -385,10 +367,10 @@ groups:
     postconditions:
     - description: ProcessingFault emitted; receiver RM state unchanged (START)
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-010
       note: Processing fault when R* received while in RM Start
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-003
       note: 'RV shorthand wire-type mapping'
     stories:
@@ -428,10 +410,7 @@ groups:
     - description: >-
         Receiver RM state unchanged; sender's recorded RM state is DEFERRED
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-02-019
-      note: Shared awareness of sender RM state change
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-004
       note: 'RD shorthand wire-type mapping'
     stories:
@@ -461,10 +440,10 @@ groups:
     postconditions:
     - description: ProcessingFault emitted; receiver RM state unchanged (START)
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-010
       note: Processing fault when R* received while in RM Start
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-004
       note: 'RD shorthand wire-type mapping'
     stories:
@@ -505,10 +484,7 @@ groups:
     - description: >-
         Receiver RM state unchanged; sender's recorded RM state is ACCEPTED
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-02-019
-      note: Shared awareness of sender RM state change
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-005
       note: 'RA shorthand wire-type mapping'
     stories:
@@ -539,10 +515,10 @@ groups:
     postconditions:
     - description: ProcessingFault emitted; receiver RM state unchanged (START)
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-010
       note: Processing fault when R* received while in RM Start
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-005
       note: 'RA shorthand wire-type mapping'
     stories:
@@ -583,10 +559,7 @@ groups:
     - description: >-
         Receiver RM state unchanged; sender's recorded RM state is CLOSED
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-02-019
-      note: Shared awareness of sender RM state change
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-006
       note: 'RC shorthand wire-type mapping'
     stories:
@@ -613,10 +586,7 @@ groups:
         - ACCEPTED
       description: Participant is in RM Received/Invalid/Deferred/Accepted
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-02-035
-      note: Participants MAY close Accepted, Deferred, or Invalid reports
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-006
       note: 'RC shorthand wire-type mapping'
     stories:
@@ -646,10 +616,10 @@ groups:
     postconditions:
     - description: ProcessingFault emitted; receiver RM state unchanged (START)
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-010
       note: Processing fault when R* received while in RM Start
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-006
       note: 'RC shorthand wire-type mapping'
     stories:
@@ -694,10 +664,10 @@ groups:
     postconditions:
     - description: GI emitted; receiver RM state unchanged
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-011
       note: Inquire about the error with GI; RK is not sent (RMB-08-003)
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-007
       note: 'RE shorthand wire-type mapping'
     stories:
@@ -730,10 +700,10 @@ groups:
     postconditions:
     - description: ProcessingFault emitted; receiver RM state unchanged (START)
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-010
       note: Processing fault when R* received while in RM Start
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-007
       note: 'RE shorthand wire-type mapping'
     stories:
@@ -769,10 +739,10 @@ groups:
         - ACCEPTED
       description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
     relationships:
-    - rel_type: satisfies
+    - rel_type: derives_from
       spec_id: VP-03-009
       note: RK itself is never acknowledged with another RK
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-008
       note: 'RK shorthand wire-type mapping'
     stories:
@@ -806,10 +776,10 @@ groups:
         ProcessingFault emitted; no RK in reply to RK (RMB-08-001); receiver RM
         state unchanged (START)
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-010
       note: Processing fault when R* received while in RM Start
-    - rel_type: satisfies
+    - rel_type: uses_definition
       spec_id: MSM-01-008
       note: 'RK shorthand wire-type mapping'
     stories:
@@ -842,10 +812,7 @@ groups:
     - rel_type: refines
       spec_id: VP-03-009
       note: RK acknowledging RS
-    - rel_type: refines
-      spec_id: RMB-01-001
-      note: who sends the RK acknowledging RS, and to whom
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: PCR-08-001
       note: the stated RK exception to CASE_MANAGER-only addressing
     stories:
@@ -945,6 +912,8 @@ groups:
     - rel_type: refines
       spec_id: HP-01-006
       note: the RK sender clause
+    - rel_type: uses_definition
+      spec_id: RMB-08-003
     stories:
     - story_2022_016
   - id: RMB-08-008
@@ -1004,15 +973,11 @@ groups:
         Validation process initiated; report will transition to VALID or
         INVALID on completion
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-02-006
       note: Subject each Received report to a validation process
-    - rel_type: satisfies
-      spec_id: VP-02-007
-      note: Have a clearly defined process for validating Received reports
-    - rel_type: satisfies
-      spec_id: VP-02-009
-      note: Proceed only after validating received reports
+    - rel_type: uses_definition
+      spec_id: CM-11-011
     adr:
     - ADR-0121
     stories:
@@ -1037,12 +1002,9 @@ groups:
         - RECEIVED
       description: Participant is in RM Received
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-02-012
       note: MAY temporarily hold reports pending additional information
-    - rel_type: satisfies
-      spec_id: VP-02-013
-      note: SHOULD give Reporters an opportunity to update with additional info
     stories:
     - story_2022_077
 
@@ -1077,7 +1039,7 @@ groups:
     postconditions:
     - description: Prioritization underway; report will transition to ACCEPTED or DEFERRED
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-02-014
       note: SHOULD perform a prioritization evaluation for Valid reports
 
@@ -1104,7 +1066,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-02-004
       note: Participants MUST NOT close cases from the Valid state
     stories:
@@ -1133,10 +1095,10 @@ groups:
     postconditions:
     - description: RV emitted; other Participants informed of Valid transition
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-004
       note: SHOULD send RV when validation ends in valid determination
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-012
       note: SHOULD send a message for each RM state transition
     stories:
@@ -1160,7 +1122,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-02-015
       note: SHOULD create a case for reports entering the Valid state
     stories:
@@ -1195,10 +1157,10 @@ groups:
     postconditions:
     - description: RI emitted; other Participants informed of Invalid transition
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-003
       note: SHOULD send RI when validation ends in invalid determination
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-012
       note: SHOULD send a message for each RM state transition
     stories:
@@ -1221,12 +1183,9 @@ groups:
     lint_suppress:
     - testable_without_steps
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-02-022
       note: Participants SHOULD NOT mark duplicate reports as Invalid
-    - rel_type: satisfies
-      spec_id: VP-02-023
-      note: Duplicate reports SHOULD pass through Valid state
 
   - id: RMB-11-003
     priority: MAY
@@ -1247,12 +1206,9 @@ groups:
         - INVALID
       description: Participant is in RM Invalid
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-02-033
       note: MAY periodically revalidate Invalid reports
-    - rel_type: satisfies
-      spec_id: VP-02-013
-      note: SHOULD give Reporters an opportunity to update with additional info
     stories:
     - story_2022_077
 
@@ -1273,12 +1229,9 @@ groups:
         - INVALID
       description: Participant is in RM Invalid
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-02-035
       note: Participants MAY close Invalid reports
-    - rel_type: satisfies
-      spec_id: VP-13-005
-      note: SHOULD NOT close while an active embargo is in force
     stories:
     - story_2022_066
 
@@ -1311,13 +1264,13 @@ groups:
     postconditions:
     - description: RD emitted; other Participants informed of Deferred transition
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-005
       note: SHOULD send RD when prioritization ends in deferred decision
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-012
       note: SHOULD send a message for each RM state transition
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-02-024
       note: Vendors SHOULD communicate prioritization choices including deferral
     stories:
@@ -1340,10 +1293,6 @@ groups:
       description: Participant is in RM Deferred
     lint_suppress:
     - testable_without_steps
-    relationships:
-    - rel_type: satisfies
-      spec_id: VP-02-017
-      note: Reports SHOULD exit Deferred when work resumes or no further action planned
     stories:
     - story_2022_087
 
@@ -1365,7 +1314,7 @@ groups:
         - DEFERRED
       description: Participant is in RM Deferred
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-02-031
       note: MAY set a policy timer on Deferred reports
     stories:
@@ -1401,10 +1350,10 @@ groups:
     lint_suppress:
     - testable_without_steps
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-001
       note: MUST be in RM Accepted to send RS
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-02-003
       note: Participants initiating CVD with others MUST do so from Accepted state
 
@@ -1431,13 +1380,13 @@ groups:
     postconditions:
     - description: RA emitted; other Participants informed of Accepted transition
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-006
       note: SHOULD send RA when prioritization ends in accept decision
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-012
       note: SHOULD send a message for each RM state transition
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-02-024
       note: Vendors SHOULD communicate prioritization choices including acceptance
     stories:
@@ -1493,10 +1442,10 @@ groups:
     postconditions:
     - description: RC emitted; other Participants informed of Closed transition
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-007
       note: SHOULD send RC when report is closed
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-012
       note: SHOULD send a message for each RM state transition
     stories:
@@ -1526,7 +1475,7 @@ groups:
         - CLOSED
       description: Participant is in RM Closed
     relationships:
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-03-013
       note: Recipients MAY ignore messages received on Closed cases
     stories:
@@ -1558,14 +1507,13 @@ groups:
     lint_suppress:
     - testable_without_steps
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-13-005
-      note: SHOULD NOT close while an active embargo is in force
-    - rel_type: satisfies
+    - rel_type: refines
       spec_id: VP-13-007
       note: >-
         SHOULD communicate intent to adhere or terminate compliance when closing
         during an active embargo
+    - rel_type: supersedes
+      spec_id: VP-13-005
     stories:
     - story_2022_067
 
@@ -1589,6 +1537,11 @@ groups:
     - ADR-0114
     stories:
     - story_2022_006
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-11-007
+    - rel_type: uses_definition
+      spec_id: CM-11-011
   - id: RMB-14-008
     priority: MUST_NOT
     kind: protocol
@@ -1632,7 +1585,7 @@ groups:
     kind: protocol
     statement: >-
       An actor MUST record a participant at RM Valid that leaves the case
-      (`Leave(VulnerabilityCase)`, CM-23-012) as V → D → C.
+      (`Leave(VulnerabilityCase)`, CM-23-038) as V → D → C.
     rationale: >-
       V → C is not in the RM transition table (RMB-14-008), so a closure from Valid
       that keeps to the table (RMB-14-005) goes through Deferred.
@@ -1643,6 +1596,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: RMB-14-005
+    - rel_type: refines
+      spec_id: CM-23-038
     adr:
     - ADR-0114
     stories:
@@ -1743,8 +1698,6 @@ groups:
     postconditions:
     - description: No ParticipantStatus with an illegal RM state jump is persisted
     relationships:
-    - rel_type: implements
-      spec_id: SDO-02-004
     - rel_type: refines
       spec_id: BTND-10-001
   - id: RMB-15-002

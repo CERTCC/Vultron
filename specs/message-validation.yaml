@@ -92,7 +92,7 @@ groups:
       `SEMANTIC_REGISTRY` resolves to `MessageSemantics.UNKNOWN` rather than
       raising an error.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: MV-01-005
   - id: MV-01-007
     priority: MUST_NOT
@@ -108,7 +108,7 @@ groups:
       Propagating internal errors exposes implementation details to senders and can
       cause the inbox handler to return unexpected error responses.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: MV-01-005
 - id: MV-02
   title: Schema Validation
@@ -341,6 +341,9 @@ groups:
     stories:
     - story_2022_039
     - story_2022_106
+    relationships:
+    - rel_type: uses_definition
+      spec_id: AKM-05-003
   - id: MV-09-002
     priority: MUST
     kind: project
@@ -419,9 +422,6 @@ groups:
       asserts that a stub without a non-empty `summary` is refused, and
       `test_embargoed_invite_stub_is_judged_as_the_stub` in the same file parses a
       stub that carries its `id`, `type` and `summary`.
-    relationships:
-    - rel_type: constrains
-      spec_id: MV-04-003
     adr:
     - ADR-0090
     - ADR-0114
@@ -441,7 +441,7 @@ groups:
       asserts that a stub with an absent, empty, or blank `summary` is refused at
       message validation.
     relationships:
-    - rel_type: implements
+    - rel_type: derives_from
       spec_id: MV-10-001
     adr:
     - ADR-0090
@@ -465,8 +465,10 @@ groups:
       with `type: VulnerabilityCaseStub` resolves to the stub class, and that a sparse
       inline object with `type: VulnerabilityCase` is validated as a case.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: MV-10-001
+    - rel_type: uses_definition
+      spec_id: CM-11-013
     adr:
     - ADR-0090
     - ADR-0114
@@ -487,10 +489,11 @@ groups:
       `test_parse_activity_refuses_malformed_nested_object_of_known_type` in
       `test/wire/as2/test_parser.py` confirms that an inline object of another
       recognised wire type that fails its class is refused under MV-04-003 rather than
-      degraded. Bare URI references and `Link` objects remain accepted in all four
-      positions named by MV-10-002.
+      degraded. `test_a_case_uri_or_link_is_accepted_where_a_stub_is_refused` in
+      `test/wire/as2/test_case_stub_placement.py` confirms that a bare URI or a `Link`
+      naming the case is accepted in `target`, `context`, `origin` and `object`.
     relationships:
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: MV-10-008
     adr:
     - ADR-0090
@@ -502,7 +505,7 @@ groups:
     kind: protocol
     statement: >-
       A sender MAY send an actor that it knows only by URI as an inline object that
-      carries exactly its `id` and `type` (AKM-05-005).
+      carries exactly its `id` and `type` (AKM-05-017).
     rationale: >-
       The actor reference claims no field beyond the two that the sender knows, so it
       is not a partial object under MV-10-009. It keeps the `type` that a receiver
@@ -512,8 +515,10 @@ groups:
       `test/wire/as2/factories/test_actor_references.py` asserts that each
       actor-naming factory carries a URI-only actor as exactly its `id` and `type`.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: MV-10-009
+    - rel_type: derives_from
+      spec_id: AKM-05-017
     adr:
     - ADR-0159
     stories:
@@ -522,17 +527,34 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A `VulnerabilityCaseStub` object is ONLY permitted in the following field
-      positions of an ActivityStreams activity: `actor`, `object`, `target`, and
-      `origin`.
+      A `VulnerabilityCaseStub` object is ONLY permitted as the `target` of an `Invite`
+      whose `object` is the actor invited to the case, wherever that `Invite` is carried
+      inline: for example inside its `Accept` or `Reject`, or inside a refusal notice
+      that quotes such a reply. A receiver MUST refuse an activity that carries a stub in
+      any other position, naming each position.
     rationale: >-
-      Scopes the position rule to the one permitted stub type (MV-10-001). A reference in
-      any of these positions may also be a bare URI or a `Link`; those forms are always
-      acceptable and are unaffected by MV-04-003's refusal of malformed inline objects.
+      The stub exists so that an invitee can decide whether to join a case before it is
+      entitled to the case (MV-10-001, ADR-0114). The case invitation is the one message
+      that asks that question, so it is the stub's one position. Anywhere else the
+      sender names the case by its URI or a `Link`, or carries it whole. A stub there
+      would stand in for a case the activity needs whole, or show case context to a
+      party that was not asked to join. An embargo invitation names its case by URI as
+      well.
     verification: >-
-      Inspection of the inbound message validator confirms that stub detection runs only
-      on `actor`, `object`, `target`, and `origin` fields; stubs in other field positions
-      are treated as full-object validation failures.
+      `test/wire/as2/test_case_stub_placement.py`:
+      `test_a_stub_as_the_target_of_a_case_invitation_is_accepted` parses the case
+      invitation and its `Accept` and `Reject`, and
+      `test_a_case_invitation_naming_its_invitee_by_reference_keeps_its_stub` one that
+      names its invitee by URI or `Link`, and
+      `test_a_refusal_notice_quoting_a_reply_to_a_case_invitation_is_accepted` a
+      refusal notice that quotes the `Accept` or `Reject`;
+      `test_a_stub_outside_a_case_invitation_target_is_refused`,
+      `test_a_stub_as_the_target_of_another_activity_is_refused`,
+      `test_a_stub_in_an_embargo_invitation_is_refused`,
+      `test_a_stub_nested_outside_the_invite_target_is_refused` and
+      `test_a_stub_inside_an_inline_domain_object_is_refused` assert that a stub in
+      every other position is refused with the position named; and
+      `test_every_misplaced_stub_is_named` asserts that each misplaced stub is reported.
     stories:
     - story_2026_013
     adr:
@@ -580,12 +602,12 @@ groups:
       invitee that never answered its stub Invite.
     adr:
     - ADR-0114
-    relationships:
-    - rel_type: depends_on
-      spec_id: MV-10-006
     stories:
     - story_2026_054
     - story_2022_023
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-10-004
   - id: MV-10-006
     priority: MUST
     kind: protocol
@@ -606,8 +628,10 @@ groups:
       stub Invite while an embargo is active marks the accepting participant's consent
       row for that embargo `AGREED`.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: CM-03-008
+    - rel_type: part_of
+      spec_id: CM-11-001
     adr:
     - ADR-0114
     stories:
@@ -643,10 +667,7 @@ groups:
       key is a near miss (MV-11-002), set aside and reported when it is foreign
       (MV-11-003). The partition is `vultron/wire/as2/unknown_keys.py` (#3921).
     relationships:
-    - rel_type: depends_on
-      spec_id: MV-04-003
-      note: MV-04-003 decides which class an inline object resolves to; this requirement decides what happens to the keys that class does not declare.
-    - rel_type: refines
+    - rel_type: part_of
       spec_id: ARCH-25-007
     adr:
     - ADR-0099
@@ -704,10 +725,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: MV-11-001
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: MV-02-002
-    - rel_type: depends_on
-      spec_id: MV-01-001
+    - rel_type: part_of
+      spec_id: ARCH-25-007
     adr:
     - ADR-0099
     - ADR-0175
@@ -733,8 +754,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: MV-11-002
-    - rel_type: depends_on
-      spec_id: MV-01-001
     adr:
     - ADR-0099
   - id: MV-11-008
@@ -802,11 +821,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: MV-11-001
-    - rel_type: depends_on
-      spec_id: SL-02-001
-    - rel_type: depends_on
-      spec_id: SL-02-002
-    - rel_type: refines
+    - rel_type: part_of
       spec_id: ARCH-25-007
     adr:
     - ADR-0099
@@ -878,7 +893,7 @@ groups:
       `test/core/models/test_former_field_names.py` requires each former stored name
       to raise exactly one `extra_forbidden` error, which a named refusal would not.
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: SDO-03-005
     adr:
     - ADR-0099
@@ -903,10 +918,5 @@ groups:
       a local assigned from one. `test/adapters/driving/fastapi/test_inbox_staging.py` asserts
       that ingress stages the class the parser produced, including a case stub and a case
       whose foreign key was set aside (#3922).
-    relationships:
-    - rel_type: depends_on
-      spec_id: MV-11-003
-    - rel_type: depends_on
-      spec_id: MV-04-003
     adr:
     - ADR-0099

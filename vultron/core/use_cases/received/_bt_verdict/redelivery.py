@@ -36,6 +36,9 @@ from vultron.core.behaviors.case.nodes.role_offer_guard import (
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     EmbargoAnswerNotRecordedNode,
 )
+from vultron.core.behaviors.embargo.nodes.proposal_repeat import (
+    EmbargoTermsNotHeldNode,
+)
 from vultron.core.behaviors.embargo.nodes.pxa_refusal import (
     EmbargoInviteNotYetRefusedNode,
 )
@@ -79,6 +82,27 @@ def _redelivery_verdict(
     return verdict
 
 
+def _flagged_repeat_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    guard_type: (
+        type[EmbargoAnswerNotRecordedNode]
+        | type[EmbargoTermsNotHeldNode]
+        | type[CaseCopyNotStaleNode]
+    ),
+    verdict: HandlerResult,
+    fallback: str,
+) -> HandlerResult:
+    """``SKIPPED`` when *guard_type* failed the run as a repeat.
+
+    For a guard that reports its repeat through ``failed_as_repeat``
+    (:class:`~vultron.core.behaviors.idempotency.FlaggedRepeatGuardMixin`).
+    """
+    guard = find_node(tree, guard_type)
+    if guard is not None and guard.failed_as_repeat:
+        return HandlerResult.skipped(guard.feedback_message or fallback)
+    return verdict
+
+
 def embargo_answer_repeat_verdict(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
     verdict: HandlerResult,
@@ -90,12 +114,26 @@ def embargo_answer_repeat_verdict(
     the answer, so nothing is committed or announced.  That is the benign
     no-op of a repeat, not a refusal (CM-13-005, HP-01-003).
     """
-    guard = find_node(tree, EmbargoAnswerNotRecordedNode)
-    if guard is not None and guard.is_repeat:
-        return HandlerResult.skipped(
-            guard.feedback_message or "embargo answer repeated"
-        )
-    return verdict
+    return _flagged_repeat_verdict(
+        tree, EmbargoAnswerNotRecordedNode, verdict, "embargo answer repeated"
+    )
+
+
+def embargo_terms_repeat_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    verdict: HandlerResult,
+) -> HandlerResult:
+    """Report a proposal of terms the case already holds as ``SKIPPED``.
+
+    :class:`~vultron.core.behaviors.embargo.nodes.proposal_repeat.EmbargoTermsNotHeldNode`
+    fails with ``is_repeat`` set when the proposal's end time equals that of a
+    pending proposal or, with none pending, of the embargo in force, so
+    nothing is committed or relayed.  That is the benign no-op of a repeat,
+    not a refusal (EP-09-032, HP-01-003).
+    """
+    return _flagged_repeat_verdict(
+        tree, EmbargoTermsNotHeldNode, verdict, "embargo terms repeated"
+    )
 
 
 def stale_case_copy_verdict(
@@ -109,12 +147,9 @@ def stale_case_copy_verdict(
     the copy's ledger position, so the case is left unchanged.  That is the
     benign no-op of a late copy, not a refusal (SYNC-16-006, HP-01-003).
     """
-    guard = find_node(tree, CaseCopyNotStaleNode)
-    if guard is not None and guard.failed_as_repeat:
-        return HandlerResult.skipped(
-            guard.feedback_message or "case copy is stale"
-        )
-    return verdict
+    return _flagged_repeat_verdict(
+        tree, CaseCopyNotStaleNode, verdict, "case copy is stale"
+    )
 
 
 def embargo_withdrawal_redelivery_verdict(

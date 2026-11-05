@@ -16,6 +16,7 @@ from vultron.core.behaviors.embargo.invite_received_tree import (
     received_embargo_invite_tree,
 )
 from vultron.core.behaviors.embargo.nodes import (
+    EmbargoInviteNotYetAnsweredNode,
     EmbargoProposalNotYetRecordedNode,
 )
 from vultron.core.behaviors.embargo.nodes.pxa_refusal import (
@@ -45,6 +46,7 @@ from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     door_refusal,
+    embargo_terms_repeat_verdict,
     node_failed,
     pxa_refusal_verdict,
     verdict_from_bt,
@@ -253,7 +255,10 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 verdict = HandlerResult.refused(subjects.reason)
         elif verdict.disposition is HandlerDisposition.REFUSED:
             verdict = self._refusal(tree, verdict, case_id, subjects)
-        if verdict.disposition is not HandlerDisposition.APPLIED:
+        if verdict.disposition is HandlerDisposition.SKIPPED:
+            # A repeat is a benign no-op, not a recoverable fault (CLP-13-003).
+            logger.info("%s (invite '%s')", verdict.reason, invite_id)
+        elif verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning("%s (invite '%s')", verdict.reason, invite_id)
         # No deadline is stored on receipt: the CASE_MANAGER recorded the one
         # it stamped at its relay's commit, and a replica records that value
@@ -289,4 +294,12 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             return HandlerResult.skipped(
                 f"invite '{invite_id}' was already applied on case '{case_id}'"
             )
-        return verdict
+        if node_failed(tree, EmbargoInviteNotYetAnsweredNode):
+            # An Invite this invitee already answered, delivered again
+            # after its proposal left the index (ID-04-004, HP-01-003).
+            return HandlerResult.skipped(
+                f"invite '{invite_id}' was already answered on case"
+                f" '{case_id}'"
+            )
+        # Terms the case already holds, under new ids (EP-09-032).
+        return embargo_terms_repeat_verdict(tree, verdict)

@@ -106,15 +106,19 @@ def test_read_returns_none_for_missing_id(dl):
     assert dl.read("urn:uuid:does-not-exist") is None
 
 
-def test_read_supports_bare_uuid(dl):
+@pytest.mark.spec("OID-02-004")
+def test_read_does_not_resolve_a_bare_uuid(dl):
+    """A bare UUID is not a key: the row under ``urn:uuid:<uuid>`` is not found."""
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
     note = as_Note(content="Bare UUID test")
     dl.save(note)
-    bare = note.id_.replace("urn:uuid:", "")
-    result = dl.read(bare)
-    assert result is not None
-    assert result.id_ == note.id_  # type: ignore[union-attr]
+    bare = note.id_.removeprefix("urn:uuid:")
+    assert bare != note.id_
+    assert dl.read(bare) is None
+    found = dl.read(note.id_)
+    assert found is not None
+    assert found.id_ == note.id_  # type: ignore[union-attr]
 
 
 # ---------------------------------------------------------------------------

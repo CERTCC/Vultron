@@ -19,6 +19,10 @@ These utilities are used by driven adapters (e.g., the SQLite DataLayer) and
 driving adapters (e.g., demo scripts) to inspect URL- and URN-based object IDs
 and to name objects by a short key.  They mint no ids: every new object id
 comes from :func:`vultron.core.models._helpers.new_object_id` (OID-01-004).
+
+A DataLayer lookup keys only on full ids (OID-02-004), so a driving adapter
+that names an object by its bare UUID maps it with :func:`full_object_id`
+before it reads.
 """
 
 import re
@@ -34,20 +38,14 @@ _UUID_RE = re.compile(
 
 
 def full_object_id(object_id: str) -> str:
-    """*object_id* as stored: a bare UUID in its ``urn:uuid:`` form."""
+    """*object_id* as stored: a bare UUID in its ``urn:uuid:`` form.
+
+    The driving edge's mapping for a path segment that names an object by its
+    UUID; the store itself resolves no bare UUID (OID-02-004).
+    """
     if _UUID_RE.match(object_id):
         return f"{URN_UUID_PREFIX}{object_id}"
     return object_id
-
-
-def id_lookup_candidates(object_id: str) -> list[str]:
-    """The ids a lookup of *object_id* tries, in order.
-
-    *object_id* itself, then — for a bare UUID — its ``urn:uuid:`` form
-    (:func:`full_object_id`), so a caller may name an object by the UUID alone.
-    """
-    full = full_object_id(object_id)
-    return [object_id] if full == object_id else [object_id, full]
 
 
 class ParsedObjectId(TypedDict):

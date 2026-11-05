@@ -39,10 +39,12 @@ import pytest
 
 from test.demo._helpers import (
     functions_referencing,
+    gate_failures,
     mock_actor,
     mock_case,
     mock_client,
     patch_chain_shared,
+    step_failures,
     story_state,
 )
 from vultron.demo.helpers import (
@@ -91,11 +93,6 @@ _BRANCH = Choose(
     choice="invite-coordinator",
     by=VENDOR,
 )
-
-
-def _failures(prefix: str) -> list[str]:
-    """Every recorded failure of the given kind, in order."""
-    return [f for f in _demo_failures if prefix in f]
 
 
 def _four_party_state():
@@ -293,7 +290,7 @@ class TestTheCoordinatorAndVendor2AreSeeded:
         assert state.unseated == {}
         assert state.actor_id(COORDINATOR) == "urn:test:coordinator"
         assert state.actor_id(VENDOR2) == "urn:test:vendor2"
-        assert not _failures("STEP FAILED"), _demo_failures
+        assert not step_failures(), _demo_failures
 
     def test_both_are_seated_inside_the_step_that_seeded_them(self):
         """One step, so a reader of the devlogs sees one cause.
@@ -360,7 +357,7 @@ class TestTheCoordinatorAndVendor2AreSeeded:
         stubs.lookup.assert_not_called()
         assert sorted(state.cast) == sorted(_SEATED)
         assert sorted(state.unseated) == sorted([COORDINATOR, VENDOR2])
-        assert _failures("STEP FAILED"), _demo_failures
+        assert step_failures(), _demo_failures
 
     @pytest.mark.spec("EDF-06-005")
     def test_a_failed_read_back_of_vendor2_seats_neither(self):
@@ -380,7 +377,7 @@ class TestTheCoordinatorAndVendor2AreSeeded:
 
         assert sorted(state.cast) == sorted(_SEATED)
         assert sorted(state.unseated) == sorted([COORDINATOR, VENDOR2])
-        assert _failures("STEP FAILED"), _demo_failures
+        assert step_failures(), _demo_failures
 
 
 # ---------------------------------------------------------------------------
@@ -568,7 +565,7 @@ class TestTheJoinAsTheSharedHelperRunsIt:
             DemoStoryError, match="case the Coordinator joined"
         ):
             state.kept(pair.COORDINATOR_JOINED)
-        assert _failures("GATE FAILED"), _demo_failures
+        assert gate_failures(), _demo_failures
 
     @pytest.mark.spec("CLP-08-005")
     def test_the_reporter_holds_the_case_before_the_coordinator_answers(self):

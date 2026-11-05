@@ -228,9 +228,28 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
         record copied as received (CM-23-016), so one left stored by a failed
         replacement is the record a redelivery stores again, not a half
         replacement.
+
+        The proposal index is replica-local: each entry names the Invite this
+        replica answers, which the CASE_MANAGER's copy cannot know.  The held
+        entries keep their place over the copy's (EP-09-007), and only the
+        proposals the copy's register leaves undecided stay (EP-08-003), so
+        the index ends the same whether the copy or a relayed Invite came
+        first (SYNC-19-001).  The held case is read inside the transaction,
+        so the entries kept are the ones it is replacing.
+
+        Raises:
+            VultronValidationError: the record held under the case id is not
+                a ``VulnerabilityCase``, so there is no held index to keep.
         """
         assert self.datalayer is not None
         with self.datalayer.transaction():
+            held = self.datalayer.read(self.case_id)
+            if not isinstance(held, VulnerabilityCase):
+                raise VultronValidationError(
+                    f"'{self.case_id}' holds a {type(held).__name__}, not a"
+                    " VulnerabilityCase this copy can replace"
+                )
+            held_index = held.pending_embargo_proposal_index
             _store_embedded_reports(self.case_obj, self.datalayer)
             store_embedded_participants(
                 self.case_obj,
@@ -245,7 +264,15 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
                     update={
                         "case_participants": normalize_participant_refs(
                             self.case_obj
-                        )
+                        ),
+                        "pending_embargo_proposal_index": (
+                            self.case_obj.undecided_proposals(
+                                {
+                                    **self.case_obj.pending_embargo_proposal_index,
+                                    **held_index,
+                                }
+                            )
+                        ),
                     }
                 )
             )

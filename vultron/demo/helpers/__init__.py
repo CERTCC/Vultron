@@ -40,7 +40,7 @@ Sub-modules
 - :mod:`~vultron.demo.helpers.seeding` — ``get_actor_by_id``,
   ``seed_containers``, ``seed_containers_rvv``, ``seed_containers_rccv``,
   ``seed_containers_rcv``, ``seed_containers_rcvcv``, and
-  ``reset_containers`` (``_dl_key`` lives in
+  ``reset_containers`` (``dl_key`` lives in
   :mod:`~vultron.demo.helpers.seeding.actors`).
 - :mod:`~vultron.demo.helpers.sync` — ``verify_replica_state`` and the shared
   sync-verification phase helpers ``wait_for_replica_ledger_coverage`` and
@@ -205,7 +205,7 @@ from vultron.demo.helpers.seeding import (
     seed_containers_rcvcv,
     seed_containers_rvv,
 )
-from vultron.demo.helpers.seeding.actors import _dl_key
+from vultron.demo.helpers.seeding.actors import dl_key
 from vultron.demo.helpers.sync import (
     run_sync_verification_phase,
     verify_replica_state,

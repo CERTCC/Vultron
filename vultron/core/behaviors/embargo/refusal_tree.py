@@ -42,13 +42,13 @@ the CASE_MANAGER answers the actor that sent it the Invite or the Accept
 
 The Invite tree declares both the manager and the participant-replica path,
 so its refusal may run at either, and the ``Reject`` it sends is the
-receiver's own act on whichever one: the structural check is
-:class:`~vultron.core.behaviors.embargo.nodes.pxa_refusal.ReceiverIsInviteeNode`,
-and the decision behind it is recorded as
-:data:`~vultron.core.behaviors.replica_emit_exemptions.EMBARGO_INVITE_REFUSAL`
-(BT-17-008).  The Accept tree declares the CASE_MANAGER path alone, so its
-refusal reaches no other receiver and the declaration is the guard: that one
-carries no exemption.
+receiver's own act on whichever one.  What makes that sound is the leaf ahead
+of the ``Reject``:
+:class:`~vultron.core.behaviors.embargo.nodes.pxa_refusal.ReceiverIsInviteeNode`
+admits the invitee alone, which is BT-17-008's second arm, so the emit needs
+no recorded exemption beside it.  The Accept tree declares the CASE_MANAGER
+path alone, so its refusal reaches no other receiver and the declaration is
+the guard.
 
 The ``Reject`` is queued by a node of the tree, never by the use case's ``execute()``
 (CLP-10-020).
@@ -72,9 +72,6 @@ from vultron.core.behaviors.embargo.nodes.pxa_refusal import (
     RefusalFactoryAvailableNode,
     SendEmbargoProposalRefusalNode,
 )
-from vultron.core.behaviors.replica_emit_exemptions import (
-    EMBARGO_INVITE_REFUSAL,
-)
 from vultron.core.models.embargo_event import EmbargoEvent
 
 #: The diversion names the two received embargo trees give the refusal.
@@ -97,9 +94,10 @@ def _pxa_condition(case_id: str, reason: str) -> PxaBarsEmbargoNode:
     """The diversion's condition: P, X or A is set on the case.
 
     Each refusal builds its own :class:`Diversion` around this, because the
-    emit exemption a refusal needs depends on the paths its host tree
-    declares and the pinned exemption set reads that constant at the
-    ``Diversion`` itself (BT-17-008, ARCH-18-005).
+    two answer different activities with different effects: the Invite's
+    refusal stores the inline terms and checks the invitee, the Accept's
+    answers the accepting actor.  The condition is shared so neither can
+    drift on what P/X/A bars (CS-22-001).
     """
     return PxaBarsEmbargoNode(case_id=case_id, reason=reason)
 
@@ -122,8 +120,8 @@ def pxa_invite_refusal(
     the Invite's archive and sends nothing.
 
     Its host tree declares the manager and the participant-replica path, so
-    the refusal may run at either and its emit carries the
-    ``EMBARGO_INVITE_REFUSAL`` decision (BT-17-008).
+    the refusal may run at either; ``ReceiverIsInviteeNode`` ahead of the
+    ``Reject`` is what bounds the emit (BT-17-008).
 
     Args:
         case_id: The case the embargo was proposed for.
@@ -158,7 +156,6 @@ def pxa_invite_refusal(
             " rejected",
         ),
         effects=tuple(effects),
-        emit_exemption=EMBARGO_INVITE_REFUSAL,
     )
 
 

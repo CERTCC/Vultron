@@ -56,7 +56,7 @@ which is where its gate is.
 import vultron.demo.helpers.sync.ledger as sync_ledger
 import vultron.demo.helpers.sync.phase as sync_phase
 import vultron.demo.scenario.rv_demo as rv_demo_module
-from test.demo._helpers import mock_case, story_state
+from test.demo._helpers import gate_failures, mock_case, story_state
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.coordinated_story import (
     REPORTER,
@@ -70,13 +70,8 @@ from vultron.demo.helpers.vendor_story import (
     VENDOR,
     continuations as vendor_continuations,
 )
-from vultron.demo.scenario.rcvcv_demo import (
-    C1,
-    C2,
-    V1,
-    V2,
-    every_replica_converges,
-)
+from vultron.demo.scenario.rcvcv_demo import C1, C2, V1, V2
+from vultron.demo.scenario.rcvcv_demo.fragments import every_replica_converges
 from vultron.demo.scenario.rv_demo import the_vendor_reports_the_fix_ready
 from vultron.demo.utils import reset_demo_failures
 from vultron.demo.utils.failures import _demo_failures
@@ -305,15 +300,15 @@ def test_rcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
     check_failures = [
         f for f in failures if "CHECK FAILED" in f and "ledger coverage" in f
     ]
-    gate_failures = [
-        f for f in failures if "GATE FAILED" in f and "ledger coverage" in f
+    coverage_gate_failures = [
+        f for f in gate_failures() if "ledger coverage" in f
     ]
 
     assert check_failures == [], (
         f"Found CHECK FAILED entries for ledger coverage: {check_failures!r}. "
         f"Ledger coverage must use demo_gate (not demo_check) per ADR-0058 (#2337)."
     )
-    assert gate_failures, (
+    assert coverage_gate_failures, (
         f"No GATE FAILED entry found for ledger coverage in {failures!r}. "
         f"Expected demo_gate to record GATE FAILED on replication timeout (#2337)."
     )

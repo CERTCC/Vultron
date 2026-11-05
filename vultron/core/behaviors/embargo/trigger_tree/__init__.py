@@ -18,8 +18,8 @@
 A trigger writes shared EM state only as the CASE_MANAGER (EP-09-008,
 ADR-0113).  Each trigger tree therefore splits, after its
 read-only routing guards, into two mutually exclusive arms
-(``create_case_manager_gated_tree`` beside
-``create_participant_replica_gated_tree``, BT-17-001):
+(``create_case_manager_gated_tree`` beside ``_arms._skip_at_case_manager``,
+BT-17-001):
 
 - **As the CASE_MANAGER** the actor's decision is canonical: the
   ``EmbargoLifecycle`` operation runs ``STRICT``, the decision activity is

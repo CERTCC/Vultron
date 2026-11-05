@@ -59,6 +59,7 @@ import py_trees
 import pytest
 
 from test.architecture import _corpus
+from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 
 # Exempt files: may contain direct calls (definition site only).
 EXEMPT_FILES = {
@@ -221,17 +222,52 @@ def test_no_rejection_validators_in_effect_nodes() -> None:
 # ---------------------------------------------------------------------------
 
 
+#: ``OnPaths`` and its two constructors.  A declaration is not a node: the
+#: factory builds a ``PathBranch`` from it and the *children* are what runs
+#: in the stage, so the roster reads through it to them (HP-01-038).  Read
+#: from the live object, so a rename moves the check with the code.
+_BRANCH_DECLARATIONS = frozenset(
+    {
+        OnPaths.__name__,
+        OnPaths.at_case_manager.__name__,
+        OnPaths.off_case_manager.__name__,
+    }
+)
+
+
+def _stage_member_names(elements: list[ast.expr]) -> set[str]:
+    """Bare callee names of the nodes *elements* puts in a stage.
+
+    An ``OnPaths`` declaration contributes the nodes it names rather than
+    itself: its positional arguments after the branch name, and its
+    ``children=`` keyword.
+    """
+    names: set[str] = set()
+    for elem in elements:
+        if not isinstance(elem, ast.Call):
+            continue
+        name = _corpus.callee_name(elem.func)
+        if name is None:
+            continue
+        if name not in _BRANCH_DECLARATIONS:
+            names.add(name)
+            continue
+        children = list(elem.args[1:])
+        for kw in elem.keywords:
+            if kw.arg == "children" and isinstance(
+                kw.value, (ast.List, ast.Tuple)
+            ):
+                children.extend(kw.value.elts)
+        names |= _stage_member_names(children)
+    return names
+
+
 def _list_arg_names(call: ast.Call, arg: str) -> set[str]:
     """Bare callee names of the elements of the ``arg=[...]`` keyword list."""
     for kw in call.keywords:
         if kw.arg != arg or not isinstance(kw.value, ast.List):
             continue
-        return {
-            name
-            for elem in kw.value.elts
-            if isinstance(elem, ast.Call)
-            and (name := _corpus.callee_name(elem.func)) is not None
-        }
+        return _stage_member_names(list(kw.value.elts))
     return set()
 
 

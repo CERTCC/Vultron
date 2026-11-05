@@ -330,6 +330,17 @@ answer, clock decisions, guards, commit, effects.
    answer to a request the CASE_MANAGER alone made, which reaches that
    CASE_MANAGER and nobody else.
 
+   A tree whose work is scoped to no case and identical on every path
+   declares no paths at all, because no branch of it would use the answer a
+   stage resolved (HP-01-038). Pin it in `UNDECLARED_PATH_EXEMPTIONS`
+   (`test/core/behaviors/test_declared_received_paths.py`) with its own
+   reason, never in `KNOWN_UNDECLARED_PATH_SITES`, which is the ratchet of
+   declarations a wave still owes: the intake-only trees archive and refuse,
+   the malformed-Invite fault answers its sender wherever it landed, and the
+   dead-letter tree stores the receiver's own diagnostic for any activity
+   whose `object_` URI did not resolve — so it is no message type's tree, and
+   there is no type whose paths it could name.
+
    Widen with the no-case path where the type precedes or establishes its
    case (HP-01-041), and with the manager path where a redelivery can reach
    the CASE_MANAGER of a case this actor created only after the first
@@ -360,11 +371,19 @@ answer, clock decisions, guards, commit, effects.
    other receiver, so its diversion needs no gate of its own and may commit its
    own entry, while a tree that also declares a non-manager path has a
    diversion that is the receiver's own answer — no case-state write, no entry,
-   and every emit covered by a registered `ReplicaEmitExemption` (CLP-10-026,
-   BT-17-008, RSH-08-003). An emit in an `OnPaths` branch off the manager path
-   still needs that exemption: the path says the receiver is not the
-   CASE_MANAGER, which is not the same as saying the emit is that receiver's
-   own to send, so `ungated_nodes()` keeps walking into the branch.
+   and every emit behind one of BT-17-008's two guards (CLP-10-026,
+   BT-17-008, RSH-08-003).
+
+   A branch off the manager path is not itself a guard for an emit inside it:
+   the path says the receiver is not the CASE_MANAGER, which is not the same
+   as saying the emit is that receiver's own to send, so
+   `ungated_emitters()` keeps walking into the branch. What bounds such an
+   emit is the second arm — a leaf carrying `SpeaksForExecutingActor` that
+   admits the executing actor alone, ahead of the emit in a `Sequence` or as
+   the inverted first arm of a `Selector`. Most such emits already had one,
+   which is why the exemption registry holds only the few that can carry
+   neither guard (`notes/bt-pitfalls.md` § "A Received Tree Gets Its
+   CASE_MANAGER Gate From the Factory").
 
    The reason an undeclared path is refused with is composed from the resolved
    path and the declaration, in `undeclared_path_reason()`, and nowhere else

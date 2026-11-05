@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    ValidationInfo,
+    field_validator,
+)
 
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from vultron.metadata.base import NonEmptyStr
+from vultron.metadata.base import (
+    NonEmptyStr,
+    check_nonempty_list,
+    check_required_list,
+    field_name,
+)
 from vultron.metadata.specs.schema.ids import (
     AdrIdStr,
     IssueRefStr,
@@ -50,11 +60,32 @@ class Relationship(BaseModel):
     note: str | None = None
 
 
-def _check_nonempty_list(v: list | None, field_name: str) -> list | None:
-    """Shared validator: if present, must be non-empty."""
-    if v is not None and len(v) == 0:
-        raise ValueError(f"{field_name} must be non-empty if present")
-    return v
+#: Keys a requirement once used to stay in place after it was superseded.
+#: The schema declares neither: a superseded requirement is removed and
+#: archived instead (MS-04-005, MS-09-001).
+_RETIRED_LIFECYCLE_KEYS: tuple[str, ...] = ("deprecated", "superseded_by")
+
+
+def _refuse_lifecycle_keys(item: object) -> None:
+    """Refuse ``deprecated:``/``superseded_by:`` with the retirement path.
+
+    ``extra="forbid"`` (SR-02-022) would already reject either key, but only
+    as an unnamed extra input, once per branch of the ``Spec`` union. This
+    names the rule and the command that replaces the key, so spec-lint's
+    refusal stays actionable (MS-09-001, MS-09-007). Input that is not a
+    mapping is left for the model's own type error.
+    """
+    if not isinstance(item, dict):
+        return
+    found = [k for k in _RETIRED_LIFECYCLE_KEYS if k in item]
+    if found:
+        spec_id = item.get("id", "<unknown>")
+        keys = ", ".join(f"'{k}:'" for k in found)
+        raise ValueError(
+            f"Spec '{spec_id}' carries {keys}; a superseded requirement is "
+            f"removed, not marked in place. Archive it with "
+            f"`uv run spec-retire {spec_id}` instead (MS-09-001)"
+        )
 
 
 class StatementSpec(BaseModel):
@@ -72,8 +103,6 @@ class StatementSpec(BaseModel):
     statement: NonEmptyStr
     rationale: NonEmptyStr
     testable: bool = True
-    deprecated: bool = False
-    superseded_by: SpecIdStr | None = None
     verification: NonEmptyStr | None = None
     #: Set only on a MUST-tier item with no ``verification:`` (MS-10-006).
     #: Distinct from ``tracking_issue``, which tracks planned implementation.
@@ -101,11 +130,10 @@ class StatementSpec(BaseModel):
         "stories",
     )
     @classmethod
-    def _nonempty_if_present(cls, v: list | None, info: object) -> list | None:
-        if v is not None and len(v) == 0:
-            field_name = getattr(info, "field_name", "list field")
-            raise ValueError(f"{field_name} must be non-empty if present")
-        return v
+    def _nonempty_if_present(
+        cls, v: list | None, info: ValidationInfo
+    ) -> list | None:
+        return check_nonempty_list(v, field_name(info))
 
 
 class Precondition(BaseModel):
@@ -159,12 +187,9 @@ class BehavioralSpec(StatementSpec):
     @field_validator("preconditions", "steps", "postconditions")
     @classmethod
     def _behavioral_nonempty_if_present(
-        cls, v: list | None, info: object
+        cls, v: list | None, info: ValidationInfo
     ) -> list | None:
-        if v is not None and len(v) == 0:
-            field_name = getattr(info, "field_name", "list field")
-            raise ValueError(f"{field_name} must be non-empty if present")
-        return v
+        return check_nonempty_list(v, field_name(info))
 
 
 Spec = BehavioralSpec | StatementSpec
@@ -191,20 +216,30 @@ class SpecGroup(BaseModel):
     trigger: Trigger | None = None
     specs: list[Spec]
 
+    @field_validator("specs", mode="before")
+    @classmethod
+    def _refuse_lifecycle_keys_once(cls, v: object) -> object:
+        """Check raw items before the ``Spec`` union splits them (MS-09-001).
+
+        Run here rather than on ``StatementSpec``: both union branches would
+        each raise the refusal, printing it twice for one key.
+        """
+        if isinstance(v, list):
+            for item in v:
+                _refuse_lifecycle_keys(item)
+        return v
+
     @field_validator("scope")
     @classmethod
-    def _nonempty_if_present(cls, v: list | None, info: object) -> list | None:
-        if v is not None and len(v) == 0:
-            field_name = getattr(info, "field_name", "list field")
-            raise ValueError(f"{field_name} must be non-empty if present")
-        return v
+    def _nonempty_if_present(
+        cls, v: list | None, info: ValidationInfo
+    ) -> list | None:
+        return check_nonempty_list(v, field_name(info))
 
     @field_validator("specs")
     @classmethod
-    def _specs_nonempty(cls, v: list) -> list:
-        if not v:
-            raise ValueError("specs must not be empty")
-        return v
+    def _specs_nonempty(cls, v: list, info: ValidationInfo) -> list:
+        return check_required_list(v, field_name(info))
 
 
 class SpecFile(BaseModel):
@@ -232,21 +267,17 @@ class SpecFile(BaseModel):
 
     @field_validator("scope")
     @classmethod
-    def _scope_nonempty(cls, v: list) -> list:
-        if not v:
-            raise ValueError("scope must not be empty")
-        return v
+    def _scope_nonempty(cls, v: list, info: ValidationInfo) -> list:
+        return check_required_list(v, field_name(info))
 
     @field_validator("tags", "relationships")
     @classmethod
-    def _tags_nonempty_if_present(cls, v: list | None) -> list | None:
-        if v is not None and len(v) == 0:
-            raise ValueError("list field must be non-empty if present")
-        return v
+    def _tags_nonempty_if_present(
+        cls, v: list | None, info: ValidationInfo
+    ) -> list | None:
+        return check_nonempty_list(v, field_name(info))
 
     @field_validator("groups")
     @classmethod
-    def _groups_nonempty(cls, v: list) -> list:
-        if not v:
-            raise ValueError("groups must not be empty")
-        return v
+    def _groups_nonempty(cls, v: list, info: ValidationInfo) -> list:
+        return check_required_list(v, field_name(info))

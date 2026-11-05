@@ -15,7 +15,8 @@ description: >
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
   blackboard isolation, py_trees test patterns, CoreObject subclass isolation,
   assertion-quality traps (vacuous asserts, "falls back to" tests, bare
-  MagicMock), why turning nesting into sequence moves the skip nobody tests,
+  MagicMock), driving a guard through its production entry point rather than by
+  direct call, why turning nesting into sequence moves the skip nobody tests,
   test layout rules for module splits, why a two-sided count pin
   races concurrent PRs (keep a per-item record and a PR-only growth guard
   instead), why a schema change that the merge base fails breaks every growth
@@ -427,6 +428,21 @@ carrier: #5534's answer is a `StoryProp` the gate keeps and the dependent
 reads, so a failed gate leaves the artifact absent and the runner stops the
 story (`notes/demo-scenario-tree.md` § "Composition"). ADR-0135's "compose,
 never chain" rule for BT helpers is the same shape seen from the design side.
+
+### Drive a Guard Through Its Production Entry Point, Not by Direct Call
+
+A unit test that calls a private guard directly says nothing about whether the
+production path reaches it, so the guard can be dead while the test is green.
+That is worse than no coverage: the spec-coverage ratchet counts the
+requirement as covered, so nothing anywhere reports a problem (#3156). Write at
+least one case that reaches the guard through the node or use case that runs it;
+`test/core/behaviors/sync/nodes/test_chain_timestamp_guard.py` is the shape.
+
+The production half is structural and checked.
+`test/architecture/test_guards_run_in_production.py` fails on a private guard
+nothing under `vultron/` references, and on a parameter whose presence opens a
+refusal that no call site supplies. A caller alone is not enough: the witness
+had one, and it never passed the argument the check needed.
 
 ### A Test That Says "Falls Back To" for Malformed Input Is Asserting a Bug
 

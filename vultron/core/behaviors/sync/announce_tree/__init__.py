@@ -21,7 +21,12 @@ Split by concern (CS-18-005): ``factory`` composes the tree and
 
 from vultron.core.behaviors.sync.announce_tree.factory import (
     AT_CASE_MANAGER,
+    OFF_CASE_MANAGER,
     create_announce_log_entry_tree,
 )
 
-__all__ = ["AT_CASE_MANAGER", "create_announce_log_entry_tree"]
+__all__ = [
+    "AT_CASE_MANAGER",
+    "OFF_CASE_MANAGER",
+    "create_announce_log_entry_tree",
+]

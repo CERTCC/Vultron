@@ -9,7 +9,7 @@ from typing import Annotated
 import pathspec
 import yaml
 from pathspec.gitignore import GitIgnoreSpec
-from pydantic import StringConstraints
+from pydantic import StringConstraints, ValidationInfo
 
 from vultron.metadata.file_loading import (
     MetadataLoadError,
@@ -19,6 +19,36 @@ from vultron.metadata.file_loading import (
 
 NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
 NonEmptyStrList = list[NonEmptyStr]
+
+
+def field_name(info: ValidationInfo) -> str:
+    """The field a ``field_validator`` is running for, for its diagnostic.
+
+    ``ValidationInfo.field_name`` is declared optional because a model-level
+    validator has no field to name; a ``field_validator`` always has one.
+    """
+    return info.field_name or "list field"
+
+
+def check_nonempty_list(value: list | None, name: str) -> list | None:
+    """An optional list, if present, must carry at least one entry.
+
+    Every optional-list field in the metadata schemas delegates here, so the
+    rule and its wording live in one place (CS-22-001). A message that names
+    its field is what makes a lint failure on a sixty-key file actionable,
+    and each hand-written copy of this body had lost that.
+    """
+    if value is not None and len(value) == 0:
+        raise ValueError(f"{name} must be non-empty if present")
+    return value
+
+
+def check_required_list(value: list, name: str) -> list:
+    """A required list must carry at least one entry."""
+    if not value:
+        raise ValueError(f"{name} must not be empty")
+    return value
+
 
 #: What a single-issue ``gh`` lookup can raise: ``gh`` missing
 #: (:class:`OSError`), ``gh`` failing (:class:`subprocess.CalledProcessError`),
