@@ -94,9 +94,15 @@ It Can Miss or Invent"):
   comparison, and resolving import aliases is the alternative. The same
   reading applies to the predicate, where an alias instead costs the
   *compliant-asker* control a module, which fails loudly rather than quietly.
+- The record method and the shared predicate share a name, so a qualified
+  ``mod.has_role(actor_id, case_id, CVDRole.CASE_MANAGER, dl)`` call would read
+  as the record method and **invent** a violation. Arity separates them
+  (:data:`_RECORD_PREDICATE_ARITY`); a third ``has_role`` of the same arity as
+  the record method would still be reported, which is the safe direction.
 """
 
 import ast
+from inspect import signature
 from pathlib import Path
 
 from pydantic import field_validator, model_validator
@@ -115,6 +121,14 @@ RECORD_PREDICATE_NAME = CaseParticipant.has_role.__name__
 ROLE_ENUM_NAME = CVDRole.__name__
 AUTHORITY_ROLE_NAME = CVDRole.CASE_MANAGER.name
 ID_COMPARISON_NAME = same_actor_id.__name__
+
+#: Arguments the per-record predicate takes at a call site (``self`` excluded),
+#: which is how a qualified ``mod.has_role(a, c, role, dl)`` call of the shared
+#: predicate is told from ``participant.has_role(role)``: same name, different
+#: arity.  Read off the live signature.
+_RECORD_PREDICATE_ARITY = (
+    len(signature(CaseParticipant.has_role).parameters) - 1
+)
 
 #: The attribute a BT node reads the executing actor's id from
 #: (``DataLayerConditionWithPorts.actor_id``).  Used only by the
@@ -287,6 +301,11 @@ def tests_a_role_list_for_the_authority_role(tree: ast.AST) -> bool:
     polarity, and the per-record
     :meth:`~vultron.core.models.case_participant.CaseParticipant.has_role`
     asked about that role.
+
+    The record method and the shared predicate have the same name, so the
+    arity tells them apart: the method takes the role alone, the predicate
+    takes four arguments.  Both are read off the live objects, so neither a
+    rename nor a signature change silently reclassifies a call.
     """
     for node in ast.walk(tree):
         if isinstance(node, ast.Compare):
@@ -300,6 +319,8 @@ def tests_a_role_list_for_the_authority_role(tree: ast.AST) -> bool:
             and node.func.attr == RECORD_PREDICATE_NAME
         ):
             args = [*node.args, *(kw.value for kw in node.keywords)]
+            if len(args) != _RECORD_PREDICATE_ARITY:
+                continue
             if any(_names_the_authority_role(arg) for arg in args):
                 return True
     return False

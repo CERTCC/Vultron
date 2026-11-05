@@ -497,6 +497,32 @@ def test_the_detector_reports_the_per_record_predicate():
     )
 
 
+def test_the_detector_tells_the_predicate_from_the_record_method():
+    """A qualified call of the shared predicate is not the role-list shape.
+
+    The two share a name, so only arity separates them. Without that a
+    module reaching the predicate through its module object would be reported
+    as reading a role list — the detector inventing a violation, which is how
+    a ratchet gets switched off.
+
+    Spec: ARCH-24-009
+    """
+    role = (
+        f"{_authority_question.ROLE_ENUM_NAME}"
+        f".{_authority_question.AUTHORITY_ROLE_NAME}"
+    )
+    qualified = _corpus.parse_inline(
+        "def f(actor_id, case_id, dl):\n"
+        f"    return role_predicate.{_authority_question.PREDICATE_NAME}("
+        f"actor_id, case_id, {role}, dl)\n",
+        filename="<synthetic>",
+    )
+    assert _authority_question.ingredient_shapes_in(qualified) == frozenset()
+    assert _authority_question.asks_the_predicate_about_the_authority_role(
+        qualified
+    ), "a qualified predicate call must still read as a compliant asker"
+
+
 def test_the_detector_passes_a_compliant_predicate_call():
     """Asking the shared predicate is not a violation.
 
