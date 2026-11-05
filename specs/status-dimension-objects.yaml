@@ -52,6 +52,9 @@ groups:
     adr:
     - ADR-0036
     - ADR-0075
+    see_also:
+    - spec_id: CM-18-001
+      reason: 'context for the reader'
   - id: SDO-01-004
     priority: MUST
     kind: project
@@ -227,6 +230,9 @@ groups:
     stories:
     - story_2026_031
     - story_2022_107
+    see_also:
+    - spec_id: CM-18-001
+      reason: 'context for the reader'
   - id: SDO-03-003
     priority: MUST_NOT
     kind: project
@@ -316,6 +322,11 @@ groups:
     - ADR-0082
     - ADR-0099
     - ADR-0175
+    see_also:
+    - spec_id: MV-11-002
+      reason: 'context for the reader'
+    - spec_id: MV-11-003
+      reason: 'context for the reader'
   - id: SDO-03-008
     priority: MUST
     kind: project

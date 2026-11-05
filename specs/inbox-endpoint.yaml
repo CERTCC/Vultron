@@ -716,6 +716,9 @@ groups:
       spec_id: IE-10-001
     - rel_type: uses_definition
       spec_id: VM-08-002
+    see_also:
+    - spec_id: SYNC-13-004
+      reason: 'context for the reader'
   - id: IE-10-003
     priority: MUST_NOT
     kind: project

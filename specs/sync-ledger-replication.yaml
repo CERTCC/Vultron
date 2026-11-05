@@ -2050,6 +2050,9 @@ groups:
       cannot be rolled back.
     stories:
     - story_2026_005
+    see_also:
+    - spec_id: SYNC-12-001
+      reason: 'context for the reader'
   - id: SYNC-15-003
     priority: SHOULD
     kind: protocol
@@ -2670,6 +2673,9 @@ groups:
       gains an entry when the fault is sent or received.
     stories:
     - story_2026_071
+    see_also:
+    - spec_id: SYNC-03-008
+      reason: 'scope boundary: SYNC-03-008 states no ledger-commit rule'
   - id: SYNC-16-003
     priority: MUST
     kind: protocol
@@ -3012,6 +3018,11 @@ groups:
       replaces the case file and gives it the copy's position.
     stories:
     - story_2026_050
+    see_also:
+    - spec_id: SYNC-16-020
+      reason: 'context for the reader'
+    - spec_id: SYNC-16-021
+      reason: 'context for the reader'
   - id: SYNC-16-007
     priority: MUST
     kind: protocol
@@ -3250,6 +3261,9 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: SYNC-16-001
+    see_also:
+    - spec_id: SYNC-16-004
+      reason: 'a logging rule is not a case of the rate bound'
 - id: SYNC-17
   title: Participant Position Statements
   description: >-
@@ -3356,6 +3370,9 @@ groups:
       participant and asserts the sender's replication state holds the named hash.
     stories:
     - story_2026_047
+    see_also:
+    - spec_id: SYNC-17-002
+      reason: 'context for the reader'
   - id: SYNC-17-004
     priority: MUST
     kind: protocol
@@ -3390,6 +3407,9 @@ groups:
       second replay.
     stories:
     - story_2026_047
+    see_also:
+    - spec_id: SYNC-17-002
+      reason: 'context for the reader'
   - id: SYNC-17-010
     priority: MUST
     kind: protocol
@@ -3405,6 +3425,9 @@ groups:
       the tail queues nothing.
     stories:
     - story_2026_047
+    see_also:
+    - spec_id: SYNC-17-002
+      reason: 'context for the reader'
   - id: SYNC-17-005
     priority: MUST
     kind: protocol
@@ -3475,6 +3498,9 @@ groups:
       `test_a_configured_interval_repeats_until_shutdown` in
       `test/adapters/driving/fastapi/test_ledger_position_statements.py` assert the
       default and a configured interval.
+    see_also:
+    - spec_id: SYNC-05-003
+      reason: 'context for the reader'
   - id: SYNC-17-008
     priority: SHOULD
     kind: protocol
@@ -3724,6 +3750,9 @@ groups:
       `Add(Note)` stamped behind the CASE_MANAGER's tail and asserts it is applied.
     stories:
     - story_2026_049
+    see_also:
+    - spec_id: CM-11-035
+      reason: 'context for the reader'
   - id: SYNC-18-010
     priority: MUST
     kind: protocol
@@ -3978,6 +4007,13 @@ groups:
       no difference from the CASE_MANAGER's case file.
     stories:
     - story_2026_057
+    see_also:
+    - spec_id: SYNC-00-007
+      reason: 'context for the reader'
+    - spec_id: SYNC-00-008
+      reason: 'context for the reader'
+    - spec_id: SYNC-03-001
+      reason: 'context for the reader'
   - id: SYNC-19-004
     priority: MUST_NOT
     kind: protocol
@@ -4189,6 +4225,9 @@ groups:
       is logged and not sent.
     stories:
     - story_2026_079
+    see_also:
+    - spec_id: SYNC-18-002
+      reason: 'context for the reader'
   - id: SYNC-20-004
     priority: MUST_NOT
     kind: protocol
@@ -4253,6 +4292,10 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: SYNC-20-005
+    see_also:
+    - spec_id: SYNC-05-003
+      reason: >-
+        says where defaults are documented; the resend cooldown is not a retry parameter
   - id: SYNC-20-007
     priority: MUST_NOT
     kind: protocol

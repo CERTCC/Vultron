@@ -83,6 +83,11 @@ groups:
           message type, each flow is small enough to read and test alone. Also, the
           dispatcher continues to route each semantic type to exactly one use case and
           one tree.
+        see_also:
+          - spec_id: SYNC-17-002
+            reason: 'context for the reader'
+          - spec_id: SYNC-17-007
+            reason: 'context for the reader'
 
       - id: SBT-01-003
         priority: MUST

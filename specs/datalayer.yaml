@@ -599,6 +599,9 @@ groups:
     - ADR-0062
     - ADR-0082
     - ADR-0099
+    see_also:
+    - spec_id: ARCH-23-002
+      reason: 'context for the reader'
   - id: DL-05-013
     priority: MUST_NOT
     kind: project
@@ -836,6 +839,9 @@ groups:
     adr:
     - ADR-0035
     - ADR-0149
+    see_also:
+    - spec_id: DL-06-007
+      reason: 'context for the reader'
   - id: DL-06-003
     priority: MUST
     kind: project
@@ -874,6 +880,9 @@ groups:
     adr:
     - ADR-0035
     - ADR-0149
+    see_also:
+    - spec_id: DL-05-004
+      reason: 'scope boundary of the ratchet, not a case of it'
   - id: DL-06-010
     priority: MUST
     kind: project
@@ -938,6 +947,11 @@ groups:
     - wire-format
     adr:
     - ADR-0035
+    see_also:
+    - spec_id: DL-05-004
+      reason: 'context for the reader'
+    - spec_id: DL-06-003
+      reason: 'context for the reader'
   - id: DL-06-012
     priority: MUST
     kind: project
@@ -959,6 +973,9 @@ groups:
     - wire-format
     adr:
     - ADR-0035
+    see_also:
+    - spec_id: DL-05-004
+      reason: 'context for the reader'
   - id: DL-06-006
     priority: MUST_NOT
     kind: project

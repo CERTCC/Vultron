@@ -65,12 +65,6 @@ _SPEC_ID_RANGE_RE = re.compile(
     rf"){_SUFFIX}\b"
 )
 
-#: A slash list of IDs in one group: ``CLP-14-006/007/008``.
-_SPEC_ID_SLASH_RE = re.compile(
-    rf"\b({_PREFIX}-{_GROUP}-){_INDEX}{_SUFFIX}"
-    rf"((?:/{_INDEX}{_SUFFIX})+)\b"
-)
-
 
 def _id_key(spec_id: str) -> tuple[str, int, int] | None:
     """Order *spec_id* by prefix, group and index, ignoring a sub-item letter."""
@@ -80,16 +74,76 @@ def _id_key(spec_id: str) -> tuple[str, int, int] | None:
     return match["prefix"], int(match["group"]), int(match["index"])
 
 
+#: A requirement ID as :func:`written_spec_ids` reads it, its parts named.
+_WRITTEN_ID_RE = re.compile(
+    rf"\b(?P<prefix>{_PREFIX})-(?P<group>{_GROUP})-(?P<index>{_INDEX})"
+    rf"(?P<suffix>{_SUFFIX})\b"
+)
+
+#: An ID end written after another ID: a slash-list member (``/003``) or a
+#: range end (``–003``, ``..11-002``), each with its own sub-item letter. A
+#: bare-number end must follow its mark with no space: ``CM-10-001 — 100
+#: actors`` is prose and writes no second ID. A group-qualified end may be set
+#: off by spaces (``CM-10-001 — 11-002``), as :data:`_SPEC_ID_RANGE_RE` reads.
+_WRITTEN_TAIL_RE = re.compile(
+    r"(?:(?P<mark>/|–|—|\.\.)|\s*(?:–|—|\.\.)\s*(?=\d{2}-\d{3}))"
+    rf"(?:(?P<group>{_GROUP})-)?(?P<index>{_INDEX})(?P<suffix>{_SUFFIX})\b"
+)
+
+
+def written_spec_ids(text: str) -> set[str]:
+    """Every requirement ID *text* writes out, sub-item letter kept.
+
+    Each full ID is read, then each end written straight after it in turn, so
+    chains and mixed forms (``CM-10-001/002–004``, ``CM-10-001–003/005``) are
+    read whole. A slash list ``PREFIX-NN-AAA/BBB`` writes ``PREFIX-NN-BBB``
+    beside ``PREFIX-NN-AAA``. A range writes only its ends, a short end such as
+    the ``003`` of ``CM-10-001–003`` or the ``003b`` of ``IO-03-003a–003b``
+    included; a backward one (``CM-10-005–002``) is no range, so its short end
+    is not an ID. Unlike :func:`cited_spec_ids`, ``CM-10-001 through
+    CM-10-005`` yields no ID between them. A letter written straight after an
+    ID reads as its sub-item letter, so a plural such as ``CM-10-001s`` writes
+    ``CM-10-001s``, which spec-lint reports as naming no requirement. These
+    are the IDs a statement cites for SR-13-022, each one a reader can see and
+    an author can link or list in ``see_also``.
+    """
+    found: set[str] = set()
+    for match in _WRITTEN_ID_RE.finditer(text):
+        found.add(match[0])
+        prefix, group = match["prefix"], match["group"]
+        last = (int(group), int(match["index"]), match["suffix"])
+        pos = match.end()
+        while (tail := _WRITTEN_TAIL_RE.match(text, pos)) is not None:
+            group = tail["group"] or group
+            end = (int(group), int(tail["index"]), tail["suffix"])
+            if tail["mark"] == "/" or end > last:
+                found.add(f"{prefix}-{group}-{tail['index']}{tail['suffix']}")
+            last, pos = end, tail.end()
+    return found
+
+
+def _is_spaced_short_end(match: re.Match[str]) -> bool:
+    """Whether a range *match* ends in a bare number set off by a space."""
+    return (
+        match["dash_index"] is not None
+        and match["dash_group"] is None
+        and re.search(r"\s", match[0]) is not None
+    )
+
+
 def cited_spec_ids(text: str, known_ids: Iterable[str]) -> set[str]:
     """Every requirement ID *text* names, with ranges and slash lists expanded.
 
-    A literal ID, with or without a sub-item letter (``IO-03-003b``), is
-    returned whether or not it is known. A range yields every ID in
+    Every ID :func:`written_spec_ids` reads is returned whether or not it is
+    known: a literal ID, with or without a sub-item letter (``IO-03-003b``),
+    a slash-list member, and a range's written ends, a short end such as the
+    ``009`` of ``CM-10-001–009`` included. A range adds every ID in
     *known_ids* with the start's prefix whose group and index lie between its
-    ends, inclusive, sub-item IDs included, so it may cross groups but never
-    invents an ID; a range whose ends name different prefixes yields only
-    those ends. A slash list ``PREFIX-NN-AAA/BBB`` yields ``PREFIX-NN-BBB``
-    beside its literal first ID.
+    ends, inclusive, sub-item IDs included, so its interior may cross groups
+    but never invents an ID; a range whose ends name different prefixes adds
+    nothing beyond those ends. A space between a dash and a bare-number end
+    makes it prose, not a range (``CM-10-001 — 100 actors``); a
+    group-qualified end (``CM-10-001 — 11-002``) is still a range.
 
     Args:
         text: Prose to scan, such as a decision record's body.
@@ -98,9 +152,11 @@ def cited_spec_ids(text: str, known_ids: Iterable[str]) -> set[str]:
     Returns:
         The IDs *text* names, as a set.
     """
-    found = set(_CITED_ID_RE.findall(text))
+    found = written_spec_ids(text)
     keyed = [(key, i) for i in known_ids if (key := _id_key(i)) is not None]
     for match in _SPEC_ID_RANGE_RE.finditer(text):
+        if _is_spaced_short_end(match):
+            continue
         prefix = match["prefix"]
         end_prefix = match["word_prefix"] or match["dash_prefix"] or prefix
         if end_prefix != prefix:
@@ -112,9 +168,6 @@ def cited_spec_ids(text: str, known_ids: Iterable[str]) -> set[str]:
         low = (prefix, int(match["group"]), int(match["index"]))
         high = (prefix, int(end_group), int(end_index))
         found.update(i for key, i in keyed if low <= key <= high)
-    for match in _SPEC_ID_SLASH_RE.finditer(text):
-        stem, tail = match.groups()
-        found.update(stem + index for index in tail.split("/")[1:])
     return found
 
 

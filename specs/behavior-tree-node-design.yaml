@@ -64,6 +64,10 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: BTND-01-001
+    see_also:
+    - spec_id: BTND-01-006
+      reason: >-
+        scope boundary: BTND-01-006 covers the values a tree finds only at tick time
   - id: BTND-01-005
     priority: MUST
     kind: project
@@ -741,6 +745,9 @@ groups:
     rationale: >-
       Extracting repeated patterns into a shared subtree reduces duplication and ensures fixes
       and improvements apply consistently across all use sites.
+    see_also:
+    - spec_id: BTND-02-001
+      reason: 'context for the reader'
 - id: BTND-07
   title: BT Node Module Organization
   specs:

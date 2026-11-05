@@ -672,6 +672,15 @@ groups:
       spec_id: CM-10-004
     - rel_type: uses_definition
       spec_id: CM-23-004
+    see_also:
+    - spec_id: SYNC-02-001
+      reason: >-
+        provenance for the fan-out's envelope; the step names the Announce it sends and
+        neither narrows nor needs SYNC-02-001's rule
+    - spec_id: SYNC-02-003
+      reason: >-
+        provenance for the fan-out; its recipients come from CM-10-004 and CM-23-004,
+        which are linked
   - id: DEMOMA-07-007
     priority: MUST
     kind: project
@@ -718,6 +727,13 @@ groups:
       spec_id: DEMOMA-07-003
       note: >-
         Step 5 is superseded; AutoCloseSequence removed from add_participant_status_tree
+    see_also:
+    - spec_id: CM-23-001
+      reason: 'provenance of the retired step 5'
+    - spec_id: CM-23-002
+      reason: 'provenance of the retired step 5'
+    - spec_id: CM-23-003
+      reason: 'provenance of the retired step 5'
   - id: DEMOMA-07-004
     priority: SHOULD
     kind: project
@@ -976,6 +992,9 @@ groups:
       spec_id: DEMOCI-03-002
     - rel_type: refines
       spec_id: DEMOCI-11-001
+    see_also:
+    - spec_id: DEMOCI-11-004
+      reason: 'descriptive: names the registration the scenario then has'
   - id: DEMOMA-09-011
     priority: MUST
     kind: project
@@ -1301,6 +1320,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-11-001
+    see_also:
+    - spec_id: DEMOCI-11-004
+      reason: 'descriptive: names the registration the scenario then has'
   - id: DEMOMA-10-017
     priority: MUST
     kind: project
@@ -1563,6 +1585,9 @@ groups:
     rationale: >-
       The final state shows that every participant is still in the case after the
       ownership transfer.
+    see_also:
+    - spec_id: DEMOMA-10-006
+      reason: 'a sibling scenario''s rule ("as ... requires")'
   - id: DEMOMA-11-018
     priority: MUST
     kind: project
@@ -1577,6 +1602,9 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DEMOMA-11-006
+    see_also:
+    - spec_id: DEMOMA-10-015
+      reason: 'a sibling scenario''s rule ("as ... requires")'
   - id: DEMOMA-11-007
     priority: MUST
     kind: project
@@ -1586,6 +1614,9 @@ groups:
     rationale: >-
       A deterministic run gives a verdict that depends only on the code, before and
       after the ownership changes.
+    see_also:
+    - spec_id: DEMOMA-10-007
+      reason: 'a sibling scenario''s rule ("as ... requires")'
   - id: DEMOMA-11-019
     priority: MUST
     kind: project
@@ -1598,6 +1629,9 @@ groups:
       After the transfer, every participant that is not the Case Owner must still
       receive canonical updates. A check after each major event finds the first update
       that a replica did not receive, before or after the ownership changes.
+    see_also:
+    - spec_id: DEMOMA-10-016
+      reason: 'a sibling scenario''s rule ("as ... requires")'
   - id: DEMOMA-11-008
     priority: MUST
     kind: project
@@ -1615,6 +1649,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-11-001
+    see_also:
+    - spec_id: DEMOMA-10-008
+      reason: 'a sibling scenario''s rule ("as ... requires")'
   - id: DEMOMA-11-009
     priority: MUST
     kind: project
@@ -2025,6 +2062,11 @@ groups:
       spec_id: DEMOCI-03-002
     - rel_type: refines
       spec_id: DEMOCI-11-001
+    see_also:
+    - spec_id: DEMOCI-03-003
+      reason: 'the consequence the statement cites (independent reporting), not a link'
+    - spec_id: DEMOCI-11-004
+      reason: 'descriptive: names the registration the scenario then has'
   - id: DEMOMA-12-008
     priority: MUST
     kind: project
@@ -2542,6 +2584,11 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-11-001
+    see_also:
+    - spec_id: DEMOCI-03-003
+      reason: 'the consequence the statement cites (independent reporting), not a link'
+    - spec_id: DEMOCI-11-004
+      reason: 'descriptive: names the registration the scenario then has'
   - id: DEMOMA-13-009
     priority: MUST
     kind: project
@@ -2556,6 +2603,9 @@ groups:
       accidentally omitting protocol steps not covered by universal checks.
       The Vendor-as-late-joiner invariant is shared with RVCV-extension
       (DEMOMA-10) and RCCV-handoff (DEMOMA-15).
+    see_also:
+    - spec_id: DEMOMA-12-008
+      reason: 'a sibling scenario''s pattern ("per ... pattern")'
   - id: DEMOMA-13-010
     priority: MUST
     kind: project
@@ -2933,6 +2983,9 @@ groups:
       accidentally omitting protocol steps not covered by universal checks.
       The Vendor-as-late-joiner invariant is shared with RVCV-extension
       (DEMOMA-10) and RCCV-extension (DEMOMA-13).
+    see_also:
+    - spec_id: DEMOMA-12-008
+      reason: 'a sibling scenario''s pattern ("per ... pattern")'
   - id: DEMOMA-14-010
     priority: MUST
     kind: project
@@ -3212,6 +3265,11 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DEMOMA-16-001
+    see_also:
+    - spec_id: CM-21-007
+      reason: 'a cited rationale'
+    - spec_id: TRIG-11-002
+      reason: 'a cited rationale'
 
   - id: DEMOMA-16-006
     priority: MUST
@@ -3236,6 +3294,11 @@ groups:
       spec_id: DEMOMA-16-001
     - rel_type: extends
       spec_id: DEMOMA-14-009
+    see_also:
+    - spec_id: CM-21-007
+      reason: 'a cited rationale'
+    - spec_id: TRIG-11-002
+      reason: 'a cited rationale'
 
   - id: DEMOMA-16-007
     priority: MUST
@@ -3257,6 +3320,9 @@ groups:
       spec_id: DEMOMA-16-001
     - rel_type: extends
       spec_id: DEMOMA-12-008
+    see_also:
+    - spec_id: DEMOMA-12-003
+      reason: 'context for the reader'
 
   - id: DEMOMA-16-008
     priority: MUST
@@ -3423,6 +3489,9 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DEMOMA-16-001
+    see_also:
+    - spec_id: VAM-05-008
+      reason: 'a cited rationale'
 
   - id: DEMOMA-16-017
     priority: MUST
@@ -3446,6 +3515,9 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DEMOMA-16-001
+    see_also:
+    - spec_id: VAM-05-008
+      reason: 'a cited rationale'
 
   - id: DEMOMA-16-014
     priority: MUST
@@ -3794,6 +3866,9 @@ groups:
       scenario can become a package when it outgrows one module (CS-18-001).
     adr:
     - ADR-0098
+    relationships:
+    - rel_type: uses_definition
+      spec_id: DEMOCI-11-003
 
   - id: DEMOMA-19-004
     priority: MUST
@@ -3861,6 +3936,9 @@ groups:
       builds one sub-command for each registered scenario (DEMOCI-11-011). A scenario
       that is not registered is not reachable from `vultron demo rcvcv`, and it has no
       entry in the CI matrix.
+    see_also:
+    - spec_id: DEMOCI-11-011
+      reason: 'descriptive: names the registration the scenario then has'
 
   - id: DEMOMA-19-007
     priority: MUST
@@ -3880,6 +3958,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-11-001
+    see_also:
+    - spec_id: DEMOCI-11-004
+      reason: 'descriptive: names the registration the scenario then has'
 
   - id: DEMOMA-19-008
     priority: MUST
@@ -4370,6 +4451,9 @@ groups:
       a developer can run it by name (DC-01-001, DEMOCI-11-011). The `rcv-embargo` name
       tells the reader that this scenario is about the embargo lifecycle. It also keeps
       the name different from the base `rcv` scenario (DEMOMA-12).
+    see_also:
+    - spec_id: DEMOCI-11-011
+      reason: 'descriptive: names the registration the scenario then has'
 
   - id: DEMOMA-20-005
     priority: MUST
@@ -4387,6 +4471,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-11-001
+    see_also:
+    - spec_id: DEMOCI-11-004
+      reason: 'descriptive: names the registration the scenario then has'
   - id: DEMOMA-20-015
     priority: MUST
     kind: project
@@ -4770,6 +4857,9 @@ groups:
       (DC-01-001). The CLI builds that sub-command from the registry (DEMOCI-11-011).
       Without the registration, the scenario can run only through its module, and the
       CLI does not show that the scenario exists.
+    see_also:
+    - spec_id: DEMOCI-11-011
+      reason: 'descriptive: names the registration the scenario then has'
 
   - id: DEMOMA-21-006
     priority: MUST
@@ -4788,6 +4878,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-11-001
+    see_also:
+    - spec_id: DEMOCI-11-004
+      reason: 'descriptive: names the registration the scenario then has'
   - id: DEMOMA-21-021
     priority: MUST
     kind: project
@@ -5899,6 +5992,11 @@ groups:
       spec_id: DEMOCI-11-001
     tags:
     - demo
+    see_also:
+    - spec_id: DEMOCI-03-003
+      reason: 'the consequence the statement cites (independent reporting), not a link'
+    - spec_id: DEMOCI-11-004
+      reason: 'descriptive: names the registration the scenario then has'
   - id: DEMOMA-24-007
     priority: MUST
     kind: project
@@ -5973,6 +6071,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-22-001
+    see_also:
+    - spec_id: DEMOMA-12-013
+      reason: 'an analogy ("as ... does")'
 
 - id: DEMOMA-25
   title: VC Scenario (Vendor self-reports; Coordinator joins as Observer)
@@ -6244,6 +6345,9 @@ groups:
     tags:
     - demo
     - testing
+    see_also:
+    - spec_id: DEMOCI-11-004
+      reason: 'descriptive: names the registration the scenario then has'
   - id: DEMOMA-25-015
     priority: MUST
     kind: project
