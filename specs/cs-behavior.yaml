@@ -2954,6 +2954,12 @@ groups:
       derive RM_STATES_CONSISTENT_WITH_FIX from the RM transition graph, so a new
       transition out of RM.ACCEPTED cannot silently invalidate the
       approximation, and pin which of its members are ambiguous.
+      A test fixture may not encode a state this rule forbids: the autouse guard
+      in test/core/behaviors/status/conftest.py makes the call above on every
+      participant record any status test writes to a store, and the shared
+      current_status() builder makes it when the fixture is built.
+      test/core/behaviors/status/test_impossible_fixture_guard.py pins both,
+      including that the guard admits the permitted pairs.
     relationships:
     - rel_type: constrains
       spec_id: CSB-16-001

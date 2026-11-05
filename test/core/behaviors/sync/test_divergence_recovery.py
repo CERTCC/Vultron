@@ -471,6 +471,7 @@ def test_a_copy_that_conflicts_with_the_chain_is_refused_at_error(
 
 @pytest.mark.spec("SYNC-16-022")
 @pytest.mark.spec("PCR-02-004")
+@pytest.mark.spec("PCR-07-002")
 @pytest.mark.spec("SYNC-16-006")
 def test_a_copy_at_the_replicas_tail_replaces_its_case() -> None:
     """A current copy from the CASE_MANAGER replaces the replica's case file,

@@ -139,6 +139,7 @@ class TestResolveCaseContextIdBootstrap:
 
 
 class TestResolveCaseContextIdNonBootstrap:
+    @pytest.mark.spec("PCR-04-001", "PCR-07-004")
     def test_event_context_wins_over_wire_context(self):
         event = _event(MessageSemantics.ENGAGE_CASE, context_id=CASE_ID)
 
@@ -148,6 +149,7 @@ class TestResolveCaseContextIdNonBootstrap:
 
         assert resolved == CASE_ID
 
+    @pytest.mark.spec("PCR-04-001", "PCR-07-004")
     def test_non_bootstrap_ignores_inline_object_id(self):
         """``object_id`` is only authoritative for bootstrap semantics.
 
