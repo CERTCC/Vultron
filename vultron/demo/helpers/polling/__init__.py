@@ -34,6 +34,7 @@ Submodules
 from vultron.demo.helpers.polling._poll import (
     BACKFILL_PROGRESS_CEILING,
     CROSS_CONTAINER_TIMEOUT,
+    EM_TRANSITION_TIMEOUT,
     LATE_JOINER_COVERAGE_TIMEOUT,
     LATE_JOINER_REPLICA_TIMEOUT,
     LATE_JOINER_TIMEOUT,
@@ -100,6 +101,7 @@ from vultron.demo.helpers.polling.received import (
 __all__ = [
     "BACKFILL_PROGRESS_CEILING",
     "CROSS_CONTAINER_TIMEOUT",
+    "EM_TRANSITION_TIMEOUT",
     "LATE_JOINER_COVERAGE_TIMEOUT",
     "LATE_JOINER_REPLICA_TIMEOUT",
     "LATE_JOINER_TIMEOUT",

@@ -53,6 +53,7 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.helpers.polling import (
     CROSS_CONTAINER_TIMEOUT,
+    EM_TRANSITION_TIMEOUT,
     LATE_JOINER_REPLICA_TIMEOUT,
     LATE_JOINER_TIMEOUT,
     PARTICIPANT_JOIN_TIMEOUT,
@@ -65,6 +66,7 @@ from vultron.demo.helpers.polling import (
     find_ownership_transfer_offer_for_actor,
     wait_for_case_attributed_to,
     wait_for_case_em_state,
+    wait_for_case_em_terminated,
     wait_for_case_participants,
     wait_for_embargo_proposal_indexed,
     wait_for_ledger_event,
@@ -118,6 +120,24 @@ def test_late_joiner_timeout_value():
 
 def test_late_joiner_replica_timeout_value():
     assert LATE_JOINER_REPLICA_TIMEOUT >= 30.0
+
+
+def test_em_transition_timeout_value_and_signature_defaults():
+    """Both EM waits resolve to the justified shared budget (#1978).
+
+    The budget is justified once, on ``EM_TRANSITION_TIMEOUT`` (EDF-06-008),
+    so a signature carrying a *different* number would leave that
+    justification describing a value no caller gets.  This pins the resolved
+    value, not the expression: a bare ``30.0`` still passes.  The floor keeps
+    the margin over the measured worst case on the chain (4.73 s).
+    """
+    assert EM_TRANSITION_TIMEOUT >= 30.0
+    for fn in (wait_for_case_em_state, wait_for_case_em_terminated):
+        default = inspect.signature(fn).parameters["timeout_seconds"].default
+        assert default == EM_TRANSITION_TIMEOUT, (
+            f"{fn.__name__} default ({default}s) no longer tracks "
+            "EM_TRANSITION_TIMEOUT, whose comment is its only justification"
+        )
 
 
 # ---------------------------------------------------------------------------
