@@ -8,8 +8,12 @@
 # skipped. The logic is in .github/scripts/ci_gate.py; its verdict rules are
 # those of .agents/skills/shared/wait-for-ci.sh.
 #
-# Re-running a red check does not re-run this gate: re-run the `CI gate` job
-# too, once the re-run check is green.
+# The gate judges once per pull-request event. A re-run or a dispatched run
+# on the head commit after it finished is not judged: re-run the `CI gate`
+# job too before merging, whichever way the re-run went.
+#
+# Unrelated to the publish workflow's "CI gate" (deploy_site.yml, ADR-0171),
+# which checks that main's CI is green before a site publish.
 #
 # CISEC-05 (notify-failure) does not apply: this workflow runs only on pull
 # requests, never on a push to main or a schedule. A red gate is the pull
@@ -44,13 +48,16 @@ jobs:
     # The gate lasts as long as the slowest other workflow: up to 18 min over
     # the 15 latest successful demo-integration runs (2026-11-05), whose jobs'
     # caps add to 30 min. The script ends itself red at 60 min with the
-    # pending checks named; the job cap sits above that (TB-14-006).
-    timeout-minutes: 70
+    # pending checks named. A poll near that deadline makes at most two `gh`
+    # calls, each at most two 300 s attempts (GH_RETRY_ATTEMPTS), so the cap
+    # sits 30 min above it and is never what ends the job (TB-14-006).
+    timeout-minutes: 90
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       GATE_DEADLINE_MINUTES: "60"
+      GH_RETRY_ATTEMPTS: "2"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

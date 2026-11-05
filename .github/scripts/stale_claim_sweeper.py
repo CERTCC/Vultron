@@ -34,6 +34,10 @@ import subprocess
 import sys
 from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from gh_cli import paginated as _paginated  # sibling module; see gh_cli
 
 LABEL = "stale-claim"
 EPIC_TYPE = "Epic"
@@ -109,12 +113,6 @@ def _gh(*args: str) -> str:
         capture_output=True,
         text=True,
     ).stdout
-
-
-def _paginated(endpoint: str) -> list[dict[str, object]]:
-    """All items of a REST list endpoint (``--slurp`` yields one list per page)."""
-    pages = json.loads(_gh("api", "--paginate", "--slurp", endpoint))
-    return [item for page in pages for item in page]
 
 
 def _values(items: object, key: str) -> list[str]:

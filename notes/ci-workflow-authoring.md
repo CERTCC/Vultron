@@ -61,9 +61,17 @@ waits for the newest run of every other workflow on the head commit, and passes
 only when each passed or was skipped. So a new pull-request workflow needs no
 ruleset change: the gate judges it.
 
-The gate judges once per pull-request event. Re-running a red check does not
-re-run it, so re-run the `CI gate` job too once the re-run check is green, or
-it stays red over a green set.
+It is unrelated to the publish workflow's "CI gate" (`deploy_site.yml`,
+ADR-0171), which checks that `main`'s CI is green before a site publish.
+
+An empty set never passes: two workflows run on every pull request, so no
+other check means GitHub has not started them, and the gate ends red at its
+deadline.
+
+The gate judges once per pull-request event, so a re-run or a dispatched run
+on the head commit after it finished is never judged. After any such run,
+re-run the `CI gate` job too before merging. Otherwise a flaky check re-run
+green leaves the gate red, and a green check re-run red leaves it green.
 
 ## Push-to-`main` and Scheduled Workflows MUST Wire `notify-failure`
 

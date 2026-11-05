@@ -9,6 +9,7 @@ the script's directory off ``sys.path``, so each importer puts it back first::
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -67,3 +68,19 @@ def gh(*args: str, retry: bool = True) -> str:
             time.sleep(delay)
             delay *= 2
     raise AssertionError("unreachable")  # pragma: no cover
+
+
+def paginated(
+    endpoint: str, key: str | None = None
+) -> list[dict[str, object]]:
+    """Every item of a REST list endpoint, across all its pages.
+
+    ``--slurp`` yields one entry per page. A plain list endpoint's page is the
+    item list; an endpoint that wraps it in an object (``workflow_runs``,
+    ``check_runs``) names the wrapping field in *key*. The read is retried as
+    :func:`gh` retries.
+    """
+    pages = json.loads(gh("api", "--paginate", "--slurp", endpoint))
+    if key is None:
+        return [item for page in pages for item in page]
+    return [item for page in pages for item in page[key]]

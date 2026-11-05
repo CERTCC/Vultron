@@ -23,6 +23,11 @@ What counts as "every other check":
 - Check runs in no workflow run's check suite, such as a GitHub App's code
   scanning result, each judged by its newest run of that name.
 
+No other check at all is never a pass: ``pr-size-label.yml`` and
+``verification-debt-owners.yml`` run on every pull request, so an empty set
+means GitHub has not started them, and the gate waits, then ends red at its
+deadline.
+
 The gate polls the workflow runs alone while any is still running, and reads
 the check runs only once none is, so a long CI run costs about one API call a
 minute against the repository's ``GITHUB_TOKEN`` rate limit.
@@ -30,7 +35,6 @@ minute against the repository's ``GITHUB_TOKEN`` rate limit.
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 import time
@@ -40,7 +44,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from gh_cli import gh, write_github_file
+from gh_cli import paginated, write_github_file
 
 GREEN = frozenset({"success", "skipped", "neutral"})
 
@@ -51,8 +55,6 @@ DEFAULT_POLL_SECONDS = 60
 #: Below the job's ``timeout-minutes``, so a check that never finishes ends the
 #: gate red with the pending checks named, not cancelled with no message.
 DEFAULT_DEADLINE_MINUTES = 60
-
-PAGE_SIZE = 100
 
 Record = Mapping[str, Any]
 
@@ -104,26 +106,28 @@ def judged_check_runs(
 ) -> list[Record]:
     """The check runs the gate judges.
 
-    Those in a latest run's check suite, plus the newest of each name among
-    check runs in no workflow run's suite. A check run in a superseded run's
-    suite, or in this gate's own suite, is dropped.
+    The newest check run of each name in a latest run's check suite (a job
+    re-run adds a newer one to the same suite), plus the newest of each name
+    among check runs in no workflow run's suite. A check run in a superseded
+    run's suite, or in this gate's own suite, is dropped.
     """
     runs = list(runs)
     all_suites = {r.get("check_suite_id") for r in runs}
     judged_suites = {
         r.get("check_suite_id") for r in latest_runs(runs, own_path)
     }
-    kept: list[Record] = []
-    standalone: dict[str, Record] = {}
+    newest: dict[tuple[Any, str], Record] = {}
     for check in check_runs:
         suite = (check.get("check_suite") or {}).get("id")
         if suite in judged_suites:
-            kept.append(check)
+            key = (suite, check["name"])
         elif suite not in all_suites:
-            name = check["name"]
-            if name not in standalone or check["id"] > standalone[name]["id"]:
-                standalone[name] = check
-    return kept + sorted(standalone.values(), key=lambda c: c["id"])
+            key = (None, check["name"])
+        else:
+            continue
+        if key not in newest or check["id"] > newest[key]["id"]:
+            newest[key] = check
+    return sorted(newest.values(), key=lambda c: c["id"])
 
 
 def _is_red(record: Record) -> bool:
@@ -173,23 +177,9 @@ def judge(
             and run.get("check_suite_id") not in red_suites
         ):
             red.append(f"{run['name']} (workflow): {run.get('conclusion')}")
+    if not (latest or checks):
+        pending.append("no other check has started on this commit")
     return Verdict(pending=pending, red=red, green=green)
-
-
-def _pages(endpoint: str, key: str) -> list[Record]:
-    """Every item under *key* across the pages of a list endpoint."""
-    items: list[Record] = []
-    page = 1
-    while True:
-        sep = "&" if "?" in endpoint else "?"
-        body = json.loads(
-            gh("api", f"{endpoint}{sep}per_page={PAGE_SIZE}&page={page}")
-        )
-        batch = body[key]
-        items.extend(batch)
-        if len(batch) < PAGE_SIZE:
-            return items
-        page += 1
 
 
 @dataclass(frozen=True)
@@ -201,15 +191,17 @@ class GitHub:
 
     def workflow_runs(self) -> list[Record]:
         """Every workflow run on the commit."""
-        return _pages(
-            f"repos/{self.repo}/actions/runs?head_sha={self.sha}",
+        return paginated(
+            f"repos/{self.repo}/actions/runs?head_sha={self.sha}&per_page=100",
             "workflow_runs",
         )
 
     def check_runs(self) -> list[Record]:
-        """Every check run on the commit."""
-        return _pages(
-            f"repos/{self.repo}/commits/{self.sha}/check-runs", "check_runs"
+        """The newest attempt of every check run on the commit."""
+        return paginated(
+            f"repos/{self.repo}/commits/{self.sha}/check-runs"
+            "?filter=latest&per_page=100",
+            "check_runs",
         )
 
 
@@ -246,7 +238,7 @@ def wait(
                 f"Waiting on {len(verdict.pending)} check(s) after "
                 f"{int(elapsed)} s: {', '.join(verdict.pending)}"
             )
-        sleep(poll_seconds)
+        sleep(min(poll_seconds, deadline_seconds - elapsed))
 
 
 def report(verdict: Verdict, timed_out: bool) -> int:
@@ -261,9 +253,6 @@ def report(verdict: Verdict, timed_out: bool) -> int:
         lines.append(f"- ❌ {name}")
     for name in verdict.green:
         lines.append(f"- ✅ {name}")
-    if not (verdict.red or verdict.green or verdict.pending):
-        print("::warning::No other check ran on this commit.")
-        lines.append("No other check ran on this commit.")
     write_github_file("GITHUB_STEP_SUMMARY", "\n".join(lines) + "\n")
     if timed_out or verdict.red:
         print(
@@ -282,15 +271,20 @@ def _seconds(env: Mapping[str, str], name: str, default: float) -> float:
 def main(env: Mapping[str, str] = os.environ) -> int:
     """Run the gate for ``REPO`` and ``HEAD_SHA`` from the environment."""
     github = GitHub(repo=env["REPO"], sha=env["HEAD_SHA"])
+    grace = _seconds(env, "GATE_GRACE_SECONDS", DEFAULT_GRACE_SECONDS)
+    deadline = 60 * _seconds(
+        env, "GATE_DEADLINE_MINUTES", DEFAULT_DEADLINE_MINUTES
+    )
+    if grace >= deadline:
+        raise ValueError(
+            f"grace period {grace} s must end before the deadline {deadline} s"
+        )
     verdict, timed_out = wait(
         github,
         own_workflow_path(env["GITHUB_WORKFLOW_REF"]),
-        grace_seconds=_seconds(
-            env, "GATE_GRACE_SECONDS", DEFAULT_GRACE_SECONDS
-        ),
+        grace_seconds=grace,
         poll_seconds=_seconds(env, "GATE_POLL_SECONDS", DEFAULT_POLL_SECONDS),
-        deadline_seconds=60
-        * _seconds(env, "GATE_DEADLINE_MINUTES", DEFAULT_DEADLINE_MINUTES),
+        deadline_seconds=deadline,
     )
     return report(verdict, timed_out)
 

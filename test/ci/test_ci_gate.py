@@ -141,13 +141,15 @@ def test_every_other_conclusion_is_red(conclusion: str | None) -> None:
 def test_the_gate_excludes_its_own_runs_and_checks() -> None:
     old = run("CI gate", 9, conclusion="cancelled", path=OWN)
     own = run("CI gate", 9, status="in_progress", path=OWN)
+    py = run("python-app", 1)
     checks = [
         check("CI gate", suite(old), conclusion="cancelled"),
         check("CI gate", suite(own), status="in_progress"),
+        check("Tests (pytest)", suite(py)),
     ]
-    verdict = gate.judge([old, own], checks, OWN)
+    verdict = gate.judge([old, own, py], checks, OWN)
     assert verdict.done
-    assert (verdict.red, verdict.green) == ([], [])
+    assert (verdict.red, verdict.green) == ([], ["Tests (pytest): success"])
 
 
 def test_a_superseded_run_on_the_same_commit_is_not_judged() -> None:
@@ -188,6 +190,32 @@ def test_an_app_check_outside_any_workflow_is_judged_by_its_newest_run() -> (
     verdict = gate.judge([py], checks, OWN)
     assert verdict.green == ["CodeQL: success"]
     assert verdict.red == ["External scan: failure"]
+
+
+def test_a_re_run_job_is_judged_by_its_newest_attempt() -> None:
+    py = run("python-app", 1)
+    checks = [
+        check("Tests (pytest)", suite(py), conclusion="failure"),
+        check("Tests (pytest)", suite(py)),
+    ]
+    verdict = gate.judge([py], checks, OWN)
+    assert verdict.red == []
+    assert verdict.green == ["Tests (pytest): success"]
+
+
+def test_a_running_job_in_a_finished_run_is_pending() -> None:
+    py = run("python-app", 1)
+    verdict = gate.judge(
+        [py], [check("Tests (pytest)", suite(py), status="in_progress")], OWN
+    )
+    assert verdict.pending == ["Tests (pytest) (in_progress)"]
+
+
+def test_no_other_check_is_pending_never_green() -> None:
+    own = run("CI gate", 9, status="in_progress", path=OWN)
+    verdict = gate.judge([own], [check("CI gate", suite(own))], OWN)
+    assert verdict.pending == ["no other check has started on this commit"]
+    assert not verdict.done
 
 
 def test_a_running_workflow_is_pending_before_its_checks_are_read() -> None:
@@ -337,31 +365,123 @@ def test_report_is_green_only_with_no_red_and_no_timeout(
     assert "- ❌ Tests: failure" in summary.read_text(encoding="utf-8")
 
 
-def test_report_warns_when_no_other_check_ran(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    assert gate.report(gate.Verdict(), False) == 0
-    assert "::warning::No other check ran" in capsys.readouterr().out
+def test_the_last_sleep_stops_at_the_deadline() -> None:
+    stuck = run("demo-integration", 5, status="queued")
+    clock = Clock()
+    _, timed_out = _wait(
+        FakeGitHub([([stuck], [])]),
+        clock,
+        poll_seconds=120,
+        deadline_seconds=300,
+    )
+    assert timed_out
+    assert clock.now == 300
 
 
-def test_pages_reads_until_a_short_page(
+def _github_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[tuple[str, str | None]]:
+    calls: list[tuple[str, str | None]] = []
+
+    def fake_paginated(
+        endpoint: str, key: str | None = None
+    ) -> list[dict[str, Any]]:
+        calls.append((endpoint, key))
+        return []
+
+    monkeypatch.setattr(gate, "paginated", fake_paginated)
+    return calls
+
+
+def test_the_reads_name_the_commit_and_the_newest_attempts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[str] = []
-    full = [{"id": i} for i in range(gate.PAGE_SIZE)]
-
-    def fake_gh(*args: str) -> str:
-        calls.append(args[1])
-        page = full if len(calls) == 1 else [{"id": -1}]
-        return json.dumps({"workflow_runs": page})
-
-    monkeypatch.setattr(gate, "gh", fake_gh)
-    items = gate.GitHub(repo="o/r", sha="abc").workflow_runs()
-    assert len(items) == gate.PAGE_SIZE + 1
+    calls = _github_calls(monkeypatch)
+    github = gate.GitHub(repo="o/r", sha="abc")
+    github.workflow_runs()
+    github.check_runs()
     assert calls == [
-        "repos/o/r/actions/runs?head_sha=abc&per_page=100&page=1",
-        "repos/o/r/actions/runs?head_sha=abc&per_page=100&page=2",
+        ("repos/o/r/actions/runs?head_sha=abc&per_page=100", "workflow_runs"),
+        (
+            "repos/o/r/commits/abc/check-runs?filter=latest&per_page=100",
+            "check_runs",
+        ),
     ]
+
+
+def test_paginated_flattens_every_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gh_cli = sys.modules["gh_cli"]
+    pages = [{"check_runs": [{"id": 1}]}, {"check_runs": [{"id": 2}]}]
+    argv: list[tuple[str, ...]] = []
+
+    def fake_gh(*args: str, retry: bool = True) -> str:
+        argv.append(args)
+        return json.dumps(pages)
+
+    monkeypatch.setattr(gh_cli, "gh", fake_gh)
+    assert gh_cli.paginated("e", "check_runs") == [{"id": 1}, {"id": 2}]
+    assert argv == [("api", "--paginate", "--slurp", "e")]
+    monkeypatch.setattr(gh_cli, "gh", lambda *_a: json.dumps([[{"id": 3}]]))
+    assert gh_cli.paginated("e") == [{"id": 3}]
+
+
+_ENV = {
+    "REPO": "o/r",
+    "HEAD_SHA": "abc",
+    "GITHUB_WORKFLOW_REF": "o/r/.github/workflows/ci-gate.yml@refs/pull/7/merge",
+}
+
+
+def _capture_wait(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    seen: dict[str, Any] = {}
+
+    def fake_wait(github: Any, own_path: str, **timing: float) -> Any:
+        seen.update(github=github, own_path=own_path, **timing)
+        return gate.Verdict(green=["T: success"]), False
+
+    monkeypatch.setattr(gate, "wait", fake_wait)
+    return seen
+
+
+def test_main_reads_its_settings_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen = _capture_wait(monkeypatch)
+    env = dict(
+        _ENV,
+        GATE_GRACE_SECONDS="5",
+        GATE_POLL_SECONDS="7",
+        GATE_DEADLINE_MINUTES="2",
+    )
+    assert gate.main(env) == 0
+    assert seen == {
+        "github": gate.GitHub(repo="o/r", sha="abc"),
+        "own_path": OWN,
+        "grace_seconds": 5,
+        "poll_seconds": 7,
+        "deadline_seconds": 120,
+    }
+
+
+def test_main_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen = _capture_wait(monkeypatch)
+    gate.main(_ENV)
+    assert (
+        seen["grace_seconds"],
+        seen["poll_seconds"],
+        seen["deadline_seconds"],
+    ) == (90, 60, 3600)
+
+
+def test_main_refuses_a_grace_period_past_the_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_wait(monkeypatch)
+    env = dict(_ENV, GATE_GRACE_SECONDS="120", GATE_DEADLINE_MINUTES="2")
+    with pytest.raises(ValueError, match="must end before the deadline"):
+        gate.main(env)
 
 
 # --- the workflow -----------------------------------------------------------
@@ -380,7 +500,13 @@ def test_it_runs_on_every_pull_request_to_main(
     pr = on["pull_request"]
     assert pr["branches"] == ["main"]
     assert "paths" not in pr and "paths-ignore" not in pr
-    assert {"opened", "synchronize", "reopened", "edited"} <= set(pr["types"])
+    assert set(pr["types"]) == {
+        "opened",
+        "synchronize",
+        "reopened",
+        "ready_for_review",
+        "edited",
+    }
 
 
 def test_its_one_job_is_named_ci_gate(workflow: dict[str, Any]) -> None:
@@ -411,6 +537,9 @@ def test_its_deadline_ends_before_the_job_cap(
     (job,) = workflow["jobs"].values()
     deadline = int(job["env"]["GATE_DEADLINE_MINUTES"])
     assert deadline < job["timeout-minutes"]
+    # Two calls of at most two 300 s attempts each still end before the cap.
+    attempts = int(job["env"]["GH_RETRY_ATTEMPTS"])
+    assert deadline + 2 * attempts * 5 < job["timeout-minutes"]
     script = [s for s in job["steps"] if "run" in s]
     assert [s["run"] for s in script] == [
         "python3 -I .github/scripts/ci_gate.py"
