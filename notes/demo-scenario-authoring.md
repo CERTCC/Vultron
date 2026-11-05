@@ -211,8 +211,9 @@ over **all** of `vultron/demo/`, `exchange/` included — the scope line above
 bounds this note's other rules, not this ratchet. Its unbound check reports a
 name assigned only inside a demo block and read after it (#2308); its sentinel
 check reports a name pre-initialised to `None` or `""`, assigned inside a demo
-block, then passed to a call or attribute-accessed after it with no guard
-before that first read (#3038). A guard is an `is None` / `is not None`
+block, then passed to a call — inside a `dict`, `list` or f-string argument
+counts — or attribute-accessed or subscripted after it with no guard before
+that first read (#3038). A guard is an `is None` / `is not None`
 comparison, an `== ""`, a truthiness test, or a rebinding; the first one in
 evaluation order defends every read after it, so the `if x is None: raise`
 shape this section asks for satisfies the check without enclosing the reads.
