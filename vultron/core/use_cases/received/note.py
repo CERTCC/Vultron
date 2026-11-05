@@ -50,7 +50,7 @@ class AddNoteToCaseReceivedUseCase:
     receivers MUST NOT update their case replica directly from
     ``Add(Note)[target=VulnerabilityCase]`` messages — they receive note attachment notifications
     exclusively via ``Announce(CaseLedgerEntry)`` fan-out from the
-    CASE_MANAGER (SYNC-02-002).
+    CASE_MANAGER (SYNC-02-001, SYNC-02-003).
 
     The ``CheckIsCaseManagerNode`` guard inside the BT enforces this: a
     non-manager takes the skip arm and neither attaches nor commits
@@ -126,7 +126,7 @@ class AddNoteToCaseReceivedUseCase:
             verdict_from_bt(tree, result, label="GuardedAttachAndCommitBT"),
         )
         # Only the CASE_MANAGER attaches; others learn of the note through
-        # Announce(CaseLedgerEntry) fan-out (SYNC-02-002).
+        # Announce(CaseLedgerEntry) fan-out (SYNC-02-001, SYNC-02-003).
         verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(

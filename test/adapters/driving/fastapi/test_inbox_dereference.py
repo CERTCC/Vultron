@@ -50,7 +50,6 @@ from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics, VultronEvent
 from vultron.core.models.object_fetch import (
@@ -60,7 +59,12 @@ from vultron.core.models.object_fetch import (
     ObjectReference,
     PendingObjectFetch,
 )
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+    ReceivedStage,
+)
 from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.services.received_holding import owes_replay
 from vultron.errors import VultronValidationError
 
 _REPLICA = "https://example.org/actors/vendor"
@@ -183,9 +187,19 @@ def _fetches(dl: SqliteDataLayer) -> list[PendingObjectFetch]:
 
 
 def _held(dl: SqliteDataLayer, activity_id: str) -> bool:
-    return isinstance(
-        dl.read(DeferredInboxActivity.build_id(activity_id)),
-        DeferredInboxActivity,
+    """Whether *activity_id*'s body is still held for its replay (ADR-0154)."""
+    return owes_replay(dl, activity_id)
+
+
+def _hold(dl: SqliteDataLayer, activity_id: str) -> None:
+    """Hold a body for *activity_id*'s replay, as the deferral does."""
+    dl.create(
+        ReceivedActivityRecord(
+            activity_id=activity_id,
+            received_body=json.dumps({"id": activity_id}),
+            stage=ReceivedStage.HELD,
+            replay_owed=True,
+        )
     )
 
 
@@ -374,12 +388,7 @@ def test_an_activity_waiting_on_two_fetches_replays_once_both_settle():
                 update={"waiting_activity_ids": [activity_id]}
             )
         )
-    dl.create(
-        DeferredInboxActivity(
-            activity_id=activity_id,
-            received_body=json.dumps({"id": activity_id}),
-        )
-    )
+    _hold(dl, activity_id)
     failed = ObjectFetchResult(None, "unreachable", 3)
 
     assert settle_fetch(dl, _REPLICA, first.object_id, failed) == []
@@ -623,15 +632,6 @@ def test_a_waiter_not_held_for_replay_is_logged_and_skipped(
     assert _fetches(dl) == [], "a record nothing can wait on is removed"
 
 
-def _hold(dl: SqliteDataLayer, activity_id: str) -> None:
-    dl.create(
-        DeferredInboxActivity(
-            activity_id=activity_id,
-            received_body=json.dumps({"id": activity_id}),
-        )
-    )
-
-
 def _await(
     dl: SqliteDataLayer, reference: ObjectReference, waiters: list[str]
 ) -> None:
@@ -773,12 +773,7 @@ def _open_fetch_and_held_waiter(
             _store_reference(case.id_, object_id)
         ).model_copy(update={"waiting_activity_ids": [activity_id]})
     )
-    dl.create(
-        DeferredInboxActivity(
-            activity_id=activity_id,
-            received_body=json.dumps({"id": activity_id}),
-        )
-    )
+    _hold(dl, activity_id)
     return activity_id
 
 
@@ -889,8 +884,8 @@ def test_a_redelivery_of_a_waiting_activity_waits_once():
     assert fetch.waiting_activity_ids == [payload["id"]]
     held = [
         r
-        for r in dl.list_objects("DeferredInboxActivity")
-        if isinstance(r, DeferredInboxActivity)
+        for r in dl.list_objects("ReceivedActivityRecord")
+        if isinstance(r, ReceivedActivityRecord) and r.replay_owed
     ]
     assert [r.activity_id for r in held] == [payload["id"]]
 

@@ -17,10 +17,13 @@
 
 import pytest
 
+from test.support.received import received_record
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.inbox_replay_adapter import InboxReplayAdapter
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
+from vultron.core.models.received_activity_record import ReceivedStage
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.inbox_replay import InboxReplayPort
+from vultron.core.services.received_holding import hold_for_replay
 from vultron.errors import VultronWiringError
 
 _RECEIVER = "https://example.org/actors/receiver"
@@ -34,12 +37,12 @@ def dl():
     db.close()
 
 
-def _hold(dl: SqliteDataLayer) -> None:
-    dl.create(
-        DeferredInboxActivity(
-            activity_id=_ANNOUNCE_ID,
-            received_body=f'{{"id": "{_ANNOUNCE_ID}", "type": "Announce"}}',
-        )
+def _hold(dl: CasePersistence) -> None:
+    """Hold the Announce for its replay, as the inbox holds one (IO-03-009)."""
+    assert hold_for_replay(
+        dl,
+        _ANNOUNCE_ID,
+        f'{{"id": "{_ANNOUNCE_ID}", "type": "Announce"}}',
     )
 
 
@@ -56,10 +59,10 @@ def test_queues_the_held_activity_by_its_own_id(dl):
 
     assert dl.inbox_list() == [_ANNOUNCE_ID]
     # The body stays held for the replay to read (IO-03-009).
-    assert isinstance(
-        dl.read(DeferredInboxActivity.build_id(_ANNOUNCE_ID)),
-        DeferredInboxActivity,
-    )
+    record = received_record(dl, _ANNOUNCE_ID)
+    assert record is not None
+    assert record.stage is ReceivedStage.HELD
+    assert record.replay_owed is True
 
 
 @pytest.mark.spec("SYNC-14-009")

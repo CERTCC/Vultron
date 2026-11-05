@@ -109,6 +109,9 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: AKM-05-003
+    see_also:
+    - spec_id: AKM-05-004
+      reason: 'context for the reader'
   - id: AKM-02-004
     priority: MUST
     kind: project
@@ -216,6 +219,9 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: AKM-02-003
+    see_also:
+    - spec_id: AKM-03-004
+      reason: 'context for the reader'
   - id: AKM-02-006
     priority: MUST_NOT
     kind: protocol
@@ -619,6 +625,13 @@ groups:
     - ADR-0170
     stories:
     - story_2026_098
+    see_also:
+    - spec_id: CBT-01-002
+      reason: 'context for the reader'
+    - spec_id: CBT-01-007
+      reason: 'context for the reader'
+    - spec_id: CBT-05-008
+      reason: 'context for the reader'
   - id: AKM-05-010
     priority: MUST
     kind: protocol

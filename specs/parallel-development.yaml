@@ -393,6 +393,13 @@ groups:
           `manage-github-issue`, and `create-epic` calls the create mode of
           `manage_github_issue.sh`, `create_epic.sh`, `gh issue create`, or a
           `createIssue` mutation.
+        see_also:
+        - spec_id: PAD-02-013
+          reason: 'scope boundary: Epics are created another way'
+        - spec_id: PAD-02-026
+          reason: 'scope boundary: workflow-filed Issues follow other rules'
+        - spec_id: PAD-02-029
+          reason: 'scope boundary: workflow-filed Issues follow other rules'
       - id: PAD-02-023
         priority: MUST
         kind: process
@@ -1228,6 +1235,9 @@ groups:
         relationships:
         - rel_type: extends
           spec_id: PAD-07-003
+        see_also:
+        - spec_id: PAD-07-012
+          reason: 'explanation: the post-push delta reviews the fixes'
       - id: PAD-07-004
         adr:
         - ADR-0139
@@ -2510,6 +2520,9 @@ groups:
         relationships:
         - rel_type: extends
           spec_id: PAD-17-001
+        see_also:
+        - spec_id: PAD-17-003
+          reason: 'restates PAD-17-003''s consequence for a re-readied PR'
 
   - id: PAD-18
     title: Pipeline Test-Gate Placement
@@ -2581,6 +2594,11 @@ groups:
         verification: >-
           Inspection: `pr-execute` gates post-first-push fixes with the
           targeted-test command, not the full suite.
+        see_also:
+        - spec_id: PAD-18-015
+          reason: >-
+            scope boundary: a conflict merge's gate is set elsewhere, and PAD-18-002
+            never binds one, so PAD-18-015 supersedes nothing it requires
       - id: PAD-18-011
         adr:
         - ADR-0126

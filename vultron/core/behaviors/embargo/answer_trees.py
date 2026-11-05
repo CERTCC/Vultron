@@ -200,7 +200,7 @@ def accept_invite_to_embargo_tree(
         precondition_guards=[
             ValidateCaseExistsNode(case_id=case_id),
             # A repeat of an Accept already recorded commits nothing and
-            # announces nothing (CM-13-005, HP-01-003).
+            # announces nothing (CM-13-005, HP-01-014).
             case_manager_admits_embargo_answer_guard(
                 case_id=case_id,
                 embargo_id=embargo_id,
@@ -346,7 +346,7 @@ def reject_invite_to_embargo_tree(
                 case_id=case_id, embargo_id=embargo_id, accept=False
             ),
             # A repeat of a Reject already recorded commits nothing and
-            # announces nothing (CM-13-005, HP-01-003).  Only the
+            # announces nothing (CM-13-005, HP-01-014).  Only the
             # CASE_MANAGER records an answer, so the guard is declared on its
             # path alone: at a participant the Reject is the CASE_MANAGER's
             # own, which records nothing there (HP-01-038, BT-17-001).

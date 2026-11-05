@@ -137,6 +137,9 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: CLP-07-011
+    see_also:
+    - spec_id: VM-08-003
+      reason: 'context for the reader'
   - id: CLP-02-004
     priority: MUST
     kind: protocol
@@ -200,6 +203,12 @@ groups:
       spec_id: CM-23-018
     - rel_type: uses_definition
       spec_id: HP-01-006
+    see_also:
+    - spec_id: CLP-04-007
+      reason: 'context for the reader'
+    - spec_id: HP-01-039
+      reason: >-
+        a link would close a loop through HP-01-039, HP-01-038, HP-01-035 and CLP-10-010
   - id: CLP-02-006
     priority: MUST
     kind: protocol
@@ -293,6 +302,15 @@ groups:
       use outside the glossary entry that declares the phrases.
     stories:
     - story_2026_071
+    see_also:
+    - spec_id: CLP-02-005
+      reason: 'context for the reader'
+    - spec_id: CLP-04-007
+      reason: 'context for the reader'
+    - spec_id: CLP-05-002
+      reason: >-
+        a rule on the words texts use is not a narrower case of keeping refusals off the
+        ledger
   - id: CLP-02-016
     priority: MUST
     kind: protocol
@@ -370,6 +388,15 @@ groups:
     - ADR-0157
     stories:
     - story_2026_069
+    see_also:
+    - spec_id: CLP-01-003
+      reason: 'context for the reader'
+    - spec_id: CLP-10-034
+      reason: 'context for the reader'
+    - spec_id: EMB-17-015
+      reason: 'context for the reader'
+    - spec_id: RMB-08-005
+      reason: 'context for the reader'
   - id: CLP-02-017
     priority: MUST
     kind: protocol
@@ -507,6 +534,9 @@ groups:
     stories:
     - story_2026_071
     - story_2026_023
+    see_also:
+    - spec_id: CLP-04-007
+      reason: 'context for the reader'
   - id: CLP-04-002
     priority: MUST
     kind: protocol
@@ -639,6 +669,9 @@ groups:
       spec_id: SYNC-16-002
     - rel_type: uses_definition
       spec_id: SYNC-16-006
+    see_also:
+    - spec_id: CLP-04-007
+      reason: 'logging a refusal is not how refusals are kept off the ledger'
 - id: CLP-05
   title: Refusal Handling
   description: >-
@@ -790,6 +823,9 @@ groups:
     - ADR-0141
     stories:
     - story_2026_040
+    see_also:
+    - spec_id: CLP-06-005
+      reason: 'context for the reader'
   - id: CLP-05-009
     priority: MUST
     kind: protocol
@@ -824,6 +860,9 @@ groups:
       not admit.
     stories:
     - story_2026_002
+    see_also:
+    - spec_id: CLP-04-007
+      reason: 'context for the reader'
   - id: CLP-05-003
     priority: MUST_NOT
     kind: protocol
@@ -1000,6 +1039,9 @@ groups:
     - ADR-0019
     stories:
     - story_2026_070
+    see_also:
+    - spec_id: CM-23-022
+      reason: 'context for the reader'
   - id: CLP-07-011
     priority: MUST
     kind: protocol
@@ -1083,6 +1125,11 @@ groups:
     - ADR-0019
     stories:
     - story_2026_070
+    see_also:
+    - spec_id: CM-23-021
+      reason: 'context for the reader'
+    - spec_id: CM-23-022
+      reason: 'context for the reader'
   - id: CLP-07-013
     priority: MUST
     kind: protocol
@@ -1160,6 +1207,9 @@ groups:
     - ADR-0124
     stories:
     - story_2026_070
+    see_also:
+    - spec_id: CLP-07-006
+      reason: 'context for the reader'
   - id: CLP-07-014
     priority: MUST_NOT
     kind: protocol
@@ -1360,6 +1410,11 @@ groups:
     stories:
     - story_2026_072
     - story_2022_089
+    see_also:
+    - spec_id: CM-23-021
+      reason: 'context for the reader'
+    - spec_id: CM-23-022
+      reason: 'context for the reader'
   - id: CLP-07-017
     priority: MUST
     kind: protocol
@@ -1462,6 +1517,11 @@ groups:
     - ADR-0124
     stories:
     - story_2026_072
+    see_also:
+    - spec_id: AKM-02-002
+      reason: 'context for the reader'
+    - spec_id: CLP-07-011
+      reason: 'context for the reader'
   - id: CLP-07-018
     priority: MUST_NOT
     kind: protocol
@@ -1529,6 +1589,9 @@ groups:
       spec_id: CLP-07-011
     adr:
     - ADR-0063
+    see_also:
+    - spec_id: CLP-07-006
+      reason: 'context for the reader'
   - id: CLP-07-020
     priority: MUST
     kind: project
@@ -1888,6 +1951,13 @@ groups:
     stories:
     - story_2026_059
     - story_2022_046
+    see_also:
+    - spec_id: CLP-10-032
+      reason: 'context for the reader'
+    - spec_id: CM-24-010
+      reason: 'context for the reader'
+    - spec_id: CM-24-011
+      reason: 'context for the reader'
   - id: CLP-10-031
     priority: MUST
     kind: protocol
@@ -2304,6 +2374,9 @@ groups:
       so the CASE_MANAGER's case file and the replicas differ. The check that judges an
       inbound `ParticipantStatus` already runs before the commit (RSH-09-001). A second
       check after the commit adds only that risk.
+    see_also:
+    - spec_id: RSH-09-001
+      reason: 'context for the reader'
   - id: CLP-10-013
     priority: MUST
     kind: project
@@ -2343,6 +2416,9 @@ groups:
       spec_id: CLP-10-013
     adr:
     - ADR-0111
+    see_also:
+    - spec_id: CLP-10-004
+      reason: 'context for the reader'
   - id: CLP-10-034
     priority: MUST
     kind: project
@@ -2367,6 +2443,11 @@ groups:
       spec_id: CLP-10-013
     adr:
     - ADR-0111
+    see_also:
+    - spec_id: CLP-02-013
+      reason: 'context for the reader'
+    - spec_id: PCR-03-004
+      reason: 'context for the reader'
   - id: CLP-10-014
     priority: MUST
     kind: project
@@ -2462,6 +2543,9 @@ groups:
       spec_id: CLP-10-015
     adr:
     - ADR-0022
+    see_also:
+    - spec_id: CLP-10-005
+      reason: 'context for the reader'
   - id: CLP-10-016
     priority: MUST
     kind: protocol
@@ -2929,6 +3013,11 @@ groups:
       spec_id: CM-28-015
     adr:
     - ADR-0135
+    see_also:
+    - spec_id: CM-21-043
+      reason: 'context for the reader'
+    - spec_id: CM-28-009
+      reason: 'context for the reader'
   - id: CLP-10-049
     priority: MUST
     kind: project
@@ -3159,6 +3248,9 @@ groups:
       spec_id: CLP-10-025
     adr:
     - ADR-0135
+    see_also:
+    - spec_id: EMB-17-001
+      reason: 'context for the reader'
   - id: CLP-10-060
     priority: MUST
     kind: project
@@ -3215,6 +3307,15 @@ groups:
       spec_id: CLP-10-010
     adr:
     - ADR-0135
+    see_also:
+    - spec_id: CLP-02-005
+      reason: 'context for the reader'
+    - spec_id: EMB-01-002
+      reason: 'context for the reader'
+    - spec_id: EMB-02-004
+      reason: 'context for the reader'
+    - spec_id: EMB-03-004
+      reason: 'context for the reader'
   - id: CLP-10-061
     priority: MUST
     kind: project
@@ -3353,6 +3454,9 @@ groups:
       spec_id: CLP-10-026
     adr:
     - ADR-0135
+    see_also:
+    - spec_id: RSH-08-003
+      reason: 'context for the reader'
   - id: CLP-10-068
     priority: MAY
     kind: project
@@ -3759,6 +3863,9 @@ groups:
       spec_id: CLP-14-001
     stories:
     - story_2026_028
+    see_also:
+    - spec_id: CLP-15-003
+      reason: 'context for the reader'
   - id: CLP-14-004
     priority: MUST
     kind: protocol
@@ -3951,6 +4058,9 @@ groups:
       spec_id: CLP-14-007
     - rel_type: uses_definition
       spec_id: CLP-14-008
+    see_also:
+    - spec_id: CLP-15-003
+      reason: 'context for the reader'
   - id: CLP-14-010
     priority: MUST
     kind: protocol

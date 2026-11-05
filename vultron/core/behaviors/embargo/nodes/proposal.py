@@ -49,7 +49,7 @@ from vultron.errors import (
 
 #: Opens the feedback of a :class:`RecordParticipantRejectionNode` FAILURE
 #: that is a repeat of a Reject already recorded.  The received tree's repeat
-#: guard stops a repeat before the commit (CM-13-005, HP-01-003).
+#: guard stops a repeat before the commit (CM-13-005, HP-01-014).
 ALREADY_DECLINED_PREFIX = "Already declined"
 
 
@@ -337,7 +337,7 @@ class RecordParticipantRejectionNode(_RecordParticipantAnswerNode):
             return Status.FAILURE
 
         if decision.act is None and self._already_declined(case):
-            # A repeat of a Reject already recorded (HP-01-003, #2255).  The
+            # A repeat of a Reject already recorded (HP-01-014, #2255).  The
             # received tree's repeat guard stops one before the commit
             # (CM-13-005, #4597).
             self.feedback_message = (

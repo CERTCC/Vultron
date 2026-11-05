@@ -102,7 +102,7 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 ``trigger_activity_factory`` so that BT nodes can call it
                 without importing from the wire layer.
             sync_port: Optional port for LedgerFanout replication fan-out
-                (SYNC-02-002).  When provided it is placed on the py_trees
+                (SYNC-02-003).  When provided it is placed on the py_trees
                 blackboard under the key ``sync_port`` so that
                 ``CommitCaseLedgerEntryNode`` can fan out
                 ``Announce(CaseLedgerEntry)`` activities to participants.

@@ -2050,6 +2050,9 @@ groups:
       cannot be rolled back.
     stories:
     - story_2026_005
+    see_also:
+    - spec_id: SYNC-12-001
+      reason: 'context for the reader'
   - id: SYNC-15-003
     priority: SHOULD
     kind: protocol
@@ -2670,6 +2673,9 @@ groups:
       gains an entry when the fault is sent or received.
     stories:
     - story_2026_071
+    see_also:
+    - spec_id: SYNC-03-008
+      reason: 'scope boundary: SYNC-03-008 states no ledger-commit rule'
   - id: SYNC-16-003
     priority: MUST
     kind: protocol
@@ -3012,6 +3018,11 @@ groups:
       replaces the case file and gives it the copy's position.
     stories:
     - story_2026_050
+    see_also:
+    - spec_id: SYNC-16-020
+      reason: 'context for the reader'
+    - spec_id: SYNC-16-021
+      reason: 'context for the reader'
   - id: SYNC-16-007
     priority: MUST
     kind: protocol
@@ -3250,6 +3261,9 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: SYNC-16-001
+    see_also:
+    - spec_id: SYNC-16-004
+      reason: 'a logging rule is not a case of the rate bound'
 - id: SYNC-17
   title: Participant Position Statements
   description: >-
@@ -3356,6 +3370,9 @@ groups:
       participant and asserts the sender's replication state holds the named hash.
     stories:
     - story_2026_047
+    see_also:
+    - spec_id: SYNC-17-002
+      reason: 'context for the reader'
   - id: SYNC-17-004
     priority: MUST
     kind: protocol
@@ -3390,6 +3407,9 @@ groups:
       second replay.
     stories:
     - story_2026_047
+    see_also:
+    - spec_id: SYNC-17-002
+      reason: 'context for the reader'
   - id: SYNC-17-010
     priority: MUST
     kind: protocol
@@ -3405,6 +3425,9 @@ groups:
       the tail queues nothing.
     stories:
     - story_2026_047
+    see_also:
+    - spec_id: SYNC-17-002
+      reason: 'context for the reader'
   - id: SYNC-17-005
     priority: MUST
     kind: protocol
@@ -3475,6 +3498,9 @@ groups:
       `test_a_configured_interval_repeats_until_shutdown` in
       `test/adapters/driving/fastapi/test_ledger_position_statements.py` assert the
       default and a configured interval.
+    see_also:
+    - spec_id: SYNC-05-003
+      reason: 'context for the reader'
   - id: SYNC-17-008
     priority: SHOULD
     kind: protocol
@@ -3724,6 +3750,9 @@ groups:
       `Add(Note)` stamped behind the CASE_MANAGER's tail and asserts it is applied.
     stories:
     - story_2026_049
+    see_also:
+    - spec_id: CM-11-035
+      reason: 'context for the reader'
   - id: SYNC-18-010
     priority: MUST
     kind: protocol
@@ -3978,6 +4007,13 @@ groups:
       no difference from the CASE_MANAGER's case file.
     stories:
     - story_2026_057
+    see_also:
+    - spec_id: SYNC-00-007
+      reason: 'context for the reader'
+    - spec_id: SYNC-00-008
+      reason: 'context for the reader'
+    - spec_id: SYNC-03-001
+      reason: 'context for the reader'
   - id: SYNC-19-004
     priority: MUST_NOT
     kind: protocol
@@ -4189,6 +4225,9 @@ groups:
       is logged and not sent.
     stories:
     - story_2026_079
+    see_also:
+    - spec_id: SYNC-18-002
+      reason: 'context for the reader'
   - id: SYNC-20-004
     priority: MUST_NOT
     kind: protocol
@@ -4253,6 +4292,10 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: SYNC-20-005
+    see_also:
+    - spec_id: SYNC-05-003
+      reason: >-
+        says where defaults are documented; the resend cooldown is not a retry parameter
   - id: SYNC-20-007
     priority: MUST_NOT
     kind: protocol
@@ -4312,7 +4355,7 @@ groups:
     waits in a bounded hold; when the hold ends, the gap is skipped. A number that
     arrives after its gap was skipped is never applied, and it and a missing number are
     refused with a notice. This is how the CASE_MANAGER meets SYNC-19-001 for one
-    sender's assertions. Rationale: ADR-0177.
+    sender's assertions. Rationale: ADR-0178.
   specs:
   - id: SYNC-21-001
     priority: MUST
@@ -4334,7 +4377,7 @@ groups:
     - rel_type: uses_definition
       spec_id: SYNC-18-001
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_each_activity_to_the_case_manager_is_numbered_one_up` in
       `test/core/use_cases/received/test_sender_sequence.py` asserts that a
@@ -4357,7 +4400,7 @@ groups:
     - rel_type: refines
       spec_id: SYNC-21-001
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_each_activity_to_the_case_manager_is_numbered_one_up` in
       `test/core/use_cases/received/test_sender_sequence.py` asserts a participant's
@@ -4374,7 +4417,7 @@ groups:
       (ID-02-001). A new number on it would move the activity in its sender's order and
       would use up a number no other activity fills.
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_a_rebuilt_activity_keeps_its_number` in
       `test/core/use_cases/received/test_sender_sequence.py` asserts that building an
@@ -4395,7 +4438,7 @@ groups:
     - rel_type: refines
       spec_id: SYNC-21-001
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_each_activity_to_the_case_manager_is_numbered_one_up` in
       `test/core/use_cases/received/test_sender_sequence.py` checks the number on
@@ -4415,7 +4458,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-07-011
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_the_entry_records_the_received_number` in
       `test/core/use_cases/received/test_sender_sequence.py` asserts the entry's
@@ -4438,7 +4481,7 @@ groups:
     - rel_type: uses_definition
       spec_id: SYNC-21-005
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_a_sender_rebuilt_from_the_ledger_resumes_past_its_own_numbers` in
       `test/core/use_cases/received/test_sender_sequence.py` rebuilds a participant's
@@ -4462,7 +4505,7 @@ groups:
     - rel_type: uses_definition
       spec_id: SYNC-21-015
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_a_refused_sender_resumes_at_the_expected_number` in
       `test/core/use_cases/received/test_sender_sequence.py` delivers the notice to a
@@ -4488,7 +4531,7 @@ groups:
     - rel_type: uses_definition
       spec_id: SYNC-21-001
     adr:
-    - ADR-0177
+    - ADR-0178
     - ADR-0161
     verification: >-
       In `test/core/use_cases/received/test_sender_sequence.py`,
@@ -4515,7 +4558,7 @@ groups:
       the old one's expected numbers; starting from the ledger keeps a sender already
       past 1 from being held or refused because the role moved.
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_an_activity_past_a_gap_is_held_until_the_gap_fills` in
       `test/core/use_cases/received/test_sender_sequence.py` asserts a sender's first
@@ -4541,7 +4584,7 @@ groups:
     - rel_type: uses_definition
       spec_id: SYNC-21-009
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_an_activity_past_a_gap_is_held_until_the_gap_fills` in
       `test/core/use_cases/received/test_sender_sequence.py` asserts a note past a gap
@@ -4559,7 +4602,7 @@ groups:
       Ending the hold on time bounds that delay, and a sender that sends nothing more
       still has its held activities judged.
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_a_hold_ends_when_its_wait_passes` in
       `test/core/use_cases/received/test_sender_sequence.py` holds a note past a lost
@@ -4580,7 +4623,7 @@ groups:
       high number before signing is built. A sender seldom has that many activities in
       flight to one case.
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_a_hold_ends_when_the_sender_reaches_the_cap` in
       `test/core/use_cases/received/test_sender_sequence.py` loses a sender's first
@@ -4602,7 +4645,7 @@ groups:
     - rel_type: uses_definition
       spec_id: SYNC-21-009
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_a_hold_ends_when_its_wait_passes` and
       `test_a_hold_ends_when_the_sender_reaches_the_cap` in
@@ -4625,7 +4668,7 @@ groups:
     - rel_type: uses_definition
       spec_id: SYNC-21-009
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_a_late_or_reused_number_is_refused_with_a_notice` in
       `test/core/use_cases/received/test_sender_sequence.py` asserts a note numbered
@@ -4652,7 +4695,7 @@ groups:
     - rel_type: uses_definition
       spec_id: SYNC-21-017
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_a_late_or_reused_number_is_refused_with_a_notice`,
       `test_a_late_answer_never_overrides_the_later_one` and
@@ -4677,7 +4720,7 @@ groups:
     - rel_type: uses_definition
       spec_id: SYNC-21-017
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_an_activity_past_a_gap_is_held_until_the_gap_fills` and
       `test_a_hold_ends_when_its_wait_passes` in
@@ -4697,12 +4740,12 @@ groups:
       missing `ledgerPosition` is refused the same way (SYNC-18-015). The project
       supports only clients built from current `main` and makes no
       backwards-compatibility commitment at this time, so no supported sender is
-      refused by this rule (ADR-0177).
+      refused by this rule (ADR-0178).
     relationships:
     - rel_type: uses_definition
       spec_id: SYNC-21-001
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_an_unnumbered_activity_is_refused_with_a_notice` in
       `test/core/use_cases/received/test_sender_sequence.py` delivers a note with no
@@ -4723,8 +4766,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ID-02-003
+    - rel_type: uses_definition
+      spec_id: ID-02-001
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_a_repeat_is_found_by_id_before_its_number` in
       `test/core/use_cases/received/test_sender_sequence.py` redelivers a held note
@@ -4747,7 +4792,7 @@ groups:
     - rel_type: uses_definition
       spec_id: SYNC-21-014
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_a_refused_sender_resumes_at_the_expected_number` in
       `test/core/use_cases/received/test_sender_sequence.py` asserts a note with the
@@ -4770,7 +4815,7 @@ groups:
     - rel_type: refines
       spec_id: SYNC-21-010
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_sequence_state_lives_in_the_datalayer` in
       `test/core/use_cases/received/test_sender_sequence.py` replaces each actor's
@@ -4793,8 +4838,13 @@ groups:
       spec_id: SYNC-21-011
     - rel_type: refines
       spec_id: SYNC-21-012
+    see_also:
+    - spec_id: SYNC-05-003
+      reason: >-
+        location only: the defaults are documented beside SYNC-05-003's, and neither
+        requirement constrains the other
     adr:
-    - ADR-0177
+    - ADR-0178
   - id: SYNC-21-022
     priority: SHOULD
     kind: project
@@ -4809,7 +4859,7 @@ groups:
     - rel_type: refines
       spec_id: SYNC-21-013
     adr:
-    - ADR-0177
+    - ADR-0178
   - id: SYNC-21-023
     priority: MUST
     kind: protocol
@@ -4829,9 +4879,13 @@ groups:
     - rel_type: uses_definition
       spec_id: CLP-02-005
     - rel_type: refines
+      spec_id: SYNC-21-010
+    - rel_type: refines
+      spec_id: SYNC-21-017
+    - rel_type: refines
       spec_id: SYNC-21-014
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_a_closed_senders_late_number_draws_no_notice` in
       `test/core/use_cases/received/test_sender_sequence.py` has a sender's `Leave`
@@ -4857,7 +4911,7 @@ groups:
     - rel_type: refines
       spec_id: SYNC-21-014
     adr:
-    - ADR-0177
+    - ADR-0178
     verification: >-
       `test_a_late_answer_never_overrides_the_later_one` in
       `test/core/use_cases/received/test_sender_sequence.py` loses an `Accept` numbered

@@ -255,7 +255,7 @@ def demo_notify_published(
         "``Announce(CaseLedgerEntry)`` per participant for fan-out delivery. "
         "Uses ``Announce(VulnerabilityCase)`` as the canonical payload type. "
         "Only available in ``RunMode.PROTOTYPE``. "
-        "Spec: TRIG-09-001, SYNC-02-002, SYNC-02-003."
+        "Spec: TRIG-09-001, SYNC-02-001, SYNC-02-003."
     ),
     operation_id="actors_demo_sync_log_entry",
     response_model=SyncLogEntryResult,
@@ -278,7 +278,7 @@ def demo_sync_log_entry(
 
     Implements:
         TRIG-09-001, TRIG-09-004, TRIG-02-006, TRIG-03-001, TRIG-10-004,
-        TRIG-06-001, TRIG-06-002, SYNC-02-002, SYNC-02-003, TRIG-12-001
+        TRIG-06-001, TRIG-06-002, SYNC-02-001, SYNC-02-003, TRIG-12-001
     """
     try:
         return run_trigger(

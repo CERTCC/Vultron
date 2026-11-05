@@ -5,8 +5,9 @@ status_override: >-
   strict xfails written before the counter is built, so they verify no built
   behaviour; SYNC-21-005 holds only because an entry keeps the received body,
   and SYNC-21-023 only because the closed-sender door refuses before any
-  sequence check exists. The record stays proposed until the counter is built
-  and its open question is decided.
+  sequence check exists. The maintainer, deciding the open points on
+  2026-11-05, kept the record proposed until the counter is built and its
+  remaining open question is decided.
 date: 2026-11-05
 created: 2026-11-05
 updated: 2026-11-05
@@ -181,6 +182,7 @@ The maintainer later decided three points this record first left open: a missing
   The guards run again when a held activity is judged, so a sender's earlier `Leave` still closes the door on its later activities.
   A held activity is kept as the body that arrived (VM-08-002), so its eventual ledger entry is that body (CLP-07-011).
   When it is released it is judged as a delivery of its own, as a held ledger entry is replayed (SYNC-14-009).
+  It is one more wait of the received-message holding that IO-03-009 governs ([ADR-0154](0154-a-received-message-is-one-staged-record-archived-only-when-applied.md)), beside the waits for a case, a ledger gap, an object fetch and a retry.
 - **How #5202 and #5203 resolve.**
   In #5202, the `Accept` carries number *n* and the `Reject` *n + 1*.
   In either arrival order the CASE_MANAGER judges the `Accept` and then the `Reject`, so the consent row ends `DECLINED`: the answer sent last decides.

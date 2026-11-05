@@ -64,7 +64,8 @@ then logs at ERROR and drops it; a protocol violation is dropped at once.
 ## A Queue Replay Attempt Commits Whole, or the Item Is Lost
 
 Run each `drain_inbox_queue` attempt inside one `actor_dl.transaction()`: the
-`inbox_pop`, the rebuild's delete of the `DeferredInboxActivity`, `process_payload`
+`inbox_pop`, the rebuild's release of the held `ReceivedActivityRecord`,
+`process_payload`
 and the settlement (`hold_again`, the attempt count, `inbox_append`, the dead letter
 and the held fault) (IE-06-005).
 

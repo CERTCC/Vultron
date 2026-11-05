@@ -482,7 +482,7 @@ def _consent(net: LedgerNetwork, actor: str, embargo_id: str) -> str:
     reason=(
         "SYNC-19-001: a participant's Accept and Reject of one Invite, sent"
         " back to back, are recorded in the order they arrive, so the last to"
-        " arrive decides its consent. ADR-0177 orders them by senderSequence"
+        " arrive decides its consent. ADR-0178 orders them by senderSequence"
         " (SYNC-21-008). Tracked by #5202."
     ),
 )
@@ -508,7 +508,7 @@ def test_same_sender_answers_record_one_consent_in_either_order() -> None:
             net.receive(MANAGER, body)
         consents[send_order] = _consent(net, BYSTANDER, embargo_id)
 
-    # ADR-0177 decides the answer sent last stands (DECLINED); the numbered
+    # ADR-0178 decides the answer sent last stands (DECLINED); the numbered
     # version of this scenario is pinned by SYNC-21-008's test in
     # test_sender_sequence.py.  This unnumbered one is reworked with the counter.
     assert consents[True] == consents[False]
@@ -519,7 +519,7 @@ def test_same_sender_answers_record_one_consent_in_either_order() -> None:
     reason=(
         "SYNC-19-001: a note sent before its sender's Leave(VulnerabilityCase)"
         " is refused, with no notice, when the Leave overtakes it. Tracked by"
-        " #5203; ADR-0177 orders them by senderSequence (SYNC-21-008)."
+        " #5203; ADR-0178 orders them by senderSequence (SYNC-21-008)."
     ),
 )
 @pytest.mark.spec("SYNC-19-001")

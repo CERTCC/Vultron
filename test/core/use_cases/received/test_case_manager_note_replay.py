@@ -19,7 +19,7 @@ The CASE_MANAGER's own notes — the RSH-06-004 RM-anomaly clarification, the
 CSB-18 diagnostic and the CM-16-016 reinforcing-suggestion note — are case
 content: the CASE_MANAGER attaches each to its case and commits it as an
 ``add_note_to_case`` entry, and the participant it is for learns of it from
-the ``Announce(CaseLedgerEntry)`` fan-out (SYNC-02-002, CLP-10-001).  No
+the ``Announce(CaseLedgerEntry)`` fan-out (SYNC-02-001, SYNC-02-003, CLP-10-001).  No
 direct ``Add(Note)`` goes to a participant, whose note handler refuses any
 ``Add(Note)`` it is not the CASE_MANAGER for (HP-01-005).
 
@@ -138,7 +138,7 @@ def _assert_note_reaches(
     return note
 
 
-@pytest.mark.spec("RSH-06-004", "RSH-06-005", "SYNC-02-002", "CLP-10-001")
+@pytest.mark.spec("RSH-06-004", "RSH-06-005", "SYNC-02-003", "CLP-10-001")
 @pytest.mark.spec("RSH-06-007")
 def test_rm_gap_note_reaches_the_declaring_participants_replica():
     """Join(VulnerabilityCase) from RECEIVED, an accepted non-adjacent RM jump: the
@@ -159,7 +159,7 @@ def test_rm_gap_note_reaches_the_declaring_participants_replica():
     _assert_note_reaches(net, BYSTANDER, BYSTANDER, "non-adjacent forward")
 
 
-@pytest.mark.spec("RSH-06-004", "CLP-10-022", "SYNC-02-002")
+@pytest.mark.spec("RSH-06-004", "CLP-10-022", "SYNC-02-003")
 @pytest.mark.spec("RSH-06-007")
 def test_rm_regression_note_reaches_the_declaring_participants_replica():
     """A wholly refused RM regression: the note still replicates, the
@@ -185,7 +185,7 @@ def test_rm_regression_note_reaches_the_declaring_participants_replica():
         assert participant.participant_status.rm.state == RM.ACCEPTED
 
 
-@pytest.mark.spec("CSB-18-002", "SYNC-02-002", "CLP-10-001")
+@pytest.mark.spec("CSB-18-002", "SYNC-02-003", "CLP-10-001")
 def test_cs_diagnostic_note_reaches_the_declaring_participants_replica(
     monkeypatch,
 ):
@@ -211,7 +211,7 @@ def test_cs_diagnostic_note_reaches_the_declaring_participants_replica(
     _assert_note_reaches(net, OWNER, "Cross-machine entailment violated")
 
 
-@pytest.mark.spec("CM-16-016", "CM-16-017", "SYNC-02-002", "CLP-10-001")
+@pytest.mark.spec("CM-16-016", "CM-16-017", "SYNC-02-003", "CLP-10-001")
 def test_reinforcing_suggestion_note_reaches_the_case_owners_replica():
     """A second recommendation of an actor already offered to the owner:
     the reinforcing-suggestion note replicates to the Case Owner."""

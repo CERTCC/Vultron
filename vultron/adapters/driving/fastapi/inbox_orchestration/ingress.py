@@ -22,15 +22,14 @@ body.
 import hashlib
 import logging
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
-from vultron.core.models.received_activity_record import (
-    ReceivedActivityRecord,
-)
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.services.received_activity import held_received_record
 from vultron.errors import VultronReusedActivityIdError, VultronWiringError
 from vultron.wire.as2.errors import VultronParseError
 from vultron.wire.as2.parser import parse_activity as _parse_activity
@@ -72,9 +71,15 @@ def _carry_received_evidence(
 
 @dataclass(frozen=True)
 class _HeldBody:
-    """The sealed body the receiver holds for an activity id, and where."""
+    """The sealed body the receiver holds for an activity id, and its stage.
 
-    kind: Literal["deferred", "archived"]
+    *kind* is what decides whether a routed copy carries received evidence,
+    so it names the question that decides it rather than a record type
+    (ADR-0154): ``awaiting_replay`` when a replay is still owed from the held
+    body, ``archived`` when none is.
+    """
+
+    kind: Literal["awaiting_replay", "archived"]
     body: str
 
 
@@ -140,8 +145,8 @@ class FastAPIIngressAdapter:
     ``rehydrate`` rebuilds the parsed activity with it and its inline objects
     staged in a throwaway store (:mod:`.inbox_staging`).  A redelivery is
     detected there, from what the receiver holds under a key it derives from
-    the activity id (IE-10-001): the deferred record when the first delivery
-    is still waiting on its case, else intake's ``ReceivedActivityRecord``.
+    the activity id (IE-10-001): one ``ReceivedActivityRecord``, whose stage
+    says whether a replay is still owed for it (ADR-0154).
 
     Args:
         dl: The receiving actor's own DataLayer, read to rebuild the activity.
@@ -267,7 +272,7 @@ class FastAPIIngressAdapter:
 
         routed = (
             self._staging.rehydrate_held(activity.id_)
-            if held.kind == "deferred"
+            if held.kind == "awaiting_replay"
             else self._staging.rehydrate_archived(activity.id_)
         )
         if routed is None:
@@ -283,16 +288,28 @@ class FastAPIIngressAdapter:
     def _held_body(self, activity_id: str) -> _HeldBody | None:
         """The body held for *activity_id* under the receiver's key, if any.
 
-        The deferred record's while the first delivery is still deferred,
-        else the body intake archived (IE-10-001, IE-10-002).
+        One read of one record (ADR-0154).  What the record's stage decides
+        is which copy answers *this* delivery, and whether it carries
+        evidence (IE-10-001, IE-10-002):
+
+        - a replay still owed means the held copy is not this delivery and
+          will carry the evidence when it is replayed, so the copy routed
+          now carries none (VM-08-010).  This holds whether or not intake
+          already archived the body: a buffered ``Announce`` is archived and
+          still awaiting its gap, and the replay it owes is the one that
+          will route it (SYNC-14-009);
+        - with no replay owed, the archived body is the first delivery's,
+          sealed at its parse, so the copy routed carries it (VM-08-009).
         """
-        pending = self._staging.held(activity_id)
-        if pending is not None:
-            return _HeldBody("deferred", pending.received_body)
-        record = self._dl.read(ReceivedActivityRecord.build_id(activity_id))
-        if isinstance(record, ReceivedActivityRecord):
-            return _HeldBody("archived", record.received_body)
-        return None
+        record = held_received_record(
+            cast(CasePersistence, self._dl), activity_id
+        )
+        if record is None:
+            return None
+        kind: Literal["awaiting_replay", "archived"] = (
+            "awaiting_replay" if record.replay_owed else "archived"
+        )
+        return _HeldBody(kind, record.received_body)
 
     @staticmethod
     def _log_redelivery(activity: as_Activity, kind: str) -> None:

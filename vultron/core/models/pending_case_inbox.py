@@ -12,7 +12,14 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Persisted queue of deferred case-scoped inbox activities."""
+"""Per-case bookkeeping for messages waiting on a case replica.
+
+What waits is read from the waiting messages themselves, each of which names
+the case it waits on (``ReceivedActivityRecord.awaiting_case_id``, ADR-0154).
+This record keeps only what is per case and not per message: the stub
+Invite's trust anchor, and ``queued_at``, the one clock that opens the
+CBT-03-001 expiry window.
+"""
 
 from __future__ import annotations
 
@@ -27,11 +34,12 @@ from vultron.core.models.base import CoreRecord, UriString, with_record_id
 
 
 class VultronPendingCaseInbox(CoreRecord):
-    """Store deferred inbox activity IDs keyed by case ID.
+    """Per-case bookkeeping for a case whose replica is not held yet.
 
-    Tracks when the first activity waiting in the queue was queued
+    Tracks when the first activity waiting for this case was queued
     (``queued_at``) so that a bounded expiry window can be enforced
-    (CBT-03-001, CBT-03-003).
+    (CBT-03-001, CBT-03-003).  Which activities wait is not here: each names
+    this case on its own ``ReceivedActivityRecord`` (ADR-0154).
 
     The same record carries the stub Invite's trust anchor (PCR-03-004 path
     b): the CASE_MANAGER the Invite named, in ``case_actor_id``, with
@@ -47,10 +55,6 @@ class VultronPendingCaseInbox(CoreRecord):
         serialization_alias="type",
     )
     case_id: UriString = Field(..., description="URI of the pending case")
-    activity_ids: list[UriString] = Field(
-        default_factory=list,
-        description="Deferred inbox activity IDs awaiting the case replica",
-    )
     queued_at: datetime = Field(
         default_factory=now_utc,
         description="UTC timestamp when the first activity was queued for this case",

@@ -150,9 +150,11 @@ class PendingCaseQueuePort(Protocol):
     ) -> None:
         """Persist *activity_id* in the deferred queue for *case_id*.
 
-        The adapter holds the activity's received body for the replay, under
-        a key the receiver derives (DL-06-006, IO-03-009); a core reader
-        loads it from there before intake archives it.
+        The adapter holds the activity's received body for the replay on the
+        activity's own record, under a key the receiver derives (DL-06-006,
+        IO-03-009); the hold is what records the wait, naming *case_id* on
+        that record (ADR-0154), and a core reader loads the body from there
+        before intake archives it.
         """
         ...  # pragma: no cover
 
@@ -161,5 +163,9 @@ class PendingCaseQueuePort(Protocol):
         ...  # pragma: no cover
 
     def replay(self, case_id: str) -> None:
-        """Move deferred activities for *case_id* back to the live inbox."""
+        """Move the activities waiting on *case_id* back to the live inbox.
+
+        Which they are is read from the waiting records themselves, in the
+        order they arrived (ADR-0154).
+        """
         ...  # pragma: no cover

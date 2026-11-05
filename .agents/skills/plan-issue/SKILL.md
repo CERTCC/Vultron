@@ -184,7 +184,8 @@ from the discussion rather than being asked as structured questions.
    which lines are wrong; this is not a new round of questions.
 
 Every question follows `.agents/skills/shared/asking-the-user.md` (one at a
-time, problem before decision, plain language, no bare IDs).
+time, problem before decision, behavior not wording, plain language, no bare
+IDs), and passes the guide's pre-ask check before it is sent.
 
 **Type-specific opening and conversation guidance:** see the loaded
 companion file.

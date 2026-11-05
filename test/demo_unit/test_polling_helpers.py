@@ -45,11 +45,15 @@ from vultron.adapters.driving.fastapi.routers import (
 )
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+    ReceivedStage,
+)
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.helpers.polling import (
     CROSS_CONTAINER_TIMEOUT,
+    EM_TRANSITION_TIMEOUT,
     LATE_JOINER_REPLICA_TIMEOUT,
     LATE_JOINER_TIMEOUT,
     PARTICIPANT_JOIN_TIMEOUT,
@@ -62,6 +66,7 @@ from vultron.demo.helpers.polling import (
     find_ownership_transfer_offer_for_actor,
     wait_for_case_attributed_to,
     wait_for_case_em_state,
+    wait_for_case_em_terminated,
     wait_for_case_participants,
     wait_for_embargo_proposal_indexed,
     wait_for_ledger_event,
@@ -115,6 +120,24 @@ def test_late_joiner_timeout_value():
 
 def test_late_joiner_replica_timeout_value():
     assert LATE_JOINER_REPLICA_TIMEOUT >= 30.0
+
+
+def test_em_transition_timeout_value_and_signature_defaults():
+    """Both EM waits resolve to the justified shared budget (#1978).
+
+    The budget is justified once, on ``EM_TRANSITION_TIMEOUT`` (EDF-06-008),
+    so a signature carrying a *different* number would leave that
+    justification describing a value no caller gets.  This pins the resolved
+    value, not the expression: a bare ``30.0`` still passes.  The floor keeps
+    the margin over the measured worst case on the chain (4.73 s).
+    """
+    assert EM_TRANSITION_TIMEOUT >= 30.0
+    for fn in (wait_for_case_em_state, wait_for_case_em_terminated):
+        default = inspect.signature(fn).parameters["timeout_seconds"].default
+        assert default == EM_TRANSITION_TIMEOUT, (
+            f"{fn.__name__} default ({default}s) no longer tracks "
+            "EM_TRANSITION_TIMEOUT, whose comment is its only justification"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -393,8 +416,26 @@ def test_wait_for_case_attributed_to_default_timeout():
 # ---------------------------------------------------------------------------
 
 
-def test_wait_for_pending_inbox_quiescent_absent():
-    """Returns immediately when pending inbox is absent (falsy data)."""
+def _waiting_row(case_id: str) -> dict[str, object]:
+    """One stored row of a received record waiting on *case_id*.
+
+    The by-type route answers a mapping of id to row, and a ``CoreRecord`` is
+    stored under its own field names, so the waited-on case reads as
+    ``awaiting_case_id`` (ADR-0154).
+    """
+    return {
+        "id": "received-activity/act-1",
+        "type": "ReceivedActivityRecord",
+        "activity_id": "http://example.com/activities/act-1",
+        "received_body": "{}",
+        "stage": "held",
+        "replay_owed": True,
+        "awaiting_case_id": case_id,
+    }
+
+
+def test_wait_for_pending_inbox_quiescent_no_records():
+    """Returns immediately when the store holds no received records."""
     client = MagicMock()
     client.base_url = "http://vendor:7999"
     client.get.return_value = {}
@@ -405,11 +446,32 @@ def test_wait_for_pending_inbox_quiescent_absent():
     )
 
 
-def test_wait_for_pending_inbox_quiescent_empty_list():
-    """Returns immediately when activity_ids is empty."""
+def test_wait_for_pending_inbox_quiescent_nothing_awaits_this_case():
+    """A record waiting on *another* case is no reason to keep waiting."""
     client = MagicMock()
     client.base_url = "http://vendor:7999"
-    client.get.return_value = {"activity_ids": []}
+    client.get.return_value = {
+        "received-activity/act-1": _waiting_row(
+            "http://example.com/cases/another"
+        )
+    }
+    wait_for_pending_inbox_quiescent(
+        client=client,
+        case_id=CASE_ID,
+        timeout_seconds=1.0,
+    )
+
+
+def test_wait_for_pending_inbox_quiescent_archived_record_is_not_waiting():
+    """An archived record owes no replay, so it gates nothing."""
+    client = MagicMock()
+    client.base_url = "http://vendor:7999"
+    archived = _waiting_row(CASE_ID) | {
+        "stage": "archived",
+        "replay_owed": False,
+        "awaiting_case_id": None,
+    }
+    client.get.return_value = {"received-activity/act-1": archived}
     wait_for_pending_inbox_quiescent(
         client=client,
         case_id=CASE_ID,
@@ -501,19 +563,24 @@ def test_wait_for_pending_inbox_quiescent_non_empty_times_out_through_router(
     router_client: DataLayerClient,
     case_id: str,
 ):
-    """A pending inbox holding activity ids times out through the router.
+    """A record awaiting the case times out through the router.
 
-    AC-1 of #5722: the gate must read the stored row and raise, not pass.
-    Without the key quoted for the server's one decode, the request names no
-    stored row, the router answers 404 and the gate passes.
+    AC-1 of #5722: the gate must read the stored rows and raise, not pass on
+    a spurious 404.  Since ADR-0154 the gate reads the received-record table
+    by type and matches the case as a *field value*, so the case id is no
+    longer a path segment and the quoting bug #5722 found cannot arise here;
+    both id shapes stay parametrized to keep that true.
     """
     pending_inbox_store.save(
-        VultronPendingCaseInbox(
-            case_id=case_id,
-            activity_ids=["http://example.com/activities/act-1"],
+        ReceivedActivityRecord(
+            activity_id="http://example.com/activities/act-1",
+            received_body="{}",
+            stage=ReceivedStage.HELD,
+            replay_owed=True,
+            awaiting_case_id=case_id,
         )
     )
-    with pytest.raises(AssertionError, match="PendingCaseInbox"):
+    with pytest.raises(AssertionError, match="awaiting case"):
         wait_for_pending_inbox_quiescent(
             client=router_client,
             case_id=case_id,
@@ -529,9 +596,16 @@ def test_wait_for_pending_inbox_quiescent_empty_returns_through_router(
     router_client: DataLayerClient,
     case_id: str,
 ):
-    """A stored pending inbox with no activity ids returns (AC-2, #5722)."""
+    """A stored record that awaits no case returns (AC-2, #5722).
+
+    An archived record owes no replay, so it gates nothing even though it
+    sits in the same table the gate reads.
+    """
     pending_inbox_store.save(
-        VultronPendingCaseInbox(case_id=case_id, activity_ids=[])
+        ReceivedActivityRecord(
+            activity_id="http://example.com/activities/act-1",
+            received_body="{}",
+        )
     )
     wait_for_pending_inbox_quiescent(
         client=router_client, case_id=case_id, timeout_seconds=1.0
@@ -543,7 +617,7 @@ def test_wait_for_pending_inbox_quiescent_empty_returns_through_router(
 def test_wait_for_pending_inbox_quiescent_absent_returns_through_router(
     router_client: DataLayerClient, case_id: str
 ):
-    """No pending inbox row: the router's 404 reads as drained (AC-2, #5722)."""
+    """No received record at all: the gate reads drained (AC-2, #5722)."""
     wait_for_pending_inbox_quiescent(
         client=router_client, case_id=case_id, timeout_seconds=1.0
     )
@@ -598,14 +672,14 @@ def test_wait_for_pending_inbox_quiescent_connection_error_propagates(
         )
 
 
-def test_wait_for_pending_inbox_quiescent_raises_when_not_empty():
-    """Non-empty activity_ids → AssertionError after timeout."""
+def test_wait_for_pending_inbox_quiescent_raises_while_one_awaits_the_case():
+    """A record naming this case → AssertionError after timeout."""
     client = MagicMock()
     client.base_url = "http://vendor:7999"
     client.get.return_value = {
-        "activity_ids": ["http://example.com/activities/act-1"]
+        "received-activity/act-1": _waiting_row(CASE_ID)
     }
-    with pytest.raises(AssertionError, match="PendingCaseInbox"):
+    with pytest.raises(AssertionError, match="awaiting case"):
         wait_for_pending_inbox_quiescent(
             client=client,
             case_id=CASE_ID,

@@ -255,3 +255,60 @@ def test_export_yaml_round_trips_through_schema(behavioral_registry):
     assert pc.em_state is not None
     assert pc.role is not None
     assert pc.cs_pattern == "vfd..."
+
+
+SEE_ALSO_YAML = {
+    "id": "SA",
+    "title": "See Also",
+    "description": "A citation listed in see_also",
+    "scope": ["production"],
+    "groups": [
+        {
+            "id": "SA-01",
+            "title": "See also",
+            "specs": [
+                {
+                    "id": "SA-01-001",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "SA-01-001 MUST hold, as SA-01-002 shows.",
+                    "rationale": "Because testing.",
+                    "see_also": [
+                        {"spec_id": "SA-01-002", "reason": "an example"}
+                    ],
+                },
+                {
+                    "id": "SA-01-002",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "SA-01-002 MUST hold.",
+                    "rationale": "Because testing.",
+                },
+            ],
+        }
+    ],
+}
+
+
+@pytest.fixture
+def see_also_registry(tmp_path):
+    (tmp_path / "sa.yaml").write_text(yaml.dump(SEE_ALSO_YAML))
+    return load_registry(tmp_path)
+
+
+@pytest.mark.spec("SR-13-022")
+def test_render_markdown_lists_see_also_with_reason(see_also_registry):
+    md = render_markdown(see_also_registry.files[0])
+    assert "  - SA-01-001 see also SA-01-002 (an example)" in md
+
+
+@pytest.mark.spec("SR-13-022")
+def test_export_yaml_keeps_see_also_and_omits_it_when_empty(
+    see_also_registry,
+):
+    data = yaml.safe_load(export_yaml(see_also_registry.files[0]))
+    first, second = data["groups"][0]["specs"]
+    assert first["see_also"] == [
+        {"spec_id": "SA-01-002", "reason": "an example"}
+    ]
+    assert "see_also" not in second

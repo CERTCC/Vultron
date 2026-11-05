@@ -38,6 +38,10 @@ def _append_relationship_markdown(lines: list[str], spec: Spec) -> None:
             f"  - {spec.id} {relationship.rel_type.value} "
             f"{relationship.spec_id}{note}"
         )
+    for entry in spec.see_also:
+        lines.append(
+            f"  - {spec.id} see also {entry.spec_id} ({entry.reason})"
+        )
 
 
 def _append_spec_markdown(lines: list[str], spec: Spec) -> None:

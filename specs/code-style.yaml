@@ -184,6 +184,9 @@ groups:
     verification: With `PLC0415` (`import-outside-top-level`) selected in `[tool.ruff.lint]` of `pyproject.toml`, every
       function-local import in production code is either absent or carries a marker per CS-05-005; the count of markers
       is the size of the remaining cycle backlog.
+    see_also:
+    - spec_id: CS-05-003
+      reason: 'context for the reader'
   - id: CS-05-005
     priority: MUST
     kind: project
@@ -727,6 +730,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CS-18-001
+    - rel_type: refines
+      spec_id: CS-18-005
   - id: CS-18-003
     priority: MUST
     kind: project

@@ -39,8 +39,8 @@ class CommitDemoLogEntryNode(_CommitCaseManagerActivityBase):
     """Commit the CASE_MANAGER's ``Announce(VulnerabilityCase)`` for the demo verb.
 
     Addressed to nobody: the commit tree's fan-out announces the entry to the
-    case's participants (SYNC-02-002).  The entry's ``log_object_id`` is the
-    caller's *object_id*, not the activity's id.
+    case's participants (SYNC-02-001, SYNC-02-003).  The entry's
+    ``log_object_id`` is the caller's *object_id*, not the activity's id.
     """
 
     def __init__(

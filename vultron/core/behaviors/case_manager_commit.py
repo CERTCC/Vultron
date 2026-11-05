@@ -157,7 +157,7 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
                 self._emit_through_seam(activity_id, blob)
             # A nested commit inherits the outer execution's ``/sync_port``,
             # so the entry is announced to every participant replica
-            # (SYNC-02-002).
+            # (SYNC-02-001, SYNC-02-003).
             commit_emitted_activity(
                 datalayer=dl,
                 actor_id=actor_id,

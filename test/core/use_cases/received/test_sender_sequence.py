@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """A participant numbers its case activities, and the CASE_MANAGER judges
-each sender's activities in that order (SYNC-21, ADR-0177).
+each sender's activities in that order (SYNC-21, ADR-0178).
 
 The counter is not built yet, so every test here but one is a strict
 ``xfail``: it asserts the decided behaviour, fails today, and fails loudly
@@ -59,12 +59,12 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 from .test_embargo_answer_idempotency import _answer_body, _invited
 
-#: The default hold wait and per-sender cap (SYNC-21-021, ADR-0177).
+#: The default hold wait and per-sender cap (SYNC-21-021, ADR-0178).
 DEFAULT_WAIT = timedelta(seconds=120)
 DEFAULT_CAP = 16
 
 _NOT_BUILT = (
-    "SYNC-21: the sender sequence counter is not built yet (ADR-0177)."
+    "SYNC-21: the sender sequence counter is not built yet (ADR-0178)."
 )
 
 
@@ -136,7 +136,7 @@ def _forget_sequence_state(net: LedgerNetwork, actor: str) -> None:
     """Stand in for a handover: *actor* keeps the ledger but no sequence state.
 
     A new CASE_MANAGER holds the case ledger it inherited and none of the old
-    one's next expected numbers or holds (ADR-0177).  No sequence state exists
+    one's next expected numbers or holds (ADR-0178).  No sequence state exists
     before the counter is built, so this does nothing yet; the implementation
     makes it delete the records it keeps (SYNC-21-020), so the test reaches
     the ledger-derived start.
@@ -326,7 +326,7 @@ def test_an_accept_then_a_reject_decide_as_sent_in_either_order() -> None:
             net.receive(MANAGER, body)
         consents[send_order] = _consent(net, BYSTANDER, embargo_id)
 
-    # The Reject was sent last, so it decides (#5202, ADR-0177).
+    # The Reject was sent last, so it decides (#5202, ADR-0178).
     assert consents == {
         True: EmbargoConsentState.DECLINED,
         False: EmbargoConsentState.DECLINED,

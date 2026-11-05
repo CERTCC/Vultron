@@ -8,18 +8,24 @@ Pointing every edge from its downstream end to its upstream end gives one
 graph in which "what does a change to this requirement affect?" is a walk
 against the arrows. That walk is only meaningful when the graph has no loops,
 so spec-lint fails on a loop (SR-13-014) and on a link recorded at both ends
-(SR-13-015).
+(SR-13-015). It also fails on a statement that cites a requirement with neither
+a link nor a ``see_also`` entry, and on a ``see_also`` entry that has gone
+stale (SR-13-022 to SR-13-024).
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from typing import NamedTuple
 
 import networkx as nx
 
 from vultron.metadata.specs.registry import SpecRegistry
-from vultron.metadata.specs.schema import RelationEnd, RelationType
+from vultron.metadata.specs.schema import (
+    RelationEnd,
+    RelationType,
+    written_spec_ids,
+)
 
 
 class RecordedRelationship(NamedTuple):
@@ -101,11 +107,8 @@ def check_both_ends_recorded(registry: SpecRegistry) -> list[str]:
     A link is recorded at one end only (SR-13-012), so two requirements that
     each name the other, under any types, record one fact twice (SR-13-015).
     """
-    by_pair: dict[frozenset[str], list[RecordedRelationship]] = {}
-    for rel in recorded_relationships(registry):
-        by_pair.setdefault(frozenset((rel.source, rel.target)), []).append(rel)
     errors: list[str] = []
-    for pair, rels in by_pair.items():
+    for pair, rels in _linked_pairs(registry).items():
         if len({rel.source for rel in rels}) < 2:
             continue
         first, second = sorted(pair)
@@ -113,5 +116,99 @@ def check_both_ends_recorded(registry: SpecRegistry) -> list[str]:
             f"{first} and {second} each record a relationship naming the "
             f"other: {'; '.join(sorted(str(rel) for rel in rels))}. Record "
             f"the link once, at the end SR-13-012 names (SR-13-015)"
+        )
+    return sorted(errors)
+
+
+def _linked_pairs(
+    registry: SpecRegistry,
+) -> dict[frozenset[str], list[RecordedRelationship]]:
+    """Map each linked pair of requirements to the relationships between them."""
+    by_pair: dict[frozenset[str], list[RecordedRelationship]] = {}
+    for rel in recorded_relationships(registry):
+        by_pair.setdefault(frozenset((rel.source, rel.target)), []).append(rel)
+    return by_pair
+
+
+def _see_also_problem(
+    spec_id: str,
+    target: str,
+    cited: set[str],
+    listed: set[str],
+    known: Mapping[str, object],
+    rels: list[RecordedRelationship],
+) -> str | None:
+    """Say why a ``see_also`` entry naming *target* is stale, or ``None``."""
+    if target == spec_id:
+        return "but that is its own ID"
+    if target in listed:
+        return "a second time"
+    if target not in known:
+        return "but no requirement has that ID"
+    if target not in cited:
+        return "but its statement does not cite it"
+    if rels:
+        return "but a relationship links the two: " + "; ".join(
+            sorted(str(rel) for rel in rels)
+        )
+    return None
+
+
+def _uncovered_citation_error(
+    spec_id: str, target: str, known: Mapping[str, object]
+) -> str:
+    """The error for a cited *target* neither linked nor listed."""
+    if target not in known:
+        return (
+            f"{spec_id}'s statement cites {target}, but no requirement has "
+            f"that ID. Cite the requirement meant (SR-13-022)"
+        )
+    return (
+        f"{spec_id}'s statement cites {target}, but no relationship links "
+        f"the two and {spec_id}'s `see_also` does not list {target}. Record "
+        f"the link an SR-13 definition fits, or list {target} in `see_also` "
+        f"with the reason none fits (SR-13-022, SR-13-018)"
+    )
+
+
+def check_statement_citations(registry: SpecRegistry) -> list[str]:
+    """Report each uncovered citation and stale entry (SR-13-023, SR-13-024).
+
+    Every requirement ID a statement writes out (:func:`written_spec_ids`),
+    other than its own, must be linked to the citing requirement by a
+    relationship recorded on either end (SR-13-012), or be listed in its
+    ``see_also`` with a reason. A ``see_also`` entry is stale, and an error,
+    when the statement does not cite the ID, when a relationship links the
+    two, when the ID names no requirement or the citing requirement itself, or
+    when the entry repeats one already listed. A cited ID that names no
+    requirement is reported too: it can be neither linked nor listed.
+    """
+    known = registry.all_specs
+    linked = _linked_pairs(registry)
+    errors: list[str] = []
+    for spec_id, spec in known.items():
+        cited = written_spec_ids(spec.statement) - {spec_id}
+        listed: set[str] = set()
+        for entry in spec.see_also:
+            target = entry.spec_id
+            rels = linked.get(frozenset((spec_id, target)), [])
+            problem = _see_also_problem(
+                spec_id, target, cited, listed, known, rels
+            )
+            # An unknown ID stays uncovered, so a cited one is reported as a
+            # bad citation too, not only as a stale entry.
+            if target in known:
+                listed.add(target)
+            if problem is not None:
+                errors.append(
+                    f"{spec_id} lists {target} in `see_also` {problem}. "
+                    f"Remove the entry: `see_also` holds only a cited "
+                    f"requirement no relationship links (SR-13-024)"
+                )
+        errors.extend(
+            _uncovered_citation_error(spec_id, target, known)
+            for target in sorted(cited - listed)
+            if target not in known
+            or frozenset((spec_id, target)) not in linked
         )
     return sorted(errors)

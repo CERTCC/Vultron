@@ -266,6 +266,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0171 Publish the Site on a Weekday Schedule From Tags](0171-publish-the-site-on-a-weekday-schedule-from-tags.md) *(provisional)*
 - [ADR-0173 A Push Is Gated by CI's Non-Suite Checks and a Scratch Merge of the Overlap](0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md) *(provisional)* — partially supersedes 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md
 - [ADR-0175 Before 1.0, Vultron Supports One Protocol and Storage Version, So a Former Field Name Is an Unknown Key](0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md) *(provisional)* — partially supersedes 0078-retire-finder-role.md, 0099-one-object-model-as2-is-a-serialization.md, 0122-per-embargo-participant-consent.md
+- [ADR-0177 A Requirement a Statement Cites With No Relationship Is Listed in `see_also`, With a Reason](0177-a-cited-requirement-with-no-relationship-is-listed-in-see-also.md) *(provisional)*
 
 ## Proposed ADRs
 
@@ -281,7 +282,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0172 An Active Participant Is Not Closed](0172-an-active-participant-is-not-closed.md) — partially supersedes 0114-joining-a-case-stub-invite-inert-participant.md, 0116-removing-a-participant-withdraws-entitlement-not-membership.md
 - [ADR-0174 CVD Measures Read a Case Ledger Through a Read-Only Event History, Derived by State Comparison](0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md)
 - [ADR-0176 An Act Reads the Clock Once, at Its Edge](0176-an-act-reads-the-clock-once-at-its-edge.md) *(revision 2)* — partially supersedes 0103-object-time-is-carried-never-minted.md
-- [ADR-0177 A Participant Numbers Its Case Activities, and the Case Manager Applies Each Sender's in That Order](0177-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)
+- [ADR-0178 A Participant Numbers Its Case Activities, and the Case Manager Applies Each Sender's in That Order](0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)
 
 ## Rejected ADRs
 

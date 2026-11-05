@@ -879,6 +879,11 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: DF-11-003
+    see_also:
+    - spec_id: DF-11-010
+      reason: >-
+        a pointer to the fragment rule for what a fragment is; a change to it changes
+        nothing here
   - id: DF-11-027
     priority: MUST
     kind: process
@@ -1062,6 +1067,9 @@ groups:
     relationships:
     - rel_type: supersedes
       spec_id: DF-11-005
+    see_also:
+    - spec_id: DEMOCI-11-009
+      reason: 'an example of a `rendered` index'
   - id: DF-11-029
     priority: MUST
     kind: process
@@ -1430,6 +1438,9 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: DF-11-001
+    see_also:
+    - spec_id: DF-11-028
+      reason: 'scope boundary: "independent of its `contents:` shape"'
   - id: DF-11-036
     priority: MUST_NOT
     kind: process
@@ -1454,6 +1465,11 @@ groups:
       spec_id: DF-11-018
     - rel_type: uses_definition
       spec_id: DF-11-003
+    see_also:
+    - spec_id: DF-11-010
+      reason: >-
+        a pointer to the fragment rule for what a fragment is; a change to it changes
+        nothing here
   - id: DF-11-025
     priority: MUST
     kind: process
@@ -1504,6 +1520,11 @@ groups:
       spec_id: DF-11-025
     - rel_type: uses_definition
       spec_id: DF-11-003
+    see_also:
+    - spec_id: DF-11-010
+      reason: >-
+        a pointer to the fragment rule for what a fragment is; a change to it changes
+        nothing here
   - id: DF-11-019
     priority: MUST
     kind: process
@@ -2278,6 +2299,9 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DF-12-006
+    see_also:
+    - spec_id: DF-12-016
+      reason: 'names which check holds the declaration; adds no duty from DF-12-016'
   - id: DF-12-018
     priority: MUST
     kind: process

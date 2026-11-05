@@ -169,6 +169,11 @@ groups:
       trigger (TRIG-13-001), not a demo verb (ADR-0145).
     adr:
     - ADR-0145
+    see_also:
+    - spec_id: TRIG-09-001
+      reason: 'context for the reader'
+    - spec_id: TRIG-09-002
+      reason: 'context for the reader'
   - id: TRIG-02-007
     priority: SHOULD
     kind: project
@@ -428,6 +433,9 @@ groups:
       route-to-registry test asserts that each demo-only row is mounted under
       `/actors/{actor_id}/demo/` and that no route under that prefix lacks a
       demo-only row.
+    see_also:
+    - spec_id: TRIG-09-001
+      reason: 'context for the reader'
   - id: TRIG-08-005
     priority: MUST
     kind: project
@@ -786,6 +794,9 @@ groups:
       spec_id: TRIG-11-001
     stories:
     - story_2022_050
+    see_also:
+    - spec_id: CM-21-015
+      reason: 'emitting the Undo is not a case of the CASE_MANAGER''s withdrawal commit'
   - id: TRIG-11-007
     priority: MUST
     kind: project
@@ -974,6 +985,11 @@ groups:
       spec_id: TRIG-02-004
     adr:
     - ADR-0145
+    see_also:
+    - spec_id: CM-23-002
+      reason: 'context for the reader'
+    - spec_id: CM-23-003
+      reason: 'context for the reader'
   - id: TRIG-13-002
     priority: MUST
     kind: project

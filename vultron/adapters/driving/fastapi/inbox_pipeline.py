@@ -24,6 +24,7 @@ from vultron.adapters.driving.fastapi.inbox_handler import (
 )
 from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _activity_context_id,
+    _case_window_is_open,
     _expire_pending_case_activities,
     _queue_pending_case_activity,
     _replay_pending_case_activities,
@@ -37,8 +38,15 @@ from vultron.core.models.events import (
     is_case_bootstrap,
     is_deferral_exempt,
 )
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
+from vultron.core.services.received_activity import (
+    held_received_record,
+)
+from vultron.core.services.received_holding import (
+    hold_for_replay as hold_body_for_replay,
+)
 from vultron.errors import (
     VultronProtocolViolationError,
     VultronValidationError,
@@ -73,6 +81,37 @@ def _receiving_actor_id(activity: as_Activity) -> str | None:
                 return actor_id
         return None
     return _scalar_actor_ref(to_value)
+
+
+def _record_the_wait_for_the_replay(
+    *,
+    body_store: DataLayer,
+    queue_dl: DataLayer,
+    activity_id: str,
+    case_id: str,
+) -> None:
+    """Make the wait on *case_id* findable from *queue_dl*.
+
+    This harness keeps the held body on its own store and the per-case record
+    on the receiving actor's.  The replay reads which activities wait from
+    the same store as that record, so when the two differ the body is held
+    there as well; the stores agree in the production path, where this is one
+    read of one record (``FastAPIQueuePort``).
+    """
+    bodies = cast(CasePersistence, body_store)
+    queue = cast(CasePersistence, queue_dl)
+    if bodies.actor_id == queue.actor_id:
+        return
+    held = held_received_record(bodies, activity_id)
+    if held is None:
+        return
+    hold_body_for_replay(
+        queue,
+        activity_id,
+        held.received_body,
+        replay_rows_json=held.replay_rows_json,
+        awaiting_case_id=case_id,
+    )
 
 
 class InboxPipeline:
@@ -127,8 +166,9 @@ class InboxPipeline:
         """Process one queued activity ID.
 
         The activity is rebuilt from the record that holds it for the inbox
-        replay (``DeferredInboxActivity``), never read under its own id: the
-        receiver keeps no copy of a received activity there (DL-06-006).
+        replay (its own ``ReceivedActivityRecord``), never read under its own
+        id: the receiver keeps no copy of a received activity there
+        (DL-06-006).
 
         Returns the dispatched ``VultronEvent`` or ``None`` when processing is
         deferred or an error prevents dispatch.  A protocol violation is
@@ -177,13 +217,34 @@ class InboxPipeline:
                     case_id=case_id, queue_dl=queue_dl
                 ):
                     return None
-                # Held before it is queued: the record is its only copy.
-                staging.hold_for_replay(event.activity_id)
+                # Read before the hold: the hold is what makes this activity
+                # one of the waiting, so only a reading taken first tells a
+                # first arrival from a redelivery of the only waiter
+                # (CBT-03-003).
+                window_already_open = _case_window_is_open(queue_dl, case_id)
+                # Held before it is queued: the record is its only copy, and
+                # the hold is what records the wait, so it must name the case
+                # or nothing will ever replay it (IO-03-009, ADR-0154).
+                staging.hold_for_replay(
+                    event.activity_id, awaiting_case_id=case_id
+                )
+                # This harness holds bodies on its own store and keeps the
+                # per-case record on the receiving actor's, which the
+                # production path does not split (``FastAPIQueuePort`` uses
+                # one store for both).  The replay reads the waits from the
+                # same store as that record, so the wait is recorded there
+                # too; before ADR-0154 the queued id played this part.
+                _record_the_wait_for_the_replay(
+                    body_store=self._dl,
+                    queue_dl=queue_dl,
+                    activity_id=event.activity_id,
+                    case_id=case_id,
+                )
                 _queue_pending_case_activity(
                     queue_dl=queue_dl,
                     case_id=case_id,
-                    activity_id=event.activity_id,
                     case_actor_id=event.actor_id,
+                    window_already_open=window_already_open,
                 )
                 return None
 
