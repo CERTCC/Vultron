@@ -273,10 +273,12 @@ def coordinator_participant() -> as_CaseParticipant:
 def invite_to_case() -> as_Invite:
     """The RM ``Invite``, under the name the docs page and the generator use.
 
-    One body, not two: this and :func:`rm_invite_to_case` built the same
-    activity from two copies of the same code (CS-22-001), and the generator
-    wrote both to ``invite_to_case.json``, so whichever ran first was
-    generated and overwritten on every run (#5776).
+    One body, not two: this held a near-copy of :func:`rm_invite_to_case`,
+    differing only in its ``content`` string (CS-22-001), and the generator
+    wrote both functions to ``invite_to_case.json``, so whichever ran first
+    was generated and overwritten on every run (#5776).  The surviving
+    wording is ``rm_invite_to_case``'s, which drops the redundant "in case
+    ... Case #" of the copy.
     """
     return rm_invite_to_case()
 

@@ -1,8 +1,8 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Reject",
-  "id": "urn:uuid:78fbaa3b-85ca-5322-a607-90941aca4e8d",
-  "name": "https://example.org/case-actors/alpha Reject urn:uuid:653760f5-776e-5047-a522-1174526ad048",
+  "id": "urn:uuid:78fbaa3b-85ca-4322-a607-90941aca4e8d",
+  "name": "https://example.org/case-actors/alpha Reject urn:uuid:653760f5-776e-4047-a522-1174526ad048",
   "to": [
     "https://vultron.example/organizations/vendorco"
   ],
@@ -10,13 +10,13 @@
   "object": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "CaseProposal",
-    "id": "urn:uuid:653760f5-776e-5047-a522-1174526ad048",
+    "id": "urn:uuid:653760f5-776e-4047-a522-1174526ad048",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "summary": "Request case initialization for a new vulnerability.",
     "attributedTo": "https://vultron.example/organizations/vendorco",
     "object": {
-      "id": "https://demo.vultron.local/VulnerabilityReport/76ec3f60-2562-508a-b1a7-f60f6a468222",
+      "id": "https://demo.vultron.local/VulnerabilityReport/17a7b3e5-d74e-481e-ad90-2b9ab88c6dac",
       "type": "VulnerabilityReport",
       "name": "FDR-8675309",
       "published": "2026-06-01T19:12:00.000000+00:00",

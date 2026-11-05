@@ -1,9 +1,9 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Accept",
-  "id": "urn:uuid:59d8109b-effb-5ead-ab33-2fdb21a37399",
-  "name": "https://vultron.example/organizations/coordinator Accept https://vultron.example/case-actors/vendorco-case-actor Invite Coordinator LLC to urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
-  "inReplyTo": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a/full-case-invitation/1",
+  "id": "urn:uuid:59d8109b-effb-4ead-ab33-2fdb21a37399",
+  "name": "https://vultron.example/organizations/coordinator Accept https://vultron.example/case-actors/vendorco-case-actor Invite Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "inReplyTo": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/full-case-invitation/1",
   "to": "https://vultron.example/case-actors/vendorco-case-actor",
   "actor": "https://vultron.example/organizations/coordinator",
   "ledgerPosition": {
@@ -13,14 +13,14 @@
   "object": {
     "@context": "https://www.w3.org/ns/activitystreams",
     "type": "Invite",
-    "id": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a/full-case-invitation/1",
-    "name": "https://vultron.example/case-actors/vendorco-case-actor Invite Coordinator LLC to urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
-    "context": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+    "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/full-case-invitation/1",
+    "name": "https://vultron.example/case-actors/vendorco-case-actor Invite Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+    "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "to": "https://vultron.example/organizations/coordinator",
     "actor": "https://vultron.example/case-actors/vendorco-case-actor",
-    "target": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+    "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "ledgerPosition": {
       "logIndex": 4,
       "entryHash": "b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5"

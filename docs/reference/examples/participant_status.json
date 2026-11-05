@@ -2,7 +2,7 @@
   "id": "https://vultron.example/cases/1/participants/vendor/status/1",
   "type": "ParticipantStatus",
   "name": "RECEIVED Vf NONE pxa",
-  "context": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "attributedTo": "https://vultron.example/organizations/vendor",
   "rmState": "RECEIVED",
   "vfState": "Vf",

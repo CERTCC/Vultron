@@ -1,9 +1,9 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Reject",
-  "id": "urn:uuid:c200fb78-2e1f-5e5c-8541-12bd0eff3527",
-  "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:692fbb44-6130-5f02-a903-6dfa61218850 to Coordinator LLC",
-  "context": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+  "id": "urn:uuid:c200fb78-2e1f-4e5c-8541-12bd0eff3527",
+  "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:692fbb44-6130-4f02-a903-6dfa61218850 to Coordinator LLC",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "content": "We're declining the role you offered.",
   "to": [
     "https://vultron.example/case-actors/vendorco-case-actor"
@@ -12,10 +12,10 @@
   "object": {
     "@context": "https://www.w3.org/ns/activitystreams",
     "type": "Offer",
-    "id": "urn:uuid:b5617700-2684-5d5a-9099-ecd350955ca8",
-    "name": "https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:692fbb44-6130-5f02-a903-6dfa61218850 to Coordinator LLC",
-    "context": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
-    "inReplyTo": "urn:uuid:c785fad4-5f01-5a31-8df9-57b79912c346",
+    "id": "urn:uuid:b5617700-2684-4d5a-9099-ecd350955ca8",
+    "name": "https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:692fbb44-6130-4f02-a903-6dfa61218850 to Coordinator LLC",
+    "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+    "inReplyTo": "urn:uuid:c785fad4-5f01-4a31-8df9-57b79912c346",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "content": "We're offering the coordinator role on case VendorCo Case #20260601 to Coordinator LLC.",
@@ -47,7 +47,7 @@
     "object": {
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "CaseParticipantRole",
-      "id": "urn:uuid:692fbb44-6130-5f02-a903-6dfa61218850",
+      "id": "urn:uuid:692fbb44-6130-4f02-a903-6dfa61218850",
       "published": "2026-06-01T19:12:00.000000+00:00",
       "updated": "2026-06-01T19:12:00.000000+00:00",
       "role": "coordinator"

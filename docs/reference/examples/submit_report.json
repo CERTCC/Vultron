@@ -1,14 +1,14 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Offer",
-  "id": "urn:uuid:1f075842-1506-5058-b7b1-60fa31e9a619",
+  "id": "urn:uuid:1f075842-1506-4058-b7b1-60fa31e9a619",
   "name": "https://vultron.example/users/finndervul Offer FDR-8675309",
   "to": [
     "https://vultron.example/organizations/vendorco"
   ],
   "actor": "https://vultron.example/users/finndervul",
   "object": {
-    "id": "https://demo.vultron.local/VulnerabilityReport/76ec3f60-2562-508a-b1a7-f60f6a468222",
+    "id": "https://demo.vultron.local/VulnerabilityReport/17a7b3e5-d74e-481e-ad90-2b9ab88c6dac",
     "type": "VulnerabilityReport",
     "name": "FDR-8675309",
     "published": "2026-06-01T19:12:00.000000+00:00",

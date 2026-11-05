@@ -117,16 +117,27 @@ def test_all_committed_examples_are_valid_json(committed_files):
     )
 
 
-def _file_diff(committed: Path, generated: Path) -> list[str]:
-    """The unified diff from the committed file to the generated one."""
-    return list(
+def _reported_diff(committed: str, generated: str, filename: str) -> str:
+    """A readable account of how the two texts differ.
+
+    The comparison itself is on bytes; this only renders the result, so a
+    difference that a line diff cannot show — a line ending, a missing final
+    newline — is named rather than reported as an empty diff.
+    """
+    lines = list(
         difflib.unified_diff(
-            committed.read_text().splitlines(),
-            generated.read_text().splitlines(),
-            fromfile=f"committed {committed.name}",
-            tofile=f"generated {generated.name}",
+            committed.splitlines(),
+            generated.splitlines(),
+            fromfile=f"committed {filename}",
+            tofile=f"generated {filename}",
             lineterm="",
         )
+    )
+    if lines:
+        return "\n".join(lines)
+    return (
+        f"{filename}: same lines, different bytes — a line ending or a "
+        "trailing newline differs"
     )
 
 
@@ -144,13 +155,26 @@ def test_committed_examples_are_byte_identical_to_generated(
     every timestamp from a fixed moment, so a difference here is always a
     committed file that has not been regenerated.
 
+    The comparison reads bytes, not ``Path.read_text``, which decodes with the
+    locale's preferred encoding and folds ``\r\n`` into ``\n`` — so a CRLF or
+    differently-encoded copy of an example would compare equal and pass, the
+    hazard ``vultron.metadata.generated_files`` records for every other
+    generated artifact in this repository.
+
     Fix: re-run the generator and commit ``docs/reference/examples/``.
     """
     drifted: list[str] = []
     for filename in sorted(generated_files & committed_files):
-        diff = _file_diff(_COMMITTED_DIR / filename, generated_dir / filename)
-        if diff:
-            drifted.append("\n".join(diff))
+        committed = (_COMMITTED_DIR / filename).read_bytes()
+        generated = (generated_dir / filename).read_bytes()
+        if committed != generated:
+            drifted.append(
+                _reported_diff(
+                    committed.decode("utf-8", "replace"),
+                    generated.decode("utf-8", "replace"),
+                    filename,
+                )
+            )
     assert not drifted, (
         "Committed examples differ from the generator's output. Re-run\n"
         "  uv run python vultron/wire/as2/vocab/examples/vocab_examples.py\n"

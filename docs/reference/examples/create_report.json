@@ -1,11 +1,11 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Create",
-  "id": "urn:uuid:fbfd8da0-40e0-5a2c-8794-b290cb971011",
+  "id": "urn:uuid:fbfd8da0-40e0-4a2c-8794-b290cb971011",
   "name": "https://vultron.example/users/finndervul Create FDR-8675309",
   "actor": "https://vultron.example/users/finndervul",
   "object": {
-    "id": "https://demo.vultron.local/VulnerabilityReport/76ec3f60-2562-508a-b1a7-f60f6a468222",
+    "id": "https://demo.vultron.local/VulnerabilityReport/17a7b3e5-d74e-481e-ad90-2b9ab88c6dac",
     "type": "VulnerabilityReport",
     "name": "FDR-8675309",
     "published": "2026-06-01T19:12:00.000000+00:00",

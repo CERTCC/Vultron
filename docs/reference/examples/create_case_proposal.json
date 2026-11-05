@@ -1,8 +1,8 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Create",
-  "id": "urn:uuid:b7ea11b6-fc44-59eb-b4a5-871add599847",
-  "name": "VendorCo Create urn:uuid:27de30c4-15bc-5ec2-aadc-83294c9f5388",
+  "id": "urn:uuid:b7ea11b6-fc44-49eb-b4a5-871add599847",
+  "name": "VendorCo Create urn:uuid:27de30c4-15bc-4ec2-aadc-83294c9f5388",
   "to": [
     "https://example.org/case-actors/alpha"
   ],
@@ -29,13 +29,13 @@
   "object": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "CaseProposal",
-    "id": "urn:uuid:27de30c4-15bc-5ec2-aadc-83294c9f5388",
+    "id": "urn:uuid:27de30c4-15bc-4ec2-aadc-83294c9f5388",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "summary": "Request case initialization for a new vulnerability.",
     "attributedTo": "https://vultron.example/organizations/vendorco",
     "object": {
-      "id": "https://demo.vultron.local/VulnerabilityReport/76ec3f60-2562-508a-b1a7-f60f6a468222",
+      "id": "https://demo.vultron.local/VulnerabilityReport/17a7b3e5-d74e-481e-ad90-2b9ab88c6dac",
       "type": "VulnerabilityReport",
       "name": "FDR-8675309",
       "published": "2026-06-01T19:12:00.000000+00:00",

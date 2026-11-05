@@ -18,7 +18,11 @@
 Each class here is one trigger verb's request body: the fields a client sends,
 without ``actor_id``, which is the URL path parameter and never a body field
 (TRIG-06-001). The class names are the OpenAPI component names clients read,
-so a rename here is a contract change.
+so a rename here is a client-visible contract change — and nothing pins it.
+The golden snapshot that used to freeze these schemas was deleted with the
+migration it gated (#4190); what remains pins the route set (TRIG-12-007) and
+each response body's exact key set (TRIG-12-002), not request schemas or
+`operation_id`s.
 
 The bodies live in core, not in the FastAPI adapter, because the core
 ``*TriggerRequest`` models in :mod:`vultron.core.use_cases.triggers.requests`

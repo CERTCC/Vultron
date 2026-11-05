@@ -1,15 +1,15 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Accept",
-  "id": "urn:uuid:b8eeb483-9925-5114-8c88-db3125f739b8",
-  "name": "https://vultron.example/organizations/coordinator Accept https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a to https://vultron.example/organizations/coordinator",
+  "id": "urn:uuid:b8eeb483-9925-4114-8c88-db3125f739b8",
+  "name": "https://vultron.example/organizations/coordinator Accept https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
   "content": "We're accepting your offer to transfer ownership of case VendorCo Case #20260601 to us.",
   "actor": "https://vultron.example/organizations/coordinator",
   "object": {
     "@context": "https://www.w3.org/ns/activitystreams",
     "type": "Offer",
-    "id": "urn:uuid:62b182f0-4c16-5bc7-bb12-3d0a9c1140e0",
-    "name": "https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a to https://vultron.example/organizations/coordinator",
+    "id": "urn:uuid:62b182f0-4c16-4bc7-bb12-3d0a9c1140e0",
+    "name": "https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "content": "We're offering to transfer ownership of case VendorCo Case #20260601 to you.",
@@ -26,7 +26,7 @@
     "object": {
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "VulnerabilityCase",
-      "id": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a"
+      "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a"
     }
   }
 }

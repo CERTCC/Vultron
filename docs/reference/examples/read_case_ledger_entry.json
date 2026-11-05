@@ -1,16 +1,16 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Read",
-  "id": "urn:uuid:ec3ff70e-77ca-585a-bb62-34dd745c5591",
-  "name": "https://vultron.example/organizations/vendorco Read urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a/log/1",
-  "context": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+  "id": "urn:uuid:ec3ff70e-77ca-485a-bb62-34dd745c5591",
+  "name": "https://vultron.example/organizations/vendorco Read urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/1",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "to": [
     "https://vultron.example/case-actors/vendorco-case-actor"
   ],
   "actor": "https://vultron.example/organizations/vendorco",
   "ledgerPosition": {
     "logIndex": 1,
-    "entryHash": "879216a9f6cb33c59fba0ae129e24e4415b086bb3147135000e6070146f07749"
+    "entryHash": "67bc0404dc325f47fc23af06c78abf9369264c0402873628dff816ca198875bb"
   },
-  "object": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a/log/1"
+  "object": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/1"
 }

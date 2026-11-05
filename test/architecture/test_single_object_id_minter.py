@@ -25,12 +25,20 @@ minter.  Two checks pin it:
   with the reason.  A derived id (``uuid5``, ``derived_activity_id``) is not
   minted and is not scanned.
 
+A *replacement* of the minter's draw counts as naming it, and names it as a
+string: ``patch.object(uuid, "uuid4", ...)`` installs a stand-in without any
+``uuid4`` expression for an AST name scan to find.  So a dotted-path string
+literal whose last segment is ``uuid1`` or ``uuid4`` is a site too — the
+string-literal form of the #5535 pitfall, where a ratchet keyed on one
+implementation shape loses a subject while its non-empty guard still passes.
+
 The scan covers the ``uuid`` module's random draws only.  Random bytes from
 ``secrets`` or ``os.urandom`` are not object-id minters by this codebase's
 convention and are not looked for.
 """
 
 import ast
+import re
 
 import pytest
 
@@ -51,7 +59,7 @@ MINTER_SITE = ("vultron/core/models/_helpers/ids.py", "new_object_id")
 #: Functions that draw a random UUID for something other than an object id,
 #: keyed on (repo-relative path, dotted enclosing function).
 #: Pinned exemption set: each entry is a recorded decision, not a debt.
-# permanent: OID-01-004 (each entry draws a UUID that never becomes an object id)
+# permanent: OID-01-004 (each entry draws, or replaces the draw of, a UUID that never mints an object id)
 NON_ID_RANDOM_UUID_EXEMPTIONS: dict[tuple[str, str], str] = {
     (
         "vultron/adapters/driving/fastapi/app.py",
@@ -61,10 +69,31 @@ NON_ID_RANDOM_UUID_EXEMPTIONS: dict[tuple[str, str], str] = {
         "replaces uuid4 with a seeded stand-in for a recording run, so the "
         "shared minter's ids repeat; it mints nothing itself"
     ),
+    (
+        "vultron/wire/as2/vocab/examples/_base.py",
+        "_example_scope",
+    ): (
+        "replaces uuid4 with a derived stand-in while the docs examples are "
+        "built, so the committed corpus does not move between runs; it mints "
+        "nothing itself"
+    ),
 }
 
 _RANDOM_UUID_NAMES = frozenset({"uuid1", "uuid4"})
 _STAR_IMPORT = "from uuid import *"
+
+#: A dotted attribute path and nothing else, so prose that happens to mention
+#: ``uuid4`` is not read as a patch target.
+_DOTTED_PATH = re.compile(
+    r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$"
+)
+
+
+def _names_a_random_uuid(text: str) -> bool:
+    """Whether *text* is a dotted path whose last segment is a random draw."""
+    return bool(_DOTTED_PATH.match(text)) and (
+        text.rsplit(".", 1)[-1] in _RANDOM_UUID_NAMES
+    )
 
 
 class _RandomUuidSites(ast.NodeVisitor):
@@ -113,6 +142,11 @@ class _RandomUuidSites(ast.NodeVisitor):
             self._record()
         self.generic_visit(node)
 
+    def visit_Constant(self, node: ast.Constant) -> None:
+        """A patch target names the minter's draw as a string, not a name."""
+        if isinstance(node.value, str) and _names_a_random_uuid(node.value):
+            self._record()
+
 
 def _sites_in(tree: ast.AST) -> set[str]:
     finder = _RandomUuidSites()
@@ -141,6 +175,8 @@ def _random_uuid_sites() -> frozenset[tuple[str, str]]:
         "import uuid\nf = Field(default_factory=uuid.uuid4)\n",
         "import uuid\nx = uuid.uuid1()\n",
         "from uuid import *\n",
+        'import uuid\npatch.object(uuid, "uuid4", stand_in)\n',
+        'patch("uuid.uuid4", stand_in)\n',
     ],
 )
 def test_the_scan_sees_every_way_of_naming_a_random_uuid(source: str):

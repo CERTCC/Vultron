@@ -38,12 +38,12 @@ import threading
 import uuid
 from collections.abc import Generator
 from contextlib import ExitStack, contextmanager
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import py_trees
 
-from vultron.core.models._helpers import clock as helpers_clock
+from vultron.core.models._helpers import SteppingClock, clock as helpers_clock
 
 #: The instant a recording's clock starts from.  Fixed so that a recording does
 #: not change when it is regenerated on a later day.
@@ -80,36 +80,6 @@ def reset_blackboard() -> None:
     activity stream, which is what a run that starts from nothing wants.
     """
     py_trees.blackboard.Blackboard.clear()
-
-
-class SteppingClock:
-    """A ``datetime`` stand-in whose ``now()`` advances *step* on every call.
-
-    The first call returns ``start + step``; ``step=timedelta(0)`` freezes the
-    clock at *start*.  *start* must be timezone-aware, as ``now_utc()`` promises
-    its callers (CS-13-001).
-
-    Only ``now()`` is provided.  ``_helpers.clock`` keeps a private reference to the
-    real class for its ``isinstance`` guards, so any other attribute a patched
-    path reaches for raises ``AttributeError`` instead of returning a wrong
-    time.  Reads are serialized, because in-process deliveries run on worker
-    threads.
-    """
-
-    def __init__(
-        self, start: datetime, step: timedelta = timedelta(seconds=1)
-    ) -> None:
-        if start.tzinfo is None:
-            raise ValueError("SteppingClock start must be timezone-aware")
-        self._t = start
-        self._step = step
-        self._lock = threading.Lock()
-
-    def now(self, tz: timezone | None = None) -> datetime:
-        with self._lock:
-            self._t += self._step
-            current = self._t
-        return current.astimezone(tz) if tz is not None else current
 
 
 class SeededUuid4:

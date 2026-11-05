@@ -1,18 +1,18 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Accept",
-  "id": "urn:uuid:48cfb5e0-57c9-554c-aecd-1d442cf25d1a",
-  "name": "https://vultron.example/organizations/coordinator Accept https://vultron.example/organizations/vendorco Invite Coordinator LLC to urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a/stub",
-  "inReplyTo": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a/invitation/1",
+  "id": "urn:uuid:48cfb5e0-57c9-454c-aecd-1d442cf25d1a",
+  "name": "https://vultron.example/organizations/coordinator Accept https://vultron.example/organizations/vendorco Invite Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/stub",
+  "inReplyTo": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/invitation/1",
   "content": "We're accepting your invitation to participate in VendorCo Case #20260601.",
   "to": "https://vultron.example/organizations/vendorco",
   "actor": "https://vultron.example/organizations/coordinator",
   "object": {
     "@context": "https://www.w3.org/ns/activitystreams",
     "type": "Invite",
-    "id": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a/invitation/1",
-    "name": "https://vultron.example/organizations/vendorco Invite Coordinator LLC to urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a/stub",
-    "context": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+    "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/invitation/1",
+    "name": "https://vultron.example/organizations/vendorco Invite Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/stub",
+    "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "content": "We're inviting you to participate in VendorCo Case #20260601.",
@@ -21,9 +21,9 @@
     "target": {
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "VulnerabilityCaseStub",
-      "id": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a/stub",
+      "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/stub",
       "summary": "A memory-corruption vulnerability in widget — details shared after acceptance.",
-      "caseId": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a"
+      "caseId": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a"
     },
     "object": {
       "@context": "https://www.w3.org/ns/activitystreams",

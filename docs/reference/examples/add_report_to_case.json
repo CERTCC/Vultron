@@ -1,13 +1,13 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Add",
-  "id": "urn:uuid:21f4bfb2-5b99-58e3-8597-8cb42d3482ac",
-  "name": "https://vultron.example/organizations/vendorco Add FDR-8675309 to urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+  "id": "urn:uuid:21f4bfb2-5b99-48e3-8597-8cb42d3482ac",
+  "name": "https://vultron.example/organizations/vendorco Add FDR-8675309 to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "content": "We're adding this report to this case.",
   "actor": "https://vultron.example/organizations/vendorco",
-  "target": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+  "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "object": {
-    "id": "https://demo.vultron.local/VulnerabilityReport/76ec3f60-2562-508a-b1a7-f60f6a468222",
+    "id": "https://demo.vultron.local/VulnerabilityReport/17a7b3e5-d74e-481e-ad90-2b9ab88c6dac",
     "type": "VulnerabilityReport",
     "name": "FDR-8675309",
     "published": "2026-06-01T19:12:00.000000+00:00",

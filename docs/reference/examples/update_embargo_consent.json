@@ -1,15 +1,15 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Update",
-  "id": "urn:uuid:5ad9521c-1001-5843-a366-25e3f39df97d/update",
-  "name": "https://vultron.example/case-actors/vendorco-case-actor Update urn:uuid:5ad9521c-1001-5843-a366-25e3f39df97d",
-  "context": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+  "id": "urn:uuid:4bc281de-9275-525f-b4e1-2671dcace1bb/update",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Update urn:uuid:4bc281de-9275-525f-b4e1-2671dcace1bb",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
   "object": {
-    "id": "urn:uuid:5ad9521c-1001-5843-a366-25e3f39df97d",
+    "id": "urn:uuid:4bc281de-9275-525f-b4e1-2671dcace1bb",
     "type": "EmbargoConsent",
     "attributedTo": "https://vultron.example/organizations/vendorco",
-    "embargoId": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a/embargo_events/2026-08-30T00:00:00+00:00",
+    "embargoId": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_events/2026-08-30T00:00:00+00:00",
     "state": "TIMED_OUT",
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }

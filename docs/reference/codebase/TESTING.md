@@ -55,7 +55,7 @@ timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&
 | Integration | Yes | Full HTTP stack with FastAPI + SQLite; demo scenarios in-process | Marked `@pytest.mark.integration`; excluded from default `uv run pytest`, included in CI's `-m ""` run |
 | Architecture boundary | Yes | Import graph enforcement, write-site and ordering ratchets | `test/architecture/` using AST/import scanning |
 | Spec compliance | Yes | Any test with `@pytest.mark.spec("ID")` | Spec IDs validated against `SpecRegistry` at collection |
-| API contract | Yes | Trigger/demo route set and response keys | `test/adapters/driving/fastapi/test_trigger_registry_routes.py` and `test_trigger_routes_contract.py` (TRIG-12-001, TRIG-12-002) |
+| API contract | Yes | Trigger/demo route set and response keys | `test/adapters/driving/fastapi/test_trigger_registry_routes.py` and `test_trigger_routes_contract.py` (TRIG-12-007, TRIG-12-001, TRIG-12-002) |
 | E2E (demo CI) | Yes | Multi-actor demo via Docker Compose | `.github/workflows/demo-integration.yml`, matrix from `.github/demo-scenarios.json`; separate from the pytest suite |
 | Demo UI (`ui/`) | Lint and build only | ESLint and `tsc -b && vite build` | `.github/workflows/ui.yml`; `ui/package.json` declares no test script |
 | Docker config | Yes | Compose file validity + env-var wiring | `test/docker/test_compose_env_vars.py`, `test/docker/test_docker_compose_config.sh`, `test/demo/test_multi_actor_compose.py` |

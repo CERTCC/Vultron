@@ -1,8 +1,8 @@
 {
-  "id": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a/embargo_events/2026-08-30T00:00:00+00:00",
+  "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_events/2026-08-30T00:00:00+00:00",
   "type": "EmbargoEvent",
   "name": "Embargo for VendorCo Case #20260601",
-  "context": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "startTime": "2026-06-01T19:12:00.000000+00:00",
   "endTime": "2026-08-30T00:00:00.000000+00:00",
   "content": "We propose to embargo VendorCo Case #20260601 for 90 days.",

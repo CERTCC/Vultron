@@ -38,7 +38,6 @@ in their values.
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, cast
 
 from pydantic import BaseModel
 
@@ -187,11 +186,11 @@ from vultron.wire.as2.vocab.examples.sync import (
 #: name a file do so because the docs page refers to it under that name.
 #:
 #: One table rather than sixty copies of "build it, write it" (CS-22-001): a
-#: new example is one row, and no two rows can quietly claim one filename —
-#: ``rm_invite_to_case`` and ``invite_to_case`` both wrote
-#: ``invite_to_case.json``, so the first of them was generated and thrown away
-#: on every run.
-EXAMPLES: tuple[tuple[Callable[[], Any], str | None], ...] = (
+#: new example is one row, and :func:`check_tables` refuses two rows that
+#: would claim one filename — ``rm_invite_to_case`` and ``invite_to_case``
+#: both wrote ``invite_to_case.json``, so the first of them was generated and
+#: thrown away on every run.
+EXAMPLES: tuple[tuple[Callable[[], BaseModel], str | None], ...] = (
     # the actors, and the report and case every other example refers to
     (finder, None),
     (vendor, None),
@@ -300,17 +299,72 @@ EXAMPLES: tuple[tuple[Callable[[], Any], str | None], ...] = (
 
 #: The inline objects written as files of their own, as
 #: ``(activity example, attribute, filename)``.  The docs show a case and a
-#: participant record on their own pages, and they must be the very objects
-#: the activity carried, so they are read back off the built activity rather
-#: than built a second time.
-INLINE_OBJECTS: tuple[tuple[Callable[[], Any], str, str], ...] = (
+#: participant record on their own pages, and each must be the very object the
+#: activity carried, so it is read off that activity's one built instance —
+#: :func:`build_examples` builds each row of :data:`EXAMPLES` once and these
+#: rows read from the result, never from a second call.  Every builder named
+#: here is therefore also a row of :data:`EXAMPLES`, which
+#: :func:`check_tables` pins.
+INLINE_OBJECTS: tuple[tuple[Callable[[], BaseModel], str, str], ...] = (
     (create_case, "object_", "vulnerability_case.json"),
     (add_vendor_participant_to_case, "object_", "vendor_participant.json"),
     (add_finder_participant_to_case, "object_", "finder_participant.json"),
 )
 
 
-def _build(builder: Callable[[], Any]) -> Any:
+def example_filename(
+    builder: Callable[[], BaseModel], filename: str | None
+) -> str:
+    """The file a row of :data:`EXAMPLES` is written to."""
+    return filename or f"{builder.__name__}.json"
+
+
+def check_tables() -> None:
+    """Refuse a table that would write one file twice, before any write.
+
+    The defect this guards is the one #5776 found: ``rm_invite_to_case`` and
+    ``invite_to_case`` both wrote ``invite_to_case.json``, so whichever ran
+    first was generated and thrown away on every run, and no gate could see
+    it — the generated *file set* stayed correct, so the currency check's
+    file-set comparison passed.
+
+    Also pins what :data:`INLINE_OBJECTS` rests on: each of its builders is a
+    row of :data:`EXAMPLES`, so the inline object is read off that row's one
+    built instance rather than from a second call.
+    """
+    names = [
+        example_filename(builder, filename) for builder, filename in EXAMPLES
+    ]
+    names += [filename for _, _, filename in INLINE_OBJECTS]
+    repeated = sorted({name for name in names if names.count(name) > 1})
+    if repeated:
+        raise ValueError(
+            "two example rows write one file, so one of them would be "
+            f"generated and overwritten: {repeated}"
+        )
+    scopes = [builder.__name__ for builder, _ in EXAMPLES]
+    repeated_scopes = sorted(
+        {scope for scope in scopes if scopes.count(scope) > 1}
+    )
+    if repeated_scopes:
+        raise ValueError(
+            "two example rows share an id scope, so their ids would "
+            f"collide: {repeated_scopes}"
+        )
+    known = set(scopes)
+    orphans = sorted(
+        builder.__name__
+        for builder, _, _ in INLINE_OBJECTS
+        if builder.__name__ not in known
+    )
+    if orphans:
+        raise ValueError(
+            "an INLINE_OBJECTS row names a builder that EXAMPLES does not, "
+            f"so its object cannot be read off a built activity: {orphans}"
+        )
+
+
+def _build(builder: Callable[[], BaseModel]) -> BaseModel:
     """Build one example inside an id scope named for it.
 
     Every id the example mints and every stamp it reads is derived from the
@@ -321,6 +375,33 @@ def _build(builder: Callable[[], Any]) -> Any:
         return builder()
 
 
+def build_examples() -> dict[str, BaseModel]:
+    """Every example to write, keyed by filename, built before anything is.
+
+    Building first and writing after is what makes a regeneration
+    all-or-nothing: a builder that raises leaves the committed tree as it
+    was, instead of a tree half-rewritten at whichever row failed, where the
+    currency check then reports the rows that did change rather than the
+    cause.
+    """
+    check_tables()
+    built: dict[str, BaseModel] = {}
+    by_builder: dict[str, BaseModel] = {}
+    for builder, filename in EXAMPLES:
+        example = _build(builder)
+        by_builder[builder.__name__] = example
+        built[example_filename(builder, filename)] = example
+    for builder, attribute, filename in INLINE_OBJECTS:
+        inline = getattr(by_builder[builder.__name__], attribute)
+        if not isinstance(inline, BaseModel):
+            raise TypeError(
+                f"{builder.__name__}().{attribute} is not a model, so "
+                f"{filename} cannot be written from it: {inline!r}"
+            )
+        built[filename] = inline
+    return built
+
+
 def main(outdir=None):
     if outdir is None:
         outdir = Path(__file__).parents[5] / "docs" / "reference" / "examples"
@@ -328,21 +409,13 @@ def main(outdir=None):
         outdir = Path(outdir)
     print(f"Generating examples to: {outdir}")
 
+    examples = build_examples()
+
     # ensure the output directory exists
     outdir.mkdir(parents=True, exist_ok=True)
 
-    for builder, filename in EXAMPLES:
-        name = filename or f"{builder.__name__}.json"
-        obj_to_file(cast(BaseModel, _build(builder)), str(outdir / name))
-
-    for builder, attribute, filename in INLINE_OBJECTS:
-        inline = getattr(_build(builder), attribute)
-        if not isinstance(inline, BaseModel):
-            raise TypeError(
-                f"{builder.__name__}().{attribute} is not a model, so "
-                f"{filename} cannot be written from it: {inline!r}"
-            )
-        obj_to_file(inline, str(outdir / filename))
+    for filename, example in examples.items():
+        obj_to_file(example, str(outdir / filename))
 
 
 if __name__ == "__main__":

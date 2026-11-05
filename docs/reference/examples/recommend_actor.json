@@ -1,13 +1,13 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Offer",
-  "id": "urn:uuid:890aea69-4c7f-56d4-aef4-40987a1db820",
-  "name": "https://vultron.example/users/finndervul Offer Coordinator LLC to urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
-  "context": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+  "id": "urn:uuid:890aea69-4c7f-46d4-aef4-40987a1db820",
+  "name": "https://vultron.example/users/finndervul Offer Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "content": "I'm recommending we add Coordinator LLC to the case.",
   "to": "https://vultron.example/case-actors/vendorco-case-actor",
   "actor": "https://vultron.example/users/finndervul",
-  "target": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+  "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "object": {
     "@context": "https://www.w3.org/ns/activitystreams",
     "type": "Organization",

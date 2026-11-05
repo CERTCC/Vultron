@@ -1,9 +1,9 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Announce",
-  "id": "urn:uuid:1dbd4608-ec99-5fbc-9b55-caf8512cd9b8",
+  "id": "urn:uuid:1dbd4608-ec99-4fbc-9b55-caf8512cd9b8",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Announce Embargo for VendorCo Case #20260601",
-  "context": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "to": [
     "https://vultron.example/organizations/vendorco",
     "https://vultron.example/organizations/coordinator",
@@ -11,10 +11,10 @@
   ],
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
   "object": {
-    "id": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a/embargo_events/2026-08-30T00:00:00+00:00",
+    "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_events/2026-08-30T00:00:00+00:00",
     "type": "EmbargoEvent",
     "name": "Embargo for VendorCo Case #20260601",
-    "context": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+    "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "startTime": "2026-06-01T19:12:00.000000+00:00",
     "endTime": "2026-08-30T00:00:00.000000+00:00",
     "published": "2026-06-01T19:12:00.000000+00:00",

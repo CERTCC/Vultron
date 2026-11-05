@@ -1,12 +1,12 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Update",
-  "id": "urn:uuid:3237539a-639f-5cf5-a052-e490db76a492",
+  "id": "urn:uuid:3237539a-639f-4cf5-a052-e490db76a492",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Update VendorCo Case #20260601",
-  "context": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
   "object": {
-    "id": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+    "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "type": "VulnerabilityCase",
     "name": "VendorCo Case #20260601",
     "published": "2026-06-01T19:12:00.000000+00:00",
@@ -17,10 +17,10 @@
     "vulnerabilityReports": [],
     "caseStatuses": [
       {
-        "id": "urn:uuid:c03fda3e-e7c0-55f9-b7db-28a1e275cb23",
+        "id": "urn:uuid:3046e666-a79a-45b5-8a38-f3b5ed0950ed",
         "type": "CaseStatus",
         "name": "NONE pxa",
-        "context": "urn:uuid:f41b5dcd-c1c2-57c8-b055-f42ea14d316a",
+        "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
         "published": "2026-06-01T19:12:00.000000+00:00",
         "attributedTo": "https://vultron.example/organizations/vendorco",
         "emState": "NONE",
@@ -32,10 +32,10 @@
     "embargoRegister": [],
     "pendingEmbargoProposalIndex": {},
     "caseActivity": [],
-    "genesisHash": "d2c0e2298074e5a67538b214fd8ba41720007693d2862ceb086e497d5f6db09a",
+    "genesisHash": "41ebcb1d996477859b8fec00382f75af72401ede0814022bab3f0d54f1b25e0d",
     "ledgerPosition": {
       "logIndex": -1,
-      "entryHash": "d2c0e2298074e5a67538b214fd8ba41720007693d2862ceb086e497d5f6db09a"
+      "entryHash": "41ebcb1d996477859b8fec00382f75af72401ede0814022bab3f0d54f1b25e0d"
     },
     "parentCases": [],
     "childCases": [],
