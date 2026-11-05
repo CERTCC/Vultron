@@ -123,6 +123,17 @@ Every issue gets a parent. Candidates are the open Epics that carry the
 Phase 4 theme; an Epic in another theme is never a candidate, however close
 its title.
 
+**Discovered work does not join Focus or Now by default (PAD-02-041).** When
+the reason is `opened-as` anything and the issue does not block the issue being
+worked, a Focus or Now Epic stays a candidate only if its title claim stays
+false while this issue is open, as with a mismatch an audit Epic exists to
+find. Touching the same code is not enough: a finding always matches best the
+Epic working that code, and it would inherit that Epic's tier. Drop every
+other Focus and Now Epic from the candidates, including a suggested parent,
+and route among the Next, Later and Someday ones. Phase 8 reports a Focus or
+Now parent with its reason: the issue it blocks, or the title claim that needs
+it.
+
 1. **Suggested parent.** If the caller suggested an Epic that carries the
    theme and whose design idea the issue advances, use it.
 2. **Otherwise, route** with `calve-epics` Mode 1 ("Route an issue onto the
@@ -210,7 +221,9 @@ Return the issue number to a calling skill, and print one line:
 ```
 
 When this run calved an Epic, add a second line naming it as auto-calved and
-awaiting review. When it ran unattended, list each choice it made for a user
+awaiting review. When a discovered issue went under a Focus or Now Epic, add a
+line giving the reason (PAD-02-041): the issue it blocks, or the title claim
+that needs it. When it ran unattended, list each choice it made for a user
 (type, duplicate, Epic).
 
 ## Constraints

@@ -71,7 +71,7 @@ Subtasks.
 | `stale-claim` | Stale-claim sweeper (GH Actions) | Orphaned claim; skip until a human clears it |
 | `needs-info` | Anyone | **The only hold**: waiting on a person or decision; keeps the issue out of `Ready` (PAD-16-004/005) |
 | `ready-for-human` | Anyone | `Ready`, but a human does it: agent selection skips it (PAD-16-007) |
-| `needs-decomposition` | `build`, `create-epic`, `calve-epics` | Epic with no sub-issues yet; input to `plan-issue` |
+| `needs-planning` | `epic-needs-planning` workflow (GH Actions) | Epic with no sub-issues, or an open, unblocked Concern or Idea child; input to `plan-issue`. Never set or cleared by hand |
 | `needs-rebase` | `create-pr`, `pr-execute` | PR conflicts an agent could not resolve; a human must (PAD-11-004) |
 | `specs-notes` | `learn`, `plan-issue`, `decision-audit` | Docs-only PR touching only `specs/` and `notes/` |
 | `theme:*` | Whoever creates or relabels the Issue; labels synced by `theme-labels` | The outcome the Issue delivers; one per leaf. Catalog and rules: `notes/epic-themes.md` (PAD-02-014–021) |
@@ -280,7 +280,7 @@ progress sits in gitignored `.claude/pr-*.json` files no other session can see.
 ### Epics
 
 An Epic has a Schedule tier and no Status. Its progress is GitHub's sub-issue
-progress, and `needs-decomposition` marks one that still needs planning. It
+progress, and `needs-planning` marks one that still needs planning. It
 closes when its last sub-issue closes (PAD-01-008).
 
 An assigned Epic is claimed by an epic run (`work-epic-tasks`, PAD-19):
