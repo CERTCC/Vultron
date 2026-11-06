@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Integration tests for CommitLogEntryBT."""
 
+from typing import cast
 from unittest.mock import MagicMock
 
 import py_trees
@@ -285,7 +286,7 @@ def test_a_reused_entry_is_not_announced_again(bridge, datalayer, case_obj):
     sync_port = MagicMock(spec=SyncActivityPort)
 
     def _commit() -> Status:
-        return bridge.execute_with_setup(
+        result = bridge.execute_with_setup(
             tree=create_commit_log_entry_tree(
                 case_id=CASE_ID,
                 object_id="https://example.org/activities/act-4",
@@ -296,7 +297,8 @@ def test_a_reused_entry_is_not_announced_again(bridge, datalayer, case_obj):
             ),
             actor_id=OWNER_ACTOR_ID,
             sync_port=sync_port,
-        ).status
+        )
+        return cast(Status, result.status)
 
     assert _commit() == Status.SUCCESS
     sync_port.send_announce_log_entry.assert_called_once()
