@@ -997,26 +997,25 @@ groups:
     stories:
     - story_2026_069
     - story_2022_074
-    priority: MUST
+    priority: MUST_NOT
     kind: protocol
     statement: >
-      A processing fault that can be attributed to a case MUST be recorded as a
-      canonical `CaseLedgerEntry`, unless it reports a failure to apply a
-      `CaseLedgerEntry`, which SYNC-16-002 keeps out of the ledger.
+      A processing fault MUST NOT be recorded as a canonical `CaseLedgerEntry`, by
+      the actor that sends it or by the CASE_MANAGER that receives it.
     rationale: >
-      The statement that a message arrived and could not be processed is true,
-      legible protocol history, and it explains why a subsequent retransmission
-      occurred; it is not per-actor observability content, so CLP-07-004 does not
-      exclude it. A fault about applying a ledger entry is replication signalling
-      instead: ledgering it loops, because the replica that sent it cannot apply the
-      entry that records it. Whether the remaining faults belong in the ledger at
-      all is an open question (#4800).
+      A fault reports how a message was handled and changes nothing in the case
+      (CLP-02-013). Its sender already holds its own record of the failed message,
+      so an entry adds no fact that a case holder needs. A ledgered fault also
+      loops for a fault about applying a ledger entry, because the replica that
+      sent it cannot apply the entry that records it (SYNC-16-002).
     verification: >
-      A case-attributable fault appears as a recorded entry in the case ledger, and a
-      fault SYNC-16-002 excludes does not.
+      A received `Create(ProcessingFault)` about an activity in a case leaves the
+      case ledger unchanged at the CASE_MANAGER, and a sent fault commits no entry
+      at its sender.
     adr:
     - ADR-0080
     - ADR-0142
+    - ADR-0152
   - id: ASK-07-009
     priority: MUST_NOT
     kind: protocol
@@ -1049,8 +1048,8 @@ groups:
       CLP-10-074), and the
       inbox answered before processing, so without this fault the sender waits
       out its ask deadline in silence. Emitting after the rollback keeps the
-      fault from being undone with the act. ASK-07-008 decides whether the fault
-      is ledgered, as for any fault.
+      fault from being undone with the act. The fault is never ledgered
+      (ASK-07-008), as for any fault.
     verification: >
       A received act whose consequence raises through the inbox leaves one
       queued `Create(ProcessingFault)` to the sender with the internal-error
@@ -1118,17 +1117,23 @@ groups:
     statement: >-
       In this implementation, the inbox MUST send the fault of ASK-07-010 when the
       received use case dispatched for an activity raises. This holds for every use
-      case, not only for the trees that commit an act.
+      case, not only for the trees that commit an act. The one exception is the use
+      case for a received `Create(ProcessingFault)`, which ASK-07-019 leaves
+      unanswered.
     rationale: >
       The receiver's internal failure is a raise out of the use case, and the
       inbox is the one place every dispatch passes through, so answering there
       covers every use case at once.
     verification: >
       `test/core/behaviors/inbox/test_process_payload.py::TestARaisedDispatchIsAnsweredWithAFault::test_the_sender_gets_one_internal_error_fault`
-      confirms a raising use case is answered with one internal-error fault.
+      confirms a raising use case is answered with one internal-error fault, and
+      `test_a_raised_fault_is_not_answered_with_a_fault` in the same class
+      confirms a raising fault use case is answered with none.
     relationships:
     - rel_type: implements
       spec_id: ASK-07-010
+    - rel_type: implements
+      spec_id: ASK-07-019
     tags:
     - error-handling
   - id: ASK-07-016
@@ -1185,6 +1190,30 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: ASK-07-015
+    tags:
+    - error-handling
+  - id: ASK-07-019
+    stories:
+    - story_2022_039
+    - story_2022_077
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An actor MUST NOT answer a received `Create(ProcessingFault)` with another
+      `Create(ProcessingFault)`, whatever the reason it cannot process the fault.
+    rationale: >-
+      Each answering fault is a new activity, so the one-fault-per-activity bound
+      (ASK-07-015) does not stop the exchange. Two actors that cannot process each
+      other's faults, such as two actors that do not hold the case a fault names,
+      would otherwise answer each other without end.
+    verification: >-
+      `test/core/behaviors/inbox/test_process_payload.py::TestARaisedDispatchIsAnsweredWithAFault::test_a_raised_fault_is_not_answered_with_a_fault`
+      confirms a received fault whose use case raises is answered with no fault.
+    relationships:
+    - rel_type: constrains
+      spec_id: ASK-07-001
+    adr:
+    - ADR-0080
     tags:
     - error-handling
 - id: ASK-08

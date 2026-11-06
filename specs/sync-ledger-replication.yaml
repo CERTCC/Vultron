@@ -2663,7 +2663,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-04-007
-    - rel_type: supersedes
+    - rel_type: refines
       spec_id: ASK-07-008
     adr:
     - ADR-0142

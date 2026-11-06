@@ -272,3 +272,23 @@ rule requires.
 - Specs: `specs/protocol-asks.yaml`; amendments to CLP-11, EDF-04, RSH-07,
   CP-05, TRIG-04
 - Notes: `notes/protocol-asks.md`
+
+## Amendment — 2026-11-06
+
+A processing fault is never recorded in the case ledger, and a received fault is never answered with a fault.
+The fault object, its failure classes, and the rule that the unreadable message stays out of the ledger are unchanged.
+The Decision Outcome said:
+
+> The *unreadable message* never enters the ledger; there is no legible assertion
+> to record. The *fault statement* does — it is a true, legible statement about a
+> message that arrived, replicated like any other recorded entry.
+
+The fault statement stays out of the ledger too.
+
+- A fault reports how a message was handled and changes nothing in the case, so it is not a case event (CLP-02-013), the principle ADR-0152 records for an observation.
+  Its sender already holds its own record of the failed message.
+- A fault about applying a ledger entry already stayed out, because ledgering it loops (SYNC-16-002, ADR-0142); that is now the specific case of the general rule (ASK-07-008).
+- A received fault is never answered with a fault (ASK-07-019).
+  Each answering fault is a new activity, so the one-fault-per-activity bound (ASK-07-015) cannot stop two actors that cannot process each other's faults.
+  A participant in RM Start that receives a fault about a report it does not hold sends nothing back (RMB-07-002).
+- Source: CONCERN-5730; closes the open question in #4800.
