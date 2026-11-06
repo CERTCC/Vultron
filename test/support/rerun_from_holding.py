@@ -31,7 +31,7 @@ from typing import Any
 
 from test.support.ledger_rebuild import run_use_case
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.received_activity_record import HOLDING_STAGES
 from vultron.core.services.received_activity import (
@@ -52,7 +52,7 @@ class Effects:
         ledger: Every ledger entry the store holds, as JSON, in log order
             per case.
         outbox: Every activity the store's outbox holds, as its sealed
-            body's JSON, keyed by its id, in queue order.
+            text as stored, keyed by its id, in queue order.
     """
 
     ledger: tuple[str, ...]
@@ -64,14 +64,15 @@ def _dump(obj: Any) -> str:
 
 
 def _queued_body(dl: SqliteDataLayer, activity_id: str) -> str:
-    """The body the outbox sends for *activity_id*: its sealed body.
+    """The body the outbox sends for *activity_id*: its sealed text.
 
-    The sealed body is what is delivered (OX-07-001); an item queued with
-    none is compared by the stored activity instead.
+    The sealed body is what is delivered (OX-07-001), byte for byte, so two
+    sends compare equal only when a receiver gets the same bytes.  An item
+    queued with none is compared by the stored activity instead.
     """
-    sealed = read_sealed_body_dict(dl, activity_id)
+    sealed = read_sealed_body(dl, activity_id)
     if sealed is not None:
-        return json.dumps(sealed, sort_keys=True)
+        return sealed.body
     return _dump(dl.read(activity_id))
 
 
@@ -203,6 +204,8 @@ class DrainedRerun:
         after_last: What it held after the later run.
         rerun_queued: With a replay, what the re-run queued before it was
             delivered in turn.
+        before: What the store held before the first run, so what a
+            builder queued while setting up is not read as the first run's.
     """
 
     first: Any
@@ -211,18 +214,65 @@ class DrainedRerun:
     last: Any
     after_last: Effects
     rerun_queued: tuple[tuple[str, str], ...] = ()
+    before: Effects = Effects(ledger=(), outbox=())
+
+    @property
+    def first_sent(self) -> dict[str, str]:
+        """``id -> sealed body`` of every item the first run queued."""
+        setup = set(self.before.outbox)
+        return {
+            activity_id: body
+            for activity_id, body in self.after_first.outbox
+            if (activity_id, body) not in setup
+        }
+
+    @property
+    def queued_again(self) -> tuple[tuple[str, str], ...]:
+        """Every ``(id, body)`` a later run queued after the delivery."""
+        return (*self.rerun_queued, *self.after_last.outbox)
+
+    @property
+    def resent(self) -> list[str]:
+        """What a later run queued again exactly as the first run sent it.
+
+        The same id with the same sealed bytes: the receiver's seen-before
+        door drops the copy, so it is not a second send (ID-02-001,
+        SYNC-09-002, #5047 AC-1 as reworded).
+        """
+        first = self.first_sent
+        return [
+            f"outbox: {activity_id} {_kind(body)}"
+            for activity_id, body in self.queued_again
+            if first.get(activity_id) == body
+        ]
 
     @property
     def sent_again(self) -> list[str]:
-        """What a later run committed anew or queued after the delivery."""
+        """What a later run committed or sent a second time.
+
+        A new ledger entry; an item queued under an id the first run did not
+        send (:attr:`first_sent`), which a receiver cannot tell from a new
+        message; or an item under an id the first run sent, with other
+        bytes, which a receiver refuses as a reused id.  An item queued
+        again with the bytes it was first sent with is :attr:`resent`, not
+        here.
+        """
         new_entries = sorted(
             set(self.after_last.ledger) - set(self.delivered.ledger)
         )
-        queued = (*self.rerun_queued, *self.after_last.outbox)
-        return [f"ledger: {e}" for e in new_entries] + [
-            f"outbox: {activity_id} {_kind(body)}"
-            for activity_id, body in queued
-        ]
+        first = self.first_sent
+        problems = [f"ledger: {e}" for e in new_entries]
+        for activity_id, body in self.queued_again:
+            if activity_id not in first:
+                problems.append(
+                    f"outbox: {activity_id} {_kind(body)} under a new id"
+                )
+            elif first[activity_id] != body:
+                problems.append(
+                    f"outbox: {activity_id} {_kind(body)} under the first"
+                    " run's id with a different body"
+                )
+        return problems
 
 
 def _kind(body: str) -> str:
@@ -252,6 +302,7 @@ def drained_rerun(
     as a re-run that raised is held for its retry, and the replay runs with
     its record released (:func:`rerun_then_replay`).
     """
+    before = effects(dl)
     first = run(dl, event)
     after_first = effects(dl)
     deliver_outbox(dl)
@@ -273,6 +324,7 @@ def drained_rerun(
         last=last,
         after_last=effects(dl),
         rerun_queued=rerun_queued,
+        before=before,
     )
 
 

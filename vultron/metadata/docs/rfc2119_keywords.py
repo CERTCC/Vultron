@@ -95,7 +95,6 @@ RECONCILED_FRAGMENTS: tuple[str, ...] = (
     CATALOG_INTRO,
     *(page.fragment for page in CATALOG_PAGES),
     "reference/vultron-spec/_open-questions.md",
-    "reference/vultron-spec/_oq-embargo-termination-authority.md",
     "reference/vultron-spec/_oq-negative-ack.md",
     "reference/vultron-spec/_oq-role-acquisition.md",
     "reference/vultron-spec/_oq-transport-status-codes.md",

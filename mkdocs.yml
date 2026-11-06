@@ -441,6 +441,9 @@ plugins:
         reference/vultron-spec/_syntactic-layer.md: reference/vultron-spec/layers.md#5-encoding-and-transport-n
         # CSB-17 answered the CS-ordering open question, so its fragment was closed (#4898).
         reference/vultron-spec/_oq-cs-ordering.md: reference/vultron-spec/tracking-models.md#83-case-state-as-a-compound-tuple
+        # ADR-0166 answered the embargo-termination-authority open question, so its
+        # fragment was closed (#6012).
+        reference/vultron-spec/_oq-embargo-termination-authority.md: reference/vultron-spec/interactions.md#113-status-adoption-one-authorization-gate
         topics/background/notation.md: reference/vultron-spec/annex-c-notation.md
         topics/background/overview.md: topics/background/what-is-vultron.md
         # Terms and Definitions was merged into the glossary's roles section (#3624).

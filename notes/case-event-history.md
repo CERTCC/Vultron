@@ -8,6 +8,9 @@ tracks:
   - "#5781"
   - "#5782"
   - "#5068"
+  - "#6067"
+  - "#6068"
+  - "#6069"
 description: >
   Design for the read-only layer that turns a case ledger into the case's CVD event
   history: why events come from state comparison rather than a semantic-type table,
@@ -27,6 +30,7 @@ related_notes:
   - notes/case-state-model.md
 related_adrs:
   - docs/adr/0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md
+  - docs/adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md
   - docs/adr/0075-split-vfd-state-machine.md
   - docs/adr/0060-re-express-legacy-cs-invariants.md
 relevant_packages:
@@ -165,9 +169,8 @@ events with the case's public-state events (CEH-05-001, CEH-05-003). That is the
 (`vultron/core/states/cs_invariants/history.py`).
 
 Do not collapse several vendors into one sequence (CEH-05-006). Vendor awareness and
-fix readiness occur once per vendor, and no rule yet says which vendor's event stands
-for the case. Choosing one here would settle an open research question without
-review; it is tracked as its own work.
+fix readiness occur once per vendor, and no vendor's event stands for the case: a
+measure scores each vendor's sequence and summarizes across vendors (ADR-0182).
 
 ### Why the key is the event, not the role
 
@@ -208,9 +211,19 @@ It computes no score (CEH-05-008). The existing desiderata scorer is
 name —
 and it admits only a *complete* six-event history, raising `ScoringError` on anything
 shorter. Every sequence the committed recordings yield is incomplete, so there is no
-score to compute for a typical case. How an incomplete sequence earns a score is an
-open research question, tracked by #5828; the measures themselves are out of this
-topic's scope either way.
+score to compute for a typical case. How an incomplete sequence earns a score is
+decided by ADR-0182 and built by #6068; the measures stay out of this layer.
+
+### Measures built on these sequences take chance per vendor
+
+A measure scores each vendor's sequence against a baseline from the smallest model
+that holds the desideratum's events: one vendor and the case's shared events, or two
+vendors for a desideratum relating them (ADR-0182). Reason: a walk over the whole
+case grows with the participant count, and its baselines change with that count, so
+no table would serve every case. Do not build a whole-case walk, and do not key a
+baseline on the number of participants. An incomplete sequence is scored through its
+completions under the same walk (expected, best and worst), and a case reports
+per-vendor scores with their unweighted median and spread.
 
 ## Read the Canonical Copy; a Merge Reports Its Holes
 

@@ -1315,7 +1315,7 @@ def test_callout_hosts_follow_includes():
         "reference/vultron-spec/considerations.md",
         "reference/vultron-spec/full.md",
     }
-    oq = hosts["reference/vultron-spec/_oq-embargo-termination-authority.md"]
+    oq = hosts["reference/vultron-spec/_oq-v-to-V.md"]
     assert "reference/vultron-spec/open-questions.md" in oq
     assert "topics/future_work/open_questions.md" in oq
 

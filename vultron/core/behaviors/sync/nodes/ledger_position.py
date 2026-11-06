@@ -55,6 +55,7 @@ from vultron.core.models.events.base import LedgerPositionedEvent
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.received_activity import began_in_an_earlier_run
+from vultron.core.services.sender_sequence_order import was_judged_in_order
 from vultron.core.sync_helpers import (
     holds_ledger_position,
     ledger_tail_position,
@@ -211,7 +212,38 @@ class ClassifyLedgerPositionNode(DataLayerActionWithPorts):
             activity.actor_id, self.actor_id
         ):
             return None
+        if self._judged_before(activity):
+            return None
         return activity.ledger_position
+
+    def _judged_before(self, activity: LedgerPositionedEvent) -> bool:
+        """Whether the run that judged this activity already answered it.
+
+        The replay of a re-run held for a retry runs with its record
+        released, so the record no longer says it is a re-run (ADR-0154).
+        The sender's order record still does: an activity this CASE_MANAGER
+        judged in order had its position answered on the run that judged
+        it, and the entries that answer replayed are not sent to it again
+        (SYNC-18-007, SYNC-21-018).
+        """
+        number = (
+            activity.activity.sender_sequence if activity.activity else None
+        )
+        if not was_judged_in_order(
+            cast(CasePersistence, self.datalayer),
+            self.case_id,
+            self.sender_id,
+            activity.activity_id,
+            number,
+        ):
+            return False
+        self.logger.debug(
+            "%s: activity '%s' was judged in order before; its ledger"
+            " position was answered then (SYNC-18-007, SYNC-21-018)",
+            self.name,
+            activity.activity_id,
+        )
+        return True
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

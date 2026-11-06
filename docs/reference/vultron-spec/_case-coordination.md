@@ -19,7 +19,7 @@ The cascades that the CASE_MANAGER runs when one state machine's transition obli
 How a participant joins a case, changes role in it and leaves it is at [§12 Participant Lifecycle Within a Case](interactions.md#12-participant-lifecycle-within-a-case-n).
 
 !!! note "Informative: the dedicated Case Actor is an implementation choice"
-    The reference implementation provisions a dedicated service actor for each case, the *Case Actor*, to hold the `CASE_MANAGER` role.
+    The reference implementation runs one Case Actor service per container, which holds the `CASE_MANAGER` role for all the cases it manages.
     That choice goes further than the protocol requires.
     The protocol requires a participant that holds the role, and any participant can hold it, including the Case Owner itself.
     Nothing in this section depends on whether the holder is a dedicated actor.

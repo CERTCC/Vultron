@@ -72,6 +72,7 @@ from vultron.core.services.sender_sequence_order import (
     SequenceStanding,
     classify_sender_sequence,
     end_case_sender_sequence_holds,
+    judged_before,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -834,3 +835,41 @@ def test_sequence_state_lives_in_the_datalayer() -> None:
     net.receive(MANAGER, first)
 
     assert _committed_notes(net) == [_note_of(first), _note_of(second)]
+
+
+@pytest.mark.spec("SYNC-21-018", "SYNC-18-007")
+@pytest.mark.parametrize(
+    ("number", "activity_id", "ledgered", "judged"),
+    [
+        (2, "last", False, True),
+        (1, "other", True, True),
+        (1, "other", False, False),
+        (3, "last", True, False),
+        (None, "last", True, False),
+    ],
+    ids=[
+        "past-and-last-judged",
+        "past-and-ledgered",
+        "past-but-neither",
+        "not-past",
+        "unnumbered",
+    ],
+)
+def test_an_activity_was_judged_before_only_when_its_past_number_is_known(
+    number: int | None, activity_id: str, ledgered: bool, judged: bool
+) -> None:
+    """Judged before: a past number the ledger records, or the last judged.
+
+    The ledger-position answer reads this to skip a replay whose record was
+    released, as the sender-sequence stage does (#5047).
+    """
+    order = SenderSequenceOrder(
+        case_id="https://example.org/cases/judged",
+        sender_id="https://example.org/actors/sender",
+        next_expected=3,
+        last_judged_id="last",
+    )
+
+    assert (
+        judged_before(order, number, activity_id, ledgered=ledgered) is judged
+    )

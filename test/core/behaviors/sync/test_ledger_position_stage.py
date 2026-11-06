@@ -42,12 +42,14 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.ledger_position_stage import (
     create_ledger_position_stage,
 )
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.replication_state import VultronReplicationState
+from vultron.core.models.sender_sequence import SenderSequenceOrder
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 
@@ -461,3 +463,58 @@ def test_a_replay_leaves_the_acts_case_key_alone(dl) -> None:
     assert _sent_indices(sync_port) == [1, 2]
     assert storage.get("/case_id") == before
     assert storage.get("/ledger_position/case_id") == CASE_ID
+
+
+# ---------------------------------------------------------------------------
+# #5047: the replay of an activity already judged in order is not answered
+# ---------------------------------------------------------------------------
+
+
+def _numbered_note(number: int, position: LedgerPosition) -> Any:
+    """The signatory's ``Add(Note)`` numbered *number*, stamped at *position*."""
+    note = _note(SIGNATORY_ID, position)
+    return note.model_copy(
+        update={
+            "activity": VultronActivity(
+                id_=note.activity_id,
+                type_="Add",
+                actor=SIGNATORY_ID,
+                sender_sequence=number,
+            )
+        }
+    )
+
+
+@pytest.mark.spec("SYNC-18-007", "SYNC-21-018")
+@pytest.mark.parametrize(
+    ("last_judged", "answered"),
+    [(True, False), (False, True)],
+    ids=["judged-before", "not-judged"],
+)
+def test_a_replay_of_an_activity_judged_in_order_is_not_answered_again(
+    dl, last_judged: bool, answered: bool
+) -> None:
+    """The judging run answered the position; a replay sends nothing more.
+
+    A replay whose record was released reads as a first delivery (ADR-0154),
+    so the stage reads the sender's order record instead: an activity whose
+    number is past and that was the one last judged had its position
+    answered then.  The same lagging note not yet judged is answered.
+    """
+    entries = seed_ledger(dl, 3)
+    note = _numbered_note(1, _position(entries[0]))
+    dl.save(
+        SenderSequenceOrder(
+            case_id=CASE_ID,
+            sender_id=SIGNATORY_ID,
+            next_expected=2,
+            last_judged_id=note.activity_id if last_judged else None,
+        )
+    )
+    sync_port, trigger = _ports()
+
+    result = _answer(dl, note, sync_port, trigger)
+
+    assert result.status == Status.SUCCESS
+    assert _sent_indices(sync_port) == ([1, 2] if answered else [])
+    assert (_state(dl, SIGNATORY_ID) is not None) is answered
