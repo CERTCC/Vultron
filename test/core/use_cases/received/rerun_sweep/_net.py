@@ -26,8 +26,15 @@ from . import Scenario
 
 
 def event_for(net: LedgerNetwork, activity: Any, *, to: str = MANAGER) -> Any:
-    """*activity* as *to*'s inbox extracts it, stamped as its sender sends it."""
-    body = net.stamp(json.loads(dump_outbound_body(activity)), receiver=to)
+    """*activity* as *to*'s inbox extracts it, as its sender sends it.
+
+    Stamped and signed by its author (SIG-01-001) through
+    :meth:`LedgerNetwork.delivered_body`, since the body is dumped here
+    rather than read from the sender's outbox.
+    """
+    body = net.delivered_body(
+        json.loads(dump_outbound_body(activity)), receiver=to
+    )
     return received_event(
         parse_activity(body), as_sent=True, receiving_actor_id=to
     )

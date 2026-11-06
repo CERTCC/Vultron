@@ -710,20 +710,25 @@ groups:
       reason: 'context for the reader'
 
   - id: RMB-07-002
-    priority: SHOULD
+    priority: MUST_NOT
     kind: protocol
     statement: >-
       A Participant in RM Start (q^rm ∈ S) that receives
-      `Create(ProcessingFault)` about an RM activity SHOULD answer it with
-      `Create(ProcessingFault)` (ASK-07-001). The fault tells the sender that the
-      receiver holds no report the fault could be about. RE has no wire activity
-      of its own (MSM-05-001).
+      `Create(ProcessingFault)` about an RM activity MUST NOT answer it with
+      `Create(ProcessingFault)` (ASK-07-019). RE has no wire activity of its own
+      (MSM-05-001).
     rationale: >-
-      Receiving any R* message while in RM Start means the sender has a
-      stale or incorrect case reference. Even a fault, when received in START,
-      signals a coordination mismatch that calls for the processing-fault
-      error response per VP-03-010.
+      A fault about a report the receiver does not hold means the two actors
+      disagree about the case, but another fault cannot settle that. If both
+      actors are in RM Start, each answering fault would prompt another without
+      end, because each one is a new activity.
     testable: true
+    verification: >-
+      `test/core/use_cases/received/test_processing_fault_received.py::test_a_fault_about_a_report_not_held_is_answered_with_nothing`
+      confirms the received-fault use case, at a receiver holding no report,
+      queues nothing for the sender whatever the fault's class, and
+      `test/core/behaviors/inbox/test_process_payload.py::TestARaisedDispatchIsAnsweredWithAFault::test_a_raised_fault_is_not_answered_with_a_fault`
+      confirms the inbox sends no fault when that use case raises.
     preconditions:
     - rm_state:
         - START
@@ -731,23 +736,20 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit Create(ProcessingFault) to signal the unexpected message
-      expected: ProcessingFault queued for sender; no RE message exists
+      action: Receive Create(ProcessingFault) about an RM activity and send no fault
+      expected: No ProcessingFault queued for the sender
     postconditions:
-    - description: ProcessingFault emitted; receiver RM state unchanged (START)
+    - description: No fault emitted; receiver RM state unchanged (START)
     relationships:
     - rel_type: refines
-      spec_id: VP-03-010
-      note: Processing fault when R* received while in RM Start
+      spec_id: ASK-07-019
+      note: The RM Start case of the rule that a fault is never answered with a fault
     - rel_type: uses_definition
       spec_id: MSM-01-007
       note: 'RE shorthand wire-type mapping'
     stories:
     - story_2026_006
     see_also:
-    - spec_id: ASK-07-001
-      reason: >-
-        the `Create(ProcessingFault)` clause, reached through the link to VP-03-010
     - spec_id: MSM-05-001
       reason: 'context for the reader'
 

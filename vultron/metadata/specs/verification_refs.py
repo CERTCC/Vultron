@@ -45,7 +45,7 @@ from functools import cached_property
 from pathlib import Path
 
 from vultron.metadata.base import iter_tree_texts
-from vultron.metadata.specs.coverage import marked_ids_in
+from vultron.metadata.specs.marked_tests import marked_spec_ids
 from vultron.metadata.specs.registry import SpecRegistry, load_registry
 from vultron.metadata.specs.schema import (
     IMPLEMENTER_KINDS,
@@ -83,19 +83,27 @@ class IndexedTestFile:
         names: Every function or class name anywhere in the file, and the
             module's own stem.
         source: The file text, read for ``@pytest.mark.spec`` markers.
+        path: The file's path, named if *source* does not parse.
     """
 
     nodes: frozenset[str]
     names: frozenset[str]
     source: str
+    path: str
 
     @cached_property
     def marked_ids(self) -> frozenset[str]:
         """The spec IDs the file's ``@pytest.mark.spec`` markers name.
 
-        Scanned once per file: one test file is named by many clauses.
+        Parsed once per file, and only for a file some clause names: one
+        test file is named by many clauses. Marker text inside a string
+        literal is not a marker.
+
+        Raises:
+            SyntaxError: The file has ``mark.spec`` text and does not parse;
+                the error names the file.
         """
-        return marked_ids_in((self.source,))
+        return marked_spec_ids(self.source, self.path)
 
 
 #: A ``def`` or ``class`` statement, with its indentation.
@@ -135,7 +143,9 @@ def index_module(path: Path, source: str) -> IndexedTestFile:
             nodes.add(node_path)
         is_class = match.group("kw") == "class"
         stack.append((indent, node_path if is_class else None))
-    return IndexedTestFile(frozenset(nodes), frozenset(names), source)
+    return IndexedTestFile(
+        frozenset(nodes), frozenset(names), source, path.as_posix()
+    )
 
 
 @dataclass

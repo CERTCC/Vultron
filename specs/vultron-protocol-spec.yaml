@@ -654,10 +654,11 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      Recipients who receive an $R*$ message (other than $RS$) while in RM Start ($q^{rm}
-      \in S$) SHOULD answer it with `Create(ProcessingFault)` (ASK-07-001). The fault
-      tells the sender that the recipient holds no report the message could be about.
-      $RE$ has no wire activity of its own (MSM-05-001).
+      Recipients who receive an $R*$ message (other than $RS$ and $RE$) while in RM Start
+      ($q^{rm} \in S$) SHOULD answer it with `Create(ProcessingFault)` (ASK-07-001). The
+      fault tells the sender that the recipient holds no report the message could be
+      about. A received fault is never answered with a fault (ASK-07-019). $RE$ has no
+      wire activity of its own (MSM-05-001).
     rationale: >-
       An $R*$ message from a party the recipient has no report from means the two
       disagree about whether a report was sent. A fault lets the sender re-send the
@@ -674,6 +675,8 @@ groups:
     see_also:
     - spec_id: MSM-05-001
       reason: 'context for the reader'
+    - spec_id: ASK-07-019
+      reason: keeps a received fault out of this rule
   - id: VP-03-011
     priority: SHOULD
     kind: protocol

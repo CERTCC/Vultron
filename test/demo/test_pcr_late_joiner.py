@@ -210,18 +210,6 @@ def _register_peer(client, host_slug: str, peer_id: str, name: str) -> None:
     ), f"Peer registration failed ({resp.status_code}): {resp.text}"
 
 
-def _post_to_inbox(client, actor_slug: str, activity) -> None:
-    """POST *activity* JSON to ``/api/v2/actors/{actor_slug}/inbox/``."""
-    resp = client.post(
-        f"/api/v2/actors/{actor_slug}/inbox/",
-        content=activity.model_dump_json(by_alias=True, exclude_none=True),
-        headers={"Content-Type": "application/json"},
-    )
-    assert resp.status_code == 202, (
-        f"Inbox POST returned {resp.status_code}: {resp.text}"
-    )
-
-
 def _actor_slug(actor_id: str) -> str:
     """Return the last path segment of *actor_id*."""
     return actor_id.rstrip("/").rsplit("/", 1)[-1]

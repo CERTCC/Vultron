@@ -22,6 +22,8 @@ signs it here, never by hand:
   a test that changes a body on purpose and still needs a valid proof, such
   as "same id, different body" (IE-10-002).
 - :func:`post_signed` signs a body and posts it to an inbox.
+- :func:`post_delivered` posts a body that is already signed, such as one
+  from ``delivered_body``, unchanged, and checks the inbox accepts it.
 - :class:`AcceptingProofVerifier` stands in for proof verification in a test
   that replaces the ingress with a stub; its port arrives with #5386.
 
@@ -111,6 +113,23 @@ def post_signed(
     return client.post(inbox, json=signed_body(body, author=author))
 
 
+def post_delivered(
+    client: TestClient, inbox: str, body: Mapping[str, Any]
+) -> None:
+    """Post *body*, already signed by its author, to *inbox*; it accepts it.
+
+    *body* is posted unchanged, as its author's outbox sends it
+    (SIG-01-001): it comes signed from
+    :func:`test.support.received.delivered_body`, :func:`signed_body` or
+    :func:`resigned`, so signing it here would add a second proof.  A
+    redelivery is the same bytes, so a second post of it is routed as the
+    archived copy (IE-10-001).  An unsigned body is a test bug, refused here.
+    """
+    assert "proof" in body, "sign the body before posting it (SIG-01-001)"
+    response = client.post(inbox, json=dict(body))
+    assert response.status_code == 202, response.text
+
+
 class AcceptingProofVerifier:
     """A stand-in proof verifier that accepts every document and records it.
 
@@ -138,6 +157,7 @@ __all__ = [
     "AcceptingProofVerifier",
     "TEST_PROOF_CREATED",
     "author_of",
+    "post_delivered",
     "post_signed",
     "resigned",
     "signed_body",

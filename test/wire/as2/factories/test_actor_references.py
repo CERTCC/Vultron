@@ -30,6 +30,7 @@ import pytest
 from pydantic import BaseModel
 
 from test.support.received import extract_stamped
+from test.support.signing import signed_body
 from vultron.core.models.actor import CoreActor, VultronOrganization
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.ledger_position import LedgerPosition
@@ -194,8 +195,8 @@ def test_the_activity_dispatches_to_the_same_semantic(
 ) -> None:
     """A held profile and an actor reference both route by the actor's type."""
     build, _ = _BUILDERS[name]
-    body = build(peer).model_dump(
-        mode="json", by_alias=True, exclude_none=True
+    body = signed_body(
+        build(peer).model_dump(mode="json", by_alias=True, exclude_none=True)
     )
 
     event = extract_stamped(parse_activity(body))

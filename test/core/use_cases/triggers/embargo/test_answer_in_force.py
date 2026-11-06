@@ -34,6 +34,7 @@ from test.support.received import (
     hold_deferred,
     received_record,
 )
+from test.support.signing import signed_body
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -402,7 +403,8 @@ def test_a_held_activity_that_is_not_an_invite_is_not_found(
         mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
     )
     data["type"] = "Offer"
-    offer = parse_activity(data)
+    # Signed by its author, as the body the finder received was (SIG-01-001).
+    offer = parse_activity(signed_body(data))
     archive_received(in_force.dl, offer)
 
     with pytest.raises(VultronNotFoundError, match=offer.id_):

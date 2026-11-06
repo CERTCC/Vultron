@@ -23,7 +23,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
-from test.support.signing import signed_body
+from test.support.signing import author_of, signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
@@ -31,6 +31,7 @@ from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.primitives import same_actor_id
 
 _FACTORY_PATH = (
     "vultron.core.behaviors.case.nodes.lifecycle.create_commit_log_entry_tree"
@@ -76,6 +77,21 @@ _CREATE_BODY: dict[str, Any] = signed_body(
 )
 
 
+def _signer(body: dict[str, Any], actor_id: str) -> str:
+    """The actor that signs *body*: the one it names by id, as *actor_id*.
+
+    A body naming *actor_id* in another spelling (a trailing slash,
+    OID-01-006) is the same sender, so it is signed with *actor_id*'s key;
+    a body naming another actor is signed with that actor's; one naming no
+    actor by id is signed by *actor_id*.
+    """
+    try:
+        named = author_of(body)
+    except ValueError:
+        return actor_id
+    return actor_id if same_actor_id(named, actor_id) else named
+
+
 def _received(
     body: dict[str, Any] | None = None,
     semantic_type: MessageSemantics = MessageSemantics.CREATE_CASE,
@@ -83,11 +99,15 @@ def _received(
 ) -> VultronEvent:
     """A received event whose evidence is *body*, as the parser sealed it.
 
-    *body* is signed by *actor_id*, as its sender's outbox signs it
-    (SIG-01-001).
+    *body* is signed by the actor it names, as its sender's outbox signs it
+    (SIG-01-001), or by *actor_id* when it names none by id.  So a body that
+    names another actor than the event carries that actor's proof, as a
+    real impostor's would.
     """
     evidence = (
-        _CREATE_BODY if body is None else signed_body(body, author=actor_id)
+        _CREATE_BODY
+        if body is None
+        else signed_body(body, author=_signer(body, actor_id))
     )
     return VultronEvent(
         semantic_type=semantic_type,

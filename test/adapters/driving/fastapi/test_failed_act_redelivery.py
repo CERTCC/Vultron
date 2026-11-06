@@ -191,7 +191,7 @@ def test_a_failed_proposal_is_applied_when_posted_again(
     # The sender is answered with the internal-error fault, after the
     # rollback, so the fault is kept; nobody else gets anything.  Like every
     # fault the inbox sends, it is not ledgered: the entries above are
-    # unchanged (ASK-07-008 is Concern #4800).
+    # unchanged (ASK-07-008).
     fault = _assert_answered_with_an_internal_error_fault(emitter, body["id"])
     errors = [
         r

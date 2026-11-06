@@ -46,10 +46,6 @@ from vultron.metadata.specs.schema import SpecKind
 
 _CALLOUT_RE = re.compile(r"requirement_callout\(([^)]*)\)")
 
-#: Built, not written out: a literal marker in this file's text would mark the
-#: test requirements below for ``spec-coverage``'s scan of ``test/``.
-_SPEC = "pytest.mark." + "spec"
-
 
 def _gap(n: int) -> str:
     """Test requirement *n*'s ID, built so that no ID that the registry lacks
@@ -88,24 +84,24 @@ _TESTS = f"""\
 import pytest
 
 
-@{_SPEC}("{_gap(1)}")
+@pytest.mark.spec("{_gap(1)}")
 def test_one():
     pass
 
 
-@{_SPEC}("{_gap(2)}", "{_gap(3)}")
+@pytest.mark.spec("{_gap(2)}", "{_gap(3)}")
 @pytest.mark.xfail(strict=True, reason="{_gap(2)}: not built. Tracked by #11.")
 def test_two_and_three():
     pass
 
 
-@{_SPEC}("{_gap(4)}")
+@pytest.mark.spec("{_gap(4)}")
 @pytest.mark.xfail(strict=True, reason="{_gap(4)}: needs #12 and #11.")
 def test_four():
     pass
 
 
-@{_SPEC}("{_gap(5)}")
+@pytest.mark.spec("{_gap(5)}")
 @pytest.mark.skip(reason="no harness yet")
 def test_five():
     pass
@@ -231,7 +227,7 @@ class TestRenderFragment:
             _TESTS
             + f'''
 
-@{_SPEC}("{_gap(6)}")
+@pytest.mark.spec("{_gap(6)}")
 def test_six():
     pass
 '''
