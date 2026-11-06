@@ -130,16 +130,24 @@ def test_core_object_keeps_a_list_context_through_a_round_trip():
 @pytest.mark.spec("CS-08-002")
 @pytest.mark.parametrize(
     "context",
-    [[], [""], [VULTRON_CONTEXT_URI, "  "], "", [{"@vocab": "x"}]],
-    ids=[
-        "empty-list",
-        "blank-entry",
-        "one-blank-entry",
-        "blank-string",
-        "inline-term-map",
-    ],
+    [[], [""], [VULTRON_CONTEXT_URI, "  "], ""],
+    ids=["empty-list", "blank-entry", "one-blank-entry", "blank-string"],
 )
 def test_core_object_refuses_an_empty_or_blank_context(context: object):
+    _assert_core_context_refused(context)
+
+
+@pytest.mark.parametrize(
+    "context",
+    [{"@vocab": "x"}, [VULTRON_CONTEXT_URI, {"@vocab": "x"}]],
+    ids=["term-map", "term-map-entry"],
+)
+def test_core_object_refuses_an_inline_context_object(context: object):
+    """``@context`` is IRIs only; nothing Vultron reads defines terms inline."""
+    _assert_core_context_refused(context)
+
+
+def _assert_core_context_refused(context: object) -> None:
     with pytest.raises(ValidationError) as raised:
         CoreObject.model_validate({"@context": context})
 

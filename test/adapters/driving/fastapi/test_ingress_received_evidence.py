@@ -429,8 +429,7 @@ def test_a_different_body_under_a_refused_id_is_refused(
 ):
     """The stub keeps the digest of the body it gave up, so a reused id is
     still refused after a refusal; the stub is left exactly as it was."""
-    _, first = _refuse_and_stub(dl, _offer_of_stored_report(dl))
-    stub = dl.read(ReceivedActivityRecord.build_id(first["id"]))
+    stub, first = _refuse_and_stub(dl, _offer_of_stored_report(dl))
     second = resigned(first, summary="second")
 
     _assert_refused_through_the_inbox(dl, second, ACTOR, caplog)

@@ -93,11 +93,11 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
 - **Tests sign through `test/support/signing.py`**: `signed_body`, `resigned`
   (an altered copy, re-signed), `post_signed`. Proofs there are deterministic
   (seeded key, fixed `created`), so a resend is the archived bytes. In
-  `test/support/received.py`, `archive_received`, `intake_received` and
-  `hold_deferred` seed signed bodies, so a test that resends against them signs
-  its delivery too, or IE-10-002 refuses it. `delivered`, `delivered_body`,
-  `evidence_for`, `with_evidence` and `archive_delivered` are still unsigned;
-  #5385 repoints them with the other test deliveries.
+  `test/support/received.py`, `body_of` (behind `archive_received` and
+  `intake_received`) and `hold_deferred` seed signed bodies; a test that resends
+  against them signs its delivery too, or IE-10-002 refuses it. Every other
+  helper there is still unsigned; #5385 repoints them with the other test
+  deliveries.
 - **The parser sets `proof` aside** as a foreign key (MV-11-003), with one INFO
   record per delivery; the received evidence keeps it (SIG-04-001). Verification
   reads the raw body before the parser (#5386), so nothing needs it parsed.
@@ -151,8 +151,8 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
 - **The profile's `@context` lacks the key terms.** It is the Vultron context
   alone, which defines no `assertionMethod`, `Multikey`, `controller` or
   `publicKeyMultibase`, so a JSON-LD-expanding verifier drops them. Add
-  `https://w3id.org/security/multikey/v1` when #5382 widens `@context` to a
-  list: a list `@context` on a profile fails core validation until then.
+  `https://w3id.org/security/multikey/v1` to the served profile in #5382: the
+  core actor's `@context` is already `JsonLdContext`, so a list is accepted.
 
 ## Encryption principles
 

@@ -111,17 +111,30 @@ def test_a_single_context_still_parses_as_one_string():
 @pytest.mark.spec("CS-08-002")
 @pytest.mark.parametrize(
     "context",
-    [[], [""], ["   "], [VULTRON_CONTEXT_URI, ""], "", [{"@vocab": "x"}]],
+    [[], [""], ["   "], [VULTRON_CONTEXT_URI, ""], ""],
     ids=[
         "empty-list",
         "blank-entry",
         "whitespace-entry",
         "one-blank-entry",
         "blank-string",
-        "inline-term-map",
     ],
 )
 def test_a_wire_object_refuses_an_empty_or_blank_context(context: Any):
+    _assert_context_refused(context)
+
+
+@pytest.mark.parametrize(
+    "context",
+    [{"@vocab": "x"}, [VULTRON_CONTEXT_URI, {"@vocab": "x"}]],
+    ids=["term-map", "term-map-entry"],
+)
+def test_a_wire_object_refuses_an_inline_context_object(context: Any):
+    """``@context`` is IRIs only; nothing Vultron reads defines terms inline."""
+    _assert_context_refused(context)
+
+
+def _assert_context_refused(context: Any) -> None:
     with pytest.raises(ValidationError) as raised:
         as_Activity.model_validate({"@context": context, "actor": ACTOR})
 
