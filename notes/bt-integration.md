@@ -261,10 +261,11 @@ nothing is written before the last one admits the message (ADR-0154).
    The seen-before door answers a resend from the message's one record, by
    its stage, and the run ends there: a receipt stub is `REFUSED` with the
    stub's reason, an archive is `SKIPPED`, a record owed a replay is
-   `SKIPPED`. A `HELD` record owing nothing passes, because runs are
-   serialized per actor and such a record was left by a run with no verdict
-   (CLP-10-074), or is the enclosing tree's record a nested tree meets. It
-   compares no bodies; ingress does (IE-10-002).
+   `SKIPPED`. A `HELD` or `HANDLED` record owing nothing passes, because runs
+   are serialized per actor and such a record was left by a run with no
+   verdict (CLP-10-074). A nested tree has no seen-before door of its own
+   (`nested=True`, CLP-10-081). It compares no bodies; ingress does
+   (IE-10-002).
 
    `CaseOpenToExternalWritesNode` (`case/nodes/post_close.py`) is the
    CM-23-013 write boundary, beside the sender guard, because whether a
@@ -540,8 +541,10 @@ nothing is written before the last one admits the message (ADR-0154).
    `failed_as_repeat` is set (`ReportsIdempotentRepeat`, the repeat a handler
    reports `SKIPPED`), on a delivery a `Diversion` among the guards took,
    which its diversion already answered (CLP-10-026), and on the re-run of a
-   record a run left in holding, which the seen-before door tells (CLP-10-044):
-   the first run may have answered, and the RSH-06-004 note's id is minted. A
+   record a run left in holding, which its `first_run` condition reads from the
+   record (CLP-10-044): the first run may have answered. The RSH-06-004 note's
+   id is derived from the CASE_MANAGER, the received activity and the note's
+   kind, so a re-run that reached the effects would record nothing twice. A
    guard that turns a
    `VultronError` into a refusal re-raises `INTERNAL_FAULTS` first
    (`vultron/errors.py`): an internal failure is never answered with a
@@ -579,8 +582,9 @@ The ratchet also checks that the factory *returns* the shared factory's result
 (`KNOWN_FACTORIES_NESTING_THE_STAGES`, empty): nesting it under a hand-built
 root runs something before the doors. A tree that needs a branch ahead of the
 receipt commit uses an outer factory with `case_id=None` (intake, no commit)
-and an inner factory per arm that commits; the inner seen-before door and
-intake find the outer intake's `HELD` record, pass, and write nothing. Intake
+and an inner factory per arm that commits, built `nested=True` so it runs no
+seen-before door or intake of its own: a second intake would read the first
+run as a re-run (ADR-0154). Intake
 records nothing when the event carries no activity, so
 a semantic-registry entry must set `include_activity=True`. An activity that
 lacks a value its tree needs to be built (a case id, a participant id) is

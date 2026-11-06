@@ -36,7 +36,6 @@ position itself names a :class:`LedgerPositionExemption` instead.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from enum import StrEnum
 from typing import Final, cast
 
@@ -55,6 +54,7 @@ from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
 from vultron.core.models.events.base import LedgerPositionedEvent
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.received_activity import began_in_an_earlier_run
 from vultron.core.sync_helpers import (
     holds_ledger_position,
     ledger_tail_position,
@@ -168,13 +168,10 @@ class ClassifyLedgerPositionNode(DataLayerActionWithPorts):
         case_id: str,
         sender_id: str,
         name: str | None = None,
-        *,
-        is_redelivery: Callable[[], bool] | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.sender_id = sender_id
-        self.redelivery_check = is_redelivery
         self.standing: PositionStanding = PositionStanding.NONE
         """The standing the last run found (for inspection)."""
 
@@ -188,14 +185,19 @@ class ClassifyLedgerPositionNode(DataLayerActionWithPorts):
         A re-run of an activity a run left in holding owes none: it keeps
         its first stamp (SYNC-18-009), which the first run may have
         answered, and answering it again would move the sender's
-        acknowledged position back and replay what was sent since.  A
-        resend never reaches this node: the seen-before door answered it
-        (ADR-0154).
+        acknowledged position back and replay what was sent since.  The
+        re-run is read from the message's record, which intake marked
+        ``HANDLED`` (ADR-0154).  A resend never reaches this node: the
+        seen-before door answered it.
         """
         activity = self.activity
         if not isinstance(activity, LedgerPositionedEvent):
             return None
-        if self.redelivery_check is not None and self.redelivery_check():
+        if began_in_an_earlier_run(
+            cast(CasePersistence, self.datalayer),
+            activity.activity_id,
+            intake_ran=True,
+        ):
             self.logger.debug(
                 "%s: activity '%s' is a redelivery; its ledger position was"
                 " answered when it first arrived (SYNC-18-002)",

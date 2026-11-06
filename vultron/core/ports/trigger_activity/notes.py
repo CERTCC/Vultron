@@ -33,8 +33,16 @@ class TriggerNotesPort(Protocol):
         context_id: str,
         attributed_to: str,
         in_reply_to: str | None = None,
+        note_id: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a Note object; return ``(note_id, note_json)``."""
+        """Create and persist a Note object; return ``(note_id, note_json)``.
+
+        *note_id*, when given, is the note's id: a note that answers a
+        received activity takes an id derived from it, so a re-run names the
+        note its first run stored and stores no second one (ID-04-004).
+        A note already stored under it is returned as stored.  Without it
+        the id is minted.
+        """
         ...
 
     def add_note_to_case(

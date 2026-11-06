@@ -281,8 +281,9 @@ class InlineObjectStaging:
         Returns ``None`` when the receiver holds nothing under
         *activity_id*.  It reads the one body-bearing record whatever stage
         that record is in, because the only caller reaches this branch when
-        no replay is owed: an archived record, or a ``HELD`` one a run left
-        with no verdict (CLP-10-074), whose body is the first delivery's
+        no replay is owed: an archived record, or a ``HELD`` or ``HANDLED``
+        one a run left with no verdict (CLP-10-074), whose body is the first
+        delivery's
         either way.  The seen-before door of the tree that copy reaches
         answers it from that stage (ADR-0154).
         """

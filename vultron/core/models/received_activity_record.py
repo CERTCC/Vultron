@@ -66,7 +66,8 @@ genuinely independent:
 
 - :attr:`stage` -- how far the message has got.  ``HELD`` is a message in
   holding: waiting, being handled, or left by a run that ended with no
-  verdict (CLP-10-074); ``ARCHIVED`` is one the receiver applied, which the
+  verdict (CLP-10-074); ``HANDLED`` is one a later run is handling again
+  from that body; ``ARCHIVED`` is one the receiver applied, which the
   outcome stage archives (CLP-10-073); ``REFUSED`` is a receipt stub, all
   that is left of a message the receiver refused (CLP-10-018).
 - :attr:`replay_owed` -- whether a replay is still owed from this record's
@@ -102,9 +103,17 @@ What reads the stage
 The seen-before door of every received tree answers a resend from this one
 record before intake runs (ADR-0154): a receipt stub is refused again with
 its reason, an archived message is skipped, and a message waiting for a
-replay is skipped with nothing re-run.  A ``HELD`` record that owes no replay
-lets the delivery through, because inbox runs are serialized per actor: a
-resend never meets a run in progress, only one that ended with no verdict.
+replay is skipped with nothing re-run.  A ``HELD`` or ``HANDLED`` record that
+owes no replay lets the delivery through, because inbox runs are serialized
+per actor: a resend never meets a run in progress, only one that ended with
+no verdict.
+
+What tells a stage after intake that its run is a re-run is the record's
+stage, ``HANDLED``, and nothing an earlier stage left in memory (ADR-0154):
+intake moves a ``HELD`` record a run left to ``HANDLED`` before any later
+stage reads it, so a crash anywhere after intake leaves a record the next
+run reads as a re-run.  A stage before intake asks whether a record owed no
+replay is already in holding (:func:`began_in_an_earlier_run`).
 """
 
 import urllib.parse
@@ -130,7 +139,17 @@ class ReceivedStage(StrEnum):
 
     - ``HELD`` -- the receiver holds the body in holding: waiting for a
       replay (:attr:`ReceivedActivityRecord.replay_owed`), or recorded by
-      intake and not yet at its outcome (CLP-10-017).
+      intake on the run that first handles it, and not yet at its outcome
+      (CLP-10-017).
+    - ``HANDLED`` -- handling began on the message in an earlier run, which
+      ended with no verdict (CLP-10-074), and a later run handles it again
+      from the held body.  Intake writes it when it meets the ``HELD``
+      record, owed no replay, that the earlier run left, so every stage after
+      intake tells a re-run from a first run by reading the record, not by
+      reading what the door saw (ADR-0154).  It never owes a replay.  It is
+      not the "handled" step of ADR-0154's lifecycle sketch: a first run's
+      record stays ``HELD`` while it is handled, and only a re-run's is
+      ``HANDLED``.
     - ``ARCHIVED`` -- the receiver applied the message, and the outcome stage
       kept its sealed body as the archive (CLP-10-073).  It never owes a
       replay.
@@ -138,20 +157,31 @@ class ReceivedStage(StrEnum):
       a receipt stub: who sent it, which message, when it arrived, why it was
       refused and the digest of the body, which is not kept (CLP-10-018).
 
-    ``HELD`` and ``ARCHIVED`` are the body-bearing stages
-    (:data:`BODY_BEARING_STAGES`); ``REFUSED`` is the one that is not.
+    ``HELD`` and ``HANDLED`` are the stages in holding
+    (:data:`HOLDING_STAGES`).  ``HELD``, ``HANDLED`` and ``ARCHIVED`` are the
+    body-bearing stages (:data:`BODY_BEARING_STAGES`); ``REFUSED`` is the one
+    that is not.
     """
 
     HELD = "held"
+    HANDLED = "handled"
     ARCHIVED = "archived"
     REFUSED = "refused"
 
 
 #: The stages whose record holds the sealed received body.  ``REFUSED`` is
 #: the only stage that does not, and a reader that needs a body asks this
-#: rather than naming the two stages itself.
+#: rather than naming the stages itself.
 BODY_BEARING_STAGES: frozenset[ReceivedStage] = frozenset(
-    {ReceivedStage.HELD, ReceivedStage.ARCHIVED}
+    {ReceivedStage.HELD, ReceivedStage.HANDLED, ReceivedStage.ARCHIVED}
+)
+
+#: The stages of a message in holding, not yet at its final outcome
+#: (ADR-0154): the outcome stage settles a record in either, a wait that ends
+#: discards one, and a reader asking "is this message still held" asks this
+#: rather than naming ``HELD`` alone.
+HOLDING_STAGES: frozenset[ReceivedStage] = frozenset(
+    {ReceivedStage.HELD, ReceivedStage.HANDLED}
 )
 
 
@@ -293,7 +323,9 @@ class ReceivedActivityRecord(CoreRecord):
 
         An ``ARCHIVED`` record is an applied message, so a replay owed from
         it would apply it again; a message still owed one has not reached
-        its outcome and stays ``HELD`` (ADR-0154).  Likewise a record that
+        its outcome and stays ``HELD`` (ADR-0154).  A ``HANDLED`` record is a
+        message a run is handling again from its body, so a replay owed from
+        it would route it a second time beside that run.  Likewise a record that
         names the case it waits on owes the replay that waiting is for.  Both
         are wiring mistakes, refused here rather than left to be discovered
         as a message applied twice or lost (ARCH-10-001).
@@ -303,6 +335,13 @@ class ReceivedActivityRecord(CoreRecord):
                 f"received activity '{self.activity_id}' is ARCHIVED and owes"
                 " a replay, but the archive holds only applied messages:"
                 " keep a message owed a replay HELD (ADR-0154)"
+            )
+        if self.stage is ReceivedStage.HANDLED and self.replay_owed:
+            raise ValueError(
+                f"received activity '{self.activity_id}' is HANDLED and owes"
+                " a replay, but HANDLED is a message a run is handling again"
+                " from its body, not one waiting: keep a message owed a"
+                " replay HELD (ADR-0154)"
             )
         if self.awaiting_case_id is not None and not self.replay_owed:
             raise ValueError(
@@ -397,6 +436,7 @@ class ReceivedActivityRecord(CoreRecord):
 
 __all__ = [
     "BODY_BEARING_STAGES",
+    "HOLDING_STAGES",
     "ReceivedActivityRecord",
     "ReceivedStage",
 ]

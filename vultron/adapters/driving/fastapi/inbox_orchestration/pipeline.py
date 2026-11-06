@@ -244,21 +244,7 @@ async def run_inbox_pipeline(
         Runs on a worker thread (see :func:`_run_serialised`), so it must not
         touch asyncio.
         """
-        outcome = process_payload(
-            payload,
-            run.ingress,
-            run.dispatch,
-            run.queue,
-            actor_config=run.actor_config,
-            dereference_port=run.dereference,
-            received_outcome_port=run.outcome,
-        )
-        logger.debug(
-            "run_inbox_pipeline: status=%s context_id=%s",
-            outcome.status,
-            outcome.context_id,
-        )
-        log_if_rejected(outcome, actor_id, replayed=False)
+        _process_one(run, payload)
 
         # Replay what this delivery, or an earlier one, queued: activities
         # pushed back by the post-bootstrap replay, and held ledger
@@ -267,6 +253,48 @@ async def run_inbox_pipeline(
 
     await _run_serialised(actor_dl, actor_id, emitter, _process_and_replay)
     await _resolve_fetches(run, emitter, fetcher)
+
+
+def _process_one(
+    run: _InboxRun, payload: dict[str, Any] | bytes | str | Any
+) -> None:
+    """Run *payload* through :func:`process_payload` once, and log it."""
+    outcome = process_payload(
+        payload,
+        run.ingress,
+        run.dispatch,
+        run.queue,
+        actor_config=run.actor_config,
+        dereference_port=run.dereference,
+        received_outcome_port=run.outcome,
+    )
+    logger.debug(
+        "inbox pipeline: status=%s context_id=%s",
+        outcome.status,
+        outcome.context_id,
+    )
+    log_if_rejected(outcome, run.actor_id, replayed=False)
+
+
+async def run_delivery_without_replay(
+    payload: dict[str, Any] | bytes | str | Any,
+    actor_dl: DataLayer,
+    actor_id: str,
+    dispatcher: ActivityDispatcher | None,
+    emitter: ActivityEmitter | None,
+) -> None:
+    """Run one delivery as :func:`run_inbox_pipeline` does, with no replay.
+
+    The same adapters, lock, worker thread and outbox drain, but neither
+    the inbox queue drain nor the open fetches follow.  For the startup
+    re-run of the records left in holding, which must all run before the
+    queue replay (IE-06-014); the queue replay that follows them drains the
+    queue and makes the fetches.
+    """
+    run = _InboxRun(actor_dl, actor_id, dispatcher)
+    await _run_serialised(
+        actor_dl, actor_id, emitter, lambda: _process_one(run, payload)
+    )
 
 
 async def _resolve_fetches(

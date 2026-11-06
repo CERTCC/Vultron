@@ -26,10 +26,7 @@ import logging
 
 from py_trees.ports import NoDataAvailable
 
-from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
-    PortInformation,
-)
+from vultron.core.behaviors.helpers import PortInformation
 from vultron.core.behaviors.note.case_manager_note import (
     CaseManagerNote,
     _CommitCaseManagerNoteBase,
@@ -63,6 +60,7 @@ class EmitRMGapNoteNode(_CommitCaseManagerNoteBase):
     """
 
     _BEST_EFFORT = True
+    _NOTE_KIND = "rm-anomaly"
 
     def __init__(
         self,
@@ -76,13 +74,16 @@ class EmitRMGapNoteNode(_CommitCaseManagerNoteBase):
         self.case_id = case_id
 
     INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
+        **_CommitCaseManagerNoteBase.INPUT_PORTS,
         BB_RM_ANOMALY: PortInformation(data_type=object, required=False),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {BB_RM_ANOMALY: f"/{BB_RM_ANOMALY}"}
+        return {
+            **super()._domain_port_remappings(),
+            BB_RM_ANOMALY: f"/{BB_RM_ANOMALY}",
+        }
 
     def initialise(self) -> None:
         super().initialise()

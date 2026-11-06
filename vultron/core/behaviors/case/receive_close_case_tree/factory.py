@@ -100,9 +100,8 @@ def create_close_case_received_tree(
         └── CloseOrDeclineIfCaseManager (CaseManagerGate)  # BT-17-008, #3825
             └── CloseOrDecline (Selector)               # close unless declined
                 ├── CloseCaseReceive (Sequence, via create_receive_activity_tree)
-                │   ├── ActivityNotSeenBeforeNode           # finds the HELD record; passes
-                │   │   (no addressee or post-close door: CloseCaseBT's ran first)
-                │   ├── IntakeReceivedActivityNode          # finds the record; no-op
+                │   │   (nested=True: no seen-before door or intake, and no
+                │   │    addressee or post-close door: CloseCaseBT's ran first)
                 │   ├── CaseManagerLeavesOnlyAsCaseOwner    # guard: CM-23-010
                 │   ├── Inverter(OwnerCloseBlockedByEmbargoCheck)  # guard: SUCCESS iff NOT declining
                 │   │   └── Sequence: CheckIsCaseOwner → ReadEmState
@@ -136,9 +135,10 @@ def create_close_case_received_tree(
     the CASE_MANAGER (CLP-10-010, CLP-10-017); the per-arm ``StoreActivityNode``
     this tree once carried duplicated it and was removed (CLP-10-019).  The
     inner ``CloseCaseReceive`` is built by the same factory because only the
-    factory supplies the guarded receipt commit; its seen-before door and its
-    intake find the outer intake's ``HELD`` record, so both pass and write
-    nothing.
+    factory supplies the guarded receipt commit.  It is built ``nested``, with
+    no seen-before door or intake of its own: the outer tree's door answered
+    the delivery and its intake recorded it, so an inner intake would meet
+    that record and read the first run as a re-run (ADR-0154).
 
     The ``CloseOrDecline`` Selector is passed as the factory's
     ``manager_effects``, so the factory wraps the whole close/decline decision
@@ -243,6 +243,8 @@ def create_close_case_received_tree(
     close_arm = create_receive_activity_tree(
         name="CloseCaseReceive",
         case_id=case_id,
+        # CloseCaseBT's doors and intake ran for this delivery (ADR-0154).
+        nested=True,
         # The decline arm answers the one refusal the close arm makes, with
         # the CM-23-011 Reject(Leave), so the factory adds no refusal notice.
         refusal_notice_exemption=OWNER_CLOSE_DECLINE,

@@ -83,6 +83,7 @@ class ReceivedActivityTree(py_trees.composites.Sequence):
         door_guards: Sequence[py_trees.behaviour.Behaviour],
         refusal_notice_exemption: RefusalNoticeExemption | None = None,
         one_act_exemption: OneActExemption | None = None,
+        nested: bool = False,
     ) -> None:
         super().__init__(name=name, memory=False, children=children)
         self.door_guards: tuple[py_trees.behaviour.Behaviour, ...] = tuple(
@@ -92,6 +93,9 @@ class ReceivedActivityTree(py_trees.composites.Sequence):
             refusal_notice_exemption
         )
         self.one_act_exemption: OneActExemption | None = one_act_exemption
+        self.nested = nested
+        """True for a tree that runs inside another received tree for the
+        same delivery, with no seen-before door or intake of its own."""
 
     @property
     def door_guards_admitted(self) -> bool:
