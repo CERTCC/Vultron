@@ -28,7 +28,6 @@ import pytest
 from test.adapters.driving.fastapi._redelivery import (
     assert_routed_as_archived_redelivery,
     faults,
-    post,
     served_store,
 )
 from test.core.use_cases.received.actor.test_role_offer_routing import (
@@ -97,7 +96,8 @@ def test_a_failed_role_offer_forward_commits_when_posted_again(
         mp.setattr(
             TriggerActivityAdapter, "offer_case_participant_role", _down
         )
-        post(client, _INBOX, body)
+        resp = client.post(_INBOX, json=body)
+        assert resp.status_code == 202, resp.text
 
     assert calls == ["forward"], "the act failed at its forward"
     assert isinstance(
@@ -114,7 +114,8 @@ def test_a_failed_role_offer_forward_commits_when_posted_again(
 
     caplog.clear()
     with caplog.at_level(logging.INFO):
-        post(client, _INBOX, body)
+        resp = client.post(_INBOX, json=body)
+        assert resp.status_code == 202, resp.text
 
     # The post met the archive: it was routed as the archived copy, so it
     # cannot have passed on the resent body's own evidence.

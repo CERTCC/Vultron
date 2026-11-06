@@ -35,7 +35,6 @@ from fastapi.testclient import TestClient
 from test.adapters.driving.fastapi._redelivery import (
     assert_routed_as_archived_redelivery,
     faults,
-    post,
     served_store,
 )
 from test.core.use_cases.received._ledger_network import (
@@ -113,7 +112,8 @@ def _held_rows(net: LedgerNetwork, actor_id: str, embargo_id: str) -> list:
 
 
 def _post(client: TestClient, body: dict[str, Any]) -> None:
-    post(client, _INBOX, body)
+    resp = client.post(_INBOX, json=body)
+    assert resp.status_code == 202, resp.text
 
 
 def _assert_answered_with_an_internal_error_fault(
