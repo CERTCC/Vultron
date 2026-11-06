@@ -5,6 +5,8 @@ created: 2026-06-25
 updated: 2026-06-25
 revision: 1
 deciders: [adh]
+partially_superseded_by:
+  - 0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md
 stakeholder_type: [project-contributor]
 ---
 

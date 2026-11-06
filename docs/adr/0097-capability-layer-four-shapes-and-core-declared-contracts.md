@@ -7,6 +7,8 @@ revision: 1
 deciders: Allen D. Householder
 consulted: Claude Opus 5
 informed: []
+partially_superseded_by:
+  - 0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md
 stakeholder_type: [project-contributor]
 partially_supersedes: 0024-coordination-agent-taxonomy.md
 ---

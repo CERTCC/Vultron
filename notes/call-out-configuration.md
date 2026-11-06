@@ -254,3 +254,16 @@ write a zero-value instance per declared port; the generic
 `AlmostAlwaysSucceed`/`AlmostAlwaysFail` used for production-only domains is as
 shape-blind as `AlwaysSucceed` and needs the same contract-honouring treatment
 on a data-producing capability.
+
+## A Backend Answers Yes, No or Error
+
+A call-out backend gives one answer: a fixed verdict (*yes*, *no*, *error*) and the
+data its capability declares for that verdict. The seam turns it into tree
+behaviour: *yes* writes the outputs and succeeds, *no* writes the refusal payload
+and fails, *error* raises so the message stays in holding (ADR-0183). Reason: a
+tree that maps every failure to "declined" makes an outage a permanent decision,
+as the case-proposal gate does today (#3446). Answer *no* only for a decision; an
+unreachable service, a rejected credential or an unconfirmed side effect is
+*error*. Never make a tree read the answer or parse a reason to choose a branch.
+An Actuator acts on one target per call, keyed on an id the tree derives, so a
+re-run repeats no side effect.
