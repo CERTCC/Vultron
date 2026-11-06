@@ -104,10 +104,12 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   `resigned`, since an edit in place leaves a stale proof that verification
   (#5386) refuses. A body read back from a sealed outbox is
   signed by the outbox (#5382), never by the test.
-- **Unsigned test bodies that reach no verifier stay unsigned**: a test that
-  calls `parse_activity` itself is a parse-edge test, since verification is an
-  ingress stage before the parser; so are placeholder held or stored bodies
-  that nothing parses, `{}` behind a stubbed ingress, and parse-refusal posts.
+- **Unsigned test bodies that reach no verifier stay unsigned**: a body
+  parsed only to test the parser (what it keeps, refuses or sets aside), since
+  verification is an ingress stage before the parser; placeholder held or
+  stored bodies that nothing parses; `{}` behind a stubbed ingress; and
+  parse-refusal posts. A body a test carries past the parse, as a reply's
+  embedded copy, an archive or a routed event, is signed.
   When verification lands (#5386), a refusal post that reaches the verifier is
   refused there before the parser, so its expected error may change.
 - **The parser sets `proof` aside** as a foreign key (MV-11-003), with one INFO

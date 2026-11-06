@@ -31,6 +31,7 @@ from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.primitives import same_actor_id
 
 _FACTORY_PATH = (
     "vultron.core.behaviors.case.nodes.lifecycle.create_commit_log_entry_tree"
@@ -77,11 +78,18 @@ _CREATE_BODY: dict[str, Any] = signed_body(
 
 
 def _signer(body: dict[str, Any], actor_id: str) -> str:
-    """The actor *body* names by id, or *actor_id* when it names none."""
+    """The actor that signs *body*: the one it names by id, as *actor_id*.
+
+    A body naming *actor_id* in another spelling (a trailing slash,
+    OID-01-006) is the same sender, so it is signed with *actor_id*'s key;
+    a body naming another actor is signed with that actor's; one naming no
+    actor by id is signed by *actor_id*.
+    """
     try:
-        return author_of(body)
+        named = author_of(body)
     except ValueError:
         return actor_id
+    return actor_id if same_actor_id(named, actor_id) else named
 
 
 def _received(

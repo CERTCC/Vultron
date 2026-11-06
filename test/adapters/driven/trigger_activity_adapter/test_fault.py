@@ -18,7 +18,7 @@ from typing import Any
 
 import pytest
 
-from test.support.signing import signed_body
+from test.support.signing import resigned, signed_body
 from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
     is_sealed,
@@ -190,7 +190,7 @@ class TestRefusalNotice:
         assert is_sealed(dl, first)
 
     def test_a_refused_activity_with_no_id_is_refused(self, adapter):
-        refused = {k: v for k, v in self._refused().items() if k != "id"}
+        refused = resigned(self._refused(), alter=lambda b: b.pop("id"))
 
         with pytest.raises(VultronActivityConstructionError):
             adapter.refusal_notice(

@@ -169,7 +169,7 @@ def test_the_case_falls_back_to_the_refused_activitys_context():
 
 
 def test_a_notice_naming_no_case_has_no_case():
-    refused = {k: v for k, v in _refused().items() if k != "context"}
+    refused = resigned(_refused(), alter=lambda b: b.pop("context", None))
 
     event = _event(_notice(refused))
 

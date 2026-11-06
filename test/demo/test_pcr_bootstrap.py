@@ -47,7 +47,8 @@ from test.demo.conftest import (
 )
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
-from test.support.signing import post_delivered, signed_body
+from test.support.received import delivered_body
+from test.support.signing import post_delivered
 from vultron.core.models.dimensions import (
     RmDimension,
 )
@@ -595,11 +596,7 @@ class TestBootstrapSequence:
         post_delivered(
             participant_tc,
             f"/api/v2/actors/{_actor_slug(actor_id)}/inbox/",
-            signed_body(
-                note_activity.model_dump(
-                    mode="json", by_alias=True, exclude_none=True
-                )
-            ),
+            delivered_body(note_activity),
         )
 
         # Assert 1: The note activity must NOT have been deferred.  What
