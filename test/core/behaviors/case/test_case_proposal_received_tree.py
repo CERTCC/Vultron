@@ -369,7 +369,7 @@ class TestEmitCreateVulnerabilityCaseNode:
 
     def _run_with_report(self) -> dict[str, Any]:
         """Run the node on a case naming a report this store holds, and return
-        the queued Create's case object."""
+        the queued Create's sealed body."""
         from vultron.core.models.report import VulnerabilityReport
 
         dl = self._dl()
@@ -388,16 +388,18 @@ class TestEmitCreateVulnerabilityCaseNode:
             )
         )
         assert self._run_node(dl, seed=False) == py_trees.common.Status.SUCCESS
-        carried = _queued_create(dl)["object"]
-        assert isinstance(carried, dict), carried
-        return carried
+        body = _queued_create(dl)
+        assert isinstance(body["object"], dict), body["object"]
+        return body
 
     @pytest.mark.spec("VM-10-004")
     @pytest.mark.spec("VM-10-005")
     def test_the_carried_case_and_reports_restate_no_context(self):
         """The case and its inlined reports are rendered inside the Create,
         so the Create's own ``@context`` applies to them (#6046)."""
-        carried = self._run_with_report()
+        body = self._run_with_report()
+        assert "@context" in body, "the Create itself carries the context"
+        carried = body["object"]
         (report,) = carried["vulnerabilityReports"]
         assert "@context" not in carried
         assert isinstance(report, dict), report
@@ -409,7 +411,7 @@ class TestEmitCreateVulnerabilityCaseNode:
         """The inlined reports sit under ``vulnerabilityReports``, the only
         spelling of the field on the wire; no snake_case key rides beside it
         (#6046)."""
-        carried = self._run_with_report()
+        carried = self._run_with_report()["object"]
         assert "vulnerability_reports" not in carried
         (report,) = carried["vulnerabilityReports"]
         assert report["id"] == "https://example.org/reports/r-001"

@@ -662,7 +662,12 @@ class TestCaseOnTheWireCarriesItsParticipants:
                 case_id=case.id_, actor=_ACTOR, context_id=case.id_, to=[_PEER]
             )
 
-        wire_case = self._sealed_case(dl, activity_id)
+        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+
+        body = read_sealed_body_dict(dl, activity_id)
+        assert body is not None
+        assert "@context" in body, "the activity itself carries the context"
+        wire_case = body["object"]
         assert "vulnerability_reports" not in wire_case
         [report] = wire_case["vulnerabilityReports"]
         assert report["id"] == report_id

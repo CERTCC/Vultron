@@ -700,8 +700,8 @@ _IC_INITIALIZED_CASE = {
     "attributedTo": CASE_OWNER_ID,
     "id": _IC_CASE_ID,
     "type": "VulnerabilityCase",
-    "vulnerability_reports": [_IC_REPORT_ID],
-    "case_participants": [
+    "vulnerabilityReports": [_IC_REPORT_ID],
+    "caseParticipants": [
         {"id": _IC_PARTICIPANT_ID, "type": "CaseParticipant"}
     ],
 }
@@ -709,8 +709,8 @@ _IC_EMPTY_CASE = {
     "attributedTo": CASE_OWNER_ID,
     "id": _IC_CASE_ID,
     "type": "VulnerabilityCase",
-    "vulnerability_reports": [_IC_REPORT_ID],
-    "case_participants": [],
+    "vulnerabilityReports": [_IC_REPORT_ID],
+    "caseParticipants": [],
 }
 
 
@@ -793,7 +793,7 @@ class TestWaitForInitializedCase:
         other_case = {
             **_IC_INITIALIZED_CASE,
             "id": "urn:uuid:test-case-ic-0002",
-            "vulnerability_reports": [other_report],
+            "vulnerabilityReports": [other_report],
         }
         # The other report's case is listed first, so a first-found read
         # would return it for _IC_REPORT_ID.

@@ -27,6 +27,7 @@ from unittest.mock import MagicMock
 from urllib.parse import unquote
 
 import pytest
+from pydantic.alias_generators import to_camel
 
 import vultron.demo.helpers.harness as harness_module
 from vultron.demo.helpers.harness import (
@@ -484,25 +485,35 @@ class TestDecidingRole:
                     "vendor-after-answer", "report-fix-ready", by=VENDOR
                 )
 
-    def test_a_snake_case_key_is_not_read(self, _devlogs) -> None:
+    @pytest.mark.parametrize(
+        ("snake", "match"),
+        [
+            ("vulnerability_reports", "has no list of reports"),
+            ("actor_participant_index", "has no participant index"),
+            ("case_roles", "has no list of case roles"),
+            ("attributed_to", "are by \\[None\\]"),
+        ],
+    )
+    def test_a_snake_case_key_is_not_read(
+        self, _devlogs, snake: str, match: str
+    ) -> None:
         """The store serves AS2 names only, so a snake_case key names no
         field and the step fails as for a missing one (#6046)."""
+        camel = to_camel(snake)
+        # An inline report with no id, so its author is read from it alone.
+        report: dict[str, object] = {"attributedTo": REPORTER}
+        case: dict[str, object] = {
+            "actorParticipantIndex": {VENDOR: "urn:participant:vendor"},
+            "vulnerabilityReports": [report],
+        }
+        participant: dict[str, object] = {"caseRoles": ["vendor"]}
+        for record in (case, participant, report):
+            if camel in record:
+                record[snake] = record.pop(camel)
         client = _CaseActorStore(
-            records={
-                "urn:case": {
-                    "actorParticipantIndex": {
-                        VENDOR: "urn:participant:vendor"
-                    },
-                    "vulnerability_reports": [
-                        {"id": "urn:report", "attributedTo": REPORTER}
-                    ],
-                },
-                "urn:participant:vendor": {"caseRoles": ["vendor"]},
-            }
+            records={"urn:case": case, "urn:participant:vendor": participant}
         )
-        with pytest.raises(
-            DemoScenarioStepError, match="has no list of reports"
-        ):
+        with pytest.raises(DemoScenarioStepError, match=match):
             self._run(client)
 
     def test_an_inline_report_without_an_author_is_read_by_id(

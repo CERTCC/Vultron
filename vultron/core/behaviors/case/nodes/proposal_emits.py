@@ -282,9 +282,10 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
             updates["embargo_register"] = carry_embargo_inline(
                 raw_case.embargo_register, embargo
             )
-        # Inline the full reports so the owner stores them (AKM-02-004,
-        # ISSUE-2134).  They ride on the copy, so the Create renders as one
-        # object graph: under ``vulnerabilityReports``, with no ``@context``
+        # Carry the full reports inline (AKM-02-004, ISSUE-2134).  The owner
+        # holds the report it proposed, so its extractor keeps only the ids.
+        # The reports ride on the copy, so the Create renders as one object
+        # graph: under ``vulnerabilityReports``, with no ``@context``
         # restated below the Create's own (VM-10-005, #6046).
         updates["vulnerability_reports"] = [
             self._inline_report(raw_case.id_, ref)
