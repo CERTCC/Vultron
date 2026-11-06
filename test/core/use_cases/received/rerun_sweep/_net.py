@@ -18,6 +18,7 @@ from typing import Any
 
 from test.support.received import received_event
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.wire.as2.parser import parse_activity
 
 from .._ledger_network import MANAGER, LedgerNetwork
@@ -32,6 +33,12 @@ def event_for(net: LedgerNetwork, activity: Any, *, to: str = MANAGER) -> Any:
     )
 
 
+def send_applied(net: LedgerNetwork, activity: Any) -> None:
+    """Deliver *activity* to the CASE_MANAGER as set-up; require it applied."""
+    verdict = net.receive_event(MANAGER, deliver(net, activity).event)
+    assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
+
+
 def deliver(
     net: LedgerNetwork, activity: Any, *, to: str = MANAGER, **kwargs: Any
 ) -> Scenario:
@@ -41,4 +48,4 @@ def deliver(
     )
 
 
-__all__ = ["deliver", "event_for"]
+__all__ = ["deliver", "event_for", "send_applied"]

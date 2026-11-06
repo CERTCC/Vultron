@@ -53,7 +53,7 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from .._ledger_network import MANAGER, LedgerNetwork
 from ..conftest import seed_inert_invitee
 from . import Scenario, applied, refused
-from ._net import deliver
+from ._net import deliver, send_applied
 
 _BASE = "https://example.org/cases/rerun-sweep-invite"
 
@@ -91,15 +91,10 @@ def _at_joiner(net: LedgerNetwork, activity_id: str) -> Any:
     )
 
 
-def _send(net: LedgerNetwork, activity: Any) -> None:
-    verdict = net.receive_event(MANAGER, deliver(net, activity).event)
-    assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
-
-
 def _joined(name: str) -> tuple[LedgerNetwork, as_Invite]:
     """JOINER accepted the stub Invite; returns the full-case Invite sent."""
     net, stub = _invited(name)
-    _send(
+    send_applied(
         net,
         rm_accept_invite_to_case_activity(stub, actor=JOINER, to=[MANAGER]),
     )

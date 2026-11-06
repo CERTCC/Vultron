@@ -24,7 +24,6 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.ownership_offer import ownership_offer_id
 from vultron.core.services.received_activity import held_received_record
 from vultron.wire.as2.factories import (
@@ -41,7 +40,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 from .._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 from . import Scenario, applied, refused
-from ._net import deliver
+from ._net import deliver, send_applied
 
 _BASE = "https://example.org/cases/rerun-sweep-ownership"
 
@@ -64,18 +63,12 @@ def _proposal(net: LedgerNetwork) -> Any:
     )
 
 
-def _send(net: LedgerNetwork, activity: Any) -> None:
-    """Deliver *activity* to the CASE_MANAGER and require it applied."""
-    verdict = net.receive_event(MANAGER, deliver(net, activity).event)
-    assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
-
-
 def _offered(name: str) -> tuple[LedgerNetwork, Any, Any]:
     """The network after the CASE_MANAGER made its Offer, the proposal and
     the Offer."""
     net = _network(name)
     proposal = _proposal(net)
-    _send(net, proposal)
+    send_applied(net, proposal)
     offer = net.stores[MANAGER].read(
         ownership_offer_id(MANAGER, net.case_id, proposal.id_, OWNER)
     )
@@ -156,7 +149,7 @@ def accept_ownership_transfer() -> Scenario:
 def accept_ownership_transfer_after_reject() -> Scenario:
     """An Accept of an Offer its transferee already rejected: refused."""
     net, _, offer = _offered("accept-refused")
-    _send(
+    send_applied(
         net,
         reject_case_ownership_transfer_activity(
             cast(Any, offer), actor=BYSTANDER, to=[MANAGER]
@@ -186,7 +179,7 @@ def reject_ownership_transfer() -> Scenario:
 def reject_ownership_transfer_after_accept() -> Scenario:
     """A Reject of an Offer its transferee already accepted: refused."""
     net, _, offer = _offered("reject-refused")
-    _send(
+    send_applied(
         net,
         accept_case_ownership_transfer_activity(
             cast(Any, offer), actor=BYSTANDER, to=[MANAGER]
@@ -216,7 +209,7 @@ def undo_ownership_transfer() -> Scenario:
 def undo_ownership_transfer_after_reject() -> Scenario:
     """A withdrawal of an Offer already rejected: refused with a notice."""
     net, proposal, offer = _offered("undo-refused")
-    _send(
+    send_applied(
         net,
         reject_case_ownership_transfer_activity(
             cast(Any, offer), actor=BYSTANDER, to=[MANAGER]

@@ -72,6 +72,9 @@ from vultron.core.behaviors.case.nodes.suggest_actor import (
     SeatRecordedInviteeNode,
     SuggestedActorIsInvitableNode,
 )
+from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
+    offer_case_participant_id,
+)
 from vultron.core.behaviors.case.receive_activity_tree import received_stages
 from vultron.core.behaviors.case.suggest_actor_tree import (
     ActorAlreadyParticipantNode,
@@ -113,6 +116,7 @@ _REC_ID = "https://example.org/recommendations/rec-1"
 _RECOMMENDER = "https://example.org/actors/recommender"
 _RECOMMENDED = "https://example.org/actors/recommended"
 _CASE_ID = "https://example.org/cases/case-1"
+_RECOMMENDATION = "https://example.org/activities/recommendation-1"
 _SENDER = "https://example.org/actors/sender"
 _OFFER_RULE = OfferCaseParticipantReceivedUseCase.sender_entitlement
 _RECOMMEND_RULE = OfferActorToCaseReceivedUseCase.sender_entitlement
@@ -875,11 +879,14 @@ _OFFER_SNAPSHOT = {
 }
 
 
-def _ledger(*rows: tuple[str, dict]) -> SqliteDataLayer:
+def _ledger(
+    *rows: tuple[str, dict], object_ids: dict[int, str] | None = None
+) -> SqliteDataLayer:
     """A store whose ledger holds *rows* of (semantic_type, snapshot), in order.
 
     Each entry is keyed by its own activity id, as the CASE_MANAGER commits a
-    request it sends (ADR-0119), never by the actor the request concerns.
+    request it sends (ADR-0119), never by the actor the request concerns;
+    *object_ids* names the id of an entry, by its index.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR_ID)
     prev = _ZERO_HASH
@@ -888,7 +895,9 @@ def _ledger(*rows: tuple[str, dict]) -> SqliteDataLayer:
             HashChainLedgerRecord(
                 case_id=_CASE_ID,
                 log_index=index,
-                object_id=f"https://example.org/activities/a-{index}",
+                object_id=(object_ids or {}).get(
+                    index, f"https://example.org/activities/a-{index}"
+                ),
                 semantic_type=semantic_type,
                 payload_snapshot=snapshot,
                 prev_log_hash=prev,
@@ -941,7 +950,7 @@ class TestPendingRequestLookup:
         py_trees.blackboard.Blackboard.storage.clear()
 
     def _run(self, node_type, dl) -> Status:
-        node = node_type(recommended_id=_RECOMMENDED, case_id=_CASE_ID)
+        node = _lookup_node(node_type)
         _make_node_with_datalayer(node, dl)
         status = cast(Status, node.update())
         dl.close()
@@ -1003,8 +1012,35 @@ class TestPendingRequestLookup:
     def test_failure_when_datalayer_not_available(
         self, node_type, request_type, snapshot, reply
     ):
-        node = node_type(recommended_id=_RECOMMENDED, case_id=_CASE_ID)
+        node = _lookup_node(node_type)
         assert node.update() == Status.FAILURE
+
+
+def _lookup_node(node_type):
+    if node_type is PendingOfferCaseParticipantNode:
+        return node_type(
+            recommended_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+            recommendation_id=_RECOMMENDATION,
+        )
+    return node_type(recommended_id=_RECOMMENDED, case_id=_CASE_ID)
+
+
+@pytest.mark.spec("CM-16-008")
+def test_the_offer_this_recommendation_forwarded_is_not_its_duplicate():
+    """A re-run finds the Offer its first run forwarded, and is not answered
+    as a duplicate of it (ADR-0154)."""
+    own = offer_case_participant_id(_ACTOR_ID, _CASE_ID, _RECOMMENDATION)
+    dl = _ledger(
+        ("offer_case_participant", _OFFER_SNAPSHOT), object_ids={0: own}
+    )
+    node = _lookup_node(PendingOfferCaseParticipantNode)
+    _make_node_with_datalayer(node, dl)
+    try:
+        assert node.update() == Status.FAILURE
+    finally:
+        dl.close()
+        py_trees.blackboard.Blackboard.storage.clear()
 
 
 class TestDuplicateDetectionTreeStructure:

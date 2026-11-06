@@ -45,11 +45,12 @@ class ActivityNotYetLedgeredNode(
     """Guard: the case ledger does not already record the received activity.
 
     SUCCESS when no entry of *case_id*'s ledger names the received activity
-    (``/activity``).  FAILURE, read by the handler as ``SKIPPED``, when one
-    does: the activity was applied, so nothing downstream runs, no refusal
-    effect answers it, and no second entry is committed (CLP-13-001,
-    CLP-05-006, HP-01-014).  Read-only, so it runs among the precondition
-    guards, ahead of the guards that judge the activity against the case.
+    (``/activity``), found by its id as every repeat is (ID-02-001).
+    FAILURE, read by the handler as ``SKIPPED``, when one does: the activity
+    was applied, so nothing downstream runs, no refusal effect answers it,
+    and no second entry is committed (CLP-13-001, CLP-05-006, HP-01-014).
+    Read-only, so it runs among the precondition guards, ahead of the guards
+    that judge the activity against the case.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {

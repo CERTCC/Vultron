@@ -69,6 +69,8 @@ from vultron.core.services.received_holding import (
     release_from_holding,
 )
 from vultron.core.services.sender_sequence_order import (
+    SequenceStanding,
+    classify_sender_sequence,
     end_case_sender_sequence_holds,
 )
 from vultron.core.states.participant_embargo_consent import (
@@ -698,6 +700,41 @@ def test_a_repeat_is_found_by_id_before_its_number() -> None:
         assert_no_refusal_notice(
             net.stores[MANAGER], manager=MANAGER, refused_id=body["id"]
         )
+
+
+@pytest.mark.spec("SYNC-21-018")
+@pytest.mark.spec("CLP-05-006")
+@pytest.mark.parametrize(
+    ("ledgered", "last_judged", "redelivery", "expected"),
+    [
+        # Judged before: a repeat, record or no record (ADR-0154).
+        (False, True, False, SequenceStanding.JUDGED_REPEAT),
+        (True, False, False, SequenceStanding.JUDGED_REPEAT),
+        (True, False, True, SequenceStanding.JUDGED_REPEAT),
+        # Never judged: late on a first delivery, refused again on a repeat.
+        (False, False, False, SequenceStanding.LATE),
+        (False, False, True, SequenceStanding.REPEAT_REFUSED),
+    ],
+)
+def test_a_past_number_is_found_by_its_id_first(
+    ledgered: bool,
+    last_judged: bool,
+    redelivery: bool,
+    expected: SequenceStanding,
+) -> None:
+    activity_id = "urn:uuid:sender-sequence-past"
+    order = SenderSequenceOrder(
+        case_id="https://example.org/cases/sender-sequence-past",
+        sender_id=OWNER,
+        next_expected=3,
+        last_judged_id=activity_id if last_judged else "urn:uuid:other",
+    )
+
+    standing = classify_sender_sequence(
+        order, 1, activity_id, redelivery=redelivery, ledgered=ledgered
+    )
+
+    assert standing is expected
 
 
 @pytest.mark.spec("SYNC-21-018")

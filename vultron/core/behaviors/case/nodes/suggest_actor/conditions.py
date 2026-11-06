@@ -35,7 +35,9 @@ Node classes:
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.invite_actor_emit import INVITE_ID_KIND
+from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
+    offer_case_participant_id,
+)
 from vultron.core.behaviors.case.nodes.suggest_actor.pending_request import (
     invitee,
     offered_participant_actor,
@@ -53,7 +55,6 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
 )
-from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
@@ -62,6 +63,7 @@ from vultron.core.models.protocol_pair import (
     OFFER_CASE_PARTICIPANT_REPLY_TYPES,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.errors import VultronWiringError
 
 
 class ActorAlreadyParticipantNode(DataLayerActionWithPorts):
@@ -353,37 +355,7 @@ def case_manager_admits_suggested_actor_guard(
     )
 
 
-class _PendingRequestNode(DataLayerActionWithPorts):
-    """A duplicate-recommendation check for a request about one actor.
-
-    *recommendation_id* is the received ``Offer(Actor)`` being handled; the
-    request it sends itself takes an id derived from it (ID-04-004), which
-    :meth:`_own_request_id` names so the check does not count it.
-    """
-
-    def __init__(
-        self,
-        recommended_id: str,
-        case_id: str,
-        name: str | None = None,
-        *,
-        recommendation_id: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.recommended_id = recommended_id
-        self.case_id = case_id
-        self.recommendation_id = recommendation_id
-
-    def _own_request_id(self, kind: str) -> str | None:
-        """The id of the *kind* request this recommendation sends, if known."""
-        if self.recommendation_id is None or self.actor_id is None:
-            return None
-        return derived_activity_id(
-            kind, self.actor_id, self.case_id, self.recommendation_id
-        )
-
-
-class InviteInFlightNode(_PendingRequestNode):
+class InviteInFlightNode(DataLayerActionWithPorts):
     """Return SUCCESS if an Invite to the recommended actor is in-flight.
 
     Finds the latest ``invite_actor_to_case`` entry inviting
@@ -393,11 +365,17 @@ class InviteInFlightNode(_PendingRequestNode):
 
     Used as the second arm of the duplicate-detection Selector in
     :func:`~vultron.core.behaviors.case.suggest_actor_tree.create_recommend_actor_to_case_received_tree`.
-
-    With *recommendation_id*, the Invite this recommendation itself sends
-    (its id derived from it) is not counted, so a re-run from holding
-    answers as its first run did (ADR-0154).
     """
+
+    def __init__(
+        self,
+        recommended_id: str,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.recommended_id = recommended_id
+        self.case_id = case_id
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -410,7 +388,6 @@ class InviteInFlightNode(_PendingRequestNode):
             MessageSemantics.INVITE_ACTOR_TO_CASE.value,
             INVITE_ACTOR_TO_CASE_REPLY_TYPES,
             invitee,
-            own_request_id=self._own_request_id(INVITE_ID_KIND),
         ):
             self.logger.info(
                 "%s: Invite to '%s' is in-flight for case '%s'",
@@ -422,7 +399,7 @@ class InviteInFlightNode(_PendingRequestNode):
         return Status.FAILURE
 
 
-class PendingOfferCaseParticipantNode(_PendingRequestNode):
+class PendingOfferCaseParticipantNode(DataLayerActionWithPorts):
     """Return SUCCESS if an Offer(CaseParticipant) to the Case Owner is pending.
 
     Finds the latest ``offer_case_participant`` entry whose participant
@@ -434,11 +411,38 @@ class PendingOfferCaseParticipantNode(_PendingRequestNode):
     Used as the third arm of the duplicate-detection Selector in
     :func:`~vultron.core.behaviors.case.suggest_actor_tree.create_recommend_actor_to_case_received_tree`.
 
-    With *recommendation_id*, the Offer this recommendation itself forwards
-    (its id derived from it) is not counted, so a re-run from holding
-    forwards nothing new and writes no duplicate note its first run never
-    wrote (ADR-0154).
+    The Offer this recommendation (*recommendation_id*) forwards itself is
+    not counted: its id derives from the recommendation, so a re-run from
+    holding finds it, and must forward nothing new and write no duplicate
+    note its first run never wrote (ADR-0154).
     """
+
+    def __init__(
+        self,
+        recommended_id: str,
+        case_id: str,
+        recommendation_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.recommended_id = recommended_id
+        self.case_id = case_id
+        self.recommendation_id = recommendation_id
+
+    def _own_offer_id(self) -> str:
+        """The id of the Offer this recommendation forwards itself.
+
+        Raises:
+            VultronWiringError: the node runs with no executing actor.
+        """
+        if self.actor_id is None:
+            raise VultronWiringError(
+                f"{self.name}: no executing actor to derive the forwarded"
+                " Offer(CaseParticipant) id from"
+            )
+        return offer_case_participant_id(
+            self.actor_id, self.case_id, self.recommendation_id
+        )
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -451,9 +455,7 @@ class PendingOfferCaseParticipantNode(_PendingRequestNode):
             MessageSemantics.OFFER_CASE_PARTICIPANT.value,
             OFFER_CASE_PARTICIPANT_REPLY_TYPES,
             offered_participant_actor,
-            own_request_id=self._own_request_id(
-                MessageSemantics.OFFER_CASE_PARTICIPANT.value
-            ),
+            own_request_id=self._own_offer_id(),
         ):
             self.logger.info(
                 "%s: Offer(CaseParticipant) for '%s' is pending Case Owner "
