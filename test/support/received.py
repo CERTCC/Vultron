@@ -288,8 +288,13 @@ def delivered_body(
     so an inline ``CaseProposal`` loses the ``object``/``target`` a receiver
     requires and the body no longer parses.
     """
-    return stamped(activity, at=at).model_dump(
-        mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
+    return signed_body(
+        stamped(activity, at=at).model_dump(
+            mode="json",
+            by_alias=True,
+            exclude_none=True,
+            serialize_as_any=True,
+        )
     )
 
 
@@ -475,7 +480,7 @@ def body_of(activity: Any) -> str:
     """
     if isinstance(activity, as_Activity):
         evidence = parse_activity(
-            signed_body(delivered_body(activity))
+            delivered_body(activity)
         ).received_evidence_json
         assert evidence is not None
         return evidence
@@ -568,7 +573,7 @@ def hold_deferred(
     body is signed by its author, as :func:`body_of` signs an archived one,
     so a signed resend matches the held body (IE-10-001).
     """
-    parsed = parse_activity(signed_body(delivered_body(activity)))
+    parsed = parse_activity(delivered_body(activity))
     staging = InlineObjectStaging(dl)
     staging.rehydrate_parsed(parsed)
     staging.hold_for_replay(parsed.id_, awaiting_case_id=awaiting_case_id)

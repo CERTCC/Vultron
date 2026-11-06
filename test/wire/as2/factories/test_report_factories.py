@@ -40,6 +40,7 @@ from vultron.wire.as2.factories import (
     rm_validate_report_activity,
 )
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.signing import DATA_INTEGRITY_CONTEXT
 from vultron.wire.as2.vocab.base.base import (
     ACTIVITY_STREAMS_NS,
     VULTRON_CONTEXT_URI,
@@ -492,7 +493,13 @@ def test_response_round_trips_through_the_as2_parser(
     """A response's delivered body is AS2 that the inbound parser accepts."""
     body = delivered_body(factory(offer=sample_offer, actor=sample_actor))
 
-    # AS2 first, so a plain-JSON AS2 receiver recognizes it (VM-10-001).
-    assert body["@context"] == [ACTIVITY_STREAMS_NS, VULTRON_CONTEXT_URI]
+    # AS2 first, so a plain-JSON AS2 receiver recognizes it (VM-10-001); the
+    # body is signed, so it also cites the Data Integrity context its proof
+    # is defined in (SIG-01-002).
+    assert body["@context"] == [
+        ACTIVITY_STREAMS_NS,
+        VULTRON_CONTEXT_URI,
+        DATA_INTEGRITY_CONTEXT,
+    ]
     assert body["type"] == wire_type
     assert isinstance(parse_activity(body), cls)

@@ -31,6 +31,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from test.support.emitter import RecordingEmitter
+from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
@@ -256,8 +257,10 @@ def test_the_inbox_a_hosted_profile_states_accepts_post(
         f"/actors/{_ACTOR_UUID}"
     )
     path = urlparse(stated).path.removeprefix(base_path)
-    payload = as_Activity(actor=_ACTOR_ID).model_dump(
-        by_alias=True, exclude_none=True, mode="json"
+    payload = signed_body(
+        as_Activity(actor=_ACTOR_ID).model_dump(
+            by_alias=True, exclude_none=True, mode="json"
+        )
     )
 
     resp = inbox_client.post(path, json=payload)
@@ -310,8 +313,8 @@ def test_derived_inbox_path_matches_fastapi_route(
 
     # POST a minimal activity to the derived inbox path.
     activity = as_Activity(actor=_ACTOR_ID)
-    payload = activity.model_dump(
-        by_alias=True, exclude_none=True, mode="json"
+    payload = signed_body(
+        activity.model_dump(by_alias=True, exclude_none=True, mode="json")
     )
 
     resp = inbox_client.post(path_relative_to_app_v2, json=payload)

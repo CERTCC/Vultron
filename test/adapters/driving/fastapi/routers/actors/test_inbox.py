@@ -23,6 +23,7 @@ tests are in ``test/adapters/driving/fastapi/test_inbox_staging.py``.
 import pytest
 from fastapi import HTTPException
 
+from test.support.signing import signed_body
 from vultron.adapters.driving.fastapi.routers.actors._inbox import (
     _activity_addressed_to,
     _collect_addresses,
@@ -46,7 +47,9 @@ def test_parse_activity_returns_typed_activity_for_valid_body():
         actor=_ACTOR_URI,
         object_=note,
     )
-    body = create.model_dump(mode="json", by_alias=True, exclude_none=True)
+    body = signed_body(
+        create.model_dump(mode="json", by_alias=True, exclude_none=True)
+    )
     result = parse_activity(body)
     assert isinstance(result, as_Create)
 
