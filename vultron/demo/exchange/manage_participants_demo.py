@@ -105,7 +105,7 @@ def _setup_case_with_vendor(
     2. Vendor validates the report
     3. Vendor creates the case through the ``create-case`` trigger, which
        seats it as Vendor, Case Owner and CASE_MANAGER (CM-02-014,
-       CM-02-015): a case is never without a CASE_MANAGER (CM-24-006), and
+       CM-02-015): a case is never without a CASE_MANAGER (CM-02-014), and
        the removal and reinstatement in the accept path are the Case Owner's
        requests to it
     4. Report is linked to the case
@@ -171,8 +171,9 @@ def demo_manage_participants_accept(
 
     case = _setup_case_with_vendor(client, reporter, vendor)
 
-    # Bound before the step so later steps can read it (#2308 ratchet).
-    coordinator_participant = None
+    # Every later step acts on the participant record this step seats, so
+    # they all nest inside it rather than reading a None sentinel after it
+    # (ADR-0058, #3038).
     with demo_step(
         "Steps 2-3: Vendor invites coordinator; coordinator accepts and joins"
     ):
@@ -205,147 +206,168 @@ def demo_manage_participants_accept(
                     f" Index: {updated_case.actor_participant_index}"
                 )
 
-    with demo_step(
-        "Step 4: Coordinator adds an as_ParticipantStatus to their participant"
-    ):
-        # The Add carries the new status inline: this implementation does not
-        # support a separate Create(ParticipantStatus) (#4598).
-        participant_status = as_ParticipantStatus(
-            context=case.id_,
-            rm=RmDimension(state=RM.ACCEPTED),
-            attributed_to=coordinator.id_,
-            cvd_role=[CVDRole.COORDINATOR],
-        )
-        add_status = add_status_to_participant_activity(
-            participant_status,
-            actor=coordinator.id_,
-            target=coordinator_participant.id_,
-            to=[vendor.id_],
-        )
-        # A participant sends its status to the CASE_MANAGER alone
-        # (PCR-08-001); the vendor holds that role here, and a replica
-        # refuses an Add(ParticipantStatus) from anyone else (PCR-03-001).
-        post_to_inbox_and_wait(client, vendor.id_, add_status)
-        with demo_check("ParticipantStatus appended to participant"):
-            verify_participant_status_appended(
-                client, case.id_, coordinator.id_, participant_status.id_
-            )
-        with demo_check("Case state after status update"):
-            log_case_state(
-                client, case.id_, "after AddStatusToParticipantActivity"
-            )
-
-    # Bound before the step so Step 6 can read it (#2308 ratchet).
-    remove_participant = None
-    with demo_step("Step 5: Vendor, as Case Owner, removes coordinator"):
-        # The Case Owner's request to the CASE_MANAGER (CM-31-004).  The
-        # vendor holds both roles here, so it posts to its own inbox.
-        remove_participant = remove_participant_from_case_activity(
-            coordinator_participant, actor=vendor.id_, target=case.id_
-        )
-        post_to_inbox_and_wait(client, vendor.id_, remove_participant)
-
-    # Single-use removal checks, inline for now; extract them into
-    # helpers/verification/ when a second scenario removes a participant
-    # (DEMOMA-17-001).
-    with demo_step("Step 6: Verify coordinator record is kept and inert"):
-        with demo_check("Coordinator still on the case roster (CM-31-015)"):
-            final_case = log_case_state(
-                client, case.id_, "after RemoveParticipantFromCaseActivity"
-            )
-            if final_case is None:
-                raise ValueError("Could not retrieve case after remove")
-            participant_ids = [
-                (ref_id(p) or str(p)) for p in final_case.case_participants
-            ]
-            if coordinator_participant.id_ not in participant_ids:
-                raise ValueError(
-                    f"Coordinator participant '{coordinator_participant.id_}'"
-                    " was deleted by the removal; it must stay on the roster."
-                    f" Participants: {participant_ids}"
-                )
-            if (
-                final_case.actor_participant_index.get(coordinator.id_)
-                != coordinator_participant.id_
-            ):
-                raise ValueError(
-                    f"Coordinator actor '{coordinator.id_}' left the"
-                    " actor_participant_index after removal."
-                    f" Index: {final_case.actor_participant_index}"
-                )
-        with demo_check("Coordinator record carries the removal fact"):
-            record = client.get(client.dl_path(coordinator_participant.id_))
-            if record.get("removalActivity") != remove_participant.id_:
-                raise ValueError(
-                    f"Coordinator participant '{coordinator_participant.id_}'"
-                    " does not record the removal: removalActivity="
-                    f"{record.get('removalActivity')!r}, expected"
-                    f" '{remove_participant.id_}'"
-                )
-            logger.info(
-                "✓ Coordinator removed from active participation;"
-                " its record stays on the case"
-            )
-        with demo_check("CASE_MANAGER sent the coordinator a removal notice"):
-            # The vendor is the CASE_MANAGER, so its store holds the notice it
-            # sent (CM-31-006); the owner's request is not the notice.
-            stored = client.get(client.dl_path("Removes/")) or {}
-            notices = [
-                notice
-                for notice in stored.values()
-                if notice.get("id") != remove_participant.id_
-                and ref_id(notice.get("object_"))
-                == coordinator_participant.id_
-                and coordinator.id_ in (notice.get("to") or [])
-            ]
-            if len(notices) != 1:
-                raise ValueError(
-                    "Expected one Remove(CaseParticipant) notice to the"
-                    f" coordinator, found {len(notices)}"
-                )
-
-    # Bound before the step so Step 8 can read it (#2308 ratchet).
-    reinstate_participant = None
-    with demo_step("Step 7: Vendor, as Case Owner, reinstates coordinator"):
-        # The Case Owner's request to the CASE_MANAGER (CM-31-011): the
-        # removed coordinator is reinstated without accepting again.
-        reinstate_participant = add_participant_to_case_activity(
-            coordinator_participant, actor=vendor.id_, target=case.id_
-        )
-        post_to_inbox_and_wait(client, vendor.id_, reinstate_participant)
-
-    # Single-use reinstatement checks, inline for now; extract them into
-    # helpers/verification/ when a second scenario reinstates a
-    # participant (DEMOMA-17-001).
-    with demo_step("Step 8: Verify coordinator is active again"):
-        with demo_check("Coordinator record no longer carries a removal"):
-            record = client.get(client.dl_path(coordinator_participant.id_))
-            if record.get("removalActivity") is not None:
-                raise ValueError(
-                    f"Coordinator participant '{coordinator_participant.id_}'"
-                    " still records a removal after reinstatement:"
-                    f" removalActivity={record.get('removalActivity')!r}"
-                )
-        with demo_check(
-            "CASE_MANAGER sent the coordinator a reinstatement notice"
+        with demo_step(
+            "Step 4: Coordinator adds an as_ParticipantStatus to their"
+            " participant"
         ):
-            stored = client.get(client.dl_path("Adds/")) or {}
-            notices = [
-                notice
-                for notice in stored.values()
-                if notice.get("id") != reinstate_participant.id_
-                and ref_id(notice.get("object_"))
-                == coordinator_participant.id_
-                and coordinator.id_ in (notice.get("to") or [])
-            ]
-            if len(notices) != 1:
-                raise ValueError(
-                    "Expected one Add(CaseParticipant) notice to the"
-                    f" coordinator, found {len(notices)}"
-                )
-            logger.info(
-                "✓ Coordinator reinstated; it did not accept again (CM-31-035)"
+            # The Add carries the new status inline: this implementation does
+            # not support a separate Create(ParticipantStatus) (#4598).
+            participant_status = as_ParticipantStatus(
+                context=case.id_,
+                rm=RmDimension(state=RM.ACCEPTED),
+                attributed_to=coordinator.id_,
+                cvd_role=[CVDRole.COORDINATOR],
             )
+            add_status = add_status_to_participant_activity(
+                participant_status,
+                actor=coordinator.id_,
+                target=coordinator_participant.id_,
+                to=[vendor.id_],
+            )
+            # A participant sends its status to the CASE_MANAGER alone
+            # (PCR-08-001); the vendor holds that role here, and a replica
+            # refuses an Add(ParticipantStatus) from anyone else (PCR-03-001).
+            post_to_inbox_and_wait(client, vendor.id_, add_status)
+            with demo_check("ParticipantStatus appended to participant"):
+                verify_participant_status_appended(
+                    client, case.id_, coordinator.id_, participant_status.id_
+                )
+            with demo_check("Case state after status update"):
+                log_case_state(
+                    client, case.id_, "after AddStatusToParticipantActivity"
+                )
+
+        with demo_step("Step 5: Vendor, as Case Owner, removes coordinator"):
+            # The Case Owner's request to the CASE_MANAGER (CM-31-004).  The
+            # vendor holds both roles here, so it posts to its own inbox.
+            remove_participant = remove_participant_from_case_activity(
+                coordinator_participant, actor=vendor.id_, target=case.id_
+            )
+            post_to_inbox_and_wait(client, vendor.id_, remove_participant)
+
+            # Single-use removal checks, inline for now; extract them into
+            # helpers/verification/ when a second scenario removes a
+            # participant (DEMOMA-17-001).
+            with demo_step(
+                "Step 6: Verify coordinator record is kept and inert"
+            ):
+                with demo_check(
+                    "Coordinator still on the case roster (CM-31-015)"
+                ):
+                    final_case = log_case_state(
+                        client,
+                        case.id_,
+                        "after RemoveParticipantFromCaseActivity",
+                    )
+                    if final_case is None:
+                        raise ValueError(
+                            "Could not retrieve case after remove"
+                        )
+                    participant_ids = [
+                        (ref_id(p) or str(p))
+                        for p in final_case.case_participants
+                    ]
+                    if coordinator_participant.id_ not in participant_ids:
+                        raise ValueError(
+                            "Coordinator participant"
+                            f" '{coordinator_participant.id_}' was deleted by"
+                            " the removal; it must stay on the roster."
+                            f" Participants: {participant_ids}"
+                        )
+                    if (
+                        final_case.actor_participant_index.get(coordinator.id_)
+                        != coordinator_participant.id_
+                    ):
+                        raise ValueError(
+                            f"Coordinator actor '{coordinator.id_}' left the"
+                            " actor_participant_index after removal."
+                            f" Index: {final_case.actor_participant_index}"
+                        )
+                with demo_check("Coordinator record carries the removal fact"):
+                    record = client.get(
+                        client.dl_path(coordinator_participant.id_)
+                    )
+                    if record.get("removalActivity") != remove_participant.id_:
+                        raise ValueError(
+                            "Coordinator participant"
+                            f" '{coordinator_participant.id_}' does not record"
+                            " the removal: removalActivity="
+                            f"{record.get('removalActivity')!r}, expected"
+                            f" '{remove_participant.id_}'"
+                        )
+                    logger.info(
+                        "✓ Coordinator removed from active participation;"
+                        " its record stays on the case"
+                    )
+                with demo_check(
+                    "CASE_MANAGER sent the coordinator a removal notice"
+                ):
+                    # The vendor is the CASE_MANAGER, so its store holds the
+                    # notice it sent (CM-31-006); the owner's request is not
+                    # the notice.
+                    stored = client.get(client.dl_path("Removes/")) or {}
+                    notices = [
+                        notice
+                        for notice in stored.values()
+                        if notice.get("id") != remove_participant.id_
+                        and ref_id(notice.get("object_"))
+                        == coordinator_participant.id_
+                        and coordinator.id_ in (notice.get("to") or [])
+                    ]
+                    if len(notices) != 1:
+                        raise ValueError(
+                            "Expected one Remove(CaseParticipant) notice to"
+                            f" the coordinator, found {len(notices)}"
+                        )
+
+        with demo_step(
+            "Step 7: Vendor, as Case Owner, reinstates coordinator"
+        ):
+            # The Case Owner's request to the CASE_MANAGER (CM-31-011): the
+            # removed coordinator is reinstated without accepting again.
+            reinstate_participant = add_participant_to_case_activity(
+                coordinator_participant, actor=vendor.id_, target=case.id_
+            )
+            post_to_inbox_and_wait(client, vendor.id_, reinstate_participant)
+
+            # Single-use reinstatement checks, inline for now; extract them
+            # into helpers/verification/ when a second scenario reinstates a
+            # participant (DEMOMA-17-001).
+            with demo_step("Step 8: Verify coordinator is active again"):
+                with demo_check(
+                    "Coordinator record no longer carries a removal"
+                ):
+                    record = client.get(
+                        client.dl_path(coordinator_participant.id_)
+                    )
+                    if record.get("removalActivity") is not None:
+                        raise ValueError(
+                            "Coordinator participant"
+                            f" '{coordinator_participant.id_}' still records a"
+                            " removal after reinstatement:"
+                            f" removalActivity={record.get('removalActivity')!r}"
+                        )
+                with demo_check(
+                    "CASE_MANAGER sent the coordinator a reinstatement notice"
+                ):
+                    stored = client.get(client.dl_path("Adds/")) or {}
+                    notices = [
+                        notice
+                        for notice in stored.values()
+                        if notice.get("id") != reinstate_participant.id_
+                        and ref_id(notice.get("object_"))
+                        == coordinator_participant.id_
+                        and coordinator.id_ in (notice.get("to") or [])
+                    ]
+                    if len(notices) != 1:
+                        raise ValueError(
+                            "Expected one Add(CaseParticipant) notice to the"
+                            f" coordinator, found {len(notices)}"
+                        )
+                    logger.info(
+                        "✓ Coordinator reinstated; it did not accept again"
+                        " (CM-31-035)"
+                    )
 
     logger.info(
         "✅ DEMO COMPLETE (accept path): Coordinator joined, status set,"
@@ -380,8 +402,8 @@ def demo_manage_participants_reject(
 
     case = _setup_case_with_vendor(client, reporter, vendor)
 
-    # Bound before the step so Step 4 can read it (#2308 ratchet).
-    case_manager_id: str | None = None
+    # Step 4 reads the CASE_MANAGER id this step resolves, so it nests inside
+    # it rather than reading a None sentinel after it (ADR-0058, #3038).
     with demo_step(
         "Steps 2-3: Vendor has the coordinator invited; coordinator declines"
     ):
@@ -395,19 +417,19 @@ def demo_manage_participants_reject(
             role=CVDRole.COORDINATOR,
         )
 
-    with demo_step("Step 4: Verify coordinator never became active"):
-        # The Invite put an inert record for the coordinator on the roster
-        # (CM-11-006); its Reject closes that record, which never joined
-        # (CM-11-007).  The CASE_MANAGER's store holds the record.
-        with demo_check("Coordinator's inert record closed after reject"):
-            wait_for_participant_rm_state(
-                client=client,
-                case_id=case.id_,
-                actor_id=coordinator.id_,
-                expected_states={RM.CLOSED},
-                dl_actor_id=case_manager_id,
-            )
-            log_case_state(client, case.id_, "after reject")
+        with demo_step("Step 4: Verify coordinator never became active"):
+            # The Invite put an inert record for the coordinator on the roster
+            # (CM-11-006); its Reject closes that record, which never joined
+            # (CM-11-007).  The CASE_MANAGER's store holds the record.
+            with demo_check("Coordinator's inert record closed after reject"):
+                wait_for_participant_rm_state(
+                    client=client,
+                    case_id=case.id_,
+                    actor_id=coordinator.id_,
+                    expected_states={RM.CLOSED},
+                    dl_actor_id=case_manager_id,
+                )
+                log_case_state(client, case.id_, "after reject")
 
     logger.info(
         "✅ DEMO COMPLETE (reject path): Invitation rejected gracefully."

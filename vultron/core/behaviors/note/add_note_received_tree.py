@@ -72,18 +72,19 @@ def create_add_note_to_case_received_tree(
     Structure (the four CLP-10-010 stages)::
 
         GuardedAttachAndCommitBT (Sequence)
-        ├── IntakeReceivedActivityNode                 # intake
-        ├── CaseOpenToExternalWrites                   # post-close boundary
         ├── ActivityAddressedToReceiverNode            # addressee door
+        ├── ActivityNotSeenBeforeNode                  # seen-before door
         ├── ReceivedPathNode                           # manager or replica
+        ├── CaseOpenToExternalWrites                   # post-close boundary
         ├── SenderRuleGuard (Sequence)                 # sender guard
+        ├── IntakeReceivedActivityNode                 # intake
         ├── CaseManagerGate[ClockDecisionStage]        # embargo end-time check
         ├── PreconditionGuards
         │   ├── NoteIdNotTakenNode(note_id)            # guard
         │   └── CarriedObjectInTargetCaseNode(note)    # guard
         ├── GuardedCommitCaseLedgerEntryBT (Selector)  # commit
         │   ├── SkipIfNotCaseManager
-        │   └── CommitCaseLedgerEntryNode(case_id)
+        │   └── CaseIdScope(case_id) → CommitCaseLedgerEntryNode
         └── GuardedAttachNoteBT (Selector)             # effect
             ├── SkipIfNotCaseManager
             └── Sequence

@@ -19,8 +19,7 @@ The last step of the trusted route of the received
 ``Create(VulnerabilityCase)`` bootstrap tree
 (:func:`~vultron.core.behaviors.case.create_case_received_tree.create_create_case_received_tree`).
 
-Per specs/case-bootstrap-trust.yaml CBT-01-001, CBT-01-007, CBT-01-009 and
-specs/case-management.yaml CM-12-003.
+Per specs/case-bootstrap-trust.yaml CBT-01-001, CBT-01-007 and CBT-01-009.
 """
 
 from py_trees.common import Status
@@ -34,9 +33,11 @@ from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import (
     reporter_introduction_recipients,
 )
+from vultron.core.participants.role_predicate import has_role
 from vultron.core.services.case_replica_seeding import (
     find_case_create_sent_by,
 )
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronError
 
 
@@ -45,7 +46,7 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
 
     After the report receiver (the Case Owner) accepts the CASE_MANAGER's
     ``Create(VulnerabilityCase)``, it sends the reporter a
-    ``Create(VulnerabilityCase)`` as itself (CBT-01-001, CM-12-003, ADR-0132).
+    ``Create(VulnerabilityCase)`` as itself (CBT-01-001, ADR-0132).
     The reporter trusts it because it comes from the actor the reporter sent
     its report to (CBT-01-005); the snapshot names the CASE_MANAGER, so the
     reporter then records it (CBT-01-006).  The factory carries the stored
@@ -120,9 +121,18 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
         # this skip is equivalent to the old "the manager is me" only while
         # the owner check above stands, so it re-reads the case rather than
         # the local the check used, and a reorder that moved it would fail
-        # here rather than silently widen the skip.
+        # here rather than silently widen the skip.  The boolean itself comes
+        # from the shared predicate, the one source of "is this actor the
+        # case authority" (ARCH-24-008): comparing the resolved id here read
+        # the roster's spelling exactly, so an owner id differing only by a
+        # trailing slash made the skip miss (OID-01-006).
         assert case.attributed_to == self.actor_id
-        if manager_id == owner_actor_id:
+        if has_role(
+            owner_actor_id,
+            self.case_id,
+            CVDRole.CASE_MANAGER,
+            self.datalayer,
+        ):
             return "the case owner is the CASE_MANAGER (CBT-02-001)"
         self._sent_id = find_case_create_sent_by(
             self.datalayer, self.actor_id, self.case_id

@@ -83,7 +83,6 @@ from vultron.metadata.planning.bundle_fit.model import (
 )
 from vultron.metadata.planning.bundle_fit.parse import (
     epic_assignees,
-    graphql_errors,
     parse_graphql,
     schedule_of,
 )
@@ -122,7 +121,6 @@ __all__ = [
     "eligibility",
     "epic_assignees",
     "epic_hold_reason",
-    "graphql_errors",
     "main",
     "parse_graphql",
     "schedule_rank",

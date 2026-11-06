@@ -58,8 +58,12 @@ from vultron.core.models.note import VultronNote
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
+    ReceivedStage,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.received_activity import sealed_body_of
+from vultron.core.services.received_outcome import write_receipt_stub
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.status import (
     AddParticipantStatusToParticipantReceivedUseCase,
@@ -119,7 +123,18 @@ def _archived(dl: SqliteDataLayer, activity_id: str) -> bool:
 
 
 def _archive_count(dl: SqliteDataLayer) -> int:
-    return len(dl.by_type("ReceivedActivityRecord"))
+    """How many received records intake has *recorded*.
+
+    One record holds a received message at every stage (ADR-0154), so the
+    table also holds a body the inbox is still holding for a replay.  Only a
+    ``HELD`` row owing no replay is something intake wrote.
+    """
+    return sum(
+        1
+        for row in dl.by_type("ReceivedActivityRecord").values()
+        if row.get("stage") == ReceivedStage.HELD.value
+        and not row.get("replay_owed")
+    )
 
 
 @pytest.fixture
@@ -141,21 +156,44 @@ def test_intake_archives_the_received_activity(scenario):
 
     scenario.assert_success(result)
     assert _archived(scenario.dl, ACTIVITY_ID)
-    assert node.stored_ids == [ACTIVITY_ID]
-    assert node.found_ids == []
-    assert node.stored_anything
     # The archive is the receiver's row, not a row under the sender's id.
     assert scenario.dl.read(ACTIVITY_ID) is None
     assert scenario.dl.by_type("Add") == {}
     record = scenario.dl.read(ReceivedActivityRecord.build_id(ACTIVITY_ID))
     assert isinstance(record, ReceivedActivityRecord)
-    # The archive is the body the event carries, verbatim, and nothing
-    # derived from it (ADR-0149).
+    # The record is the body the event carries, verbatim, and nothing
+    # derived from it (ADR-0149), in holding until the outcome stage settles
+    # it (CLP-10-073).
     assert record.received_body == event.received_evidence
-    body = json.loads(record.received_body)
+    assert record.stage is ReceivedStage.HELD
+    assert record.replay_owed is False
+    body = json.loads(sealed_body_of(record))
     assert body["type"] == "Add"
     assert body["actor"] == SENDER
     assert body["object"]["id"] == NOTE_ID
+
+
+@pytest.mark.spec("CLP-10-078")
+def test_intake_keeps_nothing_for_a_later_stage(scenario):
+    """Whether a delivery is new is the record's, not intake's memory.
+
+    After a run the node holds only what it was given: no list or flag of
+    what it stored or found that a later stage could read (ADR-0154).
+    """
+    node = IntakeReceivedActivityNode()
+    before = set(vars(node))
+
+    scenario.assert_success(
+        scenario.run(node, activity=_note_event(_rich_note()))
+    )
+
+    assert set(vars(node)) - before == set()
+    # The only collections it holds are the ones every py_trees node holds.
+    assert {
+        name
+        for name, value in vars(node).items()
+        if isinstance(value, (list, set, frozenset))
+    } == {"children", "blackboards"}
 
 
 @pytest.mark.spec("VM-08-002")
@@ -186,7 +224,7 @@ def test_the_archive_is_the_body_the_parser_sealed(scenario):
         json.loads(request_bytes), ensure_ascii=False
     )
     # Keys the vocabulary does not name survive in the archive.
-    assert json.loads(record.received_body)["fooBar"] == [1, 2]
+    assert json.loads(sealed_body_of(record))["fooBar"] == [1, 2]
 
 
 @pytest.mark.spec("CLP-10-038")
@@ -248,10 +286,9 @@ def test_second_intake_of_the_same_activity_writes_nothing(scenario):
     second = IntakeReceivedActivityNode()
     result = scenario.run(second, activity=event)
 
+    # The record a run left in holding is the one the re-run uses
+    # (CLP-10-074), and a nested tree's intake meets its enclosing tree's.
     scenario.assert_success(result)
-    assert second.stored_ids == []
-    assert second.found_ids == [ACTIVITY_ID]
-    assert not second.stored_anything
     assert scenario.dl.by_type("ReceivedActivityRecord") == before
 
 
@@ -291,9 +328,10 @@ def test_sender_chosen_id_cannot_squat_a_receiver_derived_record(scenario):
 
 @pytest.mark.spec("ARCH-15-001")
 @pytest.mark.spec("CLP-10-037")
-def test_an_event_with_no_body_and_nothing_held_is_a_wiring_fault(scenario):
-    """No received evidence and no archive: there is nothing to archive and
-    nothing held, so intake fails and writes nothing (ARCH-15-001)."""
+def test_an_event_with_no_body_is_a_wiring_fault(scenario):
+    """No received evidence: there is nothing to record, so intake fails and
+    writes nothing (ARCH-15-001).  A resend routed without its own body is
+    answered by the seen-before door before intake (ADR-0154)."""
     event = AddNoteToCaseReceivedEvent(
         ledger_position=TEST_SENDER_POSITION,
         activity_id="urn:vultron:no-body:1",
@@ -306,51 +344,71 @@ def test_an_event_with_no_body_and_nothing_held_is_a_wiring_fault(scenario):
 
     assert result.status == Status.FAILURE
     assert "no received body" in node.feedback_message
-    assert node.stored_ids == []
     assert _archive_count(scenario.dl) == 0
 
 
-@pytest.mark.spec("VM-08-002")
-@pytest.mark.spec("CLP-10-037")
-def test_a_resend_with_no_body_finds_the_archive_and_writes_nothing(
-    scenario,
-):
-    """A resend under an archived id carries no body (VM-08-009): intake
-    finds the first delivery's archive and leaves it as it was."""
-    first = _note_event(_rich_note())
-    scenario.assert_success(
-        scenario.run(IntakeReceivedActivityNode(), activity=first)
-    )
-    before = scenario.dl.by_type("ReceivedActivityRecord")
-    resend = first.model_copy(update={"received_evidence": None})
-    node = IntakeReceivedActivityNode()
-
-    scenario.assert_success(scenario.run(node, activity=resend))
-
-    assert node.found_ids == [ACTIVITY_ID]
-    assert node.stored_ids == []
-    assert scenario.dl.by_type("ReceivedActivityRecord") == before
-
-
-@pytest.mark.spec("VM-08-002")
-def test_a_resend_of_a_deferred_activity_writes_nothing(scenario):
-    """A resend while the first delivery is still deferred finds the record
-    holding it, whose replay archives it; intake writes nothing."""
+def _hold_owing_a_replay(dl: SqliteDataLayer) -> None:
     add = add_note_to_case_activity(
         as_Note(id_=NOTE_ID, content="deferred", context=CASE_ID),
         target=CASE_ID,
         context=CASE_ID,
         actor=SENDER,
         to=[RECEIVER],
+        id_=ACTIVITY_ID,
     )
-    hold_deferred(scenario.dl, add)
-    resend = received_event(add).model_copy(update={"received_evidence": None})
+    hold_deferred(dl, add)
+
+
+def _archive(dl: SqliteDataLayer) -> None:
+    event = _note_event(_rich_note())
+    assert event.received_evidence is not None
+    dl.create(
+        ReceivedActivityRecord(
+            activity_id=ACTIVITY_ID, received_body=event.received_evidence
+        )
+    )
+
+
+def _stub(dl: SqliteDataLayer) -> None:
+    _archive(dl)
+    dl.delete(
+        "ReceivedActivityRecord", ReceivedActivityRecord.build_id(ACTIVITY_ID)
+    )
+    write_receipt_stub(
+        cast(CasePersistence, dl),
+        ACTIVITY_ID,
+        sender_id=SENDER,
+        reason="refused earlier",
+        received_body=_note_event(_rich_note()).received_evidence,
+    )
+
+
+@pytest.mark.spec("ARCH-15-001")
+@pytest.mark.spec("CLP-10-017")
+@pytest.mark.parametrize(
+    "seed",
+    [_hold_owing_a_replay, _archive, _stub],
+    ids=["waiting", "archived", "receipt-stub"],
+)
+def test_a_record_the_seen_before_door_answers_is_a_wiring_fault(
+    scenario, seed
+):
+    """Intake never writes over a record already at its outcome or waiting.
+
+    The seen-before door answers each of them before intake (ADR-0154), so
+    meeting one means the door did not run: intake fails, writes nothing,
+    and so never loses the first refusal's reason or a held body.
+    """
+    seed(scenario.dl)
+    before = scenario.dl.by_type("ReceivedActivityRecord")
     node = IntakeReceivedActivityNode()
 
-    scenario.assert_success(scenario.run(node, activity=resend))
+    result = scenario.run(node, activity=_note_event(_rich_note()))
 
-    assert node.found_ids == [add.id_]
-    assert _archive_count(scenario.dl) == 0
+    assert result.status == Status.FAILURE
+    assert result.internal_error
+    assert "seen-before door" in node.feedback_message
+    assert scenario.dl.by_type("ReceivedActivityRecord") == before
 
 
 # ---------------------------------------------------------------------------
@@ -397,14 +455,15 @@ def test_non_event_activity_returns_failure_with_wiring_reason(scenario):
 
 
 # ---------------------------------------------------------------------------
-# Factory placement: intake is the first child of every tree it builds
+# Factory placement: intake follows the door guards of every tree it builds
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.spec("CLP-10-017")
-@pytest.mark.spec("CLP-10-018")
-def test_shared_factory_runs_intake_first_even_when_a_guard_refuses(scenario):
-    """Intake precedes the guards, so a refusal leaves the archive in place."""
+@pytest.mark.spec("CLP-10-010")
+def test_shared_factory_records_after_the_doors_before_the_guards(scenario):
+    """A precondition guard's refusal leaves the record for the outcome stage;
+    a door's leaves nothing at all (ADR-0154)."""
     event = _note_event(_rich_note())
     tree = create_receive_activity_tree(
         name="RefusedBT",
@@ -416,23 +475,54 @@ def test_shared_factory_runs_intake_first_even_when_a_guard_refuses(scenario):
     result = scenario.run(tree, activity=event)
 
     assert result.status == Status.FAILURE
-    assert isinstance(tree.children[0], IntakeReceivedActivityNode)
+    intake = [
+        i
+        for i, child in enumerate(tree.children)
+        if isinstance(child, IntakeReceivedActivityNode)
+    ]
+    assert intake == [len(tree.door_guards)]
     assert _archived(scenario.dl, ACTIVITY_ID)
 
 
+@pytest.mark.spec("CLP-10-017")
+@pytest.mark.spec("HP-01-005")
+def test_a_door_refusal_records_nothing(scenario):
+    """A copy not addressed to the receiver is never held in full."""
+    event = _note_event(_rich_note())
+    assert event.activity is not None
+    elsewhere = event.model_copy(
+        update={
+            "activity": event.activity.model_copy(
+                update={"to": ["https://example.org/actors/someone-else"]}
+            )
+        }
+    )
+    tree = create_receive_activity_tree(
+        name="UnaddressedBT", case_id=None, precondition_guards=[]
+    )
+
+    result = scenario.run(tree, activity=elsewhere)
+
+    assert result.status == Status.FAILURE
+    assert scenario.dl.by_type("ReceivedActivityRecord") == {}
+
+
 # ---------------------------------------------------------------------------
-# Handler level: a refused assertion is still on record (CLP-10-018)
+# Handler level: a door refusal writes nothing (CLP-10-017)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("CLP-10-018")
-def test_refused_participant_status_leaves_the_archive_readable():
+@pytest.mark.spec("CLP-10-017")
+@pytest.mark.spec("HP-01-006")
+def test_a_sender_guard_refusal_records_nothing():
     """``Add(ParticipantStatus)`` from a stranger is REFUSED by the sender guard.
 
     The receiver is not the CASE_MANAGER, so the guard takes the update from
     the CASE_MANAGER alone (PCR-03-001); the case names none, so the sender
-    is refused.  Intake ran first, so the activity is archived in the
-    receiver's store afterwards.
+    is refused.  The sender guard is a door, and intake follows the doors,
+    so nothing of the message is recorded: the outcome stage leaves its
+    receipt stub from the delivery's own body (CLP-10-018,
+    ``test/adapters/driving/fastapi/test_received_outcome_stage.py``).
     """
     receiver = "https://example.org/users/vendor-intake"
     stranger = "https://example.org/users/stranger-intake"
@@ -475,4 +565,4 @@ def test_refused_participant_status_leaves_the_archive_readable():
     ).execute()
 
     assert result.disposition == HandlerDisposition.REFUSED
-    assert _archived(dl, activity.id_), "archive lost on refusal"
+    assert not _archived(dl, activity.id_), "a door refusal recorded it"

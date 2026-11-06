@@ -51,9 +51,11 @@ from vultron.core.models.ledger_position import (
 )
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import closure_recorded
+from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.sync_helpers import sorted_case_ledger_entries
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronError, VultronWiringError
 
 logger = logging.getLogger(__name__)
@@ -195,7 +197,9 @@ def position_statement_recipient(
     and the CASE_MANAGER would refuse its statement (SYNC-17-002).
     """
     manager_id = resolve_case_manager_id(case, dl)
-    if manager_id is None or manager_id == actor_id:
+    if manager_id is None:
+        return None
+    if has_role(actor_id, case.id_, CVDRole.CASE_MANAGER, dl):
         return None
     if actor_id not in case.actor_participant_index:
         return None

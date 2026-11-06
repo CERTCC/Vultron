@@ -36,8 +36,11 @@ jobs:
     runs-on: ubuntu-latest
     # Observed: up to 3.2 min over the 15 latest successful runs (2026-10-30). Cap at
     # 10 min so a hang fails fast instead of holding a runner until GitHub's 6-h limit
-    # (TB-14-006).
+    # (TB-14-006). One hung `gh` call ends at 120 s, well inside the cap, so it
+    # fails the job red instead of letting the cap cancel it (CISEC-05-006).
     timeout-minutes: 10
+    env:
+      GH_CALL_TIMEOUT_SECONDS: "120"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Reconcile the label

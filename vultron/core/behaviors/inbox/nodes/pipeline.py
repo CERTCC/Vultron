@@ -13,11 +13,14 @@ Input keys (written by :func:`~...process_payload` before BT execution):
     inbox_dispatch      — DispatchAdapter instance
     inbox_queue         — PendingCaseQueuePort instance or None
     inbox_dereference   — ObjectDereferencePort instance or None
+    inbox_received_outcome — ReceivedOutcomePort instance or None
 
 Intermediate keys (written by pipeline nodes during execution):
     inbox_activity      — parsed as_Activity
     inbox_event         — VultronEvent with extracted semantics
     inbox_context_id    — case context ID string or None
+    inbox_disposition   — the handler's ``HandlerDisposition``, when dispatch
+                          returned a verdict at all
 
 Output keys (written by pipeline nodes on completion or failure):
     inbox_outcome_status   — an ``InboxOutcomeStatus`` member
@@ -28,7 +31,9 @@ Step 5, the dereference check, lives in
 :mod:`~vultron.core.behaviors.inbox.nodes.dereference`.  Steps 6 and 7
 (dispatch and the processed outcome) live in
 :mod:`~vultron.core.behaviors.inbox.nodes.dispatch`, which also owns the
-handler-verdict-to-outcome mapping (HP-01-004).
+handler-verdict-to-outcome mapping (HP-01-004).  The outcome stage that maps
+the same verdict onto the record's final stage lives in
+:mod:`~vultron.core.behaviors.inbox.nodes.outcome_stage` (ADR-0154).
 
 Per specs/inbox-orchestration.yaml IO-02-002.
 """
@@ -70,12 +75,14 @@ KEY_INGRESS = "inbox_ingress"
 KEY_DISPATCH = "inbox_dispatch"
 KEY_QUEUE = "inbox_queue"
 KEY_DEREFERENCE = "inbox_dereference"
+KEY_OUTCOME = "inbox_received_outcome"
 KEY_ACTIVITY = "inbox_activity"
 KEY_EVENT = "inbox_event"
 KEY_CONTEXT_ID = "inbox_context_id"
 KEY_OUTCOME_STATUS = "inbox_outcome_status"
 KEY_FAILURE_REASON = "inbox_failure_reason"
 KEY_UNHANDLED = "inbox_unhandled"
+KEY_DISPOSITION = "inbox_disposition"
 
 # All keys managed by the inbox pipeline (for setup and cleanup).
 ALL_INBOX_KEYS = (
@@ -84,12 +91,14 @@ ALL_INBOX_KEYS = (
     KEY_DISPATCH,
     KEY_QUEUE,
     KEY_DEREFERENCE,
+    KEY_OUTCOME,
     KEY_ACTIVITY,
     KEY_EVENT,
     KEY_CONTEXT_ID,
     KEY_OUTCOME_STATUS,
     KEY_FAILURE_REASON,
     KEY_UNHANDLED,
+    KEY_DISPOSITION,
 )
 
 

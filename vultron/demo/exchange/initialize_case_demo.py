@@ -107,7 +107,10 @@ def demo_initialize_case(
     logger.info("DEMO: Initialize Case")
     logger.info("=" * 80)
 
-    report = report_offer = None
+    # Every step after the first acts on the report it submitted, and every
+    # step after the third acts on the case it created, so each group nests
+    # inside the step that produces what it reads rather than reading a None
+    # sentinel after it (ADR-0058, #3038).
     with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
         # Through the reporter's own submit-report trigger, which writes the
         # anchor the vendor's case introduction is checked against
@@ -124,92 +127,109 @@ def demo_initialize_case(
         )
         logger.info("Submitted report: %s", logfmt(report))
 
-    with demo_step("Step 2: Vendor validates report"):
-        # Through the vendor's validate-report trigger, which sends the Report
-        # Valid to the CASE_MANAGER of the case opened on receipt (#5438).
-        receiver_validates_report(
-            client,
-            vendor,
-            report_offer.id_,
-            note="Confirmed — remote code execution via unsanitized input.",
-        )
-        check_report_answer_recorded(
-            client, reporter, vendor, report_offer.id_, {RM.VALID}
-        )
-
-    case = None
-    with demo_step("Step 3: Vendor creates vulnerability case"):
-        case = create_case_via_trigger(
-            client,
-            vendor,
-            name="RCE Case — Web Framework",
-            content="Tracking the RCE vulnerability in the web framework.",
-            stub_summary=(
-                "Remote code execution in web framework"
-                " — details shared after acceptance."
-            ),
-        )
-        logger.info("Created case object: %s", logfmt(case))
-        with demo_check("Case stored in data layer"):
-            verify_object_stored(client, case.id_)
-        with demo_check("Case state after CreateCaseActivity"):
-            log_case_state(client, case.id_, "after CreateCaseActivity")
-
-    with demo_step("Step 4: Vendor is registered as case participant"):
-        # The create-case trigger registers the vendor as CASE_OWNER and
-        # CASE_MANAGER, so no Create/Add(CaseParticipant) is injected for it.
-        with demo_check("Vendor is a case participant"):
-            vendor_case = log_case_state(
-                client, case.id_, "after create-case trigger"
+        with demo_step("Step 2: Vendor validates report"):
+            # Through the vendor's validate-report trigger, which sends the
+            # Report Valid to the CASE_MANAGER of the case opened on receipt
+            # (#5438).
+            receiver_validates_report(
+                client,
+                vendor,
+                report_offer.id_,
+                note=(
+                    "Confirmed — remote code execution via unsanitized input."
+                ),
             )
-            if (
-                vendor_case
-                and vendor.id_ not in vendor_case.actor_participant_index
+            check_report_answer_recorded(
+                client, reporter, vendor, report_offer.id_, {RM.VALID}
+            )
+
+        with demo_step("Step 3: Vendor creates vulnerability case"):
+            case = create_case_via_trigger(
+                client,
+                vendor,
+                name="RCE Case — Web Framework",
+                content="Tracking the RCE vulnerability in the web framework.",
+                stub_summary=(
+                    "Remote code execution in web framework"
+                    " — details shared after acceptance."
+                ),
+            )
+            logger.info("Created case object: %s", logfmt(case))
+            with demo_check("Case stored in data layer"):
+                verify_object_stored(client, case.id_)
+            with demo_check("Case state after CreateCaseActivity"):
+                log_case_state(client, case.id_, "after CreateCaseActivity")
+
+            with demo_step("Step 4: Vendor is registered as case participant"):
+                # The create-case trigger registers the vendor as CASE_OWNER
+                # and CASE_MANAGER, so no Create/Add(CaseParticipant) is
+                # injected for it.
+                with demo_check("Vendor is a case participant"):
+                    vendor_case = log_case_state(
+                        client, case.id_, "after create-case trigger"
+                    )
+                    if (
+                        vendor_case
+                        and vendor.id_
+                        not in vendor_case.actor_participant_index
+                    ):
+                        raise ValueError(
+                            f"Vendor '{vendor.id_}' is not a participant of"
+                            " the new case"
+                        )
+                logger.info("Vendor added as participant to case")
+
+            with demo_step("Step 5: Vendor links report to case"):
+                add_report_activity = add_report_to_case_activity(
+                    report, actor=vendor.id_, target=case.id_
+                )
+                post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
+                with demo_check("Report linked to case"):
+                    updated_case = log_case_state(
+                        client, case.id_, "after AddReportToCaseActivity"
+                    )
+                    if updated_case and report.id_ not in [
+                        (ref_id(r) or str(r))
+                        for r in updated_case.vulnerability_reports
+                    ]:
+                        raise ValueError(
+                            f"Report '{report.id_}' not found in case after"
+                            " AddReportToCaseActivity"
+                        )
+
+            with demo_step(
+                "Steps 6-7: Vendor invites reporter; reporter accepts and"
+                " joins"
             ):
-                raise ValueError(
-                    f"Vendor '{vendor.id_}' is not a participant of the new case"
+                participant = seat_participant_through_stub_invite(
+                    client,
+                    case,
+                    owner=vendor,
+                    invitee=reporter,
+                    role=CVDRole.REPORTER,
                 )
-        logger.info("Vendor added as participant to case")
+                logger.info("Seated participant: %s", logfmt(participant))
+                with demo_check(
+                    "Reporter participant in case participant list"
+                ):
+                    final_case = log_case_state(
+                        client, case.id_, "after the reporter accepted"
+                    )
+                    if final_case and participant.id_ not in [
+                        (ref_id(p) or str(p))
+                        for p in final_case.case_participants
+                    ]:
+                        raise ValueError(
+                            f"Participant '{participant.id_}' not found in"
+                            " case after the reporter accepted its stub"
+                            " Invite"
+                        )
 
-    with demo_step("Step 5: Vendor links report to case"):
-        add_report_activity = add_report_to_case_activity(
-            report, actor=vendor.id_, target=case.id_
-        )
-        post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
-        with demo_check("Report linked to case"):
-            updated_case = log_case_state(
-                client, case.id_, "after AddReportToCaseActivity"
-            )
-            if updated_case and report.id_ not in [
-                (ref_id(r) or str(r))
-                for r in updated_case.vulnerability_reports
-            ]:
-                raise ValueError(
-                    f"Report '{report.id_}' not found in case after AddReportToCaseActivity"
-                )
-
-    with demo_step(
-        "Steps 6-7: Vendor invites reporter; reporter accepts and joins"
-    ):
-        participant = seat_participant_through_stub_invite(
-            client, case, owner=vendor, invitee=reporter, role=CVDRole.REPORTER
-        )
-        logger.info("Seated participant: %s", logfmt(participant))
-        with demo_check("Reporter participant in case participant list"):
-            final_case = log_case_state(
-                client, case.id_, "after the reporter accepted"
-            )
-            if final_case and participant.id_ not in [
-                (ref_id(p) or str(p)) for p in final_case.case_participants
-            ]:
-                raise ValueError(
-                    f"Participant '{participant.id_}' not found in case "
-                    "after the reporter accepted its stub Invite"
-                )
-
-    # The vendor created a case for the report on receipt, and introduces it
-    # to the reporter with its own Create(VulnerabilityCase) (CBT-01-001).
-    verify_reporter_trusts_introduction(client, reporter, vendor, report)
+        # The vendor created a case for the report on receipt, and introduces
+        # it to the reporter with its own Create(VulnerabilityCase)
+        # (CBT-01-001).  The helper is itself a demo_check, so it names and
+        # records its own failure — do not wrap it in another one.
+        verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
         "✅ DEMO COMPLETE: Case initialized with vendor and reporter participants."

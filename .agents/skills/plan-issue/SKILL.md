@@ -53,13 +53,17 @@ gh issue list --repo CERTCC/Vultron --state open --limit 1000 \
   --jq '.[] | select(.issueType.name == "Idea" or .issueType.name == "Concern")
         | "#\(.number) [\(.issueType.name)]: \(.title)"'
 
-# Epics with needs-decomposition label only
+# Epics with the needs-planning label (set by the epic-needs-planning workflow)
 gh issue list --repo CERTCC/Vultron --state open --limit 1000 \
-  --label "needs-decomposition" \
+  --label "needs-planning" \
   --json number,title,issueType \
   --jq '.[] | select(.issueType.name == "Epic")
-        | "#\(.number) [Epic/needs-decomposition]: \(.title)"'
+        | "#\(.number) [Epic/needs-planning]: \(.title)"'
 ```
+
+The workflow also labels an Epic that has children but an open, unblocked
+Concern or Idea among them. That child is already in the first list: plan it
+there, and offer the Epic itself only when it has no sub-issues.
 
 Include a **"Create a new Idea"** option at the end. Wait for the user's
 selection before continuing.
@@ -184,7 +188,8 @@ from the discussion rather than being asked as structured questions.
    which lines are wrong; this is not a new round of questions.
 
 Every question follows `.agents/skills/shared/asking-the-user.md` (one at a
-time, problem before decision, plain language, no bare IDs).
+time, problem before decision, behavior not wording, plain language, no bare
+IDs), and passes the guide's pre-ask check before it is sent.
 
 **Type-specific opening and conversation guidance:** see the loaded
 companion file.
@@ -334,7 +339,8 @@ of the Epic itself, not blocked-by it.
 Repeat for each additional impl issue. Set `size:` from the AC count with
 `PYTHONPATH= uv run pr-size --acs <N> --quiet` — an **estimate**, per
 `.agents/skills/shared/sizing.md`. Never `size:XL`: an issue that large is a
-decomposition signal, and the band is measurement-only (PAD-05-012).
+decomposition signal, and the band is measurement-only (PAD-05-012). When the
+tool prints `decompose` (exit 3), apply no label and split the issue (PAD-05-013).
 
 **The impl issue is already on the epic forest.** `create-issue` adds it to
 Project #24 under a same-theme Epic, so it inherits that Epic's Schedule tier —
@@ -375,7 +381,8 @@ See the loaded companion file for the type-specific completion step:
 
 - **Idea**: invoke `archive-history`, post resolution comment, close issue
 - **Concern**: invoke `archive-history`, post resolution comment, close issue
-- **Epic**: remove `needs-decomposition` label, post summary comment, leave open
+- **Epic**: post summary comment, leave open (the `epic-needs-planning` workflow
+  clears `needs-planning` once no open, unblocked Concern or Idea remains)
 
 ---
 
@@ -412,7 +419,7 @@ See the loaded companion file for the type-specific completion step:
 ## Conventions
 
 - **Branch name**: `plan/<N>-<slug>` (always created via `claim-issue.sh` in Phase 1b)
-- **History source**: `IDEA-<N>` for Ideas; `CONCERN-<N>` for Concerns (not used for Epics)
+- **History source**: `ISSUE-<N>` for Ideas; `CONCERN-<N>` for Concerns (not used for Epics)
 - **History type**: `idea` for Ideas; `learning` for Concerns (not used for Epics)
 - **Spec file names**: lowercase hyphenated `.yaml` in `specs/`
 - **Notes file names**: same base name as spec, `.md` in `notes/`

@@ -33,6 +33,7 @@ focused submodules:
 import logging
 from typing import cast
 
+from vultron.adapters.driven.inbox_replay_adapter import InboxReplayAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -57,8 +58,12 @@ from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
+from vultron.core.services.sender_sequence_order import (
+    queue_due_sender_sequence_replays,
+)
 from vultron.semantic_registry import (
     extract_event,
     use_case_map as _use_case_map,
@@ -228,7 +233,38 @@ def dispatch(
         event.activity_id,
         event.semantic_type,
     )
-    return _d.dispatch(event, dl)
+    verdict = _d.dispatch(event, dl)
+    queue_due_held_activities(dl)
+    return verdict
+
+
+def queue_due_held_activities(dl: DataLayer) -> int:
+    """Queue every activity the CASE_MANAGER holds that is now due (SYNC-21).
+
+    A dispatch can make a held activity due: judging a sender's next number
+    makes the one after it due, and a hold that reached its cap, or a
+    CASE_MANAGER role about to pass, ends the hold (SYNC-21-012,
+    SYNC-21-013, SYNC-21-025).  Each due activity is queued on this actor's
+    inbox, the body that arrived, and the inbox loop replays it as a
+    delivery of its own after this one (IO-03-009, SYNC-14-009).
+
+    The dispatch's verdict is already decided, so a failure to queue is
+    logged, never raised into it: what stays held is queued after the next
+    dispatch, or by the hold timer (SYNC-21-011).  Returns how many were
+    queued.
+    """
+    try:
+        return queue_due_sender_sequence_replays(
+            cast(CasePersistence, dl), InboxReplayAdapter(dl)
+        )
+    except Exception:
+        logger.exception(
+            "Queueing held activities due for their replay raised for actor"
+            " '%s'; they stay held for the next dispatch or the hold timer"
+            " (SYNC-21-011)",
+            getattr(dl, "actor_id", None),
+        )
+        return 0
 
 
 def handle_inbox_item(

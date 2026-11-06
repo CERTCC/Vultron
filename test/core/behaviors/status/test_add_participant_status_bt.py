@@ -55,6 +55,7 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
     StatusAuthorizationCallOutBundle,
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
@@ -1338,10 +1339,9 @@ class TestSenderIsCaseOwnerNode:
         """CASE_OWNER sender → SUCCESS (gospel bypass)."""
         node = SenderIsCaseOwnerNode(
             sender_actor_id=ACTOR_ID,  # has CASE_OWNER role in fixture
-            case_id=CASE_ID,
         )
         result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+            tree=node, actor_id=CASE_MANAGER_ID, case_id=CASE_ID
         )
         assert result.status == Status.SUCCESS
 
@@ -1351,19 +1351,20 @@ class TestSenderIsCaseOwnerNode:
         """CASE_MANAGER sender (not CASE_OWNER) → FAILURE (proceeds to call-out)."""
         node = SenderIsCaseOwnerNode(
             sender_actor_id=CASE_MANAGER_ID,  # has CASE_MANAGER role, not CASE_OWNER
-            case_id=CASE_ID,
         )
         result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+            tree=node, actor_id=CASE_MANAGER_ID, case_id=CASE_ID
         )
         assert result.status == Status.FAILURE
 
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_unknown_actor_returns_failure(self, populated_bridge):
         """Actor not in actor_participant_index → FAILURE."""
-        node = SenderIsCaseOwnerNode(
-            sender_actor_id=OUTSIDER_ID,
-            case_id=CASE_ID,
+        node = with_case_id(
+            SenderIsCaseOwnerNode(
+                sender_actor_id=OUTSIDER_ID,
+            ),
+            CASE_ID,
         )
         result = populated_bridge.execute_with_setup(
             tree=node, actor_id=CASE_MANAGER_ID
@@ -1373,20 +1374,19 @@ class TestSenderIsCaseOwnerNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_returns_failure(self, bridge):
         """No case in DataLayer → FAILURE."""
-        node = SenderIsCaseOwnerNode(
-            sender_actor_id=ACTOR_ID,
-            case_id="https://example.org/cases/nonexistent",
+        node = with_case_id(
+            SenderIsCaseOwnerNode(
+                sender_actor_id=ACTOR_ID,
+            ),
+            "https://example.org/cases/nonexistent",
         )
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
 
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_id_returns_failure(self, bridge):
-        """No case_id at all → FAILURE."""
-        node = SenderIsCaseOwnerNode(
-            sender_actor_id=ACTOR_ID,
-            case_id=None,
-        )
+        """No case_id on the port → FAILURE."""
+        node = SenderIsCaseOwnerNode(sender_actor_id=ACTOR_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
 

@@ -20,11 +20,13 @@ The CASE_MANAGER answers an assertion a precondition guard refused with one
 sent it reads the notice here::
 
     RefusalNoticeReceivedBT (Sequence)
-    ├─ IntakeReceivedActivityNode
-    ├─ CaseOpenToExternalWrites / ActivityAddressedToReceiverNode
+    ├─ ActivityAddressedToReceiverNode / ActivityNotSeenBeforeNode
     ├─ ReceivedPathNode                # the participant replica alone
+    ├─ CaseOpenToExternalWrites
     ├─ <sender guard: the case's CASE_MANAGER only>
-    └─ ClearRefusedAssertionNode
+    ├─ IntakeReceivedActivityNode      # records the notice (CLP-10-017)
+    ├─ ClearRefusedAssertionNode
+    └─ ResumeOutboundSequenceNode        # only when the notice names a number
 
 Nothing is committed: the notice is about the ledger, not a case event
 (CLP-02-013).  The participant writes no case state and re-sends nothing
@@ -43,6 +45,7 @@ from vultron.core.behaviors.case.nodes.received_path import (
 )
 from vultron.core.behaviors.case.nodes.refusal_notice import (
     ClearRefusedAssertionNode,
+    ResumeOutboundSequenceNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
@@ -59,6 +62,7 @@ def refusal_notice_received_tree(
     reason: str | None,
     sender_id: str,
     sender_rule: SenderRule,
+    expected_sender_sequence: int | None = None,
 ) -> ReceivedActivityTree:
     """Build the received refusal-notice tree.
 
@@ -68,19 +72,27 @@ def refusal_notice_received_tree(
         reason: The refusing guard's reason, from the notice's ``summary``.
         sender_id: The notice's ``actor``.
         sender_rule: The use case's declared sender rule (HP-01-008).
+        expected_sender_sequence: The notice's ``expectedSenderSequence``,
+            when it refused the activity for its number (SYNC-21-007).
     """
-    effects: list[py_trees.behaviour.Behaviour] = (
-        [
+    effects: list[py_trees.behaviour.Behaviour] = []
+    if case_id is not None:
+        effects.append(
             ClearRefusedAssertionNode(
                 case_id=case_id,
                 refused_activity_id=refused_activity_id,
                 reason=reason,
                 sender_id=sender_id,
             )
-        ]
-        if case_id is not None
-        else []
-    )
+        )
+        if expected_sender_sequence is not None:
+            effects.append(
+                ResumeOutboundSequenceNode(
+                    case_id=case_id,
+                    expected=expected_sender_sequence,
+                    sender_id=sender_id,
+                )
+            )
     return create_receive_activity_tree(
         name="RefusalNoticeReceivedBT",
         # The notice is the CASE_MANAGER's answer to a participant's refused

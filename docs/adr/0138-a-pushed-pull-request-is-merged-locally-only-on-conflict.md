@@ -14,6 +14,7 @@ partially_supersedes:
   - 0126-ci-is-the-full-suite-authority-after-the-first-push.md
 partially_superseded_by:
   - 0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md
+  - 0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md
 ---
 
 # A Pushed Pull Request Is Merged Locally Only on Conflict

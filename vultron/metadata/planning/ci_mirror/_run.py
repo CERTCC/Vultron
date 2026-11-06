@@ -19,6 +19,7 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import threading
 import time
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
@@ -28,6 +29,7 @@ from pathlib import Path
 from typing import IO
 
 from vultron.metadata.planning.ci_mirror._registry import (
+    RUN_IF_CHANGED,
     CheckContext,
     MirrorCheck,
 )
@@ -37,6 +39,10 @@ from vultron.metadata.planning.ci_mirror._workflows import (
     WorkflowStep,
     matches_filter,
 )
+from vultron.metadata.planning.heavy_lock import (
+    WAIT_EXPIRED,
+    under_heavy_lock,
+)
 
 #: GitHub's default shell for a ``run:`` step on a Linux runner.
 STEP_SHELL = ("bash", "--noprofile", "--norc", "-eo", "pipefail", "-c")
@@ -45,9 +51,47 @@ STEP_SHELL = ("bash", "--noprofile", "--norc", "-eo", "pipefail", "-c")
 #: six minutes locally.
 DEFAULT_TIMEOUT = 1200
 
+#: How long a heavy check waits for a per-host heavy-check slot before it is
+#: reported unrun (#5947). Its run gets its own ``timeout`` once it holds the
+#: slot, so waiting behind another slot's suite does not shorten it.
+LOCK_WAIT = DEFAULT_TIMEOUT
+
+#: The ``timeout -k`` grace, and the slack the backstop ceiling allows over
+#: the wait and the run.
+_KILL_GRACE = 30
+_BACKSTOP_SLACK = 60
+
+#: ``timeout``'s exit status when the command ran out of time.
+_TIMED_OUT = 124
+#: ``timeout``'s exit status when the command ignored SIGTERM and was killed
+#: after the ``-k`` grace (128 + SIGKILL).
+_KILLED_AFTER_GRACE = 137
+
+
+def _ran_out(code: int | None, seconds: float, timeout: int) -> bool:
+    """Whether a heavy check's own ``timeout`` ended it.
+
+    124 is a command that stopped on SIGTERM. A command that ignored it is
+    killed after the grace and reads 137, which counts only once the run
+    reached its *timeout*: earlier, a 137 is some other kill.
+    """
+    return code == _TIMED_OUT or (
+        code == _KILLED_AFTER_GRACE and seconds >= timeout
+    )
+
+
+#: What the wrapper prints when ``--wait`` runs out, so a check that exits
+#: :data:`WAIT_EXPIRED` on its own is not mistaken for one that never ran.
+_WAIT_EXPIRED_LINE = "run-heavy: gave up after"
+
 
 class CheckStatus(StrEnum):
-    """A check's verdict. ``FAIL`` and ``UNAVAILABLE`` block the push.
+    """A check's verdict. ``FAIL``, ``NO-VERDICT`` and ``UNAVAILABLE`` block.
+
+    ``NO-VERDICT`` is a check its environment stopped before it could judge
+    the diff: a ceiling trip, a kill that left no output, or a heavy check
+    that never got the lock. It is not a finding, and its reason names the
+    remedy (#5735).
 
     ``PLAN`` is ``--list``'s word for a check that would run; it never reaches
     a real run's report.
@@ -56,6 +100,7 @@ class CheckStatus(StrEnum):
     PLANNED = "PLAN"
     PASSED = "PASS"
     FAILED = "FAIL"
+    NO_VERDICT = "NO-VERDICT"
     UNAVAILABLE = "UNAVAILABLE"
     NOT_TRIGGERED = "NOT-TRIGGERED"
     NOT_APPLICABLE = "N/A"
@@ -63,7 +108,11 @@ class CheckStatus(StrEnum):
 
     @property
     def blocks(self) -> bool:
-        return self in (CheckStatus.FAILED, CheckStatus.UNAVAILABLE)
+        return self in (
+            CheckStatus.FAILED,
+            CheckStatus.NO_VERDICT,
+            CheckStatus.UNAVAILABLE,
+        )
 
 
 @dataclass(frozen=True)
@@ -120,6 +169,34 @@ def _trigger_reason(
     return None
 
 
+def locked(
+    argv: Sequence[str],
+    timeout: int,
+    which: Callable[[str], str | None] = shutil.which,
+) -> tuple[str, ...]:
+    """*argv* in a heavy-check slot, then under its own *timeout*.
+
+    It waits at most :data:`LOCK_WAIT` for a slot, and ``timeout`` starts
+    only once it holds one, so ``--timeout`` bounds the run alone. A memoized
+    command takes the slot inside its memo, so a check whose inputs are
+    unchanged skips without waiting. Without a ``timeout`` binary (stock
+    macOS) the session's backstop ceiling is the only bound.
+    """
+    command = tuple(argv)
+    memo: tuple[str, ...] = ()
+    if command[:2] == ("bash", RUN_IF_CHANGED) and "--" in command:
+        cut = command.index("--") + 1
+        memo, command = command[:cut], command[cut:]
+    if which("timeout") is not None:
+        command = ("timeout", "-k", str(_KILL_GRACE), str(timeout), *command)
+    return (*memo, *under_heavy_lock(command, wait=LOCK_WAIT))
+
+
+def heavy_ceiling(timeout: int) -> int:
+    """The session backstop for a heavy check: its slot wait, run and grace."""
+    return LOCK_WAIT + timeout + _KILL_GRACE + _BACKSTOP_SLACK
+
+
 def _argv(
     check: MirrorCheck,
     step: WorkflowStep | None,
@@ -129,11 +206,17 @@ def _argv(
     if check.command is None:
         if step is None or step.run is None:
             raise ValueError(f"{check.id}: no command and no run: script")
-        return (*STEP_SHELL, step.run)
-    raw = check.command(context) if callable(check.command) else check.command
-    if raw is None:
-        return None
-    return tuple(_substitute(arg, context.placeholders) for arg in raw)
+        argv: tuple[str, ...] = (*STEP_SHELL, step.run)
+    else:
+        raw = (
+            check.command(context)
+            if callable(check.command)
+            else check.command
+        )
+        if raw is None:
+            return None
+        argv = tuple(_substitute(arg, context.placeholders) for arg in raw)
+    return argv
 
 
 def plan(
@@ -206,6 +289,65 @@ def log_tail(path: Path | str | None, lines: int = 15) -> str:
     return "\n".join(text.splitlines()[-lines:])
 
 
+#: The process groups the mirror has running, so a terminated mirror can stop
+#: them: a heavy check left running would hold its host slot to the end.
+_RUNNING: set[subprocess.Popen[bytes]] = set()
+_RUNNING_GUARD = threading.Lock()
+#: Set by :func:`stop_running`; no check starts once it is set.
+_STOPPING = threading.Event()
+
+
+class MirrorStopped(RuntimeError):
+    """The mirror is stopping, so a check that was about to start does not."""
+
+
+#: How long a stopped check's process group has to end after SIGTERM before
+#: it is killed. Shorter than the outer ``timeout -k 30`` on the mirror, so the
+#: mirror ends its checks before that kills it.
+_STOP_GRACE = 10
+
+
+def _signal_group(proc: subprocess.Popen[bytes], signum: int) -> None:
+    try:
+        os.killpg(proc.pid, signum)
+    except ProcessLookupError:
+        pass  # The group already ended.
+
+
+def _end_groups(procs: Sequence[subprocess.Popen[bytes]]) -> None:
+    """End each check's process group: SIGTERM, then SIGKILL after a grace.
+
+    SIGTERM comes first because SIGKILL to the group would miss a heavy
+    check's command: GNU ``timeout`` puts itself in a process group of its
+    own, so only a signal the slot wrapper forwards reaches it, and
+    ``timeout`` relays that signal to its own group (#5947).
+    """
+    for proc in procs:
+        _signal_group(proc, signal.SIGTERM)
+    deadline = time.monotonic() + _STOP_GRACE
+    while time.monotonic() < deadline and any(
+        proc.poll() is None for proc in procs
+    ):
+        time.sleep(0.05)
+    for proc in procs:
+        if proc.poll() is None:
+            _signal_group(proc, signal.SIGKILL)
+        proc.wait()
+
+
+def stop_running() -> None:
+    """End every process group the mirror started, and start no more.
+
+    The flag and the snapshot share the guard that :func:`run_in_session`
+    holds from ``Popen`` to registering the process, so no check can start
+    unseen between them.
+    """
+    with _RUNNING_GUARD:
+        _STOPPING.set()
+        running = list(_RUNNING)
+    _end_groups(running)
+
+
 def run_in_session(
     argv: Sequence[str],
     *,
@@ -216,27 +358,32 @@ def run_in_session(
 ) -> int | None:
     """Run *argv* in its own process group; ``None`` when it timed out.
 
-    On a timeout the whole group is killed, so a grandchild (an xdist worker,
-    a site build) cannot keep running past it.
+    On a timeout the whole group is ended (:func:`_end_groups`), so a
+    grandchild (an xdist worker, a site build) cannot keep running past it.
     """
-    proc = subprocess.Popen(  # nosec B603 - argv from the registry
-        list(argv),
-        cwd=cwd,
-        env=dict(env),
-        stdout=out,
-        stderr=subprocess.STDOUT,
-        start_new_session=True,
-    )
+    with _RUNNING_GUARD:
+        if _STOPPING.is_set():
+            raise MirrorStopped("the mirror is stopping")
+        proc = subprocess.Popen(  # nosec B603 - argv from the registry
+            list(argv),
+            cwd=cwd,
+            env=dict(env),
+            stdout=out,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        _RUNNING.add(proc)
     try:
         return proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGKILL)
-        proc.wait()
+        _end_groups([proc])
         return None
     except BaseException:
-        os.killpg(proc.pid, signal.SIGKILL)
-        proc.wait()
+        _end_groups([proc])
         raise
+    finally:
+        with _RUNNING_GUARD:
+            _RUNNING.discard(proc)
 
 
 def _run_one(
@@ -250,25 +397,75 @@ def _run_one(
     log = log_dir / f"{item.check.id}.log"
     started = time.monotonic()
     cwd = root / item.cwd if item.cwd else root
+    argv = locked(item.argv, timeout) if item.check.heavy else item.argv
+    ceiling = heavy_ceiling(timeout) if item.check.heavy else timeout
     with log.open("w", encoding="utf-8") as out:
         code = run_in_session(
-            item.argv,
+            argv,
             cwd=cwd,
             env={**base_env, **item.env},
             out=out,
-            timeout=timeout,
+            timeout=ceiling,
         )
         if code is None:
-            out.write(f"\n[ci-mirror] timed out after {timeout}s\n")
+            out.write(f"\n[ci-mirror] timed out after {ceiling}s\n")
     seconds = time.monotonic() - started
-    if code == 0:
-        return CheckResult(
-            item.check.id, CheckStatus.PASSED, "", seconds, str(log), 0
-        )
-    reason = f"exit {code}" if code is not None else f"timed out ({timeout}s)"
-    return CheckResult(
-        item.check.id, CheckStatus.FAILED, reason, seconds, str(log), code
+    if (
+        item.check.heavy
+        and "timeout" in argv
+        and _ran_out(code, seconds, timeout)
+    ):
+        code, ceiling = None, timeout  # its own ceiling, inside the slot
+    status, reason = verdict(item.check, code, ceiling, log)
+    return CheckResult(item.check.id, status, reason, seconds, str(log), code)
+
+
+#: The lowest exit status a shell reports for a process a signal ended.
+_SIGNAL_EXIT = 128
+
+
+def _wrapper_gave_up(log: Path) -> bool:
+    text = log.read_text(encoding="utf-8", errors="replace")
+    return any(
+        line.startswith(_WAIT_EXPIRED_LINE) for line in text.splitlines()
     )
+
+
+def _said_nothing(log: Path) -> bool:
+    """Whether the check wrote no output of its own (the lock's lines aside)."""
+    text = log.read_text(encoding="utf-8", errors="replace")
+    return not any(
+        line.strip() and not line.startswith("run-heavy:")
+        for line in text.splitlines()
+    )
+
+
+def verdict(
+    check: MirrorCheck, code: int | None, ceiling: int, log: Path
+) -> tuple[CheckStatus, str]:
+    """The status and reason for a check that exited *code* (``None``: timed out).
+
+    A run its environment stopped is ``NO-VERDICT``, with the remedy in the
+    reason, so it never reads as a finding (#5735).
+    """
+    if code == 0:
+        return CheckStatus.PASSED, ""
+    if code is None:
+        return CheckStatus.NO_VERDICT, (
+            f"timed out ({ceiling}s); rerun it with a longer --timeout or "
+            "with nothing else running"
+        )
+    if code == WAIT_EXPIRED and _wrapper_gave_up(log):
+        return CheckStatus.NO_VERDICT, (
+            f"not run: waited {LOCK_WAIT}s for a heavy-check slot; rerun "
+            "it once the checks the log names end"
+        )
+    if (code < 0 or code >= _SIGNAL_EXIT) and _said_nothing(log):
+        return CheckStatus.NO_VERDICT, (
+            f"exit {code} with no output: a signal from its environment, such "
+            "as an out-of-memory kill; rerun it with nothing else running"
+        )
+    return CheckStatus.FAILED, f"exit {code}"
 
 
 def _groups(planned: Sequence[PlannedCheck]) -> list[list[PlannedCheck]]:
@@ -287,6 +484,21 @@ def _groups(planned: Sequence[PlannedCheck]) -> list[list[PlannedCheck]]:
     return lanes
 
 
+def _not_run_after(item: PlannedCheck, first: CheckResult) -> CheckResult:
+    """A lane member skipped because the member it reads did not pass.
+
+    It inherits that member's kind of block: behind a ``NO-VERDICT`` it has no
+    verdict either, and is not a finding (#5735).
+    """
+    if first.status is CheckStatus.NO_VERDICT:
+        status, why = CheckStatus.NO_VERDICT, "had no verdict"
+    else:
+        status, why = CheckStatus.FAILED, "failed first"
+    return CheckResult(
+        item.check.id, status, f"not run: {first.id} {why}", 0.0, None, None
+    )
+
+
 def _run_lane(
     lane: Sequence[PlannedCheck],
     root: Path,
@@ -303,17 +515,7 @@ def _run_lane(
     results: list[CheckResult] = []
     for item in lane:
         if results and results[0].status.blocks:
-            failed = results[0].id
-            results.append(
-                CheckResult(
-                    item.check.id,
-                    CheckStatus.FAILED,
-                    f"not run: {failed} failed first",
-                    0.0,
-                    None,
-                    None,
-                )
-            )
+            results.append(_not_run_after(item, results[0]))
             continue
         results.append(_run_one(item, root, base_env, timeout, log_dir))
     return results

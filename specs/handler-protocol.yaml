@@ -133,22 +133,33 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A handler MUST report `SKIPPED` for a legitimate no-op, such as a duplicate or
-      an already-present record.
+      A handler MUST report `SKIPPED` for a legitimate no-op, such as a duplicate of
+      a message already applied or still waiting, or an already-present record. A
+      resend of a message the receiver refused is not such a duplicate: the
+      seen-before door refuses it again with the reason its receipt stub recorded
+      (CLP-10-010).
     rationale: >-
       An idempotent skip ends in a behavior-tree SUCCESS, but it changes nothing.
       `SKIPPED` tells the pipeline that the message was handled without new work, so
-      a redelivery does not read as applied work or as a refusal (ADR-0095).
+      a redelivery does not read as applied work or as a refusal (ADR-0095). A
+      refusal is whole and final for that activity, so its resend gets the same
+      answer, not a skip (ADR-0154).
     verification: >-
       The `HP-01-003`-marked tests under `test/core/use_cases/received/` drive each
       handler through its skip exit and assert that a redelivered duplicate is
       `SKIPPED`; `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` carries
-      the disposition through the dispatcher to `InboxOutcome`.
+      the disposition through the dispatcher to `InboxOutcome`;
+      `test/adapters/driving/fastapi/test_seen_before_door.py` asserts a resend of an
+      applied or waiting message is `SKIPPED` and one of a refused message is
+      `REFUSED` with its first reason.
     relationships:
     - rel_type: extends
       spec_id: HP-01-003
+    - rel_type: uses_definition
+      spec_id: CLP-10-010
     adr:
     - ADR-0095
+    - ADR-0154
   - id: HP-01-015
     priority: MUST
     kind: project
@@ -248,6 +259,13 @@ groups:
       spec_id: HP-01-010
     - rel_type: constrains
       spec_id: HP-10-001
+    see_also:
+    - spec_id: HP-09-001
+      reason: 'context for the reader'
+    - spec_id: HP-09-002
+      reason: 'context for the reader'
+    - spec_id: OX-08-001
+      reason: 'context for the reader'
   - id: HP-01-017
     priority: MUST_NOT
     kind: project
@@ -300,6 +318,9 @@ groups:
       spec_id: HP-00-001
     adr:
     - ADR-0115
+    see_also:
+    - spec_id: BT-17-001
+      reason: 'context for the reader'
   - id: HP-01-018
     priority: MUST
     kind: protocol
@@ -444,6 +465,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: HP-01-008
+    - rel_type: uses_definition
+      spec_id: HP-01-009
     adr:
     - ADR-0129
   - id: HP-01-023
@@ -694,21 +717,27 @@ groups:
     kind: architecture
     statement: >-
       The receive-tree factory MUST place the HP-01-005 addressee check in every
-      received tree, after intake and the post-close boundary and before the sender
-      guard.
+      received tree as its first door guard, ahead of the seen-before door, the path
+      stage, the post-close boundary, the sender guard and intake (CLP-10-010).
     rationale: >-
       HP-01-005 applies to every handler. If each tree must ask for the check, a tree
       can forget it. That tree then acts on copies addressed to a different party. A
       check written one time in the factory cannot be forgotten. A closed exemption
       list, with a reason for each entry, makes each tree that is different a visible
-      decision (CS-22-001).
+      decision (CS-22-001). It is the first question because a copy that is not for
+      the receiver is refused before anything else is asked of it or written for it:
+      it costs one read and a receipt stub (ADR-0154).
     verification: >-
       `test/architecture/test_received_tree_addressee_guard.py::test_every_received_tree_carries_the_guard_unless_exempt`
       builds every received tree and fails on one without the guard whose site is
       not a pinned exemption;
       `test/adapters/driving/fastapi/test_unaddressed_copy_sweep.py` delivers every
       example activity to a store it was not addressed to and asserts it is refused,
-      archived, and acts on nothing.
+      that what remains of it is a receipt stub with no body that names the sender, a
+      reason and the body's digest, and that it acts on nothing;
+      `test/architecture/test_received_tree_staged_doors.py` asserts in every built
+      received tree that the addressee check comes before the seen-before door and
+      that intake follows the last door guard.
     relationships:
     - rel_type: implements
       spec_id: HP-01-005
@@ -720,25 +749,30 @@ groups:
     statement: >-
       A received tree whose message type declares the paths it handles carries the
       path stage. The receive-tree factory MUST place that stage directly after the
-      HP-01-012 addressee check, and before the sender guard.
+      seen-before door (ADR-0154), which follows the HP-01-012 addressee check, and
+      before the sender guard.
     rationale: >-
       The path stage sits in the factory for the reason HP-01-012 gives for the
       addressee check: a check each tree has to ask for is a check a tree can forget.
       It sits after the addressee check because a copy the receiver was never
       addressed is refused before its role is asked about at all, and before the
-      sender guard because the guard reads the path the stage chose (HP-01-036).
+      sender guard because the guard reads the path the stage chose (HP-01-036). It
+      sits after the seen-before door because a resend is answered from its record
+      before its role is asked about (ADR-0154).
     verification: >-
       `test/core/behaviors/case/test_received_path_stage.py::test_the_stage_runs_after_the_addressee_check_and_before_the_guard`
-      asserts the stage's index falls between the addressee check's and the sender
-      guard's, and `::test_the_stage_is_one_of_the_trees_door_guards` asserts the
-      factory records it as a door guard.
+      asserts the order addressee check < seen-before door < path stage < sender
+      guard, with the path stage directly after the seen-before door, and
+      `::test_the_stage_is_one_of_the_trees_door_guards` asserts the factory records
+      it as a door guard.
     relationships:
     - rel_type: refines
       spec_id: CLP-10-010
-    - rel_type: implements
-      spec_id: HP-01-005
+    - rel_type: uses_definition
+      spec_id: HP-01-012
     adr:
     - ADR-0153
+    - ADR-0154
   - id: HP-01-036
     priority: MUST
     kind: architecture
@@ -862,6 +896,8 @@ groups:
       spec_id: HP-01-005
     - rel_type: depends_on
       spec_id: HP-01-038
+    - rel_type: uses_definition
+      spec_id: HP-01-035
     adr:
     - ADR-0153
   - id: HP-01-040
@@ -917,6 +953,9 @@ groups:
       spec_id: HP-01-038
     adr:
     - ADR-0153
+    see_also:
+    - spec_id: HP-01-035
+      reason: 'a rationale: the refusal the declaration keeps a case-scoped type from'
   - id: HP-01-042
     priority: MUST
     kind: architecture
@@ -960,8 +999,17 @@ groups:
       spec_id: HP-01-038
     - rel_type: depends_on
       spec_id: HP-01-036
+    - rel_type: uses_definition
+      spec_id: HP-01-035
     adr:
     - ADR-0153
+    see_also:
+    - spec_id: BT-17-008
+      reason: >-
+        scope statement: which branches already count as the guard BT-17-008 asks for
+    - spec_id: RSH-08-003
+      reason: >-
+        scope statement: which branches already count as the gate RSH-08-003 asks for
   - id: HP-01-043
     priority: MUST_NOT
     kind: architecture
@@ -980,6 +1028,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: HP-01-042
+    - rel_type: uses_definition
+      spec_id: HP-01-038
     adr:
     - ADR-0153
   - id: HP-01-032
@@ -1307,6 +1357,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: CLP-10-005
+    see_also:
+    - spec_id: BT-15-001
+      reason: 'context for the reader'
   - id: HP-08-003
     priority: MUST_NOT
     kind: project
@@ -1486,6 +1539,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: HP-08-006
+    - rel_type: supersedes
+      spec_id: HP-08-010
   - id: HP-08-012
     priority: MUST_NOT
     kind: project
@@ -1522,6 +1577,9 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: HP-08-008
+    see_also:
+    - spec_id: HP-08-007
+      reason: 'an analogy: the same refusal for another object type'
   - id: HP-08-014
     priority: MUST
     kind: project

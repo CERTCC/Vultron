@@ -94,7 +94,7 @@ def test_fault_event_carries_failure_class(make_payload):
 def test_case_diverged_fault_naming_no_announce_is_refused(make_payload):
     """A divergence fault with no ``inReplyTo`` names no case to re-seed.
 
-    It is still archived (CLP-10-018), and nothing is sent.
+    It is still recorded by intake (CLP-10-018), and nothing is sent.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
     activity = create_processing_fault_activity(
@@ -120,7 +120,7 @@ def test_case_diverged_fault_naming_no_announce_is_refused(make_payload):
 def test_received_fault_is_skipped_until_ask_register_exists(make_payload):
     """Nothing correlates a NACK to its ask yet (#2883), so it is a no-op.
 
-    The Create that carried it is still archived (CLP-10-017).
+    The Create that carried it is still recorded by intake (CLP-10-017).
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
     activity = create_processing_fault_activity(

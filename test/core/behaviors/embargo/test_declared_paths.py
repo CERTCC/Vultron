@@ -60,6 +60,7 @@ from vultron.core.behaviors.case.nodes.received_path import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
 )
+from vultron.core.behaviors.case_id_scope import CaseIdScope
 from vultron.core.behaviors.embargo.announce_received_tree import (
     announce_embargo_received_tree,
 )
@@ -313,12 +314,15 @@ def _run_stage(
     case_id, embargo_id, actor, dl = _store(role, f"{label}-{role}")
     tree = builder(case_id, embargo_id)
     stage = _path_stage(tree)
+    # The door is the scope that seeds the stage's /case_id port.
+    door = stage.parent
+    assert isinstance(door, CaseIdScope) and door.case_id == case_id
     assert isinstance(tree, ReceivedActivityTree)
-    assert stage in tree.door_guards, (
+    assert door in tree.door_guards, (
         "the path stage is a door guard, so its refusal ends the tree before"
         " any commit (CLP-10-010)"
     )
-    BTBridge(datalayer=dl).execute_with_setup(tree=stage, actor_id=actor)
+    BTBridge(datalayer=dl).execute_with_setup(tree=door, actor_id=actor)
     return stage, case_id
 
 

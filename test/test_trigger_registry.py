@@ -230,6 +230,13 @@ def test_leave_case_is_general_purpose_and_its_predecessors_are_gone() -> None:
     assert "close-case" not in verbs
 
 
+@pytest.mark.spec("TRIG-02-006")
+@pytest.mark.parametrize("verb", ["add-note-to-case", "sync-log-entry"])
+def test_demo_shortcut_verbs_are_classified_demo_only(verb: str) -> None:
+    """Both shortcut verbs are demo-only rows, so TRIG-09 governs them."""
+    assert lookup_entry(verb).exposure is TriggerExposure.DEMO_ONLY
+
+
 @pytest.mark.spec("TRIG-11-007")
 def test_offer_case_ownership_transfer_trigger_accepts_end_time() -> None:
     (row,) = [

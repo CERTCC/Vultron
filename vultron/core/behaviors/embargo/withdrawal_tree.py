@@ -60,12 +60,14 @@ def withdraw_from_embargo_on_case_tree(
     """Create the BT for a received ``Leave(EmbargoEvent)`` (MSM-07-010)::
 
         WithdrawFromEmbargoOnCaseBT (Sequence)
-        ├─ IntakeReceivedActivityNode
+        ├─ ActivityAddressedToReceiverNode       # addressee door
+        ├─ ActivityNotSeenBeforeNode             # seen-before door
         ├─ ReceivedPathNode                      # door: the CASE_MANAGER only
         ├─ <sender guard>                        # composed from sender_rule
+        ├─ IntakeReceivedActivityNode            # records it (CLP-10-017)
         ├─ ClockDecisionsIfCaseManager           # overdue invites (CM-28-015)
         ├─ IsWithdrawableEmbargoNode             # read-only guard (CLP-10-009)
-        │                                        # and redelivery (HP-01-003)
+        │                                        # and redelivery (HP-01-014)
         ├─ EmbargoWithdrawalApplies              # staged decision
         └─ WithdrawFromEmbargoOnCaseBTAct (ActTransaction)  # one act (ADR-0151)
            ├─ GuardedCommitCaseLedgerEntryBT        # the Leave's own entry
@@ -91,7 +93,7 @@ def withdraw_from_embargo_on_case_tree(
             withdrawing.  Read from the message, never from the receiving
             store (ADR-0022).
         activity_id: The Leave's own id; a Leave the ledger already records
-            is a redelivery, reported ``SKIPPED`` (HP-01-003).
+            is a redelivery, reported ``SKIPPED`` (HP-01-014).
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
 

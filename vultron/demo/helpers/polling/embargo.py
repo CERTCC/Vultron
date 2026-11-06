@@ -18,7 +18,10 @@ from collections.abc import Callable
 
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
-from vultron.demo.helpers.polling._poll import _poll_until
+from vultron.demo.helpers.polling._poll import (
+    EM_TRANSITION_TIMEOUT,
+    _poll_until,
+)
 from vultron.demo.helpers.verification.participants import (
     _fetch_participant,
 )
@@ -37,7 +40,9 @@ def wait_for_case_em_state(
     client: DataLayerClient,
     case_id: str,
     expected: EM,
-    timeout_seconds: float = 30.0,
+    # Temporal (EDF-06-006, EDF-06-008): bounds the EM-transition delivery
+    # chain, 6.3x the worst wait measured in CI — see EM_TRANSITION_TIMEOUT.
+    timeout_seconds: float = EM_TRANSITION_TIMEOUT,
     poll_interval: float = 0.25,
     dl_actor_id: str | None = None,
     active_embargo_id: str | None = None,
@@ -94,7 +99,9 @@ def wait_for_case_em_state(
 def wait_for_case_em_terminated(
     client: DataLayerClient,
     case_id: str,
-    timeout_seconds: float = 30.0,
+    # Temporal (EDF-06-006, EDF-06-008): embargo teardown is the longest wait
+    # on the EM-transition chain — see EM_TRANSITION_TIMEOUT.
+    timeout_seconds: float = EM_TRANSITION_TIMEOUT,
     poll_interval: float = 0.25,
 ) -> None:
     """Poll until the case EM state is ``EM.EXITED``.
@@ -127,7 +134,7 @@ def wait_for_embargo_proposal_indexed(
 ) -> None:
     """Poll until the invitee's case maps *embargo_id* to *invite_id*.
 
-    The relayed Invite is readable as soon as intake archives it, but the
+    The relayed Invite is readable as soon as intake records it, but the
     accept and reject triggers correlate an embargo with its Invite through the
     case's proposal index, which the received tree writes last (ID-04-005).
     An answer posted between the two builds its Accept with no object, so the

@@ -12,7 +12,7 @@ need on *every* run; the longer pitfall write-ups live in
 ## ⚠️ Running the Test Suite — ONE RUN RULE (MUST)
 
 ```bash
-log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; timeout -k 30 1800 uv run pytest -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)
+log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)
 ```
 
 Run **exactly once**; never re-run for counts, a longer tail, or `-q`. `-n auto`
@@ -34,7 +34,7 @@ uv run pytest test/test_semantic_activity_patterns.py -v
 ```
 
 <!-- markdownlint-disable-next-line MD013 -->
-Before a Pull Request's first push, if `vultron/demo/` or `test/demo/` was touched, run the full suite (after the push, a fix commit is gated by `targeted-tests`, PAD-18-002/003): `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; timeout -k 30 1800 uv run pytest -m "" -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)`.
+Before a Pull Request's first push, if `vultron/demo/` or `test/demo/` was touched, run the full suite (after the push, a fix commit is gated by `targeted-tests`, PAD-18-002/003): `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -m "" -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)`.
 
 ---
 
@@ -161,9 +161,8 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
 - **Vacuous assertions** — broadcast guards need a third participant; hash-chain
   comparisons need presence checks before equality (`"" == ""` passes);
   `MagicMock` needs `spec=` wherever code uses `isinstance()`; the genesis-hash
-  path needs a stored case (CLP-08-004).
-- **A test that "falls back to" a value for *malformed* input is asserting a
-  bug** — absent input and unreadable input are different.
+  path needs a stored case (CLP-08-004); and "falls back to" a value for
+  *malformed* input asserts a bug — absent and unreadable input differ.
 - **Drive a guard through its production entry point** — a direct call proves
   nothing about the path that runs it and still reports the requirement covered;
   `test_guards_run_in_production.py` holds the production half (#3156).
@@ -172,29 +171,30 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
   "failure when X absent" for either is unreachable; assert the reason
   (`assert_failure(result, reason=...)`), not just the status.
 - **Process-global state** — reset only in root `test/conftest.py` (blackboard,
-  per-actor registries; no per-directory copy, #3996); define test BT subclasses
-  at module level; test-local `CoreObject`/`CoreRecord` subclasses pollute
-  `CORE_VOCABULARY`/`CORE_TYPE_MAP` (use `isolated_core_registries`);
-  `SUBFAILED` in `unittest` subtests does not fail pytest; `caplog.set_level()`
-  in a fixture captures other fixtures' setup.
-- **BT test patterns** — pass a deterministic factory when the default is
-  probabilistic; contract-test wrappers inherit the *production* node class; stub
-  every probabilistic node *except* the one under test;
-  `ResolveCaseManagerNode` needs a CASE_MANAGER participant in the fixture.
-- **Fixtures that silently miss deliveries** — the outbox `BackgroundTasks`
-  emitter has two resolution paths, patch both; a `InProcessRouter` WARNING for
-  an unregistered host is a config-leak signal; `rm -rf devlogs/` before running
-  the invariant harness locally.
-- **Coverage shape** — one test per distinct lookup path when consolidating
-  helpers; trigger use cases need per-use-case tests
+  per-actor registries; no per-directory copy, #3996); define test BT subclasses at
+  module level; test-local `CoreObject`/`CoreRecord` subclasses pollute
+  `CORE_VOCABULARY`/`CORE_TYPE_MAP` (use `isolated_core_registries`); `SUBFAILED` in
+  `unittest` subtests does not fail pytest; `caplog.set_level()` in a fixture captures
+  other fixtures' setup.
+- **BT test patterns** — pass a deterministic factory when the default is random;
+  contract-test wrappers inherit the *production* node class; stub every probabilistic
+  node *except* the one under test; `ResolveCaseManagerNode` needs a CASE_MANAGER
+  participant in the fixture.
+- **Fixtures that mislead** — the outbox `BackgroundTasks` emitter has two resolution
+  paths, patch both; an `InProcessRouter` WARNING for an unregistered host is a
+  config-leak signal; `rm -rf devlogs/` before the invariant harness; a
+  CSB-18-001-impossible status fixture is guarded only under
+  `test/core/behaviors/status/`; ask `impossible_state_reasons()` elsewhere.
+- **Coverage shape** — one test per distinct lookup path when consolidating helpers;
+  trigger use cases need per-use-case tests
   ([`notes/triggers-test-coverage.md`](../notes/triggers-test-coverage.md)).
-- **The timeout *method* sets what a trip costs; the ceiling only sets how
-  often** — `thread` killed the session or xdist worker, `signal` fails one test
-  (#3603); a dead worker fails the run, and gate exit 124 means it hung (#4809).
+- **The timeout *method* sets what a trip costs; the ceiling only sets how often** —
+  `thread` killed the session or xdist worker, `signal` fails one test (#3603); a dead
+  worker fails the run, and gate exit 124 means it hung (#4809).
 - **A marker sweep that counts declarations misses a directory hook** — grepping
   `pytestmark` calls `test/demo/` non-compliant when its hook marks it 100%; the
   tier is asserted over the real collection, probed (#3604).
 - **SYNC replication test setup** — `notes/sync-ledger-replication.md` § "SYNC
-  Replication Test Patterns". A `LedgerNetwork` is rebuilt from its ledger at
-  teardown; direct CASE_MANAGER setup writes call `bypass_ledger()`
+  Replication Test Patterns". A `LedgerNetwork` is rebuilt from its ledger at teardown;
+  direct CASE_MANAGER setup writes call `bypass_ledger()`
   ([`notes/case-ledger-authority.md`](../notes/case-ledger-authority.md)).

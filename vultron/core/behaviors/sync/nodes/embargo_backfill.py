@@ -15,9 +15,10 @@
 """Backfill participants the embargo gate has just admitted (CM-10-006).
 
 A received activity is committed — and its entry fanned out — *before* its
-effect runs (intake → guards → commit → effects, CLP-10-006). So when the effect
-is the one that admits a paused participant (it accepts the active embargo, or
-the embargo ends), the fan-out of the admitting entry has already withheld it.
+effect runs (doors → intake → guards → commit → effects, CLP-10-006). So when
+the effect is the one that admits a paused participant (it accepts the active
+embargo, or the embargo ends), the fan-out of the admitting entry has already
+withheld it.
 This node runs after that effect and sends every admitted peer the entries
 withheld from it, the admitting entry included, in log order.
 

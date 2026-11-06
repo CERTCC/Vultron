@@ -166,6 +166,9 @@ def _written(before: dict[str, int], after: dict[str, int]) -> dict[str, int]:
 #: What intake writes for one received RK: its record of the ``Read``, nothing
 #: else (CLP-10-017).
 INTAKE_ONLY = {"ReceivedActivityRecord": 1}
+#: A door's refusal comes before intake, so nothing at all is written; the
+#: outcome stage leaves the receipt stub after the tree (CLP-10-018).
+NOTHING: dict[str, int] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +203,7 @@ class TestAckReportSender:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert "not an addressee" in (result.reason or "")
-        assert _written(before, dl.count_all()) == INTAKE_ONLY
+        assert _written(before, dl.count_all()) == NOTHING
         assert dl.outbox_list() == []
 
     @pytest.mark.spec("RMB-08-004")
@@ -213,7 +216,7 @@ class TestAckReportSender:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert "No record of Offer" in (result.reason or "")
-        assert _written(before, dl.count_all()) == INTAKE_ONLY
+        assert _written(before, dl.count_all()) == NOTHING
         assert dl.outbox_list() == []
 
 

@@ -152,7 +152,7 @@ class RecordedOwnershipOffer:
         """Return ``True`` when another answer has already closed the Offer.
 
         A redelivered answer finds its own ledger entry as the reply; it is
-        the same answer, so it does not count as a second one (HP-01-003).
+        the same answer, so it does not count as a second one (HP-01-014).
         """
         return self.answer_id is not None and self.answer_id != answer_id
 
@@ -292,7 +292,7 @@ def offer_made_from_proposal(
 
     ``None`` when the ledger records no such Offer, or the case is not held
     or names no CASE_MANAGER: the proposal is then a new one.  A proposal
-    whose Offer the ledger records is a redelivery (HP-01-003); its standing
+    whose Offer the ledger records is a redelivery (HP-01-014); its standing
     is that Offer's offerer (CM-21-019).
     """
     case = dl.read_case(case_id)

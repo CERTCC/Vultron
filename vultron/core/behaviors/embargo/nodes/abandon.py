@@ -366,12 +366,15 @@ class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
             case_id=self._case_id_value,
         )
         if holds_received_activity(dl, invite_id):
-            # Declining the proposal it received (ADR-0152).
+            # Declining the proposal it received (ADR-0152).  The abandon
+            # rejects the one Invite it received, not a changed answer, so
+            # the id is derived (ID-04-004).
             cancel_id, cancel_blob = factory.reject_embargo(
                 proposal_id=invite_id,
                 case_id=self._case_id_value,
                 actor=actor_id,
                 to=None,
+                derived_id=True,
             )
             cancel = partial(
                 commit,

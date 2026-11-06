@@ -47,6 +47,10 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     ungated_emitters,
     ungated_nodes,
 )
+from vultron.core.behaviors.case_id_scope import (
+    seeded_case_id,
+    with_case_id,
+)
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.replica_emit_exemptions import (
     EMBARGO_INVITE_FAULT,
@@ -65,14 +69,22 @@ from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.ledger_position_stage import (
     LEDGER_POSITION_GATE_NAME,
 )
+from vultron.core.behaviors.sync.sender_sequence_stage import (
+    SENDER_SEQUENCE_GATE_NAME,
+)
 from vultron.errors import VultronWiringError
 
 CASE_ID = "https://example.org/cases/case-factory-gate-001"
 COMMIT = "GuardedCommitCaseLedgerEntryBT"
 POST_CLOSE = "CaseOpenToExternalWrites"
 ADDRESSEE = "ActivityAddressedToReceiverNode"
+SEEN = "ActivityNotSeenBeforeNode"
+INTAKE = "IntakeReceivedActivityNode"
 CLOCK_GATE = "ClockDecisionsIfCaseManager"
 POSITION_GATE = LEDGER_POSITION_GATE_NAME
+#: The sender-sequence stage every case tree with a sender guard takes, after
+#: the ledger position answer and before the clock decisions (SYNC-21-023).
+SEQUENCE_GATE = SENDER_SEQUENCE_GATE_NAME
 #: The case-wide clock decision every case tree with a sender guard takes.
 END_TIME = "EmbargoEndTimeDecision"
 #: The stage a commit tree's guards sit in, with the refusal notice (CLP-02-005).
@@ -142,10 +154,12 @@ class TestStageOrder:
             manager_case_id=CASE_ID,
         )
 
-        assert isinstance(tree.children[0], IntakeReceivedActivityNode)
-        assert _names(tree)[1:] == [
-            POST_CLOSE,
+        assert isinstance(tree.children[3], IntakeReceivedActivityNode)
+        assert _names(tree) == [
             ADDRESSEE,
+            SEEN,
+            POST_CLOSE,
+            INTAKE,
             STAGE,
             COMMIT,
             "Replica",
@@ -307,7 +321,7 @@ class TestStageOrder:
         checks = [
             n for n in gate.iterate() if isinstance(n, CheckIsCaseManagerNode)
         ]
-        assert [c._case_id for c in checks] == [CASE_ID]
+        assert [seeded_case_id(c) for c in checks] == [CASE_ID]
 
     def test_manager_effects_without_a_case_to_gate_on_are_refused(
         self,
@@ -502,8 +516,8 @@ def test_ungated_nodes_walks_the_replica_gate_but_not_the_manager_gate() -> (
             name="ReplicaGate",
             memory=False,
             children=[
-                CheckIsCaseManagerNode(
-                    case_id=CASE_ID, name="SkipIfCaseManager"
+                with_case_id(
+                    CheckIsCaseManagerNode(name="SkipIfCaseManager"), CASE_ID
                 ),
                 replica,
             ],
@@ -541,17 +555,20 @@ class TestRefusalEffects:
             refusal_effects=[note],
         )
 
-        assert _names(tree)[1:] == [
-            POST_CLOSE,
+        assert _names(tree) == [
             ADDRESSEE,
+            SEEN,
+            POST_CLOSE,
             "SenderIsCaseManagerNode",
+            INTAKE,
             POSITION_GATE,
+            SEQUENCE_GATE,
             CLOCK_GATE,
             "PreconditionGuardStage",
             COMMIT,
             "Replica",
         ]
-        stage = tree.children[6]
+        stage = tree.children[8]
         assert isinstance(stage, PreconditionGuardStage)
         assert list(stage.guards.children) == [guard]
         gates = [
@@ -584,13 +601,13 @@ class TestRefusalEffects:
         )
 
         assert ungated_emitters([tree]) == []
-        stage = tree.children[3]
+        stage = tree.children[4]
         checks = [
             n for n in stage.iterate() if isinstance(n, CheckIsCaseManagerNode)
         ]
-        assert [(c._case_id, c._case_may_be_absent) for c in checks] == [
-            (CASE_ID, True)
-        ]
+        assert [
+            (seeded_case_id(c), c._case_may_be_absent) for c in checks
+        ] == [(CASE_ID, True)]
 
     @pytest.mark.spec("CLP-10-022")
     @pytest.mark.spec("CLP-10-047")
@@ -658,9 +675,11 @@ class TestRefusalEffects:
             refusal_effects=[_Emitter()],
         )
 
-        assert _names(tree)[1:] == [
-            POST_CLOSE,
+        assert _names(tree) == [
             ADDRESSEE,
+            SEEN,
+            POST_CLOSE,
+            INTAKE,
             "PreconditionGuardStage",
             COMMIT,
             "ReplicaEffect",
@@ -675,7 +694,13 @@ class TestRefusalEffects:
             precondition_guards=[_effect("Guard")],
         )
 
-        assert _names(tree)[1:] == [POST_CLOSE, ADDRESSEE, "Guard"]
+        assert _names(tree) == [
+            ADDRESSEE,
+            SEEN,
+            POST_CLOSE,
+            INTAKE,
+            "Guard",
+        ]
 
 
 class TestRefusalNotice:
@@ -698,7 +723,14 @@ class TestRefusalNotice:
             precondition_guards=[_effect("Guard")],
         )
 
-        assert _names(tree)[1:] == [POST_CLOSE, ADDRESSEE, STAGE, COMMIT]
+        assert _names(tree) == [
+            ADDRESSEE,
+            SEEN,
+            POST_CLOSE,
+            INTAKE,
+            STAGE,
+            COMMIT,
+        ]
         (notice,) = self._notices(tree)
         assert notice._case_id == CASE_ID
         assert tree.refusal_notice_exemption is None
@@ -734,7 +766,14 @@ class TestRefusalNotice:
         )
 
         assert self._notices(tree) == []
-        assert _names(tree)[1:] == [POST_CLOSE, ADDRESSEE, "Guard", COMMIT]
+        assert _names(tree) == [
+            ADDRESSEE,
+            SEEN,
+            POST_CLOSE,
+            INTAKE,
+            "Guard",
+            COMMIT,
+        ]
         assert tree.refusal_notice_exemption is OWNER_CLOSE_DECLINE
 
     @pytest.mark.spec("CLP-02-005")
@@ -809,7 +848,10 @@ class TestPostCloseStage:
     """The factory places the post-close write boundary (CM-23-013)."""
 
     @pytest.mark.spec("CM-23-013")
-    def test_every_tree_gets_the_guard_right_after_intake(self) -> None:
+    @pytest.mark.spec("CLP-10-010")
+    def test_every_tree_gets_the_guard_ahead_of_its_sender_guard(self) -> None:
+        """Beside the sender guard, once the message is known to be for the
+        receiver (ADR-0154), and ahead of intake."""
         from vultron.core.behaviors.case.nodes.post_close import (
             CaseOpenToExternalWritesNode,
         )
@@ -818,7 +860,8 @@ class TestPostCloseStage:
             name="SampleBT", case_id=None, precondition_guards=[]
         )
 
-        assert isinstance(tree.children[1], CaseOpenToExternalWritesNode)
+        assert isinstance(tree.children[2], CaseOpenToExternalWritesNode)
+        assert _names(tree) == [ADDRESSEE, SEEN, POST_CLOSE, INTAKE]
 
     @pytest.mark.spec("CM-23-013")
     def test_the_guard_judges_the_commit_case_else_the_manager_case(
@@ -840,7 +883,7 @@ class TestPostCloseStage:
         )
 
         for tree in (committed, gated):
-            guard = tree.children[1]
+            guard = tree.children[2]
             assert isinstance(guard, CaseOpenToExternalWritesNode)
             assert guard._case_id == CASE_ID
 
@@ -858,7 +901,13 @@ class TestPostCloseStage:
             post_close_exemption=PostCloseExemption.LEDGER_RESYNC,
         )
 
-        assert _names(tree)[1:] == [ADDRESSEE, STAGE, COMMIT]
+        assert _names(tree) == [
+            ADDRESSEE,
+            SEEN,
+            INTAKE,
+            STAGE,
+            COMMIT,
+        ]
 
     @pytest.mark.spec("CM-23-013")
     def test_a_reply_wraps_the_guard_in_a_gated_refusal_stage(self) -> None:
@@ -877,13 +926,15 @@ class TestPostCloseStage:
             post_close_reply=[reply],
         )
 
-        assert _names(tree)[1:] == [
-            "PostCloseStage",
+        assert _names(tree) == [
             ADDRESSEE,
+            SEEN,
+            "PostCloseStage",
+            INTAKE,
             STAGE,
             COMMIT,
         ]
-        stage = tree.children[1]
+        stage = tree.children[2]
         assert isinstance(stage, PreconditionGuardStage)
         assert [type(g) for g in stage.guards.children] == [
             CaseOpenToExternalWritesNode
@@ -976,11 +1027,14 @@ class TestClockDecisionStage:
             **_sender_args(),
         )
 
-        assert _names(tree)[1:] == [
-            POST_CLOSE,
+        assert _names(tree) == [
             ADDRESSEE,
+            SEEN,
+            POST_CLOSE,
             "SenderIsCaseManagerNode",
+            INTAKE,
             POSITION_GATE,
+            SEQUENCE_GATE,
             "ClockDecisionsIfCaseManager",
             STAGE,
             COMMIT,
@@ -998,11 +1052,14 @@ class TestClockDecisionStage:
             **_sender_args(),
         )
 
-        assert _names(tree)[1:] == [
-            POST_CLOSE,
+        assert _names(tree) == [
             ADDRESSEE,
+            SEEN,
+            POST_CLOSE,
             "SenderIsCaseManagerNode",
+            INTAKE,
             POSITION_GATE,
+            SEQUENCE_GATE,
             "ClockDecisionsIfCaseManager",
             "PreconditionGuardStage",
             COMMIT,
@@ -1029,7 +1086,7 @@ class TestClockDecisionStage:
             **_sender_args(),
         )
 
-        gate = tree.children[5]
+        gate = tree.children[7]
         assert isinstance(gate, CaseManagerGate)
         stage = gate.gated_branch
         assert isinstance(stage, ClockDecisionStage)
@@ -1042,9 +1099,9 @@ class TestClockDecisionStage:
             for n in gate.children[0].iterate()
             if isinstance(n, CheckIsCaseManagerNode)
         ]
-        assert [(c._case_id, c._case_may_be_absent) for c in checks] == [
-            (CASE_ID, True)
-        ]
+        assert [
+            (seeded_case_id(c), c._case_may_be_absent) for c in checks
+        ] == [(CASE_ID, True)]
 
     @pytest.mark.spec("CLP-10-025")
     def test_the_gate_takes_the_manager_case_when_the_commit_is_omitted(
@@ -1071,7 +1128,7 @@ class TestClockDecisionStage:
             for n in gate.children[0].iterate()
             if isinstance(n, CheckIsCaseManagerNode)
         ]
-        assert [c._case_id for c in checks] == [CASE_ID]
+        assert [seeded_case_id(c) for c in checks] == [CASE_ID]
 
     @pytest.mark.spec("HP-01-025")
     def test_a_tree_with_no_commit_checks_its_sender_on_the_manager_case(
@@ -1109,11 +1166,14 @@ class TestClockDecisionStage:
             **_sender_args(),
         )
 
-        assert _names(tree)[1:] == [
-            POST_CLOSE,
+        assert _names(tree) == [
             ADDRESSEE,
+            SEEN,
+            POST_CLOSE,
             "SenderIsCaseManagerNode",
+            INTAKE,
             POSITION_GATE,
+            SEQUENCE_GATE,
             CLOCK_GATE,
             STAGE,
             COMMIT,

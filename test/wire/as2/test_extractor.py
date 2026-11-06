@@ -23,7 +23,6 @@ from vultron.wire.as2.extractor import (
 )
 
 
-@pytest.mark.spec("SE-02-003")
 @pytest.mark.spec("VAM-01-007")
 def test_find_matching_semantics_returns_unknown_for_unmatched_activity():
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -641,7 +640,7 @@ def test_extract_event_honours_custom_min_rsvp_window():
 
 
 @pytest.mark.spec("EP-07-006")
-@pytest.mark.spec("CM-28-011")
+@pytest.mark.spec("EP-07-011")
 def test_invite_on_day_28_of_30_day_embargo_gets_two_day_window(caplog):
     """The 7-day policy window and the 72 h minimum both yield to the end."""
     published = datetime.now(tz=UTC)

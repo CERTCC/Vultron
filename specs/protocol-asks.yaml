@@ -394,7 +394,7 @@ groups:
       invitee; its deadline is the Invite's `endTime` (CM-28-001, CM-28-012); its
       expiry consequence is stale, not void: a reply after the deadline is still
       honoured under EMB-17 once the expiry has been recorded as `TIMED_OUT`
-      (CM-28-004).
+      (CM-18-002).
     rationale: >
       The embargo invitation already has every property an ask kind declares,
       and the relay (EP-09) emits one per participant per proposal, so the
@@ -414,7 +414,10 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-28-001
     - rel_type: uses_definition
-      spec_id: CM-28-004
+      spec_id: CM-18-002
+    see_also:
+    - spec_id: CM-28-012
+      reason: 'context for the reader'
   - id: ASK-03-008
     priority: MUST
     kind: protocol
@@ -645,6 +648,11 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: CM-24-001
+    see_also:
+    - spec_id: CM-24-002
+      reason: 'context for the reader'
+    - spec_id: EP-09-002
+      reason: 'context for the reader'
   - id: ASK-04-013
     priority: MUST_NOT
     kind: protocol
@@ -1037,7 +1045,8 @@ groups:
       answer that sender with an internal-error `Create(ProcessingFault)`. It sends the
       fault only after it has undone every change the failed processing made.
     rationale: >
-      A failed received act keeps only intake's archive (CLP-07-015), and the
+      A failed received act keeps only intake's record, in holding (CLP-07-015,
+      CLP-10-074), and the
       inbox answered before processing, so without this fault the sender waits
       out its ask deadline in silence. Emitting after the rollback keeps the
       fault from being undone with the act. ASK-07-008 decides whether the fault

@@ -173,7 +173,7 @@ class SyncActivityPort(Protocol):
         entries sent (SYNC-15-011).
 
         Called when fanning out a committed entry to case participants
-        or replaying missing entries to a peer (SYNC-02-002, SYNC-03-002).
+        or replaying missing entries to a peer (SYNC-02-003, SYNC-03-002).
 
         Args:
             entry: The domain log entry to announce.

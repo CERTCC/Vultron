@@ -97,12 +97,8 @@ Invoke the `orient-agent` skill.
 
    If `issueType.name == "Epic"` and `subIssues.totalCount == 0`:
 
-   1. Apply `needs-decomposition` label if not already present:
-
-      ```bash
-      gh issue edit <ISSUE_NUMBER> --repo CERTCC/Vultron \
-        --add-label "needs-decomposition"
-      ```
+   1. Leave labels alone: the `epic-needs-planning` workflow keeps
+      `needs-planning` on an Epic with no sub-issues.
 
    2. Post an actionable comment on the Epic:
 
@@ -342,8 +338,10 @@ later) are separate decisions. Apply
 1. Run the linters:
 
    ```bash
+   G=.agents/skills/shared/run-if-changed.sh
    uv run ruff check --fix && uv run ruff format
-   uv run ruff check && uv run mypy && uv run pyright
+   uv run ruff check && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy \
+     && "$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run python .agents/skills/shared/run-heavy.py uv run pyright
    ```
 
    Do **not** run `pytest` here. The full local unit and integration suites run

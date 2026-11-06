@@ -15,13 +15,15 @@
 
 """Tree for a received ``Create(VulnerabilityCase)`` replica bootstrap (#3874).
 
-Structure (after intake, which the shared factory supplies first)::
+Structure (the shared factory supplies the doors and intake)::
 
     CreateCaseReceivedBT (Sequence)
-    ├─ IntakeReceivedActivityNode
-    ├─ CaseOpenToExternalWrites
+    ├─ ActivityAddressedToReceiverNode      # addressee door
+    ├─ ActivityNotSeenBeforeNode            # seen-before door
     ├─ ReceivedPathNode                     # no case yet, or the replica it seeded
+    ├─ CaseOpenToExternalWrites
     ├─ SenderIsExpectedCaseCreatorNode      # sender guard (CBT-01-011, HP-01-008)
+    ├─ IntakeReceivedActivityNode           # records what arrived (CLP-10-017)
     ├─ ClassifyBootstrapRouteNode           # trusted | redelivery
     └─ BootstrapRoute (Selector)
        ├─ TrustedBootstrap (Sequence)       # CBT-01-005 / CBT-01-006

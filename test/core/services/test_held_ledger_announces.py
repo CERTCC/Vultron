@@ -26,10 +26,11 @@ from test.support.inbox_replay import (
     hold_received,
     ledger_announce_event,
 )
+from test.support.received import received_record
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
+from vultron.core.models.received_activity_record import ReceivedStage
 from vultron.core.services.held_ledger_announces import (
     discard_held,
     held_ledger_announces,
@@ -38,6 +39,7 @@ from vultron.core.services.held_ledger_announces import (
     holds_held_body,
     release_held,
 )
+from vultron.core.services.received_holding import discard_holding
 
 _CASE = "https://example.org/cases/held-service"
 _OTHER_CASE = "https://example.org/cases/held-service-other"
@@ -69,21 +71,31 @@ def _event(entry: CaseLedgerEntry):
     return ledger_announce_event(entry, actor=_MANAGER, to=_RECEIVER)
 
 
-def _body(dl, activity_id: str) -> DeferredInboxActivity | None:
-    record = dl.read(DeferredInboxActivity.build_id(activity_id))
-    return record if isinstance(record, DeferredInboxActivity) else None
+def _replay_is_owed(dl, activity_id: str) -> bool:
+    """Whether the one record for *activity_id* still owes a replay.
+
+    Read off the record rather than through the service, so the assertion
+    names the field the hold writes (ADR-0154).
+    """
+    record = received_record(dl, activity_id)
+    assert record is not None, f"{activity_id!r} has no ReceivedActivityRecord"
+    return record.replay_owed
 
 
 @pytest.mark.spec("SYNC-14-001")
-def test_holds_the_archived_body_and_finds_it_by_predecessor(dl):
+def test_holds_the_received_body_and_finds_it_by_predecessor(dl):
     event = _event(_entry(2, "a" * 64))
     hold_received(dl, event)
 
     held = held_successor(dl, _CASE, "a" * 64)
     assert held is not None and held.activity_id == event.activity_id
-    body = _body(dl, event.activity_id)
-    assert body is not None
-    assert body.received_body == event.received_evidence
+    # A buffered Announce stays in holding, owing a replay: it has not been
+    # applied, so it is not archived (ADR-0154).
+    record = received_record(dl, event.activity_id)
+    assert record is not None
+    assert record.received_body == event.received_evidence
+    assert record.stage is ReceivedStage.HELD
+    assert record.replay_owed is True
     assert holds_held_body(dl, held)
     assert held_successor(dl, _CASE, "b" * 64) is None
 
@@ -107,11 +119,14 @@ def test_release_drops_the_index_row_and_keeps_the_body(dl):
     release_held(dl, held)
 
     assert held_depth(dl, _CASE) == 0
-    assert _body(dl, event.activity_id) is not None
+    assert _replay_is_owed(dl, event.activity_id)
 
 
 @pytest.mark.spec("SYNC-14-006")
-def test_discard_drops_the_index_row_and_the_body(dl):
+@pytest.mark.spec("SYNC-14-013")
+def test_discard_drops_the_index_row_and_the_held_announce(dl):
+    """Discarding drops the never-applied Announce, body and all
+    (SYNC-14-013); it leaves no archive, because it was not applied."""
     event = _event(_entry(2, "a" * 64))
     hold_received(dl, event)
     held = held_successor(dl, _CASE, "a" * 64)
@@ -120,25 +135,25 @@ def test_discard_drops_the_index_row_and_the_body(dl):
     discard_held(dl, held)
 
     assert held_depth(dl, _CASE) == 0
-    assert _body(dl, event.activity_id) is None
+    assert received_record(dl, event.activity_id) is None
 
 
 @pytest.mark.spec("SYNC-14-001")
 def test_a_failed_fork_replacement_keeps_the_old_hold(dl, monkeypatch):
     """The fork's removal of the old hold and the new hold commit together:
-    a failure writing the new body leaves the old Announce held."""
+    a failure claiming the new body's replay leaves the old Announce held."""
     old = _event(_entry(4, "4" * 64, marker="old"))
     hold_received(dl, old)
     fork = _event(_entry(4, "4" * 64, marker="fork"))
     archive_event(dl, fork)
-    real_create = dl.create
+    real_save = dl.save
 
-    def failing_create(record):
-        if getattr(record, "type_", None) == "DeferredInboxActivity":
+    def failing_save(obj):
+        if getattr(obj, "type_", None) == "ReceivedActivityRecord":
             raise RuntimeError("store unavailable")
-        real_create(record)
+        real_save(obj)
 
-    monkeypatch.setattr(dl, "create", failing_create)
+    monkeypatch.setattr(dl, "save", failing_save)
     entry = fork.log_entry
     assert entry is not None
 
@@ -147,7 +162,8 @@ def test_a_failed_fork_replacement_keeps_the_old_hold(dl, monkeypatch):
 
     held = held_successor(dl, _CASE, "4" * 64)
     assert held is not None and held.activity_id == old.activity_id
-    assert _body(dl, old.activity_id) is not None
+    assert _replay_is_owed(dl, old.activity_id)
+    assert _replay_is_owed(dl, fork.activity_id) is False
 
 
 @pytest.mark.spec("SYNC-14-006")
@@ -173,20 +189,18 @@ def test_a_failed_eviction_keeps_the_farthest_hold(dl, monkeypatch):
     assert [h.activity_id for h in held_ledger_announces(dl, _CASE)] == [
         far.activity_id
     ]
-    assert _body(dl, far.activity_id) is not None
+    assert _replay_is_owed(dl, far.activity_id)
 
 
 @pytest.mark.spec("SYNC-14-001")
-def test_a_redelivery_reholds_a_held_entry_whose_body_is_gone(dl):
-    """A held row that lost its body can never replay; another Announce of
-    the same entry takes its place, body and all."""
+def test_a_redelivery_reholds_a_held_entry_that_owes_no_replay(dl):
+    """A held row whose body was dropped can never replay; another Announce
+    of the same entry takes its place, replay claim and all."""
     entry = _entry(4, "4" * 64)
     first, second = _event(entry), _event(entry)
     hold_received(dl, first)
-    dl.delete(
-        "DeferredInboxActivity",
-        DeferredInboxActivity.build_id(first.activity_id),
-    )
+    discard_holding(dl, first.activity_id)
+    assert received_record(dl, first.activity_id) is None
 
     hold_received(dl, second)
 

@@ -30,7 +30,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.received import extract_stamped
+from test.support.received import extract_stamped, settle_as_the_inbox
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -191,7 +191,11 @@ def test_recommender_archives_the_answer_and_commits_nothing(verb: Verb):
 def test_redelivered_answer_is_skipped(verb: Verb):
     dl = _store()
     event = _event(verb)
-    assert _run(dl, verb, event).disposition is HandlerDisposition.APPLIED
+    first = _run(dl, verb, event)
+    assert first.disposition is HandlerDisposition.APPLIED
+    # The inbox's outcome stage archives it, so the resend meets its
+    # seen-before door (ADR-0154).
+    settle_as_the_inbox(dl, event, first)
 
     assert _run(dl, verb, event).disposition is HandlerDisposition.SKIPPED
 

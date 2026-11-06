@@ -18,7 +18,7 @@
 Two actor containers plus a dedicated CaseActor:
 
 - Reporter: the report submitter, seated when the case is created
-  (CM-22-002), so it is never invited;
+  (CP-09-002), so it is never invited;
 - Vendor (cast slot 1, the first Vendor): CASE_OWNER throughout, and the only
   actor with a fix path (DEMOMA-06-002);
 - CaseActor (case-actor container): holds the canonical case and ledger

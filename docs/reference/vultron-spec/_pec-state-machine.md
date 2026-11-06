@@ -208,7 +208,7 @@ The protocol also does not record silence as a refusal.
 Only an explicit refusal reaches `DECLINED`.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-18-002", "CM-18-022", "CM-18-023", "CM-28-004", "CM-28-020", "MSM-07-007", "MSM-07-026"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-18-002", "CM-18-022", "CM-18-023", "CM-28-020", "MSM-07-007", "MSM-07-026"))
 ```
 
 The deadline is explicit or defaulted:
@@ -275,7 +275,7 @@ An RSVP Deadline never falls after the end of the embargo it concerns.
 If a computed deadline, whether from the invitation's explicit `endTime` or from the policy window, would fall after that end, it is clamped down to the embargo's end.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-07-006", "EP-07-011", "CM-28-011"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-07-006", "EP-07-011"))
 ```
 
 An invitee needs to be able to answer while there is still something to answer about.

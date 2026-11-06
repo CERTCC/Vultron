@@ -31,6 +31,10 @@ from vultron.core.behaviors.case.nodes.incomplete_activity import (
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
+from vultron.core.behaviors.case.nodes.seen_before import (
+    ActivityNotSeenBeforeNode,
+    SeenBefore,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
     create_receive_activity_tree,
@@ -223,8 +227,23 @@ def test_applied_or_raise_passes_success_through():
 # ---------------------------------------------------------------------------
 
 
+class _SeenDoor(ActivityNotSeenBeforeNode):
+    """A seen-before door that found the activity applied, with no DataLayer."""
+
+    def __init__(self) -> None:
+        super().__init__(label="IntakeBT", name="SeenBefore")
+
+    def initialise(self) -> None:  # no ports: ticked without a bridge
+        pass
+
+    def update(self) -> Status:
+        self.seen = SeenBefore.APPLIED
+        self.feedback_message = "IntakeBT: seen before (applied)"
+        return Status.FAILURE
+
+
 class _Intake(IntakeReceivedActivityNode):
-    """An intake node that reports a fixed outcome without a DataLayer."""
+    """An intake node that succeeds without a DataLayer."""
 
     def __init__(self, stored: list[str]) -> None:
         super().__init__(name="Intake")
@@ -234,7 +253,6 @@ class _Intake(IntakeReceivedActivityNode):
         pass
 
     def update(self) -> Status:
-        self.stored_ids = list(self._stored)
         return Status.SUCCESS
 
 
@@ -250,14 +268,18 @@ def test_intake_verdict_is_applied_when_intake_stored_something():
 
 @pytest.mark.spec("HP-01-003")
 @pytest.mark.spec("CLP-10-017")
-def test_intake_verdict_is_skipped_when_everything_was_already_stored():
-    """A redelivery is a benign no-op, not a refusal (HP-01-003)."""
-    tree = _ran(_Intake(stored=[]))
+def test_intake_verdict_passes_the_seen_before_doors_skip_through():
+    """A resend is answered at the door, never read off intake (ADR-0154).
+
+    The door ended the run before intake, and its ``SKIPPED`` is the
+    verdict, so no reading of intake's own memory is needed.
+    """
+    tree = _ran(_SeenDoor(), _Intake(stored=[]))
     verdict = intake_verdict(
-        tree, BTExecutionResult(status=Status.SUCCESS), label="IntakeBT"
+        tree, BTExecutionResult(status=Status.FAILURE), label="IntakeBT"
     )
     assert verdict.disposition == HandlerDisposition.SKIPPED
-    assert verdict.reason is not None and "already held" in verdict.reason
+    assert verdict.reason == "IntakeBT: seen before (applied)"
 
 
 @pytest.mark.spec("HP-01-003")
@@ -320,7 +342,7 @@ def _gated_run(gate_status: Status) -> py_trees.behaviour.Behaviour:
         CheckIsCaseManagerNode,
     )
 
-    check = CheckIsCaseManagerNode(case_id=_CASE_ID)
+    check = CheckIsCaseManagerNode()
     check.status = gate_status
     root = py_trees.composites.Selector(name="Root", memory=False)
     root.add_children(

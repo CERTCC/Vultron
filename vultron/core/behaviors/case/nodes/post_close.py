@@ -23,10 +23,10 @@ participant state (CM-23-013, CM-23-039, ADR-0085).
 
 :class:`CaseOpenToExternalWritesNode` is that boundary.
 :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
-places it in every received tree, directly after intake, so no handler can
-forget it and no handler carries its own copy (CS-22-001).  It passes on every
-store that is not the case's CASE_MANAGER: a replica still applies the
-closure fan-out.
+places it in every received tree, among the doors ahead of intake (after the
+path stage, CLP-10-010), so no handler can forget it and no handler carries
+its own copy (CS-22-001).  It passes on every store that is not the case's
+CASE_MANAGER: a replica still applies the closure fan-out.
 
 A tree opts out only with a :class:`PostCloseExemption`, a closed set of
 reasons, so an exemption is visible at its call site and in review.

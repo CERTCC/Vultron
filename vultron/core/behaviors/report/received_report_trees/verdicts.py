@@ -120,15 +120,16 @@ def create_close_report_received_tree(
     its commit stage is never reached; it only decides how the activity is
     refused:
 
-    1. Intake archives the ``Reject`` as received (CLP-10-017, CLP-10-018).
-    2. The post-close guard drops it on a fully closed case (CM-23-013).
-    3. The sender guard is composed from the use case's declared rule
-       (HP-01-025).  On a case that holds the report the rule admits no
+    1. The post-close door drops it on a fully closed case (CM-23-013).
+    2. The sender guard, a door, is composed from the use case's declared
+       rule (HP-01-025).  On a case that holds the report the rule admits no
        sender on either side, so every sender is refused with nothing
        written or sent: the Case Owner closes a case by
        ``Leave(VulnerabilityCase)``, and nobody else holds the report.
        Before any case exists the rule's outside-case side checks the
-       sender is an addressee of the Offer it closes.
+       sender is an addressee of the Offer it closes.  A door refusal leaves
+       only a receipt stub (CLP-10-018).
+    3. Intake records the admitted ``Reject`` as received (CLP-10-017).
     4. ``RequireCaseForReport`` then refuses a report this store holds no
        case for, as an activity about an unknown case (#2255).
 
@@ -184,11 +185,12 @@ def create_invalidate_report_received_tree(
     (``request.actor_id``), never the receiving actor (RSH-08-001).
 
     Steps (Sequence via :func:`create_receive_activity_tree`):
-    1. Intake archives the ``TentativeReject`` as received (CLP-10-017); the
-       activity stays archived when a later step refuses (CLP-10-018).
-    2. Resolve this actor's case for the report (``RequireCaseForReport``,
+    1. Resolve this actor's case for the report (``RequireCaseForReport``,
        which also publishes ``/case_id`` for downstream nodes).
-    3. The sender must be a participant of that case (HP-01-006).
+    2. The sender must be a participant of that case (HP-01-006).
+    3. Once those doors admit it, intake records the ``TentativeReject`` as
+       received (CLP-10-017); a refusal by a door or a later step leaves a
+       receipt stub (CLP-10-018).
     4. Adjudicate the declaration under the received-side RM rule: a backward
        move is refused here, before any effect (RSH-06-002, CLP-10-009).
     5. Guarded commit (only when ``case_id`` is provided and the receiving
@@ -204,9 +206,9 @@ def create_invalidate_report_received_tree(
        refusal-effects stage posts the note instead, at the CASE_MANAGER,
        and the tree still fails before any effect (CLP-10-022).
 
-    Steps 2–4 return FAILURE when the case is not in this actor's store, so
-    the handler reports a refusal of an activity about an unknown case
-    (#2255, ARCH-15-001, ISSUE-2548).
+    Steps 1, 2 and 4 return FAILURE when the case is not in this actor's
+    store, so the handler reports a refusal of an activity about an unknown
+    case (#2255, ARCH-15-001, ISSUE-2548).
 
     Args:
         request: The parsed inbound domain event.  Its ``actor_id`` — the

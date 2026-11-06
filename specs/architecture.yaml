@@ -122,6 +122,9 @@ groups:
       sub-group. Derives from ADR-0009 (hexagonal).
     adr:
     - ADR-0009
+    see_also:
+    - spec_id: DC-01-001
+      reason: 'context for the reader'
   - id: ARCH-01-009
     priority: MUST
     kind: project
@@ -386,6 +389,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-25-004
+    see_also:
+    - spec_id: ARCH-25-003
+      reason: 'context for the reader'
   - id: ARCH-12-002
     priority: MUST
     kind: project
@@ -437,6 +443,8 @@ groups:
       spec_id: ARCH-23-005
       note: ARCH-23-005 supplies the round-trip cleanups (computed-field stripping, wire-name keys) without which `extra="forbid"`
         rejects the project's own serialised output.
+    - rel_type: implements
+      spec_id: ARCH-25-025
     adr:
     - ADR-0082
     - ADR-0099
@@ -460,6 +468,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-25-002
+    - rel_type: refines
+      spec_id: ARCH-25-013
     adr:
     - ADR-0063
     - ADR-0099
@@ -531,6 +541,15 @@ groups:
       later step works on it (ADR-0032). A proposer that claims the CASE_MANAGER role
       (CP-01-012) or a Reject that names no object (SYNC-16-028) is malformed whatever
       the receiver holds.
+    see_also:
+    - spec_id: CM-11-011
+      reason: 'an example of a protocol rule a message''s own form can break'
+    - spec_id: CP-01-012
+      reason: 'an example of a protocol rule a message''s own form can break'
+    - spec_id: EMB-13-004
+      reason: 'an example of a protocol rule a message''s own form can break'
+    - spec_id: SYNC-16-028
+      reason: 'an example of a protocol rule a message''s own form can break'
   - id: ARCH-12-008
     priority: MUST
     kind: project
@@ -575,6 +594,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: ARCH-12-010
+    - rel_type: derives_from
+      spec_id: VM-06-008
   - id: ARCH-12-011
     priority: MUST_NOT
     kind: project
@@ -617,6 +638,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: ARCH-12-006
+    - rel_type: refines
+      spec_id: AKM-02-006
   - id: ARCH-12-018
     priority: MUST_NOT
     kind: project
@@ -931,9 +954,12 @@ groups:
     statement: 'Architecture boundary tests that enforce a `KNOWN_VIOLATIONS` allowlist MUST use a bidirectional equality
       assertion: `assert actual_violations == KNOWN_VIOLATIONS`. One-directional subset assertions (`assert actual ⊆ KNOWN`)
       are prohibited because they allow the violation count to grow silently.'
-    rationale: A subset assertion says "we have at most these violations" but allows new ones to be added without failing
-      the test. Bidirectional equality says "we have exactly these violations" — any addition fails immediately, and any removal
-      must be reflected in the allowlist.
+    rationale: >-
+      A subset assertion says "we have at most these violations". A violation that is
+      fixed can then stay on the known list, and a later change can bring it back while
+      the test still passes. Bidirectional equality says "we have exactly these
+      violations": any addition fails immediately, and a fixed violation fails until its
+      entry is removed (ARCH-18-002).
   - id: ARCH-18-002
     priority: MUST
     kind: process
@@ -1264,6 +1290,11 @@ groups:
     adr:
     - ADR-0063
     - ADR-0099
+    see_also:
+    - spec_id: ARCH-12-013
+      reason: >-
+        explanation: the inherited alias generator is the mechanism behind the port, not
+        a licence to dump
   - id: ARCH-20-002
     priority: MUST
     kind: project
@@ -1495,6 +1526,9 @@ groups:
       spec_id: DL-05-001
     adr:
     - ADR-0099
+    see_also:
+    - spec_id: VM-06-007
+      reason: 'context for the reader'
 - id: ARCH-21
   title: Post-Construction Mutation Safety
   description: >-
@@ -1575,6 +1609,9 @@ groups:
       The `RecursionError` then hides every real type failure.
     adr:
     - ADR-0064
+    see_also:
+    - spec_id: ARCH-21-003
+      reason: 'context for the reader'
   - id: ARCH-21-006
     priority: MUST
     kind: project
@@ -1907,6 +1944,9 @@ groups:
     adr:
     - ADR-0056
     - ADR-0099
+    see_also:
+    - spec_id: CM-31-014
+      reason: 'a cited rationale ("because CM-31-014 forbids storing it")'
   - id: ARCH-23-010
     priority: MUST
     kind: project
@@ -2088,18 +2128,17 @@ groups:
     priority: MUST
     kind: architecture
     statement: >-
-      Exactly one authority condition node MUST answer "is the executing actor the case
-      authority".
+      The authority condition node that answers "is the executing actor the case
+      authority" MUST be defined in exactly one module.
     rationale: >-
-      When several condition nodes each resolve authority, they can give different
-      answers for the same actor and case. A negation decorator answers the opposite
-      question with no second node.
+      A second definition of the node is a second implementation, and two can give
+      different answers for the same actor and case. How many *places* ask the
+      question is bounded instead by ARCH-24-008: one source for the answer makes the
+      number of askers harmless, which one node definition on its own does not.
     verification: >-
-      `test_the_authority_question_is_asked_by_one_node` in
-      `test/architecture/test_role_authority_resolver.py` holds the set of BT node
-      classes that answer "am I the authority" to an exact inventory: one sanctioned
-      node, and the sites the ADR-0153 migration waves still have to retire, each
-      with the issue that owns it. A new asker fails it.
+      `test_exactly_one_authority_condition_node` in
+      `test/architecture/test_role_authority_resolver.py` scans `vultron/` for a class
+      definition of `CheckIsCaseManagerNode` and asserts exactly one module holds it.
       `test_removed_authority_nodes_are_not_defined` asserts
       `CheckIsOwnCaseActorNode` / `CheckIsNotOwnCaseActorNode` are removed or aliased.
     relationships:
@@ -2111,17 +2150,15 @@ groups:
     priority: MUST
     kind: architecture
     statement: >-
-      Every node that answers "is the executing actor the case authority" MUST take its
-      answer from the single role-authority resolver of ARCH-24-001, whether it asks
-      through the shared role predicate or calls the resolver itself.
+      The shared role predicate MUST answer `CVDRole.CASE_MANAGER` by delegating to the
+      single role-authority resolver of ARCH-24-001, not by scanning the roster itself.
     rationale: >-
-      ARCH-24-003 bounds how many nodes ask the question; this bounds what they may
-      answer it with, which is what stops the ones that do ask from disagreeing. A
-      roster recording `CVDRole.CASE_MANAGER` on two participants — the window a role
-      delegation opens (CM-33) — is where a second implementation diverges: a
-      roster-scanning predicate named the second holder the manager while the resolver
-      named the first, so a received tree's path stage admitted a delivery its own
-      CASE_MANAGER gate then skipped, and the handler reported `APPLIED` having
+      The predicate is the one source of the authority boolean (ARCH-24-008), so this
+      stops that source disagreeing with the resolver. A roster recording
+      `CVDRole.CASE_MANAGER` on two participants — the window a role delegation opens
+      (CM-33) — is where a second implementation diverges: a roster scan named the
+      second holder while the resolver named the first, so a path stage admitted a
+      delivery its own gate then skipped, and the handler reported `APPLIED` having
       notified nobody (HP-01-005).
     verification: >-
       `test/core/participants/test_role_predicate.py::test_authority_agrees_with_the_single_resolver`
@@ -2132,7 +2169,69 @@ groups:
       pins the disposition that a disagreement would turn into a silent `APPLIED`.
     relationships:
     - rel_type: extends
-      spec_id: ARCH-24-003
+      spec_id: ARCH-24-001
+    adr:
+    - ADR-0088
+    - ADR-0153
+  - id: ARCH-24-008
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Code that answers whether an actor is a case's authority MUST take that boolean
+      from the shared role predicate asked about `CVDRole.CASE_MANAGER`, which is its
+      only source.
+    rationale: >-
+      Who the authority is and whether a given actor is it are two questions. The
+      first returns an actor id that addressing needs. The second returns a boolean,
+      and while several implementations produced it no check could insist on a call:
+      the only enforceable rule was a list of class names, which flagged sites that
+      correctly delegated and missed one that computed the answer from a role list.
+      One callable makes the rule a property of the code, not of a maintained list.
+    verification: >-
+      `test_the_authority_question_is_asked_through_the_predicate` in
+      `test/architecture/test_role_authority_resolver.py` asserts the set of modules
+      asking the predicate about that role is non-empty and holds the authority
+      condition node's module, so a check that stopped matching the call fails rather
+      than reporting a clean repository; `test_the_authority_boolean_has_one_source`
+      reports every site that answers the question any other way.
+    relationships:
+    - rel_type: extends
+      spec_id: ARCH-24-001
+    adr:
+    - ADR-0088
+    - ADR-0153
+  - id: ARCH-24-009
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      Code outside the shared role predicate and the single role-authority resolver
+      MUST NOT derive the "is this actor the case authority" boolean from either of its
+      ingredients: the resolver's returned actor id compared with another actor id, or
+      a participant's role list tested for `CVDRole.CASE_MANAGER`.
+    rationale: >-
+      Each ingredient answers differently from the predicate in a case that happens.
+      The comparison is exact, so an id differing only by a trailing slash fails its
+      own authority test (OID-01-006). The role-list test answers true for
+      any holder while the resolver names the first in roster order, so a roster
+      recording the role twice makes a tree admit on one answer and skip the effect
+      gated on the other (HP-01-005). Naming both shapes makes the rule checkable
+      with no list of sanctioned classes.
+    verification: >-
+      `test_the_authority_boolean_has_one_source` in
+      `test/architecture/test_role_authority_resolver.py` asserts the scan reports no
+      `(module, shape)` site writing either ingredient, so a new one fails;
+      `test_the_ingredient_scan_opens_modules` and
+      `test_the_authority_question_is_asked_through_the_predicate` keep its subjects
+      non-empty. `test_the_detector_reports_a_planted_id_comparison`,
+      `test_the_detector_reports_a_planted_id_comparison_by_call`,
+      `test_the_detector_reports_a_planted_role_list_test` and
+      `test_the_detector_reports_the_per_record_predicate` fire the scan on each
+      forbidden shape, and `test_the_detector_ignores_a_resolver_none_test` and
+      `test_the_detector_passes_a_compliant_predicate_call` assert it reports neither
+      legal spelling.
+    relationships:
+    - rel_type: extends
+      spec_id: ARCH-24-008
     adr:
     - ADR-0088
     - ADR-0153
@@ -2140,19 +2239,22 @@ groups:
     priority: MUST
     kind: architecture
     statement: >-
-      The authority condition node MUST call the single role-authority resolver
-      (ARCH-24-001).
+      The authority condition node MUST take its answer from the shared role predicate
+      (ARCH-24-008).
     rationale: >-
-      A condition node that resolves authority by its own logic can disagree with the
-      resolver. One node that calls the single resolver gives one answer.
+      A condition node that resolves authority by its own logic can disagree with
+      every other asker. Asking the one source gives one answer, and the predicate
+      delegates the authority role to the single resolver (ARCH-24-007).
     verification: >-
-      Inspection of `CheckIsCaseManagerNode` in
-      `vultron/core/behaviors/case/nodes/conditions.py` confirms that it calls
-      `resolve_case_manager_id`, which `test_exactly_one_resolver_module` in
-      `test/architecture/test_role_authority_resolver.py` pins to one module.
+      `test_the_authority_question_is_asked_through_the_predicate` in
+      `test/architecture/test_role_authority_resolver.py` asserts the module defining
+      `CheckIsCaseManagerNode` reads as a module asking the predicate about
+      `CVDRole.CASE_MANAGER`, which fails if the node starts answering by itself.
     relationships:
     - rel_type: extends
-      spec_id: ARCH-24-003
+      spec_id: ARCH-24-008
+    - rel_type: uses_definition
+      spec_id: ARCH-24-001
     adr:
     - ADR-0088
   - id: ARCH-24-004
@@ -2822,6 +2924,11 @@ groups:
       spec_id: ARCH-25-029
     adr:
     - ADR-0099
+    see_also:
+    - spec_id: VM-06-004
+      reason: 'a pointer to where the outcome for that slot is stated'
+    - spec_id: VM-06-007
+      reason: 'a pointer to where the outcome for that slot is stated'
   - id: ARCH-25-031
     priority: MUST_NOT
     kind: project

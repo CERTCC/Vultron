@@ -36,6 +36,7 @@ from py_trees.common import Status
 
 from test.support.clock_decisions import clock_decision_node_ids
 from test.support.refusal_effects import refusal_effect_node_ids
+from test.support.sender_sequence_stage import sender_sequence_node_ids
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -57,9 +58,6 @@ from vultron.core.behaviors.case.nodes.invite_inert_participant import (
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
-)
-from vultron.core.behaviors.case.nodes.received_path import (
-    ReceivedPathNode,
 )
 from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
     ReinviteAwaitingNode,
@@ -88,6 +86,7 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
     create_recommend_actor_to_case_received_tree,
     create_reject_actor_recommendation_received_tree,
 )
+from vultron.core.behaviors.case_id_scope import unscoped
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
@@ -1124,7 +1123,7 @@ class TestDuplicateDetectionTreeStructure:
         reinvite = self._duplicate_selector().children[0]
         assert isinstance(reinvite, py_trees.composites.Sequence)
         assert reinvite.name == "OwnerReinvite"
-        assert [type(c) for c in reinvite.children] == [
+        assert [type(unscoped(c)) for c in reinvite.children] == [
             SenderIsCaseOwnerNode,
             ReinviteAwaitingNode,
             EvaluateDefaultRolesNode,
@@ -1184,13 +1183,13 @@ class TestDuplicateDetectionTreeStructure:
         owner = self._duplicate_selector().children[4]
         assert isinstance(owner, py_trees.composites.Sequence)
         assert owner.name == "OwnerDirectInvite"
-        assert [type(c) for c in owner.children] == [
+        assert [type(unscoped(c)) for c in owner.children] == [
             SenderIsCaseOwnerNode,
             EvaluateDefaultRolesNode,
             EmitInviteActorToCaseNode,
             CreateInertInviteeParticipantNode,
         ]
-        check = owner.children[0]
+        check = unscoped(owner.children[0])
         assert isinstance(check, SenderIsCaseOwnerNode)
         assert check._sender_actor_id == _RECOMMENDER
         emit = owner.children[2]
@@ -1205,7 +1204,7 @@ class TestDuplicateDetectionTreeStructure:
         child_types = [type(c) for c in fresh.children]
         guard = fresh.children[0]
         assert isinstance(guard, py_trees.decorators.Inverter)
-        assert isinstance(guard.decorated, SenderIsCaseOwnerNode)
+        assert isinstance(unscoped(guard.decorated), SenderIsCaseOwnerNode)
         assert EvaluateDefaultRolesNode in child_types
         assert EmitOfferCaseParticipantToOwnerNode in child_types
 
@@ -1368,9 +1367,14 @@ def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
 
     The CASE_MANAGER's clock decisions sit in their own gated stage before
     the guards and are not effects of the received activity (CLP-10-025),
-    nor is the refusal notice, which answers only a refusal (CLP-10-042).
+    nor is the sender-sequence stage before them (SYNC-21-023), nor the
+    refusal notice, which answers only a refusal (CLP-10-042).
     """
-    decisions = clock_decision_node_ids(tree) | refusal_effect_node_ids(tree)
+    decisions = (
+        clock_decision_node_ids(tree)
+        | refusal_effect_node_ids(tree)
+        | sender_sequence_node_ids(tree)
+    )
     return [
         n
         for n in tree.iterate()
@@ -1497,12 +1501,13 @@ def test_every_effect_is_inside_the_case_manager_gate(
     ],
     ids=["recommend", "offer", "accept", "reject"],
 )
-def test_sender_guard_follows_intake_and_precedes_the_commit(
+def test_sender_guard_is_the_last_door_and_precedes_the_commit(
     factory, kwargs, guard_type
 ):
-    """The sender guard sits between intake and the receipt commit.
+    """The sender guard is the last door: intake follows it, then the commit.
 
-    A refused sender therefore writes and sends nothing (ADR-0115).
+    A refused sender therefore writes and sends nothing (ADR-0115), and
+    nothing of its message is recorded (CLP-10-010).
     """
     children = received_stages(factory(**kwargs))
     names = [c.name for c in children]
@@ -1520,10 +1525,9 @@ def test_sender_guard_follows_intake_and_precedes_the_commit(
         for i, c in enumerate(children)
         if isinstance(c, ActivityAddressedToReceiverNode)
     )
-    path_stages = sum(1 for c in children if isinstance(c, ReceivedPathNode))
-    assert guard_index == addressee_index + 1 + path_stages, (
-        "the sender guard must come right after intake, the post-close"
-        " guard (CM-23-013), the addressee door (HP-01-005) and, in a tree"
-        " that declares its paths, the path stage (HP-01-035)"
+    assert addressee_index < guard_index
+    assert names.index("IntakeReceivedActivityNode") == guard_index + 1, (
+        "the sender guard must be the last door, right before intake"
+        " (CLP-10-010)"
     )
     assert guard_index < commit_index

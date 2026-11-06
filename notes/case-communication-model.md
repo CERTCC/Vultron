@@ -201,9 +201,9 @@ Reject(Invite(Actor)[target=VulnerabilityCaseStub]) instead of Accept → RM.CLO
 - The invitee's `Accept` goes **to the CASE_MANAGER**, not the case owner
   (PCR-08-008). The invitee holds no case yet, but its inbox processes the stub Invite
   on arrival rather than deferring it (`is_deferral_exempt()`, PCR-06-005), so the
-  accept and reject triggers find intake's archive record
-  (`holds_received_activity()`, `core/services/received_activity.py`) and the reply
-  embeds the archived body (`read_received_as_received()`; CLP-10-036, ADR-0149,
+  accept and reject triggers find the record intake wrote, archived once the Invite
+  applied (`holds_received_activity()`, `core/services/received_activity.py`), and
+  the reply embeds the held body (`read_received_as_received()`; CLP-10-036, ADR-0149,
   [inbox-orchestration](inbox-orchestration.md)).
 - The CASE_MANAGER processes the Accept (PCR-08-009). The same handler runs on any
   actor holding a copy, so its effects sit behind the role gate, and a receiver the
@@ -225,7 +225,7 @@ and compare it with `actor_id`: the authority is a *role*, and an ungated helper
 identity spoofing (CM-24-009). Once gated, the executing actor *is* the CASE_MANAGER and
 `dl` is its store, so the activity and its outbox entry land in one store (BT-05-006):
 **`dl` determines the queue**, and `add_activity_to_outbox`'s actor argument is only a
-log label. A case always has a CASE_MANAGER (CM-24-006): a resolver that finds none
+log label. A case always has a CASE_MANAGER (CM-02-014): a resolver that finds none
 fails; there is no un-delegated fallback (CM-24-008, CM-24-014).
 
 ---
@@ -333,7 +333,7 @@ CM-24-002), queued in the CASE_MANAGER's outbox (CM-24-004).
   `actor`/`attributed_to` itself. The caller names both identities; the helper looks
   nothing up. `test/architecture/test_delegated_attribution_uses_helper.py` enforces it.
 - A trigger resolves the CASE_MANAGER with `resolve_case_manager_id()` and fails when
-  there is none (CM-24-006); a received-side node passes `self.actor_id`, which the role
+  there is none (CM-02-014); a received-side node passes `self.actor_id`, which the role
   gate makes the CASE_MANAGER.
 - **The delegated emit runs where the CASE_MANAGER is hosted** (ADR-0109). A trigger
   sends the requester's *own* activity to the CASE_MANAGER (the owner's
@@ -411,7 +411,7 @@ passes for the wrong reason.
 
 ### Why the `Announce(CaseLedgerEntry)` envelope is not a payload
 
-`Announce(CaseLedgerEntry)` is the replication envelope (SYNC-02-002). A canonical
+`Announce(CaseLedgerEntry)` is the replication envelope (SYNC-02-001). A canonical
 entry's `payloadSnapshot` is the activity that *triggered* the entry, never the
 transport that delivered it, so `announce_case_ledger_entry` MUST NOT appear in
 `EXPECTED_SEMANTIC_TYPES` for the canonical log (CLP-10-004, ADR-0021).

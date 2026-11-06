@@ -40,7 +40,7 @@ class InboxOutcomeStatus(StrEnum):
 
     - ``PROCESSED`` — dispatched, and the handler applied or correctly skipped it.
     - ``DEFERRED`` — held for replay: by ``DeferCheckNode`` before dispatch
-      (missing case context), or by the handler after it (UCORG-05-011).
+      (missing case context), or by the handler after it (IO-01-006).
     - ``REJECTED`` — refused, unparseable, undispatchable, or the dispatch
       raised.
 
@@ -150,9 +150,11 @@ class PendingCaseQueuePort(Protocol):
     ) -> None:
         """Persist *activity_id* in the deferred queue for *case_id*.
 
-        The adapter holds the activity's received body for the replay, under
-        a key the receiver derives (DL-06-006, IO-03-009); a core reader
-        loads it from there before intake archives it.
+        The adapter holds the activity's received body for the replay on the
+        activity's own record, under a key the receiver derives (DL-06-006,
+        IO-03-009); the hold is what records the wait, naming *case_id* on
+        that record (ADR-0154), and a core reader loads the body from there
+        before the outcome stage archives it.
         """
         ...  # pragma: no cover
 
@@ -161,5 +163,59 @@ class PendingCaseQueuePort(Protocol):
         ...  # pragma: no cover
 
     def replay(self, case_id: str) -> None:
-        """Move deferred activities for *case_id* back to the live inbox."""
+        """Move the activities waiting on *case_id* back to the live inbox.
+
+        Which they are is read from the waiting records themselves, in the
+        order they arrived (ADR-0154).
+        """
+        ...  # pragma: no cover
+
+
+@runtime_checkable
+class ReceivedOutcomePort(Protocol):
+    """Port: move a received record to its final outcome stage (ADR-0154).
+
+    An applied or skipped message's record is archived with the sealed body
+    it holds (:meth:`apply`), a refused one leaves a receipt stub
+    (:meth:`refuse`), a deferred one stays in holding, and an internal error
+    leaves the record untouched for the re-run (CLP-10-073, CLP-10-074).
+    """
+
+    def apply(self, activity_id: str) -> None:
+        """Archive the ``HELD`` record of an applied or skipped *activity_id*.
+
+        Nothing is written for a record already at its outcome, one still
+        owed a replay, or no record at all (CLP-10-073, CLP-10-076).
+
+        Raises:
+            Exception: Whatever the store raises.  ``update()`` in the
+                calling node is what catches it (BT-HELPER-01).
+        """
+        ...  # pragma: no cover
+
+    def refuse(
+        self,
+        activity_id: str,
+        *,
+        sender_id: str,
+        reason: str,
+        received_body: str | None,
+    ) -> None:
+        """Give up *activity_id*'s body for a receipt stub.
+
+        The stub records *sender_id*, the activity id, the time of receipt,
+        *reason* and the digest of the body (CLP-10-018).  A delivery a door
+        refused before intake ran has no record, so its stub is written from
+        *received_body*, its own sealed body.  Idempotent: a second refusal
+        of the same activity leaves the first reason standing.
+
+        A body still owed to a replay is left as it is: the replay is the
+        held message's own outcome (CLP-10-076).
+
+        Raises:
+            Exception: Whatever the store raises, and a wiring error when
+                nothing is held for *activity_id* and no *received_body* is
+                given.  ``update()`` in the calling node is what catches it
+                (BT-HELPER-01).
+        """
         ...  # pragma: no cover

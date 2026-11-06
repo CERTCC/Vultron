@@ -155,7 +155,7 @@ class OfferCaseParticipantReceivedUseCase:
             # The path says the receiver does not hold the role; it does not
             # say the case has anyone holding it, and a case whose roster
             # names no CASE_MANAGER has nobody to defer the commit to
-            # (CM-24-006, CM-24-008), so that is refused rather than stored.
+            # (CM-02-014, CM-24-008), so that is refused rather than stored.
             if (
                 refusal := case_manager_absence_refusal(self._dl, case_id)
             ) is not None:

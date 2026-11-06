@@ -64,8 +64,10 @@ groups:
           A Task takes its priority tier from its Epic (PAD-02-001), and GitHub shows
           and queries that link only as a sub-issue relationship.
         relationships:
-        - rel_type: refines
+        - rel_type: part_of
           spec_id: PAD-01-002
+        - rel_type: refines
+          spec_id: PAD-01-007
       - id: PAD-01-006
         priority: MUST
         kind: process
@@ -77,7 +79,7 @@ groups:
           cannot see a Subtask that has a different link, and its Task then looks like a
           leaf.
         relationships:
-        - rel_type: refines
+        - rel_type: part_of
           spec_id: PAD-01-002
       - id: PAD-01-004
         priority: SHOULD
@@ -109,9 +111,6 @@ groups:
           reports one whose parent chain reaches no open Epic as an
           `unparented` finding. `TestUntriaged` and `TestHierarchy` in
           `test/metadata/test_theme_fit.py` check both.
-        relationships:
-        - rel_type: refines
-          spec_id: PAD-01-005
       - id: PAD-01-008
         priority: MUST
         kind: process
@@ -146,7 +145,7 @@ groups:
           with a per-issue tier. Priority grouping is by Epic sub-issue
           relationships, not by `group:` labels.
         relationships:
-        - rel_type: refines
+        - rel_type: derives_from
           spec_id: PAD-03-001
       - id: PAD-02-004
         priority: MUST
@@ -300,9 +299,6 @@ groups:
           theme. When the children of an Epic serve different outcomes, the Epic
           has no single priority. The child must move, its label must change, or
           the Epic must split.
-        relationships:
-        - rel_type: refines
-          spec_id: PAD-02-008
         verification: >-
           A query for open Epics returns none with a sub-issue whose `theme:`
           label the Epic does not carry. `theme-fit` is that query: it reports
@@ -357,6 +353,9 @@ groups:
           `TestMain::test_apply_creates_and_edits_never_deletes` in
           `test/metadata/test_theme_catalog.py` checks that an apply run with an
           unlisted label makes only create and edit calls.
+        relationships:
+        - rel_type: constrains
+          spec_id: PAD-02-021
       - id: PAD-02-021
         priority: MUST
         kind: process
@@ -367,9 +366,6 @@ groups:
           The command does not delete labels (PAD-02-020), so an unlisted label
           stays on GitHub. Without a report, it stays there unseen, and agents
           can still apply a theme that the catalog does not define.
-        relationships:
-        - rel_type: refines
-          spec_id: PAD-02-020
         verification: >-
           `TestDrift::test_missing_changed_unlisted` in
           `test/metadata/test_theme_catalog.py` checks that a `theme:` label
@@ -397,6 +393,13 @@ groups:
           `manage-github-issue`, and `create-epic` calls the create mode of
           `manage_github_issue.sh`, `create_epic.sh`, `gh issue create`, or a
           `createIssue` mutation.
+        see_also:
+        - spec_id: PAD-02-013
+          reason: 'scope boundary: Epics are created another way'
+        - spec_id: PAD-02-026
+          reason: 'scope boundary: workflow-filed Issues follow other rules'
+        - spec_id: PAD-02-029
+          reason: 'scope boundary: workflow-filed Issues follow other rules'
       - id: PAD-02-023
         priority: MUST
         kind: process
@@ -476,9 +479,9 @@ groups:
           quick. A workflow sets them because no agent or skill is in the loop
           to do it.
         relationships:
-        - rel_type: implements
+        - rel_type: refines
           spec_id: PAD-02-014
-        - rel_type: implements
+        - rel_type: refines
           spec_id: PAD-02-018
         verification: >-
           In `test/ci/test_bot_issue_triage.py`, the `notify-failure` action and
@@ -499,7 +502,7 @@ groups:
           upkeep each time that Epic closes, is rethemed or split, or fills
           up, and the workflow fails until someone edits it.
         relationships:
-        - rel_type: refines
+        - rel_type: uses_definition
           spec_id: PAD-01-007
         verification: >-
           In `test/ci/test_bot_issue_triage.py`, the tests that run each filer
@@ -519,7 +522,7 @@ groups:
           report that counted them as findings would never come back clean.
           Listing them still shows triage what to route (PAD-01-007).
         relationships:
-        - rel_type: refines
+        - rel_type: verifies
           spec_id: PAD-01-007
         verification: >-
           `TestUntriaged` and `TestMain::test_only_untriaged_issues_exit_zero`
@@ -536,7 +539,7 @@ groups:
           A person who chose another theme read the Issue; the workflow did
           not. Leaving their choice keeps a later run from undoing triage.
         relationships:
-        - rel_type: refines
+        - rel_type: constrains
           spec_id: PAD-02-026
         verification: >-
           `test_helper_leaves_an_issue_a_person_re_themed_alone` in
@@ -629,9 +632,6 @@ groups:
           Each repeat is one more copy to keep in step when the Epic changes,
           and copies drift. Every section of the body has to add something the
           others do not say.
-        relationships:
-        - rel_type: extends
-          spec_id: PAD-02-033
         verification: >-
           A reviewer checks the body with PAD-02-033. The repeats a script can
           see, `theme-gate --epic` refuses and `theme-fit` reports: a
@@ -730,7 +730,7 @@ groups:
           change is the user's to accept; unstated, the children are promoted
           or buried without anyone deciding it.
         relationships:
-        - rel_type: refines
+        - rel_type: extends
           spec_id: PAD-02-036
         verification: >-
           A reviewer checks the fuse proposal when `calve-epics` Mode 3 makes
@@ -746,12 +746,36 @@ groups:
           slice that keeps its parent's tier keeps every child's rank, so no
           in-flight work moves; a different tier is a ranking decision the
           user makes on its own.
-        relationships:
-        - rel_type: refines
-          spec_id: PAD-02-037
         verification: >-
           A reviewer checks the split proposal when `calve-epics` Mode 3 makes
           it.
+      - id: PAD-02-041
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          An Issue opened during other work (any `opened-as` reason) that does
+          not block the Issue being worked, and that the PR working that Issue
+          does not also close, MUST NOT be routed to a Focus or Now Epic unless
+          that Epic's title claim stays false while the Issue is open. It is
+          routed among the same-theme Epics in Next, Later and Someday instead.
+        rationale: >-
+          A finding about code an agent is touching always matches best the
+          Epic that is working on that code, and it inherits that Epic's tier.
+          Routed by grain alone, discovered work piles into Focus Epics, which
+          then never finish and crowd out the work the quarter planned. The
+          title test keeps a discovery that is part of the Epic's claim, such
+          as a mismatch an audit Epic exists to find, and sends the rest to be
+          ranked on its own. An Issue the same PR closes is part of delivering
+          the worked Issue, not backlog to rank, so it may go under the worked
+          Issue's Epic whatever its tier.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-02-022
+        verification: >-
+          A reviewer checks the routing `create-issue` Phase 8 reports for each
+          discovered Issue: a Focus or Now parent comes with the Issue blocking
+          the worked Issue, the PR that also closes it, or the reason its
+          parent's title claim needs it.
 
   - id: PAD-03
     title: Priority Ordering Authority
@@ -808,6 +832,9 @@ groups:
           Selecting from the top tiers keeps parallel agents on the work humans ranked
           highest, and the filters keep them off work that is claimed, held or waiting
           on a person.
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-08-001
 
   - id: PAD-04
     title: Task Claiming Protocol
@@ -835,6 +862,9 @@ groups:
           `test/metadata/test_claim_scripts.py`: `claim-issue.sh` creates the
           branch through `createLinkedBranch`, checks it out, and refuses
           without assigning anyone when the branch already exists on GitHub.
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-15-009
       - id: PAD-04-002
         priority: MUST
         kind: process
@@ -862,6 +892,8 @@ groups:
         relationships:
         - rel_type: extends
           spec_id: PAD-04-002
+        - rel_type: implements
+          spec_id: PAD-16-008
       - id: PAD-04-006
         priority: MUST
         kind: process
@@ -929,8 +961,8 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          At Issue creation, an Issue with 1–2 acceptance-criteria (AC)
-          checkboxes MUST receive the `size:S` label.
+          At Issue creation, an Issue with 1 acceptance-criteria (AC)
+          checkbox MUST receive the `size:S` label.
         rationale: >-
           Provides an objective, count-based size estimate at the point the
           Issue is created, before any implementation diff is available.
@@ -975,6 +1007,9 @@ groups:
           `gh pr edit` only and never touches the Issue, so the two coexist;
           `.agents/skills/shared/sizing.md` records which of them is
           authoritative for what.
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-05-002
       - id: PAD-05-010
         priority: MUST_NOT
         kind: process
@@ -988,6 +1023,10 @@ groups:
           work was predicted to cost, and does so at the moment the Issue
           closes, where no consumer reads the result.
       - id: PAD-05-011
+        # The survey figures live in this rationale and nowhere else (#3544),
+        # so it is long on purpose.
+        lint_suppress:
+        - rationale_too_long
         priority: MUST
         kind: process
         statement: >-
@@ -998,7 +1037,28 @@ groups:
         rationale: >-
           A threshold that prose restates can contain a typing error, and each copy
           changes independently. With one table and one tool that applies it, every
-          label uses the same bands.
+          label uses the same bands. This rationale is also the one place that states
+          the survey figures behind the bands; every other site points here, and a
+          recalibration replaces them here (re-run with `pr-size --calibrate`).
+          Survey of 2026-11-03, PRs merged 2026-09-22..2026-11-03: under the previous
+          bands and AC rule, 22% of estimates matched the measured band and 76% were
+          too small. The current AC rule scored 42% exact, 95% within one band and
+          23% too small on held-out Issues, against 14% / 62% / 83% for the
+          previous rule. The current diff
+          ceilings sit near the p23 / p61 / p87 quantiles the previous bands were cut
+          at, recomputed on those PRs. Later bug fixes per 1,000 diff lines are flat
+          from 200 to 3,500 lines (0.4–0.7, overlapping intervals), so no size marks a
+          quality break; above about 2,500 lines the CI-fix rate doubles (about 40%
+          against 20%), which is where `size:XL` starts. Drift baseline,
+          `pr-size --calibrate` on 2026-11-05 over 60 days (1081 merged PRs): band
+          shares S / M / L / XL 27.5% / 34.5% / 23.3% / 14.7% against targets 23 /
+          38 / 26 / 13; p23 / p61 / p87 at 156 / 970 / 2665 diff lines; the existing
+          Issue estimates, made under the previous AC rule, 32% exact and 80% within
+          one band of 898; median 262 diff lines per AC. Earlier, while the rule
+          lived only in skill prose, a survey of 692 PRs merged
+          2026-07-22..2026-09-22 found 40% with no `size:` label and `size:S`
+          applied correctly 24% of the time, which is why `pr-size-label` applies
+          the measured label (PAD-05-002).
         verification: >-
           `test/metadata/test_size_bands.py::TestDerivation` asserts every
           derived constant reads the table rather than restating it, and
@@ -1007,7 +1067,7 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          At Issue creation, an Issue with 3–6 acceptance-criteria (AC)
+          At Issue creation, an Issue with 2–3 acceptance-criteria (AC)
           checkboxes MUST receive the `size:M` label.
         rationale: >-
           Provides an objective, count-based size estimate at the point the
@@ -1021,7 +1081,7 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          At Issue creation, an Issue with 7+ acceptance-criteria (AC)
+          At Issue creation, an Issue with 4–8 acceptance-criteria (AC)
           checkboxes MUST receive the `size:L` label.
         rationale: >-
           Provides an objective, count-based size estimate at the point the
@@ -1029,20 +1089,19 @@ groups:
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           AC ceiling itself, and
-          `::TestBandForAcs::test_each_ceiling_and_the_one_after_it_land_correctly`
+          `::TestBandForAcs::test_the_last_ceiling_is_inclusive_and_one_past_it_decomposes`
           pins that the ceiling is inclusive.
       - id: PAD-05-006
         priority: MUST
         kind: process
         statement: >-
-          At PR open time, a diff of ≤100 lines MUST receive the `size:S`
+          At PR open time, a diff of ≤200 lines MUST receive the `size:S`
           label.
         rationale: >-
           The size label shows the implementation effort measured at PR open time
-          (PAD-05-002). The `size:S` ceiling is well below the median merged-PR diff
-          that the survey in `vultron/metadata/planning/size_bands.py` measured. Thus
-          `size:S` holds the small changes, and it is not a band that almost no PR falls
-          in.
+          (PAD-05-002). The `size:S` ceiling sits near the quantile of merged-PR diff
+          size it was cut at (the survey in the PAD-05-011 rationale). Thus `size:S`
+          holds the small changes, and it is not a band that almost no PR falls in.
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           threshold value itself, and
@@ -1052,13 +1111,13 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          At PR open time, a diff of 101–400 lines MUST receive the `size:M`
+          At PR open time, a diff of 201–1000 lines MUST receive the `size:M`
           label.
         rationale: >-
           The size label shows the implementation effort measured at PR open time
-          (PAD-05-002). The survey in `vultron/metadata/planning/size_bands.py` found no
-          natural clusters in merged-PR diff size. This band holds the median of that
-          survey, so `size:M` covers the normal unit of work.
+          (PAD-05-002). Merged-PR diff size has no natural clusters (the survey in the
+          PAD-05-011 rationale). This band holds the median merged PR, so `size:M`
+          covers the normal unit of work.
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           threshold value itself, and
@@ -1068,13 +1127,13 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          At PR open time, a diff of 401–1200 lines MUST receive the `size:L`
+          At PR open time, a diff of 1001–2500 lines MUST receive the `size:L`
           label.
         rationale: >-
           The size label shows the implementation effort measured at PR open time
-          (PAD-05-002). The upper bound separates a large change from a change that
-          review cannot cover (PAD-05-009). Without an upper bound, the band would put
-          both changes under one label.
+          (PAD-05-002). The upper bound separates a large change from one whose CI-fix
+          rate doubles (PAD-05-009). Without an upper bound, the band would put both
+          changes under one label.
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           threshold value itself, and
@@ -1084,15 +1143,15 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          At PR open time, a diff of 1201+ lines MUST receive the `size:XL`
+          At PR open time, a diff of 2501+ lines MUST receive the `size:XL`
           label.
         rationale: >-
-          `size:XL` marks a PR that review cannot cover, not merely a big one.
-          Across the surveyed window, review findings held steady at roughly
-          4.5 per 1000 diff lines from 200 lines through 1000, then fell to 3.5
-          (1000–1499), 2.7 (1500–2499) and 1.5 (2500+). True defect density
-          does not drop threefold in large PRs, so the falling detection rate
-          is review saturation.
+          `size:XL` marks the size where a PR's CI-fix rate doubles, not a quality
+          break. Later bug fixes per diff line stay flat from small PRs through the
+          largest band, so a large PR is not shipping more defects per line. Above
+          the XL floor, though, a PR needs CI repair about twice as often as below
+          it, which is a cost worth splitting the work to avoid. The survey figures
+          are in the PAD-05-011 rationale.
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           threshold value itself, and
@@ -1106,11 +1165,33 @@ groups:
           estimate; `size:XL` is reachable only by measuring a diff.
         rationale: >-
           An Issue predicted to need more work than `size:L` should be
-          decomposed, not labelled. XL is a retrospective finding — the PR grew
-          past the point where review stays effective — and "estimated L,
-          landed XL" is the signal worth keeping.
+          decomposed, not labelled (PAD-05-013). XL is a retrospective finding —
+          the PR grew past the size where CI-fix rates double — and "estimated
+          L, landed XL" is the signal worth keeping.
         verification: >-
           `test/metadata/test_size_bands.py::TestBandForAcs::test_no_ac_count_can_reach_a_measured_only_band`
+      - id: PAD-05-013
+        priority: MUST
+        kind: process
+        statement: >-
+          At Issue creation, an Issue with 9+ acceptance-criteria (AC)
+          checkboxes MUST be decomposed into smaller Issues rather than given a
+          `size:` label; `pr-size --acs` reports `decompose` for it.
+        rationale: >-
+          An AC costs a roughly steady number of diff lines once its tests,
+          specs and docs are counted (`.agents/skills/shared/sizing.md`), so
+          nine or more ACs predict a PR past the `size:L` ceiling.
+          Labelling such an Issue would record an estimate in a band the AC
+          rule does not cover; splitting it gives each part an estimate that
+          can land in its measured band.
+        verification: >-
+          `test/metadata/test_size_bands.py::TestBandForAcs::test_the_last_ceiling_is_inclusive_and_one_past_it_decomposes`
+          pins the boundary, and
+          `::TestCLI::test_acs_past_the_ceiling_reports_decompose_and_no_label`
+          pins what `pr-size --acs` reports.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-05-012
 
   - id: PAD-07
     title: Pre-PR Review Protocol
@@ -1193,7 +1274,7 @@ groups:
           An unresolved finding is a known defect that reaches the PR anyway, at the
           cost of a fix commit and a CI run.
         relationships:
-        - rel_type: refines
+        - rel_type: extends
           spec_id: PAD-07-001
       - id: PAD-07-010
         adr:
@@ -1225,8 +1306,11 @@ groups:
           diff that changed only where the fixes landed; the delta review
           covers exactly those lines, once.
         relationships:
-        - rel_type: refines
+        - rel_type: extends
           spec_id: PAD-07-003
+        see_also:
+        - spec_id: PAD-07-012
+          reason: 'explanation: the post-push delta reviews the fixes'
       - id: PAD-07-004
         adr:
         - ADR-0139
@@ -1319,7 +1403,7 @@ groups:
           and `pr-triage` § "Modes" runs the full triage on exit 3 or on a
           `needs-rebase` PR.
         relationships:
-        - rel_type: refines
+        - rel_type: supersedes
           spec_id: PAD-07-007
       - id: PAD-07-009
         adr:
@@ -1355,7 +1439,7 @@ groups:
           Inspection: `pr-triage` Phase 8 passes
           `shared/pre-review-self-check.md` to the code-review subagent.
         relationships:
-        - rel_type: extends
+        - rel_type: uses_definition
           spec_id: PAD-07-009
       - id: PAD-07-015
         priority: MUST
@@ -1393,7 +1477,7 @@ groups:
           `mode=reuse` only for a valid file of the current branch recorded at
           an ancestor of `HEAD`.
         relationships:
-        - rel_type: depends_on
+        - rel_type: uses_definition
           spec_id: PAD-07-015
       - id: PAD-07-017
         priority: MUST
@@ -1430,7 +1514,7 @@ groups:
           `pr-triage`, `pr-execute` or `pr-verify` step reads the file for a
           check.
         relationships:
-        - rel_type: refines
+        - rel_type: extends
           spec_id: PAD-07-016
       - id: PAD-07-019
         priority: MUST
@@ -1447,7 +1531,7 @@ groups:
           `**Context**:` line, and `pr_metadata.build_context` records the mode
           and reason.
         relationships:
-        - rel_type: refines
+        - rel_type: extends
           spec_id: PAD-07-016
 
   - id: PAD-08
@@ -1468,6 +1552,9 @@ groups:
           The filters skip Issues that another session owns, that wait on a person, or
           that an epic run holds, so parallel agents do not pick the same work or work a
           human reserved. Ordering by Epic tier puts effort where humans ranked it.
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-19-002
       - id: PAD-08-002
         priority: MUST
         kind: process
@@ -1500,6 +1587,11 @@ groups:
         rationale: >-
           A size taken from the measured diff tells a reviewer how much review the PR
           needs before review starts (PAD-05-002).
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-05-002
+        - rel_type: conflicts
+          spec_id: PAD-05-010
 
   - id: PAD-09
     title: Ingest-Idea — Docs-Only PR and Issue Creation
@@ -1531,6 +1623,9 @@ groups:
         rationale: >-
           The Issue is the unit agents select and claim, so it must carry what selection
           reads: a size estimate and a link to the governing spec.
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-05-001
       - id: PAD-09-004
         priority: MUST
         kind: process
@@ -1543,8 +1638,12 @@ groups:
           `Schedule` value of its own would only restate or contradict its Epic's
           (PAD-02-001).
         relationships:
-        - rel_type: depends_on
+        - rel_type: extends
           spec_id: PAD-09-002
+        - rel_type: refines
+          spec_id: PAD-01-007
+        - rel_type: refines
+          spec_id: PAD-02-001
       - id: PAD-09-003
         priority: MUST_NOT
         kind: process
@@ -1590,6 +1689,9 @@ groups:
           `test/ci/test_stale_claim_sweeper.py` pins the claim-branch parse for
           every prefix and the staleness decision in
           `.github/scripts/stale_claim_sweeper.py`.
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-04-001
       - id: PAD-10-002
         priority: MUST
         kind: process
@@ -1715,6 +1817,9 @@ groups:
           An Epic at `Someday` or with no tier, and an Issue with no Epic, are where
           work gets lost, because selection never reaches them. The skill shows them at
           each review, so a human can schedule, route or close each one.
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-01-007
       - id: PAD-12-002
         priority: MUST
         kind: process
@@ -1782,6 +1887,13 @@ groups:
           An Issue outside an Epic has no tier, so no selector reaches it (PAD-01-007).
           The size estimate lets bundle selection weigh it before any diff exists
           (PAD-15-005).
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-01-007
+        - rel_type: refines
+          spec_id: PAD-02-001
+        - rel_type: uses_definition
+          spec_id: PAD-05-001
 
   - id: PAD-14
     title: GitHub Actions Requirements
@@ -1800,6 +1912,13 @@ groups:
           Abandoned claims come from sessions that ended, so the sweeper must run when
           no agent session is active. A scheduled workflow runs without one, and
           `workflow_dispatch` lets a human run it on demand.
+        relationships:
+        - rel_type: implements
+          spec_id: PAD-10-001
+        - rel_type: implements
+          spec_id: PAD-10-002
+        - rel_type: implements
+          spec_id: PAD-10-003
       - id: PAD-14-004
         priority: MUST
         kind: process
@@ -1830,6 +1949,9 @@ groups:
           `::test_a_closed_report_is_reopened_not_replaced`,
           `::test_the_report_is_created_only_when_none_exists` and
           `::test_the_lookup_uses_the_list_endpoint_any_state`.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-14-004
       - id: PAD-14-006
         priority: MUST
         kind: process
@@ -1852,6 +1974,9 @@ groups:
           `::test_a_run_without_a_report_is_not_published` and
           `::test_a_crashed_theme_fit_run_fails_the_script` (exit 0 or 1 without a
           report).
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-14-004
       - id: PAD-14-007
         priority: MUST_NOT
         kind: process
@@ -1863,6 +1988,9 @@ groups:
           finding (`notes/epic-themes.md` § "Acting on a Theme-Fit Finding").
         verification: >-
           `test/ci/test_theme_fit_report.py::test_it_writes_to_no_issue_but_the_report`.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-14-004
 
 
   - id: PAD-15
@@ -1882,6 +2010,9 @@ groups:
           weighs them. Each refusal then belongs to one stage (PAD-15-006).
         verification: >-
           `test/metadata/test_bundle_fit.py::TestEligibility` covers stage one.
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-19-002
       - id: PAD-15-012
         priority: MUST_NOT
         kind: process
@@ -1894,7 +2025,7 @@ groups:
           a `Someday` Concern and two `size:L` Tasks as equal members of one bundle.
         verification: >-
           In `test/metadata/test_bundle_fit.py`, `TestWorkflowPartition`,
-          `TestScheduleTier`, `TestSizeBudget`, `TestReviewCeiling` and
+          `TestScheduleTier`, `TestSizeBudget`, `TestBundleSizeCeiling` and
           `TestCoherenceHints` cover the fit rules applied after eligibility.
         relationships:
         - rel_type: derives_from
@@ -1933,6 +2064,11 @@ groups:
           against the Schedule options documented in
           `.agents/skills/shared/board-id.sh`, because a tier in neither set
           ranks last rather than failing.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-03-001
+        - rel_type: uses_definition
+          spec_id: PAD-02-001
       - id: PAD-15-013
         priority: MUST_NOT
         kind: process
@@ -2016,13 +2152,14 @@ groups:
         statement: >-
           An Issue labelled `size:XL` MUST NOT be proposed as a bundle member.
         rationale: >-
-          `size:XL` means a change that already exhausts the review budget on
-          its own (PAD-05-009), so it is refused outright rather than given a
+          `size:XL` means a change already past the size where its CI-fix rate
+          doubles (PAD-05-009), and a bundle is one PR, so adding members only
+          makes it bigger. It is refused outright rather than given a
           weight. A weight would say "fits alongside something smaller", which
           is precisely what this band rules out, and a raised `--budget` could
           then reopen it.
         verification: >-
-          `test/metadata/test_bundle_fit.py::TestReviewCeiling` asserts the
+          `test/metadata/test_bundle_fit.py::TestBundleSizeCeiling` asserts the
           refusal is categorical, survives a raised budget, does not end the
           scan, and names the band rather than a weight.
       - id: PAD-15-006
@@ -2104,7 +2241,7 @@ groups:
         verification: >-
           A bundle PR body names any member dropped for grain, with its reason.
         relationships:
-        - rel_type: extends
+        - rel_type: derives_from
           spec_id: PAD-15-008
       - id: PAD-15-009
         priority: MUST
@@ -2138,7 +2275,7 @@ groups:
           acceptance criteria.
         relationships:
         - rel_type: extends
-          spec_id: PAD-15-009
+          spec_id: PAD-15-008
 
   - id: PAD-16
     title: Project Board Status Path
@@ -2160,6 +2297,19 @@ groups:
         verification: >-
           Inspection: every open non-Epic item on Project #24 has a `Status`
           value, and it is the one the listed conditions select.
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-16-004
+        - rel_type: uses_definition
+          spec_id: PAD-16-005
+        - rel_type: uses_definition
+          spec_id: PAD-16-008
+        - rel_type: uses_definition
+          spec_id: PAD-16-009
+        - rel_type: uses_definition
+          spec_id: PAD-16-010
+        - rel_type: uses_definition
+          spec_id: PAD-16-011
       - id: PAD-16-002
         priority: MUST
         kind: process
@@ -2189,7 +2339,7 @@ groups:
           Inspection: after a correction pass, every `Status` value on
           Project #24 equals the value that the PAD-16-002 facts produce.
         relationships:
-        - rel_type: depends_on
+        - rel_type: uses_definition
           spec_id: PAD-16-002
       - id: PAD-16-003
         priority: MUST_NOT
@@ -2208,6 +2358,10 @@ groups:
         relationships:
         - rel_type: constrains
           spec_id: PAD-08-001
+        - rel_type: constrains
+          spec_id: PAD-04-003
+        - rel_type: constrains
+          spec_id: PAD-15-001
       - id: PAD-16-004
         priority: MUST
         kind: process
@@ -2226,6 +2380,9 @@ groups:
           Inspection: every Task, Feature, or Bug item at `Ready` meets each
           listed condition, and every open item that meets them all and is not
           claimed is at `Ready`.
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-04-001
       - id: PAD-16-005
         priority: MUST
         kind: process
@@ -2241,6 +2398,9 @@ groups:
         verification: >-
           Inspection: every Idea or Concern item at `Ready` meets each listed
           condition.
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-04-001
       - id: PAD-16-006
         priority: MUST_NOT
         kind: process
@@ -2285,6 +2445,13 @@ groups:
         verification: >-
           Inspection: every claimed open Issue with no open non-draft closing
           PR is at `In Progress`, including one carrying `stale-claim`.
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-04-001
+        - rel_type: uses_definition
+          spec_id: PAD-04-002
+        - rel_type: uses_definition
+          spec_id: PAD-15-009
       - id: PAD-16-009
         priority: MUST
         kind: process
@@ -2334,6 +2501,11 @@ groups:
         verification: >-
           Inspection: every open unclaimed item not meeting the `Ready`
           conditions is at `Backlog`.
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-16-004
+        - rel_type: uses_definition
+          spec_id: PAD-16-005
       - id: PAD-16-012
         priority: MUST_NOT
         kind: process
@@ -2342,8 +2514,8 @@ groups:
         rationale: >-
           An Epic is a container, not work that is claimed, reviewed, and
           merged. Its progress is the sub-issue progress GitHub already shows,
-          and a decomposition-needed Epic is identified by its
-          `needs-decomposition` label.
+          and an Epic that still needs planning is identified by its
+          `needs-planning` label.
         verification: >-
           Inspection: no Epic item on Project #24 has a `Status` value.
 
@@ -2385,6 +2557,9 @@ groups:
         verification: >-
           A `pr-ship` run leaves its PR at `Ready to merge`, and a run paused
           at `defer-ask` or `inversion-halt` leaves it at `Needs you`.
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-07-007
       - id: PAD-17-003
         priority: MUST
         kind: process
@@ -2417,8 +2592,11 @@ groups:
           Inspection: no draft, closed, or merged PR on Project #24 has a
           `Ship stage` value.
         relationships:
-        - rel_type: refines
+        - rel_type: extends
           spec_id: PAD-17-001
+        see_also:
+        - spec_id: PAD-17-003
+          reason: 'restates PAD-17-003''s consequence for a re-readied PR'
 
   - id: PAD-18
     title: Pipeline Test-Gate Placement
@@ -2490,6 +2668,11 @@ groups:
         verification: >-
           Inspection: `pr-execute` gates post-first-push fixes with the
           targeted-test command, not the full suite.
+        see_also:
+        - spec_id: PAD-18-015
+          reason: >-
+            scope boundary: a conflict merge's gate is set elsewhere, and PAD-18-002
+            never binds one, so PAD-18-015 supersedes nothing it requires
       - id: PAD-18-011
         adr:
         - ADR-0126
@@ -2554,6 +2737,8 @@ groups:
         relationships:
         - rel_type: constrains
           spec_id: PAD-18-003
+        - rel_type: uses_definition
+          spec_id: PAD-18-002
       - id: PAD-18-013
         adr:
         - ADR-0126
@@ -2680,7 +2865,7 @@ groups:
           that GitHub reports `CLEAN`, and raises `BRANCH-BEHIND` only when
           GitHub reports `BEHIND`.
         relationships:
-        - rel_type: depends_on
+        - rel_type: uses_definition
           spec_id: PAD-18-004
       - id: PAD-18-006
         adr:
@@ -2722,6 +2907,8 @@ groups:
         relationships:
         - rel_type: refines
           spec_id: PAD-18-006
+        - rel_type: uses_definition
+          spec_id: PAD-18-001
       - id: PAD-18-007
         adr:
         - ADR-0126
@@ -2740,7 +2927,7 @@ groups:
           The output of `scripts/velocity.py` carries the per-PR and weekly
           fields.
         relationships:
-        - rel_type: depends_on
+        - rel_type: uses_definition
           spec_id: PAD-18-006
       - id: PAD-18-008
         adr:
@@ -2793,9 +2980,6 @@ groups:
           Inspection: `work-epic-tasks` step 4 runs the merge-state,
           `git merge-tree`, and `targeted-tests --overlap` checks on the Pull
           Request about to merge.
-        relationships:
-        - rel_type: depends_on
-          spec_id: PAD-18-004
       - id: PAD-18-018
         adr:
         - ADR-0138
@@ -2811,7 +2995,7 @@ groups:
           Inspection: `work-epic-tasks` step 4 re-runs `pr-ship` only on a
           conflict.
         relationships:
-        - rel_type: depends_on
+        - rel_type: extends
           spec_id: PAD-18-009
       - id: PAD-18-019
         adr:
@@ -2834,7 +3018,7 @@ groups:
           `wait-for-ci.sh` before merging a `BEHIND` or overlapping Pull
           Request.
         relationships:
-        - rel_type: depends_on
+        - rel_type: extends
           spec_id: PAD-18-009
       - id: PAD-18-020
         adr:
@@ -2899,7 +3083,7 @@ groups:
           every pull-request step, names no step that does not run, and a
           step that is neither mirrored nor excluded fails it.
         relationships:
-        - rel_type: depends_on
+        - rel_type: uses_definition
           spec_id: PAD-18-021
       - id: PAD-18-023
         adr:
@@ -2921,7 +3105,7 @@ groups:
           diff and on a docs-only diff. `test/ci/test_prepush_ci_mirror_parity.py`
           checks each guard file exists.
         relationships:
-        - rel_type: depends_on
+        - rel_type: uses_definition
           spec_id: PAD-18-021
       - id: PAD-18-024
         adr:
@@ -2947,7 +3131,7 @@ groups:
           run when nothing overlaps. Inspection: `pr-execute` Phase 5 Step 3 runs
           `merged-tree-tests` on a `no-merge` verdict with a `deferred` reason.
         relationships:
-        - rel_type: depends_on
+        - rel_type: uses_definition
           spec_id: PAD-18-004
       - id: PAD-18-025
         adr:
@@ -2967,8 +3151,41 @@ groups:
           and a conflict, the branch head is unchanged and no scratch worktree
           is listed.
         relationships:
-        - rel_type: depends_on
+        - rel_type: extends
           spec_id: PAD-18-024
+      - id: PAD-18-026
+        adr:
+        - ADR-0179
+        priority: MUST
+        kind: process
+        statement: >-
+          A local gate's linter step MUST run ruff's linter and formatter, and
+          mypy.
+        rationale: >-
+          These checks find most type and style failures in seconds, before CI
+          would. mypy keeps a cache, so a run on a small change takes
+          seconds.
+        verification: >-
+          Inspection: the `run-linters` skill runs `ruff check`, `ruff format`
+          and `mypy`.
+      - id: PAD-18-031
+        adr:
+        - ADR-0179
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          A local gate MUST NOT drop one of its checks in favor of CI unless
+          GitHub requires that check. GitHub requires a check when it refuses a
+          merge into the base while the check is red or has not run.
+        rationale: >-
+          Never merge on red holds only for a check that something enforces.
+          A check moved to CI that GitHub does not require can be merged past
+          unseen.
+        verification: >-
+          Inspection: for each check a pull request removes from a local gate,
+          an active ruleset on `main` (`gh api repos/CERTCC/Vultron/rulesets`)
+          lists that check as a required status check, with no bypass actors,
+          such as `main-3 Require CI gate` (#5945).
 
   - id: PAD-19
     title: Epic Claim for an Epic Run
@@ -3054,7 +3271,7 @@ groups:
           and Concern candidates under an assigned Epic, and `claim-issue.sh`
           claims a Bug.
         relationships:
-        - rel_type: constrains
+        - rel_type: extends
           spec_id: PAD-19-002
       - id: PAD-19-003
         priority: MUST
@@ -3123,7 +3340,7 @@ groups:
           `test/ci/test_stale_claim_sweeper.py` pins the Epic staleness
           decision in `.github/scripts/stale_claim_sweeper.py`.
         relationships:
-        - rel_type: refines
+        - rel_type: extends
           spec_id: PAD-10-001
       - id: PAD-19-006
         priority: MUST_NOT
@@ -3203,8 +3420,8 @@ groups:
           `test/metadata/test_pr_body_lint.py::TestSkillsRunTheGates` pins that
           `create-pr`'s pre-push gate runs `pr-body-lint`.
         relationships:
-          - rel_type: depends_on
-            spec_id: PAD-20-001
+        - rel_type: uses_definition
+          spec_id: PAD-20-001
         tags:
           - tooling
       - id: PAD-20-007
@@ -3221,10 +3438,8 @@ groups:
           `test/metadata/test_pr_body_lint.py::TestSkillsRunTheGates` pins that
           `create-pr`'s pre-push gate runs `spec-backstop --manifest`.
         relationships:
-          - rel_type: depends_on
-            spec_id: SR-12-019
-          - rel_type: extends
-            spec_id: PAD-20-002
+        - rel_type: uses_definition
+          spec_id: SR-12-019
         tags:
           - tooling
       - id: PAD-20-008
@@ -3241,8 +3456,8 @@ groups:
           `create-pr`'s pre-push gate runs `pr-body-lint --manifest`, and
           `TestManifestVerbatim` covers the verbatim check.
         relationships:
-          - rel_type: depends_on
-            spec_id: PAD-20-007
+        - rel_type: uses_definition
+          spec_id: PAD-20-007
         tags:
           - tooling
       - id: PAD-20-003
@@ -3263,10 +3478,10 @@ groups:
           `create-pr` call; `test/metadata/specs/test_branch_checks.py` covers
           what the flag reports.
         relationships:
-          - rel_type: depends_on
-            spec_id: MS-10-027
-          - rel_type: depends_on
-            spec_id: PD-10-005
+        - rel_type: uses_definition
+          spec_id: MS-10-027
+        - rel_type: uses_definition
+          spec_id: PD-10-005
         tags:
           - tooling
       - id: PAD-20-004
@@ -3282,8 +3497,8 @@ groups:
           `test/metadata/test_pr_body_lint.py::TestSkillsRunTheGates` pins that
           `pr-triage` Phase 3 runs `pr-body-lint --stage final`.
         relationships:
-          - rel_type: depends_on
-            spec_id: PAD-20-001
+        - rel_type: uses_definition
+          spec_id: PAD-20-001
         tags:
           - tooling
       - id: PAD-20-009
@@ -3298,8 +3513,8 @@ groups:
           Inspection: `pr-triage` Phase 3 says not to re-check by hand what
           `pr-body-lint` checks, then lists the rules that it judges by hand.
         relationships:
-          - rel_type: depends_on
-            spec_id: PAD-20-001
+        - rel_type: uses_definition
+          spec_id: PAD-20-001
         tags:
           - tooling
       - id: PAD-20-005
@@ -3318,7 +3533,7 @@ groups:
           call in `check-docs-sync`, and `TestDocsLine` covers the
           final-stage refusal of the placeholder.
         relationships:
-          - rel_type: refines
-            spec_id: PD-03-013
+        - rel_type: extends
+          spec_id: PD-03-013
         tags:
           - tooling

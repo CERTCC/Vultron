@@ -57,6 +57,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIDispatchAdapter,
     FastAPIIngressAdapter,
     FastAPIQueuePort,
+    FastAPIReceivedOutcomePort,
 )
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
@@ -71,7 +72,9 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
+    ReceivedStage,
 )
+from vultron.core.services.received_holding import records_awaiting_case
 from vultron.core.use_cases.triggers.actor import SvcAcceptCaseInviteUseCase
 from vultron.core.use_cases.triggers.requests import (
     AcceptCaseInviteTriggerRequest,
@@ -169,6 +172,7 @@ def _deliver(dl: SqliteDataLayer, body: dict[str, Any]) -> InboxOutcome:
             dl=dl, actor_id=_INVITEE_ID, dispatcher=make_dispatcher()
         ),
         FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
+        received_outcome_port=FastAPIReceivedOutcomePort(dl),
     )
 
 
@@ -189,6 +193,17 @@ def _pending(dl: SqliteDataLayer) -> VultronPendingCaseInbox:
     pending = dl.read(_PENDING_ID)
     assert isinstance(pending, VultronPendingCaseInbox)
     return pending
+
+
+def _awaiting(dl: SqliteDataLayer) -> list[str]:
+    """The ids of the activities waiting on the case, in arrival order.
+
+    Which activities wait is read from their own held records
+    (``awaiting_case_id``, ADR-0154), not from the per-case record.
+    """
+    return [
+        record.activity_id for record in records_awaiting_case(dl, _CASE_ID)
+    ]
 
 
 def _age_queue(dl: SqliteDataLayer, by: timedelta) -> None:
@@ -223,7 +238,7 @@ def _announce_body(case_manager_dl: SqliteDataLayer, actor: str) -> dict:
 def test_stub_invite_is_processed_on_arrival_and_archived(
     case_actor_dl, invitee_dl
 ):
-    """AC-1: processed, archived by intake and anchored — not deferred."""
+    """AC-1: processed, archived as applied and anchored — not deferred."""
     invite_id, body = _stub_invite_body(case_actor_dl)
 
     outcome = _deliver(invitee_dl, body)
@@ -233,9 +248,11 @@ def test_stub_invite_is_processed_on_arrival_and_archived(
     )
     record = invitee_dl.read(ReceivedActivityRecord.build_id(invite_id))
     assert isinstance(record, ReceivedActivityRecord)
+    assert record.stage is ReceivedStage.ARCHIVED, "archived as applied"
+    assert not record.replay_owed, "nothing is held back for replay"
     assert not isinstance(invitee_dl.read(_CASE_ID), VulnerabilityCase)
     pending = _pending(invitee_dl)
-    assert pending.activity_ids == [], "nothing is held back for replay"
+    assert _awaiting(invitee_dl) == [], "nothing waits on the case"
     assert pending.case_actor_id == _CASE_ACTOR_ID
     assert pending.invite_anchored
     # PCR-06-006: the intake archive and the anchor are the only writes;
@@ -275,10 +292,12 @@ def test_an_activity_presupposing_the_unknown_case_is_still_deferred(
     invitee_dl,
 ):
     """AC-4: only the stub Invite is exempt; a case-scoped Note is held."""
-    outcome = _deliver(invitee_dl, _note_body("https://example.org/notes/n1"))
+    body = _note_body("https://example.org/notes/n1")
+
+    outcome = _deliver(invitee_dl, body)
 
     assert outcome.status is InboxOutcomeStatus.DEFERRED
-    assert len(_pending(invitee_dl).activity_ids) == 1
+    assert _awaiting(invitee_dl) == [body["id"]]
 
 
 @pytest.mark.spec("CBT-03-001", "PCR-03-004")
@@ -291,14 +310,42 @@ def test_the_expiry_window_opens_with_the_first_activity_queued(
     # The invitee took an hour to answer: the anchor is an hour old.
     _age_queue(invitee_dl, _LONG_AGO)
 
-    outcome = _deliver(invitee_dl, _note_body("https://example.org/notes/n2"))
+    body = _note_body("https://example.org/notes/n2")
+
+    outcome = _deliver(invitee_dl, body)
 
     assert outcome.status is InboxOutcomeStatus.DEFERRED, (
         outcome.failure_reason
     )
     pending = _pending(invitee_dl)
-    assert len(pending.activity_ids) == 1
+    assert _awaiting(invitee_dl) == [body["id"]]
     assert datetime.now(UTC) - pending.queued_at < timedelta(minutes=5)
+
+
+@pytest.mark.spec("CBT-03-001", "CBT-03-003")
+def test_a_redelivery_of_the_only_waiter_does_not_restart_the_window(
+    invitee_dl,
+):
+    """The window runs from the first delivery, not the latest one.
+
+    A redelivery is answered from the record already holding the activity
+    (IE-10-001), so it adds nothing to the queue and must not reopen its
+    expiry window: a sender redelivering inside the window would otherwise
+    hold the pre-bootstrap queue open for ever (CBT-03-003).
+    """
+    body = _note_body("https://example.org/notes/n-resend")
+    assert _deliver(invitee_dl, body).status is InboxOutcomeStatus.DEFERRED
+    opened_at = _pending(invitee_dl).queued_at
+
+    # The same activity arrives again while it is still the only waiter.
+    assert (
+        _deliver(invitee_dl, dict(body)).status is InboxOutcomeStatus.DEFERRED
+    )
+
+    assert _awaiting(invitee_dl) == [body["id"]], "still the only waiter"
+    assert _pending(invitee_dl).queued_at == opened_at, (
+        "a redelivery restarted the expiry window"
+    )
 
 
 @pytest.mark.spec("CBT-03-003", "PCR-03-004")
@@ -318,7 +365,7 @@ def test_announce_after_queue_expiry_is_admitted_from_the_anchored_sender(
 
     assert expired.status is InboxOutcomeStatus.REJECTED
     pending = _pending(invitee_dl)
-    assert pending.activity_ids == [], "the expired queue is dropped"
+    assert _awaiting(invitee_dl) == [], "the expired queue is dropped"
     assert pending.case_actor_id == _CASE_ACTOR_ID
     assert pending.invite_anchored
 

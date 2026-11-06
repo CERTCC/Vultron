@@ -18,7 +18,7 @@
 Four actor containers plus a dedicated CaseActor:
 
 - Reporter: the report submitter, seated when the case is created
-  (CM-22-002);
+  (CP-09-002);
 - Vendor1 (cast slot 1, the first Vendor): CASE_OWNER throughout — ownership
   never moves (DEMOMA-10-002);
 - Coordinator (cast slot 2): a participant holding ``CVDRole.COORDINATOR``

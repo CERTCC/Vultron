@@ -59,6 +59,9 @@ dependencies = [
     "python-frontmatter>=1.3.0",
     "pydantic-settings>=2.15.0",
     "httpx2",
+    "cryptography>=50.0.2",
+    "rfc8785>=0.1.4",
+    "base58>=2.1.1",
 ]
 dynamic = ["version",]
 
@@ -336,11 +339,14 @@ addopts = "-ra -q -m 'not integration' --dist loadgroup --max-worker-restart=0"
 # cannot reach, such as a C call holding the GIL, is bounded by the CI job's
 # `timeout-minutes` and the local gate's `timeout` wrapper instead.
 #
-# Sized from measurement, not taste: the slowest unit test on an idle machine is
-# ~3.1s (`test_real_specs_load` setup), so this is ~10x headroom.  Contention on
-# a loaded dev box or CI runner inflates honest tests well beyond their idle
-# cost, and 5s and 20s both tripped on honest work under load.  A generous
-# ceiling costs nothing on a genuine hang: that test was never going to finish.
+# Sized from measurement, not taste: about ten times the idle cost of the
+# slowest test it governs.  Contention on a loaded dev box or CI runner inflates
+# honest tests well beyond their idle cost, and 5s and 20s both tripped on
+# honest work under load.  A generous ceiling costs nothing on a genuine hang:
+# that test was never going to finish.  A single test that outgrows the tier is
+# made faster rather than given room: it may carry its own
+# `@pytest.mark.timeout`, which wins over the tier, only as an interim measure
+# naming the issue that speeds it up (TB-14-003).
 #
 # Integration tests get a wider tier (120s, sized from measured demo cost
 # under load, #5188); see `INTEGRATION_TIMEOUT_SECONDS` in `test/conftest.py`.
@@ -361,10 +367,15 @@ filterwarnings = [
     # test_spec_marker_gate.py::TestWarningIsNotEscalated.
     "always::vultron.metadata.specs.UnknownSpecIdWarning",
     "always::vultron.metadata.specs.SpecRegistryUnavailableWarning",
-    "ignore::DeprecationWarning:vultron.demo.scenario.three_actor_demo",
-    "ignore:three_actor_demo.py is based on older code:DeprecationWarning",
-    "ignore::DeprecationWarning:vultron.demo.scenario.multi_vendor_demo",
 ]
+# An `xfail` that omits `strict` is strict anyway (TB-17-001).  This is the
+# run-time half of the rule `test_every_xfail_is_strict` enforces over the
+# source: the ratchet reads names, so an indirection it cannot see — a bare
+# `@pytest.mark.xfail`, an aliased marker, `getattr(pytest.mark, "xfail")` —
+# would otherwise stay lax.  Provably inert today: all 92 marker sites in the
+# tree write `strict=True` explicitly and nothing adds an xfail marker
+# dynamically, so this changes no current outcome and only closes the hole.
+xfail_strict = true
 markers = [
     "integration: marks tests as integration tests (exercise the full HTTP stack; deselected by default)",
     "spec(*spec_ids): mark test as verifying one or more spec requirement IDs",

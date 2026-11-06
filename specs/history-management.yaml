@@ -1,9 +1,12 @@
 id: HM
 title: History File Management
-description: Defines the structure, location, entry format, and tooling for managing project history entries. For
-  `implementation` and `idea` types whose `--source` resolves to a GitHub issue number, `append-history` posts the
-  entry body as a comment on the corresponding GitHub issue rather than writing a file. `learning` and `priority`
-  types continue to write per-entry write-once files under `plan/history/`, managed by the `append-history` CLI tool.
+description: >-
+  Defines the structure, location, entry format, and tooling for managing project
+  history entries. For `implementation` and `idea` types whose `--source` is
+  `ISSUE-N`, `append-history` posts the entry body as a comment on GitHub issue N
+  rather than writing a file. `learning` and `priority` types continue to write
+  per-entry write-once files under `plan/history/`, managed by the `append-history`
+  CLI tool.
 scope:
 
 - prototype
@@ -50,6 +53,9 @@ groups:
       Readers and tools find an entry by its month, its type and its source. One file
       per entry lets concurrent branches each add an entry without a merge conflict on a
       shared file.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: HM-02-002
   - id: HM-01-009
     priority: MUST
     kind: process
@@ -67,11 +73,11 @@ groups:
       `test/metadata/test_append_history.py` confirms that a second learning with the
       same source goes to the slug-suffixed path.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: BW-01-003
     - rel_type: depends_on
       spec_id: BW-01-010
-    - rel_type: extends
+    - rel_type: supersedes
       spec_id: HM-01-002
   - id: HM-01-010
     priority: MUST_NOT
@@ -92,18 +98,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HM-01-002
-  - id: HM-01-003
-    priority: MUST
-    kind: process
-    verification_debt: '#2571'
-    statement: >-
-      After each `append-history` run, the tool MUST regenerate the local
-      `plan/history/YYMM/README.md` index from entry frontmatter (HM-03-006).
-    rationale: >-
-      The index gives a quick local view of the entries of a month. The tool derives the
-      index fully from entry frontmatter, so a local regeneration can rebuild it at any
-      time.
-    note: To view the history index, use `uv run show-history [--month YYMM | --all]`.
+    - rel_type: uses_definition
+      spec_id: HM-01-009
   - id: HM-01-011
     priority: MUST_NOT
     kind: process
@@ -144,30 +140,30 @@ groups:
   - id: HM-01-007
     priority: MUST
     kind: process
-    verification_debt: '#2571'
     statement: >-
-      History entries for `implementation` and `idea` types whose `--source` resolves
-      to a GitHub issue number MUST be posted as a comment on the corresponding GitHub
-      issue (see HM-08).
+      History entries for `implementation` and `idea` types whose `--source` is
+      `ISSUE-N` MUST be posted as a comment on GitHub issue N (see HM-08).
     rationale: >-
       GitHub comment mode keeps implementation and idea records co-located with the
       issue they describe, avoiding file churn in plan/history/.
-    relationships:
-    - rel_type: refines
-      spec_id: HM-01-001
+    verification: >-
+      `test_issue_source_posts_comment` in `test/metadata/test_append_history.py`
+      stubs `gh` and checks that an `ISSUE-N` entry is posted on issue N.
   - id: HM-01-008
     priority: MUST_NOT
     kind: process
-    verification_debt: '#2571'
     statement: >-
-      History entries for `implementation` and `idea` types whose `--source` resolves
-      to a GitHub issue number MUST NOT be written as files under `plan/history/`.
+      History entries for `implementation` and `idea` types whose `--source` is
+      `ISSUE-N` MUST NOT be written as files under `plan/history/`.
     rationale: >-
       Writing these entries as files would duplicate content already posted as GitHub
       comments and pollute the plan/history/ directory with redundant records.
+    verification: >-
+      `test_issue_source_posts_comment` in `test/metadata/test_append_history.py`
+      checks that an `ISSUE-N` entry writes no file under `plan/history/`.
     relationships:
-    - rel_type: refines
-      spec_id: HM-01-001
+    - rel_type: extends
+      spec_id: HM-01-007
 - id: HM-02
   title: Entry File Format
   specs:
@@ -229,7 +225,7 @@ groups:
       `HistoryEntryFrontmatter` derive the accepted type set exclusively from
       `HistoryEntryType` members, with no hardcoded type lists elsewhere.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: HM-02-002
   - id: HM-02-003
     priority: MUST
@@ -259,6 +255,9 @@ groups:
       `test_readme_updated_after_second_append` in
       `test/metadata/test_append_history.py` confirm that each run writes the index and
       lists the entries of the month.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: HM-03-006
   - id: HM-02-007
     priority: MUST_NOT
     kind: process
@@ -271,7 +270,7 @@ groups:
       `test_hand_edit_replaced_on_next_run` in `test/metadata/test_append_history.py`
       confirms that the next run removes a hand edit to the index.
     relationships:
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: HM-02-004
 - id: HM-03
   title: append-history CLI Tool
@@ -285,6 +284,9 @@ groups:
     rationale: >-
       With one typed entry point, skills write history the same way each time, and the
       tool validates the type before it writes anything.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: HM-02-002
   - id: HM-03-009
     priority: MUST
     kind: project
@@ -295,7 +297,7 @@ groups:
       without a reason. A clear error and a non-zero exit stop the calling skill before
       it reports success.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: HM-03-001
   - id: HM-03-002
     priority: MUST
@@ -347,9 +349,13 @@ groups:
       A table with the newest entries first gives a quick local view of the records for
       a month. The reader does not have to open each file. The tool scans only the
       known-type subdirectories, so unrelated files with different frontmatter cannot
-      break the regeneration.
-    note: The scan is restricted to known HistoryEntryType subdirectories to avoid parsing non-standard frontmatter in other
-      subdirs (e.g. report/). The gitignore constraint is specified in HM-01-003.
+      break the regeneration. The index is derived fully from entry frontmatter, so a
+      local regeneration can rebuild it at any time.
+    note: >-
+      The scan is restricted to known HistoryEntryType subdirectories to avoid parsing
+      non-standard frontmatter in other subdirs (e.g. report/). The gitignore
+      constraint is HM-01-011. To view the history index, use
+      `uv run show-history [--month YYMM | --all]`.
   - id: HM-03-007
     priority: MUST
     kind: project
@@ -390,9 +396,6 @@ groups:
     rationale: >-
       Entries from older history formats must go into the month that they record, not
       the month of the migration. Migration tooling thus needs a way to set the date.
-    relationships:
-    - rel_type: refines
-      spec_id: HM-03-004
   - id: HM-03-012
     priority: MUST
     kind: process
@@ -403,7 +406,7 @@ groups:
       Entries from concurrent sessions then go into the correct month. If each agent
       chose the month, some entries would go into the wrong directory.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: HM-03-004
   - id: HM-03-013
     priority: MUST_NOT
@@ -415,7 +418,7 @@ groups:
       derives the month from the clock. A rule that requires the choice would bring back
       the error that the tool prevents.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: HM-03-004
 - id: HM-04
   title: Agent Context Boundaries
@@ -458,12 +461,15 @@ groups:
     priority: MUST
     kind: process
     verification_debt: '#2571'
-    statement: The `build` skill MUST use `uv run append-history implementation` to write completion summaries.
+    statement: >-
+      The `build` and `bugfix` skills MUST write completion summaries only with
+      `uv run append-history implementation`.
     rationale: >-
       When the tool writes a completion summary, the summary gets validated frontmatter
-      and goes to the configured output mode (a file or an issue comment). A summary
-      written in a different way skips both, and readers cannot find it in the usual
-      way.
+      and goes to the configured output mode (a file or an issue comment), where
+      readers of the work item find it. A summary written in a different way skips
+      both and is lost, or it goes into the learnings queue, which is not its location
+      (BW-01-002).
   - id: HM-05-002
     priority: MUST
     kind: process
@@ -549,7 +555,7 @@ groups:
       `test/metadata/test_history_models.py` confirm that an absent, naive or malformed
       `timestamp` raises `ValidationError`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: HM-06-002
   - id: HM-06-004
     priority: MUST
@@ -602,7 +608,7 @@ groups:
       with a non-UTC offset is normalised to UTC, and that sorting entries by `timestamp`
       produces correct chronological order.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: HM-06-005
   - id: HM-06-006
     priority: MUST
@@ -652,12 +658,22 @@ groups:
       model, and the entries fail validation later. The tool builds the frontmatter from
       validated arguments, so the frontmatter of each entry is correct by construction.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: HM-07-001
   - id: HM-07-002
     priority: MUST_NOT
     kind: project
-    verification_debt: '#2575'
+    verification: >-
+      TestBodyFrontmatterRejection in test/metadata/test_append_history.py:
+      test_stdin_with_frontmatter_exits_nonzero and
+      test_file_mode_with_frontmatter_exits_nonzero assert exit non-zero;
+      test_stdin_with_frontmatter_names_hm_07_002 and
+      test_file_mode_with_frontmatter_names_hm_07_002 assert HM-07-002 in stderr;
+      test_stdin_with_leading_blank_lines_then_frontmatter_refused and
+      test_stdin_with_malformed_frontmatter_refused assert a block after blank
+      lines, or one that is malformed YAML, is refused;
+      test_body_with_yaml_list_block_is_accepted asserts a non-mapping block passes;
+      test_from_file_mode_with_frontmatter_unchanged asserts --from-file is exempt.
     statement: Callers of `append-history` MUST NOT include a YAML frontmatter block in the content they supply via stdin
       or `--file`.
     rationale: >-
@@ -665,7 +681,7 @@ groups:
       block conflicts with the block that the tool builds. When callers supply only body
       text, the tool is the only author of frontmatter.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: HM-07-005
   - id: HM-07-003
     priority: MUST
@@ -697,9 +713,9 @@ groups:
       The override sets the time. It does not skip validation. The same future-date
       check applies, so backfilled entries obey the same rules as all other entries.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: HM-07-003
-    - rel_type: implements
+    - rel_type: refines
       spec_id: HM-06-004
   - id: HM-07-004
     priority: MUST
@@ -731,16 +747,23 @@ groups:
   - id: HM-08-001
     priority: MUST
     kind: project
-    verification_debt: '#2575'
-    statement: When `append-history` is invoked with type `implementation` or `idea` and `--source` is a value that resolves
-      to a GitHub issue number (i.e., the string `ISSUE-N` for any positive integer N, or a bare positive integer), the tool
-      MUST post the entry body as a comment on issue N in the CERTCC/Vultron repository using `gh issue comment`, rather than
-      writing a file under `plan/history/`.
+    statement: >-
+      When `append-history` is invoked with type `implementation` or `idea` and
+      `--source ISSUE-N`, where N is a positive integer with no leading zero and
+      `gh issue view N` finds an issue (not a pull request) in the CERTCC/Vultron
+      repository, the tool MUST post the entry body as a comment on issue N using
+      `gh issue comment`, rather than writing a file under `plan/history/`.
     rationale: >-
       An implementation or idea record for an issue is most useful on that issue, where
       all readers of the issue find it. The tool posts the record there, so the record
       stays with its work item. The project then does not commit a file for each
-      completed task.
+      completed task. Only the `ISSUE-` prefix means an issue: sources such as
+      `ADR-0041`, `VCR-005` or `BUG-2505` use other numberings, and reading their
+      numbers as issues would post records on unrelated issues.
+    verification: >-
+      `TestConfirmIssue` and `test_issue_source_posts_comment` in
+      `test/metadata/test_append_history.py` stub `gh` and check that an `ISSUE-N`
+      source naming an existing issue posts a comment on it and writes no file.
   - id: HM-08-002
     priority: MUST
     kind: project
@@ -750,17 +773,30 @@ groups:
     rationale: >-
       The comment URL is the only reference to the record. Callers such as
       `archive-history` need it to link the record from the work that they report.
+    relationships:
+    - rel_type: extends
+      spec_id: HM-08-001
   - id: HM-08-003
     priority: MUST
     kind: project
-    verification_debt: '#2575'
-    statement: When `append-history` is invoked with type `implementation` or `idea` and `--source` does NOT resolve to a
-      GitHub issue number (e.g., source is `IDEA-26042702`, `TASK-BTND5`, or any other non-numeric format), the tool MUST
-      fall back to writing a file under `plan/history/` as in the pre-HM-08 behaviour.
+    statement: >-
+      When `append-history` is invoked with type `implementation` and `--source
+      ISSUE-N-<slug>` (a lowercase, hyphen-separated slug), or with type `idea` and
+      `--source IDEA-YYMMDDNN` (eight digits: a date and a sequence number), the tool
+      MUST write the entry as a file under `plan/history/` without asking GitHub.
     rationale: >-
-      Not every source identifies an issue, and an entry with no issue for a comment
-      still needs a record. A file under `plan/history/` gives it a record, in the
-      archive that the other entry types already use.
+      Not every record of these types belongs in an issue comment. An
+      `ISSUE-N-<slug>` implementation entry holds detail too long for a PR body,
+      beside the completion comment on issue N (`pr-body-guide.md` § "Spec
+      amended"). An `IDEA-YYMMDDNN` idea has no issue yet. A file under
+      `plan/history/` gives each a record, in the archive that the other entry types
+      already use.
+    verification: >-
+      `test_file_form_writes_file_without_asking_github` in
+      `test/metadata/test_append_history.py` checks that both file forms write a
+      file, post no comment and make no `gh` lookup;
+      `TestClassifySource.test_accepted_forms` checks that both are classified as
+      file forms.
   - id: HM-08-004
     priority: MUST_NOT
     kind: project
@@ -770,6 +806,9 @@ groups:
     rationale: >-
       In comment mode the tool writes no file. A `git add` and a commit would thus fail,
       or they would commit unrelated staged changes.
+    relationships:
+    - rel_type: derives_from
+      spec_id: HM-08-001
   - id: HM-08-005
     priority: MUST
     kind: project
@@ -790,3 +829,66 @@ groups:
       Callers of `archive-history` do the steps that its documentation gives. Without
       this guidance, they would try to stage and push a file that comment mode did not
       write.
+  - id: HM-08-007
+    priority: MUST
+    kind: project
+    statement: >-
+      When `gh` cannot answer whether the issue that an `implementation` or `idea`
+      entry's `--source ISSUE-N` names exists (HM-08-001), `append-history` MUST
+      exit non-zero and write no file and no comment.
+    rationale: >-
+      A lookup that fails says nothing about the issue. Taking it as "no issue" would
+      refuse a valid record, and taking it as "an issue" would post where no issue may
+      exist; stopping lets the caller retry once `gh` works.
+    verification: >-
+      `test_lookup_that_cannot_answer_raises` and
+      `test_lookup_failure_exits_nonzero_and_writes_nothing` in
+      `test/metadata/test_append_history.py` stub a failing `gh` and check the
+      non-zero exit with nothing written.
+    relationships:
+    - rel_type: depends_on
+      spec_id: HM-08-001
+  - id: HM-08-008
+    priority: MUST
+    kind: project
+    statement: >-
+      When `append-history` is invoked with type `implementation` or `idea` and a
+      `--source` that is neither `ISSUE-N` (HM-08-001) nor that type's file form
+      (HM-08-003), the tool MUST exit non-zero, write no file and no comment, and
+      name the accepted forms in its error, with the `ISSUE-N` spelling of any number
+      the source carries.
+    rationale: >-
+      A fixed vocabulary is what keeps a source from another numbering off an
+      unrelated issue, and it only holds if every other source is refused. Naming
+      the accepted forms, and `ISSUE-4646` for `TASK-4646`, lets the caller fix the
+      call at once. `--from-file` applies the same rule, so a hand-built entry cannot
+      bypass it.
+    verification: >-
+      `test_other_forms_are_refused_naming_the_accepted_ones`,
+      `test_other_source_is_refused_and_writes_nothing` and
+      `test_implementation_and_idea_files_follow_the_vocabulary` in
+      `test/metadata/test_append_history.py` check refused sources such as
+      `TASK-4646`, `ADR-0041`, a bare number and `IDEA-2066`.
+    relationships:
+    - rel_type: depends_on
+      spec_id: HM-08-001
+    - rel_type: uses_definition
+      spec_id: HM-08-003
+  - id: HM-08-009
+    priority: MUST
+    kind: project
+    statement: >-
+      When an `implementation` or `idea` entry's `--source ISSUE-N` names no issue in
+      CERTCC/Vultron, or names a pull request, `append-history` MUST exit non-zero
+      and write no file and no comment.
+    rationale: >-
+      `ISSUE-N` claims the record belongs on issue N. When there is no such issue the
+      claim is wrong, so filing the entry would hide a mistyped number, and `gh issue
+      comment` on a pull request would put the record on the wrong kind of item.
+    verification: >-
+      `test_missing_issue_is_refused`, `test_pull_request_is_refused` and
+      `test_issue_source_naming_no_issue_is_refused` in
+      `test/metadata/test_append_history.py` stub `gh` and check both refusals.
+    relationships:
+    - rel_type: depends_on
+      spec_id: HM-08-001

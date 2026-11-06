@@ -48,7 +48,7 @@ needs_integration = any(
 
 <!-- markdownlint-disable MD013 -->
 1. `logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; timeout -k 30 1800 uv run pytest --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)` (all unit tests)
-2. `logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$logs-integration.log" 2>&1; rc=$?; tail -40 "$logs-integration.log"; echo "exit: $rc"; (exit $rc)` (integration test suite)
+2. `logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$logs-integration.log" 2>&1; rc=$?; tail -40 "$logs-integration.log"; echo "exit: $rc"; (exit $rc)` (integration test suite)
 <!-- markdownlint-enable MD013 -->
 
 **When**: Demo, adapters, behavior trees, or use-cases modified

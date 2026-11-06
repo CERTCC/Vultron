@@ -34,6 +34,7 @@ from py_trees.common import Status
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.blackboard_scope import (
     KeyState,
+    key_aliases,
     restore_keys,
     snapshot_keys,
 )
@@ -45,15 +46,18 @@ from vultron.core.behaviors.inbox.models import (
     InboxOutcomeStatus,
     IngressPayloadAdapter,
     PendingCaseQueuePort,
+    ReceivedOutcomePort,
 )
 from vultron.core.behaviors.inbox.nodes import (
     ALL_INBOX_KEYS,
     KEY_CONTEXT_ID,
     KEY_DEREFERENCE,
     KEY_DISPATCH,
+    KEY_DISPOSITION,
     KEY_EVENT,
     KEY_FAILURE_REASON,
     KEY_INGRESS,
+    KEY_OUTCOME,
     KEY_OUTCOME_STATUS,
     KEY_PAYLOAD,
     KEY_QUEUE,
@@ -86,6 +90,7 @@ def _write_inbox_inputs(
     dispatch_adapter: DispatchAdapter,
     queue_port: PendingCaseQueuePort | None,
     dereference_port: ObjectDereferencePort | None = None,
+    received_outcome_port: ReceivedOutcomePort | None = None,
 ) -> None:
     """Write pipeline inputs to the BT blackboard."""
     setup_bb = py_trees.blackboard.Client(name="InboxOrchestrator-setup")
@@ -94,11 +99,13 @@ def _write_inbox_inputs(
     setup_bb.register_key(KEY_DISPATCH, access=py_trees.common.Access.WRITE)
     setup_bb.register_key(KEY_QUEUE, access=py_trees.common.Access.WRITE)
     setup_bb.register_key(KEY_DEREFERENCE, access=py_trees.common.Access.WRITE)
+    setup_bb.register_key(KEY_OUTCOME, access=py_trees.common.Access.WRITE)
     setup_bb.inbox_payload = payload
     setup_bb.inbox_ingress = ingress_adapter
     setup_bb.inbox_dispatch = dispatch_adapter
     setup_bb.inbox_queue = queue_port
     setup_bb.inbox_dereference = dereference_port
+    setup_bb.inbox_received_outcome = received_outcome_port
 
 
 def _run_bt_pipeline(actor_config: ActorConfig | None = None) -> Status:
@@ -195,6 +202,7 @@ def process_payload(
     queue_port: PendingCaseQueuePort | None = None,
     actor_config: ActorConfig | None = None,
     dereference_port: ObjectDereferencePort | None = None,
+    received_outcome_port: ReceivedOutcomePort | None = None,
 ) -> InboxOutcome:
     """Process one inbox payload through the BT pipeline.
 
@@ -220,11 +228,16 @@ def process_payload(
         dereference_port: Optional fetch-and-defer port.  When provided,
             an activity naming an object the receiver must fetch first waits
             on the fetch instead of being processed without it (AKM-05-007).
+        received_outcome_port: Optional port that moves the received record
+            to its final outcome stage.  When provided, a refused delivery's
+            body is given up for a receipt stub (CLP-10-018, ADR-0154); both
+            production pipelines provide it, and without it a refused body is
+            over-retained rather than lost.
 
     Returns:
         :class:`InboxOutcome` whose ``status`` is an
         :class:`InboxOutcomeStatus` member, derived from the handler's
-        ``HandlerResult`` when dispatch ran (UCORG-05-011).
+        ``HandlerResult`` when dispatch ran (IO-01-006).
     """
     # The shared BT global lock serialises BT blackboard access
     # across concurrent FastAPI BackgroundTasks.  The RLock supports
@@ -233,6 +246,14 @@ def process_payload(
     with _BT_GLOBAL_LOCK:
         storage = py_trees.blackboard.Blackboard.storage
         saved = _save_inbox_keys(storage)
+        # Every run starts with no handler verdict.  A nested run (the replay
+        # a case bootstrap triggers runs inside the outer dispatch, after it
+        # published its verdict) would otherwise inherit the outer run's, and
+        # a dispatch of its own that raised would be settled by another
+        # delivery's verdict instead of leaving its record alone
+        # (CLP-10-074).  The snapshot above restores it on the way out.
+        for alias in key_aliases(KEY_DISPOSITION):
+            storage.pop(alias, None)
 
         try:
             _write_inbox_inputs(
@@ -241,6 +262,7 @@ def process_payload(
                 dispatch_adapter,
                 queue_port,
                 dereference_port,
+                received_outcome_port,
             )
             _run_bt_pipeline(actor_config)
             outcome = _read_inbox_outcome()

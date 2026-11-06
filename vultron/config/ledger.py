@@ -72,6 +72,17 @@ class LedgerConfig(BaseModel):
             ``invite_resend_cooldown_seconds`` is refused at load.  Default
             600 s.  Override via
             ``VULTRON_LEDGER__INVITE_RESEND_MAX_COOLDOWN_SECONDS``.
+        sender_sequence_hold_seconds: How long the CASE_MANAGER holds a
+            participant's activity that arrives past a gap in the sender's
+            ``senderSequence`` before it skips the gap (SYNC-21-011,
+            SYNC-21-021).  The default covers three delivery attempts that
+            time out and their backoff (SYNC-05-004), and ends before the
+            sender's pending-assertion timeout (SYNC-11-005).  Default 120 s.
+            Override via ``VULTRON_LEDGER__SENDER_SEQUENCE_HOLD_SECONDS``.
+        sender_sequence_hold_cap: How many of one sender's activities on one
+            case the CASE_MANAGER holds before it skips the gap at once
+            (SYNC-21-012, SYNC-21-021).  Default 16.  Override via
+            ``VULTRON_LEDGER__SENDER_SEQUENCE_HOLD_CAP``.
     """
 
     clock_skew_tolerance_seconds: int = Field(
@@ -126,6 +137,23 @@ class LedgerConfig(BaseModel):
         ),
     )
 
+    sender_sequence_hold_seconds: float = Field(
+        default=120.0,
+        gt=0,
+        description=(
+            "SYNC-21-011 wait the CASE_MANAGER holds an activity that arrives"
+            " past a gap in its sender's numbers. Default: 120 s."
+        ),
+    )
+    sender_sequence_hold_cap: int = Field(
+        default=16,
+        ge=1,
+        description=(
+            "SYNC-21-012 number of one sender's held activities on one case"
+            " that ends the hold. Default: 16."
+        ),
+    )
+
     @model_validator(mode="after")
     def _resend_ceiling_not_below_base(self) -> "LedgerConfig":
         """Refuse a resend ceiling below its base: the cooldown only grows."""
@@ -138,6 +166,11 @@ class LedgerConfig(BaseModel):
                 " invite_resend_cooldown_seconds (SYNC-20-005)"
             )
         return self
+
+    @property
+    def sender_sequence_hold(self) -> timedelta:
+        """SYNC-21-011 hold wait as a :class:`~datetime.timedelta`."""
+        return timedelta(seconds=self.sender_sequence_hold_seconds)
 
     @property
     def clock_skew_tolerance(self) -> timedelta:

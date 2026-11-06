@@ -217,7 +217,6 @@ class TestAddOnBehalfStatusVtoV:
         assert "PRM-06-006" in message
         assert _store_state(self.dl, self.case.id_) == before
 
-    @pytest.mark.spec("CM-11-030")
     @pytest.mark.spec("CM-11-029")
     @pytest.mark.spec("PRM-06-003")
     @pytest.mark.spec("PRM-06-007")
@@ -468,7 +467,8 @@ class TestAddOnBehalfStatusDtoD:
 class TestAddOnBehalfStatusCombined:
     """v→V and d→D in one request: the target must hold both roles.
 
-    No combined request succeeds — D entails VF — but the guard still
+    The two moves cannot be asserted in one status (PRM-06-003, PRM-06-004),
+    so no combined request succeeds — D entails VF — but the guard still
     checks both roles before the write and names every missing one.
     """
 

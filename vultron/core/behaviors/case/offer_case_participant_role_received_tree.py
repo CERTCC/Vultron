@@ -28,11 +28,13 @@ never grants the role on the Offer: the grant is the committed Accept
 Structure::
 
     OfferCaseParticipantRoleReceivedBT (Sequence)
-    ├── IntakeReceivedActivityNode           # archives the Offer (CLP-10-017)
-    ├── CaseOpenToExternalWrites
+    ├── ActivityAddressedToReceiverNode      # addressee door
+    ├── ActivityNotSeenBeforeNode            # seen-before door
     ├── ReceivedPathNode                     # the CASE_MANAGER or the target
+    ├── CaseOpenToExternalWrites
     ├── SenderRuleGuard                      # Case Owner at the CM, the CM at
     │                                        # a participant (CM-33-002, -004)
+    ├── IntakeReceivedActivityNode           # records the Offer (CLP-10-017)
     ├── RoleOfferAdmissibleNode              # CM-33-003
     ├── GuardedCommit                        # CASE_MANAGER only
     ├── AnswerRoleOfferOnReplica (off the manager path)
@@ -84,10 +86,11 @@ def create_offer_case_participant_role_received_tree(
 ) -> py_trees.composites.Sequence:
     """Received-side BT factory for OfferCaseParticipantRole (ADR-0039).
 
-    Intake archives the incoming Offer as received (CLP-10-017).  The sender
-    guard, composed from *sender_rule*, admits the Case Owner at the
-    CASE_MANAGER and the CASE_MANAGER at any other store, and refuses a
-    store that does not hold the case (CM-33-002, CM-33-004, PCR-03-001).
+    Intake records the incoming Offer once the doors admit it (CLP-10-017).
+    The sender guard, a door ahead of intake, composed from *sender_rule*,
+    admits the Case Owner at the CASE_MANAGER and the CASE_MANAGER at any
+    other store, and refuses a store that does not hold the case (CM-33-002,
+    CM-33-004, PCR-03-001).
     :class:`RoleOfferAdmissibleNode` then refuses an Offer the CASE_MANAGER
     may not record (CM-33-003), so a refused Offer leaves no entry and sends
     nothing (CM-33-012, CM-33-013).  At the CASE_MANAGER the guarded commit
@@ -98,14 +101,14 @@ def create_offer_case_participant_role_received_tree(
     send-then-commit order binds nothing here.  The commit and the forward
     are one act (CLP-07-015): a forward that fails keeps no entry, so its
     redelivery is a new Offer, and a redelivery of a recorded Offer sends
-    nothing (HP-01-003).  At a
+    nothing (HP-01-014).  At a
     participant replica only the target answers (CM-33-004, BT-17-008).
 
     Args:
         offer_id: ID of the received ``Offer(CaseParticipantRole)``; the
             recorded Offer's id the forward names in ``in_reply_to``.
         case_id: ID of the VulnerabilityCase context; ``None`` for an Offer
-            that names no case, which intake archives and nothing else
+            that names no case, which intake records and nothing else
             touches (CLP-10-018); its handler refuses it.
         role: The CVDRole offered; ``None`` when the Offer carries none,
             which is refused, never read as a default (CM-33-014).

@@ -27,7 +27,7 @@ as moving ``CASE_OWNER`` on an ownership transfer, is its own
 (CLP-07-013).  A replica stores that copy in place of the one it holds
 (CM-23-016): no role, id or time is derived here either.
 
-Per CM-11-006, CM-21-002, CM-21-003, CM-23-016, SYNC-02-002, SYNC-12-001,
+Per CM-11-006, CM-21-002, CM-21-003, CM-23-016, SYNC-02-001, SYNC-12-001,
 RSH-08-004.
 """
 

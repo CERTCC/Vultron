@@ -71,6 +71,7 @@ An environment variable always carries a string, so a setting whose type is not 
 A value that does not match its setting's type or bounds stops the node at startup with an error that names the setting.
 A list variable that is not a valid JSON array also stops the node, but its error names only the section, for example `actor`.
 A `ledger.invite_resend_max_cooldown_seconds` set below `ledger.invite_resend_cooldown_seconds` stops the node too.
+A `ledger.sender_sequence_hold_seconds` that is not above 0, or a `ledger.sender_sequence_hold_cap` below 1, stops the node too.
 
 ---
 

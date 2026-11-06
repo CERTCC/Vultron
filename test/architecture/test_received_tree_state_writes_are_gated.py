@@ -48,7 +48,7 @@ The checks:
    or is in the **pinned exemption set** :data:`WRITES_NO_CASE_STATE` with
    its reason — so the marker, not a name list, decides what the walk finds.
 
-Every set is held to equality in both directions (TB-10-002, ARCH-18-001):
+Every set is held to equality in both directions (ARCH-18-001):
 a new ungated write fails, and so does a row the code no longer needs.
 Entries are ``(module, factory, node class)`` so a second ungated writer in
 an already-listed tree fails too.
@@ -112,7 +112,7 @@ _STATE_WRITE_METHODS = frozenset(
 # ---------------------------------------------------------------------------
 _REPLAY = (
     "the ledger replay is how a replica takes case state from the"
-    " CASE_MANAGER (PCR-03-001, RSH-08-003, SYNC-02-002)"
+    " CASE_MANAGER (PCR-03-001, RSH-08-003, SYNC-02-001, SYNC-02-003)"
 )
 _SEED = (
     "seeds a replica from the CASE_MANAGER's own case snapshot before the"
@@ -306,6 +306,26 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         " writes nothing"
     ),
     (f"{_B}.case.nodes.intake", "IntakeReceivedActivityNode"): _ARCHIVE,
+    (f"{_B}.sync.nodes.sender_sequence", "AdmitInOrderNode"): (
+        "moves the CASE_MANAGER's next expected number for a sender past the"
+        " activity it judges now, its own ordering bookkeeping, never a"
+        " record of the case (SYNC-21-009, SYNC-21-020)"
+    ),
+    (f"{_B}.sync.nodes.sender_sequence", "HoldPastGapNode"): (
+        "holds an activity numbered past a gap on its received record and in"
+        " the CASE_MANAGER's order record, bookkeeping of what it has not yet"
+        " judged, never a record of the case (SYNC-21-010, IO-03-009)"
+    ),
+    (f"{_B}.sync.nodes.sender_sequence_drain", "DrainSequenceHoldsNode"): (
+        "ends the CASE_MANAGER's holds for a case before its role passes, so"
+        " its ordering bookkeeping releases them for their replay, never a"
+        " record of the case (SYNC-21-025)"
+    ),
+    (f"{_B}.case.nodes.refusal_notice", "ResumeOutboundSequenceNode"): (
+        "moves the receiver's own sender-sequence counter up to a refusal"
+        " notice's expected number, its outbound bookkeeping, never a record"
+        " of the case (SYNC-21-007, SYNC-21-020)"
+    ),
     (
         f"{_B}.case.nodes.invite_received",
         "RecordInviteTrustAnchorNode",

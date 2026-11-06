@@ -36,7 +36,7 @@ ENTRIES: list[TriggerEntry] = [
             "TRIG-09-001",
             "TRIG-09-004",
             "TRIG-10-004",
-            "SYNC-02-002",
+            "SYNC-02-001",
             "SYNC-02-003",
         ),
     ),

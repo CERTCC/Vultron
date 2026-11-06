@@ -9,8 +9,9 @@ description: >
   never writing the ledger, the held out-of-order Announce, arrival-order
   independence (SYNC-19), divergence recovery,
   the sender's ledger position on every case activity, replay rate limiting, the
-  resend of unanswered Invites on a position statement (SYNC-20), and SYNC test
-  patterns.
+  resend of unanswered Invites on a position statement (SYNC-20), the sender
+  sequence that orders one participant's activities (SYNC-21, ADR-0178), and SYNC
+  test patterns.
 related_specs:
   - specs/sync-ledger-replication.yaml
   - specs/case-ledger-processing.yaml
@@ -59,7 +60,7 @@ CaseActor clustering is unbuilt; its plan is
 - **Eventual consistency.** Participants converge by applying replicated
   entries.
 - **Only admitted entries are replicated.** Refusals go to the asserter and the
-  process log, never the ledger (CLP-04-007, CLP-05-002), so replication needs no
+  process log, never the ledger (CLP-04-007), so replication needs no
   disposition filtering.
 - **Leadership guard.** The BT bridge's `is_leader` port (SYNC-09-003,
   `vultron/core/behaviors/bridge/leadership.py`) is always `True` in single-node;
@@ -311,8 +312,10 @@ does not re-queue an `Announce` the outbox already holds for that peer
 (SYNC-15-012). The hold below is the backstop for loss, not the steady state.
 
 - **Hold the Announce, never the entry alone** (SYNC-14-010). The body intake
-  archived is held in a `DeferredInboxActivity`, the inbox's replay record
-  (IO-03-009); a `HeldLedgerAnnounce` row indexes it. Reason: an entry held alone
+  archived is marked as owing a replay on its own `ReceivedActivityRecord`
+  (IO-03-009); a `HeldLedgerAnnounce` row indexes it. This is the one hold that
+  lands on an already-archived record, so releasing or discarding it leaves the
+  archive standing and only gives up the replay (CLP-10-018). Reason: an entry held alone
   can only reach the inbox again inside an Announce the replica makes up and
   attributes to the CASE_MANAGER (ISSUE-5012). Both live in the receiver's store,
   never as a `CaseLedgerEntry` (SYNC-14-011), so a restart keeps them.
@@ -393,10 +396,12 @@ outside the ledger".
   Invite), and `EmbargoInviteNotYetAnsweredNode` skips an Invite already answered
   (ID-04-004). A deliberate answer keeps a fresh id, so a changed answer is not
   dropped as a redelivery (CM-18-003, IE-10-001).
-- **One sender's back-to-back assertions are unordered.** The CASE_MANAGER cannot
-  see send order, and both assertions carry the same `ledgerPosition`. Two that
-  conflict are recorded in arrival order: an Accept and a Reject of one Invite
-  (#5202), or an assertion and the sender's own Leave (#5203).
+- **Order one sender's assertions by its `senderSequence`, never by arrival.** Both
+  assertions carry the same `ledgerPosition`, so only the sender's per-case number
+  tells the CASE_MANAGER which came first (SYNC-21, ADR-0178). It orders an Accept
+  and a Reject of one Invite (#5202), and an assertion and the sender's own Leave
+  of the case or the embargo (#5203). Do not add a sender-side gate for either;
+  the record rejects that option.
 - **Expect the relayed Invite before its emission entry.** The CASE_MANAGER commits
   each emission after queueing it (SYNC-09-002), so the steady state delivers the
   Invite first; the replica arm must not need its emission entry.

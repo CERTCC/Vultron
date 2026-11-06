@@ -64,6 +64,10 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   The ask primitive: ask and terminate, conversation-state routing, ask registers.
   **Load when**: building a gate that needs another actor's answer, or an ask/reply
   exchange, ask expiry, or processing-fault notification.
+- **`roadmap-2026q4.md`** · `plan`
+  The year goal and the 2026Q4 objectives, their finish lines and their Epics.
+  **Load when**: choosing or scheduling an Epic, assigning a milestone, or judging
+  whether work serves this quarter.
 - **`role-taxonomy-split.md`** · `plan`
   Splitting roles by scope into case position, case authority and actor standing,
   and making both case-creation doors claim a position.
@@ -325,6 +329,10 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   Multi-agent coordination: claiming, bundles, recovery, worktrees, Project #24.
   **Load when**: changing how work is claimed, bundled, or sized, or using
   Project #24 or worktree slots.
+- **`planning-rules.md`** · `guidance`
+  Objectives as milestones, tier/milestone rules, relevance test, budget, Focus order.
+  **Load when**: moving an Epic between tiers, creating a milestone, or picking the
+  next Focus Epic.
 - **`epic-themes.md`** · `guidance`
   The `theme:` label catalog (a YAML block tools load) and how to classify an Issue.
   **Load when**: creating or relabeling an Issue, routing one to an Epic,

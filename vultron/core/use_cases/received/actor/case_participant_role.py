@@ -58,7 +58,7 @@ class OfferCaseParticipantRoleReceivedUseCase:
     Accept is committed (CM-33-009, CM-02-016).  The target answers the
     forward, to the CASE_MANAGER.  A refused Offer leaves no entry and sends
     nothing; a redelivery of an Offer the CASE_MANAGER recorded is
-    ``SKIPPED`` (HP-01-003).
+    ``SKIPPED`` (HP-01-014).
 
     The ``context`` field carries the VulnerabilityCase ID; ``target``
     carries the Actor receiving the role; ``object_`` carries the CVDRole
@@ -130,7 +130,7 @@ class OfferCaseParticipantRoleReceivedUseCase:
             activity=request,
         )
         if case_id is None:
-            # Intake archived the Offer; there is no case to act on.  A door
+            # Intake recorded the Offer; there is no case to act on.  A door
             # guard's refusal (an unaddressed copy, HP-01-005) is its own.
             verdict = applied_or_raise(tree, result, label=_LABEL)
             if verdict.disposition is HandlerDisposition.REFUSED:

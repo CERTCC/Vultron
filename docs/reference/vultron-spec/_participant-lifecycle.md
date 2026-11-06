@@ -29,7 +29,7 @@ A self-declared role would let an actor take on authority the Case Owner never g
    `CaseParticipant` entry in the case.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-33-001", "CM-33-007", "CM-33-008", "CM-33-009", "CM-33-002", "CM-33-010", "CM-33-011", "CM-33-003", "CM-33-012", "CM-33-013", "CM-33-014", "CM-33-004", "CM-33-015", "CM-33-005", "CM-33-016", "CM-33-017", "CM-33-018", "CM-33-006", "CM-33-019", "CM-33-020", "CM-33-021"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-33-001", "CM-33-007", "CM-33-008", "CM-33-009", "CM-33-002", "CM-33-010", "CM-33-011", "CM-33-003", "CM-33-012", "CM-33-013", "CM-33-014", "CM-33-004", "CM-33-015", "CM-33-005", "CM-33-016", "CM-33-017", "CM-33-018", "CM-33-006", "CM-33-019", "CM-33-021"))
 ```
 
 Together these rules mean that an actor holds only a role it accepted, from an offer that the Case Owner made, or that a CASE_MANAGER made where its policy delegates role offers to it.

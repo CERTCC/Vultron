@@ -12,14 +12,16 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Intake-first ratchet for receive-side tree factories (CLP-10-017, ADR-0111).
+"""Staged-order ratchet for receive-side tree factories (CLP-10-010, ADR-0154).
 
 Every receive-side tree factory *returns* the result of
-``create_receive_activity_tree``, so the intake node is the first child of
-every received tree.  A factory that never calls the shared factory runs no
-intake; one that calls it but nests the result under a hand-built root runs a
-guard or a branch ahead of intake.  Both are held as exact sets (ARCH-18-001)
-that only shrink.  A receive-side factory is one a module under
+``create_receive_activity_tree``, so every received tree runs the stages that
+factory fixes, in its order: the door guards (addressed, seen before, path,
+open to writes and sender entitled), then intake, then the handling tree.  A
+factory that never calls the shared factory runs none of them; one that calls
+it but nests the result under a hand-built root runs a guard or a branch
+ahead of the doors.  Both are held as exact sets (ARCH-18-001) that only
+shrink.  A receive-side factory is one a module under
 ``vultron/core/use_cases/received/`` calls, or one whose name says so.
 
 Companion to ``test_receive_side_bt_commit_ordering.py``, which owns the
@@ -89,9 +91,9 @@ def _root_call_names(func: ast.FunctionDef) -> set[str]:
     """Bare names of the calls whose result *func* returns.
 
     Covers ``return X(...)`` and ``root = X(...); return root``.  A factory
-    whose every return is the shared factory's result puts intake first; one
-    that returns a hand-built composite around it does not, whatever it calls
-    inside.
+    whose every return is the shared factory's result runs its stages in
+    order; one that returns a hand-built composite around it does not,
+    whatever it calls inside.
     """
     assigned = _locals_bound_to_calls(func)
     roots: set[str] = set()
@@ -200,8 +202,9 @@ def _composes_through_shared_factory(
 
 
 #: Receive-side factories that never call the shared factory and therefore
-#: run no intake node (CLP-10-017).  Exact set (ARCH-18-001): remove an
-#: entry in the commit that moves the factory (ARCH-18-002).
+#: run neither its door guards nor its intake node (CLP-10-010,
+#: CLP-10-017).  Exact set (ARCH-18-001): remove an entry in the commit that
+#: moves the factory (ARCH-18-002).
 #: The two receive trees that composed the CASE_MANAGER gate directly
 #: (``create_add_note_to_case_received_tree`` and
 #: ``create_update_case_received_tree``) moved onto the shared factory with
@@ -211,15 +214,15 @@ def _composes_through_shared_factory(
 #: spec or ADR that keeps it here.
 #: ``create_commit_log_entry_tree`` is not in the set: it is the subtree the
 #: commit node runs, not a tree a received handler calls (#3935).
-KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset()
+KNOWN_FACTORIES_BYPASSING_THE_STAGES: frozenset[str] = frozenset()
 
 #: Receive-side factories that call the shared factory but return a
-#: hand-built composite around it, so a guard or a branch runs before intake
-#: and a run that branch turns away leaves no archive (CLP-10-017,
-#: CLP-10-018).  Exact set (ARCH-18-001), empty since the close-case tree
-#: lifted intake to its root in #3870; a new entry needs the issue that
-#: retires it named beside it.
-KNOWN_FACTORIES_NESTING_INTAKE: frozenset[str] = frozenset()
+#: hand-built composite around it, so a guard or a branch runs before the
+#: doors and a resend it turns away is not answered from its record
+#: (CLP-10-010, ADR-0154).  Exact set (ARCH-18-001), empty since the
+#: close-case tree lifted intake to its root in #3870; a new entry needs the
+#: issue that retires it named beside it.
+KNOWN_FACTORIES_NESTING_THE_STAGES: frozenset[str] = frozenset()
 
 
 def _exact_set_report(
@@ -240,14 +243,16 @@ def _exact_set_report(
     return lines
 
 
+@pytest.mark.spec("CLP-10-010")
 @pytest.mark.spec("CLP-10-017")
 def test_receive_side_factories_compose_through_shared_factory() -> None:
     """Every receive-side tree factory returns create_receive_activity_tree's result.
 
-    A factory that never calls it gets no intake node, so a refused
-    assertion leaves no record of what arrived (CLP-10-018); one that nests
-    it under a hand-built root runs something ahead of intake.  Both sets
-    are exact: they may only shrink.
+    A factory that never calls it gets no door guards and no intake node,
+    so a resend is not answered from its record and a refused assertion
+    leaves no receipt (CLP-10-018); one that nests it under a hand-built
+    root runs something ahead of the doors.  Both sets are exact: they may
+    only shrink.
     """
     factories = _receive_factories()
     assert factories, "no receive-side tree factories found — regex drifted?"
@@ -261,31 +266,35 @@ def test_receive_side_factories_compose_through_shared_factory() -> None:
         and not _composes_through_shared_factory(n, factories)
     )
     lines = _exact_set_report(
-        "KNOWN_FACTORIES_BYPASSING_INTAKE",
+        "KNOWN_FACTORIES_BYPASSING_THE_STAGES",
         bypassing,
-        KNOWN_FACTORIES_BYPASSING_INTAKE,
+        KNOWN_FACTORIES_BYPASSING_THE_STAGES,
         factories,
         "bypassing create_receive_activity_tree (CLP-10-017 — compose"
         " through the shared factory)",
     ) + _exact_set_report(
-        "KNOWN_FACTORIES_NESTING_INTAKE",
+        "KNOWN_FACTORIES_NESTING_THE_STAGES",
         nesting,
-        KNOWN_FACTORIES_NESTING_INTAKE,
+        KNOWN_FACTORIES_NESTING_THE_STAGES,
         factories,
         "nesting create_receive_activity_tree under a hand-built root"
-        " (CLP-10-017 — return the shared factory's result so intake is the"
-        " first child)",
+        " (CLP-10-010 — return the shared factory's result so its doors run"
+        " first)",
     )
     assert (
-        bypassing == KNOWN_FACTORIES_BYPASSING_INTAKE
-        and nesting == KNOWN_FACTORIES_NESTING_INTAKE
+        bypassing == KNOWN_FACTORIES_BYPASSING_THE_STAGES
+        and nesting == KNOWN_FACTORIES_NESTING_THE_STAGES
     ), "\n\n" + "\n".join(lines)
 
 
 @pytest.mark.spec("CLP-10-010")
 @pytest.mark.spec("CLP-10-017")
-def test_shared_factory_orders_intake_guards_commit_effects() -> None:
-    """The four stages appear in CLP-10-010 order, intake first, with or without a commit."""
+def test_shared_factory_orders_doors_intake_guards_commit_effects() -> None:
+    """The stages appear in CLP-10-010 order, doors first, with or without a commit.
+
+    Addressed, then seen before, then open to writes, then intake: nothing is
+    recorded before the last door admits the message (ADR-0154).
+    """
     from py_trees.behaviours import Success
 
     from vultron.core.behaviors.case.nodes.intake import (
@@ -307,16 +316,19 @@ def test_shared_factory_orders_intake_guards_commit_effects() -> None:
     # The commit and the effects are one act (CLP-07-015); its block is
     # opened in place.
     names = [stage.name for stage in received_stages(tree)]
-    assert isinstance(tree.children[0], IntakeReceivedActivityNode)
     assert names == [
-        "IntakeReceivedActivityNode",
-        "CaseOpenToExternalWrites",
         "ActivityAddressedToReceiverNode",
+        "ActivityNotSeenBeforeNode",
+        "CaseOpenToExternalWrites",
+        "IntakeReceivedActivityNode",
         # The guards, with the refusal notice that answers them (CLP-02-005).
         "PreconditionGuardStage",
         "GuardedCommitCaseLedgerEntryBT",
         "Effect",
     ]
+    assert isinstance(
+        tree.children[len(tree.door_guards)], IntakeReceivedActivityNode
+    )
 
     no_commit = create_receive_activity_tree(
         name="NoCommitBT",
@@ -324,11 +336,11 @@ def test_shared_factory_orders_intake_guards_commit_effects() -> None:
         precondition_guards=[Success(name="Guard")],
         replica_effects=[Success(name="Effect")],
     )
-    assert isinstance(no_commit.children[0], IntakeReceivedActivityNode)
     assert [c.name for c in no_commit.children] == [
-        "IntakeReceivedActivityNode",
-        "CaseOpenToExternalWrites",
         "ActivityAddressedToReceiverNode",
+        "ActivityNotSeenBeforeNode",
+        "CaseOpenToExternalWrites",
+        "IntakeReceivedActivityNode",
         "Guard",
         "Effect",
     ]

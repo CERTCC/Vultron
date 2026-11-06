@@ -45,7 +45,9 @@ The stub form of a case is its own type: it is transmitted as `"type": "Vulnerab
 
 | Property name | Description |
 |---------------|-------------|
+| `expectedSenderSequence` | On a refusal notice for an activity's `senderSequence`: the positive integer the CASE_MANAGER expects next from that sender, so the sender numbers its next activity for the case no lower |
 | `ledgerPosition` | The ledger position a `VulnerabilityCase` is a projection of: an object whose `logIndex` and `entryHash` name the last ledger entry its case file reflects, or `logIndex` -1 with the case's genesis hash before any |
+| `senderSequence` | A participant's number for a case activity it sends the CASE_MANAGER: a positive integer, 1 for its first on the case and one more for each next one, kept by a resend |
 | `terminationCause` | Why an embargo ended early, on the `Remove` that terminates it: an object whose `kind` is `THREAT_SIGNAL`, `FIX_READY`, `FIX_DEPLOYED` or `OTHER` |
 
 This table must list exactly the properties `context.jsonld` declares.

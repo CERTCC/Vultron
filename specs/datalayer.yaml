@@ -599,6 +599,9 @@ groups:
     - ADR-0062
     - ADR-0082
     - ADR-0099
+    see_also:
+    - spec_id: ARCH-23-002
+      reason: 'context for the reader'
   - id: DL-05-013
     priority: MUST_NOT
     kind: project
@@ -836,6 +839,9 @@ groups:
     adr:
     - ADR-0035
     - ADR-0149
+    see_also:
+    - spec_id: DL-06-007
+      reason: 'context for the reader'
   - id: DL-06-003
     priority: MUST
     kind: project
@@ -874,6 +880,9 @@ groups:
     adr:
     - ADR-0035
     - ADR-0149
+    see_also:
+    - spec_id: DL-05-004
+      reason: 'scope boundary of the ratchet, not a case of it'
   - id: DL-06-010
     priority: MUST
     kind: project
@@ -938,6 +947,11 @@ groups:
     - wire-format
     adr:
     - ADR-0035
+    see_also:
+    - spec_id: DL-05-004
+      reason: 'context for the reader'
+    - spec_id: DL-06-003
+      reason: 'context for the reader'
   - id: DL-06-012
     priority: MUST
     kind: project
@@ -959,6 +973,9 @@ groups:
     - wire-format
     adr:
     - ADR-0035
+    see_also:
+    - spec_id: DL-05-004
+      reason: 'context for the reader'
   - id: DL-06-006
     priority: MUST_NOT
     kind: project
@@ -966,10 +983,11 @@ groups:
       A receiver MUST NOT hold a received activity in its DataLayer as a record readable
       by the id the sender chose for it, at any stage: not at inbox ingress, not for a
       deferred replay, and not in a received-side tree. A received activity is held only
-      under a key the receiver derives from the activity id: its
-      `ReceivedActivityRecord.build_id`, or the opaque deferred record that holds it for
-      replay (`DeferredInboxActivity.build_id`, IO-03-009). A record of an activity type
-      stored under its own id is then always one the receiver authored.
+      under one key the receiver derives from the activity id,
+      `ReceivedActivityRecord.build_id`, whichever stage the record is in: archived,
+      held for a replay the inbox still owes (IO-03-009), or reduced to the receipt stub
+      a refusal left (CLP-10-018). A record of an activity type stored under its own id
+      is then always one the receiver authored.
     rationale: >-
       An actor scans the type tables of its sent activities to answer "did I already
       send this?". For example, it checks whether it announced a case or which stub
@@ -985,8 +1003,8 @@ groups:
       the receiver), asserting `case_is_announced`, `announced_case_id`,
       `find_case_create_sent_by` and `recorded_stub_invites` do not count it; all pass.
       `test/adapters/driving/fastapi/test_inbox_staging.py` asserts a deferred
-      activity is held only in its `DeferredInboxActivity` and that no row under the
-      sender's id is replayed. For the received-side trees, the
+      activity is held only in its own `ReceivedActivityRecord` and that no row under
+      the sender's id is replayed. For the received-side trees, the
       `Invite(EmbargoEvent)`, `Offer(VulnerabilityReport)` and ownership-transfer
       `Offer` tests in `test/core/use_cases/received/` (marked DL-06-006) run each tree
       on a store with no ingress row and assert, through `assert_held_only_as_received`
@@ -996,6 +1014,11 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: IO-03-009
+    see_also:
+    - spec_id: CLP-10-018
+      reason: >-
+        names the third stage a record can be in; what a refusal leaves is not a
+        narrower case of keeping a received activity off the sender's id
     tags:
     - persistence
 - id: DL-07

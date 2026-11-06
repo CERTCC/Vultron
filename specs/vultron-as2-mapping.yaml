@@ -144,8 +144,6 @@ groups:
     relationships:
     - rel_type: supersedes
       spec_id: VAM-01-007
-    - rel_type: supersedes
-      spec_id: SE-02-003
   - id: VAM-01-012
     priority: MUST_NOT
     kind: project
@@ -185,9 +183,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `MessageSemantics.UNKNOWN` MUST be returned when no registered pattern
-      matches the incoming activity, except where VAM-01-009 requires
-      `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`
+      `find_matching_semantics()` MUST return `MessageSemantics.UNKNOWN` when no
+      registered pattern matches the incoming activity, except where VAM-01-009
+      requires `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`
     rationale: >-
       A received activity needs one defined result even when no pattern describes it.
       `UNKNOWN` gives the inbox a value that it can refuse and log, in place of an
@@ -500,6 +498,9 @@ groups:
     - ADR-0121
     stories:
     - story_2022_012
+    see_also:
+    - spec_id: VAM-04-012
+      reason: 'context for the reader'
   - id: VAM-02-005
     priority: MUST
     kind: protocol
@@ -520,6 +521,9 @@ groups:
     stories:
     - story_2022_101
     - story_2022_006
+    see_also:
+    - spec_id: VAM-04-013
+      reason: 'context for the reader'
   - id: VAM-02-006
     priority: MUST
     kind: protocol
@@ -541,6 +545,9 @@ groups:
     stories:
     - story_2022_066
     - story_2022_006
+    see_also:
+    - spec_id: VAM-04-014
+      reason: 'context for the reader'
 - id: VAM-03
   title: Case Management Messages
   specs:
@@ -639,6 +646,10 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: SE-05-002
+    see_also:
+    - spec_id: CM-21-002
+      reason: >-
+        names the occasion; sending `Update(VulnerabilityCase)` does not add the role
 - id: VAM-04
   title: Actor Suggestion and Invitation Messages
   specs:
@@ -905,6 +916,9 @@ groups:
       spec_id: SYNC-18-001
     - rel_type: refines
       spec_id: SYNC-18-015
+    see_also:
+    - spec_id: CLP-08-004
+      reason: 'context for the reader'
   - id: VAM-04-012
     priority: MUST
     kind: protocol
@@ -933,6 +947,9 @@ groups:
       spec_id: VAM-04-011
     - rel_type: refines
       spec_id: SYNC-18-001
+    see_also:
+    - spec_id: CM-11-011
+      reason: 'context for the reader'
   - id: VAM-04-013
     priority: MUST
     kind: protocol
@@ -962,6 +979,9 @@ groups:
       spec_id: VAM-04-011
     - rel_type: refines
       spec_id: SYNC-18-001
+    see_also:
+    - spec_id: CM-11-011
+      reason: 'context for the reader'
   - id: VAM-04-014
     priority: MUST
     kind: protocol
@@ -989,6 +1009,9 @@ groups:
       spec_id: VAM-04-011
     - rel_type: refines
       spec_id: SYNC-18-001
+    see_also:
+    - spec_id: CM-11-011
+      reason: 'context for the reader'
   - id: VAM-04-015
     priority: MUST
     kind: protocol
@@ -1009,6 +1032,10 @@ groups:
       pattern, and resolves to `UNDO_CASE_OWNERSHIP_TRANSFER`.
     stories:
     - story_2022_050
+    see_also:
+    - spec_id: CM-21-015
+      reason: >-
+        a wire representation is not a narrower case of the withdrawal's ledger commit
   - id: VAM-04-016
     priority: MUST
     kind: protocol
@@ -1030,6 +1057,11 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: VAM-04-001
+    see_also:
+    - spec_id: CM-16-006
+      reason: 'the Accept''s shape is not a narrower case of the four-step handling'
+    - spec_id: CM-16-009
+      reason: 'context for the reader'
   - id: VAM-04-017
     priority: MUST
     kind: protocol
@@ -1047,6 +1079,9 @@ groups:
       carries `inReplyTo`.
     stories:
     - story_2022_054
+    see_also:
+    - spec_id: CM-16-007
+      reason: 'the Accept''s shape is not a narrower case of the handling it cites'
   - id: VAM-04-018
     priority: MUST
     kind: protocol
@@ -1299,6 +1334,9 @@ groups:
     stories:
     - story_2026_033
     - story_2022_080
+    see_also:
+    - spec_id: EMB-16-001
+      reason: 'representing the Undo is not sufficient for abandoning on a CS change'
   - id: VAM-05-014
     priority: MUST
     kind: protocol
@@ -1324,6 +1362,9 @@ groups:
     stories:
     - story_2026_001
     - story_2022_080
+    see_also:
+    - spec_id: CLP-07-013
+      reason: 'context for the reader'
   - id: VAM-05-015
     priority: MUST
     kind: protocol
@@ -1348,6 +1389,9 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: SE-05-002
+    see_also:
+    - spec_id: CLP-07-013
+      reason: 'context for the reader'
   - id: VAM-05-016
     priority: MUST
     kind: protocol
@@ -1384,6 +1428,9 @@ groups:
     stories:
     - story_2026_080
     - story_2022_080
+    see_also:
+    - spec_id: EP-04-002
+      reason: 'context for the reader'
 - id: VAM-06
   title: Case Participant Management Messages
   specs:
@@ -1454,6 +1501,9 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: SE-05-002
+    see_also:
+    - spec_id: CLP-07-013
+      reason: 'context for the reader'
   - id: VAM-06-005
     priority: MUST
     kind: protocol
@@ -1477,6 +1527,13 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: SE-05-002
+    see_also:
+    - spec_id: CLP-07-013
+      reason: 'context for the reader'
+    - spec_id: CM-21-002
+      reason: >-
+        an example; sending `Update(CaseParticipant)` is not sufficient for the role
+        change
 - id: VAM-07
   title: Note Management Messages
   specs:

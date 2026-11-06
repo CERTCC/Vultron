@@ -108,9 +108,10 @@ def create_ledger_position_stage(
     an active participant re-seeded under the SYNC-16-004 bound
     (SYNC-18-005).  An inert sender's position is neither recorded nor
     answered.  Whatever the answer does, the received activity is judged as
-    it would be without it.  *is_redelivery* tells a redelivery of an
-    activity already archived, whose first delivery was answered; the
-    factory passes intake's answer.
+    it would be without it.  *is_redelivery* tells the re-run of an activity
+    a run left in holding, whose first delivery may already have been
+    answered; the factory passes the seen-before door's answer (ADR-0154).
+    A resend never reaches this stage: the door answered it.
     """
     replay_a_lag = py_trees.composites.Selector(
         name="ReplayIfLagging",

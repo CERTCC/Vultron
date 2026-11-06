@@ -31,7 +31,7 @@ def _check_prefix_consistency(registry: SpecRegistry) -> list[str]:
 
 
 def _check_spec_id_prefix_consistency(registry: SpecRegistry) -> list[str]:
-    """Verify each spec ID prefix matches the group it lives in (MS-04-004).
+    """Verify each spec ID prefix matches the group it lives in (SR-01-013).
 
     A spec with ID ``HP-07-002`` MUST reside in group ``HP-07``.
     """

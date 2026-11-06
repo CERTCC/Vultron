@@ -179,7 +179,7 @@ def test_missing_id_is_refused(dl, missing):
     assert result.disposition == HandlerDisposition.REFUSED
 
 
-@pytest.mark.spec("SYNC-02-002")
+@pytest.mark.spec("CM-17-004")
 @pytest.mark.spec("RSH-08-004")
 def test_late_joiner_receives_the_added_report_through_backfill(dl):
     """A participant invited after the report was added converges on it.

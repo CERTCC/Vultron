@@ -281,6 +281,11 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: VM-01-014
+    see_also:
+    - spec_id: VM-01-004
+      reason: 'context for the reader'
+    - spec_id: VM-01-016
+      reason: 'context for the reader'
 - id: VM-02
   title: Base Model Configuration
   specs:
@@ -753,6 +758,7 @@ groups:
       spec_id: MV-04-004
     adr:
     - ADR-0090
+    - ADR-0099
   - id: VM-06-013
     priority: MUST
     kind: project
@@ -972,7 +978,7 @@ groups:
       A replay of a deferred activity, or a load of an archived one, MUST be parsed again
       from the received body held for it. It carries that body as its evidence.
     rationale: >-
-      The deferred record and intake's archive keep the sealed body (IO-03-009,
+      The deferred record and intake's record keep the sealed body (IO-03-009,
       CLP-10-017), so a replay carries the first delivery's evidence and a load sees the
       body that arrived (ADR-0149).
     verification: >-

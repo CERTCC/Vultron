@@ -18,7 +18,7 @@ Case lifecycle action nodes for case behavior trees.
 
 Provides the CommitCaseLedgerEntryNode for hash-chained case ledger replication.
 
-Per specs/sync-ledger-replication.yaml SYNC-02-002, SYNC-02-003.
+Per specs/sync-ledger-replication.yaml SYNC-02-001, SYNC-02-003.
 """
 
 import logging
@@ -109,11 +109,11 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
     participant to the actor's outbox.  The :class:`OutboxMonitor` delivers
     queued activities reactively — this node only writes to the outbox.
 
-    ``case_id`` is resolved in order:
-
-    1. Constructor parameter (if provided at tree-build time).
-    2. ``case_id`` key in the py_trees blackboard (written by a prior node
-       such as :class:`CreateCaseFromProposalNode`).
+    ``case_id`` comes only from the ``/case_id`` input port (BTND-01-006):
+    a tree that names the case at build time seeds it with
+    :func:`~vultron.core.behaviors.case_id_scope.with_case_id`, and a tree
+    that resolves it at tick time has a prior node publish it (such as
+    :class:`CreateCaseFromProposalNode`).
 
     If ``case_id`` cannot be resolved, the node returns ``FAILURE`` so the
     enclosing BT sequence propagates the error (ARCH-15-001).
@@ -122,16 +122,11 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
     blackboard key (the inbound :class:`~vultron.core.models.events.base.VultronEvent`
     placed there by :class:`~vultron.core.behaviors.bridge.BTBridge`).
 
-    Per specs/sync-ledger-replication.yaml SYNC-02-002, SYNC-02-003.
+    Per specs/sync-ledger-replication.yaml SYNC-02-001, SYNC-02-003.
     """
 
-    def __init__(
-        self,
-        case_id: str | None = None,
-        name: str | None = None,
-    ):
+    def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
         self._sync_port: Any = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -165,7 +160,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             self._sync_port = None
 
     def _resolve_case_id(self) -> str | None:
-        return self._case_id or self._case_id_bb
+        return self._case_id_bb
 
     def _resolve_activity(self) -> Any | None:
         return self._activity

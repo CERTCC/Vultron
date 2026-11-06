@@ -55,7 +55,7 @@ class SvcOfferCaseParticipantRoleUseCase:
 
     Raises ``VultronNotFoundError`` before anything is built when the case is
     not held, or names no CASE_MANAGER (PCR-08-011): a case always has one
-    (CM-24-006), so its absence is a fault, never a direct send to the target
+    (CM-02-014), so its absence is a fault, never a direct send to the target
     (CM-24-014).
 
     See SE-08-003, ADR-0039.

@@ -26,7 +26,7 @@ ADR-0135).
 the activity incomplete composes it as the tree's only precondition guard,
 through
 :func:`~vultron.core.behaviors.case.intake_only_received_tree.create_incomplete_activity_received_tree`,
-so intake archives the activity first and nothing else runs.
+so intake records the activity once the doors admit it and nothing else runs.
 """
 
 import logging

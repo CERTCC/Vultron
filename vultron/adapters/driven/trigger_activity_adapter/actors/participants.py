@@ -27,10 +27,7 @@ from vultron.adapters.received_archive import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.errors import (
-    VultronAlreadyExistsError,
-    VultronNotFoundError,
-)
+from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
     accept_case_participant_offer_activity,
@@ -54,8 +51,6 @@ from .._base import (
     _addressing,
     _already_sealed,
     _create_and_seal,
-    _seal,
-    _stamped,
     _to_wire,
 )
 from ._helpers import (
@@ -83,7 +78,7 @@ class _ParticipantsMixin:
         """Build, persist and seal the Case Owner's answer to a forwarded Offer.
 
         Shared by the Accept (CM-16-006) and the Reject (CM-16-007).  The
-        Offer is read as received: parsed from the body intake archived,
+        Offer is read as received: parsed from the body intake recorded,
         which holds the participant inline (#3763).  The answer embeds it
         verbatim, and addresses the case as the Offer did (AKM-02-002).
         """
@@ -367,13 +362,6 @@ class _ParticipantsMixin:
             actor=actor,
             to=to,
         )
-        activity = _stamped(self._dl, activity)
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "add_participant_status_to_participant: activity '%s' already"
-                " exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)[0]
+        return _create_and_seal(
+            self._dl, activity, "add_participant_status_to_participant"
+        )[0]

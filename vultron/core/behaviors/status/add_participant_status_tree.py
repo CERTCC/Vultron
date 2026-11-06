@@ -33,8 +33,9 @@ path by which a participant's P, X or A report reaches the case status:
 ``Add(CaseStatus)`` is the CASE_MANAGER's alone (RSH-04-001, RSH-04-005).
 
     AddParticipantStatusBT (Sequence)
-    ├─ [IntakeReceivedActivityNode]           # Always first (CLP-10-017)
+    ├─ [door guards]                          # Addressee, seen-before, path, post-close
     ├─ SenderRuleGuard                        # Declared sender rule (HP-01-008, RSH-08-007)
+    ├─ [IntakeReceivedActivityNode]           # After the doors (CLP-10-010, CLP-10-017)
     ├─ PreconditionGuardStage                 # Refusal-effects stage (CLP-10-022)
     │   ├─ CarriedObjectInTargetCaseNode      # Guard: status of this case (HP-08-007)
     │   ├─ [OnBehalfStatusGuard]              # Another's record: only v→V/d→D (RSH-08-014)
@@ -97,6 +98,7 @@ from vultron.core.behaviors.case.nodes.received_path import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
@@ -288,10 +290,12 @@ def add_participant_status_tree(
         name="StatusAdoptionGate",
         memory=False,
         children=[
-            SenderIsCaseOwnerNode(
-                sender_actor_id=actor_id,
-                case_id=tree_case_id,
-                name="SenderIsCaseOwner",
+            with_case_id(
+                SenderIsCaseOwnerNode(
+                    sender_actor_id=actor_id,
+                    name="SenderIsCaseOwner",
+                ),
+                tree_case_id,
             ),
             call_out.status_adoption_gate_factory(
                 "CaseOwnerApprovesStatusUpdate"

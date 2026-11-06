@@ -52,6 +52,11 @@ from vultron.core.behaviors.case.nodes.case_lookup import CaseResolving
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case_id_scope import (
+    CaseIdScope,
+    unscoped,
+    with_case_id,
+)
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
@@ -272,7 +277,9 @@ def test_same_kinds_on_both_case_sides_compose_without_a_side_check() -> None:
         SenderRule.in_case(Kind.CASE_OWNER),
         SenderCheckContext(sender_id=OWNER, case_id=CASE_ID),
     )
-    assert isinstance(_owner_role_check(guard), SenderIsCaseOwnerNode)
+    role = _owner_role_check(guard)
+    assert isinstance(role, CaseIdScope) and role.case_id == CASE_ID
+    assert isinstance(unscoped(role), SenderIsCaseOwnerNode)
 
 
 # ---------------------------------------------------------------------------
@@ -1018,9 +1025,10 @@ def test_a_tree_that_commits_nothing_judges_the_context_case() -> None:
         sender_context=SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
     )
 
-    # intake, post-close, addressee door, sender guard, and the answer to
-    # the sender's ledger position in that case (SYNC-18-007)
-    assert len(tree.children) == 5
+    # addressee door, seen-before door, post-close, sender guard, intake,
+    # the answer to the sender's ledger position in that case (SYNC-18-007),
+    # and the judgment of the sender's number in that case (SYNC-21-023)
+    assert len(tree.children) == 7
 
 
 def test_factory_rejects_a_context_without_a_rule() -> None:
@@ -1120,7 +1128,7 @@ def test_a_closed_owner_holding_another_kind_is_refused_naming_every_kind() -> (
 def test_the_case_owner_standing_read_still_asks_the_role_alone() -> None:
     """``SenderIsCaseOwnerNode`` is unchanged: the Leave, suggest-actor,
     status and embargo trees read it to pick an arm, closed owner or not."""
-    node = SenderIsCaseOwnerNode(sender_actor_id=OWNER, case_id=CASE_ID)
+    node = with_case_id(SenderIsCaseOwnerNode(sender_actor_id=OWNER), CASE_ID)
     result = _close_owner(_store(MANAGER)).run(node)
     assert result.status == Status.SUCCESS
 
@@ -1200,8 +1208,7 @@ def test_case_resolution_runs_just_before_the_sender_guard() -> None:
     )
     names = [child.name for child in tree.children]
     at = names.index("ResolveCase")
-    assert names[at - 2] == "CaseOpenToExternalWrites"
-    assert names[at - 1] == "ActivityAddressedToReceiverNode"
+    assert names[at - 1] == "CaseOpenToExternalWrites"
     assert names[at + 1] == "SenderIsParticipantNode"
 
 
@@ -1992,3 +1999,34 @@ def test_failure_is_the_refusal_reads_the_shape_above_the_node(
             name="S", memory=False, children=[arm, _Leaf(name="Next")]
         )
     assert failure_is_the_refusal(node) is expected
+
+
+@pytest.mark.spec("HP-01-006", "SL-03-002", "BTND-01-006")
+def test_a_case_id_scope_does_not_change_whether_a_failure_is_the_refusal() -> (
+    None
+):
+    """The scope that seeds a check's /case_id port passes its status through,
+    so a check under it refuses exactly where it would without it."""
+    lone = SenderIsCaseManagerNode(sender_actor_id=OWNER)
+    scoped_lone = with_case_id(lone, CASE_ID)
+    py_trees.composites.Sequence(
+        name="Guard", memory=False, children=[scoped_lone]
+    )
+    assert failure_is_the_refusal(lone) is True
+
+    first = SenderIsCaseManagerNode(sender_actor_id=OWNER)
+    py_trees.composites.Selector(
+        name="AnyOf",
+        memory=False,
+        children=[
+            with_case_id(first, CASE_ID),
+            SenderIsCaseManagerNode(sender_actor_id=OWNER),
+        ],
+    )
+    assert failure_is_the_refusal(first) is False
+
+    inverted = SenderIsCaseManagerNode(sender_actor_id=OWNER)
+    py_trees.decorators.Inverter(
+        name="Not", child=with_case_id(inverted, CASE_ID)
+    )
+    assert failure_is_the_refusal(inverted) is False

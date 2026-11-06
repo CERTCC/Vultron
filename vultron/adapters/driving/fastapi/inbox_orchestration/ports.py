@@ -1,7 +1,8 @@
-"""Inbox dispatch and queue adapters.
+"""Inbox dispatch, queue and outcome adapters.
 
 - :class:`FastAPIDispatchAdapter` — wraps the dispatcher port
 - :class:`FastAPIQueuePort` — wraps pending-case queue helpers
+- :class:`FastAPIReceivedOutcomePort` — wraps the received-outcome service
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -24,6 +25,7 @@ from vultron.adapters.driving.fastapi.inbox_handler import (
     emit_processing_fault,
 )
 from vultron.adapters.driving.fastapi.inbox_pending_queue import (
+    _case_window_is_open,
     _expire_pending_case_activities,
     _queue_pending_case_activity,
     _replay_pending_case_activities,
@@ -34,8 +36,13 @@ from vultron.adapters.inbox_staging import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
+from vultron.core.services.received_outcome import (
+    archive_applied,
+    write_receipt_stub,
+)
 
 
 class FastAPIDispatchAdapter:
@@ -118,14 +125,20 @@ class FastAPIQueuePort:
         The activity is held whole with its staged inline objects, because
         the replay rebuilds it after this delivery's staging is gone, and the
         receiver keeps no copy under its id (DL-06-006).  It is held before
-        it is queued, so a failed hold queues nothing.
+        it is queued, so a failed hold queues nothing.  The hold is what
+        records the wait: the held record names *case_id* it waits on, and
+        the per-case record only opens the expiry window (ADR-0154).
         """
-        self._staging.hold_for_replay(activity_id)
+        # Read before the hold: the hold is what makes this activity one of
+        # the waiting, so only a reading taken first tells a first arrival
+        # from a redelivery of the only waiter (CBT-03-003).
+        window_already_open = _case_window_is_open(self._actor_dl, case_id)
+        self._staging.hold_for_replay(activity_id, awaiting_case_id=case_id)
         _queue_pending_case_activity(
             queue_dl=self._actor_dl,
             case_id=case_id,
-            activity_id=activity_id,
             case_actor_id=case_actor_id,
+            window_already_open=window_already_open,
         )
 
     def check_and_expire(self, case_id: str) -> bool:
@@ -140,4 +153,44 @@ class FastAPIQueuePort:
             case_id=case_id,
             dl=self._dl,
             queue_dl=self._actor_dl,
+        )
+
+
+class FastAPIReceivedOutcomePort:
+    """Received-outcome port over the receiving actor's own store.
+
+    The two writes a final outcome makes: an applied or skipped delivery's
+    record is archived (:func:`~vultron.core.services.received_outcome
+    .archive_applied`, CLP-10-073), and a refused delivery's body is given up
+    for a receipt stub (:func:`~vultron.core.services.received_outcome
+    .write_receipt_stub`, CLP-10-018).  A deferred delivery keeps what its
+    record holds, so the port is never called for one.
+
+    Args:
+        actor_dl: The receiving actor's DataLayer — the store that holds its
+            received records (DL-06-006).
+    """
+
+    def __init__(self, actor_dl: DataLayer) -> None:
+        self._dl = cast(CasePersistence, actor_dl)
+
+    def apply(self, activity_id: str) -> None:
+        """Archive the record holding *activity_id*'s applied body."""
+        archive_applied(self._dl, activity_id)
+
+    def refuse(
+        self,
+        activity_id: str,
+        *,
+        sender_id: str,
+        reason: str,
+        received_body: str | None,
+    ) -> None:
+        """Replace what is held for *activity_id* with a receipt stub."""
+        write_receipt_stub(
+            self._dl,
+            activity_id,
+            sender_id=sender_id,
+            reason=reason,
+            received_body=received_body,
         )

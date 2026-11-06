@@ -19,6 +19,7 @@ description: >
 related_specs:
   - specs/parallel-development.yaml
 related_notes:
+  - notes/planning-rules.md
   - notes/parallel-development.md
 relevant_packages:
   - vultron.metadata.planning

@@ -64,7 +64,7 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError
 
 #: Roles a removal may not take away (CM-31-004): the CASE_MANAGER role is
-#: never unfilled (CM-24-006), and ownership is transferred first (CM-21).
+#: never unfilled (CM-02-014), and ownership is transferred first (CM-21).
 PROTECTED_ROLES: frozenset[CVDRole] = frozenset(
     {CVDRole.CASE_MANAGER, CVDRole.CASE_OWNER}
 )
@@ -202,7 +202,7 @@ class MoveNamesCaseParticipantNode(ParticipantMoveGuardNode):
 class RemovalTargetIsRemovableNode(ParticipantMoveGuardNode):
     """Guard: the named participant holds neither ``CASE_MANAGER`` nor ``CASE_OWNER``.
 
-    The CASE_MANAGER role is never unfilled (CM-24-006) and ownership is
+    The CASE_MANAGER role is never unfilled (CM-02-014) and ownership is
     transferred before its holder can leave (CM-21), so a removal naming
     either is refused (CM-31-004).
     """
@@ -224,7 +224,7 @@ class ParticipantNotYetRemovedNode(
     """Idempotency guard: the named participant does not carry the removal fact.
 
     A removal of an already-removed participant is a legitimate no-op
-    (CM-31-004, HP-01-003): this guard fails silently before the guarded
+    (CM-31-004, HP-01-014): this guard fails silently before the guarded
     commit, so the repeat commits no ledger entry (CLP-13-001), and the
     handler reads its ``FAILURE`` as ``SKIPPED``.  The first removal stands;
     the participant is not sent a second notice.

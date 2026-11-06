@@ -13,7 +13,7 @@
 
 """Reads of, and waits on, what an actor stored or received.
 
-A received activity is read from intake's archive record, kept under the
+A received activity is read from the record intake made, kept under the
 receiver's key (CLP-10-036, ADR-0111), never from a row under the sender's
 id (DL-06-006).
 """
@@ -37,7 +37,7 @@ from vultron.demo.utils import (
 logger = logging.getLogger(__name__)
 
 
-#: The stored type a received activity is read from: intake's archive record,
+#: The stored type a received activity is read from: the record intake made,
 #: kept under the receiver's key (CLP-10-036, ADR-0111).  A row of an activity
 #: type under the sender's id is never read as a received one (DL-06-006).
 _RECEIVED_ACTIVITY_TYPES: tuple[str, ...] = (RECEIVED_ACTIVITY_RECORD_TYPE,)
@@ -74,7 +74,7 @@ def read_received_activity_for(
 ) -> dict:
     """The activity *activity_id* as the actor behind *client* received it.
 
-    Reads intake's archive record (:func:`read_received_activity`), the only
+    Reads the record intake made (:func:`read_received_activity`), the only
     copy of a received activity the actor keeps (DL-06-006).
 
     Raises:
@@ -184,8 +184,8 @@ def wait_for_received_activity(
 ) -> None:
     """Poll the receiver's store until it has archived *activity_id*.
 
-    The gate for "the receiver took in this delivery": intake archives every
-    activity it receives as a ``ReceivedActivityRecord`` under the receiver's
+    The gate for "the receiver took in this delivery": intake records every
+    activity its doors admit as a ``ReceivedActivityRecord`` under the receiver's
     key (CLP-10-036, ADR-0111), and that record is the only place a received
     activity is read from (DL-06-006), so the wait is on it rather than on a
     row under the sender's id (EDF-06-002).

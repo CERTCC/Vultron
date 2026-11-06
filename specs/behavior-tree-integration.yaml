@@ -681,33 +681,6 @@ groups:
       invitee is seated at RM.RECEIVED.
     stories:
     - story_2022_013
-  - id: BT-10-010
-    priority: SHOULD
-    kind: protocol
-    statement: >-
-      The CASE_MANAGER SHOULD leave the invitee's RM state at RM.RECEIVED when the
-      invitee accepts the stub Invite (CM-11-001).
-    rationale: >-
-      When the invitee accepts the stub Invite, it only asks for the full case. It does
-      not say if the report is valid. The invitee's replies to the full-case Invite
-      drive its triage (RM.VALID, RM.INVALID or RM.CLOSED, CM-11-011). Then
-      `Join(VulnerabilityCase)` or `Ignore(VulnerabilityCase)` moves it to RM.ACCEPTED
-      or RM.DEFERRED. Thus the record of the CASE_MANAGER does not show a decision that
-      the invitee has not made.
-    verification: >-
-      `test_accept_invite_participant_recorded_at_rm_received` in
-      `test/core/use_cases/received/actor/test_invite.py` asserts that an accepted
-      Invite records the participant at RM.RECEIVED only.
-    relationships:
-    - rel_type: part_of
-      spec_id: CM-11-001
-    - rel_type: extends
-      spec_id: BT-10-005
-    stories:
-    - story_2022_013
-    adr:
-    - ADR-0114
-    - ADR-0121
   - id: BT-10-006
     priority: MUST
     kind: project
@@ -1705,6 +1678,9 @@ groups:
         BT-18-012 makes the typed-port declaration the authority for every
         capability contract; BT-18-010 states what that declaration contains for
         a binary-result Retriever — the empty set, declared rather than omitted.
+    see_also:
+    - spec_id: BT-18-001
+      reason: 'context for the reader'
   - id: BT-18-007
     priority: MUST
     kind: project
@@ -1851,6 +1827,9 @@ groups:
     adr:
     - ADR-0097
     - ADR-0044
+    see_also:
+    - spec_id: BT-16-001
+      reason: 'context for the reader'
   - id: BT-18-013
     priority: MUST_NOT
     kind: project
@@ -2647,6 +2626,11 @@ groups:
       from `vultron/demo/` (per BT-16-001 and ARCH-01-001).
     rationale: Pre-built singletons avoid non-DRY construction in every demo script and test fixture. Defaulting to
       the core DETERMINISTIC singleton ensures the tree builder has no simulation-layer import dependency.
+    see_also:
+    - spec_id: ARCH-01-001
+      reason: 'context for the reader'
+    - spec_id: BT-16-001
+      reason: 'context for the reader'
   - id: BT-23-004
     priority: MUST
     kind: project

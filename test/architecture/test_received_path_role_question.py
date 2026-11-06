@@ -181,6 +181,10 @@ SANCTIONED_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
         (f"{_C}/receive_stages/tree.py", GATE),
         (f"{_C}/nodes/clock_decision_stage.py", GATE),
         (f"{_B}/sync/ledger_position_stage.py", GATE),
+        # The sender sequence stage (SYNC-21-008): placed, gated, beside the
+        # ledger-position answer; it orders the sender's numbers, never the
+        # act, and only the CASE_MANAGER judges a number.
+        (f"{_B}/sync/sender_sequence_stage.py", GATE),
         # The trigger tree's role fork: a trigger runs on the actor's own
         # initiative, so no received path chooses it.  Both shapes: it calls
         # the CASE_MANAGER gate for one arm, and builds the complement arm's
@@ -366,8 +370,14 @@ def test_the_detector_ignores_a_comparison_about_another_actor() -> None:
 
     ``sent_by_case_manager`` compares the resolved manager with the *ledger
     entry's* author, held in a local called ``actor_id``.  That is the
-    sender's role, which ADR-0153 leaves legal, so the detector must not
-    report it.
+    sender's role, not the receiver's, so it is not a subject of the ADR-0153
+    migration this ratchet counts and this detector must not report it.
+
+    "Not a subject here" is not "permitted".  ARCH-24-009 forbids the
+    comparison whichever actor it is about, and
+    ``test_the_authority_boolean_has_one_source`` is the arm that reports it;
+    the two readings share one set of shape predicates in
+    ``_authority_question.py``, this one restricted to the executing actor.
     """
     source = (
         f"def sent_by_case_manager(snapshot, case, dl):\n"

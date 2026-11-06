@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 from vultron.metadata.specs.schema import RFC2119Priority
@@ -29,8 +28,6 @@ HUB_THRESHOLD = 10
 #: suite, not a test of one contract; its markers go to INFO. The median test
 #: file here spans 2 groups and the 90th percentile spans 6.
 MONOLITH_GROUP_SPAN = 8
-
-GitRunner = Callable[[Sequence[str]], str]
 
 
 class BackstopError(Exception):

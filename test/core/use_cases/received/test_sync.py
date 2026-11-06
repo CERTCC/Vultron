@@ -23,13 +23,14 @@ from test.support.case_manager import add_case_manager_participant
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import (
     RecordingInboxReplay,
+    archive_event,
     deliver_replayed,
     held_depth,
     hold_received,
     ledger_announce_event,
     replayed_event,
 )
-from test.support.received import received_event
+from test.support.received import received_event, received_record
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -41,12 +42,12 @@ from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.pending_assertion import PendingAssertionStore
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
+    ReceivedStage,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -54,6 +55,7 @@ from vultron.core.services.held_ledger_announces import (
     held_ledger_announces,
     hold_ledger_announce,
 )
+from vultron.core.services.received_holding import owes_replay
 from vultron.core.sync_helpers import reconstruct_tail_hash
 from vultron.core.use_cases.received.sync import (
     AnnounceLedgerEntryReceivedUseCase,
@@ -82,6 +84,20 @@ def _make_entry(
         prev_log_hash=prev_hash,
     )
     return chain.to_ledger_entry()
+
+
+def _received_records(dl: SqliteDataLayer) -> list[ReceivedActivityRecord]:
+    """Every ``ReceivedActivityRecord`` *dl* holds (ADR-0154)."""
+    return [
+        obj
+        for obj in dl.list_objects(ReceivedActivityRecord.__name__)
+        if isinstance(obj, ReceivedActivityRecord)
+    ]
+
+
+def _replays_owed(dl: SqliteDataLayer) -> list[str]:
+    """The activity ids *dl* still owes a replay of (IO-03-009)."""
+    return [r.activity_id for r in _received_records(dl) if r.replay_owed]
 
 
 @pytest.fixture
@@ -449,7 +465,7 @@ class TestOutOfOrderAnnounceBuffering:
         self, dl, case_with_genesis
     ):
         """A forward-gap entry is held as the ``Announce`` that arrived, its
-        body as intake archived it, and no ledger entry is stored."""
+        body as intake recorded it, and no ledger entry is stored."""
         _, e1 = self._chain(case_with_genesis, 2)
         event = _announce_event(e1)
 
@@ -459,9 +475,14 @@ class TestOutOfOrderAnnounceBuffering:
 
         held = held_ledger_announces(dl, CASE_URI)
         assert [h.activity_id for h in held] == [event.activity_id]
-        body = dl.read(DeferredInboxActivity.build_id(event.activity_id))
-        assert isinstance(body, DeferredInboxActivity)
+        # Intake recorded the body; the hold marked the same record as
+        # owing a replay, and it stays in holding, not archived, until the
+        # replay applies it (ADR-0154).
+        body = received_record(dl, event.activity_id)
+        assert body is not None
         assert body.received_body == event.received_evidence
+        assert body.stage is ReceivedStage.HELD
+        assert body.replay_owed is True
         assert self._present_indices(dl) == set()
 
     @pytest.mark.spec("SYNC-14-009")
@@ -488,10 +509,7 @@ class TestOutOfOrderAnnounceBuffering:
         # The index row is gone, the body waits for the replay, and this
         # delivery did not apply e1.
         assert held_depth(dl, CASE_URI) == 0
-        assert isinstance(
-            dl.read(DeferredInboxActivity.build_id(e1_event.activity_id)),
-            DeferredInboxActivity,
-        )
+        assert owes_replay(dl, e1_event.activity_id)
         assert self._present_indices(dl) == {0}
 
     @pytest.mark.spec("SYNC-14-008")
@@ -641,8 +659,10 @@ class TestOutOfOrderAnnounceBuffering:
         self._deliver(dl, e0, sync_port, replay)
         assert self._present_indices(dl) == {0, 1}
         assert held_depth(dl, CASE_URI) == 0
-        # The replay consumed the held body (IO-03-009).
-        assert dl.list_objects("DeferredInboxActivity") == []
+        # The replay consumed the claim on the held body (IO-03-009); the
+        # archive of each delivery stays (CLP-10-018).
+        assert _replays_owed(dl) == []
+        assert len(_received_records(dl)) == 2
 
     @pytest.mark.spec("SYNC-14-003")
     def test_multi_gap_cascade_drains_all_successors(
@@ -718,12 +738,7 @@ class TestHeldAnnounceBound:
         hold_received(dl, near)
         hold_received(dl, far)
         middle = self._held_event(5)
-        dl.save(
-            ReceivedActivityRecord(
-                activity_id=middle.activity_id,
-                received_body=cast(str, middle.received_evidence),
-            )
-        )
+        archive_event(dl, middle)
         entry = middle.log_entry
         assert entry is not None
 
@@ -736,8 +751,10 @@ class TestHeldAnnounceBound:
             3,
             5,
         ]
-        # The dropped Announce's body goes with it.
-        assert dl.read(DeferredInboxActivity.build_id(far.activity_id)) is None
+        # The dropped Announce goes, body and all: it was never applied, so
+        # it leaves no archive (SYNC-14-013, ADR-0154).
+        assert far.activity_id not in _replays_owed(dl)
+        assert received_record(dl, far.activity_id) is None
         assert "dropped the Announce" in caplog.text
 
     @pytest.mark.spec("SYNC-14-006")
@@ -747,12 +764,7 @@ class TestHeldAnnounceBound:
         for index in (3, 5):
             hold_received(dl, self._held_event(index))
         farther = self._held_event(9)
-        dl.save(
-            ReceivedActivityRecord(
-                activity_id=farther.activity_id,
-                received_body=cast(str, farther.received_evidence),
-            )
-        )
+        archive_event(dl, farther)
         entry = farther.log_entry
         assert entry is not None
 
@@ -763,10 +775,7 @@ class TestHeldAnnounceBound:
             3,
             5,
         ]
-        assert (
-            dl.read(DeferredInboxActivity.build_id(farther.activity_id))
-            is None
-        )
+        assert farther.activity_id not in _replays_owed(dl)
 
     @pytest.mark.spec("SYNC-14-001")
     def test_a_second_announce_of_a_held_entry_is_not_held_again(
@@ -782,14 +791,12 @@ class TestHeldAnnounceBound:
         assert [
             h.activity_id for h in held_ledger_announces(dl, CASE_URI)
         ] == [first.activity_id]
-        assert (
-            dl.read(DeferredInboxActivity.build_id(second.activity_id)) is None
-        )
+        assert _replays_owed(dl) == [first.activity_id]
 
     @pytest.mark.spec("SYNC-14-001")
     def test_a_fork_replaces_the_held_announce(self, dl, case_with_genesis):
         """A different entry under the same predecessor replaces the held
-        Announce, body included."""
+        Announce, replay claim included."""
         entry = _make_entry(CASE_URI, 4, "4" * 64)
         fork = HashChainLedgerRecord(
             case_id=CASE_URI,
@@ -806,18 +813,16 @@ class TestHeldAnnounceBound:
         assert [
             h.activity_id for h in held_ledger_announces(dl, CASE_URI)
         ] == [forked.activity_id]
-        assert (
-            dl.read(DeferredInboxActivity.build_id(first.activity_id)) is None
-        )
+        assert _replays_owed(dl) == [forked.activity_id]
 
     @pytest.mark.spec("CLP-10-017")
-    def test_holding_an_unarchived_announce_is_a_wiring_error(self, dl):
-        """Intake archives every received activity first; holding one it did
-        not archive would hold nothing."""
+    def test_holding_an_unrecorded_announce_is_a_wiring_error(self, dl):
+        """Intake records every activity its doors admit; holding one it did
+        not record would hold nothing."""
         entry = _make_entry(CASE_URI, 4, "4" * 64)
         event = _announce_event(entry)
 
-        with pytest.raises(VultronWiringError, match="not archived"):
+        with pytest.raises(VultronWiringError, match="not in holding"):
             hold_ledger_announce(dl, entry, event.activity_id)
         assert held_depth(dl, CASE_URI) == 0
 

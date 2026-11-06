@@ -19,6 +19,7 @@ from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPathNode,
 )
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
+from vultron.core.behaviors.case_id_scope import unscoped
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     MAX_REPLAY_COOLDOWN_SECONDS,
@@ -185,19 +186,21 @@ def test_create_reject_log_entry_tree_returns_sequence():
         sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
     )
     assert tree.name == "RejectLogEntryReceivedBT"
-    # Intake first (CLP-10-017), the addressee door (HP-01-005), the path
-    # door stage on the one declared path (HP-01-035, ADR-0153), the sender
-    # guard the factory composes (HP-01-025, #4696), the case lookup, then
-    # the CASE_MANAGER gate holding every effect (BT-17-008).
+    # The addressee door (HP-01-005), the seen-before door (ADR-0154), the
+    # path door stage on the one declared path (HP-01-035, ADR-0153), the
+    # sender guard the factory composes (HP-01-025, #4696), intake
+    # (CLP-10-017), the case lookup, then the CASE_MANAGER gate holding
+    # every effect (BT-17-008).
     assert [child.name for child in tree.children] == [
-        "IntakeReceivedActivityNode",
         "ActivityAddressedToReceiverNode",
+        "ActivityNotSeenBeforeNode",
         "ReceivedPathNode",
         "SenderIsActiveLedgerParticipant",
+        "IntakeReceivedActivityNode",
         "FindCaseActor",
         "AnswerRejectIfCaseManager",
     ]
-    stage = tree.children[2]
+    stage = unscoped(tree.children[2])
     assert isinstance(stage, ReceivedPathNode)
     assert stage.declared == frozenset({ReceivedPath.CASE_MANAGER})
     assert isinstance(tree.children[-1], CaseManagerGate)
@@ -1001,10 +1004,11 @@ def test_reject_from_stranger_halts_before_any_write(
     )
 
     assert _sender_refused(datalayer, event) == Status.FAILURE
-    # A refused sender still leaves the archive of what arrived (CLP-10-018).
-    assert isinstance(
-        datalayer.read(ReceivedActivityRecord.build_id(event.activity_id)),
-        ReceivedActivityRecord,
+    # The sender guard is a door, so intake recorded nothing; the outcome
+    # stage leaves the receipt stub after the tree (CLP-10-018).
+    assert (
+        datalayer.read(ReceivedActivityRecord.build_id(event.activity_id))
+        is None
     )
 
 

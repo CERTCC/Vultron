@@ -1,0 +1,316 @@
+"""Run a heavy local check in one of this host's heavy-check slots (#5947).
+
+Every slot container on a host shares the CPUs and memory of one Docker VM,
+and each ``pytest -n auto``, pyright run or site build sizes itself to its own
+container without seeing the others. This script caps how many such commands
+run at once on the host: it holds one of N slot lock files while the command
+runs, and waits while all N are taken.
+
+Usage::
+
+    uv run python .agents/skills/shared/run-heavy.py [--wait SECONDS] [--] COMMAND...
+
+It waits at most ``--wait SECONDS`` (default 3600) for a slot, then prints one
+line and exits 75 without running the command, so a gate behind a holder that
+never ends still ends (TB-14-005).
+
+The slot files live in ``/home/vscode/.data/locks/``, in the named volume every
+slot container on a host mounts, so one host shares them and another host has
+its own. ``VULTRON_HEAVY_LOCK_DIR`` names another directory. ``start-dev.sh``
+writes N to the ``slots`` file there; a missing or unreadable file means 2.
+
+Put the wrapper outside a wall-clock ceiling (``run-heavy.py timeout -k 30
+1800 ...``), so time spent waiting is not charged to the run. The command does
+not inherit the slot's file descriptor, so the slot frees when this process
+ends, whether the command ended or this process was killed. On Linux a
+command whose wrapper was killed gets SIGTERM, so it does not run on beside
+the next slot holder. A command already running in a slot (it sees
+``VULTRON_HEAVY_LOCK_HELD``) runs a nested heavy check directly, without
+taking a second slot. SIGTERM and SIGHUP are passed on
+to the command, and so is SIGINT when the command is not in the wrapper's
+process group (GNU ``timeout`` makes its own), so Ctrl-C still stops it. The
+exit status is the command's own, or 128 + the signal that ended it.
+
+Standard library only, so it runs the same on Linux and macOS.
+"""
+
+from __future__ import annotations
+
+import ctypes
+import fcntl
+import os
+import random
+import signal
+import socket
+import subprocess
+import sys
+import time
+from collections.abc import Callable, Sequence
+from pathlib import Path
+from types import FrameType
+
+DEFAULT_LOCK_DIR = "/home/vscode/.data/locks"
+LOCK_DIR_ENV = "VULTRON_HEAVY_LOCK_DIR"
+HELD_ENV = "VULTRON_HEAVY_LOCK_HELD"
+SLOTS_FILE = "slots"
+
+#: The slot count when ``start-dev.sh`` has written none.
+DEFAULT_SLOTS = 2
+
+#: How long a check waits for a slot unless ``--wait`` says otherwise.
+DEFAULT_WAIT = 3600
+
+#: ``--wait`` ran out before a slot came free; the command did not run.
+WAIT_EXPIRED = 75
+USAGE_ERROR = 2
+
+POLL_SECONDS = 0.5
+#: Signals always passed on to the command.
+_FORWARDED = (signal.SIGTERM, signal.SIGHUP)
+
+USAGE = "usage: run-heavy.py [--wait SECONDS] [--] COMMAND..."
+
+
+class UsageError(ValueError):
+    """The command line names no command, or a malformed ``--wait``."""
+
+
+def _say(message: str) -> None:
+    print(f"run-heavy: {message}", file=sys.stderr, flush=True)
+
+
+def parse_args(argv: Sequence[str]) -> tuple[int, list[str]]:
+    """The ``--wait`` limit in seconds and the command to run."""
+    args = list(argv)
+    wait = DEFAULT_WAIT
+    if args[:1] == ["--wait"]:
+        if len(args) < 2 or not args[1].isdigit():
+            raise UsageError("--wait needs a whole number of seconds")
+        wait = int(args[1])
+        args = args[2:]
+    if args[:1] == ["--"]:
+        args = args[1:]
+    if not args:
+        raise UsageError(USAGE)
+    return wait, args
+
+
+def slot_count(lock_dir: Path) -> int:
+    """N from the ``slots`` file, or :data:`DEFAULT_SLOTS` without a usable one."""
+    try:
+        value = int((lock_dir / SLOTS_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return DEFAULT_SLOTS
+    return value if value >= 1 else DEFAULT_SLOTS
+
+
+def _slot_path(lock_dir: Path, index: int) -> Path:
+    return lock_dir / f"heavy-{index}.lock"
+
+
+def try_acquire(lock_dir: Path, slots: int) -> tuple[int, int] | None:
+    """Lock the first free slot: ``(fd, index)``, or ``None`` when all are taken.
+
+    A slot file that cannot be opened (left root-owned by a ``sudo`` run, say)
+    is skipped; only when none can be opened is the directory unusable, and
+    the last error is raised.
+    """
+    error: OSError | None = None
+    opened = 0
+    for index in range(slots):
+        try:
+            fd = os.open(
+                _slot_path(lock_dir, index), os.O_RDWR | os.O_CREAT, 0o666
+            )
+        except OSError as exc:
+            error = exc
+            continue
+        opened += 1
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            os.close(fd)
+            continue
+        return fd, index
+    if not opened and error is not None:
+        raise error
+    return None
+
+
+def holders(lock_dir: Path, slots: int) -> str:
+    """Who holds each slot, as the holders recorded themselves."""
+    seen = []
+    for index in range(slots):
+        path = _slot_path(lock_dir, index).with_suffix(".holder")
+        try:
+            seen.append(" ".join(path.read_text(encoding="utf-8").split()))
+        except OSError:
+            seen.append("unknown")
+    return "; ".join(seen)
+
+
+def _pause(remaining: float) -> float:
+    """A jittered pause between tries, never past the deadline *remaining* away.
+
+    Uniform over 0.5 to 1.5 times :data:`POLL_SECONDS`.
+    """
+    # Not for secrecy: the draw only spreads waiters' polls apart.
+    low, high = 0.5 * POLL_SECONDS, 1.5 * POLL_SECONDS
+    jittered = random.uniform(low, high)  # noqa: S311  # nosec B311
+    return min(jittered, remaining)
+
+
+def acquire(lock_dir: Path, wait: int) -> tuple[int, int] | None:
+    """Wait for a slot; ``None`` when *wait* seconds passed without one.
+
+    N is re-read on every try, so a slot count ``start-dev.sh`` rewrites
+    reaches a check that is already waiting.
+
+    The lock is not FIFO: a freed slot goes to whichever waiter tries next.
+    Each pause between tries is jittered (:func:`_pause`), so waiters that
+    started together (the mirror's heavy checks) do not poll in lockstep and
+    each freed slot is a fair draw.
+    """
+    deadline = time.monotonic() + wait
+    announced = False
+    while True:
+        slots = slot_count(lock_dir)
+        held = try_acquire(lock_dir, slots)
+        if held is not None:
+            return held
+        if not announced:
+            _say(
+                f"all {slots} heavy-check slots on this host are busy; "
+                f"waiting ({holders(lock_dir, slots)})"
+            )
+            announced = True
+        now = time.monotonic()
+        if now >= deadline:
+            return None
+        time.sleep(_pause(deadline - now))
+
+
+def _record_holder(lock_dir: Path, index: int, command: Sequence[str]) -> None:
+    holder = _slot_path(lock_dir, index).with_suffix(".holder")
+    text = (
+        f"pid {os.getpid()} on {socket.gethostname()} in {os.getcwd()}: "
+        f"{' '.join(command)}\n"
+    )
+    try:
+        holder.write_text(text, encoding="utf-8")
+    except OSError:
+        pass  # The record only names the holder in a wait line.
+
+
+#: Linux ``prctl`` option: the signal a process gets when its parent dies.
+_PR_SET_PDEATHSIG = 1
+
+
+def _die_with_wrapper(wrapper: int) -> Callable[[], None] | None:
+    """A ``preexec_fn`` that ends the command if the wrapper dies, on Linux.
+
+    A wrapper killed with SIGKILL frees its slot at once, so a command that
+    outlived it would run beside the next slot holder. The command gets
+    SIGTERM, not SIGKILL, so a GNU ``timeout`` passes it on to the group it
+    made and still enforces its own ``-k`` grace. Elsewhere (macOS) there is
+    no such call, and this is ``None``.
+    """
+    if not sys.platform.startswith("linux"):
+        return None
+
+    def preexec() -> None:
+        libc = ctypes.CDLL(None, use_errno=True)
+        libc.prctl(_PR_SET_PDEATHSIG, int(signal.SIGTERM), 0, 0, 0)
+        if os.getppid() != wrapper:  # The wrapper died before the call.
+            os.kill(os.getpid(), signal.SIGTERM)
+
+    return preexec
+
+
+def _shares_group(pid: int) -> bool:
+    """Whether *pid* is in this process's group (an ended one counts as so)."""
+    try:
+        return os.getpgid(pid) == os.getpgrp()
+    except ProcessLookupError:
+        return True
+
+
+def run(command: Sequence[str], env: dict[str, str]) -> int:
+    """Run *command*, forwarding termination signals; its shell-style status.
+
+    The handlers go in before the command starts, so a signal that arrives
+    while it is starting is held and passed on once it exists, rather than
+    killing the wrapper and leaving the command running without a slot.
+    """
+    pending: list[int] = []
+    procs: list[subprocess.Popen[bytes]] = []
+
+    def forward(signum: int, _frame: FrameType | None) -> None:
+        if procs:
+            procs[0].send_signal(signum)
+        else:
+            pending.append(signum)
+
+    def interrupt(signum: int, frame: FrameType | None) -> None:
+        # A terminal's Ctrl-C reaches every process in its process group. A
+        # command still in the wrapper's group has it already; one that left
+        # it (GNU ``timeout`` makes a group of its own) gets it from here.
+        if procs and not _shares_group(procs[0].pid):
+            procs[0].send_signal(signum)
+        elif not procs:
+            forward(signum, frame)
+
+    for signum in _FORWARDED:
+        signal.signal(signum, forward)
+    signal.signal(signal.SIGINT, interrupt)
+    try:
+        procs.append(
+            subprocess.Popen(
+                list(command),
+                env=env,
+                # The wrapper runs no threads, so preexec_fn is safe here.
+                preexec_fn=_die_with_wrapper(os.getpid()),  # noqa: PLW1509
+            )
+        )
+    except FileNotFoundError:
+        _say(f"command not found: {command[0]}")
+        return 127
+    except PermissionError:
+        _say(f"command not executable: {command[0]}")
+        return 126
+    for held in pending:
+        procs[0].send_signal(held)
+    code = procs[0].wait()
+    return 128 - code if code < 0 else code
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        wait, command = parse_args(sys.argv[1:] if argv is None else argv)
+    except UsageError as exc:
+        _say(str(exc))
+        return USAGE_ERROR
+    lock_dir = Path(os.environ.get(LOCK_DIR_ENV, DEFAULT_LOCK_DIR))
+    env = dict(os.environ)
+    if env.get(HELD_ENV) == str(lock_dir):
+        return run(command, env)
+    try:
+        lock_dir.mkdir(parents=True, exist_ok=True)
+        held = acquire(lock_dir, wait)
+    except OSError as exc:
+        _say(f"cannot use {lock_dir} ({exc.strerror}); running without a slot")
+        return run(command, env)
+    if held is None:
+        _say(f"gave up after {wait}s waiting for a heavy-check slot")
+        return WAIT_EXPIRED
+    fd, index = held
+    _record_holder(lock_dir, index, command)
+    env[HELD_ENV] = str(lock_dir)
+    try:
+        return run(command, env)
+    finally:
+        os.close(fd)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

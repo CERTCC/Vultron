@@ -16,7 +16,7 @@
 """Tree factory for received Announce(VulnerabilityCase) activities.
 
 Composes ``SeedAnnouncedCaseNode`` through ``create_receive_activity_tree`` so
-intake archives the Announce first (CLP-10-017).
+intake records the Announce once its doors admit it (CLP-10-017).
 
 ``("Announce", "VulnerabilityCase")`` is a canonical signature, yet the tree
 carries no ``case_id`` and commits nothing — a documented exemption from
@@ -25,9 +25,9 @@ the sender guard admits it only from the CASE_MANAGER the receiver already
 knows (PCR-03-001, PCR-03-004), so the receiver is a participant replica, not
 the manager the commit stage is gated on (a manager's self-Announce would only
 duplicate the entry it already holds).  A replica learns of case state from
-the ledger fan-out (SYNC-02-002).  The commit gate here could only ever skip,
-and the effect node cannot move ahead of a commit as a guard: seeding the
-case is itself the write.
+the ledger fan-out (SYNC-02-001, SYNC-02-003).  The commit gate here could
+only ever skip, and the effect node cannot move ahead of a commit as a guard:
+seeding the case is itself the write.
 """
 
 import logging
@@ -80,10 +80,12 @@ def create_announce_vulnerability_case_received_tree(
     Structure (the CLP-10-010 stages, ADR-0111)::
 
         AnnounceVulnerabilityCaseReceivedBT (Sequence)
-        ├── IntakeReceivedActivityNode        # intake
-        ├── CaseOpenToExternalWrites          # post-close boundary
+        ├── ActivityAddressedToReceiverNode   # addressee door
+        ├── ActivityNotSeenBeforeNode         # seen-before door
         ├── ReceivedPathNode                  # no case yet, replica or manager
+        ├── CaseOpenToExternalWrites          # post-close boundary
         ├── SenderIsCaseManagerNode           # sender guard (anchored)
+        ├── IntakeReceivedActivityNode        # intake
         ├── CaseCopyNotStaleNode              # guard (SYNC-16-006)
         ├── SeedAnnouncedCaseNode             # effect (seed or replace)
         ├── RequestCaseCopyBackfillNode       # effect (SYNC-16-007)
@@ -133,7 +135,7 @@ def create_announce_vulnerability_case_received_tree(
         case_id=None,
         # The Announce is how a participant learns the case exists, so the
         # first one lands on the no-case path and seeds the replica
-        # (HP-01-041, SYNC-02-002); a later one updates the copy it seeded.
+        # (HP-01-041, PCR-02-003); a later one updates the copy it seeded.
         # The CASE_MANAGER receives its own broadcast as one of the case's
         # participants, where the copy's source is its own case and so
         # changes nothing (SYNC-16-006, ADR-0124): that is a path this type

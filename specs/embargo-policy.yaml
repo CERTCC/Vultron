@@ -570,6 +570,9 @@ groups:
     stories:
     - story_2026_081
     - story_2022_079
+    see_also:
+    - spec_id: CP-01-010
+      reason: 'context for the reader'
   - id: EP-04-016
     priority: SHOULD
     kind: protocol
@@ -1109,6 +1112,9 @@ groups:
     stories:
     - story_2026_081
     - story_2022_079
+    see_also:
+    - spec_id: EP-08-002
+      reason: 'a rationale ("so that ... can reach it")'
   - id: EP-04-027
     priority: MUST
     kind: protocol
@@ -1288,6 +1294,9 @@ groups:
     stories:
     - story_2026_089
     - story_2022_027
+    see_also:
+    - spec_id: CM-10-001
+      reason: 'context for the reader'
   - id: EP-05-002
     priority: MUST_NOT
     kind: protocol
@@ -1319,6 +1328,11 @@ groups:
       spec_id: CM-18-001
     - rel_type: refines
       spec_id: MSM-07-022
+    see_also:
+    - spec_id: EP-05-001
+      reason: 'scope boundary: a different transition'
+    - spec_id: EP-05-003
+      reason: 'context for the reader'
 - id: EP-06
   title: PEC Idempotency
   specs:
@@ -1397,6 +1411,9 @@ groups:
     stories:
     - story_2026_091
     - story_2022_027
+    see_also:
+    - spec_id: CM-18-023
+      reason: 'context for the reader'
   - id: EP-07-007
     priority: MUST
     kind: project
@@ -1510,6 +1527,9 @@ groups:
       spec_id: EP-07-008
     - rel_type: uses_definition
       spec_id: EP-07-003
+    see_also:
+    - spec_id: EP-07-002
+      reason: 'context for the reader'
   - id: EP-07-003
     priority: MUST
     kind: protocol
@@ -1944,6 +1964,10 @@ groups:
     - ADR-0113
     stories:
     - story_2026_033
+    see_also:
+    - spec_id: EMB-03-003
+      reason: >-
+        scope boundary: EMB-03-003 binds a participant that is not the CASE_MANAGER
   - id: EP-09-002
     priority: MUST
     kind: protocol
@@ -2158,6 +2182,9 @@ groups:
     - ADR-0122
     stories:
     - story_2026_001
+    see_also:
+    - spec_id: EP-05-001
+      reason: 'context for the reader'
   - id: EP-09-005
     priority: MAY
     kind: protocol
@@ -2201,6 +2228,11 @@ groups:
       spec_id: MSM-07-008
     - rel_type: uses_definition
       spec_id: MSM-07-009
+    see_also:
+    - spec_id: MSM-07-003
+      reason: 'context for the reader'
+    - spec_id: MSM-07-004
+      reason: 'context for the reader'
   - id: EP-09-006
     priority: SHOULD
     kind: protocol
@@ -2300,7 +2332,7 @@ groups:
     note: >-
       Participant self-status (RM, `Add(ParticipantStatus)`) is the participant's own
       claim and keeps its local write (RSH-06-001). The rule covers the owner that still
-      holds the CASE_MANAGER role after creation (CM-24-006): it writes canonically
+      holds the CASE_MANAGER role after creation (CM-02-014): it writes canonically
       until it delegates.
     verification: >-
       `test/core/use_cases/triggers/embargo/test_trigger_write_gate.py`
@@ -2348,6 +2380,13 @@ groups:
     - ADR-0108
     stories:
     - story_2026_059
+    see_also:
+    - spec_id: EMB-02-004
+      reason: 'context for the reader'
+    - spec_id: EP-09-007
+      reason: 'context for the reader'
+    - spec_id: HP-01-006
+      reason: 'context for the reader'
   - id: EP-09-014
     priority: MUST
     kind: project
@@ -2416,6 +2455,9 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: EP-09-018
+    see_also:
+    - spec_id: EMB-02-004
+      reason: 'context for the reader'
   - id: EP-09-009
     priority: MUST_NOT
     kind: protocol
@@ -2502,6 +2544,9 @@ groups:
     - ADR-0113
     stories:
     - story_2026_085
+    see_also:
+    - spec_id: OX-08-001
+      reason: 'context for the reader'
 
   - id: EP-09-011
     priority: MUST
@@ -2540,6 +2585,11 @@ groups:
     - ADR-0114
     stories:
     - story_2026_085
+    see_also:
+    - spec_id: EP-05-001
+      reason: 'context for the reader'
+    - spec_id: EP-09-004
+      reason: 'context for the reader'
 
   - id: EP-09-012
     priority: MUST
@@ -2775,6 +2825,10 @@ groups:
       same for a repeated first proposal and for a repeat from another participant,
       that different terms are still relayed, and that the in-force end time during a
       revision is still committed as a counter-proposal (EP-09-020).
+      `test/core/use_cases/triggers/embargo/test_proposal_repeat.py` confirms the
+      CASE_MANAGER's own propose and revise triggers refuse a duplicate whole,
+      registering, committing and queuing nothing, and still commit the in-force
+      end time during a revision.
     relationships:
     - rel_type: refines
       spec_id: ID-04-004

@@ -15,13 +15,21 @@
 
 A participant that cannot apply a received ledger entry yet holds the
 ``Announce`` that carried it, never the entry alone (SYNC-14-010,
-SYNC-15-004): the body intake archived is held for the inbox replay in a
-:class:`~vultron.core.models.deferred_inbox_activity.DeferredInboxActivity`
-(IO-03-009), and a
+SYNC-15-004): the body intake recorded is marked as owing a replay on its own
+:class:`~vultron.core.models.received_activity_record.ReceivedActivityRecord`
+(IO-03-009, ADR-0154), and a
 :class:`~vultron.core.models.held_ledger_announce.HeldLedgerAnnounce` row,
 keyed on the entry's ``prev_log_hash``, finds it again when the chain tail
 reaches it.  The drain replays that held ``Announce`` through the inbox
 (SYNC-14-009), so what is applied is what the CASE_MANAGER sent.
+
+This hold is the one that lands on a record intake already wrote: the
+``Announce`` passed its doors and intake recorded it, ``HELD``, before the
+handler found the gap.  It stays ``HELD`` with its body, not archived, until
+its replay applies it (ADR-0154): releasing it hands the body to the replay,
+which records it again as a delivery of its own, and discarding it (the
+bound, SYNC-14-013, or a fork's replacement) drops the message, body and all
+(``received_holding``).
 
 The holding area is per case and bounded (SYNC-14-006): when full, the held
 ``Announce`` farthest ahead of the gap (highest ``log_index``) is dropped
@@ -35,12 +43,18 @@ Spec: SYNC-14-001, SYNC-14-005, SYNC-14-006, SYNC-14-009, SYNC-15-004.
 import logging
 
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.held_ledger_announce import HeldLedgerAnnounce
-from vultron.core.models.received_activity_record import (
-    ReceivedActivityRecord,
-)
+from vultron.core.models.received_activity_record import ReceivedStage
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.received_activity import (
+    held_received_record,
+    sealed_body_of,
+)
+from vultron.core.services.received_holding import (
+    discard_holding,
+    hold_for_replay,
+    owes_replay,
+)
 from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
@@ -75,47 +89,46 @@ def held_successor(
 
 def holds_held_body(dl: CasePersistence, held: HeldLedgerAnnounce) -> bool:
     """Whether the received body of *held* is still held for its replay."""
-    return isinstance(
-        dl.read(DeferredInboxActivity.build_id(held.activity_id)),
-        DeferredInboxActivity,
-    )
+    return owes_replay(dl, held.activity_id)
 
 
 def release_held(dl: CasePersistence, held: HeldLedgerAnnounce) -> None:
     """Drop the index row of an ``Announce`` handed to the inbox replay.
 
-    The held body stays: the replay reads it and deletes it (IO-03-009).
+    The held body stays: the replay reads it and releases it (IO-03-009).
     """
     dl.delete(_HELD_TYPE, held.id_)
 
 
 def discard_held(dl: CasePersistence, held: HeldLedgerAnnounce) -> None:
-    """Drop a held ``Announce`` entirely: its index row and its body."""
+    """Drop a held ``Announce``: its index row and its held record.
+
+    The ``Announce`` was never applied, so it leaves no archive; its
+    recovery is the ``Reject(CaseLedgerEntry)`` already sent for it, whose
+    answer is a delivery the receiver has not seen (SYNC-14-014).
+    """
     with dl.transaction():
         dl.delete(_HELD_TYPE, held.id_)
-        dl.delete(
-            "DeferredInboxActivity",
-            DeferredInboxActivity.build_id(held.activity_id),
-        )
+        discard_holding(dl, held.activity_id)
 
 
 def _received_body(dl: CasePersistence, activity_id: str) -> str:
-    """The body intake archived for *activity_id* (CLP-10-017).
+    """The body intake recorded for *activity_id* (CLP-10-017).
 
     Raises:
-        VultronWiringError: When nothing is archived.  Intake archives every
-            received activity before any guard, so a hold that finds no body
-            runs in a miswired tree, and holding nothing would lose the
-            ``Announce``.
+        VultronWiringError: When intake recorded no ``HELD`` body.  Intake
+            records every received activity its doors admit, ahead of the
+            handling tree, so a hold that finds none runs in a miswired
+            tree, and holding nothing would lose the ``Announce``.
     """
-    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
-    if not isinstance(record, ReceivedActivityRecord):
+    record = held_received_record(dl, activity_id)
+    if record is None or record.stage is not ReceivedStage.HELD:
         raise VultronWiringError(
-            f"Announce(CaseLedgerEntry) '{activity_id}' is not archived, so"
+            f"Announce(CaseLedgerEntry) '{activity_id}' is not in holding, so"
             " there is no received body to hold for its replay (CLP-10-017,"
             " SYNC-14-001)"
         )
-    return record.received_body
+    return sealed_body_of(record)
 
 
 def _make_room(
@@ -172,8 +185,8 @@ def hold_ledger_announce(
 ) -> bool:
     """Hold the received ``Announce`` *activity_id* until *entry* applies.
 
-    Holds the body intake archived, as the inbox holds a deferred activity
-    (``DeferredInboxActivity``, IO-03-009), and indexes it under the entry's
+    Marks the body intake recorded as owing a replay, as the inbox marks an
+    activity it defers (IO-03-009), and indexes it under the entry's
     case and ``prev_log_hash``.  An ``Announce`` whose entry is already held
     under the same predecessor is not held again, whatever its id, unless the
     held one lost its body; a different entry under the same predecessor (a
@@ -188,7 +201,7 @@ def hold_ledger_announce(
         the bound dropped it.
 
     Raises:
-        VultronWiringError: When intake archived no body for *activity_id*.
+        VultronWiringError: When intake recorded no body for *activity_id*.
     """
     existing = held_successor(dl, entry.case_id, entry.prev_log_hash)
     if existing is not None and existing.entry_hash == entry.entry_hash:
@@ -231,7 +244,6 @@ def hold_ledger_announce(
         if max_per_case is None
         else max_per_case
     )
-    body_id = DeferredInboxActivity.build_id(activity_id)
     # One transaction: a failure part-way leaves the old hold in place and
     # the new one unwritten, never neither.
     with dl.transaction():
@@ -239,13 +251,8 @@ def hold_ledger_announce(
             discard_held(dl, existing)
         elif not _make_room(dl, entry, activity_id, bound, actor_id):
             return False
-        # A body already held for a replay is the same delivery's; keep it.
-        if not isinstance(dl.read(body_id), DeferredInboxActivity):
-            dl.create(
-                DeferredInboxActivity(
-                    activity_id=activity_id, received_body=received_body
-                )
-            )
+        # A body already owing a replay is the same delivery's; keep it.
+        hold_for_replay(dl, activity_id, received_body)
         dl.save(
             HeldLedgerAnnounce(
                 case_id=entry.case_id,

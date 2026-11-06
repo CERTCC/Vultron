@@ -132,8 +132,9 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         assert _archived_by_intake(dl, offer.id_)
 
     @pytest.mark.spec("CLP-10-018")
-    def test_a_refused_offer_is_still_archived(self, make_payload):
-        """A store that does not hold the case refuses, and keeps what came."""
+    def test_a_refused_offer_records_nothing(self, make_payload):
+        """A store that does not hold the case refuses at a door, so intake
+        records nothing; the outcome stage leaves the receipt stub."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:", actor_id=self._CASE_ACTOR_URI
         )
@@ -147,7 +148,8 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert _archived_by_intake(dl, offer.id_)
+        # The path stage, a door, refused it before intake (CLP-10-010).
+        assert not _archived_by_intake(dl, offer.id_)
 
     def test_offer_case_participant_role_uses_store_owner_when_no_receiving_actor(
         self, make_payload

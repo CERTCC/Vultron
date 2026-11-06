@@ -54,6 +54,11 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.case.receive_stages.doors import (
     path_stage_case_id,
 )
+from vultron.core.behaviors.case_id_scope import (
+    CaseIdScope,
+    unscoped,
+    with_case_id,
+)
 from vultron.core.behaviors.inbox.nodes.pipeline import DeferCheckNode
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
@@ -142,16 +147,22 @@ def _run_stage(
     scenario = BTTestScenario(actor_id=actor_id)
     if path is not ReceivedPath.NO_CASE:
         _seed_case(scenario)
-    stage = ReceivedPathNode(
-        declared=frozenset(declared), case_id=CASE_ID, label="ProofBT"
-    )
-    tree: py_trees.behaviour.Behaviour = stage
+    stage = ReceivedPathNode(declared=frozenset(declared), label="ProofBT")
+    seeded = with_case_id(stage, CASE_ID)
+    tree: py_trees.behaviour.Behaviour = seeded
     if then is not None:
         tree = py_trees.composites.Sequence(
-            name="StageThen", memory=False, children=[stage, then]
+            name="StageThen", memory=False, children=[seeded, then]
         )
     scenario.run(tree, actor_id=actor_id)
     return stage
+
+
+def _seeding_scope(stage: ReceivedPathNode) -> CaseIdScope:
+    """The :class:`CaseIdScope` that seeds *stage*'s ``/case_id`` port."""
+    scope = stage.parent
+    assert isinstance(scope, CaseIdScope)
+    return scope
 
 
 #: The reason each path is refused with when every *other* path is declared,
@@ -306,7 +317,7 @@ def test_a_refused_path_is_the_handlers_door_refusal() -> None:
         ReceivedPath.PARTICIPANT_REPLICA, {ReceivedPath.CASE_MANAGER}
     )
     tree = py_trees.composites.Sequence(
-        name="ProofBT", memory=False, children=[stage]
+        name="ProofBT", memory=False, children=[_seeding_scope(stage)]
     )
 
     refusal = path_refusal(tree)
@@ -319,7 +330,7 @@ def test_a_refused_path_is_the_handlers_door_refusal() -> None:
 def test_an_admitted_path_owes_no_refusal() -> None:
     stage = _run_stage(ReceivedPath.CASE_MANAGER, {ReceivedPath.CASE_MANAGER})
     tree = py_trees.composites.Sequence(
-        name="ProofBT", memory=False, children=[stage]
+        name="ProofBT", memory=False, children=[_seeding_scope(stage)]
     )
 
     assert path_refusal(tree) is None
@@ -364,14 +375,17 @@ def test_the_stage_runs_after_the_addressee_check_and_before_the_guard() -> (
 ):
     """The path stage is a door stage, in the CLP-10-010 order."""
     tree = _declared_tree()
-    stages = [type(child).__name__ for child in tree.children]
+    stages = [type(unscoped(child)).__name__ for child in tree.children]
     names = [child.name for child in tree.children]
 
     addressee = stages.index(ActivityAddressedToReceiverNode.__name__)
+    seen = stages.index("ActivityNotSeenBeforeNode")
     path = stages.index(ReceivedPathNode.__name__)
     guard = names.index("SenderRuleGuard")
 
-    assert addressee < path < guard
+    assert addressee < seen < path < guard
+    # Directly after the seen-before door (HP-01-035).
+    assert path == seen + 1
 
 
 @pytest.mark.spec("HP-01-005")
@@ -420,9 +434,11 @@ def test_the_stage_reads_the_case_the_sender_context_names() -> None:
     stage = next(
         node for node in tree.iterate() if isinstance(node, ReceivedPathNode)
     )
+    scope = _seeding_scope(stage)
+    assert scope.case_id == CASE_ID
     scenario = BTTestScenario(actor_id=VENDOR_ID)
     _seed_case(scenario)
-    scenario.run(stage, actor_id=VENDOR_ID)
+    scenario.run(scope, actor_id=VENDOR_ID)
 
     assert stage.resolved_case_id == CASE_ID
     assert stage.resolved_path is ReceivedPath.PARTICIPANT_REPLICA
@@ -458,11 +474,11 @@ def test_the_door_guards_run_in_the_clp_10_010_order() -> None:
     """
     tree = _declared_tree()
 
-    assert [type(guard).__name__ for guard in tree.door_guards] == [
-        "IntakeReceivedActivityNode",
-        "CaseOpenToExternalWritesNode",
+    assert [type(unscoped(guard)).__name__ for guard in tree.door_guards] == [
         "ActivityAddressedToReceiverNode",
+        "ActivityNotSeenBeforeNode",
         "ReceivedPathNode",
+        "CaseOpenToExternalWritesNode",
         "Sequence",  # the composed SenderRuleGuard
     ]
 
@@ -474,7 +490,8 @@ def test_the_stage_is_one_of_the_trees_door_guards() -> None:
     tree = _declared_tree()
 
     assert any(
-        isinstance(guard, ReceivedPathNode) for guard in tree.door_guards
+        isinstance(unscoped(guard), ReceivedPathNode)
+        for guard in tree.door_guards
     )
 
 
@@ -557,9 +574,7 @@ def _leaf_types(node: py_trees.behaviour.Behaviour) -> set[str]:
 @pytest.mark.spec("HP-01-036")
 def test_the_sender_guards_arms_read_the_path_stages_answer() -> None:
     """With a path stage the arms are path checks, not a second role read."""
-    stage = ReceivedPathNode(
-        declared=frozenset({ReceivedPath.CASE_MANAGER}), case_id=CASE_ID
-    )
+    stage = ReceivedPathNode(declared=frozenset({ReceivedPath.CASE_MANAGER}))
     guard = compose_sender_guard(_RULE, _CONTEXT, stage)
     assert guard is not None
 
@@ -629,7 +644,7 @@ def test_the_manager_arm_matches_only_the_manager_path(
 @pytest.mark.spec("HP-01-036")
 def test_an_arm_whose_stage_has_not_run_does_not_match() -> None:
     """No arm is entered before the door stage answered."""
-    stage = ReceivedPathNode(declared=ALL_PATHS, case_id=CASE_ID)
+    stage = ReceivedPathNode(declared=ALL_PATHS)
 
     assert stage.resolved_path is None
     assert (
@@ -743,7 +758,7 @@ def test_the_type_that_precedes_its_case_declares_the_no_case_branch() -> None:
     assert ReceivedPath.NO_CASE in stage.declared
 
     scenario = BTTestScenario(actor_id=STRANGER_ID)
-    scenario.run(stage, actor_id=STRANGER_ID)
+    scenario.run(_seeding_scope(stage), actor_id=STRANGER_ID)
 
     assert stage.resolved_path is ReceivedPath.NO_CASE
     assert stage.status is Status.SUCCESS

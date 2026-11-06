@@ -361,7 +361,7 @@ As the actor that stamps the relayed invitation, the CASE_MANAGER clamps a too-s
 It does **not** reject the proposal as malformed (EP-07-003, EP-07-004, EP-07-005).
 Refusing a too-short invitation would punish the invitee for the inviter's error.
 
-There is also a ceiling: the deadline never falls after the invited embargo ends (EP-07-006, CM-28-011).
+There is also a ceiling: the deadline never falls after the invited embargo ends (EP-07-006, EP-07-011).
 A deadline past that end is lowered to the end, and the clamp is logged.
 This rule applies whether the deadline was sent explicitly or computed from the policy window.
 The floor gives way to the ceiling: the minimum is 72 hours or the time left in the embargo, whichever is shorter (EP-07-002).

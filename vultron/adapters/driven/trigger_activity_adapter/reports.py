@@ -128,46 +128,48 @@ class _ReportsMixin:
             target=target,
             proposed_embargo=proposed_embargo,
         )
-        activity = _stamped(self._dl, activity)
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "submit_report: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        offer_record = VultronOfferRecord(
-            offer_id=activity.id_,
-            report_id=report_id,
-            offer_actor_id=actor,
-            offer_to=[to] if isinstance(to, str) else list(to),
-        )
-        try:
-            self._dl.create(offer_record)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "submit_report: offer record '%s' already exists — skipping",
-                offer_record.id_,
-            )
-        except Exception:
-            # Compensating delete: remove the Offer activity so the pair is
-            # never left in a half-written state. If the delete itself fails,
-            # log and re-raise the original error so the caller sees it.
+        # One transaction, as every stamp-and-seal path holds (SYNC-21-003).
+        with self._dl.transaction():
+            activity = _stamped(self._dl, activity)
             try:
-                self._dl.delete(activity.type_, activity.id_)
-            except Exception:
-                logger.exception(
-                    "submit_report: compensating delete of activity '%s' also"
-                    " failed; DataLayer may be in inconsistent state",
+                self._dl.create(activity)
+            except VultronAlreadyExistsError:
+                logger.warning(
+                    "submit_report: activity '%s' already exists — skipping",
                     activity.id_,
                 )
-            raise
-        return _seal(self._dl, activity)
+            offer_record = VultronOfferRecord(
+                offer_id=activity.id_,
+                report_id=report_id,
+                offer_actor_id=actor,
+                offer_to=[to] if isinstance(to, str) else list(to),
+            )
+            try:
+                self._dl.create(offer_record)
+            except VultronAlreadyExistsError:
+                logger.warning(
+                    "submit_report: offer record '%s' already exists — skipping",
+                    offer_record.id_,
+                )
+            except Exception:
+                # Compensating delete: remove the Offer activity so the pair is
+                # never left in a half-written state. If the delete itself fails,
+                # log and re-raise the original error so the caller sees it.
+                try:
+                    self._dl.delete(activity.type_, activity.id_)
+                except Exception:
+                    logger.exception(
+                        "submit_report: compensating delete of activity '%s' also"
+                        " failed; DataLayer may be in inconsistent state",
+                        activity.id_,
+                    )
+                raise
+            return _seal(self._dl, activity)
 
     def _resolve_offer(self, offer_id: str) -> Any:
         """Read the Offer as this actor holds it; else rebuild it from its record.
 
-        A received Offer is parsed from the body its intake archived, never
+        A received Offer is parsed from the body its intake recorded, never
         read under the id its sender chose (DL-06-006), so the reply embeds
         it as the Reporter sent it (DL-06-004); an Offer this actor sent is
         held under its own id (:func:`read_held_as_received`).  When neither

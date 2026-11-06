@@ -26,8 +26,14 @@ AF-02-003 and AF-04-002.
 from vultron.wire.as2.factories._held import embedded_as_received
 from vultron.wire.as2.factories._ledger_position import (
     ledger_position_case_ids,
+    named_case_ids,
     object_states_its_own_position,
     stamp_ledger_position,
+)
+from vultron.wire.as2.factories._sender_sequence import (
+    is_ledger_request,
+    sender_sequence_case_ids,
+    stamp_sender_sequence,
 )
 from vultron.wire.as2.factories.actor import (
     accept_actor_recommendation_activity,
@@ -124,8 +130,13 @@ __all__ = [
     "reject_case_participant_offer_activity",
     # ledger position (SYNC-18-001, SYNC-18-017)
     "ledger_position_case_ids",
+    "named_case_ids",
     "object_states_its_own_position",
     "stamp_ledger_position",
+    # sender sequence (SYNC-21-001, SYNC-21-004)
+    "is_ledger_request",
+    "sender_sequence_case_ids",
+    "stamp_sender_sequence",
     # case
     "accept_case_participant_role_activity",
     "accept_case_ownership_transfer_activity",

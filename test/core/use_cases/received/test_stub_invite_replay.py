@@ -161,7 +161,7 @@ def net() -> LedgerNetwork:
 
 @pytest.mark.spec("CM-11-025")
 @pytest.mark.spec("CM-31-012")
-@pytest.mark.spec("SYNC-02-002")
+@pytest.mark.spec("SYNC-02-001", "SYNC-02-003")
 def test_the_stub_invite_entry_fans_out_and_gives_a_replica_the_inert_record(
     net: LedgerNetwork,
 ) -> None:

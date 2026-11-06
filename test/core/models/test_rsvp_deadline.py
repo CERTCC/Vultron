@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for the effective RSVP deadline (EP-07, CM-28-011)."""
+"""Unit tests for the effective RSVP deadline (EP-07)."""
 
 from datetime import UTC, datetime, timedelta, timezone
 
@@ -48,7 +48,6 @@ def test_absent_request_uses_policy_window() -> None:
     )
 
 
-@pytest.mark.spec("CM-28-011")
 @pytest.mark.spec("EP-07-006")
 @pytest.mark.spec("EP-07-011")
 def test_day_28_of_30_day_embargo_policy_window_is_the_end() -> None:

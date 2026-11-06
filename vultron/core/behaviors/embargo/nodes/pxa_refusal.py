@@ -25,7 +25,7 @@ compose these nodes into the diversion the two received trees carry.
 
 The ``Reject`` is the receiver's record of its decision: its id derives from the
 rejecting actor and the Invite, so a redelivery finds it already sent and is
-skipped rather than answered twice (HP-01-003, CLP-13-001), and a ``Reject``
+skipped rather than answered twice (HP-01-014, CLP-13-001), and a ``Reject``
 sealed but never queued is queued again (EMB-01-007, ID-04-005).
 """
 
@@ -147,7 +147,7 @@ class EmbargoInviteNotYetRefusedNode(
     """Idempotency guard: this actor has not yet refused this Invite.
 
     FAILURE means the ``Reject`` was already sent; the handler reads it as a
-    re-delivery (CLP-13-001, HP-01-003).  The ``Reject`` is sealed before
+    re-delivery (CLP-13-001, HP-01-014).  The ``Reject`` is sealed before
     it is queued, so one sealed but no longer pending is queued again under its
     own id rather than taken as delivered (EMB-01-007, ID-04-005).  A missing
     trigger-activity port sends nothing, so there is nothing to repeat.
@@ -182,7 +182,7 @@ class SendEmbargoProposalRefusalNode(SendEmbargoInviteAnswerNode):
     The CASE_MANAGER answers the proposer that sent the Invite; any other
     actor answers the CASE_MANAGER, never a peer (EP-09-003, PCR-08-001).
     The recipient is resolved when the node runs, from the case's
-    CASE_MANAGER, which is never unfilled (CM-24-006): a case naming none
+    CASE_MANAGER, which is never unfilled (CM-02-014): a case naming none
     fails the node, and like every answer it then raises.
     """
 

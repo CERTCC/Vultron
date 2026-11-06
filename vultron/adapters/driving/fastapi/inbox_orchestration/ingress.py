@@ -19,18 +19,17 @@ body.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import hashlib
 import logging
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
-from vultron.core.models.received_activity_record import (
-    ReceivedActivityRecord,
-)
+from vultron.core.models.received_body import received_body_digest
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.services.received_activity import held_received_record
 from vultron.errors import VultronReusedActivityIdError, VultronWiringError
 from vultron.wire.as2.errors import VultronParseError
 from vultron.wire.as2.parser import parse_activity as _parse_activity
@@ -72,10 +71,28 @@ def _carry_received_evidence(
 
 @dataclass(frozen=True)
 class _HeldBody:
-    """The sealed body the receiver holds for an activity id, and where."""
+    """The sealed body the receiver holds for an activity id, and its stage.
 
-    kind: Literal["deferred", "archived"]
+    *kind* is what decides whether a routed copy carries received evidence,
+    so it names the question that decides it rather than a record type
+    (ADR-0154): ``awaiting_replay`` when a replay is still owed from the held
+    body, ``archived`` when none is.
+    """
+
+    kind: Literal["awaiting_replay", "archived"]
     body: str
+
+
+@dataclass(frozen=True)
+class _HeldStub:
+    """What a refusal left for an activity id: the digest of its body.
+
+    A receipt stub gives the body up (CLP-10-018) but keeps its digest, the
+    same :func:`received_body_digest` value a held body is compared by, so a
+    reused id is still refused against it (IE-10-002).
+    """
+
+    body_hash: str
 
 
 def _sender_id(activity: as_Activity) -> str | None:
@@ -86,17 +103,16 @@ def _sender_id(activity: as_Activity) -> str | None:
     return str(getattr(actor, "id_", actor))
 
 
-def _body_digest(sealed_text: str) -> str:
-    """The SHA-256 digest of a sealed received text (IE-10-002)."""
-    return hashlib.sha256(sealed_text.encode("utf-8")).hexdigest()
-
-
-def _refuse_a_different_body(activity: as_Activity, held: _HeldBody) -> None:
-    """Refuse *activity* unless its sealed body is exactly *held*'s.
+def _refuse_a_different_body(
+    activity: as_Activity, held_digest: str, kind: str
+) -> None:
+    """Refuse *activity* unless its sealed body has the digest *held_digest*.
 
     The match is exact, digest against digest, with no normalisation
-    (IE-10-002).  A same-body delivery returns, to be routed as a
-    redelivery (IE-10-001).
+    (IE-10-002).  *held_digest* is the held body's digest, or the one a
+    receipt stub kept in place of its body; *kind* names which, for the
+    log.  A same-body delivery returns, to be routed as a redelivery
+    (IE-10-001).
 
     Raises:
         VultronWiringError: When *activity* carries no sealed body.  Every
@@ -112,7 +128,7 @@ def _refuse_a_different_body(activity: as_Activity, held: _HeldBody) -> None:
             " body, so it cannot be compared with the held one (VM-08-002,"
             " IE-10-002)"
         )
-    if _body_digest(evidence) == _body_digest(held.body):
+    if received_body_digest(evidence) == held_digest:
         return
     sender = _sender_id(activity)
     logger.warning(
@@ -121,7 +137,7 @@ def _refuse_a_different_body(activity: as_Activity, held: _HeldBody) -> None:
         " body is routed and nothing is written (IE-10-002 to IE-10-005).",
         activity.id_,
         sender,
-        held.kind,
+        kind,
     )
     raise VultronReusedActivityIdError(activity.id_, sender)
 
@@ -135,13 +151,14 @@ class FastAPIIngressAdapter:
     activity, which the receiver never holds under the id its sender chose
     (DL-06-006), and not the objects it carries inline, from which only the
     handler, after its guards, writes a record (CLP-10-017, #3763).  Intake
-    archives the activity under the receiver's key once it is routed.
+    records the activity under the receiver's key once it is routed and its
+    doors admit it.
 
     ``rehydrate`` rebuilds the parsed activity with it and its inline objects
     staged in a throwaway store (:mod:`.inbox_staging`).  A redelivery is
     detected there, from what the receiver holds under a key it derives from
-    the activity id (IE-10-001): the deferred record when the first delivery
-    is still waiting on its case, else intake's ``ReceivedActivityRecord``.
+    the activity id (IE-10-001): one ``ReceivedActivityRecord``, whose stage
+    says whether a replay is still owed for it (ADR-0154).
 
     Args:
         dl: The receiving actor's own DataLayer, read to rebuild the activity.
@@ -209,13 +226,15 @@ class FastAPIIngressAdapter:
           copy the receiver already holds (VM-08-009, VM-08-010, IE-10-001).  When the
           first delivery is still deferred, its held copy is routed without
           received evidence, and the record holding it is kept for the
-          replay, which carries it.  When intake already archived it, the
-          archived body is parsed and routed (ADR-0149) with that body as its
+          replay, which carries it.  When the receiver holds it owing no
+          replay (archived, or left in holding by a run with no verdict), the
+          held body is parsed and routed (ADR-0149) with that body as its
           received evidence: it is the first delivery's sealed body.  The
-          handlers' own idempotency guards answer the repeat (ID-04): a
-          committed act is ``SKIPPED``, and an act that never committed, such
-          as one that failed, runs as a first delivery and commits with the
-          archived body (ADR-0151).
+          tree's seen-before door answers the repeat from the record's stage
+          (ADR-0154): an applied message is ``SKIPPED``, one still waiting is
+          ``SKIPPED`` with nothing re-run, and one a run left in holding with
+          no verdict, such as an act that failed, runs again and commits
+          with the held body (ADR-0151, CLP-10-074).
 
         Production deliveries always carry a sealed body, and a held record
         always holds one, so meeting either side without one is a wiring
@@ -247,8 +266,18 @@ class FastAPIIngressAdapter:
         the read.
         """
         held = self._held_body(activity.id_)
-        if held is not None:
-            _refuse_a_different_body(activity, held)
+        if isinstance(held, _HeldStub):
+            # A refusal left only the digest.  A different body is a reused
+            # id (IE-10-002); the same body has no held copy to route in
+            # its place, so it is routed as it came, and the seen-before
+            # door of its tree refuses it again with the stub's reason
+            # (ADR-0154).
+            _refuse_a_different_body(activity, held.body_hash, "refused")
+            held = None
+        elif held is not None:
+            _refuse_a_different_body(
+                activity, received_body_digest(held.body), held.kind
+            )
 
         if _is_inline_ledger_entry_announce(activity):
             # A repeat entry is the SYNC-12-003 already-stored gate's to
@@ -267,7 +296,7 @@ class FastAPIIngressAdapter:
 
         routed = (
             self._staging.rehydrate_held(activity.id_)
-            if held.kind == "deferred"
+            if held.kind == "awaiting_replay"
             else self._staging.rehydrate_archived(activity.id_)
         )
         if routed is None:
@@ -280,19 +309,48 @@ class FastAPIIngressAdapter:
         self._log_redelivery(activity, held.kind)
         return routed
 
-    def _held_body(self, activity_id: str) -> _HeldBody | None:
+    def _held_body(self, activity_id: str) -> _HeldBody | _HeldStub | None:
         """The body held for *activity_id* under the receiver's key, if any.
 
-        The deferred record's while the first delivery is still deferred,
-        else the body intake archived (IE-10-001, IE-10-002).
+        One read of one record (ADR-0154).  What the record's stage decides
+        is which copy answers *this* delivery, and whether it carries
+        evidence (IE-10-001, IE-10-002):
+
+        - a replay still owed means the held copy is not this delivery and
+          will carry the evidence when it is replayed, so the copy routed
+          now carries none (VM-08-010).  This holds whether the inbox held
+          the body before the doors or the handling tree held it after
+          intake: a buffered ``Announce`` is recorded and still awaiting its
+          gap, and the replay it owes is the one that will route it
+          (SYNC-14-009);
+        - with no replay owed, the held body -- archived, or left in holding
+          by a run with no verdict -- is the first delivery's, sealed at its
+          parse, so the copy routed carries it (VM-08-009);
+        - a receipt stub holds no copy to route, only the digest of the body
+          a refusal gave up, which the delivery is compared with
+          (CLP-10-018, IE-10-002).
+
+        This is the one comparison of a delivery's body with what is held: the
+        seen-before door that answers a same-body resend reads only the
+        record's stage (ADR-0154).
         """
-        pending = self._staging.held(activity_id)
-        if pending is not None:
-            return _HeldBody("deferred", pending.received_body)
-        record = self._dl.read(ReceivedActivityRecord.build_id(activity_id))
-        if isinstance(record, ReceivedActivityRecord):
-            return _HeldBody("archived", record.received_body)
-        return None
+        record = held_received_record(
+            cast(CasePersistence, self._dl), activity_id
+        )
+        if record is None:
+            return None
+        if record.received_body is None:
+            # A receipt stub: a refusal gave the body up (CLP-10-018), so
+            # there is no held copy to route in this delivery's place, only
+            # the digest to compare it with.  A same-body delivery is routed
+            # as it came, and the seen-before door answers it from the stub
+            # (ADR-0154).
+            assert record.body_hash is not None  # the record's invariant
+            return _HeldStub(record.body_hash)
+        kind: Literal["awaiting_replay", "archived"] = (
+            "awaiting_replay" if record.replay_owed else "archived"
+        )
+        return _HeldBody(kind, record.received_body)
 
     @staticmethod
     def _log_redelivery(activity: as_Activity, kind: str) -> None:

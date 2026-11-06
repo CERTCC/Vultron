@@ -360,7 +360,7 @@ def no_sender_check(reason: str) -> SenderExemption:
     """Declare a received use case to which no sender check applies.
 
     For a use case whose handler does nothing a sender's standing could
-    gate: it writes nothing but the intake archive every received tree keeps
+    gate: it writes nothing but the intake record every received tree keeps
     (CLP-10-018), commits nothing and sends nothing.  It names no tracking
     issue, because no check is owed (HP-01-007).
 

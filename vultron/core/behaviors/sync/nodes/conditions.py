@@ -181,18 +181,15 @@ class CheckLedgerFreshnessNode(DataLayerConditionWithPorts):
     protocol-significant case action that depends on ledger freshness per
     SYNC-10-001.
 
-    Constructor args:
-        case_id: URI of the case whose ledger to check.  If ``None``, the
-            node reads ``case_id`` from the blackboard key ``"case_id"``.
+    The case comes only from the ``/case_id`` input port (BTND-01-006); a
+    tree that names it at build time seeds the port with
+    :func:`~vultron.core.behaviors.case_id_scope.with_case_id`.
 
     Spec: SYNC-10-001, SYNC-10-002, SYNC-10-003, SYNC-10-004, SYNC-10-005.
     """
 
-    def __init__(
-        self, case_id: str | None = None, name: str | None = None
-    ) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
@@ -206,29 +203,22 @@ class CheckLedgerFreshnessNode(DataLayerConditionWithPorts):
     def initialise(self) -> None:
         super().initialise()
         self._case_id_bb: str | None = None
-        if self._case_id is None:
-            try:
-                self._case_id_bb = self.get_input("case_id")
-            except (NoDataAvailable, NotImplementedError):
-                self._case_id_bb = None
+        try:
+            self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            self._case_id_bb = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        case_id: str | None
-        if self._case_id is not None:
-            case_id = self._case_id
-        else:
-            case_id = self._case_id_bb
-            if case_id is None:
-                self.logger.error(
-                    "%s: case_id not on blackboard and not provided at "
-                    "construction",
-                    self.name,
-                )
-                return Status.FAILURE
+        case_id = self._case_id_bb
+        if case_id is None:
+            self.logger.error(
+                "%s: no case_id on the /case_id input port", self.name
+            )
+            return Status.FAILURE
 
         fresh, reason = is_ledger_fresh_for_case(case_id, self.datalayer)
         if not fresh:

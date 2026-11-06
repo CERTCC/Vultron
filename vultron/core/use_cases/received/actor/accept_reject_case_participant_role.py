@@ -6,7 +6,7 @@ target of a role offer addresses to the case's CASE_MANAGER (CM-33-015).
 The CASE_MANAGER acts on an answer only from the target of an open role Offer
 it recorded (CM-33-005), commits it and broadcasts
 ``Announce(CaseLedgerEntry)``, and on an Accept grants the role on its own
-replica (CM-33-020, CM-02-016).
+replica (CM-02-016).
 See SE-08-003, ADR-0039.
 """
 
@@ -80,7 +80,7 @@ class AcceptCaseParticipantRoleReceivedUseCase:
     resolved to that Offer through the forward's ``inReplyTo`` (CM-33-017).
     Anyone else, or an answer to an Offer already answered, is ``REFUSED``
     with no entry and no role change; a redelivery of the Accept that closed
-    the Offer is ``SKIPPED`` (HP-01-003).  An admitted Accept is committed as
+    the Offer is ``SKIPPED`` (HP-01-014).  An admitted Accept is committed as
     ``accept_case_participant_role`` and announced to the participants, and
     the CASE_MANAGER grants the role on its own replica (CM-33-006,
     CM-02-016).  See SE-08-003, ADR-0039.

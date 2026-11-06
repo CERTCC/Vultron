@@ -185,10 +185,12 @@ class ClassifyLedgerPositionNode(DataLayerActionWithPorts):
     def _stated_position(self) -> LedgerPosition | None:
         """The position the sender stamped, or ``None`` when none is owed.
 
-        A redelivery of an activity this store already archived owes none:
-        a resend keeps its first stamp (SYNC-18-009), which the first
-        delivery answered, and answering it again would move the sender's
-        acknowledged position back and replay what was sent since.
+        A re-run of an activity a run left in holding owes none: it keeps
+        its first stamp (SYNC-18-009), which the first run may have
+        answered, and answering it again would move the sender's
+        acknowledged position back and replay what was sent since.  A
+        resend never reaches this node: the seen-before door answered it
+        (ADR-0154).
         """
         activity = self.activity
         if not isinstance(activity, LedgerPositionedEvent):

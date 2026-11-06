@@ -1,5 +1,5 @@
 """Tests for vultron.metadata.specs.lint.structure and the registry hard
-errors: duplicate IDs, dangling relationships, prefixes (MS-04-004), missing
+errors: duplicate IDs, dangling relationships, prefixes (SR-01-013), missing
 kind and scenario_start groups (MS-13-004).
 """
 
@@ -102,6 +102,65 @@ def test_lint_fails_on_a_link_recorded_at_both_ends(tmp_path, capsys):
     )
 
 
+@pytest.mark.spec("SR-13-023")
+def test_lint_fails_on_an_unlinked_statement_citation(tmp_path, capsys):
+    write_yaml(
+        tmp_path,
+        spec_file_data(
+            [
+                (
+                    "TST-01-001",
+                    "SHOULD",
+                    "project",
+                    {
+                        "statement": "TST-01-001 SHOULD do what TST-01-002 says."
+                    },
+                ),
+                ("TST-01-002", "SHOULD", "project", {}),
+            ]
+        ),
+    )
+
+    result = lint(tmp_path)
+
+    assert result == 1
+    assert (
+        "TST-01-001's statement cites TST-01-002, but no relationship links "
+        "the two" in capsys.readouterr().err
+    )
+
+
+@pytest.mark.spec("SR-13-023")
+def test_lint_passes_a_citation_listed_in_see_also(tmp_path, capsys):
+    write_yaml(
+        tmp_path,
+        spec_file_data(
+            [
+                (
+                    "TST-01-001",
+                    "SHOULD",
+                    "project",
+                    {
+                        "statement": "TST-01-001 SHOULD do what TST-01-002 says.",
+                        "see_also": [
+                            {
+                                "spec_id": "TST-01-002",
+                                "reason": "context for the reader",
+                            }
+                        ],
+                    },
+                ),
+                ("TST-01-002", "SHOULD", "project", {}),
+            ]
+        ),
+    )
+
+    result = lint(tmp_path)
+
+    assert "SR-13-02" not in capsys.readouterr().err
+    assert result == 0
+
+
 def test_lint_prefix_mismatch(tmp_path, capsys):
     data = {
         "id": "TST",
@@ -133,7 +192,7 @@ def test_lint_prefix_mismatch(tmp_path, capsys):
 
 
 # ---------------------------------------------------------------------------
-# Spec ID vs group prefix check (MS-04-004)
+# Spec ID vs group prefix check (SR-01-013)
 # ---------------------------------------------------------------------------
 
 

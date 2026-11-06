@@ -29,7 +29,7 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
-from test.support.received import archive_received
+from test.support.received import archive_received, intake_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -47,12 +47,14 @@ from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
 from vultron.core.behaviors.inbox import InboxOutcomeStatus, process_payload
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
+    ReceivedStage,
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.services.received_activity import sealed_body_of
+from vultron.core.services.received_outcome import write_receipt_stub
 from vultron.errors import VultronReusedActivityIdError, VultronWiringError
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
@@ -298,17 +300,18 @@ def test_a_different_body_under_a_deferred_id_is_refused(
     first = _offer_of_stored_report(dl)
     first["summary"] = "first"
     _defer(dl, first)
-    held_before = dl.read(DeferredInboxActivity.build_id(first["id"]))
-    assert isinstance(held_before, DeferredInboxActivity)
+    held_before = dl.read(ReceivedActivityRecord.build_id(first["id"]))
+    assert isinstance(held_before, ReceivedActivityRecord)
+    assert held_before.stage is ReceivedStage.HELD
+    assert held_before.replay_owed
     second = {**copy.deepcopy(first), "summary": "second"}
 
     _assert_refused_through_the_inbox(dl, second, ACTOR, caplog)
 
-    held = dl.read(DeferredInboxActivity.build_id(first["id"]))
-    assert isinstance(held, DeferredInboxActivity)
+    held = dl.read(ReceivedActivityRecord.build_id(first["id"]))
+    assert isinstance(held, ReceivedActivityRecord)
     assert held == held_before
-    assert held.received_body is not None
-    assert json.loads(held.received_body) == first
+    assert json.loads(sealed_body_of(held)) == first
 
 
 @pytest.mark.spec("IE-10-002")
@@ -336,11 +339,13 @@ def test_a_body_that_differs_only_in_key_order_is_refused(
     """The match is exact, with no normalisation (IE-10-002 ``note:``)."""
     first = _offer_of_stored_report(dl)
     record = archive_received(dl, parse_activity(copy.deepcopy(first)))
-    reordered = dict(reversed(list(json.loads(record.received_body).items())))
+    reordered = dict(
+        reversed(list(json.loads(sealed_body_of(record)).items()))
+    )
     adapter = FastAPIIngressAdapter(dl=dl)
     artifact = adapter.parse(reordered)
     assert artifact is not None
-    assert artifact.received_evidence == json.loads(record.received_body)
+    assert artifact.received_evidence == json.loads(sealed_body_of(record))
 
     with pytest.raises(VultronReusedActivityIdError):
         adapter.rehydrate(artifact)
@@ -359,14 +364,14 @@ def test_resend_of_an_archived_body_routes_the_archived_copy(
     record = archive_received(dl, parse_activity(copy.deepcopy(first)))
     before = _store_state(dl)
     adapter = FastAPIIngressAdapter(dl=dl)
-    artifact = adapter.parse(json.loads(record.received_body))
+    artifact = adapter.parse(json.loads(sealed_body_of(record)))
     assert artifact is not None
 
     routed = adapter.rehydrate(artifact)
 
     assert routed is not artifact
     assert routed.id_ == first["id"]
-    archived = json.loads(record.received_body)
+    archived = json.loads(sealed_body_of(record))
     assert routed.summary == "first"
     assert routed.received_evidence == archived
     assert prepare_for_dispatch(routed).received_body() == archived
@@ -388,6 +393,67 @@ def test_a_different_body_under_an_archived_id_is_refused(
     _assert_refused_through_the_inbox(dl, second, ACTOR, caplog)
 
     assert dl.read(ReceivedActivityRecord.build_id(first["id"])) == record
+
+
+def _refuse_and_stub(
+    dl: SqliteDataLayer, body: dict[str, Any]
+) -> tuple[ReceivedActivityRecord, dict[str, Any]]:
+    """Archive *body*, then reduce it to the receipt stub a refusal leaves.
+
+    Returns the stub and the body exactly as it was sealed, which is what a
+    same-body resend delivers.
+    """
+    record = intake_received(dl, parse_activity(copy.deepcopy(body)))
+    sealed = json.loads(sealed_body_of(record))
+    stub = write_receipt_stub(
+        dl, body["id"], sender_id=ACTOR, reason="refused for this test"
+    )
+    return stub, sealed
+
+
+@pytest.mark.spec("IE-10-002")
+@pytest.mark.spec("CLP-10-018")
+def test_a_different_body_under_a_refused_id_is_refused(
+    dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
+):
+    """The stub keeps the digest of the body it gave up, so a reused id is
+    still refused after a refusal; the stub is left exactly as it was."""
+    first = _offer_of_stored_report(dl)
+    first["summary"] = "first"
+    stub, _ = _refuse_and_stub(dl, first)
+    second = {**copy.deepcopy(first), "summary": "second"}
+
+    _assert_refused_through_the_inbox(dl, second, ACTOR, caplog)
+
+    assert dl.read(ReceivedActivityRecord.build_id(first["id"])) == stub
+
+
+@pytest.mark.spec("IE-10-001")
+@pytest.mark.spec("CLP-10-018")
+def test_the_same_body_under_a_refused_id_is_routed_on_its_own(
+    dl: SqliteDataLayer,
+):
+    """A stub holds no copy to route, so the same body goes on, on its own.
+
+    The seen-before door of the tree it reaches answers it from the stub
+    (ADR-0154, ``test/adapters/driving/fastapi/test_seen_before_door.py``).
+    """
+    first = _offer_of_stored_report(dl)
+    _, sealed = _refuse_and_stub(dl, first)
+    staging = InlineObjectStaging(dl)
+    dispatch_adp = _RecordingDispatch()
+
+    outcome = process_payload(
+        sealed,
+        FastAPIIngressAdapter(dl=dl, staging=staging),
+        dispatch_adp,
+        FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
+    )
+
+    assert outcome.status is InboxOutcomeStatus.PROCESSED
+    assert [event.activity_id for event in dispatch_adp.dispatched] == [
+        first["id"]
+    ]
 
 
 @pytest.mark.spec("IE-10-002")
@@ -496,7 +562,7 @@ def test_a_replayed_deferral_is_archived_as_its_first_delivery(
 
     record = dl.read(ReceivedActivityRecord.build_id(body["id"]))
     assert isinstance(record, ReceivedActivityRecord)
-    assert json.loads(record.received_body) == body
+    assert json.loads(sealed_body_of(record)) == body
 
 
 @pytest.mark.spec("VM-08-002")
@@ -537,29 +603,29 @@ def test_in_place_hydration_carries_the_evidence(
 
 @pytest.mark.spec("IE-10-001")
 @pytest.mark.spec("ARCH-15-001")
-@pytest.mark.parametrize("kind", ["deferred", "archived"])
+@pytest.mark.parametrize("kind", ["awaiting_replay", "archived"])
 def test_a_resend_whose_held_copy_does_not_rebuild_is_a_wiring_fault(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch, kind: str
 ):
     """The held copy is the resend's own text, so if it does not rebuild,
     neither would this body: ingress raises rather than route either."""
     first = _offer_of_stored_report(dl)
-    if kind == "deferred":
+    if kind == "awaiting_replay":
         _defer(dl, first)
-        held = dl.read(DeferredInboxActivity.build_id(first["id"]))
-        assert isinstance(held, DeferredInboxActivity)
-        resend = held.received_body
+        held = dl.read(ReceivedActivityRecord.build_id(first["id"]))
+        assert isinstance(held, ReceivedActivityRecord)
+        assert held.replay_owed
+        resend = sealed_body_of(held)
         monkeypatch.setattr(
             InlineObjectStaging, "rehydrate_held", lambda *_args: None
         )
     else:
-        resend = archive_received(
-            dl, parse_activity(copy.deepcopy(first))
-        ).received_body
+        resend = sealed_body_of(
+            archive_received(dl, parse_activity(copy.deepcopy(first)))
+        )
         monkeypatch.setattr(
             InlineObjectStaging, "rehydrate_archived", lambda *_args: None
         )
-    assert resend is not None
     adapter = FastAPIIngressAdapter(dl=dl)
     artifact = adapter.parse(json.loads(resend))
     assert artifact is not None
@@ -569,26 +635,46 @@ def test_a_resend_whose_held_copy_does_not_rebuild_is_a_wiring_fault(
 
 
 @pytest.mark.spec("VM-08-002")
-def test_an_archived_resend_deferred_again_is_held_with_the_archived_body(
+@pytest.mark.spec("CLP-10-074")
+def test_a_resend_deferred_again_is_held_with_the_body_left_in_holding(
     dl: SqliteDataLayer,
 ):
-    """A resend routed as the archived copy and then deferred is held with
-    the archived body, so its replay carries the first delivery's evidence."""
+    """A resend of a message a run left in holding with no verdict, routed
+    as that copy and then deferred, is held with the first body, so its
+    replay carries the first delivery's evidence (CLP-10-074)."""
     first = _offer_of_stored_report(dl)
-    record = archive_received(dl, parse_activity(copy.deepcopy(first)))
+    record = intake_received(dl, parse_activity(copy.deepcopy(first)))
     staging = InlineObjectStaging(dl)
     adapter = FastAPIIngressAdapter(dl=dl, staging=staging)
-    artifact = adapter.parse(json.loads(record.received_body))
+    artifact = adapter.parse(json.loads(sealed_body_of(record)))
     assert artifact is not None
     adapter.rehydrate(artifact)
 
     assert staging.hold_for_replay(first["id"])
 
-    held = dl.read(DeferredInboxActivity.build_id(first["id"]))
-    assert isinstance(held, DeferredInboxActivity)
-    archived = json.loads(record.received_body)
-    assert held.received_body is not None
-    assert json.loads(held.received_body) == archived
+    held = dl.read(ReceivedActivityRecord.build_id(first["id"]))
+    assert isinstance(held, ReceivedActivityRecord)
+    assert held.stage is ReceivedStage.HELD, "still not at its outcome"
+    assert held.replay_owed
+    first_body = json.loads(sealed_body_of(record))
+    assert json.loads(sealed_body_of(held)) == first_body
     replayed = StoredActivityIngressAdapter(dl=dl).parse(first["id"])
     assert replayed is not None
-    assert replayed.received_evidence == archived
+    assert replayed.received_evidence == first_body
+
+
+@pytest.mark.spec("CLP-10-073")
+def test_an_archived_resend_deferred_again_is_not_held(dl: SqliteDataLayer):
+    """An applied message is not held for a replay that would apply it
+    again: the archive stands, and the resend's seen-before door skips it."""
+    first = _offer_of_stored_report(dl)
+    record = archive_received(dl, parse_activity(copy.deepcopy(first)))
+    staging = InlineObjectStaging(dl)
+    adapter = FastAPIIngressAdapter(dl=dl, staging=staging)
+    artifact = adapter.parse(json.loads(sealed_body_of(record)))
+    assert artifact is not None
+    adapter.rehydrate(artifact)
+
+    assert staging.hold_for_replay(first["id"]) is False
+
+    assert dl.read(ReceivedActivityRecord.build_id(first["id"])) == record

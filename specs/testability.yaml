@@ -249,9 +249,6 @@ groups:
       removes it: actor A's outbox write is immediately visible to actor B without going
       through any delivery mechanism, making the test a unit test of shared state rather
       than an integration test of the protocol.
-    relationships:
-    - rel_type: refines
-      spec_id: TB-06-001
   - id: TB-06-008
     priority: MUST
     kind: project
@@ -265,7 +262,7 @@ groups:
       constant gives each test the same one. Convention: name the constant
       `_always_succeed_factory` or `_always_fail_factory` at module level.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: TB-06-006
   - id: TB-06-009
     priority: MUST
@@ -279,7 +276,7 @@ groups:
       distribution may pass or fail depending on random outcomes. The deterministic
       factory ensures the test exercises a specific code path every time.
     relationships:
-    - rel_type: extends
+    - rel_type: depends_on
       spec_id: TB-06-008
 - id: TB-07
   title: Mocking and Stubbing
@@ -305,6 +302,9 @@ groups:
       a stub or an in-memory store, a failure points at the unit and not at a database
       deployment, and the test does not depend on database setup. `test/conftest.py`
       and `BTTestScenario` give unit tests a real in-memory `SqliteDataLayer`.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-06-002
   - id: TB-07-003
     priority: MAY
     kind: project
@@ -362,7 +362,7 @@ groups:
       A test with branches checks different things on different runs, and a reader
       cannot tell which branch ran.
     relationships:
-    - rel_type: extends
+    - rel_type: derives_from
       spec_id: TB-09-001
   - id: TB-09-005
     priority: MUST_NOT
@@ -375,9 +375,6 @@ groups:
       A bare `try`/`except` can hide the error the test must report. `pytest.raises`
       asserts the one exception the scenario expects and lets every other error fail
       the test.
-    relationships:
-    - rel_type: extends
-      spec_id: TB-09-001
   - id: TB-09-002
     priority: SHOULD
     kind: project
@@ -418,42 +415,53 @@ groups:
       name and confirm zero matches; confirm `pyproject.toml` registers the new
       name; run `pytest -m "new_mark_name" --collect-only` and confirm non-zero
       test collection.
+  - id: TB-11-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The test job of `.github/workflows/python-app.yml` MUST run the suite as
+      parallel parts that together collect each test exactly once. Each named
+      part claims paths under `test/`, and one catch-all part selects `test`
+      while ignoring every claimed path.
+    rationale: >-
+      Parts that each list their own paths drop a new test directory in
+      silence: no part selects it, every part reports green, and nothing ran
+      it. A path two parts select runs twice and spends a part's runner time
+      on a result the run already has. Deriving the catch-all from the other
+      parts' claims turns both states into a disagreement between the claims
+      and the ignores, which a check reads off the workflow without running a
+      test.
+    verification: >-
+      `test/ci/test_python_app_test_parts.py` compares the catch-all part's
+      ignores with the union of the named parts' claims, refuses a path more
+      than one part claims, refuses a claim nested inside another, refuses a
+      claimed path that does not exist or holds no test module, and refuses a
+      catch-all that names directories instead of the whole tree. It compares
+      paths with any trailing slash stripped, which would otherwise hide both
+      kinds of overlap. It also pins the part count the merge gate derives
+      from the workflow to the matrix's length, so a gate expecting fewer
+      parts cannot read a subset of green ones as the whole suite.
+  - id: TB-11-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The build job and the reporting job of
+      `.github/workflows/python-app.yml` MUST wait for every test part, so one
+      red part fails the run.
+    rationale: >-
+      Parts of one matrix job are reached through a single `needs:` entry, and
+      the `needs.*.result` aggregate reads `failure` when any part fails, so
+      the failure notification still files on a push to `main`. A part moved
+      to its own job id is one a `needs:` list can omit, and its failure would
+      then neither fail the run nor reach that aggregate.
+    verification: >-
+      `test/ci/test_python_app_test_parts.py::test_the_downstream_jobs_wait_for_every_pytest_job`
+      asserts that the `build` and `notify` jobs each name every job in the
+      workflow that runs `pytest` in `needs:`, so a part promoted to its own
+      job id fails until both wait for it.
     relationships:
     - rel_type: refines
-      spec_id: TB-01-002
-      note: Mark consistency between source, config, and CI is part of test
-        infrastructure correctness
-- id: TB-10
-  title: Architecture Boundary Tests
-  specs:
-  - id: TB-10-002
-    priority: MUST
-    kind: process
-    verification_debt: '#2571'
-    statement: >-
-      An architecture ratchet test MUST compare with equality, `assert
-      actual_violations == KNOWN_VIOLATIONS`, not with a subset check (`assert actual
-      ⊆ KNOWN`).
-    rationale: >-
-      With a subset check, a violation that is fixed can stay on the known list. A
-      later change can then bring the same violation back, and the test still passes.
-      An equality check fails as soon as a listed violation is fixed (ARCH-18-001).
-    relationships:
-    - rel_type: implements
-      spec_id: ARCH-18-001
-  - id: TB-10-003
-    priority: MUST
-    kind: process
-    verification_debt: '#2571'
-    statement: >-
-      When a change resolves a ratchet violation, it MUST remove the entry from
-      `KNOWN_VIOLATIONS` in the same commit.
-    rationale: >-
-      The equality check (TB-10-002) fails until the entry goes. Removing it in the
-      same commit keeps the list matched to the code at every commit.
-    relationships:
-    - rel_type: extends
-      spec_id: TB-10-002
+      spec_id: CISEC-05-013
 - id: TB-12
   title: BT Test Harness
   specs:
@@ -469,9 +477,6 @@ groups:
       initialise, update and shutdown) with the acting actor's own DataLayer. A test
       that builds the blackboard by hand can give a node state that the real tree never
       gives it. Such a test can pass while the node fails in production.
-    relationships:
-    - rel_type: refines
-      spec_id: TB-03-001
   - id: TB-12-002
     priority: MUST
     kind: project
@@ -483,7 +488,7 @@ groups:
       second run of the same instance starts from that state, so it can pass because of
       what the first run left, and that accumulated state masks isolation failures.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: TB-12-001
   - id: TB-12-007
     priority: MUST
@@ -508,9 +513,6 @@ groups:
       per-test timeout tiers (TB-14-001) sit well above it so that load on a CI
       runner or dev box never trips them on honest work, which means no timeout
       enforces this budget.
-    relationships:
-    - rel_type: refines
-      spec_id: TB-12-001
   - id: TB-12-004
     priority: SHOULD
     kind: project
@@ -523,7 +525,7 @@ groups:
       children succeeded and which failed, so a test can pass with the wrong child
       failing. Leaf statuses show where the tree stopped.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: TB-12-001
   - id: TB-12-005
     priority: SHOULD
@@ -537,7 +539,7 @@ groups:
       Redesigning the test keeps the scenario small. A timeout tier that fires on
       honest work across many tests is a different problem, covered by TB-14-003.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: TB-12-003
 - id: TB-13
   title: Architecture Ratchet Corpus
@@ -572,7 +574,7 @@ groups:
       the name that the test looks for. A substring check first lets the test parse
       only the files that can match.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: TB-13-001
   - id: TB-13-003
     priority: MUST_NOT
@@ -607,7 +609,7 @@ groups:
       `test/architecture/test_ratchet_hygiene.py` is the meta-ratchet itself: it
       fails on a sibling file that holds either call outside `_corpus.py`.
     relationships:
-    - rel_type: implements
+    - rel_type: verifies
       spec_id: TB-13-003
   - id: TB-13-004
     priority: SHOULD
@@ -683,7 +685,7 @@ groups:
       and `test_explicit_marker_beats_the_tier_default` assert that a test's own
       marker wins over the tier.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: TB-14-001
   - id: TB-14-002
     priority: MUST
@@ -699,7 +701,7 @@ groups:
       and a passing one under the configured `timeout_method`, and checks that a
       trip leaves the BT global lock free.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: TB-14-001
   - id: TB-14-008
     priority: MUST
@@ -743,7 +745,7 @@ groups:
       runners and loaded dev boxes inflates honest tests far past their idle cost,
       and a too-tight tier reads as flakiness that is re-diagnosed again and again.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: TB-14-001
   - id: TB-14-004
     priority: MUST
@@ -791,9 +793,11 @@ groups:
       `timeout`.
     verification: >-
       `test/metadata/test_targeted_tests.py` checks that the printed gate command
-      starts with `GATE_CEILING`. `test/metadata/test_gate_ceiling.py` checks every
-      redirected pytest gate in agent-facing files for the ceiling, and the CI test
-      job for `timeout-minutes`.
+      runs under `GATE_CEILING`, after the heavy-check slot wrapper.
+      `test/metadata/test_gate_ceiling.py` checks every redirected pytest gate in
+      agent-facing files for the ceiling, and the CI test job for
+      `timeout-minutes`. The wrapper's own wait for a slot ends at its default
+      limit (`test/metadata/test_run_heavy.py`).
   - id: TB-14-006
     priority: MUST
     kind: project
@@ -836,10 +840,8 @@ groups:
       on any test that obtains its network other than by loading a named
       starting point.
     relationships:
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: DEMOCI-11-014
-    - rel_type: depends_on
-      spec_id: DEMOCI-11-017
   - id: TB-15-002
     priority: MUST
     kind: project
@@ -854,7 +856,7 @@ groups:
       A harness test counts the tree runs while two tests load one starting point,
       and checks the point's steps ran once.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: TB-15-001
   - id: TB-15-003
     priority: MUST
@@ -871,7 +873,7 @@ groups:
       A harness test builds one starting point twice and checks that the two copies
       hold the same records, ids and timestamps included.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: TB-15-001
   - id: TB-15-004
     priority: MUST
@@ -886,7 +888,7 @@ groups:
       A harness test counts the rebuild replays of a starting point loaded by two
       tests, and checks it was replayed once.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: TB-15-002
   - id: TB-15-005
     priority: MUST
@@ -930,7 +932,7 @@ groups:
       A harness test loads one starting point into two tests and checks that a write
       in one is absent from the other.
     relationships:
-    - rel_type: refines
+    - rel_type: uses_definition
       spec_id: TB-15-001
 - id: TB-16
   title: Guard Reachability
@@ -971,3 +973,33 @@ groups:
       against an empty `KNOWN_UNSUPPLIED_GATES` baseline.
       `test_detector_catches_the_witness_gate` proves the check fires, against the
       pre-fix shape reconstructed inline.
+- id: TB-17
+  title: Strict Goal Markers
+  specs:
+  - id: TB-17-001
+    priority: MUST
+    kind: project
+    statement: >-
+      An `xfail` marker on a test under `test/` MUST be written with `strict=True`.
+      A marker in a `pytest.param(marks=...)` entry counts the same as a decorator.
+      The one exception is a file recorded, with its reason, in the pinned exemption
+      set the enforcing check reads.
+    rationale: >-
+      An `xfail` here marks a goal state: a requirement written before the code that
+      satisfies it. Under `strict=False` the day that code lands is an XPASS in a
+      tally nobody reads, so the marker outlives its defect and the assertion it
+      guarded stops being checked (#3934 item 2, #2244). ARCH-21-008 asks the same,
+      but as a SHOULD and only of an ARCH-21-005 backlog's goal test, so the broader
+      rule several prose statements assert had no requirement behind it, and its
+      check would read as unfounded.
+    verification: >-
+      `test_every_xfail_is_strict` in `test/architecture/test_ratchet_hygiene.py`
+      takes every `xfail` marker under `test/` from the shared corpus (TB-13-001)
+      and fails on any that omits or disables `strict`, naming each as `path:line`.
+      It keys on the marker, not on the decorated function's name, so a rename
+      loses no subjects. `test_the_xfail_matcher_can_see_a_violation` drives the
+      same matcher over inline source holding each lax spelling, and
+      `test_the_xfail_scan_reaches_the_test_tree` floors the markers the walk finds,
+      so the empty violation list that is the expected result is not a vacuous pass.
+      `xfail_strict = true` in `pyproject.toml` is the run-time half, catching an
+      indirection the source scan cannot resolve.

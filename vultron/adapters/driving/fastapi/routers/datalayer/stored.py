@@ -28,6 +28,7 @@ from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
+    ReceivedStage,
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
@@ -92,6 +93,11 @@ def _received_offers(datalayer: DataLayer) -> dict[str, as_Activity]:
         )
         for record in datalayer.list_objects(ReceivedActivityRecord.__name__)
         if isinstance(record, ReceivedActivityRecord)
+        # Archived only: a body still held for a replay has not been
+        # received into this actor's records yet (ADR-0154), and the
+        # delivery that routes it may still refuse it.
+        and record.stage is ReceivedStage.ARCHIVED
+        and record.received_body is not None
         and json.loads(record.received_body).get("type") == _OFFER_TYPE
     }
 

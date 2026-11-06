@@ -290,8 +290,8 @@ class CloseReportReceivedUseCase:
     or sent.
     Before any case exists the receiver holds no case to apply the sender's
     closure to, so the tree refuses the activity as one about a case it does
-    not hold (#2255), as it always has.  Either way intake archives what
-    arrived first (CLP-10-018).
+    not hold (#2255), as it always has.  Either way the outcome stage leaves
+    only a receipt stub of what arrived (CLP-10-018).
     """
 
     # Before any case, the report's receiver closes it to the reporter (the

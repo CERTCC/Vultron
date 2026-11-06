@@ -37,6 +37,7 @@ from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.embargo_clock_decisions import (
     embargo_clock_decisions,
 )
@@ -136,7 +137,7 @@ def invite_to_embargo_on_case_tree(
     delivered again while its proposal is open
     (``pending_embargo_proposal_index`` already maps the embargo to this
     Invite's id) commits nothing and the handler reports it as a repeat
-    (CLP-13-001, HP-01-003).  The index holds no decided proposal
+    (CLP-13-001, HP-01-014).  The index holds no decided proposal
     (EP-08-003), so on the participant path a second guard,
     :class:`~vultron.core.behaviors.embargo.nodes.relay_guards.EmbargoInviteNotYetAnsweredNode`,
     skips an Invite the invitee has already answered, however its proposal
@@ -153,7 +154,7 @@ def invite_to_embargo_on_case_tree(
     matter (HP-01-037, HP-01-038).
 
     **A participant replica stores and answers** the Invite addressed to it
-    and writes nothing else (EP-09-003).  The intake archives the Invite
+    and writes nothing else (EP-09-003).  Intake records the Invite
     under the receiver's key (CLP-10-017, DL-06-006); when
     the executing actor is its addressee, the EMB-15 response decision
     (``create_embargo_response_decision_tree``) queues an ``Accept`` or
@@ -294,11 +295,13 @@ def invite_to_embargo_on_case_tree(
                             name="OwnerHoldsAnswer",
                             memory=False,
                             children=[
-                                ActorHoldsRoleInCaseNode(
-                                    actor_id=invitee_id,
-                                    role=CVDRole.CASE_OWNER,
-                                    case_id=case_id,
-                                    name="InviteeIsCaseOwner",
+                                with_case_id(
+                                    ActorHoldsRoleInCaseNode(
+                                        actor_id=invitee_id,
+                                        role=CVDRole.CASE_OWNER,
+                                        name="InviteeIsCaseOwner",
+                                    ),
+                                    case_id,
                                 ),
                                 py_trees.decorators.Inverter(
                                     name="AutoAcceptNotAllowed",
@@ -316,11 +319,13 @@ def invite_to_embargo_on_case_tree(
                             name="OwnerDecides",
                             memory=False,
                             children=[
-                                ActorHoldsRoleInCaseNode(
-                                    actor_id=invitee_id,
-                                    role=CVDRole.CASE_OWNER,
-                                    case_id=case_id,
-                                    name="InviteeIsOwner",
+                                with_case_id(
+                                    ActorHoldsRoleInCaseNode(
+                                        actor_id=invitee_id,
+                                        role=CVDRole.CASE_OWNER,
+                                        name="InviteeIsOwner",
+                                    ),
+                                    case_id,
                                 ),
                                 create_embargo_response_decision_tree(
                                     case_id=case_id,

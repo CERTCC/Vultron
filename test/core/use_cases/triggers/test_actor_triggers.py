@@ -24,7 +24,7 @@ are normalised to full URIs before use.
 
 import json
 import logging
-from datetime import UTC
+from datetime import timedelta
 from typing import Any, cast
 from unittest.mock import MagicMock
 
@@ -42,6 +42,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.future_dates import FAR_FUTURE
 from test.support.received import archive_received, case_stub
 from test.support.transferee import (
     INACTIVE_STANDINGS,
@@ -205,14 +206,12 @@ def _activate_embargo(
     Each of *signatories* agrees to it, so it stays an active participant
     that may act on the case (CM-10-004, CM-23-018).
     """
-    from datetime import datetime
-
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
     embargo = as_EmbargoEvent(
         id_=f"{case_id}/embargo/e1",
         content="Active embargo",
-        end_time=datetime(2030, 1, 1, tzinfo=UTC),
+        end_time=FAR_FUTURE,
         context=case_id,
     )
     dl.create(embargo)
@@ -230,14 +229,16 @@ def _open_revision(dl: SqliteDataLayer, case_id: str) -> str:
     The prior embargo stays in force and every signatory to it remains one
     (EP-05-002).  Returns the revision's id.
     """
-    from datetime import datetime
-
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
     revision = as_EmbargoEvent(
         id_=f"{case_id}/embargo/e2",
         content="Revised embargo",
-        end_time=datetime(2031, 1, 1, tzinfo=UTC),
+        # Derived from the end `_activate_embargo` gives the embargo in force,
+        # so the revision asks for a longer window than the one it revises —
+        # the relation the harness has always set up, stated rather than
+        # left to two independent literals.
+        end_time=FAR_FUTURE + timedelta(days=365),
         context=case_id,
     )
     dl.create(revision)
@@ -638,13 +639,22 @@ class TestInviteRolesAndEmbargoEnrichment:
         assert result.reason is not None
 
     @pytest.mark.spec("CM-17-007")
+    @pytest.mark.spec("PCR-07-008")
     def test_invite_is_the_case_managers_attributed_to_the_owner(
         self, make_payload
     ):
+        """The Invite the owner asks for goes out under the CASE_MANAGER's id.
+
+        This is PCR-07-008's first half: ``actor`` is the CASE_MANAGER and
+        ``attributedTo`` the owner that asked, and the harness keeps those two
+        as distinct actors, so the wire form is read rather than the argument
+        the factory was handed.
+        """
         harness = _OwnerDirectInvite()
 
         _invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
 
+        assert harness.manager.id_ != harness.owner.id_
         assert wire["actor"] == harness.manager.id_
         assert wire.get("attributedTo") == harness.owner.id_
         assert wire.get("to") == [harness.invitee.id_]
@@ -1508,7 +1518,7 @@ class TestSvcActorRecommendationAnswerUseCases:
 
 
 def _seed_managed_case(owner, dl, *peers, participant_ids=()):
-    """A case whose roster names a separate CASE_MANAGER (CM-24-006).
+    """A case whose roster names a separate CASE_MANAGER (CM-02-014).
 
     The owner's trigger runs in the owner's own store only (CM-24-011,
     ADR-0109); the CASE_MANAGER's store is seeded with the case too, so the

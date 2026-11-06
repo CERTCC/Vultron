@@ -36,6 +36,7 @@ from vultron.core.behaviors.case.nodes.refusal_notice import (
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 
 
 def create_guarded_commit_case_ledger_entry_tree(
@@ -58,7 +59,7 @@ def create_guarded_commit_case_ledger_entry_tree(
     return create_case_manager_gated_tree(
         name="GuardedCommitCaseLedgerEntryBT",
         case_id=case_id,
-        children=[CommitCaseLedgerEntryNode(case_id=case_id)],
+        children=[with_case_id(CommitCaseLedgerEntryNode(), case_id)],
         case_may_be_absent=case_may_be_absent,
     )
 
@@ -67,10 +68,10 @@ class ReceivedActivityTree(py_trees.composites.Sequence):
     """The one tree a received activity runs (CLP-10-005, ADR-0135).
 
     A plain ``Sequence`` that also remembers which of its children are the
-    door guards (intake, the post-close guard, the addressee check, the path
-    stage and the sender guard, CLP-10-010), so a handler can ask whether the
-    delivery got
-    past them without knowing which guard the tree runs first, and which
+    door guards (the addressee check, the seen-before door, the path stage,
+    the closed-sender check, the post-close guard and the sender guard,
+    CLP-10-010), so a handler can ask whether the delivery got past them
+    without knowing which guard the tree runs first, and which
     exemptions, if any, it was built with in place of the refusal notice
     (CLP-02-005) and of one act (CLP-07-015).
     """

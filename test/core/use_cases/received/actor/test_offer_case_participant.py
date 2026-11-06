@@ -37,7 +37,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
 )
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.received import received_event
+from test.support.received import received_event, settle_as_the_inbox
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -293,13 +293,16 @@ class TestOfferCaseParticipantReceivedUseCase:
         event = self._event(at=dl)
 
         def deliver() -> HandlerResult:
-            return OfferCaseParticipantReceivedUseCase(
+            result = OfferCaseParticipantReceivedUseCase(
                 dl,
                 event,
                 trigger_activity=TriggerActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(dl),
             ).execute()
+            # The inbox's outcome stage settles the record (ADR-0154).
+            settle_as_the_inbox(dl, event, result)
+            return result
 
         assert deliver().disposition is HandlerDisposition.APPLIED
         assert deliver().disposition is HandlerDisposition.SKIPPED
@@ -1829,7 +1832,7 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
 
 
 class TestOfferCaseParticipantAtACaseWithNoManager:
-    """A case whose roster names no CASE_MANAGER refuses the Offer (CM-24-006).
+    """A case whose roster names no CASE_MANAGER refuses the Offer (CM-24-014).
 
     The path stage puts a receiver that holds the case without the role on
     the participant-replica path, which the Offer receipt declares, so the
@@ -1849,7 +1852,7 @@ class TestOfferCaseParticipantAtACaseWithNoManager:
         dl.create(case)
         return dl
 
-    @pytest.mark.spec("CM-24-006")
+    @pytest.mark.spec("CM-24-014")
     @pytest.mark.spec("HP-01-005")
     def test_offer_receipt_at_a_case_with_no_manager_is_refused(self):
         dl = self._seed_without_a_manager()
@@ -1880,7 +1883,7 @@ class TestOfferCaseParticipantAtACaseWithNoManager:
         thing about the receiver — it holds no replica — so the distinction
         survives the move without the handler inferring anything
         (HP-01-039).  A store that holds the case but no CASE_MANAGER keeps
-        its own, different reason, pinned by the test above (CM-24-006).
+        its own, different reason, pinned by the test above (CM-24-014).
         """
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_ACTOR_ID)
         dl.create(as_Service(id_=CASE_ACTOR_ID))

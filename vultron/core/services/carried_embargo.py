@@ -117,6 +117,23 @@ def hold_embargo_for_case(
     return _held_embargo(store, _case_subjects(case), case.id_, record.id_)
 
 
+def embargo_for_case(
+    store: CasePersistence | DataLayer,
+    case: VulnerabilityCase,
+    embargo: EmbargoEvent | str,
+) -> EmbargoEvent:
+    """The record :func:`hold_embargo_for_case` would hold, writing nothing.
+
+    The stored record when *store* holds one, else the inline copy, checked
+    as that function checks them (EMB-18-003, EMB-18-004): a reading of the
+    embargo a notice names before anything is written.
+
+    Raises:
+        As :func:`hold_embargo_for_case`.
+    """
+    return _vet_embargo_for_case(store, case, embargo)[0]
+
+
 def _vet_embargo_for_case(
     store: CasePersistence | DataLayer,
     case: VulnerabilityCase,
@@ -298,6 +315,7 @@ def carried_entry_embargo(
 
 __all__ = [
     "carried_entry_embargo",
+    "embargo_for_case",
     "entry_embargo",
     "hold_embargo_for_case",
     "store_carried_embargo",

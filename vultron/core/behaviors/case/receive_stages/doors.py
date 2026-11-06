@@ -15,8 +15,10 @@
 
 """The door guards of a received tree (CLP-10-010, HP-01-005, CM-23-013).
 
-Intake is followed by the post-close guard, the addressee check, the path
-stage, the closed-sender check, any case resolution and the sender guard.
+In ADR-0154's order: the addressee check, the seen-before door, the path
+stage, the post-close guard, the closed-sender check, any case resolution and
+the sender guard.  Intake follows them, so nothing is written before the last
+door admits the message.
 Split out of ``receive_activity_tree.py`` (CS-18-005).
 """
 
@@ -30,9 +32,6 @@ from vultron.core.behaviors.case.nodes.addressee import (
     AddresseeExemption,
 )
 from vultron.core.behaviors.case.nodes.case_lookup import CaseResolving
-from vultron.core.behaviors.case.nodes.intake import (
-    IntakeReceivedActivityNode,
-)
 from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
     PostCloseExemption,
@@ -41,6 +40,9 @@ from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
     ReceivedPathNode,
     declared_paths,
+)
+from vultron.core.behaviors.case.nodes.seen_before import (
+    ActivityNotSeenBeforeNode,
 )
 from vultron.core.behaviors.case.receive_stages.guards import refusal_stage
 from vultron.core.behaviors.emit_capable import EmitCapable
@@ -82,19 +84,32 @@ def addressee_stage(
     return []
 
 
+def seen_before_stage(name: str) -> ActivityNotSeenBeforeNode:
+    """The seen-before door, labelled with the tree's name (ADR-0154).
+
+    Every received tree carries it, after the addressee check: a resend is
+    answered from the message's record before intake writes anything, and no
+    tree opts out.  A nested received tree meets the record its enclosing
+    tree's intake wrote, ``HELD`` with no replay owed, and passes.
+    """
+    return ActivityNotSeenBeforeNode(label=name)
+
+
 def post_close_stage(
     name: str,
-    intake: IntakeReceivedActivityNode,
     guard_case_id: str | None,
     exemption: PostCloseExemption | None,
     reply: list[py_trees.behaviour.Behaviour],
+    seen_door: ActivityNotSeenBeforeNode,
 ) -> list[py_trees.behaviour.Behaviour]:
     """The post-close write-boundary guard, with its optional reply.
 
-    Returns the nodes to place directly after intake: nothing for an exempt
-    tree, the bare :class:`CaseOpenToExternalWritesNode` when the tree owes
-    no reply, or a refusal stage that runs *reply* only when the guard
-    refuses (CM-23-013).
+    Returns the nodes to place beside the sender guard, ahead of it: nothing
+    for an exempt tree, the bare :class:`CaseOpenToExternalWritesNode` when
+    the tree owes no reply, or a refusal stage that runs *reply* only when
+    the guard refuses (CM-23-013).  Whether a closed case takes the write is
+    a question about the case, asked once the message is known to be for
+    the receiver (ADR-0154).
 
     Raises:
         VultronWiringError: an exempt tree passes a reply (the reply could
@@ -116,10 +131,10 @@ def post_close_stage(
     return [
         refusal_stage(
             name,
-            intake,
             [guard],
             reply,
             guard_case_id,
+            seen_door=seen_door,
             stage_name="PostCloseStage",
             guards_name="PostCloseGuard",
             gate_suffix="PostCloseReplyIfCaseManager",
@@ -168,6 +183,11 @@ def received_path_stage(
     refused there, with the reason the stage composes from the resolved path
     and the declaration (HP-01-005, HP-01-039).
 
+    The node takes no case: the caller seeds its ``/case_id`` port with
+    *case_id* (:func:`~vultron.core.behaviors.case_id_scope.with_case_id`,
+    BTND-01-006) where it places the stage, and *case_id* is read here only
+    to refuse a tree whose case nothing ahead of the stage could name.
+
     ``None`` for a tree that has not declared its paths yet; the migration
     onto the declaration is tracked by the ratchet in
     ``test/architecture/test_received_path_role_question.py``.
@@ -196,7 +216,7 @@ def received_path_stage(
             " receiver's role in; name the case at build time or declare no"
             " paths yet (ADR-0153, HP-01-025)"
         )
-    return ReceivedPathNode(declared=declared, case_id=case_id, label=name)
+    return ReceivedPathNode(declared=declared, label=name)
 
 
 def closed_sender_stage(
@@ -224,7 +244,7 @@ def case_resolution_stage(
 ) -> list[py_trees.behaviour.Behaviour]:
     """The steps that resolve the case the sender guard reads (HP-01-025).
 
-    They run between the post-close guard and the sender guard, so they may
+    They run just before the sender guard, ahead of intake, so they may
     only read: a sender with no standing must leave nothing behind
     (HP-01-006).  A step may publish what it resolved on the blackboard
     (``/case_id``), which is not a DataLayer write.  Not every writer carries

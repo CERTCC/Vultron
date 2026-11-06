@@ -163,7 +163,7 @@ finding.
 3. For each `notes/*.md` file **modified** in the PR: validate frontmatter.
 4. If any modified note has `status: superseded`, flag that it should have
    been moved to `archived_notes/` instead of edited.
-5. If `docs/` was modified: confirm `uv run mkdocs build --strict` passed
+5. If `docs/` was modified: confirm the `build-docs` skill passed
    (check CI or note it as pending).
 
 ### Docs currency procedure (PD-03-009)

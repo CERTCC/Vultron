@@ -23,10 +23,10 @@ from vultron.metadata.planning.size_bands import (  # noqa: F401
 )
 
 # The PAD-05 band table — weights, the unsized fallback, and which bands are
-# past the review ceiling — lives in `size_bands`, re-exported here because this
-# module is what the rest of the subpackage imports. Deriving rather than
-# restating is the point: the thresholds were duplicated in eight prose sites
-# and computed in none, and the labels were correct 24% of the time as a result.
+# never bundled — lives in `size_bands`, re-exported here because this module
+# is what the rest of the subpackage imports. Deriving rather than restating is
+# the point: the thresholds were once duplicated in eight prose sites and
+# computed in none (the survey figures are in the PAD-05-011 rationale).
 
 # A bundle becomes one PR, so the budget is a review budget.
 DEFAULT_BUDGET = 6
@@ -72,7 +72,7 @@ NON_TOPIC_LABELS = frozenset(
         "needs-rebase",
         "needs-triage",
         "needs-info",
-        "needs-decomposition",
+        "needs-planning",
     }
 )
 
@@ -126,7 +126,7 @@ class Candidate:
 
     @property
     def unbundlable(self) -> bool:
-        """Whether a band past the review ceiling was applied (``size:XL``)."""
+        """Whether a never-bundled band was applied (``size:XL``)."""
         return any(label in UNBUNDLABLE_LABELS for label in self.labels)
 
     @property

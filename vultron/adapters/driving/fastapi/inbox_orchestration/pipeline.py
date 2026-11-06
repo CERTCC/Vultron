@@ -37,6 +37,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration.ingress import (
 from vultron.adapters.driving.fastapi.inbox_orchestration.ports import (
     FastAPIDispatchAdapter,
     FastAPIQueuePort,
+    FastAPIReceivedOutcomePort,
 )
 from vultron.adapters.driving.fastapi.inbox_queue_drain import (
     drain_inbox_queue,
@@ -101,6 +102,9 @@ class _InboxRun:
         self.dereference = FastAPIDereferencePort(
             actor_dl, actor_id, self.staging
         )
+        # The final outcome stage's one write: a refused delivery's body is
+        # given up for a receipt stub (CLP-10-018, ADR-0154).
+        self.outcome = FastAPIReceivedOutcomePort(actor_dl)
         # The receiving actor's RSVP windows govern inbound embargo invites
         # (EP-07-001, EP-07-002); None applies the protocol defaults.
         self.actor_config = inbox_port_factories._resolve_actor_config()
@@ -117,6 +121,7 @@ class _InboxRun:
             self.actor_config,
             self.max_attempts,
             self.dereference,
+            self.outcome,
         )
 
 
@@ -171,6 +176,29 @@ async def run_serialised_actor_work(
     await _run_serialised(actor_dl, actor_id, emitter, work)
 
 
+async def run_actor_work_then_replay(
+    actor_dl: DataLayer,
+    actor_id: str,
+    dispatcher: ActivityDispatcher | None,
+    emitter: ActivityEmitter | None,
+    work: Callable[[], None],
+) -> None:
+    """Run *work*, then replay what it queued, as one serialised run.
+
+    For actor-initiated work that queues held activities for their replay,
+    such as the end of a sender-sequence hold whose wait has passed
+    (SYNC-21-011): the replay follows under the same lock, so no delivery
+    is judged between the hold's end and the activities it releases.
+    """
+    run = _InboxRun(actor_dl, actor_id, dispatcher)
+
+    def _work_then_replay() -> None:
+        work()
+        run.drain_queue()
+
+    await _run_serialised(actor_dl, actor_id, emitter, _work_then_replay)
+
+
 async def run_inbox_pipeline(
     payload: dict[str, Any] | bytes | str | Any,
     actor_dl: DataLayer,
@@ -223,6 +251,7 @@ async def run_inbox_pipeline(
             run.queue,
             actor_config=run.actor_config,
             dereference_port=run.dereference,
+            received_outcome_port=run.outcome,
         )
         logger.debug(
             "run_inbox_pipeline: status=%s context_id=%s",

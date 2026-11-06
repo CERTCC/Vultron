@@ -13,7 +13,7 @@
 
 """Run the shared intake-only tree for a received handler (#3871, CLP-10-005).
 
-A handler whose whole job is to archive what arrived calls :func:`run_intake_only`
+A handler whose whole job is to record what arrived calls :func:`run_intake_only`
 from ``execute()`` and maps the run through
 :func:`~vultron.core.use_cases.received._bt_verdict.intake_verdict`.  The tree is
 :func:`~vultron.core.behaviors.case.intake_only_received_tree.create_intake_only_received_tree`;

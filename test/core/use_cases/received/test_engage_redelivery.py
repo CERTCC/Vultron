@@ -19,7 +19,7 @@ announce either: the store and the outbox stand as the first delivery left
 them and the handler reports ``SKIPPED``.  Duplicate detection by activity id
 runs ahead of dispatch but does not replace the handler's own check, which is
 what keeps the redelivery from producing a second side effect (ID-02-003,
-ID-05-003, HP-01-003).
+ID-05-003, HP-01-014).
 
 The sweep in ``test/adapters/driving/fastapi/test_inbox_redelivery.py`` cannot
 see this: its examples run against a store that holds no case, so the engage

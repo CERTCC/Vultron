@@ -39,7 +39,10 @@ from vultron.metadata.specs.docs_render import (
     render_requirement_row,
     requirement_callout,
 )
-from vultron.metadata.specs.docs_render.rows import _REL_LABEL
+from vultron.metadata.specs.docs_render.rows import (
+    _REL_LABEL,
+    _render_relationships_cell,
+)
 from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.schema import RelationType, SpecKind, SpecTag
 
@@ -1221,6 +1224,15 @@ def _dangling_links(
     return dangling
 
 
+# Interim, until #5952 makes this test fast: it renders every callout once per
+# page that includes it and costs ~15s idle, within 2x of the 30s unit tier,
+# so a loaded container trips it on honest work. The marker is not the fix —
+# #5952 shares the repeated render, after which this goes away. It is here
+# rather than in the tier because the tier is the hang detector for every
+# other test, and one outlier must not widen it (TB-14-003 prefers the tier;
+# the outlier is why it does not apply). An explicit marker wins over the
+# tier (`pyproject.toml`).
+@pytest.mark.timeout(90)
 def test_docs_callouts_link_existing_rows():
     """Every requirement callout in ``docs/`` renders, and every link it
     prints lands on an id its target page defines, on every page that
@@ -1383,3 +1395,87 @@ def test_dangling_links_flags_a_missing_id():
         "../../specs/project/#nope",
         "#vm-10-001",
     ]
+
+
+# ---------------------------------------------------------------------------
+# see_also citations in the Related cell (SR-13-022)
+# ---------------------------------------------------------------------------
+
+SEE_ALSO_YAML = {
+    "id": "SAL",
+    "title": "See-Also Specs",
+    "description": "A citation listed in see_also",
+    "scope": ["production"],
+    "groups": [
+        {
+            "id": "SAL-01",
+            "title": "See-Also Group",
+            "specs": [
+                {
+                    "id": "SAL-01-001",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "SAL-01-001 MUST hold, as SAL-01-002 shows.",
+                    "rationale": "Because testing.",
+                    "relationships": [
+                        {"rel_type": "refines", "spec_id": "SAL-01-003"}
+                    ],
+                    "see_also": [
+                        {"spec_id": "SAL-01-002", "reason": "an example"}
+                    ],
+                },
+                {
+                    "id": "SAL-01-002",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "SAL-01-002 MUST hold, as SAL-01-003 shows.",
+                    "rationale": "Because testing.",
+                    "see_also": [
+                        {"spec_id": "SAL-01-003", "reason": "a scope note"}
+                    ],
+                },
+                {
+                    "id": "SAL-01-003",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "SAL-01-003 MUST hold.",
+                    "rationale": "Because testing.",
+                },
+            ],
+        }
+    ],
+}
+
+
+@pytest.mark.spec("SR-13-022")
+def test_render_for_kind_related_cell_lists_see_also_after_links(tmp_path):
+    (tmp_path / "sal.yaml").write_text(yaml.dump(_as_kind(SEE_ALSO_YAML)))
+    md = render_for_kind(_KIND, load_registry(tmp_path))
+
+    row = next(line for line in md.splitlines() if "SAL-01-001 MUST" in line)
+    related = row.rsplit("|", 2)[1]
+    assert (
+        "*Refines*: [SAL-01-003](#sal-01-003)"
+        "<br>*See also*: [SAL-01-002](#sal-01-002) — an example"
+    ) in related
+
+
+@pytest.mark.spec("SR-13-022")
+def test_render_for_kind_related_cell_lists_see_also_with_no_links(tmp_path):
+    (tmp_path / "sal.yaml").write_text(yaml.dump(_as_kind(SEE_ALSO_YAML)))
+    md = render_for_kind(_KIND, load_registry(tmp_path))
+
+    row = next(line for line in md.splitlines() if "SAL-01-002 MUST" in line)
+    related = row.rsplit("|", 2)[1].strip()
+    assert related == "*See also*: [SAL-01-003](#sal-01-003) — a scope note"
+
+
+@pytest.mark.spec("SR-13-022")
+def test_related_cell_names_an_unlinkable_see_also_id_bare(tmp_path):
+    (tmp_path / "sal.yaml").write_text(yaml.dump(_as_kind(SEE_ALSO_YAML)))
+    spec = load_registry(tmp_path).all_specs["SAL-01-002"]
+
+    assert (
+        _render_relationships_cell(spec, lambda _spec_id: None)
+        == "*See also*: SAL-01-003 — a scope note"
+    )

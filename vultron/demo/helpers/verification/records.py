@@ -61,8 +61,8 @@ def verify_activity_in_inbox(
     """Check whether *activity_id* was received and stored by the actor.
 
     Checks the actor's store directly for the activity — the authoritative
-    approach for exchange-demo tests.  Intake archives every activity it
-    receives as a ``ReceivedActivityRecord`` under a key the receiver derives
+    approach for exchange-demo tests.  Intake records every activity its
+    doors admit as a ``ReceivedActivityRecord`` under a key the receiver derives
     from the activity's id (CLP-10-017, ADR-0111), so that record confirms
     receipt; a row under the sender's id never does (DL-06-006).  The inbox
     path itself has no read surface

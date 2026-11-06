@@ -342,7 +342,6 @@ def test_matcher_only_classifies_an_unresolved_object(caplog):
     assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
 
 
-@pytest.mark.spec("SE-02-003")
 @pytest.mark.spec("SE-04-002")
 @pytest.mark.spec("VAM-01-007")
 def test_unknown_activity_type_with_bare_string_object_returns_unknown():

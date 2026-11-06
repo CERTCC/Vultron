@@ -8,6 +8,7 @@ import pytest
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import (
     assert_held_only_as_received,
+    hold_deferred,
     stamped,
     with_evidence,
 )
@@ -19,6 +20,7 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
 )
 from vultron.core.models.events import MessageSemantics, VultronEvent
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.services.received_holding import records_awaiting_case
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -311,6 +313,7 @@ def _add_note_activity(activity_id: str, case_id: str, to: str) -> as_Activity:
 
 
 @pytest.mark.spec("CBT-03-006")
+@pytest.mark.spec("PCR-07-005")
 def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
     """AC-6: Expired pre-bootstrap queue is dropped with a WARNING.
 
@@ -332,11 +335,17 @@ def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
     old_time = datetime.now(UTC) - timedelta(minutes=10)
     pending = VultronPendingCaseInbox(
         case_id=case_id,
-        activity_ids=[activity_id],
         case_actor_id="https://example.org/actors/case-actor",
     )
     pending.queued_at = old_time
     queue_dl.save(pending)
+    # The activity waiting on the case names it on its own held record
+    # (ADR-0154), which is what the queue reads.
+    hold_deferred(
+        queue_dl,
+        _add_note_activity(activity_id, case_id, actor_id),
+        awaiting_case_id=case_id,
+    )
 
     with caplog.at_level(logging.WARNING, logger="vultron"):
         expired = _expire_pending_case_activities(
@@ -891,7 +900,7 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     )
 
 
-@pytest.mark.spec("CBT-03-003", "CBT-05-003")
+@pytest.mark.spec("CBT-03-003", "CBT-05-003", "PCR-07-005")
 def test_pending_case_queue_expiry_sends_nothing():
     """An expired queue is dropped without asking anyone for the case.
 
@@ -913,10 +922,14 @@ def test_pending_case_queue_expiry_sends_nothing():
     queue_dl.save(
         VultronPendingCaseInbox(
             case_id=case_id,
-            activity_ids=[activity_id],
             case_actor_id="https://example.org/actors/case-actor",
             queued_at=datetime.now(UTC) - timedelta(minutes=10),
         )
+    )
+    hold_deferred(
+        queue_dl,
+        _add_note_activity(activity_id, case_id, actor_id),
+        awaiting_case_id=case_id,
     )
 
     expired = _expire_pending_case_activities(
@@ -943,8 +956,9 @@ def test_pending_case_queue_expiry_changes_no_local_state():
     import json
     from datetime import datetime, timedelta
 
-    from vultron.core.models.deferred_inbox_activity import (
-        DeferredInboxActivity,
+    from vultron.core.models.received_activity_record import (
+        ReceivedActivityRecord,
+        ReceivedStage,
     )
 
     actor_id = "https://example.org/actors/reporter"
@@ -969,7 +983,7 @@ def test_pending_case_queue_expiry_changes_no_local_state():
 
     before = snapshot()
     queue_dl.save(
-        DeferredInboxActivity(
+        ReceivedActivityRecord(
             activity_id=activity_id,
             received_body=json.dumps(
                 {
@@ -980,12 +994,14 @@ def test_pending_case_queue_expiry_changes_no_local_state():
                     "context": case_id,
                 }
             ),
+            stage=ReceivedStage.HELD,
+            replay_owed=True,
+            awaiting_case_id=case_id,
         )
     )
     queue_dl.save(
         VultronPendingCaseInbox(
             case_id=case_id,
-            activity_ids=[activity_id],
             case_actor_id="https://example.org/actors/case-actor",
             queued_at=datetime.now(UTC) - timedelta(minutes=10),
         )
@@ -1107,12 +1123,20 @@ def test_expired_queue_keeps_a_stub_invite_trust_anchor():
     queue_dl = shared_dl.clone_for_actor(actor_id)
     pending = VultronPendingCaseInbox(
         case_id=case_id,
-        activity_ids=[activity_id],
         case_actor_id="https://example.org/actors/case-actor",
         invite_anchored=True,
         queued_at=datetime.now(UTC) - timedelta(minutes=10),
     )
     queue_dl.save(pending)
+    hold_deferred(
+        queue_dl,
+        _add_note_activity(activity_id, case_id, actor_id),
+        awaiting_case_id=case_id,
+    )
+    assert [
+        record.activity_id
+        for record in records_awaiting_case(queue_dl, case_id)
+    ] == [activity_id], "precondition: one activity waits on the case"
 
     expired = _expire_pending_case_activities(
         case_id=case_id,
@@ -1121,9 +1145,11 @@ def test_expired_queue_keeps_a_stub_invite_trust_anchor():
     )
 
     assert expired is True
+    assert records_awaiting_case(queue_dl, case_id) == [], (
+        "what was queued is dropped"
+    )
     kept = queue_dl.read(VultronPendingCaseInbox.build_id(case_id))
     assert isinstance(kept, VultronPendingCaseInbox)
-    assert kept.activity_ids == []
     assert kept.case_actor_id == "https://example.org/actors/case-actor"
     assert kept.invite_anchored
 

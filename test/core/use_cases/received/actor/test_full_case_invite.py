@@ -40,6 +40,7 @@ from vultron.core.models.protocol_pair import (
     INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.services.received_holding import hold_for_replay
 from vultron.core.states.rm import RM
 from vultron.core.sync_helpers import (
     ledger_position_refusal,
@@ -612,9 +613,17 @@ def test_a_queue_recorded_sender_does_not_admit_a_full_case_invite(
     dl.save(
         VultronPendingCaseInbox(
             case_id=joining_case.case.id_,
-            activity_ids=["https://example.org/activities/queued"],
             case_actor_id=_IMPOSTOR_ID,
         )
+    )
+    # The queue's record only opens the expiry window; the one activity
+    # waiting names the case on its own record (ADR-0154).
+    queued_id = "https://example.org/activities/queued"
+    assert hold_for_replay(
+        dl,
+        queued_id,
+        f'{{"id": "{queued_id}", "type": "Announce"}}',
+        awaiting_case_id=joining_case.case.id_,
     )
 
     result = _receive_as_invitee(

@@ -28,9 +28,6 @@ from vultron.core.behaviors.case.case_clock_decisions import (
 from vultron.core.behaviors.case.nodes.clock_decision_stage import (
     create_clock_decision_gate,
 )
-from vultron.core.behaviors.case.nodes.intake import (
-    IntakeReceivedActivityNode,
-)
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
@@ -39,6 +36,9 @@ from vultron.core.behaviors.case.nodes.post_close import (
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
     CaseManagerGate,
+)
+from vultron.core.behaviors.case.nodes.seen_before import (
+    ActivityNotSeenBeforeNode,
 )
 from vultron.core.behaviors.exemption_registry import require_registered
 from vultron.core.behaviors.sender_guard import (
@@ -51,6 +51,13 @@ from vultron.core.behaviors.sync.ledger_position_stage import (
 from vultron.core.behaviors.sync.nodes.ledger_position import (
     LEDGER_POSITION_EXEMPTIONS,
     LedgerPositionExemption,
+)
+from vultron.core.behaviors.sync.nodes.sender_sequence import (
+    SENDER_SEQUENCE_EXEMPTIONS,
+    SenderSequenceExemption,
+)
+from vultron.core.behaviors.sync.sender_sequence_stage import (
+    create_sender_sequence_stage,
 )
 from vultron.errors import VultronWiringError
 
@@ -146,7 +153,7 @@ def case_and_tree_decisions(
 
 def ledger_position_stage(
     name: str,
-    intake: IntakeReceivedActivityNode,
+    seen_door: ActivityNotSeenBeforeNode,
     sender_context: SenderContext | None,
     exemption: LedgerPositionExemption | None,
 ) -> list[py_trees.behaviour.Behaviour]:
@@ -159,8 +166,9 @@ def ledger_position_stage(
     answer; a tree whose sender and case are read from a received ledger
     activity at run time is about an activity outside SYNC-18-001's scope.
     A tree that answers the position itself names a registered *exemption*.
-    A redelivery that *intake* found already archived is not answered again
-    (SYNC-18-002).
+    A resend never reaches it: the seen-before door answered it first, and
+    the re-run of a record a run left in holding, which *seen_door* tells, is
+    not answered again (SYNC-18-002, ADR-0154).
 
     Raises:
         VultronWiringError: *exemption* is not registered in
@@ -184,6 +192,51 @@ def ledger_position_stage(
         create_ledger_position_stage(
             sender_context.case_id,
             sender_context.sender_id,
-            is_redelivery=lambda: bool(intake.found_ids),
+            is_redelivery=lambda: seen_door.rerun,
+        )
+    ]
+
+
+def sender_sequence_stage(
+    name: str,
+    seen_door: ActivityNotSeenBeforeNode,
+    sender_context: SenderContext | None,
+    exemption: SenderSequenceExemption | None,
+) -> list[py_trees.behaviour.Behaviour]:
+    """The CASE_MANAGER's judgment of the received ``senderSequence``.
+
+    Placed in every tree whose sender guard checks a named sender against a
+    named case, as the ledger position answer is, because the activities a
+    participant numbers are the ones that state a ``ledgerPosition``
+    (SYNC-21-001): it runs after the door guards, so only an admitted
+    activity is held or refused for its number (SYNC-21-023), and before
+    anything judges the act (SYNC-21-008).  A tree whose activity its
+    sender numbers not names a registered *exemption*.  *seen_door* tells the
+    re-run of an activity a run left in holding (SYNC-21-018); a resend never
+    reaches this stage, because the door answered it (ADR-0154).
+
+    Raises:
+        VultronWiringError: *exemption* is not registered in
+            ``SENDER_SEQUENCE_EXEMPTIONS``.
+    """
+    if exemption is not None:
+        require_registered(
+            exemption,
+            SENDER_SEQUENCE_EXEMPTIONS,
+            where=f"create_receive_activity_tree({name})",
+            kind="sender-sequence",
+            registry_name="SENDER_SEQUENCE_EXEMPTIONS",
+            spec_id="SYNC-21-001",
+        )
+        return []
+    if not isinstance(sender_context, SenderCheckContext):
+        return []
+    if sender_context.case_id is None:
+        return []
+    return [
+        create_sender_sequence_stage(
+            sender_context.case_id,
+            sender_context.sender_id,
+            is_redelivery=lambda: seen_door.rerun,
         )
     ]

@@ -106,7 +106,7 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
         self._case = resolve_case(request.case_id, self._dl)
 
         # The Offer goes to the CASE_MANAGER or nowhere (CM-21-005,
-        # PCR-08-011).  A case always has a CASE_MANAGER (CM-24-006), so none
+        # PCR-08-011).  A case always has a CASE_MANAGER (CM-02-014), so none
         # is a fault, not a direct send to the transferee.
         case_manager_id = resolve_case_manager_id(self._case, self._dl)
         if case_manager_id is None:
@@ -182,7 +182,7 @@ class _SvcOwnershipAnswerBase(SvcActivityTriggerBase):
 
     Shared by the transferee's accept and reject triggers and the owner's
     withdraw trigger: each reads what it replies to by id from the actor's
-    own store — the CASE_MANAGER's Offer from the body intake archived, or
+    own store — the CASE_MANAGER's Offer from the body intake recorded, or
     the owner's own proposal as it sent it — and
     emits its reply to the case's CASE_MANAGER (CM-21-006, CM-21-010,
     CM-21-015).  Subclasses build the tree and name the verb they log.
@@ -208,7 +208,7 @@ class _SvcOwnershipAnswerBase(SvcActivityTriggerBase):
         """The case the Offer this actor holds names.
 
         The transferee answers the CASE_MANAGER's Offer it received,
-        archived by intake under the receiver's key, never read under an id
+        recorded by intake under the receiver's key, never read under an id
         a sender chose (DL-06-006).  Nothing else stands in for it: an actor
         that never received the Offer has nothing to answer (ADR-0148).
 
@@ -326,7 +326,7 @@ class SvcWithdrawCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
         super()._prepare()
         # The withdrawal goes to the CASE_MANAGER or nowhere (CM-21-036,
         # PCR-08-011).  The offerer holds the case it offered, and a case
-        # always has a CASE_MANAGER (CM-24-006), so either missing is a
+        # always has a CASE_MANAGER (CM-02-014), so either missing is a
         # not-found, refused before any tree runs, as the offer trigger does.
         case = resolve_case(self._case_id, self._dl)
         if resolve_case_manager_id(case, self._dl) is None:

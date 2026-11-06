@@ -13,19 +13,21 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""An unaddressed copy of any message is refused, archived, and acts on nothing.
+"""An unaddressed copy of any message is refused, receipted, and acts on nothing.
 
 Every received tree runs the addressee door guard by default (HP-01-005,
 #4832), so a store that is neither the sender nor a recipient of an activity
 refuses it whatever the message is.  This sweep delivers every dispatchable
 example activity (the corpus ``test_vocab_examples_dispatchable`` checks) to a
 bystander's store through the real inbox pipeline, one example per received
-tree family, and asserts the copy is refused, its archive is kept
-(CLP-10-018), nothing else is written and nothing is sent.
+tree family, and asserts the copy is refused, that what remains of it is a
+receipt stub with no body (CLP-10-018), that nothing else is written and that
+nothing is sent.
 
 The one family that writes before it checks is ``Offer(VulnerabilityReport)``:
 it keeps the report and its offer record first (CM-15-002), then refuses
-(:data:`_KEPT_BEFORE_THE_CHECK`); the Offer itself is held only as its archive.
+(:data:`_KEPT_BEFORE_THE_CHECK`); of the Offer itself only the receipt stub
+remains.
 """
 
 from collections import Counter
@@ -44,6 +46,7 @@ from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIDispatchAdapter,
     FastAPIIngressAdapter,
+    FastAPIReceivedOutcomePort,
 )
 from vultron.core.behaviors.inbox import (
     InboxOutcome,
@@ -55,6 +58,8 @@ from vultron.core.models.events import resolve_case_context_id
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
+from vultron.core.models.received_body import received_body_digest
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 _BYSTANDER = canonical_actor_uri("unaddressed-bystander")
@@ -70,8 +75,9 @@ _EXAMPLES: dict[str, as_Activity] = activity_examples()
 _UNDISPATCHABLE: frozenset[str] = frozenset()
 
 #: Examples of a recognized semantic type no received use case handles
-#: (SE-05-002): reported "no use case found", so nothing archives them and no
-#: addressee check runs.  Each is a CASE_MANAGER-only act (ADR-0140, #4724).
+#: (SE-05-002): reported "no use case found", so no addressee check runs, and
+#: like any refusal each leaves a receipt stub and no body (CLP-10-074).  Each
+#: is a CASE_MANAGER-only act (ADR-0140, #4724).
 _UNHANDLED = frozenset(
     {
         "undo_embargo_invite",
@@ -140,6 +146,7 @@ def _deliver(dl: SqliteDataLayer, body: dict[str, Any]) -> InboxOutcome:
         FastAPIDispatchAdapter(
             dl=dl, actor_id=_BYSTANDER, dispatcher=make_dispatcher()
         ),
+        received_outcome_port=FastAPIReceivedOutcomePort(dl),
     )
 
 
@@ -181,28 +188,43 @@ def test_an_unaddressed_copy_is_refused_and_acts_on_nothing(
     )
     if name in _UNHANDLED:
         assert outcome.unhandled, f"{name} is handled now: drop it"
-        assert _object_counts(bystander_dl) == before
-        assert bystander_dl.outbox_list() == []
-        return
-    archive = ReceivedActivityRecord.build_id(activity.id_)
+    receipt = ReceivedActivityRecord.build_id(activity.id_)
     if name in _REFUSED_BEFORE_ANY_TREE:
         # Pinned until its owning issue lands; then the entry must go.
-        assert bystander_dl.read(archive) is None, (
-            f"{name} is archived now: drop it from _REFUSED_BEFORE_ANY_TREE"
+        assert bystander_dl.read(receipt) is None, (
+            f"{name} is receipted now: drop it from _REFUSED_BEFORE_ANY_TREE"
         )
     else:
-        assert bystander_dl.read(archive) is not None, (
-            f"{name}: the refused copy is not archived"
+        stub = bystander_dl.read(receipt)
+        assert isinstance(stub, ReceivedActivityRecord), (
+            f"{name}: the refused copy left no receipt"
         )
+        # The receipt, not the message: the body is given up (CLP-10-018).
+        assert stub.is_receipt_stub, (
+            f"{name}: the refused copy is still held as {stub.stage}"
+        )
+        assert stub.received_body is None, (
+            f"{name}: the refused copy's body is still held"
+        )
+        sender = getattr(activity.actor, "id_", activity.actor)
+        assert stub.sender_id == str(sender), (
+            f"{name}: the stub does not name the sender"
+        )
+        sealed = parse_activity(body).received_evidence_json
+        assert sealed is not None
+        assert stub.body_hash == received_body_digest(sealed), (
+            f"{name}: the stub's digest is not the body's (IE-10-002)"
+        )
+        assert stub.refusal_reason, f"{name}: the stub records no reason"
     kept = _KEPT_BEFORE_THE_CHECK.get(name, frozenset())
-    archived = Counter(
+    receipted = Counter(
         {}
         if name in _REFUSED_BEFORE_ANY_TREE
         else {ReceivedActivityRecord.__name__: 1}
     )
     # Ingress writes nothing (DL-06-006, IO-03-004), so every write counted
     # here is the handler's.
-    written = _object_counts(bystander_dl) - before - archived
+    written = _object_counts(bystander_dl) - before - receipted
     others = {type_: n for type_, n in written.items() if type_ not in kept}
     assert not others, f"{name}: an unaddressed copy wrote {others}"
     held = _object_counts(bystander_dl)
@@ -210,6 +232,8 @@ def test_an_unaddressed_copy_is_refused_and_acts_on_nothing(
     assert not missing, f"{name}: did not keep {missing} (CM-15-002)"
     assert bystander_dl.outbox_list() == [], f"{name}: sent something"
     if name in _REFUSED_BEFORE_ANY_TREE:
+        return
+    if name in _UNHANDLED:
         return
     reason = outcome.failure_reason or ""
     expected = "not a to recipient" if kept else "HP-01-005"

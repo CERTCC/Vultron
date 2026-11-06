@@ -110,7 +110,7 @@ OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES: frozenset[str] = frozenset(
 
 
 #: Ledger ``semantic_type`` of the target's ``Accept`` of a role
-#: ``Offer(CaseParticipantRole)``: the grant (CM-02-016, CM-33-020).
+#: ``Offer(CaseParticipantRole)``: the grant (CM-02-016).
 ACCEPT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE: str = (
     MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE.value
 )

@@ -133,6 +133,9 @@ groups:
     stories:
     - story_2022_048
     - story_2022_050
+    see_also:
+    - spec_id: CM-02-006
+      reason: 'context for the reader'
   - id: CM-02-006
     priority: MUST
     kind: protocol
@@ -362,26 +365,35 @@ groups:
     - ADR-0088
   - id: CM-02-014
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
-      A `VulnerabilityCase` MUST have both a `CVDRole.CASE_OWNER` participant and a
-      `CVDRole.CASE_MANAGER` participant from the moment of creation. Neither slot may be left
-      empty or deferred to a later operation.
+      A `VulnerabilityCase` MUST have both a `CASE_OWNER` participant and a
+      `CASE_MANAGER` participant from the moment of creation onward. Neither slot may be
+      left empty or deferred to a later operation. Role delegation transfers the
+      CASE_MANAGER role without a gap.
     rationale: >-
-      An unoccupied `CASE_OWNER` or `CASE_MANAGER` slot makes role-guard checks undefined from
-      the moment the case exists. Any creation path that omits either participant leaves the case
-      in a state that cannot be self-healed without an explicit remediation step, and causes
-      `resolve_case_manager_id` to return `None` immediately — making the role ledger unreliable
-      as the single source of authority (ADR-0088, ARCH-24-001).
+      An empty `CASE_OWNER` or `CASE_MANAGER` slot leaves every role check without an
+      answer from the moment the case exists, and a case created without either has no
+      participant entitled to repair it (ADR-0088). Both creation paths register a
+      CASE_MANAGER: a dedicated CASE_MANAGER actor (ADR-0041), or the creating actor
+      holding both roles. With a CASE_MANAGER always present, every case-scoped message
+      has the CASE_MANAGER to go through (PCR-08-001).
     verification: >-
       `test_create_case_trigger_registers_owner_and_manager` in
       `test/core/use_cases/triggers/case/test_create.py` asserts both `CVDRole.CASE_OWNER`
       and `CVDRole.CASE_MANAGER` are present on a `CaseParticipant` after
-      `SvcCreateCaseUseCase` executes. The `Accept(CaseProposal)` path is covered by existing
-      tests in `test/core/behaviors/case/test_case_proposal_received_tree.py`.
+      `SvcCreateCaseUseCase` executes. Tests of the `Accept(CaseProposal)` tree in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` assert a
+      `CASE_MANAGER` holder exists in `actor_participant_index` after creation.
     relationships:
     - rel_type: extends
       spec_id: CM-02-001
+    adr:
+    - ADR-0041
+    - ADR-0113
+    - ADR-0109
+    stories:
+    - story_2022_106
   - id: CM-02-015
     priority: MUST
     kind: project
@@ -419,13 +431,24 @@ groups:
       An `Offer(CaseParticipantRole)` is a proposal, not the grant. The role changes
       only when the CASE_MANAGER commits the acceptance. The CASE_MANAGER applies the
       grant to its own copy at commit. This keeps the authority for roles with the
-      CASE_MANAGER and keeps every replica the same (ADR-0108, ADR-0124).
+      CASE_MANAGER and keeps every replica the same (ADR-0108, ADR-0124). The
+      CASE_MANAGER's replica is the one its later checks read, such as whether the
+      target already holds a role (CM-33-003).
     verification: >-
       `test/core/behaviors/case/nodes/test_delegation.py` asserts the CASE_MANAGER
-      grants
-      the role on its own copy when it commits the accept.
+      grants the role on its own copy when it commits the accept, and
+      `test_accept_is_committed_granted_and_announced` in
+      `test/core/use_cases/received/actor/test_role_offer_routing.py` delivers the
+      target's Accept of a recorded role Offer and asserts the role on the target's
+      participant record.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-33-006
     adr:
     - ADR-0039
+    stories:
+    - story_2022_035
+    - story_2026_065
   - id: CM-02-020
     priority: MUST
     kind: project
@@ -513,7 +536,7 @@ groups:
       An embargo binds every participant in the case. Thus, whether an embargo is
       proposed, active or ended is one fact for the whole case. One case-level record
       gives every participant the same answer. The consent rows keep each participant's
-      agreement separately (CM-03-008).
+      agreement separately (CM-10-001).
     verification: Inspection of `vultron/core/models/case/` confirms that
       `CaseStatus.em.state` exists as a case-level field tracking the collective embargo state.
     relationships:
@@ -522,24 +545,6 @@ groups:
     stories:
     - story_2026_031
     - story_2022_023
-  - id: CM-03-008
-    priority: MUST
-    kind: protocol
-    statement: Each `CaseParticipant` MUST track their own embargo consent through its per-embargo consent rows
-      (CM-10-001, CM-18-001)
-    rationale: >-
-      Agreement to an embargo is the decision of one participant, about one specific
-      embargo. One row for each participant and embargo records each answer one time.
-      Thus, a revision does not inherit an agreement that a participant gave to an
-      earlier version (CM-18-001).
-    verification: Inspection of `vultron/core/` confirms that the consent rows (`embargo_consents`) are a
-      per-participant field on `CaseParticipant`.
-    relationships:
-    - rel_type: uses_definition
-      spec_id: CM-18-001
-    stories:
-    - story_2022_023
-    - story_2022_027
   - id: CM-03-004
     priority: MUST
     kind: protocol
@@ -656,6 +661,9 @@ groups:
     stories:
     - story_2026_087
     - story_2022_023
+    see_also:
+    - spec_id: RSH-08-003
+      reason: 'context for the reader'
   - id: CM-04-004
     priority: MUST
     kind: protocol
@@ -682,6 +690,9 @@ groups:
     - story_2022_018
     - story_2022_019
     - story_2022_069
+    see_also:
+    - spec_id: RSH-08-003
+      reason: 'context for the reader'
   - id: CM-04-005
     priority: MUST
     kind: protocol
@@ -1118,22 +1129,6 @@ groups:
 - id: CM-07
   title: CVD Action Rules API
   specs:
-  - id: CM-07-001
-    priority: SHOULD
-    kind: project
-    statement: The system SHOULD expose an endpoint that returns the set of valid actions available to a case participant
-      given the current case state and their role
-    rationale: >-
-      The valid next actions depend on several state machines and on the role of the
-      participant. It is difficult for a client to calculate them correctly. An endpoint
-      that returns them gives every client the same answer and keeps the rules in one
-      place.
-    relationships:
-    - rel_type: refines
-      spec_id: AR-07-001
-    stories:
-    - story_2022_031
-    - story_2026_044
   - id: CM-07-002
     priority: MUST
     kind: project
@@ -1195,6 +1190,9 @@ groups:
       spec_id: CM-08-001
     adr:
     - ADR-0082
+    see_also:
+    - spec_id: ARCH-20-001
+      reason: 'context for the reader'
   - id: CM-08-003
     priority: MUST_NOT
     kind: project
@@ -1247,6 +1245,9 @@ groups:
     stories:
     - story_2022_033
     - story_2022_024
+    see_also:
+    - spec_id: CM-11-013
+      reason: 'context for the reader'
   - id: CM-09-003
     priority: MUST
     kind: protocol
@@ -1293,26 +1294,35 @@ groups:
       RSVP deadline is stored on that invitation's `INVITED` row (CM-28-013). No other
       record of embargo consent may exist on the participant.
     rationale: >-
-      Consent is per embargo (ADR-0093, ADR-0122). The CM-10-004 content gate reads the
-      rows. Thus, the rows must name every embargo that binds the participant. This
-      includes an embargo that containment carries over: an agreement to N days is an
-      agreement to every shorter period, so no explicit `Accept` is necessary for it. A
-      second record of consent next to the rows can disagree with them. A reader then
-      cannot know which record is correct.
+      Consent is per embargo (ADR-0093, ADR-0122), so a revision does not inherit an
+      agreement given to an earlier version (CM-18-001). The CM-10-004 content gate
+      reads the rows, so they must name every embargo that binds the participant,
+      including one that containment carries over: an agreement to N days is an
+      agreement to every shorter period, so no explicit `Accept` is needed for it. A
+      second record of consent beside the rows can disagree with them, and a reader
+      cannot know which is correct.
     verification: Inspection of `vultron/core/models/case_participant/` confirms that
       `CaseParticipant` carries `embargo_consents` rows and declares no scalar consent field and no
       `accepted_embargo_ids` or `invite_rsvp_deadline`.
     relationships:
     - rel_type: uses_definition
       spec_id: CM-18-001
-    - rel_type: refines
-      spec_id: CM-03-008
     adr:
     - ADR-0093
     - ADR-0122
     stories:
     - story_2026_001
     - story_2022_023
+    - story_2022_027
+    see_also:
+    - spec_id: CM-14-003
+      reason: 'context for the reader'
+    - spec_id: CM-14-005
+      reason: 'context for the reader'
+    - spec_id: CM-28-013
+      reason: 'context for the reader'
+    - spec_id: EP-05-001
+      reason: 'context for the reader'
   - id: CM-10-002
     priority: MUST
     kind: protocol
@@ -1451,6 +1461,9 @@ groups:
     stories:
     - story_2022_023
     - story_2022_025
+    see_also:
+    - spec_id: CM-31-011
+      reason: 'context for the reader'
   - id: CM-10-007
     priority: MUST
     kind: architecture
@@ -1474,6 +1487,11 @@ groups:
     adr:
     - ADR-0114
     - ADR-0116
+    see_also:
+    - spec_id: CM-31-009
+      reason: 'scope boundary: the notice is not case content'
+    - spec_id: CM-31-030
+      reason: 'context for the reader'
   - id: CM-10-009
     priority: MUST
     kind: architecture
@@ -1494,6 +1512,9 @@ groups:
       spec_id: CM-10-007
     adr:
     - ADR-0114
+    see_also:
+    - spec_id: CM-31-013
+      reason: 'context for the reader'
 - id: CM-11
   title: Joining a Case — Stub Invite, Inert Participant, Full-Case Invite
   description: >-
@@ -1516,16 +1537,29 @@ groups:
       the stub is joining the case and, unless the row is `DECLINED`, consenting
       to the active embargo. It is not a judgement of the case.
     rationale: >-
-      The invitee has seen only the stub. Its judgement of the case comes after
-      it has received the case and its history, as its reply to the full-case
-      Invite (CM-11-010).
+      The invitee has seen only the stub. It judges the case later, in its replies
+      to the full-case Invite (CM-11-010, CM-11-011), so the record of the
+      CASE_MANAGER shows no decision that the invitee has not made. To join under an
+      active embargo is to take part under it. Thus no participant becomes active
+      without a recorded answer to the embargo, and the delivery gate of MV-10-005
+      relies on this.
     verification: Tests confirm that `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`
       leaves the participant at `RM.RECEIVED`, sets VF `V` for a vendor, and
       marks its consent row for the active embargo `AGREED` when an embargo is active,
       and that it leaves a `DECLINED` row for that embargo unchanged.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-10-001
+    - rel_type: extends
+      spec_id: BT-10-005
     adr:
     - ADR-0114
+    - ADR-0121
     stories:
+    - story_2022_013
+    - story_2022_023
+    - story_2022_026
+    - story_2022_052
     - story_2022_054
     - story_2026_043
   - id: CM-11-002
@@ -1550,6 +1584,9 @@ groups:
     - ADR-0121
     stories:
     - story_2022_006
+    see_also:
+    - spec_id: CM-11-011
+      reason: 'context for the reader'
   - id: CM-11-022
     priority: SHOULD
     kind: protocol
@@ -1754,6 +1791,9 @@ groups:
     stories:
     - story_2022_052
     - story_2022_006
+    see_also:
+    - spec_id: CM-11-001
+      reason: 'context for the reader'
   - id: CM-11-027
     priority: MUST
     kind: protocol
@@ -1858,26 +1898,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PRM-06-003
-    adr:
-    - ADR-0121
-    stories:
-    - story_2022_061
-  - id: CM-11-030
-    priority: MUST_NOT
-    kind: protocol
-    statement: >-
-      A write that sets an inert invitee's VF state to `V` before it replies
-      MUST NOT change the invitee's RM state.
-    rationale: >-
-      RM is the invitee's own judgement (ADR-0121). Awareness of the case is not a
-      decision about it, so the write that records awareness must not move RM.
-    verification: >-
-      `test_changes_only_vf_of_an_inert_vendor_invitee` in
-      `test/core/use_cases/triggers/case/test_add_on_behalf_status.py` asserts that
-      the invitee's RM stays at `RECEIVED`.
-    relationships:
-    - rel_type: extends
-      spec_id: CM-11-029
     adr:
     - ADR-0121
     stories:
@@ -2201,7 +2221,7 @@ groups:
       `INVITED`.
     rationale: >-
       RM is the participant's own judgement (ADR-0121), so a timeout cannot stand in
-      for one. The CM-28-004 time-out to `TIMED_OUT` applies to an
+      for one. The CM-18-002 time-out to `TIMED_OUT` applies to an
       `Invite(EmbargoEvent)`, not to the embargo terms a stub Invite carries, so the
       consent row stays `INVITED`.
     verification: >-
@@ -2651,6 +2671,9 @@ groups:
     - ADR-0121
     stories:
     - story_2022_006
+    see_also:
+    - spec_id: CM-11-011
+      reason: 'context for the reader'
 - id: CM-12
   title: Case Creation Timing
   specs:
@@ -2661,7 +2684,7 @@ groups:
       When a report receiver's `auto_create_case` is `True` (CM-15-001), it MUST propose
       a case to the CASE_MANAGER for each `Offer(VulnerabilityReport)` it receives
       (CP-04-001). The CASE_MANAGER, not the receiver, creates the `VulnerabilityCase`
-      (CM-22-001).
+      (CP-09-001).
     rationale: >-
       The vendor that receives a report is the first party that must act on it. When it
       proposes the case at receipt, the report has a case, and its participants have an
@@ -2676,7 +2699,7 @@ groups:
       receiver's tree proposes the case instead of creating it.
     note: >-
       Restated for #5358. The statement used to say, unconditionally, that the vendor
-      creates the case. CM-15-003 and CM-22-001 already refused that, so the statement
+      creates the case. CM-15-003 and CP-09-001 already refused that, so the statement
       now carries both conditions.
     relationships:
     - rel_type: uses_definition
@@ -2686,6 +2709,9 @@ groups:
     stories:
     - story_2022_012
     - story_2022_038
+    see_also:
+    - spec_id: CP-09-001
+      reason: 'context for the reader'
   - id: CM-12-002
     priority: MUST
     kind: protocol
@@ -2704,31 +2730,6 @@ groups:
     stories:
     - story_2022_012
     - story_2022_013
-  - id: CM-12-003
-    priority: MUST
-    kind: protocol
-    statement: >-
-      When a case is created from an `Offer(VulnerabilityReport)`, the Case Owner (the
-      report receiver) MUST queue a `Create(VulnerabilityCase)` activity to notify the
-      reporter that a case has been opened, naming the CASE_MANAGER it delegated to
-      (CBT-01-001)
-    rationale: >-
-      The reporter must learn that its report became a case, and which actor coordinates
-      the case. The reporter does not know the CASE_MANAGER. It trusts only the actor
-      that it reported to. Thus the report receiver introduces the CASE_MANAGER to the
-      reporter (CBT-01-001, ADR-0132).
-    adr:
-    - ADR-0132
-    verification: >-
-      Integration tests in `test/demo/` confirm that a `Create(VulnerabilityCase)`
-      activity is queued for the reporter when a case is created from an
-      `Offer(VulnerabilityReport)`.
-    relationships:
-    - rel_type: uses_definition
-      spec_id: CBT-01-001
-    stories:
-    - story_2022_012
-    - story_2022_081
   - id: CM-12-004
     priority: MUST
     kind: protocol
@@ -2969,7 +2970,7 @@ groups:
     - rel_type: derives_from
       spec_id: CM-14-001
     - rel_type: uses_definition
-      spec_id: CM-12-003
+      spec_id: CBT-01-001
     stories:
     - story_2022_012
     - story_2022_081
@@ -3198,7 +3199,7 @@ groups:
       case creation. The default (True) starts a case at every
       `Offer(VulnerabilityReport)` receipt (RM.RECEIVED) for all existing actors and
       demos; the receiver proposes it and the CASE_MANAGER creates it (CM-12-001,
-      CM-22-001).
+      CP-09-001).
     verification: Inspection of `vultron/core/` confirms that `ActorConfig` declares an
       `auto_create_case` boolean field defaulting to `True`.
     adr:
@@ -3270,6 +3271,11 @@ groups:
       `SubmitReportReceivedUseCase.execute()` reaches a store helper.
     adr:
     - ADR-0111
+    see_also:
+    - spec_id: CLP-10-019
+      reason: 'context for the reader'
+    - spec_id: CM-15-002
+      reason: 'context for the reader'
   - id: CM-15-006
     priority: SHOULD
     kind: project
@@ -3370,6 +3376,9 @@ groups:
       a more sophisticated role-inference implementation in future. The non-empty invariant is enforced at write time so the
       downstream consumer never needs to treat an empty list as a sentinel. See CM-16-011 and CM-16-012 for the recommended
       and permitted default values.'
+    see_also:
+    - spec_id: CM-11-019
+      reason: 'context for the reader'
   - id: CM-16-011
     priority: SHOULD
     kind: project
@@ -3390,6 +3399,9 @@ groups:
       An actor that fits no CVD role must also see the case. `CVDRole.OBSERVER` lets the
       actor see the case without the obligations or the authority of a role such as
       VENDOR. Thus a wrong guess gives nothing that the Case Owner must then remove.
+    see_also:
+    - spec_id: CM-25-001
+      reason: 'context for the reader'
   - id: CM-16-013
     priority: MAY
     kind: project
@@ -3477,6 +3489,9 @@ groups:
     stories:
     - story_2022_054
     - story_2022_052
+    see_also:
+    - spec_id: CM-11-013
+      reason: 'context for the reader'
   - id: CM-16-021
     priority: MUST
     kind: protocol
@@ -3635,8 +3650,8 @@ groups:
       including the Case Owner's identity, the second recommender's identity and any
       `content` from the Offer. The note is the CASE_MANAGER's own `add_note_to_case`
       entry, attached to the case, and reaches the Case Owner's inbox as that entry's
-      `Announce(CaseLedgerEntry)` (SYNC-02-003); a direct `Add(Note)` to the Case Owner
-      is refused there (HP-01-005).
+      `Announce(CaseLedgerEntry)` (SYNC-02-001, SYNC-02-003); a direct `Add(Note)` to
+      the Case Owner is refused there (HP-01-005).
     rationale: >-
       A note about reinforcing suggestions gives the Case Owner more context for the
       pending decision, without a second offer workflow (CM-16-017). Participants send
@@ -3654,6 +3669,13 @@ groups:
     stories:
     - story_2022_053
     - story_2022_046
+    see_also:
+    - spec_id: HP-01-005
+      reason: 'context for the reader'
+    - spec_id: SYNC-02-001
+      reason: 'context for the reader'
+    - spec_id: SYNC-02-003
+      reason: 'context for the reader'
   - id: CM-16-017
     priority: MUST_NOT
     kind: protocol
@@ -3780,7 +3802,7 @@ groups:
       or by an ID that the invitee can ask the inviter to resolve.
     rationale: >-
       The invite-accept cycle is the only consent signal for a late joiner. An Accept
-      without the embargo terms is not informed consent (MV-10-006). The invitee has
+      without the embargo terms is not informed consent (CM-11-001). The invitee has
       only the invitation, so the invitation must let it learn the terms before it
       accepts: inline in the stub, or by the ID that the stub names.
       CM-17-011 says which form this prototype sends. In EM `REVISE`, the prior
@@ -3797,7 +3819,7 @@ groups:
     - rel_type: extends
       spec_id: CM-17-001
     - rel_type: derives_from
-      spec_id: MV-10-006
+      spec_id: CM-11-001
     stories:
     - story_2022_023
     - story_2026_097
@@ -3842,6 +3864,9 @@ groups:
       spec_id: CM-17-002
     stories:
     - story_2026_097
+    see_also:
+    - spec_id: EP-09-011
+      reason: 'context for the reader'
   - id: CM-17-003
     priority: MUST
     kind: project
@@ -3923,6 +3948,9 @@ groups:
     - ADR-0114
     stories:
     - story_2022_023
+    see_also:
+    - spec_id: CM-11-006
+      reason: 'context for the reader'
   - id: CM-17-006
     priority: MUST
     kind: project
@@ -4050,6 +4078,9 @@ groups:
       spec_id: CM-16-004
     adr:
     - ADR-0109
+    see_also:
+    - spec_id: CM-16-003
+      reason: 'context for the reader'
   - id: CM-17-019
     priority: MUST
     kind: project
@@ -4094,6 +4125,11 @@ groups:
       spec_id: CM-11-006
     adr:
     - ADR-0114
+    see_also:
+    - spec_id: CM-16-003
+      reason: 'context for the reader'
+    - spec_id: CM-16-006
+      reason: 'context for the reader'
   - id: CM-17-009
     priority: MUST
     kind: protocol
@@ -4475,7 +4511,17 @@ groups:
       excludes it from embargoed content, and no invitation gives it a deadline. An RSVP
       deadline belongs to one invitation and is stored on that invitation's `INVITED`
       row (CM-28-013). Its passing times out only that row, never the participant's
-      other invitations.
+      other invitations. Code, logs, demos and replicas read the consent row, not ledger
+      provenance (ADR-0118), so the row itself carries the distinction. A late Accept the
+      CASE_MANAGER honours returns a `TIMED_OUT` row to `AGREED`, a signatory only if
+      that embargo is in force (EMB-17-002, MSM-07-003). ADR-0118 reverses ADR-0065's
+      choice to record a lapsed invitation as `DECLINED`.
+    note: >-
+      "Invitation" here is an `Invite(EmbargoEvent)`. An expired stub Invite
+      (`Invite(Actor)[target=VulnerabilityCaseStub]`) carries embargo terms but changes
+      no participant state, consent included (CM-11-040): an unanswered stub is
+      not a refusal to join, and the CASE_MANAGER may re-invite on the same
+      record (CM-11-015, ADR-0114).
     verification: >-
       Unit tests confirm that the expiry's row decision (`consent_row_move()` with `TIME_OUT`)
       and `detect_and_apply_expiry()` move only the named invitation's row once its own
@@ -4485,6 +4531,10 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: CM-18-001
+    - rel_type: uses_definition
+      spec_id: CM-18-003
+    - rel_type: refines
+      spec_id: CM-28-005
     adr:
     - ADR-0093
     - ADR-0118
@@ -4493,6 +4543,11 @@ groups:
     stories:
     - story_2022_027
     - story_2026_092
+    see_also:
+    - spec_id: CM-18-016
+      reason: 'context for the reader'
+    - spec_id: CM-28-013
+      reason: 'context for the reader'
   - id: CM-18-022
     priority: MAY
     kind: protocol
@@ -4689,6 +4744,9 @@ groups:
       spec_id: CM-18-005
     adr:
     - ADR-0124
+    see_also:
+    - spec_id: CM-23-016
+      reason: 'a citation #5887 is to repoint; context for the reader until then'
   - id: CM-18-026
     priority: MUST_NOT
     kind: project
@@ -4811,6 +4869,9 @@ groups:
       spec_id: CM-18-001
     adr:
     - ADR-0122
+    see_also:
+    - spec_id: EP-05-003
+      reason: 'context for the reader'
 - id: CM-19
   title: Participant Index Discipline
   specs:
@@ -5034,6 +5095,9 @@ groups:
       is authorized to write.'
     stories:
     - story_2026_023
+    see_also:
+    - spec_id: CBT-01-003
+      reason: 'a citation #5887 is to repoint; context for the reader until then'
 - id: CM-21
   title: Ownership Transfer Protocol Effects
   specs:
@@ -5531,6 +5595,9 @@ groups:
     - ADR-0053
     stories:
     - story_2022_050
+    see_also:
+    - spec_id: CM-21-007
+      reason: 'context for the reader'
   - id: CM-21-032
     priority: MUST
     kind: protocol
@@ -5627,6 +5694,9 @@ groups:
     - ADR-0148
     stories:
     - story_2022_050
+    see_also:
+    - spec_id: CM-21-007
+      reason: 'context for the reader'
   - id: CM-21-034
     priority: MUST
     kind: protocol
@@ -5672,6 +5742,9 @@ groups:
     - ADR-0148
     stories:
     - story_2022_050
+    see_also:
+    - spec_id: HP-01-014
+      reason: 'context for the reader'
   - id: CM-21-015
     priority: MUST
     kind: protocol
@@ -5899,6 +5972,11 @@ groups:
     - ADR-0152
     stories:
     - story_2022_050
+    see_also:
+    - spec_id: CM-21-035
+      reason: 'context for the reader'
+    - spec_id: CM-21-039
+      reason: 'context for the reader'
   - id: CM-21-043
     priority: MUST_NOT
     kind: protocol
@@ -5957,6 +6035,9 @@ groups:
     - ADR-0148
     stories:
     - story_2022_050
+    see_also:
+    - spec_id: HP-01-014
+      reason: 'context for the reader'
   - id: CM-21-044
     priority: MUST
     kind: protocol
@@ -6091,66 +6172,17 @@ groups:
 - id: CM-22
   title: CASE_MANAGER-Authoritative Case Creation
   description: >-
-    Requirements on the CASE_MANAGER's obligations when accepting a CaseProposal,
-    per ADR-0041.  These replace the receiver-authored case-creation described in
-    ADR-0015 and govern how the CASE_MANAGER initializes CaseStatus, participants,
-    and embargo in its DataLayer before emitting `Create(VulnerabilityCase)`.
+    Two CASE_MANAGER obligations for a case created from a CaseProposal, per
+    ADR-0041: whom it addresses the `Create(VulnerabilityCase)` to, and in whose
+    ledger the initialization entries are committed. CP-09 states the case
+    creation itself: the case, its first participants, its default embargo and the
+    `actor` of the `Create(VulnerabilityCase)`.
   specs:
-  - id: CM-22-001
-    priority: MUST
-    kind: protocol
-    statement: >-
-      When it accepts a `Create(CaseProposal)`, the CASE_MANAGER MUST create the
-      `VulnerabilityCase` in its own store, with `attributed_to` the proposing actor's
-      ID (the CASE_OWNER, CM-02-008).
-    rationale: >-
-      ADR-0041 supersedes ADR-0015.  The CASE_MANAGER is the case's authoritative
-      creator. `attributed_to` records the Case Owner, which ownership checks
-      read and ownership transfer rewrites (MSM-07-027, CM-21-024).
-    verification: >-
-      Integration tests in `test/demo/` confirm that the `VulnerabilityCase` created by
-      the CASE_MANAGER has `attributed_to` equal to the proposing actor's ID.
-    relationships:
-    - rel_type: refines
-      spec_id: CP-09-001
-    - rel_type: supersedes
-      spec_id: CM-14-001
-      note: In multi-actor deployments, where the CASE_MANAGER creates the case (ADR-0041)
-    adr:
-    - ADR-0041
-    stories:
-    - story_2022_012
-    - story_2022_046
-    lint_suppress:
-    - dangling_adr_ref
-  - id: CM-22-005
-    priority: MUST
-    kind: protocol
-    statement: >-
-      The CASE_MANAGER MUST be the `actor` of the `Create(VulnerabilityCase)` it emits
-      for a case it creates from a proposal (CM-22-001).
-    rationale: >-
-      AS2 records the authoritative creator of an object as the `actor` of its `Create`
-      (ADR-0023). The CASE_MANAGER creates the case, so it is that `actor`, while
-      `attributed_to` names the owner.
-    verification: >-
-      `test_create_is_by_the_case_manager_about_an_owner_attributed_case` in
-      `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts that the
-      emitted `Create(VulnerabilityCase)` has the CASE_MANAGER as `actor`.
-    relationships:
-    - rel_type: extends
-      spec_id: CM-22-001
-    adr:
-    - ADR-0023
-    - ADR-0041
-    stories:
-    - story_2022_012
-    - story_2022_046
   - id: CM-22-006
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST address that `Create(VulnerabilityCase)` (CM-22-005) to the
+      The CASE_MANAGER MUST address that `Create(VulnerabilityCase)` (CP-09-011) to the
       report receiver, the CASE_OWNER, only. The report receiver introduces the
       CASE_MANAGER to the reporter (CBT-01-001, ADR-0132).
     rationale: >-
@@ -6163,55 +6195,15 @@ groups:
       `Create(VulnerabilityCase)` is addressed to the report receiver only.
     relationships:
     - rel_type: extends
-      spec_id: CM-22-005
+      spec_id: CP-09-011
     adr:
     - ADR-0132
     stories:
     - story_2022_012
     - story_2022_046
-  - id: CM-22-002
-    priority: MUST
-    kind: protocol
-    statement: >-
-      After it creates the `VulnerabilityCase`, the CASE_MANAGER MUST create
-      `CaseParticipant` records for at least the report receiver (`CASE_OWNER`,
-      `RM.RECEIVED`) and the reporter (`RM.ACCEPTED`).
-    rationale: >-
-      The report receiver and the reporter are the case's first participants. Without
-      their records, role-guard checks find no Case Owner and no reporter in the case
-      (CP-09-002, CP-09-004).
-    verification: Integration tests in `test/demo/` confirm that the CASE_MANAGER writes
-      `CaseParticipant` records for the report receiver and reporter to its DataLayer.
-    relationships:
-    - rel_type: extends
-      spec_id: CM-22-001
-    - rel_type: refines
-      spec_id: CP-09-002
-    stories:
-    - story_2022_012
-    - story_2022_013
-  - id: CM-22-007
-    priority: MUST
-    kind: protocol
-    statement: >-
-      The CASE_MANAGER MUST write the participant records of CM-22-002 before it emits
-      `Create(VulnerabilityCase)` to the report receiver.
-    rationale: >-
-      The `Create(VulnerabilityCase)` payload embeds participants inline so the
-      receiver's `store_embedded_participants` can seed
-      its local replica.  Absent participant records at emission time produce an
-      empty replica and break role-guard checks (CP-09-002, CP-09-004).
-    verification: >-
-      `test_the_create_carries_the_participants_written_before_it` in
-      `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts that
-      the queued `Create(VulnerabilityCase)` carries the owner's and the reporter's
-      participant records.
-    relationships:
-    - rel_type: extends
-      spec_id: CM-22-002
-    stories:
-    - story_2022_012
-    - story_2022_013
+    see_also:
+    - spec_id: CBT-01-001
+      reason: 'context for the reader'
   - id: CM-22-003
     priority: MUST
     kind: protocol
@@ -6234,35 +6226,9 @@ groups:
       CASE_MANAGER, not the report receiver.
     relationships:
     - rel_type: extends
-      spec_id: CM-22-001
+      spec_id: CP-09-001
     stories:
     - story_2026_023
-  - id: CM-22-004
-    priority: MUST
-    kind: protocol
-    statement: >-
-      The CASE_MANAGER MUST initialize the default embargo for the new case before
-      emitting `Create(VulnerabilityCase)` to the report receiver (the CASE_OWNER).
-    rationale: >-
-      Embargo state is protocol-significant.  Deferring initialization to the
-      report receiver or to a later message would produce a window in which
-      embargo-gated operations are undefined (ADR-0041, CP-09-003).  The
-      CASE_MANAGER is the only actor that can initialize it authoritatively at
-      case creation; the actor default it applies is the CASE_OWNER's policy,
-      carried on the proposal (CP-01-009, CP-01-010).
-    verification: Integration tests in `test/demo/` confirm that the CASE_MANAGER initializes the
-      default embargo before emitting `Create(VulnerabilityCase)` to the report receiver.
-    relationships:
-    - rel_type: extends
-      spec_id: CM-22-001
-    - rel_type: refines
-      spec_id: CP-09-003
-    adr:
-    - ADR-0041
-
-    stories:
-    - story_2026_080
-    - story_2022_023
 - id: CM-23
   title: RM Case Closure via Leave(VulnerabilityCase)
   description: >-
@@ -6357,6 +6323,9 @@ groups:
     stories:
     - story_2022_066
     - story_2022_067
+    see_also:
+    - spec_id: CM-23-038
+      reason: 'context for the reader'
   - id: CM-23-023
     priority: MUST
     kind: protocol
@@ -6516,6 +6485,11 @@ groups:
     stories:
     - story_2022_066
     - story_2022_067
+    see_also:
+    - spec_id: CLP-10-006
+      reason: 'context for the reader'
+    - spec_id: CM-23-022
+      reason: 'context for the reader'
   - id: CM-23-027
     priority: MUST_NOT
     kind: protocol
@@ -6606,6 +6580,17 @@ groups:
     stories:
     - story_2022_066
     - story_2022_067
+    see_also:
+    - spec_id: CLP-10-006
+      reason: 'context for the reader'
+    - spec_id: CM-23-013
+      reason: >-
+        scope boundary: CM-23-003 covers an open case, CM-23-013 the post-close write
+        boundary
+    - spec_id: CM-23-021
+      reason: 'context for the reader'
+    - spec_id: CM-23-022
+      reason: 'context for the reader'
   - id: CM-23-030
     priority: MUST
     kind: protocol
@@ -6962,6 +6947,9 @@ groups:
     - ADR-0085
     stories:
     - story_2022_066
+    see_also:
+    - spec_id: CM-23-011
+      reason: 'context for the reader'
   - id: CM-23-036
     priority: MUST
     kind: protocol
@@ -7143,6 +7131,9 @@ groups:
     - ADR-0050
     stories:
     - story_2022_066
+    see_also:
+    - spec_id: CM-23-012
+      reason: 'context for the reader'
   - id: CM-23-040
     priority: MAY
     kind: protocol
@@ -7457,6 +7448,11 @@ groups:
     adr:
     - ADR-0131
     - ADR-0085
+    see_also:
+    - spec_id: CP-05-014
+      reason: 'context for the reader'
+    - spec_id: CP-05-018
+      reason: 'context for the reader'
   - id: CM-23-046
     priority: MUST
     kind: project
@@ -7531,6 +7527,9 @@ groups:
     - ADR-0115
     stories:
     - story_2022_066
+    see_also:
+    - spec_id: CLP-05-001
+      reason: 'context for the reader'
   - id: CM-23-048
     priority: MUST
     kind: protocol
@@ -7562,6 +7561,9 @@ groups:
     - ADR-0114
     stories:
     - story_2022_066
+    see_also:
+    - spec_id: CM-23-020
+      reason: 'context for the reader'
   - id: CM-23-049
     priority: MUST
     kind: protocol
@@ -7594,6 +7596,9 @@ groups:
     - ADR-0085
     stories:
     - story_2022_066
+    see_also:
+    - spec_id: CM-23-019
+      reason: 'context for the reader'
   - id: CM-23-050
     priority: MUST
     kind: protocol
@@ -7662,6 +7667,9 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-23-020
+    see_also:
+    - spec_id: HP-01-007
+      reason: 'context for the reader'
   - id: CM-23-055
     priority: MUST_NOT
     kind: project
@@ -7714,6 +7722,9 @@ groups:
     stories:
     - story_2022_066
     - story_2022_067
+    see_also:
+    - spec_id: CM-23-002
+      reason: 'context for the reader'
   - id: CM-23-051
     priority: MUST
     kind: protocol
@@ -7743,6 +7754,9 @@ groups:
     stories:
     - story_2022_066
     - story_2022_067
+    see_also:
+    - spec_id: CLP-02-005
+      reason: 'context for the reader'
   - id: CM-23-052
     priority: MUST_NOT
     kind: protocol
@@ -7995,29 +8009,6 @@ groups:
       spec_id: CM-24-005
     - rel_type: derives_from
       spec_id: BTND-04-003
-  - id: CM-24-006
-    priority: MUST
-    kind: protocol
-    statement: >-
-      A case MUST have a participant holding `CASE_MANAGER` from case creation onward.
-      Both creation paths register one: a dedicated CASE_MANAGER actor holding
-      `COORDINATOR` + `CASE_MANAGER` under ADR-0041, or the creating actor as
-      `CASE_OWNER` + `CASE_MANAGER` under CM-02-015. Role delegation transfers it
-      without a gap.
-    rationale: >-
-      Both creation paths register a CASE_MANAGER, and delegation transfers the role
-      without a gap. Thus no correct path creates a case without one, and every
-      case-scoped message has the CASE_MANAGER to go through (PCR-08-001).
-    verification: >-
-      Tests of both case-creation trees, such as
-      `test_create_case_trigger_registers_owner_and_manager` in
-      `test/core/use_cases/triggers/case/test_create.py`, assert a `CASE_MANAGER` holder
-      exists in `actor_participant_index` after creation.
-    adr:
-    - ADR-0113
-    - ADR-0109
-    stories:
-    - story_2022_106
   - id: CM-24-014
     priority: MUST
     kind: protocol
@@ -8027,7 +8018,7 @@ groups:
       activity directly to another participant instead (CM-24-008).
     rationale: >-
       An actor that finds no CASE_MANAGER reads a corrupt roster, since a case always
-      has one (CM-24-006). A direct send to a participant would bypass the ledger and
+      has one (CM-02-014). A direct send to a participant would bypass the ledger and
       the recipient rules (PCR-08-001). It would also hide the corruption behind an
       apparent success. A failed act shows the corruption (ADR-0113).
     verification: >-
@@ -8052,10 +8043,10 @@ groups:
       A trigger, received tree or shared helper in this codebase MUST NOT carry an arm
       for a case with no CASE_MANAGER (CM-24-014).
     rationale: >-
-      How this codebase keeps CM-24-014 from being bypassed; split from CM-24-006 so
-      CM-24-006 states only that a case always has a CASE_MANAGER and that no activity
-      goes around it (MS-12-010). Trees, helpers and resolvers are this codebase's
-      structure.
+      How this codebase keeps CM-24-014 from being bypassed; kept apart from the
+      protocol rules that a case always has a CASE_MANAGER (CM-02-014) and that no
+      activity goes around it (CM-24-014), as MS-12-010 directs. Trees, helpers and
+      resolvers are this codebase's structure.
     verification: >-
       Until #3964 retires the success-with-a-warning arms, the strict `xfail`s
       `test/core/behaviors/status/nodes/test_lifecycle.py::TestEmitCloseCaseNode::test_fails_when_case_manager_id_missing`
@@ -8196,6 +8187,9 @@ groups:
     stories:
     - story_2022_050
     - story_2022_035
+    see_also:
+    - spec_id: CM-24-007
+      reason: 'context for the reader'
 
 - id: CM-25
   title: Observer Participant Semantics
@@ -8261,7 +8255,7 @@ groups:
       additional or reduced delivery tier applies.
     rationale: >-
       An Observer that accepts the stub Invite consents to the active embargo
-      (MV-10-006). The absence of a remediation function does not change what
+      (CM-11-001). The absence of a remediation function does not change what
       the Observer is entitled to receive once it is active. Introducing a separate
       reduced delivery tier for Observers is deferred: `notes/selective-disclosure.md`
       describes the potential future mechanism but it is not yet implemented.
@@ -8373,6 +8367,9 @@ groups:
     - ADR-0114
     stories:
     - story_2022_063
+    see_also:
+    - spec_id: CM-16-003
+      reason: 'context for the reader'
 
 - id: CM-26
   title: Role Stacking — Union of Permissions
@@ -8509,8 +8506,7 @@ groups:
       Amended by ADR-0096. "Authoritative" settles precedence between the wire value and the
       receiver's local policy window; it does not exempt the wire value from
       EP-07-011, which clamps any computed deadline down to the embargo's own
-      `end_time`. CM-28-011 binds the same
-      ceiling to the CM-18-023 fallback path.
+      `end_time`, from the CM-18-023 fallback path and an explicit value alike.
       An explicit `Invite.end_time` that outlives the
       embargo is still clamped.
     verification: Integration tests in `test/demo/` confirm that when `Invite.end_time` is
@@ -8579,41 +8575,6 @@ groups:
     stories:
     - story_2022_023
     - story_2026_092
-  - id: CM-28-004
-    priority: MUST
-    kind: protocol
-    statement: >-
-      The CASE_MANAGER MUST record an expired invitation as the consent row's
-      `TIMED_OUT` state, by the `TIME_OUT` trigger (`INVITED → TIMED_OUT`), never as
-      `DECLINED`.
-    rationale: >-
-      A participant that did not answer made no decision, and code, logs, demos and replicas read
-      the consent row, not ledger provenance (ADR-0118). An expired participant is re-invitable
-      (CM-18-003), excluded from embargoed content like any non-signatory
-      (CM-10-004), and returned to `AGREED` by a late Accept the CASE_MANAGER
-      honours — a signatory only if that embargo is in force (EMB-17-002,
-      MSM-07-003). ADR-0118 reverses ADR-0065's choice to record a lapsed
-      invitation as `DECLINED`.
-    note: >-
-      "Invitation" here is an `Invite(EmbargoEvent)`. An expired stub Invite
-      (`Invite(Actor)[target=VulnerabilityCaseStub]`) carries embargo terms but changes
-      no participant state, consent included (CM-11-040): an unanswered stub is
-      not a refusal to join, and the CASE_MANAGER may re-invite on the same
-      record (CM-11-015, ADR-0114).
-    verification: >-
-      A unit test confirms that the CASE_MANAGER's expiry evaluation moves an `INVITED` participant
-      past its deadline to `TIMED_OUT`, not `DECLINED`.
-    relationships:
-    - rel_type: uses_definition
-      spec_id: CM-18-003
-    - rel_type: refines
-      spec_id: CM-28-005
-    adr:
-    - ADR-0065
-    - ADR-0118
-    stories:
-    - story_2022_027
-    - story_2026_092
   - id: CM-28-020
     priority: MUST
     kind: protocol
@@ -8630,7 +8591,7 @@ groups:
       on the invitee's explicit `Reject`.
     relationships:
     - rel_type: extends
-      spec_id: CM-28-004
+      spec_id: CM-18-002
     adr:
     - ADR-0118
     stories:
@@ -8640,8 +8601,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An expired embargo invitation MUST be distinguishable from an explicit refusal both in the participant's consent row (`TIMED_OUT` versus `DECLINED`, CM-28-004) and in the canonical case
-      ledger (CM-28-009).
+      An expired embargo invitation MUST be distinguishable from an explicit refusal
+      both in the participant's consent row (`TIMED_OUT` versus `DECLINED`, CM-18-002)
+      and in the canonical case ledger (CM-28-009).
     rationale: >-
       The canonical ledger is the project's history mechanism (ADR-0019), so expiry-versus-refusal
       is recoverable from it; since ADR-0118 the consent row carries the distinction too, so a
@@ -8821,33 +8783,6 @@ groups:
       spec_id: CM-28-005
     adr:
     - ADR-0065
-  - id: CM-28-011
-    priority: MUST_NOT
-    kind: protocol
-    statement: >-
-      The CM-18-023 policy window MUST NOT be applied so as to place the effective RSVP
-      deadline after the embargo's own `end_time`. Where the window would overshoot, the
-      deadline is the embargo's `end_time`.
-    rationale: >-
-      The policy window is a fixed duration (by default, 7 days) from the `published`
-      timestamp of the invitation. It does not refer to the embargo that the invitation
-      concerns. On a short embargo, the window causes a pocket veto after the embargo
-      ends. It records an expiry for an invitation whose embargo is already over.
-      EP-07-006 gives the general rule. This requirement applies it to the specific
-      fallback path that CM-18-023 defines. See ADR-0096.
-    verification: >-
-      A unit test confirms that when the CM-18-023 policy window would place the deadline
-      after the embargo's `end_time`, the embargo's `end_time` is used instead.
-    relationships:
-    - rel_type: refines
-      spec_id: EP-07-006
-    - rel_type: uses_definition
-      spec_id: CM-18-023
-    adr:
-    - ADR-0096
-    stories:
-    - story_2026_091
-    - story_2022_027
   - id: CM-28-012
     priority: MUST
     kind: protocol
@@ -9007,6 +8942,9 @@ groups:
     stories:
     - story_2026_092
     - story_2022_027
+    see_also:
+    - spec_id: CM-28-003
+      reason: 'context for the reader'
   - id: CM-28-016
     priority: MUST
     kind: project
@@ -9211,6 +9149,9 @@ groups:
     stories:
     - story_2026_092
     - story_2022_027
+    see_also:
+    - spec_id: EP-09-008
+      reason: 'context for the reader'
 
 - id: CM-27
   title: Case Collection Mutation Discipline
@@ -9286,6 +9227,9 @@ groups:
       spec_id: CM-27-001
     adr:
     - ADR-0064
+    see_also:
+    - spec_id: CM-31-001
+      reason: 'context for the reader'
 - id: CM-29
   title: Case Status Recency Resolution
   description: Rules for determining which CaseStatus snapshot is current when
@@ -9304,7 +9248,7 @@ groups:
       step. A replica appends in ledger order (CLP-14-001), so append order is the
       CASE_MANAGER's commit order everywhere. A timestamp rule would read a clock
       instead: one that steps back, or a CASE_MANAGER role delegated to an actor on
-      another clock (CM-24-006), could make an older status current.
+      another clock (CM-02-014), could make an older status current.
     verification: >-
       `test_current_status_is_the_last_appended` in `test/core/models/test_case.py`
       gives the last appended status a `published` earlier than the one before it
@@ -9770,6 +9714,9 @@ groups:
     - ADR-0116
     stories:
     - story_2022_023
+    see_also:
+    - spec_id: ARCH-23-005
+      reason: 'context for the reader'
   - id: CM-31-014
     priority: MUST
     kind: project
@@ -9798,10 +9745,11 @@ groups:
       `CASE_OWNER`, the named participant holds `CASE_MANAGER` or `CASE_OWNER`, or the
       request names no participant of the case.
     rationale: >-
-      The Case Owner decides who takes part in the case; the CASE_MANAGER applies case changes and
-      decides none (ADR-0108). The CASE_MANAGER role is never unfilled (CM-24-006), and the Case Owner
-      leaves only by transferring ownership (CM-21). A participant that wants to stop taking part
-      sends `Leave(VulnerabilityCase)` (CM-23), not `Remove`.
+      The Case Owner decides who takes part in the case; the CASE_MANAGER applies case
+      changes and decides none (ADR-0108). The CASE_MANAGER role is never unfilled
+      (CM-02-014), and the Case Owner leaves only by transferring ownership (CM-21). A
+      participant that wants to stop taking part sends `Leave(VulnerabilityCase)`
+      (CM-23), not `Remove`.
     verification: >-
       Received-side tests assert a removal from a non-owner, of the CASE_MANAGER, and of the Case
       Owner is refused, and a removal from the Case Owner is applied.
@@ -9873,6 +9821,11 @@ groups:
     stories:
     - story_2022_023
     - story_2022_052
+    see_also:
+    - spec_id: CLP-10-006
+      reason: >-
+        a pointer for "on receipt"; committing the received Remove does not need the
+        receive-tree commit ordering
   - id: CM-31-024
     priority: MUST
     kind: protocol
@@ -10198,6 +10151,11 @@ groups:
     - ADR-0116
     stories:
     - story_2026_096
+    see_also:
+    - spec_id: CM-31-009
+      reason: 'context for the reader'
+    - spec_id: CM-31-030
+      reason: 'context for the reader'
   - id: CM-31-033
     priority: MUST
     kind: protocol
@@ -10219,6 +10177,11 @@ groups:
     - ADR-0116
     stories:
     - story_2026_096
+    see_also:
+    - spec_id: CM-31-009
+      reason: 'context for the reader'
+    - spec_id: CM-31-030
+      reason: 'context for the reader'
   - id: CM-31-042
     priority: MUST
     kind: protocol
@@ -10241,7 +10204,12 @@ groups:
       `test/core/use_cases/received/test_embargo_ending_notices.py` asserts a stale
       `Remove` changes nothing and attempts no activation;
       `test_paused_replica_ends_a_longer_revision_it_was_not_told_of` in the same
-      file asserts a `Remove` of a longer revision ends it.
+      file asserts a `Remove` of a longer revision ends it;
+      `test_paused_replica_ends_an_expired_revision_it_has_not_activated` there
+      asserts an `END_TIME_REACHED` `Remove` of an expired revision ends it as an
+      `EARLY` one does, judged by the revision's own end time, and
+      `test_paused_replica_refuses_an_early_expiry_remove_of_a_revision` that one
+      claimed before that end time is refused.
     relationships:
     - rel_type: refines
       spec_id: CM-31-010
@@ -10250,6 +10218,9 @@ groups:
     - ADR-0161
     stories:
     - story_2026_096
+    see_also:
+    - spec_id: CM-31-009
+      reason: 'context for the reader'
   - id: CM-31-011
     priority: MUST
     kind: protocol
@@ -10487,6 +10458,11 @@ groups:
     - ADR-0116
     stories:
     - story_2022_023
+    see_also:
+    - spec_id: CM-31-009
+      reason: 'context for the reader'
+    - spec_id: CM-31-030
+      reason: 'context for the reader'
   - id: CM-31-040
     priority: MUST
     kind: protocol
@@ -10612,7 +10588,7 @@ groups:
     statement: >-
       The parent's CASE_MANAGER MUST create the child case in its own store.
     rationale: >-
-      The split creates a case like any other (CM-22-001, ADR-0041). Creating it in the
+      The split creates a case like any other (CP-09-001, ADR-0041). Creating it in the
       store that already holds the parent keeps the whole family at one CASE_MANAGER
       (CM-32-019).
     verification: >-
@@ -10622,7 +10598,7 @@ groups:
     - story_2022_104
     relationships:
     - rel_type: refines
-      spec_id: CM-22-001
+      spec_id: CP-09-001
     adr:
     - ADR-0125
     - ADR-0117
@@ -10632,7 +10608,7 @@ groups:
     statement: >-
       The parent's CASE_MANAGER MUST be the CASE_MANAGER of each child case it creates.
     rationale: >-
-      The child has a CASE_MANAGER from creation (CM-24-006). Hosting the whole family
+      The child has a CASE_MANAGER from creation (CM-02-014). Hosting the whole family
       at one CASE_MANAGER (CM-32-016) is what lets siblings be read from the parent
       (CM-32-006).
     verification: >-
@@ -10652,7 +10628,7 @@ groups:
       The CASE_MANAGER MUST set the child case's `attributed_to` to the Case Owner that
       requested the split.
     rationale: >-
-      As in any case creation, the proposer owns the case it asked for (CM-22-001). The
+      As in any case creation, the proposer owns the case it asked for (CP-09-001). The
       splitter is the Owner the child's ledger and roster start from.
     verification: >-
       A test marked `CM-32-020` splits a case and asserts the child's `attributed_to` is
@@ -10947,6 +10923,9 @@ groups:
       spec_id: CM-14-010
     adr:
     - ADR-0125
+    see_also:
+    - spec_id: EP-04-012
+      reason: 'context for the reader'
   - id: CM-32-009
     priority: MUST_NOT
     kind: protocol
@@ -11084,6 +11063,9 @@ groups:
     adr:
     - ADR-0125
     - ADR-0114
+    see_also:
+    - spec_id: CM-14-010
+      reason: 'context for the reader'
   - id: CM-32-034
     priority: MUST
     kind: protocol
@@ -11418,7 +11400,7 @@ groups:
     - story_2022_104
     relationships:
     - rel_type: extends
-      spec_id: CM-24-006
+      spec_id: CM-02-014
     adr:
     - ADR-0125
   - id: CM-32-045
@@ -11537,6 +11519,9 @@ groups:
       spec_id: CM-33-001
     adr:
     - ADR-0039
+    see_also:
+    - spec_id: CM-02-016
+      reason: 'context for the reader'
   - id: CM-33-002
     priority: MUST
     kind: protocol
@@ -11608,7 +11593,7 @@ groups:
       A grant only adds a role. Thus an accepted CASE_OWNER or CASE_MANAGER offer would
       give the case two holders of a role that it has exactly one of (CM-21-001,
       CM-02-001). Ownership moves by ownership transfer (CM-21). The CASE_MANAGER role
-      moves only by delegation (CM-24-006), never by a role Offer, because it carries
+      moves only by delegation (CM-02-014), never by a role Offer, because it carries
       ledger authority. The CASE_MANAGER takes no other role by Offer. The forward of
       CM-33-008 would go to itself (BT-17-008), and the answer of CM-33-004 would also
       go to itself.
@@ -11867,28 +11852,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-33-006
-    adr:
-    - ADR-0039
-  - id: CM-33-020
-    priority: MUST
-    kind: protocol
-    statement: >-
-      When the CASE_MANAGER commits an `Accept` of a role Offer, it MUST grant the role
-      on its own replica, as CM-02-016 requires.
-    rationale: >-
-      The CASE_MANAGER's replica is the one its later checks read, such as whether the
-      target already holds a role (CM-33-003).
-    verification: >-
-      A test marked `CM-33-020` delivers the target's Accept of a recorded role Offer
-      and asserts the role on the target's participant record.
-    stories:
-    - story_2022_035
-    - story_2026_065
-    relationships:
-    - rel_type: extends
-      spec_id: CM-33-006
-    - rel_type: refines
-      spec_id: CM-02-016
     adr:
     - ADR-0039
   - id: CM-33-021

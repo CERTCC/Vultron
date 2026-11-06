@@ -14,7 +14,7 @@
 
 A repeated ``Accept`` or ``Reject`` of the same embargo Invite by the same
 actor, under a new activity id, changes no state at the CASE_MANAGER, adds no
-ledger entry and sends no message (CM-13-005, HP-01-003).  A *changed* answer
+ledger entry and sends no message (CM-13-005, HP-01-014).  A *changed* answer
 by the same actor is a consent change, not a repeat, and still flows; an
 answer by a different participant is its own consent.
 
@@ -78,10 +78,12 @@ def _invited(net: LedgerNetwork, actor: str, suffix: str) -> tuple[str, str]:
 
     Returns ``(embargo_id, invite_id)``.  The Invite is delivered, so the
     actor's replica auto-answers it; that answer is left in the actor's
-    outbox, undelivered, and the test sends its own.
+    outbox, undelivered, and the test sends its own, numbered as the
+    auto-answer would have been (``withdraw_unsent_numbers``).
     """
     embargo_id = _propose(net, suffix, 90)
     net.deliver(MANAGER, to=actor, type_="Invite")
+    net.withdraw_unsent_numbers(actor)
     invites = net.queued(MANAGER, to=actor, type_="Invite")
     return embargo_id, invites[-1].id_
 

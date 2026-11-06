@@ -69,7 +69,7 @@ def _stored_case_invite(
 ) -> as_Invite:
     """Read the received Invite as this invitee holds it, stub and all.
 
-    The Invite is parsed from the body intake archived on arrival
+    The Invite is parsed from the body intake recorded on arrival
     (:func:`read_received_as_received`), since the inbox never holds a stub
     Invite back for its case (PCR-06-005).  The parse resolves the inline
     stub to its own class, and the reply factory checks that it is a case

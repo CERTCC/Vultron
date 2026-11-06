@@ -141,7 +141,7 @@ def create_accept_ownership_transfer_tree(
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
     """
     if case_id is None:
-        # Intake archives the reply; there is no case to judge it
+        # Intake records the reply; there is no case to judge it
         # against (CLP-10-018).
         return create_incomplete_activity_received_tree(
             "AcceptOwnershipTransferBT",
@@ -225,7 +225,7 @@ def create_reject_ownership_transfer_tree(
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
     """
     if case_id is None:
-        # Intake archives the reply; there is no case to judge it
+        # Intake records the reply; there is no case to judge it
         # against (CLP-10-018).
         return create_incomplete_activity_received_tree(
             "RejectOwnershipTransferBT",
@@ -296,7 +296,7 @@ def create_undo_ownership_transfer_tree(
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
     """
     if case_id is None:
-        # Intake archives the reply; there is no case to judge it
+        # Intake records the reply; there is no case to judge it
         # against (CLP-10-018).
         return create_incomplete_activity_received_tree(
             "UndoOwnershipTransferBT", "Undo(ownership transfer) names no case"

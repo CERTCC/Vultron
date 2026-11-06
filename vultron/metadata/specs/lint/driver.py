@@ -47,6 +47,7 @@ from vultron.metadata.specs.registry import (
 from vultron.metadata.specs.relation_graph import (
     check_both_ends_recorded,
     check_relationship_loops,
+    check_statement_citations,
 )
 from vultron.metadata.specs.schema import SpecKind
 from vultron.metadata.specs.statement_style import compound_listing
@@ -190,6 +191,7 @@ def lint(
     hard_errors.extend(registry.validate_cross_references())
     hard_errors.extend(check_relationship_loops(registry))
     hard_errors.extend(check_both_ends_recorded(registry))
+    hard_errors.extend(check_statement_citations(registry))
     hard_errors.extend(_check_prefix_consistency(registry))
     hard_errors.extend(_check_spec_id_prefix_consistency(registry))
     hard_errors.extend(_check_scenario_start_groups(registry))

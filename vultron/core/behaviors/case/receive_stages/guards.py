@@ -26,9 +26,6 @@ from vultron.core.behaviors.case.nodes.diversion_stage import (
     Diversion,
     DiversionStage,
 )
-from vultron.core.behaviors.case.nodes.intake import (
-    IntakeReceivedActivityNode,
-)
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
@@ -43,6 +40,9 @@ from vultron.core.behaviors.case.nodes.refusal_stage import (
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
+)
+from vultron.core.behaviors.case.nodes.seen_before import (
+    ActivityNotSeenBeforeNode,
 )
 from vultron.core.behaviors.case.receive_stages.effects import (
     check_replica_effects,
@@ -62,11 +62,11 @@ from vultron.errors import VultronWiringError
 
 def refusal_stage(
     name: str,
-    intake: IntakeReceivedActivityNode,
     precondition_guards: list[py_trees.behaviour.Behaviour],
     refusal_effects: list[py_trees.behaviour.Behaviour],
     case_id: str | None,
     *,
+    seen_door: ActivityNotSeenBeforeNode,
     stage_name: str = "PreconditionGuardStage",
     guards_name: str = "PreconditionGuards",
     gate_suffix: str = "RefusalIfCaseManager",
@@ -84,7 +84,9 @@ def refusal_stage(
     "not the CASE_MANAGER" at ``debug`` level, because the guard that refused
     an unknown case has already reported it.  Each effect is best-effort on
     its own, so one that fails (a refusal notice that cannot be built) does
-    not keep the next (the RSH-06-004 note) from running.
+    not keep the next (the RSH-06-004 note) from running.  *seen_door* is the
+    tree's seen-before door, whose ``rerun`` tells the stage to skip the
+    effects on the re-run of a record a run left in holding (CLP-10-044).
 
     Raises:
         VultronWiringError: a refusal effect is not emit-capable, or
@@ -134,7 +136,7 @@ def refusal_stage(
             children=precondition_guards,
         ),
         refusal=RefusalEffectsBestEffort(name="RefusalEffects", child=gate),
-        intake=intake,
+        seen_door=seen_door,
     )
 
 

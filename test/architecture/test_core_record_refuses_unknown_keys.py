@@ -65,7 +65,6 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "reason": "unreachable",
         "total_attempts": 3,
     },
-    "DeferredInboxActivity": {"activity_id": _URI, "received_body": "{}"},
     "GenesisRejectRecord": {
         "case_id": f"{_URI}/case",
         "last_sent_at": "2026-10-29T00:00:00Z",
@@ -99,6 +98,15 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "offer_id": f"{_URI}/offer",
         "report_id": f"{_URI}/report",
         "offer_actor_id": _URI,
+    },
+    "SenderSequenceCounter": {
+        "case_id": f"{_URI}/case",
+        "sender_id": f"{_URI}/sender",
+    },
+    "SenderSequenceOrder": {
+        "case_id": f"{_URI}/case",
+        "sender_id": f"{_URI}/sender",
+        "next_expected": 1,
     },
     "VultronPendingCaseInbox": {"case_id": f"{_URI}/case"},
     "VultronReplicationState": {

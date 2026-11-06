@@ -25,6 +25,9 @@ from vultron.core.behaviors.sync.nodes.ledger_position import (
     STATED_POSITION_ANSWERED_BY_TREE,
     PeerActiveParticipantNode,
 )
+from vultron.core.behaviors.sync.nodes.sender_sequence import (
+    LEDGER_REQUEST_TAKES_NO_NUMBER,
+)
 
 
 def create_read_log_entry_tree(
@@ -89,6 +92,9 @@ def create_read_log_entry_tree(
         # so the factory's answer to a stamped position would repeat it
         # (SYNC-17-005, SYNC-18-007).
         ledger_position_exemption=STATED_POSITION_ANSWERED_BY_TREE,
+        # A ledger request is not a case event, so its sender numbers it
+        # not (SYNC-21-001).
+        sender_sequence_exemption=LEDGER_REQUEST_TAKES_NO_NUMBER,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id

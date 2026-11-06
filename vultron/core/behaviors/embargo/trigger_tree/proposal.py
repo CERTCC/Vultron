@@ -33,6 +33,9 @@ from vultron.core.behaviors.embargo.nodes import (
     ValidateEmbargoProposalStateNode,
     ValidateEmbargoRevisionStateNode,
 )
+from vultron.core.behaviors.embargo.nodes.proposal_repeat import (
+    EmbargoTermsNotHeldNode,
+)
 from vultron.core.behaviors.embargo.trigger_tree._arms import (
     _asserting,
     _by_role,
@@ -57,13 +60,15 @@ def _propose_arms(
     """Manager: adjudicate and relay its own terms; otherwise: ask.
 
     The CASE_MANAGER's own proposal takes the shape of one it receives
-    (EP-09-001, EP-09-002): collect the invitees before deciding
-    (BT-19-001), decide ``STRICT`` on a staged store, commit the proposal —
-    the ``Invite(EmbargoEvent)`` whose entry is the ``PROPOSE`` step —
-    then one ``Create(EmbargoConsent)`` per participant's new row (the
-    proposer's ``AGREED``, every other one ``UNINVITED``), apply them by
-    copying (ADR-0124, CLP-07-013), relay one ``Invite`` per participant,
-    and only then index the proposal the manager will answer (ID-04-005).
+    (EP-09-001, EP-09-002): refuse terms the case already holds with the
+    received side's own check (EP-09-032, #5899), collect the invitees
+    before deciding (BT-19-001), decide ``STRICT`` on a staged store,
+    commit the proposal — the ``Invite(EmbargoEvent)`` whose entry is the
+    ``PROPOSE`` step — then one ``Create(EmbargoConsent)`` per
+    participant's new row (the proposer's ``AGREED``, every other one
+    ``UNINVITED``), apply them by copying (ADR-0124, CLP-07-013), relay one
+    ``Invite`` per participant, and only then index the proposal the
+    manager will answer (ID-04-005).
     The factory renders the stored ``EmbargoEvent``, the object and not case
     state (EP-09-003): in the manager arm ``CommitEmbargoProposalNode``
     stores it as it builds the proposal and takes it back out when the
@@ -75,6 +80,12 @@ def _propose_arms(
         name,
         case_id,
         as_case_manager=[
+            EmbargoTermsNotHeldNode(
+                case_id=case_id,
+                embargo_id=embargo.id_,
+                embargo=embargo,
+                result_out=result_out,
+            ),
             CollectEmbargoInviteRecipientsNode(
                 case_id=case_id, proposer_id=actor_id
             ),

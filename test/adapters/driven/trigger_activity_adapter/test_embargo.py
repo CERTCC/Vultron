@@ -326,14 +326,72 @@ class TestAutomaticAnswerId:
         assert derived not in ids
 
     @pytest.mark.spec("ID-04-004")
-    def test_a_reject_counts_as_an_answer(self, adapter, dl):
+    def test_a_derived_reject_counts_as_an_answer(self, adapter, dl):
+        """A derived-id Reject is recognised by ``answered_embargo_invite``.
+
+        The automatic Reject (``derived_id=True``) uses the known id, so the
+        idempotency guard can tell the Invite was already answered.
+        """
         proposal_id, _ = _received_proposal(dl)
 
         adapter.reject_embargo(
-            proposal_id=proposal_id, case_id=_CASE_ID, actor=_PEER
+            proposal_id=proposal_id,
+            case_id=_CASE_ID,
+            actor=_PEER,
+            derived_id=True,
         )
 
         assert adapter.answered_embargo_invite(_PEER, proposal_id)
+
+    @pytest.mark.spec("ID-04-004")
+    def test_a_derived_reject_built_twice_is_one_activity(self, adapter, dl):
+        """A second derived-id Reject returns the first one's id and body."""
+        proposal_id, _ = _received_proposal(dl)
+
+        first = adapter.reject_embargo(
+            proposal_id=proposal_id,
+            case_id=_CASE_ID,
+            actor=_PEER,
+            derived_id=True,
+        )
+        second = adapter.reject_embargo(
+            proposal_id=proposal_id,
+            case_id=_CASE_ID,
+            actor=_PEER,
+            derived_id=True,
+        )
+
+        assert second == first
+
+    @pytest.mark.spec("CM-18-003")
+    @pytest.mark.spec("IE-10-001")
+    def test_a_deliberate_reject_is_a_new_activity(self, adapter, dl):
+        """Without ``derived_id`` each Reject mints its own id.
+
+        A second Reject of the same Invite is a changed answer, not a
+        redelivery of the first one: the CASE_MANAGER commits it as a new
+        consent row transition (CM-18-003) instead of dropping it as a
+        duplicate (IE-10-001).
+        """
+        proposal_id, _ = _received_proposal(dl)
+        derived_id, _ = adapter.reject_embargo(
+            proposal_id=proposal_id,
+            case_id=_CASE_ID,
+            actor=_PEER,
+            derived_id=True,
+        )
+
+        ids = {
+            adapter.reject_embargo(
+                proposal_id=proposal_id,
+                case_id=_CASE_ID,
+                actor=_PEER,
+            )[0]
+            for _ in range(2)
+        }
+
+        assert len(ids) == 2
+        assert derived_id not in ids
 
 
 class TestRejectEmbargo:

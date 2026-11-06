@@ -122,10 +122,7 @@ def test_a_ledger_announce_carries_the_case_managers_proof():
 
 @pytest.mark.xfail(
     strict=True,
-    reason=(
-        "SIG-01-002: no proof is made yet. Tracked by #5380 (proof form) "
-        "and #5382 (outbox signs)."
-    ),
+    reason=("SIG-01-002: the outbox makes no proof yet. Tracked by #5382."),
 )
 @pytest.mark.spec("SIG-01-002")
 def test_a_sent_proof_names_the_cryptosuite_and_the_authors_key():

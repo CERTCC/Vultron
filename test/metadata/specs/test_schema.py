@@ -27,6 +27,7 @@ from vultron.metadata.specs.schema import (
     RFC2119Priority,
     RFC2119Tier,
     Scope,
+    SeeAlso,
     SpecFile,
     SpecGroup,
     SpecKind,
@@ -155,7 +156,7 @@ def test_statement_spec_optional_field_set(model):
     """The SR-02-021 annotations are optional fields; no lifecycle field exists.
 
     A superseded requirement is removed and archived, so no field marks one
-    in place (MS-04-005, MS-09-001).
+    in place (MS-09-001).
     """
     optional = {
         "verification",
@@ -165,6 +166,7 @@ def test_statement_spec_optional_field_set(model):
         "references",
         "exceptions",
         "trigger",
+        "see_also",
     }
     fields = model.model_fields
     assert optional <= set(fields)
@@ -179,6 +181,38 @@ _SPEC_ITEM = {
     "rationale": "Because testing.",
     "kind": "protocol",
 }
+
+
+@pytest.mark.spec("SR-02-021")
+def test_see_also_defaults_to_empty_and_loads_entries():
+    bare = StatementSpec.model_validate(_SPEC_ITEM)
+    listed = StatementSpec.model_validate(
+        {
+            **_SPEC_ITEM,
+            "see_also": [{"spec_id": "AB-01-002", "reason": "an example"}],
+        }
+    )
+
+    assert bare.see_also == []
+    assert listed.see_also == [
+        SeeAlso(spec_id="AB-01-002", reason="an example")
+    ]
+
+
+@pytest.mark.spec("SR-02-021")
+@pytest.mark.parametrize(
+    "entry",
+    [
+        {"spec_id": "AB-01-002"},
+        {"spec_id": "AB-01-002", "reason": ""},
+        {"spec_id": "not an id", "reason": "an example"},
+        {"spec_id": "AB-01-002", "reason": "an example", "note": "extra"},
+    ],
+    ids=["no-reason", "empty-reason", "bad-id", "extra-key"],
+)
+def test_see_also_entry_refuses_a_malformed_entry(entry):
+    with pytest.raises(ValidationError):
+        SeeAlso.model_validate(entry)
 
 
 @pytest.mark.spec("MS-09-001")

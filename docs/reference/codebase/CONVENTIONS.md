@@ -44,7 +44,8 @@ stakeholder_type: [project-contributor]
   uv run ruff format      # format
   uv run ruff check       # lint
   uv run mypy             # type-check
-  uv run pyright          # type-check (second pass)
+  # type-check (second pass), in a per-host heavy-check slot
+  uv run python .agents/skills/shared/run-heavy.py uv run pyright
   ./mdlint.sh             # markdown lint
   ```
 

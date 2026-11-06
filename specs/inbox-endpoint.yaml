@@ -472,8 +472,8 @@ groups:
       `test_an_attempt_interrupted_during_the_act_leaves_the_item_queued` and
       `test_an_attempt_interrupted_during_its_settlement_leaves_the_item_queued` in
       `test/adapters/driving/fastapi/test_inbox_queue_drain.py` show that the item's
-      id is still queued, its `DeferredInboxActivity` is still held and its attempt
-      count is unchanged.
+      id is still queued, its `ReceivedActivityRecord` still owes its replay and its
+      attempt count is unchanged.
     adr:
     - ADR-0146
     relationships:
@@ -633,24 +633,27 @@ groups:
     statement: >-
       The endpoint SHOULD detect a redelivered activity early, at ingress: when the
       receiving actor already holds the activity under a key it derives from the
-      activity id (its `ReceivedActivityRecord`, or the `DeferredInboxActivity` that
-      holds it for replay), and the delivery's sealed body is exactly the body held for
+      activity id (its one `ReceivedActivityRecord`, whatever stage it is in), and the
+      delivery's sealed body is exactly the body held for
       that id, the redelivered body is not held again, and the copy the receiver holds
-      is routed in its place (VM-08-002): the deferred record's, without received
-      evidence, while the first delivery is still deferred, else the body intake
-      archived, carrying that body as its received evidence. A delivery under a held
+      is routed in its place (VM-08-002). Whether that copy carries received evidence
+      is decided by whether a replay is still owed from the held body: with one owed
+      the copy carries none, because the held copy is not this delivery and will carry
+      the evidence when it is replayed; with none owed the body the receiver holds is
+      routed, carrying that body as its received evidence. A delivery under a held
       id whose body differs is not a redelivery; IE-10-002 refuses it.
     rationale: >-
       Ingress is the first point where the receiver can read durable evidence of an
       earlier delivery, so the early filter that ID-05-002 permits goes there. The
       evidence is under a key the receiver derives, because a row under the sender's id
-      reads as one of the receiver's own activities (DL-06-006). Intake's archive is the
-      received body (ADR-0149), so a resend of an archived activity is parsed again from
-      the archived body, and that body is its evidence. Handler idempotency then answers
-      it (ID-04). A committed act is a repeat. An act that did not commit, such as one
-      whose consequence failed, runs as a first delivery and records the archived body
-      (CLP-07-015). The archive records receipt, not the act, so "already archived" does
-      not mean "already applied". Only a resend of the same body is a redelivery: if the
+      reads as one of the receiver's own activities (DL-06-006). The held record is the
+      received body (ADR-0149), so a resend of an activity held with no replay owed is
+      parsed again from that body, and that body is its evidence. The received tree's
+      seen-before door then answers it from the record's stage (CLP-10-010, ADR-0154):
+      an archived act was applied, so the resend is a repeat; an act a run left in
+      holding with no verdict, such as one whose consequence failed, runs again and
+      records the held body (CLP-07-015, CLP-10-074). Only a resend of the same body is
+      a redelivery, which is why ingress keeps the one comparison of bodies: if the
       receiver routed its held copy in place of a different body, that body would be
       lost with no trace (IE-10-002).
     verification: >-
@@ -682,7 +685,7 @@ groups:
       (IE-10-001). The endpoint MUST refuse the delivery when its sealed received body
       (VM-08-002) is not exactly the body held for that id. The held body is the
       deferred record's while the first delivery is still deferred, else the body intake
-      archived. This applies to every activity type, including an
+      recorded. This applies to every activity type, including an
       `Announce(CaseLedgerEntry)` that ingress hydrates in place (SYNC-13-004).
     rationale: >-
       An activity id names one activity (ID-01-001). A second body under a held id is a
@@ -714,6 +717,9 @@ groups:
       spec_id: IE-10-001
     - rel_type: uses_definition
       spec_id: VM-08-002
+    see_also:
+    - spec_id: SYNC-13-004
+      reason: 'context for the reader'
   - id: IE-10-003
     priority: MUST_NOT
     kind: project

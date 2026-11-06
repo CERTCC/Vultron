@@ -192,7 +192,10 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   (`EmbargoTermsNotHeldNode`, EP-09-032): its end time equals a pending
   proposal's, or, with no revision pending, the embargo in force's. Keep the
   in-force end time during a revision admissible, because it is the
-  counter-proposal to keep the current terms (EP-09-020).
+  counter-proposal to keep the current terms (EP-09-020). The CASE_MANAGER's
+  own propose and revise triggers compose the same node, given `result_out`, so
+  there the repeat refuses the whole request instead: a trigger admits only
+  valid steps (RSH-09, #5899).
 
 ## TransitionMode and the P/X/A Guards
 
@@ -316,8 +319,8 @@ catch-up path.
   fetch fails (EMB-01-002, AKM-05-015).
 - **Skip an Invite already answered** (`pending_embargo_proposal_index` maps its
   embargo to it), so a later P/X/A never contradicts an earlier answer.
-  "Already archived" is not that signal: intake archives the Invite before
-  any guard runs (CLP-10-017).
+  "Already recorded" is not that signal: intake records the Invite once its
+  doors admit it, before any guard runs (CLP-10-017).
 - **The refusal `Reject` is its own record** (ADR-0123). Its id derives from the
   rejecting actor and the Invite, a tree node queues it (CLP-10-020), and the
   sealed `Reject` is written before the queue append (EMB-01-006), so a
@@ -542,7 +545,7 @@ participant that believes P/X/A is set is still answered with its own `Reject`
 of the Invite, manager or not. Participant self-status (RM) keeps its local
 write.
 
-**The role is never unfilled** (CM-24-006, CM-24-008, CM-24-015). No "no manager" arm belongs
+**The role is never unfilled** (CM-02-014, CM-24-008, CM-24-015). No "no manager" arm belongs
 in any embargo tree; a resolver that finds nobody fails.
 
 **Only the CASE_MANAGER records an answer, and only one it can apply.** Answer

@@ -16,8 +16,9 @@
 """Turn a received-side BT run into the handler's ``HandlerResult`` (#2255).
 
 A tree's root status says only whether it succeeded. A handler has to report
-more than that (HP-01-003, ADR-0095): a benign no-op is ``SKIPPED``, a refused
-assertion is ``REFUSED``, and a programming error is neither — it propagates.
+more than that (HP-01-003, HP-01-014, ADR-0095): a benign no-op is
+``SKIPPED``, a refused assertion is ``REFUSED``, and a programming error is
+neither — it propagates.
 
 :func:`verdict_from_bt` applies the default reading of a finished run:
 
@@ -25,8 +26,11 @@ assertion is ``REFUSED``, and a programming error is neither — it propagates.
 - A leadership skip (the tree never ran) → ``SKIPPED``.
 - ``internal_error``, or a node missing its DataLayer or a port → raise
   :class:`~vultron.errors.VultronBTInternalError`.
-- The post-close guard refused (CM-23-013) → ``REFUSED``, ahead of any other
-  reading of the failure.
+- A door guard ended the run (:func:`door_refusal`) → its own verdict, ahead
+  of any other reading of the failure: ``REFUSED`` for the addressee check,
+  the path stage or the post-close guard, and the seen-before door's answer
+  to a resend (``REFUSED`` from a receipt stub, ``SKIPPED`` for a message
+  applied or waiting, ADR-0154).
 - Any other ``FAILURE`` → ``REFUSED``, with the failing leaf's reason.
 
 :func:`applied_or_raise` is the variant for a tree that only stores or commits:
@@ -82,6 +86,7 @@ from vultron.core.use_cases.received._bt_verdict.door import (
     incomplete_activity_refusal,
     path_refusal,
     post_close_refusal,
+    seen_before_verdict,
 )
 from vultron.core.use_cases.received._bt_verdict.redelivery import (
     add_note_redelivery_verdict,
@@ -95,6 +100,9 @@ from vultron.core.use_cases.received._bt_verdict.redelivery import (
     role_offer_answer_verdict,
     role_offer_verdict,
     stale_case_copy_verdict,
+)
+from vultron.core.use_cases.received._bt_verdict.sequence import (
+    sender_sequence_verdict,
 )
 from vultron.core.use_cases.received._bt_verdict.tree_lookup import (
     door_guards_admitted,
@@ -114,6 +122,7 @@ from vultron.core.use_cases.received._bt_verdict.verdict import (
 )
 
 __all__ = [
+    "sender_sequence_verdict",
     "add_note_redelivery_verdict",
     "addressee_refusal",
     "applied_or_raise",
@@ -146,6 +155,7 @@ __all__ = [
     "rm_declaration_verdict",
     "role_offer_answer_verdict",
     "role_offer_verdict",
+    "seen_before_verdict",
     "stale_case_copy_verdict",
     "taken_diversion",
     "unheld_case_refusal",

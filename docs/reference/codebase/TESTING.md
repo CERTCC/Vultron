@@ -16,9 +16,11 @@ stakeholder_type: [project-contributor]
 # Unit tests only (default — integration excluded)
 uv run pytest --tb=short
 
-# All tests (unit + integration) on xdist workers — what the CI test job runs
+# All tests (unit + integration) on xdist workers. CI runs this command as
+# parallel parts, each over a disjoint slice of test/ (TB-11-002), so one
+# round ends with the slowest part rather than the sum.
 # (-n auto is sized to the container's cgroup limits by test/conftest.py)
-uv run pytest -m "" -n auto --tb=short
+uv run python .agents/skills/shared/run-heavy.py uv run pytest -m "" -n auto --tb=short
 
 # Integration tests only
 uv run pytest -m integration
@@ -27,7 +29,7 @@ uv run pytest -m integration
 uv run pytest test/test_config.py --tb=short
 
 # Gate form: redirect, read the exit line (never end a gate command with a pipe)
-timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 ### 2) Test Layout
@@ -36,7 +38,7 @@ timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&
 - **Naming convention**: `test_<module>.py` files; test functions named `test_<behavior>()`.
   Files named `test_*_planned.py` hold strict-`xfail` tests for requirements whose implementation issue is still open.
 - **Architecture tests**: `test/architecture/` — boundary-enforcement and ratchet tests (import-graph checks, write-site ratchets, naming/hygiene ratchets).
-  Beyond the core/wire/demo import-boundary tests it includes, e.g., `test_no_bare_register_key_datalayer_nodes.py` (BTND-03-009), `test_no_dl_mutations_in_execute.py` (CLP-10-020), `test_receive_side_intake_first.py` and `test_receive_side_bt_commit_ordering.py` (ADR-0111), `test_trigger_registry_ratchets.py` and `test_trigger_port_single_method.py` (ADR-0110), `test_vocab_examples_dispatchable.py`, `test_role_authority_resolver.py`, `test_spec_coverage_ratchet.py`, `test_spec_kind_ratchet.py`, `test_codebase_docs_paths.py` (validates path references in these very docs), and `test_ratchet_hygiene.py`.
+  Beyond the core/wire/demo import-boundary tests it includes, e.g., `test_no_bare_register_key_datalayer_nodes.py` (BTND-03-009), `test_no_dl_mutations_in_execute.py` (CLP-10-020), `test_receive_side_staged_order.py` and `test_receive_side_bt_commit_ordering.py` (ADR-0154), `test_trigger_registry_ratchets.py` and `test_trigger_port_single_method.py` (ADR-0110), `test_vocab_examples_dispatchable.py`, `test_role_authority_resolver.py`, `test_spec_coverage_ratchet.py`, `test_spec_kind_ratchet.py`, `test_codebase_docs_paths.py` (validates path references in these very docs), and `test_ratchet_hygiene.py`.
 - **Demo tests**: `test/demo/` holds the integration-tier demo and scenario tests (marked `integration` by `test/demo/conftest.py`); `test/demo_unit/` holds unit-tier tests of demo code (scenario registry, CLI factory, actor roles, polling helpers).
 - **Demo recordings**: `test/demo_recordings/` smoke-tests the in-process recorder behind `export-demo-recordings` (`vultron/demo/recordings/`).
 - **CI tests**: `test/ci/` checks workflow files (SHA pinning, path filters, failure notification, publication gates).
@@ -89,6 +91,9 @@ timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&
     `timeout_method = "signal"` fails only the test that trips, and the run goes on to its summary.
     `--max-worker-restart=0` in `addopts` fails the run when an xdist worker dies, instead of hanging it.
     Run with `--timeout=0` to disable when diagnosing suite-level hangs.
+    `TestTheUnitCeilingIsLive` in `test/test_integration_timeout_tier.py` pins that the tier is actually applied, because the ceiling lives in `pyproject.toml` and a probe run from outside the repo tree gets no `configfile` and so no ceiling at all (#5597).
+  - Every `xfail` under `test/` must be `strict=True` (TB-17-001); `test_every_xfail_is_strict` in `test/architecture/test_ratchet_hygiene.py` fails otherwise, and a bare `@pytest.mark.xfail` counts as non-strict.
+    A non-strict goal xfail keeps passing after the work lands, so the marker outlives its defect and the assertion it guards silently stops being checked.
   - `caplog` captures log records emitted during fixture setup, not just the test body; set `caplog.set_level()` inside the test, not in a fixture.
   - Test-only TODO: `test/core/use_cases/test_reporting_workflow.py:116` asks whether dispatcher routing to the right handler should be tested there.
 

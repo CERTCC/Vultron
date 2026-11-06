@@ -59,8 +59,8 @@ class FindCaseActorNode(CaseNamedReplayNode):
     *case_id* when the tree names it, else the activity's ``replay_case_id``.
 
     ``case_id`` is an output so a later node can read the case from the
-    blackboard (CLP-09); ``CheckIsCaseManagerNode`` falls back to it when it
-    is built without a case id.
+    blackboard (CLP-09); ``CheckIsCaseManagerNode`` reads it there when no
+    ``with_case_id`` scope seeds its port.
 
     Failing is deliberate: a FAILURE stops the sequence, so no replay runs
     under a guessed identity.  It means the executing actor cannot answer for

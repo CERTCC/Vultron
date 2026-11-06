@@ -20,7 +20,7 @@ Covers, against a real in-memory store (``notes/triggers-test-coverage.md``):
   (ADR-0140), and the typed result carries its
   id, hash and index;
 - the outbox effect: the entry is fanned out to the case's other participant
-  through the injected ``sync_port`` (SYNC-02-002);
+  through the injected ``sync_port`` (SYNC-02-003);
 - the failure modes: an unknown requester is ``VultronNotFoundError``, and a
   store that does not hold the canonical log declines the mint and reports
   ``VultronCanonicalEntryError`` instead of pretending it committed.
@@ -143,7 +143,7 @@ def test_commits_a_canonical_entry_and_returns_its_identity(actor_and_dl):
     assert entry.log_object_id == case.id_
 
 
-@pytest.mark.spec("SYNC-02-002")
+@pytest.mark.spec("SYNC-02-003")
 @pytest.mark.spec("PCR-08-001")
 def test_fans_the_entry_out_to_the_peer_participant(actor_and_dl):
     actor, dl = actor_and_dl

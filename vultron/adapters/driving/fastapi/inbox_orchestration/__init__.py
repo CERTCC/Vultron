@@ -9,6 +9,8 @@ DataLayer and dispatcher infrastructure:
   (``ingress``)
 - :class:`FastAPIDispatchAdapter` — wraps the dispatcher port (``ports``)
 - :class:`FastAPIQueuePort` — wraps pending-case queue helpers (``ports``)
+- :class:`FastAPIReceivedOutcomePort` — the received record's final outcome
+  stage (``ports``)
 
 The inbox background task that runs them, ``run_inbox_pipeline``, lives in
 ``pipeline`` with the per-actor lock that serialises it.
@@ -40,19 +42,23 @@ from vultron.adapters.driving.fastapi.inbox_orchestration.ingress import (
 )
 from vultron.adapters.driving.fastapi.inbox_orchestration.pipeline import (
     replay_inbox_queue,
+    run_actor_work_then_replay,
     run_inbox_pipeline,
     run_serialised_actor_work,
 )
 from vultron.adapters.driving.fastapi.inbox_orchestration.ports import (
     FastAPIDispatchAdapter,
     FastAPIQueuePort,
+    FastAPIReceivedOutcomePort,
 )
 
 __all__ = [
     "FastAPIDispatchAdapter",
     "FastAPIIngressAdapter",
     "FastAPIQueuePort",
+    "FastAPIReceivedOutcomePort",
     "replay_inbox_queue",
+    "run_actor_work_then_replay",
     "run_inbox_pipeline",
     "run_serialised_actor_work",
 ]

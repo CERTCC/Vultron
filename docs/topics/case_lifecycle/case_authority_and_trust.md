@@ -35,7 +35,7 @@ Your node must not treat either as evidence of authority ([ARCH-24-004](../../re
 Read the role.
 
 A case never lacks a CASE_MANAGER.
-The role is assigned when the case is created, and a delegation hands it on without a gap ([CM-24-006](../../reference/vultron-spec/requirements/case-management.md#cm-24-006)).
+The role is assigned when the case is created, and a delegation hands it on without a gap ([CM-02-014](../../reference/vultron-spec/requirements/case-management.md#cm-02-014)).
 So a node that finds no CASE_MANAGER for a case has found a corrupt participant list, not a case that runs without one.
 It stops and reports the fault.
 It does not fall back to sending a message directly.

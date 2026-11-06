@@ -68,12 +68,18 @@ from vultron.core.behaviors.case.nodes.refusal_notice import (
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
 )
+from vultron.core.behaviors.case.nodes.seen_before import (
+    ActivityNotSeenBeforeNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
     received_stages,
 )
 from vultron.core.behaviors.sync.nodes.ledger_position import (
     LedgerPositionAnswer,
+)
+from vultron.core.behaviors.sync.nodes.sender_sequence import (
+    SequenceOrderStage,
 )
 
 _KEYWORD = "refusal_notice_exemption"
@@ -276,17 +282,29 @@ def _commits(tree: ReceivedActivityTree) -> bool:
 def _guards(tree: ReceivedActivityTree) -> list[py_trees.behaviour.Behaviour]:
     """The precondition guards of a committing tree, as it runs them.
 
-    The children between the door guards (and the ledger-position answer and
-    the clock decisions) and the commit; a guard stage contributes the guards it wraps.
+    The children between the door guards (and intake, the ledger-position
+    answer, the sender sequence stage and the clock decisions) and the commit;
+    a guard stage contributes the guards it wraps.
     """
     doors = {id(guard) for guard in tree.door_guards}
     guards: list[py_trees.behaviour.Behaviour] = []
     for child in received_stages(tree):
         if child.name == _COMMIT:
             break
-        if id(child) in doors or any(
-            isinstance(n, (ClockDecisionStage, LedgerPositionAnswer))
-            for n in child.iterate()
+        if (
+            id(child) in doors
+            or isinstance(child, IntakeReceivedActivityNode)
+            or any(
+                isinstance(
+                    n,
+                    (
+                        ClockDecisionStage,
+                        LedgerPositionAnswer,
+                        SequenceOrderStage,
+                    ),
+                )
+                for n in child.iterate()
+            )
         ):
             continue
         if isinstance(child, PreconditionGuardStage):
@@ -446,7 +464,7 @@ def _hand_built(
                 for i in range(notices)
             ],
         ),
-        intake=IntakeReceivedActivityNode(),
+        seen_door=ActivityNotSeenBeforeNode(label=name),
     )
     return ReceivedActivityTree(
         name=name,
