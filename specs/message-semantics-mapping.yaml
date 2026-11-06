@@ -1729,14 +1729,14 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST refuse ACTIVATE_EMBARGO_ON_CASE before committing it when the
-      Case Owner's row for the named embargo is DECLINED. Its refusal notice MUST tell the
-      owner to accept the invitation first (CLP-05-001).
+      Case Owner's row for the named embargo is DECLINED.
     rationale: >-
       The owner's decline is an answer it sent and the ledger holds. An activation that
       moved the row to AGREED would make one activity both the case's decision and a
       change of the owner's own answer, so each would be read off the other (ADR-0180).
       An owner that changes its mind sends `Accept(Invite(EmbargoEvent))` and then
-      activates, and the ledger records each answer as it was given.
+      activates, and the ledger records each answer as it was given. The refusal's
+      reported reason tells the owner to accept the invitation first (CLP-05-001).
     verification: >-
       `test/core/use_cases/received/test_embargo_owner_decision.py`
       (`test_an_activation_the_owner_declined_is_refused_uncommitted`) confirms the
@@ -1749,9 +1749,6 @@ groups:
     - ADR-0180
     stories:
     - story_2026_087
-    see_also:
-    - spec_id: CLP-05-001
-      reason: 'context for the reader'
   - id: MSM-07-038
     priority: MUST
     kind: protocol
