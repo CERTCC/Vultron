@@ -2946,7 +2946,10 @@ groups:
         rationale: >-
           CI runs both suites on the first push, faster than a local run, and
           GitHub refuses the merge until they pass. A local full run only makes
-          the agent wait for an answer that CI gives sooner.
+          the agent wait for an answer that CI gives sooner. This retires the
+          one standing exception, a full local run for a change under
+          `vultron/demo/` or `test/demo/`: `demo-integration.yml` runs those
+          tests, and the required `CI gate` judges it.
         verification: >-
           Inspection: no `create-pr` path runs `pytest` on the whole unit or
           integration suite before its push step.
