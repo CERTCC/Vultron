@@ -84,7 +84,7 @@ Chosen option: "One indifference walk, applied to the smallest model that holds 
 - Bad, because the unweighted median and spread can mislead when a few vendors carry most of the risk; the measure does not answer the weighting question.
 - Neutral, because a participant with no vendor path gets no score, as ADR-0174 already records.
 
-### Validation
+## Validation
 
 The decision is confirmed when the baseline table for the extended desiderata is computed exactly from the small models and published on the desiderata page, and when the incomplete-sequence scorer reports expected, best and worst scores from the same walk.
 
@@ -109,4 +109,4 @@ The decision is confirmed when the baseline table for the extended desiderata is
 ## More Information
 
 The event-history layer that feeds these measures, and its refusal of a ledger with holes, are [ADR-0174](0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md).
-The weighting question, and the example of a case that protects most users while failing an unweighted test, are on the Measuring CVD "Open Questions" page.
+The weighting question, and the example of a case that protects most users while failing an unweighted test, are on the Measuring CVD [Open Questions](../topics/measuring_cvd/open_questions.md) page.
