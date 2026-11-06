@@ -28,7 +28,7 @@ stakeholder_type: [project-contributor]
 | `notes/` | Working notes that inform work not yet done, each declaring `kind: guidance`, `plan`, or `generated` (NF-08) | `notes/README.md`, `.agents/skills/shared/notes-writing-guide.md` |
 | `archived_notes/` | Superseded design notes kept for reference | `archived_notes/README.md` |
 | `docs/` | MkDocs documentation source | `mkdocs.yml` |
-| `doc/examples/` | Committed JSON examples of the activity vocabulary | `doc/README.md` |
+| `docs/reference/examples/` | Generated JSON examples of the activity vocabulary | `vultron/wire/as2/vocab/examples/vocab_examples.py` |
 | `ontology/` | RDF/OWL Turtle ontologies for AS2 and the Vultron protocol | `ontology/vultron_protocol.ttl` |
 | `plan/` | Agent workflow files: incoming learnings queue and history archive | `plan/history/`, `plan/incoming/` |
 | `scripts/` | One-shot maintenance scripts (spec relabelling, story mapping, velocity report) | `scripts/velocity.py`, `scripts/relabel_spec_kinds.py` |
