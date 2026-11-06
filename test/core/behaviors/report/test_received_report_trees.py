@@ -805,7 +805,7 @@ def test_report_verdict_tree_runs_case_clock_decisions_after_sender_guard():
         case_id=CASE_ID,
         sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
     )
-    assert [c.name for c in tree.children[:10]] == [
+    assert [c.name for c in tree.children[:11]] == [
         "ActivityAddressedToReceiverNode",
         "ActivityNotSeenBeforeNode",
         "ReceivedPathNode",

@@ -383,7 +383,7 @@ def test_create_engage_case_tree_returns_sequence(
     # (SYNC-18-007), the sender-sequence stage
     # (SYNC-21-023), the clock decisions (CLP-10-025), the guard stage, the
     # guarded commit, and that gate.
-    assert len(received_stages(tree)) == 11
+    assert len(received_stages(tree)) == 12
 
 
 @pytest.mark.spec("BT-06-002")
@@ -405,7 +405,7 @@ def test_create_defer_case_tree_returns_sequence(
     # the clock decisions (CLP-10-025), the
     # guard stage, the guarded commit, and the CASE_MANAGER gate holding the
     # RM write + gap note.
-    assert len(received_stages(tree)) == 11
+    assert len(received_stages(tree)) == 12
 
 
 def test_engage_tree_node_names(case_with_participant, actor_id):
@@ -433,22 +433,22 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
     assert stages[6].name == "LedgerPositionIfCaseManager"
     # ... judges the sender's number in its order (SYNC-21-023) ...
     assert stages[7].name == "SenderSequenceIfCaseManager"
-    assert stages[7].name == "ClockDecisionsIfCaseManager"
+    assert stages[8].name == "ClockDecisionsIfCaseManager"
     # ... and its declaration is adjudicated before the commit (RSH-06-006),
     # inside the refusal-effects stage (CLP-10-022); a refused regression is
     # still noted.
-    stage = stages[8]
+    stage = stages[9]
     assert isinstance(stage, PreconditionGuardStage)
     assert [g.name for g in stage.guards.children] == [
         "AdjudicateRMDeclarationNode",
     ]
     assert "EmitRMGapNote" in [n.name for n in stage.refusal.iterate()]
     # Commit runs before effects (CLP-10-006)
-    assert stages[9].name == "GuardedCommitCaseLedgerEntryBT"
+    assert stages[10].name == "GuardedCommitCaseLedgerEntryBT"
     # RSH-08-003 (#3814): the RM write, its gap note and the broadcast all run
     # only at the CASE_MANAGER, so they sit inside one gate; a replica takes
     # the move from the ledger fan-out.
-    gate = stages[10]
+    gate = stages[11]
     assert isinstance(gate, CaseManagerGate)
     assert gate.name == "EngageEffectsIfCaseManager"
     # One idempotency Selector guards the whole effect block: a sender already
@@ -516,20 +516,20 @@ def test_defer_tree_node_names(case_with_participant, actor_id):
     assert stages[7].name == "SenderSequenceIfCaseManager"
     # ... then the CASE_MANAGER's clock decisions, the embargo end-time
     # check among them (CLP-10-025, EMB-13-003) ...
-    assert stages[7].name == "ClockDecisionsIfCaseManager"
+    assert stages[8].name == "ClockDecisionsIfCaseManager"
     # ... and its declaration is adjudicated before the commit (RSH-06-006),
     # inside the refusal-effects stage that notes a refused regression
     # (CLP-10-022)
-    stage = stages[8]
+    stage = stages[9]
     assert isinstance(stage, PreconditionGuardStage)
     assert [g.name for g in stage.guards.children] == [
         "AdjudicateRMDeclarationNode"
     ]
     # Commit runs before effects (CLP-10-006)
-    assert stages[9].name == "GuardedCommitCaseLedgerEntryBT"
+    assert stages[10].name == "GuardedCommitCaseLedgerEntryBT"
     # RSH-08-003 (#3814): the RM write and its gap note run only at the
     # CASE_MANAGER, inside one gate; a replica takes the move from the ledger.
-    gate = stages[10]
+    gate = stages[11]
     assert isinstance(gate, CaseManagerGate)
     assert gate.name == "DeferEffectsIfCaseManager"
     body = gate.gated_branch

@@ -217,6 +217,12 @@ def test_a_message_left_in_holding_with_no_verdict_runs_again(scenario):
     assert ran.ticks == 1
     record = _record(scenario.dl)
     assert record is not None and record.stage is ReceivedStage.HELD
+    # The stages that answer a delivery once read this (SYNC-18-009,
+    # SYNC-21-018).
+    door = next(
+        n for n in tree.iterate() if isinstance(n, ActivityNotSeenBeforeNode)
+    )
+    assert door.rerun is True
 
 
 @pytest.mark.spec("CLP-10-017")
@@ -228,6 +234,10 @@ def test_a_delivery_never_seen_runs_and_is_recorded(scenario):
 
     assert result.status == Status.SUCCESS
     assert seen_before_verdict(tree) is None
+    door = next(
+        n for n in tree.iterate() if isinstance(n, ActivityNotSeenBeforeNode)
+    )
+    assert door.rerun is False
     assert ran.ticks == 1
     record = _record(scenario.dl)
     assert record is not None

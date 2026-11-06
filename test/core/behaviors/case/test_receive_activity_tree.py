@@ -568,7 +568,7 @@ class TestRefusalEffects:
             COMMIT,
             "Replica",
         ]
-        stage = tree.children[7]
+        stage = tree.children[8]
         assert isinstance(stage, PreconditionGuardStage)
         assert list(stage.guards.children) == [guard]
         gates = [
@@ -1086,7 +1086,7 @@ class TestClockDecisionStage:
             **_sender_args(),
         )
 
-        gate = tree.children[6]
+        gate = tree.children[7]
         assert isinstance(gate, CaseManagerGate)
         stage = gate.gated_branch
         assert isinstance(stage, ClockDecisionStage)
