@@ -193,7 +193,16 @@ def published_profile(datalayer: DataLayer, actor_id: str) -> dict[str, Any]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
         )
+    return profile_of_record(actor_record)
 
+
+def profile_of_record(actor_record: dict[str, object]) -> dict[str, Any]:
+    """The profile a hosted actor publishes from its stored *actor_record*.
+
+    *actor_record* must come from :func:`_find_actor_record` on the actor's own
+    store, which is what makes it the actor this node hosts; see
+    :func:`published_profile`.
+    """
     actor_cls = _actor_class_for_record(actor_record)
     as_actor = _with_own_key(
         cast(Any, actor_cls.model_validate(actor_record.get("data_", {})))

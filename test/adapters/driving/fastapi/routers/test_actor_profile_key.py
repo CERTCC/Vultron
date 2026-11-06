@@ -26,7 +26,7 @@ from test.adapters.driving.fastapi._redelivery import served_store
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.core.models.actor import VultronOrganization
+from vultron.core.models.actor import VultronOrganization, hosted_endpoints
 from vultron.core.models.multikey import Multikey
 from vultron.wire.as2 import signing
 
@@ -114,6 +114,35 @@ def test_the_actor_id_dereferences_to_the_profile_with_its_key(
 
     assert by_id
     assert by_id == by_profile
+
+
+@pytest.mark.spec("SIG-02-001")
+def test_the_actor_id_serves_the_whole_profile_with_its_endpoints(
+    tmp_path: Path,
+):
+    """``/actors/{id}`` serves what ``/profile`` does, endpoints filled in.
+
+    The stored record states no endpoints, so both routes publish the ones
+    this node routes for the actor (ISSUE-3616).
+    """
+    segment = "profile-key-bare"
+    actor_id = canonical_actor_uri(segment)
+    dl = SqliteDataLayer(
+        f"sqlite:///{tmp_path / 'bare.db'}", actor_id=actor_id
+    )
+    bare = VultronOrganization(id_=actor_id, name=segment)
+
+    with served_store(dl, actor_id, segment, bare) as (client, _emitter):
+        by_id = client.get(f"/api/v2/actors/{segment}")
+        by_profile = client.get(f"/api/v2/actors/{segment}/profile")
+
+    assert by_id.status_code == 200, by_id.text
+    assert by_profile.status_code == 200, by_profile.text
+    own = hosted_endpoints(actor_id)
+    assert by_id.json()["inbox"] == own["inbox"]
+    assert by_id.json()["outbox"] == own["outbox"]
+    assert _multikeys(by_id.json())
+    assert by_id.json() == by_profile.json()
 
 
 @pytest.mark.spec("ENC-01-002")

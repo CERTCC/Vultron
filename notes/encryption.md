@@ -130,6 +130,11 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   key, while a receiver keeps a held copy over a fetched one (MV-10-003). The
   #5383 resolver must fetch the profile when its held copy lists no key the
   proof names, not refuse on the held copy alone.
+- **A profile typed `"Actor"` loses its key at parse.** The wire `as_Actor`
+  ignores unknown fields, so it drops `assertionMethod`, while the five
+  concrete actor types keep it. The #5383 resolver then finds no key and fails
+  closed (SIG-02-001); its refusal should name the generic type as the cause,
+  not say the actor published no key.
 - **The profile's `@context` lacks the key terms.** It is the Vultron context
   alone, which defines no `assertionMethod`, `Multikey`, `controller` or
   `publicKeyMultibase`, so a JSON-LD-expanding verifier drops them. Add

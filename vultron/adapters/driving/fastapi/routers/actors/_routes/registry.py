@@ -41,7 +41,7 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
     _find_actor_record,
     _find_actor_record_by_id,
     _resolve_actor_or_404,
-    published_profile,
+    profile_of_record,
 )
 from vultron.adapters.utils import strip_id_prefix
 from vultron.config import get_config
@@ -89,10 +89,11 @@ def get_actors(http_request: Request):
         db_url, node_base_url(http_request)
     ):
         actor_dl = get_datalayer(actor_id, db_url=db_url)
-        if _find_actor_record(actor_dl, actor_id) is not None:
+        record = _find_actor_record(actor_dl, actor_id)
+        if record is not None:
             # Each hosted actor is listed as the profile it publishes, key
             # included (ENC-01-002), not as its bare stored record.
-            profiles.append(published_profile(actor_dl, actor_id))
+            profiles.append(profile_of_record(record))
 
     logger.debug("get_actors: found %d hosted actor(s)", len(profiles))
 
