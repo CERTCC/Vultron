@@ -124,7 +124,7 @@ The activity that tells the other participants depends on which actor started th
 - **A received `Remove(EmbargoEvent)`.** The Case Owner sends the CASE_MANAGER a `Remove(EmbargoEvent)` before the embargo's end time.
   The CASE_MANAGER tears the embargo down and then sends `Announce(EmbargoEvent)` to every other active participant.
 - **A teardown the CASE_MANAGER starts.** The CASE_MANAGER ends the embargo itself, by its own decision, at the end time, or in the P/X/A cascade of [§11.3 Status Adoption: One Authorization Gate](interactions.md#113-status-adoption-one-authorization-gate).
-  Its own `Remove(EmbargoEvent)` is then the notice, and it sends that activity to every other participant.
+  Its own `Remove(EmbargoEvent)` is then the notice, and it sends that activity to every other active participant.
   No `Announce(EmbargoEvent)` follows it.
 
 On both paths, the CASE_MANAGER also sends a direct `Remove(EmbargoEvent)` notice to each signatory the ledger fan-out does not reach.

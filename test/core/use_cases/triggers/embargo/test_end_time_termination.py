@@ -247,6 +247,7 @@ def _assert_full_cascade(world: _World, termination: EmbargoTermination):
 
 
 @pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("EMB-19-001")
 def test_lazy_check_ends_an_embargo_whose_end_time_has_passed() -> None:
     world = _World(end_time=now_utc() - timedelta(hours=1))
 
@@ -298,6 +299,7 @@ def test_lazy_check_on_an_ended_embargo_commits_nothing() -> None:
 
 
 @pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("EMB-19-001")
 def test_sentinel_request_ends_the_embargo_at_its_end_time() -> None:
     world = _World(end_time=now_utc() - timedelta(minutes=5))
 
@@ -346,6 +348,7 @@ def test_lazy_check_after_the_sentinel_commits_nothing() -> None:
 
 @pytest.mark.spec("EMB-13-003")
 @pytest.mark.spec("EMB-13-006")
+@pytest.mark.spec("EMB-19-001")
 def test_racing_lazy_check_and_sentinel_commit_one_termination() -> None:
     """Started together, exactly one of the two commits the termination,
     and the other is answered as already done."""
@@ -387,6 +390,7 @@ def test_racing_lazy_check_and_sentinel_commit_one_termination() -> None:
 
 
 @pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("EMB-19-001")
 def test_an_early_request_after_the_end_time_ends_it_at_its_end_time() -> None:
     world = _World(end_time=now_utc() - timedelta(minutes=5))
 
