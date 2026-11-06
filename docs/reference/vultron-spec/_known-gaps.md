@@ -238,6 +238,15 @@ print(requirement_callout(
 ))
 ```
 
+### Tracked by [#6043](https://github.com/CERTCC/Vultron/issues/6043)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "MSM-07-037",
+))
+```
+
 ## Requirements no test checks
 
 For each requirement below, no test shows `main` does this.
@@ -595,7 +604,6 @@ print(requirement_callout(
     "CM-12-004",
     "CM-14-001",
     "CM-14-004",
-    "CM-14-006",
     "CM-14-008",
     "CM-14-010",
     "CM-14-013",
