@@ -52,7 +52,8 @@ relevant_packages:
 Vocabulary: the **Demo** section of `CONTEXT.md` (scenario tree, branch point,
 choice, ending, scenario, recording). Decision records: ADR-0098 and ADR-0104,
 both amended 2026-10-15; ADR-0098 amended again 2026-10-30. Requirements:
-DEMOCI-11-013 through DEMOCI-11-025, DEMOCI-11-034 and DEMOCI-11-035.
+DEMOCI-11-013 through DEMOCI-11-025, DEMOCI-11-034, DEMOCI-11-035, and
+DEMOCI-11-054 through DEMOCI-11-069.
 Parent Epic: #4747.
 
 ---
@@ -485,3 +486,6 @@ point stops a run there.
    #5347 and #5348, and last #5349.
 2. The plot manifest (#5613), then the clock-reading read paths that keep a
    shared stretch from being byte-stable: #5649, #5650, #5651 and #5652.
+3. Verdict evidence: the check-tree capture and compare command (#6025), then
+   the base-versus-head CI job that calls it (#6026). The story rendering
+   (#6028) needs only the plot manifest (#5613).

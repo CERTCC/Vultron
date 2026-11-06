@@ -2847,13 +2847,12 @@ groups:
           member, and each fragment by qualified name.
         rationale: >-
           A reorder inside a shared fragment moves every scenario of its family
-          alike, so DEMOCI-11-018 still passes, and no PR check regenerates the
-          recordings that would show it. The plot is read from the stories
+          alike, so DEMOCI-11-018 still passes. The plot is read from the stories
           without running them, so it costs nothing at PR time. A deliberate
           reorder shows as a manifest diff; in a consolidation PR that diff is
           a sign the change may alter what a scenario passes or fails on, which
           DEMOMA-17-002 forbids. The manifest cannot see an edit inside a
-          fragment's body; only a recording can.
+          fragment's body; DEMOCI-11-055's base-versus-head comparison can.
         verification: >-
           A shape test asserts the manifest holds one entry per registered
           scenario, whose items equal its story's choices and fragment names
@@ -2892,18 +2891,17 @@ groups:
           record every registered scenario in-process at the base commit and at the
           head.
         rationale: >-
-          This is the evidence DEMOMA-17-002 asks of a consolidation. Comparing head
-          with base, not with the committed recordings, commits nothing, so no pull
-          request regenerates a recording. A core-only pull request is not a
-          consolidation; the daily recordings run covers its drift.
+          Comparing head with base, not with the committed recordings, commits
+          nothing, so no pull request regenerates a recording. Stories, fragments
+          and checks all live under `vultron/demo/`; a core-only pull request is
+          not a consolidation, and the daily recordings run covers its drift. The
+          scenario-tree exporters only read the stories and are drift-checked by
+          DEMOCI-11-005.
         verification: >-
-          The workflow's path filter names `vultron/demo/`, and the job records
-          every registered scenario at both commits.
+          The workflow's path filter names `vultron/demo/`, and a test asserts
+          the set of scenarios the job records equals the registered scenarios.
         adr:
           - ADR-0098
-        relationships:
-          - rel_type: satisfies
-            spec_id: DEMOMA-17-002
 
       - id: DEMOCI-11-055
         priority: MUST
@@ -2920,6 +2918,8 @@ groups:
           A test of the comparison command asserts that two identical runs compare
           equal and that a difference in either trace fails.
         relationships:
+          - rel_type: satisfies
+            spec_id: DEMOMA-17-002
           - rel_type: refines
             spec_id: DEMOCI-11-054
 
@@ -3018,7 +3018,8 @@ groups:
         statement: >-
           The comparison of DEMOCI-11-055 MUST fail, printing the difference per
           scenario, when a normalized ledger or check tree differs between base and
-          head.
+          head, unless the pull request is labelled `demo-verdict-change`
+          (DEMOCI-11-063).
         rationale: >-
           The printed difference is what lets a reviewer judge whether the change
           was meant.
@@ -3043,8 +3044,6 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-055
-          - rel_type: refines
-            spec_id: DF-09-009
 
       - id: DEMOCI-11-063
         priority: MUST
@@ -3057,9 +3056,11 @@ groups:
           (DEMOMA-17-004), and it needs a way past the gate. The label states that
           the change was meant.
         verification: >-
-          A run on a labelled pull request whose runs differ passes.
+          A test of the comparison command asserts that, given its allow-difference
+          input, runs that differ exit zero, and the job passes that input exactly
+          when the pull request carries the label.
         relationships:
-          - rel_type: refines
+          - rel_type: constrains
             spec_id: DEMOCI-11-061
           - rel_type: refines
             spec_id: DEMOCI-11-055
@@ -3074,8 +3075,9 @@ groups:
           The printed difference shows what the reviewer is approving, so the opt-
           out never hides the change it admits.
         verification: >-
-          A run on a labelled pull request whose runs differ writes the diff to the
-          job summary.
+          A test of the comparison command asserts that, given its allow-difference
+          input, runs that differ still write the per-scenario diff to the summary
+          output.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-063
@@ -3158,7 +3160,7 @@ groups:
         kind: project
         statement: >-
           The drift check of DEMOCI-11-005 MUST fail when a committed story
-          rendering differs from the plot manifest.
+          rendering differs from a fresh rendering of the stories in the code.
         rationale: >-
           Generating the story keeps it current only when a stale copy fails;
           otherwise it drifts like a hand-written list.
