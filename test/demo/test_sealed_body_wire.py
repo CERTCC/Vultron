@@ -24,6 +24,7 @@ CaseActor; the CaseActor emits the Invite (ADR-0109).  Then:
   sealed, byte for byte — the ledger snapshot on the emitting side is that
   same body decoded (pinned at unit level in
   ``test_actor_and_announce_nodes``), so the two agree;
+- every delivered body carries its sender's proof, which verifies (SIG-01-001);
 - the wire carries the enriched case stub — the ``activeEmbargo`` CM-17-002
   requires for informed consent, which the old re-read-and-dehydrate delivery
   path collapsed to a bare URI (#2624).
@@ -57,6 +58,7 @@ from vultron.demo.in_process import (
     create_isolated_actor_app,
 )
 from vultron.demo.utils import DataLayerClient, seed_peer
+from vultron.wire.as2 import signing
 from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
 _UNSAFE_IN_HOST = re.compile(r"[^a-z0-9-]+")
@@ -146,6 +148,31 @@ class TestTheWireCarriesTheSealedBody:
         assert delivered["id"] == invite_id
         assert delivered["actor"] == topo.ca_actor_id
         assert delivered["context"] == case_id
+
+    @pytest.mark.spec("SIG-01-001")
+    def test_every_delivered_body_carries_its_senders_proof(
+        self, recorded_topology
+    ):
+        """The router relays the sealed body, so the proof crosses with it.
+
+        The owner's Offer and the CaseActor's Invite both arrive signed, each
+        verifying by its sender's published key (#5382).
+        """
+        topo, router = recorded_topology
+        case_id = "urn:uuid:sealed-body-signed"
+        _bootstrap(topo, case_id)
+
+        _invite(topo, case_id)
+
+        bodies = [json.loads(body) for _, body, _ in router.delivered]
+        senders = {signing.author_of(body) for body in bodies}
+        assert {topo.owner_actor_id, topo.ca_actor_id} <= senders, senders
+        for body in bodies:
+            author = signing.author_of(body)
+            key = signing.published_multikey(
+                signing.seeded_signing_key(author), author
+            )
+            signing.verify(body, key.public_key_multibase)
 
     def test_the_wire_carries_the_enriched_case_stub(self, recorded_topology):
         """CM-17-002 reaches the wire: the collapsed-stub defect (#2624) is gone."""

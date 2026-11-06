@@ -25,8 +25,17 @@ artifact (ADR-0074 § Outbound, ADR-0107 § Context).
 
 So every adapter that persists an outbound activity also seals its body here —
 the ``model_dump_json`` the factory's object produces under
-:data:`OUTBOUND_DUMP_KWARGS`, stored verbatim as a string — and the outbox
-handler delivers that string without reading the activity record at all.
+:data:`OUTBOUND_DUMP_KWARGS`, signed with its author's key and stored verbatim
+as a string — and the outbox handler delivers that string without reading the
+activity record at all.
+
+Signing happens here, immediately before the body is sealed, because the
+sealed text is final (OX-07-001): a proof added later would change it.  So
+the delivered body, the ledger's ``payloadSnapshot`` and the relayed
+``Announce`` all carry the author's proof (SIG-01-001, VM-08-003).  A relay
+needs nothing of its own: an ``Announce(CaseLedgerEntry)`` is signed by the
+CASE_MANAGER that sends it, and the snapshot nested in it keeps its original
+author's proof untouched, since signing never rewrites a nested object.
 
 Like :class:`~vultron.adapters.outbox_dead_letter.OutboxDeadLetterEntry`, the
 record lives in the adapter layer but extends ``CoreRecord`` so that
@@ -43,6 +52,7 @@ from pydantic import BaseModel, Field
 from vultron.core.models.base import CoreRecord, NonEmptyString
 from vultron.core.models.protocols import PersistableModel
 from vultron.errors import VultronValidationError
+from vultron.wire.as2 import signing
 
 logger = logging.getLogger(__name__)
 
@@ -139,8 +149,28 @@ def requeue_if_sealed(dl: SealedQueue, activity_id: str) -> bool:
 
 
 def dump_outbound_body(activity: BaseModel) -> str:
-    """Return the sealed JSON text for *activity*."""
+    """Return *activity*'s outbound JSON text, before it is signed.
+
+    :func:`signed_outbound_body` signs this text; that is what is sealed.
+    """
     return activity.model_dump_json(**OUTBOUND_DUMP_KWARGS)
+
+
+def signed_outbound_body(activity: BaseModel) -> str:
+    """Return the text sealed for *activity*: its body with its author's proof.
+
+    The body is :func:`dump_outbound_body`'s, signed with the key of the
+    activity's ``actor`` (SIG-01-001, SIG-01-002).  The proof covers the whole
+    body, nested objects included (SIG-01-003), and the ``@context`` gains the
+    data-integrity context, so a single context becomes a list.
+
+    Raises:
+        VultronUnsignableJsonError: the activity names no ``actor``, so it
+            has no author to sign it, or holds a value that cannot be
+            canonicalized.
+    """
+    signed = signing.sign_as_author(json.loads(dump_outbound_body(activity)))
+    return json.dumps(signed, ensure_ascii=False, separators=(",", ":"))
 
 
 def outbound_activity_id(activity: BaseModel) -> str:
@@ -162,16 +192,21 @@ def outbound_activity_id(activity: BaseModel) -> str:
 def seal_outbound_body(dl: SealStore, activity: BaseModel) -> str:
     """Seal *activity*'s body in *dl* and return the text that is sealed.
 
+    The sealed text carries the author's proof (:func:`signed_outbound_body`).
     Sealing is write-once per activity id: a body already sealed for this id is
     returned unchanged, so a re-emission under an id the store already holds
     (which ``dl.create`` also refuses) hands core the text that was, or will
-    be, delivered — not a second rendering of it.
+    be, delivered — not a second rendering of it, nor a second proof.
+
+    Raises:
+        VultronValidationError: the activity has no id to seal it under.
+        VultronUnsignableJsonError: the activity cannot be signed.
     """
     activity_id = outbound_activity_id(activity)
     existing = read_sealed_body(dl, activity_id)
     if existing is not None:
         return existing.body
-    body = dump_outbound_body(activity)
+    body = signed_outbound_body(activity)
     dl.save(
         SealedOutboundBody(
             id_=sealed_body_id(activity_id),
@@ -179,7 +214,9 @@ def seal_outbound_body(dl: SealStore, activity: BaseModel) -> str:
             body=body,
         )
     )
-    logger.debug("Sealed outbound body for activity '%s'", activity_id)
+    logger.debug(
+        "Sealed the signed outbound body for activity '%s'", activity_id
+    )
     return body
 
 

@@ -7,7 +7,6 @@ tracks:
   - "#1184"
   - "#2841"
   - "#3477"
-  - "#5382"
   - "#5383"
   - "#5385"
   - "#5386"
@@ -104,9 +103,14 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   record per delivery; the received evidence keeps it (SIG-04-001). Verification
   reads the raw body before the parser (#5386), so nothing needs it parsed.
 - **Sign before the body is sealed.** The sealed body is final (OX-07-001), so
-  the outbox signs the activity immediately before sealing it. The delivered
-  body, the ledger snapshot and the relayed `Announce` then hold the same bytes
-  (VM-08-003).
+  `seal_outbound_body` signs it as its author, the activity's `actor`
+  (`signed_outbound_body` in `vultron/adapters/outbox_sealed_body.py`). The
+  delivered body, the ledger snapshot and the relayed `Announce` then hold the
+  same bytes (VM-08-003). Sign nowhere else: a relay signs its own `Announce`
+  at its own seal, and never touches the nested snapshot's proof.
+- **`dump_outbound_body` is the unsigned dump.** A test that builds a delivery
+  from it sends no proof, so once verification is on (#5386) it signs it
+  through `test/support/signing.py`, or reads the sealed body instead.
 - **The proof survives the store.** A sender's `proof` reaches the ledger
   snapshot because the snapshot is the body as received (SIG-04-001). Check it
   survives the store's wire-identity rekeying (`_rekey_wire_identity` in
@@ -150,11 +154,11 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   concrete actor types keep it. The #5383 resolver then finds no key and fails
   closed (SIG-02-001); its refusal should name the generic type as the cause,
   not say the actor published no key.
-- **The profile's `@context` lacks the key terms.** It is the Vultron context
-  alone, which defines no `assertionMethod`, `Multikey`, `controller` or
-  `publicKeyMultibase`, so a JSON-LD-expanding verifier drops them. Add
-  `https://w3id.org/security/multikey/v1` to the served profile in #5382: the
-  core actor's `@context` is already `JsonLdContext`, so a list is accepted.
+- **The served profile's `@context` defines the key terms.** The Vultron
+  context defines no `assertionMethod`, `Multikey`, `controller` or
+  `publicKeyMultibase`, so `profile_of_record` appends
+  `signing.MULTIKEY_CONTEXT` to the dumped `@context`, after whatever default
+  the actor has; a JSON-LD-expanding verifier drops the key without it.
 
 ## Encryption principles
 

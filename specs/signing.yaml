@@ -29,8 +29,9 @@ groups:
       `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_sent_activity_carries_its_authors_proof`
       and
       `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_ledger_announce_carries_the_case_managers_proof`
-      check the sealed bodies a participant and the CASE_MANAGER send.
-    tracking_issue: '#5382'
+      check the sealed bodies a participant and the CASE_MANAGER send;
+      `test/demo/test_sealed_body_wire.py::TestTheWireCarriesTheSealedBody::test_every_delivered_body_carries_its_senders_proof`
+      verifies every body the in-process router delivers.
     adr:
     - ADR-0164
     stories:
@@ -51,7 +52,6 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_sent_proof_names_the_cryptosuite_and_the_authors_key`
       checks the proof on a participant's sealed body.
-    tracking_issue: '#5382'
     relationships:
     - rel_type: extends
       spec_id: SIG-01-001
@@ -198,7 +198,6 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_ledger_snapshot_keeps_the_senders_proof`
       commits a participant's signed activity and reads the relayed snapshot.
-    tracking_issue: '#5382'
     adr:
     - ADR-0164
     stories:

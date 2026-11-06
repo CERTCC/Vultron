@@ -67,6 +67,9 @@ logger = logging.getLogger(__name__)
 
 #: The JSON-LD context that defines the proof terms (FEP-8b32).
 DATA_INTEGRITY_CONTEXT = "https://w3id.org/security/data-integrity/v2"
+#: The JSON-LD context that defines the key terms an actor profile publishes:
+#: ``assertionMethod``, ``Multikey``, ``controller``, ``publicKeyMultibase``.
+MULTIKEY_CONTEXT = "https://w3id.org/security/multikey/v1"
 PROOF_TYPE = "DataIntegrityProof"
 CRYPTOSUITE = "eddsa-jcs-2022"
 PROOF_PURPOSE = "assertionMethod"
@@ -300,16 +303,16 @@ def canonicalize(value: Any) -> bytes:
         ) from error
 
 
-def _with_data_integrity_context(context: Any) -> list[Any]:
-    """*context* as a list that includes the data-integrity context."""
-    if context is None:
-        entries: list[Any] = []
-    elif isinstance(context, list):
-        entries = list(context)
-    else:
-        entries = [context]
-    if DATA_INTEGRITY_CONTEXT not in entries:
-        entries.append(DATA_INTEGRITY_CONTEXT)
+def with_context(context: Any, entry: str) -> list[Any]:
+    """*context* as a list that ends with *entry* unless it already has it.
+
+    A single context becomes a list, an absent one a list of *entry* alone,
+    and the existing entries keep their order, so whatever default
+    ``@context`` the document had stays first.
+    """
+    entries = _context_entries(context)
+    if entry not in entries:
+        entries.append(entry)
     return entries
 
 
@@ -363,8 +366,8 @@ def sign(
         )
 
     unsecured = copy.deepcopy(dict(document))
-    unsecured["@context"] = _with_data_integrity_context(
-        unsecured.get("@context")
+    unsecured["@context"] = with_context(
+        unsecured.get("@context"), DATA_INTEGRITY_CONTEXT
     )
     proof_config: dict[str, Any] = {
         "@context": copy.deepcopy(unsecured["@context"]),
@@ -382,6 +385,46 @@ def sign(
         key.key_id,
     )
     return {**unsecured, "proof": {**proof_config, "proofValue": proof_value}}
+
+
+def author_of(document: Mapping[str, Any]) -> str:
+    """The actor id whose key signs *document*: its ``actor``.
+
+    The ``actor`` may be an id or an inline object with one.
+
+    Raises:
+        VultronUnsignableJsonError: *document* names no actor, so there is
+            no author to sign it.
+    """
+    actor = document.get("actor")
+    if isinstance(actor, Mapping):
+        actor = actor.get("id")
+    if not isinstance(actor, str) or not actor:
+        raise VultronUnsignableJsonError(
+            f"{document.get('id', 'a document without an id')} names no "
+            "actor to sign it"
+        )
+    return actor
+
+
+def sign_as_author(
+    document: Mapping[str, Any],
+    *,
+    created: datetime | str | None = None,
+) -> dict[str, Any]:
+    """*document* signed with its author's own seeded key (:func:`sign`).
+
+    For the author's own outbox only: the owner is the one party that
+    computes its seeded key (SIG-05-001, SIG-05-002).  A verifier reads the
+    published key instead.
+
+    Raises:
+        VultronUnsignableJsonError: *document* names no actor
+            (:func:`author_of`), or :func:`sign` refuses it.
+    """
+    return sign(
+        document, seeded_signing_key(author_of(document)), created=created
+    )
 
 
 def proof_verification_method(document: Mapping[str, Any]) -> str:
@@ -512,9 +555,11 @@ __all__ = [
     "CRYPTOSUITE",
     "DATA_INTEGRITY_CONTEXT",
     "KEY_FRAGMENT",
+    "MULTIKEY_CONTEXT",
     "PROOF_PURPOSE",
     "PROOF_TYPE",
     "SigningKey",
+    "author_of",
     "canonicalize",
     "decode_public_key_multibase",
     "encode_public_key_multibase",
@@ -524,5 +569,7 @@ __all__ = [
     "published_multikey",
     "seeded_signing_key",
     "sign",
+    "sign_as_author",
     "verify",
+    "with_context",
 ]
