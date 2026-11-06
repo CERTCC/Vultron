@@ -68,7 +68,8 @@ See [Message Types](../reference/formal_protocol/messages.md) for the formal set
 
 ## Is the protocol finished?
 
-The specification is published and versioned, and the reference implementation tracks it.
+The specification is published as a numbered draft, and the reference implementation tracks it.
+Its [Revision Log](../reference/vultron-spec/revision-log.md) names each draft and what changed in it.
 Both continue to change: [What's New](whats_new.md) lists the pages added recently, and the [decision records](../adr/index.md) record what changed and why.
 [§13 Conformance in the specification](../reference/vultron-spec/conformance.md#13-conformance-n) defines what a system claims when it says it conforms, so a claim can be checked against a stated version of the specification.
 
