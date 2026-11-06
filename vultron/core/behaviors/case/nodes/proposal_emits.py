@@ -239,7 +239,7 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
 
     def _build_case_object(
         self, raw_case: VulnerabilityCase
-    ) -> dict[str, Any]:
+    ) -> VulnerabilityCase:
         assert self.datalayer is not None
         # Materialise each participant ref so store_embedded_participants
         # on the owner's side receives full objects, not bare ID strings (AC-5).
@@ -282,41 +282,39 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
             updates["embargo_register"] = carry_embargo_inline(
                 raw_case.embargo_register, embargo
             )
-        case_copy = raw_case.model_copy(update=updates)
-        # A missing port is a composition fault, not the sender's: raise
-        # VultronWiringError rather than failing the tree (ARCH-20-001).
-        port = self._require_wire_render_port()
-        case_dict = port.render(case_copy)
-        case_dict.setdefault("type", "VulnerabilityCase")
-        # Inline full VulnerabilityReport dicts after render so the owner
-        # stores them (AKM-02-004, ISSUE-2134).  Done post-render because
-        # VulnerabilityCase.vulnerability_reports is typed list[str];
-        # embedding objects directly triggers Pydantic warnings.
-        inlined_reports: list[Any] = []
-        for report_ref in raw_case.vulnerability_reports:
-            if isinstance(report_ref, str):
-                r_obj = self.datalayer.read(report_ref)
-                if isinstance(r_obj, VulnerabilityReport):
-                    r_dict = port.render(r_obj)
-                    r_dict.setdefault("type", "VulnerabilityReport")
-                    inlined_reports.append(r_dict)
-                else:
-                    # A proposal that did not inline its report (CP-01-004)
-                    # still makes a case here (ADR-0041 AC-2); the owner
-                    # holds the report it proposed, so the id stays.
-                    logger.warning(
-                        "%s: case '%s' names report '%s', which this store"
-                        " cannot read, so the Create carries its id, not the"
-                        " object; the proposal did not inline it (CP-01-004)",
-                        self.name,
-                        raw_case.id_,
-                        report_ref,
-                    )
-                    inlined_reports.append(report_ref)
-            else:
-                inlined_reports.append(report_ref)
-        case_dict["vulnerability_reports"] = inlined_reports
-        return case_dict
+        # Carry the full reports inline (AKM-02-004, ISSUE-2134).  The owner
+        # holds the report it proposed, so its extractor keeps only the ids.
+        # The reports ride on the copy, so the Create renders as one object
+        # graph: under ``vulnerabilityReports``, with no ``@context``
+        # restated below the Create's own (VM-10-005, #6046).
+        updates["vulnerability_reports"] = [
+            self._inline_report(raw_case.id_, ref)
+            for ref in raw_case.vulnerability_reports
+        ]
+        return raw_case.model_copy(update=updates)
+
+    def _inline_report(
+        self, case_id: str, report_ref: str | VulnerabilityReport
+    ) -> str | VulnerabilityReport:
+        """The report *report_ref* names, or its id when this store lacks it."""
+        assert self.datalayer is not None
+        if not isinstance(report_ref, str):
+            return report_ref
+        r_obj = self.datalayer.read(report_ref)
+        if isinstance(r_obj, VulnerabilityReport):
+            return r_obj
+        # A proposal that did not inline its report (CP-01-004) still makes a
+        # case here (ADR-0041 AC-2); the owner holds the report it proposed,
+        # so the id stays.
+        logger.warning(
+            "%s: case '%s' names report '%s', which this store cannot read,"
+            " so the Create carries its id, not the object; the proposal did"
+            " not inline it (CP-01-004)",
+            self.name,
+            case_id,
+            report_ref,
+        )
+        return report_ref
 
     def _check_announced(self, case_id: str) -> Status | None:
         """FAILURE when the derived id holds a Create for another case (or no

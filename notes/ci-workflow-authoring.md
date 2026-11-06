@@ -16,8 +16,9 @@ description: >
   why a GitHub write is retried and a label swap is split, how to read a red CI
   job correctly, why a new pull-request step must be mirrored locally or
   excluded with a reason, why the `CI gate` must be re-run after a re-run
-  check, how to read the red checks its log names, and why a new pull-request
-  check is verified on later pull requests rather than its own.
+  check, how to read the red checks its log names, why the ruleset requiring the
+  gate admits no bypass actor, and why a new pull-request check is verified on
+  later pull requests rather than its own.
 related_notes:
   - notes/testing-pitfalls.md
   - notes/demo-ci-invariants.md
@@ -79,6 +80,22 @@ green leaves the gate red, and a green check re-run red leaves it green.
 A red gate names what it judged, one `##[error]Red check: <name>: <conclusion>`
 line per red check, so the gate's own log says which check to open instead of
 leaving a reader to compare the whole check list (#5971).
+
+### The Gate Is Required By a Ruleset No One Bypasses
+
+Ruleset `main-3 Require CI gate` requires the `CI gate` context on `main`, from
+`integration_id` 15368 (GitHub Actions) alone, with an empty `bypass_actors`
+list. So a red or absent gate makes `mergeStateStatus: BLOCKED` a hard stop for
+every account, the admin role every agent merges as included: a bypass list
+would have left the rule advisory for exactly those merges, which is why the
+sibling `main-2 Enforce CI on PRs` cannot carry this rule (#5945). That gives
+the re-run caveat above teeth — an unjudged re-run now holds the merge, not just
+the reader's confidence.
+
+It sets `strict_required_status_checks_policy: false`, so a branch merely behind
+`main` still does not block a merge (ADR-0126, ADR-0138), and `BEHIND` remains a
+state this repository does not produce. Emergency release is a human setting the
+ruleset's `enforcement` to `disabled`, never a bypass actor.
 
 ## A New Pull-Request Check Is Verified On Later Pull Requests, Not Its Own
 

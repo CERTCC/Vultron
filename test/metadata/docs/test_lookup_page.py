@@ -34,7 +34,7 @@ from vultron.metadata.docs.page_schema import is_start_page
 from vultron.metadata.file_loading import MetadataLoadError, MetadataLoadErrors
 
 from ._lookup_tree import LOOKUP_LINK
-from ._story_tree import with_stories
+from ._site_tree import site_tree
 from ._thread_tree import stage, start_page
 
 pytestmark = pytest.mark.spec("DF-11-021")
@@ -62,14 +62,8 @@ def _repo(
     nav: list[object],
     **config: object,
 ) -> Path:
-    (tmp_path / "mkdocs.yml").write_text(
-        yaml.safe_dump({"nav": nav, **config})
-    )
-    for rel, text in with_stories(files).items():
-        path = tmp_path / "docs" / rel
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-    return tmp_path
+    """A :func:`site_tree` checkout whose test writes its own lookup files."""
+    return site_tree(tmp_path, files, nav, lookup=False, config=config)
 
 
 def _listed(root: Path) -> list[tuple[str, list[str | None]]]:

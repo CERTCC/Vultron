@@ -52,7 +52,7 @@ it: in the order the test builds them, one up per sender and case
 import json
 from typing import Any, TypeVar, cast
 
-from test.support.signing import signed_body
+from test.support.signing import resigned, signed_body
 from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
 )
@@ -330,7 +330,9 @@ def delivered(
             and "senderSequence" not in evidence
         ):
             stamps["senderSequence"] = stamp.sender_sequence
-        return parse_activity({**evidence, **stamps})
+        # The stamps change the body, so its author signs it again: a proof
+        # over the unstamped body would not verify (SIG-01-001).
+        return parse_activity(resigned(evidence, **stamps))
     copy = stamped(activity, at=at).model_copy()
     copy.seal_received_evidence(
         json.dumps(delivered_body(activity, at=at), ensure_ascii=False)
@@ -344,7 +346,8 @@ def evidence_for(activity: CoreObject) -> str:
     For a test that builds its event from a core ``VultronActivity`` rather
     than a wire activity: the body is the activity's AS2 rendering, so the
     received entry records what a sender would have sent, stamped with
-    :data:`TEST_SENDER_POSITION` when it states no position.
+    :data:`TEST_SENDER_POSITION` when it states no position, and signed by
+    its author, as every delivered activity is (SIG-01-001).
     """
     if getattr(
         activity, "ledger_position", "absent"
@@ -355,7 +358,8 @@ def evidence_for(activity: CoreObject) -> str:
             update={"ledger_position": TEST_SENDER_POSITION}
         )
     return json.dumps(
-        As2WireRenderAdapter().render(activity), ensure_ascii=False
+        signed_body(As2WireRenderAdapter().render(activity)),
+        ensure_ascii=False,
     )
 
 
@@ -484,9 +488,7 @@ def body_of(activity: Any) -> str:
         ).received_evidence_json
         assert evidence is not None
         return evidence
-    return json.dumps(
-        signed_body(json.loads(evidence_for(activity))), ensure_ascii=False
-    )
+    return evidence_for(activity)
 
 
 def archive_received(dl: Any, activity: Any) -> ReceivedActivityRecord:

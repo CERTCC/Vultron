@@ -197,10 +197,10 @@ def test_a_replica_refuses_an_entry_whose_author_proof_is_missing():
     announce = _announce_of(net, body["id"])
     announce["object"]["payloadSnapshot"].pop("proof", None)
     # Removing the author's proof also breaks the CASE_MANAGER's proof on the
-    # Announce.  The implementing Task re-signs the Announce through the shared
-    # test helper (#5384), so only the author's proof fails; until then the
-    # refusal must name the snapshot's author, so that a replica checking only
-    # the outer proof cannot pass this test.
+    # Announce, so ``net.receive`` re-signs the altered Announce through the
+    # shared test helper and only the author's proof fails.  The refusal must
+    # still name the snapshot's author, so that a replica checking only the
+    # outer proof cannot pass this test.
 
     try:
         verdict = net.receive(OWNER, announce)

@@ -149,10 +149,11 @@ agreed to.**
 | A participant (owner included) rejects the Invite to B | its row for B becomes `DECLINED`; refusing B is not withdrawing from A |
 | A non-owner withdraws from the *active* embargo | its row for A becomes `DECLINED`, and so does every open proposal's row it had agreed to (MSM-07-010, MSM-07-034) |
 | A participant that declined an embargo accepts its Invite | its row for that embargo becomes `AGREED` directly; no new invitation first (CM-18-003) |
-| Owner rejects B for the case (`Reject(EmbargoEvent)`) | nothing — the owner is keeping A, not declining it |
+| Owner rejects B for the case (`Reject(EmbargoEvent)`) | nothing — the owner is keeping A, not declining it; an owner whose row for B is `AGREED` may still reject B for the case |
 | Owner activates B, and B ends **no later than** A | owner's row for B → `AGREED`; `CARRY_OVER` makes B's row `AGREED` for every signatory of A, a `DECLINED` row for B included |
 | Owner activates B, and B ends **later than** A | owner's row for B → `AGREED`; nothing else — signatories without an `AGREED` row for B have lapsed by derivation |
-| Owner activates B while its own row for B is `DECLINED` | the owner has changed its answer: its row for B → `AGREED` and B is activated, with no re-invite first |
+| Owner activates B while its own row for B is `DECLINED` | refused before commit, nothing changes; the owner accepts the Invite to B first, then activates (MSM-07-037, #6043) |
+| The proposer of B rejects the Invite to B | refused before commit: it was never invited to its own proposal (EP-09-010); it withdraws with `Undo(Invite(EmbargoEvent))` (MSM-07-038, #2214) |
 | Termination | nothing — no entry is `ACTIVE`, and answers to the ended embargo can no longer change |
 
 **Withdrawal is `Leave(EmbargoEvent)`, never a Reject** (MSM-07-010, MSM-07-014).
@@ -172,6 +173,23 @@ Only the owner's decision changes the embargo on the case, through
 (MSM-07-003/004) and moves no register entry (MSM-07-011/013). The only
 activation writes are the owner's own agreement and the carry-over
 (`_consent_at_activation`, `_carry_signatories_over`).
+
+**Participants answer invitations; the owner acts on embargoes** (ADR-0180).
+Activation becomes `Add(EmbargoEvent)[target=VulnerabilityCase]`, the pair of the
+`Remove` that ends an embargo; rejection keeps `Reject(EmbargoEvent)`; both name
+the proposal's `Invite(EmbargoEvent)` in `inReplyTo`. Reason: a case change and a
+consent then differ by verb, and no shape's meaning depends on its sender. Do not
+answer a proposal for the case with `Reject(Invite(EmbargoEvent))`: that is the
+owner's own decline, which leaves the proposal open. #6030 builds it.
+
+**An owner's decision never rewrites its own answer** (ADR-0180, MSM-07-028,
+MSM-07-037). Activation records the owner's `AGREE` only from `UNINVITED`,
+`INVITED` or `TIMED_OUT`, rows that hold no answer it gave; from `DECLINED` it is
+refused, so the order is Reject, Accept, Add. Reason: otherwise one activity is
+both the case decision and a change of answer. If activation is ever delegated to
+the CASE_MANAGER (open question; Idea #6045), only an `AGREED` owner row
+authorizes it: a `DECLINED` row refuses the owner's own `Add`, so it cannot
+authorize one by proxy.
 
 **Never write consent on propose, lapse, advance or exit.** A proposal only adds
 rows for the proposed embargo. Code that changes a participant's consent to the

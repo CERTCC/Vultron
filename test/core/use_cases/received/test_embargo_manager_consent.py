@@ -21,13 +21,26 @@ from typing import cast
 
 import pytest
 
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
+from vultron.core.use_cases.received.embargo import (
+    RejectInviteToEmbargoOnCaseReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.factories import em_propose_embargo_activity
+from vultron.wire.as2.factories import (
+    em_propose_embargo_activity,
+    em_reject_embargo_activity,
+)
 
 from .test_embargo_revision_relay import (
     MANAGER,
@@ -161,3 +174,47 @@ def test_a_bare_container_manager_records_nothing(make_payload):
         _consent_of(dl, case_id, MANAGER, revision.id_)
         == EmbargoConsentState.UNINVITED
     )
+
+
+@pytest.mark.spec("MSM-07-038")
+@pytest.mark.spec("EP-09-010")
+def test_a_proposers_reject_of_its_own_proposal_is_refused_uncommitted(
+    make_payload,
+):
+    """A proposer withdraws with ``Undo(Invite)``; it has no Invite to reject.
+
+    The proposal is relayed to every participant but its proposer, so the
+    sender is not an invitee (EP-09-010) and its Reject is refused before the
+    commit: its row stays ``AGREED`` and nothing is ledgered for the Reject
+    (MSM-07-038, ADR-0152).
+    """
+    case_id = "https://example.org/cases/mc-proposer-reject"
+    dl, revision = _active_case_with_revision(
+        case_id, store_actor=MANAGER, participants=[PROPOSER, OTHER_A]
+    )
+    proposal = _proposal(revision, case_id, PROPOSER)
+    _deliver(dl, proposal, make_payload, receiving_actor_id=MANAGER)
+    entries_before = {e.id_ for e in dl.list_objects("CaseLedgerEntry")}
+
+    reject = em_reject_embargo_activity(
+        proposal, context=case_id, actor=PROPOSER, to=[MANAGER]
+    )
+    dl.create(reject)
+    result = RejectInviteToEmbargoOnCaseReceivedUseCase(
+        dl,
+        make_payload(reject, receiving_actor_id=MANAGER, at=dl),
+        sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED, result.reason
+    assert (
+        _consent_of(dl, case_id, PROPOSER, revision.id_)
+        == EmbargoConsentState.AGREED
+    )
+    assert {
+        e.id_
+        for e in dl.list_objects("CaseLedgerEntry")
+        if isinstance(e, CaseLedgerEntry)
+    } == entries_before

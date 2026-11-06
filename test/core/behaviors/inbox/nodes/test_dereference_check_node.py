@@ -20,6 +20,7 @@ import py_trees
 import pytest
 from py_trees.ports import NoDataAvailable
 
+from test.support.signing import signed_body
 from vultron.core.behaviors.inbox import InboxOutcomeStatus, process_payload
 from vultron.core.behaviors.inbox.nodes import (
     KEY_DEREFERENCE,
@@ -53,26 +54,28 @@ _PROFILE_REF = ObjectReference(
 def _proposal() -> Any:
     """A ``Create(CaseProposal)`` naming its proposer by id."""
     return parse_activity(
-        {
-            "type": "Create",
-            "id": "https://example.org/activities/create-proposal",
-            "published": "2026-10-26T12:00:00Z",
-            "actor": _PROPOSER,
-            "to": [_CASE_ACTOR],
-            "object": {
-                "type": "CaseProposal",
-                "id": "https://example.org/proposals/p-1",
-                "attributedTo": _PROPOSER,
+        signed_body(
+            {
+                "type": "Create",
+                "id": "https://example.org/activities/create-proposal",
+                "published": "2026-10-26T12:00:00Z",
+                "actor": _PROPOSER,
+                "to": [_CASE_ACTOR],
                 "object": {
-                    "type": "VulnerabilityReport",
-                    "id": "https://example.org/reports/r-1",
-                    "name": "A report",
-                    "content": "Details",
+                    "type": "CaseProposal",
+                    "id": "https://example.org/proposals/p-1",
                     "attributedTo": _PROPOSER,
+                    "object": {
+                        "type": "VulnerabilityReport",
+                        "id": "https://example.org/reports/r-1",
+                        "name": "A report",
+                        "content": "Details",
+                        "attributedTo": _PROPOSER,
+                    },
+                    "target": _CASE_ACTOR,
                 },
-                "target": _CASE_ACTOR,
-            },
-        }
+            }
+        )
     )
 
 

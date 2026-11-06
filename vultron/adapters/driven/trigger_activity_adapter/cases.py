@@ -305,7 +305,11 @@ class _CasesMixin:
             embedded_reports.append(
                 _to_wire(self._dl.read(report_id), as_VulnerabilityReport)
             )
-        object.__setattr__(case, "vulnerability_reports", embedded_reports)
+        # On a copy, so the reports render inside the Announce as one object
+        # graph under ``vulnerabilityReports`` (VM-10-005, #6046).
+        case = case.model_copy(
+            update={"vulnerability_reports": embedded_reports}
+        )
         activity = announce_vulnerability_case_activity(
             case=case,
             actor=actor,

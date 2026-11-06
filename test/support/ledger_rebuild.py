@@ -45,6 +45,7 @@ from test.support.ledger import (
     ledger_entries,
 )
 from test.support.received import received_event
+from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.inbox_replay_adapter import InboxReplayAdapter
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -149,7 +150,11 @@ def replay_inbox(
 def receive_into(
     dl: SqliteDataLayer, body: dict[str, Any], receiver: str
 ) -> Any:
-    """Route the sealed *body* into *receiver*'s store as the inbox routes it."""
+    """Route the delivered *body* into *receiver*'s store as the inbox does.
+
+    *body* is routed as given, so it carries whatever proof its caller gave
+    it (SIG-01-001).
+    """
     return run_use_case(
         dl, received_event(parse_activity(body), receiving_actor_id=receiver)
     )
@@ -272,7 +277,8 @@ def _replay(
         announce = announce_log_entry_activity(
             entry=wire_entry, actor=manager_id, to=[as_actor]
         )
-        body = json.loads(dump_outbound_body(announce))
+        # Built here, not read from an outbox, so signed here (SIG-01-001).
+        body = signed_body(json.loads(dump_outbound_body(announce)))
         verdict = receive_into(replica, body, as_actor)
         assert verdict.disposition is HandlerDisposition.APPLIED, (
             f"rebuild of '{entry.case_id}' as '{as_actor}': entry"

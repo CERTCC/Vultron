@@ -46,3 +46,4 @@ It has no earlier draft, so this entry lists what the draft holds, not what chan
 - The body sections and the annexes, as the [parts of the specification](index.md#parts) list them.
 - The [Requirements Catalog](requirements/index.md), which renders the `protocol` and `foundation` requirement tiers.
 - The [Open Questions](open-questions.md) that this draft leaves unresolved.
+- The [Known Gaps](known-gaps.md) page, which lists the requirements that no passing test shows the reference implementation meets.

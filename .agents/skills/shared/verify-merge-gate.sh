@@ -12,11 +12,28 @@
 #   exit 2 (UNKNOWN after polling, or a gh error)       -> MERGE-STATE-UNKNOWN
 #   status BEHIND                                       -> BRANCH-BEHIND
 #   status DRAFT                                        -> PR-IS-DRAFT
-#   status BLOCKED                                      -> note only, no flag
+#   status BLOCKED, base main, `CI gate` not green      -> CI-GATE-NOT-GREEN
+#   status BLOCKED, base main, `CI gate` green          -> note only, no flag
+#   status BLOCKED, base not main                       -> note only, no flag
+# BLOCKED splits on the `CI gate` because only one of its causes is a wall.
+# Ruleset `main-3 Require CI gate` lists no bypass actor, so a gate that is red,
+# pending or absent refuses the merge for every account (#5945). Every *other*
+# rule that can produce BLOCKED here can be bypassed by the admin role every
+# agent merges as — `main-2 Enforce CI on PRs`'s `pull_request` rule and the
+# Copilot review rule — and `main` carries no classic branch protection. (Do not
+# read that as "every other rule": `main-1` admits no bypass either, but its
+# rules are `deletion` and `non_fast_forward`, which no merge can trip.) So a
+# BLOCKED whose gate is green is the survivable kind and stays a note, as it was
+# before the ruleset existed.
+# The ruleset targets `refs/heads/main` only, so a PR onto any other base is
+# blocked by something else: claiming the gate there would send the agent to
+# chase a check nothing requires. An unreadable base is treated as `main`,
+# because a merge gate errs toward blocking.
 # The verdict is the strongest effect on pr-verify's overall verdict:
 #   MERGE-CONFLICT                     -> conflicts-found
 #   else MERGE-STATE-UNKNOWN           -> pending-merge-check
-#   else BRANCH-BEHIND or PR-IS-DRAFT  -> blocks-ready
+#   else BRANCH-BEHIND, PR-IS-DRAFT
+#        or CI-GATE-NOT-GREEN          -> blocks-ready
 #   else                               -> clear
 #
 # Output, one `key=value` per line:
@@ -24,7 +41,17 @@
 #   flag=<FLAG>  one per flag raised
 #   mergeable=  merge_state_status=  merge_state_exit=  base_ref=
 #   needs_rebase=<true|false|unknown>  (PR-IS-DRAFT only; unknown on a gh error)
-#   note=blocked                (status BLOCKED)
+#   ci_gate=<conclusion|PENDING|absent|unknown|not-required>  (status BLOCKED
+#                               only. PENDING if any run on the head commit is
+#                               unfinished, `absent` if none ran, `unknown` on a
+#                               gh error or a finished run with no readable
+#                               conclusion, `not-required` if the PR's base is
+#                               not the branch the ruleset targets. A conclusion
+#                               is whatever GitHub reported, so it is not a
+#                               closed set. Every value but SUCCESS and
+#                               not-required raises the flag, rather than
+#                               letting a merge gate clear on missing evidence)
+#   note=blocked                (status BLOCKED, no CI-GATE-NOT-GREEN flag)
 #   conflict=<merge-tree CONFLICT line>  evidence, MERGE-CONFLICT only
 #   conflict_evidence=unavailable  MERGE-CONFLICT with no conflict= or marker=
 #                               line (no base ref, a failed fetch, or a trial
@@ -64,11 +91,60 @@ fi
 [ "${status}" = BEHIND ] && flags+=(BRANCH-BEHIND)
 [ "${status}" = DRAFT ] && flags+=(PR-IS-DRAFT)
 
+# BLOCKED's non-bypassable cause: the `CI gate` required by `main-3` (#5945).
+# A cancelled or superseded earlier run sits on the head commit beside the live
+# one, so the reading has to pick among several. Any run still going makes the
+# answer PENDING, whatever the others concluded: the verdict is not settled, and
+# GitHub blocks the merge until it is. Only when every run has finished does the
+# newest one decide, which is the run GitHub's own evaluation decides by.
+#
+# Never ask which run is newest *before* ruling out the pending ones. An
+# unstarted run carries no usable `startedAt` — `gh` renders it as Go's zero
+# time, and a missing field as `null` — and either sorts *below* every real
+# timestamp, so picking the latest would skip the pending run and answer with an
+# older green one. That is a false green on a PR GitHub is blocking.
+#
+# Ranking by `startedAt` is safe once the pending runs are out, because Actions
+# sets a check run's `startedAt` when it *creates* the run, not when a runner
+# picks it up. A gate run cancelled while still queued is therefore
+# `COMPLETED`/`CANCELLED` with a real `startedAt` equal to its `completedAt`,
+# not a zero time, so it still ranks (observed on commit 49e81fc87).
+#
+# `.name` is the check-run field, so a commit status named `CI gate` never
+# matches: a status carries `.context` instead, and the rule pins the check to
+# `integration_id` 15368, which no status can satisfy. Reading one as the check
+# would be the error, and leaving it unmatched blocks.
+#
+# `.name` cannot, though, prove the matched run came from that app: the rollup
+# says nothing about which app produced an entry. A false green would take
+# another app posting a *successful* check run named exactly `CI gate`, so the
+# residue errs toward blocking, which a human can resolve.
+ci_gate=""
+if [ "${status}" = BLOCKED ]; then
+  if [ -n "${base}" ] && [ "${base}" != main ]; then
+    # No rule requires the gate on this base, so the cause is another rule.
+    ci_gate=not-required
+  elif ! ci_gate="$(gh pr view "${pr}" --json statusCheckRollup --jq '
+        [ .statusCheckRollup[]? | select(.name == "CI gate") ]
+        | if length == 0 then "absent"
+          elif any(.[]; (.status // "") != "COMPLETED") then "PENDING"
+          else (max_by(.startedAt).conclusion // "") end' 2>/dev/null)" \
+     || [ -z "${ci_gate}" ]; then
+    # A gh failure, or a finished run with no conclusion to read. Both leave the
+    # question unanswered, and an unanswered merge gate blocks.
+    ci_gate=unknown
+  fi
+  case "${ci_gate}" in
+    SUCCESS | not-required) ;;
+    *) flags+=(CI-GATE-NOT-GREEN) ;;
+  esac
+fi
+
 has() { local f; for f in ${flags[@]+"${flags[@]}"}; do [ "${f}" = "$1" ] && return 0; done; return 1; }
 
 if has MERGE-CONFLICT; then verdict=conflicts-found
 elif has MERGE-STATE-UNKNOWN; then verdict=pending-merge-check
-elif has BRANCH-BEHIND || has PR-IS-DRAFT; then verdict=blocks-ready
+elif has BRANCH-BEHIND || has PR-IS-DRAFT || has CI-GATE-NOT-GREEN; then verdict=blocks-ready
 else verdict=clear
 fi
 
@@ -85,7 +161,11 @@ if has PR-IS-DRAFT; then
     case ",${labels}," in *,needs-rebase,*) echo "needs_rebase=true" ;; *) echo "needs_rebase=false" ;; esac
   fi
 fi
-[ "${status}" = BLOCKED ] && echo "note=blocked"
+if [ "${status}" = BLOCKED ]; then
+  echo "ci_gate=${ci_gate}"
+  # The note marks the survivable BLOCKED only; the other kind has its own flag.
+  has CI-GATE-NOT-GREEN || echo "note=blocked"
+fi
 if has MERGE-CONFLICT; then
   conflicts=""
   if [ -n "${base}" ] && git fetch -q origin "${base}" 2>/dev/null; then

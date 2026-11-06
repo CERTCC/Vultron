@@ -115,8 +115,10 @@ RecommendActorToCaseBT
 
 `InviteInFlightNode` and `PendingOfferCaseParticipantNode`
 (`case/nodes/suggest_actor/conditions.py`) read open/closed state from the
-ledger via `find_protocol_pair`. Two sibling trees handle the `Accept` and the
-`Reject`.
+ledger via `find_protocol_pair`. Neither counts the request the recommendation
+being handled sent itself (its id is derived from the recommendation), so a
+re-run from holding answers as its first run did, not as a duplicate (ADR-0154).
+Two sibling trees handle the `Accept` and the `Reject`.
 
 `VultronOfferRecord` (`vultron/core/models/offer_record.py`) is the reference
 per-ask record: durable, DataLayer-backed, keyed deterministically by

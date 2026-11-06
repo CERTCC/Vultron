@@ -1553,9 +1553,6 @@ groups:
       spec_id: CP-05-003
     - rel_type: refines
       spec_id: CM-02-008
-    - rel_type: supersedes
-      spec_id: CM-14-001
-      note: In multi-actor deployments, where the CASE_MANAGER creates the case (ADR-0041)
     adr:
     - ADR-0023
     - ADR-0041

@@ -188,6 +188,7 @@ adr/0176-an-act-reads-the-clock-once-at-its-edge.md
 adr/0177-a-cited-requirement-with-no-relationship-is-listed-in-see-also.md
 adr/0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md
 adr/0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md
+adr/0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-pointing-at-it.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
@@ -655,10 +656,12 @@ reference/vultron-spec/_encoding-transport.md
 reference/vultron-spec/_full-page-tip.md
 reference/vultron-spec/_iana.md
 reference/vultron-spec/_introduction.md
+reference/vultron-spec/_known-gaps.md
 reference/vultron-spec/_messages.md
 reference/vultron-spec/_model-interactions.md
 reference/vultron-spec/_open-questions.md
 reference/vultron-spec/_oq-cs-ordering.md
+reference/vultron-spec/_oq-delegated-embargo-activation.md
 reference/vultron-spec/_oq-embargo-termination-authority.md
 reference/vultron-spec/_oq-negative-ack.md
 reference/vultron-spec/_oq-role-acquisition.md
@@ -694,6 +697,7 @@ reference/vultron-spec/includes/_vfd-states-table.md
 reference/vultron-spec/index.md
 reference/vultron-spec/interactions.md
 reference/vultron-spec/introduction.md
+reference/vultron-spec/known-gaps.md
 reference/vultron-spec/layers.md
 reference/vultron-spec/open-questions.md
 reference/vultron-spec/requirements/case-management.md

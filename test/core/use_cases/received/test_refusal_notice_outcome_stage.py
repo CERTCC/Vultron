@@ -62,7 +62,7 @@ def test_the_notice_embeds_the_body_and_the_stub_replaces_it():
     embargo_id, invite_id = _invited(net, BYSTANDER, "notice-then-stub")
     decided = _owner_decides(net, embargo_id, accept=False)
     assert decided.disposition is HandlerDisposition.APPLIED, decided.reason
-    body = net.stamp(
+    body = net.delivered_body(
         _answer_body(net, BYSTANDER, invite_id, accept=False, tag="late")
     )
     store = net.stores[MANAGER]

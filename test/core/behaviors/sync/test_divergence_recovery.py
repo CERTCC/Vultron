@@ -35,6 +35,7 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import ledger_announce_event
 from test.support.ledger_rebuild import run_use_case
 from test.support.received import received_event
+from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -722,7 +723,11 @@ def test_the_inbox_routes_the_copy_not_the_held_case() -> None:
         )
         staging = InlineObjectStaging(dl)
         return process_payload(
-            activity.model_dump(mode="json", by_alias=True, exclude_none=True),
+            signed_body(
+                activity.model_dump(
+                    mode="json", by_alias=True, exclude_none=True
+                )
+            ),
             FastAPIIngressAdapter(dl=dl, staging=staging),
             FastAPIDispatchAdapter(
                 dl=dl, actor_id=_REPLICA_ID, dispatcher=make_dispatcher()
@@ -955,9 +960,11 @@ def test_the_genesis_request_survives_the_inbox_rebuild() -> None:
     # that path alone, so the path door would otherwise refuse the delivery
     # before the sender guard this test is about ran (HP-01-038).
     dl = _replica_holding("manager case", actor_id=_CASE_ACTOR_ID)
-    body = genesis_replay_reject_activity(
-        _CASE_ID, _EMPTY_CHAIN, actor=_STRANGER_ID, to=[_CASE_ACTOR_ID]
-    ).model_dump(mode="json", by_alias=True, exclude_none=True)
+    body = signed_body(
+        genesis_replay_reject_activity(
+            _CASE_ID, _EMPTY_CHAIN, actor=_STRANGER_ID, to=[_CASE_ACTOR_ID]
+        ).model_dump(mode="json", by_alias=True, exclude_none=True)
+    )
     staging = InlineObjectStaging(dl)
 
     outcome = process_payload(
@@ -1226,7 +1233,11 @@ def test_the_inbox_takes_the_position_of_a_copy_ahead() -> None:
         )
         staging = InlineObjectStaging(dl)
         return process_payload(
-            activity.model_dump(mode="json", by_alias=True, exclude_none=True),
+            signed_body(
+                activity.model_dump(
+                    mode="json", by_alias=True, exclude_none=True
+                )
+            ),
             FastAPIIngressAdapter(dl=dl, staging=staging),
             FastAPIDispatchAdapter(
                 dl=dl, actor_id=_REPLICA_ID, dispatcher=make_dispatcher()
