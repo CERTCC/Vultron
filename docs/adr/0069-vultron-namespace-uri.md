@@ -66,7 +66,13 @@ upon PR merge — with no external dependencies.
 The namespace URI is `https://certcc.github.io/Vultron/ns`. The JSON-LD
 context document is served at
 `https://certcc.github.io/Vultron/ns/context.jsonld`. Outbound Vultron wire
-messages MUST set `@context` to the context document URI (VM-10-001).
+messages MUST set the top-level `@context` to the list
+`["https://www.w3.org/ns/activitystreams", "https://certcc.github.io/Vultron/ns/context.jsonld"]`,
+AS2 first, and objects nested inside a message do not restate it (VM-10-001).
+The context document imports AS2, but that does not make citing it alone
+enough: a receiver need not dereference it (VM-10-003), and an AS2 receiver
+that does not process JSON-LD recognizes a message only by finding the AS2 URI
+string, which AS2 Core §2.1 asks every producer to include.
 
 This decision is `accepted-provisional` because the GitHub Pages URI is tied
 to the repository's current hosting location. If the project migrates to a
@@ -89,8 +95,9 @@ superseding this one will be written, and the context document will carry an
 ## Validation
 
 VM-10-001 (in `specs/vocabulary-model.yaml`) requires outbound Vultron messages
-to declare the Vultron context URI. Compliance is verified by serialization
-tests that check `@context` values on `VultronAS2Object` subclass instances.
+to declare the AS2 namespace and then the Vultron context URI. Compliance is
+verified by serialization tests that check the top-level `@context` of every
+outbound activity and the absence of `@context` on the objects nested in it.
 
 ## More Information
 
@@ -105,3 +112,12 @@ The status moved from `accepted-provisional` to `accepted` when its lifecycle ep
 The caveat given in Decision Outcome still holds: the namespace URI is tied to the repository's current hosting location.
 It does not make the decision provisional, because a move to a custom domain or `w3id.org` is already planned as a new ADR that supersedes this one.
 How the namespace is versioned is now decided by ADR-0106, which partially supersedes this record.
+
+## Amendment — 2026-11-06
+
+The `@context` an outbound message carries changed, with the chosen namespace host and URI intact (#6006).
+Decision Outcome previously read: "Outbound Vultron wire messages MUST set `@context` to the context document URI (VM-10-001)."
+It now names the two-entry list, AS2 first, on the top-level document only.
+Citing the Vultron URI alone relied on the context document importing AS2, which only a receiver that dereferences the document can see, and VM-10-003 says a receiver need not.
+An AS2 receiver that does not process JSON-LD looks for the AS2 URI string itself, as AS2 Core §2.1 expects producers to provide.
+The Validation section was updated to match.

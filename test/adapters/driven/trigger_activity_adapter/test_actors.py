@@ -181,6 +181,8 @@ class TestInviteActorToCaseWithEmbargoHeldById:
         expected = json.loads(
             embargo.model_dump_json(by_alias=True, exclude_none=True)
         )
+        # Nested, it does not restate the activity's ``@context`` (VM-10-004).
+        del expected["@context"]
         assert json.loads(blob)["target"]["activeEmbargo"] == expected
 
     @pytest.mark.spec("CM-17-024")

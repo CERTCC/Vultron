@@ -1,12 +1,14 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Reject",
   "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_proposals/1/abandon",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Reject https://vultron.example/organizations/vendorco Invite Embargo for VendorCo Case #20260601",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
   "object": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "Invite",
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_proposals/1",
     "name": "https://vultron.example/organizations/vendorco Invite Embargo for VendorCo Case #20260601",
@@ -24,8 +26,7 @@
       "endTime": "2026-08-30T00:00:00.000000+00:00",
       "published": "2026-06-01T19:12:00.000000+00:00",
       "updated": "2026-06-01T19:12:00.000000+00:00",
-      "content": "We propose to embargo VendorCo Case #20260601 for 90 days.",
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+      "content": "We propose to embargo VendorCo Case #20260601 for 90 days."
     }
   }
 }

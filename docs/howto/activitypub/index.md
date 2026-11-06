@@ -52,14 +52,16 @@ It was produced by the reference implementation; the identifiers and timestamps 
 
 ```json
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld", // (1)!
+  "@context": [ // (1)!
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Offer",
   "id": "urn:uuid:70f657e8-8640-414f-9b1a-2512f9664e3a",
   "published": "2026-09-28T17:38:03.000000+00:00",
   "to": ["https://vendor.example/actors/psirt"],
   "actor": "https://reporter.example/actors/finder",
-  "object": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld", // (2)!
+  "object": { // (2)!
     "type": "VulnerabilityReport",
     "id": "https://reporter.example/reports/CVE-2026-0001",
     "name": "Buffer overflow in example-server",
@@ -69,8 +71,8 @@ It was produced by the reference implementation; the identifiers and timestamps 
 }
 ```
 
-1. The activity cites the Vultron JSON-LD context, which imports AS2 and declares `VulnerabilityReport` and the other Vultron types.
-2. The nested object restates the same context, which changes nothing about how its terms are read.
+1. The activity cites the AS2 namespace first, so any AS2 receiver recognizes it, and then the Vultron JSON-LD context, which declares `VulnerabilityReport` and the other Vultron types.
+2. The nested object carries no `@context` of its own: the activity's context applies to everything inside it.
 3. The report's author is the finder who sends it, so `attributedTo` matches the activity's `actor` here.
 
 Read it field by field.
@@ -96,7 +98,7 @@ The verbs are all standard AS2: `Offer`, `Accept`, `Reject`, `TentativeReject`, 
 Vultron adds no verbs.
 
 The objects are where Vultron extends AS2.
-`VulnerabilityReport`, `VulnerabilityCase`, `CaseParticipant`, `CaseParticipantRole`, `CaseStatus`, `ParticipantStatus`, `EmbargoEvent`, `CaseLedgerEntry`, and `ProcessingFault` are Vultron types, declared in the Vultron JavaScript Object Notation for Linked Data (JSON-LD) context that every activity cites in its `@context`.
+`VulnerabilityReport`, `VulnerabilityCase`, `CaseParticipant`, `CaseParticipantRole`, `CaseStatus`, `ParticipantStatus`, `EmbargoEvent`, `CaseLedgerEntry`, and `ProcessingFault` are Vultron types, declared in the Vultron JavaScript Object Notation for Linked Data (JSON-LD) context that every activity cites in its `@context`, after the AS2 namespace.
 Standard AS2 objects appear too: a case note is an `as:Note`, and the actor invited to a case is an `as:Actor`.
 An embargo is not one of them: it is sent with the Vultron `type` `EmbargoEvent`, never a plain `as:Event`.
 

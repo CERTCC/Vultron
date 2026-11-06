@@ -30,6 +30,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.received import archive_received, intake_received
+from test.support.signing import resigned, signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -319,10 +320,9 @@ def test_the_refusal_raises_a_reused_id_error_naming_the_sender(
     dl: SqliteDataLayer,
 ):
     """``rehydrate`` raises the domain error, carrying the id and sender."""
-    first = _offer_of_stored_report(dl)
-    archive_received(dl, parse_activity(copy.deepcopy(first)))
+    _, first = _archive_sealed(dl, _offer_of_stored_report(dl))
     adapter = FastAPIIngressAdapter(dl=dl)
-    artifact = adapter.parse({**copy.deepcopy(first), "summary": "second"})
+    artifact = adapter.parse(resigned(first, summary="second"))
     assert artifact is not None
 
     with pytest.raises(VultronReusedActivityIdError) as raised:
@@ -385,14 +385,25 @@ def test_a_different_body_under_an_archived_id_is_refused(
 ):
     """A second body under an archived id is refused; the archive is left
     exactly as it was and neither body is routed (#3762)."""
-    first = _offer_of_stored_report(dl)
-    first["summary"] = "first"
-    record = archive_received(dl, parse_activity(copy.deepcopy(first)))
-    second = {**copy.deepcopy(first), "summary": "second"}
+    record, first = _archive_sealed(dl, _offer_of_stored_report(dl))
+    second = resigned(first, summary="second")
 
     _assert_refused_through_the_inbox(dl, second, ACTOR, caplog)
 
     assert dl.read(ReceivedActivityRecord.build_id(first["id"])) == record
+
+
+def _archive_sealed(
+    dl: SqliteDataLayer, body: dict[str, Any]
+) -> tuple[ReceivedActivityRecord, dict[str, Any]]:
+    """Archive *body*; return the record and the body exactly as archived.
+
+    A test changes the archived body itself (``resigned``), so a refusal of
+    the resend is for that change alone, never for a difference in how the
+    test spelled its first body.
+    """
+    record = archive_received(dl, parse_activity(copy.deepcopy(body)))
+    return record, json.loads(sealed_body_of(record))
 
 
 def _refuse_and_stub(
@@ -418,10 +429,8 @@ def test_a_different_body_under_a_refused_id_is_refused(
 ):
     """The stub keeps the digest of the body it gave up, so a reused id is
     still refused after a refusal; the stub is left exactly as it was."""
-    first = _offer_of_stored_report(dl)
-    first["summary"] = "first"
-    stub, _ = _refuse_and_stub(dl, first)
-    second = {**copy.deepcopy(first), "summary": "second"}
+    stub, first = _refuse_and_stub(dl, _offer_of_stored_report(dl))
+    second = resigned(first, summary="second")
 
     _assert_refused_through_the_inbox(dl, second, ACTOR, caplog)
 
@@ -463,7 +472,7 @@ def test_a_repeat_of_an_archived_ledger_announce_is_hydrated_in_place(
 ):
     """The same ``Announce(CaseLedgerEntry)`` body still takes the in-place
     path, so the SYNC-12-003 already-stored gate answers it (SYNC-13-004)."""
-    body = _announce_entry_body()
+    body = signed_body(_announce_entry_body())
     archive_received(dl, parse_activity(copy.deepcopy(body)))
     adapter = FastAPIIngressAdapter(dl=dl)
     artifact = adapter.parse(copy.deepcopy(body))
@@ -483,10 +492,12 @@ def test_a_different_body_under_an_archived_ledger_announce_id_is_refused(
 ):
     """The in-place path gets the same comparison: a rewritten entry under
     a held ``Announce`` id is refused, not hydrated (IE-10-002)."""
-    body = _announce_entry_body()
-    archive_received(dl, parse_activity(copy.deepcopy(body)))
-    second = copy.deepcopy(body)
-    second["object"]["payload_snapshot"] = {"actor": "rewritten"}
+    _, body = _archive_sealed(dl, _announce_entry_body())
+
+    def rewrite(entry: dict[str, Any]) -> None:
+        entry["object"]["payload_snapshot"] = {"actor": "rewritten"}
+
+    second = resigned(body, alter=rewrite)
 
     _assert_refused_through_the_inbox(dl, second, CASE_ACTOR, caplog)
 

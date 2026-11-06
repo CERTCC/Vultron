@@ -27,6 +27,7 @@ from vultron.core.models.base.context import (
     VULTRON_CONTEXT_URI,
     VULTRON_PROPERTY_EXTRA,
     VULTRON_PROPERTY_KEY,
+    JsonLdContext,
 )
 from vultron.core.models.base.core_object import (
     CoreObject,
@@ -41,6 +42,7 @@ from vultron.primitives import NonEmptyString, UriString
 __all__ = [
     "CoreObject",
     "CoreRecord",
+    "JsonLdContext",
     "NonEmptyString",
     "VULTRON_CONTEXT_URI",
     "VULTRON_PROPERTY_EXTRA",

@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Announce",
   "id": "urn:uuid:9e08b946-4b29-46ac-ba18-bc70917c674a",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Announce urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/0",
@@ -16,7 +19,6 @@
     "payloadSnapshot": {},
     "prevLogHash": "41ebcb1d996477859b8fec00382f75af72401ede0814022bab3f0d54f1b25e0d",
     "entryHash": "a1c020aef39b15d839e36dc5f5563000c56d6f4e4fdbb669a807fab20c0736dd",
-    "receivedAt": "2024-01-01T12:00:00.000000+00:00",
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "receivedAt": "2024-01-01T12:00:00.000000+00:00"
   }
 }

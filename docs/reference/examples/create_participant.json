@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Create",
   "id": "urn:uuid:19f8ed08-881b-4ffb-a326-af232e51dd50",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Create as_CaseParticipant urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/https://vultron.example/organizations/coordinator from https://vultron.example/organizations/coordinator in urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
@@ -30,12 +33,10 @@
         "caseEngagement": true,
         "cvdRole": [
           "COORDINATOR"
-        ],
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+        ]
       }
     ],
     "embargoConsents": [],
-    "joined": true,
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "joined": true
   }
 }

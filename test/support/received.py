@@ -52,6 +52,7 @@ it: in the order the test builds them, one up per sender and case
 import json
 from typing import Any, TypeVar, cast
 
+from test.support.signing import signed_body
 from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
 )
@@ -467,15 +468,20 @@ def body_of(activity: Any) -> str:
 
     A wire activity is dumped as a sender delivers it and sealed by the parser
     (VM-08-002); a core activity is rendered as its AS2 form
-    (:func:`evidence_for`).
+    (:func:`evidence_for`).  Either is signed by its author first
+    (SIG-01-001), so the archive a resend is matched against holds the body
+    a signed delivery carries, proof included (SIG-04-001), and the ingress
+    reads it back as it reads a delivery (IE-10-001).
     """
     if isinstance(activity, as_Activity):
         evidence = parse_activity(
-            delivered_body(activity)
+            signed_body(delivered_body(activity))
         ).received_evidence_json
         assert evidence is not None
         return evidence
-    return evidence_for(activity)
+    return json.dumps(
+        signed_body(json.loads(evidence_for(activity))), ensure_ascii=False
+    )
 
 
 def archive_received(dl: Any, activity: Any) -> ReceivedActivityRecord:
@@ -558,9 +564,11 @@ def hold_deferred(
     under the receiver's key (DL-06-006, IO-03-009, ADR-0154).  *activity* is
     delivered as a sender would send it: its body is parsed, staged and held
     through the inbox's own staging.  *awaiting_case_id* names the case it
-    waits on, when the test needs the wait to be findable by case.
+    waits on, when the test needs the wait to be findable by case.  The
+    body is signed by its author, as :func:`body_of` signs an archived one,
+    so a signed resend matches the held body (IE-10-001).
     """
-    parsed = parse_activity(delivered_body(activity))
+    parsed = parse_activity(signed_body(delivered_body(activity)))
     staging = InlineObjectStaging(dl)
     staging.rehydrate_parsed(parsed)
     staging.hold_for_replay(parsed.id_, awaiting_case_id=awaiting_case_id)

@@ -44,6 +44,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.received import delivered_body, intake_received
+from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -107,7 +108,8 @@ def activity():
 
 @pytest.fixture
 def body(activity) -> dict[str, Any]:
-    return delivered_body(activity)
+    """The body the sender delivers, signed, as intake's record holds it."""
+    return signed_body(delivered_body(activity))
 
 
 class _ReadsTheBodyThenAnswers:

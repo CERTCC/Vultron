@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Reject",
   "id": "urn:uuid:c200fb78-2e1f-4e5c-8541-12bd0eff3527",
   "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:692fbb44-6130-4f02-a903-6dfa61218850 to Coordinator LLC",
@@ -10,7 +13,6 @@
   ],
   "actor": "https://vultron.example/organizations/coordinator",
   "object": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "Offer",
     "id": "urn:uuid:b5617700-2684-4d5a-9099-ecd350955ca8",
     "name": "https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:692fbb44-6130-4f02-a903-6dfa61218850 to Coordinator LLC",
@@ -25,27 +27,23 @@
     "attributedTo": "https://vultron.example/organizations/vendorco",
     "actor": "https://vultron.example/case-actors/vendorco-case-actor",
     "target": {
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Organization",
       "id": "https://vultron.example/organizations/coordinator",
       "name": "Coordinator LLC",
       "published": "2026-06-01T19:12:00.000000+00:00",
       "updated": "2026-06-01T19:12:00.000000+00:00",
       "inbox": {
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
         "type": "OrderedCollection",
         "id": "https://vultron.example/organizations/coordinator/inbox",
         "items": []
       },
       "outbox": {
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
         "type": "OrderedCollection",
         "id": "https://vultron.example/organizations/coordinator/outbox",
         "items": []
       }
     },
     "object": {
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "CaseParticipantRole",
       "id": "urn:uuid:692fbb44-6130-4f02-a903-6dfa61218850",
       "published": "2026-06-01T19:12:00.000000+00:00",

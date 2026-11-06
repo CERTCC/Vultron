@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Offer",
   "id": "urn:uuid:872ceec7-0265-4ade-9a9c-b14b5b4fe4bc",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
@@ -10,12 +13,10 @@
   "attributedTo": "https://vultron.example/organizations/vendorco",
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
   "target": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "Actor",
     "id": "https://vultron.example/organizations/coordinator"
   },
   "object": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "VulnerabilityCase",
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a"
   }

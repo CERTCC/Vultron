@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Create",
   "id": "urn:uuid:9344e364-f6a8-4649-879c-5bacaa564cfb",
   "name": "https://vultron.example/organizations/vendorco Create VendorCo Case #20260602",
@@ -38,13 +41,11 @@
             "caseEngagement": true,
             "cvdRole": [
               "VENDOR"
-            ],
-            "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+            ]
           }
         ],
         "embargoConsents": [],
-        "joined": true,
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+        "joined": true
       }
     ],
     "actorParticipantIndex": {},
@@ -56,8 +57,7 @@
         "published": "2026-06-01T19:12:00.000000+00:00",
         "updated": "2026-06-01T19:12:00.000000+00:00",
         "content": "I found a vulnerability!",
-        "attributedTo": "https://vultron.example/users/finndervul",
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+        "attributedTo": "https://vultron.example/users/finndervul"
       }
     ],
     "caseStatuses": [
@@ -69,8 +69,7 @@
         "published": "2026-06-01T19:12:00.000000+00:00",
         "attributedTo": "https://vultron.example/organizations/vendorco",
         "emState": "NONE",
-        "pxaState": "pxa",
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+        "pxaState": "pxa"
       }
     ],
     "notes": [],
@@ -87,7 +86,6 @@
     "siblingCases": [],
     "activeParticipants": [
       "urn:uuid:d5a50ba5-464f-441a-9825-eee7073c92cd"
-    ],
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    ]
   }
 }

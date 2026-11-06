@@ -128,7 +128,6 @@ def test_the_invite_case_stub_survives_to_the_emitter(dl):
     _, body, _ = _deliver(dl, activity_id)
     delivered = json.loads(body)
     assert delivered["target"] == {
-        "@context": delivered["target"]["@context"],
         "type": "VulnerabilityCaseStub",
         "id": f"{case.id_}/stub",
         "caseId": case.id_,

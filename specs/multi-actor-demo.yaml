@@ -3755,7 +3755,9 @@ groups:
     rationale: >-
       A consolidation should change only where the code is, not what it checks. If it
       also makes a check weaker or stronger, the change in the verdict is hidden
-      inside a refactor, where reviewers do not look for it.
+      inside a refactor, where reviewers do not look for it. A recording alone is not
+      the evidence: a check can move or change its subject and leave it unchanged.
+      The evidence is DEMOCI-11-055's base-versus-head comparison.
     relationships:
     - rel_type: constrains
       spec_id: DEMOMA-17-001

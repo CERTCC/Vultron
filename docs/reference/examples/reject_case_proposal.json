@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Reject",
   "id": "urn:uuid:78fbaa3b-85ca-4322-a607-90941aca4e8d",
   "name": "https://example.org/case-actors/alpha Reject urn:uuid:653760f5-776e-4047-a522-1174526ad048",
@@ -8,7 +11,6 @@
   ],
   "actor": "https://example.org/case-actors/alpha",
   "object": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "CaseProposal",
     "id": "urn:uuid:653760f5-776e-4047-a522-1174526ad048",
     "published": "2026-06-01T19:12:00.000000+00:00",
@@ -22,8 +24,7 @@
       "published": "2026-06-01T19:12:00.000000+00:00",
       "updated": "2026-06-01T19:12:00.000000+00:00",
       "content": "I found a vulnerability!",
-      "attributedTo": "https://vultron.example/users/finndervul",
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+      "attributedTo": "https://vultron.example/users/finndervul"
     },
     "target": "https://example.org/case-actors/alpha",
     "proposerCaseRoles": [

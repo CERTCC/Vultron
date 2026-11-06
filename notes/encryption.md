@@ -8,6 +8,7 @@ tracks:
   - "#2841"
   - "#3477"
   - "#5382"
+  - "#5385"
   - "#5386"
 description: >
   Implementation notes for actor signing (object-level proofs from seeded keys,
@@ -20,6 +21,7 @@ related_specs:
   - specs/actor-knowledge-model.yaml
   - specs/error-handling.yaml
   - specs/object-ids.yaml
+  - specs/vocabulary-model.yaml
 related_notes:
   - archived_notes/federation_ideas.md
   - notes/case-ledger-genesis-hardening.md
@@ -84,10 +86,23 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   parsers disagree on both.
 - **A signed activity's `@context` is a list.** Signing appends
   `https://w3id.org/security/data-integrity/v2` to the activity's own
-  `@context`, as FEP-8b32's examples do and other implementers expect, so a
-  single context becomes a list. The wire model types `@context` as one string,
-  so the outbox-signing Task (#5382) widens that field before a signed body can
-  be parsed again.
+  `@context`, as FEP-8b32's examples do and other implementers expect, so the
+  default AS2-then-Vultron list (VM-10-001) gains a third entry and a single
+  received context becomes a list. `@context` on the wire and core roots is
+  `JsonLdContext` (`vultron/core/models/base/context.py`): one IRI or a
+  non-empty list of IRIs, never an inline term map; reuse it, do not widen a
+  field again.
+- **Tests sign through `test/support/signing.py`**: `signed_body`, `resigned`
+  (an altered copy, re-signed), `post_signed`. Proofs there are deterministic
+  (seeded key, fixed `created`), so a resend is the archived bytes. In
+  `test/support/received.py`, `body_of` (behind `archive_received` and
+  `intake_received`) and `hold_deferred` seed signed bodies; a test that resends
+  against them signs its delivery too, or IE-10-002 refuses it. Every other
+  helper there is still unsigned; #5385 repoints them with the other test
+  deliveries.
+- **The parser sets `proof` aside** as a foreign key (MV-11-003), with one INFO
+  record per delivery; the received evidence keeps it (SIG-04-001). Verification
+  reads the raw body before the parser (#5386), so nothing needs it parsed.
 - **Sign before the body is sealed.** The sealed body is final (OX-07-001), so
   the outbox signs the activity immediately before sealing it. The delivered
   body, the ledger snapshot and the relayed `Announce` then hold the same bytes
@@ -161,8 +176,8 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
 - **The profile's `@context` lacks the key terms.** It is the Vultron context
   alone, which defines no `assertionMethod`, `Multikey`, `controller` or
   `publicKeyMultibase`, so a JSON-LD-expanding verifier drops them. Add
-  `https://w3id.org/security/multikey/v1` when #5382 widens `@context` to a
-  list: a list `@context` on a profile fails core validation until then.
+  `https://w3id.org/security/multikey/v1` to the served profile in #5382: the
+  core actor's `@context` is already `JsonLdContext`, so a list is accepted.
 
 ## Encryption principles
 

@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Update",
   "id": "urn:uuid:3237539a-639f-4cf5-a052-e490db76a492",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Update VendorCo Case #20260601",
@@ -24,8 +27,7 @@
         "published": "2026-06-01T19:12:00.000000+00:00",
         "attributedTo": "https://vultron.example/organizations/vendorco",
         "emState": "NONE",
-        "pxaState": "pxa",
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+        "pxaState": "pxa"
       }
     ],
     "notes": [],
@@ -40,7 +42,6 @@
     "parentCases": [],
     "childCases": [],
     "siblingCases": [],
-    "activeParticipants": [],
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "activeParticipants": []
   }
 }

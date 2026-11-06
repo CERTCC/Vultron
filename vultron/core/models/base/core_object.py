@@ -50,7 +50,11 @@ from vultron.core.models.base._computed import (
     computed_field_spellings,
     refuse_computed_field_serializers,
 )
-from vultron.core.models.base.context import VULTRON_CONTEXT_URI
+from vultron.core.models.base.context import (
+    JsonLdContext,
+    is_default_jsonld_context,
+    serialize_with_top_level_context,
+)
 from vultron.core.models.base.record import (
     CoreRecord,
     concrete_type_annotation,
@@ -83,9 +87,10 @@ class CoreObject(CoreRecord):
     ``__init_subclass__``.  Subclasses that leave ``type_`` abstract
     (omitted, or annotated as a union) are intentionally not registered.
 
-    ``context_`` defaults to ``None`` and is ``exclude=True``, so it never
-    reaches a stored row: ARCH-25-001 (ADR-0099) keeps persistence on Python field
-    names with no ``@context``.  It is emitted only on the AS2 path — see
+    ``context_`` defaults to ``None`` (the default list) and is
+    ``exclude=True``, so it never reaches a stored row: ARCH-25-001 (ADR-0099)
+    keeps persistence on Python field names with no ``@context``.  It is
+    emitted only on the AS2 path, on the top-level document — see
     :meth:`_serialize_with_jsonld_context`.
     """
 
@@ -156,7 +161,7 @@ class CoreObject(CoreRecord):
     audience: Any | None = None
     attributed_to: NonEmptyString | None = None
 
-    context_: NonEmptyString | None = Field(
+    context_: JsonLdContext | None = Field(
         default=None,
         validation_alias="@context",
         serialization_alias="@context",
@@ -274,17 +279,21 @@ class CoreObject(CoreRecord):
 
     @field_validator("context_")
     @classmethod
-    def _default_context_as_absent(cls, value: str | None) -> str | None:
-        """Read the default Vultron ``@context`` back as no override.
+    def _default_context_as_absent(
+        cls, value: JsonLdContext | None
+    ) -> JsonLdContext | None:
+        """Read the default ``@context`` list back as no override.
 
-        The AS2 serializer emits ``self.context_ or VULTRON_CONTEXT_URI``, so
-        ``None`` and the default URI dump identically.  Keeping the supplied
-        default would make every ``by_alias`` dump validate into an object
-        unequal to the one dumped (ARCH-23-005, CM-31-021).  A non-default
-        context is kept, so a document parsed from the wire still dumps
-        with the context it arrived with.
+        The AS2 serializer emits ``self.context_`` or, on a top-level document,
+        the default list (``DEFAULT_JSONLD_CONTEXT``), so ``None`` and that list
+        dump identically.  Keeping the supplied default would make every
+        ``by_alias`` dump validate into an object unequal to the one dumped
+        (ARCH-23-005, CM-31-021).  A non-default context — a single string,
+        another list, or the same entries in another order — is kept, so a
+        document parsed from the wire still dumps with the context it arrived
+        with.
         """
-        return None if value == VULTRON_CONTEXT_URI else value
+        return None if is_default_jsonld_context(value) else value
 
     @field_validator("start_time", "end_time", "published", "updated")
     @classmethod
@@ -356,30 +365,37 @@ class CoreObject(CoreRecord):
         ``by_alias`` is exactly that fork, so it is what selects the behaviour
         here rather than a flag a caller has to remember to pass.
 
-        VM-10-001 (MUST) requires the Vultron context on Vultron-specific objects;
-        the ActivityStreams namespace alone "is not sufficient".  Before ADR-0099
-        the paired ``as_*`` class supplied it from ``as_Base``; deleting those
-        classes removed it from every promoted type, including nested ones such as
-        ``caseParticipants[]``, which is not a change any peer asked for.
+        VM-10-001 (MUST) puts the two-entry ``@context`` list — AS2 first, then
+        the Vultron context — on the top-level document, and an object nested
+        inside it does not restate it
+        (:func:`~vultron.core.models.base.context.serialize_with_top_level_context`).
+        A core object dumped on its own is a top-level document, so it carries
+        the list.
 
         An explicitly-supplied ``context_`` wins, so a document parsed from the
         wire round-trips with the context it arrived with instead of being
         silently relabelled.
         """
-        data = handler(self)
-        if not isinstance(data, dict):
-            return data
         if not info.by_alias:
-            # A computed field is a derived view published on the AS2 path,
-            # never stored (CM-31-014): the persistence form carries only the
-            # facts it is derived from.
-            for name in type(self).model_computed_fields:
-                data.pop(name, None)
+            data = handler(self)
+            if isinstance(data, dict):
+                # A computed field is a derived view published on the AS2
+                # path, never stored (CM-31-014): the persistence form
+                # carries only the facts it is derived from.
+                for name in type(self).model_computed_fields:
+                    data.pop(name, None)
+            return data
+        return serialize_with_top_level_context(
+            lambda: self._drop_unpublished(handler(self)), info, self.context_
+        )
+
+    def _drop_unpublished(self, data: Any) -> Any:
+        """Remove the computed fields this object cannot publish exactly."""
+        if not isinstance(data, dict):
             return data
         for name in self._as2_unpublished_fields():
             data.pop(name, None)
             data.pop(type(self)._computed_field_wire_key(name), None)
-        data["@context"] = self.context_ or VULTRON_CONTEXT_URI
         return data
 
     def _as2_unpublished_fields(self) -> frozenset[str]:

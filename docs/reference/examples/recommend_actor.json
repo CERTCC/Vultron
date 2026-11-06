@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Offer",
   "id": "urn:uuid:890aea69-4c7f-46d4-aef4-40987a1db820",
   "name": "https://vultron.example/users/finndervul Offer Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
@@ -9,20 +12,17 @@
   "actor": "https://vultron.example/users/finndervul",
   "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "object": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "Organization",
     "id": "https://vultron.example/organizations/coordinator",
     "name": "Coordinator LLC",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "inbox": {
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "OrderedCollection",
       "id": "https://vultron.example/organizations/coordinator/inbox",
       "items": []
     },
     "outbox": {
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "OrderedCollection",
       "id": "https://vultron.example/organizations/coordinator/outbox",
       "items": []

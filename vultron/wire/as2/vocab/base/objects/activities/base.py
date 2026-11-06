@@ -196,10 +196,14 @@ class as_Activity(as_Object):
         handler: SerializerFunctionWrapHandler,
         info: SerializationInfo,
     ) -> Any:
-        """The received body on the AS2 path of an inlined-as-received copy."""
+        """The received body on the AS2 path of an inlined-as-received copy.
+
+        Any other dump places ``@context`` as ``as_Base`` does (VM-10-001); this
+        serializer replaces that one, so it delegates to it.
+        """
         if self._inline_as_received and info.by_alias:
             return self.received_evidence
-        return handler(self)
+        return self._as2_document(handler, info)
 
     def description(self):
         raise NotImplementedError

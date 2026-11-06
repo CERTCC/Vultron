@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Update",
   "id": "urn:uuid:bba303c5-61c3-4502-984e-c9104a1380d1",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Update Coordinator LLC",
@@ -30,12 +33,10 @@
         "caseEngagement": true,
         "cvdRole": [
           "COORDINATOR"
-        ],
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+        ]
       }
     ],
     "embargoConsents": [],
-    "joined": true,
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "joined": true
   }
 }
