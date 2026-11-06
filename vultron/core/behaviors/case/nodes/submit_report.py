@@ -24,13 +24,21 @@ nodes write the core records from the event's copy.
 :func:`submit_report_received_effects` builds them in the order the tree
 runs them, ahead of the ``auto_create_case`` gate.
 
-The records are deliberately written *before* the addressing guard: a
-misaddressed Offer is refused (HP-01-005), but the receiver still holds what
-it was sent (CLP-10-018).
+They run after the factory's door guards, like every received tree's
+effects (CLP-10-010, ADR-0154): a copy not addressed to the receiver,
+``cc``-only included, is refused at the addressee door and leaves only a
+receipt stub, with no report, no Offer and no offer record (HP-01-005,
+HP-10-001, CLP-10-018).
+
+:class:`CheckOfferNamesReceiverInToNode` is not an addressee check.  The door
+has already admitted the copy; this node asks the narrower case-creation
+question, which reads ``to`` alone (HP-09-001), so a sender's own copy, which
+the door admits, keeps what it carried and proposes no case.
 """
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import PortInformation
 
 from vultron.core.behaviors.case.nodes.addressee import named_in_to
 from vultron.core.behaviors.case.nodes.store_received_object import (
@@ -91,59 +99,62 @@ class StoreSubmitReportOfferRecordNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class CheckOfferAddressedToReceiverNode(DataLayerConditionWithPorts):
-    """Only an addressee acts on an ``Offer(VulnerabilityReport)`` (HP-09-001/002).
+class CheckOfferNamesReceiverInToNode(DataLayerConditionWithPorts):
+    """Case-creation eligibility: the Offer names the receiver in ``to`` (HP-09-001).
 
-    The ``Offer(VulnerabilityReport)`` tree's own late addressee check: its tree
-    declares the ``OFFER_REPORT_STORED_FIRST`` exemption because it keeps the
-    report and the Offer before the check (CM-15-002), and this node reads the
-    one ``to`` half of the shared definition,
-    :func:`~vultron.core.behaviors.case.nodes.addressee.named_in_to`: case
-    creation is decided from ``to`` alone (HP-09-001), so unlike the door
-    guard it does not admit the sender's own copy.
+    An ``Offer(VulnerabilityReport)`` makes its receiver eligible to create a
+    case from ``to`` alone (HP-09-001), read through the ``to`` half of the
+    shared addressee definition,
+    :func:`~vultron.core.behaviors.case.nodes.addressee.named_in_to`.  The
+    addressee door has already refused every copy not addressed to the
+    receiver (HP-01-005), so the one copy that reaches this node and fails it
+    is the sender's own: addressed to it, and kept, but proposing no case.
 
-    ``FAILURE`` with the reason as feedback when the Offer is not addressed
-    to the executing actor: the sender addressed the wrong party, which the
-    receiver refuses (HP-01-005) rather than reporting a processed no-op.  A
-    receiver the sender named only in ``cc`` lands here too, and the WARNING
-    and reason say that ``cc`` addressing is not supported (HP-10-001,
-    HP-10-002).  Core does not carry ``cc`` (ADR-0109), so the node cannot
-    tell a ``cc`` copy from any other misaddressed one, and does not need
-    to: both are discarded unprocessed.  :attr:`misaddressed` tells the
-    handler that was the reason, as opposed to a wiring fault (a missing
-    DataLayer or actor), which it raises on.
+    ``FAILURE`` is that decline, not a refusal: the tree stops before the
+    ``auto_create_case`` gate and the handler reports ``SKIPPED``.  A wiring
+    fault (a missing DataLayer or actor) also fails, and
+    :attr:`not_named_in_to` tells the handler which it was.
+
+    Reads ``to`` off the received event's activity on the blackboard, the
+    same place the addressee door reads it.
     """
 
-    def __init__(
-        self,
-        to: list[str],
-        report_id: str | None,
-        name: str | None = None,
-    ) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=False),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._to = to
-        self._report_id = report_id
-        self.misaddressed = False
+        self._event: object | None = None
+        self.not_named_in_to = False
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._event = self._try_get_input("activity")
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None and self.actor_id is not None
-        self.misaddressed = False
-        if named_in_to(self.datalayer, self.actor_id, self._to):
+        self.not_named_in_to = False
+        activity = getattr(self._event, "activity", None)
+        to = list(getattr(activity, "to", None) or [])
+        if named_in_to(self.datalayer, self.actor_id, to):
             return Status.SUCCESS
-        self.misaddressed = True
-        self.logger.warning(
-            "receiving actor '%s' is not in the Offer's to; cc addressing"
-            " not supported (HP-10-002) — discarding activity for %s",
-            self.actor_id,
-            f"report '{self._report_id}'"
-            if self._report_id
-            else "an Offer that names no report",
-        )
+        self.not_named_in_to = True
         self.feedback_message = (
-            "receiving actor is not a to recipient of the Offer; cc"
-            " addressing not supported"
+            f"'{self.actor_id}' is not named in the Offer's to, so it is not"
+            " eligible to create a case from it (HP-09-001)"
+        )
+        self.logger.info(
+            "%s: kept the Offer and proposed no case: %s",
+            self.name,
+            self.feedback_message,
         )
         return Status.FAILURE
 
@@ -154,11 +165,9 @@ def submit_report_received_effects(
     """The effect nodes that keep what a received ``Offer(VulnerabilityReport)``
     carried.
 
-    Store the report (intake has archived the Offer); for an Offer that
-    names a report, also write the offer record.  Then check that the Offer
-    is addressed to the receiver, which stands in for the door guard the
-    tree is exempt from (CM-15-002, HP-01-005).  An Offer that names no
-    report goes no further.
+    Store the report (intake has recorded the Offer); for an Offer that
+    names a report, also write the offer record (CM-15-002).  The factory's
+    door guards have already admitted the Offer (HP-01-005).
     """
     report_id = request.report_id
     nodes: list[py_trees.behaviour.Behaviour] = []
@@ -185,17 +194,11 @@ def submit_report_received_effects(
                 offer_to=list(activity.to or []),
             )
         )
-    nodes.append(
-        CheckOfferAddressedToReceiverNode(
-            to=list(activity.to or []) if activity else [],
-            report_id=report_id,
-        )
-    )
     return nodes
 
 
 __all__ = [
-    "CheckOfferAddressedToReceiverNode",
+    "CheckOfferNamesReceiverInToNode",
     "StoreSubmitReportOfferRecordNode",
     "submit_report_received_effects",
 ]

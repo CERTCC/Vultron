@@ -334,8 +334,8 @@ nothing is written before the last one admits the message (ADR-0154).
    declares no paths at all, because no branch of it would use the answer a
    stage resolved (HP-01-038). Pin it in `UNDECLARED_PATH_EXEMPTIONS`
    (`test/core/behaviors/test_declared_received_paths.py`) with its own
-   reason, never in `KNOWN_UNDECLARED_PATH_SITES`, which is the ratchet of
-   declarations a wave still owes: the intake-only trees archive and refuse,
+   reason; there is no inventory of declarations still owed, so a tree that
+   does path-dependent work declares: the intake-only trees archive and refuse,
    the malformed-Invite fault answers its sender wherever it landed, and the
    dead-letter tree stores the receiver's own diagnostic for any activity
    whose `object_` URI did not resolve — so it is no message type's tree, and

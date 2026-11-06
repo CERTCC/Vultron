@@ -307,10 +307,8 @@ that caught its own raise, such as extraction) is retried like a raise, or the i
 lost; a handler's verdict is final. A dead-lettered item stays held for the operator, so
 a resend of it routes the held copy as a redelivery (IE-10-001) and does not release it.
 
-**What is left of the staged-record migration.** `Offer(VulnerabilityReport)` still
-stores what it carried before its own late addressee check, under the
-`OFFER_REPORT_STORED_FIRST` exemption, until it takes the no-case path (#5046); and
-nothing yet finds a record a crashed run left in holding on restart, or proves every
+**What is left of the staged-record migration.** Nothing yet finds a record a
+crashed run left in holding on restart, or proves every
 handling tree safe to run twice from holding (#5047). New work should add no
 receiver-role gate outside the path stage and no reader of in-memory state an earlier
 stage left (ADR-0154).

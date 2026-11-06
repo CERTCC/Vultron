@@ -31,7 +31,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.addressee import (
     ADDRESSEE_EXEMPTIONS,
-    OFFER_REPORT_STORED_FIRST,
+    ENCLOSING_TREE_ADDRESSEE_CHECK,
     ActivityAddressedToReceiverNode,
     AddresseeExemption,
     addressed_to_receiver,
@@ -42,7 +42,7 @@ from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
 )
 from vultron.core.behaviors.case.nodes.submit_report import (
-    CheckOfferAddressedToReceiverNode,
+    CheckOfferNamesReceiverInToNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -214,17 +214,17 @@ class TestAddressedToReceiver:
 
 
 class TestOfferReportReadsTheToHalf:
-    """``CheckOfferAddressedToReceiverNode`` reads :func:`named_in_to`, so a
+    """``CheckOfferNamesReceiverInToNode`` reads :func:`named_in_to`, so a
     participants-collection ``to`` makes an active member eligible to create
-    a case, and nobody else (HP-09-001, HP-01-012)."""
+    a case, and nobody else (HP-09-001)."""
 
     def _run(self, dl: SqliteDataLayer, receiver: str) -> Status:
-        node = CheckOfferAddressedToReceiverNode(
-            to=[_COLLECTION], report_id="https://example.org/reports/r1"
-        )
+        node = CheckOfferNamesReceiverInToNode()
         return (
             BTBridge(datalayer=dl)
-            .execute_with_setup(node, actor_id=receiver)
+            .execute_with_setup(
+                node, actor_id=receiver, activity=_event([_COLLECTION])
+            )
             .status
         )
 
@@ -311,7 +311,25 @@ class TestUnaddressedCopyReason:
         assert reason == (
             f"'{_BYSTANDER}' is neither the sender nor a recipient of"
             f" RemoveEmbargoFromCaseBT '{_CASE}/activities/a2'"
-            f" (to=['{_MANAGER}']); an unaddressed copy is refused (HP-01-005)"
+            f" (to=['{_MANAGER}']); cc addressing not supported, as cc, bto"
+            " and bcc address no Vultron recipient (OX-08-001), and an"
+            " unaddressed copy is refused (HP-01-005)"
+        )
+
+    @pytest.mark.spec("HP-10-001")
+    @pytest.mark.spec("HP-10-002")
+    def test_a_cc_only_receiver_is_told_cc_is_not_supported(self, caplog):
+        """A ``cc``-only copy arrives with a ``to`` that names someone else
+        (ADR-0109); the door's WARNING names ``cc`` (HP-10-002)."""
+        with caplog.at_level("WARNING"):
+            node = _run(_event([_OTHER], [_MANAGER]), _MANAGER)
+
+        assert node.status is Status.FAILURE
+        assert "cc addressing not supported" in node.feedback_message
+        assert any(
+            r.levelname == "WARNING"
+            and "cc addressing not supported" in r.getMessage()
+            for r in caplog.records
         )
 
 
@@ -394,7 +412,7 @@ def test_a_registered_exemption_leaves_the_guard_out():
         name="Probe",
         case_id=None,
         precondition_guards=[],
-        addressee_exemption=OFFER_REPORT_STORED_FIRST,
+        addressee_exemption=ENCLOSING_TREE_ADDRESSEE_CHECK,
     )
 
     assert not [
@@ -420,7 +438,7 @@ def test_an_unregistered_exemption_is_refused_at_construction():
 def test_a_lookalike_of_a_registered_exemption_is_refused():
     """The registry holds the decision itself, not just its name."""
     lookalike = AddresseeExemption(
-        name=OFFER_REPORT_STORED_FIRST.name, reason="a different reason"
+        name=ENCLOSING_TREE_ADDRESSEE_CHECK.name, reason="a different reason"
     )
     assert ADDRESSEE_EXEMPTIONS[lookalike.name] != lookalike
 

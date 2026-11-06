@@ -22,12 +22,12 @@ recipients the sender chose, so the misrouting can be traced (HP-01-005,
 ADR-0118, #4132).
 
 "Addressed to the receiver" has one definition,
-:func:`addressed_to_receiver`, and everything that asks the question reads
-it: the door guard here, and the late check an exempt tree runs in its own
-place (``CheckOfferAddressedToReceiverNode``, CM-15-002), which reads its
-``to`` half, :func:`named_in_to`, because an ``Offer(VulnerabilityReport)`` makes its
-receiver eligible to create a case from ``to`` alone (HP-09-001).  The
-receiver is addressed when
+:func:`addressed_to_receiver`, and the door guard here is the one place it is
+asked.  Its ``to`` half, :func:`named_in_to`, is also read alone by a
+different question: whether an ``Offer(VulnerabilityReport)`` makes its
+receiver eligible to create a case, which comes from ``to`` alone
+(``CheckOfferNamesReceiverInToNode``, HP-09-001).  The receiver is addressed
+when
 
 - it sent the activity (its own copy, a self-addressed act);
 - it is named in ``to``, compared with
@@ -39,7 +39,11 @@ receiver is addressed when
 
 ``cc``, ``bto`` and ``bcc`` address no Vultron recipient and are never read:
 no Vultron activity gives a ``cc`` recipient standing (HP-01-005, OX-08-001,
-HP-09-001, ADR-0109).
+HP-09-001, ADR-0109).  Core does not carry ``cc``, so the guard cannot tell a
+``cc``-only copy from any other unaddressed one, and does not need to: its
+reason says ``cc`` addressing is not supported, which is true of every copy
+it refuses, so a ``cc``-only receiver's WARNING names ``cc`` (HP-10-001,
+HP-10-002).
 
 :class:`ActivityAddressedToReceiverNode` is that check.
 :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
@@ -77,7 +81,6 @@ __all__ = [
     "AddresseeExemption",
     "ENCLOSING_TREE_ADDRESSEE_CHECK",
     "MISROUTED_EMBARGO_INVITE",
-    "OFFER_REPORT_STORED_FIRST",
     "addressed_to_receiver",
     "named_in_to",
     "unaddressed_copy_reason",
@@ -98,18 +101,6 @@ class AddresseeExemption(BaseModel):
     name: NonEmptyString
     reason: NonEmptyString
 
-
-OFFER_REPORT_STORED_FIRST: Final = AddresseeExemption(
-    name="offer-report-stored-first",
-    reason=(
-        "A received Offer(VulnerabilityReport) keeps the report and the"
-        " Offer whatever the receiver decides about them, so a receiver that"
-        " opts out of case creation can still ACK or decide on the report"
-        " (CM-15-001, CM-15-002).  Its tree stores them first, then checks"
-        " the addressee with CheckOfferAddressedToReceiverNode, which reads"
-        " the same addressed_to_receiver definition (HP-09-001, HP-01-005)."
-    ),
-)
 
 ENCLOSING_TREE_ADDRESSEE_CHECK: Final = AddresseeExemption(
     name="enclosing-tree-addressee-check",
@@ -135,7 +126,6 @@ ADDRESSEE_EXEMPTIONS: Final[Mapping[str, AddresseeExemption]] = (
         {
             exemption.name: exemption
             for exemption in (
-                OFFER_REPORT_STORED_FIRST,
                 ENCLOSING_TREE_ADDRESSEE_CHECK,
                 MISROUTED_EMBARGO_INVITE,
             )
@@ -171,9 +161,10 @@ def named_in_to(
 
     The ``to`` half of :func:`addressed_to_receiver`: the receiver is named
     in *to*, or *to* names a case participants collection the receiver's
-    store records it in.  An ``Offer(VulnerabilityReport)`` reads this half
-    alone, because its case-creation eligibility comes from ``to`` only
-    (HP-09-001): a sender's own copy proposes no case.
+    store records it in.  An ``Offer(VulnerabilityReport)``'s case-creation
+    eligibility reads this half alone, because it comes from ``to`` only
+    (HP-09-001): a sender's own copy is addressed to it, but proposes no
+    case.
 
     Args:
         dl: The receiver's store, read for collection membership only.
@@ -243,8 +234,10 @@ def unaddressed_copy_reason(
         return None
     return (
         f"'{receiving_actor_id}' is neither the sender nor a recipient of"
-        f" {label} '{getattr(event, 'activity_id', None)}' (to={to}); an"
-        " unaddressed copy is refused (HP-01-005)"
+        f" {label} '{getattr(event, 'activity_id', None)}' (to={to});"
+        " cc addressing not supported, as cc, bto and bcc address no Vultron"
+        " recipient (OX-08-001), and an unaddressed copy is refused"
+        " (HP-01-005)"
     )
 
 
