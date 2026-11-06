@@ -6,7 +6,7 @@ The participant that holds it may be the actor that created the case, or an acto
 This section names the authority *the CASE_MANAGER*: whichever participant holds the role for the case ([§2.2 Roles](introduction.md#22-roles)).
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-24-006", "CM-24-014"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-02-014", "CM-24-014"))
 ```
 
 This section specifies what the CASE_MANAGER does for its case.

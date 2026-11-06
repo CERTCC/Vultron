@@ -217,7 +217,6 @@ class TestAddOnBehalfStatusVtoV:
         assert "PRM-06-006" in message
         assert _store_state(self.dl, self.case.id_) == before
 
-    @pytest.mark.spec("CM-11-030")
     @pytest.mark.spec("CM-11-029")
     @pytest.mark.spec("PRM-06-003")
     @pytest.mark.spec("PRM-06-007")

@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Effective RSVP deadline for an embargo invitation (EP-07, CM-28-011).
+"""Effective RSVP deadline for an embargo invitation (EP-07).
 
 One computation serves both sides of an ``Invite(EmbargoEvent)``: the sender
 refuses a deadline this would move (EP-07-002, EP-07-006), and the receiver
@@ -105,7 +105,7 @@ def resolve_rsvp_deadline(
 
     Returns:
         The resolved deadline.  ``effective`` never falls after
-        *embargo_end* (EP-07-006, CM-28-011) and never before ``minimum``.
+        *embargo_end* (EP-07-006, EP-07-011) and never before ``minimum``.
     """
     if published is None:
         published = now_utc()

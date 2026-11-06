@@ -26,7 +26,7 @@ The caller supplies both identities.  The *doing* actor is the CASE_MANAGER
 executing the role-gated tree (or, for a trigger, the role holder the use case
 resolved); the *requesting* actor is the trigger's requester or the sender of
 the activity the received tree acts on.  There is nothing to look up here and
-no fallback arm (CM-24-008): a case always has a CASE_MANAGER (CM-24-006), so a
+no fallback arm (CM-24-008): a case always has a CASE_MANAGER (CM-02-014), so a
 caller that cannot name one fails before it reaches this helper.
 """
 

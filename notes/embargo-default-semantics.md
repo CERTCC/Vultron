@@ -191,9 +191,9 @@ it.
 
 ## An RSVP Deadline May Not Outlive Its Embargo
 
-An RSVP deadline is clamped **down** to the embargo's `end_time` (EP-07-011,
-CM-28-011), so the minimum window is "72 hours, or the remaining embargo,
-whichever is shorter" (EP-07-002). Otherwise a 24-hour embargo would carry a
+An RSVP deadline is clamped **down** to the embargo's `end_time` (EP-07-011),
+so the minimum window is "72 hours, or the remaining embargo, whichever is
+shorter" (EP-07-002). Otherwise a 24-hour embargo would carry a
 7-day pocket veto that fires long after the embargo ended.
 
 - **One function computes it for both sides**: `resolve_rsvp_deadline()`

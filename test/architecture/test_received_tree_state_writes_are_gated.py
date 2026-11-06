@@ -48,7 +48,7 @@ The checks:
    or is in the **pinned exemption set** :data:`WRITES_NO_CASE_STATE` with
    its reason — so the marker, not a name list, decides what the walk finds.
 
-Every set is held to equality in both directions (TB-10-002, ARCH-18-001):
+Every set is held to equality in both directions (ARCH-18-001):
 a new ungated write fails, and so does a row the code no longer needs.
 Entries are ``(module, factory, node class)`` so a second ungated writer in
 an already-listed tree fails too.

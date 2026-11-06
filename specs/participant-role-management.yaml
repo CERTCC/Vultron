@@ -442,7 +442,8 @@ groups:
     rationale: >-
       RM records the vendor's own report decisions. The on-behalf assertion speaks
       only for the vendor's awareness, which its acknowledgement shows, so it leaves
-      RM where the vendor put it.
+      RM where the vendor put it. This holds for an inert invitee written before it
+      replies (CM-11-029): awareness of the case is not a decision about it.
     relationships:
     - rel_type: extends
       spec_id: PRM-06-003

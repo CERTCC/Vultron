@@ -1914,13 +1914,13 @@ groups:
       The Coordinator MUST NOT invite the Reporter to the case.
     rationale: >-
       The Reporter is the reporter, so the CASE_MANAGER seats it as a signatory
-      participant when it creates the case (CM-22-002, CM-14-005). The reporter's
+      participant when it creates the case (CP-09-002, CM-14-005). The reporter's
       consent is implicit in submitting the report (CM-14-005), so an Invite/Accept
       exchange for the Reporter would record an invitation that never occurred
       (CM-18-003).
     relationships:
     - rel_type: derives_from
-      spec_id: CM-22-002
+      spec_id: CP-09-002
   - id: DEMOMA-12-020
     priority: MUST
     kind: project

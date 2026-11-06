@@ -19,8 +19,7 @@ The last step of the trusted route of the received
 ``Create(VulnerabilityCase)`` bootstrap tree
 (:func:`~vultron.core.behaviors.case.create_case_received_tree.create_create_case_received_tree`).
 
-Per specs/case-bootstrap-trust.yaml CBT-01-001, CBT-01-007, CBT-01-009 and
-specs/case-management.yaml CM-12-003.
+Per specs/case-bootstrap-trust.yaml CBT-01-001, CBT-01-007 and CBT-01-009.
 """
 
 from py_trees.common import Status
@@ -47,7 +46,7 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
 
     After the report receiver (the Case Owner) accepts the CASE_MANAGER's
     ``Create(VulnerabilityCase)``, it sends the reporter a
-    ``Create(VulnerabilityCase)`` as itself (CBT-01-001, CM-12-003, ADR-0132).
+    ``Create(VulnerabilityCase)`` as itself (CBT-01-001, ADR-0132).
     The reporter trusts it because it comes from the actor the reporter sent
     its report to (CBT-01-005); the snapshot names the CASE_MANAGER, so the
     reporter then records it (CBT-01-006).  The factory carries the stored

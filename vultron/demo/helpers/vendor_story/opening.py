@@ -87,7 +87,7 @@ def the_reporter_tells_the_vendor(state: StoryState) -> None:
 
     The Vendor validates the report and engages the case (RM→ACCEPTED),
     holding CASE_OWNER; each step is gated on its own RM state.  The Reporter
-    is seated when the case is created (CM-22-002), so it is never invited.
+    is seated when the case is created (CP-09-002), so it is never invited.
 
     The case is recorded as soon as the triage returns it, which arms the
     ledger dump at the first instant there is anything to dump, so every step

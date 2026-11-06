@@ -178,7 +178,7 @@ actor's `case.attributed_to` changes on its own replica (`test/ci/invariants/`).
 - `actor` is the proposing Case Owner, from its own store and outbox; no trigger
   executes a tree as the CASE_MANAGER (CM-24-011, ADR-0109). The bridge raises for
   an executing actor this container does not host (BT-05-005).
-- A case always has a CASE_MANAGER (CM-24-006): when none resolves, fail; never send
+- A case always has a CASE_MANAGER (CM-02-014): when none resolves, fail; never send
   to the transferee directly (CM-24-014).
 - The proposal carries `context=case_id`, which the commit boundary checks
   (a `payloadSnapshot.context` that is present must name the entry's case) and

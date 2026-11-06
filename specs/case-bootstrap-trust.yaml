@@ -20,9 +20,13 @@ groups:
       report (the report receiver) MUST establish trust at the original report submitter by sending it, as itself, a
       one-time `Create(VulnerabilityCase)` activity. When the CASE_MANAGER is a different actor from the report receiver,
       that activity introduces the CASE_MANAGER the receiver delegated case maintenance to (ADR-0132).
-    rationale: The submitter chose the report receiver and wrote a record of that choice before the case existed. A case
-      that arrives first from an actor the submitter never addressed gives it nothing to check the sender against, and a
-      roster the sender wrote is not an anchor. The receiver already knows the CASE_MANAGER, so it vouches for it.
+    rationale: >-
+      The reporter must learn that its report became a case, and which actor coordinates
+      the case. The submitter chose the report receiver and wrote a record of that
+      choice before the case existed. A case that arrives first from an actor the
+      submitter never addressed gives it nothing to check the sender against, and a
+      roster the sender wrote is not an anchor. The receiver already knows the
+      CASE_MANAGER, so it vouches for it.
     verification: '`test_report_receiver_sends_the_reporter_the_case` in `test/demo/test_case_proposal_round_trip.py` confirms
       that when a case is created in response to an `Offer(VulnerabilityReport)`, the only `Create(VulnerabilityCase)` the
       original report submitter holds comes from the report receiver, and that the submitter accepts it on the trusted
@@ -34,6 +38,7 @@ groups:
     stories:
     - story_2022_012
     - story_2022_090
+    - story_2022_081
   - id: CBT-01-002
     priority: MUST
     kind: protocol

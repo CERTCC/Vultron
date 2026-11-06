@@ -182,7 +182,7 @@ class SendEmbargoProposalRefusalNode(SendEmbargoInviteAnswerNode):
     The CASE_MANAGER answers the proposer that sent the Invite; any other
     actor answers the CASE_MANAGER, never a peer (EP-09-003, PCR-08-001).
     The recipient is resolved when the node runs, from the case's
-    CASE_MANAGER, which is never unfilled (CM-24-006): a case naming none
+    CASE_MANAGER, which is never unfilled (CM-02-014): a case naming none
     fails the node, and like every answer it then raises.
     """
 
