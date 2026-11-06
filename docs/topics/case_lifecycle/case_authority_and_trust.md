@@ -297,7 +297,7 @@ The Case Owner asks the CASE_MANAGER to invite the actor.
 The CASE_MANAGER sends the invitation, which identifies both the case and the CASE_MANAGER ([CBT-04-001](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-04-001), [CBT-04-002](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-04-002)).
 The invitee records the CASE_MANAGER that the invitation names and replies to it, not to the Case Owner ([PCR-08-008](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-08-008)).
 When it accepts, the CASE_MANAGER sends the case snapshot and the earlier ledger entries without waiting for anything else ([CM-11-008](../../reference/vultron-spec/requirements/case-management.md#cm-11-008)).
-No separate `Create` bootstrap is needed, because the invitation already did that job ([CBT-04-003](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-04-003)).
+The CASE_MANAGER sends the invitee no `Create`: the invitee is told what the case already is, and the invitation already established its trust ([CBT-04-003](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-04-003)).
 
 Until the invitee accepts, a later invitation for the same case that names a different CASE_MANAGER replaces the recorded one.
 After the invitee accepts, the invitee refuses such an invitation and keeps the CASE_MANAGER it accepted ([PCR-03-010](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-03-010)).

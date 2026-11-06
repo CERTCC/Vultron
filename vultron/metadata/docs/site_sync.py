@@ -1,10 +1,10 @@
 """Generate and check the committed docs-site artifacts.
 
 Requirements: DF-11-005, DF-11-008, DF-11-011, DF-11-014, DF-11-021, DF-11-028,
-DF-11-029, DF-11-042 and DF-11-023 in specs/diataxis-requirements.yaml, and
-TRACE-01-001 and TRACE-03-003 in specs/traceability.yaml.
+DF-11-029, DF-11-042, DF-11-023, DF-12-019 and DF-12-020 in
+specs/diataxis-requirements.yaml, and TRACE-01-001 and TRACE-03-003 in specs/traceability.yaml.
 
-Eight kinds of artifact are generated and committed:
+Nine kinds of artifact are generated and committed:
 
 - each section **landing page** under ``docs/`` whose index declares
   ``contents: generated`` — only the contents listing between the markers, so
@@ -29,8 +29,14 @@ Eight kinds of artifact are generated and committed:
   ``docs/reference/user_stories/traceability.md`` — whole files, from the
   requirement registry's ``stories:`` fields and the story-page catalog
   (:mod:`~vultron.metadata.docs.story_coverage`, TRACE-01-001, TRACE-03-003).
-  These two are the only artifacts here whose input is ``specs/`` rather than
-  ``docs/``, so the hook's ``files:`` list covers the spec corpus too.
+- ``docs/reference/vultron-spec/_known-gaps.md`` — whole file, from the
+  coverage state of each ``protocol`` and ``foundation`` requirement
+  (:mod:`~vultron.metadata.docs.known_gaps`, DF-12-019, DF-12-020).
+
+The story artifacts and the known-gaps fragment are the only artifacts here
+whose input is ``specs/`` rather than ``docs/``, and the known-gaps fragment
+alone also reads ``test/``, so the hook's ``files:`` list covers the spec
+corpus and the test tree too.
 
 Two things are checked but never written: a section index that declares
 ``contents: routing`` must link every member of its section (DF-11-029's
@@ -62,6 +68,10 @@ from vultron.metadata.docs.coverage_matrix import (
     MATRIX_PATH,
     measure_coverage,
     render_matrix,
+)
+from vultron.metadata.docs.known_gaps import (
+    FRAGMENT_PATH as KNOWN_GAPS_PATH,
+    known_gaps_fragment,
 )
 from vultron.metadata.docs.landing_pages import (
     WRITE_COMMAND,
@@ -113,7 +123,9 @@ def desired_contents(root: Path) -> dict[str, str]:
             group-opening index declares no ``contents:``, or a target set is
             empty (DF-09-009); or if the story catalog resolves no pages, or a
             requirement's ``stories:`` entry names a story with no page
-            (TRACE-03-001).
+            (TRACE-03-001); or if the registry holds no ``protocol`` or
+            ``foundation`` requirement, so the known-gaps fragment would read
+            as no gaps (DF-09-009).
         MetadataLoadErrors: If a routing index fails to link a member of its
             section, or the home page or a start page fails to link the
             lookup page, every missing link listed (DF-11-029, DF-11-042); if
@@ -123,7 +135,8 @@ def desired_contents(root: Path) -> dict[str, str]:
             (DF-11-041), or any other fault ``lookup_sections`` raises,
             reported with the missing links (EH-07-001).
         ValueError: If a landing, start or lookup page's markers are missing
-            or malformed, or the requirement registry does not load.
+            or malformed, the requirement registry does not load, or an
+            listed requirement's file is on no catalog page (DF-12-015).
     """
     contents = {
         FRAGMENT_PATH: render_fragment(),
@@ -187,10 +200,13 @@ def desired_contents(root: Path) -> dict[str, str]:
     for fragment, box in render_boxes(threads, titles).items():
         contents[f"docs/{fragment}"] = box
     # Last, so a fault in the docs tree above is still reported as itself: the
-    # story graph is the one input here that is not a docs page.
-    story = measure_story_coverage(root, load_registry(root / "specs"))
+    # story graph and the coverage states are the inputs here that are not
+    # docs pages.
+    registry = load_registry(root / "specs")
+    story = measure_story_coverage(root, registry)
     contents[STORY_TABLE_PATH] = render_story_table(story)
     contents[STORY_MATRIX_PATH] = render_story_matrix(story)
+    contents[KNOWN_GAPS_PATH] = known_gaps_fragment(root, registry)
     return contents
 
 
@@ -282,7 +298,7 @@ def main(argv: list[str] | None = None) -> None:
         for path in stale:
             print(
                 f"[ERROR] {path} is stale — run '{WRITE_COMMAND}' "
-                "(DF-11-005, DF-11-014, DF-11-021, DF-11-023, "
+                "(DF-11-005, DF-11-014, DF-11-021, DF-11-023, DF-12-020, "
                 "TRACE-01-001, TRACE-03-003).",
                 file=sys.stderr,
             )

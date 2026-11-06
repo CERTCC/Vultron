@@ -14,5 +14,7 @@ subject: protocol
 
 This page collects the questions the [Vultron Protocol Specification](index.md) leaves unresolved.
 Several concern the Case State (CS) dimension Vendor aware, Fix ready, fix Deployed (VFD) and the Participant Embargo Consent (PEC) machine.
+This page covers what the specification has not decided.
+For the requirements that no passing test shows the reference implementation meets, see [Known Gaps](known-gaps.md).
 
 {% include-markdown "./_open-questions.md" %}

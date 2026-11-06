@@ -26,6 +26,7 @@ import pytest
 
 from test.support.ledger import ledger_entries
 from test.support.received import TEST_SENDER_POSITION, received_event
+from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -256,7 +257,9 @@ def test_a_reject_naming_neither_an_entry_nor_a_case_is_refused() -> None:
     event = cast(
         RejectLogEntryReceivedEvent,
         received_event(
-            parse_activity(_genesis_request(net.case_id, BYSTANDER)),
+            parse_activity(
+                signed_body(_genesis_request(net.case_id, BYSTANDER))
+            ),
             receiving_actor_id=MANAGER,
         ),
     ).model_copy(update={"target": None})

@@ -28,7 +28,7 @@ stakeholder_type: [project-contributor]
 | `notes/` | Working notes that inform work not yet done, each declaring `kind: guidance`, `plan`, or `generated` (NF-08) | `notes/README.md`, `.agents/skills/shared/notes-writing-guide.md` |
 | `archived_notes/` | Superseded design notes kept for reference | `archived_notes/README.md` |
 | `docs/` | MkDocs documentation source | `mkdocs.yml` |
-| `doc/examples/` | Committed JSON examples of the activity vocabulary | `doc/README.md` |
+| `docs/reference/examples/` | Generated JSON examples of the activity vocabulary | `vultron/wire/as2/vocab/examples/vocab_examples.py` |
 | `ontology/` | RDF/OWL Turtle ontologies for AS2 and the Vultron protocol | `ontology/vultron_protocol.ttl` |
 | `plan/` | Agent workflow files: incoming learnings queue and history archive | `plan/history/`, `plan/incoming/` |
 | `scripts/` | One-shot maintenance scripts (spec relabelling, story mapping, velocity report) | `scripts/velocity.py`, `scripts/relabel_spec_kinds.py` |
@@ -87,7 +87,7 @@ stakeholder_type: [project-contributor]
     It fails when a `docs/` page uses a glossary term that a higher-level page declares in `introduces:`, unless the page links that introducing page at or before the first use or the use itself links to the glossary (DF-11-002).
     Working-record pages and pages with no level are skipped, and include fragments are checked at their lowest host's level.
     Pre-existing violations sit in a shrink-only baseline, pinned by key in its test, where each entry names a reason; `--prune-baseline` drops entries that are no longer violations.
-  - `docs-site` → `vultron.metadata.docs.site_sync:main` (`--write` also writes the reading-path box fragments under `docs/start/_paths/` and deletes stale ones; `--check` reports both, DF-11-023; it also writes the listing on the cross-tab lookup page `docs/lookup.md` and checks that the home page and every start page link it, DF-11-042).
+  - `docs-site` → `vultron.metadata.docs.site_sync:main` (`--write` also writes the reading-path box fragments under `docs/start/_paths/` and deletes stale ones; `--check` reports both, DF-11-023; it also writes the listing on the cross-tab lookup page `docs/lookup.md` and checks that the home page and every start page link it, DF-11-042; and it writes the Protocol Specification's known-gaps fragment `docs/reference/vultron-spec/_known-gaps.md` from each requirement's coverage state, so a `test/` change alone can make it stale, DF-12-020).
     `--write` regenerates the contents listing of each section landing page whose `index.md` declares `contents: generated`, at any nav depth, from the `mkdocs.yml` nav and each listed page's `description:` frontmatter.
     It also checks that a `contents: routing` index links every member of its section, directly or through a fragment it includes uncut (DF-11-029), and regenerates `docs/includes/stakeholder_types.md` from the page schema (DF-11-011) and `notes/site-coverage-matrix.md` (DF-11-008).
     It regenerates each start page's reading-path listing from the page's `thread:` frontmatter (DF-11-014).

@@ -56,9 +56,10 @@ Annexes A and B trace Coordinated Vulnerability Disclosure (CVD) cases from firs
 - [Annex F Behavior Trees as an Implementation Pattern](annex-f-behavior-trees.md)
 - [Annex G Capability Shapes](annex-g-capability-shapes.md)
 
-## Open Questions, Revision Log, and the Single-Page Edition
+## Open Questions, Known Gaps, Revision Log, and the Single-Page Edition
 
 [Open Questions](open-questions.md) collects the questions this draft of the specification leaves unresolved.
+[Known Gaps](known-gaps.md) lists the requirements that no passing test shows the reference implementation's `main` branch meets.
 The [Revision Log](revision-log.md) records each draft of the specification, its version identifier and date, and what changed in it.
 [The single-page edition](full.md) holds every section and annex in order, for printing or for searching the whole text at once.
 

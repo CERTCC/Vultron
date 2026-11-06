@@ -45,6 +45,7 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register, terminate
 from test.support.ledger import fail_commits
 from test.support.received import received_event
+from test.support.signing import resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -367,6 +368,57 @@ class TestEmitCreateVulnerabilityCaseNode:
         assert isinstance(carried, dict), carried
         assert carried["id"] == _CASE_URI
 
+    def _run_with_report(self) -> dict[str, Any]:
+        """Run the node on a case naming a report this store holds, and return
+        the queued Create's sealed body."""
+        from vultron.core.models.report import VulnerabilityReport
+
+        dl = self._dl()
+        report = VulnerabilityReport(
+            id_="https://example.org/reports/r-001",
+            name="FDR-1",
+            content="x",
+            attributed_to=_VENDOR_URI,
+        )
+        dl.save(report)
+        dl.save(
+            VulnerabilityCase(
+                id_=_CASE_URI,
+                attributed_to=_VENDOR_URI,
+                vulnerability_reports=[report.id_],
+            )
+        )
+        assert self._run_node(dl, seed=False) == py_trees.common.Status.SUCCESS
+        body = _queued_create(dl)
+        assert isinstance(body["object"], dict), body["object"]
+        return body
+
+    @pytest.mark.spec("VM-10-004")
+    @pytest.mark.spec("VM-10-005")
+    def test_the_carried_case_and_reports_restate_no_context(self):
+        """The case and its inlined reports are rendered inside the Create,
+        so the Create's own ``@context`` applies to them (#6046)."""
+        body = self._run_with_report()
+        assert "@context" in body, "the Create itself carries the context"
+        carried = body["object"]
+        (report,) = carried["vulnerabilityReports"]
+        assert "@context" not in carried
+        assert isinstance(report, dict), report
+        assert "@context" not in report
+
+    @pytest.mark.spec("AKM-02-004")
+    @pytest.mark.spec("VM-10-001")
+    def test_the_reports_travel_inline_under_their_wire_name(self):
+        """The inlined reports sit under ``vulnerabilityReports``, the only
+        spelling of the field on the wire; no snake_case key rides beside it
+        (#6046)."""
+        carried = self._run_with_report()["object"]
+        assert "vulnerability_reports" not in carried
+        (report,) = carried["vulnerabilityReports"]
+        assert report["id"] == "https://example.org/reports/r-001"
+        assert report["type"] == "VulnerabilityReport"
+        assert report["name"] == "FDR-1"
+
     @pytest.mark.spec("EMB-18-003")
     def test_the_create_carries_the_active_embargo_inline(self):
         """The Create a recipient seeds from carries the embargo record."""
@@ -522,6 +574,7 @@ class TestEmitCreateVulnerabilityCaseNode:
 
     @pytest.mark.spec("CBT-01-010")
     @pytest.mark.spec("CM-22-006")
+    @pytest.mark.spec("CM-14-011")
     def test_case_manager_create_is_addressed_to_the_owner_only(self) -> None:
         """The CASE_MANAGER's Create goes to the report receiver alone.
 
@@ -1078,8 +1131,8 @@ class TestCLP08002GenesisHashAnchoredToTheOwner:
         inline_case["genesisHash"] = sent
         # The empty ledger's position names the genesis hash (CLP-08-004).
         inline_case["ledgerPosition"] = {"logIndex": -1, "entryHash": sent}
-
-        event = received_event(parse_activity(body), at=dl)
+        # Altered after its outbox sealed it, so its author signs it again.
+        event = received_event(parse_activity(resigned(body)), at=dl)
         replica = getattr(event, "object_", None)
 
         assert isinstance(replica, VulnerabilityCase)
@@ -4207,8 +4260,8 @@ def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
     replays the whole ledger — while ``Create(VulnerabilityCase)`` waits at
     the back of the queue.  That queue position is what timed out the rv and
     rcv-reject replica gates (#3033) and congested the CaseActor outbox in
-    rcvcv (#2898).  CM-14-011's rationale states the rule: the reporter's
-    system must hold the case object before any fan-out that references it.
+    rcvcv (#2898).  CM-14-011's rationale states the rule: each recipient
+    must hold the case object before any fan-out that references it.
     """
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,

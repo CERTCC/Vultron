@@ -183,6 +183,8 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 {% include-markdown "./_oq-embargo-termination-authority.md" %}
 
+{% include-markdown "./_oq-delegated-embargo-activation.md" %}
+
 **Embargo duration selection.**
 Where several proposals are outstanding, the protocol recommends that participants accept the shortest and propose the remainder as revisions.
 The rule is a recommendation, so other policies remain admissible.

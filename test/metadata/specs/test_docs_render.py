@@ -940,6 +940,21 @@ def test_row_linking_anchor_defines_none(cross_kind_registry):
     assert "<a id=" not in row
 
 
+@pytest.mark.spec("DF-12-003")
+def test_row_stays_one_line_when_text_holds_newlines(cross_kind_registry):
+    """A YAML ``>`` block keeps a trailing newline, and a ``|`` block keeps
+    every line break; either inside a cell would end the table row."""
+    spec = cross_kind_registry.get("GEN-01-002").model_copy(
+        update={
+            "statement": "First line\nsecond line.\n",
+            "rationale": "A reason.\n",
+        }
+    )
+    row = render_requirement_row(spec, lambda i: None, define_anchor=False)
+    assert "\n" not in row
+    assert "First line second line.<br><br>*A reason.*" in row
+
+
 def test_row_without_link_target_shows_plain_id(cross_kind_registry):
     spec = cross_kind_registry.get("GEN-01-002")
     row = render_requirement_row(spec, lambda i: None, define_anchor=False)

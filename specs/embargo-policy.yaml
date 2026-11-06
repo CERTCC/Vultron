@@ -570,6 +570,7 @@ groups:
     stories:
     - story_2026_081
     - story_2022_079
+    - story_2022_010
     see_also:
     - spec_id: CP-01-010
       reason: 'context for the reader'

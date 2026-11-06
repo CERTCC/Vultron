@@ -42,6 +42,7 @@ from test.support.received import (
     settle_as_the_inbox,
     stamped,
 )
+from test.support.signing import author_of, resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
@@ -258,11 +259,16 @@ class LedgerNetwork:
         *without* names ports the receiver is composed without.  A body that
         states no ``ledgerPosition`` or ``senderSequence`` is first stamped
         as its sender's adapter would stamp it (:meth:`stamp`), so a test may
-        hand over a factory's dump; *as_sent* delivers the body exactly as
-        given.
+        hand over a factory's dump; *as_sent* delivers the body unstamped.
+        Either way it is signed as :meth:`delivered_body` signs it, which
+        replaces any proof the caller attached unless the body is the one
+        its sender's outbox sealed.
         """
-        if not as_sent:
-            body = self.stamp(body, receiver=receiver)
+        body = (
+            self._signed(body)
+            if as_sent
+            else self.delivered_body(body, receiver=receiver)
+        )
         # A body :meth:`stamp` positioned is delivered as it stands, so a body
         # it left unnumbered stays unnumbered.
         event = received_event(
@@ -271,6 +277,31 @@ class LedgerNetwork:
             receiving_actor_id=receiver,
         )
         return self.receive_event(receiver, event, without=without)
+
+    def delivered_body(
+        self, body: dict[str, Any], *, receiver: str | None = None
+    ) -> dict[str, Any]:
+        """*body* as its sender delivers it to *receiver*: stamped, signed.
+
+        Stamped as :meth:`stamp` stamps it.  A body its sender's outbox
+        sealed is then delivered as sealed, carrying the proof the outbox
+        gave it (#5382); any other body is signed by its author, as its
+        outbox would sign it (SIG-01-001), so a body a test built or altered
+        carries a proof over what it sends.  A proof the caller attached is
+        replaced, so a test of a bad proof cannot route it through here.
+        """
+        return self._signed(self.stamp(body, receiver=receiver))
+
+    def _signed(self, body: dict[str, Any]) -> dict[str, Any]:
+        """*body*, signed by its author unless its outbox sealed it so."""
+        return body if self._sealed_as_sent(body) else resigned(body)
+
+    def _sealed_as_sent(self, body: dict[str, Any]) -> bool:
+        """Whether *body* is the body its sender's outbox sealed, unchanged."""
+        sender = self.stores.get(author_of(body))
+        if sender is None or not isinstance(body.get("id"), str):
+            return False
+        return read_sealed_body_dict(sender, body["id"]) == body
 
     def stamp(
         self, body: dict[str, Any], *, receiver: str | None = None
@@ -291,6 +322,10 @@ class LedgerNetwork:
         *receiver*, the CASE_MANAGER
         (:func:`~test.support.received.in_step_sender_sequence`).  A body
         that carries a number keeps it.
+
+        A stamp changes the body, so a proof it carried no longer covers it:
+        deliver a stamped body through :meth:`delivered_body`, which signs it
+        again.
         """
         body = self._positioned(body)
         if "senderSequence" in body or "ledgerPosition" not in body:

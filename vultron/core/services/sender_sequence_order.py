@@ -160,11 +160,13 @@ def classify_sender_sequence(
     """What *number* on *activity_id* is to *order* (SYNC-21-008 to -018).
 
     A repeat is found by its id before its number is compared
-    (SYNC-21-018): one held is a held repeat; one this receiver archived
-    before (*redelivery*) whose number is past is a judged repeat when the
-    ledger records it (*ledgered*) or it is the activity last judged in
-    order, and is otherwise refused again with no notice, so a late activity
-    is never applied however it arrives (SYNC-21-024).  A repeat of one
+    (SYNC-21-018): one held is a held repeat; one whose number is past is a
+    judged repeat when the ledger records it (*ledgered*) or it is the
+    activity last judged in order, whether or not this receiver still holds
+    its record (*redelivery*): the replay of a re-run held for a retry runs
+    with its record released (ADR-0154).  Otherwise one this receiver
+    archived before is refused again with no notice, so a late activity is
+    never applied however it arrives (SYNC-21-024).  A repeat of one
     refused for a missing or reused number is refused again with no notice
     too: the first refusal's notice answered it (CLP-05-006).
 
@@ -174,7 +176,8 @@ def classify_sender_sequence(
             none or one that is not a positive integer.
         activity_id: The activity's id.
         redelivery: Whether this receiver had already archived the activity.
-        ledgered: Whether the case ledger records the activity.
+        ledgered: Whether the case ledger records the activity; read only
+            for a number below the next expected one.
     """
     if number is not None and _held_by_id(order, activity_id) is not None:
         return SequenceStanding.HELD_REPEAT
@@ -188,10 +191,14 @@ def classify_sender_sequence(
     if reused:
         return SequenceStanding.REUSED
     if number < order.next_expected:
-        if not redelivery:
-            return SequenceStanding.LATE
+        # Found by its id before its number (SYNC-21-018): one the ledger
+        # records, or the one last judged, was judged in order, whether its
+        # record survived or a replay that released the record runs it as
+        # a first delivery (ADR-0154), so it is never answered as late.
         if ledgered or activity_id == order.last_judged_id:
             return SequenceStanding.JUDGED_REPEAT
+        if not redelivery:
+            return SequenceStanding.LATE
         return SequenceStanding.REPEAT_REFUSED
     if number == order.next_expected:
         return SequenceStanding.NEXT
