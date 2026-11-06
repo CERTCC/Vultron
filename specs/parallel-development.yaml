@@ -2629,6 +2629,8 @@ groups:
         relationships:
         - rel_type: uses_definition
           spec_id: PAD-18-026
+        - rel_type: uses_definition
+          spec_id: PAD-18-002
       - id: PAD-18-010
         adr:
         - ADR-0126
@@ -2739,11 +2741,15 @@ groups:
           nearly every red local run failed. CI's required full run covers
           the rest.
         verification: >-
-          Inspection: when `targeted-tests` reports `full`, the gate in
-          `create-pr` and `pr-execute` runs the importers and mirror tests it
-          can still select, with `test/architecture/` and `test/metadata/`.
+          Inspection: for a branch diff that touches `conftest.py`,
+          `pyproject.toml`, `uv.lock`, `vultron/__init__.py` or a shared
+          fixture, factory, helper or data file, the gate in `create-pr` and
+          `pr-execute` runs the importers and mirror tests it can select,
+          with `test/architecture/` and `test/metadata/`, and no gate command
+          expands to the whole suite. Stated over the paths, not over any
+          verdict the selection tool reports for them.
         relationships:
-        - rel_type: refines
+        - rel_type: extends
           spec_id: PAD-18-003
         - rel_type: uses_definition
           spec_id: PAD-18-002
@@ -2839,7 +2845,8 @@ groups:
           that the PR wrote, and CI runs the full suite on the push.
         verification: >-
           Inspection: `pr-execute` Phase 5 Step 3 gates a conflict merge with
-          `targeted-tests --paths` and runs no full suite.
+          `targeted-tests --paths` over the conflicted files, adds
+          `test/architecture/` and `test/metadata/`, and runs no full suite.
         relationships:
         - rel_type: extends
           spec_id: PAD-18-004
@@ -2903,12 +2910,15 @@ groups:
           The first-push run happens in `create-pr`, before any execute artifact
           or comment exists, so it has to be counted explicitly. Leaving it out
           would understate every Pull Request, and counting a run that did not
-          happen would overstate it. PAD-18-007 needs the true figure.
+          happen would overstate it. PAD-18-007 needs the true figure. No gate
+          can now produce a full local run (PAD-18-003, PAD-18-008,
+          PAD-18-015), so the full count reads zero on every Pull Request; the
+          field stays because merged comments and velocity reporting parse it.
         verification: >-
           Inspection: the documented derivation in
           `.agents/skills/pr-execute/REFERENCE.md` starts the targeted count at
           one when `create-pr` ran the targeted set before the first push and
-          at zero when it did not.
+          at zero when it did not, and starts the full count at zero.
         relationships:
         - rel_type: refines
           spec_id: PAD-18-006
@@ -2951,8 +2961,10 @@ groups:
           `vultron/demo/` or `test/demo/`: `demo-integration.yml` runs those
           tests, and the required `CI gate` judges it.
         verification: >-
-          Inspection: no `create-pr` path runs `pytest` on the whole unit or
-          integration suite before its push step.
+          Inspection: no gate that runs before a first push — `create-pr`'s,
+          and those of the skills handing off to it (`build`, `bugfix`,
+          `learn`, `plan-issue`) — runs `pytest` on the whole unit or
+          integration suite.
         relationships:
         - rel_type: refines
           spec_id: PAD-18-001
@@ -3108,9 +3120,10 @@ groups:
           These checks took most of the mirror's median 824 seconds on each
           push, and CI's spec and docs jobs answer them in about two to three
           minutes. The mirror keeps the cheap checks, which find the most
-          frequent push failures in a few minutes. Most guard tests sit in
-          `test/architecture/` and `test/metadata/`, which every targeted gate
-          still runs.
+          frequent push failures in a few minutes. CI owns the guard tests, on
+          a job reaching the Markdown, `specs/`, `AGENTS.md` and `notes/`
+          inputs its suite's path filters miss; that job lands with the
+          removal, so PAD-18-031 holds throughout.
         verification: >-
           Inspection: `vultron/metadata/planning/ci_mirror/_registry.py` lists
           each of these checks in its exclusions, with a reason that names CI
@@ -3130,10 +3143,14 @@ groups:
         rationale: >-
           CI on `pull_request` tests the merge of the branch into its base on
           every push, and GitHub requires that run to pass. A local run on a
-          scratch merge repeats it, more slowly.
+          scratch merge repeats it, more slowly. A conflict merge the agent
+          commits is not a scratch merge, so PAD-18-015 still gates one.
         verification: >-
-          Inspection: no step of `pr-execute` or `work-epic-tasks` runs
-          `merged-tree-tests` or another test run on a scratch merge.
+          Inspection: no skill step runs `merged-tree-tests` or another test
+          run on a scratch merge. `pr-execute` and `work-epic-tasks` held the
+          two such steps; `pr-triage`, `create-pr` and
+          `resolving-merge-conflicts` are read too, because the statement
+          binds every agent.
       - id: PAD-18-025
         adr:
         - ADR-0173
@@ -3153,7 +3170,7 @@ groups:
           Inspection: `sync-decision.sh` and `work-epic-tasks` step 4 find a
           conflict with `git merge-tree`, and neither runs `git worktree add`.
         relationships:
-        - rel_type: refines
+        - rel_type: constrains
           spec_id: PAD-18-004
       - id: PAD-18-026
         adr:
@@ -3197,12 +3214,15 @@ groups:
         rationale: >-
           No full suite has run on the branch when it is first pushed. The
           draft state tells a human reviewer that CI has not yet answered.
+          PAD-16-008 keeps such an Issue `In Progress` and PAD-16-009 grants
+          `pr-ship` its run on a non-draft Pull Request, so the two read
+          together on a Pull Request opened as a draft here.
         verification: >-
           Inspection: `create-pr` opens an implementation Pull Request with
           `gh pr create --draft`.
         relationships:
-        - rel_type: depends_on
-          spec_id: PAD-18-001
+        - rel_type: derives_from
+          spec_id: PAD-18-008
       - id: PAD-18-029
         adr:
         - ADR-0179
@@ -3216,10 +3236,12 @@ groups:
           branch works. A failed run leaves the Pull Request a draft until a fix
           passes, never for good.
         verification: >-
-          Inspection: `pr-ship` runs `gh pr ready` only after CI's run on the
-          current head reports success.
+          Inspection: `pr-ship` runs `gh pr ready` only after every CI run on
+          the head commit has finished and the newest of them passed, so a
+          cancelled or superseded run beside a live one decides nothing
+          (PAD-18-032).
         relationships:
-        - rel_type: depends_on
+        - rel_type: derives_from
           spec_id: PAD-18-028
       - id: PAD-18-030
         adr:
@@ -3234,10 +3256,12 @@ groups:
           not a round spent on a fix. Counting it would leave one round fewer
           for fixes than before.
         verification: >-
-          Inspection: `.agents/skills/pr-execute/REFERENCE.md` starts the CI
-          round count after CI's first run on a draft.
+          Inspection: the CI-loop iteration cap in
+          `.agents/skills/pr-execute/SKILL.md`, which holds the count, starts
+          after CI's first run on a draft; `REFERENCE.md` names the same cap
+          as an eject condition.
         relationships:
-        - rel_type: depends_on
+        - rel_type: derives_from
           spec_id: PAD-18-028
       - id: PAD-18-031
         adr:
