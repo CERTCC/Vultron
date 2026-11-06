@@ -85,9 +85,12 @@ def _add_note_body(net: LedgerNetwork) -> dict[str, Any]:
 
 
 def _kind(row: tuple[str, str]) -> tuple[str, str]:
-    """An outbox row's activity type and the type of the object it carries."""
+    """An outbox row's activity type and the type of the object it carries.
+
+    The row holds the sealed body, as delivered (``effects``).
+    """
     activity = json.loads(row[1])
-    return activity["type_"], activity["object_"]["type_"]
+    return activity["type"], activity["object"]["type"]
 
 
 def _record(net: LedgerNetwork, activity_id: str) -> ReceivedActivityRecord:
