@@ -24,6 +24,7 @@ from pathlib import Path, PurePosixPath
 from vultron.metadata.specs.backstop._model import (
     TestFile,
 )
+from vultron.metadata.specs.marked_tests import spec_call_ids
 
 _BLOCK_FIELDS = ("body", "orelse", "finalbody", "handlers", "cases")
 
@@ -80,16 +81,6 @@ def changed_symbols(
     }
 
 
-def _dotted(node: ast.expr) -> str:
-    parts = []
-    while isinstance(node, ast.Attribute):
-        parts.append(node.attr)
-        node = node.value
-    if isinstance(node, ast.Name):
-        parts.append(node.id)
-    return ".".join(reversed(parts))
-
-
 def _statements(body: Iterable[ast.AST]) -> Iterator[ast.AST]:
     """Yield statements in *body* and every nested block, expressions skipped.
 
@@ -116,12 +107,7 @@ def _marker_exprs(node: ast.AST) -> list[ast.expr]:
 
 def _call_spec_ids(expr: ast.expr) -> set[str]:
     return {
-        arg.value
-        for sub in ast.walk(expr)
-        if isinstance(sub, ast.Call)
-        and _dotted(sub.func).endswith("mark.spec")
-        for arg in sub.args
-        if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+        spec_id for sub in ast.walk(expr) for spec_id in spec_call_ids(sub)
     }
 
 
