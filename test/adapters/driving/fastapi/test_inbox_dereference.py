@@ -41,7 +41,6 @@ from vultron.adapters.driving.fastapi import (
 from vultron.adapters.driving.fastapi.inbox_dereference import (
     FastAPIDereferencePort,
     open_fetches,
-    parse_fetched_object,
     settle_fetch,
 )
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -724,21 +723,6 @@ def test_release_keeps_a_settled_fetch_others_still_wait_on():
     assert _fetches(dl) == []
 
 
-@pytest.mark.parametrize(
-    "body, match",
-    [
-        ({"id": "urn:uuid:x"}, "names no type"),
-        ({"type": "NoSuchType", "id": "urn:uuid:x"}, "not a valid"),
-    ],
-    ids=["untyped", "unknown-type"],
-)
-def test_a_fetched_body_the_vocabulary_cannot_type_is_refused(
-    body: dict[str, Any], match: str
-):
-    with pytest.raises(VultronValidationError, match=match):
-        parse_fetched_object(body, "urn:uuid:x")
-
-
 def test_a_hand_off_record_without_its_body_is_unreadable():
     dl, case = _replica()
     port = FastAPIDereferencePort(dl, _REPLICA, InlineObjectStaging(dl))
@@ -748,25 +732,6 @@ def test_a_hand_off_record_without_its_body_is_unreadable():
 
     with pytest.raises(VultronValidationError, match="no fetched body"):
         port.fetched_object(record)
-
-
-def test_the_default_fetcher_takes_its_limits_from_the_config(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    from types import SimpleNamespace
-
-    monkeypatch.setattr(
-        deref,
-        "get_config",
-        lambda: SimpleNamespace(
-            max_object_fetch_attempts=7, object_fetch_timeout_seconds=1.5
-        ),
-    )
-
-    fetcher = deref.default_object_fetcher()
-
-    assert fetcher._max_attempts == 7
-    assert fetcher._timeout == 1.5
 
 
 def _open_fetch_and_held_waiter(

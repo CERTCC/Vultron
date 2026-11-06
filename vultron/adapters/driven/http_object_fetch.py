@@ -53,7 +53,21 @@ from vultron.adapters.driven.http_retry import (
     retry_with_backoff,
 )
 from vultron.adapters.utils import strip_id_prefix
+from vultron.config import get_config
+from vultron.core.models.base import CoreObject
 from vultron.core.models.object_fetch import ObjectFetchSource, ObjectReference
+from vultron.errors import VultronValidationError
+from vultron.primitives import same_actor_id
+
+# parse_fetched_object types a body by WIRE_TYPE_MAP, which these packages
+# fill on import.  Without them a fetched ``Person`` is unknown, or parses as
+# the plain wire actor without its assertionMethod.
+from vultron.wire.as2.vocab import (
+    activities as _activities,  # noqa: F401
+    objects as _objects,  # noqa: F401
+)
+from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +237,58 @@ class HttpObjectFetcher:
         return body
 
 
+def default_object_fetcher() -> HttpObjectFetcher:
+    """The HTTP fetcher, bounded by the configured attempts (AKM-05-008)."""
+    config = get_config()
+    return HttpObjectFetcher(
+        max_attempts=config.max_object_fetch_attempts,
+        timeout=config.object_fetch_timeout_seconds,
+    )
+
+
+def parse_fetched_object(
+    document: dict[str, Any], object_id: str
+) -> CoreObject | as_Base:
+    """The object a fetch answered with, typed by its ``type``.
+
+    *document* is what the object's holder served, not a received body: the
+    receive path's parsed activity stays the authority for what arrived
+    (MV-11-005).
+
+    Raises:
+        VultronValidationError: When the body names no type the vocabulary
+            knows, does not validate as that type, or is not the object
+            *object_id* names.
+    """
+    type_name = document.get("type")
+    if not isinstance(type_name, str) or not type_name:
+        raise VultronValidationError(
+            f"the fetched body for {object_id!r} names no type"
+        )
+    try:
+        cls = find_in_vocabulary(type_name)
+        parsed = cls.model_validate(document)
+    except (KeyError, ValueError) as exc:
+        raise VultronValidationError(
+            f"the fetched body for {object_id!r} is not a valid"
+            f" {type_name!r}: {exc}"
+        ) from exc
+    if not isinstance(parsed, (CoreObject, as_Base)):
+        raise VultronValidationError(
+            f"the fetched body for {object_id!r} is a {type_name!r}, which"
+            " is not an object"
+        )
+    parsed_id = getattr(parsed, "id_", None)
+    if not isinstance(parsed_id, str) or not same_actor_id(
+        parsed_id, object_id
+    ):
+        raise VultronValidationError(
+            f"the fetched object {parsed_id!r} is not the {object_id!r}"
+            " that was asked for"
+        )
+    return parsed
+
+
 def _describe(url: str, exc: Exception) -> str:
     """One line naming why a fetch of *url* failed."""
     if isinstance(exc, httpx.HTTPStatusError):
@@ -238,5 +304,7 @@ __all__ = [
     "HttpObjectFetcher",
     "ObjectFetchResult",
     "ObjectFetcher",
+    "default_object_fetcher",
     "fetch_url",
+    "parse_fetched_object",
 ]
