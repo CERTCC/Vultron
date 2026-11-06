@@ -235,6 +235,116 @@ def test_collect_marked_ids_ignores_keyword_argument_values(tmp_path):
     assert "not-an-id" not in ids
 
 
+@pytest.mark.spec("SR-05-017")
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param(
+            "FIXTURE = '@pytest.mark.spec(\"CVG-01-001\")'\n", id="string"
+        ),
+        pytest.param(
+            "def test_writes_a_fixture(tmp_path):\n"
+            '    (tmp_path / "test_x.py").write_text("""\n'
+            "import pytest\n"
+            '@pytest.mark.spec("CVG-01-001")\n'
+            "def test_x(): pass\n"
+            '""")\n',
+            id="triple-quoted-fixture-body",
+        ),
+        pytest.param(
+            '"""Docstring citing @pytest.mark.spec("CVG-01-001")."""\n',
+            id="docstring",
+        ),
+        pytest.param('# @pytest.mark.spec("CVG-01-001")\n', id="comment"),
+        pytest.param(
+            "import pytest\n"
+            "@pytest.bookmark.spec('CVG-01-001')\n"
+            "def test_b(): pass\n",
+            id="not-a-mark-attribute",
+        ),
+    ],
+)
+def test_collect_marked_ids_ignores_a_marker_inside_a_string_literal(
+    tmp_path, source
+):
+    """Marker text in a string or a comment is not a marker (#6062)."""
+    (tmp_path / "test_fixture_writer.py").write_text(source)
+    assert collect_marked_ids(tmp_path) == frozenset()
+
+
+@pytest.mark.spec("SR-05-017")
+def test_collect_marked_ids_reads_pytest_param_marks(tmp_path):
+    """A ``pytest.param(marks=...)`` spec marker counts like a decorator."""
+    (tmp_path / "test_param.py").write_text(
+        "import pytest\n"
+        "@pytest.mark.parametrize('x', [\n"
+        "    pytest.param(1, marks=pytest.mark.spec('CVG-01-001')),\n"
+        "    pytest.param(2, marks=[pytest.mark.spec('CVG-01-002')]),\n"
+        "])\n"
+        "def test_p(x): pass\n"
+    )
+    assert collect_marked_ids(tmp_path) == {"CVG-01-001", "CVG-01-002"}
+
+
+@pytest.mark.spec("SR-05-017")
+def test_collect_marked_ids_reads_a_marker_built_in_a_factory(tmp_path):
+    """A marker the case reader cannot place in a test still counts."""
+    (tmp_path / "test_factory.py").write_text(
+        "import pytest\n"
+        "def make():\n"
+        "    @pytest.mark.spec('CVG-01-001')\n"
+        "    def test_inner(): pass\n"
+        "    return test_inner\n"
+    )
+    assert collect_marked_ids(tmp_path) == {"CVG-01-001"}
+
+
+@pytest.mark.spec("SR-05-017")
+def test_collect_marked_ids_reads_markers_far_from_their_definition(tmp_path):
+    """The reader walks only lines with marker text, and still finds every one.
+
+    A decorator sits above its ``def`` line, a class decorator above a long
+    class body, and a call's ID can sit on a later line than its ``mark``.
+    """
+    (tmp_path / "test_far.py").write_text(
+        "import pytest\n"
+        "@pytest.mark.spec('CVG-01-001')\n"
+        "@pytest.mark.parametrize('x', [1])\n"
+        "def test_a(x):\n"
+        "    pass\n"
+        "@pytest.mark.spec('CVG-01-002')\n"
+        "class TestB:\n" + "    x = 1\n" * 20 + "    @pytest.mark.spec(\n"
+        "        'CVG-01-003',\n"
+        "    )\n"
+        "    def test_c(self): pass\n"
+    )
+    assert collect_marked_ids(tmp_path) == {
+        "CVG-01-001",
+        "CVG-01-002",
+        "CVG-01-003",
+    }
+
+
+@pytest.mark.spec("SR-05-017")
+def test_collect_marked_ids_reads_a_bare_mark_import(tmp_path):
+    """``from pytest import mark`` then ``@mark.spec(...)`` is a marker."""
+    (tmp_path / "test_bare.py").write_text(
+        "from pytest import mark\n"
+        "@mark.spec('CVG-01-001')\n"
+        "def test_b(): pass\n"
+    )
+    assert collect_marked_ids(tmp_path) == {"CVG-01-001"}
+
+
+def test_collect_marked_ids_names_a_file_that_does_not_parse(tmp_path):
+    """A marked file that does not parse raises, naming the file."""
+    broken = tmp_path / "test_broken.py"
+    broken.write_text("@pytest.mark.spec('CVG-01-001')\ndef (:\n")
+    with pytest.raises(SyntaxError) as raised:
+        collect_marked_ids(tmp_path)
+    assert raised.value.filename == broken.as_posix()
+
+
 # ---------------------------------------------------------------------------
 # compute_implementer_coverage
 # ---------------------------------------------------------------------------
@@ -594,6 +704,20 @@ class TestCoverageStates:
             ),
         )
         assert states == {"CVG-01-001": _V}
+
+    @pytest.mark.spec("SR-05-005")
+    def test_a_marker_in_a_string_does_not_cover_a_requirement(self, tmp_path):
+        """A fixture writing marker text leaves its requirement untested."""
+        source = (
+            "def test_writes(tmp_path):\n"
+            '    (tmp_path / "t.py").write_text("@pytest.mark.spec(\'CVG-01-001\')")\n'
+        )
+        states = _states(tmp_path, 1, test_a=source)
+        assert states == {"CVG-01-001": _U}
+        assert uncovered_implementer_ids(tmp_path) == {"CVG-01-001"}
+        assert uncovered_implementer_ids(tmp_path, test_sources=[source]) == {
+            "CVG-01-001"
+        }
 
     @pytest.mark.spec("SR-05-005")
     def test_the_growth_guard_set_is_the_untested_set(self, tmp_path):

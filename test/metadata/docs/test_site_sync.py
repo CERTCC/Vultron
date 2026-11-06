@@ -953,10 +953,9 @@ class TestSiteSync:
         root = _guides_repo(tmp_path, a=_page("A"))
         site_sync.write_artifacts(root)
         assert site_sync.stale_artifacts(root) == []
-        marker = "pytest.mark." + "spec"  # not a marker in this file's text
         (root / "test").mkdir()
         (root / "test" / "test_seed.py").write_text(
-            f'import pytest\n\n\n@{marker}("{SEED_SPEC_ID}")\n'
+            f'import pytest\n\n\n@pytest.mark.spec("{SEED_SPEC_ID}")\n'
             "def test_seed():\n    pass\n",
             encoding="utf-8",
         )
