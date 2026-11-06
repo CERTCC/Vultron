@@ -124,7 +124,17 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   `signing.published_multikey` and replace any key its record states: a
   published key other than the signing key fails every proof. Only the
   owner's routes compute it; a peer's key comes from its profile
-  (SIG-05-002).
+  (SIG-05-002). `GET /actors/` lists each hosted actor the same way.
+- **An inline sender profile carries no key.** An activity carries the
+  sender's own stored record as held (AKM-05-005), and that record lists no
+  key, while a receiver keeps a held copy over a fetched one (MV-10-003). The
+  #5383 resolver must fetch the profile when its held copy lists no key the
+  proof names, not refuse on the held copy alone.
+- **The profile's `@context` lacks the key terms.** It is the Vultron context
+  alone, which defines no `assertionMethod`, `Multikey`, `controller` or
+  `publicKeyMultibase`, so a JSON-LD-expanding verifier drops them. Add
+  `https://w3id.org/security/multikey/v1` when #5382 widens `@context` to a
+  list: a list `@context` on a profile fails core validation until then.
 
 ## Encryption principles
 

@@ -49,7 +49,10 @@ def test_a_profile_reads_its_keys_from_the_wire_spelling():
 
     [key] = actor.assertion_method
     assert key == Multikey(
-        id_=f"{ACTOR}#main-key", controller=ACTOR, public_key_multibase=PUBLIC
+        id_=f"{ACTOR}#main-key",
+        type_="Multikey",
+        controller=ACTOR,
+        public_key_multibase=PUBLIC,
     )
     assert actor.model_dump(mode="json", by_alias=True)["assertionMethod"] == [
         _entry()
@@ -60,6 +63,29 @@ def test_a_single_key_object_reads_as_a_one_key_list():
     actor = VultronOrganization.model_validate(_profile(_entry()))
 
     assert [key.id_ for key in actor.assertion_method] == [f"{ACTOR}#main-key"]
+
+
+def test_a_single_key_instance_reads_as_a_one_key_list():
+    key = Multikey.model_validate(_entry())
+
+    actor = VultronOrganization.model_validate(
+        {"id": ACTOR, "name": "VendorCo", "assertionMethod": key}
+    )
+
+    assert actor.assertion_method == [key]
+
+
+def test_a_key_without_a_type_is_refused():
+    entry = _entry()
+    del entry["type"]
+
+    with pytest.raises(ValidationError, match="type"):
+        Multikey.model_validate(entry)
+
+
+def test_a_key_of_another_type_is_refused():
+    with pytest.raises(ValidationError):
+        Multikey.model_validate({**_entry(), "type": "JsonWebKey"})
 
 
 def test_a_profile_without_keys_dumps_no_assertion_method():

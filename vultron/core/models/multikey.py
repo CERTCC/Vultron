@@ -70,9 +70,9 @@ class Multikey(ValidatedAssignmentMixin, BaseModel):
         description="The key id a proof's verificationMethod names.",
     )
     type_: Literal["Multikey"] = Field(
-        default=MULTIKEY_TYPE,
         validation_alias="type",
         serialization_alias="type",
+        description="Always stated: an entry without a type is refused.",
     )
     controller: NonEmptyString = Field(
         description="The id of the actor that holds the private key."

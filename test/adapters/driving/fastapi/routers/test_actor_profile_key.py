@@ -18,6 +18,7 @@ with a plain GET (SIG-02-002).
 
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import patch
 
 import pytest
 
@@ -115,6 +116,37 @@ def test_the_actor_id_dereferences_to_the_profile_with_its_key(
     assert by_id == by_profile
 
 
+@pytest.mark.spec("ENC-01-002")
+def test_the_hosted_actors_list_publishes_each_actors_key(tmp_path: Path):
+    """``GET /actors/`` lists each hosted actor as the profile it publishes."""
+    segment = "profile-key-listed"
+    actor_id = canonical_actor_uri(segment)
+    dl = SqliteDataLayer(
+        f"sqlite:///{tmp_path / 'listed.db'}", actor_id=actor_id
+    )
+
+    with (
+        patch(
+            "vultron.adapters.driving.fastapi.routers.actors._routes"
+            ".registry.actor_hosts.hosted_actor_ids",
+            return_value=[actor_id],
+        ),
+        patch(
+            "vultron.adapters.driving.fastapi.routers.actors._routes"
+            ".registry.get_datalayer",
+            return_value=dl,
+        ),
+        served_store(dl, actor_id, segment) as (client, _emitter),
+    ):
+        listed = client.get("/api/v2/actors/")
+        profile = client.get(f"/api/v2/actors/{segment}/profile")
+
+    assert listed.status_code == 200, listed.text
+    [entry] = listed.json()
+    assert _multikeys(entry)
+    assert entry == profile.json()
+
+
 def test_a_stored_key_is_replaced_by_the_key_the_actor_signs_with(
     tmp_path: Path,
 ):
@@ -128,6 +160,7 @@ def test_a_stored_key_is_replaced_by_the_key_the_actor_signs_with(
         assertion_method=[
             Multikey(
                 id_=f"{actor_id}#old-key",
+                type_="Multikey",
                 controller=actor_id,
                 public_key_multibase=other_key.public_key_multibase,
             )

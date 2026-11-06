@@ -2,8 +2,9 @@
 """
 Actor lookup helpers for the Vultron FastAPI actors router.
 
-Provides pure helper functions for finding actor records in an actor's own
-DataLayer. No route handlers here.
+Provides helper functions for finding actor records in an actor's own
+DataLayer, and for building the profile an actor publishes from its record
+(:func:`published_profile`). No route handlers here.
 
 Under ADR-0073 the URL path segment is resolved to a canonical actor URI by
 **computation** (``{base_url}actors/{segment}``), not by scanning actor rows.
@@ -38,8 +39,11 @@ from vultron.core.models.actor import (
     VultronOrganization,
     VultronPerson,
     VultronService,
+    endpoint_uri,
+    hosted_endpoints,
 )
 from vultron.core.ports.datalayer import DataLayer
+from vultron.wire.as2 import signing
 
 _ACTOR_RECORD_TYPES = [
     "Actor",
@@ -170,3 +174,55 @@ def _resolve_actor_or_404(actor_id: str, dl: DataLayer) -> CoreActor:
             status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
         )
     return cast(CoreActor, actor_record)
+
+
+def published_profile(datalayer: DataLayer, actor_id: str) -> dict[str, Any]:
+    """The profile the actor *actor_id* names publishes from its own store.
+
+    :func:`_find_actor_record` returns only the actor the request addresses,
+    from that actor's own store, never a peer's record (ADR-0073), so the
+    actor served is the one this node hosts.  It publishes what only it
+    knows: the endpoints this node routes for it, which a record created
+    before it stated them may lack (ISSUE-3616), and the key it signs with.
+
+    Raises:
+        HTTPException: 404 when the store holds no such actor (AR-10-002).
+    """
+    actor_record = _find_actor_record(datalayer, actor_id)
+    if not actor_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
+        )
+
+    actor_cls = _actor_class_for_record(actor_record)
+    as_actor = _with_own_key(
+        cast(Any, actor_cls.model_validate(actor_record.get("data_", {})))
+    )
+    profile: dict[str, Any] = as_actor.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+    own = hosted_endpoints(as_actor.id_)
+    for field_name in ("inbox", "outbox"):
+        profile[field_name] = (
+            endpoint_uri(getattr(as_actor, field_name, None))
+            or own[field_name]
+        )
+    return profile
+
+
+def _with_own_key(actor: CoreActor) -> CoreActor:
+    """*actor*, the actor this node hosts, listing the key it signs with.
+
+    The published key is always the one the actor's proofs are made with,
+    so a key a stored record happens to state is replaced rather than
+    served: a profile naming any other key would make every proof the
+    actor sends fail to verify.  Only the key's owner computes its seeded
+    key (SIG-05-001, SIG-05-002), and only the public half is published
+    (ENC-01-007).
+    """
+    key = signing.seeded_signing_key(actor.id_)
+    published = actor.model_copy()
+    # Assignment, not ``model_copy(update=...)``: it re-runs the actor's
+    # validators, which refuse a key another actor controls (CM-27-001).
+    published.assertion_method = [signing.published_multikey(key, actor.id_)]
+    return published

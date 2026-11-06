@@ -47,7 +47,6 @@ groups:
     scope:
     - prototype
     - production
-    tracking_issue: '#5381'
     adr:
     - ADR-0164
     stories:

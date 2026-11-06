@@ -56,7 +56,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 )
 
 from vultron.core.models._helpers import format_timestamp, now_utc
-from vultron.core.models.multikey import Multikey
+from vultron.core.models.multikey import MULTIKEY_TYPE, Multikey
 from vultron.wire.as2.errors import (
     VultronMultikeyError,
     VultronProofInvalidError,
@@ -165,6 +165,7 @@ def published_multikey(key: SigningKey, controller: str) -> Multikey:
     """
     return Multikey(
         id_=key.key_id,
+        type_=MULTIKEY_TYPE,
         controller=controller,
         public_key_multibase=key.public_key_multibase,
     )
