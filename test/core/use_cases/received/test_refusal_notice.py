@@ -43,6 +43,7 @@ from test.support.received import (
     settle_as_the_inbox,
 )
 from test.support.refusal_notice import assert_refusal_notice
+from test.support.signing import resigned, signed_body
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -150,7 +151,7 @@ def _accept_event(
         to=sorted({MANAGER, receiver}),
         id_=f"{sender}/answers/{tag}",
     )
-    body = json.loads(dump_outbound_body(activity))
+    body = signed_body(json.loads(dump_outbound_body(activity)))
     return extract_stamped(parse_activity(body)).model_copy(
         update={"receiving_actor_id": receiver}
     )
@@ -347,7 +348,7 @@ def test_a_rerun_of_a_refused_rm_regression_records_no_second_note():
         net.case(MANAGER).actor_participant_index[BYSTANDER]
     )
     assert isinstance(participant, CaseParticipant)
-    body = net.stamp(
+    body = net.delivered_body(
         json.loads(
             dump_outbound_body(
                 add_status_to_participant_activity(
@@ -614,10 +615,13 @@ def test_a_notice_naming_no_case_is_refused():
     body = cast(
         dict[str, Any], read_sealed_body_dict(net.stores[MANAGER], notice_id)
     )
-    caseless = {k: v for k, v in body.items() if k != "context"}
-    caseless["object"] = {
-        k: v for k, v in body["object"].items() if k != "context"
-    }
+
+    def _drop_the_case(copy: dict[str, Any]) -> None:
+        del copy["context"]
+        del copy["object"]["context"]
+
+    # Altered after its outbox sealed it, so its author signs it again.
+    caseless = resigned(body, alter=_drop_the_case)
     routed = extract_stamped(parse_activity(caseless)).model_copy(
         update={"receiving_actor_id": BYSTANDER}
     )

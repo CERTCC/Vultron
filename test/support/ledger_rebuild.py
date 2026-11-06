@@ -45,6 +45,7 @@ from test.support.ledger import (
     ledger_entries,
 )
 from test.support.received import received_event
+from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.inbox_replay_adapter import InboxReplayAdapter
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -272,7 +273,8 @@ def _replay(
         announce = announce_log_entry_activity(
             entry=wire_entry, actor=manager_id, to=[as_actor]
         )
-        body = json.loads(dump_outbound_body(announce))
+        # Built here, not read from an outbox, so signed here (SIG-01-001).
+        body = signed_body(json.loads(dump_outbound_body(announce)))
         verdict = receive_into(replica, body, as_actor)
         assert verdict.disposition is HandlerDisposition.APPLIED, (
             f"rebuild of '{entry.case_id}' as '{as_actor}': entry"

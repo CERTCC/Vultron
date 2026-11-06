@@ -31,6 +31,7 @@ from test.support.inbox_replay import (
     replayed_event,
 )
 from test.support.received import received_event, received_record
+from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -229,7 +230,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
             "published": "2026-03-04T05:06:07+00:00",
             "object": first_entry.model_dump(mode="json", by_alias=True),
         }
-        parsed = parse_activity(body)
+        parsed = parse_activity(signed_body(body))
         event = cast(AnnounceLogEntryReceivedEvent, received_event(parsed))
         assert (
             event.semantic_type == MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY

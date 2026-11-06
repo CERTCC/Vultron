@@ -30,6 +30,7 @@ from test.support.received import (
     received_event,
     received_record,
 )
+from test.support.signing import resigned
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -479,7 +480,8 @@ def _bare_uri_invite_at_owner(net: _Network) -> tuple[Any, dict[str, Any]]:
     (invite,) = net.queued(MANAGER, to=OWNER, type_="Invite")
     body = read_sealed_body_dict(net.stores[MANAGER], invite.id_)
     assert body is not None
-    body["object"] = body["object"]["id"]
+    # Altered after its outbox sealed it, so its author signs it again.
+    body = resigned(body, object=body["object"]["id"])
     event = received_event(parse_activity(body), receiving_actor_id=OWNER)
     assert event.semantic_type is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
     (reference,) = references_to_fetch(

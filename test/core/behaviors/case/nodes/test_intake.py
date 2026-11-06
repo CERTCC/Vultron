@@ -36,6 +36,7 @@ from test.support.received import (
     received_event,
     with_evidence,
 )
+from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
@@ -202,13 +203,17 @@ def test_the_archive_is_the_body_the_parser_sealed(scenario):
     """The archive holds the decoded body re-serialized, as the parser
     sealed it: the sender's keys, key order and values, not the request's
     bytes (VM-08-002, ADR-0107)."""
-    request_bytes = (
+    unsigned = (
         '{ "type": "Add",  "published": "2026-01-01T00:00:00+00:00",'
         ' "id": "https://example.org/activities/sealed-1",'
         f' "actor": "{SENDER}", "target": "{CASE_ID}",'
         ' "object": {"type": "Note", "id": "https://example.org/notes/s-1",'
-        ' "content": "caf\u00e9"}, "fooBar": [1, 2] }'
+        ' "content": "caf\u00e9"}, "fooBar": [1, 2]'
     )
+    # The sender signs what it sends (SIG-01-001); the proof is written into
+    # the request bytes, so they stay the sender's own spacing.
+    proof = signed_body(json.loads(unsigned + "}"))["proof"]
+    request_bytes = f'{unsigned}, "proof": {json.dumps(proof)} }}'
     parsed = parse_activity(json.loads(request_bytes))
     event = extract_stamped(parsed)
 
