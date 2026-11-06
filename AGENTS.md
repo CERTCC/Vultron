@@ -56,7 +56,8 @@ Small tweaks need no ADR; architectural/protocol changes SHOULD have one before 
 
 Runtime: Python **3.12+** (CI: 3.13), **FastAPI** (BackgroundTasks for long
 ops), **Pydantic v2**, **pytest**, **mkdocs** (Material). Dev tools: **uv**,
-**ruff** (lint + format), **mypy**, **pyright**, **markdownlint-cli2** (`mdlint.sh`).
+**ruff** (lint + format), **mypy**, **markdownlint-cli2** (`mdlint.sh`),
+**pyright** (CI only, PAD-18-027).
 No other frameworks/package managers without approval (`ui/` Node/React: ADR-0104).
 
 ---
@@ -194,8 +195,9 @@ entry vs. both.
 
 **Before committing**, run skills in order:
 
-1. `run-linters` — ruff (lint + format), mypy and pyright must all pass.
-   Supersedes `format-code`, so run it alone — no separate `format-code` step.
+1. `run-linters` — ruff (lint + format) and mypy must both pass; pyright runs
+   in CI only (PAD-18-026/027). Supersedes `format-code`, so run it alone — no
+   separate `format-code` step.
 2. `run-tests` — **before a PR's first push only**, in `create-pr`: unit and
    integration suites; read `exit:` (PAD-18-001/008). Later fix commits: linters
    plus `targeted-tests`, which escalates to `-m ""` itself (PAD-18-002/003), and
@@ -210,12 +212,12 @@ entry vs. both.
 **`append-history`**: stage the new entry file (`git add plan/history/`).
 The monthly `README.md` under `plan/history/YYMM/` is gitignored — do not stage it.
 
-Pre-commit hooks are fail-only. If a hook fails, run `run-linters` (ruff, mypy,
-pyright) or `format-code` (ruff fixes + format), re-stage, then commit.
+Pre-commit hooks are fail-only. If a hook fails, run `run-linters` (ruff, mypy)
+or `format-code` (ruff fixes + format), re-stage, then commit.
 
-**Lint memoization**: mypy and pyright run through `run-if-changed.sh`, which
-skips a tool when its inputs are unchanged since the last success (a `... skipping`
-line is expected, not an error); ruff is fast enough to run bare. See `run-linters`.
+**Lint memoization**: mypy runs through `run-if-changed.sh`, which skips it when
+its inputs are unchanged since the last success (a `... skipping` line is
+expected, not an error); ruff is fast enough to run bare. See `run-linters`.
 
 **After a PR merges** in a named worktree slot:
 `bash "$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh" reset <slot-name>`
@@ -292,11 +294,11 @@ linked file before touching that area. New pitfalls MUST be routed per
 | Persistence / stores | [datalayer-design](notes/datalayer-design.md) | `dl.read()` returns core objects (ADR-0034), no wire re-read for semantics (ADR-0035); actor id is a store name (DL-07-004); `_dehydrate_data` keeps inline snapshots; a clock-minted wire default can't round-trip a URI-only core field (#3732); a renamed stored field is dropped, never aliased — `forbid` refuses its old key, no list of old names (ADR-0175); writes that must land together share one `transaction()`, never a repair pass (ADR-0146) |
 | Embargo / consent | [embargo-lifecycle](notes/embargo-lifecycle.md), [participant-embargo-consent](notes/participant-embargo-consent.md) | go through `EmbargoLifecycle`; EM is derived from the append-only `embargo_register`, its `CaseStatus.em` only a stamped copy (ADR-0122); consent is one row per (participant, register entry), starting `UNINVITED` (a missing row raises), created by `write_uninvited_rows`, answered only via `apply_pec_transition(embargo_id, …)`, copied from an entry only via `apply_embargo_change` (CM-18-005, CM-18-025, #4713), answers to a replaced, rejected, cancelled or ended embargo version can't change; a repeat of the same answer changes nothing, while a changed answer is recorded, an Accept after a Reject moving the row straight to `AGREED` (CM-13-005, CM-18-003); signatory and lapsed are reads of the rows, never writes (CM-18-016, ADR-0122); a revision Invite lands on the revision's own row (EP-09-004); termination cancels every proposal in the same register step and writes no consent (EP-08-004); default embargo once per case, keyed on EM ≠ `NONE` (EP-04-012; [embargo-default-semantics](notes/embargo-default-semantics.md), #3393, #4019) |
 | Participant records | [participant-role-management](notes/participant-role-management.md) | RM mutation uses `actor_participant_index` (CM-19-003); RM terminal guard before same-state shortcut |
-| Devcontainer / tooling | [devcontainer-tooling](notes/devcontainer-tooling.md) | always `uv run`; image exports no `PYTHONPATH`, rebuild if it's `/app` (#5571); `UV_NO_SYNC=1` on sync failure; ruff runs bare (IMPLTS-07-021); never `pyright` beside `pytest -n auto` — OOM reads as unrelated timeouts (#3156), so heavy checks take a per-host slot via `run-heavy.py` (#5947); `SKIP=actionlint` (hangs); `git push -u origin HEAD`, HTTP/1.1 retry (#3893, #3905); edit `.agents/skills`, not the `.claude` symlink |
+| Devcontainer / tooling | [devcontainer-tooling](notes/devcontainer-tooling.md) | always `uv run`; image exports no `PYTHONPATH`, rebuild if it's `/app` (#5571); `UV_NO_SYNC=1` on sync failure; ruff runs bare (IMPLTS-07-021); `pyright` is CI's, never a local gate's (PAD-18-027), and every other heavy local check takes a per-host slot via `run-heavy.py` (#5947); `SKIP=actionlint` (hangs); `git push -u origin HEAD`, HTTP/1.1 retry (#3893, #3905); edit `.agents/skills`, not the `.claude` symlink |
 | Spec/notes/ADR/history tooling | [`vultron/metadata/AGENTS.md`](vultron/metadata/AGENTS.md), [agentic-workflow](notes/agentic-workflow.md) | learning filename slug ≠ `source` (BW-01-008, #1857); loaders name failing files `path:line:col` via `file_loading.py` (MS-17) — YAML errors aren't `ValueError`; pre-code spec needs `lint_suppress: [phantom_path_ref]` |
 | git / branches / PRs | [git-workflow-pitfalls](notes/git-workflow-pitfalls.md) | false-positive rebase "local changes"; conflict-free ≠ working merge; integration branches for related fixes; re-check ADR numbers; verify ACs on `origin/main`, always `Closes #N`, prose ACs skip the pre-claim gate (#1907) |
 | Issue themes / epic scope | [epic-themes](notes/epic-themes.md) | one `theme:` per leaf, judged from its own outcome, never copied from the parent; an Epic's children share its theme; `Theme: <label> — <outcome>` body line; labels come only from the catalog block via `theme-labels`, which never deletes; `theme-fit` reports every breach, read-only (PAD-02-014–021) |
-| GH Actions / CI YAML | [ci-workflow-authoring](notes/ci-workflow-authoring.md) | red job ≠ assertions ran, all-skipped = green; `notify-failure` mandatory (CISEC-05); bare `on:` → `True`; matrix booleans job vs. step; `python3 -c` breaks `actionlint`; YAML apostrophes; artifact names carry `run_attempt`; GitHub writes via `retry.sh`, label swaps split (#4577, #4524); a `.sh` runs on the host's bash, which on macOS is 3.2 — no `mapfile`, no `declare -A` (#5698); the test job's parts stay one matrix job, and its last part is `test` minus the others' claims, never a fourth list (TB-11-002); a new `pull_request` check is seen only on its own pull request and later ones, so a ruleset waits on a verification task after the merge (#5971); a red gate's own log names each red check; the gate is required on `main` with no bypass actor, so a red or unjudged gate blocks every merge, admin included (#5945) |
+| GH Actions / CI YAML | [ci-workflow-authoring](notes/ci-workflow-authoring.md) | red job ≠ assertions ran, all-skipped = green; `notify-failure` mandatory (CISEC-05); bare `on:` → `True`; matrix booleans job vs. step; `python3 -c` breaks `actionlint`; YAML apostrophes; artifact names carry `run_attempt`; GitHub writes via `retry.sh`, label swaps split (#4577, #4524); a `.sh` runs on the host's bash, which on macOS is 3.2 — no `mapfile`, no `declare -A` (#5698); the test job's parts stay one matrix job, and its last part is `test` minus the others' claims, never a fourth list (TB-11-002); a new `pull_request` check is seen only on its own pull request and later ones, so a ruleset waits on a verification task after the merge (#5971); a red gate's own log names each red check; the gate is required on `main` with no bypass actor, so a red or unjudged gate blocks every merge, admin included (#5945); the gate passes on a skip, so a check CI takes over from a local gate needs an unfiltered `pull_request` job — `guard-tests.yml` (PAD-18-023/031) |
 | Spec authoring | [spec-authoring-rules](notes/spec-authoring-rules.md) | strict `kind`/`priority`/`rel_type` enums, a link recorded at one end only (SR-13); `adr:` not `references:`; `kind: protocol` needs marker test or strict `xfail`; CASE_MANAGER not "CaseActor" (ADR-0088); item format = field presence, not `isinstance` (ADR-0101); advisories need an owner and a terminal state |
 | Specs vs. ADRs, doc drift | [specs-vs-adrs](notes/specs-vs-adrs.md), [documentation-sweeps](notes/documentation-sweeps.md) | an ADR is a historical record — a refactor never obliges an ADR edit, an aged code reference in a body is not a defect and no scrub is owed, live constraints go to a spec or note citing it as provenance, and neither may dereference an ADR body (ADR-0127); ADR "what is removed" is scoped to one use; no counts in long-lived docs (MS-16-001); moving a claim ≠ verifying it, share by `include-markdown` fragment (DF-10-001/002) |
 | Tests | [testing-pitfalls](notes/testing-pitfalls.md), [`test/AGENTS.md`](test/AGENTS.md) | killed run reads exit 0 under `tail -5`; in-process green ≠ Docker green for payloads and per-actor config (#4541); vacuous assertions; "falls back to" on malformed input asserts a bug; process-global blackboard/registries; `caplog` catches fixture setup; a timeout trip fails one test, the method not the ceiling (#3603); a dead xdist worker fails the run and gate exit 124 is a hang (#4809); directory-hook markers checked over real collection (#3604); a two-sided count pin races concurrent PRs, keep a per-item record (#3984); nesting turned into sequence moves the skip only a test of the new caller reaches (#5533, #5534); a ratchet keyed on an implementation name loses subjects to a rename and its non-empty guard still passes (#5535, [architecture-ratchet-corpus](notes/architecture-ratchet-corpus.md)); a guard reached only by direct call covers nothing, and a caller that omits the gating argument leaves it dead (#3156); a test spawning children sizes them from the cgroup, not `os.cpu_count()`, and an `xdist_group` never bounds a sibling worker (#5184); a harness red for the environment hides real failures — skip on the filesystem's refusal, not on `sys.platform` (#5449, #5698); CI runs the suite as four partitioned sessions, so no test may assert over the whole collection (TB-11-002) |

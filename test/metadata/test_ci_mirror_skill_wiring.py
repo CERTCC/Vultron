@@ -64,10 +64,11 @@ def test_pr_execute_tests_the_merged_tree_on_an_overlap():
 
 @pytest.mark.spec("PAD-18-021")
 @pytest.mark.parametrize("skill", ["create-pr", "pr-execute"])
-def test_the_type_checkers_share_the_mirrors_memo(skill: str):
-    # The mirror runs mypy and pyright through run-if-changed.sh; a bare run
-    # just before it would leave no record and type-check the tree twice.
+def test_the_type_checker_shares_the_mirrors_memo(skill: str):
+    # The mirror runs mypy through run-if-changed.sh; a bare run just before
+    # it would leave no record and type-check the tree twice. pyright is no
+    # longer either one's business (PAD-18-027).
     text = _text(skill)
 
     assert "uv run ruff check && uv run mypy" not in text
-    assert '"$G" pyright vultron/ test/ pyrightconfig.json uv.lock' in text
+    assert '"$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy' in text

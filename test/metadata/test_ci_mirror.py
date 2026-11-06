@@ -24,6 +24,7 @@ from test.support.git_repo import git, init_git_repo
 from vultron.metadata.planning import ci_mirror
 from vultron.metadata.planning.ci_mirror import _run
 from vultron.metadata.planning.ci_mirror._registry import (
+    EXCLUSIONS,
     MIRROR_CHECKS,
     RUN_IF_CHANGED,
     CheckContext,
@@ -215,19 +216,44 @@ def test_a_builder_with_nothing_to_read_is_not_triggered():
     assert _plan(check).status is CheckStatus.NOT_TRIGGERED
 
 
-_GUARD = next(c for c in MIRROR_CHECKS if c.id == "guard-tests")
+#: The five checks PAD-18-023 makes CI's, each by the CI step that runs it,
+#: as the registry's exclusion keys spell them. Named, not counted: a renamed
+#: CI step must fail here, and the parity test (PAD-18-022) refuses a key
+#: naming no step, so neither can go stale unnoticed.
+_CI_OWNED_STEPS = (
+    "python-app.yml::lint-pyright::Type-check with pyright",
+    "spec-check.yml::spec-tests::Run spec_corpus pytest suite",
+    "guard-tests.yml::guard-tests::Run the guard tests",
+    "docs-build-check.yml::docs-build-check::Build Site > Build Site",
+    "docs-build-check.yml::docs-build-check::"
+    "Check site publication > Check internal references resolve",
+)
 
 
 @pytest.mark.spec("PAD-18-023")
-@pytest.mark.parametrize("changed", [(), ("docs/page.md",), ("notes/x.md",)])
-def test_the_guard_tests_run_on_every_diff(changed):
-    context = CheckContext({"base": "main", "pr": ""}, changed, Path("."))
+@pytest.mark.parametrize("step", _CI_OWNED_STEPS)
+def test_the_mirror_leaves_cis_expensive_checks_to_ci(step: str) -> None:
+    """None is mirrored, and each exclusion names CI as its owner."""
+    assert step not in {c.step for c in MIRROR_CHECKS}
+    reason = EXCLUSIONS[step]
+    assert "CI" in reason, reason
+    assert "PAD-18-023" in reason, reason
 
-    [planned] = plan([_GUARD], {}, {}, context, base="main")
 
-    assert planned.status is None
-    assert planned.argv is not None
-    assert "-m" in planned.argv and "" in planned.argv
+@pytest.mark.spec("PAD-18-023")
+def test_no_mirror_check_runs_pyright_or_a_pytest_suite() -> None:
+    """The commands too, not only the step keys: PAD-18-027 is about pyright
+    wherever it is spelled, and the two pytest sets were the mirror's own
+    commands rather than a verbatim CI step.
+    """
+    commands = [
+        " ".join(c.command)
+        for c in MIRROR_CHECKS
+        if isinstance(c.command, tuple)
+    ]
+    offenders = [c for c in commands if "pyright" in c or "pytest" in c]
+
+    assert not offenders, offenders
 
 
 def test_markdownlint_reads_the_branchs_present_markdown(tmp_path: Path):
@@ -432,13 +458,21 @@ def test_list_plans_without_running(repo: Path, capsys):
     git(repo, "add", ".")
     git(repo, "commit", "-q", "-m", "b")
 
-    # The throwaway repository has no workflows, so every check that names a
-    # CI step is a stale-registry block, and --list says so in its exit.
+    # The throwaway repository has no workflows, so every check is a
+    # stale-registry block, and --list says so in its exit. Every registry
+    # check names a CI step now that PAD-18-023 retired the guard-test check,
+    # the one that named none; the PLAN row is covered below.
     assert ci_mirror.main(["--no-fetch", "--list"]) == 1
     out = capsys.readouterr().out
-    assert "PLAN guard-tests would run" in out
     assert "FAIL ruff-check its CI step" in out
     assert out.rstrip().endswith("mirror exit: 1")
+
+
+def test_list_prints_plan_for_a_check_that_would_run(capsys):
+    rows = ci_mirror._planned_rows([_plan(MirrorCheck("lint", _KEY))])
+
+    assert ci_mirror.print_report(rows, as_json=False) == 0
+    assert "PLAN lint would run" in capsys.readouterr().out
 
 
 def test_the_console_script_is_installed():
@@ -503,7 +537,9 @@ def test_list_json_reports_every_check(repo: Path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["exit"] == 1
     statuses = {c["id"]: c["status"] for c in payload["checks"]}
-    assert statuses["guard-tests"] == "PLAN"
+    # The throwaway repository has no workflows, so every check reports the
+    # stale registry rather than a plan.
+    assert set(statuses.values()) == {"FAIL"}
     assert "PASS" not in statuses.values()
     assert {c["id"] for c in payload["checks"]} == {
         c.id for c in MIRROR_CHECKS
@@ -700,11 +736,15 @@ def slots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return locks
 
 
-def test_the_heavy_checks_are_the_ones_that_load_the_container():
-    # Named, not counted: each starts many processes or uses much memory.
-    heavy = {c.id for c in MIRROR_CHECKS if c.heavy}
+def test_no_registry_check_declares_itself_heavy():
+    """PAD-18-023 made every check that loaded the container CI's.
 
-    assert heavy == {"pyright", "guard-tests", "spec-corpus", "site-build"}
+    pyright, the spec-corpus suite, the guard tests and the site build were
+    the four. The ``heavy`` field and its locking stay for a CI step cheap
+    enough to mirror and heavy enough to queue; this fails on the next check
+    that declares it, so adding one is a decision somebody makes (#5947).
+    """
+    assert {c.id for c in MIRROR_CHECKS if c.heavy} == set()
 
 
 def test_a_heavy_check_takes_a_slot_then_its_own_timeout():
@@ -731,19 +771,22 @@ def test_a_light_check_plans_no_slot():
     assert HEAVY_LOCK_SCRIPT not in planned.argv
 
 
-def test_a_memoized_heavy_check_takes_its_slot_inside_its_memo():
-    # A memo hit skips without waiting behind another slot's suite.
-    [pyright] = [c for c in MIRROR_CHECKS if c.id == "pyright"]
-    assert not callable(pyright.command) and pyright.command is not None
+def test_locking_a_memoized_command_goes_inside_its_memo():
+    # A memo hit skips without waiting behind another slot's suite. No
+    # registry check declares `heavy` since PAD-18-023, so the subject is the
+    # registry's one remaining memoized command rather than a hand-built
+    # argv, which could drift from the shape `_memoized` really produces.
+    [mypy] = [c for c in MIRROR_CHECKS if c.id == "mypy"]
+    assert not callable(mypy.command) and mypy.command is not None
 
-    argv = locked(pyright.command, 900, which=_found)
+    argv = locked(mypy.command, 900, which=_found)
 
     cut = argv.index("--") + 1
     assert argv[:2] == ("bash", RUN_IF_CHANGED)
     assert argv[cut:] == (
         *_LOCK_PREFIX,
         *_with_timeout(900),
-        *("uv", "run", "pyright"),
+        *("uv", "run", "mypy"),
     )
 
 

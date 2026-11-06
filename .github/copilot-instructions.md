@@ -56,7 +56,8 @@ mypy and pyright are strict about type variance. If you encounter an error like
 "`dict[K, V]` is not assignable to `dict[K, V] | None`", the issue is likely
 that `V` involves a callable with a `Protocol` type parameter. **Fix this by
 switching to `Mapping[K, V]` (covariant in value type) instead of `dict`.**
-Both `mypy` and `pyright` must pass before committing.
+`mypy` must pass before committing. `pyright` runs in CI only (PAD-18-027), so
+read its findings off the `Lint (pyright)` job.
 
 ### Spec File Format & References
 

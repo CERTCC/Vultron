@@ -15,7 +15,8 @@ description: >
   gets a theme but no Epic parent, why an artifact name needs the run attempt,
   why a GitHub write is retried and a label swap is split, how to read a red CI
   job correctly, why a new pull-request step must be mirrored locally or
-  excluded with a reason, why the `CI gate` must be re-run after a re-run
+  excluded with a reason, why a check moved from a local gate to CI needs a
+  job with no `paths` filter, why the `CI gate` must be re-run after a re-run
   check, how to read the red checks its log names, why the ruleset requiring the
   gate admits no bypass actor, and why a new pull-request check is verified on
   later pull requests rather than its own.
@@ -47,14 +48,27 @@ Invariant Harness job.
 
 ## A New Pull-Request Step Is Mirrored Locally or Excluded With a Reason
 
-`prepush-ci-mirror` runs every step a `pull_request` run executes, before each
-push. A step added to a pull-request workflow, or to a local composite action
-one calls, fails `test/ci/test_prepush_ci_mirror_parity.py` until it has an
-entry in `vultron/metadata/planning/ci_mirror/_registry.py`. Add a
-`MirrorCheck`, which runs the step's own `run:` script when it needs no GitHub
-expression. Or add an `EXCLUSIONS` entry saying why it cannot run locally.
-Without that entry the mirror would silently fall behind CI, the gap it closes
-(PAD-18-022, ADR-0173).
+`prepush-ci-mirror` runs the cheap steps a `pull_request` run executes, before
+each push, and accounts for every other one. A step added to a pull-request
+workflow, or to a local composite action one calls, fails
+`test/ci/test_prepush_ci_mirror_parity.py` until it has an entry in
+`vultron/metadata/planning/ci_mirror/_registry.py`. Add a `MirrorCheck`, which
+runs the step's own `run:` script when it needs no GitHub expression. Or add an
+`EXCLUSIONS` entry saying why it is CI's — it cannot run locally, or it answers
+no sooner there than here. PAD-18-023 names five of the second kind: pyright,
+the spec-corpus suite, the guard tests, the site build and the checks that read
+the built site. Without an entry either way the mirror would silently fall
+behind CI, the gap it closes (PAD-18-022, ADR-0173).
+
+## A Check Moved From a Local Gate to CI Needs an Unfiltered Job
+
+The `CI gate` passes on a skipped check, and a path-filtered workflow is
+skipped on a pull request outside its paths. So a check a local gate stopped
+running must land on a job the gate really judges, or nothing enforces it
+(PAD-18-031). That is why `guard-tests.yml` carries no `paths` filter: its
+tests read Markdown, `specs/`, `AGENTS.md` and `notes/`, and a filter would
+have to be the union of those inputs and would fall behind the next guard
+added (PAD-18-023, #5949).
 
 ## The `CI gate` Judges Every Other Check, Once
 

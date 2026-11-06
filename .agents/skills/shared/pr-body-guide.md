@@ -94,7 +94,7 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
 ## Verification
 
 - All N unit tests pass (M new)
-- ruff, mypy, pyright clean
+- ruff and mypy clean
 - Self-check:   <!-- shared/pre-review-self-check.md; one result per item -->
   - Affected text: <search terms used; files updated, or "no hits">
   - Failure paths: <per write: on failure / on retry / test, or "no writes changed">

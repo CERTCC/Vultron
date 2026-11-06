@@ -21,6 +21,10 @@ pinned in ``test_targeted_tests.py``; this module pins the written commands
 an agent copies and the CI test job, and the ``timeout-minutes`` cap on every
 job in every workflow (TB-14-006).
 
+It also pins which tools those commands may run: a heavy one queues on the
+per-host lock (#5947), and pyright does not run locally at all, because CI
+owns it (PAD-18-026, PAD-18-027).
+
 Human developer how-to pages under ``docs/developer/`` are out of scope: stock
 macOS has no ``timeout`` binary.
 """
@@ -228,12 +232,13 @@ def test_discovery_finds_the_skills_with_heavy_commands() -> None:
     found = {str(p.relative_to(_REPO_ROOT)) for p in _skill_files()}
     assert {
         ".agents/skills/build-docs/SKILL.md",
-        ".agents/skills/run-linters/SKILL.md",
         ".agents/skills/pr-execute/SKILL.md",
     } <= found
 
 
-@pytest.mark.parametrize("skill", ["build-docs", "run-linters", "pr-execute"])
+# `run-linters` is not here: PAD-18-027 made pyright CI's, and nothing else
+# that skill runs is heavy.
+@pytest.mark.parametrize("skill", ["build-docs", "pr-execute"])
 def test_the_heavy_command_scan_sees_each_skills_heavy_commands(
     skill: str,
 ) -> None:
@@ -256,6 +261,71 @@ def test_skill_heavy_command_queues_on_the_heavy_check_lock(
         f"{rel_path} runs heavy command(s) outside `{_LOCK}` "
         "(#5947):\n" + "\n".join(f"  {line}" for line in unlocked)
     )
+
+
+# --- The local linter step: ruff and mypy, never pyright (PAD-18-026/027) ---
+
+#: How a command runs pyright, in any of the forms the skills used before
+#: PAD-18-027: bare, inside `run-heavy.py`, or behind the memo wrapper. A
+#: mention of `pyrightconfig.json` or of a `# pyright: ignore[...]` pragma is
+#: not an invocation and does not match.
+_PYRIGHT_INVOCATION = re.compile(r'uv run pyright\b|"\$G" pyright\b')
+
+
+def test_detector_tells_a_pyright_invocation_from_a_mention() -> None:
+    for command in (
+        "uv run pyright",
+        "uv run python .agents/skills/shared/run-heavy.py uv run pyright",
+        '"$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run pyright',
+    ):
+        assert _PYRIGHT_INVOCATION.search(command), f"missed: {command}"
+    for prose in (
+        "pyright runs in CI only (PAD-18-027)",
+        "a stranded `# pyright: ignore[...]`",
+        "pyrightconfig.json is an input of CI's pyright job",
+    ):
+        assert not _PYRIGHT_INVOCATION.search(prose), f"flagged: {prose}"
+
+
+@pytest.mark.spec("PAD-18-027")
+@pytest.mark.parametrize(
+    "rel_path",
+    [str(p.relative_to(_REPO_ROOT)) for p in _agent_files()],
+)
+def test_no_local_gate_runs_pyright(rel_path: str) -> None:
+    """CI's `lint-pyright` job owns pyright; no local gate may run it.
+
+    It took a median of two minutes in each local linter step and enough
+    memory to starve a parallel test run, and the required `CI gate` refuses
+    a merge until CI's job is green (PAD-18-027, #3156).
+    """
+    text = (_REPO_ROOT / rel_path).read_text(encoding="utf-8")
+    found = [
+        line.strip()
+        for line in text.splitlines()
+        if _PYRIGHT_INVOCATION.search(line)
+    ]
+    assert not found, (
+        f"{rel_path} runs pyright locally (PAD-18-027):\n"
+        + "\n".join(f"  {line}" for line in found)
+    )
+
+
+@pytest.mark.spec("PAD-18-026")
+def test_the_linter_skill_runs_ruff_and_mypy() -> None:
+    # The other half of the rule: dropping pyright must not leave the step
+    # with nothing, which `test_no_local_gate_runs_pyright` alone would pass.
+    code = "\n".join(
+        _code_lines(
+            (_REPO_ROOT / ".agents/skills/run-linters/SKILL.md").read_text(
+                encoding="utf-8"
+            )
+        )
+    )
+
+    assert "uv run ruff check" in code
+    assert "uv run ruff format" in code
+    assert "uv run mypy" in code
 
 
 def _python_app_jobs() -> dict[str, object]:

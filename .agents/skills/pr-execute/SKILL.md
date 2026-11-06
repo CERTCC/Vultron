@@ -389,12 +389,13 @@ Run the linters first, as their own command, and stop on a non-zero
 ```bash
 G=.agents/skills/shared/run-if-changed.sh
 uv run ruff check && uv run ruff format --check \
-  && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy \
-  && "$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run python .agents/skills/shared/run-heavy.py uv run pyright; rc=$?; echo "lint exit: $rc"; (exit $rc)
+  && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy; rc=$?; echo "lint exit: $rc"; (exit $rc)
 ```
 
-mypy and pyright run through `run-if-changed.sh`, so the mirror below reuses
-their pass instead of type-checking the tree a second time.
+ruff and mypy, never pyright: CI's `lint-pyright` job owns it and the required
+`CI gate` refuses a merge until it is green (PAD-18-026, PAD-18-027). mypy runs
+through `run-if-changed.sh`, so the mirror below reuses its pass instead of
+type-checking the tree a second time.
 
 Then derive the set. `<scope>` is `--base origin/<base_ref>` for the
 branch-diff set, or `--paths <conflicted files>` after a conflict merge alone:

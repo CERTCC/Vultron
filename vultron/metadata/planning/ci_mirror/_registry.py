@@ -22,13 +22,13 @@ local command cannot drift from CI's. A check with a ``command`` says in
 ``note`` why it differs. A check with ``paths`` runs on a narrower diff than
 its workflow's filter and says why in ``narrowed``.
 
-The :data:`GUARD_TESTS` are pytest files that CI runs inside the full suite
-and the local targeted set reaches too late or not at all. Most are the
-limit-enforcing ones the #5580 audit found failing CI after a push the local
-gate let through: each sits outside the targeted set of some diff that breaks
-it, or runs on a docs-typed PR, which runs no pytest at all. The rest read
-only files that name no Python symbol, such as a workflow, so no diff over
-them selects the test that checks them.
+Every check left here answers in seconds to a couple of minutes. The five
+expensive ones — pyright, the spec-corpus suite, the guard-test set, the site
+build and the checks that read the built site — are CI's, and each is in
+:data:`EXCLUSIONS` under the job that owns it (PAD-18-023). They cost most of
+the mirror's former median 824 seconds on every push, and the required
+``CI gate`` judges the jobs that run them, so dropping them locally leaves no
+check unenforced (PAD-18-031).
 """
 
 from __future__ import annotations
@@ -81,6 +81,8 @@ class MirrorCheck:
     alone: bool = False
     #: Starts many processes or uses much memory, so it takes one of the host's
     #: heavy-check slots, shared with this mirror's other heavy checks (#5947).
+    #: No check declares it today: PAD-18-023 made every expensive one CI's.
+    #: It stays for a CI step cheap enough to mirror and heavy enough to queue.
     heavy: bool = False
     #: Step env values naming a GitHub expression that run without it locally,
     #: each with why; parity refuses an expression neither here nor in ``env``.
@@ -92,56 +94,6 @@ _SPEC = "spec-check.yml"
 _DOCS = "docs-build-check.yml::docs-build-check::"
 _SITE = _DOCS + "Check site publication > "
 _UI = "ui.yml::ui::"
-
-#: Inputs of the site build and of every check that reads the built site.
-#: Narrower than docs-build-check.yml's filter, which adds ``vultron/**`` and
-#: ``specs/**``: a local ``mkdocs build --strict`` takes about six minutes, and
-#: every site-publication failure the #5580 audit found changed a page.
-SITE_PATHS = (
-    "docs/**",
-    "overrides/**",
-    "references.bib",
-    "mkdocs.yml",
-    # Root pages that docs/ pages pull in with include-markdown.
-    "CONTRIBUTING.md",
-    "ContributionInstructions.md",
-    "LICENSE.md",
-    "Acknowledgements.md",
-    "uv.lock",
-    "vultron/metadata/docs/**",
-    ".github/actions/build-site/**",
-    ".github/actions/check-site-publication/**",
-    ".github/workflows/docs-build-check.yml",
-)
-_SITE_NARROWED = (
-    "the site build takes about six minutes locally; it runs when a page or "
-    "a site input changes, which every site-publication failure in the #5580 "
-    "audit did"
-)
-
-#: Tests the targeted set reaches too late or not at all: the limit-enforcing
-#: ones the #5580 audit traced CI failures to, plus any whose only inputs are
-#: files no changed Python symbol selects — a workflow or config file.
-GUARD_TESTS = (
-    "test/architecture/test_line_length_ratchet.py",
-    "test/architecture/test_spec_statement_guard.py",
-    "test/architecture/test_spec_kind_ratchet.py",
-    "test/architecture/test_vocab_examples_current.py",
-    # Reads `.github/workflows/`, so a workflow-only diff names no Python
-    # symbol and the targeted set selects nothing that checks it (PAD-18-023).
-    "test/ci/test_python_app_test_parts.py",
-    "test/core/behaviors/test_btnd07_structure.py",
-    "test/metadata/test_agents_md_size_ratchet.py",
-    "test/metadata/test_adr_back_edges.py",
-    # Reads the skills' Markdown, which no CI pytest path filter lists, so a
-    # skill-only PR that drops a gate's ceiling or heavy-check slot reaches
-    # CI's suite only on a later PR (#5947).
-    "test/metadata/test_gate_ceiling.py",
-    "test/metadata/test_no_decision_record_part_citations.py",
-    "test/metadata/test_msm_occasions.py",
-    "test/metadata/docs/test_page_frontmatter.py",
-    "test/metadata/docs/test_level_order.py",
-)
 
 _MARKDOWN_CONFIGS = (".markdownlint-cli2.yaml", ".markdownlint-cli2.jsonc")
 
@@ -194,15 +146,6 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
         note=_MEMOIZED_NOTE,
     ),
     MirrorCheck(
-        "pyright",
-        f"{_PY}::lint-pyright::Type-check with pyright",
-        command=_memoized(
-            "pyright", "vultron/", "test/", "pyrightconfig.json", "uv.lock"
-        ),
-        note=_MEMOIZED_NOTE,
-        heavy=True,
-    ),
-    MirrorCheck(
         "package-build",
         f"{_PY}::build::Build package",
         paths=("pyproject.toml", "uv.lock", "MANIFEST.in"),
@@ -214,30 +157,7 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
         # runs, which a concurrent tree walk (the AGENTS.md ratchet) collects.
         alone=True,
     ),
-    MirrorCheck(
-        "guard-tests",
-        None,
-        command=(
-            *("uv", "run", "pytest", "-m", "", "-n", "auto", "--tb=short"),
-            *GUARD_TESTS,
-        ),
-        heavy=True,
-        note=(
-            "CI runs these inside the full suite, which the mirror leaves to "
-            "create-pr and CI; the #5580 audit traced CI failures to each"
-        ),
-    ),
     MirrorCheck("spec-lint", f"{_SPEC}::spec-lint::Run spec-lint"),
-    MirrorCheck(
-        "spec-corpus",
-        f"{_SPEC}::spec-tests::Run spec_corpus pytest suite",
-        command=(
-            *("uv", "run", "pytest", "-m", "spec_corpus", "-n", "auto"),
-            "--tb=short",
-        ),
-        note="adds -n auto; the serial run is several times slower locally",
-        heavy=True,
-    ),
     MirrorCheck(
         "story-page-shape",
         f"{_SPEC}::spec-tests::Run user-story page shape test",
@@ -323,27 +243,6 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
             ),
         )
     ),
-    *(
-        MirrorCheck(
-            check_id,
-            label,
-            paths=SITE_PATHS,
-            narrowed=_SITE_NARROWED,
-            group="site",
-            heavy=check_id == "site-build",
-        )
-        for check_id, label in (
-            ("site-build", _DOCS + "Build Site > Build Site"),
-            (
-                "docs-withheld",
-                _SITE + "Check withheld artifacts are unpublished",
-            ),
-            ("docs-legacy-urls", _SITE + "Check published URLs still resolve"),
-            ("docs-links", _SITE + "Check internal references resolve"),
-            ("docs-path-boxes", _SITE + "Check reading-path boxes"),
-            ("docs-recorded", _SITE + "Check every built page is recorded"),
-        )
-    ),
     MirrorCheck(
         "ui-install", _UI + "Install dependencies", group="ui", tool="npm"
     ),
@@ -379,10 +278,46 @@ EXCLUSIONS: Mapping[str, str] = {
         "labels the PR from GitHub's diff statistics; nothing to fail locally"
     ),
     f"{_PY}::test::Run this part of the pytest suite": (
-        "the full suite runs once before the first push in create-pr "
-        "(PAD-18-001); later pushes run the targeted set (PAD-18-002) and "
-        "guard-tests, and CI runs the rest, one part per matrix leg"
+        "CI's test job owns the suite, one part per matrix leg, and the "
+        "required CI gate judges it; no gate before a push runs it "
+        "(PAD-18-008). Each push runs the branch diff's targeted set instead "
+        "(PAD-18-001, PAD-18-002)"
     ),
+    # PAD-18-023: the five checks that cost most of the mirror's former
+    # median 824 s. Each names the CI job that owns it; the required
+    # `CI gate` judges that job, so none is merged past unseen (PAD-18-031).
+    f"{_PY}::lint-pyright::Type-check with pyright": (
+        "CI's lint-pyright job owns pyright: it took a median of two minutes "
+        "in each local linter step and enough memory to starve a parallel "
+        "test run, against 81-149 s there (PAD-18-023, PAD-18-027)"
+    ),
+    f"{_SPEC}::spec-tests::Run spec_corpus pytest suite": (
+        "CI's spec-tests job owns the spec-corpus suite: 230 s locally "
+        "against about 1.8 min there (PAD-18-023)"
+    ),
+    "guard-tests.yml::guard-tests::Run the guard tests": (
+        "CI's guard-tests job owns the guard set, on every pull request and "
+        "so on the Markdown, specs/, AGENTS.md and notes/ inputs "
+        "python-app.yml's path filters miss: 94 s locally (PAD-18-023)"
+    ),
+    _DOCS + "Build Site > Build Site": (
+        "CI's docs-build-check job owns the site build: about six minutes "
+        "locally against 2.7 min there. The build-docs skill still runs it "
+        "when a docs/ page changes (PAD-18-023)"
+    ),
+    **{
+        _SITE + label: (
+            "CI's docs-build-check job owns it: it reads the built site, "
+            "which the mirror no longer builds (PAD-18-023)"
+        )
+        for label in (
+            "Check withheld artifacts are unpublished",
+            "Check published URLs still resolve",
+            "Check internal references resolve",
+            "Check reading-path boxes",
+            "Check every built page is recorded",
+        )
+    },
     "verification-debt-owners.yml::open-owners": (
         "the job runs only off pull_request (its if: excludes the event)"
     ),

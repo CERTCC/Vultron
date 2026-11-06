@@ -34,7 +34,7 @@ stakeholder_type: [project-contributor]
   Every entry in `ignore` carries a comment stating why it is not enforced (IMPLTS-07-019).
   `PLC0415` (import outside top level) is ignored only per file, for `test/**` and `docs/_scripts/render_trigger_api.py`; `G004` is enforced.
 - **Baselined findings**: residual findings are suppressed inline as `# noqa: <RULE>  # ruff-baseline #<issue>`, citing the issue that removes them; `per-file-ignores` is reserved for permanent, justified exemptions (`notes/lint-tooling.md`).
-- **Type checkers**: mypy (`.mypy.ini`, packages `vultron` and `test`) and pyright (`pyrightconfig.json`, `basic` mode, includes `vultron` and `test`); both run in CI and both must pass.
+- **Type checkers**: mypy (`.mypy.ini`, packages `vultron` and `test`) and pyright (`pyrightconfig.json`, `basic` mode, includes `vultron` and `test`); both run in CI and both must pass, and pyright runs only there (PAD-18-027).
 - **Import ordering**: ruff's `I` rules (CS-02-001) with `combine-as-imports = true`, fixed by `ruff check --fix`
 - **Markdown**: markdownlint-cli2 via `mdlint.sh`, with `MD013` at 88 characters outside `docs/` and the archives (PD-10-001, PD-10-004); codespell on docs via pre-commit
 - **Most relevant enforced rules**: max cyclomatic complexity 10 (C901), unused imports allowed only in `__init__.py` (F401), unused `# noqa` directives are errors (RUF100), timezone-aware datetimes (DTZ, CS-13-001), no blind `except Exception` without a baseline marker (BLE, CS-23-001)
@@ -44,8 +44,8 @@ stakeholder_type: [project-contributor]
   uv run ruff format      # format
   uv run ruff check       # lint
   uv run mypy             # type-check
-  # type-check (second pass), in a per-host heavy-check slot
-  uv run python .agents/skills/shared/run-heavy.py uv run pyright
+  # pyright is the second pass, and CI's `Lint (pyright)` job is where it
+  # runs: PAD-18-027 keeps it out of every local gate.
   ./mdlint.sh             # markdown lint
   ```
 

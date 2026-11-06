@@ -6,10 +6,9 @@ description: >
   Environment-level pitfalls specific to this devcontainer: why every tool must
   run under `uv run`, why the image exports no `PYTHONPATH` and what to do in
   a container built before that fix, the `UV_NO_SYNC=1`
-  workaround for a root-owned venv, running `ruff` bare, why `pyright` and an
-  `-n auto` suite must not run together, why every heavy local check goes
-  through the per-host `run-heavy.py` lock and where its slots file lives, the
-  hanging
+  workaround for a root-owned venv, running `ruff` bare, why every heavy local
+  check goes through the per-host `run-heavy.py` lock and where its slots file
+  lives, the hanging
   `actionlint` hook, pushing to `origin`
   with `-u` rather than a token URL, the HTTP/2 push that never gets a reply,
   the `.claude/skills` symlink to `.agents/skills`, and the CodeQL name
@@ -72,22 +71,13 @@ hook checks only staged files and is fast, so a commit needs no long timeout;
 the slow linters (`mypy`, `pyright`) are not hooks and run through
 `.agents/skills/shared/run-if-changed.sh` in `run-linters`.
 
-## Never Run `pyright` Beside `pytest -n auto`
-
-Run the slow linters and the suites one at a time. A whole-tree `pyright` and an
-`-n auto` suite together exhaust the container's memory: `pyright` exits 247 with
-no output, and — the part that costs time — the suite's markdown-rendering and
-AST-scanning tests trip `pytest-timeout` and report as failures. A timeout trip
-with no assertion in its traceback, in a test that does not touch the diff, is
-the signature; re-run that test alone before believing it (#3156). The
-per-host lock (below) caps how many heavy runs share the host; it does not
-stop one agent running both at once, so still run them in turn.
-
 ## Run Every Heavy Local Check Through the Per-Host Lock
 
 A command that starts many processes or uses much memory runs through
-`uv run python .agents/skills/shared/run-heavy.py`: `pytest -n auto`, `pyright`,
-the site build and `merged-tree-tests`. Every slot container on a host shares
+`uv run python .agents/skills/shared/run-heavy.py`: `pytest -n auto`,
+the site build and `merged-tree-tests`. `pyright` is not on the list: no local
+gate runs it (PAD-18-027), and CI's `lint-pyright` job owns it. Every slot
+container on a host shares
 one Docker VM, and each such command sizes itself to its own container without
 seeing the others, so concurrent runs end in memory kills and per-test timeouts
 (#5947). The 6-CPU slot cap is a ceiling, not a reserved share (ADR-0143); the
@@ -105,9 +95,9 @@ lock adds the missing limit on how many heavy checks run at once.
 - **Placement.** Put it before `timeout -k 30 1800`, never inside it, so waiting
   is not charged to the run; in a memoized command put it after
   `run-if-changed.sh ... --`, so a skip never waits. The printed
-  `targeted-tests --pytest` command and the heavy `prepush-ci-mirror` checks
-  take a slot themselves. Do not wrap the mirror: a command already in a slot
-  runs its nested heavy checks without taking more.
+  `targeted-tests --pytest` command takes a slot itself. Do not wrap
+  `prepush-ci-mirror`: PAD-18-023 left it no heavy check, so a wrapper would
+  only make it queue behind another slot's suite for nothing.
 - **A new host** needs nothing beyond `start-dev.sh`. Check the Docker VM's CPU
   allocation, since N is derived from it, and set `HEAVY_SLOTS` on the attach
   if the default does not suit the host.
