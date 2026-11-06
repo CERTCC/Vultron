@@ -74,7 +74,11 @@ def _event(offer):
                 id_=offer.id_,
                 type_="Offer",
                 actor=actor_id,
-                to=[_as_id(recipient) for recipient in offer.to or []],
+                to=[
+                    recipient_id
+                    for recipient in offer.to or []
+                    if (recipient_id := _as_id(recipient)) is not None
+                ],
             ),
         )
     )
