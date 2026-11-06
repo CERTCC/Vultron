@@ -49,16 +49,18 @@ JSON-LD and JSON Schema are separate standards: JSON-LD needs only the `@context
 Chosen option: **everything wire-shaped under the versioned namespace, with type schemas informative and generated**, because it is the only option that gives each artifact the version ADR-0106 already assigns it without adding a second home or a second versioning rule.
 
 **Type schemas are informative.**
-A schema describes the compacted JSON form Vultron sends and accepts.
+A schema describes the compacted JSON form Vultron accepts.
 The specification's requirements stay the authority on conformance.
 A peer may use a schema to check its own output or to generate code; failing a schema does not by itself make a message non-conforming.
 
 **Type schemas are generated, never hand-written.**
 Each one is the Pydantic JSON Schema of the class that defines the term, in the form Vultron accepts.
+A class that only shares the term's `type` value as a wire alias, such as the `{id, type}` case reference, contributes no schema.
 The generated files are committed, and a drift check fails when a model changes without a regenerate, as it does for the context document.
 
-**One schema per Vultron term.**
-The set of type schemas covers exactly the Vultron terms the context document declares.
+**One schema per Vultron type.**
+The set of type schemas covers exactly the Vultron type terms the context document declares.
+The context's property terms, such as `senderSequence`, get no schema of their own.
 
 **One versioned home.**
 Every published machine-readable wire artifact lives under the wire-version segment of the namespace path:
@@ -94,9 +96,11 @@ A second URL serving the same file would hide the version from anyone who used i
 ## Validation
 
 - A drift check fails when a committed type schema differs from the one its model generates.
-- A test fails when the set of type schemas differs from the set of Vultron terms the context document declares.
+- A test fails when the set of type schemas differs from the set of Vultron type terms the context document declares.
+- A test fails when a type schema declares no properties, which is what a schema generated in serialization form looks like.
 - A test fails when a type schema's `$id` is not its published URL under the wire-versioned path.
-- The example generator writes into the versioned examples directory, and the existing example tests read from it.
+- A test fails when the committed examples directory is not the versioned one, or when the old examples directory still holds an example.
+- Review checks that no published URL, `$id`, or documentation link goes through the `data/` shortcuts.
 
 ## Pros and Cons of the Options
 
