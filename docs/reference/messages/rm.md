@@ -98,4 +98,5 @@ The CASE_MANAGER sends no notice when the sender is not a participant of the cas
   declined), or `Add(Note)` (needing explanation), partitioned by failure
   mode rather than by state machine
   ([ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
+- **Received in RM Start:** a Participant in RM Start that receives a fault about an RM activity does not answer it with a fault ([RMB-07-002](../vultron-spec/requirements/state-behavior.md#rmb-07-002)).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types).

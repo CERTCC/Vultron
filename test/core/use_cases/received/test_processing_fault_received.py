@@ -205,3 +205,41 @@ def test_a_create_without_a_parsed_fault_is_refused_at_the_parse_edge():
             MessageSemantics.CREATE_PROCESSING_FAULT,
             CreateProcessingFaultReceivedEvent,
         )
+
+
+_HASH_MISMATCH = "https://certcc.github.io/Vultron/ns/errors/LedgerEntryRefused/HashMismatch"
+_UNKNOWN_REPORT_OFFER = (
+    "https://example.org/activities/offer-of-a-report-never-received"
+)
+
+
+@pytest.mark.spec("RMB-07-002")
+@pytest.mark.spec("ASK-07-019")
+@pytest.mark.parametrize(
+    "failure_class", [_STATUS_REFUSED, _CASE_DIVERGED, _HASH_MISMATCH]
+)
+def test_a_fault_about_a_report_not_held_is_answered_with_nothing(
+    make_payload, failure_class
+):
+    """A receiver in RM Start sends no fault back for a fault (RMB-07-002).
+
+    The receiver's store holds no report, case or ask, so the fault names an
+    RM activity it never saw. Whatever the fault's class, the real use case
+    queues nothing for the sender: a fault answered with a fault would let
+    two actors that hold no report answer each other without end
+    (ASK-07-019).
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
+    activity = create_processing_fault_activity(
+        actor=_EMITTER,
+        fault=as_ProcessingFault(
+            failure_class=failure_class, in_reply_to=_UNKNOWN_REPORT_OFFER
+        ),
+        to=[_RECEIVER],
+    )
+
+    CreateProcessingFaultReceivedUseCase(
+        dl, make_payload(activity, at=dl)
+    ).execute()
+
+    assert dl.outbox_list() == []

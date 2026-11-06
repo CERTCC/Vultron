@@ -543,7 +543,6 @@ print(requirement_callout(
     "RMB-06-002",
     "RMB-06-003",
     "RMB-07-001",
-    "RMB-07-002",
     "RMB-08-001",
     "RMB-08-002",
     "RMB-09-002",
