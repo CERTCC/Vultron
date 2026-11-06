@@ -16,9 +16,9 @@
 """Outbound activities cite the Vultron JSON-LD context (VM-10-001, #5168).
 
 The body the outbox seals and delivers is ``dump_outbound_body``'s text, so
-that is what these tests read.  Each verb a ``SEMANTIC_REGISTRY`` pattern
-matches is rendered from the vocab examples, which build every outbound
-activity shape the protocol uses.
+that is what these tests read.  Every activity the vocab examples build is
+rendered; they cover each verb a ``SEMANTIC_REGISTRY`` pattern matches and
+every outbound activity shape the protocol uses.
 """
 
 import json
@@ -38,18 +38,17 @@ from vultron.wire.as2.vocab.examples.vocab_examples import EXAMPLES
 
 
 def _outbound_activity_bodies() -> dict[str, dict[str, Any]]:
-    """One sealed body per activity verb the examples build."""
+    """The sealed body of every activity the examples build, by builder name."""
     bodies: dict[str, dict[str, Any]] = {}
     for build, _filename in EXAMPLES:
         obj = build()
         if isinstance(obj, as_Activity):
-            bodies.setdefault(
-                str(obj.type_), json.loads(dump_outbound_body(obj))
-            )
+            bodies[build.__name__] = json.loads(dump_outbound_body(obj))
     return bodies
 
 
 _BODIES = _outbound_activity_bodies()
+_EXAMPLE_NAMES = sorted(_BODIES)
 _REGISTRY_VERBS = sorted(
     {
         str(e.pattern.activity_)
@@ -59,52 +58,57 @@ _REGISTRY_VERBS = sorted(
 )
 
 
-def test_examples_cover_every_registry_verb():
-    """Every verb a registry pattern matches has an example to render."""
-    assert set(_REGISTRY_VERBS) <= set(_BODIES)
-
-
-@pytest.mark.spec("VM-10-001")
-@pytest.mark.parametrize("verb", _REGISTRY_VERBS)
-def test_outbound_activity_sets_the_vultron_context(verb: str):
-    """The top-level ``@context`` of each outbound verb is the Vultron one."""
-    assert _BODIES[verb]["@context"] == VULTRON_CONTEXT_URI
-
-
-def _nested_contexts(value: Any) -> list[Any]:
+def _nested_contexts(value: Any, *, top: bool = True) -> list[Any]:
+    """Every ``@context`` below the top level of ``value``."""
     found: list[Any] = []
     if isinstance(value, dict):
+        if not top and "@context" in value:
+            found.append(value["@context"])
         for key, item in value.items():
-            if key == "@context":
-                continue
-            if isinstance(item, dict) and "@context" in item:
-                found.append(item["@context"])
-            found.extend(_nested_contexts(item))
+            if key != "@context":
+                found.extend(_nested_contexts(item, top=False))
     elif isinstance(value, list):
         for item in value:
-            if isinstance(item, dict) and "@context" in item:
-                found.append(item["@context"])
-            found.extend(_nested_contexts(item))
+            found.extend(_nested_contexts(item, top=False))
     return found
 
 
-@pytest.mark.spec("VM-10-001")
-@pytest.mark.parametrize("verb", _REGISTRY_VERBS)
-def test_nested_objects_repeat_only_the_enclosing_context(verb: str):
-    """A nested object's ``@context``, when present, is the activity's own.
+def test_examples_cover_every_registry_verb():
+    """Every verb a registry pattern matches has an example to render."""
+    rendered = {str(body["type"]) for body in _BODIES.values()}
+    assert set(_REGISTRY_VERBS) <= rendered
 
-    Nested objects keep the ``@context`` they carry as stand-alone documents,
-    so an inline object restates its activity's context.  Restating the
-    identical context is a JSON-LD no-op, so it never changes how a term in
-    the nested object expands.
+
+def test_examples_include_nested_contexts():
+    """The nested check below has objects to inspect, so it cannot pass empty."""
+    assert any(_nested_contexts(body) for body in _BODIES.values())
+
+
+@pytest.mark.spec("VM-10-001")
+@pytest.mark.parametrize("example", _EXAMPLE_NAMES)
+def test_outbound_activity_sets_the_vultron_context(example: str):
+    """The top-level ``@context`` of each outbound activity is the Vultron one."""
+    assert _BODIES[example]["@context"] == VULTRON_CONTEXT_URI
+
+
+@pytest.mark.spec("VM-10-001")
+@pytest.mark.parametrize("example", _EXAMPLE_NAMES)
+def test_nested_objects_repeat_only_the_enclosing_context(example: str):
+    """A nested object the implementation builds restates the activity's context.
+
+    Each object it builds keeps the ``@context`` it carries as a stand-alone
+    document, so an inline object restates its activity's context.  Restating
+    the identical context is a JSON-LD no-op, so it never changes how a term
+    in the nested object expands.  (An embedded object received from a peer
+    keeps the context it arrived with; these examples build every object.)
     """
-    body = _BODIES[verb]
+    body = _BODIES[example]
     assert all(ctx == body["@context"] for ctx in _nested_contexts(body))
 
 
 def test_inbound_activity_with_the_as2_namespace_still_parses():
     """Receive stays permissive: an AS2-namespace activity parses (AC-3)."""
-    body = dict(_BODIES["Offer"])
+    body = dict(next(b for b in _BODIES.values() if b["type"] == "Offer"))
     body["@context"] = ACTIVITY_STREAMS_NS
 
     parsed = parse_activity(body)

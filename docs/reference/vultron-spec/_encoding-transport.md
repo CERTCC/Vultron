@@ -55,7 +55,8 @@ An outbound message sets `@context` to the Vultron JSON-LD context document URI,
 That context document imports the AS2 namespace and declares every Vultron type name.
 An implementation therefore cites only the Vultron URI and does not need to declare the AS2 namespace separately.
 An object nested in an activity can restate the same `@context`, and restating it changes nothing about how the object's terms are read.
-The reference implementation does this, because each object carries the context it would carry if it were sent on its own.
+The reference implementation does this for the objects it builds, because each one carries the context it would carry if it were sent on its own.
+An object it received and embeds keeps the `@context` it arrived with.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VM-10-001"))

@@ -1165,13 +1165,14 @@ groups:
       `context_` to the Vultron context URI (`https://certcc.github.io/Vultron/ns/context.jsonld`)
       rather than the ActivityStreams namespace URI.
     rationale: >-
-      `as_VultronObject` is the base class for all Vultron-specific wire types. Overriding
-      `context_` there ensures that every Vultron object serializes with the correct
-      `@context` without requiring call-site changes.
-    verification: Inspection of `vultron/wire/as2/vocab/objects/base.py` confirms that `as_VultronObject` (with
-      `_vocab_ns = VocabNamespace.VULTRON`) overrides `context_` to
-      `"https://certcc.github.io/Vultron/ns/context.jsonld"`, so every concrete Vultron wire type serializes with the
-      correct `@context` without call-site changes.
+      `as_VultronObject` is the base class for all Vultron-specific wire types. It
+      inherits `context_` from `as_Base`, whose default is the Vultron context URI, so
+      every Vultron object serializes with the correct `@context` without call-site
+      changes.
+    verification: >-
+      Tests marked `VM-10-002` in `test/wire/as2/vocab/base/test_vultron_context_uri.py`
+      assert that `as_VultronObject` and its concrete subclasses default `context_` to
+      the Vultron context URI and serialize it as `@context`.
     adr:
     - ADR-0069
     relationships:
