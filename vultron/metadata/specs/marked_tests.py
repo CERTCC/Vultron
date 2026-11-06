@@ -337,7 +337,9 @@ def _cases_in(
                 named = bool(combination) and all(
                     c.param_ids for c in combination
                 )
-                suffix = f"[{'-'.join(marks.param_ids)}]" if named else ""
+                # pytest joins IDs from the closest parametrize outward.
+                ids = (i for c in reversed(combination) for i in c.param_ids)
+                suffix = f"[{'-'.join(ids)}]" if named else ""
                 yield MarkedCase(
                     name + suffix, marks.spec_ids, marks.xfail_reasons
                 )

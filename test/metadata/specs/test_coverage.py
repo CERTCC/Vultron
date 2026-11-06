@@ -461,6 +461,24 @@ class TestCoverageStates:
         )
         assert states == {"CVG-01-001": _X}
 
+    def test_a_skip_or_an_empty_parameter_list_alone_is_xfail_only(
+        self, tmp_path
+    ):
+        states = _states(
+            tmp_path,
+            2,
+            test_a=(
+                "import pytest\n"
+                "@pytest.mark.spec('CVG-01-001')\n"
+                "@pytest.mark.skip(reason='not run')\n"
+                "def test_a(): pass\n"
+                "@pytest.mark.spec('CVG-01-002')\n"
+                "@pytest.mark.parametrize('x', [])\n"
+                "def test_b(x): pass\n"
+            ),
+        )
+        assert states == {"CVG-01-001": _X, "CVG-01-002": _X}
+
     def test_a_module_pytestmark_xfail_holds_its_tests(self, tmp_path):
         states = _states(
             tmp_path,

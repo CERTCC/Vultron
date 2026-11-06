@@ -233,9 +233,23 @@ def test_literal_param_ids_name_the_case():
         "def test_a(x, y): pass\n"
     )
     assert view == {
-        ("t.py::test_a[one-gap]", frozenset({"A"}), (None,)),
+        ("t.py::test_a[gap-one]", frozenset({"A"}), (None,)),
         ("t.py::test_a", frozenset({"A", "B"}), ()),
     }
+
+
+def test_param_ids_join_from_the_closest_parametrize_outward():
+    view = _view(
+        "pytestmark = pytest.mark.parametrize('m', [pytest.param(1, id='M')])\n"
+        "class TestC:\n"
+        "    pytestmark = pytest.mark.parametrize(\n"
+        "        'c', [pytest.param(1, id='C')])\n"
+        "    @pytest.mark.spec('A')\n"
+        "    @pytest.mark.parametrize('a', [pytest.param(1, id='A')])\n"
+        "    @pytest.mark.parametrize('b', [pytest.param(1, id='B')])\n"
+        "    def test_f(self, m, c, a, b): pass\n"
+    )
+    assert view == {("t.py::TestC::test_f[B-A-C-M]", frozenset({"A"}), ())}
 
 
 def test_async_tests_set_marks_and_set_or_generator_arguments_are_read():

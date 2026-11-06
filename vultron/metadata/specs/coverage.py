@@ -18,8 +18,10 @@ the requirements every implementation must obey — ``protocol`` and
 — which of three states each one is in (SR-05-017):
 
 * **verified** — at least one marked test runs to pass or fail;
-* **xfail-only** — it has marked tests, and a strict ``xfail`` holds every
-  one of them, so no passing test shows that ``main`` meets it;
+* **xfail-only** — it has marked tests, and each one is held: a strict
+  ``xfail`` (conditional or not) is on it, or it cannot run (an unconditional
+  ``skip``, an empty parameter list), so no passing test shows that ``main``
+  meets it;
 * **untested** — no marker names it.
 
 The coverage figure is verified over total. ``--json PATH`` writes each
@@ -77,18 +79,22 @@ class CoverageState(StrEnum):
     VERIFIED = "verified"
     """A marked test runs to pass or fail."""
     XFAIL_ONLY = "xfail_only"
-    """Every marked test is a strict ``xfail``."""
+    """Every marked test is held by a strict ``xfail`` or cannot run."""
     UNTESTED = "untested"
     """No marker names the requirement."""
 
 
 class XfailTest(BaseModel):
-    """One strict ``xfail`` that holds a test marked for a requirement."""
+    """One strict ``xfail``, or skip, that holds a test marked for a requirement.
+
+    A skip's reason starts with ``skip:``.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     test: str
-    """``path::Class::function``, without the parameter ID."""
+    """``path::Class::function``, followed by ``[ids]`` when every parameter
+    set of the case has a literal ``id=``."""
     reason: str | None
     """The marker's ``reason``; ``None`` when it is not a resolvable string."""
     issues: tuple[int, ...]
@@ -105,8 +111,8 @@ class RequirementCoverage(BaseModel):
     statement: str
     state: CoverageState
     xfail_tests: tuple[XfailTest, ...] = ()
-    """Each strict ``xfail`` on a test marked for this requirement, in any
-    state: a verified requirement can also have an xfail-marked test."""
+    """Each strict ``xfail`` or skip on a test marked for this requirement, in
+    any state: a verified requirement can also have an xfail-marked test."""
 
 
 class CoverageSummary(BaseModel):
@@ -144,12 +150,12 @@ class ImplementerCoverageReport(BaseModel):
 
     @property
     def verified(self) -> list[str]:
-        """IDs a marked test that is not a strict ``xfail`` covers, sorted."""
+        """Marked IDs that are not xfail-only, sorted."""
         return self._ids(CoverageState.VERIFIED)
 
     @property
     def xfail_only(self) -> list[str]:
-        """IDs whose every marked test is a strict ``xfail``, sorted."""
+        """IDs whose every marked test is held, sorted."""
         return self._ids(CoverageState.XFAIL_ONLY)
 
     @property
@@ -270,10 +276,10 @@ def classify_requirements(
             outside it is untested.
         cases: The marked test cases
             (:func:`~vultron.metadata.specs.marked_tests.marked_cases_in`).
-            A marked ID is xfail-only when it has cases and a strict
-            ``xfail`` holds each one; otherwise it is verified. A marker
-            the AST reader cannot place in a test, or one only the regex
-            sees, so counts as verified.
+            A marked ID is xfail-only when it has cases and each one is
+            held; otherwise it is verified. A marked ID with no case the
+            AST reader places in a test (one only the regex sees) counts
+            as verified.
     """
     by_id: dict[str, list[MarkedCase]] = {}
     for case in cases:
